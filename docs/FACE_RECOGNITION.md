@@ -15,7 +15,7 @@ Facet uses InsightFace for face detection and HDBSCAN for clustering faces into 
 During photo scanning, faces are automatically extracted:
 
 ```bash
-python photos.py /path/to/photos --batch
+python photos.py /path/to/photos
 ```
 
 For existing photos without faces:
@@ -202,7 +202,7 @@ Thumbnails are stored in the database for fast display.
 
 ### Storage
 
-- Generated during `--batch` scanning from full-resolution images
+- Generated during scanning from full-resolution images
 - Stored in `faces.face_thumbnail` column as JPEG BLOBs (~5-10KB each)
 - Used by clustering and viewer instead of regenerating
 

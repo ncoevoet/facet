@@ -11,6 +11,7 @@
 | `python photos.py /path --pass tags` | Run tagging pass only |
 | `python photos.py /path --pass composition` | Run composition pass only |
 | `python photos.py /path --pass faces` | Run face detection pass only |
+| `python photos.py /path --pass embeddings` | Run CLIP embeddings pass only |
 | `python photos.py /path --db custom.db` | Use custom database file |
 | `python photos.py /path --config my.json` | Use custom scoring config |
 
@@ -20,8 +21,8 @@
 Each pass loads its model, processes all photos, then unloads to free VRAM.
 This allows using high-quality models even with limited VRAM.
 
-**Single-Pass (`--single-pass`):** Loads all models simultaneously like the legacy
-`--batch` mode. Faster but requires more VRAM.
+**Single-Pass (`--single-pass`):** Loads all models simultaneously.
+Faster but requires more VRAM.
 
 **Specific Pass (`--pass NAME`):** Run only one specific pass on photos. Useful for
 updating specific metrics without full reprocessing.
@@ -45,6 +46,7 @@ These commands update specific metrics without full photo reprocessing.
 |---------|-------------|
 | `python photos.py --recompute-average` | Recompute aggregate scores (creates backup) |
 | `python photos.py --recompute-tags` | Re-tag all photos using configured model |
+| `python photos.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
 | `python photos.py --recompute-composition-cpu` | Recompute composition (rule-based, CPU) |
 | `python photos.py --recompute-composition-gpu` | Rescan with SAMP-Net (GPU required) |
 | `python photos.py --recompute-blinks` | Recompute blink detection |
@@ -136,6 +138,8 @@ Checks: Score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python database.py --vacuum` | Reclaim space, defragment |
 | `python database.py --analyze` | Update query planner statistics |
 | `python database.py --optimize` | Run VACUUM and ANALYZE |
+| `python database.py --export-viewer-db` | Export lightweight database for NAS deployment |
+| `python photos.py --cleanup-orphaned-persons` | Remove persons with no associated faces |
 
 **Performance tip:** For large databases (50k+ photos), run `--migrate-tags` once and `--optimize` periodically.
 

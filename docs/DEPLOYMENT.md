@@ -100,7 +100,7 @@ From your scoring machine, sync the viewer and exported database:
 rsync -avz \
   viewer.py person_viewer.py config.py database.py tagger.py \
   scoring_config.json photo_scores_viewer.db \
-  db/ i18n/ templates/ static/ \
+  db/ i18n/ \
   admin@your-synology-ip:/volume1/facet/
 ```
 
@@ -180,7 +180,8 @@ Plus-series NAS supports Docker (Container Manager). This is the cleanest approa
 FROM python:3.11-slim
 WORKDIR /app
 RUN pip install flask gunicorn
-COPY viewer.py config.py database.py db.py tagger.py scoring_config.json ./
+COPY viewer.py person_viewer.py config.py database.py tagger.py scoring_config.json ./
+COPY db/ db/
 COPY i18n/ i18n/
 EXPOSE 5000
 CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "--timeout", "120", "viewer:app"]

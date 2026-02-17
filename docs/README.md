@@ -21,7 +21,7 @@ python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
 # Score photos
-python photos.py /path/to/photos --batch
+python photos.py /path/to/photos
 
 # View results
 python viewer.py
@@ -43,10 +43,10 @@ python viewer.py
 
 | Profile | GPU VRAM | Models | Best For |
 |---------|----------|--------|----------|
-| `legacy` | No GPU | TOPIQ + SAMP-Net (CPU) | No GPU, 8GB+ RAM |
-| `8gb` | 6-14GB | TOPIQ + SAMP-Net | Mid-range GPUs |
-| `16gb` | 16GB+ | TOPIQ + SAMP-Net | Best aesthetic accuracy |
-| `24gb` | 24GB+ | TOPIQ + Qwen2-VL | Best accuracy + composition explanations |
+| `legacy` | No GPU | CLIP+MLP + SAMP-Net + CLIP tagging (CPU) | No GPU, 8GB+ RAM |
+| `8gb` | 6-14GB | CLIP+MLP + SAMP-Net + Qwen3-VL | Mid-range GPUs |
+| `16gb` | 16GB+ | TOPIQ + SAMP-Net + Qwen3-VL | Best aesthetic accuracy |
+| `24gb` | 24GB+ | TOPIQ + Qwen2-VL + Qwen2.5-VL-7B | Best accuracy + composition explanations |
 
 ## Supported File Types
 
@@ -58,7 +58,7 @@ python viewer.py
 | Issue | Solution |
 |-------|----------|
 | "externally-managed-environment" | Use virtual environment |
-| Slow processing | Use `--batch` flag for GPU batching |
+| Slow processing | Check VRAM profile, use `--single-pass` for high-VRAM GPUs |
 | Face detection not using GPU | Install `onnxruntime-gpu` |
 | Missing exiftool | Install via system package manager |
 

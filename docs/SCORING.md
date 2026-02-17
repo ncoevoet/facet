@@ -158,10 +158,10 @@ The viewer's "Top Picks" filter uses a custom weighted score:
 
 ```json
 "top_picks_weights": {
-  "aggregate_percent": 10,
-  "aesthetic_percent": 35,
-  "composition_percent": 25,
-  "face_quality_percent": 30
+  "aggregate_percent": 30,
+  "aesthetic_percent": 28,
+  "composition_percent": 18,
+  "face_quality_percent": 24
 }
 ```
 
@@ -220,7 +220,7 @@ Train weights by comparing photo pairs:
 
 ### Setup
 
-1. Enable in config: `"viewer": { "edition": true }`
+1. Set a non-empty `edition_password` in config: `"viewer": { "edition_password": "your-password" }`
 2. Start viewer: `python viewer.py`
 3. Click "Compare" button
 

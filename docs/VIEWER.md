@@ -111,7 +111,7 @@ Access via header button or `/manage_persons`:
 
 ## Pairwise Comparison Mode
 
-Requires `"edition": true` in config.
+Requires a non-empty `edition_password` in config.
 
 ### Access
 
@@ -189,7 +189,7 @@ Click "Compare" button in gallery header.
 {
   "viewer": {
     "pagination": {
-      "default_per_page": 25
+      "default_per_page": 64
     }
   }
 }
@@ -205,13 +205,13 @@ Click "Compare" button in gallery header.
       "max_lenses": 50,
       "max_persons": 50,
       "max_tags": 20,
-      "min_photos_for_person": 1
+      "min_photos_for_person": 10
     }
   }
 }
 ```
 
-Set `min_photos_for_person` higher (e.g., `5` or `10`) to hide persons with few photos from the filter dropdown.
+Set `min_photos_for_person` higher to hide persons with few photos from the filter dropdown.
 
 ### Quality Thresholds
 
@@ -236,6 +236,9 @@ Set `min_photos_for_person` higher (e.g., `5` or `10`) to hide persons with few 
     "defaults": {
       "hide_blinks": true,
       "hide_bursts": true,
+      "hide_duplicates": true,
+      "hide_details": true,
+      "hide_rejected": true,
       "sort": "aggregate",
       "sort_direction": "DESC",
       "type": ""
@@ -254,10 +257,10 @@ Set `min_photos_for_person` higher (e.g., `5` or `10`) to hide persons with few 
       "top_picks_min_score": 7,
       "top_picks_min_face_ratio": 0.2,
       "top_picks_weights": {
-        "aggregate_percent": 10,
-        "aesthetic_percent": 35,
-        "composition_percent": 25,
-        "face_quality_percent": 30
+        "aggregate_percent": 30,
+        "aesthetic_percent": 28,
+        "composition_percent": 18,
+        "face_quality_percent": 24
       }
     }
   }
@@ -338,5 +341,5 @@ Filter dropdowns load on-demand via API:
 | Slow page load | Run `--migrate-tags` and `--optimize` |
 | Filters not showing | Check `--stats-info`, run `--refresh-stats` |
 | Person filter empty | Run `--cluster-faces-incremental` |
-| Compare button missing | Enable `"edition": true` in config |
+| Compare button missing | Set a non-empty `edition_password` in config |
 | Password not working | Check `viewer.password` in config |

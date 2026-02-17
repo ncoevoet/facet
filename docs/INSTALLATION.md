@@ -23,7 +23,7 @@ source venv/bin/activate
 # Install base dependencies
 pip install -r requirements.txt
 
-# For 16gb/24gb profiles, also install:
+# For 8gb/16gb/24gb profiles, also install:
 pip install transformers>=4.57.0 accelerate>=0.25.0
 
 # For 24gb profile, additionally:
@@ -106,7 +106,7 @@ python -c "import torch, cv2, flask, insightface, open_clip, numpy, scipy, sklea
 
 | Profile | Additional Packages |
 |---------|---------------------|
-| `16gb`+ | `transformers>=4.57.0`, `accelerate>=0.25.0` |
+| `8gb`+ | `transformers>=4.57.0`, `accelerate>=0.25.0` |
 | `24gb` | `qwen-vl-utils>=0.0.2` |
 
 ### Optional Packages

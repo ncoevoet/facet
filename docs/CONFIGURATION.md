@@ -228,25 +228,25 @@ Controls which AI models are used based on VRAM.
         "aesthetic_model": "clip-mlp",
         "composition_model": "samp-net",
         "tagging_model": "clip",
-        "description": "CPU-optimized: TOPIQ aesthetic + SAMP-Net composition (8GB+ RAM, no GPU needed)"
+        "description": "CPU-optimized: CLIP+MLP aesthetic + SAMP-Net composition + CLIP tagging (8GB+ RAM, no GPU needed)"
       },
       "8gb": {
         "aesthetic_model": "clip-mlp",
         "composition_model": "samp-net",
         "tagging_model": "qwen3-vl-2b",
-        "description": "TOPIQ aesthetic + SAMP-Net composition + Qwen3-VL tagging (6-14GB VRAM)"
+        "description": "CLIP+MLP aesthetic + SAMP-Net composition + Qwen3-VL tagging (6-14GB VRAM)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
         "composition_model": "samp-net",
-        "tagging_model": "clip",
-        "description": "TOPIQ aesthetic, SAMP-Net composition (~14GB VRAM)"
+        "tagging_model": "qwen3-vl-2b",
+        "description": "TOPIQ aesthetic + SAMP-Net composition + Qwen3-VL tagging (~14GB VRAM)"
       },
       "24gb": {
         "aesthetic_model": "topiq",
         "composition_model": "qwen2-vl-2b",
         "tagging_model": "qwen2.5-vl-7b",
-        "description": "TOPIQ aesthetic, Qwen2-VL composition (~18GB VRAM)"
+        "description": "TOPIQ aesthetic + Qwen2-VL composition + Qwen2.5-VL-7B tagging (~18GB VRAM)"
       }
     },
     "qwen2_vl": {
@@ -256,7 +256,8 @@ Controls which AI models are used based on VRAM.
     },
     "qwen2_5_vl_7b": {
       "model_path": "Qwen/Qwen2.5-VL-7B-Instruct",
-      "torch_dtype": "bfloat16"
+      "torch_dtype": "bfloat16",
+      "vlm_batch_size": 2
     },
     "ram_plus": {
       "model_path": "xinyu1205/recognize-anything-plus-model",
@@ -290,9 +291,11 @@ Controls which AI models are used based on VRAM.
 | `qwen2_vl.max_new_tokens` | `256` | Max generation tokens |
 | `qwen2_5_vl_7b.model_path` | `"Qwen/Qwen2.5-VL-7B-Instruct"` | HuggingFace model path for VLM tagging |
 | `qwen2_5_vl_7b.torch_dtype` | `"bfloat16"` | Precision |
+| `qwen2_5_vl_7b.vlm_batch_size` | `2` | Images per VLM inference batch |
 | `qwen3_vl_2b.model_path` | `"Qwen/Qwen3-VL-2B-Instruct"` | HuggingFace model path for lightweight VLM tagging |
 | `qwen3_vl_2b.torch_dtype` | `"bfloat16"` | Precision |
 | `qwen3_vl_2b.max_new_tokens` | `100` | Max generation tokens |
+| `qwen3_vl_2b.vlm_batch_size` | `4` | Images per VLM inference batch |
 | `clip.model_name` | `"ViT-L-14"` | CLIP variant |
 | `clip.pretrained` | `"laion2b_s32b_b82k"` | Pre-trained weights |
 | `samp_net.input_size` | `384` | Image size for inference |
@@ -418,20 +421,20 @@ Unified processing settings for GPU batch processing and multi-pass mode.
   "processing": {
     "mode": "auto",
     "gpu_batch_size": 16,
-    "ram_chunk_size": 100,
+    "ram_chunk_size": 32,
     "num_workers": 4,
     "auto_tuning": {
       "enabled": true,
       "monitor_interval_seconds": 5,
-      "tuning_interval_images": 50,
+      "tuning_interval_images": 32,
       "min_processing_workers": 1,
-      "max_processing_workers": 24,
+      "max_processing_workers": 32,
       "min_gpu_batch_size": 2,
       "max_gpu_batch_size": 32,
       "min_ram_chunk_size": 10,
-      "max_ram_chunk_size": 500,
+      "max_ram_chunk_size": 128,
       "memory_limit_percent": 85,
-      "cpu_target_percent": 80,
+      "cpu_target_percent": 85,
       "metrics_print_interval_seconds": 30
     },
     "thumbnails": {
@@ -455,20 +458,20 @@ Unified processing settings for GPU batch processing and multi-pass mode.
 |---------|---------|-------------|
 | `mode` | `"auto"` | Processing mode: `auto`, `multi-pass`, `single-pass` |
 | `gpu_batch_size` | `16` | Images per GPU batch (VRAM-limited) |
-| `ram_chunk_size` | `100` | Images per RAM chunk (multi-pass, ~4GB RAM at 100) |
+| `ram_chunk_size` | `32` | Images per RAM chunk (multi-pass) |
 | `num_workers` | `4` | Image loader threads |
 | **auto_tuning** | | |
 | `enabled` | `true` | Enable auto-tuning |
 | `monitor_interval_seconds` | `5` | Resource check interval |
-| `tuning_interval_images` | `50` | Re-tune every N images |
+| `tuning_interval_images` | `32` | Re-tune every N images |
 | `min_processing_workers` | `1` | Minimum loader threads |
-| `max_processing_workers` | `24` | Maximum loader threads |
+| `max_processing_workers` | `32` | Maximum loader threads |
 | `min_gpu_batch_size` | `2` | Minimum GPU batch size |
 | `max_gpu_batch_size` | `32` | Maximum GPU batch size |
 | `min_ram_chunk_size` | `10` | Minimum RAM chunk size |
-| `max_ram_chunk_size` | `500` | Maximum RAM chunk size |
+| `max_ram_chunk_size` | `128` | Maximum RAM chunk size |
 | `memory_limit_percent` | `85` | System memory usage limit |
-| `cpu_target_percent` | `80` | CPU usage target |
+| `cpu_target_percent` | `85` | CPU usage target |
 | `metrics_print_interval_seconds` | `30` | Stats print interval |
 | **thumbnails** | | |
 | `photo_size` | `640` | Stored thumbnail size (pixels) |
@@ -534,6 +537,7 @@ python photos.py /path --pass quality      # TOPIQ only
 python photos.py /path --pass tags         # Configured tagger only
 python photos.py /path --pass composition  # SAMP-Net only
 python photos.py /path --pass faces        # InsightFace only
+python photos.py /path --pass embeddings   # CLIP embeddings only
 
 # List available models
 python photos.py --list-models
@@ -548,18 +552,18 @@ Groups similar photos taken in quick succession.
 ```json
 {
   "burst_detection": {
-    "similarity_threshold_percent": 65,
-    "time_window_minutes": 2,
-    "rapid_burst_seconds": 0.5
+    "similarity_threshold_percent": 70,
+    "time_window_minutes": 0.8,
+    "rapid_burst_seconds": 0.4
   }
 }
 ```
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `similarity_threshold_percent` | `65` | Image hash similarity threshold |
-| `time_window_minutes` | `2` | Maximum time between photos |
-| `rapid_burst_seconds` | `0.5` | Photos within this auto-grouped |
+| `similarity_threshold_percent` | `70` | Image hash similarity threshold |
+| `time_window_minutes` | `0.8` | Maximum time between photos |
+| `rapid_burst_seconds` | `0.4` | Photos within this auto-grouped |
 
 ---
 
@@ -748,13 +752,14 @@ Configured via `models.profiles.*.tagging_model`:
 |---------|---------------|
 | `legacy` | `clip` |
 | `8gb` | `qwen3-vl-2b` |
-| `16gb` | `clip` |
+| `16gb` | `qwen3-vl-2b` |
 | `24gb` | `qwen2.5-vl-7b` |
 
 ### Re-tagging Photos
 
 ```bash
-python photos.py --recompute-tags
+python photos.py --recompute-tags       # Re-tag using configured model per profile
+python photos.py --recompute-tags-vlm   # Re-tag using VLM tagger
 ```
 
 ---
@@ -811,14 +816,14 @@ Web gallery display and behavior.
     },
     "sort_options": { ... },
     "pagination": {
-      "default_per_page": 25
+      "default_per_page": 64
     },
     "dropdowns": {
       "max_cameras": 50,
       "max_lenses": 50,
       "max_persons": 50,
       "max_tags": 20,
-      "min_photos_for_person": 1
+      "min_photos_for_person": 10
     },
     "display": {
       "tags_per_photo": 4,
@@ -841,17 +846,19 @@ Web gallery display and behavior.
       "top_picks_min_score": 7,
       "top_picks_min_face_ratio": 0.2,
       "top_picks_weights": {
-        "aggregate_percent": 10,
-        "aesthetic_percent": 35,
-        "composition_percent": 25,
-        "face_quality_percent": 30
+        "aggregate_percent": 30,
+        "aesthetic_percent": 28,
+        "composition_percent": 18,
+        "face_quality_percent": 24
       },
       "low_light_max_luminance": 0.2
     },
     "defaults": {
       "hide_blinks": true,
       "hide_bursts": true,
-      "hide_details": false,
+      "hide_duplicates": true,
+      "hide_details": true,
+      "hide_rejected": true,
       "sort": "aggregate",
       "sort_direction": "DESC",
       "type": ""
@@ -871,13 +878,13 @@ Web gallery display and behavior.
 | `pair_selection_strategy` | `"uncertainty"` | Default strategy |
 | `show_current_scores` | `true` | Show scores during comparison |
 | **pagination** | | |
-| `default_per_page` | `25` | Photos per page |
+| `default_per_page` | `64` | Photos per page |
 | **dropdowns** | | |
 | `max_cameras` | `50` | Max cameras in dropdown |
 | `max_lenses` | `50` | Max lenses |
 | `max_persons` | `50` | Max persons |
 | `max_tags` | `20` | Max tags |
-| `min_photos_for_person` | `1` | Hide persons with fewer photos from dropdown |
+| `min_photos_for_person` | `10` | Hide persons with fewer photos from dropdown |
 | **display** | | |
 | `tags_per_photo` | `4` | Tags shown on cards |
 | `card_width_px` | `168` | Card width |
@@ -903,7 +910,8 @@ Web gallery display and behavior.
 | `hide_blinks` | `true` | Hide blink photos by default |
 | `hide_bursts` | `true` | Show only best of burst by default |
 | `hide_duplicates` | `true` | Hide non-lead duplicate photos by default |
-| `hide_details` | `false` | Hide photo details on cards by default |
+| `hide_details` | `true` | Hide photo details on cards by default |
+| `hide_rejected` | `true` | Hide rejected photos by default |
 | **Other** | | |
 | `cache_ttl_seconds` | `60` | Query cache TTL |
 | `notification_duration_ms` | `2000` | Toast duration |
