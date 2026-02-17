@@ -16,6 +16,7 @@
     "toggles": {
       "hide_blinks": "Hide Blinks",
       "best_of_burst": "Best of Burst",
+      "hide_duplicates": "Hide Duplicates",
       "hide_details": "Hide Details"
     },
     "buttons": {
@@ -53,7 +54,8 @@
     "badges": {
       "best": "BEST",
       "blink": "BLINK",
-      "bw": "B&W"
+      "bw": "B&W",
+      "dup": "DUP"
     }
   },
   "drawer": {

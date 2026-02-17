@@ -49,6 +49,7 @@ These commands update specific metrics without full photo reprocessing.
 | `python photos.py --recompute-composition-gpu` | Rescan with SAMP-Net (GPU required) |
 | `python photos.py --recompute-blinks` | Recompute blink detection |
 | `python photos.py --recompute-burst` | Recompute burst detection groups |
+| `python photos.py --detect-duplicates` | Detect duplicate photos using pHash comparison |
 | `python photos.py --compute-recommendations` | Analyze database, show scoring summary |
 | `python photos.py --compute-recommendations --verbose` | Show detailed statistics |
 | `python photos.py --compute-recommendations --apply-recommendations` | Auto-apply scoring fixes |

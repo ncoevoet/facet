@@ -288,7 +288,7 @@ def load_viewer_config(config=None):
         'face_thumbnails': {'output_size_px': 64, 'jpeg_quality': 80, 'crop_padding_ratio': 0.2, 'min_crop_size_px': 20},
         'quality_thresholds': {'good': 6, 'great': 7, 'excellent': 8, 'best': 9},
         'photo_types': {'top_picks_min_score': 7, 'low_light_max_luminance': 0.2},
-        'defaults': {'hide_blinks': True, 'hide_bursts': True, 'hide_details': True, 'hide_rejected': True, 'sort': 'aggregate', 'sort_direction': 'DESC'},
+        'defaults': {'hide_blinks': True, 'hide_bursts': True, 'hide_duplicates': True, 'hide_details': True, 'hide_rejected': True, 'sort': 'aggregate', 'sort_direction': 'DESC'},
         'features': {'show_similar_button': True, 'show_merge_suggestions': True, 'show_rating_controls': True, 'show_rating_badge': True},
         'cache_ttl_seconds': 3600,
         'notification_duration_ms': 2000
@@ -410,7 +410,7 @@ _filter_options_cache = {'data': None, 'expires': 0}
 # Cache for existing columns (loaded once at startup, rarely changes)
 _existing_columns_cache = None
 
-# Cache for photo type counts (keyed by hide_blinks/hide_bursts combination)
+# Cache for photo type counts (keyed by hide_blinks/hide_bursts/hide_duplicates combination)
 _photo_types_cache = {'data': {}, 'expires': 0}
 
 # Cache for COUNT query results (avoids repeated full-table scans)
@@ -1016,19 +1016,20 @@ TYPE_LABELS = {type_id: label for type_id, label, _ in TYPE_DEFINITIONS}
 
 QUALITY_MAP = VIEWER_CONFIG['quality_thresholds']
 
-def get_photo_types(hide_blinks=False, hide_bursts=False):
+def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False):
     """Build type list dynamically from database, showing only non-empty categories with counts.
 
     Args:
         hide_blinks: If True, exclude photos where is_blink = 1
         hide_bursts: If True, only include burst leads and standalone/unprocessed photos
+        hide_duplicates: If True, only include duplicate leads and non-duplicate photos
 
     Optimized to use a single UNION ALL query instead of 17+ individual COUNT queries.
     """
     global _photo_types_cache
 
     # Check cache (keyed by filter combination)
-    cache_key = (hide_blinks, hide_bursts)
+    cache_key = (hide_blinks, hide_bursts, hide_duplicates)
     if time.time() < _photo_types_cache['expires'] and cache_key in _photo_types_cache['data']:
         return _photo_types_cache['data'][cache_key]
 
@@ -1041,6 +1042,8 @@ def get_photo_types(hide_blinks=False, hide_bursts=False):
         base_filters.append("(is_blink = 0 OR is_blink IS NULL)")
     if hide_bursts:
         base_filters.append("(is_burst_lead = 1 OR is_burst_lead IS NULL)")
+    if hide_duplicates:
+        base_filters.append("(is_duplicate_lead = 1 OR is_duplicate_lead IS NULL OR duplicate_group_id IS NULL)")
 
     base_where = " AND ".join(base_filters) if base_filters else ""
 
@@ -1085,7 +1088,7 @@ def get_photo_types(hide_blinks=False, hide_bursts=False):
     except Exception:
         # Fallback to individual queries if UNION fails
         conn.close()
-        return _get_photo_types_fallback(hide_blinks, hide_bursts)
+        return _get_photo_types_fallback(hide_blinks, hide_bursts, hide_duplicates)
 
     conn.close()
 
@@ -1107,7 +1110,7 @@ def get_photo_types(hide_blinks=False, hide_bursts=False):
     return types
 
 
-def _get_photo_types_fallback(hide_blinks=False, hide_bursts=False):
+def _get_photo_types_fallback(hide_blinks=False, hide_bursts=False, hide_duplicates=False):
     """Fallback method using individual queries if UNION ALL fails."""
     conn = get_db_connection()
     existing_cols = get_existing_columns(conn)
@@ -1117,6 +1120,8 @@ def _get_photo_types_fallback(hide_blinks=False, hide_bursts=False):
         base_filters.append("(is_blink = 0 OR is_blink IS NULL)")
     if hide_bursts:
         base_filters.append("(is_burst_lead = 1 OR is_burst_lead IS NULL)")
+    if hide_duplicates:
+        base_filters.append("(is_duplicate_lead = 1 OR is_duplicate_lead IS NULL OR duplicate_group_id IS NULL)")
 
     base_where = " AND ".join(base_filters) if base_filters else ""
 
@@ -1395,6 +1400,7 @@ HTML_TEMPLATE = r'''
                 {% if params.person %}<input type="hidden" name="person" value="{{ params.person }}">{% endif %}
                 {% if params.hide_blinks == '1' %}<input type="hidden" name="hide_blinks" value="1">{% endif %}
                 {% if params.hide_bursts == '1' %}<input type="hidden" name="hide_bursts" value="1">{% endif %}
+                {% if params.hide_duplicates == '1' %}<input type="hidden" name="hide_duplicates" value="1">{% endif %}
                 {% if params.hide_details == '1' %}<input type="hidden" name="hide_details" value="1">{% endif %}
 
                 <!-- Row 1 on mobile: Type + Person (single row on lg+) -->
@@ -1576,6 +1582,8 @@ HTML_TEMPLATE = r'''
             {{ _('ui.toggles.hide_blinks') }}
             {% elif key == 'hide_bursts' %}
             {{ _('ui.toggles.best_of_burst') }}
+            {% elif key == 'hide_duplicates' %}
+            {{ _('ui.toggles.hide_duplicates') }}
             {% elif key == 'hide_details' %}
             {{ _('ui.toggles.hide_details') }}
             {% elif key in ['hide_rejected', 'favorites_only', 'show_rejected'] %}
@@ -1624,6 +1632,10 @@ HTML_TEMPLATE = r'''
                         <label class="flex items-center gap-2 text-sm text-neutral-400 cursor-pointer hover:text-neutral-300">
                             <input type="checkbox" name="hide_bursts" value="1" {% if params.hide_bursts == '1' %}checked{% endif %} class="w-4 h-4 rounded bg-neutral-800 border-neutral-600 text-green-500 focus:ring-green-500 focus:ring-offset-neutral-900">
                             <span>{{ _('ui.toggles.best_of_burst') }}</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-neutral-400 cursor-pointer hover:text-neutral-300">
+                            <input type="checkbox" name="hide_duplicates" value="1" {% if params.hide_duplicates == '1' %}checked{% endif %} class="w-4 h-4 rounded bg-neutral-800 border-neutral-600 text-green-500 focus:ring-green-500 focus:ring-offset-neutral-900">
+                            <span>{{ _('ui.toggles.hide_duplicates') }}</span>
                         </label>
                         <label class="flex items-center gap-2 text-sm text-neutral-400 cursor-pointer hover:text-neutral-300">
                             <input type="checkbox" name="hide_details" value="1" {% if params.hide_details == '1' %}checked{% endif %} class="w-4 h-4 rounded bg-neutral-800 border-neutral-600 text-green-500 focus:ring-green-500 focus:ring-offset-neutral-900">
@@ -2658,6 +2670,7 @@ HTML_TEMPLATE = r'''
                     starBadge,
                     p.is_burst_lead ? '<span class="text-[10px] font-medium bg-green-900 text-green-400 px-1 rounded">BEST</span>' : '',
                     p.is_blink ? '<span class="text-[10px] font-medium bg-amber-900 text-amber-400 px-1 rounded">BLINK</span>' : '',
+                    (p.duplicate_group_id && !p.is_duplicate_lead) ? `<span class="text-[10px] font-medium bg-purple-900 text-purple-400 px-1 rounded">${t('ui.badges.dup')}</span>` : '',
                     p.is_monochrome ? '<span class="text-[10px] font-medium bg-neutral-700 text-neutral-400 px-1 rounded">B&W</span>' : ''
                 ].filter(b => b).join(' ');
 
@@ -3275,7 +3288,7 @@ HTML_TEMPLATE = r'''
                             setTimeout(() => photoCard.classList.remove('ring-2', 'ring-purple-500'), 2000);
                         } else {
                             // Photo not on current page - search by filename with all filters reset
-                            window.location.href = `/?search=${encodeURIComponent(filename)}&type=&hide_blinks=0&hide_bursts=0&hide_rejected=0`;
+                            window.location.href = `/?search=${encodeURIComponent(filename)}&type=&hide_blinks=0&hide_bursts=0&hide_duplicates=0&hide_rejected=0`;
                         }
                     };
                     grid.appendChild(card);
@@ -3752,6 +3765,7 @@ def index():
     defaults_cfg = VIEWER_CONFIG['defaults']
     default_hide_blinks = '1' if defaults_cfg['hide_blinks'] else ''
     default_hide_bursts = '1' if defaults_cfg['hide_bursts'] else ''
+    default_hide_duplicates = '1' if defaults_cfg.get('hide_duplicates', False) else ''
     default_hide_details = '1' if defaults_cfg.get('hide_details', False) else ''
     default_type = defaults_cfg.get('type', '')
 
@@ -3772,6 +3786,7 @@ def index():
         # Display toggles - use configurable defaults on fresh visits
         'hide_blinks': request.args.get('hide_blinks', default_hide_blinks if is_fresh_visit else '0'),
         'hide_bursts': request.args.get('hide_bursts', default_hide_bursts if is_fresh_visit else '0'),
+        'hide_duplicates': request.args.get('hide_duplicates', default_hide_duplicates if is_fresh_visit else '0'),
         'hide_details': request.args.get('hide_details', default_hide_details if is_fresh_visit else ''),
         # Legacy toggles (for backward compatibility)
         'burst_only': request.args.get('burst_only', ''),
@@ -3970,6 +3985,10 @@ def index():
     if params['hide_blinks'] == '1' or params['no_blink'] == '1':
         where_clauses.append("(is_blink = 0 OR is_blink IS NULL)")
 
+    # Hide non-lead duplicates
+    if params.get('hide_duplicates') == '1':
+        where_clauses.append("(is_duplicate_lead = 1 OR is_duplicate_lead IS NULL OR duplicate_group_id IS NULL)")
+
     # Rating filters
     if params.get('min_rating'):
         try:
@@ -4090,7 +4109,8 @@ def index():
             'face_confidence', 'is_monochrome', 'mean_saturation',
             'dynamic_range_stops', 'noise_sigma', 'contrast_score', 'tags',
             'composition_pattern', 'quality_score',
-            'star_rating', 'is_favorite', 'is_rejected'
+            'star_rating', 'is_favorite', 'is_rejected',
+            'duplicate_group_id', 'is_duplicate_lead'
         ]
 
         existing_cols = get_existing_columns(conn)
@@ -4213,7 +4233,7 @@ def index():
             if k in numeric_filter_params and v == '0':
                 continue
             # Toggle params: only show chip when enabled (value='1')
-            if k in ('hide_blinks', 'hide_bursts', 'hide_details', 'hide_rejected', 'show_rejected', 'favorites_only'):
+            if k in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_details', 'hide_rejected', 'show_rejected', 'favorites_only'):
                 if v == '1':
                     active_filters[k] = 'enabled'
                 continue  # Skip if not '1'
@@ -4306,7 +4326,8 @@ def index():
         quality_levels=QUALITY_LEVELS,
         photo_types=get_photo_types(
             hide_blinks=(params['hide_blinks'] == '1'),
-            hide_bursts=(params['hide_bursts'] == '1')
+            hide_bursts=(params['hide_bursts'] == '1'),
+            hide_duplicates=(params.get('hide_duplicates') == '1')
         ),
         page=page,
         total_pages=total_pages,
@@ -4333,7 +4354,8 @@ def api_type_counts():
     """
     hide_blinks = request.args.get('hide_blinks', '0') == '1'
     hide_bursts = request.args.get('hide_bursts', '0') == '1'
-    types = get_photo_types(hide_blinks, hide_bursts)
+    hide_duplicates = request.args.get('hide_duplicates', '0') == '1'
+    types = get_photo_types(hide_blinks, hide_bursts, hide_duplicates)
     return jsonify({
         'types': [{'id': type_id, 'label': label} for type_id, label in types]
     })
@@ -4860,6 +4882,7 @@ def api_photos():
         'type': request.args.get('type', '' if request.args.get('person') else default_type),
         'hide_blinks': request.args.get('hide_blinks', '0'),
         'hide_bursts': request.args.get('hide_bursts', '0'),
+        'hide_duplicates': request.args.get('hide_duplicates', '0'),
         'burst_only': request.args.get('burst_only', ''),
         'no_blink': request.args.get('no_blink', ''),
         'tag': request.args.get('tag', ''),
@@ -4976,6 +4999,8 @@ def api_photos():
         where_clauses.append("(is_blink = 0 OR is_blink IS NULL)")
     if params['hide_bursts'] == '1':
         where_clauses.append("(is_burst_lead = 1 OR is_burst_lead IS NULL)")
+    if params.get('hide_duplicates') == '1':
+        where_clauses.append("(is_duplicate_lead = 1 OR is_duplicate_lead IS NULL OR duplicate_group_id IS NULL)")
     if params['burst_only'] == '1':
         where_clauses.append("is_burst_lead = 1")
     if params['no_blink'] == '1':
@@ -5005,7 +5030,8 @@ def api_photos():
         optional_cols = ['is_monochrome', 'isolation_bonus', 'contrast_score', 'dynamic_range_stops',
                          'composition_pattern', 'power_point_score', 'leading_lines_score',
                          'mean_saturation', 'noise_sigma', 'quality_score',
-                         'star_rating', 'is_favorite', 'is_rejected']
+                         'star_rating', 'is_favorite', 'is_rejected',
+                         'duplicate_group_id', 'is_duplicate_lead']
 
         existing_cols = get_existing_columns(conn)
         select_cols = base_cols + [c for c in optional_cols if c in existing_cols]

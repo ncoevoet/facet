@@ -66,6 +66,7 @@ python photos.py --refill-face-thumbnails-incremental  # Generate missing face t
 python photos.py --refill-face-thumbnails-force        # Regenerate ALL face thumbnails from original images
 python photos.py --recompute-blinks               # Recompute blink detection for photos with faces
 python photos.py --recompute-burst                # Recompute burst detection groups
+python photos.py --detect-duplicates              # Detect duplicate photos via pHash
 
 # Composition commands
 python photos.py --recompute-composition-cpu  # Rule-based (CPU only, fast)
@@ -261,6 +262,8 @@ SQLite table `photos` with columns:
 
 **Composition:** composition_pattern (SAMP-Net), power_point_score, leading_lines_score
 
+**Duplicates:** duplicate_group_id, is_duplicate_lead
+
 **Tags/Recognition:** tags (JSON), person_id, face_embedding (BLOB)
 
 **Raw data (for recalculation):** clip_embedding (BLOB), histogram_data (BLOB), raw_sharpness_variance, config_version
@@ -419,6 +422,7 @@ For quick reference, here are the actual defaults from the config file:
 | `burst_detection` | `similarity_threshold_percent` | `65` |
 | `burst_detection` | `time_window_minutes` | `2` |
 | `burst_detection` | `rapid_burst_seconds` | `0.5` |
+| `duplicate_detection` | `similarity_threshold_percent` | `90` |
 | `face_detection` | `min_confidence_percent` | `65` |
 | `face_detection` | `blink_ear_threshold` | `0.28` |
 | `face_detection` | `min_faces_for_group` | `4` |
@@ -435,6 +439,7 @@ For quick reference, here are the actual defaults from the config file:
 | `viewer.defaults` | `sort_direction` | `"DESC"` |
 | `viewer.defaults` | `hide_blinks` | `true` |
 | `viewer.defaults` | `hide_bursts` | `true` |
+| `viewer.defaults` | `hide_duplicates` | `true` |
 | `viewer.defaults` | `hide_details` | `true` |
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete reference.

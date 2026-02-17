@@ -1309,6 +1309,9 @@
     "time_window_minutes": 0.8,
     "rapid_burst_seconds": 0.4
   },
+  "duplicate_detection": {
+    "similarity_threshold_percent": 90
+  },
   "models": {
     "vram_profile": "auto",
     "keep_in_ram": "auto",
@@ -1599,6 +1602,7 @@
     "defaults": {
       "hide_blinks": true,
       "hide_bursts": true,
+      "hide_duplicates": true,
       "hide_details": true,
       "hide_rejected": true,
       "sort": "aggregate",

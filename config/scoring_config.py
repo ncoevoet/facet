@@ -477,6 +477,12 @@ class ScoringConfig:
             'rapid_burst_seconds': 5
         })
 
+    def get_duplicate_detection_settings(self):
+        """Get duplicate detection settings (similarity threshold)."""
+        return self.config.get('duplicate_detection', {
+            'similarity_threshold_percent': 90
+        })
+
     def get_face_clustering_settings(self):
         """Get face clustering settings."""
         return self.config.get('face_clustering', {

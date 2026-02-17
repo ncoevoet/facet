@@ -87,6 +87,7 @@ Face Recognition:
   python photos.py --refill-face-thumbnails-force   # Regenerate ALL face thumbnails
   python photos.py --recompute-blinks               # Recompute blink detection
   python photos.py --recompute-burst                # Recompute burst detection
+  python photos.py --detect-duplicates              # Detect duplicate photos via pHash
 
 Export:
   python photos.py --export-csv                 # Export to CSV (auto-named with timestamp)
@@ -122,6 +123,8 @@ Configuration:
     db_group = parser.add_argument_group('Database operations')
     db_group.add_argument('--recompute-average', action='store_true',
                         help='Update scores based on current config (uses stored embeddings)')
+    db_group.add_argument('--detect-duplicates', action='store_true',
+                        help='Detect duplicate photos using pHash comparison')
     db_group.add_argument('--recompute-tags', action='store_true',
                         help='Re-tag all photos using configured tagging model')
     db_group.add_argument('--backfill-focal-35mm', action='store_true',
@@ -245,6 +248,13 @@ Configuration:
     if args.list_models:
         from processing.multi_pass import list_available_models
         list_available_models()
+        exit()
+
+    # Detect duplicate photos (lightweight - no GPU needed)
+    if args.detect_duplicates:
+        from utils.duplicate import detect_duplicates
+        init_database(args.db)
+        detect_duplicates(args.db, config_path=args.config)
         exit()
 
     # Import scorer (deferred to avoid loading heavy modules for --help)
@@ -491,6 +501,8 @@ Configuration:
         process_bursts(args.db, config.config_path)
         print("Burst detection complete.")
         exit()
+
+
 
     # Recompute tags mode (needs GPU for tagging model)
     if args.recompute_tags:

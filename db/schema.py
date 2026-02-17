@@ -47,6 +47,10 @@ PHOTOS_COLUMNS = [
     ('is_silhouette', 'INTEGER'),
     ('is_group_portrait', 'INTEGER'),
 
+    # Duplicate detection
+    ('duplicate_group_id', 'INTEGER'),
+    ('is_duplicate_lead', 'INTEGER DEFAULT 0 CHECK (is_duplicate_lead IN (0, 1))'),
+
     # Raw data for recalculation
     ('clip_embedding', 'BLOB'),
     ('raw_sharpness_variance', 'REAL'),
@@ -142,6 +146,9 @@ INDEXES = [
     ('idx_composition_pattern', 'photos', 'composition_pattern'),
     # Composite index for camera/lens DISTINCT queries
     ('idx_camera_lens', 'photos', 'camera_model, lens_model'),
+    # Duplicate detection indexes
+    ('idx_duplicate_group', 'photos', 'duplicate_group_id'),
+    ('idx_duplicate_lead', 'photos', 'is_duplicate_lead'),
     # User rating indexes
     ('idx_star_rating', 'photos', 'star_rating'),
     ('idx_is_favorite', 'photos', 'is_favorite'),

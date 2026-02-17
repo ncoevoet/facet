@@ -15,6 +15,7 @@ All settings are in `scoring_config.json`. After modifying, run `python photos.p
 - [Models](#models)
 - [Processing](#processing)
 - [Burst Detection](#burst-detection)
+- [Duplicate Detection](#duplicate-detection)
 - [Face Detection](#face-detection)
 - [Face Clustering](#face-clustering)
 - [Face Processing](#face-processing)
@@ -562,6 +563,26 @@ Groups similar photos taken in quick succession.
 
 ---
 
+## Duplicate Detection
+
+Detect duplicate photos globally using perceptual hash (pHash) comparison.
+
+```json
+{
+  "duplicate_detection": {
+    "similarity_threshold_percent": 90
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `similarity_threshold_percent` | `90` | pHash similarity threshold (90% = Hamming distance <= 6 of 64 bits) |
+
+Run `python photos.py --detect-duplicates` to detect and group duplicates.
+
+---
+
 ## Face Detection
 
 InsightFace face detection settings.
@@ -881,6 +902,7 @@ Web gallery display and behavior.
 | `sort_direction` | `"DESC"` | Default sort direction (`"ASC"` or `"DESC"`) |
 | `hide_blinks` | `true` | Hide blink photos by default |
 | `hide_bursts` | `true` | Show only best of burst by default |
+| `hide_duplicates` | `true` | Hide non-lead duplicate photos by default |
 | `hide_details` | `false` | Hide photo details on cards by default |
 | **Other** | | |
 | `cache_ttl_seconds` | `60` | Query cache TTL |

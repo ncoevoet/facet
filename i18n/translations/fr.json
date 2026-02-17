@@ -16,6 +16,7 @@
     "toggles": {
       "hide_blinks": "Masquer clignements",
       "best_of_burst": "Meilleure de la rafale",
+      "hide_duplicates": "Masquer doublons",
       "hide_details": "Masquer details"
     },
     "buttons": {
@@ -53,7 +54,8 @@
     "badges": {
       "best": "TOP",
       "blink": "CLIN",
-      "bw": "N&B"
+      "bw": "N&B",
+      "dup": "DUP"
     }
   },
   "drawer": {
