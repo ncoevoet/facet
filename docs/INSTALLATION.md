@@ -36,6 +36,10 @@ pip install qwen-vl-utils>=0.0.2
 
 Install from [pytorch.org/get-started/locally](https://pytorch.org/get-started/locally/) based on your CUDA version.
 
+### PyTorch with MPS (macOS / Apple Silicon)
+
+PyTorch supports MPS (Metal Performance Shaders) out of the box on Apple Silicon Macs. Install from [pytorch.org](https://pytorch.org/get-started/locally/) — no special flags needed. VRAM profile is auto-detected from unified memory and capped at `16gb`.
+
 ### ONNX Runtime for Face Detection
 
 Choose ONE based on your setup:
@@ -91,6 +95,7 @@ python -c "import torch, cv2, flask, insightface, open_clip, numpy, scipy, sklea
 | `open-clip-torch` | CLIP model for tagging and aesthetics |
 | `opencv-python` | Image processing |
 | `pillow` | Image loading |
+| `pillow-heif` | HEIC/HEIF support (Apple Photos, iPhones) |
 | `imagehash` | Perceptual hashing for burst detection |
 | `rawpy` | RAW file support |
 | `flask` | Web viewer |
@@ -115,6 +120,7 @@ python -c "import torch, cv2, flask, insightface, open_clip, numpy, scipy, sklea
 |---------|---------|
 | `cuml`, `cupy` | GPU-accelerated face clustering (requires conda + CUDA) |
 | `onnxruntime-gpu` | GPU-accelerated face detection |
+| `pillow-heif` | HEIC/HEIF image support |
 
 ## First Run
 
@@ -132,6 +138,4 @@ The automatic download for SAMP-Net weights may fail (the GitHub release URL is 
 Failed to download SAMP-Net weights: HTTP Error 404: Not Found
 ```
 
-Download manually:
-1. Download from [Google Drive](https://drive.google.com/file/d/1sIcYr5cQGbxm--tCGaASmN0xtE_r-QUg/view)
-2. Place the file at `pretrained_models/samp_net.pth`
+Download manually from [Dropbox](https://www.dropbox.com/scl/fi/k1yuyhotuk9ky3m41iobg/samp_net.pth?rlkey=aoqqxv27wd5qqj3pytxki6vi3&st=0ffubx5d&dl=1) and place the file at `pretrained_models/samp_net.pth`.

@@ -106,7 +106,7 @@ python viewer.py
 
 ## Dependencies
 
-Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `imagehash`, `rawpy`, `flask`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`
+Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `pillow-heif`, `imagehash`, `rawpy`, `flask`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`
 
 For VLM tagging (8gb+ profiles): `transformers>=4.57.0`, `accelerate>=0.25.0`
 
@@ -148,7 +148,7 @@ External tool: `exiftool` (command-line)
 
 ### Data Flow
 
-1. `photos.py` scans directories for JPG/JPEG/CR2/CR3 files
+1. `photos.py` scans directories for JPG/JPEG/CR2/CR3/HEIC/HEIF files
 2. BatchProcessor processes images with continuous GPU batching (no inter-batch gaps)
 3. Each image gets: CLIP embedding + tags, aesthetic score, face analysis, technical metrics, composition pattern
 4. Results stored in SQLite with 640x640 thumbnail BLOBs
