@@ -9,8 +9,8 @@ open-clip-torch>=2.20.0
 
 # Advanced VLM Models - needed for 8gb/16gb/24gb VRAM profiles
 # The "legacy" profile uses CLIP+MLP and doesn't require these packages
-transformers>=4.57.0               # Required for Qwen3-VL tagger (8gb/16gb profiles)
-accelerate>=0.25.0
+# transformers>=4.57.0               # Required for Qwen3-VL tagger (8gb/16gb profiles)
+# accelerate>=0.25.0
 # sentencepiece                     # Required for Q-Align tokenizer
 # qwen-vl-utils>=0.0.2              # Only needed for Qwen2-VL (24gb profile)
 

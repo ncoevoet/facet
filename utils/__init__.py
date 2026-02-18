@@ -15,9 +15,3 @@ from utils.detection import (
     DEFAULT_FACE_THUMBNAIL_QUALITY,
 )
 from utils.burst import IncrementalBurstProcessor
-from utils.device import (
-    get_best_device, has_gpu, is_cuda, is_mps, safe_empty_cache,
-    get_gpu_memory_bytes, get_gpu_memory_gb, get_gpu_allocated_bytes,
-    get_gpu_reserved_bytes, get_onnx_providers, get_insightface_ctx_id,
-    get_device_map_or_device, is_oom_error,
-)
