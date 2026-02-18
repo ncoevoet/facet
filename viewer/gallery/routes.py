@@ -89,7 +89,7 @@ def _build_gallery_where(params, conn=None, user_id=None):
         where_clauses.append("composition_pattern = ?")
         sql_params.append(params['composition_pattern'])
 
-    # Person filter (face recognition) - supports comma-separated IDs
+    # Person filter (face recognition) - supports comma-separated IDs (AND logic: all must be present)
     if params.get('person'):
         person_ids = []
         for pid in params['person'].split(','):
@@ -97,13 +97,9 @@ def _build_gallery_where(params, conn=None, user_id=None):
                 person_ids.append(int(pid.strip()))
             except ValueError:
                 pass
-        if len(person_ids) == 1:
+        for pid in person_ids:
             where_clauses.append("EXISTS (SELECT 1 FROM faces WHERE photo_path = photos.path AND person_id = ?)")
-            sql_params.append(person_ids[0])
-        elif len(person_ids) > 1:
-            placeholders = ','.join(['?'] * len(person_ids))
-            where_clauses.append(f"EXISTS (SELECT 1 FROM faces WHERE photo_path = photos.path AND person_id IN ({placeholders}))")
-            sql_params.extend(person_ids)
+            sql_params.append(pid)
 
     # B&W filter
     if params.get('is_monochrome') == '1':
