@@ -630,7 +630,10 @@
     "password_label": "Mot de passe",
     "placeholder": "Entrez le mot de passe",
     "submit": "Se connecter",
-    "invalid_password": "Mot de passe invalide"
+    "invalid_password": "Mot de passe invalide",
+    "username_label": "Nom d'utilisateur",
+    "username_placeholder": "Entrez votre nom d'utilisateur",
+    "invalid_credentials": "Nom d'utilisateur ou mot de passe invalide"
   },
   "edition": {
     "unlock_title": "Deverrouiller le mode edition",
@@ -639,5 +642,17 @@
     "lock_title": "Mode edition actif - cliquer pour verrouiller",
     "password_placeholder": "Mot de passe d'edition",
     "invalid_password": "Mot de passe invalide"
+  },
+  "auth": {
+    "logout": "Se deconnecter"
+  },
+  "scan": {
+    "title": "Scanner les photos",
+    "start_button": "Lancer le scan",
+    "starting": "Demarrage...",
+    "running": "En cours",
+    "completed": "Termine",
+    "failed": "Echec",
+    "idle": "Inactif"
   }
 }

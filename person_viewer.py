@@ -5,16 +5,17 @@ Provides a dedicated /person/<int:person_id> page showing all photos
 of a specific person with full sorting and filtering capabilities.
 """
 
-from flask import Blueprint, render_template_string, request, jsonify
+from flask import Blueprint, render_template_string, request, jsonify, session
 import math
 from viewer.config import VIEWER_CONFIG
 from viewer.types import SORT_OPTIONS, SORT_OPTIONS_GROUPED, VALID_SORT_COLS
 from viewer.db_helpers import (
     get_db_connection, get_existing_columns,
     PHOTO_BASE_COLS, PHOTO_OPTIONAL_COLS, split_photo_tags,
-    HIDE_BLINKS_SQL, HIDE_BURSTS_SQL
+    HIDE_BLINKS_SQL, HIDE_BURSTS_SQL, get_visibility_clause
 )
 from viewer.filters import format_date
+from viewer.auth import get_session_user_id
 
 person_bp = Blueprint('person', __name__)
 
@@ -69,6 +70,13 @@ def _query_person_photos(person_id, args):
     # Build query with person filter
     where_clauses = ["path IN (SELECT photo_path FROM faces WHERE person_id = ?)"]
     sql_params = [person_id]
+
+    # Multi-user visibility
+    user_id = get_session_user_id()
+    if user_id:
+        vis_sql, vis_params = get_visibility_clause(user_id)
+        where_clauses.append(vis_sql)
+        sql_params.extend(vis_params)
 
     if params['hide_blinks'] == '1':
         where_clauses.append(HIDE_BLINKS_SQL)

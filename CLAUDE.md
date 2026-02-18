@@ -95,6 +95,10 @@ python database.py --vacuum         # Reclaim space and defragment the database
 python database.py --analyze        # Update query planner statistics
 python database.py --optimize       # Run both VACUUM and ANALYZE for full optimization
 
+# User management (multi-user mode)
+python database.py --add-user USERNAME --role ROLE [--display-name NAME]
+python database.py --migrate-user-preferences --user USERNAME
+
 # Run web viewer (Flask on localhost:5000)
 python viewer.py
 ```

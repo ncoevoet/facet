@@ -6,7 +6,7 @@ from flask import render_template, request, redirect, jsonify, make_response, se
 from db import DEFAULT_DB_PATH
 from viewer.comparison import comparison_bp
 from viewer.config import VIEWER_CONFIG, _FULL_CONFIG, _CONFIG_PATH, get_comparison_mode_settings, map_disk_path
-from viewer.auth import is_edition_authenticated, require_edition
+from viewer.auth import is_edition_authenticated, require_edition, get_session_user_id
 from viewer.db_helpers import get_db_connection
 from viewer.types import TYPE_TO_CATEGORY
 
@@ -218,7 +218,7 @@ def api_comparison_submit():
         return jsonify({'error': 'Missing required fields'}), 400
 
     manager = ComparisonManager(DEFAULT_DB_PATH)
-    success = manager.submit_comparison(photo_a, photo_b, winner, category)
+    success = manager.submit_comparison(photo_a, photo_b, winner, category, user_id=get_session_user_id())
 
     if success:
         stats = manager.get_statistics()

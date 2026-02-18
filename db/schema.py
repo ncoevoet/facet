@@ -175,6 +175,7 @@ COMPARISONS_COLUMNS = [
     ('category', 'TEXT'),
     ('timestamp', "TEXT DEFAULT (datetime('now'))"),
     ('session_id', 'TEXT'),
+    ('user_id', 'TEXT'),  # NULL for legacy pre-multi-user data
 ]
 
 COMPARISONS_INDEXES = [
@@ -191,6 +192,7 @@ LEARNED_SCORES_COLUMNS = [
     ('comparison_count', 'INTEGER DEFAULT 0'),
     ('category', 'TEXT'),
     ('updated_at', "TEXT DEFAULT (datetime('now'))"),
+    ('user_id', 'TEXT'),  # NULL for legacy pre-multi-user data
 ]
 
 LEARNED_SCORES_INDEXES = [
@@ -256,6 +258,22 @@ RECOMMENDATION_HISTORY_COLUMNS = [
 RECOMMENDATION_HISTORY_INDEXES = [
     ('idx_rec_history_timestamp', 'recommendation_history', 'run_timestamp DESC'),
     ('idx_rec_history_target', 'recommendation_history', 'target_category, target_key'),
+]
+
+# Per-user preferences for multi-user mode (ratings, favorites, rejected flags)
+USER_PREFERENCES_COLUMNS = [
+    ('user_id', 'TEXT NOT NULL'),
+    ('photo_path', 'TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE'),
+    ('star_rating', 'INTEGER DEFAULT 0 CHECK (star_rating >= 0 AND star_rating <= 5)'),
+    ('is_favorite', 'INTEGER DEFAULT 0 CHECK (is_favorite IN (0, 1))'),
+    ('is_rejected', 'INTEGER DEFAULT 0 CHECK (is_rejected IN (0, 1))'),
+]
+
+USER_PREFERENCES_INDEXES = [
+    ('idx_user_prefs_user', 'user_preferences', 'user_id'),
+    ('idx_user_prefs_path', 'user_preferences', 'photo_path'),
+    ('idx_user_prefs_fav', 'user_preferences', 'user_id, is_favorite'),
+    ('idx_user_prefs_rating', 'user_preferences', 'user_id, star_rating'),
 ]
 
 
@@ -370,6 +388,13 @@ def init_database(db_path='photo_scores_pro.db'):
             RECOMMENDATION_HISTORY_COLUMNS
         ))
 
+        # Create user_preferences table for per-user ratings in multi-user mode
+        conn.execute(_build_create_table_sql(
+            'user_preferences',
+            USER_PREFERENCES_COLUMNS,
+            constraints=['PRIMARY KEY (user_id, photo_path)']
+        ))
+
         # Create all indexes
         for idx_name, table, column_expr in INDEXES:
             conn.execute(
@@ -403,5 +428,13 @@ def init_database(db_path='photo_scores_pro.db'):
             conn.execute(
                 f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
             )
+        for idx_name, table, column_expr in USER_PREFERENCES_INDEXES:
+            conn.execute(
+                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
+            )
+
+        # Migrate existing tables - add missing columns (e.g., user_id on comparisons/learned_scores)
+        _migrate_add_missing_columns(conn, 'comparisons', COMPARISONS_COLUMNS)
+        _migrate_add_missing_columns(conn, 'learned_scores', LEARNED_SCORES_COLUMNS)
 
         conn.commit()

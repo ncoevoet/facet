@@ -8,7 +8,7 @@ if _project_root not in sys.path:
 
 from flask import Flask
 from viewer.config import _share_secret, VIEWER_CONFIG, load_viewer_config, get_comparison_mode_settings
-from viewer.auth import is_edition_enabled, is_edition_authenticated, register_auth_routes, _is_authenticated
+from viewer.auth import is_edition_enabled, is_edition_authenticated, register_auth_routes, _is_authenticated, get_session_user_id
 from viewer.db_helpers import _add_tag_filter
 from viewer.filters import register_filters
 
@@ -38,6 +38,7 @@ def create_app():
     from viewer.comparison import comparison_bp
     from viewer.stats import stats_bp
     from person_viewer import person_bp
+    from viewer.scan import scan_bp
 
     app.register_blueprint(gallery_bp)
     app.register_blueprint(thumbnails_bp)
@@ -48,5 +49,6 @@ def create_app():
     app.register_blueprint(comparison_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(person_bp)
+    app.register_blueprint(scan_bp)
 
     return app

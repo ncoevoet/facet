@@ -3,10 +3,27 @@ from io import BytesIO
 from functools import lru_cache
 from flask import request, make_response, send_file
 from viewer.thumbnails import thumbnails_bp
-from viewer.config import VIEWER_CONFIG
+from viewer.config import VIEWER_CONFIG, is_multi_user_enabled
 from viewer.db_helpers import get_db_connection
+from viewer.auth import get_session_user_id
+from viewer.config import get_user_directories
 
 _thumbnail_cache_size = VIEWER_CONFIG.get('performance', {}).get('thumbnail_cache_size', 2000)
+
+
+def _check_path_visibility(photo_path):
+    """Return True if the current user can access this photo path."""
+    if not is_multi_user_enabled():
+        return True
+    user_id = get_session_user_id()
+    if not user_id:
+        return False
+    dirs = get_user_directories(user_id)
+    for d in dirs:
+        prefix = d.rstrip('/\\') + '/'
+        if photo_path.startswith(prefix):
+            return True
+    return False
 
 
 def _cached_image_response(image_bytes):
@@ -35,6 +52,8 @@ def _resize_thumbnail(thumbnail_bytes, size):
 @thumbnails_bp.route('/thumbnail')
 def get_thumbnail():
     photo_path = request.args.get('path')
+    if not photo_path or not _check_path_visibility(photo_path):
+        return "Not found", 404
     size = request.args.get('size', type=int)
     conn = get_db_connection()
     row = conn.execute("SELECT thumbnail FROM photos WHERE path = ?", (photo_path,)).fetchone()
@@ -179,4 +198,7 @@ def person_thumbnail(person_id):
 
 @thumbnails_bp.route('/image')
 def image():
-    return send_file(request.args.get('path'))
+    path = request.args.get('path')
+    if not path or not _check_path_visibility(path):
+        return "Not found", 404
+    return send_file(path)

@@ -9,9 +9,11 @@ python viewer.py
 # Open http://localhost:5000
 ```
 
-## Password Protection
+## Authentication
 
-Optional authentication via config:
+### Single-User Mode (Default)
+
+Optional password protection via config:
 
 ```json
 {
@@ -21,7 +23,64 @@ Optional authentication via config:
 }
 ```
 
-When set, users must authenticate before accessing the viewer.
+When set, users must authenticate before accessing the viewer. An optional `edition_password` grants access to person management and comparison mode.
+
+### Multi-User Mode
+
+For family NAS scenarios where each member has private photo directories. Enabled by adding a `users` section to `scoring_config.json`:
+
+```json
+{
+  "users": {
+    "alice": {
+      "password_hash": "salt_hex:dk_hex",
+      "display_name": "Alice",
+      "role": "superadmin",
+      "directories": ["/volume1/Photos/Alice"]
+    },
+    "bob": {
+      "password_hash": "salt_hex:dk_hex",
+      "display_name": "Bob",
+      "role": "user",
+      "directories": ["/volume1/Photos/Bob"]
+    },
+    "shared_directories": [
+      "/volume1/Photos/Family",
+      "/volume1/Photos/Vacations"
+    ]
+  }
+}
+```
+
+Users are created via CLI only (no registration UI):
+
+```bash
+python database.py --add-user alice --role superadmin --display-name "Alice"
+```
+
+See [Configuration](CONFIGURATION.md#users) for full reference.
+
+### Roles
+
+| Role | View own + shared | Rate/favorite | Manage persons/faces | Trigger scans |
+|------|:-:|:-:|:-:|:-:|
+| `user` | yes | yes | no | no |
+| `admin` | yes | yes | yes | no |
+| `superadmin` | yes | yes | yes | yes |
+
+### Photo Visibility
+
+Each user sees photos from their configured directories plus shared directories. Visibility is enforced across all endpoints: gallery, thumbnails, downloads, stats, filter options, and person pages.
+
+### Per-User Ratings
+
+In multi-user mode, star ratings, favorites, and rejected flags are stored per-user in the `user_preferences` table. Each user rates independently — Alice's favorites don't affect Bob's view.
+
+To migrate existing single-user ratings:
+
+```bash
+python database.py --migrate-user-preferences --user alice
+```
 
 ## Filtering Options
 
@@ -109,9 +168,20 @@ Access via header button or `/manage_persons`:
 | **Delete** | Click delete button on person card |
 | **Rename** | Click person name to edit inline |
 
+## Scan Trigger (Superadmin)
+
+When `viewer.features.show_scan_button` is `true` and the user has `superadmin` role, a Scan button appears in the gallery header.
+
+- Select directories to scan from the modal
+- Scan runs as a background subprocess (`photos.py`)
+- Only one scan at a time (global lock)
+- Progress displayed in a terminal-style output area
+
+This is useful when the viewer runs on the same machine that has GPU access for scoring.
+
 ## Pairwise Comparison Mode
 
-Requires a non-empty `edition_password` in config.
+Requires a non-empty `edition_password` in config (single-user) or `admin`/`superadmin` role (multi-user).
 
 ### Access
 
@@ -341,5 +411,7 @@ Filter dropdowns load on-demand via API:
 | Slow page load | Run `--migrate-tags` and `--optimize` |
 | Filters not showing | Check `--stats-info`, run `--refresh-stats` |
 | Person filter empty | Run `--cluster-faces-incremental` |
-| Compare button missing | Set a non-empty `edition_password` in config |
-| Password not working | Check `viewer.password` in config |
+| Compare button missing | Set a non-empty `edition_password` (single-user) or use `admin`/`superadmin` role (multi-user) |
+| Password not working | Check `viewer.password` (single-user) or verify password hash (multi-user) |
+| User can't see photos | Check `directories` in their user config and `shared_directories` |
+| Scan button missing | Requires `superadmin` role and `viewer.features.show_scan_button: true` |

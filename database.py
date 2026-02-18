@@ -12,7 +12,12 @@ Usage:
     python database.py --vacuum
     python database.py --analyze
     python database.py --optimize
+    python database.py --add-user USERNAME --role ROLE [--display-name NAME]
+    python database.py --migrate-user-preferences --user USERNAME
 """
+
+import json
+import os
 
 from db import (
     DEFAULT_DB_PATH,
@@ -28,6 +33,101 @@ from db import (
     cleanup_orphaned_persons,
     export_viewer_db,
 )
+
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'scoring_config.json')
+
+
+def _load_config():
+    """Load scoring_config.json."""
+    with open(CONFIG_PATH) as f:
+        return json.load(f)
+
+
+def _save_config(config):
+    """Write scoring_config.json."""
+    with open(CONFIG_PATH, 'w') as f:
+        json.dump(config, f, indent=2)
+    print(f"Config saved to {CONFIG_PATH}")
+
+
+def add_user(username, role, display_name=None):
+    """Add a user to scoring_config.json with a hashed password."""
+    import getpass
+    import hashlib
+
+    if role not in ('user', 'admin', 'superadmin'):
+        print(f"Error: role must be 'user', 'admin', or 'superadmin' (got '{role}')")
+        return
+
+    config = _load_config()
+    if 'users' not in config:
+        config['users'] = {'shared_directories': []}
+
+    if username in config['users'] and isinstance(config['users'][username], dict):
+        print(f"Error: user '{username}' already exists. Remove manually from config to re-add.")
+        return
+
+    password = getpass.getpass(f"Password for {username}: ")
+    confirm = getpass.getpass("Confirm password: ")
+    if password != confirm:
+        print("Error: passwords do not match.")
+        return
+
+    # Hash with PBKDF2
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+    password_hash = f"{salt.hex()}:{dk.hex()}"
+
+    config['users'][username] = {
+        'password_hash': password_hash,
+        'display_name': display_name or username,
+        'role': role,
+        'directories': [],
+    }
+
+    _save_config(config)
+    print(f"User '{username}' added with role '{role}'.")
+    print(f"Edit {CONFIG_PATH} to set their directories.")
+
+
+def migrate_user_preferences(username, db_path=DEFAULT_DB_PATH):
+    """Copy non-zero ratings from photos table to user_preferences for a user."""
+    import sqlite3
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    # Check if user_preferences table exists
+    tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+    if 'user_preferences' not in tables:
+        print("Error: user_preferences table not found. Run 'python database.py' to initialize schema first.")
+        conn.close()
+        return
+
+    # Count existing photos with ratings
+    count = conn.execute("""
+        SELECT COUNT(*) FROM photos
+        WHERE star_rating > 0 OR is_favorite = 1 OR is_rejected = 1
+    """).fetchone()[0]
+
+    if count == 0:
+        print("No ratings to migrate.")
+        conn.close()
+        return
+
+    print(f"Migrating {count} photo rating(s) to user_preferences for user '{username}'...")
+
+    conn.execute("""
+        INSERT OR IGNORE INTO user_preferences (user_id, photo_path, star_rating, is_favorite, is_rejected)
+        SELECT ?, path, COALESCE(star_rating, 0), COALESCE(is_favorite, 0), COALESCE(is_rejected, 0)
+        FROM photos
+        WHERE star_rating > 0 OR is_favorite = 1 OR is_rejected = 1
+    """, (username,))
+    migrated = conn.execute("SELECT changes()").fetchone()[0]
+    conn.commit()
+    conn.close()
+
+    print(f"Done. {migrated} preference(s) migrated for '{username}'.")
 
 if __name__ == '__main__':
     import argparse
@@ -87,6 +187,32 @@ if __name__ == '__main__':
         metavar='OUTPUT_PATH',
         help='Export lightweight viewer database (strips BLOBs, downsizes thumbnails)'
     )
+    parser.add_argument(
+        '--add-user',
+        metavar='USERNAME',
+        help='Add a user to scoring_config.json (prompts for password)'
+    )
+    parser.add_argument(
+        '--role',
+        choices=['user', 'admin', 'superadmin'],
+        default='user',
+        help='Role for --add-user (default: user)'
+    )
+    parser.add_argument(
+        '--display-name',
+        metavar='NAME',
+        help='Display name for --add-user'
+    )
+    parser.add_argument(
+        '--migrate-user-preferences',
+        action='store_true',
+        help='Copy ratings from photos table to user_preferences for a user'
+    )
+    parser.add_argument(
+        '--user',
+        metavar='USERNAME',
+        help='Username for --migrate-user-preferences'
+    )
 
     args = parser.parse_args()
 
@@ -136,6 +262,13 @@ if __name__ == '__main__':
         cleanup_orphaned_persons(args.db, verbose=True)
     elif args.export_viewer_db:
         export_viewer_db(args.db, output_path=args.export_viewer_db, verbose=True)
+    elif args.add_user:
+        add_user(args.add_user, args.role, args.display_name)
+    elif args.migrate_user_preferences:
+        if not args.user:
+            print("Error: --user USERNAME is required with --migrate-user-preferences")
+        else:
+            migrate_user_preferences(args.user, args.db)
     else:
         init_database(args.db)
         print(f"Database initialized: {args.db}")

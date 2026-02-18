@@ -336,6 +336,26 @@
                     {% endif %}
                 </button>
 
+                {% if is_multi_user %}
+                <!-- Multi-user: Scan button (superadmin only, if enabled) -->
+                {% if user_role == 'superadmin' and viewer_config.features.get('show_scan_button', False) %}
+                <button onclick="showScanModal()" class="flex-shrink-0 bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded border border-blue-600 flex items-center gap-2 text-sm" title="{{ _('scan.title') }}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    <span class="hidden sm:inline">{{ _('scan.title') }}</span>
+                </button>
+                {% endif %}
+                <!-- Multi-user: User display name + Logout -->
+                <div class="flex-shrink-0 flex items-center gap-2 text-sm">
+                    <span class="text-neutral-300 hidden sm:inline">{{ user_display_name }}</span>
+                    <button onclick="multiUserLogout()" class="bg-neutral-800 text-neutral-400 hover:text-white px-2 py-1.5 rounded border border-neutral-700 hover:border-red-500 flex items-center gap-1 text-sm" title="{{ _('auth.logout') }}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                    </button>
+                </div>
+                {% else %}
                 {% if editing_enabled and not edition_authenticated %}
                 <!-- Edition Mode Unlock Button -->
                 <button onclick="showEditionLoginModal()" class="flex-shrink-0 bg-neutral-800 text-neutral-400 hover:text-yellow-400 px-3 py-1.5 rounded border border-neutral-700 hover:border-yellow-500 flex items-center gap-2 text-sm" title="{{ _('edition.unlock_title') }}">
@@ -350,6 +370,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
                     </svg>
                 </button>
+                {% endif %}
                 {% endif %}
 
                 {% if options.persons and edition_authenticated %}
@@ -857,8 +878,8 @@
                         </svg>
                     </button>
                     {% endif %}
-                    {% if edition_authenticated and viewer_config.features.show_rating_controls %}
-                    <!-- Rating controls (edition mode only) -->
+                    {% if (edition_authenticated or is_multi_user) and viewer_config.features.show_rating_controls %}
+                    <!-- Rating controls -->
                     <div class="rating-controls opacity-0 group-hover:opacity-100 absolute bottom-1 right-1 flex items-center gap-1 bg-black/70 rounded px-1 py-0.5 transition-opacity z-10">
                         <!-- Star rating -->
                         <div class="star-rating flex" data-path="{{ p['path'] | js_escape }}" data-current="{{ p['star_rating'] or 0 }}">
@@ -1108,12 +1129,35 @@
     </div>
     {% endif %}
 
+    {% if is_multi_user and user_role == 'superadmin' and viewer_config.features.get('show_scan_button', False) %}
+    <!-- Scan Modal -->
+    <div id="scan-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div class="bg-neutral-900 rounded-lg p-6 max-w-lg w-full mx-4 border border-neutral-700">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">{{ _('scan.title') }}</h3>
+                <span id="scan-status" class="text-neutral-400 text-sm">{{ _('scan.idle') }}</span>
+            </div>
+            <div id="scan-dir-list" class="max-h-40 overflow-y-auto border border-neutral-700 rounded mb-4"></div>
+            <div id="scan-output" class="bg-black text-green-400 text-xs font-mono p-3 rounded border border-neutral-700 h-48 overflow-y-auto whitespace-pre mb-4"></div>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeScanModal()" class="flex-1 bg-neutral-700 hover:bg-neutral-600 py-2 rounded transition-colors">
+                    {{ _('ui.buttons.close') }}
+                </button>
+                <button type="button" id="scan-start-btn" onclick="startScan()" class="flex-1 bg-blue-600 hover:bg-blue-500 py-2 rounded transition-colors font-medium">
+                    {{ _('scan.start_button') }}
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- JavaScript -->
     <script>
         // i18n translations
-        const I18N = {{ js_translations(['manage_persons', 'notifications', 'ui', 'similar', 'rating', 'edition', 'tooltip']) | tojson | safe }};
+        const I18N = {{ js_translations(['manage_persons', 'notifications', 'ui', 'similar', 'rating', 'edition', 'tooltip', 'scan', 'auth']) | tojson | safe }};
         const FEATURES = {{ viewer_config.features | tojson | safe }};
         const EDITION_AUTHENTICATED = {{ edition_authenticated | tojson }};
+        const IS_MULTI_USER = {{ is_multi_user | tojson }};
         const currentPersonFilters = new Set({{ (params.person.split(',') if params.person else [])|tojson }});
         function t(key, vars={}) {
             const keys = key.split('.');
@@ -1220,6 +1264,108 @@
             })
             .then(() => window.location.reload())
             .catch(() => window.location.reload());
+        }
+
+        function multiUserLogout() {
+            fetch('/logout', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(() => { window.location.href = '/'; })
+            .catch(() => { window.location.href = '/'; });
+        }
+
+        // Scan modal (superadmin)
+        let scanPollInterval = null;
+
+        function showScanModal() {
+            let modal = document.getElementById('scan-modal');
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            loadScanDirectories();
+            pollScanStatus();
+        }
+
+        function closeScanModal() {
+            let modal = document.getElementById('scan-modal');
+            if (modal) modal.classList.add('hidden');
+            if (scanPollInterval) { clearInterval(scanPollInterval); scanPollInterval = null; }
+        }
+
+        function loadScanDirectories() {
+            fetch('/api/scan/directories')
+            .then(r => r.json())
+            .then(data => {
+                const list = document.getElementById('scan-dir-list');
+                if (!list || !data.directories) return;
+                list.innerHTML = '';
+                data.directories.forEach(d => {
+                    const label = document.createElement('label');
+                    label.className = 'flex items-center gap-2 px-3 py-2 hover:bg-neutral-700 text-white text-sm cursor-pointer';
+                    label.innerHTML = `<input type="checkbox" class="accent-blue-500 scan-dir-cb" value="${d.path}" checked> <span class="truncate">${d.path}</span> <span class="text-neutral-500 ml-auto text-xs">${d.owner}</span>`;
+                    list.appendChild(label);
+                });
+            })
+            .catch(() => {});
+        }
+
+        function startScan() {
+            const checkboxes = document.querySelectorAll('.scan-dir-cb:checked');
+            const dirs = Array.from(checkboxes).map(cb => cb.value);
+            if (dirs.length === 0) return;
+
+            const btn = document.getElementById('scan-start-btn');
+            if (btn) { btn.disabled = true; btn.textContent = t('scan.starting') || 'Starting...'; }
+
+            fetch('/api/scan/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ directories: dirs })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    showToast(data.error, 'error');
+                } else {
+                    pollScanStatus();
+                    if (!scanPollInterval) {
+                        scanPollInterval = setInterval(pollScanStatus, 2000);
+                    }
+                }
+            })
+            .catch(() => showToast(t('notifications.connection_error'), 'error'))
+            .finally(() => { if (btn) { btn.disabled = false; btn.textContent = t('scan.start_button') || 'Start Scan'; } });
+        }
+
+        function pollScanStatus() {
+            fetch('/api/scan/status?lines=30')
+            .then(r => r.json())
+            .then(data => {
+                const outputEl = document.getElementById('scan-output');
+                const statusEl = document.getElementById('scan-status');
+                if (outputEl && data.output) {
+                    outputEl.textContent = data.output.join('\n');
+                    outputEl.scrollTop = outputEl.scrollHeight;
+                }
+                if (statusEl) {
+                    if (data.running) {
+                        const elapsed = data.elapsed_seconds ? ` (${Math.round(data.elapsed_seconds)}s)` : '';
+                        statusEl.textContent = (t('scan.running') || 'Running') + elapsed;
+                        statusEl.className = 'text-blue-400 text-sm font-medium';
+                        if (!scanPollInterval) {
+                            scanPollInterval = setInterval(pollScanStatus, 2000);
+                        }
+                    } else if (data.exit_code !== null) {
+                        if (scanPollInterval) { clearInterval(scanPollInterval); scanPollInterval = null; }
+                        statusEl.textContent = data.exit_code === 0 ? (t('scan.completed') || 'Completed') : (t('scan.failed') || 'Failed');
+                        statusEl.className = data.exit_code === 0 ? 'text-green-400 text-sm font-medium' : 'text-red-400 text-sm font-medium';
+                    } else {
+                        statusEl.textContent = t('scan.idle') || 'Idle';
+                        statusEl.className = 'text-neutral-400 text-sm';
+                    }
+                }
+            })
+            .catch(() => {});
         }
 
         // Person multi-select widget

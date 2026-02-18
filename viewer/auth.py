@@ -1,8 +1,10 @@
 import re
+import os
 import hmac
+import hashlib
 from functools import wraps
 from flask import request, redirect, session, jsonify, abort
-from viewer.config import _share_secret, VIEWER_CONFIG
+from viewer.config import _share_secret, VIEWER_CONFIG, is_multi_user_enabled, get_user_config
 
 
 def generate_person_share_token(person_id):
@@ -16,14 +18,38 @@ def verify_person_share_token(person_id, token):
     return hmac.compare_digest(token, expected)
 
 
-# --- PASSWORD AUTHENTICATION ---
+# --- PASSWORD HASHING (multi-user) ---
+
+def hash_password(password):
+    """Hash a password using PBKDF2-HMAC-SHA256. Returns 'salt_hex:dk_hex'."""
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+    return f"{salt.hex()}:{dk.hex()}"
+
+
+def verify_password(password, stored_hash):
+    """Verify a password against a stored 'salt_hex:dk_hex' hash."""
+    try:
+        salt_hex, dk_hex = stored_hash.split(':')
+        salt = bytes.fromhex(salt_hex)
+        expected_dk = bytes.fromhex(dk_hex)
+        actual_dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+        return hmac.compare_digest(actual_dk, expected_dk)
+    except (ValueError, AttributeError):
+        return False
+
+
+# --- PASSWORD AUTHENTICATION (legacy single-user) ---
+
 def _get_viewer_password():
     """Get password from viewer config, returns empty string if not set."""
     return VIEWER_CONFIG.get('password', '')
 
 
 def _is_authenticated():
-    """Check if current session is authenticated."""
+    """Check if current session is authenticated (legacy or multi-user)."""
+    if is_multi_user_enabled():
+        return bool(session.get('user_id'))
     password = _get_viewer_password()
     if not password:
         return True  # No password required
@@ -36,16 +62,35 @@ def _get_edition_password():
 
 
 def is_edition_enabled():
-    """Check if edition mode is available (password is configured)."""
+    """Check if edition mode is available.
+
+    In multi-user mode, edition is available for admin/superadmin roles.
+    In legacy mode, edition requires a configured edition_password.
+    """
+    if is_multi_user_enabled():
+        return True  # Always available (role-gated)
     return bool(_get_edition_password())
 
 
 def is_edition_authenticated():
-    """Check if current session has unlocked edition mode."""
+    """Check if current session has edition-level access.
+
+    In multi-user mode, admin and superadmin roles have edition access.
+    In legacy mode, requires edition_password authentication.
+    """
+    if is_multi_user_enabled():
+        return session.get('user_role') in ('admin', 'superadmin')
     edition_password = _get_edition_password()
     if not edition_password:
         return False  # No password = edition disabled
     return session.get('edition_authenticated', False)
+
+
+def get_session_user_id():
+    """Get the current user_id from session, or None in legacy mode."""
+    if is_multi_user_enabled():
+        return session.get('user_id')
+    return None
 
 
 def require_edition(f):
@@ -58,6 +103,36 @@ def require_edition(f):
     return decorated
 
 
+def require_auth(f):
+    """Decorator that returns 401 JSON if user is not authenticated.
+
+    In multi-user mode, any logged-in user passes. Used for rating/favorite actions.
+    In legacy mode, checks edition authentication.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if is_multi_user_enabled():
+            if not session.get('user_id'):
+                return jsonify({'error': 'Authentication required'}), 401
+        else:
+            if not is_edition_authenticated():
+                return jsonify({'error': 'Edition disabled'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def require_superadmin(f):
+    """Decorator that returns 403 JSON if user is not superadmin."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not is_multi_user_enabled():
+            return jsonify({'error': 'Multi-user mode required'}), 403
+        if session.get('user_role') != 'superadmin':
+            return jsonify({'error': 'Superadmin access required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
 def register_auth_routes(app):
     """Register authentication routes and before_request hook on the app."""
 
@@ -65,25 +140,48 @@ def register_auth_routes(app):
     def login():
         """Handle login form display and submission."""
         from flask import render_template
-        password = _get_viewer_password()
-        if not password:
-            return redirect('/')
+
+        multi_user = is_multi_user_enabled()
+
+        if not multi_user:
+            # Legacy single-password mode
+            password = _get_viewer_password()
+            if not password:
+                return redirect('/')
 
         next_url = request.args.get('next', '/')
 
         if request.method == 'POST':
-            if request.form.get('password') == password:
-                session['authenticated'] = True
-                next_url = request.form.get('next', '/')
-                return redirect(next_url)
-            from i18n import _ as translate
-            return render_template('login.html', error=translate('login.invalid_password'), next_url=next_url)
+            next_url = request.form.get('next', '/')
 
-        return render_template('login.html', error=None, next_url=next_url)
+            if multi_user:
+                username = request.form.get('username', '').strip()
+                password = request.form.get('password', '')
+                user = get_user_config(username)
+                if user and verify_password(password, user.get('password_hash', '')):
+                    session['user_id'] = username
+                    session['user_role'] = user.get('role', 'user')
+                    session['user_display_name'] = user.get('display_name', username)
+                    session['authenticated'] = True
+                    return redirect(next_url)
+                from i18n import _ as translate
+                return render_template('login.html', error=translate('login.invalid_credentials'),
+                                       next_url=next_url, multi_user=True)
+            else:
+                if request.form.get('password') == _get_viewer_password():
+                    session['authenticated'] = True
+                    return redirect(next_url)
+                from i18n import _ as translate
+                return render_template('login.html', error=translate('login.invalid_password'),
+                                       next_url=next_url, multi_user=False)
+
+        return render_template('login.html', error=None, next_url=next_url, multi_user=multi_user)
 
     @app.route('/api/edition/login', methods=['POST'])
     def api_edition_login():
-        """Authenticate for edition mode."""
+        """Authenticate for edition mode (legacy single-user only)."""
+        if is_multi_user_enabled():
+            return jsonify({'error': 'Use /login for multi-user auth'}), 400
         data = request.get_json() or {}
         password = data.get('password', '')
         edition_password = _get_edition_password()
@@ -94,9 +192,18 @@ def register_auth_routes(app):
 
     @app.route('/api/edition/logout', methods=['POST'])
     def api_edition_logout():
-        """Log out of edition mode."""
+        """Log out of edition mode (legacy) or full logout (multi-user)."""
+        if is_multi_user_enabled():
+            session.clear()
+            return jsonify({'success': True})
         session.pop('edition_authenticated', None)
         return jsonify({'success': True})
+
+    @app.route('/logout', methods=['POST'])
+    def logout():
+        """Full logout for multi-user mode."""
+        session.clear()
+        return redirect('/login')
 
     @app.route('/api/person/<int:person_id>/share-token')
     def api_person_share_token(person_id):
@@ -109,8 +216,8 @@ def register_auth_routes(app):
     @app.before_request
     def check_access():
         """Check authentication and gate shared visitors."""
-        # Allow login route without authentication
-        if request.path == '/login':
+        # Allow login/logout routes without authentication
+        if request.path in ('/login', '/logout'):
             return None
 
         # Allow static assets without authentication
@@ -150,7 +257,7 @@ def register_auth_routes(app):
                 session.pop('shared_person_id', None)
                 # Fall through to password authentication check below
 
-        # Check password authentication for all other routes
+        # Check authentication
         if not _is_authenticated():
             # For API routes, return 401
             if request.path.startswith('/api/'):

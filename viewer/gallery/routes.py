@@ -1,17 +1,19 @@
 import math
 import json
-from flask import render_template, request, jsonify
+from flask import render_template, request, jsonify, session
 from i18n import _ as translate
 from viewer.filters import format_date
 from viewer.gallery import gallery_bp
 from viewer.config import VIEWER_CONFIG, load_viewer_config
-from viewer.auth import is_edition_enabled, is_edition_authenticated
+from viewer.auth import is_edition_enabled, is_edition_authenticated, get_session_user_id
+from viewer.config import is_multi_user_enabled
 from viewer.db_helpers import (
     get_db_connection, get_existing_columns, get_filter_options,
     get_cached_count, _add_tag_filter, get_art_tags_from_config,
     HIDE_BLINKS_SQL, HIDE_BURSTS_SQL, HIDE_DUPLICATES_SQL,
     PHOTO_BASE_COLS, PHOTO_OPTIONAL_COLS,
-    split_photo_tags, attach_person_data
+    split_photo_tags, attach_person_data,
+    get_visibility_clause, get_photos_from_clause, get_preference_columns
 )
 from viewer.top_picks import get_top_picks_score_sql, get_top_picks_threshold
 from viewer.types import (
@@ -21,13 +23,24 @@ from viewer.types import (
 )
 
 
-def _build_gallery_where(params, conn=None):
+def _build_gallery_where(params, conn=None, user_id=None):
     """Build WHERE clauses for gallery queries. Used by both index() and api_photos().
+
+    Args:
+        params: Filter parameters dict
+        conn: Optional db connection
+        user_id: Username for multi-user visibility filtering
 
     Returns (where_clauses, sql_params) lists.
     """
     where_clauses = []
     sql_params = []
+
+    # Multi-user visibility filter
+    if user_id:
+        vis_sql, vis_params = get_visibility_clause(user_id)
+        where_clauses.append(vis_sql)
+        sql_params.extend(vis_params)
 
     def add_range_filter(column, min_key, max_key, is_float=True):
         min_val = params.get(min_key, '')
@@ -136,21 +149,22 @@ def _build_gallery_where(params, conn=None):
     if params.get('hide_duplicates') == '1':
         where_clauses.append(HIDE_DUPLICATES_SQL)
 
-    # Rating filters
+    # Rating filters (use preference column expressions for multi-user support)
+    pref_cols = get_preference_columns(user_id)
     if params.get('min_rating'):
         try:
             min_rating = int(params['min_rating'])
             if 1 <= min_rating <= 5:
-                where_clauses.append("star_rating >= ?")
+                where_clauses.append(f"{pref_cols['star_rating']} >= ?")
                 sql_params.append(min_rating)
         except ValueError:
             pass
     if params.get('favorites_only') == '1':
-        where_clauses.append("is_favorite = 1")
+        where_clauses.append(f"{pref_cols['is_favorite']} = 1")
     if params.get('show_rejected') == '1':
-        where_clauses.append("is_rejected = 1")
+        where_clauses.append(f"{pref_cols['is_rejected']} = 1")
     elif params.get('hide_rejected') == '1':
-        where_clauses.append("(is_rejected = 0 OR is_rejected IS NULL)")
+        where_clauses.append(f"({pref_cols['is_rejected']} = 0 OR {pref_cols['is_rejected']} IS NULL)")
 
     # Range filters - scores
     add_range_filter("face_ratio", "min_face_ratio", "max_face_ratio")
@@ -332,7 +346,12 @@ def index():
 
     # 3. Build WHERE clauses using shared helper
     conn = get_db_connection()
-    where_clauses, sql_params = _build_gallery_where(params, conn)
+    user_id = get_session_user_id()
+    from_clause, from_params = get_photos_from_clause(user_id)
+    where_clauses, sql_params = _build_gallery_where(params, conn, user_id=user_id)
+
+    # Prepend FROM params (e.g., user_id for JOIN)
+    all_params = from_params + sql_params
 
     # Build WHERE string
     where_str = ""
@@ -341,7 +360,7 @@ def index():
 
     try:
         # 4. Calculate Pagination (use cached count to avoid repeated full-table scans)
-        total_count = get_cached_count(conn, where_str, sql_params)
+        total_count = get_cached_count(conn, where_str, all_params, from_clause=from_clause)
         total_pages = max(1, math.ceil(total_count / per_page))
 
         # Sort validation - support multiple sort columns via sort_list
@@ -366,7 +385,16 @@ def index():
         offset = (page - 1) * per_page
 
         existing_cols = get_existing_columns(conn)
-        select_cols = list(PHOTO_BASE_COLS) + [c for c in PHOTO_OPTIONAL_COLS if c in existing_cols]
+        # Build select cols, replacing preference columns with multi-user expressions
+        pref_cols = get_preference_columns(user_id)
+        pref_col_names = {'star_rating', 'is_favorite', 'is_rejected'}
+        select_cols = list(PHOTO_BASE_COLS)
+        for c in PHOTO_OPTIONAL_COLS:
+            if c in existing_cols:
+                if c in pref_col_names:
+                    select_cols.append(f"{pref_cols[c]} as {c}")
+                else:
+                    select_cols.append(c)
 
         # Add computed top_picks_score column when needed for sorting or display
         needs_top_picks_score = (
@@ -377,8 +405,8 @@ def index():
             top_picks_expr = get_top_picks_score_sql()
             select_cols.append(f"({top_picks_expr}) as top_picks_score")
 
-        query = f"SELECT {', '.join(select_cols)} FROM photos{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
-        rows = conn.execute(query, sql_params + [per_page, offset]).fetchall()
+        query = f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
+        rows = conn.execute(query, all_params + [per_page, offset]).fetchall()
 
         # Convert to dicts and pre-split tags for template efficiency
         tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
@@ -547,6 +575,10 @@ def index():
         edition_authenticated=is_edition_authenticated(),
         sort_label=sort_label,
         viewer_config=VIEWER_CONFIG,
+        # Multi-user template variables
+        is_multi_user=is_multi_user_enabled(),
+        user_display_name=session.get('user_display_name', ''),
+        user_role=session.get('user_role', ''),
     )
 
 
@@ -668,7 +700,10 @@ def api_photos():
 
     # Build WHERE clauses using shared helper (identical to index())
     conn = get_db_connection()
-    where_clauses, sql_params = _build_gallery_where(params, conn)
+    user_id = get_session_user_id()
+    from_clause, from_params = get_photos_from_clause(user_id)
+    where_clauses, sql_params = _build_gallery_where(params, conn, user_id=user_id)
+    all_params = from_params + sql_params
     where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
     # Build ORDER BY
@@ -677,13 +712,21 @@ def api_photos():
     order_by_clause = f"{sort_col} {sort_dir}, path ASC"
 
     try:
-        total_count = get_cached_count(conn, where_str, sql_params)
+        total_count = get_cached_count(conn, where_str, all_params, from_clause=from_clause)
         total_pages = max(1, math.ceil(total_count / per_page))
         offset = (page - 1) * per_page
 
         # Use shared column lists (same as index())
         existing_cols = get_existing_columns(conn)
-        select_cols = list(PHOTO_BASE_COLS) + [c for c in PHOTO_OPTIONAL_COLS if c in existing_cols]
+        pref_cols = get_preference_columns(user_id)
+        pref_col_names = {'star_rating', 'is_favorite', 'is_rejected'}
+        select_cols = list(PHOTO_BASE_COLS)
+        for c in PHOTO_OPTIONAL_COLS:
+            if c in existing_cols:
+                if c in pref_col_names:
+                    select_cols.append(f"{pref_cols[c]} as {c}")
+                else:
+                    select_cols.append(c)
 
         # Add computed top_picks_score column when needed
         needs_top_picks_score = (
@@ -694,8 +737,8 @@ def api_photos():
             top_picks_expr = get_top_picks_score_sql()
             select_cols.append(f"({top_picks_expr}) as top_picks_score")
 
-        query = f"SELECT {', '.join(select_cols)} FROM photos{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
-        rows = conn.execute(query, sql_params + [per_page, offset]).fetchall()
+        query = f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
+        rows = conn.execute(query, all_params + [per_page, offset]).fetchall()
 
         # Use shared helpers for tag splitting and person data
         tags_limit = VIEWER_CONFIG['display']['tags_per_photo']

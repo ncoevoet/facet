@@ -21,7 +21,8 @@ class ComparisonManager:
         photo_a_path: str,
         photo_b_path: str,
         winner: str,
-        category: Optional[str] = None
+        category: Optional[str] = None,
+        user_id: Optional[str] = None
     ) -> bool:
         """
         Submit a pairwise comparison result.
@@ -31,6 +32,7 @@ class ComparisonManager:
             photo_b_path: Path to photo B
             winner: 'a', 'b', 'tie', or 'skip'
             category: Optional category for the comparison
+            user_id: Optional user identifier for multi-user mode
 
         Returns:
             True if successfully saved, False otherwise
@@ -42,9 +44,9 @@ class ComparisonManager:
             try:
                 conn.execute("""
                     INSERT OR REPLACE INTO comparisons
-                    (photo_a_path, photo_b_path, winner, category, session_id)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (photo_a_path, photo_b_path, winner, category, self._session_id))
+                    (photo_a_path, photo_b_path, winner, category, session_id, user_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (photo_a_path, photo_b_path, winner, category, self._session_id, user_id))
                 conn.commit()
                 return True
             except sqlite3.Error as e:

@@ -139,7 +139,10 @@ Checks: Score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python database.py --analyze` | Update query planner statistics |
 | `python database.py --optimize` | Run VACUUM and ANALYZE |
 | `python database.py --export-viewer-db` | Export lightweight database for NAS deployment |
-| `python photos.py --cleanup-orphaned-persons` | Remove persons with no associated faces |
+| `python database.py --cleanup-orphaned-persons` | Remove persons with no associated faces |
+| `python database.py --add-user alice --role admin` | Add a user (prompts for password) |
+| `python database.py --add-user alice --role user --display-name "Alice"` | Add user with display name |
+| `python database.py --migrate-user-preferences --user alice` | Copy ratings from photos to user_preferences |
 
 **Performance tip:** For large databases (50k+ photos), run `--migrate-tags` once and `--optimize` periodically.
 
@@ -170,6 +173,16 @@ python photos.py /path               # Extract faces during scan
 python photos.py --cluster-faces-incremental     # Group into persons
 python photos.py --suggest-person-merges         # Find duplicates
 # Use /manage_persons in viewer to merge/rename
+```
+
+### Multi-User Setup
+```bash
+# Add users (prompts for password)
+python database.py --add-user alice --role superadmin --display-name "Alice"
+python database.py --add-user bob --role user --display-name "Bob"
+# Edit scoring_config.json to set directories and shared_directories
+# Migrate existing ratings to a user
+python database.py --migrate-user-preferences --user alice
 ```
 
 ### Switch Tagging Model

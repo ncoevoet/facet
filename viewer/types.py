@@ -170,10 +170,13 @@ def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False)
 
     Optimized to use a single UNION ALL query instead of 17+ individual COUNT queries.
     """
-    from viewer.db_helpers import get_db_connection, get_existing_columns
+    from viewer.db_helpers import get_db_connection, get_existing_columns, get_visibility_clause
+    from viewer.auth import get_session_user_id
 
-    # Check cache (keyed by filter combination)
-    cache_key = (hide_blinks, hide_bursts, hide_duplicates)
+    user_id = get_session_user_id()
+
+    # Check cache (keyed by filter combination + user)
+    cache_key = (hide_blinks, hide_bursts, hide_duplicates, user_id or '')
     if time.time() < _photo_types_cache['expires'] and cache_key in _photo_types_cache['data']:
         return _photo_types_cache['data'][cache_key]
 
@@ -182,12 +185,19 @@ def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False)
 
     # Build base filter clauses for blink/burst settings
     base_filters = []
+    sql_params = []
     if hide_blinks:
         base_filters.append(HIDE_BLINKS_SQL)
     if hide_bursts:
         base_filters.append(HIDE_BURSTS_SQL)
     if hide_duplicates:
         base_filters.append(HIDE_DUPLICATES_SQL)
+
+    # Multi-user visibility
+    if user_id:
+        vis_sql, vis_params = get_visibility_clause(user_id)
+        base_filters.append(vis_sql)
+        sql_params.extend(vis_params)
 
     base_where = " AND ".join(base_filters) if base_filters else ""
 
@@ -214,21 +224,25 @@ def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False)
         valid_types.append((type_id, label, combined_where))
 
     # Build single UNION ALL query for all counts
+    # Each sub-query needs its own copy of params
+    all_params = []
     query_parts = []
     # Add "All Photos" count first
     if base_where:
         query_parts.append(f"SELECT '' as type_id, COUNT(*) as cnt FROM photos WHERE {base_where}")
+        all_params.extend(sql_params)
     else:
         query_parts.append("SELECT '' as type_id, COUNT(*) as cnt FROM photos")
 
     # Add all type counts
     for type_id, label, combined_where in valid_types:
         query_parts.append(f"SELECT '{type_id}' as type_id, COUNT(*) as cnt FROM photos WHERE {combined_where}")
+        all_params.extend(sql_params)
 
     # Execute single UNION ALL query
     union_query = " UNION ALL ".join(query_parts)
     try:
-        results = conn.execute(union_query).fetchall()
+        results = conn.execute(union_query, all_params).fetchall()
     except Exception:
         # Fallback to individual queries if UNION fails
         conn.close()

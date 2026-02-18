@@ -630,7 +630,10 @@
     "password_label": "Password",
     "placeholder": "Enter password",
     "submit": "Login",
-    "invalid_password": "Invalid password"
+    "invalid_password": "Invalid password",
+    "username_label": "Username",
+    "username_placeholder": "Enter username",
+    "invalid_credentials": "Invalid username or password"
   },
   "edition": {
     "unlock_title": "Unlock Edition Mode",
@@ -639,5 +642,17 @@
     "lock_title": "Edition mode active - click to lock",
     "password_placeholder": "Edition password",
     "invalid_password": "Invalid password"
+  },
+  "auth": {
+    "logout": "Log out"
+  },
+  "scan": {
+    "title": "Scan Photos",
+    "start_button": "Start Scan",
+    "starting": "Starting...",
+    "running": "Running",
+    "completed": "Completed",
+    "failed": "Failed",
+    "idle": "Idle"
   }
 }

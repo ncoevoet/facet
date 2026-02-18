@@ -3,7 +3,7 @@ import hashlib
 import time
 from db import DEFAULT_DB_PATH, apply_pragmas
 from config import ScoringConfig
-from viewer.config import VIEWER_CONFIG, _filter_options_cache, _existing_columns_cache, _photo_tags_available, _count_cache, COUNT_CACHE_TTL
+from viewer.config import VIEWER_CONFIG, _filter_options_cache, _existing_columns_cache, _photo_tags_available, _count_cache, COUNT_CACHE_TTL, is_multi_user_enabled, get_user_directories
 
 # --- SQL FRAGMENT CONSTANTS ---
 HIDE_BLINKS_SQL = "(is_blink = 0 OR is_blink IS NULL)"
@@ -178,14 +178,14 @@ def get_art_tags_from_config():
     return _art_tags_cache
 
 
-def get_cached_count(conn, where_str, sql_params):
+def get_cached_count(conn, where_str, sql_params, from_clause="photos"):
     """Cache COUNT results to avoid repeated full-table scans.
 
     Uses a short TTL (30s) to balance performance with freshness.
-    Cache key is based on the WHERE clause and parameters.
+    Cache key is based on the WHERE clause, parameters, and FROM clause.
     """
     # Build cache key from query components
-    cache_key = hashlib.md5(f"{where_str}:{tuple(sql_params)}".encode()).hexdigest()
+    cache_key = hashlib.md5(f"{from_clause}:{where_str}:{tuple(sql_params)}".encode()).hexdigest()
 
     now = time.time()
     if cache_key in _count_cache:
@@ -194,7 +194,7 @@ def get_cached_count(conn, where_str, sql_params):
             return count
 
     # Execute count query
-    count = conn.execute(f"SELECT COUNT(*) FROM photos{where_str}", sql_params).fetchone()[0]
+    count = conn.execute(f"SELECT COUNT(*) FROM {from_clause}{where_str}", sql_params).fetchone()[0]
 
     # Store in cache
     _count_cache[cache_key] = (count, now)
@@ -363,3 +363,60 @@ def attach_person_data(photos, conn):
         for photo in photos:
             photo['persons'] = []
             photo['unassigned_faces'] = 0
+
+
+# --- MULTI-USER VISIBILITY & PREFERENCES ---
+
+def get_visibility_clause(user_id):
+    """Returns (sql_fragment, params) for photo visibility in multi-user mode.
+
+    Each user can see photos from their configured directories + shared directories.
+    Uses LIKE 'prefix%' which leverages the PRIMARY KEY B-tree index on photos.path.
+    """
+    if not user_id or not is_multi_user_enabled():
+        return '1=1', []
+
+    all_dirs = get_user_directories(user_id)
+    if not all_dirs:
+        return '0=1', []  # No directories = no access
+
+    conditions = []
+    params = []
+    for d in all_dirs:
+        prefix = d.rstrip('/\\') + '/'
+        conditions.append("photos.path LIKE ?")
+        params.append(prefix + '%')
+
+    return f"({' OR '.join(conditions)})", params
+
+
+def get_photos_from_clause(user_id=None):
+    """Build FROM clause for gallery queries.
+
+    In multi-user mode, LEFT JOINs user_preferences to get per-user ratings.
+    Returns (from_sql, extra_params).
+    """
+    if user_id and is_multi_user_enabled():
+        return ("photos LEFT JOIN user_preferences up "
+                "ON up.photo_path = photos.path AND up.user_id = ?"), [user_id]
+    return "photos", []
+
+
+def get_preference_columns(user_id=None):
+    """Get SQL column expressions for user-preference columns.
+
+    In multi-user mode, reads from user_preferences JOIN.
+    In legacy mode, reads from photos table directly.
+    Returns dict mapping column name to SQL expression.
+    """
+    if user_id and is_multi_user_enabled():
+        return {
+            'star_rating': 'COALESCE(up.star_rating, 0)',
+            'is_favorite': 'COALESCE(up.is_favorite, 0)',
+            'is_rejected': 'COALESCE(up.is_rejected, 0)',
+        }
+    return {
+        'star_rating': 'photos.star_rating',
+        'is_favorite': 'photos.is_favorite',
+        'is_rejected': 'photos.is_rejected',
+    }

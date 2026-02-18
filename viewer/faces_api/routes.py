@@ -1,7 +1,7 @@
-from flask import request, jsonify
+from flask import request, jsonify, session
 from viewer.faces_api import faces_api_bp
-from viewer.config import invalidate_filter_cache
-from viewer.auth import require_edition
+from viewer.config import invalidate_filter_cache, is_multi_user_enabled
+from viewer.auth import require_edition, require_auth, get_session_user_id
 from viewer.db_helpers import get_db_connection, update_person_face_count
 
 
@@ -222,7 +222,7 @@ def api_unassign_person():
 
 
 @faces_api_bp.route('/api/photo/set_rating', methods=['POST'])
-@require_edition
+@require_auth
 def api_set_rating():
     """Set star rating (0-5) for a photo."""
     data = request.get_json()
@@ -234,9 +234,17 @@ def api_set_rating():
     if rating is None or not isinstance(rating, int) or rating < 0 or rating > 5:
         return jsonify({'error': 'rating must be integer 0-5'}), 400
 
+    user_id = get_session_user_id()
     conn = get_db_connection()
     try:
-        conn.execute("UPDATE photos SET star_rating = ? WHERE path = ?", (rating, photo_path))
+        if user_id and is_multi_user_enabled():
+            conn.execute("""
+                INSERT INTO user_preferences (user_id, photo_path, star_rating)
+                VALUES (?, ?, ?)
+                ON CONFLICT(user_id, photo_path) DO UPDATE SET star_rating = excluded.star_rating
+            """, (user_id, photo_path, rating))
+        else:
+            conn.execute("UPDATE photos SET star_rating = ? WHERE path = ?", (rating, photo_path))
         conn.commit()
         return jsonify({'success': True, 'rating': rating})
     except Exception as e:
@@ -247,7 +255,7 @@ def api_set_rating():
 
 
 @faces_api_bp.route('/api/photo/toggle_favorite', methods=['POST'])
-@require_edition
+@require_auth
 def api_toggle_favorite():
     """Toggle favorite flag for a photo."""
     data = request.get_json()
@@ -256,19 +264,37 @@ def api_toggle_favorite():
     if not photo_path:
         return jsonify({'error': 'photo_path required'}), 400
 
+    user_id = get_session_user_id()
     conn = get_db_connection()
     try:
-        # Get current state and toggle
-        row = conn.execute("SELECT is_favorite FROM photos WHERE path = ?", (photo_path,)).fetchone()
-        if not row:
-            return jsonify({'error': 'Photo not found'}), 404
-
-        new_value = 0 if row['is_favorite'] else 1
-        if new_value == 1:
-            # When marking as favorite, also unmark rejected (mutually exclusive)
-            conn.execute("UPDATE photos SET is_favorite = 1, is_rejected = 0 WHERE path = ?", (photo_path,))
+        if user_id and is_multi_user_enabled():
+            row = conn.execute(
+                "SELECT is_favorite FROM user_preferences WHERE user_id = ? AND photo_path = ?",
+                (user_id, photo_path)
+            ).fetchone()
+            current = row['is_favorite'] if row else 0
+            new_value = 0 if current else 1
+            if new_value == 1:
+                conn.execute("""
+                    INSERT INTO user_preferences (user_id, photo_path, is_favorite, is_rejected)
+                    VALUES (?, ?, 1, 0)
+                    ON CONFLICT(user_id, photo_path) DO UPDATE SET is_favorite = 1, is_rejected = 0
+                """, (user_id, photo_path))
+            else:
+                conn.execute("""
+                    INSERT INTO user_preferences (user_id, photo_path, is_favorite)
+                    VALUES (?, ?, 0)
+                    ON CONFLICT(user_id, photo_path) DO UPDATE SET is_favorite = 0
+                """, (user_id, photo_path))
         else:
-            conn.execute("UPDATE photos SET is_favorite = 0 WHERE path = ?", (photo_path,))
+            row = conn.execute("SELECT is_favorite FROM photos WHERE path = ?", (photo_path,)).fetchone()
+            if not row:
+                return jsonify({'error': 'Photo not found'}), 404
+            new_value = 0 if row['is_favorite'] else 1
+            if new_value == 1:
+                conn.execute("UPDATE photos SET is_favorite = 1, is_rejected = 0 WHERE path = ?", (photo_path,))
+            else:
+                conn.execute("UPDATE photos SET is_favorite = 0 WHERE path = ?", (photo_path,))
         conn.commit()
         return jsonify({'success': True, 'is_favorite': new_value == 1, 'is_rejected': False if new_value == 1 else None})
     except Exception as e:
@@ -279,7 +305,7 @@ def api_toggle_favorite():
 
 
 @faces_api_bp.route('/api/photo/toggle_rejected', methods=['POST'])
-@require_edition
+@require_auth
 def api_toggle_rejected():
     """Toggle rejected flag for a photo."""
     data = request.get_json()
@@ -288,19 +314,37 @@ def api_toggle_rejected():
     if not photo_path:
         return jsonify({'error': 'photo_path required'}), 400
 
+    user_id = get_session_user_id()
     conn = get_db_connection()
     try:
-        # Get current state and toggle
-        row = conn.execute("SELECT is_rejected FROM photos WHERE path = ?", (photo_path,)).fetchone()
-        if not row:
-            return jsonify({'error': 'Photo not found'}), 404
-
-        new_value = 0 if row['is_rejected'] else 1
-        if new_value == 1:
-            # When rejecting, also set star_rating to 0 and unmark favorite (mutually exclusive)
-            conn.execute("UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path = ?", (photo_path,))
+        if user_id and is_multi_user_enabled():
+            row = conn.execute(
+                "SELECT is_rejected FROM user_preferences WHERE user_id = ? AND photo_path = ?",
+                (user_id, photo_path)
+            ).fetchone()
+            current = row['is_rejected'] if row else 0
+            new_value = 0 if current else 1
+            if new_value == 1:
+                conn.execute("""
+                    INSERT INTO user_preferences (user_id, photo_path, is_rejected, star_rating, is_favorite)
+                    VALUES (?, ?, 1, 0, 0)
+                    ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0
+                """, (user_id, photo_path))
+            else:
+                conn.execute("""
+                    INSERT INTO user_preferences (user_id, photo_path, is_rejected)
+                    VALUES (?, ?, 0)
+                    ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 0
+                """, (user_id, photo_path))
         else:
-            conn.execute("UPDATE photos SET is_rejected = 0 WHERE path = ?", (photo_path,))
+            row = conn.execute("SELECT is_rejected FROM photos WHERE path = ?", (photo_path,)).fetchone()
+            if not row:
+                return jsonify({'error': 'Photo not found'}), 404
+            new_value = 0 if row['is_rejected'] else 1
+            if new_value == 1:
+                conn.execute("UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path = ?", (photo_path,))
+            else:
+                conn.execute("UPDATE photos SET is_rejected = 0 WHERE path = ?", (photo_path,))
         conn.commit()
         return jsonify({'success': True, 'is_rejected': new_value == 1, 'star_rating': 0 if new_value == 1 else None, 'is_favorite': False if new_value == 1 else None})
     except Exception as e:

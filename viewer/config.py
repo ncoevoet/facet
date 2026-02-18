@@ -105,6 +105,60 @@ def load_viewer_config(config=None):
 VIEWER_CONFIG = load_viewer_config(_FULL_CONFIG)
 
 
+# --- MULTI-USER SUPPORT ---
+
+def is_multi_user_enabled():
+    """Check if multi-user mode is configured.
+
+    Returns True if scoring_config.json has a 'users' key with at least one user entry
+    (keys other than 'shared_directories').
+    """
+    users = _FULL_CONFIG.get('users', {})
+    return any(k != 'shared_directories' for k in users)
+
+
+def get_user_config(username):
+    """Get config dict for a specific user. Returns None if user not found."""
+    users = _FULL_CONFIG.get('users', {})
+    user = users.get(username)
+    if user is None or not isinstance(user, dict):
+        return None
+    return user
+
+
+def get_user_directories(username):
+    """Get list of all directories a user can access (own + shared).
+
+    Returns empty list if user not found.
+    """
+    users = _FULL_CONFIG.get('users', {})
+    user = users.get(username)
+    if user is None or not isinstance(user, dict):
+        return []
+    user_dirs = list(user.get('directories', []))
+    shared_dirs = list(users.get('shared_directories', []))
+    return user_dirs + shared_dirs
+
+
+def get_all_scan_directories():
+    """Get all configured directories (all users + shared). For scan UI."""
+    users = _FULL_CONFIG.get('users', {})
+    dirs = set()
+    for key, val in users.items():
+        if key == 'shared_directories':
+            dirs.update(val)
+        elif isinstance(val, dict):
+            dirs.update(val.get('directories', []))
+    return sorted(dirs)
+
+
+def reload_config():
+    """Reload scoring_config.json from disk. Used after --add-user modifies it."""
+    global _FULL_CONFIG, _share_secret, VIEWER_CONFIG
+    _FULL_CONFIG, _share_secret = _load_and_ensure_share_secret()
+    VIEWER_CONFIG = load_viewer_config(_FULL_CONFIG)
+
+
 def map_disk_path(db_path):
     """Map a database path to a local disk path using viewer.path_mapping config.
 

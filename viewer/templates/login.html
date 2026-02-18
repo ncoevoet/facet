@@ -30,12 +30,27 @@
         {% endif %}
         <form method="POST" action="/login">
             <input type="hidden" name="next" value="{{ next_url }}">
+            {% if multi_user %}
+            <div class="mb-4">
+                <label for="username" class="block text-neutral-400 text-sm mb-2">{{ _('login.username_label') }}</label>
+                <input type="text" name="username" id="username"
+                       class="w-full bg-neutral-800 text-white border border-neutral-700 rounded px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                       placeholder="{{ _('login.username_placeholder') }}" autofocus autocomplete="username">
+            </div>
+            <div class="mb-4">
+                <label for="password" class="block text-neutral-400 text-sm mb-2">{{ _('login.password_label') }}</label>
+                <input type="password" name="password" id="password"
+                       class="w-full bg-neutral-800 text-white border border-neutral-700 rounded px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                       placeholder="{{ _('login.placeholder') }}" autocomplete="current-password">
+            </div>
+            {% else %}
             <div class="mb-4">
                 <label for="password" class="block text-neutral-400 text-sm mb-2">{{ _('login.password_label') }}</label>
                 <input type="password" name="password" id="password"
                        class="w-full bg-neutral-800 text-white border border-neutral-700 rounded px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                        placeholder="{{ _('login.placeholder') }}" autofocus>
             </div>
+            {% endif %}
             <button type="submit"
                     class="w-full bg-green-600 hover:bg-green-500 text-white font-medium py-2 px-4 rounded transition-colors">
                 {{ _('login.submit') }}

@@ -100,7 +100,7 @@ From your scoring machine, sync the viewer and exported database:
 rsync -avz \
   viewer.py person_viewer.py config.py database.py tagger.py \
   scoring_config.json photo_scores_viewer.db \
-  db/ i18n/ \
+  viewer/ comparison/ db/ i18n/ \
   admin@your-synology-ip:/volume1/facet/
 ```
 
@@ -181,6 +181,8 @@ FROM python:3.11-slim
 WORKDIR /app
 RUN pip install flask gunicorn
 COPY viewer.py person_viewer.py config.py database.py tagger.py scoring_config.json ./
+COPY viewer/ viewer/
+COPY comparison/ comparison/
 COPY db/ db/
 COPY i18n/ i18n/
 EXPOSE 5000
@@ -280,3 +282,63 @@ photos.yourdomain.com {
 ```
 
 Re-run the export and `rsync` after each scoring session to update the database on the server. For high-memory servers, you can sync the full `photo_scores_pro.db` directly instead of exporting.
+
+## Multi-User Setup
+
+For family NAS scenarios where each member has private photo directories, add a `users` section to `scoring_config.json`. See [Configuration](CONFIGURATION.md#users) for the full reference.
+
+### Quick start
+
+```bash
+# On the scoring machine, add users
+python database.py --add-user alice --role superadmin --display-name "Alice"
+python database.py --add-user bob --role user --display-name "Bob"
+```
+
+Then edit `scoring_config.json`:
+
+```json
+{
+  "users": {
+    "alice": {
+      "password_hash": "...",
+      "display_name": "Alice",
+      "role": "superadmin",
+      "directories": ["/volume1/Photos/Alice"]
+    },
+    "bob": {
+      "password_hash": "...",
+      "display_name": "Bob",
+      "role": "user",
+      "directories": ["/volume1/Photos/Bob"]
+    },
+    "shared_directories": [
+      "/volume1/Photos/Family"
+    ]
+  }
+}
+```
+
+Directory paths must match the photo paths stored in the database. If you use `viewer.path_mapping`, the directories should use the **mapped** paths (as they appear on the viewer host).
+
+### Migrating existing ratings
+
+If you had ratings in single-user mode, migrate them to a user:
+
+```bash
+python database.py --migrate-user-preferences --user alice
+```
+
+### Scan button
+
+To allow the superadmin to trigger photo scans from the viewer UI (only useful when the viewer runs on the GPU machine):
+
+```json
+{
+  "viewer": {
+    "features": {
+      "show_scan_button": true
+    }
+  }
+}
+```
