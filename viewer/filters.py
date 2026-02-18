@@ -76,7 +76,7 @@ def urlencode_remove_person(params, person_id):
     if 'person' in updated:
         ids = [p.strip() for p in updated['person'].split(',') if p.strip() != str(person_id)]
         updated['person'] = ','.join(ids)
-    return urlencode({k: v for k, v in updated.items() if v})
+    return urlencode({k: v for k, v in updated.items() if v and v != '0'})
 
 
 def register_filters(app):

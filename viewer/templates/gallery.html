@@ -1370,6 +1370,13 @@
 
         // Person multi-select widget
         const personMsSelection = new Set(currentPersonFilters);
+        const personMsInitial = new Set(currentPersonFilters);
+        // Person data lookup for dynamic chip rendering
+        const personMsData = {
+            {% for id, name, face_id, count in options.persons %}
+            '{{ id }}': { name: {{ (name or _('manage_persons.person_fallback', id=id))|tojson }}, id: '{{ id }}' },
+            {% endfor %}
+        };
 
         function personMsOpen(e) {
             e.stopPropagation();
@@ -1384,6 +1391,10 @@
             if (dropdown) dropdown.classList.add('hidden');
             const input = document.querySelector('.person-ms-input');
             if (input) { input.value = ''; personMsFilter(''); }
+            // Apply changes only if selection changed
+            const same = personMsSelection.size === personMsInitial.size &&
+                         [...personMsSelection].every(id => personMsInitial.has(id));
+            if (!same) personMsApply();
         }
 
         function personMsFilter(query) {
@@ -1401,11 +1412,37 @@
             } else {
                 personMsSelection.add(id);
             }
-            personMsApply();
+            personMsUpdateChips();
+        }
+
+        function personMsUpdateChips() {
+            // Update chips in trigger area to reflect current selection
+            const trigger = document.querySelector('.person-ms-trigger');
+            if (!trigger) return;
+            // Remove existing chips
+            trigger.querySelectorAll('.person-ms-chip').forEach(c => c.remove());
+            // Add chips for current selection
+            const input = trigger.querySelector('.person-ms-input');
+            personMsSelection.forEach(id => {
+                const data = personMsData[id];
+                if (!data) return;
+                const chip = document.createElement('span');
+                chip.className = 'person-ms-chip flex items-center gap-1 bg-neutral-700 rounded-full pl-0.5 pr-1.5 py-0.5 text-xs max-w-[140px]';
+                chip.dataset.personId = id;
+                chip.innerHTML = `<img src="/person_thumbnail/${id}" class="w-5 h-5 rounded-full object-cover flex-shrink-0" alt="">` +
+                    `<span class="truncate">${data.name}</span>` +
+                    `<button type="button" class="ml-0.5 text-neutral-400 hover:text-white" onclick="event.stopPropagation(); personMsRemove('${id}')">&times;</button>`;
+                trigger.insertBefore(chip, input);
+            });
+            // Update placeholder
+            input.placeholder = personMsSelection.size === 0 ? t('ui.filters.all_people') : '';
         }
 
         function personMsRemove(personId) {
             personMsSelection.delete(String(personId));
+            // Also uncheck in dropdown
+            const item = document.querySelector(`.person-ms-item[data-person-id="${personId}"] input`);
+            if (item) item.checked = false;
             personMsApply();
         }
 
