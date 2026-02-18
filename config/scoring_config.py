@@ -659,7 +659,7 @@ class ScoringConfig:
 
         profile_descriptions = {
             '24gb': 'TOPIQ + Qwen2-VL',
-            '16gb': 'TOPIQ + RAM++',
+            '16gb': 'TOPIQ + SAMP-Net + Qwen3-VL',
             '8gb': 'CLIP+MLP + SAMP-Net',
             'legacy': 'CLIP+MLP + rule-based',
         }

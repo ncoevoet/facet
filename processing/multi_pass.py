@@ -346,7 +346,7 @@ class ChunkedMultiPassProcessor:
                             f"Model '{model_name}' failed to load: load_model_only returned None."
                         )
                     loaded_models[model_name] = model
-                except (RuntimeError, Exception) as e:
+                except RuntimeError as e:
                     from utils.device import is_oom_error
                     if not is_oom_error(e):
                         raise
@@ -360,7 +360,7 @@ class ChunkedMultiPassProcessor:
             for model_name, model in loaded_models.items():
                 try:
                     self._run_model_pass(model_name, model, images, results)
-                except (RuntimeError, Exception) as e:
+                except RuntimeError as e:
                     from utils.device import is_oom_error
                     if not is_oom_error(e):
                         raise

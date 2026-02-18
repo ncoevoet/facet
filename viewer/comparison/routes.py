@@ -10,6 +10,15 @@ from viewer.auth import is_edition_authenticated, require_edition, get_session_u
 from viewer.db_helpers import get_db_connection, get_visibility_clause
 from viewer.types import TYPE_TO_CATEGORY
 
+# Register HEIC/HEIF support via pillow-heif (if available)
+_heif_available = False
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+    _heif_available = True
+except ImportError:
+    pass
+
 # Mapping from optimizer DB column names to config weight names (used by learned_weights and confidence)
 METRIC_NAME_MAPPING = {
     # Primary quality
@@ -157,17 +166,14 @@ def api_download_single():
 
     # Convert HEIC/HEIF files to JPEG for download
     if disk_path.lower().endswith(('.heic', '.heif')):
-        from io import BytesIO
-        from PIL import Image
-        try:
-            import pillow_heif
-            pillow_heif.register_heif_opener()
-        except ImportError:
+        if not _heif_available:
             return jsonify(
                 {'error': 'HEIC/HEIF conversion is not available on this server '
                           '(missing pillow-heif dependency)'}
             ), 500
 
+        from io import BytesIO
+        from PIL import Image
         pil_img = Image.open(disk_path)
         if pil_img.mode != 'RGB':
             pil_img = pil_img.convert('RGB')
