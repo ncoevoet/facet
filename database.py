@@ -18,6 +18,8 @@ Usage:
 
 import json
 import os
+import shutil
+from datetime import datetime
 
 from db import (
     DEFAULT_DB_PATH,
@@ -44,7 +46,10 @@ def _load_config():
 
 
 def _save_config(config):
-    """Write scoring_config.json."""
+    """Write scoring_config.json (creates timestamped backup first)."""
+    backup_path = f"{CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    shutil.copy2(CONFIG_PATH, backup_path)
+    print(f"Backup saved to {backup_path}")
     with open(CONFIG_PATH, 'w') as f:
         json.dump(config, f, indent=2)
     print(f"Config saved to {CONFIG_PATH}")

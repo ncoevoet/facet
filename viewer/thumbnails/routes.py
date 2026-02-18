@@ -1,4 +1,5 @@
 import hashlib
+import os
 from io import BytesIO
 from functools import lru_cache
 from flask import request, make_response, send_file
@@ -19,9 +20,10 @@ def _check_path_visibility(photo_path):
     if not user_id:
         return False
     dirs = get_user_directories(user_id)
+    resolved = os.path.realpath(photo_path)
     for d in dirs:
-        prefix = d.rstrip('/\\') + '/'
-        if photo_path.startswith(prefix):
+        prefix = os.path.realpath(d.rstrip('/\\')) + '/'
+        if resolved.startswith(prefix):
             return True
     return False
 

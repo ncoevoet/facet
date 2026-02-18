@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import threading
@@ -6,6 +7,8 @@ from flask import request, jsonify
 from viewer.scan import scan_bp
 from viewer.auth import require_superadmin
 from viewer.config import VIEWER_CONFIG, get_all_scan_directories, get_user_directories
+
+_PHOTOS_SCRIPT = os.path.join(os.path.dirname(__file__), '..', '..', 'photos.py')
 
 # Global scan state (only one scan at a time)
 _scan_lock = threading.Lock()
@@ -65,7 +68,7 @@ def api_start_scan():
             return jsonify({'error': 'No directories specified'}), 400
 
         # Build command
-        cmd = [sys.executable, 'photos.py'] + directories
+        cmd = [sys.executable, _PHOTOS_SCRIPT] + directories
 
         # Start subprocess
         proc = subprocess.Popen(

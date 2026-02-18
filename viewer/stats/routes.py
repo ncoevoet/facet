@@ -124,7 +124,6 @@ def api_stats_settings():
         focal = [{'label': r[0], 'count': r[1]} for r in cur.fetchall()]
 
         # Shutter speed distribution with SQL binning
-        vis_sub = f' AND photos.path IN (SELECT path FROM photos WHERE 1=1{vis})' if vis else ''
         cur.execute(f'''SELECT
             CASE
                 WHEN ss < 0.00025 THEN '1/8000-1/4000'
@@ -150,7 +149,7 @@ def api_stats_settings():
                 FROM photos
                 WHERE shutter_speed IS NOT NULL AND shutter_speed != ''{vis}
             ) WHERE ss IS NOT NULL AND ss > 0
-            GROUP BY shutter_bucket ORDER BY sort_key''', vp + vp)
+            GROUP BY shutter_bucket ORDER BY sort_key''', vp)
         shutter = [{'label': r[0], 'count': r[1]} for r in cur.fetchall()]
 
         # Score distribution in 0.5-point buckets
