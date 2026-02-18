@@ -183,7 +183,19 @@ Run `--compute-recommendations` after switching profiles to analyze score distri
 
 ## Weight Tuning Workflow
 
-### 1. Analyze Current Scores
+### Option A: Via Viewer (Recommended)
+
+1. Open `/stats` → **Categories** tab → **Weights** sub-tab
+2. Unlock edition mode
+3. Select a category from the editor dropdown
+4. Adjust sliders — the live **Score Distribution Preview** shows estimated impact
+5. Click **Save** then **Recompute Scores** to apply
+
+The viewer runs `--recompute-category` under the hood, updating only photos in that category.
+
+### Option B: Via CLI
+
+#### 1. Analyze Current Scores
 
 ```bash
 python photos.py --compute-recommendations
@@ -194,19 +206,20 @@ Shows:
 - Weight correlation analysis
 - Suggested adjustments
 
-### 2. Adjust Weights
+#### 2. Adjust Weights
 
 Edit `scoring_config.json` category weights. Ensure they sum to 100.
 
-### 3. Recompute Scores
+#### 3. Recompute Scores
 
 ```bash
-python photos.py --recompute-average
+python photos.py --recompute-average               # All categories
+python photos.py --recompute-category portrait      # Single category (faster)
 ```
 
 Uses stored embeddings - no GPU needed.
 
-### 4. Validate Changes
+#### 4. Validate Changes
 
 ```bash
 python photos.py --compute-recommendations
@@ -277,7 +290,7 @@ python photos.py --recompute-average
 }
 ```
 
-Add to the `categories` array in `scoring_config.json`, then run `--recompute-average`.
+Add to the `categories` array in `scoring_config.json`, then run `--recompute-average` (or `--recompute-category underwater` for just the new category).
 
 ## Workflow Examples
 
@@ -289,8 +302,10 @@ Add to the `categories` array in `scoring_config.json`, then run `--recompute-av
 #   "noise_tolerance_multiplier": 0.05
 #   "exposure_percent": 5
 
-python photos.py --recompute-average
+python photos.py --recompute-category concert
 ```
+
+Or use the viewer's weight editor at `/stats` → Categories → Weights for live preview and one-click recompute.
 
 ### Switch to 8gb Profile
 

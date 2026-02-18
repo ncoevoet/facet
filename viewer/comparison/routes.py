@@ -357,13 +357,14 @@ def api_update_weights():
             'backup': backup_path
         }
 
-        # Optionally trigger recalculation
+        # Optionally trigger recalculation (only for the updated category)
         if should_recalculate:
             import subprocess
             import sys
             try:
                 recalc_result = subprocess.run(
-                    [sys.executable, 'photos.py', '--recompute-average', '--config', config_path],
+                    [sys.executable, 'photos.py', '--recompute-category', category,
+                     '--config', config_path],
                     capture_output=True,
                     text=True,
                     timeout=300

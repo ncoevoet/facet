@@ -123,6 +123,8 @@ Configuration:
     db_group = parser.add_argument_group('Database operations')
     db_group.add_argument('--recompute-average', action='store_true',
                         help='Update scores based on current config (uses stored embeddings)')
+    db_group.add_argument('--recompute-category', type=str, metavar='CATEGORY',
+                        help='Recompute aggregate scores for a single category only')
     db_group.add_argument('--detect-duplicates', action='store_true',
                         help='Detect duplicate photos using pHash comparison')
     db_group.add_argument('--recompute-tags', action='store_true',
@@ -671,7 +673,7 @@ Configuration:
         exit()
 
     # Recompute average scores (lightweight - no GPU needed)
-    if args.recompute_average:
+    if args.recompute_average or args.recompute_category:
         scorer = Facet(db_path=args.db, config_path=args.config, lightweight=True)
         normalizer = None
         norm_settings = scorer.config.get_normalization_settings()
@@ -687,8 +689,13 @@ Configuration:
             )
             normalizer.compute_percentiles()
 
-        scorer.update_all_aggregates(use_embeddings=True, normalizer=normalizer)
-        process_bursts(scorer.db_path, scorer.config.config_path)
+        scorer.update_all_aggregates(
+            use_embeddings=True,
+            normalizer=normalizer,
+            category_filter=args.recompute_category,
+        )
+        if not args.recompute_category:
+            process_bursts(scorer.db_path, scorer.config.config_path)
         print("Recalculation Done.")
         exit()
 

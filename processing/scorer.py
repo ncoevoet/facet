@@ -1145,7 +1145,7 @@ class Facet:
             print(f"Error scoring {original_path}: {e}")
             return None
 
-    def update_all_aggregates(self, use_embeddings=True, normalizer=None):
+    def update_all_aggregates(self, use_embeddings=True, normalizer=None, category_filter=None):
         """
         RE-CALCULATION FEATURE: Updates scores using existing DB data (no images needed).
 
@@ -1154,8 +1154,12 @@ class Facet:
                            (requires GPU models, ignored in lightweight mode)
             normalizer: Optional PercentileNormalizer for dataset-aware normalization
                        (supports per-category normalization if configured)
+            category_filter: If set, only recompute photos currently in this category
         """
-        print("Recalculating all scores based on current config...")
+        if category_filter:
+            print(f"Recalculating scores for category '{category_filter}'...")
+        else:
+            print("Recalculating all scores based on current config...")
         print(f"Config version: {self.config.version_hash}")
 
         # In lightweight mode, we can't recalculate from embeddings (no aesthetic_head)
@@ -1186,7 +1190,10 @@ class Facet:
                 noise_sigma, mean_saturation, power_point_score, dynamic_range_stops,
                 histogram_data, topiq_score
             """
-            cursor = conn.execute(f"SELECT {recalc_cols} FROM photos")
+            if category_filter:
+                cursor = conn.execute(f"SELECT {recalc_cols} FROM photos WHERE category = ?", (category_filter,))
+            else:
+                cursor = conn.execute(f"SELECT {recalc_cols} FROM photos")
             rows = cursor.fetchall()
 
             for row in tqdm(rows, desc="Updating DB"):

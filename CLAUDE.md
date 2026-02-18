@@ -50,6 +50,7 @@ python photos.py --list-models
 
 # Recompute aggregate scores using stored embeddings (creates backup first)
 python photos.py --recompute-average
+python photos.py --recompute-category portrait  # Single category only (faster)
 
 # Analyze database and show scoring recommendations
 python photos.py --compute-recommendations

@@ -45,6 +45,7 @@ These commands update specific metrics without full photo reprocessing.
 | Command | Description |
 |---------|-------------|
 | `python photos.py --recompute-average` | Recompute aggregate scores (creates backup) |
+| `python photos.py --recompute-category portrait` | Recompute scores for a single category only |
 | `python photos.py --recompute-tags` | Re-tag all photos using configured model |
 | `python photos.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
 | `python photos.py --recompute-composition-cpu` | Recompute composition (rule-based, CPU) |
@@ -164,7 +165,8 @@ python viewer.py                     # View results
 
 ### After Config Changes
 ```bash
-python photos.py --recompute-average  # Update scores with new weights
+python photos.py --recompute-average                # Update all scores with new weights
+python photos.py --recompute-category portrait      # Update only one category (faster)
 ```
 
 ### Face Recognition Setup

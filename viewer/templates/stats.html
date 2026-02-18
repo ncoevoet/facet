@@ -13,6 +13,11 @@
         .chart-card { background: #171717; border: 1px solid #262626; border-radius: 0.5rem; padding: 1rem; }
         .loading-spinner { display: inline-block; width: 1.5rem; height: 1.5rem; border: 2px solid #404040; border-top-color: #22c55e; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .subtab-btn { padding: 0.375rem 0.75rem; font-size: 0.75rem; border-radius: 9999px; transition: all 0.15s; }
+        .subtab-btn.active { background: #22c55e; color: #000; }
+        .subtab-btn:not(.active) { background: #262626; color: #a3a3a3; }
+        .subtab-btn:not(.active):hover { background: #404040; color: #fff; }
+        .heatmap-cell { display: inline-block; width: 2rem; height: 1.25rem; border-radius: 0.125rem; font-size: 0.625rem; line-height: 1.25rem; text-align: center; }
     </style>
 </head>
 <body class="text-neutral-200 min-h-screen">
@@ -31,6 +36,7 @@
         <button class="tab-btn active px-4 py-3 text-sm font-medium text-neutral-400 hover:text-white transition-colors" data-tab="gear">{{ _('stats.tabs.gear') }}</button>
         <button class="tab-btn px-4 py-3 text-sm font-medium text-neutral-400 hover:text-white transition-colors" data-tab="settings">{{ _('stats.tabs.settings') }}</button>
         <button class="tab-btn px-4 py-3 text-sm font-medium text-neutral-400 hover:text-white transition-colors" data-tab="timeline">{{ _('stats.tabs.timeline') }}</button>
+        <button class="tab-btn px-4 py-3 text-sm font-medium text-neutral-400 hover:text-white transition-colors" data-tab="categories">{{ _('stats.categories.tab') }}</button>
         <button class="tab-btn px-4 py-3 text-sm font-medium text-neutral-400 hover:text-white transition-colors" data-tab="correlations">{{ _('stats.tabs.correlations') }}</button>
     </nav>
 
@@ -64,6 +70,184 @@
                 <div class="chart-card"><h3 class="text-sm font-medium text-neutral-300 mb-3" id="title-yearly"></h3><canvas id="chart-yearly"></canvas></div>
                 <div class="chart-card"><h3 class="text-sm font-medium text-neutral-300 mb-3" id="title-heatmap"></h3><canvas id="chart-heatmap"></canvas></div>
                 <div class="chart-card"><h3 class="text-sm font-medium text-neutral-300 mb-3" id="title-top-days"></h3><canvas id="chart-top-days"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Categories Tab -->
+        <div id="panel-categories" class="tab-panel hidden">
+            <!-- Sub-tab navigation -->
+            <div class="flex gap-2 mb-4 items-center">
+                <button class="subtab-btn active" data-subtab="cat-breakdown">{{ _('stats.categories.subtabs.breakdown') }}</button>
+                <button class="subtab-btn" data-subtab="cat-weights">{{ _('stats.categories.subtabs.weights') }}</button>
+                <button class="subtab-btn" data-subtab="cat-correlations">{{ _('stats.categories.subtabs.correlations') }}</button>
+                <button class="subtab-btn" data-subtab="cat-overlap">{{ _('stats.categories.subtabs.overlap') }}</button>
+                <button id="cat-help-toggle" class="ml-auto flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-300 transition-colors" title="{{ _('stats.categories.help_toggle') }}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.5"/><path stroke-linecap="round" stroke-width="1.5" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+                    <span>{{ _('stats.categories.help_toggle') }}</span>
+                </button>
+            </div>
+
+            <!-- Sub-tab: Breakdown -->
+            <div id="subtab-cat-breakdown" class="cat-subtab">
+                <div class="cat-help-box hidden mb-4 chart-card border-green-900 text-sm text-neutral-300 leading-relaxed" data-help="breakdown"></div>
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div class="chart-card text-center"><div class="text-2xl font-bold text-green-400" id="cat-total">-</div><div class="text-xs text-neutral-400">{{ _('stats.categories.summary.total') }}</div></div>
+                    <div class="chart-card text-center"><div class="text-2xl font-bold text-blue-400" id="cat-categorized">-</div><div class="text-xs text-neutral-400">{{ _('stats.categories.summary.categorized') }}</div></div>
+                    <div class="chart-card text-center"><div class="text-2xl font-bold text-amber-400" id="cat-uncategorized">-</div><div class="text-xs text-neutral-400">{{ _('stats.categories.summary.uncategorized') }}</div></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="chart-card">
+                        <h3 class="text-sm font-medium text-neutral-300 mb-3">{{ _('stats.categories.breakdown.photo_counts') }}</h3>
+                        <div id="cat-breakdown-chart-wrap" style="position:relative;"><canvas id="chart-cat-breakdown"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3 class="text-sm font-medium text-neutral-300 mb-3">{{ _('stats.categories.breakdown.avg_scores') }}</h3>
+                        <select id="cat-detail-select" class="w-full bg-neutral-800 border border-neutral-700 text-neutral-200 rounded px-2 py-1.5 text-sm mb-3">
+                            <option value="">{{ _('stats.categories.breakdown.select_category') }}</option>
+                        </select>
+                        <canvas id="chart-cat-detail-scores"></canvas>
+                        <h3 class="text-sm font-medium text-neutral-300 mt-4 mb-3">{{ _('stats.categories.breakdown.score_distribution') }}</h3>
+                        <canvas id="chart-cat-detail-dist"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sub-tab: Weights -->
+            <div id="subtab-cat-weights" class="cat-subtab hidden">
+                <div class="cat-help-box hidden mb-4 chart-card border-green-900 text-sm text-neutral-300 leading-relaxed" data-help="weights"></div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                    <div class="chart-card">
+                        <h3 class="text-sm font-medium text-neutral-300 mb-1 flex items-center gap-2">
+                            {{ _('stats.categories.weights.radar_title') }}
+                            <button type="button" class="cat-card-help-btn text-neutral-600 hover:text-neutral-300 transition-colors" data-target="cat-radar-help" title="{{ _('stats.categories.help_toggle') }}">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            </button>
+                        </h3>
+                        <p id="cat-radar-help" class="hidden text-xs text-neutral-500 mb-3 leading-relaxed">{{ _('stats.categories.weights.radar_help') }}</p>
+                        <div class="mb-2">
+                            <label class="text-xs text-neutral-400">{{ _('stats.categories.weights.select_categories') }}</label>
+                            <div id="cat-radar-select" class="flex flex-wrap gap-1 mt-1"></div>
+                        </div>
+                        <canvas id="chart-cat-radar"></canvas>
+                    </div>
+                    <div class="chart-card overflow-x-auto">
+                        <h3 class="text-sm font-medium text-neutral-300 mb-1 flex items-center gap-2">
+                            {{ _('stats.categories.weights.heatmap_title') }}
+                            <button type="button" class="cat-card-help-btn text-neutral-600 hover:text-neutral-300 transition-colors" data-target="cat-heatmap-help" title="{{ _('stats.categories.help_toggle') }}">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            </button>
+                        </h3>
+                        <p id="cat-heatmap-help" class="hidden text-xs text-neutral-500 mb-3 leading-relaxed">{{ _('stats.categories.weights.heatmap_help') }}</p>
+                        <div id="cat-weight-heatmap"></div>
+                    </div>
+                </div>
+                {% if edition_authenticated %}
+                <div class="chart-card">
+                    <h3 class="text-sm font-medium text-neutral-300 mb-3">{{ _('stats.categories.weights.editor_title') }}</h3>
+                    <p class="text-xs text-neutral-500 mb-3">{{ _('stats.categories.weights.editor_intro') }}</p>
+                    <select id="cat-edit-select" class="w-full bg-neutral-800 border border-neutral-700 text-neutral-200 rounded px-2 py-1.5 text-sm mb-4">
+                        <option value="">{{ _('stats.categories.weights.select_to_edit') }}</option>
+                    </select>
+                    <div id="cat-editor-body" class="hidden">
+                        <!-- Weights section -->
+                        <h4 class="text-sm font-medium text-neutral-300 mb-1">{{ _('stats.categories.weights.weights_section') }}</h4>
+                        <p class="text-xs text-neutral-500 mb-3">{{ _('stats.categories.weights.weights_hint') }}</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mb-3" id="cat-weight-sliders"></div>
+                        <!-- Total bar -->
+                        <div class="mb-4">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm text-neutral-400">{{ _('stats.categories.weights.total_weight') }}: <span id="cat-weight-total" class="text-white font-medium">0</span>%</span>
+                                <button id="cat-normalize-btn" class="text-xs bg-neutral-700 hover:bg-neutral-600 text-neutral-200 rounded px-3 py-1">{{ _('stats.categories.weights.normalize') }}</button>
+                            </div>
+                            <div class="w-full h-1.5 bg-neutral-700 rounded overflow-hidden">
+                                <div id="cat-weight-bar" class="h-full bg-green-500 rounded transition-all" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <!-- Modifiers section (collapsible) -->
+                        <h4 class="text-sm font-medium text-neutral-300 mb-1 flex items-center gap-2 cursor-pointer select-none" id="cat-mod-toggle">
+                            <svg class="w-3 h-3 transition-transform" id="cat-mod-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2l4 4-4 4"/></svg>
+                            {{ _('stats.categories.weights.modifiers_title') }}
+                        </h4>
+                        <div id="cat-mod-collapsible" class="hidden">
+                            <p class="text-xs text-neutral-500 mb-3">{{ _('stats.categories.weights.modifiers_hint') }}</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mb-4" id="cat-modifier-inputs"></div>
+                        </div>
+                        <!-- Score Preview -->
+                        <div class="pt-3 border-t border-neutral-800 mb-4">
+                            <h4 class="text-sm font-medium text-neutral-300 mb-1">{{ _('stats.categories.weights.preview_title') }}</h4>
+                            <p class="text-xs text-neutral-500 mb-3">{{ _('stats.categories.weights.preview_hint') }}</p>
+                            <div id="cat-preview-loading" class="text-xs text-neutral-500 hidden">{{ _('stats.categories.weights.preview_loading') }}</div>
+                            <div id="cat-preview-stats" class="flex flex-wrap gap-x-4 gap-y-1 text-xs mb-2 hidden"></div>
+                            <div id="cat-preview-chart-wrap" class="hidden" style="height:180px"><canvas id="cat-preview-chart"></canvas></div>
+                        </div>
+                        <!-- Save + Recompute -->
+                        <div class="flex items-center gap-3 pt-3 border-t border-neutral-800">
+                            <button id="cat-save-btn" class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded px-4 py-2">{{ _('stats.categories.weights.save') }}</button>
+                            <button id="cat-recompute-btn" class="hidden bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2">{{ _('stats.categories.weights.recompute') }}</button>
+                            <span id="cat-save-status" class="text-sm"></span>
+                            <span class="text-xs text-neutral-600 ml-auto">{{ _('stats.categories.weights.save_note') }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Sub-tab: Correlations -->
+            <div id="subtab-cat-correlations" class="cat-subtab hidden">
+                <div class="cat-help-box hidden mb-4 chart-card border-green-900 text-sm text-neutral-300 leading-relaxed" data-help="correlations"></div>
+                <div class="chart-card mb-4">
+                    <h3 class="text-sm font-medium text-neutral-300 mb-1 flex items-center gap-2">
+                        {{ _('stats.categories.correlations.heatmap_title') }}
+                        <button type="button" class="cat-card-help-btn text-neutral-600 hover:text-neutral-300 transition-colors" data-target="cat-corr-heatmap-help" title="{{ _('stats.categories.help_toggle') }}">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        </button>
+                    </h3>
+                    <p id="cat-corr-heatmap-help" class="hidden text-xs text-neutral-500 mb-3 leading-relaxed">{{ _('stats.categories.correlations.heatmap_help') }}</p>
+                    <div id="cat-corr-heatmap" class="overflow-x-auto"></div>
+                    <p class="text-xs text-neutral-500 mt-2">{{ _('stats.categories.correlations.select_category') }}</p>
+                </div>
+                <div class="chart-card" id="cat-corr-detail-card" style="display:none;">
+                    <h3 class="text-sm font-medium text-neutral-300 mb-1 flex items-center gap-2" id="cat-corr-detail-title-wrap">
+                        <span id="cat-corr-detail-title"></span>
+                        <button type="button" class="cat-card-help-btn text-neutral-600 hover:text-neutral-300 transition-colors" data-target="cat-corr-detail-help" title="{{ _('stats.categories.help_toggle') }}">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        </button>
+                    </h3>
+                    <p id="cat-corr-detail-help" class="hidden text-xs text-neutral-500 mb-3 leading-relaxed">{{ _('stats.categories.correlations.detail_help') }}</p>
+                    <canvas id="chart-cat-corr-detail"></canvas>
+                </div>
+            </div>
+
+            <!-- Sub-tab: Overlap -->
+            <div id="subtab-cat-overlap" class="cat-subtab hidden">
+                <div class="cat-help-box hidden mb-4 chart-card border-green-900 text-sm text-neutral-300 leading-relaxed" data-help="overlap"></div>
+                <div class="chart-card mb-4">
+                    <h3 class="text-sm font-medium text-neutral-300 mb-3">{{ _('stats.categories.overlap.top_overlaps') }}</h3>
+                    <div id="cat-overlap-loading" class="text-sm text-neutral-400"><div class="loading-spinner mr-2" style="display:inline-block;vertical-align:middle;"></div>{{ _('stats.categories.overlap.loading') }}</div>
+                    <table id="cat-overlap-table" class="hidden w-full text-sm">
+                        <thead><tr class="text-left text-neutral-400 border-b border-neutral-700">
+                            <th class="py-2 pr-4">{{ _('stats.categories.overlap.pair') }}</th>
+                            <th class="py-2 text-right">{{ _('stats.categories.overlap.overlap_count') }}</th>
+                        </tr></thead>
+                        <tbody id="cat-overlap-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="chart-card">
+                    <h3 class="text-sm font-medium text-neutral-300 mb-3">{{ _('stats.categories.overlap.per_category') }}</h3>
+                    <div id="cat-overlap-summary-wrap">
+                        <table id="cat-overlap-summary" class="hidden w-full text-sm">
+                            <thead><tr class="text-left text-neutral-400 border-b border-neutral-700">
+                                <th class="py-2 pr-4">{{ _('stats.correlations.dimensions.category') }}</th>
+                                <th class="py-2 text-right pr-4">{{ _('stats.categories.overlap.priority') }}</th>
+                                <th class="py-2 text-right pr-4">{{ _('stats.categories.overlap.assigned') }}</th>
+                                <th class="py-2 text-right pr-4">{{ _('stats.categories.overlap.matched') }}</th>
+                                <th class="py-2 text-right">{{ _('stats.categories.overlap.captured') }}</th>
+                            </tr></thead>
+                            <tbody id="cat-overlap-summary-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div id="cat-overlap-uncat" class="mt-3 text-sm text-amber-400"></div>
+                </div>
             </div>
         </div>
 
@@ -173,6 +357,8 @@
             document.getElementById('panel-' + tab).classList.remove('hidden');
             if (tab === 'correlations') {
                 if (!tabsLoaded[tab]) { initCorrelationControls(); fetchCorrelations(); }
+            } else if (tab === 'categories') {
+                if (!tabsLoaded[tab]) loadCategoriesTab();
             } else if (!tabsLoaded[tab]) {
                 loadTab(tab);
             }
@@ -552,6 +738,672 @@
                 scales: scalesConfig
             }
         });
+    }
+
+    // --- Categories Tab ---
+    const EDITION_AUTH = {{ edition_authenticated | tojson }};
+    const CAT_DIMS = ['aesthetic','composition','face_quality','eye_sharpness','tech_sharpness',
+        'exposure','color','quality','contrast','dynamic_range','isolation','leading_lines'];
+    let catBreakdownData = null, catWeightsData = null, catCorrData = null, catOverlapData = null;
+    let catEditMetrics = null, catPreviewChart = null, catPreviewDebounce = null;
+
+    // Sub-tab switching
+    document.querySelectorAll('.subtab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.cat-subtab').forEach(p => p.classList.add('hidden'));
+            btn.classList.add('active');
+            document.getElementById('subtab-' + btn.dataset.subtab).classList.remove('hidden');
+            const sub = btn.dataset.subtab;
+            if (sub === 'cat-weights' && !catWeightsData) fetchCatWeights();
+            if (sub === 'cat-correlations' && !catCorrData) fetchCatCorrelations();
+            if (sub === 'cat-overlap' && !catOverlapData) fetchCatOverlap();
+        });
+    });
+
+    // Help toggle
+    let catHelpVisible = false;
+    document.getElementById('cat-help-toggle').addEventListener('click', () => {
+        catHelpVisible = !catHelpVisible;
+        document.querySelectorAll('.cat-help-box').forEach(box => {
+            if (catHelpVisible) {
+                const key = box.dataset.help;
+                box.textContent = t('stats.categories.help.' + key);
+                box.classList.remove('hidden');
+            } else {
+                box.classList.add('hidden');
+            }
+        });
+        const btn = document.getElementById('cat-help-toggle');
+        btn.classList.toggle('text-green-400', catHelpVisible);
+        btn.classList.toggle('text-neutral-500', !catHelpVisible);
+    });
+
+    // Per-card help toggles (? buttons next to chart titles)
+    document.querySelectorAll('.cat-card-help-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = document.getElementById(btn.dataset.target);
+            if (!target) return;
+            target.classList.toggle('hidden');
+            btn.classList.toggle('text-green-400', !target.classList.contains('hidden'));
+            btn.classList.toggle('text-neutral-600', target.classList.contains('hidden'));
+        });
+    });
+
+    async function loadCategoriesTab() {
+        showLoading(true);
+        try {
+            const resp = await fetch('/api/stats/categories/breakdown');
+            catBreakdownData = await resp.json();
+            tabsLoaded['categories'] = true;
+            renderCatBreakdown(catBreakdownData);
+        } catch(e) { console.error(e); }
+        finally { showLoading(false); }
+    }
+
+    function renderCatBreakdown(d) {
+        document.getElementById('cat-total').textContent = d.total.toLocaleString();
+        document.getElementById('cat-categorized').textContent = (d.total - d.uncategorized).toLocaleString();
+        document.getElementById('cat-uncategorized').textContent = d.uncategorized.toLocaleString();
+
+        const cats = d.categories.filter(c => c.name !== '(uncategorized)');
+        if (cats.length) {
+            const wrap = document.getElementById('cat-breakdown-chart-wrap');
+            const minH = Math.max(200, cats.length * 28);
+            wrap.style.height = minH + 'px';
+            makeChart('chart-cat-breakdown', {
+                type: 'bar',
+                data: { labels: cats.map(c=>c.name), datasets: [{ data: cats.map(c=>c.count), backgroundColor: COLORS[0], borderRadius: 3 }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: { x: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } }, y: { grid: { display: false }, ticks: { color: '#d4d4d4', autoSkip: false, font: { size: 11 } } } } }
+            });
+        }
+
+        // Populate detail dropdown
+        const sel = document.getElementById('cat-detail-select');
+        sel.innerHTML = '<option value="">' + t('stats.categories.breakdown.select_category') + '</option>';
+        d.categories.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.name; opt.textContent = c.name + ' (' + c.count + ')';
+            sel.appendChild(opt);
+        });
+        sel.addEventListener('change', () => renderCatDetail(sel.value, d));
+    }
+
+    function renderCatDetail(catName, d) {
+        if (!catName) return;
+        const cat = d.categories.find(c => c.name === catName);
+        if (!cat) return;
+
+        // Avg scores bar chart
+        const scoreKeys = ['avg_aggregate','avg_aesthetic','avg_composition','avg_face_quality','avg_sharpness','avg_exposure','avg_color'];
+        const scoreLabels = [t('stats.correlations.metrics.aggregate'), t('stats.categories.dimensions.aesthetic'),
+            t('stats.categories.dimensions.composition'), t('stats.categories.dimensions.face_quality'),
+            t('stats.categories.dimensions.tech_sharpness'), t('stats.categories.dimensions.exposure'), t('stats.categories.dimensions.color')];
+        const vals = scoreKeys.map(k => cat[k] || 0);
+
+        makeChart('chart-cat-detail-scores', {
+            type: 'bar',
+            data: { labels: scoreLabels, datasets: [{ data: vals, backgroundColor: COLORS.slice(0, vals.length), borderRadius: 3 }] },
+            options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } },
+                scales: { x: { min: 0, max: 10, grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } }, y: { grid: { display: false }, ticks: { color: '#d4d4d4', font: { size: 10 } } } } }
+        });
+
+        // Score distribution histogram
+        const dist = d.distributions[catName];
+        if (dist && dist.length) {
+            verticalBar('chart-cat-detail-dist', dist.map(b => String(b.bucket)), [
+                { data: dist.map(b => b.count), backgroundColor: COLORS[0], borderRadius: 3 }
+            ], t('stats.axes.score'), t('stats.axes.count'));
+        }
+    }
+
+    // --- Weights sub-tab ---
+    async function fetchCatWeights() {
+        try {
+            const resp = await fetch('/api/stats/categories/weights');
+            catWeightsData = await resp.json();
+            renderCatWeights(catWeightsData);
+        } catch(e) { console.error(e); }
+    }
+
+    function renderCatWeights(d) {
+        const cats = d.categories;
+        const dimLabels = CAT_DIMS.map(k => t('stats.categories.dimensions.' + k));
+
+        // Radar chart toggle buttons
+        const selectDiv = document.getElementById('cat-radar-select');
+        selectDiv.innerHTML = '';
+        const radarSelected = new Set(cats.slice(0, 3).map(c => c.name));
+
+        cats.forEach(c => {
+            const btn = document.createElement('button');
+            btn.className = 'text-xs rounded px-2 py-0.5 transition-colors ' +
+                (radarSelected.has(c.name) ? 'bg-green-600 text-white' : 'bg-neutral-700 text-neutral-300');
+            btn.textContent = c.name;
+            btn.dataset.cat = c.name;
+            btn.addEventListener('click', () => {
+                if (radarSelected.has(c.name)) {
+                    radarSelected.delete(c.name);
+                    btn.className = 'text-xs rounded px-2 py-0.5 transition-colors bg-neutral-700 text-neutral-300';
+                } else if (radarSelected.size < 5) {
+                    radarSelected.add(c.name);
+                    btn.className = 'text-xs rounded px-2 py-0.5 transition-colors bg-green-600 text-white';
+                }
+                updateRadar();
+            });
+            selectDiv.appendChild(btn);
+        });
+
+        function updateRadar() {
+            const datasets = [];
+            let ci = 0;
+            cats.filter(c => radarSelected.has(c.name)).forEach(c => {
+                const color = COLORS[ci++ % COLORS.length];
+                datasets.push({
+                    label: c.name,
+                    data: CAT_DIMS.map(k => c.weights[k + '_percent'] || 0),
+                    borderColor: color, backgroundColor: color + '33',
+                    pointBackgroundColor: color, pointRadius: 3,
+                });
+            });
+            makeChart('chart-cat-radar', {
+                type: 'radar',
+                data: { labels: dimLabels, datasets },
+                options: { responsive: true, scales: { r: { min: 0, grid: { color: '#262626' }, ticks: { color: '#a3a3a3', backdropColor: 'transparent' }, pointLabels: { color: '#d4d4d4', font: { size: 10 } } } },
+                    plugins: { legend: { position: 'bottom', labels: { color: '#a3a3a3', padding: 12 } } } }
+            });
+        }
+        updateRadar();
+
+        // Weight heatmap table
+        const hm = document.getElementById('cat-weight-heatmap');
+        let html = '<table class="text-xs w-full"><thead><tr><th class="text-left py-1 pr-2 text-neutral-400 sticky left-0 bg-[#171717]">' + t('stats.correlations.dimensions.category') + '</th>';
+        CAT_DIMS.forEach(k => { html += '<th class="py-1 px-1 text-neutral-400 whitespace-nowrap">' + t('stats.categories.dimensions.' + k) + '</th>'; });
+        html += '</tr></thead><tbody>';
+
+        cats.forEach(c => {
+            html += '<tr><td class="py-1 pr-2 text-neutral-200 sticky left-0 bg-[#171717] whitespace-nowrap">' + c.name + '</td>';
+            CAT_DIMS.forEach(k => {
+                const v = c.weights[k + '_percent'] || 0;
+                const intensity = Math.min(1, v / 40);
+                const bg = v > 0 ? `rgba(34,197,94,${0.1 + intensity * 0.6})` : '#1a1a1a';
+                html += `<td class="py-1 px-1 text-center" style="background:${bg}">${v}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        hm.innerHTML = html;
+
+        // Editor (edition mode only)
+        const editSel = document.getElementById('cat-edit-select');
+        if (editSel) {
+            editSel.innerHTML = '<option value="">' + t('stats.categories.weights.select_to_edit') + '</option>';
+            cats.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.name; opt.textContent = c.name;
+                editSel.appendChild(opt);
+            });
+            editSel.addEventListener('change', () => initWeightEditor(editSel.value, d));
+        }
+    }
+
+    function initWeightEditor(catName, d) {
+        const body = document.getElementById('cat-editor-body');
+        if (!catName) { body.classList.add('hidden'); return; }
+        body.classList.remove('hidden');
+        document.getElementById('cat-recompute-btn').classList.add('hidden');
+        document.getElementById('cat-save-status').textContent = '';
+
+        const cat = d.categories.find(c => c.name === catName);
+        if (!cat) return;
+
+        const slidersDiv = document.getElementById('cat-weight-sliders');
+        slidersDiv.innerHTML = '';
+
+        CAT_DIMS.forEach(k => {
+            const key = k + '_percent';
+            const val = cat.weights[key] || 0;
+            const hint = t('stats.categories.dim_hints.' + k);
+            const wrap = document.createElement('div');
+            wrap.innerHTML = `<label class="flex justify-between text-xs text-neutral-300 mb-0.5">
+                <span>${t('stats.categories.dimensions.' + k)}</span>
+                <span class="cat-slider-val text-green-400 font-medium tabular-nums">${val}%</span>
+            </label>
+            <input type="range" min="0" max="100" value="${val}" data-key="${key}"
+                class="cat-weight-range w-full h-1.5 bg-neutral-700 rounded appearance-none cursor-pointer accent-green-500">
+            <div class="text-[10px] text-neutral-600 mt-0.5">${hint}</div>`;
+            slidersDiv.appendChild(wrap);
+        });
+
+        // Update total + preview on slide
+        slidersDiv.querySelectorAll('.cat-weight-range').forEach(r => {
+            r.addEventListener('input', () => {
+                r.closest('div').querySelector('.cat-slider-val').textContent = r.value + '%';
+                updateWeightTotal();
+                schedulePreviewUpdate();
+            });
+        });
+        updateWeightTotal();
+
+        // Normalize button
+        document.getElementById('cat-normalize-btn').onclick = () => {
+            const ranges = [...slidersDiv.querySelectorAll('.cat-weight-range')];
+            const sum = ranges.reduce((s, r) => s + parseInt(r.value), 0);
+            if (sum === 0) return;
+            let accumulated = 0;
+            ranges.forEach((r, i) => {
+                if (i === ranges.length - 1) {
+                    r.value = 100 - accumulated;
+                } else {
+                    r.value = Math.round(parseInt(r.value) / sum * 100);
+                    accumulated += parseInt(r.value);
+                }
+                r.closest('div').querySelector('.cat-slider-val').textContent = r.value + '%';
+            });
+            updateWeightTotal();
+            schedulePreviewUpdate();
+        };
+
+        // Modifiers
+        const modDiv = document.getElementById('cat-modifier-inputs');
+        modDiv.innerHTML = '';
+        const mods = cat.modifiers || {};
+        const numMods = [
+            ['bonus', t('stats.categories.weights.bonus'), mods.bonus || 0, t('stats.categories.mod_hints.bonus')],
+            ['noise_tolerance_multiplier', t('stats.categories.weights.noise_tolerance'), mods.noise_tolerance_multiplier || 1, t('stats.categories.mod_hints.noise_tolerance')],
+            ['iso_tolerance_multiplier', t('stats.categories.weights.iso_tolerance'), mods.iso_tolerance_multiplier || 1, t('stats.categories.mod_hints.iso_tolerance')],
+            ['min_saturation_bonus', t('stats.categories.weights.saturation_bonus'), mods.min_saturation_bonus || 0, t('stats.categories.mod_hints.saturation_bonus')],
+            ['contrast_bonus', t('stats.categories.weights.contrast_bonus'), mods.contrast_bonus || 0, t('stats.categories.mod_hints.contrast_bonus')],
+            ['_clipping_multiplier', t('stats.categories.weights.clipping_multiplier'), mods._clipping_multiplier || 1, t('stats.categories.mod_hints.clipping_multiplier')],
+        ];
+        const boolMods = [
+            ['_skip_clipping_penalty', t('stats.categories.weights.skip_clipping'), mods._skip_clipping_penalty || false, t('stats.categories.mod_hints.skip_clipping')],
+            ['_skip_oversaturation_penalty', t('stats.categories.weights.skip_oversaturation'), mods._skip_oversaturation_penalty || false, t('stats.categories.mod_hints.skip_oversaturation')],
+            ['_apply_blink_penalty', t('stats.categories.weights.apply_blink_penalty'), mods._apply_blink_penalty || false, t('stats.categories.mod_hints.apply_blink_penalty')],
+        ];
+
+        numMods.forEach(([key, label, val, hint]) => {
+            const wrap = document.createElement('div');
+            wrap.innerHTML = `<label class="block text-xs text-neutral-300 mb-1">${label}</label>
+                <input type="number" step="0.1" value="${val}" data-mod="${key}"
+                    class="cat-mod-num w-full bg-neutral-800 border border-neutral-700 text-neutral-200 rounded px-2 py-1 text-sm">
+                <div class="text-[10px] text-neutral-600 mt-0.5">${hint}</div>`;
+            modDiv.appendChild(wrap);
+        });
+        boolMods.forEach(([key, label, val, hint]) => {
+            const wrap = document.createElement('div');
+            wrap.innerHTML = `<label class="flex items-center gap-2 text-xs text-neutral-300 cursor-pointer">
+                <input type="checkbox" ${val ? 'checked' : ''} data-mod="${key}" class="cat-mod-bool accent-green-500">
+                ${label}
+            </label>
+            <div class="text-[10px] text-neutral-600 mt-0.5 ml-5">${hint}</div>`;
+            modDiv.appendChild(wrap);
+        });
+
+        // Modifiers toggle
+        const modToggle = document.getElementById('cat-mod-toggle');
+        const modPanel = document.getElementById('cat-mod-collapsible');
+        const modChevron = document.getElementById('cat-mod-chevron');
+        modPanel.classList.add('hidden');
+        modChevron.style.transform = '';
+        modToggle.onclick = () => {
+            modPanel.classList.toggle('hidden');
+            modChevron.style.transform = modPanel.classList.contains('hidden') ? '' : 'rotate(90deg)';
+        };
+
+        // Save button
+        document.getElementById('cat-save-btn').onclick = () => saveCategoryWeights(catName);
+
+        // Fetch metrics for preview
+        fetchCatMetrics(catName);
+    }
+
+    function updateWeightTotal() {
+        const ranges = [...document.querySelectorAll('.cat-weight-range')];
+        const total = ranges.reduce((s, r) => s + parseInt(r.value), 0);
+        const el = document.getElementById('cat-weight-total');
+        el.textContent = total;
+        el.className = total === 100 ? 'text-green-400 font-medium' : 'text-amber-400 font-medium';
+        // Progress bar
+        const bar = document.getElementById('cat-weight-bar');
+        bar.style.width = Math.min(total, 100) + '%';
+        bar.className = 'h-full rounded transition-all ' + (total === 100 ? 'bg-green-500' : total > 100 ? 'bg-red-500' : 'bg-amber-500');
+    }
+
+    async function fetchCatMetrics(catName) {
+        const loading = document.getElementById('cat-preview-loading');
+        const statsEl = document.getElementById('cat-preview-stats');
+        const chartWrap = document.getElementById('cat-preview-chart-wrap');
+        loading.classList.remove('hidden');
+        statsEl.classList.add('hidden');
+        chartWrap.classList.add('hidden');
+        catEditMetrics = null;
+
+        try {
+            const resp = await fetch('/api/stats/categories/metrics?category=' + encodeURIComponent(catName));
+            catEditMetrics = await resp.json();
+            loading.classList.add('hidden');
+            if (catEditMetrics.count > 0) renderPreview();
+        } catch(e) {
+            loading.classList.add('hidden');
+            console.error('Failed to fetch category metrics', e);
+        }
+    }
+
+    function schedulePreviewUpdate() {
+        clearTimeout(catPreviewDebounce);
+        catPreviewDebounce = setTimeout(() => {
+            if (catEditMetrics && catEditMetrics.count > 0) renderPreview();
+        }, 150);
+    }
+
+    function renderPreview() {
+        const statsEl = document.getElementById('cat-preview-stats');
+        const chartWrap = document.getElementById('cat-preview-chart-wrap');
+        const m = catEditMetrics;
+
+        // Read current slider weights as fractions
+        const weights = {};
+        document.querySelectorAll('.cat-weight-range').forEach(r => {
+            const dim = r.dataset.key.replace('_percent', '');
+            weights[dim] = parseInt(r.value) / 100;
+        });
+
+        // Compute preview aggregate for each photo
+        const previewAgg = [];
+        for (let i = 0; i < m.count; i++) {
+            let score = 0;
+            CAT_DIMS.forEach(dim => {
+                score += (m.metrics[dim]?.[i] || 0) * (weights[dim] || 0);
+            });
+            previewAgg.push(score);
+        }
+
+        const currentAgg = m.current_aggregate;
+
+        // Build 0.5-point bucket distributions (0-10 range)
+        const bucketCount = 21; // 0, 0.5, 1.0, ..., 10.0
+        const labels = [];
+        for (let b = 0; b < bucketCount; b++) labels.push((b * 0.5).toFixed(1));
+
+        function bucketize(arr) {
+            const buckets = new Array(bucketCount).fill(0);
+            arr.forEach(v => {
+                const idx = Math.min(Math.max(Math.round(v * 2), 0), bucketCount - 1);
+                buckets[idx]++;
+            });
+            return buckets;
+        }
+
+        const currentBuckets = bucketize(currentAgg);
+        const previewBuckets = bucketize(previewAgg);
+
+        // Summary stats
+        const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+        const curAvg = avg(currentAgg);
+        const preAvg = avg(previewAgg);
+        const delta = preAvg - curAvg;
+        let improved = 0, degraded = 0, unchanged = 0;
+        for (let i = 0; i < m.count; i++) {
+            const diff = previewAgg[i] - currentAgg[i];
+            if (diff > 0.05) improved++;
+            else if (diff < -0.05) degraded++;
+            else unchanged++;
+        }
+
+        statsEl.innerHTML = `
+            <span class="text-neutral-400">${t('stats.categories.weights.current_avg')}: <span class="text-neutral-200 font-medium">${curAvg.toFixed(2)}</span></span>
+            <span class="text-neutral-400">${t('stats.categories.weights.preview_avg')}: <span class="text-blue-400 font-medium">${preAvg.toFixed(2)}</span></span>
+            <span class="${delta >= 0 ? 'text-green-400' : 'text-red-400'}">${t('stats.categories.weights.delta')}: ${delta >= 0 ? '+' : ''}${delta.toFixed(2)}</span>
+            <span class="text-green-400">${improved} ${t('stats.categories.weights.photos_improved')}</span>
+            <span class="text-red-400">${degraded} ${t('stats.categories.weights.photos_degraded')}</span>
+            <span class="text-neutral-500">${unchanged} ${t('stats.categories.weights.photos_unchanged')}</span>`;
+        statsEl.classList.remove('hidden');
+
+        // Chart
+        chartWrap.classList.remove('hidden');
+        if (catPreviewChart) catPreviewChart.destroy();
+        const ctx = document.getElementById('cat-preview-chart').getContext('2d');
+        catPreviewChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: t('stats.categories.weights.current_label'),
+                        data: currentBuckets,
+                        backgroundColor: 'rgba(34,197,94,0.4)',
+                        borderColor: 'rgba(34,197,94,0.8)',
+                        borderWidth: 1,
+                    },
+                    {
+                        label: t('stats.categories.weights.preview_label'),
+                        data: previewBuckets,
+                        backgroundColor: 'rgba(59,130,246,0.4)',
+                        borderColor: 'rgba(59,130,246,0.8)',
+                        borderWidth: 1,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#a3a3a3', boxWidth: 12, font: { size: 11 } } } },
+                scales: {
+                    x: { ticks: { color: '#737373', font: { size: 10 } }, grid: { color: '#262626' } },
+                    y: { ticks: { color: '#737373', font: { size: 10 } }, grid: { color: '#262626' }, beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    async function saveCategoryWeights(catName) {
+        const status = document.getElementById('cat-save-status');
+        const btn = document.getElementById('cat-save-btn');
+        btn.disabled = true;
+        status.textContent = t('stats.categories.weights.saving');
+        status.className = 'ml-3 text-sm text-neutral-400';
+
+        const weights = {};
+        document.querySelectorAll('.cat-weight-range').forEach(r => {
+            weights[r.dataset.key] = parseInt(r.value);
+        });
+
+        const modifiers = {};
+        document.querySelectorAll('.cat-mod-num').forEach(i => {
+            modifiers[i.dataset.mod] = parseFloat(i.value) || 0;
+        });
+        document.querySelectorAll('.cat-mod-bool').forEach(i => {
+            modifiers[i.dataset.mod] = i.checked;
+        });
+
+        try {
+            const resp = await fetch('/api/stats/categories/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: catName, weights, modifiers })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                status.textContent = t('stats.categories.weights.saved');
+                status.className = 'ml-3 text-sm text-green-400';
+                // Show recompute button
+                const reBtn = document.getElementById('cat-recompute-btn');
+                reBtn.classList.remove('hidden');
+                reBtn.onclick = () => recomputeCategory(catName);
+                // Reload weights data
+                catWeightsData = null;
+                fetchCatWeights();
+            } else {
+                status.textContent = data.error || t('stats.categories.weights.save_error');
+                status.className = 'ml-3 text-sm text-red-400';
+            }
+        } catch(e) {
+            status.textContent = t('stats.categories.weights.save_error');
+            status.className = 'ml-3 text-sm text-red-400';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function recomputeCategory(catName) {
+        const status = document.getElementById('cat-save-status');
+        const reBtn = document.getElementById('cat-recompute-btn');
+        reBtn.disabled = true;
+        status.textContent = t('stats.categories.weights.recomputing');
+        status.className = 'ml-3 text-sm text-neutral-400';
+
+        try {
+            const resp = await fetch('/api/stats/categories/recompute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: catName })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                status.textContent = t('stats.categories.weights.recomputed');
+                status.className = 'ml-3 text-sm text-green-400';
+                reBtn.classList.add('hidden');
+                // Reload breakdown + metrics
+                catBreakdownData = null;
+                catEditMetrics = null;
+                fetchCatMetrics(catName);
+            } else {
+                status.textContent = data.error || t('stats.categories.weights.recompute_error');
+                status.className = 'ml-3 text-sm text-red-400';
+            }
+        } catch(e) {
+            status.textContent = t('stats.categories.weights.recompute_error');
+            status.className = 'ml-3 text-sm text-red-400';
+        } finally {
+            reBtn.disabled = false;
+        }
+    }
+
+    // --- Correlations sub-tab ---
+    async function fetchCatCorrelations() {
+        try {
+            const resp = await fetch('/api/stats/categories/correlations');
+            catCorrData = await resp.json();
+            renderCatCorrelations(catCorrData);
+        } catch(e) { console.error(e); }
+    }
+
+    function renderCatCorrelations(d) {
+        const hm = document.getElementById('cat-corr-heatmap');
+        const catNames = Object.keys(d.correlations);
+        if (!catNames.length) { hm.innerHTML = '<p class="text-neutral-500 text-sm">' + t('stats.no_data') + '</p>'; return; }
+
+        const dims = d.dimensions;
+        const dimLabels = dims.map(k => t('stats.categories.dimensions.' + k));
+
+        let html = '<table class="text-xs w-full"><thead><tr><th class="text-left py-1 pr-2 text-neutral-400 sticky left-0 bg-[#171717] cursor-pointer">' + t('stats.correlations.dimensions.category') + '</th>';
+        dims.forEach((k, i) => { html += '<th class="py-1 px-1 text-neutral-400 whitespace-nowrap">' + dimLabels[i] + '</th>'; });
+        html += '</tr></thead><tbody>';
+
+        catNames.forEach(cat => {
+            html += `<tr class="cursor-pointer hover:bg-neutral-800" data-corr-cat="${cat}"><td class="py-1 pr-2 text-neutral-200 sticky left-0 bg-[#171717] whitespace-nowrap">${cat}</td>`;
+            dims.forEach(k => {
+                const r = d.correlations[cat][k] || 0;
+                const abs = Math.abs(r);
+                const bg = r > 0 ? `rgba(34,197,94,${abs * 0.7})` : r < 0 ? `rgba(239,68,68,${abs * 0.7})` : '#1a1a1a';
+                const txt = r === 0 ? '-' : r.toFixed(2);
+                html += `<td class="py-1 px-1 text-center" style="background:${bg}">${txt}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        hm.innerHTML = html;
+
+        // Click to show detail
+        hm.querySelectorAll('[data-corr-cat]').forEach(row => {
+            row.addEventListener('click', () => renderCatCorrDetail(row.dataset.corrCat, d));
+        });
+    }
+
+    function renderCatCorrDetail(catName, d) {
+        const card = document.getElementById('cat-corr-detail-card');
+        card.style.display = '';
+        document.getElementById('cat-corr-detail-title').textContent =
+            t('stats.categories.correlations.detail_title') + ' - ' + catName;
+
+        const dims = d.dimensions;
+        const dimLabels = dims.map(k => t('stats.categories.dimensions.' + k));
+        const corrs = dims.map(k => d.correlations[catName] ? (d.correlations[catName][k] || 0) : 0);
+        const configured = dims.map(k => d.configured_weights[catName] ? (d.configured_weights[catName][k] || 0) : 0);
+
+        makeChart('chart-cat-corr-detail', {
+            type: 'bar',
+            data: {
+                labels: dimLabels,
+                datasets: [
+                    { label: t('stats.categories.correlations.configured'), data: configured, backgroundColor: COLORS[1], borderRadius: 3 },
+                    { label: t('stats.categories.correlations.actual_r') + ' (x100)', data: corrs.map(r => Math.round(r * 100)), backgroundColor: corrs.map(r => r >= 0 ? COLORS[0] : COLORS[4]), borderRadius: 3 },
+                ]
+            },
+            options: { responsive: true,
+                plugins: { legend: { labels: { color: '#a3a3a3' } },
+                    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.datasetIndex === 1 ? (ctx.raw / 100).toFixed(2) : ctx.raw + '%') } } },
+                scales: {
+                    x: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3', maxRotation: 45, minRotation: 45, font: { size: 10 } } },
+                    y: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } }
+                }
+            }
+        });
+    }
+
+    // --- Overlap sub-tab ---
+    async function fetchCatOverlap() {
+        try {
+            const resp = await fetch('/api/stats/categories/overlap');
+            catOverlapData = await resp.json();
+            document.getElementById('cat-overlap-loading').classList.add('hidden');
+            renderCatOverlap(catOverlapData);
+        } catch(e) {
+            console.error(e);
+            document.getElementById('cat-overlap-loading').textContent = t('stats.correlations.error');
+        }
+    }
+
+    function renderCatOverlap(d) {
+        // Overlap pairs table
+        const tbl = document.getElementById('cat-overlap-table');
+        const tbody = document.getElementById('cat-overlap-tbody');
+        tbody.innerHTML = '';
+        if (d.overlaps.length) {
+            d.overlaps.forEach(o => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-neutral-800';
+                tr.innerHTML = `<td class="py-2 pr-4 text-neutral-200">${o.pair[0]} + ${o.pair[1]}</td>
+                    <td class="py-2 text-right text-neutral-300">${o.count.toLocaleString()}</td>`;
+                tbody.appendChild(tr);
+            });
+            tbl.classList.remove('hidden');
+        }
+
+        // Per-category summary
+        const stbl = document.getElementById('cat-overlap-summary');
+        const stbody = document.getElementById('cat-overlap-summary-tbody');
+        stbody.innerHTML = '';
+        if (d.per_category.length) {
+            d.per_category.sort((a, b) => a.priority - b.priority).forEach(c => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-neutral-800';
+                const capturedClass = c.captured_by_higher > 0 ? 'text-amber-400' : 'text-neutral-300';
+                tr.innerHTML = `<td class="py-2 pr-4 text-neutral-200">${c.name}</td>
+                    <td class="py-2 text-right pr-4 text-neutral-400">${c.priority}</td>
+                    <td class="py-2 text-right pr-4 text-neutral-300">${c.assigned.toLocaleString()}</td>
+                    <td class="py-2 text-right pr-4 text-neutral-300">${c.matched.toLocaleString()}</td>
+                    <td class="py-2 text-right ${capturedClass}">${c.captured_by_higher.toLocaleString()}</td>`;
+                stbody.appendChild(tr);
+            });
+            stbl.classList.remove('hidden');
+        }
+
+        // Uncategorized
+        const uncatDiv = document.getElementById('cat-overlap-uncat');
+        uncatDiv.textContent = d.uncategorized.toLocaleString() + ' ' + t('stats.categories.overlap.uncategorized_photos');
     }
 
     // Load gear tab on page load

@@ -230,6 +230,47 @@ Click "Compare" button in gallery header.
 4. Review why photo doesn't match
 5. Apply override to manually assign
 
+## EXIF Statistics
+
+The Stats page (`/stats`) provides analytics across 5 tabs.
+
+### Tabs
+
+| Tab | Description |
+|-----|-------------|
+| **Equipment** | Camera bodies, lenses, and combos (top 20 each) |
+| **Shooting Settings** | ISO, aperture, focal length, shutter speed distributions |
+| **Timeline** | Photos over time |
+| **Categories** | Category analytics, weight management, and score correlations |
+| **Correlations** | Custom X/Y metric correlation charts with grouping |
+
+### Categories Tab
+
+Interactive dashboard with 4 sub-tabs:
+
+| Sub-tab | Description |
+|---------|-------------|
+| **Breakdown** | Photo counts per category, average scores, score distribution histograms |
+| **Weights** | Radar chart comparison (up to 5 categories), weight heatmap, and weight editor (edition mode) |
+| **Correlations** | Pearson correlation heatmap showing how each dimension influences the aggregate, click-to-detail view |
+| **Overlap** | Filter overlap analysis showing which categories share matching photos |
+
+Each chart has a toggleable `?` help button explaining how to read it. A global help toggle in the sub-tab bar shows explanations for all sub-tabs.
+
+### Weight Editor (Edition Mode)
+
+Available in the Weights sub-tab when edition mode is active:
+
+1. Select a category from the dropdown
+2. Adjust the 12 weight sliders (should sum to 100%)
+3. Use "Normalize to 100" to auto-balance
+4. Expand the collapsible Modifiers section to adjust bonuses/penalties
+5. The **Score Distribution Preview** shows a live before/after histogram as you move sliders
+6. Click **Save** to update `scoring_config.json` (creates a timestamped backup)
+7. Click **Recompute Scores** (appears after save) to apply new weights to all photos in that category
+
+All stats are user-aware in multi-user mode — each user sees analytics for their visible photos only.
+
 ## Keyboard Shortcuts (Gallery)
 
 | Key | Action |
@@ -392,6 +433,23 @@ Filter dropdowns load on-demand via API:
 | `GET /api/filter_options/persons` | Persons with counts |
 | `GET /api/filter_options/patterns` | Composition patterns |
 | `GET /api/filter_options/categories` | Categories with counts |
+
+### Statistics
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /stats` | Statistics page |
+| `GET /api/stats/gear` | Camera/lens/combo counts |
+| `GET /api/stats/settings` | Shooting settings distributions |
+| `GET /api/stats/timeline` | Timeline data |
+| `GET /api/stats/correlations` | Custom metric correlations |
+| `GET /api/stats/categories/breakdown` | Per-category photo counts and score distributions |
+| `GET /api/stats/categories/weights` | Category weights and modifiers from config |
+| `GET /api/stats/categories/correlations` | Pearson r correlation per dimension per category |
+| `GET /api/stats/categories/metrics?category=X` | Raw metric values for client-side preview |
+| `GET /api/stats/categories/overlap` | Filter overlap analysis between categories |
+| `POST /api/stats/categories/update` | Update category weights/modifiers (edition mode) |
+| `POST /api/stats/categories/recompute` | Recompute scores for a category (edition mode) |
 
 ### Comparison Mode
 
