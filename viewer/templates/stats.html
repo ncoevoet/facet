@@ -172,13 +172,21 @@
                             <p class="text-xs text-neutral-500 mb-3">{{ _('stats.categories.weights.modifiers_hint') }}</p>
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mb-4" id="cat-modifier-inputs"></div>
                         </div>
-                        <!-- Score Preview -->
-                        <div class="pt-3 border-t border-neutral-800 mb-4">
-                            <h4 class="text-sm font-medium text-neutral-300 mb-1">{{ _('stats.categories.weights.preview_title') }}</h4>
-                            <p class="text-xs text-neutral-500 mb-3">{{ _('stats.categories.weights.preview_hint') }}</p>
-                            <div id="cat-preview-loading" class="text-xs text-neutral-500 hidden">{{ _('stats.categories.weights.preview_loading') }}</div>
-                            <div id="cat-preview-stats" class="flex flex-wrap gap-x-4 gap-y-1 text-xs mb-2 hidden"></div>
-                            <div id="cat-preview-chart-wrap" class="hidden" style="height:180px"><canvas id="cat-preview-chart"></canvas></div>
+                        <!-- Correlation + Score Preview -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-3 border-t border-neutral-800 mb-4">
+                            <div>
+                                <h4 class="text-sm font-medium text-neutral-300 mb-1">{{ _('stats.categories.weights.corr_title') }}</h4>
+                                <p class="text-xs text-neutral-500 mb-3">{{ _('stats.categories.weights.corr_hint') }}</p>
+                                <div id="cat-editor-corr-loading" class="text-xs text-neutral-500 hidden">{{ _('stats.categories.weights.corr_loading') }}</div>
+                                <div id="cat-editor-corr-wrap" class="hidden" style="height:220px"><canvas id="cat-editor-corr-chart"></canvas></div>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-medium text-neutral-300 mb-1">{{ _('stats.categories.weights.preview_title') }}</h4>
+                                <p class="text-xs text-neutral-500 mb-3">{{ _('stats.categories.weights.preview_hint') }}</p>
+                                <div id="cat-preview-loading" class="text-xs text-neutral-500 hidden">{{ _('stats.categories.weights.preview_loading') }}</div>
+                                <div id="cat-preview-stats" class="flex flex-wrap gap-x-4 gap-y-1 text-xs mb-2 hidden"></div>
+                                <div id="cat-preview-chart-wrap" class="hidden" style="height:180px"><canvas id="cat-preview-chart"></canvas></div>
+                            </div>
                         </div>
                         <!-- Save + Recompute -->
                         <div class="flex items-center gap-3 pt-3 border-t border-neutral-800">
@@ -745,7 +753,7 @@
     const CAT_DIMS = ['aesthetic','composition','face_quality','eye_sharpness','tech_sharpness',
         'exposure','color','quality','contrast','dynamic_range','isolation','leading_lines'];
     let catBreakdownData = null, catWeightsData = null, catCorrData = null, catOverlapData = null;
-    let catEditMetrics = null, catPreviewChart = null, catPreviewDebounce = null;
+    let catEditMetrics = null, catPreviewChart = null, catPreviewDebounce = null, catEditorCorrData = null, catEditorName = null;
 
     // Sub-tab switching
     document.querySelectorAll('.subtab-btn').forEach(btn => {
@@ -950,8 +958,9 @@
 
     function initWeightEditor(catName, d) {
         const body = document.getElementById('cat-editor-body');
-        if (!catName) { body.classList.add('hidden'); return; }
+        if (!catName) { body.classList.add('hidden'); catEditorName = null; return; }
         body.classList.remove('hidden');
+        catEditorName = catName;
         document.getElementById('cat-recompute-btn').classList.add('hidden');
         document.getElementById('cat-save-status').textContent = '';
 
@@ -1055,8 +1064,9 @@
         // Save button
         document.getElementById('cat-save-btn').onclick = () => saveCategoryWeights(catName);
 
-        // Fetch metrics for preview
+        // Fetch metrics for preview + correlation data
         fetchCatMetrics(catName);
+        fetchEditorCorrelations(catName);
     }
 
     function updateWeightTotal() {
@@ -1095,7 +1105,67 @@
         clearTimeout(catPreviewDebounce);
         catPreviewDebounce = setTimeout(() => {
             if (catEditMetrics && catEditMetrics.count > 0) renderPreview();
+            if (catEditorCorrData && catEditorName) renderEditorCorrelation(catEditorName);
         }, 150);
+    }
+
+    async function fetchEditorCorrelations(catName) {
+        const loading = document.getElementById('cat-editor-corr-loading');
+        const wrap = document.getElementById('cat-editor-corr-wrap');
+        loading.classList.remove('hidden');
+        wrap.classList.add('hidden');
+        catEditorCorrData = null;
+
+        try {
+            // Reuse catCorrData if already loaded, otherwise fetch
+            if (!catCorrData) {
+                const resp = await fetch('/api/stats/categories/correlations');
+                catCorrData = await resp.json();
+            }
+            catEditorCorrData = catCorrData;
+            loading.classList.add('hidden');
+            renderEditorCorrelation(catName);
+        } catch(e) {
+            loading.classList.add('hidden');
+            console.error('Failed to fetch correlation data', e);
+        }
+    }
+
+    function renderEditorCorrelation(catName) {
+        if (!catEditorCorrData) return;
+        const wrap = document.getElementById('cat-editor-corr-wrap');
+        const d = catEditorCorrData;
+        const dims = d.dimensions;
+        const dimLabels = dims.map(k => t('stats.categories.dimensions.' + k));
+
+        // Read current slider values as configured %
+        const configured = dims.map(k => {
+            const slider = document.querySelector(`.cat-weight-range[data-key="${k}_percent"]`);
+            return slider ? parseInt(slider.value) : 0;
+        });
+
+        // Actual correlations for this category
+        const corrs = dims.map(k => d.correlations[catName] ? (d.correlations[catName][k] || 0) : 0);
+
+        wrap.classList.remove('hidden');
+        makeChart('cat-editor-corr-chart', {
+            type: 'bar',
+            data: {
+                labels: dimLabels,
+                datasets: [
+                    { label: t('stats.categories.correlations.configured'), data: configured, backgroundColor: COLORS[1], borderRadius: 3 },
+                    { label: t('stats.categories.correlations.actual_r') + ' (\u00d7100)', data: corrs.map(r => Math.round(r * 100)), backgroundColor: corrs.map(r => r >= 0 ? COLORS[0] : COLORS[4]), borderRadius: 3 },
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#a3a3a3', boxWidth: 12, font: { size: 11 } } },
+                    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.datasetIndex === 1 ? (ctx.raw / 100).toFixed(2) : ctx.raw + '%') } } },
+                scales: {
+                    x: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3', maxRotation: 45, minRotation: 45, font: { size: 10 } } },
+                    y: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } }
+                }
+            }
+        });
     }
 
     function renderPreview() {
@@ -1232,8 +1302,10 @@
                 const reBtn = document.getElementById('cat-recompute-btn');
                 reBtn.classList.remove('hidden');
                 reBtn.onclick = () => recomputeCategory(catName);
-                // Reload weights data
+                // Reload weights data + correlations
                 catWeightsData = null;
+                catCorrData = null;
+                catEditorCorrData = null;
                 fetchCatWeights();
             } else {
                 status.textContent = data.error || t('stats.categories.weights.save_error');
@@ -1265,10 +1337,13 @@
                 status.textContent = t('stats.categories.weights.recomputed');
                 status.className = 'ml-3 text-sm text-green-400';
                 reBtn.classList.add('hidden');
-                // Reload breakdown + metrics
+                // Reload breakdown + metrics + correlations
                 catBreakdownData = null;
                 catEditMetrics = null;
+                catCorrData = null;
+                catEditorCorrData = null;
                 fetchCatMetrics(catName);
+                fetchEditorCorrelations(catName);
             } else {
                 status.textContent = data.error || t('stats.categories.weights.recompute_error');
                 status.className = 'ml-3 text-sm text-red-400';
@@ -1339,7 +1414,7 @@
                 labels: dimLabels,
                 datasets: [
                     { label: t('stats.categories.correlations.configured'), data: configured, backgroundColor: COLORS[1], borderRadius: 3 },
-                    { label: t('stats.categories.correlations.actual_r') + ' (x100)', data: corrs.map(r => Math.round(r * 100)), backgroundColor: corrs.map(r => r >= 0 ? COLORS[0] : COLORS[4]), borderRadius: 3 },
+                    { label: t('stats.categories.correlations.actual_r') + ' (\u00d7100)', data: corrs.map(r => Math.round(r * 100)), backgroundColor: corrs.map(r => r >= 0 ? COLORS[0] : COLORS[4]), borderRadius: 3 },
                 ]
             },
             options: { responsive: true,
