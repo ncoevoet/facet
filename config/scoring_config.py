@@ -652,10 +652,30 @@ class ScoringConfig:
                 msg = "No GPU detected, using legacy (CPU-only) profile"
             return 'legacy', None, msg
 
-        # Delegate to ModelManager for consistent profile selection
-        # (includes MPS cap for Apple Silicon unified memory)
-        from models.model_manager import ModelManager
-        profile = ModelManager.get_recommended_profile(vram_gb)
+        # Inline profile selection (includes MPS cap for Apple Silicon unified memory)
+        try:
+            from utils.device import is_mps
+            mps = is_mps()
+        except Exception:
+            mps = False
+
+        if mps:
+            # Apple Silicon unified memory: cap at 16gb to avoid
+            # loading models too heavy for shared CPU/GPU RAM
+            if vram_gb >= 14:
+                profile = '16gb'
+            elif vram_gb >= 6:
+                profile = '8gb'
+            else:
+                profile = 'legacy'
+        elif vram_gb >= 20:
+            profile = '24gb'
+        elif vram_gb >= 14:
+            profile = '16gb'
+        elif vram_gb >= 6:
+            profile = '8gb'
+        else:
+            profile = 'legacy'
 
         profile_descriptions = {
             '24gb': 'TOPIQ + Qwen2-VL',

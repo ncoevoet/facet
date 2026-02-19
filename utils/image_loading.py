@@ -10,9 +10,12 @@ from pathlib import Path
 
 import numpy as np
 
-# Register HEIC/HEIF support via pillow-heif
-import pillow_heif
-pillow_heif.register_heif_opener()
+# Register HEIC/HEIF support via pillow-heif (optional dependency)
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+except ImportError:
+    pass
 
 # Lazy imports for heavy modules
 _cv2 = None

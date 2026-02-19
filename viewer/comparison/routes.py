@@ -172,8 +172,8 @@ def api_download_single():
                 {'error': 'HEIC/HEIF images cannot be downloaded from this server'}
             ), 500
 
-        from PIL import Image
-        pil_img = Image.open(disk_path)
+        from PIL import Image, ImageOps
+        pil_img = ImageOps.exif_transpose(Image.open(disk_path))
         if pil_img.mode != 'RGB':
             pil_img = pil_img.convert('RGB')
         buffer = BytesIO()
