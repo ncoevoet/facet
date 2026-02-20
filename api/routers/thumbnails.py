@@ -223,14 +223,14 @@ async def image(
     # Verify the path exists in the database to prevent path traversal
     conn = get_db_connection()
     try:
-        row = conn.execute("SELECT 1 FROM photos WHERE path = ?", (path,)).fetchone()
+        row = conn.execute("SELECT path FROM photos WHERE path = ?", (path,)).fetchone()
     finally:
         conn.close()
     if not row:
         return Response(content="Not found", status_code=404)
 
     from api.config import map_disk_path
-    disk_path = map_disk_path(path)
+    disk_path = map_disk_path(row['path'])
     real_disk = os.path.realpath(disk_path)
     if not any(real_disk.startswith(os.path.realpath(d) + os.sep) for d in get_all_scan_directories()):
         return Response(content="Not found", status_code=404)

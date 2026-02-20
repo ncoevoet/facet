@@ -158,8 +158,11 @@ async def api_download_single(
     if not row:
         raise HTTPException(status_code=404, detail='File not found')
 
+    # Use DB-returned path to break taint chain from user input
+    db_path = row['path']
+
     # Map database path to local disk path
-    disk_path = map_disk_path(path)
+    disk_path = map_disk_path(db_path)
     real_disk = os.path.realpath(disk_path)
     if not any(real_disk.startswith(os.path.realpath(d) + os.sep) for d in get_all_scan_directories()):
         raise HTTPException(status_code=404, detail='File not found')
@@ -185,7 +188,7 @@ async def api_download_single(
         pil_img.save(buffer, format='JPEG', quality=95)
         buffer.seek(0)
 
-        download_name = os.path.splitext(os.path.basename(path))[0] + '.jpg'
+        download_name = os.path.splitext(os.path.basename(db_path))[0] + '.jpg'
 
         return StreamingResponse(
             buffer,
