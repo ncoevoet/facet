@@ -1,11 +1,14 @@
 # Facet
 
-A multi-dimensional photo analysis engine that examines every facet of an image — from aesthetic appeal and composition to facial detail and technical precision — using an ensemble of vision models to surface the photos that truly shine.
+**A multi-dimensional photo analysis engine that automatically scores, categorizes, and surfaces your best photos using an ensemble of vision models.**
+
+Facet examines every facet of an image—from aesthetic appeal and composition to facial detail and technical precision—to help photographers, archivists, and enthusiasts discover their hidden gems.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Angular](https://img.shields.io/badge/Angular-20-dd0031)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Docker-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 <p align="center">
   <img src="docs/screenshots/gallery-desktop.jpg" alt="Facet Gallery" width="100%">
@@ -87,6 +90,8 @@ Full-width cards on mobile with touch-friendly controls. Desktop shows detailed 
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
+# Read docs/INSTALLATION.md for optional/additional packages
+
 # Install Angular frontend
 cd client && npm install && npx ng build && cd ..
 
@@ -123,19 +128,3 @@ TOPIQ (0.93 SRCC on KonIQ-10k) is the primary quality model for 16gb/24gb profil
 | [Face Recognition](docs/FACE_RECOGNITION.md) | Face workflow, clustering, person management |
 | [Viewer](docs/VIEWER.md) | Web gallery features and usage |
 | [Deployment](docs/DEPLOYMENT.md) | Production deployment (Synology NAS, Linux, Docker) |
-
-## Supported File Types
-
-- **JPEG** (.jpg, .jpeg)
-- **Canon RAW** (.cr2, .cr3) — skipped if matching JPEG exists
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| "externally-managed-environment" | Use virtual environment |
-| Slow processing | Check VRAM profile, use `--single-pass` for high-VRAM systems |
-| Face detection not using GPU | Install `onnxruntime-gpu` |
-| Missing exiftool | Install via system package manager |
-
-See [Installation](docs/INSTALLATION.md) for detailed setup instructions.
