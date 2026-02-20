@@ -491,7 +491,7 @@ export class IsSelectedPipe implements PipeTransform {
                   <!-- Persistent favorite star (visible without hover) -->
                   @if (photo.is_favorite) {
                     <div class="absolute top-1.5 left-1.5 z-20 pointer-events-none group-hover/img:opacity-0 transition-opacity">
-                      <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-yellow-400 drop-shadow-md">star</mat-icon>
+                      <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-yellow-400 drop-shadow-md">star</mat-icon>
                     </div>
                   }
 
@@ -571,7 +571,7 @@ export class IsSelectedPipe implements PipeTransform {
 
                 <!-- Details below photo -->
                 @if (!store.filters().hide_details) {
-                  <div class="px-1.5 py-1 text-xs text-neutral-300 leading-snug">
+                  <div class="pt-1 text-xs text-neutral-300 leading-snug">
                     <div class="flex items-center gap-1">
                       <span class="font-medium text-neutral-200 truncate">{{ photo.filename }}</span>
                       <span class="ml-auto flex items-center gap-1 shrink-0">
@@ -930,9 +930,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
         width: '95vw',
         maxWidth: '400px',
       });
-      personRef.afterClosed().subscribe(selected => {
+      personRef.afterClosed().subscribe(async selected => {
         if (selected) {
-          this.store.assignFace(face.id, selected.id, photo.path, selected.name);
+          await this.store.assignFace(face.id, selected.id, photo.path, selected.name);
+          this.snackBar.open(this.i18n.t('notifications.faces_assigned'), '', { duration: 2000 });
         }
       });
     });

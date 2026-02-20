@@ -11,12 +11,12 @@
       <!-- Nav links -->
       @if (auth.isAuthenticated()) {
         <nav class="hidden lg:flex items-center gap-1 ml-4">
-          <a mat-button routerLink="/">{{ 'nav.gallery' | translate }}</a>
-          <a mat-button routerLink="/persons">{{ 'nav.persons' | translate }}</a>
+          <a mat-button routerLink="/" routerLinkActive #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : ''">{{ 'nav.gallery' | translate }}</a>
+          <a mat-button routerLink="/persons" routerLinkActive #rlPersons="routerLinkActive" [style.color]="rlPersons.isActive ? 'var(--mat-sys-primary)' : ''">{{ 'nav.persons' | translate }}</a>
           @if (auth.isEdition()) {
-            <a mat-button routerLink="/compare">{{ 'nav.compare' | translate }}</a>
+            <a mat-button routerLink="/compare" routerLinkActive #rlCompare="routerLinkActive" [style.color]="rlCompare.isActive ? 'var(--mat-sys-primary)' : ''">{{ 'nav.compare' | translate }}</a>
           }
-          <a mat-button routerLink="/stats">{{ 'nav.stats' | translate }}</a>
+          <a mat-button routerLink="/stats" routerLinkActive #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : ''">{{ 'nav.stats' | translate }}</a>
         </nav>
       }
 
@@ -31,36 +31,6 @@
             }
           </mat-select>
         </mat-form-field>
-
-        <mat-form-field class="!hidden lg:!inline-flex w-48" subscriptSizing="dynamic">
-          <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
-          <mat-select [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
-            @if (sortGroups(); as groups) {
-              @for (group of groups; track group[0]) {
-                <mat-optgroup [label]="group[0]">
-                  @for (opt of group[1]; track opt.column) {
-                    <mat-option [value]="opt.column">{{ opt.label }}</mat-option>
-                  }
-                </mat-optgroup>
-              }
-            } @else {
-              <mat-option value="aggregate">{{ 'gallery.sort_aggregate' | translate }}</mat-option>
-              <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
-              <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-
-        <button
-          class="!hidden lg:!inline-flex"
-          mat-icon-button
-          (click)="toggleSortDirection()"
-          [matTooltip]="store.filters().sort_direction === 'DESC' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)"
-        >
-          <mat-icon>{{
-            store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward'
-          }}</mat-icon>
-        </button>
 
         <!-- Person multi-select -->
         @if (store.persons().length) {
@@ -129,6 +99,36 @@
       @if (auth.isAuthenticated() && isGalleryRoute()) {
         <span class="!hidden lg:!inline text-sm opacity-70">{{ 'gallery.photo_count' | translate:{ count: store.total() } }}</span>
 
+        <mat-form-field class="!hidden lg:!inline-flex w-48" subscriptSizing="dynamic">
+          <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
+          <mat-select [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
+            @if (sortGroups(); as groups) {
+              @for (group of groups; track group[0]) {
+                <mat-optgroup [label]="group[0]">
+                  @for (opt of group[1]; track opt.column) {
+                    <mat-option [value]="opt.column">{{ opt.label }}</mat-option>
+                  }
+                </mat-optgroup>
+              }
+            } @else {
+              <mat-option value="aggregate">{{ 'gallery.sort_aggregate' | translate }}</mat-option>
+              <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
+              <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <button
+          class="!hidden lg:!inline-flex"
+          mat-icon-button
+          (click)="toggleSortDirection()"
+          [matTooltip]="store.filters().sort_direction === 'DESC' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)"
+        >
+          <mat-icon>{{
+            store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward'
+          }}</mat-icon>
+        </button>
+
         @if (store.activeFilterCount()) {
           <mat-chip-set class="!hidden lg:!inline-flex">
             <mat-chip (removed)="store.resetFilters()" highlighted>
@@ -147,7 +147,7 @@
           matBadgeSize="small"
           [matTooltip]="'gallery.filters' | translate"
         >
-          <mat-icon>tune</mat-icon>
+          <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">tune</mat-icon>
         </button>
       }
 
@@ -236,6 +236,27 @@
       <button mat-icon-button (click)="clearSearch(); mobileSearchOpen.set(false)">
         <mat-icon>close</mat-icon>
       </button>
+    </div>
+  }
+
+  <!-- Active filter chips bar -->
+  @if (auth.isAuthenticated() && isGalleryRoute() && activeFilterChips().length) {
+    <div class="shrink-0 flex items-center border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)]">
+      <div class="flex-1 flex items-center gap-1.5 px-3 py-1.5 overflow-x-auto">
+        <mat-chip-set>
+          @for (chip of activeFilterChips(); track chip.label) {
+            <mat-chip (removed)="chip.action()" highlighted>
+              {{ chip.label }}
+              <mat-icon matChipRemove>cancel</mat-icon>
+            </mat-chip>
+          }
+        </mat-chip-set>
+      </div>
+      <div class="shrink-0 px-2 py-1.5">
+        <button mat-mini-fab color="primary" class="!shadow-none" (click)="store.resetFilters()" [matTooltip]="'gallery.reset_filters' | translate">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
     </div>
   }
 
