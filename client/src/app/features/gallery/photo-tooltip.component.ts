@@ -32,9 +32,9 @@ export class CategoryLabelPipe implements PipeTransform {
           [src]="p.path | thumbnailUrl:640"
           [alt]="p.filename"
           class="rounded-md object-contain shrink-0"
-          [class.max-h-[50vh]]="!isLandscape()"
+          [class.max-h-[40vh]]="!isLandscape()"
           [class.w-full]="isLandscape()"
-          [class.max-h-[35vh]]="isLandscape()"
+          [class.max-h-[28vh]]="isLandscape()"
         />
 
         <!-- Details panel -->
@@ -50,8 +50,11 @@ export class CategoryLabelPipe implements PipeTransform {
             <div class="text-neutral-500 text-[11px]">{{ p.date_taken }}</div>
           }
 
-          <!-- Category + aggregate -->
+          <!-- Category + aggregate + star rating -->
           <div class="text-green-500 font-semibold mb-1.5">
+            @if (p.star_rating) {
+              <span class="text-yellow-400">★{{ p.star_rating }}</span>
+            }
             [{{ p.category | categoryLabel }}] {{ 'tooltip.aggregate' | translate }}: {{ p.aggregate | fixed:1 }}
           </div>
 
@@ -62,13 +65,23 @@ export class CategoryLabelPipe implements PipeTransform {
             @if (p.quality_score != null) {
               <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.quality_score' | translate }}</span><span class="text-green-500 font-medium">{{ p.quality_score | fixed:1 }}</span></div>
             }
+            @if (p.topiq_score != null) {
+              <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.topiq_score' | translate }}</span><span class="text-green-500 font-medium">{{ p.topiq_score | fixed:1 }}</span></div>
+            }
             @if (p.face_count > 0 && p.face_quality != null) {
               <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.face_quality' | translate }}</span><span class="text-green-500 font-medium">{{ p.face_quality | fixed:1 }}</span></div>
+              <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.faces' | translate }}</span><span class="text-green-500 font-medium">{{ p.face_count }}</span></div>
+              @if (p.face_ratio) {
+                <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.face_ratio' | translate }}</span><span class="text-green-500 font-medium">{{ p.face_ratio * 100 | fixed:0 }}%</span></div>
+              }
               @if (p.face_sharpness != null) {
                 <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.face_sharpness' | translate }}</span><span class="text-green-500 font-medium">{{ p.face_sharpness | fixed:1 }}</span></div>
               }
               @if (p.eye_sharpness != null) {
                 <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.eye_sharpness' | translate }}</span><span class="text-green-500 font-medium">{{ p.eye_sharpness | fixed:1 }}</span></div>
+              }
+              @if (p.face_confidence != null) {
+                <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.face_confidence' | translate }}</span><span class="text-green-500 font-medium">{{ p.face_confidence * 100 | fixed:0 }}%</span></div>
               }
             }
             @if (p.tech_sharpness != null) {
@@ -90,6 +103,9 @@ export class CategoryLabelPipe implements PipeTransform {
             }
             @if (p.leading_lines_score != null) {
               <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.leading_lines' | translate }}</span><span class="text-green-500 font-medium">{{ p.leading_lines_score | fixed:1 }}</span></div>
+            }
+            @if (p.isolation_bonus != null) {
+              <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.isolation' | translate }}</span><span class="text-green-500 font-medium">{{ p.isolation_bonus | fixed:1 }}</span></div>
             }
           </div>
 
@@ -113,6 +129,12 @@ export class CategoryLabelPipe implements PipeTransform {
             }
             @if (p.noise_sigma != null) {
               <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.noise' | translate }}</span><span class="text-green-500 font-medium">{{ p.noise_sigma | fixed:1 }}</span></div>
+            }
+            @if (p.mean_luminance != null) {
+              <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.luminance' | translate }}</span><span class="text-green-500 font-medium">{{ p.mean_luminance * 100 | fixed:0 }}%</span></div>
+            }
+            @if (p.histogram_spread != null) {
+              <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.histogram_spread' | translate }}</span><span class="text-green-500 font-medium">{{ p.histogram_spread | fixed:1 }}</span></div>
             }
           </div>
 

@@ -45,14 +45,18 @@ def load_viewer_config(config=None):
             'General': [
                 {'column': 'aggregate', 'label': 'Aggregate Score'},
                 {'column': 'aesthetic', 'label': 'Aesthetic'},
-                {'column': 'date_taken', 'label': 'Date Taken'}
+                {'column': 'topiq_score', 'label': 'TOPIQ Score'},
+                {'column': 'date_taken', 'label': 'Date Taken'},
+                {'column': 'is_favorite', 'label': 'Favorites'},
+                {'column': 'is_rejected', 'label': 'Rejected'}
             ],
             'Face Metrics': [
                 {'column': 'face_quality', 'label': 'Face Quality'},
                 {'column': 'eye_sharpness', 'label': 'Eye Sharpness'},
                 {'column': 'face_sharpness', 'label': 'Face Sharpness'},
                 {'column': 'face_ratio', 'label': 'Face Ratio'},
-                {'column': 'face_count', 'label': 'Face Count'}
+                {'column': 'face_count', 'label': 'Face Count'},
+                {'column': 'face_confidence', 'label': 'Face Confidence'}
             ],
             'Technical': [
                 {'column': 'tech_sharpness', 'label': 'Tech Sharpness'},
@@ -305,10 +309,35 @@ CORRELATION_X_AXES = {
                "WHEN exposure_score<7 THEN '6-7' WHEN exposure_score<8 THEN '7-8' "
                "WHEN exposure_score<9 THEN '8-9' ELSE '9-10' END",
         'sort': 'MIN(exposure_score)', 'filter': 'exposure_score IS NOT NULL', 'top_n': 6},
+    'noise_sigma': {
+        'sql': "CASE WHEN noise_sigma<2 THEN '<2' WHEN noise_sigma<4 THEN '2-4' "
+               "WHEN noise_sigma<6 THEN '4-6' WHEN noise_sigma<8 THEN '6-8' "
+               "WHEN noise_sigma<10 THEN '8-10' ELSE '10+' END",
+        'sort': 'MIN(noise_sigma)', 'filter': 'noise_sigma IS NOT NULL', 'top_n': 6},
+    'contrast_score': {
+        'sql': "CASE WHEN contrast_score<4 THEN '<4' WHEN contrast_score<6 THEN '4-6' "
+               "WHEN contrast_score<7 THEN '6-7' WHEN contrast_score<8 THEN '7-8' "
+               "WHEN contrast_score<9 THEN '8-9' ELSE '9-10' END",
+        'sort': 'MIN(contrast_score)', 'filter': 'contrast_score IS NOT NULL', 'top_n': 6},
+    'mean_saturation': {
+        'sql': "CASE WHEN mean_saturation<0.2 THEN '<20%' WHEN mean_saturation<0.4 THEN '20-40%' "
+               "WHEN mean_saturation<0.6 THEN '40-60%' WHEN mean_saturation<0.8 THEN '60-80%' "
+               "ELSE '80-100%' END",
+        'sort': 'MIN(mean_saturation)', 'filter': 'mean_saturation IS NOT NULL', 'top_n': 5},
+    'face_ratio': {
+        'sql': "CASE WHEN face_ratio<0.05 THEN '<5%' WHEN face_ratio<0.1 THEN '5-10%' "
+               "WHEN face_ratio<0.2 THEN '10-20%' WHEN face_ratio<0.4 THEN '20-40%' "
+               "ELSE '40%+' END",
+        'sort': 'MIN(face_ratio)', 'filter': 'face_ratio IS NOT NULL AND face_ratio > 0', 'top_n': 5},
+    'star_rating': {
+        'sql': "CAST(star_rating AS TEXT)", 'sort': 'x_bucket',
+        'filter': 'star_rating IS NOT NULL AND star_rating > 0', 'top_n': 5},
 }
 CORRELATION_Y_METRICS = {
     'aggregate', 'aesthetic', 'tech_sharpness', 'noise_sigma', 'comp_score',
     'face_quality', 'color_score', 'exposure_score', 'contrast_score',
     'dynamic_range_stops', 'mean_saturation', 'isolation_bonus', 'quality_score',
     'power_point_score', 'leading_lines_score',
+    'eye_sharpness', 'face_sharpness', 'face_ratio', 'face_confidence',
+    'histogram_spread', 'mean_luminance', 'star_rating', 'topiq_score',
 }

@@ -33,7 +33,7 @@ PHOTO_OPTIONAL_COLS = [
     'shadow_clipped', 'highlight_clipped', 'is_silhouette', 'is_group_portrait', 'leading_lines_score',
     'face_confidence', 'is_monochrome', 'mean_saturation',
     'dynamic_range_stops', 'noise_sigma', 'contrast_score', 'tags',
-    'composition_pattern', 'quality_score',
+    'composition_pattern', 'quality_score', 'topiq_score',
     'star_rating', 'is_favorite', 'is_rejected',
     'duplicate_group_id', 'is_duplicate_lead'
 ]

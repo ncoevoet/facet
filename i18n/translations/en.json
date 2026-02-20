@@ -172,7 +172,10 @@
     "lines": "Lines",
     "top_picks": "TopP",
     "monochrome": "B&W",
-    "silhouette_label": "Silhouette"
+    "silhouette_label": "Silhouette",
+    "topiq_score": "TOPIQ",
+    "histogram_spread": "Hist. Spread",
+    "star_rating": "Rating"
   },
   "notifications": {
     "copied": "Copied!",
@@ -439,7 +442,11 @@
     "isolation_bonus": "Isolation Bonus",
     "f_stop": "F-Stop",
     "focal_length": "Focal Length",
-    "shutter_speed": "Shutter Speed"
+    "shutter_speed": "Shutter Speed",
+    "topiq_score": "TOPIQ Score",
+    "face_confidence": "Face Confidence",
+    "is_favorite": "Favorites",
+    "is_rejected": "Rejected"
   },
   "photo_types": {
     "all": "All Photos",
@@ -584,7 +591,12 @@
         "comp_score": "Composition Score",
         "face_quality": "Face Quality Score",
         "color_score": "Color Score",
-        "exposure_score": "Exposure Score"
+        "exposure_score": "Exposure Score",
+        "noise_sigma": "Noise Level",
+        "contrast_score": "Contrast",
+        "mean_saturation": "Saturation",
+        "face_ratio": "Face Ratio",
+        "star_rating": "Star Rating"
       },
       "metrics": {
         "aggregate": "Aggregate",
@@ -601,7 +613,15 @@
         "isolation_bonus": "Isolation",
         "quality_score": "Quality Score",
         "power_point_score": "Power Points",
-        "leading_lines_score": "Leading Lines"
+        "leading_lines_score": "Leading Lines",
+        "eye_sharpness": "Eye Sharpness",
+        "face_sharpness": "Face Sharpness",
+        "face_ratio": "Face Ratio",
+        "face_confidence": "Face Confidence",
+        "histogram_spread": "Histogram Spread",
+        "mean_luminance": "Mean Luminance",
+        "star_rating": "Star Rating",
+        "topiq_score": "TOPIQ Score"
       },
       "chart_types": {
         "line": "Line",
@@ -633,7 +653,10 @@
       "composition": "Composition",
       "color": "Color",
       "pattern": "Pattern",
-      "noise_level": "Noise Level"
+      "noise_level": "Noise Level",
+      "exposure": "Exposure",
+      "face_quality": "Face Quality",
+      "contrast": "Contrast"
     },
     "days": {
       "sun": "Sun",
@@ -935,10 +958,13 @@
       "categories": "Categories",
       "equipment": "Equipment",
       "content": "Content",
-      "scores": "Score Ranges",
+      "quality": "Quality",
       "date": "Date Range",
       "face": "Face Metrics",
-      "exif": "EXIF Settings"
+      "composition": "Composition",
+      "technical": "Technical",
+      "exposure_range": "Exposure & Range",
+      "ratings": "User Ratings"
     },
     "hide_rejected": "Hide Rejected",
     "favorites_only": "Favorites Only",
@@ -952,11 +978,20 @@
     "eye_sharpness_range": "Eye Sharpness",
     "face_sharpness_range": "Face Sharpness",
     "iso_range": "ISO",
-    "aperture": "Aperture",
-    "focal_length": "Focal Length",
-    "focal_range": "Focal Length",
+    "aperture_range": "Aperture (f/)",
+    "focal_range": "Focal Length (mm)",
     "dynamic_range": "Dynamic Range",
-    "noise_range": "Noise"
+    "noise_range": "Noise",
+    "quality_score_range": "Quality Score",
+    "face_ratio_range": "Face Ratio",
+    "face_confidence_range": "Face Confidence",
+    "power_point_range": "Power Points",
+    "leading_lines_range": "Leading Lines",
+    "isolation_range": "Isolation",
+    "saturation_range": "Saturation",
+    "luminance_range": "Luminance",
+    "histogram_range": "Histogram Spread",
+    "star_rating_range": "Star Rating"
   },
   "composition_patterns": {
     "none": "None",

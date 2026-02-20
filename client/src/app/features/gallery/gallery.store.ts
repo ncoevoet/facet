@@ -17,7 +17,9 @@ export interface Photo {
   color_score: number | null;
   exposure_score: number | null;
   quality_score: number | null;
+  topiq_score: number | null;
   top_picks_score: number | null;
+  isolation_bonus: number | null;
   // Face
   face_count: number;
   face_ratio: number;
@@ -38,6 +40,7 @@ export interface Photo {
   dynamic_range_stops: number | null;
   mean_saturation: number | null;
   mean_luminance: number | null;
+  histogram_spread: number | null;
   // Composition
   composition_pattern: string | null;
   power_point_score: number | null;
@@ -168,11 +171,39 @@ export interface GalleryFilters {
   max_eye_sharpness: string;
   min_face_sharpness: string;
   max_face_sharpness: string;
+  min_face_ratio: string;
+  max_face_ratio: string;
+  min_face_confidence: string;
+  max_face_confidence: string;
+  // Quality
+  min_quality_score: string;
+  max_quality_score: string;
+  min_topiq: string;
+  max_topiq: string;
+  // Composition
+  min_power_point: string;
+  max_power_point: string;
+  min_leading_lines: string;
+  max_leading_lines: string;
+  min_isolation: string;
+  max_isolation: string;
+  // Technical
+  min_saturation: string;
+  max_saturation: string;
+  min_luminance: string;
+  max_luminance: string;
+  min_histogram_spread: string;
+  max_histogram_spread: string;
+  // User ratings
+  min_star_rating: string;
+  max_star_rating: string;
   // EXIF ranges
   min_iso: string;
   max_iso: string;
-  aperture: string;
-  focal_length: string;
+  min_aperture: string;
+  max_aperture: string;
+  min_focal_length: string;
+  max_focal_length: string;
   // Date range
   date_from: string;
   date_to: string;
@@ -225,10 +256,34 @@ const DEFAULT_FILTERS: GalleryFilters = {
   max_eye_sharpness: '',
   min_face_sharpness: '',
   max_face_sharpness: '',
+  min_face_ratio: '',
+  max_face_ratio: '',
+  min_face_confidence: '',
+  max_face_confidence: '',
+  min_quality_score: '',
+  max_quality_score: '',
+  min_topiq: '',
+  max_topiq: '',
+  min_power_point: '',
+  max_power_point: '',
+  min_leading_lines: '',
+  max_leading_lines: '',
+  min_isolation: '',
+  max_isolation: '',
+  min_saturation: '',
+  max_saturation: '',
+  min_luminance: '',
+  max_luminance: '',
+  min_histogram_spread: '',
+  max_histogram_spread: '',
+  min_star_rating: '',
+  max_star_rating: '',
   min_iso: '',
   max_iso: '',
-  aperture: '',
-  focal_length: '',
+  min_aperture: '',
+  max_aperture: '',
+  min_focal_length: '',
+  max_focal_length: '',
   date_from: '',
   date_to: '',
   composition_pattern: '',
@@ -265,8 +320,6 @@ export class GalleryStore {
   readonly tags = signal<FilterOption[]>([]);
   readonly persons = signal<PersonOption[]>([]);
   readonly patterns = signal<FilterOption[]>([]);
-  readonly apertures = signal<FilterOption[]>([]);
-  readonly focalLengths = signal<FilterOption[]>([]);
 
   // --- Computed ---
   readonly activeFilterCount = computed(() => {
@@ -276,13 +329,20 @@ export class GalleryStore {
     const stringKeys: (keyof GalleryFilters)[] = [
       'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
+      'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
       'min_sharpness', 'max_sharpness', 'min_exposure', 'max_exposure',
       'min_color', 'max_color', 'min_contrast', 'max_contrast',
       'min_noise', 'max_noise', 'min_dynamic_range', 'max_dynamic_range',
+      'min_saturation', 'max_saturation', 'min_luminance', 'max_luminance',
+      'min_histogram_spread', 'max_histogram_spread',
+      'min_power_point', 'max_power_point', 'min_leading_lines', 'max_leading_lines',
+      'min_isolation', 'max_isolation',
       'min_face_count', 'max_face_count',
       'min_eye_sharpness', 'max_eye_sharpness', 'min_face_sharpness', 'max_face_sharpness',
-      'min_iso', 'max_iso', 'aperture', 'focal_length',
+      'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',
+      'min_star_rating', 'max_star_rating',
+      'min_iso', 'max_iso', 'min_aperture', 'max_aperture', 'min_focal_length', 'max_focal_length',
       'date_from', 'date_to',
     ];
     for (const key of stringKeys) {
@@ -416,14 +476,12 @@ export class GalleryStore {
 
   /** Load all filter dropdown options in parallel */
   async loadFilterOptions(): Promise<void> {
-    const [camerasRes, lensesRes, tagsRes, personsRes, patternsRes, apertureRes, focalRes] = await Promise.all([
+    const [camerasRes, lensesRes, tagsRes, personsRes, patternsRes] = await Promise.all([
       firstValueFrom(this.api.get<{cameras: [string, number][]}>('/filter_options/cameras')).catch(() => ({cameras: []})),
       firstValueFrom(this.api.get<{lenses: [string, number][]}>('/filter_options/lenses')).catch(() => ({lenses: []})),
       firstValueFrom(this.api.get<{tags: [string, number][]}>('/filter_options/tags')).catch(() => ({tags: []})),
       firstValueFrom(this.api.get<{persons: [number, string | null, number][]}>('/filter_options/persons')).catch(() => ({persons: []})),
       firstValueFrom(this.api.get<{patterns: [string, number][]}>('/filter_options/patterns')).catch(() => ({patterns: []})),
-      firstValueFrom(this.api.get<{apertures: [number, number][]}>('/filter_options/apertures')).catch(() => ({apertures: []})),
-      firstValueFrom(this.api.get<{focal_lengths: [number, number][]}>('/filter_options/focal_lengths')).catch(() => ({focal_lengths: []})),
     ]);
     this.cameras.set((camerasRes.cameras ?? []).map(([value, count]: [string, number]) => ({value, count})));
     this.lenses.set((lensesRes.lenses ?? []).map(([value, count]: [string, number]) => ({value, count})));
@@ -434,8 +492,6 @@ export class GalleryStore {
         .map(([id, name, face_count]: [number, string | null, number]) => ({id, name, face_count})),
     );
     this.patterns.set((patternsRes.patterns ?? []).map(([value, count]: [string, number]) => ({value, count})));
-    this.apertures.set((apertureRes.apertures ?? []).map(([ap, count]: [number, number]) => ({value: String(ap), count})));
-    this.focalLengths.set((focalRes.focal_lengths ?? []).map(([fl, count]: [number, number]) => ({value: String(fl), count})));
   }
 
   /** Set star rating for a photo (0 = clear) */
@@ -522,13 +578,20 @@ export class GalleryStore {
     const stringKeys: (keyof GalleryFilters)[] = [
       'type', 'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
+      'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
       'min_sharpness', 'max_sharpness', 'min_exposure', 'max_exposure',
       'min_color', 'max_color', 'min_contrast', 'max_contrast',
       'min_noise', 'max_noise', 'min_dynamic_range', 'max_dynamic_range',
+      'min_saturation', 'max_saturation', 'min_luminance', 'max_luminance',
+      'min_histogram_spread', 'max_histogram_spread',
+      'min_power_point', 'max_power_point', 'min_leading_lines', 'max_leading_lines',
+      'min_isolation', 'max_isolation',
       'min_face_count', 'max_face_count',
       'min_eye_sharpness', 'max_eye_sharpness', 'min_face_sharpness', 'max_face_sharpness',
-      'min_iso', 'max_iso', 'aperture', 'focal_length',
+      'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',
+      'min_star_rating', 'max_star_rating',
+      'min_iso', 'max_iso', 'min_aperture', 'max_aperture', 'min_focal_length', 'max_focal_length',
       'date_from', 'date_to',
     ];
     for (const key of stringKeys) {
@@ -567,13 +630,20 @@ export class GalleryStore {
       'sort', 'sort_direction', 'type', 'camera', 'lens', 'tag', 'person_id',
       'composition_pattern', 'search',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
+      'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
       'min_sharpness', 'max_sharpness', 'min_exposure', 'max_exposure',
       'min_color', 'max_color', 'min_contrast', 'max_contrast',
       'min_noise', 'max_noise', 'min_dynamic_range', 'max_dynamic_range',
+      'min_saturation', 'max_saturation', 'min_luminance', 'max_luminance',
+      'min_histogram_spread', 'max_histogram_spread',
+      'min_power_point', 'max_power_point', 'min_leading_lines', 'max_leading_lines',
+      'min_isolation', 'max_isolation',
       'min_face_count', 'max_face_count',
       'min_eye_sharpness', 'max_eye_sharpness', 'min_face_sharpness', 'max_face_sharpness',
-      'min_iso', 'max_iso', 'aperture', 'focal_length',
+      'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',
+      'min_star_rating', 'max_star_rating',
+      'min_iso', 'max_iso', 'min_aperture', 'max_aperture', 'min_focal_length', 'max_focal_length',
       'date_from', 'date_to',
     ];
     for (const key of stringKeys) {
@@ -607,13 +677,20 @@ export class GalleryStore {
     const stringKeys: (keyof GalleryFilters)[] = [
       'type', 'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
+      'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
       'min_sharpness', 'max_sharpness', 'min_exposure', 'max_exposure',
       'min_color', 'max_color', 'min_contrast', 'max_contrast',
       'min_noise', 'max_noise', 'min_dynamic_range', 'max_dynamic_range',
+      'min_saturation', 'max_saturation', 'min_luminance', 'max_luminance',
+      'min_histogram_spread', 'max_histogram_spread',
+      'min_power_point', 'max_power_point', 'min_leading_lines', 'max_leading_lines',
+      'min_isolation', 'max_isolation',
       'min_face_count', 'max_face_count',
       'min_eye_sharpness', 'max_eye_sharpness', 'min_face_sharpness', 'max_face_sharpness',
-      'min_iso', 'max_iso', 'aperture', 'focal_length',
+      'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',
+      'min_star_rating', 'max_star_rating',
+      'min_iso', 'max_iso', 'min_aperture', 'max_aperture', 'min_focal_length', 'max_focal_length',
       'date_from', 'date_to',
     ];
     for (const key of stringKeys) {

@@ -124,13 +124,6 @@ def _build_gallery_where(params, conn=None, user_id=None):
         where_clauses.append(f"({top_picks_expr}) >= ?")
         sql_params.append(threshold)
 
-    if params.get('max_luminance'):
-        try:
-            where_clauses.append("mean_luminance < ?")
-            sql_params.append(float(params['max_luminance']))
-        except ValueError:
-            pass
-
     if params.get('is_silhouette') == '1':
         where_clauses.append("is_silhouette = 1")
 
@@ -157,48 +150,34 @@ def _build_gallery_where(params, conn=None, user_id=None):
     elif params.get('hide_rejected') in ('1', 'true'):
         where_clauses.append(f"({pref_cols['is_rejected']} = 0 OR {pref_cols['is_rejected']} IS NULL)")
 
-    add_range_filter("face_ratio", "min_face_ratio", "max_face_ratio")
     add_range_filter("aggregate", "min_score", "max_score")
     add_range_filter("aesthetic", "min_aesthetic", "max_aesthetic")
+    add_range_filter("quality_score", "min_quality_score", "max_quality_score")
+    add_range_filter("topiq_score", "min_topiq", "max_topiq")
     add_range_filter("tech_sharpness", "min_sharpness", "max_sharpness")
     add_range_filter("exposure_score", "min_exposure", "max_exposure")
+    add_range_filter("color_score", "min_color", "max_color")
+    add_range_filter("contrast_score", "min_contrast", "max_contrast")
+    add_range_filter("noise_sigma", "min_noise", "max_noise")
+    add_range_filter("mean_saturation", "min_saturation", "max_saturation")
+    add_range_filter("mean_luminance", "min_luminance", "max_luminance")
+    add_range_filter("histogram_spread", "min_histogram_spread", "max_histogram_spread")
+    add_range_filter("dynamic_range_stops", "min_dynamic_range", "max_dynamic_range")
+    add_range_filter("comp_score", "min_composition", "max_composition")
+    add_range_filter("power_point_score", "min_power_point", "max_power_point")
+    add_range_filter("leading_lines_score", "min_leading_lines", "max_leading_lines")
+    add_range_filter("isolation_bonus", "min_isolation", "max_isolation")
     add_range_filter("face_count", "min_face_count", "max_face_count", is_float=False)
     add_range_filter("face_quality", "min_face_quality", "max_face_quality")
     add_range_filter("eye_sharpness", "min_eye_sharpness", "max_eye_sharpness")
+    add_range_filter("face_sharpness", "min_face_sharpness", "max_face_sharpness")
+    add_range_filter("face_ratio", "min_face_ratio", "max_face_ratio")
+    add_range_filter("face_confidence", "min_face_confidence", "max_face_confidence")
+    add_range_filter("star_rating", "min_star_rating", "max_star_rating", is_float=False)
 
     add_range_filter("iso", "min_iso", "max_iso", is_float=False)
-    add_range_filter("f_stop", "min_fstop", "max_fstop")
-    if params.get('aperture'):
-        try:
-            ap = float(params['aperture'])
-            where_clauses.append("ROUND(f_stop, 1) = ?")
-            sql_params.append(ap)
-        except ValueError:
-            pass
-    add_range_filter("focal_length", "min_focal", "max_focal")
-    if params.get('focal_length'):
-        try:
-            fl = int(params['focal_length'])
-            where_clauses.append("ROUND(focal_length) = ?")
-            sql_params.append(fl)
-        except ValueError:
-            pass
-
-    add_range_filter("dynamic_range_stops", "min_dynamic_range", "max_dynamic_range")
-    add_range_filter("contrast_score", "min_contrast", "max_contrast")
-    add_range_filter("noise_sigma", "min_noise", "max_noise")
-    add_range_filter("color_score", "min_color", "max_color")
-    add_range_filter("comp_score", "min_composition", "max_composition")
-    add_range_filter("face_sharpness", "min_face_sharpness", "max_face_sharpness")
-    add_range_filter("isolation_bonus", "min_isolation", "max_isolation")
-    if params.get('min_luminance'):
-        try:
-            where_clauses.append("mean_luminance >= ?")
-            sql_params.append(float(params['min_luminance']))
-        except ValueError:
-            pass
-    add_range_filter("histogram_spread", "min_histogram_spread", "max_histogram_spread")
-    add_range_filter("power_point_score", "min_power_point", "max_power_point")
+    add_range_filter("f_stop", "min_aperture", "max_aperture")
+    add_range_filter("focal_length", "min_focal_length", "max_focal_length")
 
     if params.get('date_from'):
         try:
@@ -290,12 +269,10 @@ async def api_photos(
         'max_eye_sharpness': qp.get('max_eye_sharpness', ''),
         'min_iso': qp.get('min_iso', ''),
         'max_iso': qp.get('max_iso', ''),
-        'min_fstop': qp.get('min_fstop', ''),
-        'max_fstop': qp.get('max_fstop', ''),
-        'aperture': qp.get('aperture', ''),
-        'min_focal': qp.get('min_focal', ''),
-        'max_focal': qp.get('max_focal', ''),
-        'focal_length': qp.get('focal_length', ''),
+        'min_aperture': qp.get('min_aperture', ''),
+        'max_aperture': qp.get('max_aperture', ''),
+        'min_focal_length': qp.get('min_focal_length', ''),
+        'max_focal_length': qp.get('max_focal_length', ''),
         'date_from': qp.get('date_from', ''),
         'date_to': qp.get('date_to', ''),
         'is_monochrome': normalized.get('is_monochrome', ''),
@@ -330,6 +307,18 @@ async def api_photos(
         'max_histogram_spread': qp.get('max_histogram_spread', ''),
         'min_power_point': qp.get('min_power_point', ''),
         'max_power_point': qp.get('max_power_point', ''),
+        'min_leading_lines': qp.get('min_leading_lines', ''),
+        'max_leading_lines': qp.get('max_leading_lines', ''),
+        'min_quality_score': qp.get('min_quality_score', ''),
+        'max_quality_score': qp.get('max_quality_score', ''),
+        'min_saturation': qp.get('min_saturation', ''),
+        'max_saturation': qp.get('max_saturation', ''),
+        'min_face_confidence': qp.get('min_face_confidence', ''),
+        'max_face_confidence': qp.get('max_face_confidence', ''),
+        'min_star_rating': qp.get('min_star_rating', ''),
+        'max_star_rating': qp.get('max_star_rating', ''),
+        'min_topiq': qp.get('min_topiq', ''),
+        'max_topiq': qp.get('max_topiq', ''),
         'composition_pattern': qp.get('composition_pattern', ''),
     }
 

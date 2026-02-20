@@ -86,6 +86,8 @@ interface CategoryStat {
   avg_sharpness: number;
   avg_color: number;
   avg_exposure: number;
+  avg_face_quality: number;
+  avg_contrast: number;
   avg_iso: number;
   avg_f_stop: number;
   avg_focal_length: number;
@@ -668,6 +670,8 @@ export class StatsComponent {
     { key: 'aggregate' }, { key: 'aesthetic' }, { key: 'tech_sharpness' },
     { key: 'comp_score' }, { key: 'face_quality' }, { key: 'color_score' },
     { key: 'exposure_score' },
+    { key: 'noise_sigma' }, { key: 'contrast_score' }, { key: 'mean_saturation' },
+    { key: 'face_ratio' }, { key: 'star_rating' },
   ];
   corrMetricOptions = [
     { key: 'aggregate' }, { key: 'aesthetic' }, { key: 'tech_sharpness' },
@@ -676,6 +680,9 @@ export class StatsComponent {
     { key: 'dynamic_range_stops' }, { key: 'mean_saturation' },
     { key: 'isolation_bonus' }, { key: 'quality_score' },
     { key: 'power_point_score' }, { key: 'leading_lines_score' },
+    { key: 'eye_sharpness' }, { key: 'face_sharpness' }, { key: 'face_ratio' },
+    { key: 'face_confidence' }, { key: 'histogram_spread' }, { key: 'mean_luminance' },
+    { key: 'star_rating' }, { key: 'topiq_score' },
   ];
   corrChartTypes = [
     { key: 'line' }, { key: 'area' }, { key: 'bar' }, { key: 'horizontalBar' },
@@ -744,11 +751,14 @@ export class StatsComponent {
       const cats = this.categoryScoreProfile();
       const labels = cats.map(c => this.translateCategory(c.category));
       this.buildGroupedHorizontalBar('categoryScoreProfile', this.categoryScoreProfileCanvas(), labels, [
-        { label: this.i18n.t('stats.axes.aggregate'),   data: cats.map(c => c.avg_score),       color: COLORS[3] },
-        { label: this.i18n.t('stats.axes.aesthetic'),   data: cats.map(c => c.avg_aesthetic),   color: COLORS[0] },
-        { label: this.i18n.t('stats.axes.composition'), data: cats.map(c => c.avg_composition), color: COLORS[1] },
-        { label: this.i18n.t('stats.axes.sharpness'),   data: cats.map(c => c.avg_sharpness),   color: COLORS[2] },
-        { label: this.i18n.t('stats.axes.color'),       data: cats.map(c => c.avg_color),       color: COLORS[5] },
+        { label: this.i18n.t('stats.axes.aggregate'),    data: cats.map(c => c.avg_score),        color: COLORS[3] },
+        { label: this.i18n.t('stats.axes.aesthetic'),    data: cats.map(c => c.avg_aesthetic),    color: COLORS[0] },
+        { label: this.i18n.t('stats.axes.composition'),  data: cats.map(c => c.avg_composition),  color: COLORS[1] },
+        { label: this.i18n.t('stats.axes.sharpness'),    data: cats.map(c => c.avg_sharpness),    color: COLORS[2] },
+        { label: this.i18n.t('stats.axes.color'),        data: cats.map(c => c.avg_color),        color: COLORS[5] },
+        { label: this.i18n.t('stats.axes.exposure'),     data: cats.map(c => c.avg_exposure),     color: COLORS[4] },
+        { label: this.i18n.t('stats.axes.face_quality'), data: cats.map(c => c.avg_face_quality), color: COLORS[6] },
+        { label: this.i18n.t('stats.axes.contrast'),     data: cats.map(c => c.avg_contrast),     color: COLORS[7] },
       ]);
     });
     // Aperture by category

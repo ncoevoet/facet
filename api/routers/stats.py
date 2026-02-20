@@ -278,7 +278,9 @@ def api_stats_categories(
                        ROUND(AVG(exposure_score), 2),
                        ROUND(AVG(ISO), 0),
                        ROUND(AVG(f_stop), 1),
-                       ROUND(AVG(COALESCE(focal_length_35mm, focal_length)), 0)
+                       ROUND(AVG(COALESCE(focal_length_35mm, focal_length)), 0),
+                       ROUND(AVG(face_quality), 2),
+                       ROUND(AVG(contrast_score), 2)
                 FROM photos WHERE 1=1{vis}
                 GROUP BY category ORDER BY cnt DESC
             ''', vp)
@@ -325,6 +327,8 @@ def api_stats_categories(
                 'avg_iso': r[8] or 0,
                 'avg_f_stop': r[9] or 0,
                 'avg_focal_length': r[10] or 0,
+                'avg_face_quality': r[11] or 0,
+                'avg_contrast': r[12] or 0,
                 'top_camera': top_cameras.get(r[0]),
                 'top_lens': top_lenses.get(r[0]),
             }

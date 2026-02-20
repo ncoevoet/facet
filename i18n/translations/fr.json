@@ -172,7 +172,10 @@
     "lines": "Lignes",
     "top_picks": "Top",
     "monochrome": "N&B",
-    "silhouette_label": "Silhouette"
+    "silhouette_label": "Silhouette",
+    "topiq_score": "TOPIQ",
+    "histogram_spread": "Hist. etendue",
+    "star_rating": "Note"
   },
   "notifications": {
     "copied": "Copie !",
@@ -439,7 +442,11 @@
     "isolation_bonus": "Bonus isolation",
     "f_stop": "F-Stop",
     "focal_length": "Focale",
-    "shutter_speed": "Vitesse d'obturation"
+    "shutter_speed": "Vitesse d'obturation",
+    "topiq_score": "Score TOPIQ",
+    "face_confidence": "Confiance visage",
+    "is_favorite": "Favoris",
+    "is_rejected": "Rejetees"
   },
   "photo_types": {
     "all": "Toutes les photos",
@@ -584,7 +591,12 @@
         "comp_score": "Score composition",
         "face_quality": "Score qualite visage",
         "color_score": "Score couleur",
-        "exposure_score": "Score exposition"
+        "exposure_score": "Score exposition",
+        "noise_sigma": "Niveau de bruit",
+        "contrast_score": "Contraste",
+        "mean_saturation": "Saturation",
+        "face_ratio": "Ratio visage",
+        "star_rating": "Etoiles"
       },
       "metrics": {
         "aggregate": "Agregat",
@@ -601,7 +613,15 @@
         "isolation_bonus": "Isolation",
         "quality_score": "Score qualite",
         "power_point_score": "Points forts",
-        "leading_lines_score": "Lignes directrices"
+        "leading_lines_score": "Lignes directrices",
+        "eye_sharpness": "Nettete yeux",
+        "face_sharpness": "Nettete visage",
+        "face_ratio": "Ratio visage",
+        "face_confidence": "Confiance visage",
+        "histogram_spread": "Etendue histogramme",
+        "mean_luminance": "Luminance moyenne",
+        "star_rating": "Etoiles",
+        "topiq_score": "Score TOPIQ"
       },
       "chart_types": {
         "line": "Ligne",
@@ -633,7 +653,10 @@
       "pattern": "Motif",
       "noise_level": "Niveau de bruit",
       "composition": "Composition",
-      "color": "Couleur"
+      "color": "Couleur",
+      "exposure": "Exposition",
+      "face_quality": "Qualite visage",
+      "contrast": "Contraste"
     },
     "days": {
       "sun": "Dim",
@@ -935,10 +958,13 @@
       "categories": "Catégories",
       "equipment": "Equipement",
       "content": "Contenu",
-      "scores": "Plages de score",
+      "quality": "Qualite",
       "date": "Plage de dates",
       "face": "Metriques visage",
-      "exif": "Parametres EXIF"
+      "composition": "Composition",
+      "technical": "Technique",
+      "exposure_range": "Exposition & Plage",
+      "ratings": "Notes"
     },
     "hide_rejected": "Masquer rejetes",
     "favorites_only": "Favoris uniquement",
@@ -952,11 +978,20 @@
     "eye_sharpness_range": "Nettete yeux",
     "face_sharpness_range": "Nettete visage",
     "iso_range": "ISO",
-    "aperture": "Ouverture",
-    "focal_length": "Focale",
-    "focal_range": "Focale",
+    "aperture_range": "Ouverture (f/)",
+    "focal_range": "Focale (mm)",
     "dynamic_range": "Plage dynamique",
-    "noise_range": "Bruit"
+    "noise_range": "Bruit",
+    "quality_score_range": "Score qualite",
+    "face_ratio_range": "Ratio visage",
+    "face_confidence_range": "Confiance visage",
+    "power_point_range": "Points forts",
+    "leading_lines_range": "Lignes directrices",
+    "isolation_range": "Isolation",
+    "saturation_range": "Saturation",
+    "luminance_range": "Luminance",
+    "histogram_range": "Etendue histogramme",
+    "star_rating_range": "Etoiles"
   },
   "composition_patterns": {
     "none": "Aucun",
