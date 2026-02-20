@@ -23,8 +23,12 @@ def _load_translations(lang: str) -> dict:
     if lang in _translations_cache:
         return _translations_cache[lang]
     filepath = os.path.join(_TRANSLATIONS_DIR, f'{lang}.json')
+    real_filepath = os.path.realpath(filepath)
+    real_dir = os.path.realpath(_TRANSLATIONS_DIR)
+    if not real_filepath.startswith(real_dir + os.sep):
+        return {}
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(real_filepath, 'r', encoding='utf-8') as f:
             translations = json.load(f)
             _translations_cache[lang] = translations
             return translations

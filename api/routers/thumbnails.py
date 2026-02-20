@@ -234,6 +234,6 @@ async def image(
     real_disk = os.path.realpath(disk_path)
     if not any(real_disk.startswith(os.path.realpath(d) + os.sep) for d in get_all_scan_directories()):
         return Response(content="Not found", status_code=404)
-    if not os.path.isfile(disk_path):
+    if not os.path.isfile(real_disk):
         return Response(content="Not found", status_code=404)
-    return FileResponse(disk_path)
+    return FileResponse(real_disk)

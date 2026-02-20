@@ -164,15 +164,15 @@ async def api_download_single(
     if not any(real_disk.startswith(os.path.realpath(d) + os.sep) for d in get_all_scan_directories()):
         raise HTTPException(status_code=404, detail='File not found')
 
-    if not os.path.isfile(disk_path):
+    if not os.path.isfile(real_disk):
         raise HTTPException(status_code=404, detail='File not found on disk')
 
     # Convert RAW files to JPEG for download
-    if disk_path.lower().endswith(('.cr2', '.cr3')):
+    if real_disk.lower().endswith(('.cr2', '.cr3')):
         import rawpy
         from PIL import Image
 
-        with rawpy.imread(disk_path) as raw:
+        with rawpy.imread(real_disk) as raw:
             rgb = raw.postprocess(
                 use_camera_wb=True,
                 no_auto_bright=False,
@@ -194,9 +194,9 @@ async def api_download_single(
         )
 
     return FileResponse(
-        disk_path,
+        real_disk,
         media_type='application/octet-stream',
-        filename=os.path.basename(disk_path),
+        filename=os.path.basename(real_disk),
     )
 
 
