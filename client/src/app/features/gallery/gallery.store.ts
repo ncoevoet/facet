@@ -256,6 +256,7 @@ export class GalleryStore {
   readonly hasMore = signal(false);
   readonly config = signal<ViewerConfig | null>(null);
   readonly filterDrawerOpen = signal(false);
+  readonly slideshowActive = signal(false);
 
   // Filter options
   readonly types = signal<TypeCount[]>([]);

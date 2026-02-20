@@ -1142,5 +1142,16 @@
     "share_link": "Copier le lien de partage",
     "link_copied": "Lien de partage copie dans le presse-papiers",
     "link_copy_error": "Echec de la copie du lien"
+  },
+  "slideshow": {
+    "start": "Diaporama",
+    "close": "Fermer le diaporama",
+    "play": "Lecture",
+    "pause": "Pause",
+    "next": "Photo suivante",
+    "prev": "Photo precedente",
+    "duration": "{n}s",
+    "duration_label": "Duree",
+    "counter": "{current} / {total}"
   }
 }

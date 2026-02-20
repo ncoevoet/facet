@@ -1141,5 +1141,16 @@
     "share_link": "Copia link di condivisione",
     "link_copied": "Link di condivisione copiato negli appunti",
     "link_copy_error": "Impossibile copiare il link di condivisione"
+  },
+  "slideshow": {
+    "start": "Presentazione",
+    "close": "Chiudi presentazione",
+    "play": "Riproduci",
+    "pause": "Pausa",
+    "next": "Foto successiva",
+    "prev": "Foto precedente",
+    "duration": "{n}s",
+    "duration_label": "Durata",
+    "counter": "{current} / {total}"
   }
 }

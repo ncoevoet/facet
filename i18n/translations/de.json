@@ -1141,5 +1141,16 @@
     "share_link": "Freigabelink kopieren",
     "link_copied": "Freigabelink in Zwischenablage kopiert",
     "link_copy_error": "Freigabelink konnte nicht kopiert werden"
+  },
+  "slideshow": {
+    "start": "Diashow",
+    "close": "Diashow schliessen",
+    "play": "Wiedergabe",
+    "pause": "Pause",
+    "next": "Nachstes Foto",
+    "prev": "Vorheriges Foto",
+    "duration": "{n}s",
+    "duration_label": "Dauer",
+    "counter": "{current} / {total}"
   }
 }

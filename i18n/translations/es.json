@@ -1141,5 +1141,16 @@
     "share_link": "Copiar enlace para compartir",
     "link_copied": "Enlace para compartir copiado al portapapeles",
     "link_copy_error": "Error al copiar el enlace para compartir"
+  },
+  "slideshow": {
+    "start": "Presentacion",
+    "close": "Cerrar presentacion",
+    "play": "Reproducir",
+    "pause": "Pausar",
+    "next": "Foto siguiente",
+    "prev": "Foto anterior",
+    "duration": "{n}s",
+    "duration_label": "Duracion",
+    "counter": "{current} / {total}"
   }
 }

@@ -141,6 +141,15 @@
         <button
           class="!hidden lg:!inline-flex"
           mat-icon-button
+          (click)="store.slideshowActive.set(!store.slideshowActive())"
+          [matTooltip]="'slideshow.start' | translate"
+        >
+          <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
+        </button>
+
+        <button
+          class="!hidden lg:!inline-flex"
+          mat-icon-button
           (click)="store.filterDrawerOpen.set(!store.filterDrawerOpen())"
           [matBadge]="store.activeFilterCount() || null"
           matBadgeColor="primary"
@@ -314,6 +323,11 @@
       <!-- Search toggle -->
       <button mat-icon-button (click)="mobileSearchOpen.set(!mobileSearchOpen())">
         <mat-icon>search</mat-icon>
+      </button>
+
+      <!-- Slideshow toggle -->
+      <button mat-icon-button (click)="store.slideshowActive.set(!store.slideshowActive())">
+        <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
       </button>
 
       <!-- Filter drawer toggle -->

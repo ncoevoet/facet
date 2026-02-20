@@ -1142,5 +1142,16 @@
     "share_link": "Copy share link",
     "link_copied": "Share link copied to clipboard",
     "link_copy_error": "Failed to copy share link"
+  },
+  "slideshow": {
+    "start": "Slideshow",
+    "close": "Close slideshow",
+    "play": "Play",
+    "pause": "Pause",
+    "next": "Next photo",
+    "prev": "Previous photo",
+    "duration": "{n}s",
+    "duration_label": "Duration",
+    "counter": "{current} / {total}"
   }
 }

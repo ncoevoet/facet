@@ -39,6 +39,7 @@ import { FaceSelectorDialogComponent } from './face-selector-dialog.component';
 import { PersonSelectorDialogComponent } from './person-selector-dialog.component';
 import { SimilarPhotosDialogComponent } from './similar-photos-dialog.component';
 import { ConfirmDialogComponent } from '../persons/manage-persons.component';
+import { SlideshowComponent } from './slideshow.component';
 
 @Pipe({ name: 'scoreClass', standalone: true, pure: true })
 export class ScoreClassPipe implements PipeTransform {
@@ -100,6 +101,7 @@ export class IsSelectedPipe implements PipeTransform {
     IsStarFilledPipe,
     MatSnackBarModule,
     PhotoTooltipComponent,
+    SlideshowComponent,
   ],
   template: `
     <mat-sidenav-container class="h-full">
@@ -658,6 +660,15 @@ export class IsSelectedPipe implements PipeTransform {
         <div #scrollSentinel class="h-1"></div>
       </mat-sidenav-content>
     </mat-sidenav-container>
+
+    <!-- Slideshow overlay -->
+    @if (store.slideshowActive()) {
+      <app-slideshow
+        [photos]="store.photos()"
+        [hasMore]="store.hasMore()"
+        [loading]="store.loading()"
+      />
+    }
 
     <!-- Photo details tooltip (single instance, repositioned on hover, hidden on touch devices) -->
     @if (!isTouchDevice()) {

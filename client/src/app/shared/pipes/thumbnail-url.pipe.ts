@@ -9,6 +9,13 @@ export class ThumbnailUrlPipe implements PipeTransform {
   }
 }
 
+@Pipe({ name: 'imageUrl', standalone: true, pure: true })
+export class ImageUrlPipe implements PipeTransform {
+  transform(path: string): string {
+    return `/image?${new URLSearchParams({ path })}`;
+  }
+}
+
 @Pipe({ name: 'faceThumbnailUrl', standalone: true, pure: true })
 export class FaceThumbnailUrlPipe implements PipeTransform {
   transform(faceId: number): string {
