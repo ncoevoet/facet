@@ -21,6 +21,9 @@ from api.types import SORT_OPTIONS, VALID_SORT_COLS
 
 router = APIRouter(tags=["persons"])
 
+# Map valid sort column names to their SQL column strings (provably server-origin)
+_SORT_COL_MAP: dict[str, str] = {col: col for col in VALID_SORT_COLS}
+
 
 # --- Pydantic request bodies ---
 
@@ -91,8 +94,8 @@ def _query_person_photos(person_id: int, *, page: int, per_page: int,
     """
     offset = (page - 1) * per_page
 
-    # Validate sort column
-    sort_col = sort if sort in VALID_SORT_COLS else "aggregate"
+    # Validate sort column — use dict lookup so interpolated value is a server-origin constant
+    sort_col = _SORT_COL_MAP.get(sort, "aggregate")
     sort_dir = "ASC" if direction == "ASC" else "DESC"
 
     # Build query with person filter

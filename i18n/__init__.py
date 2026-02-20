@@ -78,6 +78,8 @@ def load_translations(lang):
     Returns:
         dict: Translation dictionary, or empty dict if file not found
     """
+    if lang not in SUPPORTED_LANGUAGES:
+        return {}
     if lang in _translations_cache:
         return _translations_cache[lang]
 

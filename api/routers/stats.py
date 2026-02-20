@@ -25,6 +25,9 @@ from api.db_helpers import get_visibility_clause
 
 router = APIRouter(tags=["stats"])
 
+# Pre-built SQL fragments keyed by metric name (server-origin constants, not user strings)
+_METRIC_SQL: dict[str, str] = {m: f'ROUND(AVG({m}), 3)' for m in CORRELATION_Y_METRICS}
+
 
 # --- Pydantic request bodies ---
 
@@ -529,8 +532,8 @@ def api_stats_correlations(
                 date_params.append(category)
             date_filter = (' AND '.join(date_clauses)) if date_clauses else '1=1'
 
-            # Build metric AVG expressions
-            metric_cols = ', '.join(f'ROUND(AVG({m}), 3)' for m in y_metrics)
+            # Build metric AVG expressions from pre-built constant dict (not from user strings)
+            metric_cols = ', '.join(_METRIC_SQL[m] for m in y_metrics)
 
             # Visibility filter for correlation queries
             vis_filter = vis.removeprefix(' AND ') if vis else '1=1'

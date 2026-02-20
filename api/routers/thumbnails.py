@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import FileResponse
 
 from api.auth import CurrentUser, get_optional_user
-from api.config import VIEWER_CONFIG, is_multi_user_enabled, get_user_directories
+from api.config import VIEWER_CONFIG, is_multi_user_enabled, get_user_directories, get_all_scan_directories
 from api.database import get_db_connection
 
 router = APIRouter(tags=["thumbnails"])
@@ -231,6 +231,9 @@ async def image(
 
     from api.config import map_disk_path
     disk_path = map_disk_path(path)
+    real_disk = os.path.realpath(disk_path)
+    if not any(real_disk.startswith(os.path.realpath(d) + os.sep) for d in get_all_scan_directories()):
+        return Response(content="Not found", status_code=404)
     if not os.path.isfile(disk_path):
         return Response(content="Not found", status_code=404)
     return FileResponse(disk_path)

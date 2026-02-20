@@ -18,6 +18,8 @@ _translations_cache: dict[str, dict] = {}
 
 def _load_translations(lang: str) -> dict:
     """Load translation file for the specified language (cached in memory)."""
+    if lang not in SUPPORTED_LANGUAGES:
+        return {}
     if lang in _translations_cache:
         return _translations_cache[lang]
     filepath = os.path.join(_TRANSLATIONS_DIR, f'{lang}.json')

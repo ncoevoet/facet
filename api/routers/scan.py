@@ -76,7 +76,9 @@ async def start_scan(
             _scan_lock.release()
             raise HTTPException(status_code=400, detail="No directories specified")
 
-        cmd = [sys.executable, _PHOTOS_SCRIPT] + directories
+        # Rebuild from canonical server-side list so subprocess args are provably server-origin
+        validated_dirs = [d for d in get_all_scan_directories() if d in set(directories)]
+        cmd = [sys.executable, _PHOTOS_SCRIPT] + validated_dirs
 
         proc = subprocess.Popen(
             cmd,

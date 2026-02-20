@@ -152,7 +152,7 @@ def get_art_tags_from_config():
 
 def get_cached_count(conn, where_str, sql_params, from_clause="photos"):
     """Cache COUNT results to avoid repeated full-table scans."""
-    cache_key = hashlib.md5(f"{from_clause}:{where_str}:{tuple(sql_params)}".encode()).hexdigest()
+    cache_key = hashlib.sha256(f"{from_clause}:{where_str}:{tuple(sql_params)}".encode()).hexdigest()
 
     now = time.time()
     if cache_key in _count_cache:
