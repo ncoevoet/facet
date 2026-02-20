@@ -40,6 +40,7 @@ Scores every photo using [TOPIQ](https://github.com/chaofengc/IQA-PyTorch) (0.93
 
 <img src="docs/screenshots/manage-persons.jpg" alt="Person management" width="100%">
 <img src="docs/screenshots/person-gallery.jpg" alt="Person gallery" width="100%">
+<img src="docs/screenshots/person-merge.png" alt="Person merge" width="100%">
 
 Automatic face detection via InsightFace with 106-point landmarks, HDBSCAN clustering into persons, blink detection (EAR-based), and a management UI for merging, renaming, and organizing person clusters. Supports GPU-accelerated clustering via cuML for large libraries.
 
@@ -58,16 +59,19 @@ Filter drawer with 50+ options organized in collapsible sections: display toggle
 <td><img src="docs/screenshots/stats-settings.png" alt="Score distribution" width="100%"></td>
 <td><img src="docs/screenshots/stats-timeline.png" alt="Timeline stats" width="100%"></td>
 </tr><tr>
-<td colspan="2"><img src="docs/screenshots/stats-correlations.png" alt="Correlation charts" width="50%"></td>
+<td><img src="docs/screenshots/stats-score.png" alt="Score analytics" width="100%"></td>
+<td><img src="docs/screenshots/stats-correlations.png" alt="Correlation charts" width="100%"></td>
 </tr></table>
 
 Interactive dashboards with five tabs: gear usage (cameras, lenses, body+lens combos), category analytics (breakdown, weights, correlations, overlap), score distribution (ISO, aperture, focal length, shutter speed), timeline heatmaps, and configurable correlation charts.
 
 ### Weight Tuning
 
+<img src="docs/screenshots/weights_slider.png" alt="Category weight sliders" width="100%">
+<img src="docs/screenshots/weights_compare.png" alt="Weight correlation chart" width="100%">
 <img src="docs/screenshots/compare.jpg" alt="Weight tuning with pairwise comparison" width="100%">
 
-Per-category weight editor with live preview of top-scored photos. Side-by-side pairwise comparison with keyboard shortcuts and four selection strategies (uncertainty, boundary, active learning, random). The system learns from your choices and suggests per-category weight adjustments with prediction accuracy tracking.
+Per-category weight editor with live preview of top-scored photos and weight-vs-correlation charts. Side-by-side pairwise comparison with keyboard shortcuts and four selection strategies (uncertainty, boundary, active learning, random). The system learns from your choices and suggests per-category weight adjustments with prediction accuracy tracking.
 
 ### Mobile Responsive
 
