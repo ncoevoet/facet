@@ -14,6 +14,7 @@ import { Chart, registerables } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { StatsFiltersService } from './stats-filters.service';
 
 Chart.register(...registerables);
 Chart.defaults.color = '#a3a3a3';
@@ -145,27 +146,6 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
   host: { class: 'block' },
   template: `
     <div class="p-4 md:p-6 max-w-7xl mx-auto">
-      <!-- Filter bar: Category + Date range -->
-      <div class="flex flex-wrap items-end gap-3 mb-6">
-          <mat-form-field class="w-full md:w-48" subscriptSizing="dynamic">
-            <mat-label>{{ 'stats.filter.category' | translate }}</mat-label>
-            <mat-select [ngModel]="filterCategory()" (ngModelChange)="setCategory($event)">
-              <mat-option value="">{{ 'stats.filter.all_categories' | translate }}</mat-option>
-              @for (cat of availableCategories(); track cat) {
-                <mat-option [value]="cat">{{ ('category_names.' + cat) | translate }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field class="w-full md:w-44" subscriptSizing="dynamic">
-            <mat-label>{{ 'stats.filter.date_from' | translate }}</mat-label>
-            <input matInput type="date" [ngModel]="dateFrom()" (ngModelChange)="setDateFrom($event)">
-          </mat-form-field>
-          <mat-form-field class="w-full md:w-44" subscriptSizing="dynamic">
-            <mat-label>{{ 'stats.filter.date_to' | translate }}</mat-label>
-            <input matInput type="date" [ngModel]="dateTo()" (ngModelChange)="setDateTo($event)">
-          </mat-form-field>
-      </div>
-
       @if (loading()) {
         <div class="flex justify-center py-16">
           <mat-spinner diameter="48" />
@@ -610,6 +590,7 @@ export class StatsComponent {
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);
+  readonly statsFilters = inject(StatsFiltersService);
   private charts = new Map<string, Chart>();
 
   // Canvas refs
@@ -631,11 +612,10 @@ export class StatsComponent {
   correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
   selectedTab = signal(0);
 
-  // Filter controls
-  dateFrom = signal('');
-  dateTo = signal('');
-  filterCategory = signal('');
-  availableCategories = signal<string[]>([]);
+  // Filter controls (shared with app header via StatsFiltersService)
+  get dateFrom() { return this.statsFilters.dateFrom; }
+  get dateTo() { return this.statsFilters.dateTo; }
+  get filterCategory() { return this.statsFilters.filterCategory; }
 
   loading = signal(true);
   overview = signal<StatsOverview | null>(null);
@@ -702,7 +682,13 @@ export class StatsComponent {
   ];
 
   constructor() {
-    this.loadAll();
+    // Reload when filter signals change (from header or local filter bar)
+    effect(() => {
+      this.statsFilters.filterCategory();
+      this.statsFilters.dateFrom();
+      this.statsFilters.dateTo();
+      this.loadAll();
+    });
 
     // Destroy Chart.js instances on component teardown
     this.destroyRef.onDestroy(() => {
@@ -785,21 +771,6 @@ export class StatsComponent {
     });
   }
 
-  setDateFrom(value: string): void {
-    this.dateFrom.set(value);
-    this.loadAll();
-  }
-
-  setDateTo(value: string): void {
-    this.dateTo.set(value);
-    this.loadAll();
-  }
-
-  setCategory(value: string): void {
-    this.filterCategory.set(value);
-    this.loadAll();
-  }
-
   private get filterParams(): Record<string, string> {
     const params: Record<string, string> = {};
     if (this.dateFrom()) params['date_from'] = this.dateFrom();
@@ -818,23 +789,11 @@ export class StatsComponent {
     } catch { /* empty */ }
     finally { this.loading.set(false); }
 
-    // Load available categories (unfiltered) for the dropdown
-    this.loadAvailableCategories();
-
     this.loadGear();
     this.loadCategories();
     this.loadScoreDistribution();
     this.loadTimeline();
     this.loadTopCameras();
-  }
-
-  private async loadAvailableCategories(): Promise<void> {
-    try {
-      const data = await firstValueFrom(this.api.get<CategoryStat[]>('/stats/categories'));
-      const cats = data.map(c => c.category).filter(c => c && c !== '(uncategorized)');
-      cats.sort((a, b) => this.translateCategory(a).localeCompare(this.translateCategory(b)));
-      this.availableCategories.set(cats);
-    } catch { /* empty */ }
   }
 
   async loadGear(): Promise<void> {

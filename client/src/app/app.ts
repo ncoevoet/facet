@@ -20,7 +20,7 @@ import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dial
 import { AuthService } from './core/services/auth.service';
 import { I18nService } from './core/services/i18n.service';
 import { GalleryStore } from './features/gallery/gallery.store';
-import type { GalleryFilters } from './features/gallery/gallery.store';
+import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { TranslatePipe } from './shared/pipes/translate.pipe';
 import { PersonThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
 
@@ -97,6 +97,7 @@ export class App implements OnInit {
   auth = inject(AuthService);
   i18n = inject(I18nService);
   store = inject(GalleryStore);
+  statsFilters = inject(StatsFiltersService);
   mobileSearchOpen = signal(false);
 
   private url = toSignal(
@@ -111,6 +112,8 @@ export class App implements OnInit {
     const path = this.url().split('?')[0];
     return path === '/' || path === '';
   });
+
+  isStatsRoute = computed(() => this.url().split('?')[0] === '/stats');
 
   sortGroups = computed(() => {
     const grouped = this.store.config()?.sort_options_grouped;
@@ -129,115 +132,6 @@ export class App implements OnInit {
     return this.store.persons().filter(p => ids.has(String(p.id)));
   });
 
-  readonly activeFilterChips = computed(() => {
-    const f = this.store.filters();
-    const chips: { label: string; action: () => void }[] = [];
-
-    // Type
-    if (f.type) {
-      const typeObj = this.store.types().find(t => t.id === f.type);
-      chips.push({ label: typeObj?.label ?? f.type, action: () => this.store.updateFilter('type', '') });
-    }
-
-    // Camera
-    if (f.camera) {
-      chips.push({ label: `${this.i18n.t('gallery.camera')}: ${f.camera}`, action: () => this.store.updateFilter('camera', '') });
-    }
-
-    // Lens
-    if (f.lens) {
-      chips.push({ label: `${this.i18n.t('gallery.lens')}: ${f.lens}`, action: () => this.store.updateFilter('lens', '') });
-    }
-
-    // Tag
-    if (f.tag) {
-      chips.push({ label: `${this.i18n.t('gallery.tag')}: ${f.tag}`, action: () => this.store.updateFilter('tag', '') });
-    }
-
-    // Person
-    if (f.person_id) {
-      const ids = new Set(f.person_id.split(','));
-      const names = this.store.persons()
-        .filter(p => ids.has(String(p.id)))
-        .map(p => p.name ?? this.i18n.t('gallery.unknown_person'))
-        .join(', ');
-      chips.push({ label: `${this.i18n.t('gallery.person')}: ${names || f.person_id}`, action: () => this.store.updateFilter('person_id', '') });
-    }
-
-    // Search
-    if (f.search) {
-      chips.push({ label: `"${f.search}"`, action: () => this.store.updateFilter('search', '') });
-    }
-
-    // Composition pattern
-    if (f.composition_pattern) {
-      const patternLabel = this.i18n.t(`composition_patterns.${f.composition_pattern}`);
-      chips.push({ label: `${this.i18n.t('gallery.composition_pattern')}: ${patternLabel}`, action: () => this.store.updateFilter('composition_pattern', '') });
-    }
-
-    // Aperture
-    if (f.aperture) {
-      chips.push({ label: `f/${f.aperture}`, action: () => this.store.updateFilter('aperture', '') });
-    }
-
-    // Focal length
-    if (f.focal_length) {
-      chips.push({ label: `${f.focal_length}mm`, action: () => this.store.updateFilter('focal_length', '') });
-    }
-
-    // Boolean filters
-    if (f.favorites_only) {
-      chips.push({ label: this.i18n.t('gallery.favorites_only'), action: () => this.store.updateFilter('favorites_only', false) });
-    }
-    if (f.is_monochrome) {
-      chips.push({ label: this.i18n.t('gallery.monochrome_only'), action: () => this.store.updateFilter('is_monochrome', false) });
-    }
-
-    // Range pairs
-    const rangePairs: Array<{ label: string; minKey: keyof GalleryFilters; maxKey: keyof GalleryFilters }> = [
-      { label: this.i18n.t('gallery.score_range'), minKey: 'min_score', maxKey: 'max_score' },
-      { label: this.i18n.t('gallery.aesthetic_range'), minKey: 'min_aesthetic', maxKey: 'max_aesthetic' },
-      { label: this.i18n.t('gallery.face_quality_range'), minKey: 'min_face_quality', maxKey: 'max_face_quality' },
-      { label: this.i18n.t('gallery.composition_range'), minKey: 'min_composition', maxKey: 'max_composition' },
-      { label: this.i18n.t('gallery.sharpness_range'), minKey: 'min_sharpness', maxKey: 'max_sharpness' },
-      { label: this.i18n.t('gallery.exposure_range'), minKey: 'min_exposure', maxKey: 'max_exposure' },
-      { label: this.i18n.t('gallery.color_range'), minKey: 'min_color', maxKey: 'max_color' },
-      { label: this.i18n.t('gallery.contrast_range'), minKey: 'min_contrast', maxKey: 'max_contrast' },
-      { label: this.i18n.t('gallery.noise_range'), minKey: 'min_noise', maxKey: 'max_noise' },
-      { label: this.i18n.t('gallery.dynamic_range'), minKey: 'min_dynamic_range', maxKey: 'max_dynamic_range' },
-      { label: this.i18n.t('gallery.face_count_range'), minKey: 'min_face_count', maxKey: 'max_face_count' },
-      { label: this.i18n.t('gallery.eye_sharpness_range'), minKey: 'min_eye_sharpness', maxKey: 'max_eye_sharpness' },
-      { label: this.i18n.t('gallery.face_sharpness_range'), minKey: 'min_face_sharpness', maxKey: 'max_face_sharpness' },
-      { label: this.i18n.t('gallery.iso_range'), minKey: 'min_iso', maxKey: 'max_iso' },
-    ];
-
-    for (const { label, minKey, maxKey } of rangePairs) {
-      const min = f[minKey] as string;
-      const max = f[maxKey] as string;
-      if (min || max) {
-        const rangeStr = min && max ? `${min}–${max}` : min ? `≥${min}` : `≤${max}`;
-        chips.push({
-          label: `${label}: ${rangeStr}`,
-          action: () => this.store.updateFilters({ [minKey]: '', [maxKey]: '' } as Partial<GalleryFilters>),
-        });
-      }
-    }
-
-    // Date range
-    if (f.date_from || f.date_to) {
-      let dateLabel: string;
-      if (f.date_from && f.date_to) {
-        dateLabel = `${f.date_from} → ${f.date_to}`;
-      } else if (f.date_from) {
-        dateLabel = `${this.i18n.t('gallery.date_from')}: ${f.date_from}`;
-      } else {
-        dateLabel = `${this.i18n.t('gallery.date_to')}: ${f.date_to}`;
-      }
-      chips.push({ label: dateLabel, action: () => this.store.updateFilters({ date_from: '', date_to: '' }) });
-    }
-
-    return chips;
-  });
 
   async ngOnInit(): Promise<void> {
     await this.i18n.load();
@@ -270,6 +164,16 @@ export class App implements OnInit {
 
   clearSearch(): void {
     this.store.updateFilter('search', '');
+  }
+
+  onStatsCategoryChange(cat: string): void {
+    this.statsFilters.filterCategory.set(cat);
+  }
+
+  onStatsDateChange(field: 'from' | 'to', event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    if (field === 'from') this.statsFilters.dateFrom.set(value);
+    else this.statsFilters.dateTo.set(value);
   }
 
   onPersonChange(ids: string[]): void {

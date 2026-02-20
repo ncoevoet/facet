@@ -506,6 +506,7 @@
     "loading": "Ricerca foto simili...",
     "no_results": "Nessuna foto simile trovata",
     "similarity": "somiglianza",
+    "min_similarity": "Somiglianza min.",
     "visual": "Visivo",
     "persons": "Persone",
     "date": "Data",

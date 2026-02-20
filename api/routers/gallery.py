@@ -154,7 +154,7 @@ def _build_gallery_where(params, conn=None, user_id=None):
         where_clauses.append(f"{pref_cols['is_favorite']} = 1")
     if params.get('show_rejected') == '1':
         where_clauses.append(f"{pref_cols['is_rejected']} = 1")
-    elif params.get('hide_rejected') == '1':
+    elif params.get('hide_rejected') in ('1', 'true'):
         where_clauses.append(f"({pref_cols['is_rejected']} = 0 OR {pref_cols['is_rejected']} IS NULL)")
 
     add_range_filter("face_ratio", "min_face_ratio", "max_face_ratio")
@@ -411,18 +411,29 @@ async def api_photos(
 async def api_similar_photos(
     photo_path: str,
     limit: int = Query(20),
-    clip_weight: float = Query(0.4),
-    person_weight: float = Query(0.3),
-    date_weight: float = Query(0.2),
-    score_weight: float = Query(0.1),
+    offset: int = Query(0),
+    min_similarity: float = Query(0.40),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
-    """Find photos similar to the given photo using multiple factors."""
+    """Find visually similar photos using pHash hamming distance (primary) + CLIP cosine (secondary).
+
+    Two-pass algorithm:
+      Pass 1 — load all pHashes (no BLOBs), compute vectorized hamming distances, prune via
+               mathematical floor: a candidate can only pass if phash_sim >= (min_sim - 0.3) / 0.7.
+      Pass 2 — fetch CLIP embeddings for survivors, compute blended score:
+               similarity = phash_sim * 0.7 + clip_cosine * 0.3
+    Falls back to CLIP-only (raw cosine, clamped to 0) when the source has no pHash.
+    """
     viewer_config = load_viewer_config()
     if not viewer_config.get('features', {}).get('show_similar_button', True):
         return {'error': 'Similar photos feature is disabled'}
 
     import numpy as np
+
+    # Precomputed byte popcount table (same technique as duplicate.py)
+    _POPCOUNT = np.array([bin(i).count('1') for i in range(256)], dtype=np.int32)
+    PHASH_W = 0.7
+    CLIP_W = 0.3
 
     conn = get_db_connection()
     try:
@@ -430,7 +441,7 @@ async def api_similar_photos(
         vis_sql, vis_params = get_visibility_clause(user_id)
 
         source = conn.execute(f"""
-            SELECT path, clip_embedding, date_taken, aggregate, aesthetic, comp_score
+            SELECT path, phash, clip_embedding, aggregate, aesthetic, date_taken
             FROM photos WHERE path = ? AND {vis_sql}
         """, [photo_path] + vis_params).fetchone()
 
@@ -438,99 +449,127 @@ async def api_similar_photos(
             return {'error': 'Photo not found'}
 
         source = dict(source)
+
+        # Parse source pHash
+        source_phash = np.uint64(int(source['phash'], 16)) if source.get('phash') else None
+
+        # Parse + normalize source CLIP embedding
         source_embedding = None
         if source.get('clip_embedding'):
-            source_embedding = np.frombuffer(source['clip_embedding'], dtype=np.float32)
+            e = np.frombuffer(source['clip_embedding'], dtype=np.float32).copy()
+            norm = np.linalg.norm(e)
+            if norm > 0:
+                source_embedding = e / norm
 
-        source_persons = set()
-        person_rows = conn.execute("""
-            SELECT person_id FROM faces WHERE photo_path = ? AND person_id IS NOT NULL
-        """, (photo_path,)).fetchall()
-        for row in person_rows:
-            source_persons.add(row[0])
+        if source_phash is None and source_embedding is None:
+            return {'similar': [], 'total': 0, 'has_more': False}
 
-        candidates = conn.execute(f"""
-            SELECT path, filename, clip_embedding, date_taken, aggregate, aesthetic, comp_score
+        # ── Pass 1: load all pHashes (no CLIP BLOBs) ─────────────────────────
+        rows = conn.execute(f"""
+            SELECT path, filename, phash, date_taken, aggregate, aesthetic
             FROM photos
-            WHERE path != ? AND clip_embedding IS NOT NULL AND {vis_sql}
+            WHERE path != ? AND phash IS NOT NULL AND {vis_sql}
         """, [photo_path] + vis_params).fetchall()
+        rows = [dict(r) for r in rows]
 
+        if not rows:
+            # No phash candidates — CLIP-only fallback handled below
+            clip_rows = conn.execute(f"""
+                SELECT path, filename, clip_embedding, date_taken, aggregate, aesthetic
+                FROM photos
+                WHERE path != ? AND clip_embedding IS NOT NULL AND {vis_sql}
+                LIMIT 5000
+            """, [photo_path] + vis_params).fetchall()
+            rows = [dict(r) for r in clip_rows]
+            if not rows or source_embedding is None:
+                return {'similar': [], 'total': 0, 'has_more': False}
+            results = []
+            for r in rows:
+                e = np.frombuffer(r['clip_embedding'], dtype=np.float32).copy()
+                n = np.linalg.norm(e)
+                if n == 0:
+                    continue
+                sim = max(0.0, float(np.dot(source_embedding, e / n)))
+                if sim >= min_similarity:
+                    results.append({
+                        'path': r['path'], 'filename': r['filename'],
+                        'similarity': round(sim, 4),
+                        'aggregate': r.get('aggregate'), 'aesthetic': r.get('aesthetic'),
+                        'date_taken': r.get('date_taken'),
+                    })
+            results.sort(key=lambda x: x['similarity'], reverse=True)
+            results = results[:500]
+            return {'source': photo_path, 'similar': results[offset:offset + limit],
+                    'total': len(results), 'has_more': (offset + limit) < len(results)}
+
+        # ── Vectorized pHash hamming distance ─────────────────────────────────
+        hashes = np.array([int(r['phash'], 16) for r in rows], dtype=np.uint64)
+        xor = np.bitwise_xor(hashes, source_phash)
+        hamming = np.zeros(len(rows), dtype=np.int32)
+        for byte_idx in range(8):
+            shift = np.uint64(byte_idx * 8)
+            byte_vals = ((xor >> shift) & np.uint64(0xFF)).astype(np.int32)
+            hamming += _POPCOUNT[byte_vals]
+        phash_sims = 1.0 - hamming / 64.0
+
+        # Prune: lowest possible score = phash_sim * PHASH_W + 0 * CLIP_W
+        # Highest possible score = phash_sim * PHASH_W + 1.0 * CLIP_W
+        # Skip if even perfect CLIP can't push it over min_similarity
+        if source_embedding is not None:
+            phash_floor = max(0.0, (min_similarity - CLIP_W) / PHASH_W)
+        else:
+            phash_floor = min_similarity  # no CLIP available: phash alone must clear threshold
+        candidate_indices = np.where(phash_sims >= phash_floor)[0]
+
+        # ── Pass 2: load CLIP embeddings for survivors ────────────────────────
+        clip_by_path: dict = {}
+        if source_embedding is not None and len(candidate_indices) > 0:
+            cand_paths = [rows[i]['path'] for i in candidate_indices]
+            for start in range(0, len(cand_paths), 500):
+                chunk = cand_paths[start:start + 500]
+                placeholders = ','.join('?' * len(chunk))
+                clip_rows = conn.execute(
+                    f"SELECT path, clip_embedding FROM photos "
+                    f"WHERE path IN ({placeholders}) AND clip_embedding IS NOT NULL",
+                    chunk,
+                ).fetchall()
+                for cr in clip_rows:
+                    e = np.frombuffer(cr['clip_embedding'], dtype=np.float32).copy()
+                    n = np.linalg.norm(e)
+                    if n > 0:
+                        clip_by_path[cr['path']] = e / n
+
+        # ── Score, filter, paginate ───────────────────────────────────────────
         results = []
-        for cand in candidates:
-            cand_dict = dict(cand)
-            cand_path = cand_dict['path']
-            similarity_breakdown = {}
-            total_similarity = 0
-
-            if source_embedding is not None and cand_dict.get('clip_embedding'):
-                cand_embedding = np.frombuffer(cand_dict['clip_embedding'], dtype=np.float32)
-                cosine_sim = float(np.dot(source_embedding, cand_embedding) /
-                                  (np.linalg.norm(source_embedding) * np.linalg.norm(cand_embedding) + 1e-10))
-                clip_sim = (cosine_sim + 1) / 2
-                similarity_breakdown['clip'] = round(clip_sim, 3)
-                total_similarity += clip_sim * clip_weight
-
-            if source_persons:
-                cand_persons = set()
-                cp_rows = conn.execute("""
-                    SELECT person_id FROM faces WHERE photo_path = ? AND person_id IS NOT NULL
-                """, (cand_path,)).fetchall()
-                for row in cp_rows:
-                    cand_persons.add(row[0])
-                if cand_persons:
-                    shared = len(source_persons & cand_persons)
-                    person_sim = shared / max(len(source_persons), len(cand_persons))
-                    similarity_breakdown['persons'] = round(person_sim, 3)
-                    total_similarity += person_sim * person_weight
-
-            if source.get('date_taken') and cand_dict.get('date_taken'):
-                try:
-                    from datetime import datetime
-                    src_date = datetime.strptime(source['date_taken'][:19], '%Y:%m:%d %H:%M:%S')
-                    cand_date = datetime.strptime(cand_dict['date_taken'][:19], '%Y:%m:%d %H:%M:%S')
-                    days_diff = abs((src_date - cand_date).days)
-                    if days_diff == 0:
-                        date_sim = 1.0
-                    elif days_diff <= 7:
-                        date_sim = 0.5
-                    elif days_diff <= 30:
-                        date_sim = 0.2
-                    else:
-                        date_sim = max(0, 1 - days_diff / 365)
-                    similarity_breakdown['date'] = round(date_sim, 3)
-                    total_similarity += date_sim * date_weight
-                except Exception:
-                    pass
-
-            if source.get('aggregate') and cand_dict.get('aggregate'):
-                score_diff = abs(source['aggregate'] - cand_dict['aggregate'])
-                score_sim = max(0, 1 - score_diff / 10)
-                similarity_breakdown['score'] = round(score_sim, 3)
-                total_similarity += score_sim * score_weight
-
-            if total_similarity > 0:
+        for i in candidate_indices:
+            row = rows[i]
+            phash_sim = float(phash_sims[i])
+            cand_clip = clip_by_path.get(row['path'])
+            if source_embedding is not None and cand_clip is not None:
+                clip_sim = max(0.0, float(np.dot(source_embedding, cand_clip)))
+                sim = phash_sim * PHASH_W + clip_sim * CLIP_W
+            else:
+                sim = phash_sim * PHASH_W  # no CLIP: candidate only earns its phash share
+            if sim >= min_similarity:
                 results.append({
-                    'path': cand_path,
-                    'filename': cand_dict.get('filename'),
-                    'similarity': round(total_similarity, 4),
-                    'breakdown': similarity_breakdown,
-                    'aggregate': cand_dict.get('aggregate'),
-                    'aesthetic': cand_dict.get('aesthetic'),
-                    'date_taken': cand_dict.get('date_taken'),
+                    'path': row['path'],
+                    'filename': row['filename'],
+                    'similarity': round(sim, 4),
+                    'aggregate': row.get('aggregate'),
+                    'aesthetic': row.get('aesthetic'),
+                    'date_taken': row.get('date_taken'),
                 })
 
         results.sort(key=lambda x: x['similarity'], reverse=True)
-        results = results[:limit]
+        results = results[:500]
+        total_count = len(results)
+        page_results = results[offset:offset + limit]
 
         return {
             'source': photo_path,
-            'weights': {
-                'clip': clip_weight,
-                'person': person_weight,
-                'date': date_weight,
-                'score': score_weight
-            },
-            'similar': results
+            'similar': page_results,
+            'total': total_count,
+            'has_more': (offset + limit) < total_count,
         }
 
     except Exception:

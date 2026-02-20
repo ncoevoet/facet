@@ -327,6 +327,7 @@ export class GalleryStore {
 
   /** Load photos based on current filters (replaces list) */
   async loadPhotos(): Promise<void> {
+    this.photos.set([]);
     this.loading.set(true);
     try {
       const f = this.filters();
@@ -369,7 +370,10 @@ export class GalleryStore {
     key: K,
     value: GalleryFilters[K],
   ): Promise<void> {
-    this.filters.update(current => ({ ...current, [key]: value, page: 1 }));
+    const extra: Partial<GalleryFilters> = {};
+    if (key === 'hide_rejected' && value) extra.favorites_only = false;
+    if (key === 'favorites_only' && value) extra.hide_rejected = false;
+    this.filters.update(current => ({ ...current, [key]: value, ...extra, page: 1 }));
     this.syncUrl();
     await this.loadPhotos();
   }
@@ -404,7 +408,7 @@ export class GalleryStore {
   async loadTypeCounts(): Promise<void> {
     try {
       const res = await firstValueFrom(this.api.get<{types: TypeCount[]}>('/type_counts'));
-      this.types.set(res.types.sort((a, b) => b.count - a.count));
+      this.types.set(res.types.filter(t => t.id).sort((a, b) => b.count - a.count));
     } catch {
       this.types.set([]);
     }

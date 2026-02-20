@@ -27,7 +27,7 @@
           <mat-select [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
             <mat-option value="">{{ 'gallery.all_photos' | translate }}</mat-option>
             @for (t of store.types(); track t.id) {
-              <mat-option [value]="t.id">{{ t.label }} ({{ t.count }})</mat-option>
+              <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
             }
           </mat-select>
         </mat-form-field>
@@ -93,6 +93,27 @@
 
       }
 
+      <!-- Stats filters (visible only on stats route, lg+) -->
+      @if (auth.isAuthenticated() && isStatsRoute()) {
+        <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
+          <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
+          <mat-select [value]="statsFilters.filterCategory()" (selectionChange)="onStatsCategoryChange($event.value)">
+            <mat-option value="">{{ 'gallery.all_photos' | translate }}</mat-option>
+            @for (t of store.types(); track t.id) {
+              <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
+          <mat-label>{{ 'stats.filter.date_from' | translate }}</mat-label>
+          <input matInput type="date" [value]="statsFilters.dateFrom()" (change)="onStatsDateChange('from', $event)" />
+        </mat-form-field>
+        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
+          <mat-label>{{ 'stats.filter.date_to' | translate }}</mat-label>
+          <input matInput type="date" [value]="statsFilters.dateTo()" (change)="onStatsDateChange('to', $event)" />
+        </mat-form-field>
+      }
+
       <div class="flex-1"></div>
 
       <!-- Gallery: photo count + active filters + filter toggle (right side, lg+ only) -->
@@ -128,15 +149,6 @@
             store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward'
           }}</mat-icon>
         </button>
-
-        @if (store.activeFilterCount()) {
-          <mat-chip-set class="!hidden lg:!inline-flex">
-            <mat-chip (removed)="store.resetFilters()" highlighted>
-              {{ 'gallery.active_filters' | translate:{ count: store.activeFilterCount() } }}
-              <mat-icon matChipRemove>cancel</mat-icon>
-            </mat-chip>
-          </mat-chip-set>
-        }
 
         <button
           class="!hidden lg:!inline-flex"
@@ -248,26 +260,6 @@
     </div>
   }
 
-  <!-- Active filter chips bar -->
-  @if (auth.isAuthenticated() && isGalleryRoute() && activeFilterChips().length) {
-    <div class="shrink-0 flex items-center border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)]">
-      <div class="flex-1 flex items-center gap-1.5 px-3 py-1.5 overflow-x-auto">
-        <mat-chip-set>
-          @for (chip of activeFilterChips(); track chip.label) {
-            <mat-chip (removed)="chip.action()" highlighted>
-              {{ chip.label }}
-              <mat-icon matChipRemove>cancel</mat-icon>
-            </mat-chip>
-          }
-        </mat-chip-set>
-      </div>
-      <div class="shrink-0 px-2 py-1.5">
-        <button mat-mini-fab color="primary" class="!shadow-none" (click)="store.resetFilters()" [matTooltip]="'gallery.reset_filters' | translate">
-          <mat-icon>close</mat-icon>
-        </button>
-      </div>
-    </div>
-  }
 
   <!-- Main content -->
   <main class="flex-1 overflow-auto pb-14 lg:pb-0">

@@ -507,6 +507,7 @@
     "loading": "Finding similar photos...",
     "no_results": "No similar photos found",
     "similarity": "similarity",
+    "min_similarity": "Min. similarity",
     "visual": "Visual",
     "persons": "Persons",
     "date": "Date",

@@ -546,7 +546,7 @@ export class IsSelectedPipe implements PipeTransform {
                     </div>
 
                     <!-- Bottom row: star rating -->
-                    @if (store.config()?.features?.show_rating_controls) {
+                    @if (store.config()?.features?.show_rating_controls && auth.isEdition()) {
                       <div class="flex justify-center gap-0.5 p-1.5">
                         @for (star of 0 | starArray; track star) {
                           <button
@@ -867,30 +867,69 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const rect = card.getBoundingClientRect();
     const padding = 16;
     const isLandscape = photo.image_width > photo.image_height;
-
-    // Estimate tooltip size based on photo orientation
     const vh = window.innerHeight;
     const vw = window.innerWidth;
-    const tooltipWidth = isLandscape
-      ? Math.min(Math.max(vw * 0.25, 280), 420)  // stacked: image width
-      : Math.min(vh * 0.55, 500) + 280;           // side-by-side: image + details
-    const tooltipHeight = isLandscape
-      ? Math.round(vh * 0.55)
-      : Math.min(vh * 0.55, 500) + 20;
 
-    // Position to the right of the card, or left if overflow
-    let x = rect.right + padding;
-    if (x + tooltipWidth > vw - padding) {
-      x = rect.left - tooltipWidth - padding;
+    // Use the gallery card's loaded thumbnail for aspect ratio — more accurate than
+    // photo.image_width/height which may differ due to EXIF rotation (thumbnail stored
+    // as raw sensor data while photo dimensions are EXIF-corrected).
+    const thumbImg = (card.querySelector('img') as HTMLImageElement | null);
+    const tnw = thumbImg?.naturalWidth || photo.image_width || 4;
+    const tnh = thumbImg?.naturalHeight || photo.image_height || 3;
+    const thumbAspect = tnw / tnh;
+    // Natural height of the 640px tooltip thumbnail (max 640px on longest side)
+    const tooltipNatH = thumbAspect > 1 ? 640 / thumbAspect : 640;
+
+    // Estimate tooltip dimensions using the tooltip thumbnail's actual pixel aspect ratio.
+    let tooltipWidth: number;
+    let tooltipHeight: number;
+    if (isLandscape) {
+      // flex-col layout: image capped at max-h-[35vh]
+      const imgH = Math.min(tooltipNatH, vh * 0.35);
+      const imgW = imgH * thumbAspect;
+      tooltipWidth = Math.ceil(imgW) + 24; // p-2.5 padding both sides
+      tooltipHeight = Math.ceil(imgH) + 140;
+    } else {
+      // flex-row layout: image capped at max-h-[50vh], details panel 260px wide
+      const imgH = Math.min(tooltipNatH, vh * 0.5);
+      const imgW = imgH * thumbAspect;
+      tooltipWidth = Math.ceil(imgW) + 260 + 12 + 24; // image + gap-3 + details + padding
+      tooltipHeight = Math.max(Math.ceil(imgH), 300) + 24;
     }
+
+    // Position to the right of the card, or left if it would overflow.
+    // When flipping left, never clamp to screen edge — it's better to go off-screen than
+    // to overlap the hovered card.
+    const wouldOverflowRight = rect.right + padding + tooltipWidth > vw - padding;
+    let x: number;
+    if (wouldOverflowRight) {
+      // Place to the LEFT of the card — may go off-screen, that's acceptable
+      x = rect.left - tooltipWidth - padding;
+    } else {
+      x = rect.right + padding;
+    }
+
     // Vertically center on the card, clamped to viewport
     let y = rect.top + rect.height / 2 - tooltipHeight / 2;
-    if (y < padding) y = padding;
-    if (y + tooltipHeight > vh - padding) y = vh - tooltipHeight - padding;
+    y = Math.max(padding, Math.min(y, vh - tooltipHeight - padding));
 
     this.tooltipX.set(x);
     this.tooltipY.set(y);
     this.tooltipPhoto.set(photo);
+
+    // Post-render correction: re-run placement with actual rendered dimensions.
+    // Same rule: never clamp when going left, to avoid covering the card.
+    setTimeout(() => {
+      if (this.tooltipPhoto() !== photo) return;
+      const el = document.querySelector('app-photo-tooltip > div') as HTMLElement | null;
+      if (!el) return;
+      const { width: actualWidth } = el.getBoundingClientRect();
+      const wouldOverflowRightActual = rect.right + padding + actualWidth > vw - padding;
+      const newX = wouldOverflowRightActual
+        ? rect.left - actualWidth - padding   // left — may go off-screen, never clamp
+        : rect.right + padding;
+      if (Math.abs(newX - this.tooltipX()) > 1) this.tooltipX.set(newX);
+    }, 0);
   }
 
   hideTooltip(): void {
@@ -921,7 +960,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   openSimilar(photo: Photo): void {
     this.dialog.open(SimilarPhotosDialogComponent, {
-      data: { photoPath: photo.path },
+      data: {
+        photoPath: photo.path,
+        selectedPaths: this.selectedPaths,
+        togglePath: (path: string) => {
+          const next = new Set(this.selectedPaths());
+          if (next.has(path)) next.delete(path); else next.add(path);
+          this.selectedPaths.set(next);
+        },
+      },
       width: '95vw',
       maxWidth: '640px',
     });

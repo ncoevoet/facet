@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, OnInit, OnDestroy, ElementRef, viewChild, effect } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -128,10 +128,12 @@ export class MergeTargetDialogComponent {
       <div class="flex flex-wrap items-center gap-4 mb-6">
         <h1 class="text-2xl font-medium">{{ 'persons.manage_title' | translate }}</h1>
         <div class="flex-1"></div>
-        <a mat-button routerLink="/merge-suggestions">
-          <mat-icon>auto_fix_high</mat-icon>
-          {{ 'persons.merge_suggestions' | translate }}
-        </a>
+        @if (auth.isEdition()) {
+          <a mat-button routerLink="/merge-suggestions">
+            <mat-icon>auto_fix_high</mat-icon>
+            {{ 'persons.merge_suggestions' | translate }}
+          </a>
+        }
       </div>
 
       <!-- Search bar -->
@@ -166,7 +168,7 @@ export class MergeTargetDialogComponent {
             class="!overflow-hidden cursor-pointer transition-shadow hover:shadow-lg"
             [class.!ring-2]="selectedIds().has(person.id)"
             [class.!ring-blue-500]="selectedIds().has(person.id)"
-            (click)="toggleSelect(person.id, !selectedIds().has(person.id))"
+            (click)="onPersonClick(person)"
           >
             <!-- Avatar -->
             <div class="relative aspect-square bg-neutral-800 overflow-hidden">
@@ -292,6 +294,7 @@ export class ManagePersonsComponent implements OnInit, OnDestroy {
   readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
+  private readonly router = inject(Router);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
 
@@ -439,6 +442,14 @@ export class ManagePersonsComponent implements OnInit, OnDestroy {
       this.snackBar.open(this.i18n.t('persons.deleted'), '', { duration: 2000 });
     } catch {
       this.snackBar.open(this.i18n.t('persons.delete_error'), '', { duration: 3000 });
+    }
+  }
+
+  onPersonClick(person: Person): void {
+    if (this.auth.isEdition()) {
+      this.toggleSelect(person.id, !this.selectedIds().has(person.id));
+    } else {
+      this.router.navigate(['/'], { queryParams: { person_id: String(person.id) } });
     }
   }
 
