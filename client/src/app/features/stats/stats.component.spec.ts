@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { StatsComponent } from './stats.component';
+import { ChartHeightPipe, StatsComponent } from './stats.component';
 
 describe('StatsComponent', () => {
   let component: StatsComponent;
@@ -27,9 +27,59 @@ describe('StatsComponent', () => {
     categories: [],
   };
 
+  // Rich mock with all CategoryStat fields including new ones from this commit.
+  // portrait: avg_score=7.0, f_stop=2.8, focal=85, iso=800 (full data)
+  // landscape: avg_score=6.5, f_stop=0, focal=24, iso=0 (tests '—' display + aperture filter)
+  // macro: avg_score=8.2, f_stop=5.6, focal=100, iso=400 (highest score, for sort order)
   const mockCategories = [
-    { category: 'portrait', count: 300, percentage: 0.3, avg_score: 7.0 },
-    { category: 'landscape', count: 200, percentage: 0.2, avg_score: 6.5 },
+    {
+      category: 'portrait',
+      count: 300,
+      percentage: 0.3,
+      avg_score: 7.0,
+      avg_aesthetic: 7.2,
+      avg_composition: 6.8,
+      avg_sharpness: 7.5,
+      avg_color: 6.9,
+      avg_exposure: 7.1,
+      avg_iso: 800,
+      avg_f_stop: 2.8,
+      avg_focal_length: 85,
+      top_camera: 'Canon R5',
+      top_lens: 'RF 85mm',
+    },
+    {
+      category: 'landscape',
+      count: 200,
+      percentage: 0.2,
+      avg_score: 6.5,
+      avg_aesthetic: 6.3,
+      avg_composition: 7.0,
+      avg_sharpness: 7.8,
+      avg_color: 7.2,
+      avg_exposure: 6.9,
+      avg_iso: 0,
+      avg_f_stop: 0,
+      avg_focal_length: 24,
+      top_camera: null,
+      top_lens: null,
+    },
+    {
+      category: 'macro',
+      count: 50,
+      percentage: 0.05,
+      avg_score: 8.2,
+      avg_aesthetic: 8.5,
+      avg_composition: 7.9,
+      avg_sharpness: 8.8,
+      avg_color: 7.5,
+      avg_exposure: 8.0,
+      avg_iso: 400,
+      avg_f_stop: 5.6,
+      avg_focal_length: 100,
+      top_camera: 'Sony A7R V',
+      top_lens: 'FE 90mm Macro',
+    },
   ];
 
   const mockScoreBins = [
@@ -168,6 +218,66 @@ describe('StatsComponent', () => {
       expect(component.categoryStats()).toEqual(mockCategories);
       expect(component.categoriesLoading()).toBe(false);
     });
+
+    it('should sort availableCategories alphabetically by translated name', async () => {
+      const withUncategorized = [
+        ...mockCategories,
+        { category: '(uncategorized)', count: 10, percentage: 0.01, avg_score: 5.0,
+          avg_aesthetic: 5.0, avg_composition: 5.0, avg_sharpness: 5.0, avg_color: 5.0,
+          avg_exposure: 5.0, avg_iso: 0, avg_f_stop: 0, avg_focal_length: 0,
+          top_camera: null, top_lens: null },
+      ];
+      const getMock = jest.fn((path: string) => {
+        if (path === '/stats/categories') return of(withUncategorized);
+        return safeDefault(path);
+      });
+      component = createComponent(getMock);
+      await flushPromises();
+
+      // Mock i18n returns key itself → 'category_names.landscape' < 'category_names.macro' < 'category_names.portrait'
+      // '(uncategorized)' is filtered out before sorting
+      expect(component.availableCategories()).toEqual(['landscape', 'macro', 'portrait']);
+    });
+  });
+
+  describe('CategoryStat computed signals', () => {
+    beforeEach(async () => {
+      const getMock = jest.fn((path: string) => {
+        if (path === '/stats/categories') return of(mockCategories);
+        return safeDefault(path);
+      });
+      component = createComponent(getMock);
+      await flushPromises();
+    });
+
+    it('categoryScoreProfile() filters avg_score > 0 and sorts by score DESC', () => {
+      // macro(8.2) > portrait(7.0) > landscape(6.5) — all have avg_score > 0
+      const profile = component.categoryScoreProfile();
+      expect(profile.map(c => c.category)).toEqual(['macro', 'portrait', 'landscape']);
+    });
+
+    it('categoryApertureProfile() filters avg_f_stop > 0 and sorts ASC', () => {
+      // landscape has avg_f_stop=0 → filtered; portrait(2.8) < macro(5.6)
+      const aperture = component.categoryApertureProfile();
+      expect(aperture.map(c => c.category)).toEqual(['portrait', 'macro']);
+      expect(aperture.every(c => c.avg_f_stop > 0)).toBe(true);
+    });
+
+    it('categoryFocalData() filters avg_focal_length > 0 and sorts ASC', () => {
+      // landscape(24) < portrait(85) < macro(100) — all have focal_length > 0
+      const focal = component.categoryFocalData();
+      expect(focal.map(c => c.category)).toEqual(['landscape', 'portrait', 'macro']);
+      expect(focal.every(c => c.avg_focal_length > 0)).toBe(true);
+    });
+
+    it('gear table data: avg_iso=0 and top_camera=null for landscape', () => {
+      const landscape = component.categoryScoreProfile().find(c => c.category === 'landscape');
+      expect(landscape).toBeDefined();
+      expect(landscape!.avg_iso).toBe(0);
+      expect(landscape!.avg_f_stop).toBe(0);
+      expect(landscape!.top_camera).toBeNull();
+      expect(landscape!.top_lens).toBeNull();
+    });
   });
 
   describe('loadScoreDistribution()', () => {
@@ -245,6 +355,30 @@ describe('StatsComponent', () => {
       expect(component.correlationLoading()).toBe(false);
       expect(component.corrData()).toBeNull();
     });
+  });
+});
+
+describe('ChartHeightPipe', () => {
+  it('uses default rowHeight of 28', () => {
+    const pipe = new ChartHeightPipe();
+    expect(pipe.transform(new Array(10))).toBe(280);
+  });
+
+  it('accepts custom rowHeight', () => {
+    const pipe = new ChartHeightPipe();
+    expect(pipe.transform(new Array(4), 52)).toBe(208);
+  });
+
+  it('enforces minimum height of 200 with default rowHeight', () => {
+    const pipe = new ChartHeightPipe();
+    expect(pipe.transform([])).toBe(200);
+    expect(pipe.transform(new Array(3))).toBe(200); // 3 * 28 = 84 < 200
+  });
+
+  it('enforces minimum height of 200 with custom rowHeight', () => {
+    const pipe = new ChartHeightPipe();
+    expect(pipe.transform(new Array(2), 52)).toBe(200); // 2 * 52 = 104 < 200
+    expect(pipe.transform(new Array(4), 52)).toBe(208); // 4 * 52 = 208 > 200
   });
 });
 

@@ -5,7 +5,7 @@ A multi-dimensional photo analysis engine that examines every facet of an image 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Angular](https://img.shields.io/badge/Angular-20-dd0031)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Docker-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Docker-lightgrey)
 
 <p align="center">
   <img src="docs/screenshots/gallery-desktop.jpg" alt="Facet Gallery" width="100%">

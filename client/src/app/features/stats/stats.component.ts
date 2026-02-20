@@ -22,8 +22,8 @@ Chart.defaults.borderColor = '#262626';
 /** Pipe to compute chart container height from item count. */
 @Pipe({ name: 'chartHeight', standalone: true })
 export class ChartHeightPipe implements PipeTransform {
-  transform(items: unknown[]): number {
-    return Math.max(200, items.length * 28);
+  transform(items: unknown[], rowHeight = 28): number {
+    return Math.max(200, items.length * rowHeight);
   }
 }
 
@@ -80,6 +80,16 @@ interface CategoryStat {
   count: number;
   percentage: number;
   avg_score: number;
+  avg_aesthetic: number;
+  avg_composition: number;
+  avg_sharpness: number;
+  avg_color: number;
+  avg_exposure: number;
+  avg_iso: number;
+  avg_f_stop: number;
+  avg_focal_length: number;
+  top_camera: string | null;
+  top_lens: string | null;
 }
 
 interface ScoreBin {
@@ -135,16 +145,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
   host: { class: 'block' },
   template: `
     <div class="p-4 md:p-6 max-w-7xl mx-auto">
-      <!-- Filter bar: Date range + Category -->
+      <!-- Filter bar: Category + Date range -->
       <div class="flex flex-wrap items-end gap-3 mb-6">
-          <mat-form-field class="w-full md:w-44" subscriptSizing="dynamic">
-            <mat-label>{{ 'stats.filter.date_from' | translate }}</mat-label>
-            <input matInput type="date" [ngModel]="dateFrom()" (ngModelChange)="setDateFrom($event)">
-          </mat-form-field>
-          <mat-form-field class="w-full md:w-44" subscriptSizing="dynamic">
-            <mat-label>{{ 'stats.filter.date_to' | translate }}</mat-label>
-            <input matInput type="date" [ngModel]="dateTo()" (ngModelChange)="setDateTo($event)">
-          </mat-form-field>
           <mat-form-field class="w-full md:w-48" subscriptSizing="dynamic">
             <mat-label>{{ 'stats.filter.category' | translate }}</mat-label>
             <mat-select [ngModel]="filterCategory()" (ngModelChange)="setCategory($event)">
@@ -153,6 +155,14 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                 <mat-option [value]="cat">{{ ('category_names.' + cat) | translate }}</mat-option>
               }
             </mat-select>
+          </mat-form-field>
+          <mat-form-field class="w-full md:w-44" subscriptSizing="dynamic">
+            <mat-label>{{ 'stats.filter.date_from' | translate }}</mat-label>
+            <input matInput type="date" [ngModel]="dateFrom()" (ngModelChange)="setDateFrom($event)">
+          </mat-form-field>
+          <mat-form-field class="w-full md:w-44" subscriptSizing="dynamic">
+            <mat-label>{{ 'stats.filter.date_to' | translate }}</mat-label>
+            <input matInput type="date" [ngModel]="dateTo()" (ngModelChange)="setDateTo($event)">
           </mat-form-field>
       </div>
 
@@ -291,21 +301,105 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
               <mat-icon class="mr-2">category</mat-icon>
               {{ 'stats.categories.tab' | translate }}
             </ng-template>
-            <div class="mt-4">
-              <mat-card>
-                <mat-card-header>
-                  <mat-card-title>{{ 'stats.category_distribution' | translate }}</mat-card-title>
-                </mat-card-header>
-                <mat-card-content class="!pt-4">
-                  @if (categoriesLoading()) {
-                    <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
-                  } @else {
-                    <div [style.height.px]="categoryStats() | chartHeight">
-                      <canvas #categoriesCanvas></canvas>
-                    </div>
-                  }
-                </mat-card-content>
-              </mat-card>
+            <div class="mt-4 flex flex-col gap-4">
+
+              <!-- Row 1: Distribution + Score Profile -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <mat-card>
+                  <mat-card-header>
+                    <mat-card-title>{{ 'stats.category_distribution' | translate }}</mat-card-title>
+                  </mat-card-header>
+                  <mat-card-content class="!pt-4">
+                    @if (categoriesLoading()) {
+                      <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
+                    } @else {
+                      <div [style.height.px]="categoryStats() | chartHeight">
+                        <canvas #categoriesCanvas></canvas>
+                      </div>
+                    }
+                  </mat-card-content>
+                </mat-card>
+
+                @if (categoryScoreProfile().length > 0) {
+                  <mat-card>
+                    <mat-card-header>
+                      <mat-card-title>{{ 'stats.categories_score_profile' | translate }}</mat-card-title>
+                    </mat-card-header>
+                    <mat-card-content class="!pt-4">
+                      @if (categoriesLoading()) {
+                        <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
+                      } @else {
+                        <div [style.height.px]="categoryScoreProfile() | chartHeight:52">
+                          <canvas #categoryScoreProfileCanvas></canvas>
+                        </div>
+                      }
+                    </mat-card-content>
+                  </mat-card>
+                }
+              </div>
+
+              <!-- Row 2: Aperture + Focal Length -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                @if (categoryApertureProfile().length > 0) {
+                  <mat-card>
+                    <mat-card-header>
+                      <mat-card-title>{{ 'stats.categories_aperture' | translate }}</mat-card-title>
+                    </mat-card-header>
+                    <mat-card-content class="!pt-4">
+                      <div [style.height.px]="categoryApertureProfile() | chartHeight">
+                        <canvas #categoryApertureCanvas></canvas>
+                      </div>
+                    </mat-card-content>
+                  </mat-card>
+                }
+                @if (categoryFocalData().length > 0) {
+                  <mat-card>
+                    <mat-card-header>
+                      <mat-card-title>{{ 'stats.categories_focal_length' | translate }}</mat-card-title>
+                    </mat-card-header>
+                    <mat-card-content class="!pt-4">
+                      <div [style.height.px]="categoryFocalData() | chartHeight">
+                        <canvas #categoryFocalCanvas></canvas>
+                      </div>
+                    </mat-card-content>
+                  </mat-card>
+                }
+              </div>
+
+              <!-- Row 3: Gear table -->
+              @if (categoryScoreProfile().length > 0) {
+                <mat-card>
+                  <mat-card-header>
+                    <mat-card-title>{{ 'stats.categories_gear_profile' | translate }}</mat-card-title>
+                  </mat-card-header>
+                  <mat-card-content class="!pt-4 overflow-x-auto">
+                    <table class="w-full text-sm">
+                      <thead>
+                        <tr class="text-gray-400 text-left border-b border-neutral-700">
+                          <th class="pb-2 pr-4">{{ 'stats.categories.tab' | translate }}</th>
+                          <th class="pb-2 pr-4">{{ 'stats.cameras' | translate }}</th>
+                          <th class="pb-2 pr-4">{{ 'stats.lenses' | translate }}</th>
+                          <th class="pb-2 pr-4">ISO</th>
+                          <th class="pb-2 pr-4">f/</th>
+                          <th class="pb-2">mm</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (cat of categoryScoreProfile(); track cat.category) {
+                          <tr class="border-b border-neutral-800 hover:bg-neutral-800/30">
+                            <td class="py-1.5 pr-4 font-medium">{{ ('category_names.' + cat.category) | translate }}</td>
+                            <td class="py-1.5 pr-4 text-gray-300 truncate max-w-40">{{ cat.top_camera || '—' }}</td>
+                            <td class="py-1.5 pr-4 text-gray-300 truncate max-w-40">{{ cat.top_lens || '—' }}</td>
+                            <td class="py-1.5 pr-4 text-gray-300">{{ cat.avg_iso > 0 ? (cat.avg_iso | number:'1.0-0') : '—' }}</td>
+                            <td class="py-1.5 pr-4 text-gray-300">{{ cat.avg_f_stop > 0 ? (cat.avg_f_stop | number:'1.1-1') : '—' }}</td>
+                            <td class="py-1.5 text-gray-300">{{ cat.avg_focal_length > 0 ? (cat.avg_focal_length | number:'1.0-0') : '—' }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </mat-card-content>
+                </mat-card>
+              }
             </div>
           </mat-tab>
 
@@ -529,6 +623,9 @@ export class StatsComponent {
   combosCanvas = viewChild<ElementRef<HTMLCanvasElement>>('combosCanvas');
   lensesByScoreCanvas = viewChild<ElementRef<HTMLCanvasElement>>('lensesByScoreCanvas');
   combosByScoreCanvas = viewChild<ElementRef<HTMLCanvasElement>>('combosByScoreCanvas');
+  categoryScoreProfileCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryScoreProfileCanvas');
+  categoryApertureCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryApertureCanvas');
+  categoryFocalCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryFocalCanvas');
   dayOfWeekCanvas = viewChild<ElementRef<HTMLCanvasElement>>('dayOfWeekCanvas');
   hourOfDayCanvas = viewChild<ElementRef<HTMLCanvasElement>>('hourOfDayCanvas');
   correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
@@ -548,6 +645,9 @@ export class StatsComponent {
   combos = signal<GearItem[]>([]);
   lensesByScore = computed(() => [...this.lenses()].filter(l => l.avg_score > 0).sort((a, b) => b.avg_score - a.avg_score).slice(0, 20));
   combosByScore = computed(() => [...this.combos()].filter(c => c.avg_score > 0).sort((a, b) => b.avg_score - a.avg_score).slice(0, 20));
+  categoryScoreProfile = computed(() => [...this.categoryStats()].filter(c => c.avg_score > 0).sort((a, b) => b.avg_score - a.avg_score));
+  categoryApertureProfile = computed(() => [...this.categoryStats()].filter(c => c.avg_f_stop > 0).sort((a, b) => a.avg_f_stop - b.avg_f_stop));
+  categoryFocalData = computed(() => [...this.categoryStats()].filter(c => c.avg_focal_length > 0).sort((a, b) => a.avg_focal_length - b.avg_focal_length));
   gearLoading = signal(false);
 
   categoryStats = signal<CategoryStat[]>([]);
@@ -653,6 +753,30 @@ export class StatsComponent {
       const data = this.topCameras();
       this.buildHorizontalBar('topCamerasGear', this.topCamerasGearCanvas(), data.map(c => c.name), data.map(c => c.avg_score), COLORS[3]);
     });
+    // Score profile (grouped: aggregate + aesthetic + composition + sharpness + color)
+    effect(() => {
+      const cats = this.categoryScoreProfile();
+      const labels = cats.map(c => this.translateCategory(c.category));
+      this.buildGroupedHorizontalBar('categoryScoreProfile', this.categoryScoreProfileCanvas(), labels, [
+        { label: this.i18n.t('stats.axes.aggregate'),   data: cats.map(c => c.avg_score),       color: COLORS[3] },
+        { label: this.i18n.t('stats.axes.aesthetic'),   data: cats.map(c => c.avg_aesthetic),   color: COLORS[0] },
+        { label: this.i18n.t('stats.axes.composition'), data: cats.map(c => c.avg_composition), color: COLORS[1] },
+        { label: this.i18n.t('stats.axes.sharpness'),   data: cats.map(c => c.avg_sharpness),   color: COLORS[2] },
+        { label: this.i18n.t('stats.axes.color'),       data: cats.map(c => c.avg_color),       color: COLORS[5] },
+      ]);
+    });
+    // Aperture by category
+    effect(() => {
+      const cats = this.categoryApertureProfile();
+      this.buildHorizontalBar('categoryAperture', this.categoryApertureCanvas(),
+        cats.map(c => this.translateCategory(c.category)), cats.map(c => c.avg_f_stop), COLORS[2]);
+    });
+    // Focal length by category
+    effect(() => {
+      const cats = this.categoryFocalData();
+      this.buildHorizontalBar('categoryFocal', this.categoryFocalCanvas(),
+        cats.map(c => this.translateCategory(c.category)), cats.map(c => c.avg_focal_length), COLORS[6]);
+    });
     effect(() => {
       const data = this.corrData();
       if (data) {
@@ -707,7 +831,9 @@ export class StatsComponent {
   private async loadAvailableCategories(): Promise<void> {
     try {
       const data = await firstValueFrom(this.api.get<CategoryStat[]>('/stats/categories'));
-      this.availableCategories.set(data.map(c => c.category).filter(c => c && c !== '(uncategorized)'));
+      const cats = data.map(c => c.category).filter(c => c && c !== '(uncategorized)');
+      cats.sort((a, b) => this.translateCategory(a).localeCompare(this.translateCategory(b)));
+      this.availableCategories.set(cats);
     } catch { /* empty */ }
   }
 
@@ -848,6 +974,45 @@ export class StatsComponent {
         },
         scales: {
           x: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' } },
+          y: { grid: { display: false }, ticks: { color: '#d4d4d4', font: { size: 11 } } },
+        },
+      },
+    }));
+  }
+
+  private buildGroupedHorizontalBar(
+    id: string,
+    ref: ElementRef<HTMLCanvasElement> | undefined,
+    labels: string[],
+    datasets: { label: string; data: number[]; color: string }[],
+  ): void {
+    if (!ref || labels.length === 0) return;
+    this.destroyChart(id);
+    const ctx = ref.nativeElement.getContext('2d');
+    if (!ctx) return;
+    this.charts.set(id, new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: datasets.map(d => ({
+          label: d.label,
+          data: d.data,
+          backgroundColor: d.color + 'bb',
+          borderColor: d.color,
+          borderWidth: 1,
+          borderRadius: 2,
+        })),
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'top', labels: { color: '#a3a3a3', boxWidth: 12 } },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${(ctx.parsed.x ?? 0).toFixed(2)}` } },
+        },
+        scales: {
+          x: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3' }, min: 0, max: 10 },
           y: { grid: { display: false }, ticks: { color: '#d4d4d4', font: { size: 11 } } },
         },
       },

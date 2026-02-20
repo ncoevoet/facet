@@ -268,11 +268,46 @@ def api_stats_categories(
         try:
             cur = conn.cursor()
 
-            cur.execute(f'''SELECT category, COUNT(*) as cnt, ROUND(AVG(aggregate), 2) as avg_agg
-                           FROM photos WHERE 1=1{vis}
-                           GROUP BY category ORDER BY cnt DESC''', vp)
+            cur.execute(f'''
+                SELECT category, COUNT(*) as cnt,
+                       ROUND(AVG(aggregate), 2),
+                       ROUND(AVG(aesthetic), 2),
+                       ROUND(AVG(comp_score), 2),
+                       ROUND(AVG(tech_sharpness), 2),
+                       ROUND(AVG(color_score), 2),
+                       ROUND(AVG(exposure_score), 2),
+                       ROUND(AVG(ISO), 0),
+                       ROUND(AVG(f_stop), 1),
+                       ROUND(AVG(COALESCE(focal_length_35mm, focal_length)), 0)
+                FROM photos WHERE 1=1{vis}
+                GROUP BY category ORDER BY cnt DESC
+            ''', vp)
             rows = cur.fetchall()
             total = sum(r[1] for r in rows) or 1
+
+            # Top camera per category
+            cur.execute(f'''
+                SELECT category, camera_model FROM (
+                    SELECT category, camera_model, COUNT(*) as cnt,
+                           ROW_NUMBER() OVER (PARTITION BY category ORDER BY COUNT(*) DESC) as rn
+                    FROM photos
+                    WHERE camera_model IS NOT NULL AND camera_model != ''{vis}
+                    GROUP BY category, camera_model
+                ) WHERE rn = 1
+            ''', vp)
+            top_cameras = {r[0]: r[1] for r in cur.fetchall()}
+
+            # Top lens per category
+            cur.execute(f'''
+                SELECT category, lens_model FROM (
+                    SELECT category, lens_model, COUNT(*) as cnt,
+                           ROW_NUMBER() OVER (PARTITION BY category ORDER BY COUNT(*) DESC) as rn
+                    FROM photos
+                    WHERE lens_model IS NOT NULL AND lens_model != ''{vis}
+                    GROUP BY category, lens_model
+                ) WHERE rn = 1
+            ''', vp)
+            top_lenses = {r[0]: r[1] for r in cur.fetchall()}
         finally:
             conn.close()
 
@@ -282,6 +317,16 @@ def api_stats_categories(
                 'count': r[1],
                 'percentage': r[1] / total,
                 'avg_score': r[2] or 0,
+                'avg_aesthetic': r[3] or 0,
+                'avg_composition': r[4] or 0,
+                'avg_sharpness': r[5] or 0,
+                'avg_color': r[6] or 0,
+                'avg_exposure': r[7] or 0,
+                'avg_iso': r[8] or 0,
+                'avg_f_stop': r[9] or 0,
+                'avg_focal_length': r[10] or 0,
+                'top_camera': top_cameras.get(r[0]),
+                'top_lens': top_lenses.get(r[0]),
             }
             for r in rows
         ]

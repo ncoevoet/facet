@@ -629,6 +629,7 @@
       "sharpness": "Nitidez",
       "noise": "Ruido",
       "composition": "Composición",
+      "color": "Color",
       "pattern": "Patrón",
       "noise_level": "Nivel de ruido"
     },
@@ -662,6 +663,10 @@
     "cameras_by_score": "Cámaras por puntuación",
     "lenses_by_score": "Objetivos por puntuación",
     "combos_by_score": "Combinaciones por puntuación",
+    "categories_score_profile": "Perfil de puntuación por categoría",
+    "categories_aperture": "Apertura por categoría",
+    "categories_focal_length": "Focal por categoría",
+    "categories_gear_profile": "Perfil de disparo por categoría",
     "avg_aesthetic": "Estética prom.",
     "metric_correlations": "Correlaciones de métricas",
     "correlation_description": "Correlación Pearson entre dimensiones de puntuación",
