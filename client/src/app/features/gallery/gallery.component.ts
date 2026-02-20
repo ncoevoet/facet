@@ -104,7 +104,7 @@ export class IsSelectedPipe implements PipeTransform {
   template: `
     <mat-sidenav-container class="h-full">
       <!-- Filter sidebar -->
-      <mat-sidenav #filterDrawer mode="over" position="end" class="w-[min(320px,100vw)] p-0"
+      <mat-sidenav #filterDrawer disableClose="false" mode="side" position="end" class="w-[min(320px,100vw)] p-0"
         (openedChange)="onFilterDrawerChange($event)">
         <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--mat-sys-outline-variant)]">
           <span class="text-base font-medium">{{ 'gallery.filters' | translate }}</span>
