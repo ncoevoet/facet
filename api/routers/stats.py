@@ -5,6 +5,7 @@ Stats router — gear, settings, timeline, correlations, category analysis.
 
 import json
 import math
+import os
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,8 @@ from api.config import (
 )
 from api.database import get_db_connection
 from api.db_helpers import get_visibility_clause
+
+_FACET_SCRIPT = os.path.join(os.path.dirname(__file__), '..', '..', 'facet.py')
 
 router = APIRouter(tags=["stats"])
 
@@ -982,7 +985,7 @@ def api_stats_categories_recompute(
     try:
         config_path = str(_CONFIG_PATH)
         result = subprocess.run(
-            [sys.executable, 'facet.py', '--recompute-category', body.category,
+            [sys.executable, _FACET_SCRIPT, '--recompute-category', body.category,
              '--config', config_path],
             capture_output=True,
             text=True,

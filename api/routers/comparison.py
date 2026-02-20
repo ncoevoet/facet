@@ -28,6 +28,8 @@ from api.db_helpers import get_visibility_clause
 from api.types import TYPE_TO_CATEGORY
 from db import DEFAULT_DB_PATH
 
+_FACET_SCRIPT = os.path.join(os.path.dirname(__file__), '..', '..', 'facet.py')
+
 router = APIRouter(tags=["comparison"])
 
 # Mapping from optimizer DB column names to config weight names (used by learned_weights and confidence)
@@ -259,7 +261,7 @@ async def api_recalculate(
         config_path = str(_CONFIG_PATH)
 
         result = subprocess.run(
-            [sys.executable, 'facet.py', '--recompute-average', '--config', config_path],
+            [sys.executable, _FACET_SCRIPT, '--recompute-average', '--config', config_path],
             capture_output=True,
             text=True,
             timeout=300,
@@ -341,7 +343,7 @@ async def api_update_weights(
         if body.recalculate:
             try:
                 recalc_result = subprocess.run(
-                    [sys.executable, 'facet.py', '--recompute-category', body.category,
+                    [sys.executable, _FACET_SCRIPT, '--recompute-category', body.category,
                      '--config', config_path],
                     capture_output=True,
                     text=True,
