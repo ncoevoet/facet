@@ -15,14 +15,11 @@ A multi-dimensional photo analysis engine that examines every facet of an image 
 
 ### Smart Photo Gallery
 
-<img src="docs/screenshots/gallery-compact.jpg" alt="Compact gallery view" width="100%">
 <img src="docs/screenshots/hover-preview.jpg" alt="Hover preview with score breakdown" width="100%">
 
 Dark-themed web gallery with infinite scroll, 24 sort options across 6 groups, 30 content categories, and responsive mobile layout. Hover any photo for a detailed score breakdown with EXIF data, per-metric scores, and composition patterns.
 
 ### Top Picks
-
-<img src="docs/screenshots/gallery-top-picks.jpg" alt="Top Picks view" width="100%">
 
 Curated selection using a custom weighted score (aesthetic, composition, face quality). Configurable minimum score threshold and face ratio to surface the best photos across the entire library.
 
@@ -53,15 +50,13 @@ Filter sidebar with sections: display toggles (blinks, bursts, details, duplicat
 ### Statistics & Analytics
 
 <table><tr>
-<td><img src="docs/screenshots/stats-gear.png" alt="Equipment stats" width="100%"></td>
+<td><img src="docs/screenshots/stats-gear.png" alt="Equipment stats" width="100%"><img src="docs/screenshots/stats-settings.png" alt="Shooting settings stats" width="100%"></td>
 <td><img src="docs/screenshots/stats-categories.png" alt="Category analytics" width="100%"></td>
 </tr><tr>
-<td><img src="docs/screenshots/stats-settings.png" alt="Shooting settings stats" width="100%"></td>
-<td><img src="docs/screenshots/stats-timeline.png" alt="Timeline stats" width="100%"></td>
-</tr><tr>
-<td><img src="docs/screenshots/stats-score.png" alt="Score analytics" width="100%"></td>
 <td><img src="docs/screenshots/stats-correlations.png" alt="Correlation charts" width="100%"></td>
-</tr></table>
+<td><img src="docs/screenshots/stats-timeline.png" alt="Timeline stats" width="100%"></td>
+</tr>
+</table>
 
 Interactive dashboards with five tabs: **Gear** (cameras, lenses, body+lens combos, scores by camera/lens), **Categories** (breakdown, weights, correlations, overlap — each a sub-tab), **Score Distribution** (aggregate score histogram and distribution charts), **Timeline** (photos per month/year, day-of-week heatmap, top shooting days), and **Correlations** (configurable multi-metric charts across ISO, aperture, focal length, shutter speed, and more).
 
@@ -69,7 +64,6 @@ Interactive dashboards with five tabs: **Gear** (cameras, lenses, body+lens comb
 
 <img src="docs/screenshots/weights_slider.png" alt="Category weight sliders" width="100%">
 <img src="docs/screenshots/weights_compare.png" alt="Weight correlation chart" width="100%">
-<img src="docs/screenshots/compare.jpg" alt="Weight tuning with pairwise comparison" width="100%">
 
 Per-category weight editor with live preview of top-scored photos and weight-vs-correlation charts. Side-by-side pairwise comparison with keyboard shortcuts and four selection strategies (uncertainty, boundary, active learning, random). The system learns from your choices and suggests per-category weight adjustments with prediction accuracy tracking. **Requires edition mode.**
 
