@@ -311,7 +311,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                       @if (categoriesLoading()) {
                         <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
                       } @else {
-                        <div [style.height.px]="categoryScoreProfile() | chartHeight:52">
+                        <div [style.height.px]="categoryScoreProfile() | chartHeight:80">
                           <canvas #categoryScoreProfileCanvas></canvas>
                         </div>
                       }
