@@ -198,7 +198,7 @@ The viewer runs `--recompute-category` under the hood, updating only photos in t
 #### 1. Analyze Current Scores
 
 ```bash
-python photos.py --compute-recommendations
+python facet.py --compute-recommendations
 ```
 
 Shows:
@@ -213,8 +213,8 @@ Edit `scoring_config.json` category weights. Ensure they sum to 100.
 #### 3. Recompute Scores
 
 ```bash
-python photos.py --recompute-average               # All categories
-python photos.py --recompute-category portrait      # Single category (faster)
+python facet.py --recompute-average               # All categories
+python facet.py --recompute-category portrait      # Single category (faster)
 ```
 
 Uses stored embeddings - no GPU needed.
@@ -222,7 +222,7 @@ Uses stored embeddings - no GPU needed.
 #### 4. Validate Changes
 
 ```bash
-python photos.py --compute-recommendations
+python facet.py --compute-recommendations
 ```
 
 Compare distributions before/after.
@@ -234,7 +234,7 @@ Train weights by comparing photo pairs:
 ### Setup
 
 1. Set a non-empty `edition_password` in config: `"viewer": { "edition_password": "your-password" }`
-2. Start viewer: `python run_api.py`
+2. Start viewer: `python viewer.py`
 3. Click "Compare" button
 
 ### Comparison Interface
@@ -247,13 +247,13 @@ Train weights by comparing photo pairs:
 
 ```bash
 # Check comparison stats
-python photos.py --comparison-stats
+python facet.py --comparison-stats
 
 # Optimize weights from comparisons
-python photos.py --optimize-weights
+python facet.py --optimize-weights
 
 # Apply to all photos
-python photos.py --recompute-average
+python facet.py --recompute-average
 ```
 
 ### In-UI Weight Tuning
@@ -302,7 +302,7 @@ Add to the `categories` array in `scoring_config.json`, then run `--recompute-av
 #   "noise_tolerance_multiplier": 0.05
 #   "exposure_percent": 5
 
-python photos.py --recompute-category concert
+python facet.py --recompute-category concert
 ```
 
 Or use the viewer's weight editor at `/stats` → Categories → Weights for live preview and one-click recompute.
@@ -311,13 +311,13 @@ Or use the viewer's weight editor at `/stats` → Categories → Weights for liv
 
 ```bash
 # Edit: "vram_profile": "8gb"
-python photos.py --compute-recommendations  # Analyze
+python facet.py --compute-recommendations  # Analyze
 # Reduce aesthetic_percent in categories if needed
-python photos.py --recompute-average
+python facet.py --recompute-average
 ```
 
 ### Add Underwater Category
 
 1. Add category definition (see above)
-2. Run `python photos.py --validate-categories`
-3. Run `python photos.py --recompute-average`
+2. Run `python facet.py --validate-categories`
+3. Run `python facet.py --recompute-average`

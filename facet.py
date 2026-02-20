@@ -52,53 +52,53 @@ if __name__ == '__main__':
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  python photos.py /path/to/photos              # Score photos (auto multi-pass mode)
-  python photos.py /path/to/photos --single-pass  # Force single-pass (all models at once)
-  python photos.py /path/to/photos --force      # Re-scan already processed files
-  python photos.py --recompute-average          # Recalculate scores with current config
+  python facet.py /path/to/photos              # Score photos (auto multi-pass mode)
+  python facet.py /path/to/photos --single-pass  # Force single-pass (all models at once)
+  python facet.py /path/to/photos --force      # Re-scan already processed files
+  python facet.py --recompute-average          # Recalculate scores with current config
 
 Single-Pass Modes:
-  python photos.py /path --pass quality         # Run quality scoring pass only
-  python photos.py /path --pass tags            # Run tagging pass only
-  python photos.py /path --pass composition     # Run SAMP-Net composition pass only
-  python photos.py /path --pass faces           # Run face detection pass only
+  python facet.py /path --pass quality         # Run quality scoring pass only
+  python facet.py /path --pass tags            # Run tagging pass only
+  python facet.py /path --pass composition     # Run SAMP-Net composition pass only
+  python facet.py /path --pass faces           # Run face detection pass only
 
 Recompute Operations:
-  python photos.py --recompute-tags             # Re-tag photos using configured model
-  python photos.py --recompute-composition-cpu  # Rule-based composition (CPU only, fast)
-  python photos.py --recompute-composition-gpu  # SAMP-Net neural network (requires GPU)
+  python facet.py --recompute-tags             # Re-tag photos using configured model
+  python facet.py --recompute-composition-cpu  # Rule-based composition (CPU only, fast)
+  python facet.py --recompute-composition-gpu  # SAMP-Net neural network (requires GPU)
 
 Preview Mode:
-  python photos.py /path/to/photos --dry-run              # Preview scoring (default: 10 photos)
-  python photos.py /path/to/photos --dry-run --dry-run-count 20
+  python facet.py /path/to/photos --dry-run              # Preview scoring (default: 10 photos)
+  python facet.py /path/to/photos --dry-run --dry-run-count 20
 
 Database:
-  python photos.py --compute-recommendations    # Analyze database for scoring recommendations
-  python photos.py --compute-recommendations --apply-recommendations
-  python photos.py --compute-recommendations --simulate  # Preview projected score changes
+  python facet.py --compute-recommendations    # Analyze database for scoring recommendations
+  python facet.py --compute-recommendations --apply-recommendations
+  python facet.py --compute-recommendations --simulate  # Preview projected score changes
 
 Face Recognition:
-  python photos.py --extract-faces-gpu-incremental  # Extract faces for new photos only (requires GPU)
-  python photos.py --extract-faces-gpu-force        # Re-extract all faces (requires GPU)
-  python photos.py --cluster-faces-incremental      # Cluster preserving all existing persons
-  python photos.py --cluster-faces-incremental-named  # Cluster preserving only named persons
-  python photos.py --cluster-faces-force            # Full re-cluster, deletes all persons
-  python photos.py --refill-face-thumbnails-incremental  # Generate missing thumbnails
-  python photos.py --refill-face-thumbnails-force   # Regenerate ALL face thumbnails
-  python photos.py --recompute-blinks               # Recompute blink detection
-  python photos.py --recompute-burst                # Recompute burst detection
-  python photos.py --detect-duplicates              # Detect duplicate photos via pHash
+  python facet.py --extract-faces-gpu-incremental  # Extract faces for new photos only (requires GPU)
+  python facet.py --extract-faces-gpu-force        # Re-extract all faces (requires GPU)
+  python facet.py --cluster-faces-incremental      # Cluster preserving all existing persons
+  python facet.py --cluster-faces-incremental-named  # Cluster preserving only named persons
+  python facet.py --cluster-faces-force            # Full re-cluster, deletes all persons
+  python facet.py --refill-face-thumbnails-incremental  # Generate missing thumbnails
+  python facet.py --refill-face-thumbnails-force   # Regenerate ALL face thumbnails
+  python facet.py --recompute-blinks               # Recompute blink detection
+  python facet.py --recompute-burst                # Recompute burst detection
+  python facet.py --detect-duplicates              # Detect duplicate photos via pHash
 
 Export:
-  python photos.py --export-csv                 # Export to CSV (auto-named with timestamp)
-  python photos.py --export-json output.json    # Export to JSON with specific filename
+  python facet.py --export-csv                 # Export to CSV (auto-named with timestamp)
+  python facet.py --export-json output.json    # Export to JSON with specific filename
 
 Model Information:
-  python photos.py --list-models                # Show available models and requirements
+  python facet.py --list-models                # Show available models and requirements
 
 Configuration:
-  python photos.py --validate-categories        # Validate category configurations
-  python photos.py --config my_config.json /path/to/photos  # Use custom config
+  python facet.py --validate-categories        # Validate category configurations
+  python facet.py --config my_config.json /path/to/photos  # Use custom config
         '''
     )
 
@@ -298,7 +298,7 @@ Configuration:
             print("\nApplying recommendations...")
             backup = normalizer.apply_recommendations(recommendations, scorer.config)
             if backup:
-                print("\nRun 'python photos.py --recompute-average' to apply new weights to scores.")
+                print("\nRun 'python facet.py --recompute-average' to apply new weights to scores.")
         elif apply_recs:
             print("\nNo recommendations to apply.")
 

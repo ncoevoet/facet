@@ -15,14 +15,14 @@ Facet uses InsightFace for face detection and HDBSCAN for clustering faces into 
 During photo scanning, faces are automatically extracted:
 
 ```bash
-python photos.py /path/to/photos
+python facet.py /path/to/photos
 ```
 
 For existing photos without faces:
 
 ```bash
-python photos.py --extract-faces-gpu-incremental  # New photos only
-python photos.py --extract-faces-gpu-force        # All photos (deletes existing)
+python facet.py --extract-faces-gpu-incremental  # New photos only
+python facet.py --extract-faces-gpu-force        # All photos (deletes existing)
 ```
 
 ### Step 2: Cluster Faces
@@ -30,7 +30,7 @@ python photos.py --extract-faces-gpu-force        # All photos (deletes existing
 Group similar faces into persons:
 
 ```bash
-python photos.py --cluster-faces-incremental  # Preserves existing persons
+python facet.py --cluster-faces-incremental  # Preserves existing persons
 ```
 
 **Clustering modes:**
@@ -46,8 +46,8 @@ python photos.py --cluster-faces-incremental  # Preserves existing persons
 Find duplicate person clusters:
 
 ```bash
-python photos.py --suggest-person-merges
-python photos.py --suggest-person-merges --merge-threshold 0.7  # Stricter
+python facet.py --suggest-person-merges
+python facet.py --suggest-person-merges --merge-threshold 0.7  # Stricter
 ```
 
 Opens browser to merge suggestions page.
@@ -191,7 +191,7 @@ Lower threshold = stricter detection (more photos flagged as blinks).
 ### Recompute After Threshold Change
 
 ```bash
-python photos.py --recompute-blinks
+python facet.py --recompute-blinks
 ```
 
 Only processes photos with faces, no GPU needed.
@@ -210,10 +210,10 @@ Thumbnails are stored in the database for fast display.
 
 ```bash
 # Generate missing thumbnails
-python photos.py --refill-face-thumbnails-incremental
+python facet.py --refill-face-thumbnails-incremental
 
 # Regenerate ALL thumbnails
-python photos.py --refill-face-thumbnails-force
+python facet.py --refill-face-thumbnails-force
 ```
 
 Both commands use parallel processing for speed.

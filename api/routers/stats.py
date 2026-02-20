@@ -974,7 +974,7 @@ def api_stats_categories_recompute(
 ):
     """Recompute aggregate scores for a single category.
 
-    Runs ``python photos.py --recompute-category <name>`` as a subprocess.
+    Runs ``python facet.py --recompute-category <name>`` as a subprocess.
     """
     if not body.category:
         raise HTTPException(status_code=400, detail='Missing category')
@@ -982,7 +982,7 @@ def api_stats_categories_recompute(
     try:
         config_path = str(_CONFIG_PATH)
         result = subprocess.run(
-            [sys.executable, 'photos.py', '--recompute-category', body.category,
+            [sys.executable, 'facet.py', '--recompute-category', body.category,
              '--config', config_path],
             capture_output=True,
             text=True,
@@ -1005,7 +1005,7 @@ def api_stats_categories_recompute(
     except subprocess.TimeoutExpired:
         raise HTTPException(
             status_code=500,
-            detail=f'Recomputation timed out (>5 min). Run manually: python photos.py --recompute-category {body.category}',
+            detail=f'Recomputation timed out (>5 min). Run manually: python facet.py --recompute-category {body.category}',
         )
     except HTTPException:
         raise

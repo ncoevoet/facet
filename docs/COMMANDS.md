@@ -4,16 +4,16 @@
 
 | Command | Description |
 |---------|-------------|
-| `python photos.py /path` | Scan directory (multi-pass mode, auto VRAM detection) |
-| `python photos.py /path --force` | Re-scan already processed files |
-| `python photos.py /path --single-pass` | Force single-pass mode (all models at once) |
-| `python photos.py /path --pass quality` | Run quality scoring pass only |
-| `python photos.py /path --pass tags` | Run tagging pass only |
-| `python photos.py /path --pass composition` | Run composition pass only |
-| `python photos.py /path --pass faces` | Run face detection pass only |
-| `python photos.py /path --pass embeddings` | Run CLIP embeddings pass only |
-| `python photos.py /path --db custom.db` | Use custom database file |
-| `python photos.py /path --config my.json` | Use custom scoring config |
+| `python facet.py /path` | Scan directory (multi-pass mode, auto VRAM detection) |
+| `python facet.py /path --force` | Re-scan already processed files |
+| `python facet.py /path --single-pass` | Force single-pass mode (all models at once) |
+| `python facet.py /path --pass quality` | Run quality scoring pass only |
+| `python facet.py /path --pass tags` | Run tagging pass only |
+| `python facet.py /path --pass composition` | Run composition pass only |
+| `python facet.py /path --pass faces` | Run face detection pass only |
+| `python facet.py /path --pass embeddings` | Run CLIP embeddings pass only |
+| `python facet.py /path --db custom.db` | Use custom database file |
+| `python facet.py /path --config my.json` | Use custom scoring config |
 
 ### Processing Modes
 
@@ -31,12 +31,12 @@ updating specific metrics without full reprocessing.
 
 | Command | Description |
 |---------|-------------|
-| `python photos.py /path --dry-run` | Score 10 sample photos without saving |
-| `python photos.py /path --dry-run --dry-run-count 20` | Score 20 sample photos |
-| `python photos.py --export-csv` | Export all scores to timestamped CSV |
-| `python photos.py --export-csv output.csv` | Export to specific CSV file |
-| `python photos.py --export-json` | Export all scores to timestamped JSON |
-| `python photos.py --export-json output.json` | Export to specific JSON file |
+| `python facet.py /path --dry-run` | Score 10 sample photos without saving |
+| `python facet.py /path --dry-run --dry-run-count 20` | Score 20 sample photos |
+| `python facet.py --export-csv` | Export all scores to timestamped CSV |
+| `python facet.py --export-csv output.csv` | Export to specific CSV file |
+| `python facet.py --export-json` | Export all scores to timestamped JSON |
+| `python facet.py --export-json output.json` | Export to specific JSON file |
 
 ## Recompute Operations
 
@@ -44,39 +44,39 @@ These commands update specific metrics without full photo reprocessing.
 
 | Command | Description |
 |---------|-------------|
-| `python photos.py --recompute-average` | Recompute aggregate scores (creates backup) |
-| `python photos.py --recompute-category portrait` | Recompute scores for a single category only |
-| `python photos.py --recompute-tags` | Re-tag all photos using configured model |
-| `python photos.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
-| `python photos.py --recompute-composition-cpu` | Recompute composition (rule-based, CPU) |
-| `python photos.py --recompute-composition-gpu` | Rescan with SAMP-Net (GPU required) |
-| `python photos.py --recompute-blinks` | Recompute blink detection |
-| `python photos.py --recompute-burst` | Recompute burst detection groups |
-| `python photos.py --detect-duplicates` | Detect duplicate photos using pHash comparison |
-| `python photos.py --compute-recommendations` | Analyze database, show scoring summary |
-| `python photos.py --compute-recommendations --verbose` | Show detailed statistics |
-| `python photos.py --compute-recommendations --apply-recommendations` | Auto-apply scoring fixes |
-| `python photos.py --compute-recommendations --simulate` | Preview projected changes |
+| `python facet.py --recompute-average` | Recompute aggregate scores (creates backup) |
+| `python facet.py --recompute-category portrait` | Recompute scores for a single category only |
+| `python facet.py --recompute-tags` | Re-tag all photos using configured model |
+| `python facet.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
+| `python facet.py --recompute-composition-cpu` | Recompute composition (rule-based, CPU) |
+| `python facet.py --recompute-composition-gpu` | Rescan with SAMP-Net (GPU required) |
+| `python facet.py --recompute-blinks` | Recompute blink detection |
+| `python facet.py --recompute-burst` | Recompute burst detection groups |
+| `python facet.py --detect-duplicates` | Detect duplicate photos using pHash comparison |
+| `python facet.py --compute-recommendations` | Analyze database, show scoring summary |
+| `python facet.py --compute-recommendations --verbose` | Show detailed statistics |
+| `python facet.py --compute-recommendations --apply-recommendations` | Auto-apply scoring fixes |
+| `python facet.py --compute-recommendations --simulate` | Preview projected changes |
 
 ## Face Recognition
 
 | Command | Description |
 |---------|-------------|
-| `python photos.py --extract-faces-gpu-incremental` | Extract faces for new photos (GPU, parallel) |
-| `python photos.py --extract-faces-gpu-force` | Delete all faces and re-extract (GPU) |
-| `python photos.py --cluster-faces-incremental` | HDBSCAN clustering, preserves all persons (CPU) |
-| `python photos.py --cluster-faces-incremental-named` | Clustering, preserves only named persons (CPU) |
-| `python photos.py --cluster-faces-force` | Full re-clustering, deletes all persons (CPU) |
-| `python photos.py --suggest-person-merges` | Suggest potential person merges |
-| `python photos.py --suggest-person-merges --merge-threshold 0.7` | Use stricter threshold |
-| `python photos.py --refill-face-thumbnails-incremental` | Generate missing thumbnails (CPU, parallel) |
-| `python photos.py --refill-face-thumbnails-force` | Regenerate ALL thumbnails (CPU, parallel) |
+| `python facet.py --extract-faces-gpu-incremental` | Extract faces for new photos (GPU, parallel) |
+| `python facet.py --extract-faces-gpu-force` | Delete all faces and re-extract (GPU) |
+| `python facet.py --cluster-faces-incremental` | HDBSCAN clustering, preserves all persons (CPU) |
+| `python facet.py --cluster-faces-incremental-named` | Clustering, preserves only named persons (CPU) |
+| `python facet.py --cluster-faces-force` | Full re-clustering, deletes all persons (CPU) |
+| `python facet.py --suggest-person-merges` | Suggest potential person merges |
+| `python facet.py --suggest-person-merges --merge-threshold 0.7` | Use stricter threshold |
+| `python facet.py --refill-face-thumbnails-incremental` | Generate missing thumbnails (CPU, parallel) |
+| `python facet.py --refill-face-thumbnails-force` | Regenerate ALL thumbnails (CPU, parallel) |
 
 ## Thumbnail Management
 
 | Command | Description |
 |---------|-------------|
-| `python photos.py --fix-thumbnail-rotation` | Fix rotation of existing thumbnails using EXIF data |
+| `python facet.py --fix-thumbnail-rotation` | Fix rotation of existing thumbnails using EXIF data |
 
 Fixes rotation of existing thumbnails in the database by reading EXIF orientation
 from original files and rotating the stored thumbnail bytes. This is useful for
@@ -89,20 +89,20 @@ header from each file and the thumbnail from the database.
 
 | Command | Description |
 |---------|-------------|
-| `python photos.py --list-models` | Show available models and VRAM requirements |
+| `python facet.py --list-models` | Show available models and VRAM requirements |
 
 ## Weight Optimization (Pairwise Comparison)
 
 | Command | Description |
 |---------|-------------|
-| `python photos.py --comparison-stats` | Show pairwise comparison statistics |
-| `python photos.py --optimize-weights` | Optimize and save weights based on comparisons |
+| `python facet.py --comparison-stats` | Show pairwise comparison statistics |
+| `python facet.py --optimize-weights` | Optimize and save weights based on comparisons |
 
 ## Configuration
 
 | Command | Description |
 |---------|-------------|
-| `python photos.py --validate-categories` | Validate category configurations |
+| `python facet.py --validate-categories` | Validate category configurations |
 
 ## Tagging
 
@@ -151,30 +151,30 @@ Checks: Score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 
 | Command | Description |
 |---------|-------------|
-| `python run_api.py` | Start server on http://localhost:8000 (API + Angular SPA) |
-| `python run_api.py --production` | Production mode with 4 workers |
+| `python viewer.py` | Start server on http://localhost:5000 (API + Angular SPA) |
+| `python viewer.py --production` | Production mode with 4 workers |
 
 ## Common Workflows
 
 ### Initial Setup
 ```bash
-python photos.py /path/to/photos     # Score all photos (auto multi-pass)
-python photos.py --cluster-faces-incremental # Cluster faces
+python facet.py /path/to/photos     # Score all photos (auto multi-pass)
+python facet.py --cluster-faces-incremental # Cluster faces
 python database.py --migrate-tags    # Enable fast tag queries
-python run_api.py                    # View results
+python viewer.py                    # View results
 ```
 
 ### After Config Changes
 ```bash
-python photos.py --recompute-average                # Update all scores with new weights
-python photos.py --recompute-category portrait      # Update only one category (faster)
+python facet.py --recompute-average                # Update all scores with new weights
+python facet.py --recompute-category portrait      # Update only one category (faster)
 ```
 
 ### Face Recognition Setup
 ```bash
-python photos.py /path               # Extract faces during scan
-python photos.py --cluster-faces-incremental     # Group into persons
-python photos.py --suggest-person-merges         # Find duplicates
+python facet.py /path               # Extract faces during scan
+python facet.py --cluster-faces-incremental     # Group into persons
+python facet.py --suggest-person-merges         # Find duplicates
 # Use /persons in viewer to merge/rename
 ```
 
@@ -191,13 +191,13 @@ python database.py --migrate-user-preferences --user alice
 ### Switch Tagging Model
 ```bash
 # Edit scoring_config.json: "tagging": {"model": "clip"}
-python photos.py --recompute-tags     # Re-tag with new model
+python facet.py --recompute-tags     # Re-tag with new model
 ```
 
 ### Switch VRAM Profile
 ```bash
 # Edit scoring_config.json: "vram_profile": "auto"
 # Or use specific: "vram_profile": "8gb"
-python photos.py --compute-recommendations  # Check distributions
-python photos.py --recompute-average        # Apply new weights
+python facet.py --compute-recommendations  # Check distributions
+python facet.py --recompute-average        # Apply new weights
 ```

@@ -8,8 +8,8 @@ Facet has two distinct workloads:
 
 | Component | Hardware | Purpose |
 |-----------|----------|---------|
-| **Scoring** (`photos.py`) | GPU (6-24GB VRAM) or CPU (8GB+ RAM) | Analyze and score photos |
-| **Viewer** (`run_api.py`) | Any machine (low resources) | Serve the web gallery |
+| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) or CPU (8GB+ RAM) | Analyze and score photos |
+| **Viewer** (`viewer.py`) | Any machine (low resources) | Serve the web gallery |
 
 Only the viewer needs to run on the server. Scoring is done on your workstation, then the database is synced.
 
@@ -114,7 +114,7 @@ Then sync the viewer and exported database to the NAS:
 
 ```bash
 rsync -avz \
-  run_api.py config.py database.py tagger.py \
+  viewer.py config.py database.py tagger.py \
   scoring_config.json photo_scores_viewer.db \
   api/ client/dist/ db/ i18n/ \
   admin@your-synology-ip:/volume1/facet/
@@ -154,10 +154,10 @@ This overrides the global `performance` settings (which are tuned for scoring) w
 cd /volume1/facet
 
 # Test
-python3 run_api.py
+python3 viewer.py
 
 # Production (1 worker for 1GB RAM)
-uvicorn api:create_app --factory --host 0.0.0.0 --port 8000 --workers 1
+uvicorn api:create_app --factory --host 0.0.0.0 --port 5000 --workers 1
 ```
 
 Access at `http://your-synology-ip:8000`
@@ -171,7 +171,7 @@ DSM > Control Panel > Task Scheduler > Create > Triggered Task > User-defined sc
 - **Script:**
   ```bash
   cd /volume1/facet
-  /usr/local/bin/uvicorn api:create_app --factory --host 0.0.0.0 --port 8000 --workers 1 >> /var/log/facet.log 2>&1 &
+  /usr/local/bin/uvicorn api:create_app --factory --host 0.0.0.0 --port 5000 --workers 1 >> /var/log/facet.log 2>&1 &
   ```
 
 ### HTTPS
@@ -182,7 +182,7 @@ DSM > Control Panel > Login Portal > Advanced > Reverse Proxy:
 
 | Source | Destination |
 |--------|-------------|
-| `https://photos.yourdomain.com:443` | `http://localhost:8000` |
+| `https://photos.yourdomain.com:443` | `http://localhost:5000` |
 
 Pair with a Let's Encrypt certificate from DSM > Control Panel > Security > Certificate.
 
@@ -196,7 +196,7 @@ Plus-series NAS supports Docker (Container Manager). This is the cleanest approa
 FROM python:3.11-slim
 WORKDIR /app
 RUN pip install fastapi uvicorn pyjwt pillow
-COPY run_api.py config.py database.py tagger.py scoring_config.json ./
+COPY viewer.py config.py database.py tagger.py scoring_config.json ./
 COPY api/ api/
 COPY client/dist/ client/dist/
 COPY db/ db/
@@ -225,13 +225,13 @@ services:
 
 ```bash
 pip install fastapi uvicorn pyjwt pillow
-uvicorn api:create_app --factory --host 0.0.0.0 --port 8000 --workers 4
+uvicorn api:create_app --factory --host 0.0.0.0 --port 5000 --workers 4
 ```
 
 Or use the convenience wrapper:
 
 ```bash
-python run_api.py --production
+python viewer.py --production
 ```
 
 ### Uvicorn + Nginx
@@ -267,7 +267,7 @@ After=network.target
 [Service]
 User=www-data
 WorkingDirectory=/opt/facet
-ExecStart=/usr/local/bin/uvicorn api:create_app --factory --host 127.0.0.1 --port 8000 --workers 4
+ExecStart=/usr/local/bin/uvicorn api:create_app --factory --host 127.0.0.1 --port 5000 --workers 4
 Restart=always
 RestartSec=5
 
@@ -292,11 +292,11 @@ photos.yourdomain.com {
 ```
  Scoring Machine (GPU)                      Server / NAS
  ─────────────────────                      ─────────────
- python photos.py /photos
+ python facet.py /photos
          │
          ├─ database.py --export-viewer-db
          │       │
-         │       └─ photo_scores_viewer.db ──rsync──▶ run_api.py serves gallery
+         │       └─ photo_scores_viewer.db ──rsync──▶ viewer.py serves gallery
          └─ scoring_config.json ────────────────────▶ (with path_mapping +
                                                        viewer.performance)
                                                         │

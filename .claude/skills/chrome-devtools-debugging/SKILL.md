@@ -70,9 +70,9 @@ mcp__chrome-devtools__navigate_page({ type: "reload" });
 ```
 
 **Key URLs:**
-- Production (API + SPA): `http://localhost:8000` (via `python run_api.py`)
+- Production (API + SPA): `http://localhost:5000` (via `python viewer.py`)
 - Angular dev server: `http://localhost:4200` (via `npx ng serve`, proxies API to 8000)
-- API endpoints: `http://localhost:8000/api/*`
+- API endpoints: `http://localhost:5000/api/*`
 
 **Angular Router Links**: Clicking Angular `routerLink` elements via MCP `click` may not trigger navigation. Use `navigate_page` with the direct URL as a reliable fallback.
 

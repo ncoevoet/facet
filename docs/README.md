@@ -21,11 +21,11 @@ python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
 # Score photos
-python photos.py /path/to/photos
+python facet.py /path/to/photos
 
 # View results
-python run_api.py
-# Open http://localhost:8000
+python viewer.py
+# Open http://localhost:5000
 ```
 
 ## Documentation

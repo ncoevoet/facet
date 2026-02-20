@@ -48,7 +48,7 @@ Automatic face detection via InsightFace with 106-point landmarks, HDBSCAN clust
 
 <img src="docs/screenshots/filter-drawer.jpg" alt="Filter drawer" width="100%">
 
-Filter drawer with 50+ options organized in collapsible sections: display toggles (blinks, bursts, details, favorites, rejected), star rating, date range, score ranges (aggregate, aesthetic, sharpness, exposure, color, composition), composition pattern, face metrics (count, quality, eye sharpness, ratio, face sharpness), image metrics (dynamic range, contrast, noise, isolation, luminance, histogram spread, power point), and camera settings (camera, lens, ISO, f-stop, focal length). Active filters shown as removable chips.
+Filter sidebar with sections: display toggles (blinks, bursts, details, duplicates, rejected, favorites, monochrome), date range, score ranges (aggregate, aesthetic, sharpness, exposure, color, composition, contrast, noise, dynamic range), composition pattern, face metrics (count, quality, eye sharpness, face sharpness), and camera settings (camera, lens, ISO, aperture, focal length). Each active filter appears as a removable chip in a dedicated bar below the toolbar, with individual × buttons and a clear-all action.
 
 ### Statistics & Analytics
 
@@ -56,14 +56,14 @@ Filter drawer with 50+ options organized in collapsible sections: display toggle
 <td><img src="docs/screenshots/stats-gear.png" alt="Equipment stats" width="100%"></td>
 <td><img src="docs/screenshots/stats-categories.png" alt="Category analytics" width="100%"></td>
 </tr><tr>
-<td><img src="docs/screenshots/stats-settings.png" alt="Score distribution" width="100%"></td>
+<td><img src="docs/screenshots/stats-settings.png" alt="Shooting settings stats" width="100%"></td>
 <td><img src="docs/screenshots/stats-timeline.png" alt="Timeline stats" width="100%"></td>
 </tr><tr>
 <td><img src="docs/screenshots/stats-score.png" alt="Score analytics" width="100%"></td>
 <td><img src="docs/screenshots/stats-correlations.png" alt="Correlation charts" width="100%"></td>
 </tr></table>
 
-Interactive dashboards with five tabs: gear usage (cameras, lenses, body+lens combos), category analytics (breakdown, weights, correlations, overlap), score distribution (ISO, aperture, focal length, shutter speed), timeline heatmaps, and configurable correlation charts.
+Interactive dashboards with five tabs: **Gear** (cameras, lenses, body+lens combos, scores by camera/lens), **Categories** (breakdown, weights, correlations, overlap — each a sub-tab), **Score Distribution** (aggregate score histogram and distribution charts), **Timeline** (photos per month/year, day-of-week heatmap, top shooting days), and **Correlations** (configurable multi-metric charts across ISO, aperture, focal length, shutter speed, and more).
 
 ### Weight Tuning
 
@@ -71,7 +71,7 @@ Interactive dashboards with five tabs: gear usage (cameras, lenses, body+lens co
 <img src="docs/screenshots/weights_compare.png" alt="Weight correlation chart" width="100%">
 <img src="docs/screenshots/compare.jpg" alt="Weight tuning with pairwise comparison" width="100%">
 
-Per-category weight editor with live preview of top-scored photos and weight-vs-correlation charts. Side-by-side pairwise comparison with keyboard shortcuts and four selection strategies (uncertainty, boundary, active learning, random). The system learns from your choices and suggests per-category weight adjustments with prediction accuracy tracking.
+Per-category weight editor with live preview of top-scored photos and weight-vs-correlation charts. Side-by-side pairwise comparison with keyboard shortcuts and four selection strategies (uncertainty, boundary, active learning, random). The system learns from your choices and suggests per-category weight adjustments with prediction accuracy tracking. **Requires edition mode.**
 
 ### Mobile Responsive
 
@@ -90,11 +90,11 @@ pip install -r requirements.txt
 cd client && npm install && npx ng build && cd ..
 
 # Score photos (auto-detects VRAM, uses multi-pass mode)
-python photos.py /path/to/photos
+python facet.py /path/to/photos
 
 # Run the web viewer (FastAPI API + Angular SPA)
-python run_api.py
-# Open http://localhost:8000
+python viewer.py
+# Open http://localhost:5000
 ```
 
 VRAM is auto-detected at startup. Use `--single-pass` to keep all models loaded simultaneously on high-VRAM systems, or `--pass quality|tags|composition` to run a specific pass.
@@ -104,10 +104,10 @@ VRAM is auto-detected at startup. Use `--single-pass` to keep all models loaded 
 | Profile | GPU VRAM | Models | Best For |
 |---------|----------|--------|----------|
 | `auto` | Any | Auto-selected | **Default** — detects VRAM, picks best profile |
-| `legacy` | 2-4 GB | CLIP+MLP + SAMP-Net | Fast scanning, limited hardware |
-| `8gb` | 4-8 GB | CLIP+MLP + SAMP-Net + Qwen3-VL | Better tagging, mid-range GPUs |
-| `16gb` | 16 GB+ | TOPIQ + SAMP-Net + Qwen3-VL | Best aesthetic accuracy |
-| `24gb` | 24 GB+ | TOPIQ + Qwen2-VL + Qwen2.5-VL-7B | Best accuracy + VLM tagging |
+| `legacy` | No GPU (8 GB+ RAM) | CLIP+MLP + SAMP-Net + CLIP tagging (CPU) | CPU-only, no GPU required |
+| `8gb` | 6–14 GB | CLIP+MLP + SAMP-Net + Qwen3-VL | Better tagging, mid-range GPUs |
+| `16gb` | ~14 GB | TOPIQ + SAMP-Net + Qwen3-VL | Best aesthetic accuracy |
+| `24gb` | ~18 GB | TOPIQ + Qwen2-VL + Qwen2.5-VL-7B | Best accuracy + VLM tagging |
 
 TOPIQ (0.93 SRCC on KonIQ-10k) is the primary quality model for 16gb/24gb profiles. Lower profiles use CLIP+MLP (0.76 SRCC) with an upgrade path as hardware allows.
 

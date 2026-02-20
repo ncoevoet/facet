@@ -1115,7 +1115,7 @@ class PercentileNormalizer:
                 'explanation': f"Some photos have NULL values for key scoring metrics. This typically happens "
                                f"when photos were added before a metric was introduced, when scoring was "
                                f"interrupted, or when a model wasn't available during scanning. These photos "
-                               f"get incomplete aggregates. Run 'python photos.py /path --force' to rescan them.",
+                               f"get incomplete aggregates. Run 'python facet.py /path --force' to rescan them.",
                 'proposals': [{
                     'location': 'Command line',
                     'change': 'Run re-scan for photos with missing metrics',

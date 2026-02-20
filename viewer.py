@@ -2,8 +2,8 @@
 Entry point for the FastAPI API server.
 
 Usage:
-    python run_api.py                    # Development (auto-reload)
-    python run_api.py --production       # Production mode
+    python viewer.py                    # Development (auto-reload)
+    python viewer.py --production       # Production mode
 
 Or directly with uvicorn:
     uvicorn api:create_app --factory --reload --port 5000

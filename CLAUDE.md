@@ -28,65 +28,65 @@ Facet is a multi-dimensional photo analysis engine that examines every facet of 
 
 ```bash
 # Score photos in a directory (auto multi-pass mode, VRAM auto-detection)
-python photos.py /path/to/photos
+python facet.py /path/to/photos
 
 # Force single-pass mode (all models loaded at once, requires high VRAM)
-python photos.py /path/to/photos --single-pass
+python facet.py /path/to/photos --single-pass
 
 # Run specific pass only
-python photos.py /path/to/photos --pass quality      # TOPIQ only
-python photos.py /path/to/photos --pass tags         # Configured tagger only
-python photos.py /path/to/photos --pass composition  # SAMP-Net only
-python photos.py /path/to/photos --pass faces        # InsightFace only
-python photos.py /path/to/photos --pass embeddings   # CLIP embeddings only
+python facet.py /path/to/photos --pass quality      # TOPIQ only
+python facet.py /path/to/photos --pass tags         # Configured tagger only
+python facet.py /path/to/photos --pass composition  # SAMP-Net only
+python facet.py /path/to/photos --pass faces        # InsightFace only
+python facet.py /path/to/photos --pass embeddings   # CLIP embeddings only
 
 # Force re-scan of already processed files
-python photos.py /path/to/photos --force
+python facet.py /path/to/photos --force
 
 # Preview mode - score sample photos without saving (default: 10 photos)
-python photos.py /path/to/photos --dry-run
-python photos.py /path/to/photos --dry-run --dry-run-count 20
+python facet.py /path/to/photos --dry-run
+python facet.py /path/to/photos --dry-run --dry-run-count 20
 
 # Re-tag photos with configured tagger model
-python photos.py --recompute-tags
-python photos.py --recompute-tags-vlm    # Re-tag using VLM tagger
+python facet.py --recompute-tags
+python facet.py --recompute-tags-vlm    # Re-tag using VLM tagger
 
 # List available models and VRAM requirements
-python photos.py --list-models
+python facet.py --list-models
 
 # Recompute aggregate scores using stored embeddings (creates backup first)
-python photos.py --recompute-average
-python photos.py --recompute-category portrait  # Single category only (faster)
+python facet.py --recompute-average
+python facet.py --recompute-category portrait  # Single category only (faster)
 
 # Analyze database and show scoring recommendations
-python photos.py --compute-recommendations
-python photos.py --compute-recommendations --apply-recommendations  # Auto-apply scoring fixes
+python facet.py --compute-recommendations
+python facet.py --compute-recommendations --apply-recommendations  # Auto-apply scoring fixes
 
 # Export scores to CSV or JSON for external analysis
-python photos.py --export-csv                    # Auto-named with timestamp
-python photos.py --export-csv output.csv         # Specific filename
-python photos.py --export-json output.json
+python facet.py --export-csv                    # Auto-named with timestamp
+python facet.py --export-csv output.csv         # Specific filename
+python facet.py --export-json output.json
 
 # Face recognition commands
-python photos.py --extract-faces-gpu-incremental  # Extract faces for new photos only (requires GPU)
-python photos.py --extract-faces-gpu-force        # Re-extract all faces, deletes existing (requires GPU)
-python photos.py --cluster-faces-incremental      # Cluster faces, preserves existing persons (CPU)
-python photos.py --cluster-faces-force            # Full re-cluster, deletes all persons (CPU)
-python photos.py --refill-face-thumbnails-incremental  # Generate missing face thumbnails
-python photos.py --refill-face-thumbnails-force        # Regenerate ALL face thumbnails from original images
-python photos.py --recompute-blinks               # Recompute blink detection for photos with faces
-python photos.py --recompute-burst                # Recompute burst detection groups
-python photos.py --detect-duplicates              # Detect duplicate photos via pHash
+python facet.py --extract-faces-gpu-incremental  # Extract faces for new photos only (requires GPU)
+python facet.py --extract-faces-gpu-force        # Re-extract all faces, deletes existing (requires GPU)
+python facet.py --cluster-faces-incremental      # Cluster faces, preserves existing persons (CPU)
+python facet.py --cluster-faces-force            # Full re-cluster, deletes all persons (CPU)
+python facet.py --refill-face-thumbnails-incremental  # Generate missing face thumbnails
+python facet.py --refill-face-thumbnails-force        # Regenerate ALL face thumbnails from original images
+python facet.py --recompute-blinks               # Recompute blink detection for photos with faces
+python facet.py --recompute-burst                # Recompute burst detection groups
+python facet.py --detect-duplicates              # Detect duplicate photos via pHash
 
 # Composition commands
-python photos.py --recompute-composition-cpu  # Rule-based (CPU only, fast)
-python photos.py --recompute-composition-gpu  # SAMP-Net (requires GPU)
+python facet.py --recompute-composition-cpu  # Rule-based (CPU only, fast)
+python facet.py --recompute-composition-gpu  # SAMP-Net (requires GPU)
 
 # Thumbnail management
-python photos.py --fix-thumbnail-rotation  # Fix rotation of existing thumbnails using EXIF data
+python facet.py --fix-thumbnail-rotation  # Fix rotation of existing thumbnails using EXIF data
 
 # Configuration commands
-python photos.py --validate-categories  # Validate category configurations and show list
+python facet.py --validate-categories  # Validate category configurations and show list
 
 # Tag existing photos using stored CLIP embeddings
 python tag_existing.py
@@ -106,8 +106,8 @@ python database.py --optimize       # Run both VACUUM and ANALYZE for full optim
 python database.py --add-user USERNAME --role ROLE [--display-name NAME]
 python database.py --migrate-user-preferences --user USERNAME
 
-# Run web viewer (FastAPI + Angular on localhost:8000)
-python run_api.py
+# Run web viewer (FastAPI + Angular on localhost:5000)
+python viewer.py
 ```
 
 ## Dependencies
@@ -124,7 +124,7 @@ External tool: `exiftool` (command-line)
 
 ### Core Components
 
-**photos.py** - Main scoring engine with model management:
+**facet.py** - Main scoring engine with model management:
 - `ModelManager` - Loads models based on VRAM profile (legacy/8gb/16gb/24gb)
 - `Facet` - Orchestrator for SQLite DB and scoring coordination
 - `BatchProcessor` - Continuous streaming producer-consumer pattern for batched GPU inference
@@ -139,7 +139,7 @@ External tool: `exiftool` (command-line)
 
 **tagger.py** - CLIP-based semantic tagging with configurable vocabulary
 
-**run_api.py** - FastAPI server entry point (API + Angular SPA on port 8000)
+**viewer.py** - FastAPI server entry point (API + Angular SPA on port 5000)
 
 **scoring_config.json** - All configurable weights, thresholds, and model settings
 
@@ -154,12 +154,12 @@ External tool: `exiftool` (command-line)
 
 ### Data Flow
 
-1. `photos.py` scans directories for JPG/JPEG/CR2/CR3 files
+1. `facet.py` scans directories for JPG/JPEG/CR2/CR3 files
 2. BatchProcessor processes images with continuous GPU batching (no inter-batch gaps)
 3. Each image gets: CLIP embedding + tags, aesthetic score, face analysis, technical metrics, composition pattern
 4. Results stored in SQLite with 640x640 thumbnail BLOBs
 5. Post-processing groups images into bursts, flags best-of-burst
-6. `run_api.py` serves the API and Angular SPA with filtering by tag, person, camera, score
+6. `viewer.py` serves the API and Angular SPA with filtering by tag, person, camera, score
 
 ### Scoring Algorithm
 

@@ -7,8 +7,8 @@ FastAPI + Angular single-page application for browsing, filtering, and managing 
 ### Production
 
 ```bash
-python run_api.py
-# Open http://localhost:8000
+python viewer.py
+# Open http://localhost:5000
 ```
 
 This serves both the API and the pre-built Angular application on a single port.
@@ -16,7 +16,7 @@ This serves both the API and the pre-built Angular application on a single port.
 For higher throughput (4 Uvicorn workers):
 
 ```bash
-python run_api.py --production
+python viewer.py --production
 ```
 
 ### Development
@@ -25,8 +25,8 @@ Run the API server and Angular dev server separately:
 
 ```bash
 # Terminal 1: API server
-python run_api.py
-# API available at http://localhost:8000
+python viewer.py
+# API available at http://localhost:5000
 
 # Terminal 2: Angular dev server with hot reload
 cd client && npx ng serve
@@ -197,7 +197,7 @@ Access via header button or `/persons`:
 When `viewer.features.show_scan_button` is `true` and the user has `superadmin` role, a Scan button appears in the gallery header.
 
 - Select directories to scan from the modal
-- Scan runs as a background subprocess (`photos.py`)
+- Scan runs as a background subprocess (`facet.py`)
 - Only one scan at a time (global lock)
 - Progress displayed in a terminal-style output area
 
@@ -524,4 +524,4 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | Password not working | Check `viewer.password` (single-user) or verify password hash (multi-user) |
 | User can't see photos | Check `directories` in their user config and `shared_directories` |
 | Scan button missing | Requires `superadmin` role and `viewer.features.show_scan_button: true` |
-| Port 8000 in use | Change port in `run_api.py` or kill the conflicting process |
+| Port 5000 in use | Change port in `viewer.py` or kill the conflicting process |

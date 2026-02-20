@@ -31,7 +31,7 @@ Usage:
     result = optimizer.optimize_weights()
 
 CLI Usage:
-    python photos.py --optimize-weights  # Uses direct optimization
+    python facet.py --optimize-weights  # Uses direct optimization
 """
 
 import json
@@ -1461,6 +1461,6 @@ def run_weight_optimization(
     if backup_path:
         print(f"    Backup created: {backup_path}")
     print(f"    Config updated: {config_path}")
-    print("\n  Run 'python photos.py --recalculate' to apply new weights to scores.")
+    print("\n  Run 'python facet.py --recalculate' to apply new weights to scores.")
 
     print("\n" + "=" * 60)

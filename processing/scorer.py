@@ -1,7 +1,7 @@
 """
 Facet scoring engine.
 
-Facet class and supporting functions extracted from photos.py.
+Facet class and supporting functions extracted from facet.py.
 """
 import os
 import sys

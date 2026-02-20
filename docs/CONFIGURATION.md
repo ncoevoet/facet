@@ -1,6 +1,6 @@
 # Configuration Reference
 
-All settings are in `scoring_config.json`. After modifying, run `python photos.py --recompute-average` to update scores (no GPU needed).
+All settings are in `scoring_config.json`. After modifying, run `python facet.py --recompute-average` to update scores (no GPU needed).
 
 ## Table of Contents
 
@@ -474,8 +474,8 @@ use topiq (best accuracy, fits any VRAM >= 2GB)
 
 2. Re-score existing photos (optional):
    ```bash
-   python photos.py /path --pass quality
-   python photos.py --recompute-average
+   python facet.py /path --pass quality
+   python facet.py --recompute-average
    ```
 
 ---
@@ -595,20 +595,20 @@ When VRAM allows, multiple small models run together:
 
 ```bash
 # Default: auto multi-pass with optimal grouping
-python photos.py /path/to/photos
+python facet.py /path/to/photos
 
 # Force single-pass (all models loaded at once)
-python photos.py /path --single-pass
+python facet.py /path --single-pass
 
 # Run specific pass only
-python photos.py /path --pass quality      # TOPIQ only
-python photos.py /path --pass tags         # Configured tagger only
-python photos.py /path --pass composition  # SAMP-Net only
-python photos.py /path --pass faces        # InsightFace only
-python photos.py /path --pass embeddings   # CLIP embeddings only
+python facet.py /path --pass quality      # TOPIQ only
+python facet.py /path --pass tags         # Configured tagger only
+python facet.py /path --pass composition  # SAMP-Net only
+python facet.py /path --pass faces        # InsightFace only
+python facet.py /path --pass embeddings   # CLIP embeddings only
 
 # List available models
-python photos.py --list-models
+python facet.py --list-models
 ```
 
 ---
@@ -651,7 +651,7 @@ Detect duplicate photos globally using perceptual hash (pHash) comparison.
 |---------|---------|-------------|
 | `similarity_threshold_percent` | `90` | pHash similarity threshold (90% = Hamming distance <= 6 of 64 bits) |
 
-Run `python photos.py --detect-duplicates` to detect and group duplicates.
+Run `python facet.py --detect-duplicates` to detect and group duplicates.
 
 ---
 
@@ -826,8 +826,8 @@ Configured via `models.profiles.*.tagging_model`:
 ### Re-tagging Photos
 
 ```bash
-python photos.py --recompute-tags       # Re-tag using configured model per profile
-python photos.py --recompute-tags-vlm   # Re-tag using VLM tagger
+python facet.py --recompute-tags       # Re-tag using configured model per profile
+python facet.py --recompute-tags-vlm   # Re-tag using VLM tagger
 ```
 
 ---

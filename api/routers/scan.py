@@ -18,7 +18,7 @@ from api.config import VIEWER_CONFIG, get_all_scan_directories, get_user_directo
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
 
-_PHOTOS_SCRIPT = os.path.join(os.path.dirname(__file__), '..', '..', 'photos.py')
+_FACET_SCRIPT = os.path.join(os.path.dirname(__file__), '..', '..', 'facet.py')
 
 # Global scan state (only one scan at a time)
 _scan_lock = threading.Lock()
@@ -78,7 +78,7 @@ async def start_scan(
 
         # Rebuild from canonical server-side list so subprocess args are provably server-origin
         validated_dirs = [d for d in get_all_scan_directories() if d in set(directories)]
-        cmd = [sys.executable, _PHOTOS_SCRIPT] + validated_dirs
+        cmd = [sys.executable, _FACET_SCRIPT] + validated_dirs
 
         proc = subprocess.Popen(
             cmd,

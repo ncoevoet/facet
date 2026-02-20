@@ -200,7 +200,7 @@ class BatchProcessor:
                 # Get aesthetic/quality results from shared batch method
                 aesthetic, clip_embedding, quality_score, scoring_model = aesthetic_results[i]
 
-                # Generate semantic tags from CLIP embedding (same as photos.py)
+                # Generate semantic tags from CLIP embedding (same as facet.py)
                 tags = None
                 if self.scorer.tagger is not None and clip_embedding is not None:
                     threshold, max_tags = get_tag_params(self.scorer.config)

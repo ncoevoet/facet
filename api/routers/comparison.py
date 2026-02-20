@@ -253,13 +253,13 @@ async def api_recalculate(
 ):
     """Recalculate all categories and aggregate scores.
 
-    Runs the same logic as ``python photos.py --recompute-average``.
+    Runs the same logic as ``python facet.py --recompute-average``.
     """
     try:
         config_path = str(_CONFIG_PATH)
 
         result = subprocess.run(
-            [sys.executable, 'photos.py', '--recompute-average', '--config', config_path],
+            [sys.executable, 'facet.py', '--recompute-average', '--config', config_path],
             capture_output=True,
             text=True,
             timeout=300,
@@ -280,7 +280,7 @@ async def api_recalculate(
     except subprocess.TimeoutExpired:
         raise HTTPException(
             status_code=500,
-            detail='Recalculation timed out (>5 minutes). Run manually with: python photos.py --recompute-average',
+            detail='Recalculation timed out (>5 minutes). Run manually with: python facet.py --recompute-average',
         )
     except HTTPException:
         raise
@@ -341,7 +341,7 @@ async def api_update_weights(
         if body.recalculate:
             try:
                 recalc_result = subprocess.run(
-                    [sys.executable, 'photos.py', '--recompute-category', body.category,
+                    [sys.executable, 'facet.py', '--recompute-category', body.category,
                      '--config', config_path],
                     capture_output=True,
                     text=True,
