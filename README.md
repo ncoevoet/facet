@@ -36,7 +36,6 @@ Scores every photo using [TOPIQ](https://github.com/chaofengc/IQA-PyTorch) (0.93
 ### Face Recognition & Person Management
 
 <img src="docs/screenshots/manage-persons.jpg" alt="Person management" width="100%">
-<img src="docs/screenshots/person-gallery.jpg" alt="Person gallery" width="100%">
 <img src="docs/screenshots/person-merge.png" alt="Person merge" width="100%">
 
 Automatic face detection via InsightFace with 106-point landmarks, HDBSCAN clustering into persons, blink detection (EAR-based), and a management UI for merging, renaming, and organizing person clusters. Supports GPU-accelerated clustering via cuML for large libraries.
@@ -45,7 +44,15 @@ Automatic face detection via InsightFace with 106-point landmarks, HDBSCAN clust
 
 <img src="docs/screenshots/filter-drawer.jpg" alt="Filter drawer" width="100%">
 
-Filter sidebar with sections: display toggles (blinks, bursts, details, duplicates, rejected, favorites, monochrome), date range, score ranges (aggregate, aesthetic, sharpness, exposure, color, composition, contrast, noise, dynamic range), composition pattern, face metrics (count, quality, eye sharpness, face sharpness), and camera settings (camera, lens, ISO, aperture, focal length). Each active filter appears as a removable chip in a dedicated bar below the toolbar, with individual × buttons and a clear-all action.
+Filter sidebar with sections: 
+display toggles (blinks, bursts, details, duplicates, rejected, favorites, monochrome), 
+date range, 
+score ranges (aggregate, aesthetic, sharpness, exposure, color, composition, contrast, noise, dynamic range), 
+composition pattern, 
+face metrics (count, quality, eye sharpness, face sharpness), 
+and camera settings (camera, lens, ISO, aperture, focal length). 
+
+Each active filter appears as a removable chip in a dedicated bar below the toolbar, with individual × buttons and a clear-all action.
 
 ### Statistics & Analytics
 
