@@ -195,14 +195,6 @@ def get_comparison_mode_settings():
 
 # --- CACHES ---
 
-# Simple TTL cache for filter options
-_filter_options_cache = {'data': None, 'expires': 0}
-
-
-def invalidate_filter_cache():
-    """Invalidate filter options cache so new data appears on next request."""
-    _filter_options_cache['data'] = None
-
 # Cache for existing columns (loaded once at startup, rarely changes)
 _existing_columns_cache = None
 

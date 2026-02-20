@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.auth import CurrentUser, require_edition, require_authenticated, get_optional_user
-from api.config import VIEWER_CONFIG, invalidate_filter_cache
+from api.config import VIEWER_CONFIG
 from api.database import get_db_connection
 from api.db_helpers import (
     get_existing_columns, split_photo_tags,
@@ -218,7 +218,6 @@ async def rename_person(
         conn.commit()
     finally:
         conn.close()
-    invalidate_filter_cache()
     return {"success": True, "name": name or f"Person {person_id}"}
 
 
@@ -262,7 +261,7 @@ async def _do_merge(source_id: int, target_id: int):
         conn.execute("DELETE FROM persons WHERE id = ?", (source_id,))
 
         conn.commit()
-        invalidate_filter_cache()
+
         return {"success": True, "new_count": count}
     except HTTPException:
         raise
@@ -310,7 +309,7 @@ async def merge_persons_batch(
         )
         conn.commit()
 
-        invalidate_filter_cache()
+
         return {
             "success": True,
             "target_id": body.target_id,
@@ -341,7 +340,7 @@ async def delete_person(
         conn.execute("DELETE FROM persons WHERE id = ?", (person_id,))
 
         conn.commit()
-        invalidate_filter_cache()
+
         return {"success": True}
     except Exception as e:
         conn.rollback()
@@ -375,7 +374,7 @@ async def delete_persons_batch(
         )
 
         conn.commit()
-        invalidate_filter_cache()
+
         return {"success": True, "deleted_count": len(body.person_ids)}
     except Exception as e:
         conn.rollback()

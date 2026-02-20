@@ -387,6 +387,9 @@ export class GalleryStore {
 
   /** Load photos based on current filters (replaces list) */
   async loadPhotos(): Promise<void> {
+    const prevPhotos = this.photos();
+    const prevTotal = this.total();
+    const prevHasMore = this.hasMore();
     this.photos.set([]);
     this.loading.set(true);
     try {
@@ -397,7 +400,10 @@ export class GalleryStore {
       this.total.set(res.total);
       this.hasMore.set(res.has_more);
     } catch {
-      // Network error — keep current state
+      // Network error — restore previous state
+      this.photos.set(prevPhotos);
+      this.total.set(prevTotal);
+      this.hasMore.set(prevHasMore);
     } finally {
       this.loading.set(false);
     }

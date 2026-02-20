@@ -15,7 +15,9 @@ const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   color_score: null,
   exposure_score: null,
   quality_score: null,
+  topiq_score: null,
   top_picks_score: null,
+  isolation_bonus: null,
   face_count: 0,
   face_ratio: 0,
   eye_sharpness: null,
@@ -33,6 +35,7 @@ const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   dynamic_range_stops: null,
   mean_saturation: null,
   mean_luminance: null,
+  histogram_spread: null,
   composition_pattern: null,
   power_point_score: null,
   leading_lines_score: null,
@@ -99,6 +102,31 @@ describe('PhotoTooltipComponent', () => {
     fixture.detectChanges();
     const tooltip = fixture.debugElement.children[0].componentInstance as PhotoTooltipComponent;
     expect(tooltip.isLandscape()).toBe(false);
+  });
+
+  it('renders face_ratio as percentage (value * 100)', () => {
+    // API returns face_ratio as 0-1 fraction; template multiplies by 100 for display
+    fixture.componentInstance.photo.set(makePhoto({ face_count: 1, face_quality: 8.5, face_ratio: 0.35 }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('35%');
+  });
+
+  it('renders face_confidence as percentage (value * 100)', () => {
+    fixture.componentInstance.photo.set(makePhoto({ face_count: 1, face_quality: 8.5, face_confidence: 0.92 }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('92%');
+  });
+
+  it('renders mean_saturation as percentage (value * 100)', () => {
+    fixture.componentInstance.photo.set(makePhoto({ mean_saturation: 0.47 }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('47%');
+  });
+
+  it('renders mean_luminance as percentage (value * 100)', () => {
+    fixture.componentInstance.photo.set(makePhoto({ mean_luminance: 0.62 }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('62%');
   });
 });
 

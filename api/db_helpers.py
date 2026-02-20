@@ -5,11 +5,9 @@ Database helper functions for the FastAPI API server.
 
 import hashlib
 import time
-import sqlite3
-from contextlib import closing
 from config import ScoringConfig
 from api.config import (
-    VIEWER_CONFIG, _filter_options_cache, _existing_columns_cache,
+    _existing_columns_cache,
     _photo_tags_available, _count_cache, COUNT_CACHE_TTL,
     is_multi_user_enabled, get_user_directories
 )
@@ -170,88 +168,6 @@ def get_cached_count(conn, where_str, sql_params, from_clause="photos"):
 
     return count
 
-
-def get_filter_options():
-    """Fetch unique values for dropdowns directly from the data."""
-    if _filter_options_cache['data'] and time.time() < _filter_options_cache['expires']:
-        return _filter_options_cache['data']
-
-    with closing(get_db_connection()) as conn:
-        options = {'cameras': [], 'lenses': []}
-        for row in conn.execute("""
-            SELECT DISTINCT camera_model, lens_model FROM photos
-            WHERE camera_model IS NOT NULL OR lens_model IS NOT NULL
-        """).fetchall():
-            if row[0] and row[0] not in options['cameras']:
-                options['cameras'].append(row[0])
-            if row[1] and row[1] not in options['lenses']:
-                options['lenses'].append(row[1])
-        options['cameras'].sort()
-        options['lenses'].sort()
-
-        try:
-            max_tags = VIEWER_CONFIG['dropdowns']['max_tags']
-            tag_query = """
-                WITH RECURSIVE split_tags(tag, rest) AS (
-                    SELECT '', tags || ',' FROM photos WHERE tags IS NOT NULL AND tags != ''
-                    UNION ALL
-                    SELECT
-                        TRIM(SUBSTR(rest, 1, INSTR(rest, ',') - 1)),
-                        SUBSTR(rest, INSTR(rest, ',') + 1)
-                    FROM split_tags
-                    WHERE rest != ''
-                )
-                SELECT tag, COUNT(*) as cnt
-                FROM split_tags
-                WHERE tag != ''
-                GROUP BY tag
-                ORDER BY cnt DESC, tag ASC
-                LIMIT ?
-            """
-            rows = conn.execute(tag_query, (max_tags,)).fetchall()
-            options['tags'] = [(row[0], row[1]) for row in rows]
-        except (sqlite3.Error, AttributeError):
-            options['tags'] = []
-
-        try:
-            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='persons'")
-            if cursor.fetchone():
-                min_photos = VIEWER_CONFIG['dropdowns'].get('min_photos_for_person', 1)
-                persons = conn.execute("""
-                    SELECT p.id, p.name, p.representative_face_id,
-                           COUNT(DISTINCT f.photo_path) as photo_count
-                    FROM persons p
-                    JOIN faces f ON f.person_id = p.id
-                    GROUP BY p.id
-                    HAVING photo_count >= ?
-                    ORDER BY photo_count DESC
-                """, (min_photos,)).fetchall()
-                options['persons'] = [(r[0], r[1], r[2], r[3]) for r in persons]
-            else:
-                options['persons'] = []
-        except sqlite3.Error:
-            options['persons'] = []
-
-        try:
-            existing_cols = get_existing_columns(conn)
-            if 'composition_pattern' in existing_cols:
-                rows = conn.execute("""
-                    SELECT composition_pattern, COUNT(*) as count
-                    FROM photos
-                    WHERE composition_pattern IS NOT NULL AND composition_pattern != ''
-                    GROUP BY composition_pattern
-                    ORDER BY count DESC
-                """).fetchall()
-                options['composition_patterns'] = [(r[0], r[1]) for r in rows]
-            else:
-                options['composition_patterns'] = []
-        except sqlite3.Error:
-            options['composition_patterns'] = []
-
-    _filter_options_cache['data'] = options
-    _filter_options_cache['expires'] = time.time() + VIEWER_CONFIG['cache_ttl_seconds']
-
-    return options
 
 
 def update_person_face_count(conn, person_id):

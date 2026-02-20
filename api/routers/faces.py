@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from api.auth import CurrentUser, require_edition, require_auth
-from api.config import invalidate_filter_cache, is_multi_user_enabled, _stats_cache
+from api.config import is_multi_user_enabled, _stats_cache
 from api.database import get_db_connection
 from api.db_helpers import update_person_face_count
 
@@ -85,7 +85,7 @@ async def api_set_person_avatar(
         """, (body.face_id, face['face_thumbnail'], person_id))
 
         conn.commit()
-        invalidate_filter_cache()
+
         return {'success': True}
     except HTTPException:
         raise
@@ -138,7 +138,7 @@ async def api_assign_face(
         update_person_face_count(conn, body.person_id)
 
         conn.commit()
-        invalidate_filter_cache()
+
         return {'success': True}
     except HTTPException:
         raise
@@ -173,7 +173,7 @@ async def api_assign_all_faces(
         update_person_face_count(conn, body.person_id)
 
         conn.commit()
-        invalidate_filter_cache()
+
         return {'success': True, 'assigned_count': len(face_ids)}
     except HTTPException:
         raise
@@ -218,7 +218,7 @@ async def api_unassign_person(
             person_deleted = True
 
         conn.commit()
-        invalidate_filter_cache()
+
 
         return {
             'success': True,

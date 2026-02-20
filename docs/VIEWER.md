@@ -123,9 +123,15 @@ python database.py --migrate-user-preferences --user alice
 | Category | Filters |
 |----------|---------|
 | **Date** | Start and end date |
-| **Scores** | Aggregate, aesthetic, sharpness, exposure, face metrics |
-| **Metrics** | Dynamic range, contrast, noise, composition pattern, tags |
-| **Camera Settings** | ISO, f-stop, focal length ranges |
+| **Scores** | Aggregate, aesthetic, TOPIQ score, quality score |
+| **Face Metrics** | Face quality, eye sharpness, face sharpness, face ratio, face confidence, face count |
+| **Composition** | Composition score, power points, leading lines, isolation, composition pattern |
+| **Technical** | Sharpness, contrast, dynamic range, noise level |
+| **Color** | Color score, saturation, luminance, histogram spread |
+| **Exposure** | Exposure score |
+| **User Ratings** | Star rating |
+| **Camera Settings** | ISO, aperture (f-stop range slider), focal length (range slider) |
+| **Content** | Tags, monochrome toggle |
 
 ### Composition Patterns
 
@@ -136,12 +142,12 @@ Filter by SAMP-Net detected patterns:
 
 ## Sorting
 
-22+ sortable columns grouped by category:
+25+ sortable columns grouped by category:
 
 | Group | Columns |
 |-------|---------|
-| **General** | Aggregate Score, Aesthetic, Date Taken, Star Rating |
-| **Face Metrics** | Face Quality, Eye Sharpness, Face Sharpness, Face Ratio, Face Count |
+| **General** | Aggregate Score, Aesthetic, TOPIQ Score, Date Taken, Star Rating, Favorites, Rejected |
+| **Face Metrics** | Face Quality, Eye Sharpness, Face Sharpness, Face Ratio, Face Confidence, Face Count |
 | **Technical** | Tech Sharpness, Contrast, Noise Level |
 | **Color** | Color Score, Saturation |
 | **Exposure** | Exposure Score, Mean Luminance, Histogram Spread, Dynamic Range |
@@ -167,6 +173,15 @@ Filter by SAMP-Net detected patterns:
 - **Hide Blinks** - Filter out photos with detected blinks
 - **Best of Burst** - Show only top-scored photo from each burst
 - **Infinite Scroll** - Photos load as you scroll
+
+### Similar Photos
+
+Click the "Similar" button on any photo to open the similar photos panel. Results use a two-pass algorithm:
+- **Pass 1** - Perceptual hash (pHash) hamming distance for fast visual similarity
+- **Pass 2** - CLIP embedding cosine similarity for semantic matching
+- Blended score: `pHash × 0.7 + CLIP × 0.3`
+
+Use the **similarity threshold slider** (0–90%) to control how strict the matching is. The panel supports infinite scroll for large result sets.
 
 ### Filter Chips
 
@@ -256,7 +271,7 @@ Click "Compare" button in gallery header.
 
 ## EXIF Statistics
 
-The Stats page (`/stats`) provides analytics across 5 tabs.
+The Stats page (`/stats`) provides analytics across 5 tabs. Use the **category** and **date range** selectors in the toolbar to filter all charts to a specific subset of your library.
 
 ### Tabs
 
@@ -436,6 +451,8 @@ Filter dropdowns load on-demand via API:
 - `/api/filter_options/persons`
 - `/api/filter_options/patterns`
 - `/api/filter_options/categories`
+- `/api/filter_options/apertures`
+- `/api/filter_options/focal_lengths`
 
 ## API Endpoints
 
@@ -476,6 +493,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/filter_options/persons` | Persons with counts |
 | `GET /api/filter_options/patterns` | Composition patterns |
 | `GET /api/filter_options/categories` | Categories with counts |
+| `GET /api/filter_options/apertures` | Distinct f-stop values with counts |
+| `GET /api/filter_options/focal_lengths` | Distinct focal lengths with counts |
 
 ### Persons
 
