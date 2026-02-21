@@ -934,6 +934,7 @@
     "sort_score": "Score de tri",
     "score_range": "Plage de score",
     "aesthetic_range": "Plage esthetique",
+    "topiq_range": "Plage TOPIQ",
     "face_count_range": "Nombre de visages",
     "face_quality_range": "Plage qualite visage",
     "composition_range": "Plage composition",

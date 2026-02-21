@@ -273,6 +273,31 @@
   }
 
 
+  <!-- Active filter chips bar (gallery route only, when filters are active) -->
+  @if (auth.isAuthenticated() && isGalleryRoute() && activeFilterChips().length) {
+    <div class="flex items-center gap-2 flex-wrap px-4 py-2 bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]">
+      @for (chip of activeFilterChips(); track chip.id) {
+        <div class="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
+          <span class="opacity-70">{{ chip.labelKey | translate }}</span>
+          @if (chip.value) {
+            <span class="mx-0.5">{{ chip.value }}</span>
+          }
+          <button
+            class="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black/20 transition-colors"
+            (click)="clearFilterChip(chip)"
+          >
+            <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
+          </button>
+        </div>
+      }
+      @if (activeFilterChips().length > 1) {
+        <button class="text-xs opacity-60 hover:opacity-100 transition-opacity" (click)="store.resetFilters()">
+          {{ 'gallery.reset_filters' | translate }}
+        </button>
+      }
+    </div>
+  }
+
   <!-- Main content -->
   <main class="flex-1 overflow-auto pb-14 lg:pb-0">
     <router-outlet />

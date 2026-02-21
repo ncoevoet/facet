@@ -911,6 +911,7 @@
     "sort_score": "Sortierbewertung",
     "score_range": "Wertungsbereich",
     "aesthetic_range": "Ästhetikbereich",
+    "topiq_range": "TOPIQ-Bereich",
     "face_count_range": "Gesichteranzahl",
     "face_quality_range": "Gesichtsqualitätsbereich",
     "composition_range": "Kompositionsbereich",

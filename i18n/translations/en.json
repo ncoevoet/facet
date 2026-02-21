@@ -935,6 +935,7 @@
     "sort_score": "Sort Score",
     "score_range": "Score Range",
     "aesthetic_range": "Aesthetic Range",
+    "topiq_range": "TOPIQ Range",
     "face_count_range": "Face Count",
     "face_quality_range": "Face Quality Range",
     "composition_range": "Composition Range",

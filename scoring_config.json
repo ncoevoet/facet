@@ -369,7 +369,8 @@
           "dewdrop",
           "crystal",
           "texture_macro",
-          "pollen"
+          "pollen",
+          "flower"
         ],
         "tag_match_mode": "any"
       },

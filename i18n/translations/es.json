@@ -911,6 +911,7 @@
     "sort_score": "Puntuación de ordenación",
     "score_range": "Rango de puntuación",
     "aesthetic_range": "Rango de estética",
+    "topiq_range": "Rango TOPIQ",
     "face_count_range": "Cantidad de rostros",
     "face_quality_range": "Rango de calidad facial",
     "composition_range": "Rango de composición",

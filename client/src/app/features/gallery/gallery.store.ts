@@ -499,6 +499,7 @@ export class GalleryStore {
       hide_duplicates: defaults?.hide_duplicates ?? true,
       hide_rejected: defaults?.hide_rejected ?? true,
     });
+    saveDisplayOptionsToStorage(this.filters());
     this.syncUrl();
     await this.loadPhotos();
   }

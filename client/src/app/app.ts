@@ -19,7 +19,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { AuthService } from './core/services/auth.service';
 import { I18nService } from './core/services/i18n.service';
-import { GalleryStore } from './features/gallery/gallery.store';
+import { GalleryStore, GalleryFilters } from './features/gallery/gallery.store';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { TranslatePipe } from './shared/pipes/translate.pipe';
@@ -135,6 +135,94 @@ export class App implements OnInit {
     if (!ids.size) return [];
     return this.store.persons().filter(p => ids.has(String(p.id)));
   });
+
+  private static readonly RANGE_CHIPS: { minKey: string; maxKey: string; labelKey: string }[] = [
+    { minKey: 'min_score', maxKey: 'max_score', labelKey: 'gallery.score_range' },
+    { minKey: 'min_aesthetic', maxKey: 'max_aesthetic', labelKey: 'gallery.aesthetic_range' },
+    { minKey: 'min_quality_score', maxKey: 'max_quality_score', labelKey: 'gallery.quality_score_range' },
+    { minKey: 'min_topiq', maxKey: 'max_topiq', labelKey: 'gallery.topiq_range' },
+    { minKey: 'min_face_quality', maxKey: 'max_face_quality', labelKey: 'gallery.face_quality_range' },
+    { minKey: 'min_eye_sharpness', maxKey: 'max_eye_sharpness', labelKey: 'gallery.eye_sharpness_range' },
+    { minKey: 'min_face_sharpness', maxKey: 'max_face_sharpness', labelKey: 'gallery.face_sharpness_range' },
+    { minKey: 'min_face_ratio', maxKey: 'max_face_ratio', labelKey: 'gallery.face_ratio_range' },
+    { minKey: 'min_face_count', maxKey: 'max_face_count', labelKey: 'gallery.face_count_range' },
+    { minKey: 'min_face_confidence', maxKey: 'max_face_confidence', labelKey: 'gallery.face_confidence_range' },
+    { minKey: 'min_composition', maxKey: 'max_composition', labelKey: 'gallery.composition_range' },
+    { minKey: 'min_sharpness', maxKey: 'max_sharpness', labelKey: 'gallery.sharpness_range' },
+    { minKey: 'min_exposure', maxKey: 'max_exposure', labelKey: 'gallery.exposure_range' },
+    { minKey: 'min_color', maxKey: 'max_color', labelKey: 'gallery.color_range' },
+    { minKey: 'min_contrast', maxKey: 'max_contrast', labelKey: 'gallery.contrast_range' },
+    { minKey: 'min_noise', maxKey: 'max_noise', labelKey: 'gallery.noise_range' },
+    { minKey: 'min_dynamic_range', maxKey: 'max_dynamic_range', labelKey: 'gallery.dynamic_range' },
+    { minKey: 'min_saturation', maxKey: 'max_saturation', labelKey: 'gallery.saturation_range' },
+    { minKey: 'min_luminance', maxKey: 'max_luminance', labelKey: 'gallery.luminance_range' },
+    { minKey: 'min_histogram_spread', maxKey: 'max_histogram_spread', labelKey: 'gallery.histogram_range' },
+    { minKey: 'min_power_point', maxKey: 'max_power_point', labelKey: 'gallery.power_point_range' },
+    { minKey: 'min_leading_lines', maxKey: 'max_leading_lines', labelKey: 'gallery.leading_lines_range' },
+    { minKey: 'min_isolation', maxKey: 'max_isolation', labelKey: 'gallery.isolation_range' },
+    { minKey: 'min_star_rating', maxKey: 'max_star_rating', labelKey: 'gallery.star_rating_range' },
+    { minKey: 'min_iso', maxKey: 'max_iso', labelKey: 'gallery.iso_range' },
+    { minKey: 'min_aperture', maxKey: 'max_aperture', labelKey: 'gallery.aperture_range' },
+    { minKey: 'min_focal_length', maxKey: 'max_focal_length', labelKey: 'gallery.focal_range' },
+    { minKey: 'date_from', maxKey: 'date_to', labelKey: 'gallery.sidebar.date' },
+  ];
+
+  activeFilterChips = computed<{ id: string; labelKey: string; value: string; clearKeys: string[] }[]>(() => {
+    if (!this.isGalleryRoute()) return [];
+    const f = this.store.filters();
+    const chips: { id: string; labelKey: string; value: string; clearKeys: string[] }[] = [];
+
+    // Simple string/select filters
+    if (f.tag) chips.push({ id: 'tag', labelKey: 'gallery.tag', value: f.tag, clearKeys: ['tag'] });
+    if (f.search) chips.push({ id: 'search', labelKey: 'gallery.search_placeholder', value: f.search, clearKeys: ['search'] });
+    if (f.camera) chips.push({ id: 'camera', labelKey: 'gallery.camera', value: f.camera, clearKeys: ['camera'] });
+    if (f.lens) chips.push({ id: 'lens', labelKey: 'gallery.lens', value: f.lens, clearKeys: ['lens'] });
+    if (f.composition_pattern) chips.push({ id: 'composition_pattern', labelKey: 'gallery.composition_pattern', value: f.composition_pattern, clearKeys: ['composition_pattern'] });
+
+    // Person filter — one chip per selected person
+    if (f.person_id) {
+      const ids = f.person_id.split(',').filter(Boolean);
+      for (const pid of ids) {
+        const person = this.store.persons().find(p => String(p.id) === pid);
+        const name = person?.name || `#${pid}`;
+        chips.push({ id: `person_${pid}`, labelKey: 'gallery.person', value: name, clearKeys: [`person_${pid}`] });
+      }
+    }
+
+    // Boolean filters
+    if (f.favorites_only) chips.push({ id: 'favorites_only', labelKey: 'gallery.favorites_only', value: '', clearKeys: ['favorites_only'] });
+    if (f.is_monochrome) chips.push({ id: 'is_monochrome', labelKey: 'gallery.monochrome_only', value: '', clearKeys: ['is_monochrome'] });
+
+    // Range/date filter pairs
+    for (const { minKey, maxKey, labelKey } of App.RANGE_CHIPS) {
+      const min = (f as unknown as Record<string, string>)[minKey];
+      const max = (f as unknown as Record<string, string>)[maxKey];
+      if (min || max) {
+        const value = (min && max) ? `${min}–${max}` : min ? `≥${min}` : `≤${max}`;
+        chips.push({ id: minKey, labelKey, value, clearKeys: [minKey, maxKey] });
+      }
+    }
+
+    return chips;
+  });
+
+  clearFilterChip(chip: { id: string; clearKeys: string[] }): void {
+    for (const key of chip.clearKeys) {
+      // Handle person_id chip removal (key = "person_N")
+      if (key.startsWith('person_')) {
+        const pid = key.slice('person_'.length);
+        const current = this.store.filters().person_id;
+        const ids = current.split(',').filter(id => id !== pid);
+        this.store.updateFilter('person_id', ids.join(','));
+        continue;
+      }
+      if (key === 'favorites_only' || key === 'is_monochrome') {
+        this.store.updateFilter(key as 'favorites_only' | 'is_monochrome', false);
+      } else {
+        this.store.updateFilter(key as keyof GalleryFilters, '' as never);
+      }
+    }
+  }
 
 
   async ngOnInit(): Promise<void> {

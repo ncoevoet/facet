@@ -911,6 +911,7 @@
     "sort_score": "Punteggio di ordinamento",
     "score_range": "Intervallo punteggio",
     "aesthetic_range": "Intervallo estetica",
+    "topiq_range": "Intervallo TOPIQ",
     "face_count_range": "Numero di volti",
     "face_quality_range": "Intervallo qualita volto",
     "composition_range": "Intervallo composizione",
