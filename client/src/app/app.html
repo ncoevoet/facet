@@ -93,6 +93,18 @@
 
       }
 
+      <!-- Compare category selector (visible only on compare route, lg+) -->
+      @if (auth.isAuthenticated() && isCompareRoute()) {
+        <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
+          <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
+          <mat-select [value]="compareFilters.selectedCategory()" (selectionChange)="onCompareCategoryChange($event.value)">
+            @for (t of store.types(); track t.id) {
+              <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
+
       <!-- Stats filters (visible only on stats route, lg+) -->
       @if (auth.isAuthenticated() && isStatsRoute()) {
         <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">

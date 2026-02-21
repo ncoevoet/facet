@@ -21,6 +21,7 @@ import { AuthService } from './core/services/auth.service';
 import { I18nService } from './core/services/i18n.service';
 import { GalleryStore } from './features/gallery/gallery.store';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
+import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { TranslatePipe } from './shared/pipes/translate.pipe';
 import { PersonThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
 
@@ -98,6 +99,7 @@ export class App implements OnInit {
   i18n = inject(I18nService);
   store = inject(GalleryStore);
   statsFilters = inject(StatsFiltersService);
+  compareFilters = inject(CompareFiltersService);
   mobileSearchOpen = signal(false);
 
   private url = toSignal(
@@ -114,6 +116,8 @@ export class App implements OnInit {
   });
 
   isStatsRoute = computed(() => this.url().split('?')[0] === '/stats');
+
+  isCompareRoute = computed(() => this.url().split('?')[0] === '/compare');
 
   sortGroups = computed(() => {
     const grouped = this.store.config()?.sort_options_grouped;
@@ -168,6 +172,10 @@ export class App implements OnInit {
 
   onStatsCategoryChange(cat: string): void {
     this.statsFilters.filterCategory.set(cat);
+  }
+
+  onCompareCategoryChange(cat: string): void {
+    this.compareFilters.selectedCategory.set(cat);
   }
 
   onStatsDateChange(field: 'from' | 'to', event: Event): void {

@@ -5,7 +5,7 @@
   "categories": [
     {
       "name": "art",
-      "priority": 5,
+      "priority": 8,
       "filters": {
         "required_tags": [
           "painting",
@@ -166,24 +166,23 @@
       "filters": {
         "required_tags": [
           "street",
-          "candid"
+          "urban_culture"
         ],
-        "tag_match_mode": "any",
-        "has_face": true
+        "tag_match_mode": "any"
       },
       "weights": {
-        "aesthetic_percent": 57,
-        "composition_percent": 38,
-        "exposure_percent": 1,
-        "face_quality_percent": 1,
-        "tech_sharpness_percent": 2,
+        "aesthetic_percent": 48,
+        "composition_percent": 34,
+        "tech_sharpness_percent": 10,
+        "quality_percent": 3,
+        "exposure_percent": 3,
+        "color_percent": 2,
+        "face_quality_percent": 0,
         "eye_sharpness_percent": 0,
-        "color_percent": 0,
-        "quality_percent": 0,
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -196,6 +195,25 @@
           "candid",
           "unposed",
           "documentary style"
+        ],
+        "pedestrian": [
+          "pedestrian",
+          "passerby",
+          "commuter",
+          "crowd",
+          "city people"
+        ],
+        "documentary": [
+          "photojournalism",
+          "reportage",
+          "street life"
+        ],
+        "urban_culture": [
+          "graffiti",
+          "busker",
+          "market stall",
+          "food cart",
+          "protest"
         ]
       }
     },
@@ -208,18 +226,18 @@
         "is_group_portrait": true
       },
       "weights": {
-        "face_quality_percent": 2,
-        "eye_sharpness_percent": 86,
-        "composition_percent": 0,
-        "exposure_percent": 2,
-        "tech_sharpness_percent": 2,
-        "quality_percent": 7,
-        "aesthetic_percent": 0,
-        "color_percent": 0,
-        "contrast_percent": 0,
-        "dynamic_range_percent": 1,
+        "eye_sharpness_percent": 50,
+        "aesthetic_percent": 18,
+        "quality_percent": 10,
+        "composition_percent": 9,
+        "exposure_percent": 5,
+        "tech_sharpness_percent": 5,
+        "face_quality_percent": 0,
         "isolation_percent": 1,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "dynamic_range_percent": 1,
+        "color_percent": 0,
+        "contrast_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -265,18 +283,18 @@
         "is_monochrome": false
       },
       "weights": {
-        "aesthetic_percent": 49,
+        "aesthetic_percent": 34,
+        "eye_sharpness_percent": 20,
+        "isolation_percent": 15,
+        "dynamic_range_percent": 10,
         "quality_percent": 9,
-        "face_quality_percent": 0,
-        "eye_sharpness_percent": 1,
-        "tech_sharpness_percent": 1,
-        "composition_percent": 2,
-        "exposure_percent": 1,
+        "composition_percent": 5,
+        "exposure_percent": 3,
+        "tech_sharpness_percent": 2,
         "color_percent": 1,
         "contrast_percent": 1,
-        "dynamic_range_percent": 12,
-        "isolation_percent": 19,
-        "leading_lines_percent": 7
+        "face_quality_percent": 0,
+        "leading_lines_percent": 0
       },
       "modifiers": {
         "bonus": 0.5,
@@ -348,16 +366,19 @@
           "macro",
           "insect",
           "butterfly",
-          "flower"
+          "dewdrop",
+          "crystal",
+          "texture_macro",
+          "pollen"
         ],
         "tag_match_mode": "any"
       },
       "weights": {
-        "tech_sharpness_percent": 1,
-        "aesthetic_percent": 51,
-        "composition_percent": 29,
-        "isolation_percent": 19,
-        "color_percent": 0,
+        "tech_sharpness_percent": 34,
+        "aesthetic_percent": 30,
+        "composition_percent": 20,
+        "isolation_percent": 13,
+        "color_percent": 3,
         "face_quality_percent": 0,
         "eye_sharpness_percent": 0,
         "exposure_percent": 0,
@@ -385,7 +406,43 @@
         "flower": [
           "flower",
           "flowers",
-          "botanical"
+          "botanical",
+          "petal",
+          "blossom",
+          "bloom",
+          "flora",
+          "daisy",
+          "rose",
+          "tulip",
+          "orchid",
+          "sunflower",
+          "poppy",
+          "lily",
+          "lavender"
+        ],
+        "dewdrop": [
+          "dewdrop",
+          "water drop",
+          "raindrop",
+          "droplet"
+        ],
+        "crystal": [
+          "crystal",
+          "ice crystal",
+          "snowflake",
+          "mineral",
+          "gem"
+        ],
+        "texture_macro": [
+          "texture",
+          "surface detail",
+          "pattern close-up"
+        ],
+        "pollen": [
+          "pollen",
+          "stamen",
+          "pistil",
+          "anther"
         ]
       }
     },
@@ -427,32 +484,118 @@
       "priority": 65,
       "filters": {
         "required_tags": [
-          "animal"
+          "animal",
+          "bird",
+          "marine",
+          "reptile",
+          "primate"
         ],
-        "tag_match_mode": "any"
+        "tag_match_mode": "any",
+        "face_ratio_max": 0.08
       },
       "weights": {
-        "aesthetic_percent": 62,
-        "tech_sharpness_percent": 2,
-        "composition_percent": 34,
-        "exposure_percent": 2,
+        "aesthetic_percent": 42,
+        "composition_percent": 28,
+        "tech_sharpness_percent": 16,
+        "eye_sharpness_percent": 8,
+        "exposure_percent": 4,
+        "isolation_percent": 2,
         "quality_percent": 0,
         "face_quality_percent": 0,
-        "eye_sharpness_percent": 0,
         "color_percent": 0,
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
-        "isolation_percent": 0,
         "leading_lines_percent": 0
       },
       "modifiers": {
-        "bonus": 0.5
+        "bonus": 0.5,
+        "noise_tolerance_multiplier": 0.3
       },
       "tags": {
         "animal": [
           "animal",
           "wildlife",
-          "pet"
+          "wild animal",
+          "creature",
+          "beast",
+          "fauna",
+          "deer",
+          "elk",
+          "moose",
+          "bear",
+          "wolf",
+          "fox",
+          "lion",
+          "tiger",
+          "leopard",
+          "cheetah",
+          "elephant",
+          "giraffe",
+          "zebra",
+          "rhino",
+          "hippo",
+          "kangaroo",
+          "koala",
+          "panda",
+          "raccoon",
+          "squirrel",
+          "rabbit",
+          "hare",
+          "hedgehog"
+        ],
+        "bird": [
+          "bird",
+          "eagle",
+          "hawk",
+          "owl",
+          "pelican",
+          "heron",
+          "parrot",
+          "penguin",
+          "flamingo",
+          "duck",
+          "swan",
+          "seagull",
+          "crow",
+          "sparrow",
+          "robin",
+          "hummingbird",
+          "woodpecker",
+          "raptor",
+          "waterfowl",
+          "shorebird"
+        ],
+        "marine": [
+          "dolphin",
+          "whale",
+          "seal",
+          "sea lion",
+          "shark",
+          "fish",
+          "turtle",
+          "octopus",
+          "jellyfish",
+          "coral",
+          "seahorse",
+          "ray",
+          "orca"
+        ],
+        "reptile": [
+          "snake",
+          "lizard",
+          "crocodile",
+          "alligator",
+          "chameleon",
+          "gecko",
+          "iguana"
+        ],
+        "primate": [
+          "monkey",
+          "ape",
+          "chimpanzee",
+          "gorilla",
+          "orangutan",
+          "lemur"
         ]
       }
     },
@@ -463,7 +606,8 @@
         "required_tags": [
           "food"
         ],
-        "tag_match_mode": "any"
+        "tag_match_mode": "any",
+        "face_ratio_max": 0.05
       },
       "weights": {
         "color_percent": 2,
@@ -494,40 +638,86 @@
       "filters": {
         "required_tags": [
           "sports",
-          "motion"
+          "motion",
+          "athlete",
+          "competition",
+          "action_sport"
         ],
-        "tag_match_mode": "any"
+        "tag_match_mode": "any",
+        "shutter_speed_max": 0.02
       },
       "weights": {
-        "aesthetic_percent": 55,
-        "composition_percent": 40,
-        "exposure_percent": 2,
-        "tech_sharpness_percent": 1,
+        "aesthetic_percent": 44,
+        "composition_percent": 30,
+        "tech_sharpness_percent": 16,
+        "exposure_percent": 4,
+        "eye_sharpness_percent": 3,
+        "isolation_percent": 2,
+        "leading_lines_percent": 1,
         "face_quality_percent": 0,
-        "eye_sharpness_percent": 0,
         "color_percent": 0,
         "quality_percent": 0,
         "contrast_percent": 0,
-        "dynamic_range_percent": 0,
-        "isolation_percent": 1,
-        "leading_lines_percent": 1
+        "dynamic_range_percent": 0
       },
       "modifiers": {
-        "noise_tolerance_multiplier": 0.5
+        "noise_tolerance_multiplier": 0.4,
+        "iso_tolerance_multiplier": 0.3
       },
       "tags": {
         "sports": [
           "sports",
-          "athletic",
-          "action sports",
-          "competition",
-          "athlete"
+          "sport",
+          "athletic event",
+          "stadium",
+          "arena",
+          "track and field",
+          "football",
+          "soccer",
+          "basketball",
+          "tennis",
+          "baseball",
+          "golf",
+          "volleyball",
+          "rugby",
+          "hockey",
+          "boxing",
+          "wrestling"
         ],
         "motion": [
           "motion blur",
           "panning shot",
           "action freeze",
           "dynamic motion"
+        ],
+        "athlete": [
+          "athlete",
+          "player",
+          "competitor",
+          "runner",
+          "cyclist",
+          "swimmer"
+        ],
+        "competition": [
+          "competition",
+          "race",
+          "match",
+          "game",
+          "tournament",
+          "championship"
+        ],
+        "action_sport": [
+          "jumping",
+          "sprinting",
+          "diving",
+          "climbing",
+          "surfing",
+          "skiing",
+          "snowboarding",
+          "skateboarding",
+          "parkour",
+          "gymnastics",
+          "martial arts"
         ]
       }
     },
@@ -610,7 +800,7 @@
     },
     {
       "name": "fashion",
-      "priority": 74,
+      "priority": 43,
       "filters": {
         "required_tags": [
           "fashion"
@@ -653,19 +843,23 @@
       "filters": {
         "required_tags": [
           "architecture",
-          "building"
+          "building",
+          "interior",
+          "historic",
+          "modern_arch",
+          "bridge"
         ],
         "tag_match_mode": "any"
       },
       "weights": {
-        "aesthetic_percent": 40,
-        "composition_percent": 40,
-        "tech_sharpness_percent": 5,
-        "leading_lines_percent": 5,
-        "exposure_percent": 3,
-        "dynamic_range_percent": 3,
+        "composition_percent": 32,
+        "aesthetic_percent": 28,
+        "leading_lines_percent": 15,
+        "tech_sharpness_percent": 10,
+        "dynamic_range_percent": 5,
+        "exposure_percent": 4,
+        "color_percent": 4,
         "contrast_percent": 2,
-        "color_percent": 2,
         "quality_percent": 0,
         "face_quality_percent": 0,
         "eye_sharpness_percent": 0,
@@ -679,10 +873,47 @@
         ],
         "building": [
           "building",
-          "skyscraper",
-          "facade",
+          "structure",
+          "edifice",
           "tower",
-          "bridge"
+          "dome",
+          "arch",
+          "column",
+          "facade",
+          "exterior",
+          "rooftop"
+        ],
+        "interior": [
+          "interior",
+          "hallway",
+          "corridor",
+          "atrium",
+          "lobby",
+          "nave"
+        ],
+        "historic": [
+          "historic building",
+          "heritage site",
+          "cathedral",
+          "church",
+          "castle",
+          "mosque",
+          "temple",
+          "monument",
+          "ruins"
+        ],
+        "modern_arch": [
+          "modern architecture",
+          "contemporary design",
+          "glass facade",
+          "skyscraper",
+          "high-rise"
+        ],
+        "bridge": [
+          "bridge",
+          "viaduct",
+          "aqueduct",
+          "overpass"
         ]
       }
     },
@@ -1103,23 +1334,29 @@
           "sunset",
           "water",
           "sky",
-          "reflection"
+          "reflection",
+          "sunrise",
+          "valley",
+          "meadow",
+          "waterfall",
+          "glacier"
         ],
-        "tag_match_mode": "any"
+        "tag_match_mode": "any",
+        "face_ratio_max": 0.02
       },
       "weights": {
-        "aesthetic_percent": 3,
-        "quality_percent": 2,
-        "tech_sharpness_percent": 2,
-        "exposure_percent": 2,
-        "dynamic_range_percent": 40,
-        "color_percent": 0,
-        "composition_percent": 49,
+        "composition_percent": 38,
+        "aesthetic_percent": 22,
+        "dynamic_range_percent": 18,
+        "color_percent": 8,
+        "tech_sharpness_percent": 6,
+        "exposure_percent": 4,
+        "leading_lines_percent": 2,
+        "quality_percent": 1,
+        "isolation_percent": 1,
         "face_quality_percent": 0,
         "eye_sharpness_percent": 0,
-        "contrast_percent": 0,
-        "isolation_percent": 1,
-        "leading_lines_percent": 1
+        "contrast_percent": 0
       },
       "modifiers": {
         "bonus": 0.5,
@@ -1129,7 +1366,11 @@
         "landscape": [
           "landscape",
           "scenic view",
-          "nature scene"
+          "nature scene",
+          "panoramic view",
+          "vista",
+          "natural scenery",
+          "wide landscape"
         ],
         "mountain": [
           "mountain",
@@ -1149,14 +1390,12 @@
         ],
         "sunset": [
           "sunset",
-          "sunrise",
           "golden hour"
         ],
         "water": [
           "water",
           "lake",
-          "river",
-          "waterfall"
+          "river"
         ],
         "sky": [
           "sky",
@@ -1168,6 +1407,36 @@
           "reflection",
           "water reflection",
           "mirror reflection"
+        ],
+        "sunrise": [
+          "sunrise",
+          "dawn",
+          "morning light",
+          "golden morning"
+        ],
+        "valley": [
+          "valley",
+          "gorge",
+          "canyon",
+          "ravine",
+          "fjord"
+        ],
+        "meadow": [
+          "meadow",
+          "field",
+          "prairie",
+          "grassland",
+          "wildflower field"
+        ],
+        "waterfall": [
+          "waterfall",
+          "cascade",
+          "falls"
+        ],
+        "glacier": [
+          "glacier",
+          "ice field",
+          "snow cap"
         ]
       }
     },

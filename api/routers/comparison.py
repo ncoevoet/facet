@@ -80,6 +80,8 @@ class ComparisonDeleteBody(BaseModel):
 class UpdateWeightsBody(BaseModel):
     category: str
     weights: dict
+    modifiers: Optional[dict] = None
+    filters: Optional[dict] = None
     recalculate: bool = False
 
 
@@ -321,6 +323,10 @@ async def api_update_weights(
                 if 'weights' not in cat:
                     cat['weights'] = {}
                 cat['weights'].update(body.weights)
+                if body.modifiers is not None:
+                    cat['modifiers'] = body.modifiers
+                if body.filters is not None:
+                    cat['filters'] = body.filters
                 found = True
                 break
         if not found:

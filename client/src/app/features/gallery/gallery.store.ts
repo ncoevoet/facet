@@ -297,6 +297,33 @@ const DEFAULT_FILTERS: GalleryFilters = {
   search: '',
 };
 
+const DISPLAY_OPTIONS_KEY = 'facet_display_options';
+type DisplayOptions = Pick<GalleryFilters,
+  'hide_details' | 'hide_blinks' | 'hide_bursts' | 'hide_duplicates' |
+  'hide_rejected' | 'favorites_only' | 'is_monochrome'>;
+const DISPLAY_OPTION_KEYS: (keyof DisplayOptions)[] = [
+  'hide_details', 'hide_blinks', 'hide_bursts', 'hide_duplicates',
+  'hide_rejected', 'favorites_only', 'is_monochrome',
+];
+
+function loadDisplayOptionsFromStorage(): Partial<DisplayOptions> {
+  try {
+    const raw = localStorage.getItem(DISPLAY_OPTIONS_KEY);
+    if (raw) return JSON.parse(raw) as Partial<DisplayOptions>;
+  } catch { /* ignore */ }
+  return {};
+}
+
+function saveDisplayOptionsToStorage(filters: GalleryFilters): void {
+  try {
+    const opts: Partial<DisplayOptions> = {};
+    for (const key of DISPLAY_OPTION_KEYS) {
+      (opts as Record<string, boolean>)[key] = filters[key] as boolean;
+    }
+    localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify(opts));
+  } catch { /* ignore */ }
+}
+
 @Injectable({ providedIn: 'root' })
 export class GalleryStore {
   private api = inject(ApiService);
@@ -359,19 +386,22 @@ export class GalleryStore {
       const cfg = await firstValueFrom(this.api.get<ViewerConfig>('/config'));
       this.config.set(cfg);
 
-      // Apply config defaults to filters, then overlay URL params
+      // Apply config defaults to filters, then overlay localStorage display options, then URL params
       const defaults = cfg.defaults;
+      const storedDisplay = loadDisplayOptionsFromStorage();
       const base: GalleryFilters = {
         ...DEFAULT_FILTERS,
         per_page: cfg.pagination?.default_per_page ?? 64,
         sort: defaults?.sort ?? 'aggregate',
         sort_direction: defaults?.sort_direction ?? 'DESC',
         type: defaults?.type ?? '',
-        hide_details: defaults?.hide_details ?? true,
-        hide_blinks: defaults?.hide_blinks ?? true,
-        hide_bursts: defaults?.hide_bursts ?? true,
-        hide_duplicates: defaults?.hide_duplicates ?? true,
-        hide_rejected: defaults?.hide_rejected ?? true,
+        hide_details: storedDisplay.hide_details ?? (defaults?.hide_details ?? true),
+        hide_blinks: storedDisplay.hide_blinks ?? (defaults?.hide_blinks ?? true),
+        hide_bursts: storedDisplay.hide_bursts ?? (defaults?.hide_bursts ?? true),
+        hide_duplicates: storedDisplay.hide_duplicates ?? (defaults?.hide_duplicates ?? true),
+        hide_rejected: storedDisplay.hide_rejected ?? (defaults?.hide_rejected ?? true),
+        favorites_only: storedDisplay.favorites_only ?? false,
+        is_monochrome: storedDisplay.is_monochrome ?? false,
       };
 
       // Overlay query params
@@ -440,6 +470,9 @@ export class GalleryStore {
     if (key === 'hide_rejected' && value) extra.favorites_only = false;
     if (key === 'favorites_only' && value) extra.hide_rejected = false;
     this.filters.update(current => ({ ...current, [key]: value, ...extra, page: 1 }));
+    if ((DISPLAY_OPTION_KEYS as string[]).includes(key as string)) {
+      saveDisplayOptionsToStorage(this.filters());
+    }
     this.syncUrl();
     await this.loadPhotos();
   }
