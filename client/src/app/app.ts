@@ -227,6 +227,7 @@ export class App implements OnInit {
 
   async ngOnInit(): Promise<void> {
     await this.i18n.load();
+    this.store.loadTypeCounts();
     try {
       await this.auth.checkStatus();
     } catch {

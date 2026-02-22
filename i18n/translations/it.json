@@ -854,6 +854,22 @@
         "isolation": "Isolamento",
         "leading_lines": "Linee guida"
       }
+    },
+    "gear_metrics": {
+      "count": "Totale",
+      "avg_score": "Punteggio Medio",
+      "avg_aesthetic": "Estetica Media",
+      "avg_sharpness": "Nitidezza Media",
+      "avg_composition": "Composizione Media",
+      "avg_exposure": "Esposizione Media",
+      "avg_color": "Colore Medio",
+      "avg_iso": "ISO Medio",
+      "avg_f_stop": "Apertura Media",
+      "avg_focal_length": "Lunghezza Focale Media",
+      "avg_face_count": "Media volti",
+      "avg_monochrome": "Monocromatico (%)",
+      "avg_dynamic_range": "Gamma dinamica media",
+      "usage_timeline": "Cronologia utilizzo"
     }
   },
   "login": {

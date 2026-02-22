@@ -854,6 +854,22 @@
         "isolation": "Freistellung",
         "leading_lines": "Führungslinien"
       }
+    },
+    "gear_metrics": {
+      "count": "Gesamt",
+      "avg_score": "Durchschn. Bewertung",
+      "avg_aesthetic": "Durchschn. Ästhetik",
+      "avg_sharpness": "Durchschn. Schärfe",
+      "avg_composition": "Durchschn. Komposition",
+      "avg_exposure": "Durchschn. Belichtung",
+      "avg_color": "Durchschn. Farbe",
+      "avg_iso": "Durchschn. ISO",
+      "avg_f_stop": "Durchschn. Blende",
+      "avg_focal_length": "Durchschn. Brennweite",
+      "avg_face_count": "Durchschn. Gesichter",
+      "avg_monochrome": "Monochrom (%)",
+      "avg_dynamic_range": "Durchschn. Dynamikumfang",
+      "usage_timeline": "Nutzungszeitraum"
     }
   },
   "login": {

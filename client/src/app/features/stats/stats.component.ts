@@ -10,23 +10,21 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
+import { Router, ActivatedRoute } from '@angular/router';
 import { Chart, registerables } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
+import { GearChartCardComponent, GearItem } from './gear-chart-card.component';
+
+import { ChartHeightPipe } from './chart-height.pipe';
 
 Chart.register(...registerables);
 Chart.defaults.color = '#a3a3a3';
 Chart.defaults.borderColor = '#262626';
 
-/** Pipe to compute chart container height from item count. */
-@Pipe({ name: 'chartHeight', standalone: true })
-export class ChartHeightPipe implements PipeTransform {
-  transform(items: unknown[], rowHeight = 28): number {
-    return Math.max(200, items.length * rowHeight);
-  }
-}
+
 
 /** Pipe to compute heatmap circle color from count:max. */
 @Pipe({ name: 'heatmapColor', standalone: true })
@@ -62,16 +60,11 @@ interface StatsOverview {
   date_range_end: string;
 }
 
-interface GearItem {
-  name: string;
-  count: number;
-  avg_score: number;
-  avg_aesthetic?: number;
-}
+
 
 interface GearApiResponse {
-  cameras: { name: string; count: number; avg_aggregate: number; avg_aesthetic: number }[];
-  lenses: { name: string; count: number; avg_aggregate: number; avg_aesthetic: number }[];
+  cameras: GearItem[];
+  lenses: GearItem[];
   combos: { name: string; count: number; avg_aggregate: number }[];
   categories: { name: string; count: number }[];
 }
@@ -144,6 +137,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
     ChartHeightPipe,
     HeatmapColorPipe,
     HeatmapSizePipe,
+    GearChartCardComponent,
   ],
   host: { class: 'block' },
   template: `
@@ -194,85 +188,26 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
               <mat-icon class="mr-2">camera_alt</mat-icon>
               {{ 'stats.gear' | translate }}
             </ng-template>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-              <!-- Row 1: Cameras + Lenses (by count) -->
-              <mat-card>
-                <mat-card-header>
-                  <mat-card-title>{{ 'stats.cameras' | translate }}</mat-card-title>
-                </mat-card-header>
-                <mat-card-content class="!pt-4">
-                  @if (gearLoading()) {
-                    <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
-                  } @else {
-                    <div [style.height.px]="cameras() | chartHeight">
-                      <canvas #camerasCanvas></canvas>
-                    </div>
-                  }
-                </mat-card-content>
-              </mat-card>
-              <mat-card>
-                <mat-card-header>
-                  <mat-card-title>{{ 'stats.lenses' | translate }}</mat-card-title>
-                </mat-card-header>
-                <mat-card-content class="!pt-4">
-                  @if (gearLoading()) {
-                    <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
-                  } @else {
-                    <div [style.height.px]="lenses() | chartHeight">
-                      <canvas #lensesCanvas></canvas>
-                    </div>
-                  }
-                </mat-card-content>
-              </mat-card>
-              <!-- Row 2: Cameras by Score + Lenses by Score -->
-              @if (topCameras().length > 0) {
-                <mat-card>
-                  <mat-card-header>
-                    <mat-card-title>{{ 'stats.cameras_by_score' | translate }}</mat-card-title>
-                  </mat-card-header>
-                  <mat-card-content class="!pt-4">
-                    <div [style.height.px]="topCameras() | chartHeight">
-                      <canvas #topCamerasGearCanvas></canvas>
-                    </div>
-                  </mat-card-content>
-                </mat-card>
-              }
-              @if (lensesByScore().length > 0) {
-                <mat-card>
-                  <mat-card-header>
-                    <mat-card-title>{{ 'stats.lenses_by_score' | translate }}</mat-card-title>
-                  </mat-card-header>
-                  <mat-card-content class="!pt-4">
-                    <div [style.height.px]="lensesByScore() | chartHeight">
-                      <canvas #lensesByScoreCanvas></canvas>
-                    </div>
-                  </mat-card-content>
-                </mat-card>
-              }
-              <!-- Row 3: Combos (by count) + Combos by Score -->
+            <div class="flex flex-col gap-4 mt-4">
+              <!-- Camera block -->
+              <app-gear-chart-card
+                titleKey="stats.cameras"
+                [items]="cameras()"
+                [loading]="gearLoading()"
+                color="#22c55e" />
+              <!-- Lenses block -->
+              <app-gear-chart-card
+                titleKey="stats.lenses"
+                [items]="lenses()"
+                [loading]="gearLoading()"
+                color="#3b82f6" />
+              <!-- Combos block -->
               @if (combos().length > 0) {
-                <mat-card>
-                  <mat-card-header>
-                    <mat-card-title>{{ 'stats.charts.camera_lens_combos' | translate }}</mat-card-title>
-                  </mat-card-header>
-                  <mat-card-content class="!pt-4">
-                    <div [style.height.px]="combos() | chartHeight">
-                      <canvas #combosCanvas></canvas>
-                    </div>
-                  </mat-card-content>
-                </mat-card>
-              }
-              @if (combosByScore().length > 0) {
-                <mat-card>
-                  <mat-card-header>
-                    <mat-card-title>{{ 'stats.combos_by_score' | translate }}</mat-card-title>
-                  </mat-card-header>
-                  <mat-card-content class="!pt-4">
-                    <div [style.height.px]="combosByScore() | chartHeight">
-                      <canvas #combosByScoreCanvas></canvas>
-                    </div>
-                  </mat-card-content>
-                </mat-card>
+                <app-gear-chart-card
+                  titleKey="stats.charts.camera_lens_combos"
+                  [items]="combos()"
+                  [loading]="gearLoading()"
+                  color="#f59e0b" />
               }
             </div>
           </mat-tab>
@@ -592,32 +527,29 @@ export class StatsComponent {
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
   readonly statsFilters = inject(StatsFiltersService);
   private charts = new Map<string, Chart>();
 
   // Canvas refs
-  camerasCanvas = viewChild<ElementRef<HTMLCanvasElement>>('camerasCanvas');
-  lensesCanvas = viewChild<ElementRef<HTMLCanvasElement>>('lensesCanvas');
-  categoriesCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoriesCanvas');
-  scoreCanvas = viewChild<ElementRef<HTMLCanvasElement>>('scoreCanvas');
-  timelineCanvas = viewChild<ElementRef<HTMLCanvasElement>>('timelineCanvas');
-  yearlyCanvas = viewChild<ElementRef<HTMLCanvasElement>>('yearlyCanvas');
-  topCamerasGearCanvas = viewChild<ElementRef<HTMLCanvasElement>>('topCamerasGearCanvas');
-  combosCanvas = viewChild<ElementRef<HTMLCanvasElement>>('combosCanvas');
-  lensesByScoreCanvas = viewChild<ElementRef<HTMLCanvasElement>>('lensesByScoreCanvas');
-  combosByScoreCanvas = viewChild<ElementRef<HTMLCanvasElement>>('combosByScoreCanvas');
-  categoryScoreProfileCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryScoreProfileCanvas');
-  categoryApertureCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryApertureCanvas');
-  categoryFocalCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryFocalCanvas');
-  dayOfWeekCanvas = viewChild<ElementRef<HTMLCanvasElement>>('dayOfWeekCanvas');
-  hourOfDayCanvas = viewChild<ElementRef<HTMLCanvasElement>>('hourOfDayCanvas');
-  correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
+  protected readonly categoriesCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoriesCanvas');
+  protected readonly scoreCanvas = viewChild<ElementRef<HTMLCanvasElement>>('scoreCanvas');
+  protected readonly timelineCanvas = viewChild<ElementRef<HTMLCanvasElement>>('timelineCanvas');
+  protected readonly yearlyCanvas = viewChild<ElementRef<HTMLCanvasElement>>('yearlyCanvas');
+
+  protected readonly categoryScoreProfileCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryScoreProfileCanvas');
+  protected readonly categoryApertureCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryApertureCanvas');
+  protected readonly categoryFocalCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryFocalCanvas');
+  protected readonly dayOfWeekCanvas = viewChild<ElementRef<HTMLCanvasElement>>('dayOfWeekCanvas');
+  protected readonly hourOfDayCanvas = viewChild<ElementRef<HTMLCanvasElement>>('hourOfDayCanvas');
+  protected readonly correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
   selectedTab = signal(0);
 
   // Filter controls (shared with app header via StatsFiltersService)
-  get dateFrom() { return this.statsFilters.dateFrom; }
-  get dateTo() { return this.statsFilters.dateTo; }
-  get filterCategory() { return this.statsFilters.filterCategory; }
+  protected get dateFrom() { return this.statsFilters.dateFrom; }
+  protected get dateTo() { return this.statsFilters.dateTo; }
+  protected get filterCategory() { return this.statsFilters.filterCategory; }
 
   loading = signal(true);
   overview = signal<StatsOverview | null>(null);
@@ -625,8 +557,8 @@ export class StatsComponent {
   cameras = signal<GearItem[]>([]);
   lenses = signal<GearItem[]>([]);
   combos = signal<GearItem[]>([]);
-  lensesByScore = computed(() => [...this.lenses()].filter(l => l.avg_score > 0).sort((a, b) => b.avg_score - a.avg_score).slice(0, 20));
-  combosByScore = computed(() => [...this.combos()].filter(c => c.avg_score > 0).sort((a, b) => b.avg_score - a.avg_score).slice(0, 20));
+
+
   categoryScoreProfile = computed(() => [...this.categoryStats()].filter(c => c.avg_score > 0).sort((a, b) => b.avg_score - a.avg_score));
   categoryApertureProfile = computed(() => [...this.categoryStats()].filter(c => c.avg_f_stop > 0).sort((a, b) => a.avg_f_stop - b.avg_f_stop));
   categoryFocalData = computed(() => [...this.categoryStats()].filter(c => c.avg_focal_length > 0).sort((a, b) => a.avg_focal_length - b.avg_focal_length));
@@ -689,6 +621,30 @@ export class StatsComponent {
   ];
 
   constructor() {
+    // Initialize filters from URL
+    const params = this.route.snapshot.queryParams;
+    if (params['category']) this.statsFilters.filterCategory.set(params['category']);
+    if (params['date_from']) this.statsFilters.dateFrom.set(params['date_from']);
+    if (params['date_to']) this.statsFilters.dateTo.set(params['date_to']);
+
+    // Sync signals to URL
+    effect(() => {
+      const cat = this.statsFilters.filterCategory();
+      const from = this.statsFilters.dateFrom();
+      const to = this.statsFilters.dateTo();
+      
+      const qp: any = {};
+      if (cat) qp.category = cat;
+      if (from) qp.date_from = from;
+      if (to) qp.date_to = to;
+      
+      this.router.navigate([], { 
+        queryParams: qp, 
+        queryParamsHandling: 'merge', 
+        replaceUrl: true 
+      });
+    });
+
     // Reload when filter signals change (from header or local filter bar)
     effect(() => {
       this.statsFilters.filterCategory();
@@ -704,8 +660,6 @@ export class StatsComponent {
     });
 
     // Chart effects — rebuild when data or canvas changes
-    effect(() => { this.buildHorizontalBar('cameras', this.camerasCanvas(), this.cameras().map(c => c.name), this.cameras().map(c => c.count), COLORS[0]); });
-    effect(() => { this.buildHorizontalBar('lenses', this.lensesCanvas(), this.lenses().map(l => l.name), this.lenses().map(l => l.count), COLORS[1]); });
     effect(() => {
       const cats = this.categoryStats();
       this.buildHorizontalBar('categories', this.categoriesCanvas(), cats.map(c => this.translateCategory(c.category)), cats.map(c => c.count), COLORS[0]);
@@ -730,22 +684,7 @@ export class StatsComponent {
       const data = this.hourOfDayData();
       this.buildVerticalBar('hourOfDay', this.hourOfDayCanvas(), data.map(d => d.label), data.map(d => d.count), COLORS[5]);
     });
-    effect(() => {
-      const data = this.combos();
-      this.buildHorizontalBar('combos', this.combosCanvas(), data.map(c => c.name), data.map(c => c.count), COLORS[2]);
-    });
-    effect(() => {
-      const data = this.lensesByScore();
-      this.buildHorizontalBar('lensesByScore', this.lensesByScoreCanvas(), data.map(l => l.name), data.map(l => l.avg_score), COLORS[4]);
-    });
-    effect(() => {
-      const data = this.combosByScore();
-      this.buildHorizontalBar('combosByScore', this.combosByScoreCanvas(), data.map(c => c.name), data.map(c => c.avg_score), COLORS[5]);
-    });
-    effect(() => {
-      const data = this.topCameras();
-      this.buildHorizontalBar('topCamerasGear', this.topCamerasGearCanvas(), data.map(c => c.name), data.map(c => c.avg_score), COLORS[3]);
-    });
+
     // Score profile (grouped: aggregate + aesthetic + composition + sharpness + color)
     effect(() => {
       const cats = this.categoryScoreProfile();
@@ -806,13 +745,32 @@ export class StatsComponent {
     this.loadTopCameras();
   }
 
+  private mapGearItem(r: Record<string, unknown>): GearItem {
+    return {
+      name: r['name'] as string, count: r['count'] as number,
+      avg_score: (r['avg_aggregate'] as number) ?? 0,
+      avg_aesthetic: (r['avg_aesthetic'] as number) ?? 0,
+      avg_sharpness: (r['avg_sharpness'] as number) ?? 0,
+      avg_composition: (r['avg_composition'] as number) ?? 0,
+      avg_exposure: (r['avg_exposure'] as number) ?? 0,
+      avg_color: (r['avg_color'] as number) ?? 0,
+      avg_iso: (r['avg_iso'] as number) ?? 0,
+      avg_f_stop: (r['avg_f_stop'] as number) ?? 0,
+      avg_focal_length: (r['avg_focal_length'] as number) ?? 0,
+      avg_face_count: (r['avg_face_count'] as number) ?? 0,
+      avg_monochrome: (r['avg_monochrome'] as number) ?? 0,
+      avg_dynamic_range: (r['avg_dynamic_range'] as number) ?? 0,
+      history: (r['history'] as { date: string; count: number }[]) ?? [],
+    };
+  }
+
   async loadGear(): Promise<void> {
     this.gearLoading.set(true);
     try {
       const data = await firstValueFrom(this.api.get<GearApiResponse>('/stats/gear', this.filterParams));
-      this.cameras.set((data.cameras ?? []).map(c => ({ name: c.name, count: c.count, avg_score: c.avg_aggregate ?? 0, avg_aesthetic: c.avg_aesthetic ?? 0 })));
-      this.lenses.set((data.lenses ?? []).map(l => ({ name: l.name, count: l.count, avg_score: l.avg_aggregate ?? 0, avg_aesthetic: l.avg_aesthetic ?? 0 })));
-      this.combos.set((data.combos ?? []).map(c => ({ name: c.name, count: c.count, avg_score: c.avg_aggregate ?? 0 })));
+      this.cameras.set((data.cameras ?? []).map(c => this.mapGearItem(c as unknown as Record<string, unknown>)));
+      this.lenses.set((data.lenses ?? []).map(l => this.mapGearItem(l as unknown as Record<string, unknown>)));
+      this.combos.set((data.combos ?? []).map(c => this.mapGearItem(c as unknown as Record<string, unknown>)));
     } catch { /* empty */ }
     finally { this.gearLoading.set(false); }
   }

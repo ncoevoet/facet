@@ -2,7 +2,9 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { ChartHeightPipe, StatsComponent } from './stats.component';
+import { ChartHeightPipe } from './chart-height.pipe';
+import { StatsComponent } from './stats.component';
+import { Router, ActivatedRoute } from '@angular/router';
 
 describe('StatsComponent', () => {
   let component: StatsComponent;
@@ -21,9 +23,9 @@ describe('StatsComponent', () => {
   };
 
   const mockGear = {
-    cameras: [{ name: 'Canon R5', count: 500, avg_aggregate: 7.1, avg_aesthetic: 7.5 }],
-    lenses: [{ name: 'RF 50mm', count: 200, avg_aggregate: 7.5, avg_aesthetic: 7.3 }],
-    combos: [{ name: 'Canon R5 + RF 50mm', count: 100, avg_aggregate: 7.2 }],
+    cameras: [{ name: 'Canon R5', count: 500, avg_aggregate: 7.1, avg_aesthetic: 7.5, avg_sharpness: 6.8, avg_composition: 7.0, avg_exposure: 6.5, avg_color: 7.2, avg_iso: 400, avg_f_stop: 4.0, avg_focal_length: 50, avg_face_count: 1, avg_monochrome: 0.1, avg_dynamic_range: 12.0, history: [{ date: '2025-01', count: 100 }] }],
+    lenses: [{ name: 'RF 50mm', count: 200, avg_aggregate: 7.5, avg_aesthetic: 7.3, avg_sharpness: 7.0, avg_composition: 6.5, avg_exposure: 7.1, avg_color: 6.9, avg_iso: 200, avg_f_stop: 2.0, avg_focal_length: 50, avg_face_count: 1, avg_monochrome: 0.1, avg_dynamic_range: 12.0, history: [{ date: '2025-01', count: 50 }] }],
+    combos: [{ name: 'Canon R5 + RF 50mm', count: 100, avg_aggregate: 7.2, avg_aesthetic: 7.4, avg_sharpness: 7.1, avg_composition: 6.8, avg_exposure: 7.0, avg_color: 7.1, avg_iso: 300, avg_f_stop: 2.8, avg_focal_length: 50, avg_face_count: 1.5, avg_monochrome: 0.2, avg_dynamic_range: 11.0, history: [{ date: '2025-01', count: 25 }] }],
     categories: [],
   };
 
@@ -126,6 +128,8 @@ describe('StatsComponent', () => {
       providers: [
         { provide: ApiService, useValue: mockApi },
         { provide: I18nService, useValue: { t: (key: string) => key } },
+        { provide: Router, useValue: { navigate: jest.fn() } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
       ],
     });
     return TestBed.runInInjectionContext(() => new StatsComponent());
@@ -188,9 +192,25 @@ describe('StatsComponent', () => {
       component = createComponent(getMock);
       await flushPromises();
 
-      expect(component.cameras()).toEqual([{ name: 'Canon R5', count: 500, avg_score: 7.1, avg_aesthetic: 7.5 }]);
-      expect(component.lenses()).toEqual([{ name: 'RF 50mm', count: 200, avg_score: 7.5, avg_aesthetic: 7.3 }]);
-      expect(component.combos()).toEqual([{ name: 'Canon R5 + RF 50mm', count: 100, avg_score: 7.2 }]);
+      expect(component.cameras()).toEqual([{
+        name: 'Canon R5', count: 500, avg_score: 7.1, avg_aesthetic: 7.5,
+        avg_sharpness: 6.8, avg_composition: 7.0, avg_exposure: 6.5, avg_color: 7.2,
+        avg_iso: 400, avg_f_stop: 4.0, avg_focal_length: 50,
+        avg_face_count: 1, avg_monochrome: 0.1, avg_dynamic_range: 12.0, history: [{ date: '2025-01', count: 100 }],
+      }]);
+      expect(component.lenses()).toEqual([{
+        name: 'RF 50mm', count: 200, avg_score: 7.5, avg_aesthetic: 7.3,
+        avg_sharpness: 7.0, avg_composition: 6.5, avg_exposure: 7.1, avg_color: 6.9,
+        avg_iso: 200, avg_f_stop: 2.0, avg_focal_length: 50,
+        avg_face_count: 1, avg_monochrome: 0.1, avg_dynamic_range: 12.0, history: [{ date: '2025-01', count: 50 }],
+      }]);
+      expect(component.combos()).toEqual([{
+        name: 'Canon R5 + RF 50mm', count: 100, avg_score: 7.2,
+        avg_aesthetic: 7.4, avg_sharpness: 7.1, avg_composition: 6.8,
+        avg_exposure: 7.0, avg_color: 7.1, avg_iso: 300, avg_f_stop: 2.8,
+        avg_focal_length: 50,
+        avg_face_count: 1.5, avg_monochrome: 0.2, avg_dynamic_range: 11.0, history: [{ date: '2025-01', count: 25 }],
+      }]);
       expect(component.gearLoading()).toBe(false);
     });
 
@@ -217,26 +237,6 @@ describe('StatsComponent', () => {
 
       expect(component.categoryStats()).toEqual(mockCategories);
       expect(component.categoriesLoading()).toBe(false);
-    });
-
-    it('should sort availableCategories alphabetically by translated name', async () => {
-      const withUncategorized = [
-        ...mockCategories,
-        { category: '(uncategorized)', count: 10, percentage: 0.01, avg_score: 5.0,
-          avg_aesthetic: 5.0, avg_composition: 5.0, avg_sharpness: 5.0, avg_color: 5.0,
-          avg_exposure: 5.0, avg_iso: 0, avg_f_stop: 0, avg_focal_length: 0,
-          top_camera: null, top_lens: null },
-      ];
-      const getMock = jest.fn((path: string) => {
-        if (path === '/stats/categories') return of(withUncategorized);
-        return safeDefault(path);
-      });
-      component = createComponent(getMock);
-      await flushPromises();
-
-      // Mock i18n returns key itself → 'category_names.landscape' < 'category_names.macro' < 'category_names.portrait'
-      // '(uncategorized)' is filtered out before sorting
-      expect(component.availableCategories()).toEqual(['landscape', 'macro', 'portrait']);
     });
   });
 

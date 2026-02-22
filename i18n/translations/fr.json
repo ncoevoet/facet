@@ -877,6 +877,22 @@
         "isolation": "Isolation",
         "leading_lines": "Lignes directrices"
       }
+    },
+    "gear_metrics": {
+      "count": "Total",
+      "avg_score": "Score moyen",
+      "avg_aesthetic": "Esthétique moy.",
+      "avg_sharpness": "Netteté moy.",
+      "avg_composition": "Composition moy.",
+      "avg_exposure": "Exposition moy.",
+      "avg_color": "Couleur moy.",
+      "avg_iso": "ISO moyen",
+      "avg_f_stop": "Ouverture moy.",
+      "avg_focal_length": "Focale moy.",
+      "avg_face_count": "Nbre moyen de visages",
+      "avg_monochrome": "Monochrome (%)",
+      "avg_dynamic_range": "Plage dynamique moy.",
+      "usage_timeline": "Chronologie d'utilisation"
     }
   },
   "login": {

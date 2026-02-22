@@ -354,28 +354,93 @@ def api_stats_gear(
         try:
             cur = conn.cursor()
             # Camera bodies
-            cur.execute(f'''SELECT camera_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2)
+            cur.execute(f'''SELECT camera_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
+                           ROUND(AVG(tech_sharpness),2), ROUND(AVG(comp_score),2),
+                           ROUND(AVG(exposure_score),2), ROUND(AVG(color_score),2),
+                           ROUND(AVG(ISO),0), ROUND(AVG(f_stop),1),
+                           ROUND(AVG(COALESCE(focal_length_35mm, focal_length)),0),
+                           ROUND(AVG(face_count),2), ROUND(AVG(is_monochrome),3), ROUND(AVG(dynamic_range_stops),2)
                            FROM photos WHERE camera_model IS NOT NULL AND camera_model != ''{vis}
                            GROUP BY camera_model ORDER BY cnt DESC LIMIT 20''', vp)
-            cameras = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3]} for r in cur.fetchall()]
+            cameras = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3],
+                        'avg_sharpness': r[4], 'avg_composition': r[5], 'avg_exposure': r[6], 'avg_color': r[7],
+                        'avg_iso': r[8] or 0, 'avg_f_stop': r[9] or 0, 'avg_focal_length': r[10] or 0,
+                        'avg_face_count': r[11] or 0, 'avg_monochrome': r[12] or 0, 'avg_dynamic_range': r[13] or 0,
+                        'history': []} for r in cur.fetchall()]
 
             # Lenses
-            cur.execute(f'''SELECT lens_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2)
+            cur.execute(f'''SELECT lens_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
+                           ROUND(AVG(tech_sharpness),2), ROUND(AVG(comp_score),2),
+                           ROUND(AVG(exposure_score),2), ROUND(AVG(color_score),2),
+                           ROUND(AVG(ISO),0), ROUND(AVG(f_stop),1),
+                           ROUND(AVG(COALESCE(focal_length_35mm, focal_length)),0),
+                           ROUND(AVG(face_count),2), ROUND(AVG(is_monochrome),3), ROUND(AVG(dynamic_range_stops),2)
                            FROM photos WHERE lens_model IS NOT NULL AND lens_model != ''{vis}
                            GROUP BY lens_model ORDER BY cnt DESC LIMIT 20''', vp)
-            lenses = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3]} for r in cur.fetchall()]
+            lenses = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3],
+                       'avg_sharpness': r[4], 'avg_composition': r[5], 'avg_exposure': r[6], 'avg_color': r[7],
+                       'avg_iso': r[8] or 0, 'avg_f_stop': r[9] or 0, 'avg_focal_length': r[10] or 0,
+                       'avg_face_count': r[11] or 0, 'avg_monochrome': r[12] or 0, 'avg_dynamic_range': r[13] or 0,
+                       'history': []} for r in cur.fetchall()]
 
             # Combos
-            cur.execute(f'''SELECT camera_model || ' + ' || lens_model as combo, COUNT(*) as cnt, ROUND(AVG(aggregate),2)
+            cur.execute(f'''SELECT camera_model || ' + ' || lens_model as combo, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
+                           ROUND(AVG(tech_sharpness),2), ROUND(AVG(comp_score),2),
+                           ROUND(AVG(exposure_score),2), ROUND(AVG(color_score),2),
+                           ROUND(AVG(ISO),0), ROUND(AVG(f_stop),1),
+                           ROUND(AVG(COALESCE(focal_length_35mm, focal_length)),0),
+                           ROUND(AVG(face_count),2), ROUND(AVG(is_monochrome),3), ROUND(AVG(dynamic_range_stops),2)
                            FROM photos WHERE camera_model IS NOT NULL AND camera_model != '' AND lens_model IS NOT NULL AND lens_model != ''{vis}
                            GROUP BY camera_model, lens_model ORDER BY cnt DESC LIMIT 20''', vp)
-            combos = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2]} for r in cur.fetchall()]
+            combos = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3],
+                       'avg_sharpness': r[4], 'avg_composition': r[5], 'avg_exposure': r[6], 'avg_color': r[7],
+                       'avg_iso': r[8] or 0, 'avg_f_stop': r[9] or 0, 'avg_focal_length': r[10] or 0,
+                       'avg_face_count': r[11] or 0, 'avg_monochrome': r[12] or 0, 'avg_dynamic_range': r[13] or 0,
+                       'history': []} for r in cur.fetchall()]
 
             # Category distribution
             cur.execute(f'''SELECT category, COUNT(*) as cnt
                            FROM photos WHERE category IS NOT NULL AND category != ''{vis}
                            GROUP BY category ORDER BY cnt DESC''', vp)
             categories = [{'name': r[0], 'count': r[1]} for r in cur.fetchall()]
+
+            # Timelines (monthly usage)
+            cur.execute(f'''SELECT camera_model, lens_model, SUBSTR(date_taken,1,7) as month, COUNT(*) as cnt
+                           FROM photos WHERE date_taken IS NOT NULL {vis}
+                           GROUP BY camera_model, lens_model, month''', vp)
+            
+            cam_tl, len_tl, com_tl = {}, {}, {}
+            for cam, lens, month, count in cur.fetchall():
+                if not month: continue
+                month = month.replace(':', '-')
+                # Cameras
+                if cam:
+                    if cam not in cam_tl: cam_tl[cam] = []
+                    cam_tl[cam].append((month, count))
+                # Lenses
+                if lens:
+                    if lens not in len_tl: len_tl[lens] = []
+                    len_tl[lens].append((month, count))
+                # Combos
+                if cam and lens:
+                    combo = f"{cam} + {lens}"
+                    if combo not in com_tl: com_tl[combo] = []
+                    com_tl[combo].append((month, count))
+
+            # Helper to consolidate histories (since the above is grouped by camera AND lens, we need to sum for individual cameras/lenses)
+            from collections import defaultdict
+            def consolidate_history(tl_dict, item_list):
+                for item in item_list:
+                    raw_data = tl_dict.get(item['name'], [])
+                    month_sums = defaultdict(int)
+                    for m, c in raw_data:
+                        month_sums[m] += c
+                    item['history'] = [{'date': m, 'count': c} for m, c in sorted(month_sums.items())]
+
+            consolidate_history(cam_tl, cameras)
+            consolidate_history(len_tl, lenses)
+            consolidate_history(com_tl, combos)
+
         finally:
             conn.close()
         return {'cameras': cameras, 'lenses': lenses, 'combos': combos, 'categories': categories}

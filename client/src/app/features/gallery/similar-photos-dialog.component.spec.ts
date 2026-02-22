@@ -90,7 +90,7 @@ describe('SimilarPhotosDialogComponent', () => {
       await component.ngOnInit();
       expect(mockApi.get).toHaveBeenCalledWith(
         `/similar_photos/${encodeURIComponent('/photos/test.jpg')}`,
-        { limit: 20, offset: 0 },
+        { limit: 20, offset: 0, min_similarity: 0.7 },
       );
     });
 
@@ -154,7 +154,7 @@ describe('SimilarPhotosDialogComponent', () => {
       await component.loadMore();
       expect(mockApi.get).toHaveBeenNthCalledWith(2,
         `/similar_photos/${encodeURIComponent('/photos/test.jpg')}`,
-        { limit: 20, offset: 20 },
+        { limit: 20, offset: 20, min_similarity: 0.7 },
       );
     });
 

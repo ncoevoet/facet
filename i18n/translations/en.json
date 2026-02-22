@@ -464,7 +464,6 @@
     "macro": "Macro",
     "astro": "Astrophotography",
     "street": "Street",
-
     "long_exposure": "Long Exposure",
     "aerial": "Aerial & Drone",
     "concert": "Concerts"
@@ -878,6 +877,22 @@
         "isolation": "Isolation",
         "leading_lines": "Leading Lines"
       }
+    },
+    "gear_metrics": {
+      "count": "Total",
+      "avg_score": "Avg. Score",
+      "avg_aesthetic": "Avg. Aesthetic",
+      "avg_sharpness": "Avg. Sharpness",
+      "avg_composition": "Avg. Composition",
+      "avg_exposure": "Avg. Exposure",
+      "avg_color": "Avg. Color",
+      "avg_iso": "Avg. ISO",
+      "avg_f_stop": "Avg. Aperture",
+      "avg_focal_length": "Avg. Focal Length",
+      "avg_face_count": "Avg. Face Count",
+      "avg_monochrome": "Monochrome (%)",
+      "avg_dynamic_range": "Avg. Dynamic Range",
+      "usage_timeline": "Usage Timeline"
     }
   },
   "login": {

@@ -25,7 +25,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
     <div class="flex items-center justify-center min-h-full p-4">
       <mat-card class="w-full max-w-sm">
         <mat-card-header>
-          <mat-card-title class="flex items-center gap-2">
+          <mat-card-title class="!flex items-center gap-2">
             <mat-icon>diamond</mat-icon>
             Facet
           </mat-card-title>
