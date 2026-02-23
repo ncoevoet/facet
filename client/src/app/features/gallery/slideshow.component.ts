@@ -141,8 +141,7 @@ export class SlideshowComponent implements OnDestroy {
   next(): void {
     this.clearTimerInterval();
     this.progress.set(0);
-    this.advanceNext();
-    if (this.isPlaying()) this.startInterval();
+    this.preloadAndAdvance(this.nextIndex());
   }
 
   prev(): void {
@@ -150,8 +149,7 @@ export class SlideshowComponent implements OnDestroy {
     this.progress.set(0);
     const photos = this.photos();
     const idx = this.currentIndex() === 0 ? Math.max(0, photos.length - 1) : this.currentIndex() - 1;
-    this.currentIndex.set(idx);
-    if (this.isPlaying()) this.startInterval();
+    this.preloadAndAdvance(idx);
   }
 
   close(): void {
@@ -167,7 +165,7 @@ export class SlideshowComponent implements OnDestroy {
     }
   }
 
-  private advanceNext(): void {
+  private nextIndex(): number {
     const photos = this.photos();
     let idx = this.currentIndex() + 1;
     if (idx >= photos.length - 5 && this.hasMore() && !this.loading()) {
@@ -176,7 +174,24 @@ export class SlideshowComponent implements OnDestroy {
     if (idx >= photos.length) {
       idx = 0;
     }
-    this.currentIndex.set(idx);
+    return idx;
+  }
+
+  private preloadAndAdvance(idx: number): void {
+    const photo = this.photos()[idx];
+    if (!photo) {
+      this.currentIndex.set(idx);
+      if (this.isPlaying()) this.startInterval();
+      return;
+    }
+    const img = new Image();
+    const onReady = () => {
+      this.currentIndex.set(idx);
+      if (this.isPlaying()) this.startInterval();
+    };
+    img.onload = onReady;
+    img.onerror = onReady;
+    img.src = `/image?${new URLSearchParams({ path: photo.path })}`;
   }
 
   private startInterval(): void {
@@ -185,8 +200,9 @@ export class SlideshowComponent implements OnDestroy {
       const tickIncrement = 100 / (this.duration() * 10);
       const newProgress = this.progress() + tickIncrement;
       if (newProgress >= 100) {
-        this.progress.set(0);
-        this.advanceNext();
+        this.progress.set(100);
+        this.clearTimerInterval();
+        this.preloadAndAdvance(this.nextIndex());
       } else {
         this.progress.set(newProgress);
       }

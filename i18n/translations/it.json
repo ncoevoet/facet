@@ -668,6 +668,10 @@
     "categories_aperture": "Apertura per categoria",
     "categories_focal_length": "Focale per categoria",
     "categories_gear_profile": "Profilo di scatto per categoria",
+    "gear_profile_help": {
+      "tooltip": "Cosa mostra questa tabella?",
+      "description": "Mostra la fotocamera, l'obiettivo più utilizzati e le impostazioni medie di scatto (ISO, apertura, focale) per ogni categoria di foto. Questo aiuta a identificare quale attrezzatura e impostazioni preferisci per ogni tipo di fotografia."
+    },
     "avg_aesthetic": "Estetica media",
     "metric_correlations": "Correlazioni metriche",
     "correlation_description": "Correlazione Pearson tra le dimensioni di punteggio",

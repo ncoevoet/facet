@@ -6,6 +6,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Chart, registerables } from 'chart.js';
@@ -87,6 +88,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
     MatIconModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     TranslatePipe,
     ChartHeightPipe,
     GearChartCardComponent,
@@ -224,9 +226,18 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
               <!-- Row 3: Gear table -->
               @if (categoryScoreProfile().length > 0) {
                 <mat-card>
-                  <mat-card-header>
+                  <mat-card-header class="!flex !items-center !justify-between">
                     <mat-card-title>{{ 'stats.categories_gear_profile' | translate }}</mat-card-title>
+                    <button mat-icon-button (click)="showGearProfileHelp.set(!showGearProfileHelp())"
+                      [matTooltip]="'stats.gear_profile_help.tooltip' | translate">
+                      <mat-icon>help_outline</mat-icon>
+                    </button>
                   </mat-card-header>
+                  @if (showGearProfileHelp()) {
+                    <div class="mx-4 mb-2 text-sm text-gray-400">
+                      {{ 'stats.gear_profile_help.description' | translate }}
+                    </div>
+                  }
                   <mat-card-content class="!pt-4 overflow-x-auto">
                     <table class="w-full text-sm">
                       <thead>
@@ -337,6 +348,7 @@ export class StatsComponent {
 
   categoryStats = signal<CategoryStat[]>([]);
   categoriesLoading = signal(false);
+  showGearProfileHelp = signal(false);
 
   categoryScoreProfile = computed(() => [...this.categoryStats()].filter(c => c.avg_score > 0).sort((a, b) => b.avg_score - a.avg_score));
   categoryApertureProfile = computed(() => [...this.categoryStats()].filter(c => c.avg_f_stop > 0).sort((a, b) => a.avg_f_stop - b.avg_f_stop));

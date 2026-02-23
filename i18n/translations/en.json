@@ -691,6 +691,10 @@
     "categories_aperture": "Aperture by Category",
     "categories_focal_length": "Focal Length by Category",
     "categories_gear_profile": "Shooting Profile by Category",
+    "gear_profile_help": {
+      "tooltip": "What does this table show?",
+      "description": "Shows the most commonly used camera, lens, and average shooting settings (ISO, aperture, focal length) for each photo category. This helps identify which gear and settings you gravitate toward for different types of photography."
+    },
     "avg_aesthetic": "Avg Aesthetic",
     "metric_correlations": "Metric Correlations",
     "correlation_description": "Pearson correlation between scoring dimensions",

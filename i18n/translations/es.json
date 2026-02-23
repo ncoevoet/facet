@@ -668,6 +668,10 @@
     "categories_aperture": "Apertura por categoría",
     "categories_focal_length": "Focal por categoría",
     "categories_gear_profile": "Perfil de disparo por categoría",
+    "gear_profile_help": {
+      "tooltip": "¿Qué muestra esta tabla?",
+      "description": "Muestra la cámara, el objetivo más utilizados y los ajustes medios de disparo (ISO, apertura, focal) para cada categoría de foto. Esto ayuda a identificar qué equipo y ajustes prefieres para cada tipo de fotografía."
+    },
     "avg_aesthetic": "Estética prom.",
     "metric_correlations": "Correlaciones de métricas",
     "correlation_description": "Correlación Pearson entre dimensiones de puntuación",

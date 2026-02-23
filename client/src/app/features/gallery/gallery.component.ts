@@ -377,6 +377,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   // --- Card action handlers ---
 
   openSimilar(photo: Photo): void {
+    this.hideTooltip();
     this.store.updateFilters({ similar_to: photo.path, min_similarity: '70' });
   }
 

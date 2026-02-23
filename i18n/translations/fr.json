@@ -691,6 +691,10 @@
     "categories_aperture": "Ouverture par catégorie",
     "categories_focal_length": "Focale par catégorie",
     "categories_gear_profile": "Profil de prise de vue par catégorie",
+    "gear_profile_help": {
+      "tooltip": "Que montre ce tableau ?",
+      "description": "Affiche l'appareil photo, l'objectif les plus utilisés et les réglages moyens (ISO, ouverture, focale) pour chaque catégorie de photo. Cela permet d'identifier quel matériel et quels réglages vous privilégiez selon le type de photographie."
+    },
     "avg_aesthetic": "Moy. esthetique",
     "metric_correlations": "Correlations des metriques",
     "correlation_description": "Correlation de Pearson entre les dimensions de scoring",

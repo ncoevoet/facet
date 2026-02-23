@@ -60,7 +60,7 @@ const GEAR_METRIC_OPTIONS = [
     <mat-card>
       <mat-card-header class="!flex !items-center !justify-between">
         <mat-card-title>{{ titleKey() | translate }}</mat-card-title>
-        <mat-form-field class="w-44 !-mt-2" subscriptSizing="dynamic">
+        <mat-form-field class="w-52 !-mt-2" subscriptSizing="dynamic">
           <mat-select [ngModel]="selectedMetric()" (ngModelChange)="selectedMetric.set($event)">
             @for (opt of metricOptions; track opt.key) {
               <mat-option [value]="opt.key">{{ 'stats.gear_metrics.' + opt.key | translate }}</mat-option>

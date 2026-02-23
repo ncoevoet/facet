@@ -668,6 +668,10 @@
     "categories_aperture": "Blende nach Kategorie",
     "categories_focal_length": "Brennweite nach Kategorie",
     "categories_gear_profile": "Aufnahmeprofil nach Kategorie",
+    "gear_profile_help": {
+      "tooltip": "Was zeigt diese Tabelle?",
+      "description": "Zeigt die am häufigsten verwendete Kamera, das Objektiv und die durchschnittlichen Aufnahmeeinstellungen (ISO, Blende, Brennweite) für jede Fotokategorie. So erkennen Sie, welche Ausrüstung und Einstellungen Sie für verschiedene Arten der Fotografie bevorzugen."
+    },
     "avg_aesthetic": "Durchschn. Ästhetik",
     "metric_correlations": "Metrik-Korrelationen",
     "correlation_description": "Pearson-Korrelation zwischen Bewertungsdimensionen",
