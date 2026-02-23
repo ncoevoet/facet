@@ -5,7 +5,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { GalleryComponent } from './gallery.component';
-import { ScoreClassPipe } from './gallery.component';
+import { ScoreClassPipe } from '../../shared/pipes/score.pipes';
 
 describe('GalleryComponent', () => {
   let component: GalleryComponent;

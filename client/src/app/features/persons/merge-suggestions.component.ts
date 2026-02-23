@@ -14,7 +14,8 @@ import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
-import { MergeTargetDialogComponent, Person } from './manage-persons.component';
+import { MergeTargetDialogComponent } from './manage-persons.component';
+import { Person } from '../../shared/components/person-card/person-card.component';
 
 interface SuggestionPerson {
   id: number;

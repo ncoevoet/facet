@@ -1,63 +1,30 @@
 import { Component, inject, signal, computed, OnInit, OnDestroy, ElementRef, viewChild, effect } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import {
   MatDialogModule,
   MatDialog,
   MAT_DIALOG_DATA,
   MatDialogRef,
 } from '@angular/material/dialog';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
-
-export interface Person {
-  id: number;
-  name: string | null;
-  face_count: number;
-  face_thumbnail: boolean;
-}
+import { PersonCardComponent, Person } from '../../shared/components/person-card/person-card.component';
+import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
 interface PersonsResponse {
   persons: Person[];
   total: number;
-}
-
-@Component({
-  selector: 'app-confirm-dialog',
-  imports: [MatButtonModule, MatDialogModule, TranslatePipe],
-  template: `
-    <h2 mat-dialog-title>{{ data.title }}</h2>
-    <mat-dialog-content>
-      <p>{{ data.message }}</p>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button (click)="dialogRef.close(false)">
-        {{ data.cancelLabel ?? ('dialog.cancel' | translate) }}
-      </button>
-      <button mat-flat-button color="warn" (click)="dialogRef.close(true)">
-        {{ data.confirmLabel ?? ('dialog.confirm' | translate) }}
-      </button>
-    </mat-dialog-actions>
-  `,
-})
-export class ConfirmDialogComponent {
-  data: { title: string; message: string; cancelLabel?: string; confirmLabel?: string } =
-    inject(MAT_DIALOG_DATA);
-  dialogRef = inject(MatDialogRef<ConfirmDialogComponent>);
 }
 
 @Component({
@@ -108,19 +75,15 @@ export class MergeTargetDialogComponent {
   imports: [
     FormsModule,
     RouterLink,
-    MatCardModule,
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
     MatIconModule,
-    MatCheckboxModule,
     MatDialogModule,
-    MatChipsModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    MatTooltipModule,
     TranslatePipe,
-    PersonThumbnailUrlPipe,
+    PersonCardComponent,
   ],
   template: `
     <div class="p-4 md:p-6 max-w-screen-2xl mx-auto">
@@ -164,91 +127,18 @@ export class MergeTargetDialogComponent {
       <!-- Person grid -->
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         @for (person of persons(); track person.id) {
-          <mat-card
-            class="!overflow-hidden cursor-pointer transition-shadow hover:shadow-lg"
-            [class.!ring-2]="selectedIds().has(person.id)"
-            [class.!ring-blue-500]="selectedIds().has(person.id)"
-            (click)="onPersonClick(person)"
-          >
-            <!-- Avatar -->
-            <div class="relative aspect-square bg-neutral-800 overflow-hidden">
-              @if (person.face_thumbnail) {
-                <img
-                  [src]="person.id | personThumbnailUrl"
-                  [alt]="person.name ?? ''"
-                  class="absolute inset-0 w-full h-full object-cover"
-                  loading="lazy"
-                />
-              } @else {
-                <div class="w-full h-full flex items-center justify-center">
-                  <mat-icon class="!text-5xl !w-12 !h-12 opacity-30">person</mat-icon>
-                </div>
-              }
-            </div>
-
-            <mat-card-content class="!px-3 !pt-2 !pb-1">
-              <div class="flex items-start gap-2">
-                <!-- Checkbox -->
-                @if (auth.isEdition()) {
-                  <mat-checkbox
-                    class="shrink-0 -ml-1.5 -mt-0.5"
-                    [checked]="selectedIds().has(person.id)"
-                    (change)="toggleSelect(person.id, $event.checked)"
-                    (click)="$event.stopPropagation()"
-                  />
-                }
-                <!-- Name & count -->
-                <div class="min-w-0 flex-1">
-                  @if (editingId() === person.id) {
-                    <div class="flex items-center gap-1" (click)="$event.stopPropagation()">
-                      <input
-                        #nameInput
-                        class="flex-1 bg-transparent border-b border-current outline-none text-sm py-0.5"
-                        [value]="person.name ?? ''"
-                        (keyup.enter)="saveName(person, nameInput.value)"
-                        (keyup.escape)="cancelEdit()"
-                      />
-                      <button mat-icon-button class="!w-7 !h-7" [matTooltip]="'dialog.confirm' | translate" (click)="saveName(person, nameInput.value)">
-                        <mat-icon class="!text-base">check</mat-icon>
-                      </button>
-                      <button mat-icon-button class="!w-7 !h-7" [matTooltip]="'dialog.cancel' | translate" (click)="cancelEdit()">
-                        <mat-icon class="!text-base">close</mat-icon>
-                      </button>
-                    </div>
-                  } @else {
-                    <p class="text-sm font-medium truncate">
-                      {{ person.name || ('persons.unnamed' | translate) }}
-                    </p>
-                  }
-                  <p class="text-xs opacity-60 mt-0.5">
-                    {{ 'persons.face_count' | translate:{ count: person.face_count } }}
-                  </p>
-                </div>
-              </div>
-            </mat-card-content>
-
-            <!-- Actions -->
-            @if (auth.isEdition() && editingId() !== person.id) {
-              <mat-card-actions class="!px-2 !pb-2 !pt-0" (click)="$event.stopPropagation()">
-                <button mat-icon-button [matTooltip]="'persons.rename' | translate" (click)="startEdit(person.id)">
-                  <mat-icon class="!text-lg">edit</mat-icon>
-                </button>
-                <a
-                  mat-icon-button
-                  [routerLink]="'/person/' + person.id"
-                  [matTooltip]="'persons.view_photos' | translate"
-                >
-                  <mat-icon class="!text-lg">photo_library</mat-icon>
-                </a>
-                <button mat-icon-button [matTooltip]="'persons.share_link' | translate" (click)="copyShareLink(person)">
-                  <mat-icon class="!text-lg">link</mat-icon>
-                </button>
-                <button mat-icon-button [matTooltip]="'persons.delete' | translate" (click)="deletePerson(person)">
-                  <mat-icon class="!text-lg">delete</mat-icon>
-                </button>
-              </mat-card-actions>
-            }
-          </mat-card>
+          <app-person-card
+            [person]="person"
+            [isSelected]="selectedIds().has(person.id)"
+            [isEditing]="editingId() === person.id"
+            [canEdit]="auth.isEdition()"
+            (selected)="onPersonSelected($event)"
+            (editStart)="startEdit($event)"
+            (editSave)="onEditSave($event)"
+            (editCancel)="cancelEdit()"
+            (share)="onShare($event)"
+            (deleted)="onDelete($event)"
+          />
         }
       </div>
 
@@ -445,12 +335,29 @@ export class ManagePersonsComponent implements OnInit, OnDestroy {
     }
   }
 
-  onPersonClick(person: Person): void {
+  // --- Card output handlers ---
+
+  onPersonSelected(id: number): void {
     if (this.auth.isEdition()) {
-      this.toggleSelect(person.id, !this.selectedIds().has(person.id));
+      this.toggleSelect(id, !this.selectedIds().has(id));
     } else {
-      this.router.navigate(['/'], { queryParams: { person_id: String(person.id) } });
+      this.router.navigate(['/'], { queryParams: { person_id: String(id) } });
     }
+  }
+
+  onEditSave({ id, name }: { id: number; name: string }): void {
+    const person = this.persons().find((p) => p.id === id);
+    if (person) void this.saveName(person, name);
+  }
+
+  onShare(id: number): void {
+    const person = this.persons().find((p) => p.id === id);
+    if (person) void this.copyShareLink(person);
+  }
+
+  onDelete(id: number): void {
+    const person = this.persons().find((p) => p.id === id);
+    if (person) void this.deletePerson(person);
   }
 
   // --- Selection ---
@@ -548,7 +455,6 @@ export class ManagePersonsComponent implements OnInit, OnDestroy {
         );
       }
 
-      // Remove sources, update target face count
       this.persons.update((list) =>
         list
           .filter((p) => !sourceIds.includes(p.id))

@@ -1,6 +1,6 @@
 import { Component, Pipe, PipeTransform, computed, input } from '@angular/core';
 import { TitleCasePipe } from '@angular/common';
-import { Photo } from './gallery.store';
+import { Photo } from '../../shared/models/photo.model';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../shared/pipes/shutter-speed.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';

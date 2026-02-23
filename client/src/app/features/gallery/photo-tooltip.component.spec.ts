@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal } from '@angular/core';
 import { PhotoTooltipComponent, CategoryLabelPipe } from './photo-tooltip.component';
 import { I18nService } from '../../core/services/i18n.service';
-import type { Photo } from './gallery.store';
+import type { Photo } from '../../shared/models/photo.model';
 
 const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   path: '/photos/test.jpg',
