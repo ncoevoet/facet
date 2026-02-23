@@ -116,7 +116,7 @@ export class StatsCorrelationsTabComponent {
 
   readonly correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
 
-  corrXAxis = signal('iso');
+  corrXAxis = signal('date_year');
   corrYMetrics = signal<string[]>(['aggregate', 'aesthetic']);
   corrGroupBy = signal('');
   corrChartType = signal('line');
