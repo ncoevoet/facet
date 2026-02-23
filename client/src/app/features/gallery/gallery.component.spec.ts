@@ -77,6 +77,8 @@ describe('GalleryComponent', () => {
     date_from: '',
     date_to: '',
     composition_pattern: '',
+    similar_to: '',
+    min_similarity: '70',
     hide_details: true,
     hide_blinks: true,
     hide_bursts: true,
@@ -197,55 +199,6 @@ describe('GalleryComponent', () => {
       expect(pipe.transform(7, config)).toBe('bg-yellow-600 text-white');
       expect(pipe.transform(5, config)).toBe('bg-orange-600 text-white');
       expect(pipe.transform(4, config)).toBe('bg-red-600 text-white');
-    });
-  });
-
-  describe('onRangeChange()', () => {
-    it('should set empty string when min value is 0', () => {
-      component.onRangeChange('min_score', 0);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_score', '');
-    });
-
-    it('should set empty string when max value is 10', () => {
-      component.onRangeChange('max_score', 10);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_score', '');
-    });
-
-    it('should set string value for non-boundary min', () => {
-      component.onRangeChange('min_score', 3);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_score', '3');
-    });
-
-    it('should set string value for non-boundary max', () => {
-      component.onRangeChange('max_score', 8);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_score', '8');
-    });
-
-    it('should set empty string for min_aesthetic at 0', () => {
-      component.onRangeChange('min_aesthetic', 0);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_aesthetic', '');
-    });
-
-    it('should set empty string for max_aesthetic at 10', () => {
-      component.onRangeChange('max_aesthetic', 10);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_aesthetic', '');
-    });
-
-    it('should set string value for decimal scores', () => {
-      component.onRangeChange('min_score', 5.5);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_score', '5.5');
-    });
-  });
-
-  describe('onExifRangeChange()', () => {
-    it('should set empty string when value equals boundary', () => {
-      component.onExifRangeChange('min_iso', 0, 0);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_iso', '');
-    });
-
-    it('should set string value when value differs from boundary', () => {
-      component.onExifRangeChange('min_iso', 400, 0);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_iso', '400');
     });
   });
 

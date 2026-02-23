@@ -109,7 +109,8 @@ describe('SlideshowComponent', () => {
       component['startInterval']();
       jest.advanceTimersByTime(1000); // 10 ticks of 100ms
       expect(component.currentIndex()).toBe(0); // no photos → stays at 0
-      expect(component.progress()).toBe(0);
+      // Progress hits 100 on the last tick, then preloadAndAdvance resets via async Image load
+      expect(component.progress()).toBe(100);
     });
   });
 

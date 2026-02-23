@@ -89,21 +89,9 @@ describe('StatsComponent', () => {
     { range: '9-10', min: 9, max: 10, count: 50, percentage: 0.05 },
   ];
 
-  const mockTimeline = [
-    { period: '2024-01', count: 100, avg_score: 6.8 },
-    { period: '2024-02', count: 120, avg_score: 7.0 },
-  ];
-
   const mockTopCameras = [
     { name: 'Canon R5', count: 500, avg_score: 7.1, avg_aesthetic: 7.5 },
   ];
-
-  const mockCorrData = {
-    labels: ['100', '200', '400'],
-    metrics: { aggregate: [6.5, 7.0, 6.8] },
-    x_axis: 'iso',
-    group_by: '',
-  };
 
   /**
    * Create component with api.get mock pre-configured.
@@ -113,7 +101,6 @@ describe('StatsComponent', () => {
   function safeDefault(path: string) {
     if (path === '/stats/categories') return of([]);
     if (path === '/stats/score_distribution') return of([]);
-    if (path === '/stats/timeline') return of([]);
     if (path === '/stats/top_cameras') return of([]);
     if (path === '/stats/gear') return of({ cameras: [], lenses: [], combos: [], categories: [] });
     return of({});
@@ -178,7 +165,6 @@ describe('StatsComponent', () => {
       expect(mockApi.get).toHaveBeenCalledWith('/stats/gear', expect.any(Object));
       expect(mockApi.get).toHaveBeenCalledWith('/stats/categories', expect.any(Object));
       expect(mockApi.get).toHaveBeenCalledWith('/stats/score_distribution', expect.any(Object));
-      expect(mockApi.get).toHaveBeenCalledWith('/stats/timeline', expect.any(Object));
       expect(mockApi.get).toHaveBeenCalledWith('/stats/top_cameras', expect.any(Object));
     });
   });
@@ -294,24 +280,6 @@ describe('StatsComponent', () => {
     });
   });
 
-  describe('loadTimeline()', () => {
-    it('should fetch timeline and set the signal', async () => {
-      const monthly = [
-        { month: '2024-01', count: 100, avg_score: 6.8 },
-        { month: '2024-02', count: 120, avg_score: 7.0 },
-      ];
-      const getMock = jest.fn((path: string) => {
-        if (path === '/stats/timeline') return of({ monthly });
-        return safeDefault(path);
-      });
-      component = createComponent(getMock);
-      await flushPromises();
-
-      expect(component.timeline()).toEqual(mockTimeline);
-      expect(component.timelineLoading()).toBe(false);
-    });
-  });
-
   describe('loadTopCameras()', () => {
     it('should fetch top cameras and set the signal', async () => {
       const getMock = jest.fn((path: string) => {
@@ -325,37 +293,6 @@ describe('StatsComponent', () => {
     });
   });
 
-  describe('loadCorrelation()', () => {
-    it('should fetch correlations and set corrData signal', async () => {
-      const getMock = jest.fn((path: string) => {
-        if (path === '/stats/correlations') return of(mockCorrData);
-        return safeDefault(path);
-      });
-      component = createComponent(getMock);
-      await flushPromises();
-
-      // loadCorrelation is on-demand, not called by loadAll
-      await component.loadCorrelation();
-
-      expect(mockApi.get).toHaveBeenCalledWith('/stats/correlations', expect.any(Object));
-      expect(component.corrData()).toEqual(mockCorrData);
-      expect(component.correlationLoading()).toBe(false);
-    });
-
-    it('should set correlationLoading to false on error', async () => {
-      const getMock = jest.fn((path: string) => {
-        if (path === '/stats/correlations') return throwError(() => new Error('fail'));
-        return safeDefault(path);
-      });
-      component = createComponent(getMock);
-      await flushPromises();
-
-      await component.loadCorrelation();
-
-      expect(component.correlationLoading()).toBe(false);
-      expect(component.corrData()).toBeNull();
-    });
-  });
 });
 
 describe('ChartHeightPipe', () => {

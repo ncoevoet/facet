@@ -7,9 +7,9 @@ import {
   GalleryFilters,
   PhotosResponse,
   ViewerConfig,
-  Photo,
   TypeCount,
 } from './gallery.store';
+import { Photo } from '../../shared/models/photo.model';
 
 const DEFAULT_FILTERS: GalleryFilters = {
   page: 1,
@@ -78,6 +78,8 @@ const DEFAULT_FILTERS: GalleryFilters = {
   date_from: '',
   date_to: '',
   composition_pattern: '',
+  similar_to: '',
+  min_similarity: '70',
   hide_details: true,
   hide_blinks: true,
   hide_bursts: true,
