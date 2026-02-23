@@ -184,18 +184,6 @@
         </button>
       }
 
-      <!-- Language switcher -->
-      <button mat-icon-button [matMenuTriggerFor]="langMenu" [attr.aria-label]="'ui.switch_language' | translate">
-        <mat-icon>language</mat-icon>
-      </button>
-      <mat-menu #langMenu="matMenu">
-        <button mat-menu-item (click)="switchLang('en')">English</button>
-        <button mat-menu-item (click)="switchLang('fr')">Français</button>
-        <button mat-menu-item (click)="switchLang('de')">Deutsch</button>
-        <button mat-menu-item (click)="switchLang('it')">Italiano</button>
-        <button mat-menu-item (click)="switchLang('es')">Español</button>
-      </mat-menu>
-
       <!-- Edition mode toggle (legacy single-user only) -->
       @if (auth.isAuthenticated() && !auth.isMultiUser() && auth.status()?.edition_enabled) {
         @if (auth.isEdition()) {
@@ -209,7 +197,7 @@
         }
       }
 
-      <!-- User menu -->
+      <!-- User menu (authenticated: account + language + logout) -->
       @if (auth.isAuthenticated()) {
         <button mat-icon-button [matMenuTriggerFor]="userMenu">
           <mat-icon>account_circle</mat-icon>
@@ -218,10 +206,36 @@
           @if (auth.status()?.display_name) {
             <div class="px-4 py-2 text-sm opacity-70">{{ auth.status()?.display_name }}</div>
           }
+          <button mat-menu-item [matMenuTriggerFor]="langMenu">
+            <mat-icon>language</mat-icon>
+            {{ 'ui.switch_language' | translate }}
+          </button>
+          <mat-divider />
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>
             {{ 'auth.logout' | translate }}
           </button>
+        </mat-menu>
+        <mat-menu #langMenu="matMenu">
+          <button mat-menu-item (click)="switchLang('en')">English</button>
+          <button mat-menu-item (click)="switchLang('fr')">Français</button>
+          <button mat-menu-item (click)="switchLang('de')">Deutsch</button>
+          <button mat-menu-item (click)="switchLang('it')">Italiano</button>
+          <button mat-menu-item (click)="switchLang('es')">Español</button>
+        </mat-menu>
+      }
+
+      <!-- Language menu (not authenticated) -->
+      @if (!auth.isAuthenticated()) {
+        <button mat-icon-button [matMenuTriggerFor]="langMenuAnon" [attr.aria-label]="'ui.switch_language' | translate">
+          <mat-icon>language</mat-icon>
+        </button>
+        <mat-menu #langMenuAnon="matMenu">
+          <button mat-menu-item (click)="switchLang('en')">English</button>
+          <button mat-menu-item (click)="switchLang('fr')">Français</button>
+          <button mat-menu-item (click)="switchLang('de')">Deutsch</button>
+          <button mat-menu-item (click)="switchLang('it')">Italiano</button>
+          <button mat-menu-item (click)="switchLang('es')">Español</button>
         </mat-menu>
       }
 
