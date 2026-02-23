@@ -100,6 +100,12 @@ This creates `photo_scores_viewer.db` which:
 - Downsizes thumbnails from 640px to 320px (~75% space saved per thumbnail)
 - Typically reduces a 14GB database to ~4-5GB
 
+**Subsequent exports are incremental.** If `photo_scores_viewer.db` already exists, only new and changed photos are synced — thumbnails for existing photos are preserved. Use `--force-export` to force a full rebuild:
+
+```bash
+python database.py --export-viewer-db --force-export
+```
+
 The "Find Similar" feature won't work on the exported database (CLIP embeddings are stripped). Use the scoring machine for that.
 
 ### Sync Files

@@ -139,7 +139,8 @@ Checks: Score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python database.py --vacuum` | Reclaim space, defragment |
 | `python database.py --analyze` | Update query planner statistics |
 | `python database.py --optimize` | Run VACUUM and ANALYZE |
-| `python database.py --export-viewer-db` | Export lightweight database for NAS deployment |
+| `python database.py --export-viewer-db` | Export/update lightweight database for NAS deployment (incremental if output exists) |
+| `python database.py --export-viewer-db --force-export` | Force full re-export, even if viewer DB already exists |
 | `python database.py --cleanup-orphaned-persons` | Remove persons with no associated faces |
 | `python database.py --add-user alice --role admin` | Add a user (prompts for password) |
 | `python database.py --add-user alice --role user --display-name "Alice"` | Add user with display name |

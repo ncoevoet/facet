@@ -190,7 +190,12 @@ if __name__ == '__main__':
         nargs='?',
         const='photo_scores_viewer.db',
         metavar='OUTPUT_PATH',
-        help='Export lightweight viewer database (strips BLOBs, downsizes thumbnails)'
+        help='Export lightweight viewer database (incremental if output exists, strips BLOBs, downsizes thumbnails)'
+    )
+    parser.add_argument(
+        '--force-export',
+        action='store_true',
+        help='Force full re-export even if viewer DB already exists (use with --export-viewer-db)'
     )
     parser.add_argument(
         '--add-user',
@@ -266,7 +271,7 @@ if __name__ == '__main__':
     elif args.cleanup_orphaned_persons:
         cleanup_orphaned_persons(args.db, verbose=True)
     elif args.export_viewer_db:
-        export_viewer_db(args.db, output_path=args.export_viewer_db, verbose=True)
+        export_viewer_db(args.db, output_path=args.export_viewer_db, verbose=True, force=args.force_export)
     elif args.add_user:
         add_user(args.add_user, args.role, args.display_name)
     elif args.migrate_user_preferences:
