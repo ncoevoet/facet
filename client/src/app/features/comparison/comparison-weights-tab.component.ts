@@ -17,6 +17,7 @@ import { firstValueFrom, debounceTime, skip, filter } from 'rxjs';
 import { Chart } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -131,57 +132,55 @@ class SignalErrorMatcher {
         </mat-card-content>
       </mat-card>
 
-      <!-- Right: Weight Impact chart + Preview -->
-      <div class="flex flex-col gap-6">
-        <mat-card>
-          <mat-card-header>
-            <mat-card-title>{{ 'stats.weight_impact.title' | translate }}</mat-card-title>
-            <mat-card-subtitle>{{ 'stats.weight_impact.description' | translate }}</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content class="!pt-4">
-            @if (weightImpactLoading()) {
-              <div class="flex justify-center py-8"><mat-spinner diameter="32" /></div>
-            } @else if (weightImpactData()) {
-              <div class="h-80">
-                <canvas #weightImpactCanvas></canvas>
-              </div>
-            } @else {
-              <p class="text-sm text-gray-400">{{ 'stats.weight_impact.empty' | translate }}</p>
-            }
-          </mat-card-content>
-        </mat-card>
-
-        <!-- Thumbnail preview -->
-        <mat-card>
-          <mat-card-header>
-            <mat-card-title class="flex items-center gap-2">
-              {{ 'comparison.preview' | translate }}
-              @if (previewLoading()) {
-                <mat-spinner diameter="18" />
-              }
-            </mat-card-title>
-            <mat-card-subtitle>{{ 'comparison.top_n_photos' | translate:{ count: previewCount } }}</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content class="!pt-4">
-            @if (previewPhotos().length > 0) {
-              <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                @for (photo of previewPhotos(); track photo.path; let i = $index) {
-                  <div class="relative rounded-lg overflow-hidden bg-neutral-900">
-                    <img [src]="photo.path | thumbnailUrl:320" [alt]="photo.filename" class="w-full object-contain bg-neutral-900" />
-                    <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-1.5">
-                      <span class="text-xs font-mono text-white">#{{ i + 1 }}</span>
-                      <span class="text-xs font-mono text-gray-300 ml-2">{{ (photo.new_score ?? photo.aggregate) | fixed:1 }}</span>
-                    </div>
-                  </div>
-                }
-              </div>
-            } @else if (!previewLoading()) {
-              <p class="text-gray-500 text-sm">{{ 'comparison.no_preview' | translate }}</p>
-            }
-          </mat-card-content>
-        </mat-card>
-      </div>
+      <!-- Right: Weight Impact chart -->
+      <mat-card>
+        <mat-card-header>
+          <mat-card-title>{{ 'stats.weight_impact.title' | translate }}</mat-card-title>
+          <mat-card-subtitle>{{ 'stats.weight_impact.description' | translate }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content class="!pt-4">
+          @if (weightImpactLoading()) {
+            <div class="flex justify-center py-8"><mat-spinner diameter="32" /></div>
+          } @else if (weightImpactData()) {
+            <div class="h-80">
+              <canvas #weightImpactCanvas></canvas>
+            </div>
+          } @else {
+            <p class="text-sm text-gray-400">{{ 'stats.weight_impact.empty' | translate }}</p>
+          }
+        </mat-card-content>
+      </mat-card>
     </div>
+
+    <!-- Thumbnail preview (full width below the grid) -->
+    <mat-card class="mt-6">
+      <mat-card-header>
+        <mat-card-title class="flex items-center gap-2">
+          {{ 'comparison.preview' | translate }}
+          @if (previewLoading()) {
+            <mat-spinner diameter="18" />
+          }
+        </mat-card-title>
+        <mat-card-subtitle>{{ 'comparison.top_n_photos' | translate:{ count: previewCount } }}</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content class="!pt-4">
+        @if (previewPhotos().length > 0) {
+          <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
+            @for (photo of previewPhotos(); track photo.path; let i = $index) {
+              <div class="relative rounded-lg overflow-hidden bg-neutral-900">
+                <img [src]="photo.path | thumbnailUrl:320" [alt]="photo.filename" class="w-full object-contain bg-neutral-900" />
+                <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-1.5">
+                  <span class="text-xs font-mono text-white">#{{ i + 1 }}</span>
+                  <span class="text-xs font-mono text-gray-300 ml-2">{{ (photo.new_score ?? photo.aggregate) | fixed:1 }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        } @else if (!previewLoading()) {
+          <p class="text-gray-500 text-sm">{{ 'comparison.no_preview' | translate }}</p>
+        }
+      </mat-card-content>
+    </mat-card>
 
     <!-- Modifiers & Filters -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
@@ -325,6 +324,7 @@ export class ComparisonWeightsTabComponent {
   private i18n = inject(I18nService);
   private snackBar = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
+  private themeService = inject(ThemeService);
   readonly compareFilters = inject(CompareFiltersService);
 
   readonly previewCount = 6;
@@ -499,6 +499,7 @@ export class ComparisonWeightsTabComponent {
         this.api.get<{ photos: PreviewPhoto[] }>('/photos', {
           category: cat, sort: 'aggregate', sort_direction: 'DESC',
           per_page: this.previewCount, page: 1,
+          hide_duplicates: true,
         }),
       );
       this.previewPhotos.set(data.photos ?? []);
@@ -659,7 +660,7 @@ export class ComparisonWeightsTabComponent {
 
     const weights = data.configured_weights?.[category] ?? {};
     const corrs = data.correlations?.[category] ?? {};
-    const activeDims = this.weightKeys().map(k => k.replace('_percent', ''));
+    const activeDims = data.dimensions?.length ? data.dimensions : Object.keys(weights);
     if (activeDims.length === 0) return;
 
     const labels = activeDims.map((d: string) => this.i18n.t('stats.weight_impact.dims.' + d));
@@ -672,7 +673,7 @@ export class ComparisonWeightsTabComponent {
         labels,
         datasets: [
           { label: this.i18n.t('stats.weight_impact.configured'), data: weightValues, backgroundColor: '#3b82f6cc', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 3 },
-          { label: this.i18n.t('stats.weight_impact.actual_impact'), data: corrValues, backgroundColor: '#22c55ecc', borderColor: '#22c55e', borderWidth: 1, borderRadius: 3 },
+          { label: this.i18n.t('stats.weight_impact.actual_impact'), data: corrValues, backgroundColor: this.themeService.accentColor() + 'cc', borderColor: this.themeService.accentColor(), borderWidth: 1, borderRadius: 3 },
         ],
       },
       options: {
