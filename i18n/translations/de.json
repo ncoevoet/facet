@@ -60,7 +60,8 @@
       "dup": "DUP",
       "rejected": "ABG"
     },
-    "switch_language": "Sprache wechseln"
+    "switch_language": "Sprache wechseln",
+    "theme": "Farbschema"
   },
   "dialog": {
     "cancel": "Abbrechen",

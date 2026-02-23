@@ -60,7 +60,8 @@
       "dup": "DUP",
       "rejected": "REJ"
     },
-    "switch_language": "Switch language"
+    "switch_language": "Switch language",
+    "theme": "Theme"
   },
   "dialog": {
     "cancel": "Cancel",

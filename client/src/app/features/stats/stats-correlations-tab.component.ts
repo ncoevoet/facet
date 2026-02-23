@@ -10,6 +10,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
 import { Chart } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 
@@ -112,6 +113,7 @@ export class StatsCorrelationsTabComponent {
   private api = inject(ApiService);
   private destroyRef = inject(DestroyRef);
   private statsFilters = inject(StatsFiltersService);
+  private themeService = inject(ThemeService);
   private charts = new Map<string, Chart>();
 
   readonly correlationsCanvas = viewChild<ElementRef<HTMLCanvasElement>>('correlationsCanvas');
@@ -218,11 +220,13 @@ export class StatsCorrelationsTabComponent {
       borderRadius?: number;
     }[] = [];
 
+    const themedColors = [this.themeService.accentColor(), ...COLORS.slice(1)];
+
     if (apiData.groups && Object.keys(apiData.groups).length > 0) {
       const groupNames = Object.keys(apiData.groups);
       for (let gi = 0; gi < groupNames.length; gi++) {
         const grp = groupNames[gi];
-        const color = COLORS[gi % COLORS.length];
+        const color = themedColors[gi % themedColors.length];
         const yMetric = this.corrYMetrics()[0] ?? 'aggregate';
         const data = labels.map(lbl => apiData.groups![grp]?.[lbl]?.[yMetric] ?? null);
         datasets.push({
@@ -238,7 +242,7 @@ export class StatsCorrelationsTabComponent {
       const metricNames = Object.keys(apiData.metrics);
       for (let mi = 0; mi < metricNames.length; mi++) {
         const metric = metricNames[mi];
-        const color = COLORS[mi % COLORS.length];
+        const color = themedColors[mi % themedColors.length];
         const values = apiData.metrics[metric] ?? [];
         datasets.push({
           label: metric, data: values,

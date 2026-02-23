@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { Chart } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 
@@ -13,10 +14,8 @@ import { StatsFiltersService } from './stats-filters.service';
 export class HeatmapColorPipe implements PipeTransform {
   transform(count: number, max: number): string {
     if (count === 0) return 'transparent';
-    const ratio = count / max;
-    const g = Math.round(80 + 175 * ratio);
-    const alpha = 0.4 + 0.6 * ratio;
-    return `rgba(34, ${g}, 94, ${alpha})`;
+    const pct = Math.round(40 + 60 * (count / max));
+    return `color-mix(in srgb, var(--facet-accent) ${pct}%, transparent)`;
   }
 }
 
@@ -149,6 +148,7 @@ export class StatsTimelineTabComponent {
   private i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);
   private statsFilters = inject(StatsFiltersService);
+  private themeService = inject(ThemeService);
   private charts = new Map<string, Chart>();
 
   readonly timelineCanvas = viewChild<ElementRef<HTMLCanvasElement>>('timelineCanvas');
@@ -182,11 +182,13 @@ export class StatsTimelineTabComponent {
 
     effect(() => {
       const data = this.timeline();
-      this.buildAreaLine('timeline', this.timelineCanvas(), data.map(t => t.period), data.map(t => t.count), '#22c55e');
+      const accent = this.themeService.accentColor();
+      this.buildAreaLine('timeline', this.timelineCanvas(), data.map(t => t.period), data.map(t => t.count), accent);
     });
     effect(() => {
       const data = this.yearlyData();
-      this.buildVerticalBar('yearly', this.yearlyCanvas(), data.map(y => y.year), data.map(y => y.count), '#22c55e');
+      const accent = this.themeService.accentColor();
+      this.buildVerticalBar('yearly', this.yearlyCanvas(), data.map(y => y.year), data.map(y => y.count), accent);
     });
     effect(() => {
       const data = this.dayOfWeekData();

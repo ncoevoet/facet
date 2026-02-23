@@ -6,6 +6,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Chart } from 'chart.js';
 import 'chartjs-adapter-date-fns';
+import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ChartHeightPipe } from './chart-height.pipe';
 
@@ -82,6 +83,7 @@ const GEAR_METRIC_OPTIONS = [
 })
 export class GearChartCardComponent {
   private destroyRef = inject(DestroyRef);
+  private themeService = inject(ThemeService);
   private chart: Chart | null = null;
 
   /** i18n key for the card title, e.g. 'stats.cameras' or 'stats.lenses' */
@@ -91,7 +93,7 @@ export class GearChartCardComponent {
   /** Whether data is still loading */
   readonly loading = input(false);
   /** Chart bar color */
-  readonly color = input('#22c55e');
+  readonly color = input('');
 
   /** Currently selected metric */
   protected readonly selectedMetric = signal('count');
@@ -130,7 +132,7 @@ export class GearChartCardComponent {
       const items = this.sortedItems();
       const metric = this.selectedMetric();
       const canvas = this.chartCanvas();
-      const color = this.color();
+      const color = this.color() || this.themeService.accentColor();
 
       if (!canvas) return;
 
@@ -179,8 +181,8 @@ export class GearChartCardComponent {
             labels,
             datasets: [{
               data: values,
-              backgroundColor: this.color() + 'cc',
-              borderColor: this.color(),
+              backgroundColor: color + 'cc',
+              borderColor: color,
               borderWidth: 1,
               borderRadius: 2,
             }],

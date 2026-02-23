@@ -1,16 +1,103 @@
 @use '@angular/material' as mat;
 @use "tailwindcss";
 
+// Default theme (orange)
 html {
   @include mat.theme((
     color: (
       theme-type: dark,
-      primary: mat.$green-palette,
+      primary: mat.$orange-palette,
       tertiary: mat.$cyan-palette,
     ),
     typography: Roboto,
     density: -1,
   ));
+  --facet-accent: #ff6600;
+  --facet-accent-dim: #7c2d12;
+  --facet-accent-text: #ff983f;
+  --facet-accent-badge: color-mix(in srgb, var(--facet-accent-dim) 50%, transparent);
+}
+
+// Theme variants (color only — typography and density inherited from base)
+html.theme-green {
+  @include mat.theme((
+    color: (theme-type: dark, primary: mat.$green-palette, tertiary: mat.$cyan-palette),
+  ));
+  --facet-accent: #22c55e;
+  --facet-accent-dim: #14532d;
+  --facet-accent-text: #4ade80;
+}
+
+html.theme-blue {
+  @include mat.theme((
+    color: (theme-type: dark, primary: mat.$blue-palette, tertiary: mat.$orange-palette),
+  ));
+  --facet-accent: #3b82f6;
+  --facet-accent-dim: #1e3a5f;
+  --facet-accent-text: #60a5fa;
+}
+
+html.theme-cyan {
+  @include mat.theme((
+    color: (theme-type: dark, primary: mat.$cyan-palette, tertiary: mat.$orange-palette),
+  ));
+  --facet-accent: #06b6d4;
+  --facet-accent-dim: #164e63;
+  --facet-accent-text: #22d3ee;
+}
+
+html.theme-violet {
+  @include mat.theme((
+    color: (theme-type: dark, primary: mat.$violet-palette, tertiary: mat.$cyan-palette),
+  ));
+  --facet-accent: #8b5cf6;
+  --facet-accent-dim: #4c1d95;
+  --facet-accent-text: #a78bfa;
+}
+
+html.theme-rose {
+  @include mat.theme((
+    color: (theme-type: dark, primary: mat.$rose-palette, tertiary: mat.$cyan-palette),
+  ));
+  --facet-accent: #f43f5e;
+  --facet-accent-dim: #881337;
+  --facet-accent-text: #fb7185;
+}
+
+html.theme-red {
+  @include mat.theme((
+    color: (theme-type: dark, primary: mat.$red-palette, tertiary: mat.$cyan-palette),
+  ));
+  --facet-accent: #ef4444;
+  --facet-accent-dim: #7f1d1d;
+  --facet-accent-text: #f87171;
+}
+
+html.theme-yellow {
+  @include mat.theme((
+    color: (theme-type: dark, primary: mat.$yellow-palette, tertiary: mat.$violet-palette),
+  ));
+  --facet-accent: #eab308;
+  --facet-accent-dim: #713f12;
+  --facet-accent-text: #facc15;
+}
+
+html.theme-magenta {
+  @include mat.theme((
+    color: (theme-type: dark, primary: mat.$magenta-palette, tertiary: mat.$cyan-palette),
+  ));
+  --facet-accent: #d946ef;
+  --facet-accent-dim: #701a75;
+  --facet-accent-text: #e879f9;
+}
+
+html.theme-azure {
+  @include mat.theme((
+    color: (theme-type: dark, primary: mat.$azure-palette, tertiary: mat.$orange-palette),
+  ));
+  --facet-accent: #0ea5e9;
+  --facet-accent-dim: #0c4a6e;
+  --facet-accent-text: #38bdf8;
 }
 
 body {

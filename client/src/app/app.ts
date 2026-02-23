@@ -20,6 +20,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { AuthService } from './core/services/auth.service';
 import { I18nService } from './core/services/i18n.service';
+import { ThemeService } from './core/services/theme.service';
 import { GalleryStore, GalleryFilters } from './features/gallery/gallery.store';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
@@ -100,6 +101,7 @@ export class App implements OnInit {
   private dialog = inject(MatDialog);
   auth = inject(AuthService);
   i18n = inject(I18nService);
+  themeService = inject(ThemeService);
   store = inject(GalleryStore);
   statsFilters = inject(StatsFiltersService);
   compareFilters = inject(CompareFiltersService);

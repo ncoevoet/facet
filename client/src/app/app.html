@@ -210,6 +210,10 @@
             <mat-icon>language</mat-icon>
             {{ 'ui.switch_language' | translate }}
           </button>
+          <button mat-menu-item [matMenuTriggerFor]="themeMenu">
+            <mat-icon>palette</mat-icon>
+            {{ 'ui.theme' | translate }}
+          </button>
           <mat-divider />
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>
@@ -222,6 +226,14 @@
           <button mat-menu-item (click)="switchLang('de')">Deutsch</button>
           <button mat-menu-item (click)="switchLang('it')">Italiano</button>
           <button mat-menu-item (click)="switchLang('es')">Español</button>
+        </mat-menu>
+        <mat-menu #themeMenu="matMenu">
+          @for (t of themeService.THEMES; track t.id) {
+            <button mat-menu-item (click)="themeService.setTheme(t.id)">
+              <span class="inline-block w-4 h-4 rounded-full mr-2 align-middle" [style.background]="t.swatch"></span>
+              {{ t.label }}
+            </button>
+          }
         </mat-menu>
       }
 
@@ -236,6 +248,18 @@
           <button mat-menu-item (click)="switchLang('de')">Deutsch</button>
           <button mat-menu-item (click)="switchLang('it')">Italiano</button>
           <button mat-menu-item (click)="switchLang('es')">Español</button>
+        </mat-menu>
+        <!-- Theme menu (not authenticated) -->
+        <button mat-icon-button [matMenuTriggerFor]="themeMenuAnon" [attr.aria-label]="'ui.theme' | translate">
+          <mat-icon>palette</mat-icon>
+        </button>
+        <mat-menu #themeMenuAnon="matMenu">
+          @for (t of themeService.THEMES; track t.id) {
+            <button mat-menu-item (click)="themeService.setTheme(t.id)">
+              <span class="inline-block w-4 h-4 rounded-full mr-2 align-middle" [style.background]="t.swatch"></span>
+              {{ t.label }}
+            </button>
+          }
         </mat-menu>
       }
 

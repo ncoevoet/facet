@@ -148,7 +148,7 @@ interface AppConfig {
             <span class="font-medium text-neutral-200 truncate">{{ photo().filename }}</span>
             <span class="ml-auto flex items-center gap-1 shrink-0">
               @if (photo().is_best_of_burst) {
-                <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-green-700 text-white">{{ 'ui.badges.best' | translate }}</span>
+                <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ 'ui.badges.best' | translate }}</span>
               }
               @if (currentSort() !== 'aggregate') {
                 <span class="text-neutral-400 font-medium" [matTooltip]="'gallery.aggregate_score' | translate">{{ photo().aggregate | fixed:1 }}</span>
@@ -172,7 +172,7 @@ interface AppConfig {
           @if (photo().tags_list.length) {
             <div class="flex gap-0.5 flex-wrap mt-0.5">
               @for (tag of photo().tags_list; track tag) {
-                <span class="px-1.5 py-0.5 bg-green-900/60 text-green-400 rounded text-[11px] cursor-pointer hover:bg-green-800/60 transition-colors"
+                <span class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[11px] cursor-pointer hover:bg-[var(--facet-accent-dim)] transition-colors"
                       (click)="tagClicked.emit(tag); $event.stopPropagation()">
                   {{ tag }}
                 </span>

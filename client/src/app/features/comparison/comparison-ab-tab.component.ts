@@ -129,7 +129,7 @@ interface LearnedWeightsResponse {
             } @else if (pairA() && pairB()) {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <button
-                  class="relative rounded-lg overflow-hidden bg-neutral-900 cursor-pointer border-2 border-transparent hover:border-green-500 transition-colors text-left p-0"
+                  class="relative rounded-lg overflow-hidden bg-neutral-900 cursor-pointer border-2 border-transparent hover:border-[var(--mat-sys-primary)] transition-colors text-left p-0"
                   [disabled]="pairSubmitting()"
                   (click)="submitComparison('a')">
                   <img [src]="pairA()! | thumbnailUrl:640" alt="Photo A" class="w-full max-h-[60vh] object-contain" />
@@ -139,7 +139,7 @@ interface LearnedWeightsResponse {
                   </div>
                 </button>
                 <button
-                  class="relative rounded-lg overflow-hidden bg-neutral-900 cursor-pointer border-2 border-transparent hover:border-green-500 transition-colors text-left p-0"
+                  class="relative rounded-lg overflow-hidden bg-neutral-900 cursor-pointer border-2 border-transparent hover:border-[var(--mat-sys-primary)] transition-colors text-left p-0"
                   [disabled]="pairSubmitting()"
                   (click)="submitComparison('b')">
                   <img [src]="pairB()! | thumbnailUrl:640" alt="Photo B" class="w-full max-h-[60vh] object-contain" />
@@ -223,7 +223,7 @@ interface LearnedWeightsResponse {
                       <span class="text-gray-400">{{ 'compare.weights.prediction_accuracy' | translate }}:</span>
                       <span class="font-mono">{{ (lw.accuracy_before ?? 0) | fixed:0 }}%</span>
                       <span class="text-gray-500">&rarr;</span>
-                      <span class="font-mono text-green-400">{{ (lw.accuracy_after ?? 0) | fixed:0 }}%</span>
+                      <span class="font-mono text-[var(--facet-accent-text)]">{{ (lw.accuracy_after ?? 0) | fixed:0 }}%</span>
                     </div>
                     @if (lw.mispredicted_count) {
                       <div class="text-gray-500">
@@ -237,7 +237,7 @@ interface LearnedWeightsResponse {
                             <span class="w-28 shrink-0 truncate text-gray-400">{{ key | weightLabelKey | translate }}</span>
                             <span class="font-mono w-10 shrink-0 text-right tabular-nums">{{ lw.current_weights?.[key] || 0 }}</span>
                             <span class="w-6 shrink-0 text-center text-gray-500">&rarr;</span>
-                            <span class="font-mono w-10 shrink-0 text-right tabular-nums text-green-400">{{ lw.suggested_weights[key] || 0 }}</span>
+                            <span class="font-mono w-10 shrink-0 text-right tabular-nums text-[var(--facet-accent-text)]">{{ lw.suggested_weights[key] || 0 }}</span>
                           </div>
                         }
                       </div>

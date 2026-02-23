@@ -13,6 +13,7 @@ import { Chart, registerables } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { ThemeService } from '../../core/services/theme.service';
 import { StatsFiltersService } from './stats-filters.service';
 import { GearChartCardComponent, GearItem } from './gear-chart-card.component';
 import { ChartHeightPipe } from './chart-height.pipe';
@@ -129,7 +130,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
             </mat-card>
             <mat-card>
               <mat-card-content class="!py-4 text-center">
-                <mat-icon class="!text-4xl !w-10 !h-10 text-green-400 mb-1">face</mat-icon>
+                <mat-icon class="!text-4xl !w-10 !h-10 text-[var(--facet-accent-text)] mb-1">face</mat-icon>
                 <div class="text-3xl font-bold">{{ overview()!.total_faces | number }}</div>
                 <div class="text-sm text-gray-400">{{ 'stats.total_faces' | translate }}</div>
               </mat-card-content>
@@ -145,7 +146,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
               {{ 'stats.gear' | translate }}
             </ng-template>
             <div class="flex flex-col gap-4 mt-4">
-              <app-gear-chart-card titleKey="stats.cameras" [items]="cameras()" [loading]="gearLoading()" color="#22c55e" />
+              <app-gear-chart-card titleKey="stats.cameras" [items]="cameras()" [loading]="gearLoading()" [color]="themeService.accentColor()" />
               <app-gear-chart-card titleKey="stats.lenses" [items]="lenses()" [loading]="gearLoading()" color="#3b82f6" />
               @if (combos().length > 0) {
                 <app-gear-chart-card titleKey="stats.charts.camera_lens_combos" [items]="combos()" [loading]="gearLoading()" color="#f59e0b" />
@@ -322,6 +323,7 @@ export class StatsComponent {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   readonly statsFilters = inject(StatsFiltersService);
+  readonly themeService = inject(ThemeService);
   private charts = new Map<string, Chart>();
 
   // Canvas refs
@@ -396,7 +398,8 @@ export class StatsComponent {
     // Chart effects
     effect(() => {
       const cats = this.categoryStats();
-      this.buildHorizontalBar('categories', this.categoriesCanvas(), cats.map(c => this.translateCategory(c.category)), cats.map(c => c.count), COLORS[0]);
+      const accent = this.themeService.accentColor();
+      this.buildHorizontalBar('categories', this.categoriesCanvas(), cats.map(c => this.translateCategory(c.category)), cats.map(c => c.count), accent);
     });
     effect(() => {
       const bins = this.scoreBins();
@@ -404,10 +407,11 @@ export class StatsComponent {
     });
     effect(() => {
       const cats = this.categoryScoreProfile();
+      const accent = this.themeService.accentColor();
       const labels = cats.map(c => this.translateCategory(c.category));
       this.buildGroupedHorizontalBar('categoryScoreProfile', this.categoryScoreProfileCanvas(), labels, [
         { label: this.i18n.t('stats.axes.aggregate'),    data: cats.map(c => c.avg_score),        color: COLORS[3] },
-        { label: this.i18n.t('stats.axes.aesthetic'),    data: cats.map(c => c.avg_aesthetic),    color: COLORS[0] },
+        { label: this.i18n.t('stats.axes.aesthetic'),    data: cats.map(c => c.avg_aesthetic),    color: accent },
         { label: this.i18n.t('stats.axes.composition'),  data: cats.map(c => c.avg_composition),  color: COLORS[1] },
         { label: this.i18n.t('stats.axes.sharpness'),    data: cats.map(c => c.avg_sharpness),    color: COLORS[2] },
         { label: this.i18n.t('stats.axes.color'),        data: cats.map(c => c.avg_color),        color: COLORS[5] },
