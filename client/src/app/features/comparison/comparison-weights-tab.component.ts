@@ -499,7 +499,7 @@ export class ComparisonWeightsTabComponent {
         this.api.get<{ photos: PreviewPhoto[] }>('/photos', {
           category: cat, sort: 'aggregate', sort_direction: 'DESC',
           per_page: this.previewCount, page: 1,
-          hide_duplicates: true,
+          hide_duplicates: true, hide_bursts: true,
         }),
       );
       this.previewPhotos.set(data.photos ?? []);
