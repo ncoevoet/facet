@@ -332,4 +332,8 @@ CORRELATION_Y_METRICS = {
     'power_point_score', 'leading_lines_score',
     'eye_sharpness', 'face_sharpness', 'face_ratio', 'face_confidence',
     'histogram_spread', 'mean_luminance', 'star_rating', 'topiq_score',
+    # Supplementary PyIQA
+    'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
+    # Subject saliency
+    'subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation',
 }

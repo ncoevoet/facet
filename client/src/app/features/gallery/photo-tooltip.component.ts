@@ -87,6 +87,15 @@ export class CategoryLabelPipe implements PipeTransform {
             @if (p.tech_sharpness != null) {
               <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.tech_sharpness' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.tech_sharpness | fixed:1 }}</span></div>
             }
+            @if (p.aesthetic_iaa != null) {
+              <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.aesthetic_iaa' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.aesthetic_iaa | fixed:1 }}</span></div>
+            }
+            @if (p.face_quality_iqa != null) {
+              <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.face_quality_iqa' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.face_quality_iqa | fixed:1 }}</span></div>
+            }
+            @if (p.liqe_score != null) {
+              <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.liqe_score' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.liqe_score | fixed:1 }}</span></div>
+            }
           </div>
 
           <!-- Composition section -->
@@ -108,6 +117,25 @@ export class CategoryLabelPipe implements PipeTransform {
               <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.isolation' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.isolation_bonus | fixed:1 }}</span></div>
             }
           </div>
+
+          <!-- Subject Saliency section -->
+          @if (p.subject_sharpness != null || p.subject_prominence != null || p.subject_placement != null || p.bg_separation != null) {
+            <div class="border-t border-neutral-700 pt-1.5 mt-2">
+              <div class="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">{{ 'tooltip.saliency_section' | translate }}</div>
+              @if (p.subject_sharpness != null) {
+                <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.subject_sharpness' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.subject_sharpness | fixed:1 }}</span></div>
+              }
+              @if (p.subject_prominence != null) {
+                <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.subject_prominence' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.subject_prominence | fixed:1 }}</span></div>
+              }
+              @if (p.subject_placement != null) {
+                <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.subject_placement' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.subject_placement | fixed:1 }}</span></div>
+              }
+              @if (p.bg_separation != null) {
+                <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.bg_separation' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.bg_separation | fixed:1 }}</span></div>
+              }
+            </div>
+          }
 
           <!-- Technical section -->
           <div class="border-t border-neutral-700 pt-1.5 mt-2">

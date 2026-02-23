@@ -176,7 +176,15 @@
     "silhouette_label": "Silhouette",
     "topiq_score": "TOPIQ",
     "histogram_spread": "Hist. Spread",
-    "star_rating": "Rating"
+    "star_rating": "Rating",
+    "aesthetic_iaa": "Aesthetic IAA",
+    "face_quality_iqa": "Face IQA",
+    "liqe_score": "LIQE",
+    "saliency_section": "Subject Saliency",
+    "subject_sharpness": "Subject Sharpness",
+    "subject_prominence": "Prominence",
+    "subject_placement": "Placement",
+    "bg_separation": "BG Separation"
   },
   "notifications": {
     "copied": "Copied!",
@@ -984,6 +992,8 @@
       "face": "Face Metrics",
       "composition": "Composition",
       "technical": "Technical",
+      "extended_quality": "Extended Quality",
+      "saliency": "Subject Saliency",
       "exposure_range": "Exposure & Range",
       "ratings": "User Ratings"
     },
@@ -1012,7 +1022,14 @@
     "saturation_range": "Saturation",
     "luminance_range": "Luminance",
     "histogram_range": "Histogram Spread",
-    "star_rating_range": "Star Rating"
+    "star_rating_range": "Star Rating",
+    "aesthetic_iaa_range": "Aesthetic IAA",
+    "face_quality_iqa_range": "Face Quality IQA",
+    "liqe_range": "LIQE Score",
+    "subject_sharpness_range": "Subject Sharpness",
+    "subject_prominence_range": "Subject Prominence",
+    "subject_placement_range": "Subject Placement",
+    "bg_separation_range": "BG Separation"
   },
   "composition_patterns": {
     "none": "None",
@@ -1092,7 +1109,14 @@
       "noise": "Noise",
       "isolation": "Isolation",
       "power_point": "Power Points",
-      "leading_lines": "Leading Lines"
+      "leading_lines": "Leading Lines",
+      "aesthetic_iaa": "Aesthetic IAA",
+      "face_quality_iqa": "Face IQA",
+      "liqe": "LIQE",
+      "subject_sharpness": "Subject Sharpness",
+      "subject_prominence": "Subject Prominence",
+      "subject_placement": "Subject Placement",
+      "bg_separation": "BG Separation"
     },
     "save": "Save",
     "optimize": "Optimize",

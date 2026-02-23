@@ -55,11 +55,12 @@ Read each `.claude/skills/*/SKILL.md`. For each skill check:
 
 ## Phase 2 — Hook & Agent Effectiveness Audit
 
-Read `.claude/settings.json` hooks config, all `.claude/hooks/*.sh`, and `.claude/commands/agents/*.md`.
+Read `.claude/settings.json` or `.claude/settings.local.json` (whichever exists) for hooks config, all `.claude/hooks/*.sh` (skip if directory missing), and `.claude/commands/agents/*.md`.
 
 **Hook registration**
-- List hooks on disk vs hooks registered in `settings.json` `hooks` section
-- Flag `UNREGISTERED-HOOK` for any `.sh` file on disk not in settings.json (exclude `pre-commit.sh` which is a git hook, and `check-signals.sh` which is a manual CLI utility)
+- List hooks on disk vs hooks registered in `settings.json` or `settings.local.json` `hooks` section
+- If `.claude/hooks/` directory does not exist, skip hook registration checks
+- Flag `UNREGISTERED-HOOK` for any `.sh` file on disk not in settings (exclude `pre-commit.sh` which is a git hook, and `check-signals.sh` which is a manual CLI utility)
 
 **Hook coverage**
 - Map what each registered hook validates against documented critical rules and patterns
@@ -78,7 +79,7 @@ Read `.claude/settings.json` hooks config, all `.claude/hooks/*.sh`, and `.claud
 
 ## Phase 3 — Documentation & Cross-Reference Integrity
 
-Read CLAUDE.md, settings.json guide paths, and list all files on disk under `.claude/`.
+Read CLAUDE.md, settings.json (or settings.local.json) guide paths, and list all files on disk under `.claude/`.
 
 **Dead references** (`DEAD-REF`)
 - Every path in `settings.json` `guides` section must resolve to a real file
@@ -86,8 +87,8 @@ Read CLAUDE.md, settings.json guide paths, and list all files on disk under `.cl
 - Every path in skill `references/` must resolve
 
 **Orphaned files** (`ORPHAN-GUIDE`, `ORPHAN-PATTERN`)
-- Files under `.claude/documentation/guides/` not referenced from CLAUDE.md, settings.json, or any skill
-- Files under `.claude/patterns/` not referenced from CLAUDE.md, settings.json, or any skill
+- Files under `.claude/documentation/guides/` not referenced from CLAUDE.md, settings, or any skill (skip if directory missing)
+- Files under `.claude/patterns/` not referenced from CLAUDE.md, settings, or any skill (skip if directory missing)
 
 **Trigger coverage** (`MISSING-TRIGGER`)
 - Compare CLAUDE.md "Automatic Triggers" entries against `automatic-guide-triggers` in settings.json

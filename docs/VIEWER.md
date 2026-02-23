@@ -124,8 +124,10 @@ python database.py --migrate-user-preferences --user alice
 |----------|---------|
 | **Date** | Start and end date |
 | **Scores** | Aggregate, aesthetic, TOPIQ score, quality score |
+| **Extended Quality** | Aesthetic IAA (artistic merit), Face Quality IQA, LIQE score |
 | **Face Metrics** | Face quality, eye sharpness, face sharpness, face ratio, face confidence, face count |
 | **Composition** | Composition score, power points, leading lines, isolation, composition pattern |
+| **Subject Saliency** | Subject sharpness, subject prominence, subject placement, background separation |
 | **Technical** | Sharpness, contrast, dynamic range, noise level |
 | **Color** | Color score, saturation, luminance, histogram spread |
 | **Exposure** | Exposure score |
@@ -147,11 +149,13 @@ Filter by SAMP-Net detected patterns:
 | Group | Columns |
 |-------|---------|
 | **General** | Aggregate Score, Aesthetic, TOPIQ Score, Date Taken, Star Rating, Favorites, Rejected |
+| **Extended Quality** | Aesthetic IAA, Face Quality IQA, LIQE Score |
 | **Face Metrics** | Face Quality, Eye Sharpness, Face Sharpness, Face Ratio, Face Confidence, Face Count |
 | **Technical** | Tech Sharpness, Contrast, Noise Level |
 | **Color** | Color Score, Saturation |
 | **Exposure** | Exposure Score, Mean Luminance, Histogram Spread, Dynamic Range |
 | **Composition** | Composition Score, Power Point Score, Leading Lines, Isolation Bonus, Composition Pattern |
+| **Subject Saliency** | Subject Sharpness, Subject Prominence, Subject Placement, Background Separation |
 
 ## Gallery Features
 

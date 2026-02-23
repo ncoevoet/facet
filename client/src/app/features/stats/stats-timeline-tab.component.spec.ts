@@ -34,15 +34,15 @@ describe('HeatmapColorPipe', () => {
     expect(pipe.transform(0, 100)).toBe('transparent');
   });
 
-  it('should return rgba string for non-zero count', () => {
+  it('should return color-mix string for non-zero count', () => {
+    // formula: 40 + 60*(count/max) → 50/100 → 70%
     const result = pipe.transform(50, 100);
-    expect(result).toMatch(/^rgba\(34, \d+, 94, [\d.]+\)$/);
+    expect(result).toBe('color-mix(in srgb, var(--facet-accent) 70%, transparent)');
   });
 
-  it('should return max intensity for count=max', () => {
+  it('should return 100% color-mix for count=max', () => {
     const result = pipe.transform(100, 100);
-    // ratio=1: g=255, alpha=1
-    expect(result).toBe('rgba(34, 255, 94, 1)');
+    expect(result).toBe('color-mix(in srgb, var(--facet-accent) 100%, transparent)');
   });
 });
 

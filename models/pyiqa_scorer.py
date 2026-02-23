@@ -1,6 +1,7 @@
 """PyIQA-based image quality assessment models.
 
-Wrapper for pyiqa library models including TOPIQ, HyperIQA, DBCNN, MUSIQ.
+Wrapper for pyiqa library models including TOPIQ, TOPIQ-IAA, TOPIQ-NR-Face,
+HyperIQA, DBCNN, MUSIQ, and LIQE.
 These models provide excellent quality assessment with low VRAM usage.
 """
 
@@ -71,6 +72,28 @@ PYIQA_MODELS = {
         'lower_better': False,
         'score_range': (0, 1),
         'description': 'CLIP-IQA+ with learned prompts',
+    },
+    'topiq_iaa': {
+        'pyiqa_id': 'topiq_iaa',
+        'vram_gb': 2,
+        'lower_better': False,
+        'score_range': (0, 1),
+        'description': 'TOPIQ IAA - AVA-trained aesthetic merit scoring',
+    },
+    'topiq_nr_face': {
+        'pyiqa_id': 'topiq_nr-face',
+        'vram_gb': 2,
+        'lower_better': False,
+        'score_range': (0, 1),
+        'description': 'TOPIQ NR-Face - Purpose-built face quality scoring',
+    },
+    'liqe': {
+        'pyiqa_id': 'liqe',
+        'vram_gb': 2,
+        'lower_better': False,
+        'score_range': (0, 5),  # LIQE outputs 0-5 quality score
+        'description': 'LIQE - Quality score + distortion type diagnosis',
+        'has_distortion': True,
     },
 }
 

@@ -739,6 +739,8 @@ describe('ComparisonWeightsTabComponent', () => {
         sort_direction: 'DESC',
         per_page: 6,
         page: 1,
+        hide_bursts: true,
+        hide_duplicates: true,
       });
       expect(component.previewPhotos()).toEqual(photos);
     });

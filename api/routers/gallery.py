@@ -175,6 +175,14 @@ def _build_gallery_where(params, conn=None, user_id=None):
     add_range_filter("face_confidence", "min_face_confidence", "max_face_confidence")
     add_range_filter("star_rating", "min_star_rating", "max_star_rating", is_float=False)
 
+    add_range_filter("aesthetic_iaa", "min_aesthetic_iaa", "max_aesthetic_iaa")
+    add_range_filter("face_quality_iqa", "min_face_quality_iqa", "max_face_quality_iqa")
+    add_range_filter("liqe_score", "min_liqe", "max_liqe")
+    add_range_filter("subject_sharpness", "min_subject_sharpness", "max_subject_sharpness")
+    add_range_filter("subject_prominence", "min_subject_prominence", "max_subject_prominence")
+    add_range_filter("subject_placement", "min_subject_placement", "max_subject_placement")
+    add_range_filter("bg_separation", "min_bg_separation", "max_bg_separation")
+
     add_range_filter("iso", "min_iso", "max_iso", is_float=False)
     add_range_filter("f_stop", "min_aperture", "max_aperture")
     add_range_filter("focal_length", "min_focal_length", "max_focal_length")
@@ -320,6 +328,20 @@ async def api_photos(
         'min_topiq': qp.get('min_topiq', ''),
         'max_topiq': qp.get('max_topiq', ''),
         'composition_pattern': qp.get('composition_pattern', ''),
+        'min_aesthetic_iaa': qp.get('min_aesthetic_iaa', ''),
+        'max_aesthetic_iaa': qp.get('max_aesthetic_iaa', ''),
+        'min_face_quality_iqa': qp.get('min_face_quality_iqa', ''),
+        'max_face_quality_iqa': qp.get('max_face_quality_iqa', ''),
+        'min_liqe': qp.get('min_liqe', ''),
+        'max_liqe': qp.get('max_liqe', ''),
+        'min_subject_sharpness': qp.get('min_subject_sharpness', ''),
+        'max_subject_sharpness': qp.get('max_subject_sharpness', ''),
+        'min_subject_prominence': qp.get('min_subject_prominence', ''),
+        'max_subject_prominence': qp.get('max_subject_prominence', ''),
+        'min_subject_placement': qp.get('min_subject_placement', ''),
+        'max_subject_placement': qp.get('max_subject_placement', ''),
+        'min_bg_separation': qp.get('min_bg_separation', ''),
+        'max_bg_separation': qp.get('max_bg_separation', ''),
     }
 
     if params.get('type') in TYPE_FILTERS:

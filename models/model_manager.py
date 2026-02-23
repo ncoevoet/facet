@@ -31,6 +31,9 @@ class ModelManager:
     CPU_CACHEABLE_MODELS = {
         'clip', 'clip_aesthetic', 'samp_net', 'ram_tagger',
         'topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
+        'topiq_iaa', 'topiq_nr_face', 'liqe',
+        'inspyrenet',
+        'florence_tagger',
     }
 
     # Minimum available RAM headroom (GB) required for auto caching
@@ -124,16 +127,26 @@ class ModelManager:
             print(f"Failed to load Qwen2-VL: {e}")
             return None
 
+    def get_clip_config(self) -> dict:
+        """Resolve CLIP model config based on active profile.
+
+        Profiles can specify 'clip_config' to select between 'clip' (SigLIP 2)
+        and 'clip_legacy' (ViT-L-14) configurations.
+        """
+        profile = self.get_active_profile()
+        config_key = profile.get('clip_config', 'clip')
+        return self.model_settings.get(config_key, self.model_settings.get('clip', {}))
+
     def _load_clip(self):
-        """Load CLIP model for tagging."""
+        """Load CLIP/SigLIP model for embeddings and tagging."""
         if 'clip' in self.models:
             return self.models['clip']
 
-        print("Loading CLIP model...")
+        print("Loading CLIP/SigLIP model...")
         try:
             import open_clip
 
-            clip_config = self.model_settings.get('clip', {})
+            clip_config = self.get_clip_config()
             model_name = clip_config.get('model_name', 'ViT-L-14')
             pretrained = clip_config.get('pretrained', 'laion2b_s32b_b82k')
 
@@ -144,7 +157,9 @@ class ModelManager:
 
             self.models['clip'] = {
                 'model': model,
-                'preprocess': preprocess
+                'preprocess': preprocess,
+                'model_name': model_name,
+                'embedding_dim': clip_config.get('embedding_dim', 768),
             }
             print(f"CLIP loaded: {model_name} ({pretrained})")
             return self.models['clip']
@@ -154,7 +169,11 @@ class ModelManager:
             return None
 
     def _load_clip_aesthetic(self):
-        """Load CLIP + MLP aesthetic predictor (legacy mode)."""
+        """Load CLIP + MLP aesthetic predictor (legacy mode).
+
+        Always uses ViT-L-14 (clip_legacy config) because the MLP head
+        was trained on 768-dim embeddings.
+        """
         if 'clip_aesthetic' in self.models:
             return self.models['clip_aesthetic']
 
@@ -163,7 +182,9 @@ class ModelManager:
             import open_clip
             import torch.nn as nn
 
-            clip_config = self.model_settings.get('clip', {})
+            # MLP head requires ViT-L-14 768-dim embeddings — always use legacy config
+            clip_config = self.model_settings.get('clip_legacy',
+                          self.model_settings.get('clip', {}))
             model_name = clip_config.get('model_name', 'ViT-L-14')
             pretrained = clip_config.get('pretrained', 'laion2b_s32b_b82k')
 
@@ -180,7 +201,7 @@ class ModelManager:
                 'preprocess': preprocess,
                 'mlp': mlp
             }
-            print(f"CLIP+MLP aesthetic loaded")
+            print(f"CLIP+MLP aesthetic loaded: {model_name}")
             return self.models['clip_aesthetic']
 
         except Exception as e:
@@ -423,10 +444,13 @@ class ModelManager:
             'vlm_tagger': lambda: self._load_vlm_tagger('qwen2_5_vl_7b'),
             'qwen3_vl_tagger': lambda: self._load_vlm_tagger('qwen3_vl_2b'),
             'ram_tagger': self._load_ram_tagger,
+            'inspyrenet': self._load_inspyrenet,
+            'florence_tagger': self._load_florence_tagger,
         }
 
         # PyIQA models
-        pyiqa_models = ['topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+']
+        pyiqa_models = ['topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
+                        'topiq_iaa', 'topiq_nr_face', 'liqe']
 
         if model_name in loaders:
             return loaders[model_name]()
@@ -524,6 +548,25 @@ class ModelManager:
             print(f"Failed to load RAM++ tagger: {e}")
             return None
 
+    def _load_florence_tagger(self):
+        """Load Florence-2 tagger for lightweight semantic tagging."""
+        if 'florence_tagger' in self.models:
+            return self.models['florence_tagger']
+
+        try:
+            from models.florence_tagger import FlorenceTagger
+
+            florence_config = self.model_settings.get('florence_2_large', {})
+            tagger = FlorenceTagger(florence_config, self.config)
+            tagger.load()
+
+            self.models['florence_tagger'] = tagger
+            return tagger
+
+        except Exception as e:
+            print(f"Failed to load Florence-2 tagger: {e}")
+            return None
+
     def _load_pyiqa(self, model_name: str):
         """Load a PyIQA model for quality assessment.
 
@@ -549,6 +592,26 @@ class ModelManager:
 
         except Exception as e:
             print(f"Failed to load PyIQA {model_name}: {e}")
+            return None
+
+    def _load_inspyrenet(self):
+        """Load InSPyReNet saliency detection model."""
+        if 'inspyrenet' in self.models:
+            return self.models['inspyrenet']
+
+        print("Loading InSPyReNet saliency model...")
+        try:
+            from models.saliency_scorer import SaliencyScorer
+
+            scorer = SaliencyScorer(device=self.device)
+            scorer.load()
+
+            self.models['inspyrenet'] = scorer
+            print("InSPyReNet loaded")
+            return scorer
+
+        except Exception as e:
+            print(f"Failed to load InSPyReNet: {e}")
             return None
 
     def unload_all(self):
@@ -650,8 +713,8 @@ class ModelManager:
     # VRAM requirements for each model (in GB)
     # Note: These are runtime estimates including inference memory, not just model weights
     MODEL_VRAM_REQUIREMENTS = {
-        'clip': 4,
-        'clip_aesthetic': 4,
+        'clip': 5,            # SigLIP 2 SO400M (~5GB); ViT-L-14 was ~4GB
+        'clip_aesthetic': 4,  # Always uses ViT-L-14
         'samp_net': 2,
         'insightface': 2,
         'qwen2_vl': 6,
@@ -664,6 +727,11 @@ class ModelManager:
         'dbcnn': 2,
         'musiq': 2,
         'clipiqa+': 4,
+        'topiq_iaa': 2,       # Shares backbone with TOPIQ
+        'topiq_nr_face': 2,   # Shares backbone with TOPIQ
+        'liqe': 2,            # CLIP-based quality assessment
+        'inspyrenet': 2,      # InSPyReNet saliency detection
+        'florence_tagger': 4,  # ~1.5GB weights + ~2GB inference
     }
 
     # RAM requirements for CPU-only execution (in GB)
@@ -678,7 +746,12 @@ class ModelManager:
         'dbcnn': 2.0,
         'musiq': 2.0,
         'clipiqa+': 2.5,
+        'topiq_iaa': 2.0,
+        'topiq_nr_face': 2.0,
+        'liqe': 2.0,
+        'inspyrenet': 2.0,
         'qwen3_vl_tagger': 5.0,
+        'florence_tagger': 3.0,
     }
 
     def get_model_vram(self, model_name: str) -> int:
@@ -704,6 +777,7 @@ class ModelManager:
             ('vlm_tagger', 16),
             ('ram_tagger', 8),
             ('qwen3_vl_tagger', 4),
+            ('florence_tagger', 4),
             ('clip', 4),
         ]
 

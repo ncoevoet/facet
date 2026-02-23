@@ -111,11 +111,21 @@ def main():
     import torch
     import open_clip
 
-    model, _, _ = open_clip.create_model_and_transforms('ViT-L-14', pretrained='laion2b_s32b_b82k')
+    # Resolve CLIP model from config (supports SigLIP 2 or legacy ViT-L-14)
+    model_config = config.get_model_config()
+    profiles = model_config.get('profiles', {})
+    profile_name = model_config.get('vram_profile', 'legacy')
+    active_profile = profiles.get(profile_name, profiles.get('legacy', {}))
+    clip_config_key = active_profile.get('clip_config', 'clip')
+    clip_cfg = model_config.get(clip_config_key, model_config.get('clip', {}))
+    clip_model_name = clip_cfg.get('model_name', 'ViT-L-14')
+    clip_pretrained = clip_cfg.get('pretrained', 'laion2b_s32b_b82k')
+
+    model, _, _ = open_clip.create_model_and_transforms(clip_model_name, pretrained=clip_pretrained)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model = model.to(device).eval()
 
-    tagger = CLIPTagger(model, device, config=config)
+    tagger = CLIPTagger(model, device, config=config, model_name=clip_model_name)
     print(f"Tagger initialized with {len(tagger.tag_vocabulary)} tag categories")
 
     # Count photos to tag

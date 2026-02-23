@@ -13,6 +13,15 @@ export interface Photo {
   topiq_score: number | null;
   top_picks_score: number | null;
   isolation_bonus: number | null;
+  // Extended quality
+  aesthetic_iaa: number | null;
+  face_quality_iqa: number | null;
+  liqe_score: number | null;
+  // Subject saliency
+  subject_sharpness: number | null;
+  subject_prominence: number | null;
+  subject_placement: number | null;
+  bg_separation: number | null;
   // Face
   face_count: number;
   face_ratio: number;

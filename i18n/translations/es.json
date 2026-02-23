@@ -173,7 +173,15 @@
     "lines": "Líneas",
     "top_picks": "Top",
     "monochrome": "B&N",
-    "silhouette_label": "Silueta"
+    "silhouette_label": "Silueta",
+    "aesthetic_iaa": "Estética IAA",
+    "face_quality_iqa": "Calidad facial IQA",
+    "liqe_score": "LIQE",
+    "saliency_section": "Saliencia del sujeto",
+    "subject_sharpness": "Nitidez del sujeto",
+    "subject_prominence": "Prominencia",
+    "subject_placement": "Ubicación",
+    "bg_separation": "Separación fondo"
   },
   "notifications": {
     "copied": "Copiado!",
@@ -959,7 +967,9 @@
       "scores": "Rangos de puntuación",
       "date": "Rango de fechas",
       "face": "Métricas faciales",
-      "exif": "Ajustes EXIF"
+      "exif": "Ajustes EXIF",
+      "extended_quality": "Calidad extendida",
+      "saliency": "Saliencia del sujeto"
     },
     "hide_rejected": "Ocultar rechazadas",
     "favorites_only": "Solo favoritas",
@@ -977,7 +987,14 @@
     "focal_length": "Distancia focal",
     "focal_range": "Distancia focal",
     "dynamic_range": "Rango dinámico",
-    "noise_range": "Ruido"
+    "noise_range": "Ruido",
+    "aesthetic_iaa_range": "Estética IAA",
+    "face_quality_iqa_range": "Calidad facial IQA",
+    "liqe_range": "Puntuación LIQE",
+    "subject_sharpness_range": "Nitidez del sujeto",
+    "subject_prominence_range": "Prominencia del sujeto",
+    "subject_placement_range": "Ubicación del sujeto",
+    "bg_separation_range": "Separación fondo"
   },
   "composition_patterns": {
     "none": "Ninguno",
@@ -1057,7 +1074,14 @@
       "face_sharpness": "Nitidez facial",
       "noise": "Ruido",
       "power_point": "Puntos de fuerza",
-      "saturation": "Saturación"
+      "saturation": "Saturación",
+      "aesthetic_iaa": "Estética IAA",
+      "face_quality_iqa": "Calidad facial IQA",
+      "liqe": "LIQE",
+      "subject_sharpness": "Nitidez del sujeto",
+      "subject_prominence": "Prominencia del sujeto",
+      "subject_placement": "Colocación del sujeto",
+      "bg_separation": "Separación de fondo"
     },
     "save": "Guardar",
     "optimize": "Optimizar",

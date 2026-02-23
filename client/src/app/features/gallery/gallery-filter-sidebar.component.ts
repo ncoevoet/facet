@@ -200,6 +200,49 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
         </div>
       </details>
 
+      <!-- Extended Quality -->
+      <details class="group/section">
+        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
+          {{ 'gallery.sidebar.extended_quality' | translate }}
+          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
+        </summary>
+        <div class="flex flex-col gap-2 pb-2">
+          <!-- Aesthetic IAA -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm opacity-70">{{ 'gallery.aesthetic_iaa_range' | translate }}</label>
+            <div class="flex items-center gap-2">
+              <mat-slider min="0" max="10" step="0.5" class="flex-1">
+                <input matSliderStartThumb [value]="store.filters().min_aesthetic_iaa ? +store.filters().min_aesthetic_iaa : 0" (valueChange)="onRangeChange('min_aesthetic_iaa', $event)" />
+                <input matSliderEndThumb [value]="store.filters().max_aesthetic_iaa ? +store.filters().max_aesthetic_iaa : 10" (valueChange)="onRangeChange('max_aesthetic_iaa', $event)" />
+              </mat-slider>
+              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_aesthetic_iaa || '0' }}-{{ store.filters().max_aesthetic_iaa || '10' }}</span>
+            </div>
+          </div>
+          <!-- Face Quality IQA -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm opacity-70">{{ 'gallery.face_quality_iqa_range' | translate }}</label>
+            <div class="flex items-center gap-2">
+              <mat-slider min="0" max="10" step="0.5" class="flex-1">
+                <input matSliderStartThumb [value]="store.filters().min_face_quality_iqa ? +store.filters().min_face_quality_iqa : 0" (valueChange)="onRangeChange('min_face_quality_iqa', $event)" />
+                <input matSliderEndThumb [value]="store.filters().max_face_quality_iqa ? +store.filters().max_face_quality_iqa : 10" (valueChange)="onRangeChange('max_face_quality_iqa', $event)" />
+              </mat-slider>
+              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_face_quality_iqa || '0' }}-{{ store.filters().max_face_quality_iqa || '10' }}</span>
+            </div>
+          </div>
+          <!-- LIQE -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm opacity-70">{{ 'gallery.liqe_range' | translate }}</label>
+            <div class="flex items-center gap-2">
+              <mat-slider min="0" max="10" step="0.5" class="flex-1">
+                <input matSliderStartThumb [value]="store.filters().min_liqe ? +store.filters().min_liqe : 0" (valueChange)="onRangeChange('min_liqe', $event)" />
+                <input matSliderEndThumb [value]="store.filters().max_liqe ? +store.filters().max_liqe : 10" (valueChange)="onRangeChange('max_liqe', $event)" />
+              </mat-slider>
+              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_liqe || '0' }}-{{ store.filters().max_liqe || '10' }}</span>
+            </div>
+          </div>
+        </div>
+      </details>
+
       <!-- Face Metrics -->
       <details class="group/section">
         <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
@@ -325,6 +368,60 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
                 <input matSliderEndThumb [value]="store.filters().max_isolation ? +store.filters().max_isolation : 10" (valueChange)="onRangeChange('max_isolation', $event)" />
               </mat-slider>
               <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_isolation || '0' }}-{{ store.filters().max_isolation || '10' }}</span>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- Subject Saliency -->
+      <details class="group/section">
+        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
+          {{ 'gallery.sidebar.saliency' | translate }}
+          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
+        </summary>
+        <div class="flex flex-col gap-2 pb-2">
+          <!-- Subject Sharpness -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm opacity-70">{{ 'gallery.subject_sharpness_range' | translate }}</label>
+            <div class="flex items-center gap-2">
+              <mat-slider min="0" max="10" step="0.5" class="flex-1">
+                <input matSliderStartThumb [value]="store.filters().min_subject_sharpness ? +store.filters().min_subject_sharpness : 0" (valueChange)="onRangeChange('min_subject_sharpness', $event)" />
+                <input matSliderEndThumb [value]="store.filters().max_subject_sharpness ? +store.filters().max_subject_sharpness : 10" (valueChange)="onRangeChange('max_subject_sharpness', $event)" />
+              </mat-slider>
+              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_subject_sharpness || '0' }}-{{ store.filters().max_subject_sharpness || '10' }}</span>
+            </div>
+          </div>
+          <!-- Subject Prominence -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm opacity-70">{{ 'gallery.subject_prominence_range' | translate }}</label>
+            <div class="flex items-center gap-2">
+              <mat-slider min="0" max="10" step="0.5" class="flex-1">
+                <input matSliderStartThumb [value]="store.filters().min_subject_prominence ? +store.filters().min_subject_prominence : 0" (valueChange)="onRangeChange('min_subject_prominence', $event)" />
+                <input matSliderEndThumb [value]="store.filters().max_subject_prominence ? +store.filters().max_subject_prominence : 10" (valueChange)="onRangeChange('max_subject_prominence', $event)" />
+              </mat-slider>
+              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_subject_prominence || '0' }}-{{ store.filters().max_subject_prominence || '10' }}</span>
+            </div>
+          </div>
+          <!-- Subject Placement -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm opacity-70">{{ 'gallery.subject_placement_range' | translate }}</label>
+            <div class="flex items-center gap-2">
+              <mat-slider min="0" max="10" step="0.5" class="flex-1">
+                <input matSliderStartThumb [value]="store.filters().min_subject_placement ? +store.filters().min_subject_placement : 0" (valueChange)="onRangeChange('min_subject_placement', $event)" />
+                <input matSliderEndThumb [value]="store.filters().max_subject_placement ? +store.filters().max_subject_placement : 10" (valueChange)="onRangeChange('max_subject_placement', $event)" />
+              </mat-slider>
+              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_subject_placement || '0' }}-{{ store.filters().max_subject_placement || '10' }}</span>
+            </div>
+          </div>
+          <!-- Background Separation -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm opacity-70">{{ 'gallery.bg_separation_range' | translate }}</label>
+            <div class="flex items-center gap-2">
+              <mat-slider min="0" max="10" step="0.5" class="flex-1">
+                <input matSliderStartThumb [value]="store.filters().min_bg_separation ? +store.filters().min_bg_separation : 0" (valueChange)="onRangeChange('min_bg_separation', $event)" />
+                <input matSliderEndThumb [value]="store.filters().max_bg_separation ? +store.filters().max_bg_separation : 10" (valueChange)="onRangeChange('max_bg_separation', $event)" />
+              </mat-slider>
+              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_bg_separation || '0' }}-{{ store.filters().max_bg_separation || '10' }}</span>
             </div>
           </div>
         </div>

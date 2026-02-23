@@ -84,6 +84,17 @@ PHOTOS_COLUMNS = [
     ('composition_pattern', 'TEXT'),
     ('category', 'TEXT'),
 
+    # PyIQA extended scores
+    ('aesthetic_iaa', 'REAL'),       # TOPIQ IAA (AVA-trained aesthetic merit)
+    ('face_quality_iqa', 'REAL'),    # TOPIQ NR-Face (dedicated face quality)
+    ('liqe_score', 'REAL'),          # LIQE quality score
+
+    # Subject saliency metrics (InSPyReNet)
+    ('subject_sharpness', 'REAL'),   # Laplacian variance on subject mask
+    ('subject_prominence', 'REAL'),  # Subject area ratio
+    ('subject_placement', 'REAL'),   # Rule-of-thirds score for subject centroid
+    ('bg_separation', 'REAL'),       # Subject-background separation quality
+
     # User ratings and flags
     ('star_rating', 'INTEGER DEFAULT 0 CHECK (star_rating >= 0 AND star_rating <= 5)'),
     ('is_favorite', 'INTEGER DEFAULT 0 CHECK (is_favorite IN (0, 1))'),

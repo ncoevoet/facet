@@ -294,27 +294,31 @@ Controls which AI models are used based on VRAM.
     "profiles": {
       "legacy": {
         "aesthetic_model": "clip-mlp",
+        "clip_config": "clip_legacy",
         "composition_model": "samp-net",
-        "tagging_model": "clip",
-        "description": "CPU-optimized: CLIP+MLP aesthetic + SAMP-Net composition + CLIP tagging (8GB+ RAM, no GPU needed)"
+        "tagging_model": "florence-2",
+        "description": "CPU-optimized: CLIP-MLP aesthetic + SAMP-Net composition + Florence-2 tagging (8GB+ RAM)"
       },
       "8gb": {
         "aesthetic_model": "clip-mlp",
+        "clip_config": "clip_legacy",
         "composition_model": "samp-net",
-        "tagging_model": "qwen3-vl-2b",
-        "description": "CLIP+MLP aesthetic + SAMP-Net composition + Qwen3-VL tagging (6-14GB VRAM)"
+        "tagging_model": "florence-2",
+        "description": "CLIP-MLP aesthetic + SAMP-Net composition + Florence-2 tagging (6-14GB VRAM)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
+        "clip_config": "clip",
         "composition_model": "samp-net",
         "tagging_model": "qwen3-vl-2b",
-        "description": "TOPIQ aesthetic + SAMP-Net composition + Qwen3-VL tagging (~14GB VRAM)"
+        "description": "TOPIQ aesthetic + SigLIP 2 embeddings + SAMP-Net composition (~14GB VRAM)"
       },
       "24gb": {
         "aesthetic_model": "topiq",
+        "clip_config": "clip",
         "composition_model": "qwen2-vl-2b",
         "tagging_model": "qwen2.5-vl-7b",
-        "description": "TOPIQ aesthetic + Qwen2-VL composition + Qwen2.5-VL-7B tagging (~18GB VRAM)"
+        "description": "TOPIQ aesthetic + SigLIP 2 embeddings + Qwen2-VL composition (~18GB VRAM)"
       }
     },
     "qwen2_vl": {
@@ -332,9 +336,27 @@ Controls which AI models are used based on VRAM.
       "checkpoint": "ram_plus_swin_large_14m.pth"
     },
     "clip": {
+      "model_name": "ViT-SO400M-16-SigLIP2-384",
+      "pretrained": "webli",
+      "embedding_dim": 1152,
+      "similarity_threshold_percent": 18
+    },
+    "clip_legacy": {
       "model_name": "ViT-L-14",
       "pretrained": "laion2b_s32b_b82k",
+      "embedding_dim": 768,
       "similarity_threshold_percent": 22
+    },
+    "florence_2_large": {
+      "model_path": "MiaoshouAI/Florence-2-large-PromptGen-v2.0",
+      "torch_dtype": "float16",
+      "vlm_batch_size": 4,
+      "max_new_tokens": 256
+    },
+    "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
+    "inspyrenet": {
+      "enabled": false,
+      "description": "InSPyReNet subject saliency detection (~2 GB VRAM)"
     },
     "samp_net": {
       "model_path": "pretrained_models/samp_net.pth",
@@ -364,8 +386,15 @@ Controls which AI models are used based on VRAM.
 | `qwen3_vl_2b.torch_dtype` | `"bfloat16"` | Precision |
 | `qwen3_vl_2b.max_new_tokens` | `100` | Max generation tokens |
 | `qwen3_vl_2b.vlm_batch_size` | `4` | Images per VLM inference batch |
-| `clip.model_name` | `"ViT-L-14"` | CLIP variant |
-| `clip.pretrained` | `"laion2b_s32b_b82k"` | Pre-trained weights |
+| `clip.model_name` | `"ViT-SO400M-16-SigLIP2-384"` | Embedding model (SigLIP 2 for 16gb/24gb) |
+| `clip.pretrained` | `"webli"` | Pre-trained weights |
+| `clip.embedding_dim` | `1152` | Embedding dimensions (1152 for SigLIP 2, 768 for ViT-L-14) |
+| `clip_legacy.model_name` | `"ViT-L-14"` | Legacy CLIP model (for legacy/8gb profiles) |
+| `clip_legacy.pretrained` | `"laion2b_s32b_b82k"` | Legacy pre-trained weights |
+| `florence_2_large.model_path` | `"MiaoshouAI/Florence-2-large-PromptGen-v2.0"` | Florence-2 PromptGen model for tagging |
+| `florence_2_large.vlm_batch_size` | `4` | Images per Florence-2 inference batch |
+| `supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | Additional PyIQA models to run |
+| `inspyrenet.enabled` | `false` | Enable InSPyReNet subject saliency |
 | `samp_net.input_size` | `384` | Image size for inference |
 
 ### VRAM Auto-Detection
@@ -601,11 +630,15 @@ python facet.py /path/to/photos
 python facet.py /path --single-pass
 
 # Run specific pass only
-python facet.py /path --pass quality      # TOPIQ only
-python facet.py /path --pass tags         # Configured tagger only
-python facet.py /path --pass composition  # SAMP-Net only
-python facet.py /path --pass faces        # InsightFace only
-python facet.py /path --pass embeddings   # CLIP embeddings only
+python facet.py /path --pass quality       # TOPIQ only
+python facet.py /path --pass quality-iaa   # TOPIQ IAA (aesthetic merit)
+python facet.py /path --pass quality-face  # TOPIQ NR-Face
+python facet.py /path --pass quality-liqe  # LIQE (quality + distortion)
+python facet.py /path --pass tags          # Configured tagger only
+python facet.py /path --pass composition   # SAMP-Net only
+python facet.py /path --pass faces         # InsightFace only
+python facet.py /path --pass embeddings    # CLIP/SigLIP embeddings only
+python facet.py /path --pass saliency      # InSPyReNet subject saliency
 
 # List available models
 python facet.py --list-models
@@ -810,18 +843,19 @@ Configured via `models.profiles.*.tagging_model`:
 
 | Model | VRAM | Speed | Description |
 |-------|------|-------|-------------|
-| `clip` | ~4GB | Fast (~5ms) | CLIP ViT-L-14 embedding similarity to vocabulary |
+| `florence-2` | ~2GB | Fast (~50ms) | Florence-2 PromptGen — generates tags via `<GENERATE_TAGS>`, matched to vocabulary with edit-distance |
+| `clip` | ~4GB | Fast (~5ms) | CLIP/SigLIP embedding similarity to vocabulary |
 | `qwen3-vl-2b` | ~4GB | Moderate (~100ms) | Lightweight vision-language model (Qwen3-VL 2B) |
 | `qwen2.5-vl-7b` | ~16GB | Slow (~200ms) | Vision-language model for complex scenes |
 
 ### Default Tagging Models per Profile
 
-| Profile | Tagging Model |
-|---------|---------------|
-| `legacy` | `clip` |
-| `8gb` | `qwen3-vl-2b` |
-| `16gb` | `qwen3-vl-2b` |
-| `24gb` | `qwen2.5-vl-7b` |
+| Profile | Tagging Model | Embedding Model |
+|---------|---------------|-----------------|
+| `legacy` | `florence-2` | CLIP ViT-L-14 (768-dim) |
+| `8gb` | `florence-2` | CLIP ViT-L-14 (768-dim) |
+| `16gb` | `qwen3-vl-2b` | SigLIP 2 SO400M (1152-dim) |
+| `24gb` | `qwen2.5-vl-7b` | SigLIP 2 SO400M (1152-dim) |
 
 ### Re-tagging Photos
 

@@ -56,6 +56,13 @@ const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   star_rating: null,
   is_favorite: null,
   is_rejected: null,
+  aesthetic_iaa: null,
+  face_quality_iqa: null,
+  liqe_score: null,
+  subject_sharpness: null,
+  subject_prominence: null,
+  subject_placement: null,
+  bg_separation: null,
   ...overrides,
 });
 
@@ -127,6 +134,62 @@ describe('PhotoTooltipComponent', () => {
     fixture.componentInstance.photo.set(makePhoto({ mean_luminance: 0.62 }));
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('62%');
+  });
+
+  describe('Extended Quality metrics', () => {
+    it('renders aesthetic_iaa when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ aesthetic_iaa: 7.3 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('7.3');
+    });
+
+    it('renders face_quality_iqa when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ face_quality_iqa: 6.8 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('6.8');
+    });
+
+    it('renders liqe_score when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ liqe_score: 8.1 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('8.1');
+    });
+
+    it('does not render aesthetic_iaa row when null', () => {
+      fixture.componentInstance.photo.set(makePhoto({ aesthetic_iaa: null }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).not.toContain('tooltip.aesthetic_iaa');
+    });
+  });
+
+  describe('Subject Saliency section', () => {
+    it('renders saliency section when at least one metric is present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ subject_sharpness: 7.5 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.saliency_section');
+      expect(fixture.nativeElement.textContent).toContain('7.5');
+    });
+
+    it('hides saliency section when all saliency fields are null', () => {
+      fixture.componentInstance.photo.set(makePhoto({
+        subject_sharpness: null, subject_prominence: null,
+        subject_placement: null, bg_separation: null,
+      }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).not.toContain('tooltip.saliency_section');
+    });
+
+    it('renders subject_prominence when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ subject_prominence: 5.2 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('5.2');
+    });
+
+    it('renders bg_separation when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ bg_separation: 8.0 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('8.0');
+    });
   });
 });
 

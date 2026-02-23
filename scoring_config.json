@@ -28,7 +28,14 @@
         "face_quality_percent": 2,
         "eye_sharpness_percent": 2,
         "tech_sharpness_percent": 1,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -83,7 +90,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 0
+        "leading_lines_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.5,
@@ -136,7 +150,14 @@
         "quality_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 1,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.1,
@@ -182,7 +203,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 0
+        "leading_lines_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -237,7 +265,14 @@
         "leading_lines_percent": 1,
         "dynamic_range_percent": 1,
         "color_percent": 0,
-        "contrast_percent": 0
+        "contrast_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -264,7 +299,14 @@
         "color_percent": 0,
         "quality_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 0
+        "leading_lines_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -294,7 +336,14 @@
         "color_percent": 1,
         "contrast_percent": 1,
         "face_quality_percent": 0,
-        "leading_lines_percent": 0
+        "leading_lines_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.5,
@@ -324,7 +373,14 @@
         "face_quality_percent": 1,
         "leading_lines_percent": 1,
         "color_percent": 0,
-        "isolation_percent": 0
+        "isolation_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.5,
@@ -351,7 +407,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 0
+        "leading_lines_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -386,7 +449,14 @@
         "quality_percent": 0,
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
-        "leading_lines_percent": 0
+        "leading_lines_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -468,7 +538,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 1,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -506,7 +583,14 @@
         "color_percent": 0,
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
-        "leading_lines_percent": 0
+        "leading_lines_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.5,
@@ -622,7 +706,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -659,7 +750,14 @@
         "color_percent": 0,
         "quality_percent": 0,
         "contrast_percent": 0,
-        "dynamic_range_percent": 0
+        "dynamic_range_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.4,
@@ -743,7 +841,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 1,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -783,7 +888,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 1,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -821,7 +933,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -864,7 +983,14 @@
         "quality_percent": 0,
         "face_quality_percent": 0,
         "eye_sharpness_percent": 0,
-        "isolation_percent": 0
+        "isolation_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "tags": {
         "architecture": [
@@ -941,7 +1067,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 1,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -975,7 +1108,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 1,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -1001,7 +1141,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1039,7 +1186,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.3,
@@ -1081,7 +1235,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 0
+        "leading_lines_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -1119,7 +1280,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.5,
@@ -1177,7 +1345,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1212,7 +1387,14 @@
         "color_percent": 0,
         "quality_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 0
+        "leading_lines_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1247,7 +1429,14 @@
         "tech_sharpness_percent": 0,
         "color_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.5,
@@ -1286,7 +1475,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 0
+        "leading_lines_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -1357,7 +1553,14 @@
         "isolation_percent": 1,
         "face_quality_percent": 0,
         "eye_sharpness_percent": 0,
-        "contrast_percent": 0
+        "contrast_percent": 0,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {
         "bonus": 0.5,
@@ -1457,7 +1660,14 @@
         "contrast_percent": 0,
         "dynamic_range_percent": 1,
         "isolation_percent": 1,
-        "leading_lines_percent": 1
+        "leading_lines_percent": 1,
+        "aesthetic_iaa_percent": 0,
+        "face_quality_iqa_percent": 0,
+        "liqe_percent": 0,
+        "subject_sharpness_percent": 0,
+        "subject_prominence_percent": 0,
+        "subject_placement_percent": 0,
+        "bg_separation_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -1591,27 +1801,31 @@
     "profiles": {
       "legacy": {
         "aesthetic_model": "clip-mlp",
+        "clip_config": "clip_legacy",
         "composition_model": "samp-net",
-        "tagging_model": "clip",
-        "description": "CPU-optimized: TOPIQ aesthetic + SAMP-Net composition (8GB+ RAM, no GPU needed)"
+        "tagging_model": "florence-2",
+        "description": "CPU-optimized: CLIP-MLP aesthetic + SAMP-Net composition + Florence-2 tagging (8GB+ RAM)"
       },
       "8gb": {
         "aesthetic_model": "clip-mlp",
+        "clip_config": "clip_legacy",
         "composition_model": "samp-net",
-        "tagging_model": "qwen3-vl-2b",
-        "description": "TOPIQ aesthetic + SAMP-Net composition + Qwen3-VL tagging (6-14GB VRAM)"
+        "tagging_model": "florence-2",
+        "description": "CLIP-MLP aesthetic + SAMP-Net composition + Florence-2 tagging (6-14GB VRAM)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
+        "clip_config": "clip",
         "composition_model": "samp-net",
         "tagging_model": "qwen3-vl-2b",
-        "description": "TOPIQ aesthetic, SAMP-Net composition (~14GB VRAM)"
+        "description": "TOPIQ aesthetic + SigLIP 2 embeddings + SAMP-Net composition (~14GB VRAM)"
       },
       "24gb": {
         "aesthetic_model": "topiq",
+        "clip_config": "clip",
         "composition_model": "qwen2-vl-2b",
         "tagging_model": "qwen2.5-vl-7b",
-        "description": "TOPIQ aesthetic, Qwen2-VL composition (~18GB VRAM)"
+        "description": "TOPIQ aesthetic + SigLIP 2 embeddings + Qwen2-VL composition (~18GB VRAM)"
       }
     },
     "qwen2_vl": {
@@ -1620,8 +1834,15 @@
       "max_new_tokens": 256
     },
     "clip": {
+      "model_name": "ViT-SO400M-16-SigLIP2-384",
+      "pretrained": "webli",
+      "embedding_dim": 1152,
+      "similarity_threshold_percent": 18
+    },
+    "clip_legacy": {
       "model_name": "ViT-L-14",
       "pretrained": "laion2b_s32b_b82k",
+      "embedding_dim": 768,
       "similarity_threshold_percent": 22
     },
     "samp_net": {
@@ -1659,6 +1880,21 @@
     "ram_plus": {
       "model_path": "xinyu1205/recognize-anything-plus-model",
       "checkpoint": "ram_plus_swin_large_14m.pth"
+    },
+    "florence_2_large": {
+      "model_path": "MiaoshouAI/Florence-2-large-PromptGen-v2.0",
+      "torch_dtype": "float16",
+      "vlm_batch_size": 4,
+      "max_new_tokens": 256
+    },
+    "supplementary_pyiqa": [
+      "topiq_iaa",
+      "topiq_nr_face",
+      "liqe"
+    ],
+    "inspyrenet": {
+      "enabled": false,
+      "description": "InSPyReNet subject saliency detection (~2 GB VRAM)"
     }
   },
   "quality": {
@@ -1747,12 +1983,24 @@
         {
           "column": "star_rating",
           "label": "Star Rating"
+        },
+        {
+          "column": "aesthetic_iaa",
+          "label": "Aesthetic (IAA)"
+        },
+        {
+          "column": "liqe_score",
+          "label": "LIQE Score"
         }
       ],
       "Face Metrics": [
         {
           "column": "face_quality",
           "label": "Face Quality"
+        },
+        {
+          "column": "face_quality_iqa",
+          "label": "Face Quality (IQA)"
         },
         {
           "column": "eye_sharpness",
@@ -1833,6 +2081,24 @@
         {
           "column": "composition_pattern",
           "label": "Composition Pattern"
+        }
+      ],
+      "Subject Saliency": [
+        {
+          "column": "subject_sharpness",
+          "label": "Subject Sharpness"
+        },
+        {
+          "column": "subject_prominence",
+          "label": "Subject Prominence"
+        },
+        {
+          "column": "subject_placement",
+          "label": "Subject Placement"
+        },
+        {
+          "column": "bg_separation",
+          "label": "Background Separation"
         }
       ]
     },

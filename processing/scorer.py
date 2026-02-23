@@ -504,16 +504,25 @@ class Facet:
                 self.samp_scorer = None
 
             if not multi_pass:
-                # CLIP Model (ViT-L-14) - loaded for tagging and legacy fallback
+                # Load CLIP/SigLIP model from config (profile selects model variant)
+                model_config = self.config.get_model_config()
+                profiles = model_config.get('profiles', {})
+                profile_name = model_config.get('vram_profile', 'legacy')
+                active_profile = profiles.get(profile_name, profiles.get('legacy', {}))
+                clip_config_key = active_profile.get('clip_config', 'clip')
+                clip_config = model_config.get(clip_config_key, model_config.get('clip', {}))
+                self._clip_model_name = clip_config.get('model_name', 'ViT-L-14')
+                clip_pretrained = clip_config.get('pretrained', 'laion2b_s32b_b82k')
+
                 self.model, _, self.preprocess = open_clip.create_model_and_transforms(
-                    'ViT-L-14', pretrained='laion2b_s32b_b82k'
+                    self._clip_model_name, pretrained=clip_pretrained
                 )
                 self.model = self.model.to(self.device).eval()
 
                 # Enable FP16 mode on CUDA for ~20% faster inference and ~2GB VRAM savings
                 if self.device == 'cuda':
                     self.model = self.model.half()
-                    print("CLIP model converted to FP16")
+                    print(f"CLIP model converted to FP16: {self._clip_model_name}")
 
             self._load_aesthetic_head()
 
@@ -549,7 +558,10 @@ class Facet:
                 tagging_settings = self.config.get_tagging_settings()
                 if tagging_settings.get('enabled', True):
                     from models.tagger import CLIPTagger
-                    self.tagger = CLIPTagger(self.model, self.device, config=self.config)
+                    self.tagger = CLIPTagger(
+                        self.model, self.device, config=self.config,
+                        model_name=getattr(self, '_clip_model_name', 'ViT-L-14')
+                    )
                 else:
                     self.tagger = None
         else:
@@ -569,7 +581,26 @@ class Facet:
         init_database(self.db_path)
 
     def _load_aesthetic_head(self):
-        """Loads the MLP weights that sit on top of CLIP to predict 'Aesthetic' scores."""
+        """Loads the MLP weights that sit on top of CLIP to predict 'Aesthetic' scores.
+
+        Only loaded for ViT-L-14 (768-dim embeddings). SigLIP 2 (1152-dim) uses
+        TOPIQ for aesthetics instead.
+        """
+        # Check if current CLIP model is compatible with the MLP head (768-dim only)
+        clip_model_name = getattr(self, '_clip_model_name', 'ViT-L-14')
+        model_config = self.config.get_model_config()
+        profiles = model_config.get('profiles', {})
+        profile_name = model_config.get('vram_profile', 'legacy')
+        active_profile = profiles.get(profile_name, profiles.get('legacy', {}))
+        clip_config_key = active_profile.get('clip_config', 'clip')
+        clip_config = model_config.get(clip_config_key, model_config.get('clip', {}))
+        embedding_dim = clip_config.get('embedding_dim', 768)
+
+        if embedding_dim != 768:
+            print(f"Aesthetic MLP head skipped (requires 768-dim, got {embedding_dim}-dim from {clip_model_name})")
+            self.aesthetic_head = None
+            return
+
         weights_path = 'aesthetic_predictor_weights.pth'
         if not os.path.exists(weights_path):
             url = "https://github.com/christophschuhmann/improved-aesthetic-predictor/raw/main/sac%2Blogos%2Bava1-l14-linearMSE.pth"
@@ -585,23 +616,27 @@ class Facet:
         self.aesthetic_head = self.aesthetic_head.to(self.device).eval()
 
     def get_aesthetic_score(self, image_pil):
-        """Calculate aesthetic score using CLIP and the MLP aesthetic head."""
+        """Calculate aesthetic score using CLIP and the MLP aesthetic head.
+
+        Returns 5.0 (neutral) if aesthetic head is not available (SigLIP mode).
+        """
+        if self.aesthetic_head is None:
+            return 5.0  # No MLP head — aesthetic comes from TOPIQ in multi-pass
+
         # Preprocess once and move to device
         image = self.preprocess(image_pil).unsqueeze(0).to(self.device)
         # Convert to FP16 if model is in half precision
         if self.device == 'cuda' and next(self.model.parameters()).dtype == torch.float16:
             image = image.half()
         with torch.no_grad():
-            # Extract features using CLIP ViT-L-14
             features = self.model.encode_image(image)
-            # Pass features through the linear aesthetic predictor
             # Convert to float32 for MLP head (CLIP may output float16)
             raw_score = float(self.aesthetic_head(features.float()).cpu().numpy()[0][0])
             aesthetic_score = max(0.0, min(10.0, (raw_score + 1) * 5))
         return aesthetic_score
 
     def get_aesthetic_with_embedding(self, image_pil):
-        """Calculate aesthetic score and return CLIP embedding for storage."""
+        """Calculate aesthetic score and return CLIP/SigLIP embedding for storage."""
         image = self.preprocess(image_pil).unsqueeze(0).to(self.device)
         # Convert to FP16 if model is in half precision
         if self.device == 'cuda' and next(self.model.parameters()).dtype == torch.float16:
@@ -610,17 +645,31 @@ class Facet:
             features = self.model.encode_image(image)
             # Normalize features for storage
             features_normalized = F.normalize(features, dim=-1)
-            # Convert to float32 for MLP head (CLIP may output float16)
-            raw_score = float(self.aesthetic_head(features.float()).cpu().numpy()[0][0])
-            aesthetic_score = max(0.0, min(10.0, (raw_score + 1) * 5))
-            # Convert 768-dim embedding to bytes (768 floats = 3072 bytes)
+
+            if self.aesthetic_head is not None:
+                # Convert to float32 for MLP head (CLIP may output float16)
+                raw_score = float(self.aesthetic_head(features.float()).cpu().numpy()[0][0])
+                aesthetic_score = max(0.0, min(10.0, (raw_score + 1) * 5))
+            else:
+                aesthetic_score = 5.0  # Aesthetic comes from TOPIQ, not CLIP MLP
+
             embedding_bytes = features_normalized.cpu().numpy()[0].astype(np.float32).tobytes()
         return aesthetic_score, embedding_bytes
 
     def score_from_embedding(self, embedding_bytes):
-        """Recalculate aesthetic score from stored CLIP embedding."""
+        """Recalculate aesthetic score from stored CLIP embedding.
+
+        Returns None if aesthetic head is not available (SigLIP embeddings
+        are incompatible with the ViT-L-14 MLP head).
+        """
+        if self.aesthetic_head is None:
+            return None
+
         # Convert bytes back to tensor
         embedding = np.frombuffer(embedding_bytes, dtype=np.float32)
+        # Only works with 768-dim embeddings (ViT-L-14)
+        if len(embedding) != 768:
+            return None
         features = torch.tensor(embedding).unsqueeze(0).to(self.device)
         with torch.no_grad():
             # Ensure float32 for MLP head
@@ -901,6 +950,15 @@ class Facet:
             'noise': (noise_score, 0.0, 10.0),  # Inverted: higher = less noise = better
             # Bonuses
             'isolation': (isolation_score, 0.0, 10.0),
+            # Supplementary PyIQA scores (only contribute if configured with non-zero weight)
+            'aesthetic_iaa': (safe_float(m.get('aesthetic_iaa'), 5.0), 0.0, 10.0),
+            'face_quality_iqa': (safe_float(m.get('face_quality_iqa'), 5.0), 0.0, 10.0),
+            'liqe': (safe_float(m.get('liqe_score'), 5.0), 0.0, 10.0),
+            # Subject saliency metrics (only contribute if configured with non-zero weight)
+            'subject_sharpness': (safe_float(m.get('subject_sharpness'), 5.0), 0.0, 10.0),
+            'subject_prominence': (safe_float(m.get('subject_prominence'), 5.0), 0.0, 10.0),
+            'subject_placement': (safe_float(m.get('subject_placement'), 5.0), 0.0, 10.0),
+            'bg_separation': (safe_float(m.get('bg_separation'), 5.0), 0.0, 10.0),
         }
 
         # Get category flags from config (with sensible defaults)
@@ -1188,7 +1246,9 @@ class Facet:
                 raw_sharpness_variance, raw_color_entropy, raw_eye_sharpness,
                 shutter_speed, is_group_portrait, mean_luminance, scoring_model, quality_score,
                 noise_sigma, mean_saturation, power_point_score, dynamic_range_stops,
-                histogram_data, topiq_score
+                histogram_data, topiq_score,
+                aesthetic_iaa, face_quality_iqa, liqe_score,
+                subject_sharpness, subject_prominence, subject_placement, bg_separation
             """
             if category_filter:
                 cursor = conn.execute(f"SELECT {recalc_cols} FROM photos WHERE category = ?", (category_filter,))
@@ -1203,8 +1263,9 @@ class Facet:
                 if use_embeddings and row_dict.get('clip_embedding'):
                     try:
                         new_aesthetic = self.score_from_embedding(row_dict['clip_embedding'])
-                        row_dict['aesthetic'] = new_aesthetic
-                        recalc_from_embedding += 1
+                        if new_aesthetic is not None:
+                            row_dict['aesthetic'] = new_aesthetic
+                            recalc_from_embedding += 1
                     except Exception as e:
                         logging.warning(f"Embedding recalculation failed for {row_dict.get('path', 'unknown')}: {e}")
 
@@ -1719,7 +1780,9 @@ class Facet:
                         shadow_clipped, highlight_clipped, is_silhouette, is_group_portrait, leading_lines_score,
                         face_confidence, is_monochrome, mean_saturation,
                         dynamic_range_stops, noise_sigma, contrast_score, tags,
-                        quality_score, topiq_score, composition_explanation, scoring_model, composition_pattern
+                        quality_score, topiq_score, composition_explanation, scoring_model, composition_pattern,
+                        aesthetic_iaa, face_quality_iqa, liqe_score,
+                        subject_sharpness, subject_prominence, subject_placement, bg_separation
                     )
                     VALUES (
                         :path, :filename, :category, :image_width, :image_height,
@@ -1733,7 +1796,9 @@ class Facet:
                         :shadow_clipped, :highlight_clipped, :is_silhouette, :is_group_portrait, :leading_lines_score,
                         :face_confidence, :is_monochrome, :mean_saturation,
                         :dynamic_range_stops, :noise_sigma, :contrast_score, :tags,
-                        :quality_score, :topiq_score, :composition_explanation, :scoring_model, :composition_pattern
+                        :quality_score, :topiq_score, :composition_explanation, :scoring_model, :composition_pattern,
+                        :aesthetic_iaa, :face_quality_iqa, :liqe_score,
+                        :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation
                     )
                 ''', res)
 

@@ -225,6 +225,16 @@ class ChunkedMultiPassProcessor:
             models.append(selected_quality)
         # else: clip_aesthetic uses same model as CLIP embeddings
 
+        # Supplementary PyIQA models (configurable)
+        supplementary_models = self.config.get('models', {}).get('supplementary_pyiqa', [])
+        for supp_model in supplementary_models:
+            if supp_model not in models:
+                models.append(supp_model)
+
+        # Saliency model (InSPyReNet) if configured
+        if self.config.get('models', {}).get('inspyrenet', {}).get('enabled', False):
+            models.append('inspyrenet')
+
         # Tagging model (from profile)
         profile = self.model_manager.get_active_profile()
         tagging_model = profile.get('tagging_model', 'clip')
@@ -234,6 +244,8 @@ class ChunkedMultiPassProcessor:
             models.append('vlm_tagger')
         elif tagging_model == 'qwen3-vl-2b' and self.available_vram >= 4:
             models.append('qwen3_vl_tagger')
+        elif tagging_model == 'florence-2' and self.available_vram >= 4:
+            models.append('florence_tagger')
         # else: CLIP tagging uses clip embeddings, no extra model needed
 
         # Composition model (SAMP-Net if configured)
@@ -476,7 +488,8 @@ class ChunkedMultiPassProcessor:
         return images
 
     # PyIQA models list
-    PYIQA_MODELS = ['topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+']
+    PYIQA_MODELS = ['topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
+                    'topiq_iaa', 'topiq_nr_face', 'liqe']
 
     def _run_model_pass(self, model_name: str, model: Any,
                         images: Dict[str, Dict], results: Dict[str, Dict]):
@@ -497,8 +510,10 @@ class ChunkedMultiPassProcessor:
             self._pass_insightface(model, images, results)
         elif model_name == 'ram_tagger':
             self._pass_ram_tagger(model, images, results)
-        elif model_name in ('vlm_tagger', 'qwen3_vl_tagger'):
+        elif model_name in ('vlm_tagger', 'qwen3_vl_tagger', 'florence_tagger'):
             self._pass_vlm_tagger(model, images, results)
+        elif model_name == 'inspyrenet':
+            self._pass_inspyrenet(model, images, results)
         elif model_name in self.PYIQA_MODELS:
             self._pass_pyiqa(model, model_name, images, results)
 
@@ -524,13 +539,13 @@ class ChunkedMultiPassProcessor:
             features_normalized = torch.nn.functional.normalize(features, dim=-1)
             embeddings = features_normalized.cpu().numpy()
 
-            # Get aesthetic scores using MLP head
-            if hasattr(self.scorer, 'aesthetic_head'):
+            # Get aesthetic scores using MLP head (only available with 768-dim ViT-L-14)
+            if hasattr(self.scorer, 'aesthetic_head') and self.scorer.aesthetic_head is not None:
                 scores = self.scorer.aesthetic_head(features.float()).cpu().numpy().flatten()
 
         for i, path in enumerate(paths):
             results[path]['clip_embedding'] = embeddings[i].astype(np.float32).tobytes()
-            if hasattr(self.scorer, 'aesthetic_head'):
+            if hasattr(self.scorer, 'aesthetic_head') and self.scorer.aesthetic_head is not None:
                 results[path]['aesthetic'] = max(0.0, min(10.0, (float(scores[i]) + 1) * 5))
 
     def _pass_samp_net(self, scorer: Any, images: Dict, results: Dict):
@@ -628,6 +643,29 @@ class ChunkedMultiPassProcessor:
         except Exception as e:
             print(f"VLM tagging failed: {e}")
 
+    def _pass_inspyrenet(self, scorer: Any, images: Dict, results: Dict):
+        """InSPyReNet pass: subject saliency detection and derived metrics."""
+        pil_imgs = [img['pil'] for img in images.values()]
+        cv_imgs = [img['cv'] for img in images.values()]
+        paths = list(images.keys())
+
+        try:
+            scores = scorer.score_batch(pil_imgs, cv_imgs)
+
+            for i, path in enumerate(paths):
+                for key in ('subject_sharpness', 'subject_prominence',
+                           'subject_placement', 'bg_separation'):
+                    results[path][key] = scores[i].get(key, 5.0)
+        except Exception as e:
+            print(f"InSPyReNet saliency pass failed: {e}")
+
+    # Supplementary PyIQA models store to dedicated columns
+    PYIQA_COLUMN_MAP = {
+        'topiq_iaa': 'aesthetic_iaa',
+        'topiq_nr_face': 'face_quality_iqa',
+        'liqe': 'liqe_score',
+    }
+
     def _pass_pyiqa(self, scorer: Any, model_name: str, images: Dict, results: Dict):
         """PyIQA pass: quality assessment using TOPIQ, HyperIQA, DBCNN, etc."""
         pil_imgs = [img['pil'] for img in images.values()]
@@ -636,10 +674,17 @@ class ChunkedMultiPassProcessor:
         try:
             scores = scorer.score_batch(pil_imgs)
 
-            for i, path in enumerate(paths):
-                results[path]['aesthetic'] = scores[i]
-                results[path]['scoring_model'] = model_name
-                results[path]['quality_score'] = scores[i]
+            # Supplementary models store to dedicated columns
+            if model_name in self.PYIQA_COLUMN_MAP:
+                column = self.PYIQA_COLUMN_MAP[model_name]
+                for i, path in enumerate(paths):
+                    results[path][column] = scores[i]
+            else:
+                # Primary quality model stores to aesthetic/quality_score
+                for i, path in enumerate(paths):
+                    results[path]['aesthetic'] = scores[i]
+                    results[path]['scoring_model'] = model_name
+                    results[path]['quality_score'] = scores[i]
         except Exception as e:
             print(f"PyIQA {model_name} pass failed: {e}")
 
@@ -745,6 +790,15 @@ class ChunkedMultiPassProcessor:
                 'leading_lines_score': data.get('leading_lines_score', 0),
                 'power_point_score': data.get('power_point_score', 5.0),
                 'topiq_score': data.get('topiq_score'),
+                # Supplementary PyIQA scores
+                'aesthetic_iaa': data.get('aesthetic_iaa'),
+                'face_quality_iqa': data.get('face_quality_iqa'),
+                'liqe_score': data.get('liqe_score'),
+                # Subject saliency metrics
+                'subject_sharpness': data.get('subject_sharpness'),
+                'subject_prominence': data.get('subject_prominence'),
+                'subject_placement': data.get('subject_placement'),
+                'bg_separation': data.get('bg_separation'),
                 # EXIF for adjustments
                 'iso': img_data.get('exif', {}).get('iso'),
                 'f_stop': img_data.get('exif', {}).get('f_stop'),
@@ -847,6 +901,17 @@ class ChunkedMultiPassProcessor:
                 'power_point_score': float(data.get('power_point_score', 5.0)),
                 'leading_lines_score': float(data.get('leading_lines_score', 0)),
 
+                # Supplementary PyIQA scores
+                'aesthetic_iaa': data.get('aesthetic_iaa'),
+                'face_quality_iqa': data.get('face_quality_iqa'),
+                'liqe_score': data.get('liqe_score'),
+
+                # Subject saliency metrics
+                'subject_sharpness': data.get('subject_sharpness'),
+                'subject_prominence': data.get('subject_prominence'),
+                'subject_placement': data.get('subject_placement'),
+                'bg_separation': data.get('bg_separation'),
+
                 # Other fields
                 'is_silhouette': data.get('is_silhouette', 0),
                 'phash': img_data.get('phash'),
@@ -945,6 +1010,10 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
         'composition': 'samp_net',
         'faces': 'insightface',
         'embeddings': 'clip',
+        'quality-iaa': 'topiq_iaa',
+        'quality-face': 'topiq_nr_face',
+        'quality-liqe': 'liqe',
+        'saliency': 'inspyrenet',
     }
 
     model_name = pass_models.get(pass_name)
@@ -971,6 +1040,8 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
             model_name = 'vlm_tagger'
         elif tag_model == 'qwen3-vl-2b':
             model_name = 'qwen3_vl_tagger'
+        elif tag_model == 'florence-2':
+            model_name = 'florence_tagger'
         else:
             model_name = 'clip'
 
@@ -1003,6 +1074,11 @@ def list_available_models():
     print(f"  {'clipiqa+':<15} {'~4GB':<8} {'0.86':<8} CLIP with learned prompts")
     print(f"  {'clip-mlp':<15} {'~4GB':<8} {'0.76':<8} CLIP + MLP head (legacy)")
 
+    print(f"\n  {'--- Supplementary Quality Models ---':}")
+    print(f"  {'topiq_iaa':<15} {'~2GB':<8} {'--':<8} AVA-trained aesthetic merit (artistic quality)")
+    print(f"  {'topiq_nr_face':<15} {'~2GB':<8} {'--':<8} Purpose-built face quality scoring")
+    print(f"  {'liqe':<15} {'~2GB':<8} {'--':<8} LIQE quality + distortion diagnosis")
+
     print("\n" + "-" * 70)
     print("TAGGING MODELS (for semantic tags)")
     print("-" * 70)
@@ -1010,6 +1086,7 @@ def list_available_models():
     print(f"  {'ram++':<15} {'~8GB':<8} {'--':<8} Specialized tagger (6400+ tags)")
     print(f"  {'qwen3-vl-2b':<15} {'~4GB':<8} {'--':<8} Vision-language model (lightweight)")
     print(f"  {'qwen2.5-vl-7b':<15} {'~16GB':<8} {'--':<8} Vision-language model")
+    print(f"  {'florence-2':<15} {'~4GB':<8} {'--':<8} Florence-2 lightweight VLM (0.77B)")
 
     print("\n" + "-" * 70)
     print("COMPOSITION MODELS")
@@ -1021,6 +1098,11 @@ def list_available_models():
     print("FACE ANALYSIS")
     print("-" * 70)
     print(f"  {'insightface':<15} {'~2GB':<8} {'--':<8} Detection, recognition, landmarks")
+
+    print("\n" + "-" * 70)
+    print("SUBJECT SALIENCY")
+    print("-" * 70)
+    print(f"  {'inspyrenet':<15} {'~2GB':<8} {'--':<8} Subject mask → sharpness, prominence, placement")
 
     print("\n" + "=" * 70)
     print("\nNote: SRCC = Spearman correlation on KonIQ-10k benchmark (higher is better)")

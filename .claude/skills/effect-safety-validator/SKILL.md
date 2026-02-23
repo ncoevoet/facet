@@ -433,3 +433,8 @@ When reviewing or fixing effects:
 | `ObjectUnsubscribedError` | Subscription outlives component lifecycle | Add `takeUntilDestroyed(this.destroyRef)` |
 | `NG0101: tick is called recursively` | Effect triggers change detection (Angular 20) | Wrap side effects in `untracked()` |
 | Form patchValue triggers infinite loop | Missing `{emitEvent: false}` | Add `{emitEvent: false}` to ALL `patchValue` in effects |
+
+## See Also
+
+- **signal-patterns** — General signal/computed/effect patterns, mutation detection, parent-child communication
+- **test-creation** — Testing effects safely (NG0101 avoidance, flushEffects patterns)

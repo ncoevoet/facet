@@ -12,6 +12,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Run `/agents:code-review-agent` to review commits and changes. Supports reviewing the last commit, uncommitted changes, or specific files with configurable depth (quick/standard/deep) and focus areas (security, performance, sql, i18n, config).
 
+## Available Skills
+
+| Skill | Triggers | Purpose |
+|-------|----------|---------|
+| `signal-patterns` | signal, computed, effect, UI not updating | Signal-based state management for Angular 20 |
+| `effect-safety-validator` | infinite loop, ObjectUnsubscribedError, effect safety | Detect unsafe effect patterns in Angular signals |
+| `test-creation` | create tests, fix test, TS2345, test coverage | Test suites for Angular 20 zoneless signal components |
+| `code-quality-analyzer` | duplicate code, DRY, refactor, code smell | Code smells and refactoring opportunities |
+| `css-layout-patterns` | @apply, flex layout, overflow, dark theme | CSS/Tailwind v4 layout patterns |
+| `chrome-devtools-debugging` | UI issue, network request, console error | Browser debugging with Chrome DevTools MCP |
+| `/agents:code-review-agent` | code review, review commit | Expert code review for Facet changes |
+| `/reflexion` | audit .claude, ecosystem health | Audit .claude/ ecosystem for quality and coherence |
+
 ## Project Overview
 
 Facet is a multi-dimensional photo analysis engine that examines every facet of an image — from aesthetic appeal and composition to facial detail and technical precision — using an ensemble of vision models to surface the photos that truly shine.
@@ -34,11 +47,15 @@ python facet.py /path/to/photos
 python facet.py /path/to/photos --single-pass
 
 # Run specific pass only
-python facet.py /path/to/photos --pass quality      # TOPIQ only
-python facet.py /path/to/photos --pass tags         # Configured tagger only
-python facet.py /path/to/photos --pass composition  # SAMP-Net only
-python facet.py /path/to/photos --pass faces        # InsightFace only
-python facet.py /path/to/photos --pass embeddings   # CLIP embeddings only
+python facet.py /path/to/photos --pass quality       # TOPIQ only
+python facet.py /path/to/photos --pass quality-iaa   # TOPIQ IAA (aesthetic merit)
+python facet.py /path/to/photos --pass quality-face  # TOPIQ NR-Face (face quality)
+python facet.py /path/to/photos --pass quality-liqe  # LIQE (quality + distortion diagnosis)
+python facet.py /path/to/photos --pass tags          # Configured tagger only
+python facet.py /path/to/photos --pass composition   # SAMP-Net only
+python facet.py /path/to/photos --pass faces         # InsightFace only
+python facet.py /path/to/photos --pass embeddings    # CLIP/SigLIP embeddings only
+python facet.py /path/to/photos --pass saliency      # InSPyReNet subject saliency
 
 # Force re-scan of already processed files
 python facet.py /path/to/photos --force
@@ -78,6 +95,9 @@ python facet.py --recompute-blinks               # Recompute blink detection for
 python facet.py --recompute-burst                # Recompute burst detection groups
 python facet.py --detect-duplicates              # Detect duplicate photos via pHash
 
+# Saliency commands
+python facet.py --recompute-saliency  # Recompute subject saliency metrics (InSPyReNet, GPU)
+
 # Composition commands
 python facet.py --recompute-composition-cpu  # Rule-based (CPU only, fast)
 python facet.py --recompute-composition-gpu  # SAMP-Net (requires GPU)
@@ -114,7 +134,9 @@ python viewer.py
 
 Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `imagehash`, `rawpy`, `fastapi`, `uvicorn`, `pyjwt`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`
 
-For VLM tagging (8gb+ profiles): `transformers>=4.57.0`, `accelerate>=0.25.0`
+For VLM tagging: `transformers>=4.57.0`, `accelerate>=0.25.0` (Florence-2 for legacy/8gb, Qwen VLMs for 16gb/24gb)
+
+For subject saliency (optional): `transparent-background` (InSPyReNet)
 
 For GPU face clustering (optional): `cuml`, `cupy` (requires conda + CUDA)
 
@@ -145,18 +167,20 @@ External tool: `exiftool` (command-line)
 
 ### VRAM Profiles
 
-| Profile | Models | Use Case |
-|---------|--------|----------|
-| `legacy` | CLIP+MLP + SAMP-Net + CLIP tagging (CPU) | No GPU, 8GB+ RAM |
-| `8gb` | CLIP+MLP + SAMP-Net + Qwen3-VL | 6-14GB VRAM |
-| `16gb` | TOPIQ + SAMP-Net + Qwen3-VL | Best aesthetic accuracy (~14GB) |
-| `24gb` | TOPIQ + Qwen2-VL + Qwen2.5-VL-7B | Composition explanations (~18GB) |
+| Profile | Embeddings | Aesthetic | Tagger | Use Case |
+|---------|------------|-----------|--------|----------|
+| `legacy` | CLIP ViT-L-14 | CLIP+MLP | Florence-2 | No GPU, 8GB+ RAM |
+| `8gb` | CLIP ViT-L-14 | CLIP+MLP | Florence-2 | 6-14GB VRAM |
+| `16gb` | SigLIP 2 SO400M | TOPIQ | Qwen3-VL-2B | Best accuracy (~14GB) |
+| `24gb` | SigLIP 2 SO400M | TOPIQ | Qwen2.5-VL-7B | Largest models (~18GB) |
+
+All profiles additionally run: SAMP-Net (composition), InsightFace (faces), supplementary PyIQA models (TOPIQ IAA, TOPIQ NR-Face, LIQE), and optionally InSPyReNet (subject saliency).
 
 ### Data Flow
 
 1. `facet.py` scans directories for JPG/JPEG/CR2/CR3 files
 2. BatchProcessor processes images with continuous GPU batching (no inter-batch gaps)
-3. Each image gets: CLIP embedding + tags, aesthetic score, face analysis, technical metrics, composition pattern
+3. Each image gets: CLIP/SigLIP embedding + tags, aesthetic scores (TOPIQ + IAA + LIQE), face analysis, technical metrics, composition pattern, subject saliency
 4. Results stored in SQLite with 640x640 thumbnail BLOBs
 5. Post-processing groups images into bursts, flags best-of-burst
 6. `viewer.py` serves the API and Angular SPA with filtering by tag, person, camera, score
@@ -228,11 +252,13 @@ SQLite table `photos` with columns:
 
 **Core:** path (PK), filename, date_taken, camera_model, lens_model, ISO, f_stop, shutter_speed, focal_length, image_width, image_height
 
-**Scores:** aesthetic, face_count, face_quality, eye_sharpness, face_ratio, tech_sharpness, color_score, exposure_score, comp_score, aggregate
+**Scores:** aesthetic, face_count, face_quality, eye_sharpness, face_ratio, tech_sharpness, color_score, exposure_score, comp_score, aggregate, aesthetic_iaa, face_quality_iqa, liqe_score
 
 **Technical:** noise_sigma, contrast_score, dynamic_range_stops, mean_saturation, is_monochrome
 
 **Composition:** composition_pattern (SAMP-Net), power_point_score, leading_lines_score
+
+**Subject Saliency:** subject_sharpness, subject_prominence, subject_placement, bg_separation
 
 **Duplicates:** duplicate_group_id, is_duplicate_lead
 
@@ -290,10 +316,13 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 ### Key Implementation Details
 
-- PyIQA quality models: TOPIQ (0.93 SRCC), HyperIQA (0.90), DBCNN (0.90), MUSIQ (0.87)
-- SAMP-Net for composition pattern detection (14 patterns including rule_of_thirds, golden_ratio, vanishing_point)
-- InsightFace buffalo_l for face detection with 106-point landmarks and recognition embeddings
-- CLIP ViT-L-14 for semantic tagging with configurable similarity threshold
+- **Embeddings:** SigLIP 2 SO400M (1152-dim, 16gb/24gb) or CLIP ViT-L-14 (768-dim, legacy/8gb)
+- **Quality:** TOPIQ (0.93 SRCC), HyperIQA (0.90), DBCNN (0.90), MUSIQ (0.87)
+- **Supplementary PyIQA:** TOPIQ IAA (aesthetic merit), TOPIQ NR-Face (face quality), LIQE (quality + distortion diagnosis)
+- **Composition:** SAMP-Net for pattern detection (14 patterns including rule_of_thirds, golden_ratio, vanishing_point)
+- **Subject saliency:** InSPyReNet via `transparent-background` — subject sharpness, prominence, placement, background separation
+- **Faces:** InsightFace buffalo_l for detection with 106-point landmarks and recognition embeddings
+- **Tagging:** Florence-2 PromptGen (legacy/8gb), Qwen3-VL-2B (16gb), Qwen2.5-VL-7B (24gb), or CLIP similarity
 - Face recognition uses HDBSCAN clustering on embeddings (standalone hdbscan library)
 - Percentile normalization: scales metrics so 90th percentile maps to 10.0
 - Burst detection groups similar photos within configurable time windows

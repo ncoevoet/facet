@@ -407,3 +407,8 @@ For signal-based components, verify:
 1. Child: declare `output<Photo>()` and call `.emit()` with new object (never mutate input)
 2. Parent: bind `(photoUpdated)="onPhotoUpdated($event)"` in template
 3. Parent handler: use `signal.update()` with `.map()` to replace the updated item immutably
+
+## See Also
+
+- **effect-safety-validator** — Detect infinite loops, NG0101, unsafe effect patterns (Angular 20 breaking changes)
+- **test-creation** — Testing signal inputs/outputs, computed signals, and effects with Karma/Jasmine

@@ -59,6 +59,15 @@ _WEIGHT_COLUMNS = {
     'dynamic_range': 'dynamic_range_stops',
     'isolation': 'isolation_bonus',
     'leading_lines': 'leading_lines_score',
+    # Supplementary PyIQA
+    'aesthetic_iaa': 'aesthetic_iaa',
+    'face_quality_iqa': 'face_quality_iqa',
+    'liqe': 'liqe_score',
+    # Subject saliency
+    'subject_sharpness': 'subject_sharpness',
+    'subject_prominence': 'subject_prominence',
+    'subject_placement': 'subject_placement',
+    'bg_separation': 'bg_separation',
 }
 
 

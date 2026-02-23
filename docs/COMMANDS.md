@@ -7,11 +7,15 @@
 | `python facet.py /path` | Scan directory (multi-pass mode, auto VRAM detection) |
 | `python facet.py /path --force` | Re-scan already processed files |
 | `python facet.py /path --single-pass` | Force single-pass mode (all models at once) |
-| `python facet.py /path --pass quality` | Run quality scoring pass only |
-| `python facet.py /path --pass tags` | Run tagging pass only |
-| `python facet.py /path --pass composition` | Run composition pass only |
-| `python facet.py /path --pass faces` | Run face detection pass only |
-| `python facet.py /path --pass embeddings` | Run CLIP embeddings pass only |
+| `python facet.py /path --pass quality` | Run TOPIQ quality scoring pass only |
+| `python facet.py /path --pass quality-iaa` | Run TOPIQ IAA aesthetic merit scoring only |
+| `python facet.py /path --pass quality-face` | Run TOPIQ NR-Face quality scoring only |
+| `python facet.py /path --pass quality-liqe` | Run LIQE quality + distortion diagnosis only |
+| `python facet.py /path --pass tags` | Run tagging pass only (model depends on VRAM profile) |
+| `python facet.py /path --pass composition` | Run SAMP-Net composition pattern detection only |
+| `python facet.py /path --pass faces` | Run InsightFace face detection only |
+| `python facet.py /path --pass embeddings` | Run CLIP/SigLIP embedding extraction only |
+| `python facet.py /path --pass saliency` | Run InSPyReNet subject saliency detection only |
 | `python facet.py /path --db custom.db` | Use custom database file |
 | `python facet.py /path --config my.json` | Use custom scoring config |
 
@@ -25,7 +29,19 @@ This allows using high-quality models even with limited VRAM.
 Faster but requires more VRAM.
 
 **Specific Pass (`--pass NAME`):** Run only one specific pass on photos. Useful for
-updating specific metrics without full reprocessing.
+updating specific metrics without full reprocessing. Available passes:
+
+| Pass | Model | Output | VRAM |
+|------|-------|--------|------|
+| `quality` | TOPIQ | `aesthetic` score (0-10) | ~2 GB |
+| `quality-iaa` | TOPIQ IAA | `aesthetic_iaa` score (artistic merit vs technical quality, AVA-trained) | Shared w/ TOPIQ |
+| `quality-face` | TOPIQ NR-Face | `face_quality_iqa` score (purpose-built face quality) | Shared w/ TOPIQ |
+| `quality-liqe` | LIQE | `liqe_score` + distortion diagnosis (blur, overexposure, noise) | ~2 GB |
+| `tags` | Florence-2 / Qwen VLM / CLIP | Semantic tags from configured vocabulary | 2-16 GB |
+| `composition` | SAMP-Net | `composition_pattern` (14 patterns) + `comp_score` | ~2 GB |
+| `faces` | InsightFace buffalo_l | Face detection, landmarks, blink detection, recognition embeddings | ~2 GB |
+| `embeddings` | CLIP ViT-L-14 or SigLIP 2 | `clip_embedding` BLOB for similarity/tagging | 4-5 GB |
+| `saliency` | InSPyReNet | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 GB |
 
 ## Preview & Export
 
@@ -48,6 +64,7 @@ These commands update specific metrics without full photo reprocessing.
 | `python facet.py --recompute-category portrait` | Recompute scores for a single category only |
 | `python facet.py --recompute-tags` | Re-tag all photos using configured model |
 | `python facet.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
+| `python facet.py --recompute-saliency` | Recompute subject saliency metrics (InSPyReNet, GPU) |
 | `python facet.py --recompute-composition-cpu` | Recompute composition (rule-based, CPU) |
 | `python facet.py --recompute-composition-gpu` | Rescan with SAMP-Net (GPU required) |
 | `python facet.py --recompute-blinks` | Recompute blink detection |
@@ -57,6 +74,51 @@ These commands update specific metrics without full photo reprocessing.
 | `python facet.py --compute-recommendations --verbose` | Show detailed statistics |
 | `python facet.py --compute-recommendations --apply-recommendations` | Auto-apply scoring fixes |
 | `python facet.py --compute-recommendations --simulate` | Preview projected changes |
+
+### Supplementary Quality Models
+
+Three additional PyIQA models provide specialized scoring beyond the primary TOPIQ aesthetic score:
+
+- **TOPIQ IAA** (`--pass quality-iaa`): Trained on the AVA dataset for artistic aesthetic merit. Measures artistic quality (composition, creativity, visual impact) separately from technical quality. Stored as `aesthetic_iaa`.
+- **TOPIQ NR-Face** (`--pass quality-face`): Purpose-built face quality assessment. More accurate than generic quality models for face regions. Stored as `face_quality_iqa`.
+- **LIQE** (`--pass quality-liqe`): Outputs both a quality score and a distortion type diagnosis (e.g., "motion blur", "overexposure", "noise"). Stored as `liqe_score`.
+
+These models share VRAM with the primary TOPIQ model and run as part of the default multi-pass pipeline.
+
+### Subject Saliency
+
+The `--pass saliency` and `--recompute-saliency` commands use InSPyReNet (via the `transparent-background` library) to generate a binary subject mask, then derive four metrics:
+
+- **Subject Sharpness**: Laplacian variance on the subject mask region vs background. Detects whether the main subject is in focus.
+- **Subject Prominence**: Ratio of subject area to total frame area. High values indicate a dominant subject (e.g., macro photos).
+- **Subject Placement**: Rule-of-thirds scoring for the subject centroid position. Measures compositional placement.
+- **Background Separation**: Edge gradient difference between subject boundary and background. Measures bokeh quality.
+
+Requires `pip install transparent-background` (~2 GB VRAM).
+
+### Tagging Models
+
+The tagging model is selected per VRAM profile:
+
+| Profile | Model | How It Works |
+|---------|-------|-------------|
+| `legacy` | Florence-2 PromptGen v2 | Generates danbooru-style tags via `<GENERATE_TAGS>`, matched to vocabulary with Levenshtein distance |
+| `8gb` | Florence-2 PromptGen v2 | Same as legacy but on GPU (~2 GB VRAM) |
+| `16gb` | Qwen3-VL-2B | Vision-language model prompted with vocabulary list, extracts matching tags |
+| `24gb` | Qwen2.5-VL-7B | Largest VLM, best tag accuracy for complex scenes |
+
+All taggers map output to the configured tag vocabulary. Use `--recompute-tags` to re-tag with the profile's default model, or `--recompute-tags-vlm` for VLM-based re-tagging.
+
+### Embedding Models
+
+Two embedding models available, selected per VRAM profile via `clip_config`:
+
+| Config | Model | Dimensions | Used By |
+|--------|-------|-----------|---------|
+| `clip` | SigLIP 2 SO400M-384 | 1152 | 16gb, 24gb profiles |
+| `clip_legacy` | CLIP ViT-L-14 | 768 | legacy, 8gb profiles |
+
+Embeddings power: semantic tagging, duplicate detection, similar photo search, and CLIP+MLP aesthetic (legacy/8gb). Switching models requires re-embedding all photos (`--force` or `--pass embeddings`).
 
 ## Face Recognition
 

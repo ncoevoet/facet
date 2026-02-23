@@ -112,8 +112,10 @@ Configuration:
     scan_group.add_argument('--single-pass', action='store_true',
                         help='Force single-pass mode (load all models at once, requires more VRAM)')
     scan_group.add_argument('--pass', type=str, dest='single_pass_name', metavar='NAME',
-                        choices=['quality', 'tags', 'composition', 'faces', 'embeddings'],
-                        help='Run specific pass only: quality, tags, composition, faces, embeddings')
+                        choices=['quality', 'tags', 'composition', 'faces', 'embeddings',
+                                 'quality-iaa', 'quality-face', 'quality-liqe', 'saliency'],
+                        help='Run specific pass only: quality, tags, composition, faces, embeddings, '
+                             'quality-iaa, quality-face, quality-liqe, saliency')
     scan_group.add_argument('--dry-run', action='store_true',
                         help='Score sample photos without saving to database (preview mode)')
     scan_group.add_argument('--dry-run-count', type=int, default=10,
@@ -127,6 +129,8 @@ Configuration:
                         help='Recompute aggregate scores for a single category only')
     db_group.add_argument('--detect-duplicates', action='store_true',
                         help='Detect duplicate photos using pHash comparison')
+    db_group.add_argument('--recompute-embeddings', action='store_true',
+                        help='Recompute CLIP/SigLIP embeddings for all photos (required after model switch)')
     db_group.add_argument('--recompute-tags', action='store_true',
                         help='Re-tag all photos using configured tagging model')
     db_group.add_argument('--recompute-tags-vlm', action='store_true',
@@ -180,6 +184,8 @@ Configuration:
                         help='Recompute composition scores using rule-based analysis (CPU only, fast)')
     comp_group.add_argument('--recompute-composition-gpu', action='store_true',
                         help='Recompute composition scores using SAMP-Net neural network (requires GPU)')
+    comp_group.add_argument('--recompute-saliency', action='store_true',
+                        help='Recompute subject saliency metrics using InSPyReNet (requires GPU)')
 
     # Weight optimization
     weight_group = parser.add_argument_group('Weight optimization')
@@ -432,6 +438,31 @@ Configuration:
         scorer.rescan_samp_composition(batch_size=batch_size)
         exit()
 
+    # Recompute saliency metrics using InSPyReNet (requires GPU)
+    if args.recompute_saliency:
+        from models.model_manager import ModelManager
+        from processing.multi_pass import run_single_pass
+
+        config = ScoringConfig(args.config)
+        config.check_vram_profile_compatibility(verbose=True)
+
+        scorer = Facet(db_path=args.db, config_path=args.config, multi_pass=True)
+        model_manager = ModelManager(config)
+
+        with get_connection(args.db) as conn:
+            cursor = conn.execute("SELECT path FROM photos")
+            paths = [row['path'] for row in cursor.fetchall()]
+
+        if not paths:
+            print("No photos in database.")
+            exit()
+
+        print(f"Recomputing saliency for {len(paths)} photos...")
+        processed = run_single_pass(paths, 'saliency', scorer, model_manager)
+        print(f"Recomputed saliency for {processed} photos.")
+        print("Run --recompute-average to update aggregate scores with saliency metrics.")
+        exit()
+
     # Score TOPIQ from stored thumbnails (requires GPU)
     if args.score_topiq:
         import numpy as np
@@ -508,6 +539,33 @@ Configuration:
 
 
 
+    # Recompute embeddings (required after switching CLIP → SigLIP 2)
+    if args.recompute_embeddings:
+        from models.model_manager import ModelManager
+        from processing.multi_pass import run_single_pass
+        from processing.scorer import Facet
+
+        config = ScoringConfig(args.config)
+        config.check_vram_profile_compatibility(verbose=True)
+
+        scorer = Facet(db_path=args.db, config_path=args.config, multi_pass=True)
+        model_manager = ModelManager(config)
+
+        # Get all photos from database
+        with get_connection(args.db) as conn:
+            cursor = conn.execute("SELECT path FROM photos")
+            paths = [row['path'] for row in cursor.fetchall()]
+
+        if not paths:
+            print("No photos in database.")
+            exit()
+
+        print(f"Recomputing embeddings for {len(paths)} photos...")
+        processed = run_single_pass(paths, 'embeddings', scorer, model_manager)
+        print(f"Recomputed embeddings for {processed} photos.")
+        print("Run --recompute-tags and --recompute-average to update tags and scores.")
+        exit()
+
     # Recompute tags using VLM model (loads images from disk)
     if args.recompute_tags_vlm:
         from models.model_manager import ModelManager
@@ -519,6 +577,8 @@ Configuration:
         tag_model = config.get_model_for_task('tagging')
         if tag_model == 'qwen2.5-vl-7b':
             model_key = 'vlm_tagger'
+        elif tag_model == 'florence-2':
+            model_key = 'florence_tagger'
         else:
             model_key = 'qwen3_vl_tagger'
 
@@ -1047,7 +1107,10 @@ Configuration:
     from models.tagger import CLIPTagger
 
     # Use existing tagger if available, or create one with scorer's model
-    tagger = scorer.tagger if scorer.tagger else CLIPTagger(scorer.model, scorer.device, config=scorer.config)
+    tagger = scorer.tagger if scorer.tagger else CLIPTagger(
+        scorer.model, scorer.device, config=scorer.config,
+        model_name=getattr(scorer, '_clip_model_name', 'ViT-L-14')
+    )
 
     tagged = run_tagging(scorer.db_path, tagger, scorer.config)
     if tagged:

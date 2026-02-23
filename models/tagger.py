@@ -17,7 +17,7 @@ class CLIPTagger:
     Tag vocabulary is loaded from config's weights.*.tags - no hardcoded defaults.
     """
 
-    def __init__(self, clip_model=None, device='cuda', config=None):
+    def __init__(self, clip_model=None, device='cuda', config=None, model_name=None):
         """
         Initialize the tagger.
 
@@ -25,10 +25,12 @@ class CLIPTagger:
             clip_model: CLIP model instance (from open_clip)
             device: torch device ('cuda' or 'cpu')
             config: ScoringConfig instance for loading vocabulary dynamically
+            model_name: CLIP model name for tokenizer (e.g. 'ViT-L-14', 'ViT-SO400M-16-SigLIP2-384')
         """
         self.model = clip_model
         self.device = device
         self.config = config
+        self.model_name = model_name
         self.text_embeddings = None
         self.tag_names = None
 
@@ -66,7 +68,7 @@ class CLIPTagger:
                 all_texts.append(f"a photo of {desc}")
 
         # Tokenize and encode all text prompts
-        tokenizer = open_clip.get_tokenizer('ViT-L-14')
+        tokenizer = open_clip.get_tokenizer(self.model_name or 'ViT-L-14')
         text_tokens = tokenizer(all_texts).to(self.device)
 
         with torch.no_grad():

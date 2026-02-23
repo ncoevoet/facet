@@ -176,7 +176,15 @@
     "silhouette_label": "Silhouette",
     "topiq_score": "TOPIQ",
     "histogram_spread": "Hist. etendue",
-    "star_rating": "Note"
+    "star_rating": "Note",
+    "aesthetic_iaa": "Esthétique IAA",
+    "face_quality_iqa": "Qualité visage IQA",
+    "liqe_score": "LIQE",
+    "saliency_section": "Saillance du sujet",
+    "subject_sharpness": "Netteté sujet",
+    "subject_prominence": "Proéminence",
+    "subject_placement": "Placement",
+    "bg_separation": "Séparation fond"
   },
   "notifications": {
     "copied": "Copie !",
@@ -984,6 +992,8 @@
       "face": "Metriques visage",
       "composition": "Composition",
       "technical": "Technique",
+      "extended_quality": "Qualité étendue",
+      "saliency": "Saillance du sujet",
       "exposure_range": "Exposition & Plage",
       "ratings": "Notes"
     },
@@ -1012,7 +1022,14 @@
     "saturation_range": "Saturation",
     "luminance_range": "Luminance",
     "histogram_range": "Etendue histogramme",
-    "star_rating_range": "Etoiles"
+    "star_rating_range": "Etoiles",
+    "aesthetic_iaa_range": "Esthétique IAA",
+    "face_quality_iqa_range": "Qualité visage IQA",
+    "liqe_range": "Score LIQE",
+    "subject_sharpness_range": "Netteté du sujet",
+    "subject_prominence_range": "Proéminence du sujet",
+    "subject_placement_range": "Placement du sujet",
+    "bg_separation_range": "Séparation fond"
   },
   "composition_patterns": {
     "none": "Aucun",
@@ -1092,7 +1109,14 @@
       "noise": "Bruit",
       "isolation": "Isolation",
       "power_point": "Points de force",
-      "leading_lines": "Lignes directrices"
+      "leading_lines": "Lignes directrices",
+      "aesthetic_iaa": "Esthétique IAA",
+      "face_quality_iqa": "Qualité visage IQA",
+      "liqe": "LIQE",
+      "subject_sharpness": "Netteté sujet",
+      "subject_prominence": "Proéminence sujet",
+      "subject_placement": "Placement sujet",
+      "bg_separation": "Séparation fond"
     },
     "save": "Enregistrer",
     "optimize": "Optimiser",

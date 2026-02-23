@@ -173,7 +173,15 @@
     "lines": "Linee",
     "top_picks": "Top",
     "monochrome": "B&N",
-    "silhouette_label": "Silhouette"
+    "silhouette_label": "Silhouette",
+    "aesthetic_iaa": "Estetica IAA",
+    "face_quality_iqa": "Qualità volto IQA",
+    "liqe_score": "LIQE",
+    "saliency_section": "Salienza del soggetto",
+    "subject_sharpness": "Nitidezza soggetto",
+    "subject_prominence": "Prominenza",
+    "subject_placement": "Posizionamento",
+    "bg_separation": "Separazione sfondo"
   },
   "notifications": {
     "copied": "Copiato!",
@@ -959,7 +967,9 @@
       "scores": "Intervalli punteggio",
       "date": "Intervallo date",
       "face": "Metriche volti",
-      "exif": "Impostazioni EXIF"
+      "exif": "Impostazioni EXIF",
+      "extended_quality": "Qualità estesa",
+      "saliency": "Salienza del soggetto"
     },
     "hide_rejected": "Nascondi scartate",
     "favorites_only": "Solo preferite",
@@ -977,7 +987,14 @@
     "focal_length": "Lunghezza focale",
     "focal_range": "Lunghezza focale",
     "dynamic_range": "Gamma dinamica",
-    "noise_range": "Rumore"
+    "noise_range": "Rumore",
+    "aesthetic_iaa_range": "Estetica IAA",
+    "face_quality_iqa_range": "Qualità volto IQA",
+    "liqe_range": "Punteggio LIQE",
+    "subject_sharpness_range": "Nitidezza soggetto",
+    "subject_prominence_range": "Prominenza soggetto",
+    "subject_placement_range": "Posizionamento soggetto",
+    "bg_separation_range": "Separazione sfondo"
   },
   "composition_patterns": {
     "none": "Nessuno",
@@ -1057,7 +1074,14 @@
       "face_sharpness": "Nitidezza volto",
       "noise": "Rumore",
       "power_point": "Punti di forza",
-      "saturation": "Saturazione"
+      "saturation": "Saturazione",
+      "aesthetic_iaa": "Estetica IAA",
+      "face_quality_iqa": "Qualità viso IQA",
+      "liqe": "LIQE",
+      "subject_sharpness": "Nitidezza soggetto",
+      "subject_prominence": "Prominenza soggetto",
+      "subject_placement": "Posizionamento soggetto",
+      "bg_separation": "Separazione sfondo"
     },
     "save": "Salva",
     "optimize": "Ottimizza",

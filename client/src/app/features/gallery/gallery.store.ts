@@ -125,6 +125,22 @@ export interface GalleryFilters {
   max_leading_lines: string;
   min_isolation: string;
   max_isolation: string;
+  // Extended quality
+  min_aesthetic_iaa: string;
+  max_aesthetic_iaa: string;
+  min_face_quality_iqa: string;
+  max_face_quality_iqa: string;
+  min_liqe: string;
+  max_liqe: string;
+  // Subject saliency
+  min_subject_sharpness: string;
+  max_subject_sharpness: string;
+  min_subject_prominence: string;
+  max_subject_prominence: string;
+  min_subject_placement: string;
+  max_subject_placement: string;
+  min_bg_separation: string;
+  max_bg_separation: string;
   // Technical
   min_saturation: string;
   max_saturation: string;
@@ -211,6 +227,20 @@ const DEFAULT_FILTERS: GalleryFilters = {
   max_leading_lines: '',
   min_isolation: '',
   max_isolation: '',
+  min_aesthetic_iaa: '',
+  max_aesthetic_iaa: '',
+  min_face_quality_iqa: '',
+  max_face_quality_iqa: '',
+  min_liqe: '',
+  max_liqe: '',
+  min_subject_sharpness: '',
+  max_subject_sharpness: '',
+  min_subject_prominence: '',
+  max_subject_prominence: '',
+  min_subject_placement: '',
+  max_subject_placement: '',
+  min_bg_separation: '',
+  max_bg_separation: '',
   min_saturation: '',
   max_saturation: '',
   min_luminance: '',
@@ -308,6 +338,10 @@ export class GalleryStore {
       'min_histogram_spread', 'max_histogram_spread',
       'min_power_point', 'max_power_point', 'min_leading_lines', 'max_leading_lines',
       'min_isolation', 'max_isolation',
+      'min_aesthetic_iaa', 'max_aesthetic_iaa', 'min_face_quality_iqa', 'max_face_quality_iqa',
+      'min_liqe', 'max_liqe',
+      'min_subject_sharpness', 'max_subject_sharpness', 'min_subject_prominence', 'max_subject_prominence',
+      'min_subject_placement', 'max_subject_placement', 'min_bg_separation', 'max_bg_separation',
       'min_face_count', 'max_face_count',
       'min_eye_sharpness', 'max_eye_sharpness', 'min_face_sharpness', 'max_face_sharpness',
       'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',
@@ -587,6 +621,10 @@ export class GalleryStore {
       'min_histogram_spread', 'max_histogram_spread',
       'min_power_point', 'max_power_point', 'min_leading_lines', 'max_leading_lines',
       'min_isolation', 'max_isolation',
+      'min_aesthetic_iaa', 'max_aesthetic_iaa', 'min_face_quality_iqa', 'max_face_quality_iqa',
+      'min_liqe', 'max_liqe',
+      'min_subject_sharpness', 'max_subject_sharpness', 'min_subject_prominence', 'max_subject_prominence',
+      'min_subject_placement', 'max_subject_placement', 'min_bg_separation', 'max_bg_separation',
       'min_face_count', 'max_face_count',
       'min_eye_sharpness', 'max_eye_sharpness', 'min_face_sharpness', 'max_face_sharpness',
       'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',
@@ -640,6 +678,10 @@ export class GalleryStore {
       'min_histogram_spread', 'max_histogram_spread',
       'min_power_point', 'max_power_point', 'min_leading_lines', 'max_leading_lines',
       'min_isolation', 'max_isolation',
+      'min_aesthetic_iaa', 'max_aesthetic_iaa', 'min_face_quality_iqa', 'max_face_quality_iqa',
+      'min_liqe', 'max_liqe',
+      'min_subject_sharpness', 'max_subject_sharpness', 'min_subject_prominence', 'max_subject_prominence',
+      'min_subject_placement', 'max_subject_placement', 'min_bg_separation', 'max_bg_separation',
       'min_face_count', 'max_face_count',
       'min_eye_sharpness', 'max_eye_sharpness', 'min_face_sharpness', 'max_face_sharpness',
       'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',
@@ -698,6 +740,10 @@ export class GalleryStore {
       'min_histogram_spread', 'max_histogram_spread',
       'min_power_point', 'max_power_point', 'min_leading_lines', 'max_leading_lines',
       'min_isolation', 'max_isolation',
+      'min_aesthetic_iaa', 'max_aesthetic_iaa', 'min_face_quality_iqa', 'max_face_quality_iqa',
+      'min_liqe', 'max_liqe',
+      'min_subject_sharpness', 'max_subject_sharpness', 'min_subject_prominence', 'max_subject_prominence',
+      'min_subject_placement', 'max_subject_placement', 'min_bg_separation', 'max_bg_separation',
       'min_face_count', 'max_face_count',
       'min_eye_sharpness', 'max_eye_sharpness', 'min_face_sharpness', 'max_face_sharpness',
       'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',

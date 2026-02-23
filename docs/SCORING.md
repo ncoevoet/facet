@@ -119,6 +119,13 @@ All weights use `_percent` suffix and must sum to 100 per category.
 | `saturation_percent` | Color saturation | HSV analysis | Vibrant photos |
 | `noise_percent` | Noise level | Noise estimation | Low-light |
 | `face_sharpness_percent` | Face region sharpness | Face analysis | Portraits |
+| `aesthetic_iaa_percent` | Artistic aesthetic merit | TOPIQ IAA (AVA-trained) | Art, creative |
+| `face_quality_iqa_percent` | Face quality (IQA) | TOPIQ NR-Face | Portraits |
+| `liqe_percent` | LIQE quality score | LIQE | Diagnostics |
+| `subject_sharpness_percent` | Subject region sharpness | InSPyReNet + Laplacian | Portraits, wildlife |
+| `subject_prominence_percent` | Subject area ratio | InSPyReNet | Macro, wildlife |
+| `subject_placement_percent` | Subject rule-of-thirds | InSPyReNet | All |
+| `bg_separation_percent` | Background separation | InSPyReNet | Portraits, macro |
 
 ## Modifiers
 
@@ -173,11 +180,14 @@ The viewer's "Top Picks" filter uses a custom weighted score:
 
 Default weights are optimized for **TOPIQ** (0.93 SRCC), the aesthetic model for all profiles.
 
-| Profile | Aesthetic Model | Recommendations |
-|---------|-----------------|-----------------|
-| `16gb` | TOPIQ (0.93 SRCC) | Default weights |
-| `8gb` | TOPIQ (0.93 SRCC) | Default weights work well |
-| `legacy` | TOPIQ on CPU | Default weights work well, slower |
+| Profile | Aesthetic Model | Embeddings | Tagger | Recommendations |
+|---------|-----------------|-----------|--------|-----------------|
+| `24gb` | TOPIQ (0.93 SRCC) | SigLIP 2 SO400M | Qwen2.5-VL-7B | Best accuracy, default weights |
+| `16gb` | TOPIQ (0.93 SRCC) | SigLIP 2 SO400M | Qwen3-VL-2B | Default weights |
+| `8gb` | CLIP+MLP (0.76 SRCC) | CLIP ViT-L-14 | Florence-2 | Default weights work well |
+| `legacy` | CLIP+MLP on CPU | CLIP ViT-L-14 | Florence-2 | Default weights, slower |
+
+All profiles additionally run supplementary PyIQA models (TOPIQ IAA, TOPIQ NR-Face, LIQE) and optionally InSPyReNet for subject saliency.
 
 Run `--compute-recommendations` after switching profiles to analyze score distributions.
 

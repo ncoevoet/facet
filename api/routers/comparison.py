@@ -54,6 +54,15 @@ METRIC_NAME_MAPPING = {
     'noise_sigma': 'noise',
     # Bonuses
     'isolation_bonus': 'isolation',
+    # Supplementary PyIQA
+    'aesthetic_iaa': 'aesthetic_iaa',
+    'face_quality_iqa': 'face_quality_iqa',
+    'liqe_score': 'liqe',
+    # Subject saliency
+    'subject_sharpness': 'subject_sharpness',
+    'subject_prominence': 'subject_prominence',
+    'subject_placement': 'subject_placement',
+    'bg_separation': 'bg_separation',
 }
 
 
@@ -415,7 +424,9 @@ async def api_comparison_photo_metrics(
         'noise_sigma', 'histogram_bimodality', 'mean_saturation',
         'is_blink', 'is_silhouette', 'face_ratio', 'face_count',
         'scoring_model', 'tags', 'is_monochrome', 'leading_lines_score',
-        'power_point_score', 'histogram_spread', 'mean_luminance'
+        'power_point_score', 'histogram_spread', 'mean_luminance',
+        'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
+        'subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation',
     ]
 
     user_id = user.user_id if user else None
@@ -649,6 +660,15 @@ async def api_comparison_preview_score(
         'dynamic_range': 'dynamic_range_stops',
         'isolation': 'isolation_bonus',
         'leading_lines': 'leading_lines_score',
+        # Supplementary PyIQA
+        'aesthetic_iaa': 'aesthetic_iaa',
+        'face_quality_iqa': 'face_quality_iqa',
+        'liqe': 'liqe_score',
+        # Subject saliency
+        'subject_sharpness': 'subject_sharpness',
+        'subject_prominence': 'subject_prominence',
+        'subject_placement': 'subject_placement',
+        'bg_separation': 'bg_separation',
     }
 
     for weight_key, metric_key in weight_map.items():

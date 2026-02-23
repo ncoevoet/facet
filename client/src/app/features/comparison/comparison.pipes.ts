@@ -17,6 +17,15 @@ const WEIGHT_ICONS: Record<string, string> = {
   isolation_percent: 'filter_center_focus',
   power_point_percent: 'my_location',
   leading_lines_percent: 'timeline',
+  // Supplementary PyIQA
+  aesthetic_iaa_percent: 'art_track',
+  face_quality_iqa_percent: 'face_4',
+  liqe_percent: 'analytics',
+  // Subject saliency
+  subject_sharpness_percent: 'blur_off',
+  subject_prominence_percent: 'fullscreen',
+  subject_placement_percent: 'place',
+  bg_separation_percent: 'blur_on',
 };
 
 @Pipe({ name: 'weightIcon', standalone: true, pure: true })

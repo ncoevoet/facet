@@ -397,3 +397,8 @@ After fixing or creating tests, verify:
 | `NullInjectorError: No provider for X` | Service not mocked in TestBed | Add `{ provide: ServiceName, useValue: mockService }` to providers |
 | Mock returns wrong values across tests | Spy shared across tests | Reset spies in `beforeEach` or use `.and.returnValue()` per test |
 | `NG0303: Can't bind` | Wrong input name in setInput | Use exact property name (no suffixes in this project) |
+
+## See Also
+
+- **signal-patterns** — Signal/computed/effect patterns, mutation detection, parent-child communication
+- **effect-safety-validator** — Detect unsafe effect patterns (infinite loops, NG0101, Angular 20 breaking changes)

@@ -173,7 +173,15 @@
     "lines": "Linien",
     "top_picks": "Top",
     "monochrome": "S&W",
-    "silhouette_label": "Silhouette"
+    "silhouette_label": "Silhouette",
+    "aesthetic_iaa": "Ästhetik IAA",
+    "face_quality_iqa": "Gesichts-IQA",
+    "liqe_score": "LIQE",
+    "saliency_section": "Motiverkennung",
+    "subject_sharpness": "Motivschärfe",
+    "subject_prominence": "Hervorhebung",
+    "subject_placement": "Platzierung",
+    "bg_separation": "Hintergrundtrennung"
   },
   "notifications": {
     "copied": "Kopiert!",
@@ -959,7 +967,9 @@
       "scores": "Wertungsbereiche",
       "date": "Zeitraum",
       "face": "Gesichtsmetriken",
-      "exif": "EXIF-Einstellungen"
+      "exif": "EXIF-Einstellungen",
+      "extended_quality": "Erweiterte Qualität",
+      "saliency": "Motiverkennung"
     },
     "hide_rejected": "Abgelehnte ausblenden",
     "favorites_only": "Nur Favoriten",
@@ -977,7 +987,14 @@
     "focal_length": "Brennweite",
     "focal_range": "Brennweite",
     "dynamic_range": "Dynamikumfang",
-    "noise_range": "Rauschen"
+    "noise_range": "Rauschen",
+    "aesthetic_iaa_range": "Ästhetik IAA",
+    "face_quality_iqa_range": "Gesichts-IQA",
+    "liqe_range": "LIQE-Wert",
+    "subject_sharpness_range": "Motivschärfe",
+    "subject_prominence_range": "Hervorhebung",
+    "subject_placement_range": "Platzierung",
+    "bg_separation_range": "Hintergrundtrennung"
   },
   "composition_patterns": {
     "none": "Keines",
@@ -1057,7 +1074,14 @@
       "face_sharpness": "Gesichtsschärfe",
       "noise": "Rauschen",
       "power_point": "Kraftpunkte",
-      "saturation": "Sättigung"
+      "saturation": "Sättigung",
+      "aesthetic_iaa": "Ästhetik IAA",
+      "face_quality_iqa": "Gesichtsqualität IQA",
+      "liqe": "LIQE",
+      "subject_sharpness": "Motivschärfe",
+      "subject_prominence": "Motivprominenz",
+      "subject_placement": "Motivplatzierung",
+      "bg_separation": "Hintergrundtrennung"
     },
     "save": "Speichern",
     "optimize": "Optimieren",
