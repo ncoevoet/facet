@@ -25,7 +25,6 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PhotoTooltipComponent } from './photo-tooltip.component';
 import { FaceSelectorDialogComponent } from './face-selector-dialog.component';
 import { PersonSelectorDialogComponent } from './person-selector-dialog.component';
-import { SimilarPhotosDialogComponent } from './similar-photos-dialog.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { SlideshowComponent } from './slideshow.component';
 import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.component';
@@ -378,19 +377,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   // --- Card action handlers ---
 
   openSimilar(photo: Photo): void {
-    this.dialog.open(SimilarPhotosDialogComponent, {
-      data: {
-        photoPath: photo.path,
-        selectedPaths: this.selectedPaths,
-        togglePath: (path: string) => {
-          const next = new Set(this.selectedPaths());
-          if (next.has(path)) next.delete(path); else next.add(path);
-          this.selectedPaths.set(next);
-        },
-      },
-      width: '95vw',
-      maxWidth: '640px',
-    });
+    this.store.updateFilters({ similar_to: photo.path, min_similarity: '70' });
   }
 
   openAddPerson(photo: Photo): void {

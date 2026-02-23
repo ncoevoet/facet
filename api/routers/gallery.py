@@ -396,12 +396,47 @@ async def api_photos(
     }
 
 
+def _enrich_similar_with_full_rows(page_results, conn, user_id):
+    """Replace basic similar-photo dicts with full photo rows, preserving similarity order."""
+    if not page_results:
+        return page_results
+    sim_map = {r['path']: r['similarity'] for r in page_results}
+    paths = [r['path'] for r in page_results]
+    existing_cols = get_existing_columns(conn)
+    pref_cols = get_preference_columns(user_id)
+    pref_col_names = {'star_rating', 'is_favorite', 'is_rejected'}
+    select_cols = list(PHOTO_BASE_COLS)
+    for c in PHOTO_OPTIONAL_COLS:
+        if c in existing_cols:
+            if c in pref_col_names:
+                select_cols.append(f"{pref_cols[c]} as {c}")
+            else:
+                select_cols.append(c)
+    placeholders = ','.join(['?'] * len(paths))
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    rows = conn.execute(
+        f"SELECT {', '.join(select_cols)} FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
+        paths + vis_params,
+    ).fetchall()
+    photos = split_photo_tags(rows, VIEWER_CONFIG['display']['tags_per_photo'])
+    attach_person_data(photos, conn)
+    path_to_photo = {p['path']: p for p in photos}
+    ordered = []
+    for path in paths:
+        if path in path_to_photo:
+            p = path_to_photo[path]
+            p['similarity'] = sim_map[path]
+            ordered.append(p)
+    return ordered
+
+
 @router.get("/api/similar_photos/{photo_path:path}")
 async def api_similar_photos(
     photo_path: str,
     limit: int = Query(20),
     offset: int = Query(0),
     min_similarity: float = Query(0.40),
+    full: int = Query(0),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Find visually similar photos using pHash hamming distance (primary) + CLIP cosine (secondary).
@@ -488,8 +523,12 @@ async def api_similar_photos(
                     })
             results.sort(key=lambda x: x['similarity'], reverse=True)
             results = results[:500]
-            return {'source': photo_path, 'similar': results[offset:offset + limit],
-                    'total': len(results), 'has_more': (offset + limit) < len(results)}
+            page_slice = results[offset:offset + limit]
+            total_clip = len(results)
+            if full:
+                page_slice = _enrich_similar_with_full_rows(page_slice, conn, user_id)
+            return {'source': photo_path, 'similar': page_slice,
+                    'total': total_clip, 'has_more': (offset + limit) < total_clip}
 
         # ── Vectorized pHash hamming distance ─────────────────────────────────
         hashes = np.array([int(r['phash'], 16) for r in rows], dtype=np.uint64)
@@ -553,6 +592,9 @@ async def api_similar_photos(
         results = results[:500]
         total_count = len(results)
         page_results = results[offset:offset + limit]
+
+        if full:
+            page_results = _enrich_similar_with_full_rows(page_results, conn, user_id)
 
         return {
             'source': photo_path,

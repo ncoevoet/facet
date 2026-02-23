@@ -147,6 +147,9 @@ export interface GalleryFilters {
   date_to: string;
   // Content
   composition_pattern: string;
+  // Similar-to filter
+  similar_to: string;
+  min_similarity: string;
   // Display
   hide_details: boolean;
   hide_blinks: boolean;
@@ -225,6 +228,8 @@ const DEFAULT_FILTERS: GalleryFilters = {
   date_from: '',
   date_to: '',
   composition_pattern: '',
+  similar_to: '',
+  min_similarity: '70',
   hide_details: true,
   hide_blinks: true,
   hide_bursts: true,
@@ -292,7 +297,7 @@ export class GalleryStore {
     let count = 0;
     // String filters — count each non-empty one
     const stringKeys: (keyof GalleryFilters)[] = [
-      'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search',
+      'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search', 'similar_to',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
       'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
@@ -362,6 +367,15 @@ export class GalleryStore {
     this.loading.set(true);
     try {
       const f = this.filters();
+
+      if (f.similar_to) {
+        const res = await this.fetchSimilarPage(f, (f.page - 1) * f.per_page);
+        this.photos.set(res.similar ?? []);
+        this.total.set(res.total);
+        this.hasMore.set(res.has_more);
+        return;
+      }
+
       const params = this.buildApiParams(f);
       const res = await firstValueFrom(this.api.get<PhotosResponse>('/photos', params));
       this.photos.set(res.photos);
@@ -386,11 +400,18 @@ export class GalleryStore {
     const nextPage = f.page + 1;
     this.filters.update(current => ({ ...current, page: nextPage }));
     try {
-      const params = this.buildApiParams(this.filters());
-      const res = await firstValueFrom(this.api.get<PhotosResponse>('/photos', params));
-      this.photos.update(current => [...current, ...res.photos]);
-      this.total.set(res.total);
-      this.hasMore.set(res.has_more);
+      if (f.similar_to) {
+        const res = await this.fetchSimilarPage(f, (nextPage - 1) * f.per_page);
+        this.photos.update(current => [...current, ...(res.similar ?? [])]);
+        this.total.set(res.total);
+        this.hasMore.set(res.has_more);
+      } else {
+        const params = this.buildApiParams(this.filters());
+        const res = await firstValueFrom(this.api.get<PhotosResponse>('/photos', params));
+        this.photos.update(current => [...current, ...res.photos]);
+        this.total.set(res.total);
+        this.hasMore.set(res.has_more);
+      }
     } catch {
       // Revert page increment on error
       this.filters.update(current => ({ ...current, page: f.page }));
@@ -555,6 +576,7 @@ export class GalleryStore {
     // All string filters: include if non-empty
     const stringKeys: (keyof GalleryFilters)[] = [
       'type', 'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search',
+      'similar_to',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
       'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
@@ -575,6 +597,7 @@ export class GalleryStore {
     for (const key of stringKeys) {
       if (f[key]) params[key] = String(f[key]);
     }
+    if (f.similar_to && f.min_similarity) params['min_similarity'] = f.min_similarity;
 
     // Boolean filters: only include when different from defaults
     if (f.hide_details !== (defaults?.hide_details ?? true))
@@ -606,7 +629,7 @@ export class GalleryStore {
     // String params
     const stringKeys: (keyof GalleryFilters)[] = [
       'sort', 'sort_direction', 'type', 'camera', 'lens', 'tag', 'person_id',
-      'composition_pattern', 'search',
+      'composition_pattern', 'search', 'similar_to', 'min_similarity',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
       'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
@@ -640,6 +663,17 @@ export class GalleryStore {
     if (params['page']) result.page = parseInt(params['page'], 10) || 1;
 
     return result;
+  }
+
+  /** Fetch a page of similar photos from the API */
+  private fetchSimilarPage(f: GalleryFilters, offset: number): Promise<{ similar: Photo[]; total: number; has_more: boolean }> {
+    const minSim = (parseInt(f.min_similarity || '70', 10) / 100).toString();
+    return firstValueFrom(
+      this.api.get<{ similar: Photo[]; total: number; has_more: boolean }>(
+        `/similar_photos/${encodeURIComponent(f.similar_to)}`,
+        { limit: f.per_page, offset, min_similarity: minSim, full: 1 },
+      ),
+    );
   }
 
   /** Build API params from filters, omitting empty values */

@@ -59,4 +59,5 @@ export interface Photo {
   star_rating: number | null;
   is_favorite: boolean | null;
   is_rejected: boolean | null;
+  similarity?: number;
 }

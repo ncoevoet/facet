@@ -14,6 +14,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatInputModule } from '@angular/material/input';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatSliderModule } from '@angular/material/slider';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -23,7 +24,7 @@ import { GalleryStore, GalleryFilters } from './features/gallery/gallery.store';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { TranslatePipe } from './shared/pipes/translate.pipe';
-import { PersonThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
+import { PersonThumbnailUrlPipe, ThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
 
 /** Inline dialog for edition password prompt. */
 @Component({
@@ -88,6 +89,8 @@ export class EditionDialogComponent {
     MatDividerModule,
     TranslatePipe,
     PersonThumbnailUrlPipe,
+    ThumbnailUrlPipe,
+    MatSliderModule,
   ],
   templateUrl: './app.html',
   host: { class: 'block h-full' },
@@ -205,6 +208,16 @@ export class App implements OnInit {
 
     return chips;
   });
+
+  protected readonly similaritySliderValue = computed(() => parseInt(this.store.filters().min_similarity || '70', 10));
+
+  protected onSimilarityFilterChange(value: number): void {
+    this.store.updateFilter('min_similarity', String(value));
+  }
+
+  protected clearSimilarFilter(): void {
+    this.store.updateFilters({ similar_to: '', min_similarity: '70' });
+  }
 
   clearFilterChip(chip: { id: string; clearKeys: string[] }): void {
     for (const key of chip.clearKeys) {
