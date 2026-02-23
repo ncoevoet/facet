@@ -588,14 +588,13 @@ Configuration:
         # Initialize model manager
         model_manager = ModelManager(config)
 
-        # Get all photos with embeddings
+        # Count photos to re-tag
         with get_connection(args.db) as conn:
-            cursor = conn.execute(
-                "SELECT path, clip_embedding FROM photos WHERE clip_embedding IS NOT NULL"
-            )
-            photos = cursor.fetchall()
+            photo_count = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE clip_embedding IS NOT NULL"
+            ).fetchone()[0]
 
-        print(f"Found {len(photos)} photos to re-tag")
+        print(f"Found {photo_count} photos to re-tag")
 
         if tag_model == 'clip':
             # Use CLIP embeddings for tagging
@@ -610,7 +609,10 @@ Configuration:
             updated = 0
             with get_connection(args.db) as conn:
                 from utils import tags_to_string
-                for row in tqdm(photos, desc="Tagging"):
+                cursor = conn.execute(
+                    "SELECT path, clip_embedding FROM photos WHERE clip_embedding IS NOT NULL"
+                )
+                for row in tqdm(cursor, desc="Tagging", total=photo_count):
                     if row['clip_embedding']:
                         tag_list = scorer.tagger.get_tags_from_embedding(
                             row['clip_embedding'], threshold=threshold, max_tags=max_tags
@@ -633,39 +635,73 @@ Configuration:
                 print(f"Failed to load {tag_model}")
                 exit(1)
 
-            # Process in batches
-            from utils import load_image_from_path, _rawpy_lock, tags_to_string
+            from utils import tags_to_string
             tagging_settings = config.get_tagging_settings()
-            batch_size = 16
+            max_tags = tagging_settings.get('max_tags', 5)
             updated = 0
 
-            with get_connection(args.db) as conn:
-                for i in tqdm(range(0, len(photos), batch_size), desc="Tagging batches"):
-                    batch = photos[i:i + batch_size]
-                    images = []
-                    paths = []
+            if tag_model == 'ram++':
+                # RAM++ uses stored thumbnails to avoid loading full-res images
+                # (RAM++ needs ~5 GB+ at full resolution).
+                from PIL import Image
+                from io import BytesIO
 
-                    for row in batch:
+                with get_connection(args.db) as conn:
+                    cursor = conn.execute(
+                        "SELECT path, thumbnail FROM photos WHERE clip_embedding IS NOT NULL"
+                    )
+                    for row in tqdm(cursor, desc="Tagging (thumbnail)", total=photo_count):
+                        thumb_blob = row['thumbnail']
+                        if not thumb_blob:
+                            continue
                         try:
-                            pil_img, _ = load_image_from_path(row['path'], lock=_rawpy_lock)
-                            if pil_img:
-                                images.append(pil_img)
-                                paths.append(row['path'])
+                            pil_img = Image.open(BytesIO(thumb_blob)).convert('RGB')
                         except Exception as e:
-                            print(f"Failed to load {row['path']}: {e}")
+                            print(f"Failed to decode thumbnail for {row['path']}: {e}")
+                            continue
 
-                    if images:
-                        max_tags = tagging_settings.get('max_tags', 5)
-                        tags_batch = tagger.tag_batch(images, max_tags=max_tags)
-                        for path, tag_list in zip(paths, tags_batch):
-                            tags = tags_to_string(tag_list) if tag_list else None
-                            conn.execute(
-                                "UPDATE photos SET tags = ? WHERE path = ?",
-                                (tags, path)
-                            )
-                            updated += 1
+                        tag_list = tagger.tag_image(pil_img, max_tags=max_tags)
+                        tags = tags_to_string(tag_list) if tag_list else None
+                        conn.execute(
+                            "UPDATE photos SET tags = ? WHERE path = ?",
+                            (tags, row['path'])
+                        )
+                        updated += 1
+                    conn.commit()
+            else:
+                # VLM taggers load full images from disk
+                from utils import load_image_from_path, _rawpy_lock
+                batch_size = 16
 
-                conn.commit()
+                with get_connection(args.db) as conn:
+                    photos = conn.execute(
+                        "SELECT path FROM photos WHERE clip_embedding IS NOT NULL"
+                    ).fetchall()
+                    for i in tqdm(range(0, len(photos), batch_size), desc="Tagging batches"):
+                        batch = photos[i:i + batch_size]
+                        images = []
+                        paths = []
+
+                        for row in batch:
+                            try:
+                                pil_img, _ = load_image_from_path(row['path'], lock=_rawpy_lock)
+                                if pil_img:
+                                    images.append(pil_img)
+                                    paths.append(row['path'])
+                            except Exception as e:
+                                print(f"Failed to load {row['path']}: {e}")
+
+                        if images:
+                            tags_batch = tagger.tag_batch(images, max_tags=max_tags)
+                            for path, tag_list in zip(paths, tags_batch):
+                                tags = tags_to_string(tag_list) if tag_list else None
+                                conn.execute(
+                                    "UPDATE photos SET tags = ? WHERE path = ?",
+                                    (tags, path)
+                                )
+                                updated += 1
+
+                    conn.commit()
 
             model_manager.unload_all()
             print(f"Updated tags for {updated} photos")

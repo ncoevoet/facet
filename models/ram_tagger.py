@@ -47,6 +47,9 @@ class RAMTagger:
     common tags with high accuracy. It's faster than VLM taggers while
     providing better coverage than CLIP similarity matching.
 
+    The model's own transform handles resizing to 384x384 for the
+    Swin-L backbone.
+
     Requirements:
         - ~8GB VRAM
         - Install: pip install fairscale git+https://github.com/xinyu1205/recognize-anything.git
