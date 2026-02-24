@@ -37,7 +37,7 @@ updating specific metrics without full reprocessing. Available passes:
 | `quality-iaa` | TOPIQ IAA | `aesthetic_iaa` score (artistic merit vs technical quality, AVA-trained) | Shared w/ TOPIQ |
 | `quality-face` | TOPIQ NR-Face | `face_quality_iqa` score (purpose-built face quality) | Shared w/ TOPIQ |
 | `quality-liqe` | LIQE | `liqe_score` + distortion diagnosis (blur, overexposure, noise) | ~2 GB |
-| `tags` | Florence-2 / Qwen VLM / CLIP | Semantic tags from configured vocabulary | 2-16 GB |
+| `tags` | CLIP / Qwen VLM | Semantic tags from configured vocabulary | 0-16 GB |
 | `composition` | SAMP-Net | `composition_pattern` (14 patterns) + `comp_score` | ~2 GB |
 | `faces` | InsightFace buffalo_l | Face detection, landmarks, blink detection, recognition embeddings | ~2 GB |
 | `embeddings` | CLIP ViT-L-14 or SigLIP 2 | `clip_embedding` BLOB for similarity/tagging | 4-5 GB |
@@ -102,10 +102,10 @@ The tagging model is selected per VRAM profile:
 
 | Profile | Model | How It Works |
 |---------|-------|-------------|
-| `legacy` | Florence-2 PromptGen v2 | Generates danbooru-style tags via `<GENERATE_TAGS>`, matched to vocabulary with Levenshtein distance |
-| `8gb` | Florence-2 PromptGen v2 | Same as legacy but on GPU (~2 GB VRAM) |
-| `16gb` | Qwen3-VL-2B | Vision-language model prompted with vocabulary list, extracts matching tags |
-| `24gb` | Qwen2.5-VL-7B | Largest VLM, best tag accuracy for complex scenes |
+| `legacy` | CLIP similarity | Cosine similarity between image embedding and tag text embeddings — captures mood/atmosphere (dramatic, golden_hour, vintage). No extra model load. |
+| `8gb` | CLIP similarity | Same as legacy. Uses stored CLIP ViT-L-14 embeddings. |
+| `16gb` | Qwen3-VL-2B | Vision-language model prompted with vocabulary list — best semantic scene understanding for size (landscape, architecture, reflection). |
+| `24gb` | Qwen2.5-VL-7B | Largest VLM — most capable for complex/ambiguous scenes with nuanced tags. |
 
 All taggers map output to the configured tag vocabulary. Use `--recompute-tags` to re-tag with the profile's default model, or `--recompute-tags-vlm` for VLM-based re-tagging.
 

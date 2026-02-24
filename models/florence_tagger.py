@@ -15,21 +15,21 @@ import PIL.Image
 # Lazy imports
 torch = None
 AutoProcessor = None
-AutoModelForCausalLM = None
+Florence2Model = None
 
 
 def _ensure_imports():
     """Lazy load heavy dependencies."""
-    global torch, AutoProcessor, AutoModelForCausalLM
+    global torch, AutoProcessor, Florence2Model
     if torch is None:
         import torch as _torch
         torch = _torch
     if AutoProcessor is None:
         from transformers import AutoProcessor as _Processor
         AutoProcessor = _Processor
-    if AutoModelForCausalLM is None:
-        from transformers import AutoModelForCausalLM as _Model
-        AutoModelForCausalLM = _Model
+    if Florence2Model is None:
+        from transformers import Florence2ForConditionalGeneration as _Model
+        Florence2Model = _Model
 
 
 def _levenshtein(a: str, b: str) -> int:
@@ -95,20 +95,16 @@ class FlorenceTagger:
         """Load the Florence-2 model and processor."""
         _ensure_imports()
 
-        model_path = self.model_config.get('model_path', 'microsoft/Florence-2-large')
-        dtype_str = self.model_config.get('torch_dtype', 'float16')
-        torch_dtype = getattr(torch, dtype_str, torch.float16)
+        model_path = self.model_config.get('model_path', 'florence-community/Florence-2-large')
+        dtype_str = self.model_config.get('torch_dtype', 'float32')
+        torch_dtype = getattr(torch, dtype_str, torch.float32)
 
         print(f"Loading Florence-2 tagger: {model_path}")
 
-        self.processor = AutoProcessor.from_pretrained(
+        self.processor = AutoProcessor.from_pretrained(model_path)
+        self.model = Florence2Model.from_pretrained(
             model_path,
-            trust_remote_code=True,
-        )
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype=torch_dtype,
-            trust_remote_code=True,
+            dtype=torch_dtype,
         ).to(self.device)
 
         self.model.eval()
@@ -298,7 +294,8 @@ class FlorenceTagger:
         """Extract tags from a detailed caption by matching against vocabulary.
 
         Scans the caption text for words/phrases that match the configured
-        tag vocabulary, including synonyms.
+        tag vocabulary, including synonyms.  Uses word-boundary matching to
+        avoid false positives from short substrings (e.g. "ape" in "landscape").
 
         Args:
             text: Detailed caption from Florence-2
@@ -307,6 +304,8 @@ class FlorenceTagger:
         Returns:
             List of matched tag names
         """
+        import re
+
         text_lower = text.lower()
         seen: set = set()
         matched_scores = []  # (tag, position) for ordering by appearance
@@ -315,22 +314,22 @@ class FlorenceTagger:
         if self.scoring_config:
             vocab = self.scoring_config.get_tag_vocabulary()
             for tag_name, synonyms in vocab.items():
-                # Check tag name itself (with underscores → spaces)
+                # Check tag name itself (with underscores -> spaces)
                 tag_phrase = tag_name.replace('_', ' ')
-                pos = text_lower.find(tag_phrase)
-                if pos >= 0:
+                m = re.search(r'\b' + re.escape(tag_phrase) + r'\b', text_lower)
+                if m:
                     if tag_name not in seen:
                         seen.add(tag_name)
-                        matched_scores.append((tag_name, pos))
+                        matched_scores.append((tag_name, m.start()))
                     continue
 
-                # Check synonyms
+                # Check synonyms with word boundaries
                 for syn in synonyms:
-                    pos = text_lower.find(syn.lower())
-                    if pos >= 0:
+                    m = re.search(r'\b' + re.escape(syn.lower()) + r'\b', text_lower)
+                    if m:
                         if tag_name not in seen:
                             seen.add(tag_name)
-                            matched_scores.append((tag_name, pos))
+                            matched_scores.append((tag_name, m.start()))
                         break
 
         # Sort by order of appearance in caption (earlier = more prominent)

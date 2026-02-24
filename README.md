@@ -32,7 +32,7 @@ Scores every photo using [TOPIQ](https://github.com/chaofengc/IQA-PyTorch) (0.93
 
 - **Aesthetic quality** — TOPIQ with ResNet50 backbone
 - **Composition analysis** — SAMP-Net detecting 14 patterns (rule of thirds, golden ratio, vanishing point, diagonal, symmetric, and more)
-- **Semantic tagging** — CLIP ViT-L-14, Qwen3-VL-2B, or Qwen2.5-VL-7B (configurable per VRAM profile)
+- **Semantic tagging** — CLIP/SigLIP similarity (legacy/8gb) or Qwen VLMs (16gb/24gb) for content-aware tags
 - **Technical metrics** — sharpness, noise, exposure, color harmony, dynamic range, contrast, isolation
 - **30 content categories** with specialized scoring weights (landscape, portrait, architecture, macro, astro, concert, wildlife, street, and more)
 
@@ -111,9 +111,9 @@ VRAM is auto-detected at startup. Use `--single-pass` to keep all models loaded 
 |---------|----------|--------|----------|
 | `auto` | Any | Auto-selected | **Default** — detects VRAM, picks best profile |
 | `legacy` | No GPU (8 GB+ RAM) | CLIP+MLP + SAMP-Net + CLIP tagging (CPU) | CPU-only, no GPU required |
-| `8gb` | 6–14 GB | CLIP+MLP + SAMP-Net + Qwen3-VL | Better tagging, mid-range GPUs |
-| `16gb` | ~14 GB | TOPIQ + SAMP-Net + Qwen3-VL | Best aesthetic accuracy |
-| `24gb` | ~18 GB | TOPIQ + Qwen2-VL + Qwen2.5-VL-7B | Best accuracy + VLM tagging |
+| `8gb` | 6–14 GB | CLIP+MLP + SAMP-Net + CLIP tagging | Mid-range GPUs |
+| `16gb` | ~14 GB | TOPIQ + SAMP-Net + Qwen3-VL-2B | Best aesthetic accuracy + VLM tagging |
+| `24gb` | ~18 GB | TOPIQ + Qwen2-VL + Qwen2.5-VL-7B | Best accuracy + largest VLM |
 
 TOPIQ (0.93 SRCC on KonIQ-10k) is the primary quality model for 16gb/24gb profiles. Lower profiles use CLIP+MLP (0.76 SRCC) with an upgrade path as hardware allows.
 

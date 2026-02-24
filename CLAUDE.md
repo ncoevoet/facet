@@ -143,7 +143,7 @@ python viewer.py
 
 Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `imagehash`, `rawpy`, `fastapi`, `uvicorn`, `pyjwt`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`
 
-For VLM tagging: `transformers>=4.57.0`, `accelerate>=0.25.0` (Florence-2 for legacy/8gb, Qwen VLMs for 16gb/24gb)
+For VLM tagging: `transformers>=4.57.0`, `accelerate>=0.25.0` (Qwen VLMs for 16gb/24gb)
 
 For subject saliency (optional): `transparent-background` (InSPyReNet)
 
@@ -178,8 +178,8 @@ External tool: `exiftool` (command-line)
 
 | Profile | Embeddings | Aesthetic | Tagger | Use Case |
 |---------|------------|-----------|--------|----------|
-| `legacy` | CLIP ViT-L-14 | CLIP+MLP | Florence-2 | No GPU, 8GB+ RAM |
-| `8gb` | CLIP ViT-L-14 | CLIP+MLP | Florence-2 | 6-14GB VRAM |
+| `legacy` | CLIP ViT-L-14 | CLIP+MLP | CLIP similarity | No GPU, 8GB+ RAM |
+| `8gb` | CLIP ViT-L-14 | CLIP+MLP | CLIP similarity | 6-14GB VRAM |
 | `16gb` | SigLIP 2 SO400M | TOPIQ | Qwen3-VL-2B | Best accuracy (~14GB) |
 | `24gb` | SigLIP 2 SO400M | TOPIQ | Qwen2.5-VL-7B | Largest models (~18GB) |
 
@@ -331,7 +331,7 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 - **Composition:** SAMP-Net for pattern detection (14 patterns including rule_of_thirds, golden_ratio, vanishing_point)
 - **Subject saliency:** InSPyReNet via `transparent-background` — subject sharpness, prominence, placement, background separation
 - **Faces:** InsightFace buffalo_l for detection with 106-point landmarks and recognition embeddings
-- **Tagging:** Florence-2 PromptGen (legacy/8gb), Qwen3-VL-2B (16gb), Qwen2.5-VL-7B (24gb), or CLIP similarity
+- **Tagging:** CLIP similarity (legacy/8gb), Qwen3-VL-2B (16gb), Qwen2.5-VL-7B (24gb)
 - Face recognition uses HDBSCAN clustering on embeddings (standalone hdbscan library)
 - Percentile normalization: scales metrics so 90th percentile maps to 10.0
 - Burst detection groups similar photos within configurable time windows

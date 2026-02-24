@@ -29,7 +29,7 @@ class ModelManager:
 
     # Models that support .cpu()/.to(device) for RAM caching between passes
     CPU_CACHEABLE_MODELS = {
-        'clip', 'clip_aesthetic', 'samp_net', 'ram_tagger',
+        'clip', 'clip_aesthetic', 'samp_net',
         'topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
         'topiq_iaa', 'topiq_nr_face', 'liqe',
         'inspyrenet',
@@ -443,7 +443,6 @@ class ModelManager:
             'insightface': self._load_insightface,
             'vlm_tagger': lambda: self._load_vlm_tagger('qwen2_5_vl_7b'),
             'qwen3_vl_tagger': lambda: self._load_vlm_tagger('qwen3_vl_2b'),
-            'ram_tagger': self._load_ram_tagger,
             'inspyrenet': self._load_inspyrenet,
             'florence_tagger': self._load_florence_tagger,
         }
@@ -718,7 +717,6 @@ class ModelManager:
         'samp_net': 2,
         'insightface': 2,
         'qwen2_vl': 6,
-        'ram_tagger': 14,    # 8GB weights + 6GB inference (Swin-L backbone, large images spike higher)
         'vlm_tagger': 18,    # 16GB weights + 2GB inference
         'qwen3_vl_tagger': 7,  # 4GB weights + 3GB inference (vision token KV cache)
         # PyIQA models (lightweight, high accuracy)
@@ -770,14 +768,12 @@ class ModelManager:
             available_vram: Available VRAM in GB
 
         Returns:
-            Model name: 'vlm_tagger', 'ram_tagger', 'qwen3_vl_tagger', or 'clip'
+            Model name: 'vlm_tagger', 'qwen3_vl_tagger', or 'clip'
         """
         # Priority order: best quality to most lightweight
         tagging_models = [
             ('vlm_tagger', 16),
-            ('ram_tagger', 8),
             ('qwen3_vl_tagger', 4),
-            ('florence_tagger', 4),
             ('clip', 4),
         ]
 

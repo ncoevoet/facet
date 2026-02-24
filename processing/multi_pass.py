@@ -238,9 +238,7 @@ class ChunkedMultiPassProcessor:
         # Tagging model (from profile)
         profile = self.model_manager.get_active_profile()
         tagging_model = profile.get('tagging_model', 'clip')
-        if tagging_model == 'ram++' and self.available_vram >= 8:
-            models.append('ram_tagger')
-        elif tagging_model == 'qwen2.5-vl-7b' and self.available_vram >= 16:
+        if tagging_model == 'qwen2.5-vl-7b' and self.available_vram >= 16:
             models.append('vlm_tagger')
         elif tagging_model == 'qwen3-vl-2b' and self.available_vram >= 4:
             models.append('qwen3_vl_tagger')
@@ -514,8 +512,6 @@ class ChunkedMultiPassProcessor:
             self._pass_samp_net(model, images, results)
         elif model_name == 'insightface':
             self._pass_insightface(model, images, results)
-        elif model_name == 'ram_tagger':
-            self._pass_ram_tagger(model, images, results)
         elif model_name in ('vlm_tagger', 'qwen3_vl_tagger', 'florence_tagger'):
             self._pass_vlm_tagger(model, images, results)
         elif model_name == 'inspyrenet':
@@ -618,21 +614,6 @@ class ChunkedMultiPassProcessor:
                 results[path]['raw_eye_sharpness'] = 0
                 results[path]['isolation_bonus'] = 1.0
                 results[path]['face_details'] = []
-
-    def _pass_ram_tagger(self, tagger: Any, images: Dict, results: Dict):
-        """RAM++ pass: semantic tagging."""
-        from utils import get_tag_params, tags_to_string
-
-        threshold, max_tags = get_tag_params(self.scorer.config)
-        pil_imgs = [img['pil'] for img in images.values()]
-        paths = list(images.keys())
-
-        try:
-            tags_list = tagger.tag_batch(pil_imgs, max_tags=max_tags, threshold=threshold)
-            for i, path in enumerate(paths):
-                results[path]['tags'] = tags_to_string(tags_list[i])
-        except Exception as e:
-            print(f"RAM++ tagging failed: {e}")
 
     def _pass_vlm_tagger(self, tagger: Any, images: Dict, results: Dict):
         """VLM pass: semantic tagging with Qwen2.5-VL."""
@@ -935,9 +916,8 @@ class ChunkedMultiPassProcessor:
     def _handle_oom(self, model_name: str):
         """Handle out-of-memory error by trying fallback models."""
         fallbacks = {
-            'vlm_tagger': 'ram_tagger',
+            'vlm_tagger': 'qwen3_vl_tagger',
             'qwen3_vl_tagger': 'clip',
-            'ram_tagger': 'clip',
             'clipiqa+': 'topiq',      # CLIP-IQA+ -> TOPIQ
             'musiq': 'topiq',
             'hyperiqa': 'topiq',
@@ -1040,9 +1020,7 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
     # For tags, determine model from profile
     if pass_name == 'tags':
         tag_model = scorer.config.get_model_for_task('tagging')
-        if tag_model == 'ram++':
-            model_name = 'ram_tagger'
-        elif tag_model == 'qwen2.5-vl-7b':
+        if tag_model == 'qwen2.5-vl-7b':
             model_name = 'vlm_tagger'
         elif tag_model == 'qwen3-vl-2b':
             model_name = 'qwen3_vl_tagger'
@@ -1088,11 +1066,10 @@ def list_available_models():
     print("\n" + "-" * 70)
     print("TAGGING MODELS (for semantic tags)")
     print("-" * 70)
-    print(f"  {'clip':<15} {'~4GB':<8} {'--':<8} Embedding similarity to vocabulary")
-    print(f"  {'ram++':<15} {'~8GB':<8} {'--':<8} Specialized tagger (6400+ tags)")
-    print(f"  {'qwen3-vl-2b':<15} {'~4GB':<8} {'--':<8} Vision-language model (lightweight)")
-    print(f"  {'qwen2.5-vl-7b':<15} {'~16GB':<8} {'--':<8} Vision-language model")
-    print(f"  {'florence-2':<15} {'~4GB':<8} {'--':<8} Florence-2 lightweight VLM (0.77B)")
+    print(f"  {'clip':<15} {'~0GB':<8} {'--':<8} Embedding similarity (reuses CLIP/SigLIP, no extra model)")
+    print(f"  {'qwen3-vl-2b':<15} {'~4GB':<8} {'--':<8} Vision-language model (structured scene tags)")
+    print(f"  {'qwen2.5-vl-7b':<15} {'~16GB':<8} {'--':<8} Vision-language model (most capable)")
+    print(f"  {'florence-2':<15} {'~4GB':<8} {'--':<8} Florence-2 caption-based (deprecated)")
 
     print("\n" + "-" * 70)
     print("COMPOSITION MODELS")

@@ -1803,15 +1803,15 @@
         "aesthetic_model": "clip-mlp",
         "clip_config": "clip_legacy",
         "composition_model": "samp-net",
-        "tagging_model": "florence-2",
-        "description": "CPU-optimized: CLIP-MLP aesthetic + SAMP-Net composition + Florence-2 tagging (8GB+ RAM)"
+        "tagging_model": "clip",
+        "description": "CPU-optimized: CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (8GB+ RAM)"
       },
       "8gb": {
         "aesthetic_model": "clip-mlp",
         "clip_config": "clip_legacy",
         "composition_model": "samp-net",
-        "tagging_model": "florence-2",
-        "description": "CLIP-MLP aesthetic + SAMP-Net composition + Florence-2 tagging (6-14GB VRAM)"
+        "tagging_model": "clip",
+        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (6-14GB VRAM)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
@@ -1877,13 +1877,9 @@
       "max_new_tokens": 100,
       "vlm_batch_size": 4
     },
-    "ram_plus": {
-      "model_path": "xinyu1205/recognize-anything-plus-model",
-      "checkpoint": "ram_plus_swin_large_14m.pth"
-    },
     "florence_2_large": {
-      "model_path": "MiaoshouAI/Florence-2-large-PromptGen-v2.0",
-      "torch_dtype": "float16",
+      "model_path": "florence-community/Florence-2-large",
+      "torch_dtype": "float32",
       "vlm_batch_size": 4,
       "max_new_tokens": 256
     },

@@ -296,15 +296,15 @@ Controls which AI models are used based on VRAM.
         "aesthetic_model": "clip-mlp",
         "clip_config": "clip_legacy",
         "composition_model": "samp-net",
-        "tagging_model": "florence-2",
-        "description": "CPU-optimized: CLIP-MLP aesthetic + SAMP-Net composition + Florence-2 tagging (8GB+ RAM)"
+        "tagging_model": "clip",
+        "description": "CPU-optimized: CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (8GB+ RAM)"
       },
       "8gb": {
         "aesthetic_model": "clip-mlp",
         "clip_config": "clip_legacy",
         "composition_model": "samp-net",
-        "tagging_model": "florence-2",
-        "description": "CLIP-MLP aesthetic + SAMP-Net composition + Florence-2 tagging (6-14GB VRAM)"
+        "tagging_model": "clip",
+        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (6-14GB VRAM)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
@@ -330,10 +330,6 @@ Controls which AI models are used based on VRAM.
       "model_path": "Qwen/Qwen2.5-VL-7B-Instruct",
       "torch_dtype": "bfloat16",
       "vlm_batch_size": 2
-    },
-    "ram_plus": {
-      "model_path": "xinyu1205/recognize-anything-plus-model",
-      "checkpoint": "ram_plus_swin_large_14m.pth"
     },
     "clip": {
       "model_name": "ViT-SO400M-16-SigLIP2-384",
@@ -841,19 +837,19 @@ General tagging settings. The tagging model is configured per-profile in `models
 
 Configured via `models.profiles.*.tagging_model`:
 
-| Model | VRAM | Speed | Description |
-|-------|------|-------|-------------|
-| `florence-2` | ~2GB | Fast (~50ms) | Florence-2 PromptGen — generates tags via `<GENERATE_TAGS>`, matched to vocabulary with edit-distance |
-| `clip` | ~4GB | Fast (~5ms) | CLIP/SigLIP embedding similarity to vocabulary |
-| `qwen3-vl-2b` | ~4GB | Moderate (~100ms) | Lightweight vision-language model (Qwen3-VL 2B) |
-| `qwen2.5-vl-7b` | ~16GB | Slow (~200ms) | Vision-language model for complex scenes |
+| Model | VRAM | Speed | Tag Style | Pros | Cons |
+|-------|------|-------|-----------|------|------|
+| `clip` | 0 (reuses embeddings) | Instant (~5ms) | Mood/atmosphere (dramatic, golden_hour, vintage) | No extra model load; captures lighting and mood well | Less literal object detection |
+| `qwen3-vl-2b` | ~4GB | Moderate (~100ms) | Structured scenes (landscape, architecture, reflection) | Best semantic understanding for size; accurate scene classification | Requires transformers + extra VRAM |
+| `qwen2.5-vl-7b` | ~16GB | Slow (~200ms) | Detailed scenes with nuance | Most capable VLM; handles complex/ambiguous scenes | High VRAM; slower inference |
+| `florence-2` | ~2GB | Fast (~50ms) | Literal objects (sky, water, building) | Fast inference | Over-tags generic terms; caption-based matching is fragile; deprecated in favor of CLIP |
 
 ### Default Tagging Models per Profile
 
 | Profile | Tagging Model | Embedding Model |
 |---------|---------------|-----------------|
-| `legacy` | `florence-2` | CLIP ViT-L-14 (768-dim) |
-| `8gb` | `florence-2` | CLIP ViT-L-14 (768-dim) |
+| `legacy` | `clip` | CLIP ViT-L-14 (768-dim) |
+| `8gb` | `clip` | CLIP ViT-L-14 (768-dim) |
 | `16gb` | `qwen3-vl-2b` | SigLIP 2 SO400M (1152-dim) |
 | `24gb` | `qwen2.5-vl-7b` | SigLIP 2 SO400M (1152-dim) |
 
