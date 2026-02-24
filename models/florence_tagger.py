@@ -9,6 +9,7 @@ Maps free-form Florence output to Facet's configured tag vocabulary using
 edit-distance matching.
 """
 
+import re
 from typing import List, Dict, Any, Optional
 import PIL.Image
 
@@ -71,7 +72,7 @@ class FlorenceTagger:
         self.scoring_config = scoring_config
         self.model = None
         self.processor = None
-        self.device = 'cuda'
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.batch_size = model_config.get('vlm_batch_size', 4)
         self.max_new_tokens = model_config.get('max_new_tokens', 256)
 
@@ -104,7 +105,7 @@ class FlorenceTagger:
         self.processor = AutoProcessor.from_pretrained(model_path)
         self.model = Florence2Model.from_pretrained(
             model_path,
-            dtype=torch_dtype,
+            torch_dtype=torch_dtype,
         ).to(self.device)
 
         self.model.eval()
@@ -304,8 +305,6 @@ class FlorenceTagger:
         Returns:
             List of matched tag names
         """
-        import re
-
         text_lower = text.lower()
         seen: set = set()
         matched_scores = []  # (tag, position) for ordering by appearance

@@ -127,7 +127,7 @@ export class SlideshowComponent implements OnDestroy {
   readonly hasMore = input<boolean>(false);
   readonly loading = input<boolean>(false);
 
-  private container = viewChild.required<ElementRef<HTMLElement>>('slideshowContainer');
+  private readonly container = viewChild.required<ElementRef<HTMLElement>>('slideshowContainer');
 
   readonly currentIndex = signal(0);
   readonly isPlaying = signal(true);
@@ -161,7 +161,7 @@ export class SlideshowComponent implements OnDestroy {
     this.clearTimerInterval();
     this.clearHideControlsTimer();
     if (document.fullscreenElement) {
-      document.exitFullscreen();
+      document.exitFullscreen().catch(() => {});
     }
     if (this.boundKeyHandler) {
       window.removeEventListener('keydown', this.boundKeyHandler);
@@ -301,6 +301,7 @@ export class SlideshowComponent implements OnDestroy {
         break;
       case 'f':
       case 'F':
+        e.preventDefault();
         this.toggleFullscreen();
         break;
       case 'Escape':

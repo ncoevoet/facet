@@ -66,7 +66,8 @@ class SaliencyScorer:
 
         self._loaded = False
         _ensure_imports()
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         print("  InSPyReNet unloaded")
 
     def get_saliency_mask(self, pil_img):

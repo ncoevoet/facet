@@ -581,6 +581,19 @@ class ScoringConfig:
         }
         return self._merge_configs(default_models, self.config.get('models', {}))
 
+    def get_clip_config(self):
+        """Resolve CLIP/SigLIP model config based on active VRAM profile.
+
+        Returns:
+            dict with 'model_name', 'pretrained', 'embedding_dim', etc.
+        """
+        model_config = self.get_model_config()
+        profiles = model_config.get('profiles', {})
+        profile_name = model_config.get('vram_profile', 'legacy')
+        active_profile = profiles.get(profile_name, profiles.get('legacy', {}))
+        clip_config_key = active_profile.get('clip_config', 'clip')
+        return model_config.get(clip_config_key, model_config.get('clip', {}))
+
     def get_samp_net_config(self):
         """Get SAMP-Net model configuration for composition scoring."""
         models_config = self.get_model_config()

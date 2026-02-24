@@ -1079,7 +1079,7 @@
       "face_quality_iqa": "Gesichtsqualität IQA",
       "liqe": "LIQE",
       "subject_sharpness": "Motivschärfe",
-      "subject_prominence": "Motivprominenz",
+      "subject_prominence": "Hervorhebung",
       "subject_placement": "Motivplatzierung",
       "bg_separation": "Hintergrundtrennung"
     },

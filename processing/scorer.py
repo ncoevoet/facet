@@ -505,12 +505,7 @@ class Facet:
 
             if not multi_pass:
                 # Load CLIP/SigLIP model from config (profile selects model variant)
-                model_config = self.config.get_model_config()
-                profiles = model_config.get('profiles', {})
-                profile_name = model_config.get('vram_profile', 'legacy')
-                active_profile = profiles.get(profile_name, profiles.get('legacy', {}))
-                clip_config_key = active_profile.get('clip_config', 'clip')
-                clip_config = model_config.get(clip_config_key, model_config.get('clip', {}))
+                clip_config = self.config.get_clip_config()
                 self._clip_model_name = clip_config.get('model_name', 'ViT-L-14')
                 clip_pretrained = clip_config.get('pretrained', 'laion2b_s32b_b82k')
 
@@ -588,12 +583,7 @@ class Facet:
         """
         # Check if current CLIP model is compatible with the MLP head (768-dim only)
         clip_model_name = getattr(self, '_clip_model_name', 'ViT-L-14')
-        model_config = self.config.get_model_config()
-        profiles = model_config.get('profiles', {})
-        profile_name = model_config.get('vram_profile', 'legacy')
-        active_profile = profiles.get(profile_name, profiles.get('legacy', {}))
-        clip_config_key = active_profile.get('clip_config', 'clip')
-        clip_config = model_config.get(clip_config_key, model_config.get('clip', {}))
+        clip_config = self.config.get_clip_config()
         embedding_dim = clip_config.get('embedding_dim', 768)
 
         if embedding_dim != 768:

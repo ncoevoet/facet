@@ -616,7 +616,7 @@ class ChunkedMultiPassProcessor:
                 results[path]['face_details'] = []
 
     def _pass_vlm_tagger(self, tagger: Any, images: Dict, results: Dict):
-        """VLM pass: semantic tagging with Qwen2.5-VL."""
+        """VLM pass: semantic tagging."""
         from utils import get_tag_params, tags_to_string
 
         _, max_tags = get_tag_params(self.scorer.config)
@@ -1058,7 +1058,7 @@ def list_available_models():
     print(f"  {'clipiqa+':<15} {'~4GB':<8} {'0.86':<8} CLIP with learned prompts")
     print(f"  {'clip-mlp':<15} {'~4GB':<8} {'0.76':<8} CLIP + MLP head (legacy)")
 
-    print(f"\n  {'--- Supplementary Quality Models ---':}")
+    print(f"\n  --- Supplementary Quality Models ---")
     print(f"  {'topiq_iaa':<15} {'~2GB':<8} {'--':<8} AVA-trained aesthetic merit (artistic quality)")
     print(f"  {'topiq_nr_face':<15} {'~2GB':<8} {'--':<8} Purpose-built face quality scoring")
     print(f"  {'liqe':<15} {'~2GB':<8} {'--':<8} LIQE quality + distortion diagnosis")

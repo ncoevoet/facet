@@ -112,12 +112,7 @@ def main():
     import open_clip
 
     # Resolve CLIP model from config (supports SigLIP 2 or legacy ViT-L-14)
-    model_config = config.get_model_config()
-    profiles = model_config.get('profiles', {})
-    profile_name = model_config.get('vram_profile', 'legacy')
-    active_profile = profiles.get(profile_name, profiles.get('legacy', {}))
-    clip_config_key = active_profile.get('clip_config', 'clip')
-    clip_cfg = model_config.get(clip_config_key, model_config.get('clip', {}))
+    clip_cfg = config.get_clip_config()
     clip_model_name = clip_cfg.get('model_name', 'ViT-L-14')
     clip_pretrained = clip_cfg.get('pretrained', 'laion2b_s32b_b82k')
 
