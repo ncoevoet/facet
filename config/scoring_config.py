@@ -31,7 +31,11 @@ VALID_TAG_FILTERS = [
 VALID_WEIGHT_COLUMNS = [
     "aesthetic", "face_quality", "eye_sharpness", "tech_sharpness",
     "exposure", "composition", "color", "quality", "contrast",
-    "dynamic_range", "isolation", "leading_lines"
+    "dynamic_range", "isolation", "leading_lines",
+    # Supplementary PyIQA metrics
+    "aesthetic_iaa", "face_quality_iqa", "liqe",
+    # Subject saliency metrics (InSPyReNet)
+    "subject_sharpness", "subject_prominence", "subject_placement", "bg_separation",
 ]
 
 # Tolerance for weight normalization - weights within this range of 100% are not auto-normalized

@@ -341,6 +341,9 @@ class ChunkedMultiPassProcessor:
         # Track results for each photo
         results = {path: {} for path in paths}
 
+        # Supplementary models are optional — load failures skip rather than abort
+        supplementary = set(self.config.get('models', {}).get('supplementary_pyiqa', []))
+
         # Run each pass group
         for group_idx, model_group in enumerate(self.pass_groups):
             # Load models for this pass
@@ -354,6 +357,9 @@ class ChunkedMultiPassProcessor:
                 try:
                     model = self.model_manager.load_model_only(model_name)
                     if model is None:
+                        if model_name in supplementary:
+                            print(f"  Warning: supplementary model '{model_name}' failed to load, skipping.")
+                            continue
                         raise RuntimeError(
                             f"Required model '{model_name}' failed to load. "
                             f"Cannot continue processing."

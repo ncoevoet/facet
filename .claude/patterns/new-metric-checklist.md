@@ -6,7 +6,8 @@ When adding a new scoring metric to Facet, update all of these locations:
 1. **`db/schema.py`** — Add column (`REAL` or `TEXT`) to `photos` table
 2. **`api/db_helpers.py`** — Add to `PHOTO_OPTIONAL_COLS` list
 3. **`processing/scorer.py`** — Add to `metrics_map` in `calculate_aggregate_logic()`
-4. **`scoring_config.json`** — Add model config + wire into category weights if needed
+4. **`config/scoring_config.py`** — Add base name (without `_percent`) to `VALID_WEIGHT_COLUMNS` or the key will be silently stripped from every category on startup
+5. **`scoring_config.json`** — Add model config + wire into category weights if needed
 5. **`processing/multi_pass.py`** — Register pass and model selection logic
 6. **`models/model_manager.py`** — Add loader, VRAM/RAM requirements, CPU cacheable if applicable
 

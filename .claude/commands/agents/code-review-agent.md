@@ -85,7 +85,7 @@ You are a **Code Review Agent**, an expert developer specialized in analyzing co
 
    **Scoring Engine:**
    - `ScoringConfig` accessed via `get_weights(category)`, never raw dict access
-   - `_WEIGHT_COLUMNS` mapping for config key → DB column translation
+   - `VALID_WEIGHT_COLUMNS` in `config/scoring_config.py` — new `_percent` weight keys require the base name added here or they are silently stripped on startup
    - Aggregate scores clamped to `score_min`/`score_max` range
    - Category determined by `_determine_photo_category()`, not hardcoded
 
@@ -212,6 +212,7 @@ You are a **Code Review Agent**, an expert developer specialized in analyzing co
 - `reload_config()` called after
 - Stats cache cleared
 - Weight percentages referenced with `_percent` suffix
+- New weight keys: base name (strip `_percent`) must be in `VALID_WEIGHT_COLUMNS` (`config/scoring_config.py`) — missing entries are silently dropped by `validate_weights()` at startup; see `patterns/new-metric-checklist.md`
 - `--recompute-category` or `--recompute-average` documented/triggered
 
 ### New API Endpoints
