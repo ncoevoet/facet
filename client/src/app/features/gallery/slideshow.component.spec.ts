@@ -47,6 +47,14 @@ describe('SlideshowComponent', () => {
     it('starts with progress 0', () => {
       expect(component.progress()).toBe(0);
     });
+
+    it('starts with controls visible', () => {
+      expect(component.controlsVisible()).toBe(true);
+    });
+
+    it('starts not in fullscreen', () => {
+      expect(component.isFullscreen()).toBe(false);
+    });
   });
 
   describe('currentPhoto()', () => {
@@ -109,8 +117,8 @@ describe('SlideshowComponent', () => {
       component['startInterval']();
       jest.advanceTimersByTime(1000); // 10 ticks of 100ms
       expect(component.currentIndex()).toBe(0); // no photos → stays at 0
-      // Progress hits 100 on the last tick, then preloadAndAdvance resets via async Image load
-      expect(component.progress()).toBe(100);
+      // Progress hits 100 on the last tick, then preloadAndAdvance → startInterval resets to 0
+      expect(component.progress()).toBe(0);
     });
   });
 
@@ -131,6 +139,50 @@ describe('SlideshowComponent', () => {
       // photos() is empty, so length - 1 = -1 → Math.max(0, -1) = 0
       component.prev();
       expect(component.currentIndex()).toBe(0);
+    });
+  });
+
+  describe('controls visibility', () => {
+    it('showControls() makes controls visible', () => {
+      component.controlsVisible.set(false);
+      component.showControls();
+      expect(component.controlsVisible()).toBe(true);
+    });
+
+    it('controls auto-hide after 2 seconds', () => {
+      component.showControls();
+      expect(component.controlsVisible()).toBe(true);
+      jest.advanceTimersByTime(2000);
+      expect(component.controlsVisible()).toBe(false);
+    });
+
+    it('showControls() resets the hide timer', () => {
+      component.showControls();
+      jest.advanceTimersByTime(1500); // 1.5s, not yet hidden
+      expect(component.controlsVisible()).toBe(true);
+      component.showControls(); // reset timer
+      jest.advanceTimersByTime(1500); // 1.5s from reset, still visible
+      expect(component.controlsVisible()).toBe(true);
+      jest.advanceTimersByTime(500); // 2s from reset, now hidden
+      expect(component.controlsVisible()).toBe(false);
+    });
+  });
+
+  describe('fullscreen', () => {
+    it('toggleFullscreen() calls requestFullscreen when not fullscreen', () => {
+      const mockEl = { requestFullscreen: jest.fn() };
+      component['container'] = (() => ({ nativeElement: mockEl })) as any;
+      Object.defineProperty(document, 'fullscreenElement', { value: null, writable: true, configurable: true });
+      component.toggleFullscreen();
+      expect(mockEl.requestFullscreen).toHaveBeenCalled();
+    });
+
+    it('toggleFullscreen() calls exitFullscreen when in fullscreen', () => {
+      document.exitFullscreen = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(document, 'fullscreenElement', { value: document.body, writable: true, configurable: true });
+      component.toggleFullscreen();
+      expect(document.exitFullscreen).toHaveBeenCalled();
+      Object.defineProperty(document, 'fullscreenElement', { value: null, writable: true, configurable: true });
     });
   });
 
@@ -161,6 +213,16 @@ describe('SlideshowComponent', () => {
       handler(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
       expect(component.progress()).toBe(0);
     });
+
+    it('F key toggles fullscreen', () => {
+      const handler = component['onKeyDown'].bind(component);
+      const toggleSpy = jest.spyOn(component, 'toggleFullscreen').mockImplementation();
+      handler(new KeyboardEvent('keydown', { key: 'f' }));
+      expect(toggleSpy).toHaveBeenCalledTimes(1);
+      handler(new KeyboardEvent('keydown', { key: 'F' }));
+      expect(toggleSpy).toHaveBeenCalledTimes(2);
+      toggleSpy.mockRestore();
+    });
   });
 
   describe('ngOnDestroy()', () => {
@@ -169,6 +231,20 @@ describe('SlideshowComponent', () => {
       const clearSpy = jest.spyOn(window, 'clearInterval');
       component.ngOnDestroy();
       expect(clearSpy).toHaveBeenCalled();
+    });
+
+    it('clears the hide controls timer', () => {
+      const clearSpy = jest.spyOn(window, 'clearTimeout');
+      component.showControls(); // starts hide timer
+      component.ngOnDestroy();
+      expect(clearSpy).toHaveBeenCalled();
+    });
+
+    it('removes fullscreenchange listener', () => {
+      const removeSpy = jest.spyOn(document, 'removeEventListener');
+      component['boundFullscreenHandler'] = () => {};
+      component.ngOnDestroy();
+      expect(removeSpy).toHaveBeenCalledWith('fullscreenchange', component['boundFullscreenHandler']);
     });
   });
 });

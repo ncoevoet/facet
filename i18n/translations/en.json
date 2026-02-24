@@ -1303,6 +1303,7 @@
     "prev": "Previous photo",
     "duration": "{n}s",
     "duration_label": "Duration",
-    "counter": "{current} / {total}"
+    "counter": "{current} / {total}",
+    "fullscreen": "Fullscreen"
   }
 }

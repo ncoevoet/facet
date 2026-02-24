@@ -229,11 +229,12 @@ async def image(
     if not row:
         return Response(content="Not found", status_code=404)
 
-    from api.config import map_disk_path
+    from api.config import map_disk_path, is_multi_user_enabled
     disk_path = map_disk_path(row['path'])
     real_disk = os.path.realpath(disk_path)
-    if not any(real_disk.startswith(os.path.realpath(d) + os.sep) for d in get_all_scan_directories()):
-        return Response(content="Not found", status_code=404)
+    if is_multi_user_enabled():
+        if not any(real_disk.startswith(os.path.realpath(d) + os.sep) for d in get_all_scan_directories()):
+            return Response(content="Not found", status_code=404)
     if not os.path.isfile(real_disk):
         return Response(content="Not found", status_code=404)
     return FileResponse(real_disk)

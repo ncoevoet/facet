@@ -1268,6 +1268,7 @@
     "prev": "Vorheriges Foto",
     "duration": "{n}s",
     "duration_label": "Dauer",
-    "counter": "{current} / {total}"
+    "counter": "{current} / {total}",
+    "fullscreen": "Vollbild"
   }
 }
