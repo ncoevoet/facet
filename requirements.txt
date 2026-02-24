@@ -7,17 +7,10 @@ torch>=2.0.0
 torchvision>=0.15.0
 open-clip-torch>=2.20.0
 
-# Advanced VLM Models - only needed for 8gb/16gb VRAM profiles in scoring_config.json
-# The "legacy" profile uses CLIP+MLP and doesn't require these packages
-# Uncomment if using "vram_profile": "8gb" or "16gb":
-# transformers>=4.57.0              # Required for Qwen3-VL tagger
+# Advanced VLM Models - only needed for 16gb/24gb VRAM profiles
+# Uncomment if using "vram_profile": "16gb" or "24gb":
+# transformers>=5.0.0              # Required for Qwen3-VL / Qwen2.5-VL taggers
 # accelerate>=0.25.0
-# sentencepiece                     # Required for Q-Align tokenizer
-# qwen-vl-utils>=0.0.2              # Only needed for Qwen2-VL (24gb profile)
-
-# RAM++ Tagger (currently unusable due to excessive RAM usage)
-# fairscale                         # Required dependency for RAM++
-# ram                               # Install from GitHub, not PyPI
 
 # Image Processing
 opencv-python>=4.8.0
@@ -38,11 +31,12 @@ pyiqa>=0.1.10
 # Scientific Computing
 numpy>=1.24.0
 scipy>=1.10.0
-scikit-learn>=1.3.0
 hdbscan>=0.8.40  # Face clustering (standalone library, sklearn's HDBSCAN has epsilon bug)
 
 # Web Interface
-flask>=2.3.0
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pyjwt>=2.8.0
 
 # Utilities
 tqdm>=4.65.0
@@ -50,3 +44,10 @@ exifread>=3.0.0
 
 # System Monitoring (for batch processing auto-tuning)
 psutil>=5.9.0
+
+# Subject Saliency (optional, requires GPU)
+# transparent-background>=2.0.0  # InSPyReNet saliency model
+
+# GPU Face Clustering (optional, requires conda + CUDA)
+# cuml
+# cupy
