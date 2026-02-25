@@ -14,57 +14,49 @@ Facet examines every facet of an image—from aesthetic appeal and composition t
   <img src="docs/screenshots/gallery-desktop.jpg" alt="Facet Gallery" width="100%">
 </p>
 
-## Features
+## How It Works
 
-### Smart Photo Gallery
+Point Facet at a directory of photos. Local AI models analyze every image, store scores in a SQLite database, and you browse results in a web viewer. **Everything runs locally — no cloud, no API keys.**
+
+- **Aesthetic quality** — [TOPIQ](https://github.com/chaofengc/IQA-PyTorch) (0.93 SRCC on KonIQ-10k), the leading no-reference quality model
+- **Composition** — SAMP-Net detecting 14 patterns (rule of thirds, golden ratio, vanishing point, diagonal, symmetric...)
+- **Semantic tagging** — CLIP or Qwen VLMs depending on VRAM profile
+- **Face analysis** — InsightFace detection with 106-point landmarks + HDBSCAN clustering into persons
+- **Technical metrics** — sharpness, noise, exposure, color harmony, dynamic range, contrast
+- **Subject saliency** — InSPyReNet for subject prominence, placement, and background separation
+- **Content categorization** — 30 categories with specialized scoring weights (landscape, portrait, architecture, macro, astro, concert, wildlife, street...)
+
+## VRAM Profiles
+
+| Profile | GPU VRAM | Models | Best For |
+|---------|----------|--------|----------|
+| `auto` | Any | Auto-selected | **Default** — detects VRAM, picks best profile |
+| `legacy` | No GPU (8 GB+ RAM) | CLIP+MLP + SAMP-Net + CLIP tagging (CPU) | CPU-only, no GPU required |
+| `8gb` | 6–14 GB | CLIP+MLP + SAMP-Net + Qwen3-VL | Better tagging, mid-range GPUs |
+| `16gb` | ~14 GB | TOPIQ + SAMP-Net + Qwen3-VL | Best aesthetic accuracy |
+| `24gb` | ~18 GB | TOPIQ + Qwen2-VL + Qwen2.5-VL-7B | Best accuracy + VLM tagging |
+
+## Web Viewer
 
 <img src="docs/screenshots/hover-preview.jpg" alt="Hover preview with score breakdown" width="100%">
 
-Dark-themed web gallery with infinite scroll, 24 sort options across 6 groups, 30 content categories, and responsive mobile layout. Hover any photo for a detailed score breakdown with EXIF data, per-metric scores, and composition patterns.
+Dark-themed web gallery with hover score breakdowns, EXIF data, content categories, and a Top Picks filter that surfaces the best photos using a custom weighted score. Responsive on mobile.
 
-### Top Picks
-
-Curated selection using a custom weighted score (aesthetic, composition, face quality). Configurable minimum score threshold and face ratio to surface the best photos across the entire library.
-
-### AI-Powered Quality Scoring
-
-Scores every photo using [TOPIQ](https://github.com/chaofengc/IQA-PyTorch) (0.93 SRCC on KonIQ-10k), the leading no-reference image quality model. Alternative models (HyperIQA, DBCNN, MUSIQ) available via configuration.
-
-- **Aesthetic quality** — TOPIQ with ResNet50 backbone
-- **Composition analysis** — SAMP-Net detecting 14 patterns (rule of thirds, golden ratio, vanishing point, diagonal, symmetric, and more)
-- **Semantic tagging** — CLIP/SigLIP similarity (legacy/8gb) or Qwen VLMs (16gb/24gb) for content-aware tags
-- **Technical metrics** — sharpness, noise, exposure, color harmony, dynamic range, contrast, isolation
-- **30 content categories** with specialized scoring weights (landscape, portrait, architecture, macro, astro, concert, wildlife, street, and more)
-
-### Face Recognition & Person Management
+### Face Recognition
 
 <img src="docs/screenshots/manage-persons.jpg" alt="Person management" width="100%">
-<img src="docs/screenshots/person-merge.png" alt="Person merge" width="100%">
+<img src="docs/screenshots/person-merge.jpg" alt="Person merge" width="100%">
 
-Automatic face detection via InsightFace with 106-point landmarks, HDBSCAN clustering into persons, blink detection (EAR-based), and a management UI for merging, renaming, and organizing person clusters. Supports GPU-accelerated clustering via cuML for large libraries.
-
-### Advanced Filtering
-
-<img src="docs/screenshots/filter-drawer.jpg" alt="Filter drawer" width="100%">
-
-Filter sidebar with sections: 
-display toggles (blinks, bursts, details, duplicates, rejected, favorites, monochrome), 
-date range, 
-score ranges (aggregate, aesthetic, sharpness, exposure, color, composition, contrast, noise, dynamic range), 
-composition pattern, 
-face metrics (count, quality, eye sharpness, face sharpness), 
-and camera settings (camera, lens, ISO, aperture, focal length). 
-
-Each active filter appears as a removable chip in a dedicated bar below the toolbar, with individual × buttons and a clear-all action.
+Automatic face detection, HDBSCAN clustering into persons, and blink detection. The management UI lets you merge, rename, and organize person clusters. GPU-accelerated clustering available via cuML.
 
 ### Statistics & Analytics
 
 <table><tr>
-<td><img src="docs/screenshots/stats-gear.png" alt="Equipment stats" width="100%"><img src="docs/screenshots/stats-settings.png" alt="Shooting settings stats" width="100%"></td>
-<td><img src="docs/screenshots/stats-categories.png" alt="Category analytics" width="100%"></td>
+<td><img src="docs/screenshots/stats-gear.jpg" alt="Equipment stats" width="100%"><img src="docs/screenshots/stats-settings.jpg" alt="Shooting settings stats" width="100%"></td>
+<td><img src="docs/screenshots/stats-categories.jpg" alt="Category analytics" width="100%"></td>
 </tr><tr>
-<td><img src="docs/screenshots/stats-correlations.png" alt="Correlation charts" width="100%"></td>
-<td><img src="docs/screenshots/stats-timeline.png" alt="Timeline stats" width="100%"></td>
+<td><img src="docs/screenshots/stats-correlations.jpg" alt="Correlation charts" width="100%"></td>
+<td><img src="docs/screenshots/stats-timeline.jpg" alt="Timeline stats" width="100%"></td>
 </tr>
 </table>
 
@@ -72,16 +64,10 @@ Interactive dashboards with five tabs: **Gear** (cameras, lenses, body+lens comb
 
 ### Weight Tuning
 
-<img src="docs/screenshots/weights_slider.png" alt="Category weight sliders" width="100%">
-<img src="docs/screenshots/weights_compare.png" alt="Weight correlation chart" width="100%">
+<img src="docs/screenshots/weights_slider.jpg" alt="Category weight sliders" width="100%">
+<img src="docs/screenshots/weights_compare.jpg" alt="Weight correlation chart" width="100%">
 
-Per-category weight editor with live preview of top-scored photos and weight-vs-correlation charts. Side-by-side pairwise comparison with keyboard shortcuts and four selection strategies (uncertainty, boundary, active learning, random). The system learns from your choices and suggests per-category weight adjustments with prediction accuracy tracking. **Requires edition mode.**
-
-### Mobile Responsive
-
-<img src="docs/screenshots/gallery-mobile.jpg" alt="Mobile layout" width="280">
-
-Full-width cards on mobile with touch-friendly controls. Desktop shows detailed photo info, EXIF data, tag links, person avatars, and hover previews with score breakdowns.
+Per-category weight editor with live preview and weight-vs-correlation charts. Pairwise photo comparison with four selection strategies learns from your choices and suggests weight adjustments. **Requires edition mode.**
 
 ## Quick Start
 
@@ -104,18 +90,6 @@ python viewer.py
 ```
 
 VRAM is auto-detected at startup. Use `--single-pass` to keep all models loaded simultaneously on high-VRAM systems, or `--pass quality|tags|composition` to run a specific pass.
-
-## VRAM Profiles
-
-| Profile | GPU VRAM | Models | Best For |
-|---------|----------|--------|----------|
-| `auto` | Any | Auto-selected | **Default** — detects VRAM, picks best profile |
-| `legacy` | No GPU (8 GB+ RAM) | CLIP+MLP + SAMP-Net + CLIP tagging (CPU) | CPU-only, no GPU required |
-| `8gb` | 6–14 GB | CLIP+MLP + SAMP-Net + CLIP tagging | Mid-range GPUs |
-| `16gb` | ~14 GB | TOPIQ + SAMP-Net + Qwen3-VL-2B | Best aesthetic accuracy + VLM tagging |
-| `24gb` | ~18 GB | TOPIQ + Qwen2-VL + Qwen2.5-VL-7B | Best accuracy + largest VLM |
-
-TOPIQ (0.93 SRCC on KonIQ-10k) is the primary quality model for 16gb/24gb profiles. Lower profiles use CLIP+MLP (0.76 SRCC) with an upgrade path as hardware allows.
 
 ## Documentation
 
