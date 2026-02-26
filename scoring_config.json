@@ -17,19 +17,19 @@
         "tag_match_mode": "any"
       },
       "weights": {
-        "aesthetic_percent": 66,
-        "composition_percent": 4,
+        "aesthetic_percent": 40,
+        "composition_percent": 0,
         "quality_percent": 2,
-        "color_percent": 2,
-        "exposure_percent": 2,
+        "color_percent": 0,
+        "exposure_percent": 0,
         "dynamic_range_percent": 6,
         "isolation_percent": 6,
-        "contrast_percent": 6,
-        "face_quality_percent": 2,
+        "contrast_percent": 1,
+        "face_quality_percent": 0,
         "eye_sharpness_percent": 2,
-        "tech_sharpness_percent": 1,
-        "leading_lines_percent": 1,
-        "aesthetic_iaa_percent": 0,
+        "tech_sharpness_percent": 12,
+        "leading_lines_percent": 5,
+        "aesthetic_iaa_percent": 26,
         "face_quality_iqa_percent": 0,
         "liqe_percent": 0,
         "subject_sharpness_percent": 0,
@@ -192,19 +192,19 @@
         "tag_match_mode": "any"
       },
       "weights": {
-        "aesthetic_percent": 48,
-        "composition_percent": 34,
-        "tech_sharpness_percent": 10,
+        "aesthetic_percent": 0,
+        "composition_percent": 0,
+        "tech_sharpness_percent": 46,
         "quality_percent": 3,
-        "exposure_percent": 3,
-        "color_percent": 2,
-        "face_quality_percent": 0,
+        "exposure_percent": 0,
+        "color_percent": 0,
+        "face_quality_percent": 1,
         "eye_sharpness_percent": 0,
-        "contrast_percent": 0,
+        "contrast_percent": 7,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
         "leading_lines_percent": 0,
-        "aesthetic_iaa_percent": 0,
+        "aesthetic_iaa_percent": 43,
         "face_quality_iqa_percent": 0,
         "liqe_percent": 0,
         "subject_sharpness_percent": 0,
@@ -346,8 +346,10 @@
         "bg_separation_percent": 0
       },
       "modifiers": {
-        "bonus": 0.5,
-        "_apply_blink_penalty": true
+        "bonus": 0.419,
+        "_apply_blink_penalty": true,
+        "noise_tolerance_multiplier": 0.006,
+        "_clipping_multiplier": 0.5
       },
       "tags": {}
     },
@@ -383,9 +385,10 @@
         "bg_separation_percent": 0
       },
       "modifiers": {
-        "bonus": 0.5,
+        "bonus": 0.901,
         "_apply_blink_penalty": true,
-        "_clipping_multiplier": 1.5
+        "_clipping_multiplier": 0.5,
+        "noise_tolerance_multiplier": 0.001
       }
     },
     {
@@ -396,21 +399,21 @@
         "face_ratio_max": 0.05
       },
       "weights": {
-        "aesthetic_percent": 60,
+        "aesthetic_percent": 26,
         "quality_percent": 1,
-        "exposure_percent": 1,
-        "composition_percent": 36,
-        "tech_sharpness_percent": 2,
+        "exposure_percent": 0,
+        "composition_percent": 18,
+        "tech_sharpness_percent": 0,
         "face_quality_percent": 0,
         "eye_sharpness_percent": 0,
         "color_percent": 0,
-        "contrast_percent": 0,
+        "contrast_percent": 6,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 0,
-        "aesthetic_iaa_percent": 0,
+        "leading_lines_percent": 21,
+        "aesthetic_iaa_percent": 18,
         "face_quality_iqa_percent": 0,
-        "liqe_percent": 0,
+        "liqe_percent": 10,
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
@@ -438,28 +441,30 @@
         "tag_match_mode": "any"
       },
       "weights": {
-        "tech_sharpness_percent": 34,
-        "aesthetic_percent": 30,
-        "composition_percent": 20,
+        "tech_sharpness_percent": 4,
+        "aesthetic_percent": 28,
+        "composition_percent": 10,
         "isolation_percent": 13,
-        "color_percent": 3,
-        "face_quality_percent": 0,
+        "color_percent": 0,
+        "face_quality_percent": 12,
         "eye_sharpness_percent": 0,
         "exposure_percent": 0,
         "quality_percent": 0,
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
-        "leading_lines_percent": 0,
-        "aesthetic_iaa_percent": 0,
+        "leading_lines_percent": 5,
+        "aesthetic_iaa_percent": 12,
         "face_quality_iqa_percent": 0,
-        "liqe_percent": 0,
+        "liqe_percent": 16,
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0
       },
       "modifiers": {
-        "bonus": 0.3
+        "bonus": 0.171,
+        "noise_tolerance_multiplier": 0.365,
+        "_clipping_multiplier": 0.5
       },
       "tags": {
         "macro": [
@@ -572,29 +577,30 @@
         "face_ratio_max": 0.08
       },
       "weights": {
-        "aesthetic_percent": 42,
-        "composition_percent": 28,
-        "tech_sharpness_percent": 16,
+        "aesthetic_percent": 24,
+        "composition_percent": 2,
+        "tech_sharpness_percent": 0,
         "eye_sharpness_percent": 8,
-        "exposure_percent": 4,
+        "exposure_percent": 0,
         "isolation_percent": 2,
         "quality_percent": 0,
-        "face_quality_percent": 0,
+        "face_quality_percent": 6,
         "color_percent": 0,
         "contrast_percent": 0,
         "dynamic_range_percent": 0,
-        "leading_lines_percent": 0,
-        "aesthetic_iaa_percent": 0,
+        "leading_lines_percent": 2,
+        "aesthetic_iaa_percent": 31,
         "face_quality_iqa_percent": 0,
-        "liqe_percent": 0,
+        "liqe_percent": 25,
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0
       },
       "modifiers": {
-        "bonus": 0.5,
-        "noise_tolerance_multiplier": 0.3
+        "bonus": 0.328,
+        "noise_tolerance_multiplier": 0.004,
+        "_clipping_multiplier": 0.5
       },
       "tags": {
         "animal": [
@@ -715,7 +721,11 @@
         "subject_placement_percent": 0,
         "bg_separation_percent": 0
       },
-      "modifiers": {},
+      "modifiers": {
+        "bonus": 0.417,
+        "noise_tolerance_multiplier": 0.32,
+        "_clipping_multiplier": 0.5
+      },
       "tags": {
         "food": [
           "food",
@@ -760,8 +770,10 @@
         "bg_separation_percent": 0
       },
       "modifiers": {
-        "noise_tolerance_multiplier": 0.4,
-        "iso_tolerance_multiplier": 0.3
+        "noise_tolerance_multiplier": 0.93,
+        "iso_tolerance_multiplier": 0.3,
+        "bonus": 0.541,
+        "_clipping_multiplier": 0.501
       },
       "tags": {
         "sports": [
@@ -943,7 +955,9 @@
         "bg_separation_percent": 0
       },
       "modifiers": {
-        "bonus": 0.2
+        "bonus": 0.512,
+        "noise_tolerance_multiplier": 0.772,
+        "_clipping_multiplier": 0.5
       },
       "tags": {
         "fashion": [
@@ -972,19 +986,19 @@
         "tag_match_mode": "any"
       },
       "weights": {
-        "composition_percent": 32,
-        "aesthetic_percent": 28,
-        "leading_lines_percent": 15,
-        "tech_sharpness_percent": 10,
+        "composition_percent": 4,
+        "aesthetic_percent": 73,
+        "leading_lines_percent": 0,
+        "tech_sharpness_percent": 0,
         "dynamic_range_percent": 5,
-        "exposure_percent": 4,
-        "color_percent": 4,
-        "contrast_percent": 2,
+        "exposure_percent": 0,
+        "color_percent": 0,
+        "contrast_percent": 0,
         "quality_percent": 0,
-        "face_quality_percent": 0,
+        "face_quality_percent": 3,
         "eye_sharpness_percent": 0,
         "isolation_percent": 0,
-        "aesthetic_iaa_percent": 0,
+        "aesthetic_iaa_percent": 15,
         "face_quality_iqa_percent": 0,
         "liqe_percent": 0,
         "subject_sharpness_percent": 0,
@@ -1042,6 +1056,11 @@
           "aqueduct",
           "overpass"
         ]
+      },
+      "modifiers": {
+        "bonus": 0.077,
+        "noise_tolerance_multiplier": 0.0,
+        "_clipping_multiplier": 0.501
       }
     },
     {
@@ -1076,7 +1095,11 @@
         "subject_placement_percent": 0,
         "bg_separation_percent": 0
       },
-      "modifiers": {},
+      "modifiers": {
+        "bonus": 0.922,
+        "noise_tolerance_multiplier": 0.003,
+        "_clipping_multiplier": 0.501
+      },
       "tags": {
         "street": [
           "street scene",
@@ -1244,7 +1267,11 @@
         "subject_placement_percent": 0,
         "bg_separation_percent": 0
       },
-      "modifiers": {},
+      "modifiers": {
+        "bonus": 0.72,
+        "noise_tolerance_multiplier": 0.241,
+        "_clipping_multiplier": 0.5
+      },
       "tags": {
         "texture": [
           "texture",
@@ -1269,18 +1296,18 @@
         "luminance_max": 0.15
       },
       "weights": {
-        "aesthetic_percent": 66,
-        "exposure_percent": 1,
-        "composition_percent": 29,
-        "tech_sharpness_percent": 1,
+        "aesthetic_percent": 56,
+        "exposure_percent": 0,
+        "composition_percent": 5,
+        "tech_sharpness_percent": 3,
         "quality_percent": 2,
-        "face_quality_percent": 0,
+        "face_quality_percent": 28,
         "eye_sharpness_percent": 0,
         "color_percent": 0,
-        "contrast_percent": 0,
+        "contrast_percent": 1,
         "dynamic_range_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 1,
+        "leading_lines_percent": 5,
         "aesthetic_iaa_percent": 0,
         "face_quality_iqa_percent": 0,
         "liqe_percent": 0,
@@ -1418,18 +1445,18 @@
         "is_monochrome": true
       },
       "weights": {
-        "aesthetic_percent": 49,
+        "aesthetic_percent": 67,
         "quality_percent": 2,
-        "composition_percent": 7,
-        "exposure_percent": 2,
-        "contrast_percent": 20,
+        "composition_percent": 3,
+        "exposure_percent": 0,
+        "contrast_percent": 1,
         "dynamic_range_percent": 19,
-        "face_quality_percent": 0,
+        "face_quality_percent": 6,
         "eye_sharpness_percent": 0,
-        "tech_sharpness_percent": 0,
+        "tech_sharpness_percent": 2,
         "color_percent": 0,
         "isolation_percent": 0,
-        "leading_lines_percent": 1,
+        "leading_lines_percent": 0,
         "aesthetic_iaa_percent": 0,
         "face_quality_iqa_percent": 0,
         "liqe_percent": 0,
@@ -1439,8 +1466,9 @@
         "bg_separation_percent": 0
       },
       "modifiers": {
-        "bonus": 0.5,
-        "_clipping_multiplier": 1.5
+        "bonus": 0.216,
+        "_clipping_multiplier": 0.503,
+        "noise_tolerance_multiplier": 0.214
       },
       "tags": {
         "monochrome": [
@@ -1542,29 +1570,30 @@
         "face_ratio_max": 0.02
       },
       "weights": {
-        "composition_percent": 38,
-        "aesthetic_percent": 22,
+        "composition_percent": 0,
+        "aesthetic_percent": 40,
         "dynamic_range_percent": 18,
-        "color_percent": 8,
-        "tech_sharpness_percent": 6,
-        "exposure_percent": 4,
-        "leading_lines_percent": 2,
+        "color_percent": 0,
+        "tech_sharpness_percent": 0,
+        "exposure_percent": 0,
+        "leading_lines_percent": 0,
         "quality_percent": 1,
         "isolation_percent": 1,
-        "face_quality_percent": 0,
+        "face_quality_percent": 2,
         "eye_sharpness_percent": 0,
         "contrast_percent": 0,
-        "aesthetic_iaa_percent": 0,
+        "aesthetic_iaa_percent": 37,
         "face_quality_iqa_percent": 0,
-        "liqe_percent": 0,
+        "liqe_percent": 1,
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0
       },
       "modifiers": {
-        "bonus": 0.5,
-        "_clipping_multiplier": 1.5
+        "bonus": 0.463,
+        "_clipping_multiplier": 0.5,
+        "noise_tolerance_multiplier": 0.726
       },
       "tags": {
         "landscape": [
@@ -1649,18 +1678,18 @@
       "priority": 999,
       "filters": {},
       "weights": {
-        "aesthetic_percent": 39,
-        "composition_percent": 47,
-        "exposure_percent": 2,
-        "tech_sharpness_percent": 2,
+        "aesthetic_percent": 45,
+        "composition_percent": 8,
+        "exposure_percent": 0,
+        "tech_sharpness_percent": 3,
         "quality_percent": 7,
-        "face_quality_percent": 0,
+        "face_quality_percent": 32,
         "eye_sharpness_percent": 0,
         "color_percent": 0,
-        "contrast_percent": 0,
+        "contrast_percent": 3,
         "dynamic_range_percent": 1,
         "isolation_percent": 1,
-        "leading_lines_percent": 1,
+        "leading_lines_percent": 0,
         "aesthetic_iaa_percent": 0,
         "face_quality_iqa_percent": 0,
         "liqe_percent": 0,
