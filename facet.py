@@ -139,6 +139,8 @@ Configuration:
                         help='Backfill focal_length_35mm from EXIF for photos missing it')
     db_group.add_argument('--score-topiq', action='store_true',
                         help='Backfill TOPIQ quality scores from stored thumbnails (requires GPU)')
+    db_group.add_argument('--recompute-iqa', action='store_true',
+                        help='Recompute supplementary IQA metrics (TOPIQ IAA, NR-Face, LIQE) from stored thumbnails')
     db_group.add_argument('--compute-recommendations', action='store_true',
                         help='Analyze database and show scoring recommendations')
     db_group.add_argument('--apply-recommendations', action='store_true',
@@ -528,6 +530,13 @@ Configuration:
 
         scorer_model.unload()
         print(f"Updated topiq_score for {updated} photos.")
+        exit()
+
+    # Recompute supplementary IQA metrics from thumbnails (requires GPU)
+    if args.recompute_iqa:
+        from processing.scorer import Facet
+        facet = Facet(db_path=args.db, config_path=args.config, lightweight=True)
+        facet.recompute_iqa_from_thumbnails()
         exit()
 
     # Recompute burst detection

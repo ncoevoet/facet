@@ -77,7 +77,7 @@ PYIQA_MODELS = {
         'pyiqa_id': 'topiq_iaa',
         'vram_gb': 2,
         'lower_better': False,
-        'score_range': (0, 1),
+        'score_range': (1, 10),  # AVA MOS scale (1-10)
         'description': 'TOPIQ IAA - AVA-trained aesthetic merit scoring',
     },
     'topiq_nr_face': {

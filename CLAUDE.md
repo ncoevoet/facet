@@ -76,6 +76,7 @@ python facet.py /path/to/photos --dry-run --dry-run-count 20
 # Re-tag photos with configured tagger model
 python facet.py --recompute-tags
 python facet.py --recompute-tags-vlm    # Re-tag using VLM tagger
+python facet.py --recompute-iqa         # Recompute supplementary IQA (TOPIQ IAA, NR-Face, LIQE) from thumbnails
 
 # List available models and VRAM requirements
 python facet.py --list-models

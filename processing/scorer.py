@@ -1588,6 +1588,163 @@ class Facet:
             print(f"Failed to decode {decode_failed} thumbnails")
         print("Run --recompute-average to update aggregate scores with new comp_score values")
 
+    # Model name -> DB column for supplementary IQA metrics
+    _IQA_MODELS = [
+        ('topiq_iaa', 'aesthetic_iaa'),
+        ('topiq_nr_face', 'face_quality_iqa'),
+        ('liqe', 'liqe_score'),
+    ]
+
+    def recompute_iqa_from_thumbnails(self, batch_size: int = 64):
+        """Recompute supplementary IQA metrics from stored thumbnails.
+
+        Auto-detects available VRAM and groups models into passes:
+        - >=8GB VRAM: all 3 models at once (~6GB), single DB pass
+        - <8GB VRAM: one model at a time (~2GB each), 3 DB passes
+        - CPU-only: one model at a time
+
+        Incremental: skips columns already populated per photo.
+        Skips face_quality_iqa for photos without faces.
+        """
+        import time
+        import torch
+        from models.pyiqa_scorer import PyIQAScorer, PYIQA_MODELS
+        from models.model_manager import ModelManager
+
+        columns = [col for _, col in self._IQA_MODELS]
+
+        start_time = time.time()
+
+        # Count work per column
+        with get_connection(self.db_path) as conn:
+            for model_name, column in self._IQA_MODELS:
+                count = conn.execute(
+                    f"SELECT COUNT(*) FROM photos WHERE {column} IS NULL AND thumbnail IS NOT NULL"
+                ).fetchone()[0]
+                print(f"  {model_name} -> {column}: {count} NULL")
+
+            where_any_null = " OR ".join(f"{c} IS NULL" for c in columns)
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM photos WHERE ({where_any_null}) AND thumbnail IS NOT NULL"
+            ).fetchone()[0]
+
+        if total == 0:
+            print("All IQA columns already populated, nothing to do.")
+            return
+
+        # Auto-detect VRAM and group models into passes
+        vram_gb = ModelManager.detect_vram()
+        model_names = [m for m, _ in self._IQA_MODELS]
+        total_model_vram = sum(PYIQA_MODELS[m]['vram_gb'] for m in model_names)
+
+        if vram_gb >= total_model_vram + 2:  # +2GB safety margin
+            passes = [model_names]  # all at once
+        else:
+            passes = [[m] for m in model_names]  # one at a time
+
+        device = "GPU (%.0fGB)" % vram_gb if vram_gb > 0 else "CPU"
+        print(f"\n{total} photos to score | {device} | {len(passes)} pass(es): "
+              + ", ".join("+".join(p) for p in passes))
+
+        # Mutable counters shared across passes
+        counters = {'updated': {col: 0 for col in columns}, 'errors': 0}
+
+        for pass_models in passes:
+            self._run_iqa_pass(pass_models, batch_size, counters)
+
+        elapsed = time.time() - start_time
+        minutes = elapsed / 60
+        print(f"\nIQA recompute complete in {minutes:.1f} minutes:")
+        for model_name, column in self._IQA_MODELS:
+            print(f"  {column}: {counters['updated'][column]} photos scored")
+        if counters['errors']:
+            print(f"  {counters['errors']} thumbnail decode errors")
+        print("Run --recompute-average to update aggregate scores with new IQA metrics.")
+
+    def _run_iqa_pass(self, model_names, batch_size, counters):
+        """Run one IQA pass with the given models loaded simultaneously."""
+        from io import BytesIO
+        from PIL import Image
+        from models.pyiqa_scorer import PyIQAScorer
+
+        col_map = dict(self._IQA_MODELS)  # model_name -> column
+        pass_columns = [col_map[m] for m in model_names]
+
+        # Load models for this pass
+        scorers = {}
+        for model_name in model_names:
+            column = col_map[model_name]
+            scorer = PyIQAScorer(model_name=model_name)
+            scorer.load()
+            scorers[column] = scorer
+
+        where_null = " OR ".join(f"{c} IS NULL" for c in pass_columns)
+
+        with get_connection(self.db_path) as conn:
+            cursor = conn.execute(
+                f"""SELECT path, thumbnail, face_count, {', '.join(pass_columns)}
+                    FROM photos
+                    WHERE ({where_null}) AND thumbnail IS NOT NULL"""
+            )
+            rows = list(cursor.fetchall())
+
+            if not rows:
+                for scorer in scorers.values():
+                    scorer.unload()
+                return
+
+            label = "+".join(model_names) if len(model_names) > 1 else model_names[0]
+            batched_paths = []
+            batched_images = []
+            batched_null_cols = []
+
+            def _flush(conn, batched_paths, batched_images, batched_null_cols):
+                for column, scorer in scorers.items():
+                    indices = [i for i, nulls in enumerate(batched_null_cols) if column in nulls]
+                    if not indices:
+                        continue
+                    batch_imgs = [batched_images[i] for i in indices]
+                    batch_pths = [batched_paths[i] for i in indices]
+                    scores = scorer.score_batch(batch_imgs)
+                    for i, score in enumerate(scores):
+                        conn.execute(
+                            f"UPDATE photos SET {column} = ? WHERE path = ?",
+                            (round(score, 2), batch_pths[i])
+                        )
+                    counters['updated'][column] += len(scores)
+                conn.commit()
+
+            for row in tqdm(rows, desc=f"Scoring {label}"):
+                try:
+                    pil_img = Image.open(BytesIO(row['thumbnail'])).convert('RGB')
+                except Exception:
+                    counters['errors'] += 1
+                    continue
+
+                # Which columns still need scoring for this photo?
+                null_cols = [col for col in pass_columns if row[col] is None]
+                # Skip face_quality_iqa for photos without faces
+                if 'face_quality_iqa' in null_cols and not (row['face_count'] or 0):
+                    null_cols.remove('face_quality_iqa')
+                if not null_cols:
+                    continue
+
+                batched_paths.append(row['path'])
+                batched_images.append(pil_img)
+                batched_null_cols.append(null_cols)
+
+                if len(batched_images) >= batch_size:
+                    _flush(conn, batched_paths, batched_images, batched_null_cols)
+                    batched_paths = []
+                    batched_images = []
+                    batched_null_cols = []
+
+            if batched_images:
+                _flush(conn, batched_paths, batched_images, batched_null_cols)
+
+        for scorer in scorers.values():
+            scorer.unload()
+
     def get_exif_data(self, image_path):
         """Extracts camera metadata using ExifTool (fallback to Pillow).
 
