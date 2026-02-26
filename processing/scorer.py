@@ -1607,7 +1607,6 @@ class Facet:
         Skips face_quality_iqa for photos without faces.
         """
         import time
-        import torch
         from models.pyiqa_scorer import PyIQAScorer, PYIQA_MODELS
         from models.model_manager import ModelManager
 
