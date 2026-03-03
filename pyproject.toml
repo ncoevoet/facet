@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=70.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "facet-photo"
@@ -24,7 +24,6 @@ classifiers = [
     "Framework :: FastAPI",
     "Intended Audience :: End Users/Desktop",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
