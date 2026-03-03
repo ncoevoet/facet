@@ -969,7 +969,13 @@
       "face": "Metriche volti",
       "exif": "Impostazioni EXIF",
       "extended_quality": "Qualità estesa",
-      "saliency": "Salienza del soggetto"
+      "saliency": "Salienza del soggetto",
+      "quality": "Qualità",
+      "composition": "Composizione",
+      "technical": "Tecnica",
+      "exposure_range": "Esposizione & Gamma",
+      "ratings": "Valutazioni",
+      "add_filter": "Aggiungi filtro..."
     },
     "hide_rejected": "Nascondi scartate",
     "favorites_only": "Solo preferite",

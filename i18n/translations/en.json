@@ -995,7 +995,8 @@
       "extended_quality": "Extended Quality",
       "saliency": "Subject Saliency",
       "exposure_range": "Exposure & Range",
-      "ratings": "User Ratings"
+      "ratings": "User Ratings",
+      "add_filter": "Add Filter..."
     },
     "hide_rejected": "Hide Rejected",
     "favorites_only": "Favorites Only",

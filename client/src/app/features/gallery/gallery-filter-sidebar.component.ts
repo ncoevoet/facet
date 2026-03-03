@@ -1,14 +1,121 @@
-import { Component, inject, ElementRef, viewChild } from '@angular/core';
+import { Component, computed, inject, ElementRef, OnInit, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MatSelectModule } from '@angular/material/select';
+import { MatSelect, MatSelectModule } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatInputModule } from '@angular/material/input';
-import { GalleryStore } from './gallery.store';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { GalleryStore, GalleryFilters } from './gallery.store';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { FilterDisplayPipe } from '../../shared/pipes/filter-display.pipe';
+
+interface AdditionalFilterDef {
+  id: string;
+  labelKey: string;
+  sectionKey: string;
+  minKey: keyof GalleryFilters;
+  maxKey: keyof GalleryFilters;
+  sliderMin: number;
+  sliderMax: number;
+  step: number;
+  displaySuffix?: string;
+  displayPrefix?: string;
+  spanWidth: string;
+}
+
+const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
+  // Quality
+  { id: 'score_range', labelKey: 'gallery.score_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_score', maxKey: 'max_score', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'aesthetic_range', labelKey: 'gallery.aesthetic_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_aesthetic', maxKey: 'max_aesthetic', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'quality_score_range', labelKey: 'gallery.quality_score_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_quality_score', maxKey: 'max_quality_score', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  // Extended Quality
+  { id: 'aesthetic_iaa_range', labelKey: 'gallery.aesthetic_iaa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_iaa', maxKey: 'max_aesthetic_iaa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'face_quality_iqa_range', labelKey: 'gallery.face_quality_iqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_face_quality_iqa', maxKey: 'max_face_quality_iqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'liqe_range', labelKey: 'gallery.liqe_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_liqe', maxKey: 'max_liqe', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  // Face Metrics
+  { id: 'face_count_range', labelKey: 'gallery.face_count_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_count', maxKey: 'max_face_count', sliderMin: 0, sliderMax: 20, step: 1, spanWidth: 'w-16' },
+  { id: 'face_quality_range', labelKey: 'gallery.face_quality_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_quality', maxKey: 'max_face_quality', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'eye_sharpness_range', labelKey: 'gallery.eye_sharpness_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_eye_sharpness', maxKey: 'max_eye_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'face_sharpness_range', labelKey: 'gallery.face_sharpness_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_sharpness', maxKey: 'max_face_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'face_ratio_range', labelKey: 'gallery.face_ratio_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_ratio', maxKey: 'max_face_ratio', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
+  { id: 'face_confidence_range', labelKey: 'gallery.face_confidence_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_confidence', maxKey: 'max_face_confidence', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
+  // Composition
+  { id: 'composition_range', labelKey: 'gallery.composition_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_composition', maxKey: 'max_composition', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'power_point_range', labelKey: 'gallery.power_point_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_power_point', maxKey: 'max_power_point', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'leading_lines_range', labelKey: 'gallery.leading_lines_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_leading_lines', maxKey: 'max_leading_lines', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'isolation_range', labelKey: 'gallery.isolation_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_isolation', maxKey: 'max_isolation', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  // Subject Saliency
+  { id: 'subject_sharpness_range', labelKey: 'gallery.subject_sharpness_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_sharpness', maxKey: 'max_subject_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'subject_prominence_range', labelKey: 'gallery.subject_prominence_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_prominence', maxKey: 'max_subject_prominence', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'subject_placement_range', labelKey: 'gallery.subject_placement_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_placement', maxKey: 'max_subject_placement', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'bg_separation_range', labelKey: 'gallery.bg_separation_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_bg_separation', maxKey: 'max_bg_separation', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  // Technical
+  { id: 'sharpness_range', labelKey: 'gallery.sharpness_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_sharpness', maxKey: 'max_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'exposure_range', labelKey: 'gallery.exposure_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_exposure', maxKey: 'max_exposure', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'color_range', labelKey: 'gallery.color_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_color', maxKey: 'max_color', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'contrast_range', labelKey: 'gallery.contrast_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_contrast', maxKey: 'max_contrast', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'saturation_range', labelKey: 'gallery.saturation_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_saturation', maxKey: 'max_saturation', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
+  { id: 'noise_range', labelKey: 'gallery.noise_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_noise', maxKey: 'max_noise', sliderMin: 0, sliderMax: 20, step: 0.5, spanWidth: 'w-16' },
+  // Exposure & Range
+  { id: 'dynamic_range', labelKey: 'gallery.dynamic_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_dynamic_range', maxKey: 'max_dynamic_range', sliderMin: 0, sliderMax: 15, step: 0.5, displaySuffix: ' EV', spanWidth: 'w-16' },
+  { id: 'luminance_range', labelKey: 'gallery.luminance_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_luminance', maxKey: 'max_luminance', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
+  { id: 'histogram_range', labelKey: 'gallery.histogram_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_histogram_spread', maxKey: 'max_histogram_spread', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'iso_range', labelKey: 'gallery.iso_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_iso', maxKey: 'max_iso', sliderMin: 50, sliderMax: 25600, step: 50, spanWidth: 'w-20' },
+  { id: 'aperture_range', labelKey: 'gallery.aperture_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_aperture', maxKey: 'max_aperture', sliderMin: 0.7, sliderMax: 64, step: 0.1, displayPrefix: 'f/', spanWidth: 'w-20' },
+  { id: 'focal_range', labelKey: 'gallery.focal_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_focal_length', maxKey: 'max_focal_length', sliderMin: 1, sliderMax: 1200, step: 1, displaySuffix: 'mm', spanWidth: 'w-24' },
+  // User Ratings
+  { id: 'star_rating_range', labelKey: 'gallery.star_rating_range', sectionKey: 'gallery.sidebar.ratings', minKey: 'min_star_rating', maxKey: 'max_star_rating', sliderMin: 0, sliderMax: 5, step: 1, spanWidth: 'w-16' },
+];
+
+const SECTION_ORDER = [
+  'gallery.sidebar.quality',
+  'gallery.sidebar.extended_quality',
+  'gallery.sidebar.face',
+  'gallery.sidebar.composition',
+  'gallery.sidebar.saliency',
+  'gallery.sidebar.technical',
+  'gallery.sidebar.exposure_range',
+  'gallery.sidebar.ratings',
+];
+
+interface FilterGroup {
+  sectionKey: string;
+  filters: AdditionalFilterDef[];
+}
+
+const SIDEBAR_SECTIONS_KEY = 'facet_sidebar_sections';
+const ACTIVE_FILTERS_KEY = 'facet_active_filters';
+
+function loadSectionStates(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_SECTIONS_KEY);
+    if (raw) return JSON.parse(raw) as Record<string, boolean>;
+  } catch { /* ignore */ }
+  return {};
+}
+
+function saveSectionStates(states: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(SIDEBAR_SECTIONS_KEY, JSON.stringify(states));
+  } catch { /* ignore */ }
+}
+
+function loadActiveFilterIds(): string[] {
+  try {
+    const raw = localStorage.getItem(ACTIVE_FILTERS_KEY);
+    if (raw) return JSON.parse(raw) as string[];
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveActiveFilterIds(ids: Set<string>): void {
+  try {
+    localStorage.setItem(ACTIVE_FILTERS_KEY, JSON.stringify([...ids]));
+  } catch { /* ignore */ }
+}
 
 @Component({
   selector: 'app-gallery-filter-sidebar',
@@ -22,19 +129,112 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
     MatFormFieldModule,
     MatCheckboxModule,
     MatInputModule,
+    MatTooltipModule,
     TranslatePipe,
+    FilterDisplayPipe,
   ],
   template: `
     <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--mat-sys-outline-variant)]">
       <span class="text-base font-medium">{{ 'gallery.filters' | translate }}</span>
-      <button mat-icon-button (click)="store.filterDrawerOpen.set(false)">
-        <mat-icon>close</mat-icon>
-      </button>
+      <div class="flex items-center">
+        <button mat-icon-button [matTooltip]="'gallery.reset_filters' | translate" (click)="store.resetFilters(); clearActiveFilters()">
+          <mat-icon>restart_alt</mat-icon>
+        </button>
+        <button mat-icon-button (click)="store.setFilterDrawerOpen(false)">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
     </div>
 
     <div #filterScrollArea data-scroll class="overflow-y-auto p-4 flex flex-col gap-1 max-h-[calc(100vh-120px)]">
+      <!-- Date Range -->
+      <details [open]="sectionStates()['date']" (toggle)="onSectionToggle('date', $event)" class="group/section">
+        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
+          {{ 'gallery.sidebar.date' | translate }}
+          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
+        </summary>
+        <div class="flex flex-col gap-2 pb-2">
+          <mat-form-field subscriptSizing="dynamic" class="w-full">
+            <mat-label>{{ 'gallery.date_from' | translate }}</mat-label>
+            <input matInput type="date" [value]="store.filters().date_from" (change)="onDateChange('date_from', $event)" />
+          </mat-form-field>
+          <mat-form-field subscriptSizing="dynamic" class="w-full">
+            <mat-label>{{ 'gallery.date_to' | translate }}</mat-label>
+            <input matInput type="date" [value]="store.filters().date_to" (change)="onDateChange('date_to', $event)" />
+          </mat-form-field>
+        </div>
+      </details>
+
+      <!-- Content -->
+      @if (store.tags().length || store.patterns().length) {
+        <details [open]="sectionStates()['content'] !== false" (toggle)="onSectionToggle('content', $event)" class="group/section">
+          <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
+            {{ 'gallery.sidebar.content' | translate }}
+            <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
+          </summary>
+          <div class="flex flex-col gap-2 pb-2">
+            @if (store.tags().length) {
+              <mat-form-field subscriptSizing="dynamic" class="w-full">
+                <mat-label>{{ 'gallery.tag' | translate }}</mat-label>
+                <mat-select [value]="store.filters().tag" (selectionChange)="store.updateFilter('tag', $event.value)">
+                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                  @for (t of store.tags(); track t.value) {
+                    <mat-option [value]="t.value">{{ t.value }} ({{ t.count }})</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
+            @if (store.patterns().length) {
+              <mat-form-field subscriptSizing="dynamic" class="w-full">
+                <mat-label>{{ 'gallery.composition_pattern' | translate }}</mat-label>
+                <mat-select [value]="store.filters().composition_pattern" (selectionChange)="store.updateFilter('composition_pattern', $event.value)">
+                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                  @for (p of store.patterns(); track p.value) {
+                    <mat-option [value]="p.value">{{ ('composition_patterns.' + p.value) | translate }} ({{ p.count }})</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
+          </div>
+        </details>
+      }
+
+      <!-- Equipment -->
+      @if (store.cameras().length || store.lenses().length) {
+        <details [open]="sectionStates()['equipment'] !== false" (toggle)="onSectionToggle('equipment', $event)" class="group/section">
+          <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
+            {{ 'gallery.sidebar.equipment' | translate }}
+            <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
+          </summary>
+          <div class="flex flex-col gap-2 pb-2">
+            @if (store.cameras().length) {
+              <mat-form-field subscriptSizing="dynamic" class="w-full">
+                <mat-label>{{ 'gallery.camera' | translate }}</mat-label>
+                <mat-select [value]="store.filters().camera" (selectionChange)="store.updateFilter('camera', $event.value)">
+                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                  @for (c of store.cameras(); track c.value) {
+                    <mat-option [value]="c.value">{{ c.value }} ({{ c.count }})</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
+            @if (store.lenses().length) {
+              <mat-form-field subscriptSizing="dynamic" class="w-full">
+                <mat-label>{{ 'gallery.lens' | translate }}</mat-label>
+                <mat-select [value]="store.filters().lens" (selectionChange)="store.updateFilter('lens', $event.value)">
+                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                  @for (l of store.lenses(); track l.value) {
+                    <mat-option [value]="l.value">{{ l.value }} ({{ l.count }})</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
+          </div>
+        </details>
+      }
+
       <!-- Display Options -->
-      <details open class="group/section">
+      <details [open]="sectionStates()['display'] !== false" (toggle)="onSectionToggle('display', $event)" class="group/section">
         <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
           {{ 'gallery.sidebar.display' | translate }}
           <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
@@ -71,556 +271,121 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
         </div>
       </details>
 
-      <!-- Equipment -->
-      @if (store.cameras().length || store.lenses().length) {
-        <details open class="group/section">
-          <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-            {{ 'gallery.sidebar.equipment' | translate }}
-            <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-          </summary>
-          <div class="flex flex-col gap-2 pb-2">
-            @if (store.cameras().length) {
-              <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ 'gallery.camera' | translate }}</mat-label>
-                <mat-select [value]="store.filters().camera" (selectionChange)="store.updateFilter('camera', $event.value)">
-                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
-                  @for (c of store.cameras(); track c.value) {
-                    <mat-option [value]="c.value">{{ c.value }} ({{ c.count }})</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
+      <!-- Add Filter dropdown -->
+      @if (availableFilterGroups().length) {
+        <mat-form-field subscriptSizing="dynamic" class="w-full mt-2">
+          <mat-label>{{ 'gallery.sidebar.add_filter' | translate }}</mat-label>
+          <mat-select #addFilterSelect (selectionChange)="addAdditionalFilter($event.value)" [value]="null">
+            @for (group of availableFilterGroups(); track group.sectionKey) {
+              <mat-optgroup [label]="group.sectionKey | translate">
+                @for (f of group.filters; track f.id) {
+                  <mat-option [value]="f.id">{{ f.labelKey | translate }}</mat-option>
+                }
+              </mat-optgroup>
             }
-            @if (store.lenses().length) {
-              <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ 'gallery.lens' | translate }}</mat-label>
-                <mat-select [value]="store.filters().lens" (selectionChange)="store.updateFilter('lens', $event.value)">
-                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
-                  @for (l of store.lenses(); track l.value) {
-                    <mat-option [value]="l.value">{{ l.value }} ({{ l.count }})</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-            }
-          </div>
-        </details>
+          </mat-select>
+        </mat-form-field>
       }
 
-      <!-- Content -->
-      @if (store.tags().length || store.patterns().length) {
-        <details open class="group/section">
-          <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-            {{ 'gallery.sidebar.content' | translate }}
-            <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-          </summary>
-          <div class="flex flex-col gap-2 pb-2">
-            @if (store.tags().length) {
-              <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ 'gallery.tag' | translate }}</mat-label>
-                <mat-select [value]="store.filters().tag" (selectionChange)="store.updateFilter('tag', $event.value)">
-                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
-                  @for (t of store.tags(); track t.value) {
-                    <mat-option [value]="t.value">{{ t.value }} ({{ t.count }})</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-            }
-            @if (store.patterns().length) {
-              <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ 'gallery.composition_pattern' | translate }}</mat-label>
-                <mat-select [value]="store.filters().composition_pattern" (selectionChange)="store.updateFilter('composition_pattern', $event.value)">
-                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
-                  @for (p of store.patterns(); track p.value) {
-                    <mat-option [value]="p.value">{{ ('composition_patterns.' + p.value) | translate }} ({{ p.count }})</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-            }
+      <!-- Active additional filters -->
+      @for (def of activeFilterDefs(); track def.id) {
+        <div class="flex flex-col gap-1 mt-1">
+          <div class="flex items-center justify-between">
+            <label class="text-sm opacity-70">{{ def.labelKey | translate }}</label>
+            <button mat-icon-button class="!w-7 !h-7 !p-0" [matTooltip]="'ui.buttons.remove' | translate" (click)="removeAdditionalFilter(def.id)">
+              <mat-icon class="!text-lg">close</mat-icon>
+            </button>
           </div>
-        </details>
+          <div class="flex items-center gap-2">
+            <mat-slider [min]="def.sliderMin" [max]="def.sliderMax" [step]="def.step" class="flex-1">
+              <input matSliderStartThumb
+                [value]="store.filters()[def.minKey] ? +store.filters()[def.minKey] : def.sliderMin"
+                (valueChange)="onDynamicRangeChange(def, 'min', $event)" />
+              <input matSliderEndThumb
+                [value]="store.filters()[def.maxKey] ? +store.filters()[def.maxKey] : def.sliderMax"
+                (valueChange)="onDynamicRangeChange(def, 'max', $event)" />
+            </mat-slider>
+            <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">{{ store.filters() | filterDisplay:def }}</span>
+          </div>
+        </div>
       }
-
-      <!-- Date Range -->
-      <details class="group/section">
-        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-          {{ 'gallery.sidebar.date' | translate }}
-          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-        </summary>
-        <div class="flex flex-col gap-2 pb-2">
-          <mat-form-field subscriptSizing="dynamic" class="w-full">
-            <mat-label>{{ 'gallery.date_from' | translate }}</mat-label>
-            <input matInput type="date" [value]="store.filters().date_from" (change)="onDateChange('date_from', $event)" />
-          </mat-form-field>
-          <mat-form-field subscriptSizing="dynamic" class="w-full">
-            <mat-label>{{ 'gallery.date_to' | translate }}</mat-label>
-            <input matInput type="date" [value]="store.filters().date_to" (change)="onDateChange('date_to', $event)" />
-          </mat-form-field>
-        </div>
-      </details>
-
-      <!-- Quality -->
-      <details open class="group/section">
-        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-          {{ 'gallery.sidebar.quality' | translate }}
-          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-        </summary>
-        <div class="flex flex-col gap-2 pb-2">
-          <!-- Aggregate -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.score_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_score ? +store.filters().min_score : 0" (valueChange)="onRangeChange('min_score', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_score ? +store.filters().max_score : 10" (valueChange)="onRangeChange('max_score', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_score || '0' }}-{{ store.filters().max_score || '10' }}</span>
-            </div>
-          </div>
-          <!-- Aesthetic -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.aesthetic_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_aesthetic ? +store.filters().min_aesthetic : 0" (valueChange)="onRangeChange('min_aesthetic', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_aesthetic ? +store.filters().max_aesthetic : 10" (valueChange)="onRangeChange('max_aesthetic', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_aesthetic || '0' }}-{{ store.filters().max_aesthetic || '10' }}</span>
-            </div>
-          </div>
-          <!-- Quality Score -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.quality_score_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_quality_score ? +store.filters().min_quality_score : 0" (valueChange)="onRangeChange('min_quality_score', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_quality_score ? +store.filters().max_quality_score : 10" (valueChange)="onRangeChange('max_quality_score', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_quality_score || '0' }}-{{ store.filters().max_quality_score || '10' }}</span>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- Extended Quality -->
-      <details class="group/section">
-        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-          {{ 'gallery.sidebar.extended_quality' | translate }}
-          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-        </summary>
-        <div class="flex flex-col gap-2 pb-2">
-          <!-- Aesthetic IAA -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.aesthetic_iaa_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_aesthetic_iaa ? +store.filters().min_aesthetic_iaa : 0" (valueChange)="onRangeChange('min_aesthetic_iaa', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_aesthetic_iaa ? +store.filters().max_aesthetic_iaa : 10" (valueChange)="onRangeChange('max_aesthetic_iaa', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_aesthetic_iaa || '0' }}-{{ store.filters().max_aesthetic_iaa || '10' }}</span>
-            </div>
-          </div>
-          <!-- Face Quality IQA -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.face_quality_iqa_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_face_quality_iqa ? +store.filters().min_face_quality_iqa : 0" (valueChange)="onRangeChange('min_face_quality_iqa', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_face_quality_iqa ? +store.filters().max_face_quality_iqa : 10" (valueChange)="onRangeChange('max_face_quality_iqa', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_face_quality_iqa || '0' }}-{{ store.filters().max_face_quality_iqa || '10' }}</span>
-            </div>
-          </div>
-          <!-- LIQE -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.liqe_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_liqe ? +store.filters().min_liqe : 0" (valueChange)="onRangeChange('min_liqe', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_liqe ? +store.filters().max_liqe : 10" (valueChange)="onRangeChange('max_liqe', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_liqe || '0' }}-{{ store.filters().max_liqe || '10' }}</span>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- Face Metrics -->
-      <details class="group/section">
-        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-          {{ 'gallery.sidebar.face' | translate }}
-          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-        </summary>
-        <div class="flex flex-col gap-2 pb-2">
-          <!-- Face Count -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.face_count_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="20" step="1" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_face_count ? +store.filters().min_face_count : 0" (valueChange)="onExifRangeChange('min_face_count', $event, 0)" />
-                <input matSliderEndThumb [value]="store.filters().max_face_count ? +store.filters().max_face_count : 20" (valueChange)="onExifRangeChange('max_face_count', $event, 20)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_face_count || '0' }}-{{ store.filters().max_face_count || '20' }}</span>
-            </div>
-          </div>
-          <!-- Face Quality -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.face_quality_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_face_quality ? +store.filters().min_face_quality : 0" (valueChange)="onRangeChange('min_face_quality', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_face_quality ? +store.filters().max_face_quality : 10" (valueChange)="onRangeChange('max_face_quality', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_face_quality || '0' }}-{{ store.filters().max_face_quality || '10' }}</span>
-            </div>
-          </div>
-          <!-- Eye Sharpness -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.eye_sharpness_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_eye_sharpness ? +store.filters().min_eye_sharpness : 0" (valueChange)="onRangeChange('min_eye_sharpness', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_eye_sharpness ? +store.filters().max_eye_sharpness : 10" (valueChange)="onRangeChange('max_eye_sharpness', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_eye_sharpness || '0' }}-{{ store.filters().max_eye_sharpness || '10' }}</span>
-            </div>
-          </div>
-          <!-- Face Sharpness -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.face_sharpness_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_face_sharpness ? +store.filters().min_face_sharpness : 0" (valueChange)="onRangeChange('min_face_sharpness', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_face_sharpness ? +store.filters().max_face_sharpness : 10" (valueChange)="onRangeChange('max_face_sharpness', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_face_sharpness || '0' }}-{{ store.filters().max_face_sharpness || '10' }}</span>
-            </div>
-          </div>
-          <!-- Face Ratio -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.face_ratio_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="1" step="0.01" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_face_ratio ? +store.filters().min_face_ratio : 0" (valueChange)="onExifRangeChange('min_face_ratio', $event, 0)" />
-                <input matSliderEndThumb [value]="store.filters().max_face_ratio ? +store.filters().max_face_ratio : 1" (valueChange)="onExifRangeChange('max_face_ratio', $event, 1)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_face_ratio || '0' }}-{{ store.filters().max_face_ratio || '1' }}</span>
-            </div>
-          </div>
-          <!-- Face Confidence -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.face_confidence_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="1" step="0.01" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_face_confidence ? +store.filters().min_face_confidence : 0" (valueChange)="onExifRangeChange('min_face_confidence', $event, 0)" />
-                <input matSliderEndThumb [value]="store.filters().max_face_confidence ? +store.filters().max_face_confidence : 1" (valueChange)="onExifRangeChange('max_face_confidence', $event, 1)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_face_confidence || '0' }}-{{ store.filters().max_face_confidence || '1' }}</span>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- Composition -->
-      <details class="group/section">
-        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-          {{ 'gallery.sidebar.composition' | translate }}
-          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-        </summary>
-        <div class="flex flex-col gap-2 pb-2">
-          <!-- Composition Score -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.composition_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_composition ? +store.filters().min_composition : 0" (valueChange)="onRangeChange('min_composition', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_composition ? +store.filters().max_composition : 10" (valueChange)="onRangeChange('max_composition', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_composition || '0' }}-{{ store.filters().max_composition || '10' }}</span>
-            </div>
-          </div>
-          <!-- Power Points -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.power_point_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_power_point ? +store.filters().min_power_point : 0" (valueChange)="onRangeChange('min_power_point', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_power_point ? +store.filters().max_power_point : 10" (valueChange)="onRangeChange('max_power_point', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_power_point || '0' }}-{{ store.filters().max_power_point || '10' }}</span>
-            </div>
-          </div>
-          <!-- Leading Lines -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.leading_lines_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_leading_lines ? +store.filters().min_leading_lines : 0" (valueChange)="onRangeChange('min_leading_lines', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_leading_lines ? +store.filters().max_leading_lines : 10" (valueChange)="onRangeChange('max_leading_lines', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_leading_lines || '0' }}-{{ store.filters().max_leading_lines || '10' }}</span>
-            </div>
-          </div>
-          <!-- Isolation -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.isolation_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_isolation ? +store.filters().min_isolation : 0" (valueChange)="onRangeChange('min_isolation', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_isolation ? +store.filters().max_isolation : 10" (valueChange)="onRangeChange('max_isolation', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_isolation || '0' }}-{{ store.filters().max_isolation || '10' }}</span>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- Subject Saliency -->
-      <details class="group/section">
-        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-          {{ 'gallery.sidebar.saliency' | translate }}
-          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-        </summary>
-        <div class="flex flex-col gap-2 pb-2">
-          <!-- Subject Sharpness -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.subject_sharpness_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_subject_sharpness ? +store.filters().min_subject_sharpness : 0" (valueChange)="onRangeChange('min_subject_sharpness', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_subject_sharpness ? +store.filters().max_subject_sharpness : 10" (valueChange)="onRangeChange('max_subject_sharpness', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_subject_sharpness || '0' }}-{{ store.filters().max_subject_sharpness || '10' }}</span>
-            </div>
-          </div>
-          <!-- Subject Prominence -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.subject_prominence_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_subject_prominence ? +store.filters().min_subject_prominence : 0" (valueChange)="onRangeChange('min_subject_prominence', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_subject_prominence ? +store.filters().max_subject_prominence : 10" (valueChange)="onRangeChange('max_subject_prominence', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_subject_prominence || '0' }}-{{ store.filters().max_subject_prominence || '10' }}</span>
-            </div>
-          </div>
-          <!-- Subject Placement -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.subject_placement_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_subject_placement ? +store.filters().min_subject_placement : 0" (valueChange)="onRangeChange('min_subject_placement', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_subject_placement ? +store.filters().max_subject_placement : 10" (valueChange)="onRangeChange('max_subject_placement', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_subject_placement || '0' }}-{{ store.filters().max_subject_placement || '10' }}</span>
-            </div>
-          </div>
-          <!-- Background Separation -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.bg_separation_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_bg_separation ? +store.filters().min_bg_separation : 0" (valueChange)="onRangeChange('min_bg_separation', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_bg_separation ? +store.filters().max_bg_separation : 10" (valueChange)="onRangeChange('max_bg_separation', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_bg_separation || '0' }}-{{ store.filters().max_bg_separation || '10' }}</span>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- Technical -->
-      <details class="group/section">
-        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-          {{ 'gallery.sidebar.technical' | translate }}
-          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-        </summary>
-        <div class="flex flex-col gap-2 pb-2">
-          <!-- Sharpness -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.sharpness_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_sharpness ? +store.filters().min_sharpness : 0" (valueChange)="onRangeChange('min_sharpness', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_sharpness ? +store.filters().max_sharpness : 10" (valueChange)="onRangeChange('max_sharpness', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_sharpness || '0' }}-{{ store.filters().max_sharpness || '10' }}</span>
-            </div>
-          </div>
-          <!-- Exposure -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.exposure_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_exposure ? +store.filters().min_exposure : 0" (valueChange)="onRangeChange('min_exposure', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_exposure ? +store.filters().max_exposure : 10" (valueChange)="onRangeChange('max_exposure', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_exposure || '0' }}-{{ store.filters().max_exposure || '10' }}</span>
-            </div>
-          </div>
-          <!-- Color -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.color_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_color ? +store.filters().min_color : 0" (valueChange)="onRangeChange('min_color', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_color ? +store.filters().max_color : 10" (valueChange)="onRangeChange('max_color', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_color || '0' }}-{{ store.filters().max_color || '10' }}</span>
-            </div>
-          </div>
-          <!-- Contrast -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.contrast_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_contrast ? +store.filters().min_contrast : 0" (valueChange)="onRangeChange('min_contrast', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_contrast ? +store.filters().max_contrast : 10" (valueChange)="onRangeChange('max_contrast', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_contrast || '0' }}-{{ store.filters().max_contrast || '10' }}</span>
-            </div>
-          </div>
-          <!-- Saturation -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.saturation_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="1" step="0.01" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_saturation ? +store.filters().min_saturation : 0" (valueChange)="onExifRangeChange('min_saturation', $event, 0)" />
-                <input matSliderEndThumb [value]="store.filters().max_saturation ? +store.filters().max_saturation : 1" (valueChange)="onExifRangeChange('max_saturation', $event, 1)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_saturation || '0' }}-{{ store.filters().max_saturation || '1' }}</span>
-            </div>
-          </div>
-          <!-- Noise -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.noise_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="20" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_noise ? +store.filters().min_noise : 0" (valueChange)="onExifRangeChange('min_noise', $event, 0)" />
-                <input matSliderEndThumb [value]="store.filters().max_noise ? +store.filters().max_noise : 20" (valueChange)="onExifRangeChange('max_noise', $event, 20)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_noise || '0' }}-{{ store.filters().max_noise || '20' }}</span>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- Exposure & Range -->
-      <details class="group/section">
-        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-          {{ 'gallery.sidebar.exposure_range' | translate }}
-          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-        </summary>
-        <div class="flex flex-col gap-2 pb-2">
-          <!-- Dynamic Range -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.dynamic_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="15" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_dynamic_range ? +store.filters().min_dynamic_range : 0" (valueChange)="onExifRangeChange('min_dynamic_range', $event, 0)" />
-                <input matSliderEndThumb [value]="store.filters().max_dynamic_range ? +store.filters().max_dynamic_range : 15" (valueChange)="onExifRangeChange('max_dynamic_range', $event, 15)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_dynamic_range || '0' }}-{{ store.filters().max_dynamic_range || '15' }} EV</span>
-            </div>
-          </div>
-          <!-- Luminance -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.luminance_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="1" step="0.01" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_luminance ? +store.filters().min_luminance : 0" (valueChange)="onExifRangeChange('min_luminance', $event, 0)" />
-                <input matSliderEndThumb [value]="store.filters().max_luminance ? +store.filters().max_luminance : 1" (valueChange)="onExifRangeChange('max_luminance', $event, 1)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_luminance || '0' }}-{{ store.filters().max_luminance || '1' }}</span>
-            </div>
-          </div>
-          <!-- Histogram Spread -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.histogram_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="10" step="0.5" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_histogram_spread ? +store.filters().min_histogram_spread : 0" (valueChange)="onRangeChange('min_histogram_spread', $event)" />
-                <input matSliderEndThumb [value]="store.filters().max_histogram_spread ? +store.filters().max_histogram_spread : 10" (valueChange)="onRangeChange('max_histogram_spread', $event)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_histogram_spread || '0' }}-{{ store.filters().max_histogram_spread || '10' }}</span>
-            </div>
-          </div>
-          <!-- ISO -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.iso_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="50" max="25600" step="50" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_iso ? +store.filters().min_iso : 50" (valueChange)="onExifRangeChange('min_iso', $event, 50)" />
-                <input matSliderEndThumb [value]="store.filters().max_iso ? +store.filters().max_iso : 25600" (valueChange)="onExifRangeChange('max_iso', $event, 25600)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-20 text-right">{{ store.filters().min_iso || '50' }}-{{ store.filters().max_iso || '25600' }}</span>
-            </div>
-          </div>
-          <!-- Aperture -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.aperture_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0.7" max="64" step="0.1" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_aperture ? +store.filters().min_aperture : 0.7" (valueChange)="onExifRangeChange('min_aperture', $event, 0.7)" />
-                <input matSliderEndThumb [value]="store.filters().max_aperture ? +store.filters().max_aperture : 64" (valueChange)="onExifRangeChange('max_aperture', $event, 64)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-20 text-right">f/{{ store.filters().min_aperture || '0.7' }}-{{ store.filters().max_aperture || '64' }}</span>
-            </div>
-          </div>
-          <!-- Focal Length -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.focal_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="1" max="1200" step="1" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_focal_length ? +store.filters().min_focal_length : 1" (valueChange)="onExifRangeChange('min_focal_length', $event, 1)" />
-                <input matSliderEndThumb [value]="store.filters().max_focal_length ? +store.filters().max_focal_length : 1200" (valueChange)="onExifRangeChange('max_focal_length', $event, 1200)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-24 text-right">{{ store.filters().min_focal_length || '1' }}-{{ store.filters().max_focal_length || '1200' }}mm</span>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- User Ratings -->
-      <details class="group/section">
-        <summary class="flex items-center justify-between py-2.5 text-xs font-medium uppercase tracking-wider opacity-70 cursor-pointer select-none [list-style:none] [&::-webkit-details-marker]:hidden">
-          {{ 'gallery.sidebar.ratings' | translate }}
-          <mat-icon class="!text-xl transition-transform group-open/section:rotate-180">expand_more</mat-icon>
-        </summary>
-        <div class="flex flex-col gap-2 pb-2">
-          <!-- Star Rating -->
-          <div class="flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.star_rating_range' | translate }}</label>
-            <div class="flex items-center gap-2">
-              <mat-slider min="0" max="5" step="1" class="flex-1">
-                <input matSliderStartThumb [value]="store.filters().min_star_rating ? +store.filters().min_star_rating : 0" (valueChange)="onExifRangeChange('min_star_rating', $event, 0)" />
-                <input matSliderEndThumb [value]="store.filters().max_star_rating ? +store.filters().max_star_rating : 5" (valueChange)="onExifRangeChange('max_star_rating', $event, 5)" />
-              </mat-slider>
-              <span class="text-xs opacity-60 w-16 text-right">{{ store.filters().min_star_rating || '0' }}-{{ store.filters().max_star_rating || '5' }}</span>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- Reset -->
-      <div class="pt-2">
-        <button mat-stroked-button class="w-full" (click)="store.resetFilters(); store.filterDrawerOpen.set(false)">
-          <mat-icon>restart_alt</mat-icon>
-          {{ 'gallery.reset_filters' | translate }}
-        </button>
-      </div>
     </div>
   `,
 })
-export class GalleryFilterSidebarComponent {
+export class GalleryFilterSidebarComponent implements OnInit {
   readonly store = inject(GalleryStore);
   readonly filterScrollArea = viewChild<ElementRef<HTMLDivElement>>('filterScrollArea');
+  readonly addFilterSelect = viewChild<MatSelect>('addFilterSelect');
 
-  onRangeChange(key: string, value: number): void {
-    const isMin = key.startsWith('min');
-    const filterValue = (isMin && value === 0) || (!isMin && value === 10) ? '' : String(value);
-    this.store.updateFilter(key as 'min_score', filterValue);
+  readonly activeAdditionalFilters = signal<Set<string>>(new Set());
+  readonly sectionStates = signal<Record<string, boolean>>(loadSectionStates());
+
+  readonly activeFilterDefs = computed(() => {
+    const activeIds = this.activeAdditionalFilters();
+    return ADDITIONAL_FILTERS.filter(f => activeIds.has(f.id));
+  });
+
+  readonly availableFilterGroups = computed((): FilterGroup[] => {
+    const activeIds = this.activeAdditionalFilters();
+    const groups: FilterGroup[] = [];
+    for (const sectionKey of SECTION_ORDER) {
+      const filters = ADDITIONAL_FILTERS.filter(f => f.sectionKey === sectionKey && !activeIds.has(f.id));
+      if (filters.length) {
+        groups.push({ sectionKey, filters });
+      }
+    }
+    return groups;
+  });
+
+  ngOnInit(): void {
+    this.initActiveFilters();
   }
 
-  onExifRangeChange(key: string, value: number, boundary: number): void {
+  addAdditionalFilter(filterId: string): void {
+    this.activeAdditionalFilters.update(s => {
+      const next = new Set(s);
+      next.add(filterId);
+      saveActiveFilterIds(next);
+      return next;
+    });
+    this.addFilterSelect()?.writeValue(null);
+  }
+
+  removeAdditionalFilter(filterId: string): void {
+    const def = ADDITIONAL_FILTERS.find(f => f.id === filterId);
+    if (def) {
+      this.store.updateFilters({ [def.minKey]: '', [def.maxKey]: '' } as Partial<GalleryFilters>);
+    }
+    this.activeAdditionalFilters.update(s => {
+      const next = new Set(s);
+      next.delete(filterId);
+      saveActiveFilterIds(next);
+      return next;
+    });
+  }
+
+  clearActiveFilters(): void {
+    this.activeAdditionalFilters.set(new Set());
+    saveActiveFilterIds(new Set());
+  }
+
+  onSectionToggle(sectionId: string, event: Event): void {
+    const isOpen = (event.target as HTMLDetailsElement).open;
+    this.sectionStates.update(s => {
+      const next = { ...s, [sectionId]: isOpen };
+      saveSectionStates(next);
+      return next;
+    });
+  }
+
+  onDynamicRangeChange(def: AdditionalFilterDef, side: 'min' | 'max', value: number): void {
+    // When min is still at default, redirect max thumb interaction to set min instead.
+    // Users typically want to set a minimum threshold first.
+    if (side === 'max' && !(this.store.filters()[def.minKey] as string)) {
+      side = 'min';
+    }
+    const key = side === 'min' ? def.minKey : def.maxKey;
+    const boundary = side === 'min' ? def.sliderMin : def.sliderMax;
     const filterValue = value === boundary ? '' : String(value);
     this.store.updateFilter(key as 'min_score', filterValue);
   }
@@ -628,5 +393,20 @@ export class GalleryFilterSidebarComponent {
   onDateChange(key: 'date_from' | 'date_to', event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     this.store.updateFilter(key, value);
+  }
+
+  private initActiveFilters(): void {
+    const f = this.store.filters();
+    const stored = new Set(loadActiveFilterIds());
+    const active = new Set<string>(stored);
+
+    // Also auto-activate any filters that have non-default values from URL params
+    for (const def of ADDITIONAL_FILTERS) {
+      const min = f[def.minKey] as string;
+      const max = f[def.maxKey] as string;
+      if (min || max) active.add(def.id);
+    }
+
+    this.activeAdditionalFilters.set(active);
   }
 }

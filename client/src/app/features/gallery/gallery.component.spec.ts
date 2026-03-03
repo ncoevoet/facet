@@ -117,6 +117,7 @@ describe('GalleryComponent', () => {
     config: ReturnType<typeof signal>;
     activeFilterCount: ReturnType<typeof signal>;
     filterDrawerOpen: ReturnType<typeof signal>;
+    setFilterDrawerOpen: jest.Mock;
     loadConfig: jest.Mock;
     loadFilterOptions: jest.Mock;
     loadTypeCounts: jest.Mock;
@@ -148,6 +149,7 @@ describe('GalleryComponent', () => {
       config: signal(null),
       activeFilterCount: signal(0),
       filterDrawerOpen: signal(false),
+      setFilterDrawerOpen: jest.fn(),
       loadConfig: jest.fn(() => Promise.resolve()),
       loadFilterOptions: jest.fn(() => Promise.resolve()),
       loadTypeCounts: jest.fn(() => Promise.resolve()),

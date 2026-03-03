@@ -270,6 +270,7 @@ const DEFAULT_FILTERS: GalleryFilters = {
   search: '',
 };
 
+const DRAWER_STATE_KEY = 'facet_filter_drawer_open';
 const DISPLAY_OPTIONS_KEY = 'facet_display_options';
 type DisplayOptions = Pick<GalleryFilters,
   'hide_details' | 'hide_blinks' | 'hide_bursts' | 'hide_duplicates' |
@@ -310,7 +311,7 @@ export class GalleryStore {
   readonly loading = signal(false);
   readonly hasMore = signal(false);
   readonly config = signal<ViewerConfig | null>(null);
-  readonly filterDrawerOpen = signal(false);
+  readonly filterDrawerOpen = signal(localStorage.getItem(DRAWER_STATE_KEY) === 'true');
   readonly slideshowActive = signal(false);
 
   // Filter options
@@ -495,6 +496,11 @@ export class GalleryStore {
     saveDisplayOptionsToStorage(this.filters());
     this.syncUrl();
     await this.loadPhotos();
+  }
+
+  setFilterDrawerOpen(open: boolean): void {
+    this.filterDrawerOpen.set(open);
+    try { localStorage.setItem(DRAWER_STATE_KEY, String(open)); } catch { /* ignore */ }
   }
 
   /** Load type counts (for the type toggle bar) */

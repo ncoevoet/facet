@@ -174,7 +174,7 @@
         <button
           class="!hidden lg:!inline-flex"
           mat-icon-button
-          (click)="store.filterDrawerOpen.set(!store.filterDrawerOpen())"
+          (click)="store.setFilterDrawerOpen(!store.filterDrawerOpen())"
           [matBadge]="store.activeFilterCount() || null"
           matBadgeColor="primary"
           matBadgeSize="small"
@@ -420,7 +420,7 @@
       <!-- Filter drawer toggle -->
       <button
         mat-icon-button
-        (click)="store.filterDrawerOpen.set(!store.filterDrawerOpen())"
+        (click)="store.setFilterDrawerOpen(!store.filterDrawerOpen())"
         [matBadge]="store.activeFilterCount() || null"
         matBadgeColor="primary"
         matBadgeSize="small"

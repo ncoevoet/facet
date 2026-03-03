@@ -969,7 +969,13 @@
       "face": "Métricas faciales",
       "exif": "Ajustes EXIF",
       "extended_quality": "Calidad extendida",
-      "saliency": "Saliencia del sujeto"
+      "saliency": "Saliencia del sujeto",
+      "quality": "Calidad",
+      "composition": "Composición",
+      "technical": "Técnica",
+      "exposure_range": "Exposición & Rango",
+      "ratings": "Calificaciones",
+      "add_filter": "Agregar filtro..."
     },
     "hide_rejected": "Ocultar rechazadas",
     "favorites_only": "Solo favoritas",

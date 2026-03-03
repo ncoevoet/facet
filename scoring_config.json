@@ -2183,7 +2183,9 @@
     },
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
-    "path_mapping": {}
+    "path_mapping": {
+      "//Sweet/home/Photos": "/nfs/temp-share/Photos"
+    }
   },
   "share_secret": "fe64e67f9a98fbfca566a1ddb24ea9e85439b93528fdab0b336a74700b532a59",
   "performance": {

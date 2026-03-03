@@ -44,7 +44,9 @@ describe('GalleryFilterSidebarComponent', () => {
       persons: signal([]),
       compositionPatterns: signal([]),
       updateFilter: jest.fn(),
+      updateFilters: jest.fn(),
       resetFilters: jest.fn(),
+      setFilterDrawerOpen: jest.fn(),
     };
 
     TestBed.configureTestingModule({
@@ -61,41 +63,64 @@ describe('GalleryFilterSidebarComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  describe('onRangeChange', () => {
-    it('clears min filter when value is 0 (slider at minimum)', () => {
+  describe('onDynamicRangeChange', () => {
+    const iaaFilter = {
+      id: 'aesthetic_iaa_range', labelKey: 'gallery.aesthetic_iaa_range',
+      sectionKey: 'gallery.sidebar.extended_quality',
+      minKey: 'min_aesthetic_iaa' as const, maxKey: 'max_aesthetic_iaa' as const,
+      sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16',
+    };
+
+    const isoFilter = {
+      id: 'iso_range', labelKey: 'gallery.iso_range',
+      sectionKey: 'gallery.sidebar.exposure_range',
+      minKey: 'min_iso' as const, maxKey: 'max_iso' as const,
+      sliderMin: 50, sliderMax: 25600, step: 50, spanWidth: 'w-20',
+    };
+
+    it('clears min filter at slider minimum', () => {
       const mockStore = (component as any).store;
-      component.onRangeChange('min_aesthetic_iaa', 0);
+      component.onDynamicRangeChange(iaaFilter, 'min', 0);
       expect(mockStore.updateFilter).toHaveBeenCalledWith('min_aesthetic_iaa', '');
     });
 
-    it('clears max filter when value is 10 (slider at maximum)', () => {
+    it('redirects max to min when min is at default', () => {
       const mockStore = (component as any).store;
-      component.onRangeChange('max_aesthetic_iaa', 10);
+      component.onDynamicRangeChange(iaaFilter, 'max', 7.5);
+      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_aesthetic_iaa', '7.5');
+    });
+
+    it('clears max filter at slider maximum when min is set', () => {
+      const mockStore = (component as any).store;
+      mockStore.filters.set({ ...mockStore.filters(), min_aesthetic_iaa: '5' });
+      component.onDynamicRangeChange(iaaFilter, 'max', 10);
       expect(mockStore.updateFilter).toHaveBeenCalledWith('max_aesthetic_iaa', '');
     });
 
-    it('stores string value for non-boundary min_aesthetic_iaa', () => {
+    it('stores string value for non-boundary min', () => {
       const mockStore = (component as any).store;
-      component.onRangeChange('min_aesthetic_iaa', 6.5);
+      component.onDynamicRangeChange(iaaFilter, 'min', 6.5);
       expect(mockStore.updateFilter).toHaveBeenCalledWith('min_aesthetic_iaa', '6.5');
     });
 
-    it('stores string value for non-boundary max_liqe', () => {
+    it('stores string value for non-boundary max when min is set', () => {
       const mockStore = (component as any).store;
-      component.onRangeChange('max_liqe', 8);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_liqe', '8');
+      mockStore.filters.set({ ...mockStore.filters(), min_aesthetic_iaa: '3' });
+      component.onDynamicRangeChange(iaaFilter, 'max', 7.5);
+      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_aesthetic_iaa', '7.5');
     });
 
-    it('stores string value for min_subject_sharpness', () => {
+    it('clears min at non-zero boundary (ISO 50)', () => {
       const mockStore = (component as any).store;
-      component.onRangeChange('min_subject_sharpness', 4);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_subject_sharpness', '4');
+      component.onDynamicRangeChange(isoFilter, 'min', 50);
+      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_iso', '');
     });
 
-    it('stores string value for max_bg_separation', () => {
+    it('clears max at non-standard boundary (ISO 25600) when min is set', () => {
       const mockStore = (component as any).store;
-      component.onRangeChange('max_bg_separation', 7.5);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_bg_separation', '7.5');
+      mockStore.filters.set({ ...mockStore.filters(), min_iso: '100' });
+      component.onDynamicRangeChange(isoFilter, 'max', 25600);
+      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_iso', '');
     });
   });
 });

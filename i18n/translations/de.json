@@ -969,7 +969,13 @@
       "face": "Gesichtsmetriken",
       "exif": "EXIF-Einstellungen",
       "extended_quality": "Erweiterte Qualität",
-      "saliency": "Motiverkennung"
+      "saliency": "Motiverkennung",
+      "quality": "Qualität",
+      "composition": "Komposition",
+      "technical": "Technik",
+      "exposure_range": "Belichtung & Bereich",
+      "ratings": "Bewertungen",
+      "add_filter": "Filter hinzufügen..."
     },
     "hide_rejected": "Abgelehnte ausblenden",
     "favorites_only": "Nur Favoriten",

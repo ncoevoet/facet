@@ -168,9 +168,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   readonly scrollSentinel = viewChild<ElementRef<HTMLDivElement>>('scrollSentinel');
   private readonly filterDrawer = viewChild<MatSidenav>('filterDrawer');
 
-  // Sidebar state preservation
+  // Sidebar scroll preservation
   private savedFilterScroll = 0;
-  private savedDetailStates: boolean[] = [];
 
   // Tooltip state
   readonly tooltipPhoto = signal<Photo | null>(null);
@@ -233,25 +232,16 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.observer?.disconnect();
   }
 
-  /** Save/restore sidebar state on drawer open/close */
+  /** Save/restore sidebar scroll position on drawer open/close */
   onFilterDrawerChange(open: boolean): void {
-    this.store.filterDrawerOpen.set(open);
-    // The sidebar manages its own scroll area via filterScrollArea viewChild
-    // We hook a sidebar element via DOM query after open since the sidebar is a child component
+    this.store.setFilterDrawerOpen(open);
     const sidebarEl = document.querySelector('app-gallery-filter-sidebar div[data-scroll]') as HTMLElement | null;
     if (!sidebarEl) return;
 
     if (!open) {
       this.savedFilterScroll = sidebarEl.scrollTop;
-      this.savedDetailStates = Array.from(sidebarEl.querySelectorAll('details')).map(d => d.open);
     } else {
-      queueMicrotask(() => {
-        const details = sidebarEl.querySelectorAll('details');
-        this.savedDetailStates.forEach((wasOpen, i) => {
-          if (details[i]) details[i].open = wasOpen;
-        });
-        sidebarEl.scrollTop = this.savedFilterScroll;
-      });
+      queueMicrotask(() => { sidebarEl.scrollTop = this.savedFilterScroll; });
     }
   }
 

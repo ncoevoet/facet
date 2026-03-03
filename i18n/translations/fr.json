@@ -995,7 +995,8 @@
       "extended_quality": "Qualité étendue",
       "saliency": "Saillance du sujet",
       "exposure_range": "Exposition & Plage",
-      "ratings": "Notes"
+      "ratings": "Notes",
+      "add_filter": "Ajouter un filtre..."
     },
     "hide_rejected": "Masquer rejetes",
     "favorites_only": "Favoris uniquement",
