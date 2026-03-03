@@ -23,9 +23,10 @@ from fastapi.staticfiles import StaticFiles
 async def lifespan(app: FastAPI):
     """Application lifespan — startup/shutdown hooks."""
     # Startup: warm up caches
-    from api.db_helpers import get_existing_columns, is_photo_tags_available
+    from api.db_helpers import get_existing_columns, is_photo_tags_available, backfill_image_dimensions
     get_existing_columns()
     is_photo_tags_available()
+    backfill_image_dimensions()
     yield
     # Shutdown: nothing to clean up (sqlite connections are per-request)
 

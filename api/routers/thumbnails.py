@@ -237,4 +237,27 @@ async def image(
             return Response(content="Not found", status_code=404)
     if not os.path.isfile(real_disk):
         return Response(content="Not found", status_code=404)
+
+    # Convert RAW files to JPEG for browser display
+    if real_disk.lower().endswith(('.cr2', '.cr3')):
+        import rawpy
+        from fastapi.responses import StreamingResponse
+        from PIL import Image as PILImage
+
+        try:
+            with rawpy.imread(real_disk) as raw:
+                rgb = raw.postprocess(
+                    use_camera_wb=True,
+                    no_auto_bright=False,
+                    output_color=rawpy.ColorSpace.sRGB,
+                    output_bps=8,
+                )
+            pil_img = PILImage.fromarray(rgb)
+            buffer = BytesIO()
+            pil_img.save(buffer, format='JPEG', quality=92)
+            buffer.seek(0)
+            return StreamingResponse(buffer, media_type='image/jpeg')
+        except Exception:
+            return Response(content="Failed to convert RAW file", status_code=500)
+
     return FileResponse(real_disk)

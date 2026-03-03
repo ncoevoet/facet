@@ -145,7 +145,7 @@ def get_user_directories(username):
 
 
 def get_all_scan_directories():
-    """Get all configured directories (all users + shared). For scan UI."""
+    """Get all configured directories (all users + shared + path_mapping targets)."""
     users = _FULL_CONFIG.get('users', {})
     dirs = set()
     for key, val in users.items():
@@ -153,6 +153,9 @@ def get_all_scan_directories():
             dirs.update(val)
         elif isinstance(val, dict):
             dirs.update(val.get('directories', []))
+    # Include path_mapping target directories so mapped paths pass the allowlist
+    for target in VIEWER_CONFIG.get('path_mapping', {}).values():
+        dirs.add(target)
     return sorted(dirs)
 
 

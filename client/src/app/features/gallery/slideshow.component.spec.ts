@@ -32,8 +32,8 @@ describe('SlideshowComponent', () => {
   });
 
   describe('initial state', () => {
-    it('starts at index 0', () => {
-      expect(component.currentIndex()).toBe(0);
+    it('starts at slide index 0', () => {
+      expect(component.currentSlideIndex()).toBe(0);
     });
 
     it('starts playing', () => {
@@ -57,9 +57,44 @@ describe('SlideshowComponent', () => {
     });
   });
 
-  describe('currentPhoto()', () => {
+  describe('currentSlide()', () => {
     it('returns null when no photos', () => {
-      expect(component.currentPhoto()).toBeNull();
+      expect(component.currentSlide()).toBeNull();
+    });
+  });
+
+  describe('slides()', () => {
+    it('returns empty array when no photos', () => {
+      expect(component.slides()).toEqual([]);
+    });
+  });
+
+  describe('photoCounter()', () => {
+    it('returns correct range with no slides', () => {
+      const counter = component.photoCounter();
+      expect(counter).toEqual({ start: 1, end: 0, total: 0 });
+    });
+  });
+
+  describe('slideDuration()', () => {
+    it('equals base duration for single-photo slides', () => {
+      expect(component.slideDuration()).toBe(4);
+    });
+  });
+
+  describe('crossfade layers', () => {
+    it('starts with layer A as front', () => {
+      expect(component.frontLayer()).toBe('a');
+    });
+
+    it('starts with layer A opacity 1, layer B opacity 0', () => {
+      expect(component.layerAOpacity()).toBe(1);
+      expect(component.layerBOpacity()).toBe(0);
+    });
+
+    it('layer A and B slides start as null', () => {
+      expect(component.layerASlide()).toBeNull();
+      expect(component.layerBSlide()).toBeNull();
     });
   });
 
@@ -91,7 +126,6 @@ describe('SlideshowComponent', () => {
     });
 
     it('resets progress to 0', () => {
-      // Manually set progress > 0
       component['progress'].set(50);
       component.onDurationChange(6);
       expect(component.progress()).toBe(0);
@@ -100,24 +134,20 @@ describe('SlideshowComponent', () => {
 
   describe('timer progress', () => {
     it('progress advances each 100ms tick', () => {
-      // afterNextRender fires in TestBed and starts the interval
-      // Reset state for clean measurement
       component['clearTimerInterval']();
       component.progress.set(0);
       component['startInterval']();
-      jest.advanceTimersByTime(100); // one tick with default 4s duration: +2.5%
+      jest.advanceTimersByTime(100); // one tick with default 4s slideDuration: +2.5%
       expect(component.progress()).toBeCloseTo(2.5, 1);
     });
 
     it('resets progress and stays at index 0 after full duration (no photos)', () => {
-      // With 1s duration, each tick = 100/(1*10) = 10%, need 10 ticks
       component['clearTimerInterval']();
       component.progress.set(0);
       component.duration.set(1);
       component['startInterval']();
       jest.advanceTimersByTime(1000); // 10 ticks of 100ms
-      expect(component.currentIndex()).toBe(0); // no photos → stays at 0
-      // Progress hits 100 on the last tick, then preloadAndAdvance → startInterval resets to 0
+      expect(component.currentSlideIndex()).toBe(0); // no photos → stays at 0
       expect(component.progress()).toBe(0);
     });
   });
@@ -136,9 +166,8 @@ describe('SlideshowComponent', () => {
     });
 
     it('prev() wraps to last index when at 0 with no photos', () => {
-      // photos() is empty, so length - 1 = -1 → Math.max(0, -1) = 0
       component.prev();
-      expect(component.currentIndex()).toBe(0);
+      expect(component.currentSlideIndex()).toBe(0);
     });
   });
 

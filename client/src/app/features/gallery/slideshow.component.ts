@@ -18,6 +18,10 @@ import { Photo } from '../../shared/models/photo.model';
 import { ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
+interface Slide {
+  photos: Photo[];
+}
+
 @Component({
   selector: 'app-slideshow',
   imports: [
@@ -38,30 +42,65 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
     >
       <!-- Top bar -->
       <div
-        class="absolute top-0 left-0 right-0 flex items-center justify-between py-2 px-3 z-10 bg-gradient-to-b from-black/70 to-transparent transition-opacity duration-300"
+        class="absolute top-0 left-0 right-0 flex items-center justify-between py-2 px-3 z-30 bg-gradient-to-b from-black/70 to-transparent transition-opacity duration-300"
         [class.opacity-0]="!controlsVisible()"
         [class.pointer-events-none]="!controlsVisible()"
+        (click)="$event.stopPropagation()"
+        (mousemove)="$event.stopPropagation()"
       >
+        @if (photoCounter(); as c) {
+          <span class="text-white text-sm opacity-70">
+            @if (c.start === c.end) { {{ c.start }} } @else { {{ c.start }}-{{ c.end }} }
+            / {{ c.total }}
+          </span>
+        }
         <button mat-icon-button (click)="close()" [matTooltip]="'slideshow.close' | translate">
           <mat-icon class="!text-white">close</mat-icon>
         </button>
-        <span class="text-white text-sm opacity-70">{{ currentIndex() + 1 }} / {{ photos().length }}</span>
       </div>
 
       <!-- Image area -->
-      <div class="flex-1 flex items-center justify-center overflow-hidden relative">
-        @if (currentPhoto(); as photo) {
-          <img
-            [src]="photo.path | imageUrl"
-            [alt]="photo.filename"
-            class="max-w-full max-h-full object-contain"
-          />
-        }
+      <div class="flex-1 overflow-hidden relative">
+        <!-- Layer A -->
+        <div
+          class="absolute inset-0 flex gap-0.5"
+          style="transition: opacity 300ms ease"
+          [style.opacity]="layerAOpacity()"
+          [style.z-index]="frontLayer() === 'a' ? 1 : 0"
+        >
+          @if (layerASlide(); as slide) {
+            @for (photo of slide.photos; track photo.path) {
+              <img
+                [src]="photo.path | imageUrl"
+                [alt]="photo.filename"
+                class="flex-1 min-w-0 h-full object-cover"
+              />
+            }
+          }
+        </div>
+
+        <!-- Layer B -->
+        <div
+          class="absolute inset-0 flex gap-0.5"
+          style="transition: opacity 300ms ease"
+          [style.opacity]="layerBOpacity()"
+          [style.z-index]="frontLayer() === 'b' ? 1 : 0"
+        >
+          @if (layerBSlide(); as slide) {
+            @for (photo of slide.photos; track photo.path) {
+              <img
+                [src]="photo.path | imageUrl"
+                [alt]="photo.filename"
+                class="flex-1 min-w-0 h-full object-cover"
+              />
+            }
+          }
+        </div>
 
         <!-- Left arrow -->
         <button
           mat-icon-button
-          class="absolute left-2 top-1/2 -translate-y-1/2 !bg-black/40 hover:!bg-black/70 transition-opacity duration-300"
+          class="absolute left-2 top-1/2 -translate-y-1/2 z-20 !bg-black/40 hover:!bg-black/70 transition-opacity duration-300"
           [class.opacity-0]="!controlsVisible()"
           [class.pointer-events-none]="!controlsVisible()"
           (click)="prev()"
@@ -73,7 +112,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
         <!-- Right arrow -->
         <button
           mat-icon-button
-          class="absolute right-2 top-1/2 -translate-y-1/2 !bg-black/40 hover:!bg-black/70 transition-opacity duration-300"
+          class="absolute right-2 top-1/2 -translate-y-1/2 z-20 !bg-black/40 hover:!bg-black/70 transition-opacity duration-300"
           [class.opacity-0]="!controlsVisible()"
           [class.pointer-events-none]="!controlsVisible()"
           (click)="next()"
@@ -85,9 +124,11 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
       <!-- Bottom bar -->
       <div
-        class="absolute bottom-0 left-0 right-0 bg-black/70 px-4 py-3 transition-opacity duration-300"
+        class="absolute bottom-0 left-0 right-0 z-30 bg-black/70 px-4 py-3 transition-opacity duration-300"
         [class.opacity-0]="!controlsVisible()"
         [class.pointer-events-none]="!controlsVisible()"
+        (click)="$event.stopPropagation()"
+        (mousemove)="$event.stopPropagation()"
       >
         <!-- Progress bar -->
         <div class="h-0.5 bg-white/20 rounded-full overflow-hidden mb-3">
@@ -105,8 +146,10 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
             <input matSliderThumb [value]="duration()" (valueChange)="onDurationChange($event)" />
           </mat-slider>
           <span class="text-white text-xs opacity-70 shrink-0 w-8 text-right">{{ duration() }}s</span>
-          @if (currentPhoto(); as photo) {
-            <span class="text-white text-sm truncate max-w-xs opacity-80">{{ photo.filename }}</span>
+          @if (currentSlide(); as slide) {
+            @if (slide.photos.length === 1) {
+              <span class="text-white text-sm truncate max-w-xs opacity-80">{{ slide.photos[0].filename }}</span>
+            }
           }
           <button
             mat-icon-button
@@ -129,29 +172,109 @@ export class SlideshowComponent implements OnDestroy {
 
   private readonly container = viewChild.required<ElementRef<HTMLElement>>('slideshowContainer');
 
-  readonly currentIndex = signal(0);
+  // Viewport dimensions for adaptive grouping
+  private readonly viewportWidth = signal(typeof window !== 'undefined' ? window.innerWidth : 1920);
+  private readonly viewportHeight = signal(typeof window !== 'undefined' ? window.innerHeight : 1080);
+
+  // Slide grouping
+  private readonly maxPortraitsPerSlide = computed(() => {
+    const ar = this.viewportWidth() / this.viewportHeight();
+    return Math.max(1, Math.min(3, Math.round(ar / (2 / 3))));
+  });
+
+  readonly slides = computed<Slide[]>(() => {
+    const photos = this.photos();
+    const max = this.maxPortraitsPerSlide();
+    const result: Slide[] = [];
+    const buf: Photo[] = [];
+
+    for (const p of photos) {
+      const isPortrait = p.image_width && p.image_height && p.image_height > p.image_width;
+      if (isPortrait) {
+        buf.push(p);
+        if (buf.length >= max) {
+          result.push({ photos: buf.splice(0, max) });
+        }
+      } else {
+        result.push({ photos: [p] });
+      }
+    }
+
+    // Flush remaining buffered portraits
+    while (buf.length >= 2) {
+      result.push({ photos: buf.splice(0, Math.min(buf.length, max)) });
+    }
+    if (buf.length === 1) {
+      result.push({ photos: [buf[0]] });
+    }
+
+    return result;
+  });
+
+  readonly currentSlideIndex = signal(0);
+  readonly currentSlide = computed(() => this.slides()[this.currentSlideIndex()] ?? null);
+
+  /** Photo range for the current slide (1-based). */
+  readonly photoCounter = computed(() => {
+    const slides = this.slides();
+    const idx = this.currentSlideIndex();
+    let start = 0;
+    for (let i = 0; i < idx && i < slides.length; i++) {
+      start += slides[i].photos.length;
+    }
+    const count = slides[idx]?.photos.length ?? 0;
+    return { start: start + 1, end: start + count, total: this.photos().length };
+  });
+
+  // Two-layer crossfade
+  readonly layerASlide = signal<Slide | null>(null);
+  readonly layerBSlide = signal<Slide | null>(null);
+  readonly layerAOpacity = signal(1);
+  readonly layerBOpacity = signal(0);
+  readonly frontLayer = signal<'a' | 'b'>('a');
+
+  // Playback state
   readonly isPlaying = signal(true);
   readonly duration = signal(4);
+
+  /** Effective duration = base duration * number of photos in current slide. */
+  readonly slideDuration = computed(() => {
+    const count = this.currentSlide()?.photos.length ?? 1;
+    return this.duration() * count;
+  });
   readonly progress = signal(0);
   readonly controlsVisible = signal(true);
   readonly isFullscreen = signal(false);
 
-  readonly currentPhoto = computed(() => {
-    const photos = this.photos();
-    return photos[this.currentIndex()] ?? null;
-  });
-
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private hideControlsTimer: ReturnType<typeof setTimeout> | null = null;
+  private crossfadeTimer: ReturnType<typeof setTimeout> | null = null;
   private boundKeyHandler!: (e: KeyboardEvent) => void;
   private boundFullscreenHandler!: () => void;
+  private boundResizeHandler!: () => void;
 
   constructor() {
     afterNextRender(() => {
+      // Show first slide immediately in layer A
+      const firstSlide = this.slides()[0];
+      if (firstSlide) {
+        this.layerASlide.set(firstSlide);
+        this.layerAOpacity.set(1);
+        this.frontLayer.set('a');
+      }
+
       this.boundKeyHandler = (e: KeyboardEvent) => this.onKeyDown(e);
       window.addEventListener('keydown', this.boundKeyHandler);
+
       this.boundFullscreenHandler = () => this.isFullscreen.set(!!document.fullscreenElement);
       document.addEventListener('fullscreenchange', this.boundFullscreenHandler);
+
+      this.boundResizeHandler = () => {
+        this.viewportWidth.set(window.innerWidth);
+        this.viewportHeight.set(window.innerHeight);
+      };
+      window.addEventListener('resize', this.boundResizeHandler);
+
       this.startInterval();
       this.scheduleHideControls();
     });
@@ -160,6 +283,9 @@ export class SlideshowComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.clearTimerInterval();
     this.clearHideControlsTimer();
+    if (this.crossfadeTimer) {
+      clearTimeout(this.crossfadeTimer);
+    }
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
@@ -168,6 +294,9 @@ export class SlideshowComponent implements OnDestroy {
     }
     if (this.boundFullscreenHandler) {
       document.removeEventListener('fullscreenchange', this.boundFullscreenHandler);
+    }
+    if (this.boundResizeHandler) {
+      window.removeEventListener('resize', this.boundResizeHandler);
     }
   }
 
@@ -189,14 +318,19 @@ export class SlideshowComponent implements OnDestroy {
   next(): void {
     this.clearTimerInterval();
     this.progress.set(0);
-    this.preloadAndAdvance(this.nextIndex());
+    const nextIdx = this.nextSlideIndex();
+    if (nextIdx >= 0) {
+      this.preloadAndAdvance(nextIdx);
+    } else {
+      this.waitForMoreSlides();
+    }
   }
 
   prev(): void {
     this.clearTimerInterval();
     this.progress.set(0);
-    const photos = this.photos();
-    const idx = this.currentIndex() === 0 ? Math.max(0, photos.length - 1) : this.currentIndex() - 1;
+    const slides = this.slides();
+    const idx = this.currentSlideIndex() === 0 ? Math.max(0, slides.length - 1) : this.currentSlideIndex() - 1;
     this.preloadAndAdvance(idx);
   }
 
@@ -221,49 +355,118 @@ export class SlideshowComponent implements OnDestroy {
     }
   }
 
-  private nextIndex(): number {
-    const photos = this.photos();
-    let idx = this.currentIndex() + 1;
-    if (idx >= photos.length - 5 && this.hasMore() && !this.loading()) {
+  /** Returns next slide index, or -1 when waiting for more data to load. */
+  private nextSlideIndex(): number {
+    const slides = this.slides();
+    let idx = this.currentSlideIndex() + 1;
+    if (idx >= slides.length - 5 && this.hasMore() && !this.loading()) {
       this.store.nextPage();
     }
-    if (idx >= photos.length) {
+    if (idx >= slides.length) {
+      if (this.hasMore()) return -1;
       idx = 0;
     }
     return idx;
   }
 
-  private preloadAndAdvance(idx: number): void {
-    const photo = this.photos()[idx];
-    if (!photo) {
-      this.currentIndex.set(idx);
+  private preloadAndAdvance(slideIndex: number): void {
+    const slide = this.slides()[slideIndex];
+    if (!slide) {
+      this.currentSlideIndex.set(slideIndex);
       if (this.isPlaying()) this.startInterval();
       return;
     }
-    const img = new Image();
-    const onReady = () => {
-      this.currentIndex.set(idx);
-      if (this.isPlaying()) this.startInterval();
-    };
-    img.onload = onReady;
-    img.onerror = onReady;
-    img.src = `/image?${new URLSearchParams({ path: photo.path })}`;
+
+    // Preload all images in the slide
+    const preloadPromises = slide.photos.map(
+      (photo) =>
+        new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          img.src = `/image?${new URLSearchParams({ path: photo.path })}`;
+        }),
+    );
+
+    Promise.all(preloadPromises).then(() => {
+      this.currentSlideIndex.set(slideIndex);
+      this.crossfadeTo(slide).then(() => {
+        if (this.isPlaying()) this.startInterval();
+      });
+    });
+  }
+
+  private crossfadeTo(slide: Slide): Promise<void> {
+    // Cancel any in-progress crossfade
+    if (this.crossfadeTimer) {
+      clearTimeout(this.crossfadeTimer);
+      this.crossfadeTimer = null;
+    }
+
+    return new Promise<void>((resolve) => {
+      const isAFront = this.frontLayer() === 'a';
+      const standbySlide = isAFront ? this.layerBSlide : this.layerASlide;
+      const standbyOpacity = isAFront ? this.layerBOpacity : this.layerAOpacity;
+      const activeOpacity = isAFront ? this.layerAOpacity : this.layerBOpacity;
+      const newFront: 'a' | 'b' = isAFront ? 'b' : 'a';
+
+      // Load slide into standby layer (invisible)
+      standbySlide.set(slide);
+      standbyOpacity.set(0);
+      this.frontLayer.set(newFront);
+
+      // Wait for DOM paint, then fade in
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          standbyOpacity.set(1);
+          this.crossfadeTimer = setTimeout(() => {
+            activeOpacity.set(0);
+            this.crossfadeTimer = null;
+            resolve();
+          }, 300);
+        });
+      });
+    });
   }
 
   private startInterval(): void {
     this.clearTimerInterval();
     this.progress.set(0);
     this.intervalId = setInterval(() => {
-      const tickIncrement = 100 / (this.duration() * 10);
+      const tickIncrement = 100 / (this.slideDuration() * 10);
       const newProgress = this.progress() + tickIncrement;
       if (newProgress >= 100) {
         this.progress.set(100);
         this.clearTimerInterval();
-        this.preloadAndAdvance(this.nextIndex());
+        const nextIdx = this.nextSlideIndex();
+        if (nextIdx >= 0) {
+          this.preloadAndAdvance(nextIdx);
+        } else {
+          this.waitForMoreSlides();
+        }
       } else {
         this.progress.set(newProgress);
       }
     }, 100);
+  }
+
+  /** Poll until new slides appear from a loading next page. */
+  private waitForMoreSlides(): void {
+    this.clearTimerInterval();
+    this.intervalId = setInterval(() => {
+      const slides = this.slides();
+      const nextIdx = this.currentSlideIndex() + 1;
+      if (nextIdx < slides.length) {
+        this.clearTimerInterval();
+        this.progress.set(0);
+        this.preloadAndAdvance(nextIdx);
+      } else if (!this.hasMore()) {
+        // No more data — wrap to beginning
+        this.clearTimerInterval();
+        this.progress.set(0);
+        this.preloadAndAdvance(0);
+      }
+    }, 200);
   }
 
   private clearTimerInterval(): void {
@@ -273,9 +476,9 @@ export class SlideshowComponent implements OnDestroy {
     }
   }
 
-  private scheduleHideControls(): void {
+  private scheduleHideControls(delay = 2000): void {
     this.clearHideControlsTimer();
-    this.hideControlsTimer = setTimeout(() => this.controlsVisible.set(false), 2000);
+    this.hideControlsTimer = setTimeout(() => this.controlsVisible.set(false), delay);
   }
 
   private clearHideControlsTimer(): void {

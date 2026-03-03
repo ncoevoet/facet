@@ -4,6 +4,7 @@ Database helper functions for the FastAPI API server.
 """
 
 import hashlib
+import struct
 import time
 from config import ScoringConfig
 from api.config import (
@@ -24,7 +25,7 @@ PHOTO_BASE_COLS = [
     'f_stop', 'shutter_speed', 'focal_length', 'aesthetic', 'face_count', 'face_quality',
     'eye_sharpness', 'face_sharpness', 'face_ratio', 'tech_sharpness', 'color_score',
     'exposure_score', 'comp_score', 'isolation_bonus', 'is_blink', 'phash', 'is_burst_lead',
-    'aggregate', 'category'
+    'aggregate', 'category', 'image_width', 'image_height'
 ]
 PHOTO_OPTIONAL_COLS = [
     'histogram_spread', 'mean_luminance', 'power_point_score',
@@ -279,3 +280,65 @@ def get_preference_columns(user_id=None):
         'is_favorite': 'photos.is_favorite',
         'is_rejected': 'photos.is_rejected',
     }
+
+
+def _jpeg_dimensions(blob):
+    """Extract width/height from a JPEG blob by parsing SOF markers."""
+    data = bytes(blob)
+    i = 0
+    if data[0:2] != b'\xff\xd8':
+        return None, None
+    i = 2
+    while i < len(data) - 1:
+        if data[i] != 0xFF:
+            break
+        marker = data[i + 1]
+        if marker == 0xD9:  # EOI
+            break
+        if marker in (0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0x01):
+            i += 2
+            continue
+        if i + 3 >= len(data):
+            break
+        length = struct.unpack('>H', data[i + 2:i + 4])[0]
+        # SOF markers: C0-C3, C5-C7, C9-CB, CD-CF
+        if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                      0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+            if i + 9 <= len(data):
+                height = struct.unpack('>H', data[i + 5:i + 7])[0]
+                width = struct.unpack('>H', data[i + 7:i + 9])[0]
+                return width, height
+        i += 2 + length
+    return None, None
+
+
+def backfill_image_dimensions():
+    """Backfill image_width/image_height from thumbnail BLOBs for NULL rows."""
+    conn = get_db_connection()
+    try:
+        null_count = conn.execute(
+            "SELECT COUNT(*) FROM photos WHERE image_width IS NULL OR image_height IS NULL"
+        ).fetchone()[0]
+        if null_count == 0:
+            return
+
+        cursor = conn.execute(
+            "SELECT path, thumbnail FROM photos "
+            "WHERE (image_width IS NULL OR image_height IS NULL) AND thumbnail IS NOT NULL"
+        )
+
+        updated = 0
+        for row in cursor:
+            w, h = _jpeg_dimensions(row['thumbnail'])
+            if w and h:
+                conn.execute(
+                    "UPDATE photos SET image_width = ?, image_height = ? WHERE path = ?",
+                    (w, h, row['path'])
+                )
+                updated += 1
+
+        if updated:
+            conn.commit()
+            print(f"[startup] Backfilled image dimensions for {updated}/{null_count} photos from thumbnails")
+    finally:
+        conn.close()
