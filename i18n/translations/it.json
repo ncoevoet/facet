@@ -519,7 +519,12 @@
     "visual": "Visivo",
     "persons": "Persone",
     "date": "Data",
-    "score": "Punteggio"
+    "score": "Punteggio",
+    "mode_visual": "Somiglianza visiva",
+    "mode_color": "Tavolozza colori",
+    "mode_person": "Stessa persona",
+    "no_faces": "Nessun volto rilevato in questa foto",
+    "no_histogram": "Nessun dato colore disponibile per questa foto"
   },
   "merge_suggestions": {
     "title": "Suggerimenti di unione",

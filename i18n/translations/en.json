@@ -526,7 +526,12 @@
     "visual": "Visual",
     "persons": "Persons",
     "date": "Date",
-    "score": "Score"
+    "score": "Score",
+    "mode_visual": "Visual similarity",
+    "mode_color": "Color palette",
+    "mode_person": "Same person",
+    "no_faces": "No faces detected on this photo",
+    "no_histogram": "No color data available for this photo"
   },
   "merge_suggestions": {
     "title": "Merge Suggestions",

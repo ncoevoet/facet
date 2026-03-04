@@ -79,7 +79,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
                   (tagClicked)="store.updateFilter('tag', $event)"
                   (personFilterClicked)="filterByPerson($event)"
                   (personRemoveClicked)="removePerson($event.photo, $event.personId)"
-                  (openSimilarClicked)="openSimilar($event)"
+                  (openSimilarClicked)="openSimilar($event.photo, $event.mode)"
                   (openAddPersonClicked)="openAddPerson($event)"
                   (favoriteToggled)="store.toggleFavorite($event)"
                   (rejectedToggled)="store.toggleRejected($event)"
@@ -89,7 +89,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
               }
             </div>
           } @else {
-            <div #mosaicContainer class="flex flex-col gap-2 p-2 md:p-4">
+            <div class="flex flex-col gap-2 p-2 md:p-4">
               @for (row of mosaicRows(); track $index) {
                 <div class="flex gap-2">
                   @for (photo of row.photos; track photo.path; let i = $index) {
@@ -112,7 +112,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
                       (tagClicked)="store.updateFilter('tag', $event)"
                       (personFilterClicked)="filterByPerson($event)"
                       (personRemoveClicked)="removePerson($event.photo, $event.personId)"
-                      (openSimilarClicked)="openSimilar($event)"
+                      (openSimilarClicked)="openSimilar($event.photo, $event.mode)"
                       (openAddPersonClicked)="openAddPerson($event)"
                       (favoriteToggled)="store.toggleFavorite($event)"
                       (rejectedToggled)="store.toggleRejected($event)"
@@ -488,9 +488,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   // --- Card action handlers ---
 
-  openSimilar(photo: Photo): void {
+  openSimilar(photo: Photo, mode: 'visual' | 'color' | 'person'): void {
     this.hideTooltip();
-    this.store.updateFilters({ similar_to: photo.path, min_similarity: '70' });
+    this.store.updateFilters({ similar_to: photo.path, similarity_mode: mode, min_similarity: '70' });
   }
 
   openAddPerson(photo: Photo): void {
@@ -537,8 +537,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private setupResizeObserver(): void {
     this.resizeObserver = new ResizeObserver(entries => {
       for (const entry of entries) {
-        const padding = 32; // p-4 on each side at md+
-        this.containerWidth.set(Math.floor(entry.contentRect.width) - padding);
+        this.containerWidth.set(Math.floor(entry.contentRect.width));
       }
     });
 

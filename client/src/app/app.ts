@@ -218,6 +218,12 @@ export class App implements OnInit {
     return chips;
   });
 
+  protected readonly SIMILARITY_MODES = [
+    { id: 'visual', icon: 'image_search' },
+    { id: 'color', icon: 'palette' },
+    { id: 'person', icon: 'person_search' },
+  ] as const;
+
   protected readonly similaritySliderValue = computed(() => parseInt(this.store.filters().min_similarity || '70', 10));
 
   protected onSimilarityFilterChange(value: number): void {
@@ -225,7 +231,11 @@ export class App implements OnInit {
   }
 
   protected clearSimilarFilter(): void {
-    this.store.updateFilters({ similar_to: '', min_similarity: '70' });
+    this.store.updateFilters({ similar_to: '', similarity_mode: 'visual', min_similarity: '70' });
+  }
+
+  protected onSimilarityModeChange(mode: 'visual' | 'color' | 'person'): void {
+    this.store.updateFilter('similarity_mode', mode);
   }
 
   clearFilterChip(chip: { id: string; clearKeys: string[] }): void {
@@ -305,10 +315,6 @@ export class App implements OnInit {
 
   logout(): void {
     this.auth.logout();
-  }
-
-  navigateTo(path: string): void {
-    this.router.navigate([path]);
   }
 
   showEditionDialog(): void {

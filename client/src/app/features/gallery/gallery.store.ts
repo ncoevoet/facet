@@ -171,6 +171,7 @@ export interface GalleryFilters {
   composition_pattern: string;
   // Similar-to filter
   similar_to: string;
+  similarity_mode: 'visual' | 'color' | 'person';
   min_similarity: string;
   // Display
   hide_details: boolean;
@@ -265,6 +266,7 @@ const DEFAULT_FILTERS: GalleryFilters = {
   date_to: '',
   composition_pattern: '',
   similar_to: '',
+  similarity_mode: 'visual',
   min_similarity: '70',
   hide_details: true,
   hide_blinks: true,
@@ -684,6 +686,7 @@ export class GalleryStore {
       if (f[key]) params[key] = String(f[key]);
     }
     if (f.similar_to && f.min_similarity) params['min_similarity'] = f.min_similarity;
+    if (f.similar_to && f.similarity_mode && f.similarity_mode !== 'visual') params['similarity_mode'] = f.similarity_mode;
 
     // Boolean filters: only include when different from defaults
     if (f.hide_details !== (defaults?.hide_details ?? true))
@@ -740,6 +743,9 @@ export class GalleryStore {
     for (const key of stringKeys) {
       if (params[key]) (result as Record<string, unknown>)[key] = params[key];
     }
+    if (params['similarity_mode'] && ['visual', 'color', 'person'].includes(params['similarity_mode'])) {
+      result.similarity_mode = params['similarity_mode'] as GalleryFilters['similarity_mode'];
+    }
 
     // Boolean params
     if (params['hide_details'] !== undefined) result.hide_details = params['hide_details'] !== 'false';
@@ -761,7 +767,7 @@ export class GalleryStore {
     return firstValueFrom(
       this.api.get<{ similar: Photo[]; total: number; has_more: boolean }>(
         `/similar_photos/${encodeURIComponent(f.similar_to)}`,
-        { limit: f.per_page, offset, min_similarity: minSim, full: 1 },
+        { limit: f.per_page, offset, min_similarity: minSim, mode: f.similarity_mode || 'visual', full: 1 },
       ),
     );
   }

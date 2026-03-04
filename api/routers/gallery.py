@@ -452,42 +452,289 @@ def _enrich_similar_with_full_rows(page_results, conn, user_id):
     return ordered
 
 
+def _similar_result(row, similarity):
+    """Build a standard similar-photo result dict."""
+    return {
+        'path': row['path'],
+        'filename': row['filename'],
+        'similarity': round(similarity, 4),
+        'aggregate': row.get('aggregate'),
+        'aesthetic': row.get('aesthetic'),
+        'date_taken': row.get('date_taken'),
+    }
+
+
+def _find_similar_visual(conn, source, photo_path, min_similarity, vis_sql, vis_params):
+    """Find visually similar photos using pHash hamming distance (primary) + CLIP cosine (secondary)."""
+    import numpy as np
+    from utils.duplicate import _POPCOUNT_TABLE
+    PHASH_W = 0.7
+    CLIP_W = 0.3
+
+    source_phash = np.uint64(int(source['phash'], 16)) if source.get('phash') else None
+
+    source_embedding = None
+    if source.get('clip_embedding'):
+        e = np.frombuffer(source['clip_embedding'], dtype=np.float32).copy()
+        norm = np.linalg.norm(e)
+        if norm > 0:
+            source_embedding = e / norm
+
+    if source_phash is None and source_embedding is None:
+        return [], None
+
+    rows = conn.execute(f"""
+        SELECT path, filename, phash, date_taken, aggregate, aesthetic
+        FROM photos
+        WHERE path != ? AND phash IS NOT NULL AND {vis_sql}
+    """, [photo_path] + vis_params).fetchall()
+    rows = [dict(r) for r in rows]
+
+    if not rows:
+        clip_rows = conn.execute(f"""
+            SELECT path, filename, clip_embedding, date_taken, aggregate, aesthetic
+            FROM photos
+            WHERE path != ? AND clip_embedding IS NOT NULL AND {vis_sql}
+            LIMIT 5000
+        """, [photo_path] + vis_params).fetchall()
+        rows = [dict(r) for r in clip_rows]
+        if not rows or source_embedding is None:
+            return [], None
+        results = []
+        for r in rows:
+            e = np.frombuffer(r['clip_embedding'], dtype=np.float32).copy()
+            n = np.linalg.norm(e)
+            if n == 0:
+                continue
+            sim = max(0.0, float(np.dot(source_embedding, e / n)))
+            if sim >= min_similarity:
+                results.append(_similar_result(r, sim))
+        results.sort(key=lambda x: x['similarity'], reverse=True)
+        return results[:500], None
+
+    hashes = np.array([int(r['phash'], 16) for r in rows], dtype=np.uint64)
+    xor = np.bitwise_xor(hashes, source_phash)
+    hamming = np.zeros(len(rows), dtype=np.int32)
+    for byte_idx in range(8):
+        shift = np.uint64(byte_idx * 8)
+        byte_vals = ((xor >> shift) & np.uint64(0xFF)).astype(np.int32)
+        hamming += _POPCOUNT_TABLE[byte_vals]
+    phash_sims = 1.0 - hamming / 64.0
+
+    if source_embedding is not None:
+        phash_floor = max(0.0, (min_similarity - CLIP_W) / PHASH_W)
+    else:
+        phash_floor = min_similarity
+    candidate_indices = np.where(phash_sims >= phash_floor)[0]
+
+    clip_by_path: dict = {}
+    if source_embedding is not None and len(candidate_indices) > 0:
+        cand_paths = [rows[i]['path'] for i in candidate_indices]
+        for start in range(0, len(cand_paths), 500):
+            chunk = cand_paths[start:start + 500]
+            placeholders = ','.join('?' * len(chunk))
+            clip_rows = conn.execute(
+                f"SELECT path, clip_embedding FROM photos "
+                f"WHERE path IN ({placeholders}) AND clip_embedding IS NOT NULL",
+                chunk,
+            ).fetchall()
+            for cr in clip_rows:
+                e = np.frombuffer(cr['clip_embedding'], dtype=np.float32).copy()
+                n = np.linalg.norm(e)
+                if n > 0:
+                    clip_by_path[cr['path']] = e / n
+
+    results = []
+    for i in candidate_indices:
+        row = rows[i]
+        phash_sim = float(phash_sims[i])
+        cand_clip = clip_by_path.get(row['path'])
+        if source_embedding is not None and cand_clip is not None:
+            clip_sim = max(0.0, float(np.dot(source_embedding, cand_clip)))
+            sim = phash_sim * PHASH_W + clip_sim * CLIP_W
+        else:
+            sim = phash_sim * PHASH_W
+        if sim >= min_similarity:
+            results.append(_similar_result(row, sim))
+
+    results.sort(key=lambda x: x['similarity'], reverse=True)
+    return results[:500], None
+
+
+def _find_similar_color(conn, source, photo_path, min_similarity, vis_sql, vis_params):
+    """Find photos with similar color palette using histogram intersection + saturation/luminance."""
+    import numpy as np
+
+    src_hist_blob = source.get('histogram_data')
+    if not src_hist_blob:
+        return [], 'no_histogram'
+
+    src_mono = source.get('is_monochrome', 0)
+    src_sat = source.get('mean_saturation', 0) or 0
+    src_lum = source.get('mean_luminance', 0) or 0
+
+    # Decode source histogram (256 float32 = 1024 bytes)
+    src_hist = np.frombuffer(src_hist_blob, dtype=np.float32).copy()
+    src_norm = src_hist.sum()
+    if src_norm > 0:
+        src_hist = src_hist / src_norm
+
+    # Pre-filter: match monochrome flag, limit saturation distance
+    rows = conn.execute(f"""
+        SELECT path, filename, histogram_data, mean_saturation, mean_luminance,
+               is_monochrome, date_taken, aggregate, aesthetic
+        FROM photos
+        WHERE path != ? AND histogram_data IS NOT NULL
+              AND is_monochrome = ?
+              AND ABS(COALESCE(mean_saturation, 0) - ?) <= 3.0
+              AND {vis_sql}
+    """, [photo_path, src_mono, src_sat] + vis_params).fetchall()
+
+    results = []
+    for r in rows:
+        r = dict(r)
+        cand_hist = np.frombuffer(r['histogram_data'], dtype=np.float32).copy()
+        cand_norm = cand_hist.sum()
+        if cand_norm > 0:
+            cand_hist = cand_hist / cand_norm
+
+        # Histogram intersection (0..1)
+        hist_sim = float(np.minimum(src_hist, cand_hist).sum())
+
+        # Saturation distance (0..1, inverted)
+        cand_sat = r.get('mean_saturation', 0) or 0
+        sat_sim = max(0.0, 1.0 - abs(src_sat - cand_sat) / 10.0)
+
+        # Luminance distance (0..1, inverted)
+        cand_lum = r.get('mean_luminance', 0) or 0
+        lum_sim = max(0.0, 1.0 - abs(src_lum - cand_lum) / 10.0)
+
+        # Monochrome bonus
+        mono_bonus = 1.0 if (src_mono and r.get('is_monochrome')) else 0.0
+
+        sim = hist_sim * 0.7 + sat_sim * 0.1 + lum_sim * 0.1 + mono_bonus * 0.1
+        if sim >= min_similarity:
+            results.append(_similar_result(r, sim))
+
+    results.sort(key=lambda x: x['similarity'], reverse=True)
+    return results[:500], None
+
+
+def _find_similar_person(conn, source, photo_path, min_similarity, vis_sql, vis_params):
+    """Find photos containing the same person(s) via person_id or face embedding cosine."""
+    import numpy as np
+
+    # Get faces for source photo
+    faces = conn.execute(
+        "SELECT id, person_id, embedding FROM faces WHERE photo_path = ?",
+        [photo_path],
+    ).fetchall()
+
+    if not faces:
+        return [], 'no_faces'
+
+    person_ids = [f['person_id'] for f in faces if f['person_id']]
+
+    if person_ids:
+        # Fast path: find all photos sharing these person_ids
+        placeholders = ','.join('?' * len(person_ids))
+        rows = conn.execute(f"""
+            SELECT DISTINCT f.photo_path as path, p.filename, p.date_taken, p.aggregate, p.aesthetic
+            FROM faces f
+            JOIN photos p ON p.path = f.photo_path
+            WHERE f.person_id IN ({placeholders})
+              AND f.photo_path != ?
+              AND {vis_sql.replace('photos.path', 'p.path')}
+        """, person_ids + [photo_path] + vis_params).fetchall()
+
+        results = [_similar_result(dict(r), 1.0) for r in rows]
+        results.sort(key=lambda x: x.get('date_taken') or '', reverse=True)
+        return results[:500], None
+
+    # Slow path: cosine similarity on face embeddings
+    src_embeddings = []
+    for f in faces:
+        if f['embedding']:
+            e = np.frombuffer(f['embedding'], dtype=np.float32).copy()
+            n = np.linalg.norm(e)
+            if n > 0:
+                src_embeddings.append(e / n)
+
+    if not src_embeddings:
+        return [], 'no_faces'
+
+    all_faces = conn.execute(f"""
+        SELECT f.photo_path as path, f.embedding, p.filename, p.date_taken, p.aggregate, p.aesthetic
+        FROM faces f
+        JOIN photos p ON p.path = f.photo_path
+        WHERE f.photo_path != ? AND f.embedding IS NOT NULL AND {vis_sql.replace('photos.path', 'p.path')}
+        LIMIT 50000
+    """, [photo_path] + vis_params).fetchall()
+
+    # Group best similarity per photo
+    photo_sims: dict = {}
+    for r in all_faces:
+        r = dict(r)
+        e = np.frombuffer(r['embedding'], dtype=np.float32).copy()
+        n = np.linalg.norm(e)
+        if n == 0:
+            continue
+        cand_emb = e / n
+        best = max(float(np.dot(src_e, cand_emb)) for src_e in src_embeddings)
+        best = max(0.0, best)
+        path = r['path']
+        if path not in photo_sims or best > photo_sims[path]['similarity']:
+            photo_sims[path] = _similar_result(r, best)
+
+    results = [v for v in photo_sims.values() if v['similarity'] >= min_similarity]
+    results.sort(key=lambda x: x['similarity'], reverse=True)
+    return results[:500], None
+
+
+# Mode-specific default min_similarity values
+_MODE_DEFAULT_MIN_SIM = {
+    'visual': 0.40,
+    'color': 0.40,
+    'person': 0.0,
+}
+
+
 @router.get("/api/similar_photos/{photo_path:path}")
 async def api_similar_photos(
     photo_path: str,
+    mode: str = Query("visual"),
     limit: int = Query(20),
     offset: int = Query(0),
-    min_similarity: float = Query(0.40),
+    min_similarity: Optional[float] = Query(None),
     full: int = Query(0),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
-    """Find visually similar photos using pHash hamming distance (primary) + CLIP cosine (secondary).
+    """Find similar photos using different similarity modes.
 
-    Two-pass algorithm:
-      Pass 1 — load all pHashes (no BLOBs), compute vectorized hamming distances, prune via
-               mathematical floor: a candidate can only pass if phash_sim >= (min_sim - 0.3) / 0.7.
-      Pass 2 — fetch CLIP embeddings for survivors, compute blended score:
-               similarity = phash_sim * 0.7 + clip_cosine * 0.3
-    Falls back to CLIP-only (raw cosine, clamped to 0) when the source has no pHash.
+    Modes:
+      - visual: pHash hamming distance (70%) + CLIP cosine (30%)
+      - color: histogram intersection + saturation/luminance distance
+      - person: same person_id or face embedding cosine similarity
     """
     viewer_config = load_viewer_config()
     if not viewer_config.get('features', {}).get('show_similar_button', True):
         return {'error': 'Similar photos feature is disabled'}
 
-    import numpy as np
+    if mode not in _MODE_DEFAULT_MIN_SIM:
+        mode = 'visual'
 
-    # Precomputed byte popcount table (same technique as duplicate.py)
-    _POPCOUNT = np.array([bin(i).count('1') for i in range(256)], dtype=np.int32)
-    PHASH_W = 0.7
-    CLIP_W = 0.3
+    effective_min_sim = min_similarity if min_similarity is not None else _MODE_DEFAULT_MIN_SIM[mode]
 
     conn = get_db_connection()
     try:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
+        # Load source photo with all columns needed across modes
         source = conn.execute(f"""
-            SELECT path, phash, clip_embedding, aggregate, aesthetic, date_taken
+            SELECT path, phash, clip_embedding, histogram_data, mean_saturation,
+                   mean_luminance, is_monochrome,
+                   aggregate, aesthetic, date_taken
             FROM photos WHERE path = ? AND {vis_sql}
         """, [photo_path] + vis_params).fetchone()
 
@@ -495,135 +742,33 @@ async def api_similar_photos(
             return {'error': 'Photo not found'}
 
         source = dict(source)
+        message = None
 
-        # Parse source pHash
-        source_phash = np.uint64(int(source['phash'], 16)) if source.get('phash') else None
-
-        # Parse + normalize source CLIP embedding
-        source_embedding = None
-        if source.get('clip_embedding'):
-            e = np.frombuffer(source['clip_embedding'], dtype=np.float32).copy()
-            norm = np.linalg.norm(e)
-            if norm > 0:
-                source_embedding = e / norm
-
-        if source_phash is None and source_embedding is None:
-            return {'similar': [], 'total': 0, 'has_more': False}
-
-        # ── Pass 1: load all pHashes (no CLIP BLOBs) ─────────────────────────
-        rows = conn.execute(f"""
-            SELECT path, filename, phash, date_taken, aggregate, aesthetic
-            FROM photos
-            WHERE path != ? AND phash IS NOT NULL AND {vis_sql}
-        """, [photo_path] + vis_params).fetchall()
-        rows = [dict(r) for r in rows]
-
-        if not rows:
-            # No phash candidates — CLIP-only fallback handled below
-            clip_rows = conn.execute(f"""
-                SELECT path, filename, clip_embedding, date_taken, aggregate, aesthetic
-                FROM photos
-                WHERE path != ? AND clip_embedding IS NOT NULL AND {vis_sql}
-                LIMIT 5000
-            """, [photo_path] + vis_params).fetchall()
-            rows = [dict(r) for r in clip_rows]
-            if not rows or source_embedding is None:
-                return {'similar': [], 'total': 0, 'has_more': False}
-            results = []
-            for r in rows:
-                e = np.frombuffer(r['clip_embedding'], dtype=np.float32).copy()
-                n = np.linalg.norm(e)
-                if n == 0:
-                    continue
-                sim = max(0.0, float(np.dot(source_embedding, e / n)))
-                if sim >= min_similarity:
-                    results.append({
-                        'path': r['path'], 'filename': r['filename'],
-                        'similarity': round(sim, 4),
-                        'aggregate': r.get('aggregate'), 'aesthetic': r.get('aesthetic'),
-                        'date_taken': r.get('date_taken'),
-                    })
-            results.sort(key=lambda x: x['similarity'], reverse=True)
-            results = results[:500]
-            page_slice = results[offset:offset + limit]
-            total_clip = len(results)
-            if full:
-                page_slice = _enrich_similar_with_full_rows(page_slice, conn, user_id)
-            return {'source': photo_path, 'similar': page_slice,
-                    'total': total_clip, 'has_more': (offset + limit) < total_clip}
-
-        # ── Vectorized pHash hamming distance ─────────────────────────────────
-        hashes = np.array([int(r['phash'], 16) for r in rows], dtype=np.uint64)
-        xor = np.bitwise_xor(hashes, source_phash)
-        hamming = np.zeros(len(rows), dtype=np.int32)
-        for byte_idx in range(8):
-            shift = np.uint64(byte_idx * 8)
-            byte_vals = ((xor >> shift) & np.uint64(0xFF)).astype(np.int32)
-            hamming += _POPCOUNT[byte_vals]
-        phash_sims = 1.0 - hamming / 64.0
-
-        # Prune: lowest possible score = phash_sim * PHASH_W + 0 * CLIP_W
-        # Highest possible score = phash_sim * PHASH_W + 1.0 * CLIP_W
-        # Skip if even perfect CLIP can't push it over min_similarity
-        if source_embedding is not None:
-            phash_floor = max(0.0, (min_similarity - CLIP_W) / PHASH_W)
+        if mode == 'visual':
+            results, message = _find_similar_visual(conn, source, photo_path, effective_min_sim, vis_sql, vis_params)
+        elif mode == 'color':
+            results, message = _find_similar_color(conn, source, photo_path, effective_min_sim, vis_sql, vis_params)
+        elif mode == 'person':
+            results, message = _find_similar_person(conn, source, photo_path, effective_min_sim, vis_sql, vis_params)
         else:
-            phash_floor = min_similarity  # no CLIP available: phash alone must clear threshold
-        candidate_indices = np.where(phash_sims >= phash_floor)[0]
+            results, message = [], None
 
-        # ── Pass 2: load CLIP embeddings for survivors ────────────────────────
-        clip_by_path: dict = {}
-        if source_embedding is not None and len(candidate_indices) > 0:
-            cand_paths = [rows[i]['path'] for i in candidate_indices]
-            for start in range(0, len(cand_paths), 500):
-                chunk = cand_paths[start:start + 500]
-                placeholders = ','.join('?' * len(chunk))
-                clip_rows = conn.execute(
-                    f"SELECT path, clip_embedding FROM photos "
-                    f"WHERE path IN ({placeholders}) AND clip_embedding IS NOT NULL",
-                    chunk,
-                ).fetchall()
-                for cr in clip_rows:
-                    e = np.frombuffer(cr['clip_embedding'], dtype=np.float32).copy()
-                    n = np.linalg.norm(e)
-                    if n > 0:
-                        clip_by_path[cr['path']] = e / n
-
-        # ── Score, filter, paginate ───────────────────────────────────────────
-        results = []
-        for i in candidate_indices:
-            row = rows[i]
-            phash_sim = float(phash_sims[i])
-            cand_clip = clip_by_path.get(row['path'])
-            if source_embedding is not None and cand_clip is not None:
-                clip_sim = max(0.0, float(np.dot(source_embedding, cand_clip)))
-                sim = phash_sim * PHASH_W + clip_sim * CLIP_W
-            else:
-                sim = phash_sim * PHASH_W  # no CLIP: candidate only earns its phash share
-            if sim >= min_similarity:
-                results.append({
-                    'path': row['path'],
-                    'filename': row['filename'],
-                    'similarity': round(sim, 4),
-                    'aggregate': row.get('aggregate'),
-                    'aesthetic': row.get('aesthetic'),
-                    'date_taken': row.get('date_taken'),
-                })
-
-        results.sort(key=lambda x: x['similarity'], reverse=True)
-        results = results[:500]
         total_count = len(results)
         page_results = results[offset:offset + limit]
 
         if full:
             page_results = _enrich_similar_with_full_rows(page_results, conn, user_id)
 
-        return {
+        response = {
             'source': photo_path,
+            'mode': mode,
             'similar': page_results,
             'total': total_count,
             'has_more': (offset + limit) < total_count,
         }
+        if message:
+            response['message'] = message
+        return response
 
     except Exception:
         import traceback

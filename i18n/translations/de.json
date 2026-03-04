@@ -519,7 +519,12 @@
     "visual": "Visuell",
     "persons": "Personen",
     "date": "Datum",
-    "score": "Wertung"
+    "score": "Wertung",
+    "mode_visual": "Visuelle Ähnlichkeit",
+    "mode_color": "Farbpalette",
+    "mode_person": "Gleiche Person",
+    "no_faces": "Keine Gesichter auf diesem Foto erkannt",
+    "no_histogram": "Keine Farbdaten für dieses Foto verfügbar"
   },
   "merge_suggestions": {
     "title": "Zusammenführungsvorschläge",

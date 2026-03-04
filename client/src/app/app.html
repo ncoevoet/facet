@@ -17,6 +17,11 @@
           <a mat-icon-button class="lg:!hidden" routerLink="/persons" routerLinkActive #rlPersonsM="routerLinkActive" [style.color]="rlPersonsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.persons' | translate">
             <mat-icon>people</mat-icon>
           </a>
+          @if (auth.isEdition()) {
+            <a mat-icon-button class="lg:!hidden" routerLink="/compare" routerLinkActive #rlCompareM="routerLinkActive" [style.color]="rlCompareM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.compare' | translate">
+              <mat-icon>tune</mat-icon>
+            </a>
+          }
           <a mat-icon-button class="lg:!hidden" routerLink="/stats" routerLinkActive #rlStatsM="routerLinkActive" [style.color]="rlStatsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate">
             <mat-icon>bar_chart</mat-icon>
           </a>
@@ -302,13 +307,29 @@
           <img [src]="store.filters().similar_to | thumbnailUrl:48"
                class="w-7 h-7 rounded-full object-cover shrink-0"
                alt="" />
-          <span class="opacity-70 pl-1">{{ 'similar.title' | translate }}</span>
-          <mat-slider class="!w-24 !min-w-0" [min]="0" [max]="90" [step]="5" [discrete]="true">
-            <input matSliderThumb
-                   [value]="similaritySliderValue()"
-                   (valueChange)="onSimilarityFilterChange($event)" />
-          </mat-slider>
-          <span class="font-medium w-8 text-right shrink-0">{{ similaritySliderValue() }}%</span>
+          <!-- Mode toggle buttons -->
+          <div class="inline-flex items-center rounded-full overflow-hidden border border-[var(--mat-sys-outline-variant)]">
+            @for (m of SIMILARITY_MODES; track m.id) {
+              <button
+                class="inline-flex items-center justify-center w-6 h-6 transition-colors"
+                [class.bg-[var(--mat-sys-primary)]]="store.filters().similarity_mode === m.id"
+                [class.text-[var(--mat-sys-on-primary)]]="store.filters().similarity_mode === m.id"
+                [class.hover:bg-black/10]="store.filters().similarity_mode !== m.id"
+                [matTooltip]="'similar.mode_' + m.id | translate"
+                (click)="onSimilarityModeChange(m.id)"
+              >
+                <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">{{ m.icon }}</mat-icon>
+              </button>
+            }
+          </div>
+          @if (store.filters().similarity_mode !== 'person') {
+            <mat-slider class="!w-24 !min-w-0" [min]="0" [max]="90" [step]="5" [discrete]="true">
+              <input matSliderThumb
+                     [value]="similaritySliderValue()"
+                     (valueChange)="onSimilarityFilterChange($event)" />
+            </mat-slider>
+            <span class="font-medium w-8 text-right shrink-0">{{ similaritySliderValue() }}%</span>
+          }
           <button
             class="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black/20 transition-colors"
             (click)="clearSimilarFilter()"

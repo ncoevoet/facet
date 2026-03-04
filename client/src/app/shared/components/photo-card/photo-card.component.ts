@@ -2,6 +2,7 @@ import { Component, input, output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
 import { Photo } from '../../models/photo.model';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
@@ -26,6 +27,7 @@ interface AppConfig {
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
+    MatMenuModule,
     TranslatePipe,
     ThumbnailUrlPipe,
     PersonThumbnailUrlPipe,
@@ -81,10 +83,25 @@ interface AppConfig {
             @if (config()?.features?.show_similar_button) {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
+                [matMenuTriggerFor]="similarMenu"
                 [matTooltip]="'similar.find_similar' | translate"
-                (click)="openSimilarClicked.emit(photo()); $event.stopPropagation()">
+                (click)="$event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">image_search</mat-icon>
               </button>
+              <mat-menu #similarMenu="matMenu">
+                <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'visual'})">
+                  <mat-icon>image_search</mat-icon>
+                  {{ 'similar.mode_visual' | translate }}
+                </button>
+                <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'color'})">
+                  <mat-icon>palette</mat-icon>
+                  {{ 'similar.mode_color' | translate }}
+                </button>
+                <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'person'})">
+                  <mat-icon>person_search</mat-icon>
+                  {{ 'similar.mode_person' | translate }}
+                </button>
+              </mat-menu>
             }
             @if (isEditionMode() && photo().unassigned_faces > 0) {
               <button
@@ -229,7 +246,7 @@ export class PhotoCardComponent {
   readonly tagClicked = output<string>();
   readonly personFilterClicked = output<number>();
   readonly personRemoveClicked = output<{ photo: Photo; personId: number }>();
-  readonly openSimilarClicked = output<Photo>();
+  readonly openSimilarClicked = output<{ photo: Photo; mode: 'visual' | 'color' | 'person' }>();
   readonly openAddPersonClicked = output<Photo>();
   readonly favoriteToggled = output<string>();
   readonly rejectedToggled = output<string>();
