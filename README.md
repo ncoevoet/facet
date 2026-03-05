@@ -92,24 +92,35 @@ Available in English, French, German, Spanish, and Italian with a language switc
 ## Quick Start
 
 ```bash
-# Install Python dependencies
+# 1. Install exiftool (system dependency)
+# Ubuntu/Debian: sudo apt install libimage-exiftool-perl
+# macOS:         brew install exiftool
+
+# 2. Create virtual environment
 python -m venv venv && source venv/bin/activate
+
+# 3. Install PyTorch with CUDA (pick your version at https://pytorch.org/get-started/locally)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+
+# 4. Install Python dependencies
 pip install -r requirements.txt
 
-# Read docs/INSTALLATION.md for optional/additional packages
+# 5. Install ONNX Runtime for face detection (choose ONE)
+pip install onnxruntime-gpu>=1.17.0   # GPU (CUDA 12.x)
+# pip install onnxruntime>=1.15.0     # CPU fallback
 
-# Install Angular frontend
+# 6. Build Angular frontend
 cd client && npm install && npx ng build && cd ..
 
-# Score photos (auto-detects VRAM, uses multi-pass mode)
+# 7. Score photos (auto-detects VRAM, uses multi-pass mode)
 python facet.py /path/to/photos
 
-# Run the web viewer (FastAPI API + Angular SPA)
+# 8. Run the web viewer (FastAPI API + Angular SPA)
 python viewer.py
 # Open http://localhost:5000
 ```
 
-VRAM is auto-detected at startup. See [Installation](docs/INSTALLATION.md) for GPU setup and VRAM profile details.
+Run `python facet.py --doctor` to diagnose GPU issues. See [Installation](docs/INSTALLATION.md) for VRAM profiles, VLM tagging packages (16gb/24gb), and optional dependencies.
 
 ## Documentation
 
