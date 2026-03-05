@@ -11,6 +11,7 @@ import sys
 import traceback
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -27,6 +28,7 @@ from api.database import get_db_connection
 from api.db_helpers import get_visibility_clause
 from api.types import TYPE_TO_CATEGORY
 from db import DEFAULT_DB_PATH
+from utils.image_loading import RAW_EXTENSIONS
 
 router = APIRouter(tags=["comparison"])
 
@@ -182,7 +184,7 @@ async def api_download_single(
         raise HTTPException(status_code=404, detail='File not found on disk')
 
     # Convert RAW files to JPEG for download
-    if real_disk.lower().endswith(('.cr2', '.cr3')):
+    if Path(real_disk).suffix.lower() in RAW_EXTENSIONS:
         import rawpy
         from PIL import Image
 

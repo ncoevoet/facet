@@ -40,7 +40,7 @@ from config import ScoringConfig, PercentileNormalizer
 
 # Import shared utilities (lightweight, no cv2/torch dependency)
 from utils import (
-    get_tag_params, detect_silhouette, tags_to_string,
+    get_tag_params, detect_silhouette, tags_to_string, RAW_EXTENSIONS,
 )
 
 # Lazy imports for image processing modules
@@ -2190,7 +2190,7 @@ def process_single_photo(photo_path, scorer):
     try:
         photo = Path(photo_path)
         # Handle RAW files
-        if photo.suffix.lower() in ['.cr2', '.cr3']:
+        if photo.suffix.lower() in RAW_EXTENSIONS:
             import rawpy
             current_pil = None
             with rawpy.imread(str(photo)) as raw:

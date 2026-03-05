@@ -1,7 +1,7 @@
 """
 Image loading utilities for Facet.
 
-Handles RAW (CR2/CR3) and JPEG loading with EXIF transpose.
+Handles RAW (via rawpy/libraw) and JPEG loading with EXIF transpose.
 """
 
 import threading
@@ -9,6 +9,9 @@ from io import BytesIO
 from pathlib import Path
 
 import numpy as np
+
+# All RAW formats supported via rawpy/libraw
+RAW_EXTENSIONS = {'.cr2', '.cr3', '.nef', '.arw', '.raf', '.rw2', '.dng', '.orf', '.srw', '.pef'}
 
 # Lazy imports for heavy modules
 _cv2 = None
@@ -70,7 +73,7 @@ def load_image_from_path(photo_path, lock=None, use_thumbnail=False):
         pil_img = None
 
         # Handle RAW files
-        if photo.suffix.lower() in ['.cr2', '.cr3']:
+        if photo.suffix.lower() in RAW_EXTENSIONS:
             import rawpy
             with lock:  # Serialize rawpy access to prevent libraw state corruption
                 if use_thumbnail:
@@ -137,7 +140,7 @@ def load_image_for_face_crop(photo_path):
         img_cv = None
         scale_x, scale_y = 1.0, 1.0
 
-        if photo.suffix.lower() in ['.cr2', '.cr3']:
+        if photo.suffix.lower() in RAW_EXTENSIONS:
             import rawpy
             try:
                 with rawpy.imread(str(photo)) as raw:

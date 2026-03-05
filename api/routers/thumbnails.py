@@ -7,6 +7,7 @@ import hashlib
 import os
 from io import BytesIO
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -15,6 +16,7 @@ from fastapi.responses import FileResponse
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, is_multi_user_enabled, get_user_directories, get_all_scan_directories
 from api.database import get_db_connection
+from utils.image_loading import RAW_EXTENSIONS
 
 router = APIRouter(tags=["thumbnails"])
 
@@ -239,7 +241,7 @@ async def image(
         return Response(content="Not found", status_code=404)
 
     # Convert RAW files to JPEG for browser display
-    if real_disk.lower().endswith(('.cr2', '.cr3')):
+    if Path(real_disk).suffix.lower() in RAW_EXTENSIONS:
         import rawpy
         from fastapi.responses import StreamingResponse
         from PIL import Image as PILImage

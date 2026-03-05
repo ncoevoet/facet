@@ -37,6 +37,7 @@ except ImportError:
 
 # Import config module (lightweight, no cv2/torch dependency)
 from config import ScoringConfig, PercentileNormalizer
+from utils.image_loading import RAW_EXTENSIONS
 
 
 
@@ -896,7 +897,7 @@ Configuration:
         exit(1)
 
     # 1. Gather files recursively from subfolders (or single files)
-    valid_suffixes = {'.jpg', '.jpeg', '.cr2', '.cr3'}
+    valid_suffixes = {'.jpg', '.jpeg'} | RAW_EXTENSIONS
     all_files = []
 
     # Get scanning settings
@@ -935,7 +936,7 @@ Configuration:
 
     # Filter the list to only include new or un-scanned files
     todo_list = [f for f in all_files if str(f.resolve()) not in scanned_set
-                 and not (f.suffix.lower() in ['.cr2', '.cr3'] and f.stem.lower() in jpegs_stems)]
+                 and not (f.suffix.lower() in RAW_EXTENSIONS and f.stem.lower() in jpegs_stems)]
 
     print(f"Found {len(all_files)} total, processing {len(todo_list)} new files.")
 
