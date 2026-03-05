@@ -162,6 +162,7 @@
     "camera": "Camera",
     "lens": "Lens",
     "focal": "Focal",
+    "aperture": "Aperture",
     "shutter": "Shutter",
     "iso": "ISO",
     "faces": "Faces",

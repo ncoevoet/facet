@@ -162,6 +162,7 @@
     "camera": "Kamera",
     "lens": "Objektiv",
     "focal": "Brennweite",
+    "aperture": "Blende",
     "shutter": "Verschluss",
     "iso": "ISO",
     "faces": "Gesichter",

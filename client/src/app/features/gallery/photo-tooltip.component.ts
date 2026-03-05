@@ -208,6 +208,9 @@ export class CategoryLabelPipe implements PipeTransform {
               @if (p.focal_length) {
                 <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.focal' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.focal_length }}mm</span></div>
               }
+              @if (p.f_stop) {
+                <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.aperture' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">f/{{ p.f_stop }}</span></div>
+              }
               @if (p.shutter_speed) {
                 <div class="flex justify-between"><span class="text-neutral-400">{{ 'tooltip.shutter' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.shutter_speed | shutterSpeed }}</span></div>
               }
@@ -246,6 +249,6 @@ export class PhotoTooltipComponent {
   readonly hasExif = computed(() => {
     const p = this.photo();
     if (!p) return false;
-    return !!(p.camera_model || p.lens_model || p.focal_length || p.shutter_speed || p.iso);
+    return !!(p.camera_model || p.lens_model || p.focal_length || p.f_stop || p.shutter_speed || p.iso);
   });
 }

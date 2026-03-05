@@ -216,6 +216,13 @@ describe('PhotoTooltipComponent', () => {
       expect(tooltip.hasExif()).toBe(true);
     });
 
+    it('returns true when f_stop is present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ f_stop: 2.8 }));
+      fixture.detectChanges();
+      const tooltip = fixture.debugElement.children[0].componentInstance as PhotoTooltipComponent;
+      expect(tooltip.hasExif()).toBe(true);
+    });
+
     it('returns true when shutter_speed is present', () => {
       fixture.componentInstance.photo.set(makePhoto({ shutter_speed: 0.004 }));
       fixture.detectChanges();
