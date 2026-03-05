@@ -148,6 +148,14 @@ photos processed before EXIF handling was added to the codebase.
 This is a lightweight operation - it does not re-read full images, only the EXIF
 header from each file and the thumbnail from the database.
 
+## Diagnostics
+
+| Command | Description |
+|---------|-------------|
+| `python facet.py --doctor` | Run diagnostic checks (Python, GPU, dependencies, config, database) |
+
+Prints a structured report covering: Python version, PyTorch/CUDA build, GPU detection and driver, VRAM profile recommendation, optional dependencies, config and database status. When PyTorch can't see the GPU but `nvidia-smi` can, shows the exact `pip install` command to fix it.
+
 ## Model Information
 
 | Command | Description |

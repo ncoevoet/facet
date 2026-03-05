@@ -643,6 +643,7 @@ class ScoringConfig:
                     msg = f"No GPU detected, {ram_gb:.0f}GB RAM - legacy profile (limited CPU mode)"
             except Exception:
                 msg = "No GPU detected, using legacy (CPU-only) profile"
+            msg += "\n  Tip: run 'python facet.py --doctor' for GPU setup diagnostics"
             return 'legacy', None, msg
 
         # Profile recommendations based on VRAM
@@ -693,6 +694,7 @@ class ScoringConfig:
                 if verbose:
                     print(f"Warning: No GPU detected but profile '{current_profile}' is configured")
                     print("  Consider setting vram_profile to 'legacy' or 'auto' in scoring_config.json")
+                    print("  Tip: run 'python facet.py --doctor' for GPU setup diagnostics")
                 return False, 'legacy', "No GPU detected"
             return True, current_profile, "OK (CPU mode)"
 

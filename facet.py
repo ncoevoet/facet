@@ -201,6 +201,8 @@ Configuration:
     model_group = parser.add_argument_group('Model information')
     model_group.add_argument('--list-models', action='store_true',
                         help='Show available models and their VRAM requirements')
+    model_group.add_argument('--doctor', action='store_true',
+                        help='Run diagnostic checks (Python, GPU, dependencies, config)')
 
     # Export
     export_group = parser.add_argument_group('Export')
@@ -239,6 +241,12 @@ Configuration:
             filters = cat.get('filters', {})
             filter_desc = ', '.join(f"{k}={v}" for k, v in filters.items()) or 'fallback'
             print(f"  {cat['priority']:3d}. {cat['name']:20s} [{filter_desc}]")
+        exit()
+
+    # Doctor mode (lightweight - no GPU needed)
+    if args.doctor:
+        from diagnostics import run_doctor
+        run_doctor(config_path=args.config, db_path=args.db)
         exit()
 
     # Comparison statistics mode (lightweight - no GPU needed)

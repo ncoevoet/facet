@@ -81,6 +81,9 @@ python facet.py --recompute-iqa         # Recompute supplementary IQA (TOPIQ IAA
 # List available models and VRAM requirements
 python facet.py --list-models
 
+# Run diagnostic checks (Python, GPU, deps, config, database)
+python facet.py --doctor
+
 # Recompute aggregate scores using stored embeddings (creates backup first)
 python facet.py --recompute-average
 python facet.py --recompute-category portrait  # Single category only (faster)

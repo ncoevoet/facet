@@ -84,9 +84,10 @@ facet = "facet:main"
 facet-viewer = "viewer:main"
 facet-db = "database:main"
 facet-tag = "tag_existing:main"
+facet-doctor = "diagnostics:main"
 
 [tool.setuptools]
-py-modules = ["facet", "viewer", "database", "tag_existing", "calibrate", "validate_db"]
+py-modules = ["facet", "viewer", "database", "tag_existing", "calibrate", "validate_db", "diagnostics"]
 
 [tool.setuptools.packages.find]
 include = [
