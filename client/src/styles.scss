@@ -143,6 +143,16 @@ html, body {
   }
 }
 
+// Compact tab header for stats page
+.stats-tabs .mat-mdc-tab {
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.stats-tabs .mat-mdc-tab-header {
+  --mat-tab-header-label-text-size: 13px;
+}
+
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom);

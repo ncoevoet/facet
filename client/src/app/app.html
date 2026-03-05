@@ -150,6 +150,28 @@
 
       <div class="flex-1"></div>
 
+      <!-- Stats overview (right side, lg+ only) -->
+      @if (auth.isAuthenticated() && isStatsRoute() && statsFilters.overview(); as ov) {
+        <span class="!hidden lg:!inline-flex items-center gap-3 text-sm opacity-80">
+          <span class="inline-flex items-center gap-1" [matTooltip]="'stats.total_photos' | translate">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-blue-400">photo_library</mat-icon>
+            {{ ov.total_photos | number }}
+          </span>
+          <span class="inline-flex items-center gap-1" [matTooltip]="'stats.total_persons' | translate">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-purple-400">people</mat-icon>
+            {{ ov.total_persons | number }}
+          </span>
+          <span class="inline-flex items-center gap-1" [matTooltip]="'stats.avg_score' | translate">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-amber-400">star</mat-icon>
+            {{ ov.avg_score | number:'1.1-1' }}
+          </span>
+          <span class="inline-flex items-center gap-1" [matTooltip]="'stats.total_faces' | translate">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5">face</mat-icon>
+            {{ ov.total_faces | number }}
+          </span>
+        </span>
+      }
+
       <!-- Gallery: photo count + active filters + filter toggle (right side, lg+ only) -->
       @if (auth.isAuthenticated() && isGalleryRoute()) {
         <span class="!hidden lg:!inline text-sm opacity-70">{{ 'gallery.photo_count' | translate:{ count: store.total() } }}</span>

@@ -1,4 +1,5 @@
 import { Component, inject, computed, signal, OnInit } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -72,6 +73,7 @@ export class EditionDialogComponent {
 @Component({
   selector: 'app-root',
   imports: [
+    DecimalPipe,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,

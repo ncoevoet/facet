@@ -681,6 +681,16 @@
     "categories_score_profile": "Kategorie-Score-Profil",
     "categories_aperture": "Blende nach Kategorie",
     "categories_focal_length": "Brennweite nach Kategorie",
+    "category_metric_title": "Metriken nach Kategorie",
+    "category_metrics": {
+      "avg_f_stop": "Ø Blende",
+      "avg_focal_length": "Ø Brennweite",
+      "avg_iso": "Ø ISO",
+      "avg_score": "Ø Bewertung",
+      "avg_aesthetic": "Ø Ästhetik",
+      "avg_sharpness": "Ø Schärfe",
+      "avg_contrast": "Ø Kontrast"
+    },
     "categories_gear_profile": "Aufnahmeprofil nach Kategorie",
     "gear_profile_help": {
       "tooltip": "Was zeigt diese Tabelle?",

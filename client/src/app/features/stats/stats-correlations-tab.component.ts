@@ -47,8 +47,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
         </mat-card-header>
         <mat-card-content class="!pt-4">
           <!-- Controls row -->
-          <div class="flex flex-wrap items-end gap-3 mb-4">
-            <mat-form-field class="w-full md:w-44" subscriptSizing="dynamic">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 items-end gap-3 mb-4">
+            <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ 'stats.correlations.x_axis' | translate }}</mat-label>
               <mat-select [ngModel]="corrXAxis()" (ngModelChange)="corrXAxis.set($event)">
                 @for (dim of corrDimensions; track dim.key) {
@@ -56,7 +56,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                 }
               </mat-select>
             </mat-form-field>
-            <mat-form-field class="w-full md:w-64" subscriptSizing="dynamic">
+            <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ 'stats.correlations.y_metrics' | translate }}</mat-label>
               <mat-select multiple [ngModel]="corrYMetrics()" (ngModelChange)="corrYMetrics.set($event)">
                 @for (m of corrMetricOptions; track m.key) {
@@ -64,7 +64,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                 }
               </mat-select>
             </mat-form-field>
-            <mat-form-field class="w-full md:w-40" subscriptSizing="dynamic">
+            <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ 'stats.correlations.group_by' | translate }}</mat-label>
               <mat-select [ngModel]="corrGroupBy()" (ngModelChange)="corrGroupBy.set($event)">
                 <mat-option value="">{{ 'stats.correlations.none' | translate }}</mat-option>
@@ -73,7 +73,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                 }
               </mat-select>
             </mat-form-field>
-            <mat-form-field class="w-full md:w-40" subscriptSizing="dynamic">
+            <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ 'stats.correlations.chart_type' | translate }}</mat-label>
               <mat-select [ngModel]="corrChartType()" (ngModelChange)="corrChartType.set($event)">
                 @for (ct of corrChartTypes; track ct.key) {
@@ -81,15 +81,17 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                 }
               </mat-select>
             </mat-form-field>
-            <mat-form-field class="w-full md:w-32" subscriptSizing="dynamic">
-              <mat-label>{{ 'stats.correlations.min_samples' | translate }}</mat-label>
-              <input matInput type="number" min="1" max="100"
-                [ngModel]="corrMinSamples()" (ngModelChange)="corrMinSamples.set($event)">
-            </mat-form-field>
-            <button mat-stroked-button [disabled]="correlationLoading() || corrYMetrics().length === 0" (click)="loadCorrelation()">
-              <mat-icon>refresh</mat-icon>
-              {{ 'stats.load_correlations' | translate }}
-            </button>
+            <div class="flex items-end gap-3">
+              <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                <mat-label>{{ 'stats.correlations.min_samples' | translate }}</mat-label>
+                <input matInput type="number" min="1" max="100"
+                  [ngModel]="corrMinSamples()" (ngModelChange)="corrMinSamples.set($event)">
+              </mat-form-field>
+              <button mat-stroked-button [disabled]="correlationLoading() || corrYMetrics().length === 0" (click)="loadCorrelation()">
+                <mat-icon>refresh</mat-icon>
+                {{ 'stats.load_correlations' | translate }}
+              </button>
+            </div>
           </div>
           @if (corrYMetrics().length === 0) {
             <div class="text-sm text-gray-400 mb-4">{{ 'stats.correlations.select_metric' | translate }}</div>
@@ -97,7 +99,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           @if (correlationLoading()) {
             <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
           } @else if (corrData()) {
-            <div class="h-96">
+            <div class="h-72 md:h-96 lg:h-[28rem]">
               <canvas #correlationsCanvas></canvas>
             </div>
             @if (corrBucketCount() > 0) {

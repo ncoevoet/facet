@@ -704,6 +704,16 @@
     "categories_score_profile": "Category Score Profile",
     "categories_aperture": "Aperture by Category",
     "categories_focal_length": "Focal Length by Category",
+    "category_metric_title": "Category Metrics",
+    "category_metrics": {
+      "avg_f_stop": "Avg. Aperture",
+      "avg_focal_length": "Avg. Focal Length",
+      "avg_iso": "Avg. ISO",
+      "avg_score": "Avg. Score",
+      "avg_aesthetic": "Avg. Aesthetic",
+      "avg_sharpness": "Avg. Sharpness",
+      "avg_contrast": "Avg. Contrast"
+    },
     "categories_gear_profile": "Shooting Profile by Category",
     "gear_profile_help": {
       "tooltip": "What does this table show?",

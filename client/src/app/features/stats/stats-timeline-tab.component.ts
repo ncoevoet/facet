@@ -55,7 +55,7 @@ interface TimelineEntry {
           @if (timelineLoading()) {
             <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
           } @else {
-            <div class="h-80">
+            <div class="h-64 md:h-80 lg:h-96">
               <canvas #timelineCanvas></canvas>
             </div>
           }
@@ -68,7 +68,7 @@ interface TimelineEntry {
             <mat-card-title>{{ 'stats.photos_per_year' | translate }}</mat-card-title>
           </mat-card-header>
           <mat-card-content class="!pt-4">
-            <div class="h-64">
+            <div class="h-48 md:h-64">
               <canvas #yearlyCanvas></canvas>
             </div>
           </mat-card-content>
@@ -109,7 +109,7 @@ interface TimelineEntry {
           </mat-card-header>
           <mat-card-content class="!pt-4">
             <div class="overflow-x-auto">
-              <table class="w-full border-collapse text-xs">
+              <table class="w-full min-w-[700px] border-collapse text-xs">
                 <thead>
                   <tr>
                     <th class="p-1 text-gray-400 text-left w-12"></th>

@@ -681,6 +681,16 @@
     "categories_score_profile": "Profilo punteggio per categoria",
     "categories_aperture": "Apertura per categoria",
     "categories_focal_length": "Focale per categoria",
+    "category_metric_title": "Metriche per categoria",
+    "category_metrics": {
+      "avg_f_stop": "Apertura media",
+      "avg_focal_length": "Focale media",
+      "avg_iso": "ISO medio",
+      "avg_score": "Punteggio medio",
+      "avg_aesthetic": "Estetica media",
+      "avg_sharpness": "Nitidezza media",
+      "avg_contrast": "Contrasto medio"
+    },
     "categories_gear_profile": "Profilo di scatto per categoria",
     "gear_profile_help": {
       "tooltip": "Cosa mostra questa tabella?",

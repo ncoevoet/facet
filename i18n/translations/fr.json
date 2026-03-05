@@ -704,6 +704,16 @@
     "categories_score_profile": "Profil de score par catégorie",
     "categories_aperture": "Ouverture par catégorie",
     "categories_focal_length": "Focale par catégorie",
+    "category_metric_title": "Métriques par catégorie",
+    "category_metrics": {
+      "avg_f_stop": "Ouverture moy.",
+      "avg_focal_length": "Focale moy.",
+      "avg_iso": "ISO moy.",
+      "avg_score": "Score moy.",
+      "avg_aesthetic": "Esthétique moy.",
+      "avg_sharpness": "Netteté moy.",
+      "avg_contrast": "Contraste moy."
+    },
     "categories_gear_profile": "Profil de prise de vue par catégorie",
     "gear_profile_help": {
       "tooltip": "Que montre ce tableau ?",

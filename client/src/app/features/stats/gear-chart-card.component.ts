@@ -33,21 +33,16 @@ const GEAR_METRIC_OPTIONS = [
   { key: 'avg_score' },
   { key: 'avg_aesthetic' },
   { key: 'avg_sharpness' },
-  { key: 'avg_composition' },
-  { key: 'avg_exposure' },
-  { key: 'avg_color' },
   { key: 'avg_iso' },
   { key: 'avg_f_stop' },
   { key: 'avg_focal_length' },
-  { key: 'avg_face_count' },
-  { key: 'avg_monochrome' },
-  { key: 'avg_dynamic_range' },
   { key: 'usage_timeline' },
 ];
 
 @Component({
   selector: 'app-gear-chart-card',
   standalone: true,
+  host: { class: 'block' },
   imports: [
     FormsModule,
     MatCardModule,

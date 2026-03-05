@@ -681,6 +681,16 @@
     "categories_score_profile": "Perfil de puntuación por categoría",
     "categories_aperture": "Apertura por categoría",
     "categories_focal_length": "Focal por categoría",
+    "category_metric_title": "Métricas por categoría",
+    "category_metrics": {
+      "avg_f_stop": "Apertura prom.",
+      "avg_focal_length": "Focal prom.",
+      "avg_iso": "ISO prom.",
+      "avg_score": "Puntuación prom.",
+      "avg_aesthetic": "Estética prom.",
+      "avg_sharpness": "Nitidez prom.",
+      "avg_contrast": "Contraste prom."
+    },
     "categories_gear_profile": "Perfil de disparo por categoría",
     "gear_profile_help": {
       "tooltip": "¿Qué muestra esta tabla?",
