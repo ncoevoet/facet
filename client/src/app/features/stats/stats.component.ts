@@ -104,9 +104,9 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
             </ng-template>
             <div class="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 mt-4">
               <app-gear-chart-card titleKey="stats.cameras" [items]="cameras()" [loading]="gearLoading()" [color]="themeService.accentColor()" />
-              <app-gear-chart-card titleKey="stats.lenses" [items]="lenses()" [loading]="gearLoading()" color="#3b82f6" />
+              <app-gear-chart-card titleKey="stats.lenses" [items]="lenses()" [loading]="gearLoading()" [color]="themeService.complementaryColor()" />
               @if (combos().length > 0) {
-                <app-gear-chart-card titleKey="stats.charts.camera_lens_combos" [items]="combos()" [loading]="gearLoading()" color="#f59e0b" />
+                <app-gear-chart-card titleKey="stats.charts.camera_lens_combos" [items]="combos()" [loading]="gearLoading()" [color]="themeService.accentColor()" />
               }
             </div>
           </mat-tab>
@@ -156,7 +156,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                   </mat-card>
                 }
 
-                <mat-card>
+                <mat-card class="lg:col-span-2 2xl:col-span-1">
                   <mat-card-header>
                     <mat-card-title>{{ 'stats.score_histogram' | translate }}</mat-card-title>
                   </mat-card-header>
@@ -330,12 +330,13 @@ export class StatsComponent {
     // Chart effects
     effect(() => {
       const cats = this.categoryStats();
-      const accent = this.themeService.accentColor();
-      this.buildHorizontalBar('categories', this.categoriesCanvas(), cats.map(c => this.translateCategory(c.category)), cats.map(c => c.count), accent);
+      const color = this.themeService.complementaryColor();
+      this.buildHorizontalBar('categories', this.categoriesCanvas(), cats.map(c => this.translateCategory(c.category)), cats.map(c => c.count), color);
     });
     effect(() => {
       const bins = this.scoreBins();
-      this.buildVerticalBar('score', this.scoreCanvas(), bins.map(b => b.range), bins.map(b => b.count), COLORS[1]);
+      const accent = this.themeService.accentColor();
+      this.buildVerticalBar('score', this.scoreCanvas(), bins.map(b => b.range), bins.map(b => b.count), accent);
     });
     effect(() => {
       const cats = this.categoryScoreProfile();
@@ -355,8 +356,9 @@ export class StatsComponent {
     effect(() => {
       const cats = this.categoryMetricData();
       const metric = this.categoryMetric() as keyof CategoryStat;
+      const color = this.themeService.complementaryColor();
       this.buildHorizontalBar('categoryMetric', this.categoryMetricCanvas(),
-        cats.map(c => this.translateCategory(c.category)), cats.map(c => c[metric] as number), COLORS[2]);
+        cats.map(c => this.translateCategory(c.category)), cats.map(c => c[metric] as number), color);
     });
   }
 

@@ -182,8 +182,8 @@ export class StatsTimelineTabComponent {
 
     effect(() => {
       const data = this.timeline();
-      const accent = this.themeService.accentColor();
-      this.buildAreaLine('timeline', this.timelineCanvas(), data.map(t => t.period), data.map(t => t.count), accent);
+      const color = this.themeService.complementaryColor();
+      this.buildAreaLine('timeline', this.timelineCanvas(), data.map(t => t.period), data.map(t => t.count), color);
     });
     effect(() => {
       const data = this.yearlyData();
@@ -192,11 +192,13 @@ export class StatsTimelineTabComponent {
     });
     effect(() => {
       const data = this.dayOfWeekData();
-      this.buildVerticalBar('dayOfWeek', this.dayOfWeekCanvas(), data.map(d => d.label), data.map(d => d.count), '#a855f7');
+      const color = this.themeService.complementaryColor();
+      this.buildVerticalBar('dayOfWeek', this.dayOfWeekCanvas(), data.map(d => d.label), data.map(d => d.count), color);
     });
     effect(() => {
       const data = this.hourOfDayData();
-      this.buildVerticalBar('hourOfDay', this.hourOfDayCanvas(), data.map(d => d.label), data.map(d => d.count), '#06b6d4');
+      const color = this.themeService.complementaryColor();
+      this.buildVerticalBar('hourOfDay', this.hourOfDayCanvas(), data.map(d => d.label), data.map(d => d.count), color);
     });
 
     this.destroyRef.onDestroy(() => {

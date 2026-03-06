@@ -3,7 +3,6 @@ import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -33,7 +32,6 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
     MatCardModule,
     MatButtonModule,
     MatFormFieldModule,
-    MatInputModule,
     MatSelectModule,
     MatIconModule,
     MatProgressSpinnerModule,
@@ -46,21 +44,13 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <mat-card-title>{{ 'stats.metric_correlations' | translate }}</mat-card-title>
         </mat-card-header>
         <mat-card-content class="!pt-4">
-          <!-- Controls row -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 items-end gap-3 mb-4">
+          <!-- Controls: row 1 — X Axis + Group By -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ 'stats.correlations.x_axis' | translate }}</mat-label>
               <mat-select [ngModel]="corrXAxis()" (ngModelChange)="corrXAxis.set($event)">
                 @for (dim of corrDimensions; track dim.key) {
                   <mat-option [value]="dim.key">{{ 'stats.correlations.dimensions.' + dim.key | translate }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-            <mat-form-field subscriptSizing="dynamic">
-              <mat-label>{{ 'stats.correlations.y_metrics' | translate }}</mat-label>
-              <mat-select multiple [ngModel]="corrYMetrics()" (ngModelChange)="corrYMetrics.set($event)">
-                @for (m of corrMetricOptions; track m.key) {
-                  <mat-option [value]="m.key">{{ 'stats.correlations.metrics.' + m.key | translate }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
@@ -73,6 +63,17 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                 }
               </mat-select>
             </mat-form-field>
+          </div>
+          <!-- Controls: row 2 — Metrics + Chart Type + button -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-end gap-3 mb-4">
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label>{{ 'stats.correlations.y_metrics' | translate }}</mat-label>
+              <mat-select multiple [ngModel]="corrYMetrics()" (ngModelChange)="corrYMetrics.set($event)">
+                @for (m of corrMetricOptions; track m.key) {
+                  <mat-option [value]="m.key">{{ 'stats.correlations.metrics.' + m.key | translate }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>{{ 'stats.correlations.chart_type' | translate }}</mat-label>
               <mat-select [ngModel]="corrChartType()" (ngModelChange)="corrChartType.set($event)">
@@ -81,13 +82,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                 }
               </mat-select>
             </mat-form-field>
-            <div class="flex items-end gap-3">
-              <mat-form-field class="flex-1" subscriptSizing="dynamic">
-                <mat-label>{{ 'stats.correlations.min_samples' | translate }}</mat-label>
-                <input matInput type="number" min="1" max="100"
-                  [ngModel]="corrMinSamples()" (ngModelChange)="corrMinSamples.set($event)">
-              </mat-form-field>
-              <button mat-stroked-button [disabled]="correlationLoading() || corrYMetrics().length === 0" (click)="loadCorrelation()">
+            <div class="flex items-end">
+              <button mat-stroked-button class="w-full" [disabled]="correlationLoading() || corrYMetrics().length === 0" (click)="loadCorrelation()">
                 <mat-icon>refresh</mat-icon>
                 {{ 'stats.load_correlations' | translate }}
               </button>
@@ -124,7 +120,7 @@ export class StatsCorrelationsTabComponent {
   corrYMetrics = signal<string[]>(['aggregate', 'aesthetic']);
   corrGroupBy = signal('');
   corrChartType = signal('line');
-  corrMinSamples = signal(3);
+  readonly corrMinSamples = 3;
   corrData = signal<CorrelationApiResponse | null>(null);
   corrBucketCount = computed(() => this.corrData()?.labels?.length ?? 0);
   correlationLoading = signal(false);
@@ -184,7 +180,7 @@ export class StatsCorrelationsTabComponent {
       const params: Record<string, string> = {
         x: this.corrXAxis(),
         y: this.corrYMetrics().join(','),
-        min_samples: String(this.corrMinSamples()),
+        min_samples: String(this.corrMinSamples),
         ...this.filterParams,
       };
       if (this.corrGroupBy()) params['group_by'] = this.corrGroupBy();
