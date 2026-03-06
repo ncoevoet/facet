@@ -3,9 +3,11 @@
 ## System Requirements
 
 - Python 3.12
-- `exiftool` (system package)
+- `exiftool` (system package, optional but recommended)
 
 ### Installing exiftool
+
+exiftool provides the best EXIF extraction for all formats. Without it, the app falls back to `exifread` (Python library, handles all RAW formats) then PIL (JPEG/TIFF/DNG only).
 
 | OS | Command |
 |----|---------|

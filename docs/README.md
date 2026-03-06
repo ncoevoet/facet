@@ -60,6 +60,6 @@ python viewer.py
 | "externally-managed-environment" | Use virtual environment |
 | Slow processing | Check VRAM profile, use `--single-pass` for high-VRAM GPUs |
 | Face detection not using GPU | Install `onnxruntime-gpu` |
-| Missing exiftool | Install via system package manager |
+| Missing exiftool | Optional — install via system package manager for best results, otherwise `exifread` handles all RAW formats |
 
 See [Installation](INSTALLATION.md) for detailed setup instructions.

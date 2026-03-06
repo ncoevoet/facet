@@ -34,6 +34,7 @@ except ImportError:
 
 # Suppress standard warnings to keep the CLI output clean
 warnings.filterwarnings('ignore')
+logging.getLogger('exifread').setLevel(logging.ERROR)
 
 # Import config module (lightweight, no cv2/torch dependency)
 from config import ScoringConfig, PercentileNormalizer
@@ -197,9 +198,6 @@ def _get_exif_orientation(photo_path):
     """
     try:
         import exifread
-        import logging
-        # Suppress exifread warnings (e.g., "File format not recognized")
-        logging.getLogger('exifread').setLevel(logging.ERROR)
         with open(photo_path, 'rb') as f:
             tags = exifread.process_file(f, stop_tag='Orientation', details=False)
             if 'Image Orientation' in tags:
@@ -1818,12 +1816,12 @@ class Facet:
 
         # 4. Fallback to Pillow (JPEG and TIFF/DNG via modern getexif API)
         try:
-            img = Image.open(image_path)
-            exif = img.getexif()
-            all_tags = dict(exif.items())
-            exif_ifd = exif.get_ifd(0x8769)
-            if exif_ifd:
-                all_tags.update(exif_ifd)
+            with Image.open(image_path) as img:
+                exif = img.getexif()
+                all_tags = dict(exif.items())
+                exif_ifd = exif.get_ifd(0x8769)
+                if exif_ifd:
+                    all_tags.update(exif_ifd)
             if all_tags:
                 for tag, value in all_tags.items():
                     decoded = ExifTags.TAGS.get(tag, tag)
@@ -1834,7 +1832,7 @@ class Facet:
                     elif decoded == 'LensModel':
                         exif_data['lens_model'] = str(value)
                     elif decoded == 'ISOSpeedRatings':
-                        exif_data['iso'] = value
+                        exif_data['iso'] = int(value[0]) if isinstance(value, tuple) else int(value)
                     elif decoded == 'FNumber':
                         exif_data['f_stop'] = float(value)
                     elif decoded == 'ExposureTime':

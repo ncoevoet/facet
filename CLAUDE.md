@@ -153,7 +153,7 @@ For subject saliency (optional): `transparent-background` (InSPyReNet)
 
 For GPU face clustering (optional): `cuml`, `cupy` (requires conda + CUDA)
 
-External tool: `exiftool` (command-line)
+External tool: `exiftool` (command-line, optional — `exifread` fallback handles all RAW formats)
 
 ## Architecture
 
