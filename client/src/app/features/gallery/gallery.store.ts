@@ -582,7 +582,8 @@ export class GalleryStore {
       firstValueFrom(this.api.get<{cameras: [string, number][]}>('/filter_options/cameras')).catch(() => ({cameras: []})),
       firstValueFrom(this.api.get<{lenses: [string, number][]}>('/filter_options/lenses')).catch(() => ({lenses: []})),
       firstValueFrom(this.api.get<{tags: [string, number][]}>('/filter_options/tags')).catch(() => ({tags: []})),
-      firstValueFrom(this.api.get<{persons: [number, string | null, number][]}>('/filter_options/persons')).catch(() => ({persons: []})),
+      firstValueFrom(this.api.get<{persons: [number, string | null, number][]}>('/filter_options/persons',
+        this.filters().person_id ? { ids: this.filters().person_id } : undefined)).catch(() => ({persons: []})),
       firstValueFrom(this.api.get<{patterns: [string, number][]}>('/filter_options/patterns')).catch(() => ({patterns: []})),
     ]);
     this.cameras.set((camerasRes.cameras ?? []).map(([value, count]: [string, number]) => ({value, count})));
@@ -590,7 +591,6 @@ export class GalleryStore {
     this.tags.set((tagsRes.tags ?? []).map(([value, count]: [string, number]) => ({value, count})));
     this.persons.set(
       (personsRes.persons ?? [])
-        .filter(([, name]: [number, string | null, number]) => !!name)
         .map(([id, name, face_count]: [number, string | null, number]) => ({id, name, face_count})),
     );
     this.patterns.set((patternsRes.patterns ?? []).map(([value, count]: [string, number]) => ({value, count})));

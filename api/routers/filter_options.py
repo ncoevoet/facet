@@ -123,9 +123,11 @@ async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
 
 
 @router.get("/persons")
-async def persons(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Lazy-load person options with photo counts."""
+async def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Lazy-load person options with photo counts. `ids` forces specific persons to be included."""
     vis, vp = _vis_where(user)
+    forced_ids = [int(i) for i in ids.split(',') if i.strip().isdigit()] if ids else []
+
     def query(conn):
         try:
             min_photos = VIEWER_CONFIG['dropdowns'].get('min_photos_for_person', 1)
@@ -138,9 +140,32 @@ async def persons(user: Optional[CurrentUser] = Depends(get_optional_user)):
                 GROUP BY p.id HAVING photo_count >= ?
                 ORDER BY photo_count DESC LIMIT ?
             """, vp + [min_photos, VIEWER_CONFIG['dropdowns']['max_persons']]).fetchall()
-            return [(r[0], r[1], r[2]) for r in rows]
+            result = [(r[0], r[1], r[2]) for r in rows]
+            if forced_ids:
+                present = {r[0] for r in result}
+                missing = [i for i in forced_ids if i not in present]
+                if missing:
+                    placeholders = ','.join('?' * len(missing))
+                    extra = conn.execute(f"""
+                        SELECT p.id, p.name, COUNT(DISTINCT f.photo_path) as photo_count
+                        FROM persons p
+                        JOIN faces f ON f.person_id = p.id
+                        WHERE p.id IN ({placeholders}){vis_join}
+                        GROUP BY p.id
+                    """, missing + vp).fetchall()
+                    result = [(r[0], r[1], r[2]) for r in extra] + result
+            return result
         except Exception:
             return []
+
+    if forced_ids:
+        # Bypass cache when forced IDs are requested to always include them
+        conn = get_db_connection()
+        try:
+            data = query(conn)
+        finally:
+            conn.close()
+        return {'persons': data, 'cached': False}
     return _cached_filter_query('persons', 'persons', query)
 
 
