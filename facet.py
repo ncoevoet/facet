@@ -8,11 +8,15 @@ import os
 import sys
 import time
 
-# Suppress HuggingFace Hub unauthenticated request warnings
+# Suppress noisy third-party library output
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "0")
 import warnings
 warnings.filterwarnings("ignore", message=".*unauthenticated requests.*")
+
+import logging
+logging.getLogger("transformers").setLevel(logging.ERROR)
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
 # Ensure the script's directory is in Python path for local imports
 # This allows running the script from any directory

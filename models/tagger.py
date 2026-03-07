@@ -96,6 +96,8 @@ class CLIPTagger:
 
         with torch.no_grad():
             text_features = self.model.get_text_features(**inputs)
+            if not isinstance(text_features, torch.Tensor):
+                text_features = text_features.pooler_output
             self.text_embeddings = text_features / text_features.norm(dim=-1, keepdim=True)
 
     def get_tags_from_embedding(self, clip_embedding_bytes, threshold=0.25, max_tags=5):

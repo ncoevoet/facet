@@ -504,10 +504,14 @@ class Facet:
                         self._clip_model_name, trust_remote_code=True
                     )
                     self.model = self.model.to(self.device).eval()
+                    if self.device == 'cuda':
+                        self.model = self.model.half()
+                        print(f"SigLIP 2 NaFlex loaded (FP16): {self._clip_model_name}")
+                    else:
+                        print(f"SigLIP 2 NaFlex loaded: {self._clip_model_name}")
                     self.preprocess = AutoProcessor.from_pretrained(
                         self._clip_model_name, trust_remote_code=True
                     )
-                    print(f"SigLIP 2 NaFlex loaded: {self._clip_model_name}")
                 else:
                     clip_pretrained = clip_config.get('pretrained', 'laion2b_s32b_b82k')
                     self.model, _, self.preprocess = open_clip.create_model_and_transforms(
@@ -589,7 +593,6 @@ class Facet:
         embedding_dim = clip_config.get('embedding_dim', 768)
 
         if embedding_dim != 768:
-            print(f"Aesthetic MLP head skipped (requires 768-dim, got {embedding_dim}-dim from {clip_model_name})")
             self.aesthetic_head = None
             return
 
@@ -628,6 +631,8 @@ class Facet:
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
             with torch.no_grad():
                 features = self.model.get_image_features(**inputs)
+                if not isinstance(features, torch.Tensor):
+                    features = features.pooler_output
                 features_normalized = F.normalize(features, dim=-1)
             return features, features_normalized
 
@@ -653,7 +658,8 @@ class Facet:
             return 5.0  # No MLP head — aesthetic comes from TOPIQ in multi-pass
 
         features, _ = self._encode_images(image_pil)
-        raw_score = float(self.aesthetic_head(features.float()).cpu().numpy()[0][0])
+        with torch.no_grad():
+            raw_score = float(self.aesthetic_head(features.float()).cpu().numpy()[0][0])
         aesthetic_score = max(0.0, min(10.0, (raw_score + 1) * 5))
         return aesthetic_score
 
@@ -662,7 +668,8 @@ class Facet:
         features, features_normalized = self._encode_images(image_pil)
 
         if self.aesthetic_head is not None:
-            raw_score = float(self.aesthetic_head(features.float()).cpu().numpy()[0][0])
+            with torch.no_grad():
+                raw_score = float(self.aesthetic_head(features.float()).cpu().numpy()[0][0])
             aesthetic_score = max(0.0, min(10.0, (raw_score + 1) * 5))
         else:
             aesthetic_score = 5.0  # Aesthetic comes from TOPIQ, not CLIP MLP
@@ -713,22 +720,21 @@ class Facet:
         n = len(pil_images)
 
         features, features_normalized = self._encode_images(pil_images, clip_inputs)
+        embeddings = features_normalized.cpu().numpy()
 
-        with torch.no_grad():
-            embeddings = features_normalized.cpu().numpy()
-
-            if self.aesthetic_head is not None:
+        if self.aesthetic_head is not None:
+            with torch.no_grad():
                 clip_scores = self.aesthetic_head(features.float()).cpu().numpy().flatten()
-                results = []
-                for i in range(n):
-                    clip_aesthetic = max(0.0, min(10.0, (float(clip_scores[i]) + 1) * 5))
-                    clip_embedding = embeddings[i].astype(np.float32).tobytes()
-                    results.append((clip_aesthetic, clip_embedding, None, 'clip-mlp'))
-            else:
-                results = []
-                for i in range(n):
-                    clip_embedding = embeddings[i].astype(np.float32).tobytes()
-                    results.append((5.0, clip_embedding, None, 'topiq'))
+            results = []
+            for i in range(n):
+                clip_aesthetic = max(0.0, min(10.0, (float(clip_scores[i]) + 1) * 5))
+                clip_embedding = embeddings[i].astype(np.float32).tobytes()
+                results.append((clip_aesthetic, clip_embedding, None, 'clip-mlp'))
+        else:
+            results = []
+            for i in range(n):
+                clip_embedding = embeddings[i].astype(np.float32).tobytes()
+                results.append((5.0, clip_embedding, None, 'topiq'))
 
         return results
 

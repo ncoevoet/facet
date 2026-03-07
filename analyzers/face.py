@@ -4,6 +4,8 @@ Face analysis for Facet.
 InsightFace-based face detection, quality assessment, blink detection.
 """
 
+import os
+import sys
 import cv2
 import numpy as np
 
@@ -29,13 +31,18 @@ class FaceAnalyzer:
         try:
             from insightface.app import FaceAnalysis
             # IMPORTANT: We include 'recognition' for face embeddings used in clustering
-            self.face_app = FaceAnalysis(
-                name='buffalo_l',
-                root='~/.insightface',
-                allowed_modules=['detection', 'landmark_2d_106', 'recognition'],
-                providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
-            )
-            self.face_app.prepare(ctx_id=0, det_size=(640, 640))
+            with open(os.devnull, 'w') as devnull:
+                _stdout, sys.stdout = sys.stdout, devnull
+                try:
+                    self.face_app = FaceAnalysis(
+                        name='buffalo_l',
+                        root='~/.insightface',
+                        allowed_modules=['detection', 'landmark_2d_106', 'recognition'],
+                        providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+                    )
+                    self.face_app.prepare(ctx_id=0, det_size=(640, 640))
+                finally:
+                    sys.stdout = _stdout
             self.available = True
         except Exception as e:
             print(f"InsightFace not available: {e}")

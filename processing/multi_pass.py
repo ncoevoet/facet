@@ -121,7 +121,6 @@ class ChunkedMultiPassProcessor:
 
         new_size = max(self.min_chunk_size, int(self.chunk_size * 0.75))
         if new_size != self.chunk_size:
-            print(f"RAM chunk size reduced: {self.chunk_size} -> {new_size}")
             self.chunk_size = new_size
             return True
         return False
@@ -140,7 +139,6 @@ class ChunkedMultiPassProcessor:
 
         new_size = min(self.max_chunk_size, int(self.chunk_size * 1.25))
         if new_size != self.chunk_size:
-            print(f"RAM chunk size increased: {self.chunk_size} -> {new_size}")
             self.chunk_size = new_size
             return True
         return False
@@ -213,9 +211,10 @@ class ChunkedMultiPassProcessor:
         quality_model = quality_config.get('model', 'auto')
 
         if quality_model == 'auto':
-            selected_quality = self.model_manager.select_quality_model(
-                self.available_vram
-            )
+            profile_cfg = self.model_manager.get_active_profile()
+            profile_aesthetic = profile_cfg.get('aesthetic_model', 'clip-mlp')
+            # Map profile aesthetic_model to quality model name used in passes
+            selected_quality = 'topiq' if profile_aesthetic == 'topiq' else 'clip_aesthetic'
         else:
             selected_quality = quality_model
 
@@ -225,15 +224,15 @@ class ChunkedMultiPassProcessor:
             models.append(selected_quality)
         # else: clip_aesthetic uses same model as CLIP embeddings
 
-        # Supplementary PyIQA models (configurable)
-        supplementary_models = self.config.get('models', {}).get('supplementary_pyiqa', [])
+        # Supplementary PyIQA models (per-profile)
+        active_profile = self.model_manager.get_active_profile()
+        supplementary_models = active_profile.get('supplementary_pyiqa', [])
         for supp_model in supplementary_models:
             if supp_model not in models:
                 models.append(supp_model)
 
-        # Saliency model (BiRefNet) if configured
-        saliency_config = self.config.get('models', {}).get('saliency', {})
-        if saliency_config.get('enabled', False):
+        # Saliency model (BiRefNet) if enabled for this profile
+        if active_profile.get('saliency_enabled', False):
             models.append('saliency')
 
         # Tagging model (from profile)
@@ -341,7 +340,7 @@ class ChunkedMultiPassProcessor:
         results = {path: {} for path in paths}
 
         # Supplementary models are optional — load failures skip rather than abort
-        supplementary = set(self.config.get('models', {}).get('supplementary_pyiqa', []))
+        supplementary = set(self.model_manager.get_active_profile().get('supplementary_pyiqa', []))
 
         # Run each pass group
         for group_idx, model_group in enumerate(self.pass_groups):
@@ -537,6 +536,8 @@ class ChunkedMultiPassProcessor:
                 inputs = preprocess(images=pil_imgs, return_tensors="pt", padding=True)
                 inputs = {k: v.to(device) for k, v in inputs.items()}
                 features = clip_model.get_image_features(**inputs)
+                if not isinstance(features, torch.Tensor):
+                    features = features.pooler_output
             else:
                 inputs = torch.stack([preprocess(img) for img in pil_imgs]).to(device)
                 if device == 'cuda' and next(clip_model.parameters()).dtype == torch.float16:

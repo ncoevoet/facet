@@ -126,14 +126,12 @@ class PyIQAScorer:
         _ensure_pyiqa()
 
         pyiqa_id = self.model_info['pyiqa_id']
-        print(f"Loading {self.model_name} ({pyiqa_id})...")
 
         self.model = pyiqa.create_metric(
             pyiqa_id,
             device=torch.device(self.device)
         )
         self._loaded = True
-        print(f"  {self.model_name} loaded on {self.device}")
 
     def unload(self):
         """Unload model to free VRAM."""
@@ -266,14 +264,19 @@ class PyIQAScorer:
             self.load()
 
         scores = []
+        skipped: dict[str, int] = {}
         for image in images:
             try:
                 score = self.score_image(image)
                 # Ensure Python float
                 scores.append(float(score))
             except Exception as e:
-                print(f"  Warning: Failed to score image: {e}")
+                msg = str(e)
+                skipped[msg] = skipped.get(msg, 0) + 1
                 scores.append(5.0)  # Default middle score as float
+
+        for msg, count in skipped.items():
+            print(f"  Warning: {self.model_name} skipped {count} image(s): {msg}")
 
         return scores
 

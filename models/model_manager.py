@@ -5,6 +5,8 @@ Handles loading and managing AI models based on VRAM profile configuration.
 Supports PyIQA, Qwen2-VL, and CLIP models with automatic selection.
 """
 
+import os
+import sys
 from typing import Optional, Dict, Any, List, Union
 from pathlib import Path
 
@@ -64,9 +66,6 @@ class ModelManager:
         self.model_settings = model_config
         self.keep_in_ram = model_config.get('keep_in_ram', 'auto')
 
-        print(f"ModelManager initialized with VRAM profile: {self.profile}")
-        if self.profile in self.profiles:
-            print(f"  Description: {self.profiles[self.profile].get('description', 'N/A')}")
 
     def get_active_profile(self) -> Dict[str, str]:
         """Get the currently active model profile configuration."""
@@ -191,6 +190,8 @@ class ModelManager:
 
             model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
             model = model.to(self.device).eval()
+            if self.device == 'cuda':
+                model = model.half()
             processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
 
             self.models['clip'] = {
@@ -313,7 +314,6 @@ class ModelManager:
         if self._can_cache_to_ram(model_name):
             self._move_to_cpu(model, model_name)
             self._cpu_cache[model_name] = model
-            print(f"Cached {model_name} in RAM")
         else:
             # Full unload
             if hasattr(model, 'cpu'):
@@ -424,7 +424,6 @@ class ModelManager:
             self._move_to_device(model, model_name)
             self.models[model_name] = model
             self._cache_hits += 1
-            print(f"Restored {model_name} from RAM cache")
             return model
         except Exception as e:
             print(f"Failed to restore {model_name} from cache: {e}")
@@ -530,8 +529,13 @@ class ModelManager:
         try:
             from insightface.app import FaceAnalysis
 
-            app = FaceAnalysis(providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
-            app.prepare(ctx_id=0 if self.device == 'cuda' else -1, det_size=(640, 640))
+            with open(os.devnull, 'w') as devnull:
+                _stdout, sys.stdout = sys.stdout, devnull
+                try:
+                    app = FaceAnalysis(providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
+                    app.prepare(ctx_id=0 if self.device == 'cuda' else -1, det_size=(640, 640))
+                finally:
+                    sys.stdout = _stdout
 
             self.models['insightface'] = app
             print("InsightFace loaded")
@@ -617,7 +621,6 @@ class ModelManager:
         if model_name in self.models:
             return self.models[model_name]
 
-        print(f"Loading PyIQA model: {model_name}...")
         try:
             from models.pyiqa_scorer import PyIQAScorer
 
@@ -644,9 +647,12 @@ class ModelManager:
             saliency_config = self.model_settings.get('saliency', {})
             model_name = saliency_config.get('model', SaliencyScorer.DEFAULT_MODEL)
             resolution = saliency_config.get('resolution', SaliencyScorer.DEFAULT_RESOLUTION)
+            mask_threshold = saliency_config.get('mask_threshold', SaliencyScorer.DEFAULT_MASK_THRESHOLD)
+            min_subject_pixels = saliency_config.get('min_subject_pixels', SaliencyScorer.DEFAULT_MIN_SUBJECT_PIXELS)
 
             scorer = SaliencyScorer(device=self.device, model_name=model_name,
-                                    resolution=resolution)
+                                    resolution=resolution, mask_threshold=mask_threshold,
+                                    min_subject_pixels=min_subject_pixels)
             scorer.load()
 
             self.models['saliency'] = scorer

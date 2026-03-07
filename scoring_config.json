@@ -1833,6 +1833,8 @@
         "clip_config": "clip_legacy",
         "composition_model": "samp-net",
         "tagging_model": "clip",
+        "supplementary_pyiqa": [],
+        "saliency_enabled": false,
         "description": "CPU-optimized: CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (8GB+ RAM)"
       },
       "8gb": {
@@ -1840,6 +1842,8 @@
         "clip_config": "clip_legacy",
         "composition_model": "samp-net",
         "tagging_model": "clip",
+        "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
+        "saliency_enabled": false,
         "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (6-14GB VRAM)"
       },
       "16gb": {
@@ -1847,6 +1851,8 @@
         "clip_config": "clip",
         "composition_model": "samp-net",
         "tagging_model": "qwen3-vl-2b",
+        "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
+        "saliency_enabled": true,
         "description": "TOPIQ aesthetic + SigLIP 2 embeddings + SAMP-Net composition (~14GB VRAM)"
       },
       "24gb": {
@@ -1854,6 +1860,8 @@
         "clip_config": "clip",
         "composition_model": "qwen2-vl-2b",
         "tagging_model": "qwen2.5-vl-7b",
+        "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
+        "saliency_enabled": true,
         "description": "TOPIQ aesthetic + SigLIP 2 embeddings + Qwen2-VL composition (~18GB VRAM)"
       }
     },
@@ -1912,15 +1920,11 @@
       "vlm_batch_size": 4,
       "max_new_tokens": 256
     },
-    "supplementary_pyiqa": [
-      "topiq_iaa",
-      "topiq_nr_face",
-      "liqe"
-    ],
     "saliency": {
-      "enabled": false,
       "model": "ZhengPeng7/BiRefNet",
       "resolution": 1024,
+      "mask_threshold": 0.3,
+      "min_subject_pixels": 50,
       "description": "BiRefNet subject saliency detection (~2 GB VRAM)"
     }
   },

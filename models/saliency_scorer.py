@@ -30,20 +30,27 @@ class SaliencyScorer:
 
     DEFAULT_MODEL = 'ZhengPeng7/BiRefNet'
     DEFAULT_RESOLUTION = 1024
+    DEFAULT_MASK_THRESHOLD = 0.3
+    DEFAULT_MIN_SUBJECT_PIXELS = 50
 
     def __init__(self, device: Optional[str] = None, model_name: Optional[str] = None,
-                 resolution: Optional[int] = None):
+                 resolution: Optional[int] = None, mask_threshold: Optional[float] = None,
+                 min_subject_pixels: Optional[int] = None):
         """Initialize saliency scorer.
 
         Args:
             device: Device to use ('cuda', 'cpu', or None for auto)
             model_name: HuggingFace model ID (default: ZhengPeng7/BiRefNet)
             resolution: Input resolution for BiRefNet (default: 1024)
+            mask_threshold: Sigmoid threshold for binary mask (default: 0.3)
+            min_subject_pixels: Minimum pixels to consider a subject detected (default: 50)
         """
         _ensure_imports()
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         self.model_name = model_name or self.DEFAULT_MODEL
         self.resolution = resolution or self.DEFAULT_RESOLUTION
+        self.mask_threshold = mask_threshold if mask_threshold is not None else self.DEFAULT_MASK_THRESHOLD
+        self.min_subject_pixels = min_subject_pixels if min_subject_pixels is not None else self.DEFAULT_MIN_SUBJECT_PIXELS
         self.model = None
         self.transform = None
         self._loaded = False
@@ -115,7 +122,7 @@ class SaliencyScorer:
 
         for start in range(0, len(pil_images), batch_size):
             chunk = pil_images[start:start + batch_size]
-            batch_tensor = torch.stack([self.transform(img) for img in chunk]).to(self.device)
+            batch_tensor = torch.stack([self.transform(img) for img in chunk]).to(self.device, dtype=next(self.model.parameters()).dtype)
 
             with torch.no_grad():
                 preds = self.model(batch_tensor)[-1].sigmoid()
@@ -124,7 +131,7 @@ class SaliencyScorer:
                 idx = start + i
                 orig_w, orig_h = orig_sizes[idx]
                 mask = pred.squeeze().cpu().numpy()
-                binary_mask = (mask > 0.5).astype(np.uint8) * 255
+                binary_mask = (mask > self.mask_threshold).astype(np.uint8) * 255
 
                 if binary_mask.shape[0] != orig_h or binary_mask.shape[1] != orig_w:
                     binary_mask = cv2.resize(binary_mask, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
@@ -169,7 +176,7 @@ class SaliencyScorer:
         subject_prominence = subject_pixels / total_pixels if total_pixels > 0 else 0
 
         # If no subject detected, return defaults
-        if subject_pixels < 100:  # Minimum subject size
+        if subject_pixels < self.min_subject_pixels:  # Minimum subject size
             return {
                 'subject_sharpness': 5.0,
                 'subject_prominence': 0.0,
