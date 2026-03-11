@@ -4,7 +4,7 @@ Faces API router — face management, rating, favorites, rejected.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 from api.auth import CurrentUser, require_edition, require_auth
@@ -40,6 +40,15 @@ class SetRatingRequest(BaseModel):
 
 class TogglePhotoRequest(BaseModel):
     photo_path: str
+
+
+class BatchPhotoRequest(BaseModel):
+    photo_paths: list[str] = Field(max_length=1000)
+
+
+class BatchRatingRequest(BaseModel):
+    photo_paths: list[str] = Field(max_length=1000)
+    rating: int = Field(ge=0, le=5)
 
 
 @router.get("/api/person/{person_id}/faces")
@@ -357,3 +366,93 @@ async def api_toggle_rejected(
         raise HTTPException(status_code=500, detail='Internal server error')
     finally:
         conn.close()
+
+
+def _batch_update(
+    photo_paths: list[str],
+    user: CurrentUser,
+    multi_user_sql: str,
+    multi_user_params: list[tuple],
+    single_user_sql: str,
+    single_user_params: list,
+) -> dict:
+    """Execute a batch update on photos with transaction and cache invalidation."""
+    if not photo_paths:
+        return {'success': True, 'count': 0}
+
+    conn = get_db_connection()
+    try:
+        if user.user_id and is_multi_user_enabled():
+            conn.executemany(multi_user_sql, multi_user_params)
+        else:
+            conn.execute(single_user_sql, single_user_params)
+        conn.commit()
+        _stats_cache.clear()
+        return {'success': True, 'count': len(photo_paths)}
+    except HTTPException:
+        raise
+    except Exception:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail='Internal server error')
+    finally:
+        conn.close()
+
+
+@router.post("/api/photos/batch_favorite")
+async def api_batch_favorite(
+    body: BatchPhotoRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Mark multiple photos as favorite (clears rejected)."""
+    placeholders = ','.join('?' * len(body.photo_paths))
+    return _batch_update(
+        body.photo_paths, user,
+        multi_user_sql="""
+            INSERT INTO user_preferences (user_id, photo_path, is_favorite, is_rejected)
+            VALUES (?, ?, 1, 0)
+            ON CONFLICT(user_id, photo_path) DO UPDATE SET is_favorite = 1, is_rejected = 0
+        """,
+        multi_user_params=[(user.user_id, p) for p in body.photo_paths],
+        single_user_sql=f"UPDATE photos SET is_favorite = 1, is_rejected = 0 WHERE path IN ({placeholders})",
+        single_user_params=body.photo_paths,
+    )
+
+
+@router.post("/api/photos/batch_reject")
+async def api_batch_reject(
+    body: BatchPhotoRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Mark multiple photos as rejected (clears favorite and rating)."""
+    placeholders = ','.join('?' * len(body.photo_paths))
+    return _batch_update(
+        body.photo_paths, user,
+        multi_user_sql="""
+            INSERT INTO user_preferences (user_id, photo_path, is_rejected, star_rating, is_favorite)
+            VALUES (?, ?, 1, 0, 0)
+            ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0
+        """,
+        multi_user_params=[(user.user_id, p) for p in body.photo_paths],
+        single_user_sql=f"UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path IN ({placeholders})",
+        single_user_params=body.photo_paths,
+    )
+
+
+@router.post("/api/photos/batch_rating")
+async def api_batch_rating(
+    body: BatchRatingRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Set star rating for multiple photos."""
+    placeholders = ','.join('?' * len(body.photo_paths))
+    return _batch_update(
+        body.photo_paths, user,
+        multi_user_sql="""
+            INSERT INTO user_preferences (user_id, photo_path, star_rating)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, photo_path) DO UPDATE SET star_rating = excluded.star_rating
+        """,
+        multi_user_params=[(user.user_id, p, body.rating) for p in body.photo_paths],
+        single_user_sql=f"UPDATE photos SET star_rating = ? WHERE path IN ({placeholders})",
+        single_user_params=[body.rating] + list(body.photo_paths),
+    )

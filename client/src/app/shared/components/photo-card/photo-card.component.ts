@@ -45,7 +45,8 @@ interface AppConfig {
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
       [class.md:hover:ring-2]="!isSelected()"
       [class.md:hover:ring-[var(--mat-sys-outline-variant)]]="!isSelected()"
-      (click)="selectionChange.emit(photo())"
+      (click)="onSelect($event)"
+      (dblclick)="doubleClicked.emit(photo()); $event.stopPropagation()"
       (mouseenter)="tooltipShow.emit({photo: photo(), event: $event})"
       (mouseleave)="tooltipHide.emit()"
     >
@@ -234,7 +235,11 @@ export class PhotoCardComponent {
   readonly personFilterId = input('');
 
   // Events
-  readonly selectionChange = output<Photo>();
+  readonly selectionChange = output<{ photo: Photo; event: MouseEvent }>();
+
+  onSelect(event: MouseEvent): void {
+    this.selectionChange.emit({ photo: this.photo(), event });
+  }
   readonly tooltipShow = output<{ photo: Photo; event: MouseEvent }>();
   readonly tooltipHide = output<void>();
   readonly tagClicked = output<string>();
@@ -245,6 +250,7 @@ export class PhotoCardComponent {
   readonly favoriteToggled = output<string>();
   readonly rejectedToggled = output<string>();
   readonly starClicked = output<{ photo: Photo; star: number }>();
+  readonly doubleClicked = output<Photo>();
 
   cycleStarRating(): void {
     const current = this.photo().star_rating ?? 0;

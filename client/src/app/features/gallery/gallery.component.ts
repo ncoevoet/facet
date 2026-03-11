@@ -16,6 +16,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatMenuModule } from '@angular/material/menu';
 import { GalleryStore } from './gallery.store';
 import { Photo } from '../../shared/models/photo.model';
 import { ApiService } from '../../core/services/api.service';
@@ -38,6 +39,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
     MatIconModule,
     MatButtonModule,
     MatDialogModule,
+    MatMenuModule,
     TranslatePipe,
     MatSnackBarModule,
     PhotoTooltipComponent,
@@ -72,7 +74,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
                   [thumbSize]="thumbSize()"
                   [isEditionMode]="auth.isEdition()"
                   [personFilterId]="store.filters().person_id"
-                  (selectionChange)="toggleSelection($event)"
+                  (selectionChange)="toggleSelection($event.photo, $event.event)"
                   (tooltipShow)="showTooltip($event.event, $event.photo)"
                   (tooltipHide)="hideTooltip()"
                   (tagClicked)="store.updateFilter('tag', $event)"
@@ -83,6 +85,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
                   (favoriteToggled)="store.toggleFavorite($event)"
                   (rejectedToggled)="store.toggleRejected($event)"
                   (starClicked)="store.setRating($event.photo.path, $event.star)"
+                  (doubleClicked)="downloadPhoto($event)"
                 />
               }
             </div>
@@ -103,7 +106,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
                       [thumbSize]="thumbSize()"
                       [isEditionMode]="auth.isEdition()"
                       [personFilterId]="store.filters().person_id"
-                      (selectionChange)="toggleSelection($event)"
+                      (selectionChange)="toggleSelection($event.photo, $event.event)"
                       (tooltipShow)="showTooltip($event.event, $event.photo)"
                       (tooltipHide)="hideTooltip()"
                       (tagClicked)="store.updateFilter('tag', $event)"
@@ -114,6 +117,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
                       (favoriteToggled)="store.toggleFavorite($event)"
                       (rejectedToggled)="store.toggleRejected($event)"
                       (starClicked)="store.setRating($event.photo.path, $event.star)"
+                      (doubleClicked)="downloadPhoto($event)"
                     />
                   }
                 </div>
@@ -175,6 +179,30 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
             <mat-icon>close</mat-icon>
             {{ 'gallery.selection.clear' | translate }}
           </button>
+          @if (auth.isEdition()) {
+            <button mat-button (click)="batchFavorite()">
+              <mat-icon>favorite</mat-icon>
+              {{ 'gallery.selection.favorite' | translate }}
+            </button>
+            <button mat-button (click)="batchReject()">
+              <mat-icon>thumb_down</mat-icon>
+              {{ 'gallery.selection.reject' | translate }}
+            </button>
+            <button mat-button [matMenuTriggerFor]="rateMenu">
+              <mat-icon>star</mat-icon>
+              {{ 'gallery.selection.rate' | translate }}
+            </button>
+            <mat-menu #rateMenu="matMenu">
+              @for (star of [1, 2, 3, 4, 5]; track star) {
+                <button mat-menu-item (click)="batchRate(star)">
+                  {{ '★'.repeat(star) }}
+                </button>
+              }
+              <button mat-menu-item (click)="batchRate(0)">
+                {{ 'gallery.selection.clear' | translate }}
+              </button>
+            </mat-menu>
+          }
           <button mat-button (click)="copyPaths()">
             <mat-icon>content_copy</mat-icon>
             {{ 'gallery.selection.copy_filenames' | translate }}
@@ -214,6 +242,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   // Selection state
   readonly selectedPaths = signal<Set<string>>(new Set());
   readonly selectionCount = computed(() => this.selectedPaths().size);
+  private lastSelectedIndex = -1;
 
   /** True when the device has no hover capability (touch device) */
   readonly isTouchDevice = signal(false);
@@ -356,14 +385,25 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleSelection(photo: Photo): void {
+  toggleSelection(photo: Photo, event?: MouseEvent): void {
+    const photos = this.store.photos();
+    const clickedIndex = photos.findIndex(p => p.path === photo.path);
     const current = this.selectedPaths();
     const next = new Set(current);
-    if (next.has(photo.path)) {
+
+    if (event?.shiftKey && this.lastSelectedIndex >= 0 && clickedIndex >= 0) {
+      const start = Math.min(this.lastSelectedIndex, clickedIndex);
+      const end = Math.max(this.lastSelectedIndex, clickedIndex);
+      for (let i = start; i <= end; i++) {
+        next.add(photos[i].path);
+      }
+    } else if (next.has(photo.path)) {
       next.delete(photo.path);
     } else {
       next.add(photo.path);
     }
+
+    if (clickedIndex >= 0) this.lastSelectedIndex = clickedIndex;
     this.selectedPaths.set(next);
   }
 
@@ -380,16 +420,46 @@ export class GalleryComponent implements OnInit, OnDestroy {
     });
   }
 
+  private async executeBatchAction(
+    action: (paths: string[]) => Promise<void>,
+    i18nKey: string,
+    extraParams?: Record<string, unknown>,
+  ): Promise<void> {
+    const paths = [...this.selectedPaths()];
+    await action(paths);
+    this.clearSelection();
+    this.snackBar.open(this.i18n.t(i18nKey, { count: paths.length, ...extraParams }), '', { duration: 2000 });
+  }
+
+  async batchFavorite(): Promise<void> {
+    await this.executeBatchAction(p => this.store.batchFavorite(p), 'gallery.selection.batch_favorited');
+  }
+
+  async batchReject(): Promise<void> {
+    await this.executeBatchAction(p => this.store.batchReject(p), 'gallery.selection.batch_rejected');
+  }
+
+  async batchRate(rating: number): Promise<void> {
+    await this.executeBatchAction(p => this.store.batchRating(p, rating), 'gallery.selection.batch_rated', { rating });
+  }
+
+  private triggerDownload(path: string): void {
+    const a = document.createElement('a');
+    a.href = `/api/download?path=${encodeURIComponent(path)}`;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  downloadPhoto(photo: Photo): void {
+    this.triggerDownload(photo.path);
+  }
+
   async downloadSelected(): Promise<void> {
     const paths = [...this.selectedPaths()];
     for (const path of paths) {
-      const url = `/api/download?path=${encodeURIComponent(path)}`;
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = '';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      this.triggerDownload(path);
       if (paths.length > 1) {
         await new Promise(resolve => setTimeout(resolve, 300));
       }

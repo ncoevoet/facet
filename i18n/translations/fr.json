@@ -967,7 +967,7 @@
     "sort_desc": "Decroissant",
     "sort_asc": "Croissant",
     "filters": "Filtres",
-    "search_placeholder": "Rechercher un fichier...",
+    "search_placeholder": "Rechercher des photos...",
     "photo_count": "{count} photos",
     "no_photos": "Aucune photo trouvee",
     "camera": "Appareil",
@@ -996,7 +996,13 @@
       "clear": "Effacer",
       "copy_filenames": "Copier les noms",
       "download": "Telecharger",
-      "copied": "Chemins copies dans le presse-papiers"
+      "copied": "Chemins copies dans le presse-papiers",
+      "favorite": "Favori",
+      "reject": "Rejeter",
+      "rate": "Noter",
+      "batch_favorited": "{count} photos mises en favori",
+      "batch_rejected": "{count} photos rejetees",
+      "batch_rated": "{count} photos notees {rating} etoiles"
     },
     "composition_pattern": "Composition",
     "sidebar": {

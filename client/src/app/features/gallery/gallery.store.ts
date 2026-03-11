@@ -634,6 +634,33 @@ export class GalleryStore {
     } catch { /* ignore */ }
   }
 
+  /** Batch favorite multiple photos */
+  async batchFavorite(paths: string[]): Promise<void> {
+    await firstValueFrom(this.api.post('/photos/batch_favorite', { photo_paths: paths }));
+    const pathSet = new Set(paths);
+    this.photos.update(photos =>
+      photos.map(p => pathSet.has(p.path) ? { ...p, is_favorite: true, is_rejected: false } : p),
+    );
+  }
+
+  /** Batch reject multiple photos */
+  async batchReject(paths: string[]): Promise<void> {
+    await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: paths }));
+    const pathSet = new Set(paths);
+    this.photos.update(photos =>
+      photos.map(p => pathSet.has(p.path) ? { ...p, is_rejected: true, is_favorite: false, star_rating: null } : p),
+    );
+  }
+
+  /** Batch set rating for multiple photos */
+  async batchRating(paths: string[], rating: number): Promise<void> {
+    await firstValueFrom(this.api.post('/photos/batch_rating', { photo_paths: paths, rating }));
+    const pathSet = new Set(paths);
+    this.photos.update(photos =>
+      photos.map(p => pathSet.has(p.path) ? { ...p, star_rating: rating || null } : p),
+    );
+  }
+
   /** Unassign a person from a photo */
   async unassignPerson(photoPath: string, personId: number): Promise<void> {
     try {

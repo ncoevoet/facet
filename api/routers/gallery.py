@@ -63,8 +63,24 @@ def _build_gallery_where(params, conn=None, user_id=None):
         sql_params.append(f"{clean_search}%")
 
     if params.get('search'):
-        where_clauses.append("filename LIKE ?")
-        sql_params.append(f"%{params['search']}%")
+        term = params['search']
+        search_clauses = [
+            "filename LIKE ?",
+            "camera_model LIKE ?",
+            "lens_model LIKE ?",
+            "category LIKE ?",
+        ]
+        search_params = [f"%{term}%"] * 4
+
+        from api.db_helpers import is_photo_tags_available
+        if is_photo_tags_available(conn):
+            search_clauses.append("EXISTS (SELECT 1 FROM photo_tags WHERE photo_path = photos.path AND tag LIKE ?)")
+        else:
+            search_clauses.append("tags LIKE ?")
+        search_params.append(f"%{term}%")
+
+        where_clauses.append(f"({' OR '.join(search_clauses)})")
+        sql_params.extend(search_params)
 
     _add_tag_filter(
         where_clauses, sql_params,

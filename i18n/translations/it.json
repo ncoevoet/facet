@@ -944,7 +944,7 @@
     "sort_desc": "Decrescente",
     "sort_asc": "Crescente",
     "filters": "Filtri",
-    "search_placeholder": "Cerca nome file...",
+    "search_placeholder": "Cerca foto...",
     "photo_count": "{count} foto",
     "no_photos": "Nessuna foto trovata",
     "camera": "Fotocamera",
@@ -973,7 +973,13 @@
       "clear": "Cancella",
       "copy_filenames": "Copia nomi file",
       "download": "Scarica",
-      "copied": "Percorsi copiati negli appunti"
+      "copied": "Percorsi copiati negli appunti",
+      "favorite": "Preferito",
+      "reject": "Rifiuta",
+      "rate": "Valuta",
+      "batch_favorited": "{count} foto aggiunte ai preferiti",
+      "batch_rejected": "{count} foto rifiutate",
+      "batch_rated": "{count} foto valutate {rating} stelle"
     },
     "composition_pattern": "Composizione",
     "sidebar": {

@@ -166,11 +166,18 @@ Filter by SAMP-Net detected patterns:
 - Person avatars for recognized faces
 - Category badge
 
-### Multi-Select
+### Multi-Select & Bulk Actions
 
-- Click photos to select (Ctrl+click for multiple)
-- Copy paths to clipboard
-- Clear selection with Escape
+- Click photos to select, Shift+Click for range selection
+- Action bar appears with selection count and available actions
+- **Favorite** — Mark all selected as favorite (clears rejected)
+- **Reject** — Mark all selected as rejected (clears favorite and rating)
+- **Rate** — Set star rating (1–5) for all selected, or clear rating
+- **Copy filenames** — Copy selected filenames to clipboard
+- **Download** — Download selected photos
+- Clear selection with Escape or the Clear button
+
+Bulk actions require edition mode. Double-click any photo to download it directly.
 
 ### Display Options
 
@@ -324,7 +331,9 @@ All stats are user-aware in multi-user mode — each user sees analytics for the
 | Key | Action |
 |-----|--------|
 | `Escape` | Close filter drawer or clear selections |
-| `Enter` | Submit filename search |
+| `Enter` | Submit search |
+| `Shift+Click` | Range-select photos between last selected and clicked |
+| `Double-click` | Download photo |
 
 ## Configuration
 
@@ -506,6 +515,14 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/filter_options/categories` | Categories with counts |
 | `GET /api/filter_options/apertures` | Distinct f-stop values with counts |
 | `GET /api/filter_options/focal_lengths` | Distinct focal lengths with counts |
+
+### Batch Operations
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/photos/batch_favorite` | Mark multiple photos as favorite |
+| `POST /api/photos/batch_reject` | Mark multiple photos as rejected |
+| `POST /api/photos/batch_rating` | Set star rating for multiple photos |
 
 ### Persons
 

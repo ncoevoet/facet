@@ -944,7 +944,7 @@
     "sort_desc": "Absteigend",
     "sort_asc": "Aufsteigend",
     "filters": "Filter",
-    "search_placeholder": "Dateiname suchen...",
+    "search_placeholder": "Fotos suchen...",
     "photo_count": "{count} Fotos",
     "no_photos": "Keine Fotos gefunden",
     "camera": "Kamera",
@@ -973,7 +973,13 @@
       "clear": "Loschen",
       "copy_filenames": "Dateinamen kopieren",
       "download": "Herunterladen",
-      "copied": "Pfade in die Zwischenablage kopiert"
+      "copied": "Pfade in die Zwischenablage kopiert",
+      "favorite": "Favorit",
+      "reject": "Ablehnen",
+      "rate": "Bewerten",
+      "batch_favorited": "{count} Fotos als Favorit markiert",
+      "batch_rejected": "{count} Fotos abgelehnt",
+      "batch_rated": "{count} Fotos mit {rating} Sternen bewertet"
     },
     "composition_pattern": "Komposition",
     "sidebar": {
