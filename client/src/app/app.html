@@ -25,6 +25,11 @@
           <a mat-icon-button class="lg:!hidden" routerLink="/stats" routerLinkActive #rlStatsM="routerLinkActive" [style.color]="rlStatsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate">
             <mat-icon>bar_chart</mat-icon>
           </a>
+          @if (store.config()?.features?.show_albums) {
+            <a mat-icon-button class="lg:!hidden" routerLink="/albums" routerLinkActive #rlAlbumsM="routerLinkActive" [style.color]="rlAlbumsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.albums' | translate">
+              <mat-icon>photo_album</mat-icon>
+            </a>
+          }
           <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/" routerLinkActive #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.gallery' | translate">
             <mat-icon>photo_library</mat-icon>
           </a>
@@ -39,6 +44,11 @@
           <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/stats" routerLinkActive #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate">
             <mat-icon>bar_chart</mat-icon>
           </a>
+          @if (store.config()?.features?.show_albums) {
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/albums" routerLinkActive #rlAlbums="routerLinkActive" [style.color]="rlAlbums.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.albums' | translate">
+              <mat-icon>photo_album</mat-icon>
+            </a>
+          }
         </nav>
       }
 

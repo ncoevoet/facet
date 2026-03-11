@@ -202,6 +202,16 @@ def _build_gallery_where(params, conn=None, user_id=None):
         except (ValueError, AttributeError):
             pass
 
+    if params.get('album_id'):
+        try:
+            album_id = int(params['album_id'])
+            where_clauses.append(
+                "photos.path IN (SELECT photo_path FROM album_photos WHERE album_id = ?)"
+            )
+            sql_params.append(album_id)
+        except ValueError:
+            pass
+
     return where_clauses, sql_params
 
 
@@ -328,6 +338,7 @@ async def api_photos(
         'min_topiq': qp.get('min_topiq', ''),
         'max_topiq': qp.get('max_topiq', ''),
         'composition_pattern': qp.get('composition_pattern', ''),
+        'album_id': qp.get('album_id', ''),
         'min_aesthetic_iaa': qp.get('min_aesthetic_iaa', ''),
         'max_aesthetic_iaa': qp.get('max_aesthetic_iaa', ''),
         'min_face_quality_iqa': qp.get('min_face_quality_iqa', ''),
@@ -777,16 +788,27 @@ async def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
     from api.types import SORT_OPTIONS, SORT_OPTIONS_GROUPED, QUALITY_LEVELS, TYPE_LABELS
 
     features = dict(VIEWER_CONFIG.get('features', {}))
-    if features.get('show_similar_button'):
-        conn = get_db_connection()
+    conn = get_db_connection()
+    try:
+        has_embeddings = conn.execute(
+            "SELECT 1 FROM photos WHERE clip_embedding IS NOT NULL LIMIT 1"
+        ).fetchone() is not None
+        if not has_embeddings:
+            features['show_similar_button'] = False
+            features['show_semantic_search'] = False
+        else:
+            features.setdefault('show_semantic_search', True)
+        features.setdefault('show_albums', True)
+        features.setdefault('show_critique', True)
+        features.setdefault('show_vlm_critique', False)
+
+        # Check if albums table exists
         try:
-            has_embeddings = conn.execute(
-                "SELECT 1 FROM photos WHERE clip_embedding IS NOT NULL LIMIT 1"
-            ).fetchone() is not None
-            if not has_embeddings:
-                features['show_similar_button'] = False
-        finally:
-            conn.close()
+            conn.execute("SELECT 1 FROM albums LIMIT 0")
+        except Exception:
+            features['show_albums'] = False
+    finally:
+        conn.close()
 
     return {
         'sort_options': SORT_OPTIONS,

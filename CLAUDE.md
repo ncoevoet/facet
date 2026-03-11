@@ -279,6 +279,8 @@ SQLite table `photos` with columns:
 - `photo_tags(photo_path, tag)` - Normalized tag lookup for fast exact-match queries (replaces `LIKE '%tag%'`)
 - `faces(id, photo_path, face_index, embedding, bbox_*, person_id, confidence, face_thumbnail)` - Face embeddings and thumbnails for recognition
 - `persons(id, name, representative_face_id, face_count, centroid, auto_clustered, face_thumbnail)` - Person clusters (name=NULL for auto-clustered)
+- `albums(id, user_id, name, description, cover_photo_path, is_smart, smart_filter_json, created_at, updated_at)` - Photo albums (manual and smart)
+- `album_photos(id, album_id, photo_path, position, added_at)` - Album membership with ordering
 
 ### Performance Optimizations
 
@@ -323,6 +325,14 @@ Two approaches: `--recompute-composition-cpu` (rule-based, fast) and `--recomput
 
 See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workflow, thumbnail storage, blink detection, and viewer integration.
 
+### Viewer API Routes (New Features)
+
+**Semantic Search:** `GET /api/search?q=<text>&limit=50&threshold=0.15` — text-to-image search using stored CLIP/SigLIP embeddings.
+
+**Albums:** Full CRUD via `GET|POST /api/albums`, `GET|PUT|DELETE /api/albums/{id}`, `GET|POST|DELETE /api/albums/{id}/photos`. Smart albums store filter combinations in `smart_filter_json`. Angular routes: `/albums` (list), `/album/:albumId` (gallery filtered by album).
+
+**AI Critique:** `GET /api/critique?path=<photo_path>&mode=rule|vlm` — rule-based score breakdown (all profiles) or VLM-powered critique (16gb/24gb only).
+
 ### Key Implementation Details
 
 - **Embeddings:** SigLIP 2 NaFlex SO400M (1152-dim, 16gb/24gb, native aspect ratio via `transformers`) or CLIP ViT-L-14 (768-dim, legacy/8gb via `open_clip`)
@@ -366,5 +376,9 @@ For quick reference, here are the actual defaults from the config file:
 | `viewer.defaults` | `hide_details` | `true` |
 | `viewer.defaults` | `hide_tooltip` | `false` |
 | `viewer.defaults` | `gallery_mode` | `"mosaic"` |
+| `viewer.features` | `show_semantic_search` | `true` |
+| `viewer.features` | `show_albums` | `true` |
+| `viewer.features` | `show_critique` | `true` |
+| `viewer.features` | `show_vlm_critique` | `false` |
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete reference.

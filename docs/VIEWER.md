@@ -234,6 +234,66 @@ When `viewer.features.show_scan_button` is `true` and the user has `superadmin` 
 
 This is useful when the viewer runs on the same machine that has GPU access for scoring.
 
+## Semantic Search
+
+Search photos by natural language description using stored CLIP/SigLIP embeddings. Type a query like "sunset over mountains" or "child playing in snow" and the viewer returns visually matching photos ranked by similarity.
+
+- Requires stored `clip_embedding` data (computed during scoring)
+- Uses the same embedding model as the active VRAM profile (SigLIP 2 for 16gb/24gb, CLIP ViT-L-14 for legacy/8gb)
+- Controlled by `viewer.features.show_semantic_search` (default: `true`)
+
+## Albums
+
+Organize photos into named albums. Access via the `/albums` route.
+
+### Manual Albums
+
+Create albums and add photos from the gallery using multi-select. Albums support:
+- Name and description
+- Custom cover photo
+- Custom ordering
+- Browse album contents at `/album/:albumId`
+
+### Smart Albums
+
+Save a combination of filters (camera, tag, person, date range, score thresholds, etc.) as a smart album. Smart albums dynamically update as new photos match the saved filter criteria. The filter combination is stored as JSON in `smart_filter_json`.
+
+### API
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/albums` | List all albums |
+| `POST /api/albums` | Create album |
+| `GET /api/albums/{id}` | Get album details |
+| `PUT /api/albums/{id}` | Update album (name, description, cover) |
+| `DELETE /api/albums/{id}` | Delete album |
+| `GET /api/albums/{id}/photos` | List photos in album (supports `page`, `per_page`, `sort`, `sort_direction`) |
+| `POST /api/albums/{id}/photos` | Add photos to album |
+| `DELETE /api/albums/{id}/photos` | Remove photos from album |
+
+Controlled by `viewer.features.show_albums` (default: `true`).
+
+## AI Critique
+
+Get a detailed breakdown of a photo's scores with strengths, weaknesses, and improvement suggestions.
+
+### Rule-Based Critique
+
+Available on all VRAM profiles. Analyzes stored metrics (aesthetic, composition, sharpness, face quality, etc.) and generates a structured explanation of why the photo scored the way it did.
+
+### VLM Critique
+
+Uses the configured VLM (Qwen3-VL-2B or Qwen2.5-VL-7B) to provide a richer, context-aware critique. Requires 16gb or 24gb VRAM profile and `viewer.features.show_vlm_critique: true`.
+
+### API
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/critique?path=<photo_path>&mode=rule` | Rule-based score breakdown |
+| `GET /api/critique?path=<photo_path>&mode=vlm` | VLM-powered critique (requires GPU) |
+
+Controlled by `viewer.features.show_critique` (default: `true`) and `viewer.features.show_vlm_critique` (default: `false`).
+
 ## Pairwise Comparison Mode
 
 Requires a non-empty `edition_password` in config (single-user) or `admin`/`superadmin` role (multi-user).
@@ -483,6 +543,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/photos` | Paginated photo list with filters |
 | `GET /api/type_counts` | Photo counts per type |
 | `GET /api/similar_photos/{path}` | Similar photos (modes: `visual`, `color`, `person`) |
+| `GET /api/search?q=&limit=&threshold=` | Semantic text-to-image search |
+| `GET /api/critique?path=&mode=` | AI critique (rule-based or VLM) |
 | `GET /api/config` | Viewer configuration |
 
 ### Authentication
@@ -533,6 +595,19 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `POST /api/persons/{id}/merge` | Merge person into another |
 | `DELETE /api/persons/{id}` | Delete a person |
 
+### Albums
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/albums` | List all albums |
+| `POST /api/albums` | Create album |
+| `GET /api/albums/{id}` | Get album details |
+| `PUT /api/albums/{id}` | Update album |
+| `DELETE /api/albums/{id}` | Delete album |
+| `GET /api/albums/{id}/photos` | List photos in album (paginated) |
+| `POST /api/albums/{id}/photos` | Add photos to album |
+| `DELETE /api/albums/{id}/photos` | Remove photos from album |
+
 ### Statistics
 
 | Endpoint | Description |
@@ -571,4 +646,6 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | Password not working | Check `viewer.password` (single-user) or verify password hash (multi-user) |
 | User can't see photos | Check `directories` in their user config and `shared_directories` |
 | Scan button missing | Requires `superadmin` role and `viewer.features.show_scan_button: true` |
+| Search returns no results | Ensure photos have `clip_embedding` data (run scoring first) |
+| VLM critique unavailable | Requires 16gb/24gb VRAM profile and `viewer.features.show_vlm_critique: true` |
 | Port 5000 in use | Change port in `viewer.py` or kill the conflicting process |

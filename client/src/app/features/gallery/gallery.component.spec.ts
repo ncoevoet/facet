@@ -1,38 +1,22 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { of } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './gallery.store';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { AlbumService } from '../../core/services/album.service';
 import { GalleryComponent } from './gallery.component';
 import { ScoreClassPipe } from '../../shared/pipes/score.pipes';
 
 describe('GalleryComponent', () => {
   let component: GalleryComponent;
 
-  let mockStore: {
-    filters: ReturnType<typeof signal<GalleryFilters>>;
-    types: ReturnType<typeof signal>;
-    photos: ReturnType<typeof signal>;
-    total: ReturnType<typeof signal>;
-    loading: ReturnType<typeof signal>;
-    hasMore: ReturnType<typeof signal>;
-    cameras: ReturnType<typeof signal>;
-    lenses: ReturnType<typeof signal>;
-    tags: ReturnType<typeof signal>;
-    persons: ReturnType<typeof signal>;
-    config: ReturnType<typeof signal>;
-    activeFilterCount: ReturnType<typeof signal>;
-    filterDrawerOpen: ReturnType<typeof signal>;
-    setFilterDrawerOpen: jest.Mock;
-    loadConfig: jest.Mock;
-    loadFilterOptions: jest.Mock;
-    loadTypeCounts: jest.Mock;
-    loadPhotos: jest.Mock;
-    updateFilter: jest.Mock;
-    resetFilters: jest.Mock;
-    nextPage: jest.Mock;
-  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockStore: any;
   let mockApi: { thumbnailUrl: jest.Mock };
   let mockAuth: Record<string, unknown>;
   let mockI18n: { t: jest.Mock };
@@ -56,6 +40,10 @@ describe('GalleryComponent', () => {
       config: signal(null),
       activeFilterCount: signal(0),
       filterDrawerOpen: signal(false),
+      currentAlbum: signal(null),
+      initializing: signal(false),
+      galleryMode: signal('mosaic'),
+      cardWidth: signal(300),
       setFilterDrawerOpen: jest.fn(),
       loadConfig: jest.fn(() => Promise.resolve()),
       loadFilterOptions: jest.fn(() => Promise.resolve()),
@@ -64,13 +52,15 @@ describe('GalleryComponent', () => {
       updateFilter: jest.fn(() => Promise.resolve()),
       resetFilters: jest.fn(() => Promise.resolve()),
       nextPage: jest.fn(() => Promise.resolve()),
+      toggleFavorite: jest.fn(),
+      toggleRejected: jest.fn(),
     };
 
     mockApi = {
       thumbnailUrl: jest.fn((path: string) => `/thumbnail?path=${path}`),
     };
 
-    mockAuth = {};
+    mockAuth = { isEdition: jest.fn(() => false) };
 
     mockI18n = {
       t: jest.fn((key: string) => key),
@@ -82,6 +72,10 @@ describe('GalleryComponent', () => {
         { provide: ApiService, useValue: mockApi },
         { provide: AuthService, useValue: mockAuth },
         { provide: I18nService, useValue: mockI18n },
+        { provide: AlbumService, useValue: { list: jest.fn(() => of({ albums: [] })), get: jest.fn(() => of({})) } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: jest.fn(() => null) } } } },
+        { provide: MatDialog, useValue: { open: jest.fn() } },
+        { provide: MatSnackBar, useValue: { open: jest.fn() } },
       ],
     });
     component = TestBed.runInInjectionContext(() => new GalleryComponent());

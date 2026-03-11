@@ -9,10 +9,15 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatExpansionModule } from '@angular/material/expansion';
-import { GalleryStore } from './gallery.store';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
+import { GalleryStore, SMART_ALBUM_EXCLUDE_KEYS } from './gallery.store';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FilterDisplayPipe } from '../../shared/pipes/filter-display.pipe';
 import { AdditionalFilterDef } from '../../shared/models/filter-def.model';
+import { AlbumService, Album } from '../../core/services/album.service';
+import { AuthService } from '../../core/services/auth.service';
+import { SaveSmartAlbumDialogComponent } from '../albums/save-smart-album-dialog.component';
 
 const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   // Quality
@@ -112,11 +117,29 @@ function saveSectionStates(states: Record<string, boolean>): void {
     MatInputModule,
     MatTooltipModule,
     MatExpansionModule,
+    MatDialogModule,
     TranslatePipe,
     FilterDisplayPipe,
   ],
   template: `
 <div data-scroll class="overflow-y-auto px-2 h-full">
+
+      <!-- Semantic Search -->
+      @if (store.config()?.features?.show_semantic_search) {
+        <mat-form-field subscriptSizing="dynamic" class="w-full mt-4 mb-2">
+          <mat-label>{{ 'gallery.semantic_search' | translate }}</mat-label>
+          <mat-icon matPrefix class="mr-1 opacity-60">image_search</mat-icon>
+          <input matInput
+            [value]="store.filters().semanticQuery"
+            (input)="onSemanticSearch($event)"
+            [placeholder]="'gallery.semantic_search_placeholder' | translate" />
+          @if (store.filters().semanticQuery) {
+            <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('semanticQuery', '')">
+              <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
+            </button>
+          }
+        </mat-form-field>
+      }
 
       <!-- Date Range -->
       <mat-expansion-panel class="!mb-1 mt-4" [expanded]="sectionStates()['date'] !== false"
@@ -307,6 +330,33 @@ function saveSectionStates(states: Record<string, boolean>): void {
       </mat-expansion-panel>
 
       <!-- Metric filter sections (collapsed by default) -->
+      <!-- Albums -->
+      @if (store.config()?.features?.show_albums && albums().length) {
+        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['albums'] === true"
+                             (opened)="onSectionToggle('albums', true)"
+                             (closed)="onSectionToggle('albums', false)"
+                             [style.background-color]="sectionStates()['albums'] === true ? 'var(--mat-sys-surface-container)' : null">
+          <mat-expansion-panel-header>
+            <mat-panel-title class="flex items-center gap-2">
+              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">photo_album</mat-icon>
+              {{ 'albums.title' | translate }}
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <div class="flex flex-col gap-2 pb-2">
+            <mat-form-field subscriptSizing="dynamic" class="w-full">
+              <mat-label>{{ 'albums.title' | translate }}</mat-label>
+              <mat-select [value]="store.filters().album_id" (selectionChange)="store.updateFilter('album_id', $event.value)">
+                <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                @for (a of albums(); track a.id) {
+                  <mat-option [value]="'' + a.id">{{ a.name }} ({{ a.photo_count }})</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+        </mat-expansion-panel>
+      }
+
+      <!-- Metric filter sections (collapsed by default) -->
       @for (group of filterGroups; track group.sectionKey) {
         <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()[group.sectionKey] === true"
                              (opened)="onSectionToggle(group.sectionKey, true)"
@@ -341,11 +391,25 @@ function saveSectionStates(states: Record<string, boolean>): void {
           </div>
         </mat-expansion-panel>
       }
+
+      <!-- Save as smart album -->
+      @if (store.config()?.features?.show_albums && auth.isEdition() && store.activeFilterCount() > 0 && !store.filters().album_id) {
+        <div class="py-3 px-1">
+          <button mat-stroked-button class="w-full" (click)="saveAsSmartAlbum()">
+            <mat-icon>bookmark_add</mat-icon>
+            {{ 'albums.save_smart' | translate }}
+          </button>
+        </div>
+      }
     </div>
   `,
 })
 export class GalleryFilterSidebarComponent {
   readonly store = inject(GalleryStore);
+  readonly auth = inject(AuthService);
+  private dialog = inject(MatDialog);
+  private albumService = inject(AlbumService);
+  readonly albums = signal<Album[]>([]);
   readonly sectionStates = signal<Record<string, boolean>>(loadSectionStates());
   readonly sliderConfig = computed(() => this.store.config()?.display?.thumbnail_slider ?? null);
 
@@ -402,5 +466,44 @@ export class GalleryFilterSidebarComponent {
   onDateChange(key: 'date_from' | 'date_to', event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     this.store.updateFilter(key, value);
+  }
+
+  private searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    if (this.store.config()?.features?.show_albums) {
+      firstValueFrom(this.albumService.list()).then(res =>
+        this.albums.set(res.albums),
+      ).catch(() => {});
+    }
+  }
+
+  onSemanticSearch(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    if (this.searchTimeout) clearTimeout(this.searchTimeout);
+    this.searchTimeout = setTimeout(() => {
+      this.store.updateFilter('semanticQuery', value);
+    }, 400);
+  }
+
+  saveAsSmartAlbum(): void {
+    const f = this.store.filters();
+    const filterJson: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(f)) {
+      if (v && v !== '' && !SMART_ALBUM_EXCLUDE_KEYS.has(k)) {
+        filterJson[k] = v;
+      }
+    }
+    const ref = this.dialog.open(SaveSmartAlbumDialogComponent, {
+      width: '400px',
+      data: { filterJson: JSON.stringify(filterJson) },
+    });
+    ref.afterClosed().subscribe(result => {
+      if (result) {
+        firstValueFrom(this.albumService.list()).then(res =>
+          this.albums.set(res.albums),
+        ).catch(() => {});
+      }
+    });
   }
 }

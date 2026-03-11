@@ -119,7 +119,7 @@ export class App implements OnInit {
 
   isGalleryRoute = computed(() => {
     const path = this.url().split('?')[0];
-    return path === '/' || path === '';
+    return path === '/' || path === '' || path.startsWith('/album/');
   });
 
   isStatsRoute = computed(() => this.url().split('?')[0] === '/stats');

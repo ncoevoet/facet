@@ -66,6 +66,9 @@ def create_app() -> FastAPI:
     from api.routers.stats import router as stats_router
     from api.routers.scan import router as scan_router
     from api.routers.i18n import router as i18n_router
+    from api.routers.search import router as search_router
+    from api.routers.albums import router as albums_router
+    from api.routers.critique import router as critique_router
 
     app.include_router(auth_router)
     app.include_router(gallery_router)
@@ -78,6 +81,9 @@ def create_app() -> FastAPI:
     app.include_router(stats_router)
     app.include_router(scan_router)
     app.include_router(i18n_router)
+    app.include_router(search_router)
+    app.include_router(albums_router)
+    app.include_router(critique_router)
 
     # Mount Angular static files (production)
     client_dist = os.path.join(_project_root, 'client', 'dist', 'client', 'browser')

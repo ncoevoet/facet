@@ -1,8 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { of } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
 import { GalleryStore } from './gallery.store';
 import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.component';
 import { I18nService } from '../../core/services/i18n.service';
+import { AuthService } from '../../core/services/auth.service';
+import { AlbumService } from '../../core/services/album.service';
 
 describe('GalleryFilterSidebarComponent', () => {
   let component: GalleryFilterSidebarComponent;
@@ -28,7 +32,8 @@ describe('GalleryFilterSidebarComponent', () => {
         min_iso: '', max_iso: '', min_aperture: '', max_aperture: '',
         min_focal_length: '', max_focal_length: '', date_from: '', date_to: '',
         search: '', type: '', sort: 'aggregate', sort_direction: 'DESC', page: 1, per_page: 64,
-        similar_to: '', min_similarity: '70',
+        similar_to: '', similarity_mode: 'visual', min_similarity: '70',
+        semanticQuery: '', album_id: '',
         min_aesthetic_iaa: '', max_aesthetic_iaa: '',
         min_face_quality_iqa: '', max_face_quality_iqa: '',
         min_liqe: '', max_liqe: '',
@@ -43,6 +48,8 @@ describe('GalleryFilterSidebarComponent', () => {
       tags: signal([]),
       persons: signal([]),
       compositionPatterns: signal([]),
+      config: signal(null),
+      activeFilterCount: signal(0),
       updateFilter: jest.fn(),
       updateFilters: jest.fn(),
       resetFilters: jest.fn(),
@@ -54,6 +61,9 @@ describe('GalleryFilterSidebarComponent', () => {
         GalleryFilterSidebarComponent,
         { provide: GalleryStore, useValue: mockStore },
         { provide: I18nService, useValue: { t: jest.fn((k: string) => k), currentLang: jest.fn(() => 'en') } },
+        { provide: AuthService, useValue: { isEdition: jest.fn(() => false) } },
+        { provide: AlbumService, useValue: { list: jest.fn(() => of({ albums: [] })) } },
+        { provide: MatDialog, useValue: { open: jest.fn() } },
       ],
     });
     component = TestBed.inject(GalleryFilterSidebarComponent);

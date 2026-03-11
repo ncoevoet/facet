@@ -1054,6 +1054,10 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_rating_controls` | `true` | Show star rating and favorite controls |
 | `show_rating_badge` | `true` | Show rating badge on photo cards |
 | `show_scan_button` | `false` | Show scan trigger button for superadmin users (requires GPU on viewer host) |
+| `show_semantic_search` | `true` | Show semantic search bar (text-to-image search using CLIP/SigLIP embeddings) |
+| `show_albums` | `true` | Show albums feature (create, manage, and browse photo albums) |
+| `show_critique` | `true` | Show AI critique button on photo cards (rule-based score breakdown) |
+| `show_vlm_critique` | `false` | Enable VLM-powered critique mode (requires 16gb/24gb VRAM profile) |
 
 **Memory optimization:** Setting `show_similar_button: false` prevents numpy from being loaded, reducing viewer memory footprint. The similar photos feature computes CLIP embedding cosine similarity which requires numpy.
 

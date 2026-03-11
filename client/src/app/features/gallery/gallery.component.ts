@@ -9,6 +9,7 @@ import {
   viewChild,
   afterNextRender,
   effect,
+  untracked,
 } from '@angular/core';
 import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -17,6 +18,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
+import { ActivatedRoute } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { GalleryStore } from './gallery.store';
 import { Photo } from '../../shared/models/photo.model';
 import { ApiService } from '../../core/services/api.service';
@@ -30,6 +33,9 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
 import { SlideshowComponent } from './slideshow.component';
 import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.component';
 import { PhotoCardComponent } from '../../shared/components/photo-card/photo-card.component';
+import { AlbumService, Album } from '../../core/services/album.service';
+import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
+import { PhotoCritiqueDialogComponent } from './photo-critique-dialog.component';
 
 @Component({
   selector: 'app-gallery',
@@ -81,6 +87,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
                   (personFilterClicked)="filterByPerson($event)"
                   (personRemoveClicked)="removePerson($event.photo, $event.personId)"
                   (openSimilarClicked)="openSimilar($event.photo, $event.mode)"
+                  (openCritiqueClicked)="openCritique($event)"
                   (openAddPersonClicked)="openAddPerson($event)"
                   (favoriteToggled)="store.toggleFavorite($event)"
                   (rejectedToggled)="store.toggleRejected($event)"
@@ -113,6 +120,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
                       (personFilterClicked)="filterByPerson($event)"
                       (personRemoveClicked)="removePerson($event.photo, $event.personId)"
                       (openSimilarClicked)="openSimilar($event.photo, $event.mode)"
+                      (openCritiqueClicked)="openCritique($event)"
                       (openAddPersonClicked)="openAddPerson($event)"
                       (favoriteToggled)="store.toggleFavorite($event)"
                       (rejectedToggled)="store.toggleRejected($event)"
@@ -203,6 +211,21 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
               </button>
             </mat-menu>
           }
+          @if (store.config()?.features?.show_albums) {
+            <button mat-button [matMenuTriggerFor]="albumMenu">
+              <mat-icon>photo_library</mat-icon>
+              {{ 'albums.add_photos' | translate }}
+            </button>
+            <mat-menu #albumMenu="matMenu">
+              @for (album of albumOptions(); track album.id) {
+                <button mat-menu-item (click)="addToAlbum(album.id)">{{ album.name }}</button>
+              }
+              <button mat-menu-item (click)="createAlbumAndAdd()">
+                <mat-icon>add</mat-icon>
+                {{ 'albums.create' | translate }}
+              </button>
+            </mat-menu>
+          }
           <button mat-button (click)="copyPaths()">
             <mat-icon>content_copy</mat-icon>
             {{ 'gallery.selection.copy_filenames' | translate }}
@@ -224,6 +247,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private snackBar = inject(MatSnackBar);
   private i18n = inject(I18nService);
   private dialog = inject(MatDialog);
+  private albumService = inject(AlbumService);
+  private route = inject(ActivatedRoute);
+
+  // Album options for "Add to album" menu
+  readonly albumOptions = signal<Album[]>([]);
 
   private observer: IntersectionObserver | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -261,7 +289,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Effective gallery mode: force grid on small viewports */
   readonly effectiveGalleryMode = computed(() =>
-    this.isDesktop() ? this.store.galleryMode() : 'grid',
+    (this.isDesktop() && this.containerWidth() > 0) ? this.store.galleryMode() : 'grid',
   );
 
   /** On mobile, always show details regardless of the hide_details preference */
@@ -354,14 +382,42 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.store.cardWidth(); // track dependency
       this.store.galleryMode(); // track dependency
       this.recheckSentinel();
+      // Clear tooltip when photos change (prevents stale tooltips after filter changes)
+      untracked(() => this.tooltipPhoto.set(null));
     });
   }
 
   async ngOnInit(): Promise<void> {
+    // Reset album state to avoid stale singleton data; loadConfig() resets filters from scratch
+    this.store.currentAlbum.set(null);
+    this.store.initializing.set(true);
     await this.store.loadConfig();
+    // Set album_id from route path param (for /album/:albumId route)
+    const albumId = this.route.snapshot.paramMap.get('albumId');
+    if (albumId) {
+      try {
+        const album = await firstValueFrom(this.albumService.get(+albumId));
+        if (album.smart_filter_json) {
+          // Apply saved filters BEFORE setting currentAlbum (avoids effect saving defaults)
+          const savedFilters = JSON.parse(album.smart_filter_json);
+          this.store.filters.update(current => ({ ...current, ...savedFilters, album_id: albumId }));
+        } else {
+          this.store.filters.update(current => ({ ...current, album_id: albumId }));
+        }
+        this.store.currentAlbum.set(album);
+      } catch {
+        this.store.filters.update(current => ({ ...current, album_id: albumId }));
+      }
+    }
     await Promise.all([this.store.loadFilterOptions(), this.store.loadTypeCounts()]);
     await this.store.loadPhotos();
+    this.store.initializing.set(false);
     this.recheckSentinel();
+    if (this.store.config()?.features?.show_albums) {
+      firstValueFrom(this.albumService.list()).then(res =>
+        this.albumOptions.set(res.albums),
+      ).catch(() => {});
+    }
   }
 
   ngOnDestroy(): void {
@@ -464,6 +520,35 @@ export class GalleryComponent implements OnInit, OnDestroy {
         await new Promise(resolve => setTimeout(resolve, 300));
       }
     }
+  }
+
+  async addToAlbum(albumId: number): Promise<void> {
+    const paths = [...this.selectedPaths()];
+    if (!paths.length) return;
+    await firstValueFrom(this.albumService.addPhotos(albumId, paths));
+    this.snackBar.open(this.i18n.t('albums.photos_added'), '', { duration: 2000 });
+    this.clearSelection();
+  }
+
+  createAlbumAndAdd(): void {
+    const ref = this.dialog.open(CreateAlbumDialogComponent, { width: '400px' });
+    ref.afterClosed().subscribe(async (result: boolean) => {
+      if (!result) return;
+      const res = await firstValueFrom(this.albumService.list());
+      this.albumOptions.set(res.albums);
+      if (res.albums.length) {
+        await this.addToAlbum(res.albums[0].id);
+      }
+    });
+  }
+
+  openCritique(photo: Photo): void {
+    const vlmAvailable = this.store.config()?.features?.show_vlm_critique ?? false;
+    this.dialog.open(PhotoCritiqueDialogComponent, {
+      data: { photoPath: photo.path, vlmAvailable },
+      width: '95vw',
+      maxWidth: '600px',
+    });
   }
 
   showTooltip(event: MouseEvent, photo: Photo): void {
@@ -603,7 +688,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
     this.observer = new IntersectionObserver(
       entries => {
-        if (entries[0]?.isIntersecting && this.store.hasMore() && !this.store.loading()) {
+        if (entries[0]?.isIntersecting && this.store.hasMore() && !this.store.loading() && !this.store.initializing()) {
           this.store.nextPage().then(() => this.recheckSentinel());
         }
       },

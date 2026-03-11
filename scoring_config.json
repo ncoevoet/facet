@@ -2193,7 +2193,11 @@
       "show_similar_button": true,
       "show_merge_suggestions": true,
       "show_rating_controls": true,
-      "show_rating_badge": true
+      "show_rating_badge": true,
+      "show_semantic_search": true,
+      "show_albums": true,
+      "show_critique": true,
+      "show_vlm_critique": true
     },
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,

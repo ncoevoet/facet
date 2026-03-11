@@ -2,6 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { Router, ActivatedRoute } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
+import { AlbumService } from '../../core/services/album.service';
 import {
   GalleryStore,
   DEFAULT_FILTERS,
@@ -108,6 +110,10 @@ function makeConfig(overrides: Partial<ViewerConfig> = {}): ViewerConfig {
       show_merge_suggestions: false,
       show_rating_controls: false,
       show_rating_badge: false,
+      show_semantic_search: false,
+      show_albums: false,
+      show_critique: false,
+      show_vlm_critique: false,
     },
     quality_thresholds: { good: 6, great: 7, excellent: 8, best: 9 },
     ...overrides,
@@ -134,6 +140,8 @@ describe('GalleryStore', () => {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParams } },
         },
+        { provide: AuthService, useValue: { isEdition: jest.fn(() => false) } },
+        { provide: AlbumService, useValue: { list: jest.fn(() => of({ albums: [] })), update: jest.fn(() => of({})) } },
       ],
     });
 
@@ -209,15 +217,22 @@ describe('GalleryStore', () => {
       expect(store.activeFilterCount()).toBe(13);
     });
 
-    it('should not count non-filter fields like sort or type', () => {
+    it('should not count non-filter fields like sort', () => {
       store.filters.set({
         ...DEFAULT_FILTERS,
         sort: 'date_taken',
         sort_direction: 'ASC',
-        type: 'portrait',
         hide_blinks: false,
       });
       expect(store.activeFilterCount()).toBe(0);
+    });
+
+    it('should count type as an active filter', () => {
+      store.filters.set({
+        ...DEFAULT_FILTERS,
+        type: 'portrait',
+      });
+      expect(store.activeFilterCount()).toBe(1);
     });
   });
 

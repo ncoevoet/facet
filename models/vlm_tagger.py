@@ -268,6 +268,61 @@ Tags:"""
 
         return self._parse_tags(output_text, max_tags)
 
+    def generate(self, image: 'PIL.Image.Image', prompt: str, max_new_tokens: int = 200) -> str:
+        """Generate free-form text response for an image with a custom prompt."""
+        if self.model is None:
+            self.load()
+
+        _ensure_imports()
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ]
+
+        if self.family == 'qwen3':
+            inputs = self.processor.apply_chat_template(
+                messages,
+                tokenize=True,
+                add_generation_prompt=True,
+                return_dict=True,
+                return_tensors="pt",
+            )
+            inputs.pop("token_type_ids", None)
+        else:
+            text = self.processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            inputs = self.processor(
+                text=[text],
+                images=[image],
+                return_tensors="pt",
+                padding=True,
+            )
+
+        inputs = {k: v.to(self.model.device) if hasattr(v, 'to') else v
+                  for k, v in inputs.items()}
+
+        with torch.no_grad():
+            output_ids = self.model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+            )
+
+        generated_ids = [
+            out[len(inp):]
+            for inp, out in zip(inputs["input_ids"], output_ids)
+        ]
+        return self.processor.batch_decode(
+            generated_ids, skip_special_tokens=True
+        )[0]
+
     def tag_batch(self, images: List[PIL.Image.Image], max_tags: int = 5) -> List[List[str]]:
         """
         Generate tags for a batch of images with true sub-batching.

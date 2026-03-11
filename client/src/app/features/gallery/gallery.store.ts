@@ -1,7 +1,9 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, inject, signal, computed, effect, untracked } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
+import { AlbumService, Album } from '../../core/services/album.service';
 import { Photo } from '../../shared/models/photo.model';
 
 // --- API response types ---
@@ -67,6 +69,10 @@ export interface ViewerConfig {
     show_merge_suggestions: boolean;
     show_rating_controls: boolean;
     show_rating_badge: boolean;
+    show_semantic_search: boolean;
+    show_albums: boolean;
+    show_critique: boolean;
+    show_vlm_critique: boolean;
   };
   quality_thresholds: {
     good: number;
@@ -175,6 +181,10 @@ export interface GalleryFilters {
   similar_to: string;
   similarity_mode: 'visual' | 'color' | 'person';
   min_similarity: string;
+  // Semantic search
+  semanticQuery: string;
+  // Album filter
+  album_id: string;
   // Display
   hide_details: boolean;
   hide_tooltip: boolean;
@@ -186,6 +196,14 @@ export interface GalleryFilters {
   is_monochrome: boolean;
   search: string;
 }
+
+/** Keys excluded when building smart album filter JSON (display-only, ephemeral, or handled separately). */
+export const SMART_ALBUM_EXCLUDE_KEYS = new Set([
+  'page', 'per_page', 'semanticQuery', 'album_id',
+  'similarity_mode', 'min_similarity',
+  'hide_details', 'hide_tooltip', 'hide_blinks', 'hide_bursts',
+  'hide_duplicates', 'hide_rejected',
+]);
 
 export const DEFAULT_FILTERS: GalleryFilters = {
   page: 1,
@@ -268,6 +286,8 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   date_from: '',
   date_to: '',
   composition_pattern: '',
+  semanticQuery: '',
+  album_id: '',
   similar_to: '',
   similarity_mode: 'visual',
   min_similarity: '70',
@@ -317,11 +337,16 @@ function saveDisplayOptionsToStorage(filters: GalleryFilters): void {
 @Injectable({ providedIn: 'root' })
 export class GalleryStore {
   private api = inject(ApiService);
+  private auth = inject(AuthService);
+  private albumService = inject(AlbumService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
 
   // --- State signals ---
   readonly filters = signal<GalleryFilters>({ ...DEFAULT_FILTERS });
+  readonly currentAlbum = signal<Album | null>(null);
+  readonly initializing = signal(false);
+  private smartSaveTimer: ReturnType<typeof setTimeout> | null = null;
   readonly photos = signal<Photo[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
@@ -346,7 +371,7 @@ export class GalleryStore {
     let count = 0;
     // String filters — count each non-empty one
     const stringKeys: (keyof GalleryFilters)[] = [
-      'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search', 'similar_to',
+      'type', 'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search', 'similar_to', 'semanticQuery',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
       'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
@@ -375,6 +400,33 @@ export class GalleryStore {
     if (f.is_monochrome) count++;
     return count;
   });
+
+  constructor() {
+    // Auto-save album filters on change (debounced) — persists filter state for all albums
+    effect(() => {
+      const f = this.filters();
+      const album = this.currentAlbum();
+      if (!album) return;
+      if (untracked(() => this.initializing())) return;
+      const isEdition = untracked(() => this.auth.isEdition());
+      if (!isEdition) return;
+
+      const filterJson: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(f)) {
+        if (v && v !== '' && !SMART_ALBUM_EXCLUDE_KEYS.has(k)) {
+          filterJson[k] = v;
+        }
+      }
+      const json = JSON.stringify(filterJson);
+
+      untracked(() => {
+        if (this.smartSaveTimer) clearTimeout(this.smartSaveTimer);
+        this.smartSaveTimer = setTimeout(() => {
+          firstValueFrom(this.albumService.update(album.id, { smart_filter_json: json })).catch(() => {});
+        }, 500);
+      });
+    });
+  }
 
   /** Load viewer config and apply defaults */
   async loadConfig(): Promise<void> {
@@ -425,6 +477,8 @@ export class GalleryStore {
 
   /** Load photos based on current filters (replaces list) */
   async loadPhotos(): Promise<void> {
+    // Always load from page 1 — only nextPage() uses page > 1
+    this.filters.update(current => ({ ...current, page: 1 }));
     const prevPhotos = this.photos();
     const prevTotal = this.total();
     const prevHasMore = this.hasMore();
@@ -438,6 +492,20 @@ export class GalleryStore {
         this.photos.set(res.similar ?? []);
         this.total.set(res.total);
         this.hasMore.set(res.has_more);
+        return;
+      }
+
+      if (f.semanticQuery) {
+        const res = await firstValueFrom(
+          this.api.get<{ photos: Photo[]; total: number; query: string }>('/search', {
+            q: f.semanticQuery,
+            limit: f.per_page,
+            threshold: 0.15,
+          }),
+        );
+        this.photos.set(res.photos);
+        this.total.set(res.total);
+        this.hasMore.set(false);
         return;
       }
 
@@ -523,6 +591,7 @@ export class GalleryStore {
 
   /** Reset all filters to config defaults */
   async resetFilters(): Promise<void> {
+    this.currentAlbum.set(null);
     const cfg = this.config();
     const defaults = cfg?.defaults;
     this.filters.set({
@@ -706,7 +775,7 @@ export class GalleryStore {
     // All string filters: include if non-empty
     const stringKeys: (keyof GalleryFilters)[] = [
       'type', 'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search',
-      'similar_to',
+      'similar_to', 'album_id', 'semanticQuery',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
       'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
@@ -764,7 +833,7 @@ export class GalleryStore {
     // String params
     const stringKeys: (keyof GalleryFilters)[] = [
       'sort', 'sort_direction', 'type', 'camera', 'lens', 'tag', 'person_id',
-      'composition_pattern', 'search', 'similar_to', 'min_similarity',
+      'composition_pattern', 'search', 'similar_to', 'min_similarity', 'semanticQuery', 'album_id',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
       'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
@@ -829,7 +898,7 @@ export class GalleryStore {
 
     // All string filters: include if non-empty
     const stringKeys: (keyof GalleryFilters)[] = [
-      'type', 'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search',
+      'type', 'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search', 'album_id',
       'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
       'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
       'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
@@ -862,6 +931,12 @@ export class GalleryStore {
     if (f.hide_rejected) params['hide_rejected'] = true;
     if (f.favorites_only) params['favorites_only'] = '1';
     if (f.is_monochrome) params['is_monochrome'] = '1';
+
+    // Smart albums apply their filters directly — don't send album_id
+    // (server would do an empty album_photos JOIN otherwise)
+    if (this.currentAlbum()?.is_smart) {
+      delete params['album_id'];
+    }
 
     return params;
   }

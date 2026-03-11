@@ -44,6 +44,18 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'albums',
+    loadComponent: () =>
+      import('./features/albums/albums.component').then(m => m.AlbumsComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'album/:albumId',
+    loadComponent: () =>
+      import('./features/gallery/gallery.component').then(m => m.GalleryComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: '**',
     redirectTo: '',
   },

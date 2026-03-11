@@ -17,6 +17,7 @@ interface AppConfig {
     show_similar_button?: boolean;
     show_rating_controls?: boolean;
     show_rating_badge?: boolean;
+    show_critique?: boolean;
   };
 }
 
@@ -96,6 +97,14 @@ interface AppConfig {
                   {{ 'similar.mode_person' | translate }}
                 </button>
               </mat-menu>
+            }
+            @if (config()?.features?.show_critique) {
+              <button
+                class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
+                [matTooltip]="'critique.title' | translate"
+                (click)="openCritiqueClicked.emit(photo()); $event.stopPropagation()">
+                <mat-icon class="!text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
+              </button>
             }
             @if (isEditionMode() && photo().unassigned_faces > 0) {
               <button
@@ -246,6 +255,7 @@ export class PhotoCardComponent {
   readonly personFilterClicked = output<number>();
   readonly personRemoveClicked = output<{ photo: Photo; personId: number }>();
   readonly openSimilarClicked = output<{ photo: Photo; mode: 'visual' | 'color' | 'person' }>();
+  readonly openCritiqueClicked = output<Photo>();
   readonly openAddPersonClicked = output<Photo>();
   readonly favoriteToggled = output<string>();
   readonly rejectedToggled = output<string>();

@@ -271,6 +271,34 @@ RECOMMENDATION_HISTORY_INDEXES = [
     ('idx_rec_history_target', 'recommendation_history', 'target_category, target_key'),
 ]
 
+# Albums for user-curated photo collections
+ALBUMS_COLUMNS = [
+    ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
+    ('user_id', 'TEXT'),
+    ('name', 'TEXT NOT NULL'),
+    ('description', 'TEXT'),
+    ('cover_photo_path', 'TEXT'),
+    ('is_smart', 'INTEGER DEFAULT 0'),
+    ('smart_filter_json', 'TEXT'),
+    ('created_at', "TEXT DEFAULT (datetime('now'))"),
+    ('updated_at', "TEXT DEFAULT (datetime('now'))"),
+]
+
+ALBUM_PHOTOS_COLUMNS = [
+    ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
+    ('album_id', 'INTEGER NOT NULL'),
+    ('photo_path', 'TEXT NOT NULL'),
+    ('position', 'INTEGER DEFAULT 0'),
+    ('added_at', "TEXT DEFAULT (datetime('now'))"),
+]
+
+ALBUM_INDEXES = [
+    ('idx_albums_user', 'albums', 'user_id'),
+    ('idx_album_photos_album', 'album_photos', 'album_id'),
+    ('idx_album_photos_path', 'album_photos', 'photo_path'),
+    ('idx_album_photos_position', 'album_photos', 'album_id, position'),
+]
+
 # Per-user preferences for multi-user mode (ratings, favorites, rejected flags)
 USER_PREFERENCES_COLUMNS = [
     ('user_id', 'TEXT NOT NULL'),
@@ -399,6 +427,17 @@ def init_database(db_path='photo_scores_pro.db'):
             RECOMMENDATION_HISTORY_COLUMNS
         ))
 
+        # Create albums and album_photos tables
+        conn.execute(_build_create_table_sql('albums', ALBUMS_COLUMNS))
+        _migrate_add_missing_columns(conn, 'albums', ALBUMS_COLUMNS)
+
+        conn.execute(_build_create_table_sql(
+            'album_photos',
+            ALBUM_PHOTOS_COLUMNS,
+            constraints=['UNIQUE(album_id, photo_path)']
+        ))
+        _migrate_add_missing_columns(conn, 'album_photos', ALBUM_PHOTOS_COLUMNS)
+
         # Create user_preferences table for per-user ratings in multi-user mode
         conn.execute(_build_create_table_sql(
             'user_preferences',
@@ -436,6 +475,10 @@ def init_database(db_path='photo_scores_pro.db'):
                 f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
             )
         for idx_name, table, column_expr in RECOMMENDATION_HISTORY_INDEXES:
+            conn.execute(
+                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
+            )
+        for idx_name, table, column_expr in ALBUM_INDEXES:
             conn.execute(
                 f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
             )
