@@ -13,7 +13,7 @@ from api.auth import CurrentUser, require_edition, require_authenticated, get_op
 from api.config import VIEWER_CONFIG
 from api.database import get_db_connection
 from api.db_helpers import (
-    get_existing_columns, split_photo_tags, format_date,
+    get_existing_columns, split_photo_tags, format_date, to_exif_date,
     PHOTO_BASE_COLS, PHOTO_OPTIONAL_COLS,
     HIDE_BLINKS_SQL, HIDE_BURSTS_SQL, get_visibility_clause,
 )
@@ -100,13 +100,11 @@ def _query_person_photos(person_id: int, *, page: int, per_page: int,
     if hide_bursts == "1":
         where_clauses.append(HIDE_BURSTS_SQL)
     if date_from:
-        date_from_sql = date_from.replace("-", ":")
         where_clauses.append("date_taken >= ?")
-        sql_params.append(date_from_sql)
+        sql_params.append(to_exif_date(date_from))
     if date_to:
-        date_to_sql = date_to.replace("-", ":") + " 23:59:59"
         where_clauses.append("date_taken <= ?")
-        sql_params.append(date_to_sql)
+        sql_params.append(to_exif_date(date_to) + " 23:59:59")
 
     where_sql = " AND ".join(where_clauses)
 

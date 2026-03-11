@@ -810,8 +810,6 @@ class ChunkedMultiPassProcessor:
 
     def _save_results(self, results: Dict, images: Dict):
         """Save processing results to database with all required fields."""
-        from pathlib import Path as PathLib
-
         batch = []
         for path, data in results.items():
             if not data or path not in images:
@@ -833,8 +831,8 @@ class ChunkedMultiPassProcessor:
 
             result = {
                 # Core fields
-                'path': str(PathLib(path).resolve()),
-                'filename': PathLib(path).name,
+                'path': str(Path(path).resolve()),
+                'filename': Path(path).name,
                 'category': data.get('category', 'default'),
                 'image_width': img_w,
                 'image_height': img_h,

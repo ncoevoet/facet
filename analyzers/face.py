@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 
 from analyzers.image_cache import ImageCache
+from utils.image_transforms import crop_face_with_padding
 
 class FaceAnalyzer:
     """Uses InsightFace to detect people and evaluate facial features."""
@@ -61,32 +62,7 @@ class FaceAnalyzer:
         Returns:
             JPEG bytes of the face thumbnail, or None on error
         """
-        try:
-            x1, y1, x2, y2 = [int(v) for v in bbox]
-            h, w = img_cv.shape[:2]
-
-            # Add padding around face
-            face_w, face_h = x2 - x1, y2 - y1
-            pad_x, pad_y = int(face_w * padding), int(face_h * padding)
-            x1, y1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
-            x2, y2 = min(w, x2 + pad_x), min(h, y2 + pad_y)
-
-            # Crop from full-res image (already in memory)
-            face_crop = img_cv[y1:y2, x1:x2]
-            if face_crop.size == 0:
-                return None
-
-            # Resize to thumbnail size (maintain aspect ratio within square)
-            crop_h, crop_w = face_crop.shape[:2]
-            scale = self.thumbnail_size / max(crop_h, crop_w)
-            new_w, new_h = int(crop_w * scale), int(crop_h * scale)
-            face_crop = cv2.resize(face_crop, (new_w, new_h), interpolation=cv2.INTER_AREA)
-
-            # Encode as JPEG
-            _, jpeg = cv2.imencode('.jpg', face_crop, [cv2.IMWRITE_JPEG_QUALITY, self.thumbnail_quality])
-            return jpeg.tobytes()
-        except Exception:
-            return None
+        return crop_face_with_padding(img_cv, bbox, padding, self.thumbnail_size, self.thumbnail_quality)
 
     def analyze_faces(self, img_cv):
         """

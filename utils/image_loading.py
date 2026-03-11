@@ -10,32 +10,10 @@ from pathlib import Path
 
 import numpy as np
 
+from utils._lazy import ensure_cv2 as _ensure_cv2, ensure_pil as _ensure_pil
+
 # All RAW formats supported via rawpy/libraw
 RAW_EXTENSIONS = {'.cr2', '.cr3', '.nef', '.arw', '.raf', '.rw2', '.dng', '.orf', '.srw', '.pef'}
-
-# Lazy imports for heavy modules
-_cv2 = None
-_Image = None
-_ImageOps = None
-
-
-def _ensure_cv2():
-    """Lazy load cv2."""
-    global _cv2
-    if _cv2 is None:
-        import cv2
-        _cv2 = cv2
-    return _cv2
-
-
-def _ensure_pil():
-    """Lazy load PIL."""
-    global _Image, _ImageOps
-    if _Image is None:
-        from PIL import Image, ImageOps
-        _Image = Image
-        _ImageOps = ImageOps
-    return _Image, _ImageOps
 
 
 # Module-level lock for rawpy thread-safety

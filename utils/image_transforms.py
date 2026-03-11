@@ -6,27 +6,13 @@ Thumbnail generation and face cropping.
 
 from io import BytesIO
 
-# Lazy imports for heavy modules
-_cv2 = None
-_Image = None
-
-
-def _ensure_cv2():
-    """Lazy load cv2."""
-    global _cv2
-    if _cv2 is None:
-        import cv2
-        _cv2 = cv2
-    return _cv2
+from utils._lazy import ensure_cv2 as _ensure_cv2, ensure_pil as _ensure_pil_full
 
 
 def _ensure_pil():
-    """Lazy load PIL."""
-    global _Image
-    if _Image is None:
-        from PIL import Image
-        _Image = Image
-    return _Image
+    """Lazy load PIL Image."""
+    Image, _ = _ensure_pil_full()
+    return Image
 
 
 def generate_photo_thumbnail(pil_img, size=640, quality=80):

@@ -16,6 +16,16 @@ from api.database import get_db_connection
 
 # --- DATE FORMATTING ---
 
+def to_exif_date(iso_date: str) -> str:
+    """Convert ISO date (2024-03-11) to EXIF format (2024:03:11)."""
+    return iso_date.replace('-', ':')
+
+
+def to_iso_date(exif_date: str) -> str:
+    """Convert EXIF date prefix (2024:03:11...) to ISO (2024-03-11)."""
+    return exif_date[:10].replace(':', '-')
+
+
 def format_date(date_str):
     """Format EXIF date string (YYYY:MM:DD HH:MM:SS) to DD/MM/YYYY HH:MM."""
     if not date_str or not isinstance(date_str, str):

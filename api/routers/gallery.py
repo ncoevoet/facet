@@ -16,7 +16,7 @@ from api.db_helpers import (
     PHOTO_BASE_COLS, PHOTO_OPTIONAL_COLS,
     split_photo_tags, attach_person_data,
     get_visibility_clause, get_photos_from_clause, get_preference_columns,
-    format_date,
+    format_date, to_exif_date,
 )
 from api.top_picks import get_top_picks_score_sql, get_top_picks_threshold
 from api.types import (
@@ -173,14 +173,14 @@ def _build_gallery_where(params, conn=None, user_id=None):
 
     if params.get('date_from'):
         try:
-            date_from = params['date_from'].replace('-', ':')
+            date_from = to_exif_date(params['date_from'])
             where_clauses.append("date_taken >= ?")
             sql_params.append(date_from)
         except (ValueError, AttributeError):
             pass
     if params.get('date_to'):
         try:
-            date_to = params['date_to'].replace('-', ':') + " 23:59:59"
+            date_to = to_exif_date(params['date_to']) + " 23:59:59"
             where_clauses.append("date_taken <= ?")
             sql_params.append(date_to)
         except (ValueError, AttributeError):
@@ -333,18 +333,18 @@ async def api_photos(
             if not params.get(key):
                 params[key] = value
 
-    conn = get_db_connection()
-    user_id = user.user_id if user else None
-    from_clause, from_params = get_photos_from_clause(user_id)
-    where_clauses, sql_params = _build_gallery_where(params, conn, user_id=user_id)
-    all_params = from_params + sql_params
-    where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-
     sort_col = params['sort'] if params['sort'] in VALID_SORT_COLS else 'aggregate'
     sort_dir = 'ASC' if params['dir'] == 'ASC' else 'DESC'
     order_by_clause = f"{sort_col} {sort_dir}, path ASC"
 
+    conn = get_db_connection()
     try:
+        user_id = user.user_id if user else None
+        from_clause, from_params = get_photos_from_clause(user_id)
+        where_clauses, sql_params = _build_gallery_where(params, conn, user_id=user_id)
+        all_params = from_params + sql_params
+        where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
         total_count = get_cached_count(conn, where_str, all_params, from_clause=from_clause)
         total_pages = max(1, math.ceil(total_count / per_page))
         offset = (page - 1) * per_page

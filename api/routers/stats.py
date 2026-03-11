@@ -21,7 +21,7 @@ from api.config import (
     _get_stats_cached, _stats_cache, _FULL_CONFIG, _CONFIG_PATH, reload_config,
 )
 from api.database import get_db_connection
-from api.db_helpers import get_visibility_clause
+from api.db_helpers import get_visibility_clause, to_exif_date, to_iso_date
 
 router = APIRouter(tags=["stats"])
 
@@ -166,9 +166,9 @@ def api_stats_overview(
         date_start = ''
         date_end = ''
         if row[4]:
-            date_start = row[4][:10].replace(':', '-')
+            date_start = to_iso_date(row[4])
         if row[5]:
-            date_end = row[5][:10].replace(':', '-')
+            date_end = to_iso_date(row[5])
 
         return {
             'total_photos': row[0] or 0,
@@ -418,7 +418,7 @@ def api_stats_gear(
             cam_tl, len_tl, com_tl = {}, {}, {}
             for cam, lens, month, count in cur.fetchall():
                 if not month: continue
-                month = month.replace(':', '-')
+                month = to_iso_date(month)
                 # Cameras
                 if cam:
                     if cam not in cam_tl: cam_tl[cam] = []
@@ -575,7 +575,7 @@ def api_stats_timeline(
             cur.execute(f'''SELECT SUBSTR(date_taken, 1, 7) as month, COUNT(*) as cnt, ROUND(AVG(aggregate), 2) as avg_agg
                            FROM photos WHERE date_taken IS NOT NULL AND date_taken != ''{vis}
                            GROUP BY month ORDER BY month''', vp)
-            monthly = [{'month': r[0].replace(':', '-'), 'count': r[1], 'avg_score': r[2] or 0} for r in cur.fetchall()]
+            monthly = [{'month': to_iso_date(r[0]), 'count': r[1], 'avg_score': r[2] or 0} for r in cur.fetchall()]
 
             # Yearly
             cur.execute(f'''SELECT SUBSTR(date_taken, 1, 4) as year, COUNT(*) as cnt
@@ -646,10 +646,10 @@ def api_stats_correlations(
             date_params = []
             if date_from:
                 date_clauses.append("date_taken >= ?")
-                date_params.append(date_from.replace('-', ':'))
+                date_params.append(to_exif_date(date_from))
             if date_to:
                 date_clauses.append("date_taken <= ?")
-                date_params.append(date_to.replace('-', ':') + " 23:59:59")
+                date_params.append(to_exif_date(date_to) + " 23:59:59")
             if category:
                 date_clauses.append("category = ?")
                 date_params.append(category)
