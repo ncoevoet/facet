@@ -21,6 +21,11 @@
             <a mat-icon-button class="lg:!hidden" routerLink="/compare" routerLinkActive #rlCompareM="routerLinkActive" [style.color]="rlCompareM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.compare' | translate">
               <mat-icon>tune</mat-icon>
             </a>
+            @if (hasBurstGroups()) {
+              <a mat-icon-button class="lg:!hidden" routerLink="/culling" routerLinkActive #rlCullingM="routerLinkActive" [style.color]="rlCullingM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.culling' | translate">
+                <mat-icon>burst_mode</mat-icon>
+              </a>
+            }
           }
           <a mat-icon-button class="lg:!hidden" routerLink="/stats" routerLinkActive #rlStatsM="routerLinkActive" [style.color]="rlStatsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate">
             <mat-icon>bar_chart</mat-icon>
@@ -40,6 +45,11 @@
             <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/compare" routerLinkActive #rlCompare="routerLinkActive" [style.color]="rlCompare.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.compare' | translate">
               <mat-icon>tune</mat-icon>
             </a>
+            @if (hasBurstGroups()) {
+              <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/culling" routerLinkActive #rlCulling="routerLinkActive" [style.color]="rlCulling.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.culling' | translate">
+                <mat-icon>burst_mode</mat-icon>
+              </a>
+            }
           }
           <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/stats" routerLinkActive #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate">
             <mat-icon>bar_chart</mat-icon>
@@ -56,7 +66,7 @@
       @if (auth.isAuthenticated() && isGalleryRoute()) {
         <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
           <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
-          <mat-select [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
+          <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
             <mat-option value="">{{ 'gallery.all_photos' | translate }}</mat-option>
             @for (t of store.types(); track t.id) {
               <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
@@ -133,7 +143,7 @@
       @if (auth.isAuthenticated() && isCompareRoute()) {
         <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
           <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
-          <mat-select [value]="compareFilters.selectedCategory()" (selectionChange)="onCompareCategoryChange($event.value)">
+          <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="compareFilters.selectedCategory()" (selectionChange)="onCompareCategoryChange($event.value)">
             @for (t of store.types(); track t.id) {
               <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
             }
@@ -145,7 +155,7 @@
       @if (auth.isAuthenticated() && isStatsRoute()) {
         <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
           <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
-          <mat-select [value]="statsFilters.filterCategory()" (selectionChange)="onStatsCategoryChange($event.value)">
+          <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="statsFilters.filterCategory()" (selectionChange)="onStatsCategoryChange($event.value)">
             <mat-option value="">{{ 'gallery.all_photos' | translate }}</mat-option>
             @for (t of store.types(); track t.id) {
               <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
@@ -192,7 +202,7 @@
 
         <mat-form-field class="!hidden lg:!inline-flex w-48" subscriptSizing="dynamic">
           <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
-          <mat-select [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
+          <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
             @if (sortGroups(); as groups) {
               @for (group of groups; track group[0]) {
                 <mat-optgroup [label]="group[0]">
@@ -268,6 +278,10 @@
             <mat-icon>language</mat-icon>
             {{ 'ui.switch_language' | translate }}
           </button>
+          <button mat-menu-item (click)="themeService.toggleDarkMode()">
+            <mat-icon>{{ themeService.darkMode() ? 'light_mode' : 'dark_mode' }}</mat-icon>
+            {{ (themeService.darkMode() ? 'ui.light_mode' : 'ui.dark_mode') | translate }}
+          </button>
           <button mat-menu-item [matMenuTriggerFor]="themeMenu">
             <mat-icon>palette</mat-icon>
             {{ 'ui.theme' | translate }}
@@ -307,6 +321,10 @@
           <button mat-menu-item (click)="switchLang('it')">Italiano</button>
           <button mat-menu-item (click)="switchLang('es')">Español</button>
         </mat-menu>
+        <!-- Dark mode toggle (not authenticated) -->
+        <button mat-icon-button (click)="themeService.toggleDarkMode()" [attr.aria-label]="(themeService.darkMode() ? 'ui.light_mode' : 'ui.dark_mode') | translate">
+          <mat-icon>{{ themeService.darkMode() ? 'light_mode' : 'dark_mode' }}</mat-icon>
+        </button>
         <!-- Theme menu (not authenticated) -->
         <button mat-icon-button [matMenuTriggerFor]="themeMenuAnon" [attr.aria-label]="'ui.theme' | translate">
           <mat-icon>palette</mat-icon>

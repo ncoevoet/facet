@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed, output } from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, filter } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -129,7 +130,7 @@ interface LearnedWeightsResponse {
             } @else if (pairA() && pairB()) {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <button
-                  class="relative rounded-lg overflow-hidden bg-neutral-900 cursor-pointer border-2 border-transparent hover:border-[var(--mat-sys-primary)] transition-colors text-left p-0"
+                  class="relative rounded-lg overflow-hidden bg-[var(--mat-sys-surface-container)] cursor-pointer border-2 border-transparent hover:border-[var(--mat-sys-primary)] transition-colors text-left p-0"
                   [disabled]="pairSubmitting()"
                   (click)="submitComparison('a')">
                   <img [src]="pairA()! | thumbnailUrl:640" alt="Photo A" class="w-full max-h-[60vh] object-contain" />
@@ -139,7 +140,7 @@ interface LearnedWeightsResponse {
                   </div>
                 </button>
                 <button
-                  class="relative rounded-lg overflow-hidden bg-neutral-900 cursor-pointer border-2 border-transparent hover:border-[var(--mat-sys-primary)] transition-colors text-left p-0"
+                  class="relative rounded-lg overflow-hidden bg-[var(--mat-sys-surface-container)] cursor-pointer border-2 border-transparent hover:border-[var(--mat-sys-primary)] transition-colors text-left p-0"
                   [disabled]="pairSubmitting()"
                   (click)="submitComparison('b')">
                   <img [src]="pairB()! | thumbnailUrl:640" alt="Photo B" class="w-full max-h-[60vh] object-contain" />
@@ -261,36 +262,51 @@ interface LearnedWeightsResponse {
   `,
 })
 export class ComparisonAbTabComponent {
-  private api = inject(ApiService);
-  private i18n = inject(I18nService);
-  private snackBar = inject(MatSnackBar);
-  readonly auth = inject(AuthService);
-  private compareFilters = inject(CompareFiltersService);
+  private readonly api = inject(ApiService);
+  private readonly i18n = inject(I18nService);
+  private readonly snackBar = inject(MatSnackBar);
+  protected readonly auth = inject(AuthService);
+  private readonly compareFilters = inject(CompareFiltersService);
 
   /** Emitted when user applies learned weight suggestions — parent updates the weights tab */
   readonly weightsApplied = output<Record<string, number>>();
 
-  readonly strategies = ['uncertainty', 'boundary', 'active', 'random'] as const;
+  protected readonly strategies = ['uncertainty', 'boundary', 'active', 'random'] as const;
 
-  pairA = signal<string | null>(null);
-  pairB = signal<string | null>(null);
-  pairScoreA = signal(0);
-  pairScoreB = signal(0);
-  pairLoading = signal(false);
-  pairSubmitting = signal(false);
-  pairError = signal<string | null>(null);
-  comparisonCount = signal(0);
-  strategy = signal<string>('uncertainty');
-  comparisonStats = signal<ComparisonStats | null>(null);
-  learnedWeights = signal<LearnedWeightsResponse | null>(null);
-  learnedWeightsLoading = signal(false);
-  showStrategyHelp = signal(false);
+  constructor() {
+    toObservable(this.compareFilters.selectedCategory).pipe(
+      filter(Boolean),
+      takeUntilDestroyed(),
+    ).subscribe(() => {
+      this.pairA.set(null);
+      this.pairB.set(null);
+      this.pairError.set(null);
+      this.comparisonStats.set(null);
+      this.learnedWeights.set(null);
+      this.comparisonCount.set(0);
+      void this.loadNextPair();
+    });
+  }
 
-  currentWeightKeys = computed(() =>
+  readonly pairA = signal<string | null>(null);
+  readonly pairLoading = signal(false);
+  protected readonly pairB = signal<string | null>(null);
+  protected readonly pairScoreA = signal(0);
+  protected readonly pairScoreB = signal(0);
+  protected readonly pairSubmitting = signal(false);
+  protected readonly pairError = signal<string | null>(null);
+  protected readonly comparisonCount = signal(0);
+  protected readonly strategy = signal<string>('uncertainty');
+  protected readonly comparisonStats = signal<ComparisonStats | null>(null);
+  protected readonly learnedWeights = signal<LearnedWeightsResponse | null>(null);
+  protected readonly learnedWeightsLoading = signal(false);
+  protected readonly showStrategyHelp = signal(false);
+
+  protected readonly currentWeightKeys = computed(() =>
     Object.keys(this.learnedWeights()?.current_weights ?? {}).filter(k => k.endsWith('_percent')),
   );
 
-  onStrategyChange(value: string): void {
+  protected onStrategyChange(value: string): void {
     this.strategy.set(value);
     if (this.pairA()) void this.loadNextPair();
   }
@@ -327,7 +343,7 @@ export class ComparisonAbTabComponent {
     }
   }
 
-  async submitComparison(winner: 'a' | 'b' | 'tie'): Promise<void> {
+  protected async submitComparison(winner: 'a' | 'b' | 'tie'): Promise<void> {
     const a = this.pairA();
     const b = this.pairB();
     const cat = this.compareFilters.selectedCategory();
@@ -348,14 +364,14 @@ export class ComparisonAbTabComponent {
     }
   }
 
-  async loadComparisonStats(): Promise<void> {
+  private async loadComparisonStats(): Promise<void> {
     try {
       const data = await firstValueFrom(this.api.get<ComparisonStats>('/comparison/stats'));
       this.comparisonStats.set(data);
     } catch { /* non-critical */ }
   }
 
-  async loadLearnedWeights(): Promise<void> {
+  protected async loadLearnedWeights(): Promise<void> {
     const cat = this.compareFilters.selectedCategory();
     if (!cat) return;
     this.learnedWeightsLoading.set(true);
@@ -371,7 +387,7 @@ export class ComparisonAbTabComponent {
     }
   }
 
-  applyWeights(): void {
+  protected applyWeights(): void {
     const lw = this.learnedWeights();
     if (!lw?.suggested_weights) return;
     const merged = { ...(lw.current_weights ?? {}), ...lw.suggested_weights };
@@ -379,7 +395,7 @@ export class ComparisonAbTabComponent {
     this.snackBar.open(this.i18n.t('comparison.optimized'), '', { duration: 3000 });
   }
 
-  onKeydown(event: KeyboardEvent): void {
+  protected onKeydown(event: KeyboardEvent): void {
     const tag = (event.target as HTMLElement)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (!this.pairA() || !this.pairB() || this.pairSubmitting() || this.pairLoading()) return;

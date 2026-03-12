@@ -55,14 +55,19 @@ def _cached_image_response(image_bytes: bytes, request: Request) -> Response:
 
 @lru_cache(maxsize=_thumbnail_cache_size)
 def _resize_thumbnail(thumbnail_bytes: bytes, size: int) -> bytes:
-    """Resize a thumbnail to the given max dimension. Returns JPEG bytes."""
+    """Resize a thumbnail to the given max dimension. Returns JPEG bytes.
+
+    Uses lower quality for tiny placeholders (size <= 48) to minimize payload
+    for progressive blur-up loading.
+    """
     from PIL import Image
     img = Image.open(BytesIO(thumbnail_bytes))
     if max(img.size) <= size:
         return thumbnail_bytes
     img.thumbnail((size, size), Image.LANCZOS)
+    quality = 20 if size <= 48 else 80
     buf = BytesIO()
-    img.save(buf, format='JPEG', quality=80)
+    img.save(buf, format='JPEG', quality=quality)
     return buf.getvalue()
 
 

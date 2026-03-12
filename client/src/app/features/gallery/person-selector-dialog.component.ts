@@ -36,7 +36,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
         <div class="flex flex-col gap-1 max-h-[360px] overflow-y-auto">
           @for (person of filtered(); track person.id) {
             <button
-              class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-neutral-800 transition-colors text-left w-full"
+              class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--mat-sys-surface-container-high)] transition-colors text-left w-full"
               (click)="dialogRef.close(person)"
             >
               <img [src]="person.id | personThumbnailUrl"

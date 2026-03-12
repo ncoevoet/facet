@@ -6,9 +6,12 @@ Generates semantic tags from images using the config-driven tag vocabulary, with
 true batched inference, edit-distance tag matching, and logprob confidence scores.
 """
 
+import logging
 from typing import List, Optional, Dict, Any, Tuple
 import math
 import PIL.Image
+
+logger = logging.getLogger("facet.vlm_tagger")
 
 # Lazy imports
 torch = None
@@ -157,7 +160,7 @@ Tags:"""
         torch_dtype = getattr(torch, dtype_str, torch.bfloat16)
 
         family_label = 'Qwen3-VL' if self.family == 'qwen3' else 'Qwen2.5-VL'
-        print(f"Loading {family_label} from {model_path}...")
+        logger.info("Loading %s from %s...", family_label, model_path)
 
         # Import the correct model class
         if self.family == 'qwen3':
@@ -182,7 +185,7 @@ Tags:"""
 
         self.processor = AutoProcessor.from_pretrained(model_path, **processor_kwargs)
 
-        print(f"{family_label} loaded successfully")
+        logger.info("%s loaded successfully", family_label)
 
     def unload(self):
         """Free VRAM by unloading the model."""
@@ -197,7 +200,7 @@ Tags:"""
         _ensure_imports()
         torch.cuda.empty_cache()
         family_label = 'Qwen3-VL' if self.family == 'qwen3' else 'Qwen2.5-VL'
-        print(f"{family_label} tagger unloaded")
+        logger.info("%s tagger unloaded", family_label)
 
     def tag_image(self, image: PIL.Image.Image, max_tags: int = 5) -> List[str]:
         """
@@ -350,13 +353,13 @@ Tags:"""
                 batch_results = self._tag_sub_batch(sub_batch, max_tags)
                 results.extend(batch_results)
             except torch.cuda.OutOfMemoryError:
-                print(f"OOM on batch of {len(sub_batch)}, falling back to sequential...")
+                logger.warning("OOM on batch of %d, falling back to sequential...", len(sub_batch))
                 torch.cuda.empty_cache()
                 for img in sub_batch:
                     try:
                         results.append(self.tag_image(img, max_tags))
                     except torch.cuda.OutOfMemoryError:
-                        print("OOM on single image, skipping...")
+                        logger.warning("OOM on single image, skipping...")
                         torch.cuda.empty_cache()
                         results.append([])
 

@@ -4,10 +4,13 @@ Facet Percentile Normalizer.
 Dataset-aware normalization using percentile values.
 """
 
-import os
 import json
+import logging
+import os
 import sqlite3
 from db import get_connection
+
+logger = logging.getLogger("facet.normalizer")
 
 from config.scoring_config import _calc_stats
 
@@ -71,7 +74,7 @@ class PercentileNormalizer:
             cursor = conn.execute("PRAGMA table_info(photos)")
             columns = [col[1] for col in cursor.fetchall()]
             if 'category' not in columns:
-                print("Warning: category column not found, skipping per-category percentiles")
+                logger.warning("category column not found, skipping per-category percentiles")
                 return self.category_percentiles
 
             for metric in self.CATEGORY_NORMALIZED_METRICS:
@@ -1252,25 +1255,25 @@ class PercentileNormalizer:
         calc_stats = _calc_stats
 
         def print_section(title):
-            print(f"\n{'='*60}")
-            print(f" {title}")
-            print('='*60)
+            logger.info("=" * 60)
+            logger.info(" %s", title)
+            logger.info("=" * 60)
 
         def print_stat_row(label, stats, score_range=False):
             if stats is None:
-                print(f"  {label:25} No data")
+                logger.info("  %-25s No data", label)
                 return
             if score_range:
-                print(f"  {label:25} avg={stats['avg']:5.2f}  std={stats['std']:4.2f}  "
-                      f"range=[{stats['min']:.2f}-{stats['max']:.2f}]  "
-                      f"p50={stats['p50']:.2f}  p90={stats['p90']:.2f}")
+                logger.info("  %-25s avg=%5.2f  std=%4.2f  range=[%.2f-%.2f]  p50=%.2f  p90=%.2f",
+                            label, stats['avg'], stats['std'], stats['min'], stats['max'],
+                            stats['p50'], stats['p90'])
             else:
-                print(f"  {label:25} avg={stats['avg']:8.2f}  std={stats['std']:8.2f}  "
-                      f"range=[{stats['min']:.2f}-{stats['max']:.2f}]")
+                logger.info("  %-25s avg=%8.2f  std=%8.2f  range=[%.2f-%.2f]",
+                            label, stats['avg'], stats['std'], stats['min'], stats['max'])
 
         def print_subsection(title):
-            print(f"\n {title}")
-            print('-'*60)
+            logger.info(" %s", title)
+            logger.info("-" * 60)
 
         def calculate_health_score(agg_stats, tech_issues, rec_count):
             """Calculate database health score (0-100)."""
@@ -1310,11 +1313,11 @@ class PercentileNormalizer:
             total = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
 
             if total == 0:
-                print("\n" + "="*60)
-                print(" FACET DATABASE ANALYSIS")
-                print("="*60)
-                print("\n  No photos in database. Run scoring first.")
-                print("="*60)
+                logger.info("=" * 60)
+                logger.info(" FACET DATABASE ANALYSIS")
+                logger.info("=" * 60)
+                logger.info("  No photos in database. Run scoring first.")
+                logger.info("=" * 60)
                 return [] if return_recommendations else None
 
             # Date range
@@ -1402,17 +1405,17 @@ class PercentileNormalizer:
             health_label = get_health_label(health)
 
             # === PRINT EXECUTIVE SUMMARY (ALWAYS) ===
-            print("\n" + "="*60)
-            print(" FACET DATABASE ANALYSIS")
-            print("="*60)
+            logger.info("=" * 60)
+            logger.info(" FACET DATABASE ANALYSIS")
+            logger.info("=" * 60)
 
             print_subsection("SUMMARY")
-            print(f"  Photos: {total:,}  |  Range: {date_range}")
-            print(f"  Health: {health}/100 ({health_label})")
-            print()
-            print("  Findings:")
+            logger.info("  Photos: %s  |  Range: %s", f"{total:,}", date_range)
+            logger.info("  Health: %d/100 (%s)", health, health_label)
+            logger.info("")
+            logger.info("  Findings:")
             for status, msg in findings:
-                print(f"    {status:4} {msg}")
+                logger.info("    %-4s %s", status, msg)
 
             # === PRINT RECOMMENDATIONS PROMINENTLY (ALWAYS) ===
             if scoring_issues:
@@ -1424,18 +1427,18 @@ class PercentileNormalizer:
                     if proposals:
                         fix = proposals[0].get('change', '')
                         location = proposals[0].get('location', '').split('->')[-1].strip() if '->' in proposals[0].get('location', '') else ''
-                        print(f"  {i}. [{confidence}] {issue['description']}")
+                        logger.info("  %d. [%s] %s", i, confidence, issue['description'])
                         explanation = issue.get('explanation', '')
                         if explanation:
                             # Wrap explanation to ~72 chars with indent
                             import textwrap
                             wrapped = textwrap.fill(explanation, width=72, initial_indent='     ', subsequent_indent='     ')
-                            print(wrapped)
-                        print(f"     Impact: {impact}")
+                            logger.info(wrapped)
+                        logger.info("     Impact: %s", impact)
                         if location and fix:
-                            print(f"     Fix: {location}: {fix}")
-                        print()
-                print("  [Auto-apply with --apply-recommendations]")
+                            logger.info("     Fix: %s: %s", location, fix)
+                        logger.info("")
+                logger.info("  [Auto-apply with --apply-recommendations]")
 
             # === PRINT QUICK STATS (ALWAYS) ===
             print_subsection("QUICK STATS")
@@ -1445,22 +1448,23 @@ class PercentileNormalizer:
                 cat_parts.append(f"{row['category']} {pct:.1f}%")
             if len(categories) > 4:
                 cat_parts.append("...")
-            print(f"  Categories: {', '.join(cat_parts)}")
+            logger.info("  Categories: %s", ', '.join(cat_parts))
 
             if agg_stats:
-                print(f"  Scores:     avg={agg_stats['avg']:.2f}  std={agg_stats['std']:.2f}  "
-                      f"range=[{agg_stats['min']:.2f}-{agg_stats['max']:.2f}]")
+                logger.info("  Scores:     avg=%.2f  std=%.2f  range=[%.2f-%.2f]",
+                            agg_stats['avg'], agg_stats['std'], agg_stats['min'], agg_stats['max'])
 
             # === DETAILED SECTIONS (VERBOSE ONLY) ===
             if verbose:
                 # === CATEGORY BREAKDOWN ===
                 print_section("PHOTO CATEGORIES (Detailed)")
-                print(f"  {'Category':<20} {'Count':>6} {'%':>6}  {'Avg':>5} {'Min':>5} {'Max':>5}")
-                print(f"  {'-'*20} {'-'*6} {'-'*6}  {'-'*5} {'-'*5} {'-'*5}")
+                logger.info("  %-20s %6s %6s  %5s %5s %5s", 'Category', 'Count', '%', 'Avg', 'Min', 'Max')
+                logger.info("  %s %s %s  %s %s %s", '-'*20, '-'*6, '-'*6, '-'*5, '-'*5, '-'*5)
                 for row in categories:
                     pct = 100.0 * row['count'] / total
-                    print(f"  {row['category']:<20} {row['count']:>6} {pct:>5.1f}%  "
-                          f"{row['avg_score']:>5.2f} {row['min_score']:>5.2f} {row['max_score']:>5.2f}")
+                    logger.info("  %-20s %6d %5.1f%%  %5.2f %5.2f %5.2f",
+                                row['category'], row['count'], pct,
+                                row['avg_score'], row['min_score'], row['max_score'])
 
                 # === SCORE DISTRIBUTIONS ===
                 print_section("SCORE DISTRIBUTIONS")
@@ -1497,13 +1501,13 @@ class PercentileNormalizer:
                 """).fetchall()
 
                 max_count = max(r['count'] for r in buckets) if buckets else 1
-                print(f"  {'Range':<18} {'Count':>6} {'%':>6}  Bar")
-                print(f"  {'-'*18} {'-'*6} {'-'*6}  {'-'*30}")
+                logger.info("  %-18s %6s %6s  Bar", 'Range', 'Count', '%')
+                logger.info("  %s %s %s  %s", '-'*18, '-'*6, '-'*6, '-'*30)
                 for row in buckets:
                     pct = 100.0 * row['count'] / total
                     bar_len = int(30 * row['count'] / max_count)
-                    bar = '█' * bar_len
-                    print(f"  {row['bucket']:<18} {row['count']:>6} {pct:>5.1f}%  {bar}")
+                    bar = '#' * bar_len
+                    logger.info("  %-18s %6d %5.1f%%  %s", row['bucket'], row['count'], pct, bar)
 
                 # === RAW METRICS (for normalization tuning) ===
                 print_section("RAW METRICS (for percentile normalization)")
@@ -1516,8 +1520,8 @@ class PercentileNormalizer:
                         ).fetchall() if isinstance(r[0], (int, float))]
                         stats = calc_stats(values)
                         if stats:
-                            print(f"  {col:25} p90={stats['p90']:8.3f}  p95={stats['p95']:8.3f}  "
-                                  f"max={stats['max']:8.3f}")
+                            logger.info("  %-25s p90=%8.3f  p95=%8.3f  max=%8.3f",
+                                        col, stats['p90'], stats['p95'], stats['max'])
                     except sqlite3.OperationalError:
                         pass
 
@@ -1527,7 +1531,7 @@ class PercentileNormalizer:
                 columns = [col[1] for col in cursor.fetchall()]
                 if 'category' in columns:
                     print_section("CATEGORY DETAILS (Face-Ratio Based)")
-                    print("  Categories determined by face_ratio, face_count, is_monochrome:\n")
+                    logger.info("  Categories determined by face_ratio, face_count, is_monochrome:")
                     min_samples = 50  # Threshold for reliable statistics
 
                     cat_scores = conn.execute("""
@@ -1547,14 +1551,14 @@ class PercentileNormalizer:
 
                 if cat_scores:
                     # Header with aesthetic and comp_score columns
-                    print(f"  {'Category':<16} {'Count':>6} {'':>3}  {'Avg Agg':>7} {'Avg Aes':>7} {'Avg Comp':>8} {'p90':>6}")
-                    print(f"  {'-'*16} {'-'*6} {'-'*3}  {'-'*7} {'-'*7} {'-'*8} {'-'*6}")
+                    logger.info("  %-16s %6s %3s  %7s %7s %8s %6s", 'Category', 'Count', '', 'Avg Agg', 'Avg Aes', 'Avg Comp', 'p90')
+                    logger.info("  %s %s %s  %s %s %s %s", '-'*16, '-'*6, '-'*3, '-'*7, '-'*7, '-'*8, '-'*6)
                     for row in cat_scores:
                         cat = row[0]
                         count = row[1]
                         avg_aes = row[3] or 0
                         avg_comp = row[4] or 0
-                        status = "✓" if count >= min_samples else "✗"
+                        status = "+" if count >= min_samples else "x"
 
                         cat_values = [r[0] for r in conn.execute(
                             "SELECT aggregate FROM photos WHERE category = ? AND aggregate IS NOT NULL",
@@ -1562,8 +1566,8 @@ class PercentileNormalizer:
                         ).fetchall() if isinstance(r[0], (int, float))]
                         cat_stats = calc_stats(cat_values) if cat_values else None
                         if cat_stats:
-                            print(f"  {cat:<16} {count:>6} {status:>3}  "
-                                  f"{cat_stats['avg']:>7.2f} {avg_aes:>7.2f} {avg_comp:>8.2f} {cat_stats['p90']:>6.2f}")
+                            logger.info("  %-16s %6d %3s  %7.2f %7.2f %8.2f %6.2f",
+                                        cat, count, status, cat_stats['avg'], avg_aes, avg_comp, cat_stats['p90'])
 
                 # === PER-CATEGORY PERCENTILES (p90 for normalization) ===
                 norm_settings = config.get_normalization_settings() if config else {}
@@ -1589,8 +1593,8 @@ class PercentileNormalizer:
                         header = f"  {'Metric':<22}"
                         for cat in cat_names:
                             header += f" {cat[:10]:>10}"
-                        print(header)
-                        print(f"  {'-'*22}" + (' ' + '-'*10) * len(cat_names))
+                        logger.info(header)
+                        logger.info("  %s%s", '-'*22, (' ' + '-'*10) * len(cat_names))
 
                         for metric in norm_metrics:
                             row_str = f"  {metric:<22}"
@@ -1607,14 +1611,14 @@ class PercentileNormalizer:
                                         row_str += f" {'N/A':>10}"
                                 except sqlite3.OperationalError:
                                     row_str += f" {'N/A':>10}"
-                            print(row_str)
+                            logger.info(row_str)
                     else:
-                        print(f"  No categories with >= {min_samples} samples found.")
-                        print(f"  Run --recalculate to populate category column.")
+                        logger.info("  No categories with >= %d samples found.", min_samples)
+                        logger.info("  Run --recalculate to populate category column.")
 
                 # === TAG-BASED CATEGORY STATISTICS ===
                 print_section("TAG-BASED CATEGORY STATISTICS")
-                print("  Categories determined by CLIP semantic tags:\n")
+                logger.info("  Categories determined by CLIP semantic tags:")
 
                 # Get all weight categories with tags defined from config
                 tag_category_tags = {}
@@ -1663,14 +1667,15 @@ class PercentileNormalizer:
                 category_stats.sort(key=lambda x: x['count'], reverse=True)
 
                 if category_stats:
-                    print(f"  {'Category':<16} {'Count':>6} {'Status':>3}  {'Avg Agg':>7} {'Avg Aes':>7} {'Avg Comp':>8}")
-                    print(f"  {'-'*16} {'-'*6} {'-'*3}  {'-'*7} {'-'*7} {'-'*8}")
+                    logger.info("  %-16s %6s %3s  %7s %7s %8s", 'Category', 'Count', 'Status', 'Avg Agg', 'Avg Aes', 'Avg Comp')
+                    logger.info("  %s %s %s  %s %s %s", '-'*16, '-'*6, '-'*3, '-'*7, '-'*7, '-'*8)
                     for stat in category_stats:
-                        status = "✓" if stat['sufficient'] else "✗"
-                        print(f"  {stat['category']:<16} {stat['count']:>6} {status:>3}  "
-                              f"{stat['avg_agg']:>7.2f} {stat['avg_aes']:>7.2f} {stat['avg_comp']:>8.2f}")
+                        status = "+" if stat['sufficient'] else "x"
+                        logger.info("  %-16s %6d %3s  %7.2f %7.2f %8.2f",
+                                    stat['category'], stat['count'], status,
+                                    stat['avg_agg'], stat['avg_aes'], stat['avg_comp'])
                 else:
-                    print("  No tag-based categories found. Run tagging first.")
+                    logger.info("  No tag-based categories found. Run tagging first.")
 
                 # === FACE ANALYSIS ===
                 print_section("FACE ANALYSIS")
@@ -1683,19 +1688,19 @@ class PercentileNormalizer:
                         AVG(CASE WHEN face_count > 0 THEN face_ratio ELSE NULL END) as avg_face_ratio
                     FROM photos
                 """).fetchone()
-                print(f"  No faces: {face_stats['no_faces']} ({100*face_stats['no_faces']/total:.1f}%)")
-                print(f"  Single face: {face_stats['single_face']} ({100*face_stats['single_face']/total:.1f}%)")
-                print(f"  Multiple faces: {face_stats['multi_face']} ({100*face_stats['multi_face']/total:.1f}%)")
-                print(f"  Detected blinks: {face_stats['blinks'] or 0}")
+                logger.info("  No faces: %d (%.1f%%)", face_stats['no_faces'], 100*face_stats['no_faces']/total)
+                logger.info("  Single face: %d (%.1f%%)", face_stats['single_face'], 100*face_stats['single_face']/total)
+                logger.info("  Multiple faces: %d (%.1f%%)", face_stats['multi_face'], 100*face_stats['multi_face']/total)
+                logger.info("  Detected blinks: %d", face_stats['blinks'] or 0)
                 if face_stats['avg_face_ratio']:
-                    print(f"  Avg face ratio (when present): {face_stats['avg_face_ratio']*100:.1f}%")
+                    logger.info("  Avg face ratio (when present): %.1f%%", face_stats['avg_face_ratio']*100)
 
                 # === TECHNICAL ISSUES ===
                 print_section("TECHNICAL ISSUES")
-                print(f"  Shadow clipped: {issues['shadow_clipped'] or 0} ({tech_issues['shadow']:.1f}%)")
-                print(f"  Highlight clipped: {issues['highlight_clipped'] or 0} ({tech_issues['highlight']:.1f}%)")
-                print(f"  High noise (σ>4): {issues['noisy'] or 0} ({tech_issues['noisy']:.1f}%)")
-                print(f"  Soft images (<4): {issues['soft'] or 0} ({tech_issues['soft']:.1f}%)")
+                logger.info("  Shadow clipped: %d (%.1f%%)", issues['shadow_clipped'] or 0, tech_issues['shadow'])
+                logger.info("  Highlight clipped: %d (%.1f%%)", issues['highlight_clipped'] or 0, tech_issues['highlight'])
+                logger.info("  High noise (sigma>4): %d (%.1f%%)", issues['noisy'] or 0, tech_issues['noisy'])
+                logger.info("  Soft images (<4): %d (%.1f%%)", issues['soft'] or 0, tech_issues['soft'])
 
                 # === CORRELATION ANALYSIS ===
                 print_section("SCORE CORRELATIONS WITH AGGREGATE")
@@ -1727,7 +1732,7 @@ class PercentileNormalizer:
                     bar_len = int(20 * abs(corr))
                     bar = '█' * bar_len
                     sign = '+' if corr >= 0 else '-'
-                    print(f"  {col:20} {sign}{abs(corr):.3f}  {bar}")
+                    logger.info("  %-20s %s%.3f  %s", col, sign, abs(corr), bar)
 
                 # === CURRENT CONFIG WEIGHTS ===
                 if config:
@@ -1743,7 +1748,7 @@ class PercentileNormalizer:
                     }
 
                     for group_name, categories_list in category_groups.items():
-                        print(f"\n  === {group_name} ===")
+                        logger.info("  === %s ===", group_name)
                         for category in categories_list:
                             weights = config.get_weights(category)
                             if weights:
@@ -1758,13 +1763,13 @@ class PercentileNormalizer:
                                     else:
                                         weight_parts.append(f"{key}={val*100:.0f}%")
                                 bonus_str = f" +{weights['bonus']:.1f}" if 'bonus' in weights else ""
-                                print(f"    {category:16} {', '.join(weight_parts)}{bonus_str}")
+                                logger.info("    %-16s %s%s", category, ', '.join(weight_parts), bonus_str)
 
                 # === DETAILED RECOMMENDATIONS (verbose mode) ===
                 if scoring_issues:
                     print_section("RECOMMENDATION DETAILS")
-                    print("  Analysis based on raw values in DB. Proposals only affect")
-                    print("  aggregate score calculation, not stored raw metrics.\n")
+                    logger.info("  Analysis based on raw values in DB. Proposals only affect")
+                    logger.info("  aggregate score calculation, not stored raw metrics.")
 
                     for i, issue in enumerate(scoring_issues, 1):
                         issue_icons = {
@@ -1787,33 +1792,33 @@ class PercentileNormalizer:
                         confidence = issue.get('confidence', 'unknown')
                         priority = issue.get('priority', 0)
 
-                        print(f"  {i}. {icon} {issue['description']}")
+                        logger.info("  %d. %s %s", i, icon, issue['description'])
                         explanation = issue.get('explanation', '')
                         if explanation:
                             import textwrap
                             wrapped = textwrap.fill(explanation, width=72, initial_indent='     ', subsequent_indent='     ')
-                            print(wrapped)
-                        print(f"     Impact: {issue['estimated_impact']}  [confidence: {confidence}, priority: {priority}]")
-                        print(f"     Proposals:")
+                            logger.info(wrapped)
+                        logger.info("     Impact: %s  [confidence: %s, priority: %s]", issue['estimated_impact'], confidence, priority)
+                        logger.info("     Proposals:")
                         for proposal in issue['proposals']:
-                            print(f"       -> {proposal['location']}")
-                            print(f"         {proposal['change']}")
+                            logger.info("       -> %s", proposal['location'])
+                            logger.info("         %s", proposal['change'])
                             if 'offset_from' in proposal:
-                                print(f"         (offset from {proposal['offset_from']})")
+                                logger.info("         (offset from %s)", proposal['offset_from'])
                             if 'offset_to' in proposal:
-                                print(f"         (offset to {proposal['offset_to']})")
+                                logger.info("         (offset to %s)", proposal['offset_to'])
                             if 'reason' in proposal:
-                                print(f"         Reason: {proposal['reason']}")
-                        print()
+                                logger.info("         Reason: %s", proposal['reason'])
+                        logger.info("")
 
             # === FOOTER ===
-            print()
-            print("-"*60)
+            logger.info("")
+            logger.info("-" * 60)
             if not verbose:
-                print("  Use --verbose for detailed statistics")
+                logger.info("  Use --verbose for detailed statistics")
             if scoring_issues and not return_recommendations:
-                print("  Use --apply-recommendations to auto-apply fixes")
-            print("="*60)
+                logger.info("  Use --apply-recommendations to auto-apply fixes")
+            logger.info("=" * 60)
 
             if return_recommendations:
                 return scoring_issues
@@ -1827,29 +1832,29 @@ class PercentileNormalizer:
         with the proposed changes applied.
         """
         if not recommendations:
-            print("\nNo recommendations to simulate.")
+            logger.info("No recommendations to simulate.")
             return
 
-        print("\n" + "=" * 60)
-        print(" RECOMMENDATION SIMULATION (dry-run)")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info(" RECOMMENDATION SIMULATION (dry-run)")
+        logger.info("=" * 60)
 
         applicable = [r for r in recommendations if r.get('issue_type') not in self._INFORMATIONAL_ISSUE_TYPES]
         informational = [r for r in recommendations if r.get('issue_type') in self._INFORMATIONAL_ISSUE_TYPES]
 
         if informational:
-            print(f"\n  {len(informational)} informational issue(s) — cannot simulate:")
+            logger.info("  %d informational issue(s) -- cannot simulate:", len(informational))
             for r in informational:
-                print(f"    - {r['issue_type']}: {r['description']}")
+                logger.info("    - %s: %s", r['issue_type'], r['description'])
 
         if not applicable:
-            print("\n  No auto-applicable recommendations to simulate.")
+            logger.info("  No auto-applicable recommendations to simulate.")
             return
 
-        print(f"\n  Simulating {len(applicable)} applicable recommendation(s):\n")
+        logger.info("  Simulating %d applicable recommendation(s):", len(applicable))
         for i, rec in enumerate(applicable, 1):
-            print(f"  {i}. [{rec.get('issue_type')}] {rec['description']}")
-            print(f"     Estimated impact: {rec['estimated_impact']}")
+            logger.info("  %d. [%s] %s", i, rec.get('issue_type'), rec['description'])
+            logger.info("     Estimated impact: %s", rec['estimated_impact'])
 
         # Show aggregate stats before/after for sample
         if conn_factory:
@@ -1859,8 +1864,8 @@ class PercentileNormalizer:
                            COUNT(*) FROM photos WHERE aggregate IS NOT NULL
                 """).fetchone()
                 if sample and sample[3] > 0:
-                    print(f"\n  Current aggregate: avg={sample[0]:.2f}, "
-                          f"range=[{sample[1]:.2f}-{sample[2]:.2f}], n={sample[3]}")
+                    logger.info("  Current aggregate: avg=%.2f, range=[%.2f-%.2f], n=%d",
+                               sample[0], sample[1], sample[2], sample[3])
 
                     # Estimate impact from bonus changes
                     total_bonus_impact = 0
@@ -1883,14 +1888,14 @@ class PercentileNormalizer:
                                         pass
 
                     if bonus_details:
-                        print(f"\n  Projected bonus changes: {', '.join(bonus_details)}")
-                        print(f"  (Actual impact depends on category distribution)")
+                        logger.info("  Projected bonus changes: %s", ', '.join(bonus_details))
+                        logger.info("  (Actual impact depends on category distribution)")
 
         # Validate proposed changes and show warnings
         self._simulate_validation_check(applicable, scorer.config if scorer else None)
 
-        print("\n  To apply these changes: --compute-recommendations --apply-recommendations")
-        print("=" * 60)
+        logger.info("  To apply these changes: --compute-recommendations --apply-recommendations")
+        logger.info("=" * 60)
 
     def _simulate_validation_check(self, applicable, config):
         """Check for potential issues in recommendations before applying."""
@@ -1936,9 +1941,9 @@ class PercentileNormalizer:
 
         # Report invalid categories
         if invalid_categories:
-            print(f"\n  WARNING: Recommendations target non-existent categories:")
+            logger.warning("Recommendations target non-existent categories:")
             for cat in set(invalid_categories):
-                print(f"    - '{cat}' not found in config")
+                logger.warning("  - '%s' not found in config", cat)
 
         # Check weight balance per category
         has_balance_issues = False
@@ -1954,9 +1959,9 @@ class PercentileNormalizer:
                                if '_percent' in k and isinstance(v, (int, float)))
                     if total > 0 and abs(total - 100) > 10:
                         if not has_balance_issues:
-                            print(f"\n  Note: Weight totals != 100% (auto-normalized at runtime):")
+                            logger.info("  Note: Weight totals != 100%% (auto-normalized at runtime):")
                             has_balance_issues = True
-                        print(f"    - {cat_name}: {total}%")
+                        logger.info("    - %s: %d%%", cat_name, total)
                     break
 
     # Issue types that are informational only (cannot be auto-applied to config)
@@ -2021,7 +2026,7 @@ class PercentileNormalizer:
         from datetime import datetime
 
         if not recommendations:
-            print("No recommendations to apply.")
+            logger.info("No recommendations to apply.")
             return None
 
         # Filter to only auto-applicable recommendations
@@ -2029,12 +2034,12 @@ class PercentileNormalizer:
         informational = [r for r in recommendations if r.get('issue_type') in self._INFORMATIONAL_ISSUE_TYPES]
 
         if informational:
-            print(f"  Skipping {len(informational)} informational recommendation(s) (manual review needed):")
+            logger.info("  Skipping %d informational recommendation(s) (manual review needed):", len(informational))
             for r in informational:
-                print(f"    - {r['issue_type']}: {r['description']}")
+                logger.info("    - %s: %s", r['issue_type'], r['description'])
 
         if not applicable:
-            print("No auto-applicable recommendations.")
+            logger.info("No auto-applicable recommendations.")
             return None
 
         config_path = config.config_path
@@ -2043,7 +2048,7 @@ class PercentileNormalizer:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_path = f"{config_path}.backup.{timestamp}"
         shutil.copy2(config_path, backup_path)
-        print(f"  Backup created: {backup_path}")
+        logger.info("  Backup created: %s", backup_path)
 
         # Load current config
         with open(config_path, 'r') as f:
@@ -2116,11 +2121,11 @@ class PercentileNormalizer:
                                         pass
 
                 except (ValueError, KeyError, IndexError) as e:
-                    print(f"  Warning: Could not parse {location}: {e}")
+                    logger.warning("Could not parse %s: %s", location, e)
                     continue
 
         if not pending_changes:
-            print("  No concrete changes could be parsed from recommendations.")
+            logger.info("No concrete changes could be parsed from recommendations.")
             return None
 
         # Phase 2: Validate proposed changes before applying
@@ -2130,10 +2135,10 @@ class PercentileNormalizer:
 
         validation_errors = self._validate_recommendations(pending_changes, categories_list, valid_categories)
         if validation_errors:
-            print("\n  Validation errors found:")
+            logger.error("Validation errors found:")
             for err in validation_errors:
-                print(f"    - {err}")
-            print("\n  Fix the issues above before applying recommendations.")
+                logger.error("  - %s", err)
+            logger.error("Fix the issues above before applying recommendations.")
             return None
 
         # Phase 3: Apply collected changes (deduplicated)
@@ -2147,7 +2152,7 @@ class PercentileNormalizer:
                     if 'modifiers' not in categories_list[idx]:
                         categories_list[idx]['modifiers'] = {}
                     categories_list[idx]['modifiers']['bonus'] = value
-                    print(f"  Applied: categories[{section}].modifiers.bonus = {value}  [{source}]")
+                    logger.info("Applied: categories[%s].modifiers.bonus = %s  [%s]", section, value, source)
                     applied_count += 1
             elif '_percent' in key:
                 # Write weight to category weights (v4 format)
@@ -2157,11 +2162,11 @@ class PercentileNormalizer:
                         categories_list[idx]['weights'] = {}
                     old_val = categories_list[idx]['weights'].get(key)
                     categories_list[idx]['weights'][key] = value
-                    old_str = f" (was {old_val})" if old_val is not None else ""
-                    print(f"  Applied: categories[{section}].weights.{key} = {value}{old_str}  [{source}]")
+                    old_str = " (was %s)" % old_val if old_val is not None else ""
+                    logger.info("Applied: categories[%s].weights.%s = %s%s  [%s]", section, key, value, old_str, source)
                     applied_count += 1
                 else:
-                    print(f"  Warning: category '{section}' not found in config, skipping {key}={value}")
+                    logger.warning("Category '%s' not found in config, skipping %s=%s", section, key, value)
 
         # Save updated config
         with open(config_path, 'w') as f:
@@ -2176,9 +2181,9 @@ class PercentileNormalizer:
                     )
                     conn.commit()
             except Exception as e:
-                print(f"  Warning: Could not record to history: {e}")
+                logger.warning("Could not record to history: %s", e)
 
-        print(f"\n  Applied {applied_count} deduplicated change(s) to {config_path}")
+        logger.info("Applied %d deduplicated change(s) to %s", applied_count, config_path)
         return backup_path if applied_count > 0 else None
 
 

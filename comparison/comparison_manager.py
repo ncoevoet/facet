@@ -2,11 +2,14 @@
 Comparison submission and statistics management.
 """
 
+import logging
 import sqlite3
 import uuid
 from typing import Optional, Dict, List
 
 from db import DEFAULT_DB_PATH, get_connection
+
+logger = logging.getLogger("facet.comparison")
 
 
 class ComparisonManager:
@@ -50,7 +53,7 @@ class ComparisonManager:
                 conn.commit()
                 return True
             except sqlite3.Error as e:
-                print(f"Error saving comparison: {e}")
+                logger.error("Error saving comparison: %s", e)
                 return False
 
     def get_statistics(self) -> Dict:

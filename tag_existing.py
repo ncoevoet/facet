@@ -4,9 +4,12 @@ Script to add tags to existing photos using stored CLIP embeddings.
 This is much faster than rescanning as it doesn't require GPU inference.
 """
 
+import logging
 import sqlite3
 import argparse
 from pathlib import Path
+
+logger = logging.getLogger("facet.tag_existing")
 
 from models.tagger import CLIPTagger
 from utils import tags_to_string, get_tag_params
@@ -57,7 +60,7 @@ def tag_untagged_photos(db_path, tagger, threshold=0.22, max_tags=5, verbose=Fal
                 conn.execute('UPDATE photos SET tags = ? WHERE path = ?', (tags_str, row['path']))
                 tagged_count += 1
                 if verbose:
-                    print(f"  {row['filename']}: {tags_str}")
+                    logger.info("  %s: %s", row['filename'], tags_str)
 
         conn.commit()
         return tagged_count
@@ -103,9 +106,9 @@ def main():
     threshold = args.threshold or clip_settings.get('similarity_threshold_percent', 22) / 100
     max_tags = args.max_tags or tag_settings.get('max_tags', 5)
 
-    print(f"Loading CLIP model for tagging...")
-    print(f"  Threshold: {threshold}")
-    print(f"  Max tags: {max_tags}")
+    logger.info("Loading CLIP model for tagging...")
+    logger.info("  Threshold: %s", threshold)
+    logger.info("  Max tags: %s", max_tags)
 
     # Load CLIP model and tagger
     import torch
@@ -127,7 +130,7 @@ def main():
 
     tagger = CLIPTagger(model, device, config=config, model_name=clip_model_name,
                         backend=clip_backend)
-    print(f"Tagger initialized with {len(tagger.tag_vocabulary)} tag categories")
+    logger.info("Tagger initialized with %d tag categories", len(tagger.tag_vocabulary))
 
     # Count photos to tag
     conn = sqlite3.connect(args.db)
@@ -143,17 +146,17 @@ def main():
     conn.close()
 
     mode = "[FORCE] Re-tagging all" if args.force else "Found"
-    print(f"\n{mode} {count} photos to tag\n")
+    logger.info("%s %d photos to tag", mode, count)
 
     if args.dry_run:
-        print(f"[DRY RUN] Would tag up to {count} photos")
+        logger.info("[DRY RUN] Would tag up to %d photos", count)
     else:
         tagged = tag_untagged_photos(args.db, tagger, threshold, max_tags, verbose=True, force=args.force)
-        print(f"\nTagged {tagged} photos")
+        logger.info("Tagged %d photos", tagged)
 
         # Update photo_tags lookup table for fast queries
         if tagged > 0:
-            print("\nUpdating photo_tags lookup table...")
+            logger.info("Updating photo_tags lookup table...")
             migrate_tags_to_lookup(args.db)
 
 

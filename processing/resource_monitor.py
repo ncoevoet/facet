@@ -2,8 +2,11 @@
 Resource monitoring for Facet batch processing.
 """
 
+import logging
 import threading
 import time
+
+logger = logging.getLogger("facet.resources")
 
 import torch
 
@@ -312,7 +315,7 @@ class ResourceMonitor:
 
     def _graceful_memory_reduction(self, current_usage):
         """Handle memory limit exceeded by reducing batch size."""
-        print(f"\nWarning: Memory usage at {current_usage:.1f}%, reducing batch size...")
+        logger.warning("Memory usage at %.1f%%, reducing batch size...", current_usage)
 
         # Evict CPU-cached models first (may free enough RAM)
         if self.multi_pass_processor is not None:
@@ -326,7 +329,7 @@ class ResourceMonitor:
 
         if new_batch != current_batch:
             self.processor.batch_size = new_batch
-            print(f"Batch size reduced: {current_batch} -> {new_batch}")
+            logger.warning("Batch size reduced: %d -> %d", current_batch, new_batch)
 
         # Wait for memory to drop
         wait_count = 0

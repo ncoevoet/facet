@@ -201,7 +201,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                       </thead>
                       <tbody>
                         @for (cat of categoryScoreProfile(); track cat.category) {
-                          <tr class="border-b border-neutral-800 hover:bg-neutral-800/30">
+                          <tr class="border-b border-[var(--mat-sys-outline-variant)] hover:bg-[var(--mat-sys-surface-container)]">
                             <td class="py-1.5 pr-4 font-medium">{{ ('category_names.' + cat.category) | translate }}</td>
                             <td class="py-1.5 pr-4 text-gray-300 truncate max-w-40">{{ cat.top_camera || '—' }}</td>
                             <td class="py-1.5 pr-4 text-gray-300 truncate max-w-40">{{ cat.top_lens || '—' }}</td>

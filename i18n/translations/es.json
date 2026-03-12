@@ -61,7 +61,9 @@
       "rejected": "RECH"
     },
     "switch_language": "Cambiar idioma",
-    "theme": "Tema"
+    "theme": "Tema",
+    "dark_mode": "Modo oscuro",
+    "light_mode": "Modo claro"
   },
   "dialog": {
     "cancel": "Cancelar",
@@ -182,7 +184,10 @@
     "subject_sharpness": "Nitidez del sujeto",
     "subject_prominence": "Prominencia",
     "subject_placement": "Ubicación",
-    "bg_separation": "Separación fondo"
+    "bg_separation": "Separación fondo",
+    "histogram_spread": "Histograma",
+    "star_rating": "Valoración",
+    "topiq_score": "TOPIQ"
   },
   "notifications": {
     "copied": "Copiado!",
@@ -250,19 +255,19 @@
     "category": "Categoría",
     "strategy": "Estrategia",
     "strategies": {
-      "uncertainty": "Incertidumbre (puntuaciones similares)",
+      "uncertainty": "Incertidumbre (puntuaciónes similares)",
       "boundary": "Límite (rango 6-8)",
       "active": "Aprendizaje activo (pocos datos)",
       "random": "Aleatorio"
     },
     "strategy_help": {
       "title": "Estrategias de comparación",
-      "uncertainty_title": "Incertidumbre (puntuaciones similares)",
-      "uncertainty_desc": "Selecciona pares con puntuaciones globales casi idénticas. Ideal para calibrar pesos: tu preferencia revela qué métricas importan cuando el algoritmo no puede distinguir la diferencia.",
+      "uncertainty_title": "Incertidumbre (puntuaciónes similares)",
+      "uncertainty_desc": "Selecciona pares con puntuaciónes globales casi idénticas. Ideal para calibrar pesos: tu preferencia revela qué métricas importan cuando el algoritmo no puede distinguir la diferencia.",
       "boundary_title": "Límite (umbral de calidad)",
       "boundary_desc": "Se enfoca en fotos con puntuación entre 5.5 y 8.5, la \"zona gris\" entre bueno y mediocre. Ayuda a refinar el umbral entre aceptable y descartable.",
       "active_title": "Aprendizaje activo (poco representadas)",
-      "active_desc": "Prioriza fotos que han sido comparadas menos veces. Asegura que todas las fotos contribuyan a las puntuaciones aprendidas y mejora la cobertura general.",
+      "active_desc": "Prioriza fotos que han sido comparadas menos veces. Asegura que todas las fotos contribuyan a las puntuaciónes aprendidas y mejora la cobertura general.",
       "random_title": "Muestreo aleatorio",
       "random_desc": "Selecciona pares completamente aleatorios. Bueno para obtener cobertura imparcial y evitar sesgos específicos de cada estrategia en tus comparaciones."
     },
@@ -297,7 +302,7 @@
       "cant_compare": "No se puede decidir o las fotos son demasiado diferentes para comparar",
       "suggest_weights": "Sugerir pesos óptimos basados en tus comparaciones",
       "apply_config": "Guardar pesos sugeridos en el archivo de configuración",
-      "recalculate": "Recalcular todas las categorías y puntuaciones globales con la configuración actual",
+      "recalculate": "Recalcular todas las categorías y puntuaciónes globales con la configuración actual",
       "reset_weights": "Restablecer los controles de peso a sus valores originales",
       "reset_all": "Borrar todos los datos de comparación y empezar de nuevo",
       "strategy_info": "Información de estrategia",
@@ -365,7 +370,7 @@
         "step3_zero": "Cerca de cero (-0.2 a +0.2) = datos insuficientes o señales mixtas",
         "step3_negative": "Correlación negativa = los pesos clasifican de forma opuesta a tus preferencias",
         "step4_title": "4. Aplicar para guardar, Recalcular para actualizar",
-        "step4_desc": "Haz clic en \"Aplicar configuración\" para guardar los pesos, luego en \"Recalcular puntuaciones\" para actualizar todas las puntuaciones de fotos en la base de datos.",
+        "step4_desc": "Haz clic en \"Aplicar configuración\" para guardar los pesos, luego en \"Recalcular puntuaciónes\" para actualizar todas las puntuaciónes de fotos en la base de datos.",
         "tip": "Realiza más de 30 comparaciones por categoría para obtener sugerencias (50+ recomendadas para precisión). Alterna estrategias para mejor cobertura. Los empates ahora se incluyen en la optimización."
       }
     },
@@ -385,23 +390,23 @@
     "confirm": {
       "reset_title": "Restablecer todos los datos de comparación",
       "reset_body": "Esto eliminará permanentemente:\n- {count} comparaciones por pares\n- Todas las sugerencias de pesos aprendidas\n- Todas las estadísticas de sesión\n\nEsta acción no se puede deshacer.",
-      "recalculate_title": "Recalcular todas las puntuaciones de fotos",
-      "recalculate_body": "Esto:\n- Re-determinará las categorías de todas las fotos según los filtros de configuración\n- Recalculará las puntuaciones globales usando los pesos de categoría actuales\n- Actualizará la base de datos con las nuevas puntuaciones\n\nPesos de categoría desde: {category}\n\nEsto puede tardar varios minutos para bases de datos grandes.",
+      "recalculate_title": "Recalcular todas las puntuaciónes de fotos",
+      "recalculate_body": "Esto:\n- Re-determinará las categorías de todas las fotos según los filtros de configuración\n- Recalculará las puntuaciónes globales usando los pesos de categoría actuales\n- Actualizará la base de datos con las nuevas puntuaciónes\n\nPesos de categoría desde: {category}\n\nEsto puede tardar varios minutos para bases de datos grandes.",
       "apply_title": "Aplicar pesos a la configuración",
-      "apply_body": "Categoría: {category}\n\nCambios de peso:\n{changes}\n\nEsto:\n- Actualizará scoring_config.json con los nuevos pesos\n- Creará una copia de seguridad de la configuración actual\n- NO recalculará las puntuaciones existentes (usa \"Recalcular puntuaciones\" después)\n\nGuardar estos pesos?",
+      "apply_body": "Categoría: {category}\n\nCambios de peso:\n{changes}\n\nEsto:\n- Actualizará scoring_config.json con los nuevos pesos\n- Creará una copia de seguridad de la configuración actual\n- NO recalculará las puntuaciónes existentes (usa \"Recalcular puntuaciónes\" después)\n\nGuardar estos pesos?",
       "confirm_button": "Confirmar",
       "cancel_button": "Cancelar"
     },
     "notify": {
       "data_reset": "Los datos de comparación se han restablecido.",
-      "recalculate_complete": "Recálculo completado! Las categorías y puntuaciones se han actualizado.",
+      "recalculate_complete": "Recálculo completado! Las categorías y puntuaciónes se han actualizado.",
       "weights_saved": "Pesos guardados para \"{category}\"! Haz clic en \"Recalcular\" para aplicar a todas las fotos.",
       "category_changed": "Categoría cambiada a {category}"
     },
     "error": {
       "load_pair": "Error al cargar el siguiente par",
       "reset_failed": "Error al restablecer los datos de comparación",
-      "recalculate_failed": "Error al recalcular las puntuaciones. Consulta la consola para más detalles.",
+      "recalculate_failed": "Error al recalcular las puntuaciónes. Consulta la consola para más detalles.",
       "select_category_first": "Por favor selecciona una categoría primero para aplicar los pesos.",
       "no_weight_changes": "No hay cambios de peso que aplicar.",
       "save_weights_failed": "Error al guardar los pesos",
@@ -449,7 +454,11 @@
     "isolation_bonus": "Bonificación de aislamiento",
     "f_stop": "F-Stop",
     "focal_length": "Distancia focal",
-    "shutter_speed": "Velocidad de obturación"
+    "shutter_speed": "Velocidad de obturación",
+    "face_confidence": "Confianza facial",
+    "is_favorite": "Favoritos",
+    "is_rejected": "Rechazadas",
+    "topiq_score": "Puntuación TOPIQ"
   },
   "photo_types": {
     "all": "Todas las fotos",
@@ -570,7 +579,7 @@
       "camera_noise": "Rendimiento de ruido de cámara por ISO",
       "composition_effectiveness": "Efectividad de patrones de composición",
       "category_distribution": "Distribución por categoría",
-      "score_distribution": "Distribución de puntuaciones"
+      "score_distribution": "Distribución de puntuaciónes"
     },
     "correlations": {
       "x_axis": "Eje X (Agrupación)",
@@ -598,7 +607,12 @@
         "comp_score": "Puntuación de composición",
         "face_quality": "Puntuación de calidad facial",
         "color_score": "Puntuación de color",
-        "exposure_score": "Puntuación de exposición"
+        "exposure_score": "Puntuación de exposición",
+        "contrast_score": "Contraste",
+        "face_ratio": "Proporción facial",
+        "mean_saturation": "Saturación",
+        "noise_sigma": "Nivel de ruido",
+        "star_rating": "Valoración por estrellas"
       },
       "metrics": {
         "aggregate": "Global",
@@ -615,7 +629,15 @@
         "isolation_bonus": "Aislamiento",
         "quality_score": "Puntuación de calidad",
         "power_point_score": "Puntos de fuerza",
-        "leading_lines_score": "Líneas guía"
+        "leading_lines_score": "Líneas guía",
+        "eye_sharpness": "Nitidez ocular",
+        "face_confidence": "Confianza facial",
+        "face_ratio": "Proporción facial",
+        "face_sharpness": "Nitidez facial",
+        "histogram_spread": "Dispersión del histograma",
+        "mean_luminance": "Luminancia media",
+        "star_rating": "Valoración por estrellas",
+        "topiq_score": "Puntuación TOPIQ"
       },
       "chart_types": {
         "line": "Línea",
@@ -647,7 +669,10 @@
       "composition": "Composición",
       "color": "Color",
       "pattern": "Patrón",
-      "noise_level": "Nivel de ruido"
+      "noise_level": "Nivel de ruido",
+      "contrast": "Contraste",
+      "exposure": "Exposición",
+      "face_quality": "Calidad facial"
     },
     "days": {
       "sun": "Dom",
@@ -670,8 +695,8 @@
     "lenses": "Objetivos",
     "category_distribution": "Distribución por categoría",
     "avg": "prom.",
-    "score_distribution": "Distribución de puntuaciones",
-    "score_histogram": "Histograma de puntuaciones",
+    "score_distribution": "Distribución de puntuaciónes",
+    "score_histogram": "Histograma de puntuaciónes",
     "timeline": "Cronología",
     "photos_over_time": "Fotos a lo largo del tiempo",
     "period": "Período",
@@ -724,7 +749,14 @@
         "face_sharpness": "Nitidez facial",
         "noise": "Ruido",
         "power_point": "Puntos de fuerza",
-        "saturation": "Saturación"
+        "saturation": "Saturación",
+        "aesthetic_iaa": "Estética (IAA)",
+        "face_quality_iqa": "Calidad facial (IQA)",
+        "liqe": "LIQE",
+        "subject_sharpness": "Nitidez del sujeto",
+        "subject_prominence": "Prominencia del sujeto",
+        "subject_placement": "Colocación del sujeto",
+        "bg_separation": "Separación del fondo"
       }
     },
     "loading": "Cargando datos...",
@@ -759,7 +791,7 @@
         "photo_counts": "Cantidad de fotos por categoría",
         "select_category": "Selecciona una categoría para ver los detalles",
         "avg_scores": "Puntuaciones promedio",
-        "score_distribution": "Distribución de puntuaciones"
+        "score_distribution": "Distribución de puntuaciónes"
       },
       "weights": {
         "title": "Pesos de categoría",
@@ -780,15 +812,15 @@
         "saved": "Pesos guardados correctamente",
         "save_error": "Error al guardar los pesos",
         "save_note": "Actualiza el archivo de configuración. Recalcula para aplicar a todas las fotos de esta categoría.",
-        "recompute": "Recalcular puntuaciones",
+        "recompute": "Recalcular puntuaciónes",
         "recomputing": "Recalculando...",
         "recomputed": "Puntuaciones recalculadas",
         "recompute_error": "Error en el recálculo",
         "corr_title": "Peso configurado vs Correlación real",
         "corr_hint": "Compara los pesos de los controles (azul) con la correlación Pearson real con la puntuación global (verde/rojo). Las discrepancias revelan dimensiones con peso alto pero bajo impacto real, o viceversa.",
         "corr_loading": "Cargando datos de correlación...",
-        "preview_title": "Vista previa de distribución de puntuaciones",
-        "preview_hint": "Distribución estimada de la puntuación global con los valores actuales de los controles comparada con las puntuaciones reales.",
+        "preview_title": "Vista previa de distribución de puntuaciónes",
+        "preview_hint": "Distribución estimada de la puntuación global con los valores actuales de los controles comparada con las puntuaciónes reales.",
         "preview_loading": "Cargando datos de fotos...",
         "current_label": "Actual",
         "preview_label": "Vista previa",
@@ -839,7 +871,7 @@
       },
       "help_toggle": "Ayuda",
       "help": {
-        "breakdown": "Muestra cómo se distribuyen tus fotos entre las categorías. El gráfico de barras muestra la cantidad de fotos por categoría ordenada por volumen. Selecciona una categoría del desplegable para ver sus puntuaciones promedio en las dimensiones y el histograma de distribución de la puntuación global.",
+        "breakdown": "Muestra cómo se distribuyen tus fotos entre las categorías. El gráfico de barras muestra la cantidad de fotos por categoría ordenada por volumen. Selecciona una categoría del desplegable para ver sus puntuaciónes promedio en las dimensiones y el histograma de distribución de la puntuación global.",
         "weights": "Cada categoría tiene 12 dimensiones de peso que controlan cómo se calcula la puntuación global. El gráfico radar te permite comparar visualmente los perfiles de peso de hasta 5 categorías. El mapa de calor da una vista general completa de todas las categorías de un vistazo. En modo edición, puedes ajustar los pesos con controles deslizantes (deben sumar 100%) y modificar los modificadores de puntuación como bonificaciones o interruptores de penalización.",
         "correlations": "Muestra cuán fuertemente cada dimensión de peso se correlaciona realmente con la puntuación global usando Pearson r (-1 a +1). Las celdas verdes indican correlación positiva, las rojas negativa. Haz clic en una fila de categoría para ver una comparación lado a lado del % de peso configurado versus la correlación real, esto resalta desalineaciones donde un peso alto tiene bajo impacto o viceversa.",
         "overlap": "Las categorías se evalúan por orden de prioridad: una foto se asigna a la primera categoría que coincida. Esta pestaña muestra qué filtros de categoría se solapan: la tabla superior lista pares de categorías cuyos filtros coinciden con las mismas fotos. La tabla de resumen muestra cuántas fotos coinciden con cada filtro versus cuántas se asignan realmente (la diferencia es capturada por categorías de mayor prioridad)."
@@ -924,7 +956,8 @@
     "stats": "Estadísticas",
     "persons": "Personas",
     "compare": "Ajuste de pesos",
-    "albums": "Álbumes"
+    "albums": "Álbumes",
+    "culling": "Selección"
   },
   "auth": {
     "logout": "Cerrar sesión",
@@ -990,10 +1023,8 @@
       "categories": "Categorías",
       "equipment": "Equipo",
       "content": "Contenido",
-      "scores": "Rangos de puntuación",
       "date": "Rango de fechas",
       "face": "Métricas faciales",
-      "exif": "Ajustes EXIF",
       "extended_quality": "Calidad extendida",
       "saliency": "Saliencia del sujeto",
       "quality": "Calidad",
@@ -1019,8 +1050,6 @@
     "eye_sharpness_range": "Nitidez ocular",
     "face_sharpness_range": "Nitidez facial",
     "iso_range": "ISO",
-    "aperture": "Apertura",
-    "focal_length": "Distancia focal",
     "focal_range": "Distancia focal",
     "dynamic_range": "Rango dinámico",
     "noise_range": "Ruido",
@@ -1030,7 +1059,18 @@
     "subject_sharpness_range": "Nitidez del sujeto",
     "subject_prominence_range": "Prominencia del sujeto",
     "subject_placement_range": "Ubicación del sujeto",
-    "bg_separation_range": "Separación fondo"
+    "bg_separation_range": "Separación fondo",
+    "aperture_range": "Apertura (f/)",
+    "face_confidence_range": "Confianza facial",
+    "face_ratio_range": "Proporción facial",
+    "histogram_range": "Dispersión del histograma",
+    "isolation_range": "Aislamiento",
+    "leading_lines_range": "Líneas guía",
+    "luminance_range": "Luminancia",
+    "power_point_range": "Puntos de fuerza",
+    "quality_score_range": "Puntuación de calidad",
+    "saturation_range": "Saturación",
+    "star_rating_range": "Valoración por estrellas"
   },
   "composition_patterns": {
     "none": "Ninguno",
@@ -1143,6 +1183,7 @@
     "load_correlation": "Cargar correlación",
     "sample_size": "Tamaño de muestra",
     "weights_saved": "Pesos guardados",
+    "weights_reset": "Pesos restablecidos a los valores guardados",
     "snapshot_saved": "Instantánea guardada",
     "snapshot_restored": "Instantánea restaurada",
     "snapshot_deleted": "Instantánea eliminada",
@@ -1173,64 +1214,64 @@
     "optimize_tooltip": "Sugerir pesos óptimos basados en tus comparaciones por pares",
     "reset_tooltip": "Recargar pesos desde el archivo de configuración, descartando cambios no guardados",
     "recalculate": "Recalcular",
-    "recalculate_tooltip": "Recalcular puntuaciones globales para esta categoría usando los pesos guardados",
+    "recalculate_tooltip": "Recalcular puntuaciónes globales para esta categoría usando los pesos guardados",
     "recalculated": "Puntuaciones recalculadas",
-    "error_recalculating": "Error al recalcular las puntuaciones",
+    "error_recalculating": "Error al recalcular las puntuaciónes",
     "modifiers": "Modificadores",
-    "modifiers_description": "Score adjustments applied after weighted sum",
+    "modifiers_description": "Ajustes de puntuación aplicados después de la suma ponderada",
     "modifier": {
       "bonus": "Bonus",
-      "noise_tolerance": "Noise Tolerance",
-      "clipping_multiplier": "Clipping Multiplier",
-      "skip_clipping_penalty": "Skip clipping penalty",
-      "skip_oversaturation_penalty": "Skip oversaturation penalty",
-      "apply_blink_penalty": "Apply blink penalty",
-      "bonus_hint": "Flat score offset added after all weighted calculations.",
-      "noise_tolerance_hint": "Scales the noise penalty. 1.0=full penalty (default), 0.0=no penalty, 0.3=lenient.",
-      "clipping_multiplier_hint": "Multiplies the highlight clipping penalty. 1.0=standard, 1.5=stricter, 0=disabled.",
-      "skip_clipping_penalty_hint": "Disables the highlight clipping penalty. Default: on for silhouette.",
-      "skip_oversaturation_penalty_hint": "Disables the oversaturation penalty. Default: on for night, astro, concert.",
-      "apply_blink_penalty_hint": "Applies a score multiplier on blink detection. Default: on for portrait categories."
+      "noise_tolerance": "Tolerancia al ruido",
+      "clipping_multiplier": "Multiplicador de recorte",
+      "skip_clipping_penalty": "Omitir penalización de recorte",
+      "skip_oversaturation_penalty": "Omitir penalización de sobresaturación",
+      "apply_blink_penalty": "Aplicar penalización de parpadeo",
+      "bonus_hint": "Desplazamiento fijo de puntuación añadido después de todos los cálculos ponderados.",
+      "noise_tolerance_hint": "Escala la penalización de ruido. 1.0 = penalización completa (por defecto), 0.0 = sin penalización, 0.3 = indulgente.",
+      "clipping_multiplier_hint": "Multiplica la penalización de recorte de altas luces. 1.0 = estándar, 1.5 = más estricto, 0 = desactivado.",
+      "skip_clipping_penalty_hint": "Desactiva la penalización de recorte de altas luces. Por defecto: activado para silueta.",
+      "skip_oversaturation_penalty_hint": "Desactiva la penalización de sobresaturación. Por defecto: activado para nocturna, astro, concierto.",
+      "apply_blink_penalty_hint": "Aplica un multiplicador de puntuación al detectar parpadeo. Por defecto: activado para categorías de retrato."
     },
     "filters": "Filtros",
-    "filters_description": "Category assignment conditions",
+    "filters_description": "Condiciones de asignación de categoría",
     "filter": {
-      "required_tags": "Required Tags",
-      "excluded_tags": "Excluded Tags",
+      "required_tags": "Tags requeridos",
+      "excluded_tags": "Tags excluidos",
       "tags_placeholder": "tag1, tag2, tag3",
-      "tag_match_mode": "Tag Match Mode",
-      "tag_match_any": "Any tag matches",
-      "tag_match_all": "All tags must match",
-      "has_face": "Has Face",
-      "is_monochrome": "Monochrome",
-      "is_silhouette": "Silhouette",
-      "is_group_portrait": "Group Portrait",
-      "face_ratio": "Face Ratio",
-      "face_count": "Face Count",
+      "tag_match_mode": "Modo de coincidencia de tags",
+      "tag_match_any": "Cualquier tag coincide",
+      "tag_match_all": "Todos los tags deben coincidir",
+      "has_face": "Con rostro",
+      "is_monochrome": "Monocromo",
+      "is_silhouette": "Silueta",
+      "is_group_portrait": "Retrato grupal",
+      "face_ratio": "Proporción del rostro",
+      "face_count": "Cantidad de rostros",
       "iso": "ISO",
-      "shutter_speed": "Shutter Speed (s)",
-      "focal_length": "Focal Length (mm)",
-      "f_stop": "Aperture (f/)",
-      "luminance": "Luminance",
-      "any": "Any",
-      "boolean_true": "Yes",
+      "shutter_speed": "Velocidad de obturación (s)",
+      "focal_length": "Distancia focal (mm)",
+      "f_stop": "Apertura (f/)",
+      "luminance": "Luminancia",
+      "any": "Todos",
+      "boolean_true": "Sí",
       "boolean_false": "No",
-      "min": "Min",
-      "max": "Max",
-      "required_tags_hint": "Tags that must match for a photo to reach this category.",
-      "excluded_tags_hint": "Photos with any of these tags are excluded.",
-      "tag_match_mode_hint": "Any: one tag sufficient. All: every tag must be present.",
-      "has_face_hint": "Restrict to photos with (Yes) or without (No) at least one detected face.",
-      "is_monochrome_hint": "Restrict to B&W (Yes) or color-only (No) photos.",
-      "is_silhouette_hint": "Restrict to backlit subjects where face details are obscured.",
-      "is_group_portrait_hint": "Restrict to photos with 4+ detected faces.",
-      "face_ratio_hint": "Fraction of frame covered by largest face (0.0–1.0).",
-      "face_count_hint": "Number of detected faces.",
-      "iso_hint": "Camera ISO sensitivity. e.g., max=800.",
-      "shutter_speed_hint": "Exposure time in seconds. e.g., max=0.02 for action.",
-      "focal_length_hint": "Lens focal length in mm.",
-      "f_stop_hint": "Aperture f-number. Lower = wider aperture.",
-      "luminance_hint": "Mean image brightness (0.0–1.0). e.g., max=0.15 for night."
+      "min": "Mín",
+      "max": "Máx",
+      "required_tags_hint": "Tags que deben coincidir para que una foto alcance esta categoría.",
+      "excluded_tags_hint": "Las fotos con alguno de estos tags son excluidas.",
+      "tag_match_mode_hint": "Cualquiera: un tag es suficiente. Todos: cada tag debe estar presente.",
+      "has_face_hint": "Restringir a fotos con (Sí) o sin (No) al menos un rostro detectado.",
+      "is_monochrome_hint": "Restringir a fotos en B/N (Sí) o solo en color (No).",
+      "is_silhouette_hint": "Restringir a sujetos a contraluz donde los detalles del rostro están ocultos.",
+      "is_group_portrait_hint": "Restringir a fotos con 4 o más rostros detectados.",
+      "face_ratio_hint": "Proporción del encuadre cubierta por el rostro más grande (0.0–1.0).",
+      "face_count_hint": "Número de rostros detectados.",
+      "iso_hint": "Sensibilidad ISO de la cámara. Ej.: max=800.",
+      "shutter_speed_hint": "Tiempo de exposición en segundos. Ej.: max=0.02 para acción.",
+      "focal_length_hint": "Distancia focal del objetivo en mm.",
+      "f_stop_hint": "Número f de apertura. Menor = apertura más amplia.",
+      "luminance_hint": "Brillo medio de la imagen (0.0–1.0). Ej.: max=0.15 para nocturna."
     },
     "validation": {
       "bonus_range": "El bonus debe estar entre -5 y 5",
@@ -1321,9 +1362,9 @@
     "confirm_delete_message": "Eliminar album \"{name}\"? Las fotos no se eliminaran."
   },
   "critique": {
-    "title": "Por que esta puntuacion?",
+    "title": "Por que esta puntuación?",
     "category_reason": "Categoria",
-    "breakdown": "Desglose de puntuacion",
+    "breakdown": "Desglose de puntuación",
     "metric": "Metrica",
     "value": "Valor",
     "weight": "Peso",
@@ -1397,5 +1438,23 @@
       "highlight_clipping": "Recorte de altas luces: {value}",
       "shadow_clipping": "Recorte de sombras: {value}"
     }
+  },
+  "culling": {
+    "title": "Selección de ráfagas",
+    "no_bursts": "No se encontraron grupos de ráfagas",
+    "group_progress": "Grupo {current} de {total}",
+    "auto_best": "MEJOR AUTO",
+    "confirm": "Confirmar selección",
+    "skip": "Saltar",
+    "auto_select_all": "Selección automática completa",
+    "confirm_tooltip": "Mantener las fotos seleccionadas, descartar el resto",
+    "skip_tooltip": "Pasar al siguiente grupo sin decidir",
+    "auto_select_all_tooltip": "Mantener automáticamente la mejor foto de cada grupo restante",
+    "confirmed": "Selección confirmada",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "error_loading": "Error al cargar los grupos",
+    "error_confirming": "Error al confirmar la selección",
+    "error_auto_select": "Error en la selección automática"
   }
 }

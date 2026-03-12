@@ -4,9 +4,12 @@ Database helper functions for the FastAPI API server.
 """
 
 import hashlib
+import logging
 import struct
 import time
 from config import ScoringConfig
+
+logger = logging.getLogger("facet.api.db_helpers")
 from api.config import (
     _existing_columns_cache,
     _photo_tags_available, _count_cache, COUNT_CACHE_TTL,
@@ -367,6 +370,6 @@ def backfill_image_dimensions():
 
         if updated:
             conn.commit()
-            print(f"[startup] Backfilled image dimensions for {updated}/{null_count} photos from thumbnails")
+            logger.info("Backfilled image dimensions for %d/%d photos from thumbnails", updated, null_count)
     finally:
         conn.close()

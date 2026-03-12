@@ -35,6 +35,7 @@ CLI Usage:
 """
 
 import json
+import logging
 import math
 import shutil
 import sqlite3
@@ -43,6 +44,8 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from scipy.optimize import minimize
 from db import DEFAULT_DB_PATH, get_connection
+
+logger = logging.getLogger("facet.optimizer")
 
 
 class WeightOptimizer:
@@ -1081,7 +1084,7 @@ class WeightOptimizer:
             return weights
 
         except Exception as e:
-            print(f"Warning: Could not load weights from config: {e}")
+            logger.warning("Could not load weights from config: %s", e)
             # Return default uniform weights
             return {c: 1.0 / len(self.SCORE_COMPONENTS) for c in self.SCORE_COMPONENTS}
 
@@ -1336,7 +1339,7 @@ class WeightOptimizer:
             adjustment = 100.0 - total
             largest_key = max(percent_keys, key=lambda k: cat_weights.get(k, 0))
             cat_weights[largest_key] = round(cat_weights[largest_key] + adjustment, 1)
-            print(f"  Adjusted {largest_key} by {adjustment:+.1f}% to ensure 100% total")
+            logger.info("Adjusted %s by %+.1f%% to ensure 100%% total", largest_key, adjustment)
 
         # Save updated config
         with open(self.config_path, 'w') as f:
@@ -1388,31 +1391,31 @@ def print_comparison_stats(db_path: str = DEFAULT_DB_PATH):
     manager = ComparisonManager(db_path)
     stats = manager.get_statistics()
 
-    print("\n" + "=" * 60)
-    print(" PAIRWISE COMPARISON STATISTICS")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("PAIRWISE COMPARISON STATISTICS")
+    logger.info("=" * 60)
 
-    print(f"\n  Total comparisons: {stats['total_comparisons']}")
-    print(f"  Unique photos compared: {stats['unique_photos_compared']}")
-    print(f"  Photos with learned scores: {stats['photos_with_learned_scores']}")
+    logger.info("Total comparisons: %d", stats['total_comparisons'])
+    logger.info("Unique photos compared: %d", stats['unique_photos_compared'])
+    logger.info("Photos with learned scores: %d", stats['photos_with_learned_scores'])
 
-    print("\n  Winner breakdown:")
+    logger.info("Winner breakdown:")
     for winner, count in stats['winner_breakdown'].items():
-        print(f"    {winner}: {count}")
+        logger.info("  %s: %d", winner, count)
 
     if stats['category_breakdown']:
-        print("\n  By category:")
+        logger.info("By category:")
         for cat_stat in stats['category_breakdown'][:5]:
-            print(f"    {cat_stat['category']}: {cat_stat['count']}")
+            logger.info("  %s: %d", cat_stat['category'], cat_stat['count'])
 
     if stats['recent_optimization_runs']:
-        print("\n  Recent optimization runs:")
+        logger.info("Recent optimization runs:")
         for run in stats['recent_optimization_runs']:
             improvement = ((run['mse_before'] - run['mse_after']) / run['mse_before'] * 100
                           if run['mse_before'] else 0)
-            print(f"    {run['timestamp'][:10]}: MSE {run['mse_before']:.3f} -> {run['mse_after']:.3f} ({improvement:.1f}% improvement)")
+            logger.info("  %s: MSE %.3f -> %.3f (%.1f%% improvement)", run['timestamp'][:10], run['mse_before'], run['mse_after'], improvement)
 
-    print("\n" + "=" * 60)
+    logger.info("=" * 60)
 
 
 def run_weight_optimization(
@@ -1423,44 +1426,44 @@ def run_weight_optimization(
     """Run weight optimization from CLI. Optimizes and saves weights automatically."""
     optimizer = WeightOptimizer(db_path, config_path)
 
-    print("\n" + "=" * 60)
-    print(" WEIGHT OPTIMIZATION")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("WEIGHT OPTIMIZATION")
+    logger.info("=" * 60)
 
     # First compute/update learned scores
-    print("\n  Computing Bradley-Terry scores from comparisons...")
+    logger.info("Computing Bradley-Terry scores from comparisons...")
     bt_result = optimizer.compute_learned_scores()
-    print(f"    Photos updated: {bt_result.get('photos_updated', 0)}")
-    print(f"    Iterations: {bt_result.get('iterations', 0)}")
+    logger.info("  Photos updated: %d", bt_result.get('photos_updated', 0))
+    logger.info("  Iterations: %d", bt_result.get('iterations', 0))
 
     # Run optimization (uses all categories)
-    print("\n  Optimizing weights...")
+    logger.info("Optimizing weights...")
     result = optimizer.optimize_weights(category=None, min_comparisons=min_comparisons)
 
     if 'error' in result:
-        print(f"\n  Error: {result['error']}")
+        logger.error("Error: %s", result['error'])
         return
 
-    print(f"\n  Photos used: {result['photos_used']}")
-    print(f"  Comparisons used: {result['comparisons_used']}")
-    print(f"\n  MSE before: {result['mse_before']:.4f}")
-    print(f"  MSE after:  {result['mse_after']:.4f}")
-    print(f"  Improvement: {result['improvement']:.1f}%")
+    logger.info("Photos used: %d", result['photos_used'])
+    logger.info("Comparisons used: %d", result['comparisons_used'])
+    logger.info("MSE before: %.4f", result['mse_before'])
+    logger.info("MSE after:  %.4f", result['mse_after'])
+    logger.info("Improvement: %.1f%%", result['improvement'])
 
-    print("\n  Optimized weights:")
+    logger.info("Optimized weights:")
     for component, weight in sorted(result['new_weights'].items(), key=lambda x: -x[1]):
         if weight > 0.01:  # Only show significant weights
-            print(f"    {component}: {weight * 100:.1f}%")
+            logger.info("  %s: %.1f%%", component, weight * 100)
 
     # Always apply weights
-    print("\n  Applying weights to config...")
+    logger.info("Applying weights to config...")
     backup_path = optimizer.apply_optimized_weights(
         result['new_weights'],
         category='others'
     )
     if backup_path:
-        print(f"    Backup created: {backup_path}")
-    print(f"    Config updated: {config_path}")
-    print("\n  Run 'python facet.py --recalculate' to apply new weights to scores.")
+        logger.info("  Backup created: %s", backup_path)
+    logger.info("  Config updated: %s", config_path)
+    logger.info("Run 'python facet.py --recalculate' to apply new weights to scores.")
 
-    print("\n" + "=" * 60)
+    logger.info("=" * 60)

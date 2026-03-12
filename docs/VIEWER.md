@@ -30,7 +30,7 @@ python viewer.py
 
 # Terminal 2: Angular dev server with hot reload
 cd client && npx ng serve
-# Open http://localhost:4200 (proxies API calls to :8000)
+# Open http://localhost:4200 (proxies API calls to :5000)
 ```
 
 ## Authentication

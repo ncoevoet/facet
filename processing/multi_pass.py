@@ -14,6 +14,7 @@ Key features:
 """
 
 import gc
+import logging
 import os
 import time
 import threading
@@ -22,6 +23,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Tuple, Iterator
 
 from tqdm import tqdm
+
+logger = logging.getLogger("facet.multi_pass")
 
 # Lazy imports
 torch = None
@@ -150,17 +153,17 @@ class ChunkedMultiPassProcessor:
         This determines which models to use and how to group them into passes
         based on available VRAM.
         """
-        print(f"\nDetecting hardware...")
+        logger.info("Detecting hardware...")
         cpu_mode = self.available_vram == 0.0
         if cpu_mode:
             ram_gb = self.model_manager.detect_system_ram_gb()
-            print(f"  Mode: CPU-only ({ram_gb:.0f}GB RAM)")
+            logger.info("Mode: CPU-only (%.0fGB RAM)", ram_gb)
         else:
-            print(f"  GPU VRAM: {self.available_vram:.1f}GB")
+            logger.info("GPU VRAM: %.1fGB", self.available_vram)
 
         # Determine which models to use
         models_to_run = self._select_models()
-        print(f"  Selected models: {', '.join(models_to_run)}")
+        logger.info("Selected models: %s", ", ".join(models_to_run))
 
         # Group models into passes based on VRAM or RAM
         self.pass_groups = self.model_manager.group_passes_by_vram(
@@ -168,28 +171,28 @@ class ChunkedMultiPassProcessor:
         )
 
         if cpu_mode:
-            print(f"\nPass grouping (CPU-only mode):")
+            logger.info("Pass grouping (CPU-only mode):")
             for i, group in enumerate(self.pass_groups, 1):
                 total_ram = sum(self.model_manager.get_model_ram(m) for m in group)
-                print(f"  Pass {i}: {' + '.join(group)} [~{total_ram:.1f}GB RAM]")
+                logger.info("  Pass %d: %s [~%.1fGB RAM]", i, " + ".join(group), total_ram)
         else:
-            print(f"\nPass grouping (optimized for {self.available_vram:.0f}GB VRAM):")
+            logger.info("Pass grouping (optimized for %.0fGB VRAM):", self.available_vram)
             for i, group in enumerate(self.pass_groups, 1):
                 total_vram = sum(self.model_manager.get_model_vram(m) for m in group)
-                print(f"  Pass {i}: {' + '.join(group)} [{total_vram}GB VRAM]")
+                logger.info("  Pass %d: %s [%sGB VRAM]", i, " + ".join(group), total_vram)
 
         if len(self.pass_groups) == 1:
-            print(f"  -> Single pass (all models loaded together)")
+            logger.info("  -> Single pass (all models loaded together)")
         else:
-            print(f"  -> {len(self.pass_groups)} passes (images loaded {len(self.pass_groups)}x per chunk)")
+            logger.info("  -> %d passes (images loaded %dx per chunk)", len(self.pass_groups), len(self.pass_groups))
 
         # CPU-only: start with small chunk size to avoid OOM on first chunk.
         # ResourceMonitor will increase it if memory headroom is available.
         if cpu_mode and self.auto_tuning_enabled:
             safe_start = self.min_chunk_size
             if self.chunk_size > safe_start:
-                print(f"  Chunk size: {self.chunk_size} -> {safe_start} "
-                      f"(CPU-only safe start, auto-tuning will increase)")
+                logger.info("  Chunk size: %d -> %d (CPU-only safe start, auto-tuning will increase)",
+                            self.chunk_size, safe_start)
                 self.chunk_size = safe_start
 
         return self.pass_groups
@@ -278,7 +281,8 @@ class ChunkedMultiPassProcessor:
         start_time = time.time()
         initial_chunk = self.chunk_size
         tuning_label = "on" if self.auto_tuning_enabled else "off"
-        print(f"\nProcessing {total} photos (initial chunk size: {initial_chunk}, auto-tuning: {tuning_label})...")
+        logger.info("Processing %d photos (initial chunk size: %d, auto-tuning: %s)...",
+                    total, initial_chunk, tuning_label)
 
         # Start resource monitor for dynamic chunk tuning
         from processing.resource_monitor import MultiPassResourceMonitor
@@ -356,7 +360,7 @@ class ChunkedMultiPassProcessor:
                     model = self.model_manager.load_model_only(model_name)
                     if model is None:
                         if model_name in supplementary:
-                            print(f"  Warning: supplementary model '{model_name}' failed to load, skipping.")
+                            logger.warning("Supplementary model '%s' failed to load, skipping.", model_name)
                             continue
                         raise RuntimeError(
                             f"Required model '{model_name}' failed to load. "
@@ -364,7 +368,7 @@ class ChunkedMultiPassProcessor:
                         )
                     loaded_models[model_name] = model
                 except torch.cuda.OutOfMemoryError:
-                    print(f"\nOOM loading {model_name}, trying fallback...")
+                    logger.error("OOM loading %s, trying fallback...", model_name)
                     self._handle_oom(model_name)
 
             self.metrics['model_load_time'] += time.time() - load_start
@@ -375,7 +379,7 @@ class ChunkedMultiPassProcessor:
                 try:
                     self._run_model_pass(model_name, model, images, results)
                 except torch.cuda.OutOfMemoryError:
-                    print(f"\nOOM during {model_name} inference, skipping...")
+                    logger.error("OOM during %s inference, skipping...", model_name)
 
             self.metrics['inference_time'] += time.time() - infer_start
             self.metrics['passes_executed'] += 1
@@ -487,7 +491,7 @@ class ChunkedMultiPassProcessor:
                 }
 
             except Exception as e:
-                print(f"Failed to load {path}: {e}")
+                logger.error("Failed to load %s: %s", path, e)
 
         return images
 
@@ -567,7 +571,7 @@ class ChunkedMultiPassProcessor:
                 results[path]['comp_score'] = result.get('comp_score', 5.0)
                 results[path]['composition_pattern'] = result.get('pattern', 'unknown')
             except Exception as e:
-                print(f"SAMP-Net failed for {path}: {e}")
+                logger.error("SAMP-Net failed for %s: %s", path, e)
 
     def _pass_insightface(self, app: Any, images: Dict, results: Dict):
         """InsightFace pass: face detection and analysis with full metrics."""
@@ -608,7 +612,7 @@ class ChunkedMultiPassProcessor:
                     results[path]['isolation_bonus'] = 1.0
 
             except Exception as e:
-                print(f"Face detection failed for {path}: {e}")
+                logger.error("Face detection failed for %s: %s", path, e)
                 results[path]['face_count'] = 0
                 results[path]['face_quality'] = 0
                 results[path]['eye_sharpness'] = 0
@@ -634,7 +638,7 @@ class ChunkedMultiPassProcessor:
             for i, path in enumerate(paths):
                 results[path]['tags'] = tags_to_string(tags_list[i])
         except Exception as e:
-            print(f"VLM tagging failed: {e}")
+            logger.error("VLM tagging failed: %s", e)
 
     def _pass_saliency(self, scorer: Any, images: Dict, results: Dict):
         """BiRefNet saliency pass: subject saliency detection and derived metrics."""
@@ -650,7 +654,7 @@ class ChunkedMultiPassProcessor:
                            'subject_placement', 'bg_separation'):
                     results[path][key] = scores[i].get(key, 5.0)
         except Exception as e:
-            print(f"BiRefNet saliency pass failed: {e}")
+            logger.error("BiRefNet saliency pass failed: %s", e)
 
     # Supplementary PyIQA models store to dedicated columns
     PYIQA_COLUMN_MAP = {
@@ -679,7 +683,7 @@ class ChunkedMultiPassProcessor:
                     results[path]['scoring_model'] = model_name
                     results[path]['quality_score'] = scores[i]
         except Exception as e:
-            print(f"PyIQA {model_name} pass failed: {e}")
+            logger.error("PyIQA %s pass failed: %s", model_name, e)
 
     def _compute_aggregates(self, results: Dict, images: Dict):
         """Compute aggregate scores from all collected metrics (CPU pass).
@@ -931,7 +935,7 @@ class ChunkedMultiPassProcessor:
 
         if model_name in fallbacks:
             fallback = fallbacks[model_name]
-            print(f"Falling back to {fallback}")
+            logger.warning("Falling back to %s", fallback)
             # Update pass groups to use fallback
             for group in self.pass_groups:
                 if model_name in group:
@@ -944,25 +948,25 @@ class ChunkedMultiPassProcessor:
         m = self.metrics
         total = m['total_time']
         if total > 0:
-            print(f"\nMulti-pass processing complete:")
-            print(f"  Images: {m['images_processed']}")
-            print(f"  Chunks: {m['chunks_processed']}")
-            print(f"  Passes: {m['passes_executed']}")
-            print(f"  Total time: {total:.1f}s")
-            print(f"  Throughput: {m['images_processed'] / total:.1f} img/s")
+            logger.info("Multi-pass processing complete:")
+            logger.info("  Images: %d", m['images_processed'])
+            logger.info("  Chunks: %d", m['chunks_processed'])
+            logger.info("  Passes: %d", m['passes_executed'])
+            logger.info("  Total time: %.1fs", total)
+            logger.info("  Throughput: %.1f img/s", m['images_processed'] / total)
 
             # RAM cache stats
             hits = self.model_manager._cache_hits
             misses = self.model_manager._cache_misses
             cache_total = hits + misses
             if cache_total > 0:
-                print(f"  RAM cache: {hits}/{cache_total} hits ({100 * hits / cache_total:.0f}%)")
+                logger.info("  RAM cache: %d/%d hits (%.0f%%)", hits, cache_total, 100 * hits / cache_total)
 
-            print(f"\nTime breakdown:")
-            print(f"  I/O: {m['io_time']:.1f}s ({100 * m['io_time'] / total:.0f}%)")
-            print(f"  Model load: {m['model_load_time']:.1f}s ({100 * m['model_load_time'] / total:.0f}%)")
-            print(f"  Inference: {m['inference_time']:.1f}s ({100 * m['inference_time'] / total:.0f}%)")
-            print(f"  Model unload: {m['model_unload_time']:.1f}s ({100 * m['model_unload_time'] / total:.0f}%)")
+            logger.info("Time breakdown:")
+            logger.info("  I/O: %.1fs (%.0f%%)", m['io_time'], 100 * m['io_time'] / total)
+            logger.info("  Model load: %.1fs (%.0f%%)", m['model_load_time'], 100 * m['model_load_time'] / total)
+            logger.info("  Inference: %.1fs (%.0f%%)", m['inference_time'], 100 * m['inference_time'] / total)
+            logger.info("  Model unload: %.1fs (%.0f%%)", m['model_unload_time'], 100 * m['model_unload_time'] / total)
 
             # Auto-tuning summary (only if adjustments occurred)
             monitor = getattr(self, '_ram_monitor', None)
@@ -974,7 +978,7 @@ class ChunkedMultiPassProcessor:
                     parts.append(f"{decreases} decrease{'s' if decreases != 1 else ''}")
                 if increases:
                     parts.append(f"{increases} increase{'s' if increases != 1 else ''}")
-                print(f"\nAuto-tuning: {', '.join(parts)}, final chunk size: {self.chunk_size}")
+                logger.info("Auto-tuning: %s, final chunk size: %d", ", ".join(parts), self.chunk_size)
 
 
 def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> int:
@@ -1034,64 +1038,64 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
             model_name = 'clip'
 
     if not model_name:
-        print(f"Unknown pass: {pass_name}")
+        logger.error("Unknown pass: %s", pass_name)
         return 0
 
     processor = ChunkedMultiPassProcessor(scorer, model_manager, scorer.config.config)
     processor.pass_groups = [[model_name]]
 
-    print(f"Running single pass: {pass_name} (model: {model_name})")
+    logger.info("Running single pass: %s (model: %s)", pass_name, model_name)
     metrics = processor.process_directory(paths)
     return metrics['images_processed']
 
 
 def list_available_models():
     """Print list of available models and their requirements."""
-    print("\nAvailable Models:")
-    print("=" * 70)
+    logger.info("Available Models:")
+    logger.info("=" * 70)
 
-    print("\n" + "-" * 70)
-    print("QUALITY / AESTHETIC MODELS (for scoring image quality)")
-    print("-" * 70)
-    print(f"  {'Model':<15} {'VRAM':<8} {'SRCC':<8} Description")
-    print(f"  {'-'*15} {'-'*8} {'-'*8} {'-'*30}")
-    print(f"  {'topiq':<15} {'~2GB':<8} {'0.93':<8} Best accuracy, ResNet50 backbone")
-    print(f"  {'hyperiqa':<15} {'~2GB':<8} {'0.90':<8} Very efficient, good accuracy")
-    print(f"  {'dbcnn':<15} {'~2GB':<8} {'0.90':<8} Dual-branch CNN")
-    print(f"  {'musiq':<15} {'~2GB':<8} {'0.87':<8} Multi-scale, any resolution")
-    print(f"  {'clipiqa+':<15} {'~4GB':<8} {'0.86':<8} CLIP with learned prompts")
-    print(f"  {'clip-mlp':<15} {'~4GB':<8} {'0.76':<8} CLIP + MLP head (legacy)")
+    logger.info("-" * 70)
+    logger.info("QUALITY / AESTHETIC MODELS (for scoring image quality)")
+    logger.info("-" * 70)
+    logger.info("  %-15s %-8s %-8s Description", "Model", "VRAM", "SRCC")
+    logger.info("  %-15s %-8s %-8s %s", "-" * 15, "-" * 8, "-" * 8, "-" * 30)
+    logger.info("  %-15s %-8s %-8s Best accuracy, ResNet50 backbone", "topiq", "~2GB", "0.93")
+    logger.info("  %-15s %-8s %-8s Very efficient, good accuracy", "hyperiqa", "~2GB", "0.90")
+    logger.info("  %-15s %-8s %-8s Dual-branch CNN", "dbcnn", "~2GB", "0.90")
+    logger.info("  %-15s %-8s %-8s Multi-scale, any resolution", "musiq", "~2GB", "0.87")
+    logger.info("  %-15s %-8s %-8s CLIP with learned prompts", "clipiqa+", "~4GB", "0.86")
+    logger.info("  %-15s %-8s %-8s CLIP + MLP head (legacy)", "clip-mlp", "~4GB", "0.76")
 
-    print(f"\n  --- Supplementary Quality Models ---")
-    print(f"  {'topiq_iaa':<15} {'~2GB':<8} {'--':<8} AVA-trained aesthetic merit (artistic quality)")
-    print(f"  {'topiq_nr_face':<15} {'~2GB':<8} {'--':<8} Purpose-built face quality scoring")
-    print(f"  {'liqe':<15} {'~2GB':<8} {'--':<8} LIQE quality + distortion diagnosis")
+    logger.info("  --- Supplementary Quality Models ---")
+    logger.info("  %-15s %-8s %-8s AVA-trained aesthetic merit (artistic quality)", "topiq_iaa", "~2GB", "--")
+    logger.info("  %-15s %-8s %-8s Purpose-built face quality scoring", "topiq_nr_face", "~2GB", "--")
+    logger.info("  %-15s %-8s %-8s LIQE quality + distortion diagnosis", "liqe", "~2GB", "--")
 
-    print("\n" + "-" * 70)
-    print("TAGGING MODELS (for semantic tags)")
-    print("-" * 70)
-    print(f"  {'clip':<15} {'~0GB':<8} {'--':<8} Embedding similarity (reuses CLIP/SigLIP, no extra model)")
-    print(f"  {'qwen3-vl-2b':<15} {'~4GB':<8} {'--':<8} Vision-language model (structured scene tags)")
-    print(f"  {'qwen2.5-vl-7b':<15} {'~16GB':<8} {'--':<8} Vision-language model (most capable)")
-    print(f"  {'florence-2':<15} {'~4GB':<8} {'--':<8} Florence-2 caption-based (deprecated)")
+    logger.info("-" * 70)
+    logger.info("TAGGING MODELS (for semantic tags)")
+    logger.info("-" * 70)
+    logger.info("  %-15s %-8s %-8s Embedding similarity (reuses CLIP/SigLIP, no extra model)", "clip", "~0GB", "--")
+    logger.info("  %-15s %-8s %-8s Vision-language model (structured scene tags)", "qwen3-vl-2b", "~4GB", "--")
+    logger.info("  %-15s %-8s %-8s Vision-language model (most capable)", "qwen2.5-vl-7b", "~16GB", "--")
+    logger.info("  %-15s %-8s %-8s Florence-2 caption-based (deprecated)", "florence-2", "~4GB", "--")
 
-    print("\n" + "-" * 70)
-    print("COMPOSITION MODELS")
-    print("-" * 70)
-    print(f"  {'rule-based':<15} {'0GB':<8} {'--':<8} CPU rule-based analysis")
-    print(f"  {'samp-net':<15} {'~2GB':<8} {'--':<8} Neural network (14 patterns)")
+    logger.info("-" * 70)
+    logger.info("COMPOSITION MODELS")
+    logger.info("-" * 70)
+    logger.info("  %-15s %-8s %-8s CPU rule-based analysis", "rule-based", "0GB", "--")
+    logger.info("  %-15s %-8s %-8s Neural network (14 patterns)", "samp-net", "~2GB", "--")
 
-    print("\n" + "-" * 70)
-    print("FACE ANALYSIS")
-    print("-" * 70)
-    print(f"  {'insightface':<15} {'~2GB':<8} {'--':<8} Detection, recognition, landmarks")
+    logger.info("-" * 70)
+    logger.info("FACE ANALYSIS")
+    logger.info("-" * 70)
+    logger.info("  %-15s %-8s %-8s Detection, recognition, landmarks", "insightface", "~2GB", "--")
 
-    print("\n" + "-" * 70)
-    print("SUBJECT SALIENCY")
-    print("-" * 70)
-    print(f"  {'birefnet':<15} {'~2GB':<8} {'--':<8} Subject mask → sharpness, prominence, placement")
+    logger.info("-" * 70)
+    logger.info("SUBJECT SALIENCY")
+    logger.info("-" * 70)
+    logger.info("  %-15s %-8s %-8s Subject mask > sharpness, prominence, placement", "birefnet", "~2GB", "--")
 
-    print("\n" + "=" * 70)
-    print("\nNote: SRCC = Spearman correlation on KonIQ-10k benchmark (higher is better)")
-    print("      TOPIQ offers the best accuracy/VRAM ratio for quality assessment")
-    print("=" * 70)
+    logger.info("=" * 70)
+    logger.info("Note: SRCC = Spearman correlation on KonIQ-10k benchmark (higher is better)")
+    logger.info("      TOPIQ offers the best accuracy/VRAM ratio for quality assessment")
+    logger.info("=" * 70)

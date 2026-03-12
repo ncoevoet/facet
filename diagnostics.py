@@ -1,6 +1,7 @@
 """Facet diagnostic tool — checks Python, PyTorch, GPU, dependencies, config, and database."""
 
 import importlib.metadata
+import logging
 import os
 import platform
 import shutil
@@ -8,23 +9,25 @@ import sqlite3
 import subprocess
 import sys
 
+logger = logging.getLogger("facet.diagnostics")
+
 
 def _section(title):
-    print(f"\n{'=' * 50}")
-    print(f"  {title}")
-    print(f"{'=' * 50}")
+    logger.info("=" * 50)
+    logger.info("  %s", title)
+    logger.info("=" * 50)
 
 
 def _ok(label, value):
-    print(f"  [OK] {label}: {value}")
+    logger.info("  [OK] %s: %s", label, value)
 
 
 def _warn(label, value):
-    print(f"  [!!] {label}: {value}")
+    logger.warning("  [!!] %s: %s", label, value)
 
 
 def _info(label, value):
-    print(f"  [--] {label}: {value}")
+    logger.info("  [--] %s: %s", label, value)
 
 
 def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=None):
@@ -42,7 +45,7 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
 
     if simulating:
         vram_str = f", {simulate_vram:.0f}GB VRAM" if simulate_vram else ""
-        print(f"\n  [SIM] Simulation mode: {simulate_gpu}{vram_str}")
+        logger.info("  [SIM] Simulation mode: %s%s", simulate_gpu, vram_str)
 
     # --- Python / Platform ---
     _section("Python / Platform")
@@ -84,7 +87,7 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
                 _warn("torch.cuda.is_available()", "False")
         except ImportError:
             _warn("torch", "NOT INSTALLED")
-            print("\n  Install PyTorch: pip install torch torchvision")
+            logger.warning("  Install PyTorch: pip install torch torchvision")
             torch = None
 
     # --- GPU ---
@@ -97,15 +100,12 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
             # Simulate "driver sees GPU but torch doesn't" scenario
             _section("GPU Troubleshooting")
             _warn("GPU found by driver", f"{simulate_gpu} (simulated)")
-            print()
-            print("  !! PyTorch was built without CUDA support for your GPU.")
-            print("  !! Your PyTorch CUDA version: None (CPU-only)")
-            print("  !!")
-            print("  !! Reinstall with the correct CUDA version:")
-            print("  !!   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128")
-            print("  !!")
-            print("  !! For older GPUs (pre-Blackwell), cu124 may also work:")
-            print("  !!   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124")
+            logger.warning("  PyTorch was built without CUDA support for your GPU.")
+            logger.warning("  Your PyTorch CUDA version: None (CPU-only)")
+            logger.warning("  Reinstall with the correct CUDA version:")
+            logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128")
+            logger.warning("  For older GPUs (pre-Blackwell), cu124 may also work:")
+            logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124")
     elif torch is not None and torch.cuda.is_available():
         _section("GPU")
         name = torch.cuda.get_device_name(0)
@@ -137,20 +137,17 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
             if result.returncode == 0 and result.stdout.strip():
                 gpu_info = result.stdout.strip()
                 _warn("GPU found by driver", gpu_info)
-                print()
-                print("  !! PyTorch was built without CUDA support for your GPU.")
-                print("  !! Your PyTorch CUDA version:", torch.version.cuda or "None (CPU-only)")
-                print("  !!")
-                print("  !! Reinstall with the correct CUDA version:")
-                print("  !!   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128")
-                print("  !!")
-                print("  !! For older GPUs (pre-Blackwell), cu124 may also work:")
-                print("  !!   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124")
+                logger.warning("  PyTorch was built without CUDA support for your GPU.")
+                logger.warning("  Your PyTorch CUDA version: %s", torch.version.cuda or "None (CPU-only)")
+                logger.warning("  Reinstall with the correct CUDA version:")
+                logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128")
+                logger.warning("  For older GPUs (pre-Blackwell), cu124 may also work:")
+                logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124")
             else:
                 _info("nvidia-smi", "no GPU found — is a GPU installed?")
         except FileNotFoundError:
             _warn("nvidia-smi", "not found — NVIDIA driver may not be installed")
-            print("  Install the NVIDIA driver for your GPU, then reinstall PyTorch with CUDA.")
+            logger.warning("  Install the NVIDIA driver for your GPU, then reinstall PyTorch with CUDA.")
         except Exception as e:
             _warn("nvidia-smi", f"error: {e}")
 
@@ -220,8 +217,6 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
             _warn("Database query", str(e))
     else:
         _info("Database", f"{db_path} not found (will be created on first scan)")
-
-    print()
 
 
 def main():

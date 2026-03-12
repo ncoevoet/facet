@@ -166,7 +166,7 @@ python3 viewer.py
 uvicorn api:create_app --factory --host 0.0.0.0 --port 5000 --workers 1
 ```
 
-Access at `http://your-synology-ip:8000`
+Access at `http://your-synology-ip:5000`
 
 ### Auto-Start
 
@@ -197,6 +197,8 @@ Pair with a Let's Encrypt certificate from DSM > Control Panel > Security > Cert
 Plus-series NAS supports Docker (Container Manager). This is the cleanest approach.
 
 ### Dockerfile
+
+> **Note:** This is a lightweight **viewer-only** Dockerfile (no CUDA/GPU support). It uses port 8000 for NAS deployments behind Synology's built-in reverse proxy. For GPU-accelerated scoring, use the main project `Dockerfile` at the repository root.
 
 ```dockerfile
 FROM python:3.11-slim
@@ -248,7 +250,7 @@ server {
     server_name photos.yourdomain.com;
 
     location / {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:5000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -289,7 +291,7 @@ sudo systemctl enable --now facet
 
 ```
 photos.yourdomain.com {
-    reverse_proxy localhost:8000
+    reverse_proxy localhost:5000
 }
 ```
 
@@ -306,7 +308,7 @@ photos.yourdomain.com {
          └─ scoring_config.json ────────────────────▶ (with path_mapping +
                                                        viewer.performance)
                                                         │
-                                                 http://nas:8000
+                                                 http://nas:5000
 ```
 
 Re-run the export and `rsync` after each scoring session to update the database on the server. For high-memory servers, you can sync the full `photo_scores_pro.db` directly instead of exporting.

@@ -63,7 +63,7 @@ interface PersonPhotosResponse {
       <!-- Photo grid -->
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
         @for (photo of photos(); track photo.path) {
-          <div class="group relative aspect-square overflow-hidden rounded-lg bg-neutral-800">
+          <div class="group relative aspect-square overflow-hidden rounded-lg bg-[var(--mat-sys-surface-container)]">
             <img
               [src]="photo.path | thumbnailUrl:320"
               [alt]="photo.filename"

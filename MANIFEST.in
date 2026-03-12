@@ -1,0 +1,6 @@
+recursive-include client/dist/client/browser *
+recursive-include i18n *.json
+include scoring_config.json
+include requirements.txt
+include LICENSE
+include README.md

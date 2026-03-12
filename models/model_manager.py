@@ -5,10 +5,13 @@ Handles loading and managing AI models based on VRAM profile configuration.
 Supports PyIQA, Qwen2-VL, and CLIP models with automatic selection.
 """
 
+import logging
 import os
 import sys
 from typing import Optional, Dict, Any, List, Union
 from pathlib import Path
+
+logger = logging.getLogger("facet.models")
 
 # Lazy import for torch
 torch = None
@@ -79,7 +82,7 @@ class ModelManager:
         if model_type == 'clip-mlp':
             return self._load_clip_aesthetic()
         else:
-            print(f"Unknown aesthetic model: {model_type}, falling back to CLIP+MLP")
+            logger.warning("Unknown aesthetic model: %s, falling back to CLIP+MLP", model_type)
             return self._load_clip_aesthetic()
 
     def load_composition_model(self):
@@ -92,7 +95,7 @@ class ModelManager:
         elif model_type == 'rule-based':
             return None  # Use traditional rule-based composition
         else:
-            print(f"Unknown composition model: {model_type}, using rule-based")
+            logger.warning("Unknown composition model: %s, using rule-based", model_type)
             return None
 
     def _load_qwen2_vl(self):
@@ -100,7 +103,7 @@ class ModelManager:
         if 'qwen2_vl' in self.models:
             return self.models['qwen2_vl']
 
-        print("Loading Qwen2-VL model...")
+        logger.info("Loading Qwen2-VL model...")
         try:
             from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
 
@@ -119,11 +122,11 @@ class ModelManager:
             processor = AutoProcessor.from_pretrained(model_path)
 
             self.models['qwen2_vl'] = {'model': model, 'processor': processor}
-            print(f"Qwen2-VL loaded: {model_path}")
+            logger.info("Qwen2-VL loaded: %s", model_path)
             return self.models['qwen2_vl']
 
         except Exception as e:
-            print(f"Failed to load Qwen2-VL: {e}")
+            logger.error("Failed to load Qwen2-VL: %s", e)
             return None
 
     def get_clip_config(self) -> dict:
@@ -154,7 +157,7 @@ class ModelManager:
 
     def _load_clip_open_clip(self, clip_config):
         """Load CLIP via open_clip (legacy/8gb profiles)."""
-        print("Loading CLIP model (open_clip)...")
+        logger.info("Loading CLIP model (open_clip)...")
         try:
             import open_clip
 
@@ -173,16 +176,16 @@ class ModelManager:
                 'embedding_dim': clip_config.get('embedding_dim', 768),
                 'backend': 'open_clip',
             }
-            print(f"CLIP loaded: {model_name} ({pretrained})")
+            logger.info("CLIP loaded: %s (%s)", model_name, pretrained)
             return self.models['clip']
 
         except Exception as e:
-            print(f"Failed to load CLIP: {e}")
+            logger.error("Failed to load CLIP: %s", e)
             return None
 
     def _load_clip_transformers(self, clip_config):
         """Load SigLIP 2 NaFlex via transformers (16gb/24gb profiles)."""
-        print("Loading SigLIP 2 NaFlex model (transformers)...")
+        logger.info("Loading SigLIP 2 NaFlex model (transformers)...")
         try:
             from transformers import AutoModel, AutoProcessor
 
@@ -201,11 +204,11 @@ class ModelManager:
                 'embedding_dim': clip_config.get('embedding_dim', 1152),
                 'backend': 'transformers',
             }
-            print(f"SigLIP 2 NaFlex loaded: {model_name}")
+            logger.info("SigLIP 2 NaFlex loaded: %s", model_name)
             return self.models['clip']
 
         except Exception as e:
-            print(f"Failed to load SigLIP 2 NaFlex: {e}")
+            logger.error("Failed to load SigLIP 2 NaFlex: %s", e)
             return None
 
     def _load_clip_aesthetic(self):
@@ -217,7 +220,7 @@ class ModelManager:
         if 'clip_aesthetic' in self.models:
             return self.models['clip_aesthetic']
 
-        print("Loading CLIP+MLP aesthetic predictor...")
+        logger.info("Loading CLIP+MLP aesthetic predictor...")
         try:
             import open_clip
             import torch.nn as nn
@@ -241,11 +244,11 @@ class ModelManager:
                 'preprocess': preprocess,
                 'mlp': mlp
             }
-            print(f"CLIP+MLP aesthetic loaded: {model_name}")
+            logger.info("CLIP+MLP aesthetic loaded: %s", model_name)
             return self.models['clip_aesthetic']
 
         except Exception as e:
-            print(f"Failed to load CLIP+MLP: {e}")
+            logger.error("Failed to load CLIP+MLP: %s", e)
             return None
 
     def _load_aesthetic_mlp(self):
@@ -275,7 +278,7 @@ class ModelManager:
         weights_path = Path("aesthetic_predictor_weights.pth")
 
         if not weights_path.exists():
-            print("Downloading aesthetic MLP weights...")
+            logger.info("Downloading aesthetic MLP weights...")
             url = "https://github.com/christophschuhmann/improved-aesthetic-predictor/raw/main/sac%2Blogos%2Bava1-l14-linearMSE.pth"
             urllib.request.urlretrieve(url, weights_path)
 
@@ -426,7 +429,7 @@ class ModelManager:
             self._cache_hits += 1
             return model
         except Exception as e:
-            print(f"Failed to restore {model_name} from cache: {e}")
+            logger.warning("Failed to restore %s from cache: %s", model_name, e)
             del model
             import gc
             gc.collect()
@@ -447,7 +450,7 @@ class ModelManager:
 
         import gc
         gc.collect()
-        print(f"Evicted {len(names)} model(s) from RAM cache: {', '.join(names)}")
+        logger.info("Evicted %d model(s) from RAM cache: %s", len(names), ", ".join(names))
 
     def load_model_only(self, model_name: str):
         """
@@ -494,7 +497,7 @@ class ModelManager:
         elif model_name in pyiqa_models:
             return self._load_pyiqa(model_name)
         else:
-            print(f"Unknown model: {model_name}")
+            logger.warning("Unknown model: %s", model_name)
             return None
 
     def _load_samp_net(self):
@@ -502,7 +505,7 @@ class ModelManager:
         if 'samp_net' in self.models:
             return self.models['samp_net']
 
-        print("Loading SAMP-Net model...")
+        logger.info("Loading SAMP-Net model...")
         try:
             from models.samp_net import SAMPNetScorer
 
@@ -513,11 +516,11 @@ class ModelManager:
             scorer.ensure_loaded()
 
             self.models['samp_net'] = scorer
-            print(f"SAMP-Net loaded: {model_path}")
+            logger.info("SAMP-Net loaded: %s", model_path)
             return scorer
 
         except Exception as e:
-            print(f"Failed to load SAMP-Net: {e}")
+            logger.error("Failed to load SAMP-Net: %s", e)
             return None
 
     def _load_insightface(self):
@@ -525,7 +528,7 @@ class ModelManager:
         if 'insightface' in self.models:
             return self.models['insightface']
 
-        print("Loading InsightFace model...")
+        logger.info("Loading InsightFace model...")
         try:
             from insightface.app import FaceAnalysis
 
@@ -538,11 +541,11 @@ class ModelManager:
                     sys.stdout = _stdout
 
             self.models['insightface'] = app
-            print("InsightFace loaded")
+            logger.info("InsightFace loaded")
             return app
 
         except Exception as e:
-            print(f"Failed to load InsightFace: {e}")
+            logger.error("Failed to load InsightFace: %s", e)
             return None
 
     def _load_vlm_tagger(self, config_key: str = 'qwen2_5_vl_7b'):
@@ -566,7 +569,7 @@ class ModelManager:
             return tagger
 
         except Exception as e:
-            print(f"Failed to load VLM tagger ({config_key}): {e}")
+            logger.error("Failed to load VLM tagger (%s): %s", config_key, e)
             return None
 
     def _load_ram_tagger(self):
@@ -574,7 +577,7 @@ class ModelManager:
         if 'ram_tagger' in self.models:
             return self.models['ram_tagger']
 
-        print("Loading RAM++ tagger...")
+        logger.info("Loading RAM++ tagger...")
         try:
             from models.ram_tagger import RAMTagger
 
@@ -583,11 +586,11 @@ class ModelManager:
             tagger.load()
 
             self.models['ram_tagger'] = tagger
-            print("RAM++ tagger loaded")
+            logger.info("RAM++ tagger loaded")
             return tagger
 
         except Exception as e:
-            print(f"Failed to load RAM++ tagger: {e}")
+            logger.error("Failed to load RAM++ tagger: %s", e)
             return None
 
     def _load_florence_tagger(self):
@@ -606,7 +609,7 @@ class ModelManager:
             return tagger
 
         except Exception as e:
-            print(f"Failed to load Florence-2 tagger: {e}")
+            logger.error("Failed to load Florence-2 tagger: %s", e)
             return None
 
     def _load_pyiqa(self, model_name: str):
@@ -628,11 +631,11 @@ class ModelManager:
             scorer.load()
 
             self.models[model_name] = scorer
-            print(f"PyIQA {model_name} loaded")
+            logger.info("PyIQA %s loaded", model_name)
             return scorer
 
         except Exception as e:
-            print(f"Failed to load PyIQA {model_name}: {e}")
+            logger.error("Failed to load PyIQA %s: %s", model_name, e)
             return None
 
     def _load_saliency(self):
@@ -640,7 +643,7 @@ class ModelManager:
         if 'saliency' in self.models:
             return self.models['saliency']
 
-        print("Loading BiRefNet saliency model...")
+        logger.info("Loading BiRefNet saliency model...")
         try:
             from models.saliency_scorer import SaliencyScorer
 
@@ -659,7 +662,7 @@ class ModelManager:
             return scorer
 
         except Exception as e:
-            print(f"Failed to load BiRefNet: {e}")
+            logger.error("Failed to load BiRefNet: %s", e)
             return None
 
     def unload_all(self):
@@ -697,7 +700,7 @@ class ModelManager:
         gc.collect()
         _torch = _ensure_torch()
         _torch.cuda.empty_cache()
-        print("All models unloaded")
+        logger.info("All models unloaded")
 
     def get_vram_usage(self) -> str:
         """Get current VRAM usage estimate."""

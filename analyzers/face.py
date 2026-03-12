@@ -4,10 +4,13 @@ Face analysis for Facet.
 InsightFace-based face detection, quality assessment, blink detection.
 """
 
+import logging
 import os
 import sys
 import cv2
 import numpy as np
+
+logger = logging.getLogger("facet.face_analyzer")
 
 from analyzers.image_cache import ImageCache
 from utils.image_transforms import crop_face_with_padding
@@ -46,7 +49,7 @@ class FaceAnalyzer:
                     sys.stdout = _stdout
             self.available = True
         except Exception as e:
-            print(f"InsightFace not available: {e}")
+            logger.warning("InsightFace not available: %s", e)
 
     def _crop_face_thumbnail(self, img_cv, bbox, padding=0.3):
         """Crop face region from full-res image with padding and resize to thumbnail.

@@ -3,7 +3,7 @@ import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { filter, map } from 'rxjs';
+import { filter, map, firstValueFrom } from 'rxjs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatIconModule } from '@angular/material/icon';
@@ -19,6 +19,7 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { ApiService } from './core/services/api.service';
 import { AuthService } from './core/services/auth.service';
 import { I18nService } from './core/services/i18n.service';
 import { ThemeService } from './core/services/theme.service';
@@ -101,6 +102,7 @@ export class EditionDialogComponent {
 export class App implements OnInit {
   private router = inject(Router);
   private dialog = inject(MatDialog);
+  private api = inject(ApiService);
   auth = inject(AuthService);
   i18n = inject(I18nService);
   themeService = inject(ThemeService);
@@ -108,6 +110,7 @@ export class App implements OnInit {
   statsFilters = inject(StatsFiltersService);
   compareFilters = inject(CompareFiltersService);
   mobileSearchOpen = signal(false);
+  protected readonly hasBurstGroups = signal(false);
 
   private url = toSignal(
     this.router.events.pipe(
@@ -264,6 +267,17 @@ export class App implements OnInit {
     this.store.loadTypeCounts();
     try {
       await this.auth.checkStatus();
+      if (this.auth.isEdition()) {
+        const promises: Promise<void>[] = [];
+        promises.push(
+          firstValueFrom(
+            this.api.get<{ total_groups: number }>('/burst-groups', { page: 1, per_page: 1 }),
+          ).then(data => {
+            this.hasBurstGroups.set(data.total_groups > 0);
+          }).catch(() => { /* Non-critical */ }),
+        );
+        await Promise.all(promises);
+      }
     } catch {
       // Auth check failed — guard will redirect if needed
     }

@@ -5,12 +5,15 @@ Provides batch EXIF extraction using ExifTool with chunked subprocess calls.
 Processes files in chunks of 50 to avoid command-line limits and enable timeout handling.
 """
 
-import subprocess
-import json
-import os
-import time
 import atexit
+import json
+import logging
+import os
+import subprocess
+import time
 from pathlib import Path
+
+logger = logging.getLogger("facet.exiftool")
 
 
 class ExifToolBatch:
@@ -141,13 +144,13 @@ class ExifToolBatch:
 
                 except subprocess.TimeoutExpired:
                     if attempt == 0:
-                        print(f"  EXIF chunk {chunk_idx}/{total_chunks} timed out ({len(chunk)} files), retrying with {current_timeout * 2}s timeout...")
+                        logger.warning("EXIF chunk %d/%d timed out (%d files), retrying with %ds timeout...", chunk_idx, total_chunks, len(chunk), current_timeout * 2)
                     else:
-                        print(f"  EXIF chunk {chunk_idx}/{total_chunks} failed after retry ({len(chunk)} files)")
+                        logger.error("EXIF chunk %d/%d failed after retry (%d files)", chunk_idx, total_chunks, len(chunk))
                     continue
                 except Exception as e:
                     if attempt == 1:
-                        print(f"  EXIF chunk {chunk_idx}/{total_chunks} error: {e}")
+                        logger.error("EXIF chunk %d/%d error: %s", chunk_idx, total_chunks, e)
                     continue
 
             if chunk_success:
@@ -158,7 +161,7 @@ class ExifToolBatch:
         # Print summary if there were any failures
         if failed_chunks > 0:
             success_rate = (success_chunks / total_chunks) * 100 if total_chunks > 0 else 0
-            print(f"  EXIF batch complete: {success_chunks}/{total_chunks} chunks succeeded ({success_rate:.0f}%)")
+            logger.warning("EXIF batch complete: %d/%d chunks succeeded (%.0f%%)", success_chunks, total_chunks, success_rate)
 
         return results
 

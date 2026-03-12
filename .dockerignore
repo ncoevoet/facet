@@ -1,0 +1,38 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.idea/
+.vscode/
+
+# Client (rebuilt in Docker)
+client/node_modules/
+client/dist/
+
+# Database files
+*.db
+*.db.backup.*
+
+# Large data directories
+pretrained_models/
+photos/
+photos_all/
+
+# Build artifacts
+.fastembed_cache/
+dist/
+facet_photo.egg-info/
+
+# Sample/test files
+sample.*
+*.zip
+
+# Logs and dev artifacts
+output.log
+*.db.shrink
+.git_diff_tmp
+tests/
+.mcp.json
+.codegraph/
+.claude/

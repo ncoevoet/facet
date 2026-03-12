@@ -29,7 +29,7 @@ except ImportError:
     def tqdm(iterable, **kwargs):
         desc = kwargs.get('desc', '')
         if desc:
-            print(f"{desc}...")
+            logging.getLogger("facet.scorer").info("%s...", desc)
         return iterable
 
 # Suppress standard warnings to keep the CLI output clean
@@ -38,6 +38,8 @@ logging.getLogger('exifread').setLevel(logging.ERROR)
 
 # Import config module (lightweight, no cv2/torch dependency)
 from config import ScoringConfig, PercentileNormalizer
+
+logger = logging.getLogger("facet.scorer")
 
 # Import shared utilities (lightweight, no cv2/torch dependency)
 from utils import (
@@ -142,7 +144,7 @@ def backup_database(db_path, max_backups=3):
     import glob
 
     if not os.path.exists(db_path):
-        print(f"Warning: Database {db_path} does not exist, skipping backup")
+        logger.warning("Database %s does not exist, skipping backup", db_path)
         return None
 
     # Create backup filename with timestamp
@@ -154,7 +156,7 @@ def backup_database(db_path, max_backups=3):
 
     try:
         shutil.copy2(db_path, backup_path)
-        print(f"Database backup created: {backup_path}")
+        logger.info("Database backup created: %s", backup_path)
 
         # Clean up old backups, keep only max_backups most recent
         pattern = os.path.join(db_dir, f"{db_name}.backup.*")
@@ -162,13 +164,13 @@ def backup_database(db_path, max_backups=3):
         for old_backup in existing_backups[max_backups:]:
             try:
                 os.remove(old_backup)
-                print(f"Removed old backup: {old_backup}")
+                logger.info("Removed old backup: %s", old_backup)
             except OSError as e:
-                print(f"Warning: Could not remove old backup {old_backup}: {e}")
+                logger.warning("Could not remove old backup %s: %s", old_backup, e)
 
         return backup_path
     except Exception as e:
-        print(f"Warning: Failed to create database backup: {e}")
+        logger.warning("Failed to create database backup: %s", e)
         return None
 
 
@@ -257,7 +259,7 @@ def fix_thumbnail_rotation(db_path):
     from PIL import Image
     from io import BytesIO
 
-    print("Fixing thumbnail rotation using EXIF orientation data...")
+    logger.info("Fixing thumbnail rotation using EXIF orientation data...")
 
     with get_connection(db_path) as conn:
         # Get all photos with thumbnails
@@ -266,7 +268,7 @@ def fix_thumbnail_rotation(db_path):
         )
         photos = cursor.fetchall()
 
-        print(f"Found {len(photos)} photos with thumbnails")
+        logger.info("Found %d photos with thumbnails", len(photos))
 
         updated = 0
         skipped = 0
@@ -317,22 +319,22 @@ def fix_thumbnail_rotation(db_path):
                 except Exception as e:
                     errors += 1
                     if errors <= 5:
-                        print(f"Error processing {photo_path}: {e}")
+                        logger.error("Error processing %s: %s", photo_path, e)
                     elif errors == 6:
-                        print("(Suppressing further error messages...)")
+                        logger.error("(Suppressing further error messages...)")
 
         except KeyboardInterrupt:
-            print("\n\nInterrupted by user. Saving progress...")
+            logger.info("Interrupted by user. Saving progress...")
 
         conn.commit()
 
-    print(f"\nResults:")
-    print(f"  Fixed: {updated} thumbnails")
-    print(f"  Skipped (no rotation needed): {skipped}")
+    logger.info("Results:")
+    logger.info("  Fixed: %d thumbnails", updated)
+    logger.info("  Skipped (no rotation needed): %d", skipped)
     if missing > 0:
-        print(f"  Missing original files: {missing}")
+        logger.info("  Missing original files: %d", missing)
     if errors > 0:
-        print(f"  Errors: {errors}")
+        logger.info("  Errors: %d", errors)
 
 
 # ============================================
@@ -422,7 +424,7 @@ class Facet:
 
         # Load scoring configuration
         self.config = ScoringConfig(config_path)
-        print(f"Config version: {self.config.version_hash}")
+        logger.info("Config version: %s", self.config.version_hash)
 
         if not lightweight:
             # Load image processing and GPU-dependent modules
@@ -430,7 +432,7 @@ class Facet:
             _load_gpu_modules()
 
             self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            print(f"Using {self.device}")
+            logger.info("Using %s", self.device)
 
             # Check VRAM compatibility with configured profile
             self.config.check_vram_profile_compatibility(verbose=True)
@@ -448,14 +450,14 @@ class Facet:
 
             if multi_pass:
                 # Multi-pass mode: skip heavy GPU models, they'll be loaded per-pass
-                print(f"Multi-pass mode: skipping eager GPU model loading (profile: {self.model_manager.profile})")
+                logger.info("Multi-pass mode: skipping eager GPU model loading (profile: %s)", self.model_manager.profile)
                 self.vlm_composition = None
                 self.samp_scorer = None
                 self.model = None
                 self.preprocess = None
                 self.tagger = None
             elif self.use_advanced_models:
-                print(f"Using advanced scoring models (profile: {self.model_manager.profile})")
+                logger.info("Using advanced scoring models (profile: %s)", self.model_manager.profile)
 
                 # Try to load Qwen2-VL for composition (24GB profile only)
                 if self.model_manager.is_using_qwen_composition():
@@ -463,9 +465,9 @@ class Facet:
                         from models.vlm_composition import create_composition_analyzer
                         self.vlm_composition = create_composition_analyzer(self.model_manager)
                         if self.vlm_composition:
-                            print("Qwen2-VL composition analyzer initialized")
+                            logger.info("Qwen2-VL composition analyzer initialized")
                     except Exception as e:
-                        print(f"Qwen2-VL not available: {e}")
+                        logger.info("Qwen2-VL not available: %s", e)
                         self.vlm_composition = None
                 else:
                     self.vlm_composition = None
@@ -482,9 +484,9 @@ class Facet:
                         )
                         # Eagerly load U2-Net-P saliency model to avoid loading during batch workers
                         self.samp_scorer.ensure_loaded()
-                        print("SAMP-Net composition scorer initialized")
+                        logger.info("SAMP-Net composition scorer initialized")
                     except Exception as e:
-                        print(f"SAMP-Net not available: {e}")
+                        logger.info("SAMP-Net not available: %s", e)
                         self.samp_scorer = None
                 else:
                     self.samp_scorer = None
@@ -506,9 +508,9 @@ class Facet:
                     self.model = self.model.to(self.device).eval()
                     if self.device == 'cuda':
                         self.model = self.model.half()
-                        print(f"SigLIP 2 NaFlex loaded (FP16): {self._clip_model_name}")
+                        logger.info("SigLIP 2 NaFlex loaded (FP16): %s", self._clip_model_name)
                     else:
-                        print(f"SigLIP 2 NaFlex loaded: {self._clip_model_name}")
+                        logger.info("SigLIP 2 NaFlex loaded: %s", self._clip_model_name)
                     self.preprocess = AutoProcessor.from_pretrained(
                         self._clip_model_name, trust_remote_code=True
                     )
@@ -522,7 +524,7 @@ class Facet:
                     # Enable FP16 mode on CUDA for ~20% faster inference and ~2GB VRAM savings
                     if self.device == 'cuda':
                         self.model = self.model.half()
-                        print(f"CLIP model converted to FP16: {self._clip_model_name}")
+                        logger.info("CLIP model converted to FP16: %s", self._clip_model_name)
 
             self._load_aesthetic_head()
 
@@ -533,11 +535,11 @@ class Facet:
                     try:
                         self.model = torch.compile(self.model, mode='reduce-overhead')
                         self.aesthetic_head = torch.compile(self.aesthetic_head, mode='reduce-overhead')
-                        print("Models compiled with torch.compile()")
+                        logger.info("Models compiled with torch.compile()")
                     except Exception as e:
-                        print(f"torch.compile() not available: {e}")
+                        logger.info("torch.compile() not available: %s", e)
                 elif self.device == 'cuda' and sys.platform == 'win32':
-                    print("Skipping torch.compile() on Windows (Triton not supported)")
+                    logger.info("Skipping torch.compile() on Windows (Triton not supported)")
 
             # Initialize face analyzer with config settings
             face_settings = self.config.get_face_detection_settings()
@@ -566,7 +568,7 @@ class Facet:
                 else:
                     self.tagger = None
         else:
-            print("Lightweight mode: skipping main model pipeline")
+            logger.info("Lightweight mode: skipping main model pipeline")
             self.device = None
             self.model = None
             self.preprocess = None
@@ -759,7 +761,7 @@ class Facet:
                 # Keep rule-based power_point_score (SAMP-Net's is just comp_score/2 approximation)
                 pattern = result.get('pattern', 'unknown')
             except Exception as e:
-                print(f"SAMP-Net failed: {e}")
+                logger.error("SAMP-Net failed: %s", e)
 
         if self.vlm_composition:
             try:
@@ -768,7 +770,7 @@ class Facet:
                     base_comp_data['score'] = result['composition_score']
                     vlm_explanation = result.get('explanation')
             except Exception as e:
-                print(f"VLM failed: {e}")
+                logger.error("VLM failed: %s", e)
 
         return pattern, vlm_explanation
 
@@ -1217,7 +1219,7 @@ class Facet:
 
             return res
         except Exception as e:
-            print(f"Error scoring {original_path}: {e}")
+            logger.error("Error scoring %s: %s", original_path, e)
             return None
 
     def update_all_aggregates(self, use_embeddings=True, normalizer=None, category_filter=None):
@@ -1232,20 +1234,20 @@ class Facet:
             category_filter: If set, only recompute photos currently in this category
         """
         if category_filter:
-            print(f"Recalculating scores for category '{category_filter}'...")
+            logger.info("Recalculating scores for category '%s'...", category_filter)
         else:
-            print("Recalculating all scores based on current config...")
-        print(f"Config version: {self.config.version_hash}")
+            logger.info("Recalculating all scores based on current config...")
+        logger.info("Config version: %s", self.config.version_hash)
 
         # In lightweight mode, we can't recalculate from embeddings (no aesthetic_head)
         if self.lightweight and use_embeddings:
-            print("Note: Skipping embedding recalculation in lightweight mode (using stored aesthetic scores)")
+            logger.debug("Note: Skipping embedding recalculation in lightweight mode (using stored aesthetic scores)")
             use_embeddings = False
 
         # Check if per-category normalization is enabled
         per_category_enabled = normalizer and normalizer.per_category
         if per_category_enabled:
-            print("Using per-category percentile normalization")
+            logger.info("Using per-category percentile normalization")
             normalizer.compute_percentiles_per_category()
 
         recalc_from_embedding = 0
@@ -1284,7 +1286,7 @@ class Facet:
                             row_dict['aesthetic'] = new_aesthetic
                             recalc_from_embedding += 1
                     except Exception as e:
-                        logging.warning(f"Embedding recalculation failed for {row_dict.get('path', 'unknown')}: {e}")
+                        logger.warning("Embedding recalculation failed for %s: %s", row_dict.get('path', 'unknown'), e)
 
                 # Determine category for this photo (needed for per-category normalization and storage)
                 category = self._determine_photo_category(row_dict, self.config)
@@ -1359,10 +1361,10 @@ class Facet:
 
             conn.commit()
 
-        print(f"Updated {recalc_standard} photos")
-        print(f"Stored categories for {categories_updated} photos")
+        logger.info("Updated %s photos", recalc_standard)
+        logger.info("Stored categories for %s photos", categories_updated)
         if use_embeddings:
-            print(f"Recalculated {recalc_from_embedding} aesthetics from stored embeddings")
+            logger.info("Recalculated %s aesthetics from stored embeddings", recalc_from_embedding)
 
     def recompute_composition_scores(self):
         """
@@ -1374,13 +1376,13 @@ class Facet:
         # Load image modules (cv2, CompositionAnalyzer) - needed even in lightweight mode
         _load_image_modules()
 
-        print("Recomputing composition scores from stored thumbnails...")
+        logger.info("Recomputing composition scores from stored thumbnails...")
 
         with get_connection(self.db_path) as conn:
             cursor = conn.execute("SELECT path, thumbnail, face_count FROM photos WHERE thumbnail IS NOT NULL")
             rows = list(cursor.fetchall())
 
-            print(f"Found {len(rows)} photos with thumbnails")
+            logger.info("Found %s photos with thumbnails", len(rows))
 
             updated = 0
             decode_failed = 0
@@ -1430,10 +1432,10 @@ class Facet:
 
             conn.commit()
 
-        print(f"Updated composition scores for {updated} photos")
+        logger.info("Updated composition scores for %s photos", updated)
         if decode_failed > 0:
-            print(f"Failed to decode {decode_failed} thumbnails")
-        print("Run --recompute-average to update aggregate scores with new comp_score values")
+            logger.error("Failed to decode %s thumbnails", decode_failed)
+        logger.info("Run --recompute-average to update aggregate scores with new comp_score values")
 
     def recompute_blink_detection(self):
         """
@@ -1468,7 +1470,7 @@ class Facet:
             photo_blink_status = {}  # {path: is_blink}
 
             if landmark_rows:
-                print(f"Computing blinks from stored landmarks for {len(landmark_rows)} faces...")
+                logger.info("Computing blinks from stored landmarks for %s faces...", len(landmark_rows))
 
                 from analyzers import FaceAnalyzer as _FaceAnalyzer
 
@@ -1491,16 +1493,16 @@ class Facet:
                             photo_blink_status[path] = 1
 
                     except Exception as e:
-                        logging.warning(f"Error computing EAR for {path}: {e}")
+                        logger.warning("Error computing EAR for %s: %s", path, e)
 
             # Phase 2: Fallback for faces without landmarks (if any)
             if no_landmark_count > 0:
-                print(f"Note: {no_landmark_count} faces lack stored landmarks.")
-                print("  Run '--batch' scan on new photos to store landmarks,")
-                print("  or run '--extract-faces-gpu' to backfill landmarks.")
+                logger.debug("Note: %s faces lack stored landmarks.", no_landmark_count)
+                logger.info("  Run '--batch' scan on new photos to store landmarks,")
+                logger.info("  or run '--extract-faces-gpu' to backfill landmarks.")
 
             # Phase 3: Batch update the photos table
-            print("Saving results to database...")
+            logger.info("Saving results to database...")
 
             # Reset all photos with faces to non-blink status first
             conn.execute("UPDATE photos SET is_blink = 0 WHERE face_count >= 1")
@@ -1512,7 +1514,7 @@ class Facet:
             conn.commit()
 
         blink_count = sum(1 for v in photo_blink_status.values() if v == 1)
-        print(f"Finished. Updated {len(photo_blink_status)} photos ({blink_count} with blinks).")
+        logger.info("Finished. Updated %s photos (%s with blinks).", len(photo_blink_status), blink_count)
 
     def rescan_samp_composition(self, batch_size: int = 16):
         """
@@ -1527,7 +1529,7 @@ class Facet:
         """
         from models.samp_net import SAMPNetScorer, COMPOSITION_PATTERNS
 
-        print("Rescanning composition with SAMP-Net from stored thumbnails...")
+        logger.info("Rescanning composition with SAMP-Net from stored thumbnails...")
 
         # Initialize SAMP-Net scorer (requires GPU)
         scorer = SAMPNetScorer()
@@ -1536,7 +1538,7 @@ class Facet:
             cursor = conn.execute("SELECT path, thumbnail FROM photos WHERE thumbnail IS NOT NULL")
             rows = list(cursor.fetchall())
 
-            print(f"Found {len(rows)} photos with thumbnails")
+            logger.info("Found %s photos with thumbnails", len(rows))
 
             # Check thumbnail sizes for a sample to warn user
             if rows:
@@ -1546,9 +1548,9 @@ class Facet:
                 if img_cv is not None:
                     h, w = img_cv.shape[:2]
                     if min(h, w) < 384:
-                        print(f"WARNING: Thumbnails are {w}x{h}, but SAMP-Net requires 384x384 minimum.")
-                        print("         Run a full rescan with --force to generate larger thumbnails.")
-                        print("         Proceeding with upscaling (results may be less accurate)...")
+                        logger.warning("WARNING: Thumbnails are %sx%s, but SAMP-Net requires 384x384 minimum.", w, h)
+                        logger.info("         Run a full rescan with --force to generate larger thumbnails.")
+                        logger.info("         Proceeding with upscaling (results may be less accurate)...")
 
             updated = 0
             decode_failed = 0
@@ -1610,10 +1612,10 @@ class Facet:
 
             conn.commit()
 
-        print(f"Updated SAMP-Net composition scores for {updated} photos")
+        logger.info("Updated SAMP-Net composition scores for %s photos", updated)
         if decode_failed > 0:
-            print(f"Failed to decode {decode_failed} thumbnails")
-        print("Run --recompute-average to update aggregate scores with new comp_score values")
+            logger.error("Failed to decode %s thumbnails", decode_failed)
+        logger.info("Run --recompute-average to update aggregate scores with new comp_score values")
 
     # Model name -> DB column for supplementary IQA metrics
     _IQA_MODELS = [
@@ -1647,7 +1649,7 @@ class Facet:
                 count = conn.execute(
                     f"SELECT COUNT(*) FROM photos WHERE {column} IS NULL AND thumbnail IS NOT NULL"
                 ).fetchone()[0]
-                print(f"  {model_name} -> {column}: {count} NULL")
+                logger.info("  %s -> %s: %s NULL", model_name, column, count)
 
             where_any_null = " OR ".join(f"{c} IS NULL" for c in columns)
             total = conn.execute(
@@ -1655,7 +1657,7 @@ class Facet:
             ).fetchone()[0]
 
         if total == 0:
-            print("All IQA columns already populated, nothing to do.")
+            logger.info("All IQA columns already populated, nothing to do.")
             return
 
         # Auto-detect VRAM and group models into passes
@@ -1669,8 +1671,8 @@ class Facet:
             passes = [[m] for m in model_names]  # one at a time
 
         device = "GPU (%.0fGB)" % vram_gb if vram_gb > 0 else "CPU"
-        print(f"\n{total} photos to score | {device} | {len(passes)} pass(es): "
-              + ", ".join("+".join(p) for p in passes))
+        logger.info("%d photos to score | %s | %d pass(es): %s",
+                    total, device, len(passes), ", ".join("+".join(p) for p in passes))
 
         # Mutable counters shared across passes
         counters = {'updated': {col: 0 for col in columns}, 'errors': 0}
@@ -1680,12 +1682,12 @@ class Facet:
 
         elapsed = time.time() - start_time
         minutes = elapsed / 60
-        print(f"\nIQA recompute complete in {minutes:.1f} minutes:")
+        logger.info("\nIQA recompute complete in %.1f minutes:", minutes)
         for model_name, column in self._IQA_MODELS:
-            print(f"  {column}: {counters['updated'][column]} photos scored")
+            logger.info("  %s: %s photos scored", column, counters['updated'][column])
         if counters['errors']:
-            print(f"  {counters['errors']} thumbnail decode errors")
-        print("Run --recompute-average to update aggregate scores with new IQA metrics.")
+            logger.error("  %s thumbnail decode errors", counters['errors'])
+        logger.info("Run --recompute-average to update aggregate scores with new IQA metrics.")
 
     def _run_iqa_pass(self, model_names, batch_size, counters):
         """Run one IQA pass with the given models loaded simultaneously."""
@@ -1884,7 +1886,7 @@ class Facet:
                     elif decoded == 'FocalLengthIn35mmFilm':
                         exif_data['focal_length_35mm'] = float(value)
         except Exception as e:
-            logging.warning(f"EXIF extraction failed for {image_path}: {e}")
+            logger.warning("EXIF extraction failed for %s: %s", image_path, e)
         return exif_data
 
     def save_photo(self, res, pil_img):
@@ -1945,6 +1947,23 @@ class Facet:
                         face.get('thumbnail'),
                         face.get('landmark_2d_106')
                     ))
+
+        # Emit plugin events
+        from plugins import get_plugin_manager
+        pm = get_plugin_manager()
+        if pm:
+            event_data = {
+                'path': res.get('path'),
+                'filename': res.get('filename'),
+                'aggregate': res.get('aggregate', 0),
+                'aesthetic': res.get('aesthetic', 0),
+                'comp_score': res.get('comp_score', 0),
+                'category': res.get('category', ''),
+                'tags': res.get('tags', ''),
+            }
+            pm.emit('on_score_complete', event_data)
+            if (res.get('aggregate') or 0) >= pm.high_score_threshold:
+                pm.emit('on_high_score', event_data)
 
     def save_photos_batch(self, results_with_images):
         """
@@ -2030,6 +2049,24 @@ class Facet:
 
             # Commit the entire batch in one transaction
             conn.commit()
+
+        # Emit plugin events
+        from plugins import get_plugin_manager
+        pm = get_plugin_manager()
+        if pm:
+            for res, _ in results_with_images:
+                event_data = {
+                    'path': res.get('path'),
+                    'filename': res.get('filename'),
+                    'aggregate': res.get('aggregate', 0),
+                    'aesthetic': res.get('aesthetic', 0),
+                    'comp_score': res.get('comp_score', 0),
+                    'category': res.get('category', ''),
+                    'tags': res.get('tags', ''),
+                }
+                pm.emit('on_score_complete', event_data)
+                if (res.get('aggregate') or 0) >= pm.high_score_threshold:
+                    pm.emit('on_high_score', event_data)
 
     # ============================================
     # PARTIAL UPDATE METHODS (for multi-pass mode)
@@ -2173,7 +2210,7 @@ def process_bursts(db_path, config_path='scoring_config.json'):
     # 100% = 0 distance, 0% = 64 distance
     max_hamming_distance = int(64 * (1 - similarity_percent / 100))
 
-    print(f"Processing burst groups (rapid<={rapid_burst_seconds}s, similarity>={similarity_percent}%, window={time_window_minutes}min)...")
+    logger.info("Processing burst groups (rapid<=%ss, similarity>=%s%%, window=%smin)...", rapid_burst_seconds, similarity_percent, time_window_minutes)
 
     with get_connection(db_path) as conn:
         photos = conn.execute(
@@ -2250,7 +2287,12 @@ def process_bursts(db_path, config_path='scoring_config.json'):
 
             return False
 
+        # Reset burst_group_id (but preserve burst_reviewed for already-reviewed groups)
+        conn.execute("UPDATE photos SET burst_group_id = NULL WHERE phash IS NOT NULL")
+
         current_burst = [photos[0]]
+        group_id = 0
+        burst_groups_for_emit = []
         for i in range(1, len(photos)):
             if is_similar_to_burst(photos[i], current_burst, max_hamming_distance, time_window_minutes, rapid_burst_seconds):
                 current_burst.append(photos[i])
@@ -2259,14 +2301,41 @@ def process_bursts(db_path, config_path='scoring_config.json'):
                 if current_burst:
                     winner = max(current_burst, key=lambda x: x['aggregate'] or 0)
                     conn.execute("UPDATE photos SET is_burst_lead = 1 WHERE path = ?", (winner['path'],))
+                    if len(current_burst) >= 2:
+                        for p in current_burst:
+                            conn.execute("UPDATE photos SET burst_group_id = ? WHERE path = ?", (group_id, p['path']))
+                        burst_groups_for_emit.append({
+                            'burst_group_id': group_id,
+                            'photo_count': len(current_burst),
+                            'best_path': winner['path'],
+                            'paths': [p['path'] for p in current_burst],
+                        })
+                        group_id += 1
                 current_burst = [photos[i]]
 
         # Handle final burst
         if current_burst:
             winner = max(current_burst, key=lambda x: x['aggregate'] or 0)
             conn.execute("UPDATE photos SET is_burst_lead = 1 WHERE path = ?", (winner['path'],))
+            if len(current_burst) >= 2:
+                for p in current_burst:
+                    conn.execute("UPDATE photos SET burst_group_id = ? WHERE path = ?", (group_id, p['path']))
+                burst_groups_for_emit.append({
+                    'burst_group_id': group_id,
+                    'photo_count': len(current_burst),
+                    'best_path': winner['path'],
+                    'paths': [p['path'] for p in current_burst],
+                })
 
         conn.commit()
+        logger.info("Assigned %d burst groups", group_id + 1 if current_burst and len(current_burst) >= 2 else group_id)
+
+    # Emit plugin events for burst groups
+    from plugins import get_plugin_manager
+    pm = get_plugin_manager()
+    if pm:
+        for group_data in burst_groups_for_emit:
+            pm.emit('on_burst_detected', group_data)
 
 
 def process_single_photo(photo_path, scorer):

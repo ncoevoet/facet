@@ -38,6 +38,12 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'culling',
+    loadComponent: () =>
+      import('./features/gallery/burst-culling.component').then(m => m.BurstCullingComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: 'stats',
     loadComponent: () =>
       import('./features/stats/stats.component').then(m => m.StatsComponent),

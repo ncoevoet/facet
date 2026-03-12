@@ -4,6 +4,7 @@ Face extraction and thumbnail processing for Facet.
 Producer-consumer processor for parallel face operations.
 """
 
+import logging
 import sqlite3
 from db import get_connection
 import numpy as np
@@ -11,6 +12,8 @@ import threading
 import queue
 import time
 from pathlib import Path
+
+logger = logging.getLogger("facet.face_processor")
 
 from utils import load_image_from_path, crop_face_with_padding, bytes_to_embedding, load_image_for_face_crop
 from faces.resource_monitor import FaceResourceMonitor, HAS_PSUTIL
@@ -21,7 +24,7 @@ except ImportError:
     def tqdm(iterable, **kwargs):
         desc = kwargs.get('desc', '')
         if desc:
-            print(f"{desc}...")
+            logger.info("%s...", desc)
         return iterable
 
 class FaceProcessor:
@@ -270,7 +273,7 @@ class FaceProcessor:
         """
         total = len(items)
         if total == 0:
-            print(f"No items to process.")
+            logger.info("No items to process.")
             return
 
         self.metrics['start_time'] = time.time()
@@ -315,8 +318,8 @@ class FaceProcessor:
             errors = self.metrics['errors']
             throughput = processed / elapsed if elapsed > 0 else 0
 
-            print(f"\nCompleted in {elapsed:.1f}s ({throughput:.1f} items/s)")
-            print(f"Processed: {processed}, Skipped: {skipped}, Errors: {errors}")
+            logger.info("Completed in %.1fs (%.1f items/s)", elapsed, throughput)
+            logger.info("Processed: %d, Skipped: %d, Errors: %d", processed, skipped, errors)
 
         finally:
             self.resource_monitor.stop()

@@ -61,7 +61,9 @@
       "rejected": "REJ"
     },
     "switch_language": "Switch language",
-    "theme": "Theme"
+    "theme": "Theme",
+    "dark_mode": "Dark mode",
+    "light_mode": "Light mode"
   },
   "dialog": {
     "cancel": "Cancel",
@@ -747,7 +749,14 @@
         "noise": "Noise",
         "isolation": "Isolation",
         "power_point": "Power Points",
-        "leading_lines": "Leading Lines"
+        "leading_lines": "Leading Lines",
+        "aesthetic_iaa": "Aesthetic (IAA)",
+        "face_quality_iqa": "Face Quality (IQA)",
+        "liqe": "LIQE",
+        "subject_sharpness": "Subject Sharpness",
+        "subject_prominence": "Subject Prominence",
+        "subject_placement": "Subject Placement",
+        "bg_separation": "Background Separation"
       }
     },
     "loading": "Loading data...",
@@ -947,7 +956,8 @@
     "stats": "Statistics",
     "persons": "Persons",
     "compare": "Weight Tuning",
-    "albums": "Albums"
+    "albums": "Albums",
+    "culling": "Culling"
   },
   "auth": {
     "logout": "Log out",
@@ -1173,6 +1183,7 @@
     "load_correlation": "Load Correlation",
     "sample_size": "Sample Size",
     "weights_saved": "Weights saved",
+    "weights_reset": "Weights reset to saved values",
     "snapshot_saved": "Snapshot saved",
     "snapshot_restored": "Snapshot restored",
     "snapshot_deleted": "Snapshot deleted",
@@ -1427,5 +1438,23 @@
       "highlight_clipping": "Highlight clip: {value}",
       "shadow_clipping": "Shadow clip: {value}"
     }
+  },
+  "culling": {
+    "title": "Burst Culling",
+    "no_bursts": "No burst groups found",
+    "group_progress": "Group {current} of {total}",
+    "auto_best": "AUTO BEST",
+    "confirm": "Confirm Selection",
+    "skip": "Skip",
+    "auto_select_all": "Auto-select All",
+    "confirm_tooltip": "Keep selected photos, discard the rest",
+    "skip_tooltip": "Move to next group without deciding",
+    "auto_select_all_tooltip": "Automatically keep the best photo in each remaining group",
+    "confirmed": "Selection confirmed",
+    "previous": "Previous",
+    "next": "Next",
+    "error_loading": "Failed to load burst groups",
+    "error_confirming": "Failed to confirm selection",
+    "error_auto_select": "Failed to auto-select"
   }
 }

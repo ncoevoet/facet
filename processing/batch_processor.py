@@ -4,11 +4,14 @@ Batch processor for Facet GPU inference.
 Producer-consumer pattern for continuous GPU batching.
 """
 
+import logging
 import os
 import threading
 import queue
 import time
 from pathlib import Path
+
+logger = logging.getLogger("facet.batch")
 
 import cv2
 import numpy as np
@@ -412,7 +415,7 @@ class BatchProcessor:
                     try:
                         item = self.result_queue.get(timeout=1.0)
                         if 'error' in item:
-                            print(f"Error on {item.get('path', 'unknown')}: {item['error']}")
+                            logger.error("Error on %s: %s", item.get('path', 'unknown'), item['error'])
                         else:
                             pending_saves.append((item['result'], item['pil_img']))
 
@@ -550,7 +553,7 @@ class BatchProcessor:
                     try:
                         item = self.result_queue.get(timeout=1.0)
                         if 'error' in item:
-                            print(f"Error on {item.get('path', 'unknown')}: {item['error']}")
+                            logger.error("Error on %s: %s", item.get('path', 'unknown'), item['error'])
                         else:
                             pending_saves.append((item['result'], item['pil_img']))
 

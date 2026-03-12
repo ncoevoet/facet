@@ -167,8 +167,8 @@ class SignalErrorMatcher {
         @if (previewPhotos().length > 0) {
           <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
             @for (photo of previewPhotos(); track photo.path; let i = $index) {
-              <div class="relative rounded-lg overflow-hidden bg-neutral-900">
-                <img [src]="photo.path | thumbnailUrl:320" [alt]="photo.filename" class="w-full object-contain bg-neutral-900" />
+              <div class="relative rounded-lg overflow-hidden bg-[var(--mat-sys-surface-container)]">
+                <img [src]="photo.path | thumbnailUrl:320" [alt]="photo.filename" class="w-full object-contain bg-[var(--mat-sys-surface-container)]" />
                 <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-1.5">
                   <span class="text-xs font-mono text-white">#{{ i + 1 }}</span>
                   <span class="text-xs font-mono text-gray-300 ml-2">{{ (photo.new_score ?? photo.aggregate) | fixed:1 }}</span>
@@ -441,6 +441,7 @@ export class ComparisonWeightsTabComponent {
     effect(() => {
       const data = this.weightImpactData();
       const cat = this.compareFilters.selectedCategory();
+      this.themeService.darkMode(); // rebuild chart on theme change
       if (data && cat) {
         this.buildWeightImpactChart(data, cat);
       }
@@ -460,7 +461,7 @@ export class ComparisonWeightsTabComponent {
     });
   }
 
-  async loadWeights(): Promise<void> {
+  async loadWeights(notify = false): Promise<void> {
     const cat = this.compareFilters.selectedCategory();
     if (!cat) return;
     this.loading.set(true);
@@ -474,6 +475,9 @@ export class ComparisonWeightsTabComponent {
       this.savedModifiers.set({ ...(data.modifiers ?? {}) });
       this.filters.set({ ...(data.filters ?? {}) });
       this.savedFilters.set({ ...(data.filters ?? {}) });
+      if (notify) {
+        this.snackBar.open(this.i18n.t('comparison.weights_reset'), '', { duration: 3000 });
+      }
     } catch {
       this.snackBar.open(this.i18n.t('comparison.error_loading_weights'), '', { duration: 4000 });
     } finally {
@@ -681,12 +685,12 @@ export class ComparisonWeightsTabComponent {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: true, labels: { color: '#d4d4d4', boxWidth: 12 } },
+          legend: { display: true, labels: { color: this.themeService.darkMode() ? '#d4d4d4' : '#404040', boxWidth: 12 } },
           tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${(ctx.parsed.x ?? 0).toFixed(1)}%` } },
         },
         scales: {
-          x: { grid: { color: '#262626' }, ticks: { color: '#a3a3a3', callback: (v) => v + '%' }, max: 100 },
-          y: { grid: { display: false }, ticks: { color: '#d4d4d4', font: { size: 11 } } },
+          x: { grid: { color: this.themeService.darkMode() ? '#262626' : '#e5e5e5' }, ticks: { color: this.themeService.darkMode() ? '#a3a3a3' : '#525252', callback: (v) => v + '%' }, max: 100 },
+          y: { grid: { display: false }, ticks: { color: this.themeService.darkMode() ? '#d4d4d4' : '#404040', font: { size: 11 } } },
         },
       },
     }));

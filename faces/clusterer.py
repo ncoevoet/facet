@@ -13,13 +13,17 @@ from pathlib import Path
 from utils import bytes_to_embedding
 from faces.processor import FaceProcessor
 
+import logging
+
+logger = logging.getLogger("facet.face_cluster")
+
 try:
     from tqdm import tqdm
 except ImportError:
     def tqdm(iterable, **kwargs):
         desc = kwargs.get('desc', '')
         if desc:
-            print(f"{desc}...")
+            logger.info("%s...", desc)
         return iterable
 
 def _check_cuml_available():
@@ -95,7 +99,7 @@ class FaceClusterer:
 
         if self.use_gpu == 'always':
             if not self._cuml_available:
-                print("Warning: use_gpu='always' but cuML not available, falling back to CPU")
+                logger.warning("Warning: use_gpu='always' but cuML not available, falling back to CPU")
             return self._cuml_available
 
         # 'auto' mode - use GPU if available
@@ -136,28 +140,28 @@ class FaceClusterer:
         import hdbscan  # Use standalone library, not sklearn (sklearn has epsilon bug)
 
         if force:
-            print("Force mode: will delete all persons including named ones")
+            logger.info("Force mode: will delete all persons including named ones")
         elif preserve_named_only:
-            print("Named-only mode: will preserve only named persons, re-cluster unnamed faces")
+            logger.info("Named-only mode: will preserve only named persons, re-cluster unnamed faces")
         else:
-            print("Incremental mode: will preserve all existing persons")
+            logger.info("Incremental mode: will preserve all existing persons")
 
-        print("Step 1/4: Loading embeddings from database...")
+        logger.info("Step 1/4: Loading embeddings from database...")
         t0 = time.time()
         face_ids, embeddings = self.load_embeddings()
         t1 = time.time()
-        print(f"Step 1/4: Done ({t1-t0:.1f}s) - loaded {len(embeddings)} faces")
+        logger.info("Step 1/4: Done (%.1fs) - loaded %s faces", t1-t0, len(embeddings))
 
         if len(embeddings) < self.min_faces:
-            print(f"Not enough faces to cluster ({len(embeddings)} found, need at least {self.min_faces})")
+            logger.info("Not enough faces to cluster (%s found, need at least %s)", len(embeddings), self.min_faces)
             return
 
-        print(f"Step 2/4: Normalizing embeddings...")
+        logger.info("Step 2/4: Normalizing embeddings...")
         # Normalize embeddings for cosine distance
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
         embeddings_normalized = embeddings / (norms + 1e-10)
         t2 = time.time()
-        print(f"Step 2/4: Done ({t2-t1:.1f}s)")
+        logger.info("Step 2/4: Done (%.1fs)", t2-t1)
 
         # Convert cosine epsilon to euclidean for normalized vectors: d_euclidean = sqrt(2 * d_cosine)
         euclidean_epsilon = 0.0
@@ -169,7 +173,7 @@ class FaceClusterer:
             from cuml.cluster import HDBSCAN as cumlHDBSCAN
             import cupy as cp
 
-            print(f"Step 3/4: Computing clusters on GPU (cuML HDBSCAN, min_cluster_size={self.min_faces}, min_samples={self.min_samples})...")
+            logger.info("Step 3/4: Computing clusters on GPU (cuML HDBSCAN, min_cluster_size=%s, min_samples=%s)...", self.min_faces, self.min_samples)
             embeddings_gpu = cp.asarray(embeddings_normalized)
             clusterer = cumlHDBSCAN(
                 min_cluster_size=self.min_faces,
@@ -181,7 +185,7 @@ class FaceClusterer:
             labels = cp.asnumpy(labels)  # Back to numpy
         else:
             # Use CPU clustering (standalone hdbscan library)
-            print(f"Step 3/4: Computing clusters on CPU (algorithm={self.algorithm}, leaf_size={self.leaf_size}, min_cluster_size={self.min_faces}, min_samples={self.min_samples})...")
+            logger.info("Step 3/4: Computing clusters on CPU (algorithm=%s, leaf_size=%s, min_cluster_size=%s, min_samples=%s)...", self.algorithm, self.leaf_size, self.min_faces, self.min_samples)
             # Run HDBSCAN with cluster_selection_epsilon (works in standalone hdbscan library)
             # core_dist_n_jobs=-1 enables parallel distance computation using all CPU cores
             # algorithm='boruvka_balltree' is O(n log n) vs O(n²) for exact methods - critical for large datasets
@@ -196,24 +200,24 @@ class FaceClusterer:
             )
             labels = clusterer.fit_predict(embeddings_normalized)
         t3 = time.time()
-        print(f"Step 3/4: Done ({t3-t2:.1f}s)")
+        logger.info("Step 3/4: Done (%.1fs)", t3-t2)
 
         # Build face_id -> cluster_label mapping
         face_to_cluster = dict(zip(face_ids, labels))
 
-        print("Step 4/4: Updating database with cluster assignments...")
+        logger.info("Step 4/4: Updating database with cluster assignments...")
         # Update database
         self._update_database(face_to_cluster, embeddings_normalized, face_ids,
                              force=force, preserve_named_only=preserve_named_only)
         t4 = time.time()
-        print(f"Step 4/4: Done ({t4-t3:.1f}s)")
+        logger.info("Step 4/4: Done (%.1fs)", t4-t3)
 
         # Print summary
         unique_labels = set(labels)
         n_clusters = len([l for l in unique_labels if l >= 0])
         n_noise = list(labels).count(-1)
-        print(f"\nClustering complete in {t4-t0:.1f}s total")
-        print(f"Found {n_clusters} person clusters, {n_noise} unclustered faces")
+        logger.info("\nClustering complete in %.1fs total", t4-t0)
+        logger.info("Found %s person clusters, %s unclustered faces", n_clusters, n_noise)
 
     def _generate_face_thumbnail(self, conn, face_id):
         """Generate a cropped face thumbnail for a representative face.
@@ -255,7 +259,7 @@ class FaceClusterer:
             )
 
         except Exception as e:
-            print(f"Error generating face thumbnail for face {face_id}: {e}")
+            logger.error("Error generating face thumbnail for face %s: %s", face_id, e)
             return None
 
     def _load_existing_persons(self, conn, force, preserve_named_only):
@@ -291,7 +295,7 @@ class FaceClusterer:
                 existing_persons[person_id] = {'name': name, 'centroid': centroid}
 
         if existing_persons:
-            print(f"  Preserving {len(existing_persons)} named person(s)")
+            logger.info("  Preserving %s named person(s)", len(existing_persons))
         return existing_persons
 
     def _update_person_centroids(self, conn, person_ids):
@@ -356,7 +360,7 @@ class FaceClusterer:
                 # Delete unnamed persons, clear face assignments for re-matching
                 conn.execute("UPDATE faces SET person_id = NULL")
                 deleted = conn.execute("DELETE FROM persons WHERE name IS NULL").rowcount
-                print(f"  Deleted {deleted} unnamed auto-clustered person(s)")
+                logger.info("  Deleted %s unnamed auto-clustered person(s)", deleted)
             else:
                 # Clear face assignments for re-matching, but keep all persons
                 conn.execute("UPDATE faces SET person_id = NULL")
@@ -377,7 +381,7 @@ class FaceClusterer:
             total_clusters = len(cluster_items)
             chunk_size = max(1, total_clusters // 10)  # 10% chunks
 
-            print(f"  Processing {total_clusters} clusters...")
+            logger.info("  Processing %s clusters...", total_clusters)
             thumbnails_to_generate = []  # Defer thumbnail generation
 
             # Create person records for each cluster
@@ -454,7 +458,7 @@ class FaceClusterer:
 
             # Batch generate thumbnails only for legacy faces without stored thumbnails
             if thumbnails_to_generate:
-                print(f"  Generating {len(thumbnails_to_generate)} thumbnails (legacy faces without stored thumbnails)...")
+                logger.info("  Generating %s thumbnails (legacy faces without stored thumbnails)...", len(thumbnails_to_generate))
                 thumb_chunk_size = max(1, len(thumbnails_to_generate) // 10)
                 for j, face_id in enumerate(tqdm(thumbnails_to_generate, desc="  Thumbnails")):
                     thumbnail = self._generate_face_thumbnail(conn, face_id)
@@ -475,7 +479,7 @@ class FaceClusterer:
             conn.commit()
 
             if merged_to_named > 0:
-                print(f"  Merged {merged_to_named} face(s) into existing persons")
+                logger.info("  Merged %s face(s) into existing persons", merged_to_named)
 
     def match_face_to_person(self, embedding_bytes, threshold=None):
         """
@@ -541,7 +545,7 @@ def extract_faces_from_existing(scorer, force=False):
             deleted = conn.execute("DELETE FROM faces").rowcount
             conn.commit()
             if deleted > 0:
-                print(f"Deleted {deleted} existing face records.")
+                logger.info("Deleted %s existing face records.", deleted)
 
             # Get ALL photos
             cursor = conn.execute("SELECT path FROM photos")
@@ -554,11 +558,11 @@ def extract_faces_from_existing(scorer, force=False):
         photos = [row[0] for row in cursor.fetchall()]
 
     if not photos:
-        print("No photos in database.")
+        logger.info("No photos in database.")
         return
 
-    print(f"Extracting faces from {len(photos)} photos...")
-    print(f"Workers: {num_workers}, Batch size: {batch_size}")
+    logger.info("Extracting faces from %s photos...", len(photos))
+    logger.info("Workers: %s, Batch size: %s", num_workers, batch_size)
 
     processor = FaceProcessor(
         db_path=scorer.db_path,
@@ -596,7 +600,7 @@ def refill_face_thumbnails(db_path, config, force=False):
             cleared = conn.execute("UPDATE faces SET face_thumbnail = NULL").rowcount
             conn.commit()
             if cleared > 0:
-                print(f"Cleared {cleared} existing face thumbnails.")
+                logger.info("Cleared %s existing face thumbnails.", cleared)
 
         # Get faces with bbox data (all if force, only missing thumbnails otherwise)
         cursor = conn.execute("""
@@ -608,11 +612,11 @@ def refill_face_thumbnails(db_path, config, force=False):
         faces = cursor.fetchall()
 
     if not faces:
-        print("No faces to process.")
+        logger.info("No faces to process.")
         return
 
-    print(f"Regenerating thumbnails for {len(faces)} faces...")
-    print(f"Workers: {num_workers}, Batch size: {batch_size}")
+    logger.info("Regenerating thumbnails for %s faces...", len(faces))
+    logger.info("Workers: %s, Batch size: %s", num_workers, batch_size)
 
     processor = FaceProcessor(
         db_path=db_path,

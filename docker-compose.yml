@@ -1,0 +1,27 @@
+services:
+  facet:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./photos:/data/photos
+      - ./data:/app/data
+      - ./scoring_config.json:/app/scoring_config.json
+      - ./storage:/app/storage
+    environment:
+      - FACET_LOG_LEVEL=INFO
+      - DB_PATH=/app/data/photo_scores_pro.db
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped

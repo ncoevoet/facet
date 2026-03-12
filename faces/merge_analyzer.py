@@ -1,6 +1,9 @@
 """Analyze person clusters to find potential merge candidates."""
+import logging
 import numpy as np
 from db import get_connection
+
+logger = logging.getLogger("facet.face_merge")
 
 
 class UnionFind:
@@ -143,8 +146,8 @@ def suggest_person_merges(db_path, threshold=0.6):
                     'centroid': centroid
                 })
 
-    print(f"\nAnalyzing {len(persons)} persons for potential merges...")
-    print(f"Similarity threshold: {threshold}\n")
+    logger.info("Analyzing %d persons for potential merges...", len(persons))
+    logger.info("Similarity threshold: %s", threshold)
 
     # Compare all pairs
     merge_candidates = []
@@ -163,11 +166,10 @@ def suggest_person_merges(db_path, threshold=0.6):
 
     # Display results
     if not merge_candidates:
-        print(f"No merge candidates found above threshold {threshold}")
+        logger.info("No merge candidates found above threshold %s", threshold)
         return
 
-    print(f"Found {len(merge_candidates)} potential merge(s):\n")
-    print("-" * 80)
+    logger.info("Found %d potential merge(s):", len(merge_candidates))
 
     for i, candidate in enumerate(merge_candidates, 1):
         p1, p2 = candidate['person1'], candidate['person2']
@@ -176,12 +178,10 @@ def suggest_person_merges(db_path, threshold=0.6):
         name1 = p1['name'] or f"Person {p1['id']}"
         name2 = p2['name'] or f"Person {p2['id']}"
 
-        print(f"{i}. Similarity: {sim:.3f} ({sim*100:.1f}%)")
-        print(f"   {name1} (ID: {p1['id']}, {p1['face_count']} faces)")
-        print(f"   {name2} (ID: {p2['id']}, {p2['face_count']} faces)")
-        print(f"   -> Merge at: /manage_persons")
-        print()
+        logger.info("%d. Similarity: %.3f (%.1f%%)", i, sim, sim * 100)
+        logger.info("   %s (ID: %d, %d faces)", name1, p1['id'], p1['face_count'])
+        logger.info("   %s (ID: %d, %d faces)", name2, p2['id'], p2['face_count'])
+        logger.info("   -> Merge at: /manage_persons")
 
-    print("-" * 80)
-    print(f"Total: {len(merge_candidates)} potential merge(s)")
-    print(f"Use the web viewer at /manage_persons to merge persons.")
+    logger.info("Total: %d potential merge(s)", len(merge_candidates))
+    logger.info("Use the web viewer at /manage_persons to merge persons.")

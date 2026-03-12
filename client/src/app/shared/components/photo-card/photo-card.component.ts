@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { Component, effect, input, output, signal, untracked } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -40,7 +40,7 @@ interface AppConfig {
   ],
   template: `
     <div
-      class="relative rounded-lg overflow-hidden cursor-pointer bg-neutral-900 transition-all h-full"
+      class="relative rounded-lg overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container)] transition-all h-full"
       [class.md:aspect-square]="hideDetails() && !mosaicMode()"
       [class.ring-2]="isSelected()"
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
@@ -58,9 +58,11 @@ interface AppConfig {
           [src]="photo().path | thumbnailUrl:thumbSize()"
           [alt]="photo().filename"
           loading="lazy"
-          class="w-full"
+          class="w-full bg-[var(--mat-sys-surface-container)] transition-opacity duration-500"
           [class.md:h-full]="hideDetails()"
           [class.md:object-cover]="hideDetails()"
+          [style.opacity]="imageLoaded() ? '1' : '0'"
+          (load)="imageLoaded.set(true)"
         />
 
         <!-- Persistent favorite heart (visible without hover, bottom-right) -->
@@ -231,6 +233,16 @@ export class PhotoCardComponent {
   // Data
   readonly photo = input.required<Photo>();
   readonly config = input<AppConfig | null>(null);
+
+  // Progressive loading
+  readonly imageLoaded = signal(false);
+
+  constructor() {
+    effect(() => {
+      this.photo();
+      untracked(() => this.imageLoaded.set(false));
+    });
+  }
 
   // Display state
   readonly isSelected = input(false);

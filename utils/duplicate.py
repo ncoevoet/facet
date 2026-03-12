@@ -6,10 +6,13 @@ groups transitively matching photos using Union-Find, and marks the
 highest-scoring photo in each group as the lead.
 """
 
+import logging
 import sqlite3
 import numpy as np
 
 from db.connection import apply_pragmas
+
+logger = logging.getLogger("facet.duplicate")
 
 
 class _UnionFind:
@@ -61,8 +64,8 @@ def detect_duplicates(db_path, config_path=None):
     # pHash is 64-bit, so max Hamming distance is 64
     # similarity_threshold_percent=90 means <=6 bits different (floor(64 * 0.10))
     max_distance = int(64 * (1 - similarity_pct / 100))
-    print(f"Duplicate detection: similarity >= {similarity_pct}% "
-          f"(Hamming distance <= {max_distance})")
+    logger.info("Duplicate detection: similarity >= %d%% (Hamming distance <= %d)",
+                similarity_pct, max_distance)
 
     # Load all photos with pHash
     with sqlite3.connect(db_path) as conn:
@@ -75,13 +78,13 @@ def detect_duplicates(db_path, config_path=None):
         rows = cursor.fetchall()
 
     if not rows:
-        print("No photos with pHash found.")
+        logger.info("No photos with pHash found.")
         return
 
     paths = [r['path'] for r in rows]
     aggregates = [r['aggregate'] or 0.0 for r in rows]
     n = len(paths)
-    print(f"Comparing {n} photos...")
+    logger.info("Comparing %d photos...", n)
 
     # Convert hex hashes to uint64 numpy array for vectorized comparison
     hashes = np.array([_hex_to_uint64(r['phash']) for r in rows], dtype=np.uint64)
@@ -130,7 +133,7 @@ def detect_duplicates(db_path, config_path=None):
     dup_groups = {root: members for root, members in groups.items() if len(members) >= 2}
 
     if not dup_groups:
-        print("No duplicates found.")
+        logger.info("No duplicates found.")
         # Clear any existing duplicate markings
         with sqlite3.connect(db_path) as conn:
             apply_pragmas(conn)
@@ -139,8 +142,8 @@ def detect_duplicates(db_path, config_path=None):
         return
 
     # Assign group IDs and determine leads
-    print(f"Found {len(dup_groups)} duplicate groups "
-          f"({sum(len(m) for m in dup_groups.values())} photos total)")
+    logger.info("Found %d duplicate groups (%d photos total)",
+                len(dup_groups), sum(len(m) for m in dup_groups.values()))
 
     # Clear existing markings
     with sqlite3.connect(db_path) as conn:
@@ -165,8 +168,8 @@ def detect_duplicates(db_path, config_path=None):
 
     total_dups = sum(len(m) for m in dup_groups.values())
     hidden = total_dups - len(dup_groups)  # non-lead duplicates
-    print(f"Marked {len(dup_groups)} groups: {total_dups} photos, "
-          f"{hidden} will be hidden when 'Hide Duplicates' is on")
+    logger.info("Marked %d groups: %d photos, %d will be hidden when 'Hide Duplicates' is on",
+                len(dup_groups), total_dups, hidden)
 
 
 # Precomputed popcount table for bytes 0-255

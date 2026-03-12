@@ -5,10 +5,13 @@ HyperIQA, DBCNN, MUSIQ, and LIQE.
 These models provide excellent quality assessment with low VRAM usage.
 """
 
+import logging
 import torch
 import numpy as np
 from PIL import Image
 from typing import Optional
+
+logger = logging.getLogger("facet.pyiqa")
 
 # Lazy import to avoid loading pyiqa unless needed
 pyiqa = None
@@ -147,7 +150,7 @@ class PyIQAScorer:
 
         self._loaded = False
         torch.cuda.empty_cache()
-        print(f"  {self.model_name} unloaded")
+        logger.info("  %s unloaded", self.model_name)
 
     # Max long edge for inference (prevents OOM on CPU with high-res images).
     # PyIQA models are trained on <=1024px images; larger adds no benefit
@@ -276,7 +279,7 @@ class PyIQAScorer:
                 scores.append(5.0)  # Default middle score as float
 
         for msg, count in skipped.items():
-            print(f"  Warning: {self.model_name} skipped {count} image(s): {msg}")
+            logger.warning("  %s skipped %d image(s): %s", self.model_name, count, msg)
 
         return scores
 

@@ -2199,11 +2199,25 @@
       "show_critique": true,
       "show_vlm_critique": true
     },
+    "allowed_origins": [
+      "http://localhost:4200",
+      "http://localhost:5000"
+    ],
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
     "path_mapping": {}
   },
+  "plugins": {
+    "enabled": false,
+    "high_score_threshold": 8.0,
+    "webhooks": [],
+    "actions": {}
+  },
   "share_secret": "fe64e67f9a98fbfca566a1ddb24ea9e85439b93528fdab0b336a74700b532a59",
+  "storage": {
+    "mode": "database",
+    "filesystem_path": "./storage"
+  },
   "performance": {
     "mmap_size_mb": 2048,
     "cache_size_mb": 128

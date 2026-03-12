@@ -2,6 +2,7 @@
 Database consistency validation for Facet.
 """
 
+import logging
 import sqlite3
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -10,6 +11,8 @@ import numpy as np
 
 from db import DEFAULT_DB_PATH, get_connection
 from validation.validation_result import ValidationResult
+
+logger = logging.getLogger("facet.validator")
 
 SCORE_COLUMNS = [
     'aesthetic', 'face_quality', 'eye_sharpness',
@@ -44,8 +47,8 @@ class DatabaseValidator:
 
     def run_all_checks(self) -> List[ValidationResult]:
         """Run all validation checks and return results."""
-        print(f"\nValidating database: {self.db_path}\n")
-        print("=" * 60)
+        logger.info("Validating database: %s", self.db_path)
+        logger.info("=" * 60)
 
         with get_connection(self.db_path) as conn:
             # Get basic stats
@@ -81,10 +84,10 @@ class DatabaseValidator:
         cursor.execute("SELECT COUNT(*) FROM faces")
         self.stats['total_faces'] = cursor.fetchone()[0]
 
-        print(f"Total photos: {self.stats['total_photos']}")
-        print(f"Photos with faces: {self.stats['photos_with_faces']}")
-        print(f"Face records: {self.stats['total_faces']}")
-        print("=" * 60)
+        logger.info("Total photos: %d", self.stats['total_photos'])
+        logger.info("Photos with faces: %d", self.stats['photos_with_faces'])
+        logger.info("Face records: %d", self.stats['total_faces'])
+        logger.info("=" * 60)
 
     def _check_score_ranges(self, conn: sqlite3.Connection):
         """Check all score columns are within valid [0, 10] range."""
@@ -674,36 +677,36 @@ class DatabaseValidator:
             status = "PASS" if not result.has_issues else "FAIL"
         fix_note = " [FIXABLE]" if result.fixable and result.has_issues else ""
 
-        print(f"\n[{status}] {result.description}{fix_note}")
+        logger.info("[%s] %s%s", status, result.description, fix_note)
         if result.has_issues:
-            print(f"       Found {result.count} item(s)")
+            logger.info("       Found %d item(s)", result.count)
             # Show first 3 examples
             for issue in result.issues[:3]:
                 details = issue.get('details', '')
                 filename = issue['record'].get('filename', issue['record'].get('path', 'N/A'))
-                print(f"         - {filename}: {details}")
+                logger.info("         - %s: %s", filename, details)
             if result.count > 3:
-                print(f"         ... and {result.count - 3} more")
+                logger.info("         ... and %d more", result.count - 3)
 
     def interactive_fix(self, result: ValidationResult, conn: sqlite3.Connection) -> bool:
         """Interactively fix issues for a validation result."""
         if not result.fixable or not result.has_issues:
             return False
 
-        print(f"\n{'='*60}")
-        print(f"Fix: {result.description}")
-        print(f"Issues: {result.count}")
-        print(f"\nExamples:")
+        logger.info("=" * 60)
+        logger.info("Fix: %s", result.description)
+        logger.info("Issues: %d", result.count)
+        logger.info("Examples:")
         for issue in result.issues[:5]:
             details = issue.get('details', '')
             record = issue['record']
             path = record.get('path', record.get('photo_path', 'N/A'))
-            print(f"  - {path}: {details}")
+            logger.info("  - %s: %s", path, details)
 
-        print(f"\nOptions:")
-        print(f"  [f] Fix all {result.count} issues")
-        print(f"  [v] View more examples")
-        print(f"  [s] Skip")
+        logger.info("Options:")
+        logger.info("  [f] Fix all %d issues", result.count)
+        logger.info("  [v] View more examples")
+        logger.info("  [s] Skip")
 
         while True:
             choice = input("\nChoice: ").strip().lower()
@@ -714,32 +717,32 @@ class DatabaseValidator:
                         cursor = conn.cursor()
                         cursor.execute(result.fix_query)
                         conn.commit()
-                        print(f"Fixed {cursor.rowcount} records")
+                        logger.info("Fixed %d records", cursor.rowcount)
                     elif result.fix_function:
                         result.fix_function(conn)
                         conn.commit()
-                        print("Fix applied successfully")
+                        logger.info("Fix applied successfully")
                     return True
                 except Exception as e:
-                    print(f"Error applying fix: {e}")
+                    logger.error("Error applying fix: %s", e)
                     return False
 
             elif choice == 'v':
-                print("\nAll issues:")
+                logger.info("All issues:")
                 for i, issue in enumerate(result.issues[:20], 1):
                     details = issue.get('details', '')
                     record = issue['record']
                     path = record.get('path', record.get('photo_path', 'N/A'))
-                    print(f"  {i}. {path}: {details}")
+                    logger.info("  %d. %s: %s", i, path, details)
                 if len(result.issues) > 20:
-                    print(f"  ... and {len(result.issues) - 20} more")
+                    logger.info("  ... and %d more", len(result.issues) - 20)
 
             elif choice == 's':
-                print("Skipped")
+                logger.info("Skipped")
                 return False
 
             else:
-                print("Invalid choice. Enter f, v, or s")
+                logger.info("Invalid choice. Enter f, v, or s")
 
     def generate_report(self) -> str:
         """Generate a summary report of all validation results."""

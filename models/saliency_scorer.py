@@ -8,8 +8,11 @@ to generate binary subject masks, then derives subject-aware quality metrics:
   - bg_separation: Subject/background sharpness ratio
 """
 
+import logging
 import numpy as np
 from typing import Optional
+
+logger = logging.getLogger("facet.saliency")
 
 # Lazy imports
 torch = None
@@ -75,7 +78,7 @@ class SaliencyScorer:
         ])
 
         self._loaded = True
-        print(f"BiRefNet saliency model loaded on {self.device}: {self.model_name}")
+        logger.info("BiRefNet saliency model loaded on %s: %s", self.device, self.model_name)
 
     def unload(self):
         """Unload model to free VRAM."""
@@ -91,7 +94,7 @@ class SaliencyScorer:
         _ensure_imports()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        print("  BiRefNet unloaded")
+        logger.info("  BiRefNet unloaded")
 
     def get_saliency_mask(self, pil_img):
         """Generate binary saliency mask from PIL image.
@@ -296,7 +299,7 @@ class SaliencyScorer:
         try:
             masks = self.get_saliency_masks(pil_images)
         except Exception as e:
-            print(f"  Warning: Batch saliency mask generation failed: {e}")
+            logger.warning("  Batch saliency mask generation failed: %s", e)
             return [dict(default_scores) for _ in pil_images]
 
         results = []
@@ -305,7 +308,7 @@ class SaliencyScorer:
                 result = self._score_from_mask(mask, img_cv)
                 results.append(result)
             except Exception as e:
-                print(f"  Warning: Saliency scoring failed: {e}")
+                logger.warning("  Saliency scoring failed: %s", e)
                 results.append(dict(default_scores))
 
         return results

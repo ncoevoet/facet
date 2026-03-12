@@ -1,22 +1,22 @@
 {
   "/api": {
-    "target": "http://localhost:8000",
+    "target": "http://localhost:5000",
     "secure": false
   },
   "/thumbnail": {
-    "target": "http://localhost:8000",
+    "target": "http://localhost:5000",
     "secure": false
   },
   "/face_thumbnail": {
-    "target": "http://localhost:8000",
+    "target": "http://localhost:5000",
     "secure": false
   },
   "/person_thumbnail": {
-    "target": "http://localhost:8000",
+    "target": "http://localhost:5000",
     "secure": false
   },
   "/image": {
-    "target": "http://localhost:8000",
+    "target": "http://localhost:5000",
     "secure": false
   }
 }

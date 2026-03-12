@@ -4,9 +4,12 @@ Facet Scoring Configuration.
 Contains ScoringConfig class and helper functions.
 """
 
+import logging
 import os
 import json
 import hashlib
+
+logger = logging.getLogger("facet.config")
 
 from config.category_filter import (
     VALID_NUMERIC_FILTERS, VALID_BOOLEAN_FILTERS, VALID_TAG_FILTERS,
@@ -249,25 +252,25 @@ class ScoringConfig:
                     cat_weights[key] = new_weights[key]
                 if verbose and not corrections:
                     # Only show normalization message if no other corrections
-                    print(f"Normalized '{category}' weights from {old_total}% to 100%")
+                    logger.info("Normalized '%s' weights from %s%% to 100%%", category, old_total)
 
             if corrections:
                 corrected_categories.append(category)
                 if verbose:
-                    print(f"Corrected '{category}' weights:")
+                    logger.info("Corrected '%s' weights:", category)
                     for c in corrections:
-                        print(c)
+                        logger.info(c)
 
         # Save config if any categories were corrected
         if corrected_categories:
             self.save_config()
             self.version_hash = self._compute_version_hash()
             if verbose:
-                print(f"Saved corrected config to {self.config_path}")
+                logger.info("Saved corrected config to %s", self.config_path)
 
         is_valid = len(corrected_categories) == 0
         if verbose and is_valid:
-            print(f"Config validation passed: all {len(categories)} categories have valid weight totals")
+            logger.info("Config validation passed: all %d categories have valid weight totals", len(categories))
 
         return is_valid, corrected_categories
 
@@ -680,7 +683,7 @@ class ScoringConfig:
         # Handle "auto" profile - automatically select best profile
         if current_profile == 'auto':
             if verbose:
-                print(f"Auto-detecting VRAM profile: {msg}")
+                logger.info("Auto-detecting VRAM profile: %s", msg)
 
             # Update config in memory to use the resolved profile
             if 'models' in self.config:
@@ -692,9 +695,9 @@ class ScoringConfig:
         if vram_gb is None:
             if current_profile != 'legacy':
                 if verbose:
-                    print(f"Warning: No GPU detected but profile '{current_profile}' is configured")
-                    print("  Consider setting vram_profile to 'legacy' or 'auto' in scoring_config.json")
-                    print("  Tip: run 'python facet.py --doctor' for GPU setup diagnostics")
+                    logger.warning("No GPU detected but profile '%s' is configured", current_profile)
+                    logger.warning("  Consider setting vram_profile to 'legacy' or 'auto' in scoring_config.json")
+                    logger.warning("  Tip: run 'python facet.py --doctor' for GPU setup diagnostics")
                 return False, 'legacy', "No GPU detected"
             return True, current_profile, "OK (CPU mode)"
 
@@ -710,14 +713,14 @@ class ScoringConfig:
 
         if vram_gb < required_vram:
             if verbose:
-                print(f"Warning: Profile '{current_profile}' requires ~{required_vram}GB VRAM, but only {vram_gb:.1f}GB detected")
-                print(f"  {msg}")
-                print(f"  Consider setting vram_profile to '{suggested_profile}' or 'auto' in scoring_config.json")
+                logger.warning("Profile '%s' requires ~%dGB VRAM, but only %.1fGB detected", current_profile, required_vram, vram_gb)
+                logger.warning("  %s", msg)
+                logger.warning("  Consider setting vram_profile to '%s' or 'auto' in scoring_config.json", suggested_profile)
             return False, suggested_profile, f"Insufficient VRAM for {current_profile}"
 
         if verbose and current_profile != suggested_profile:
             # Profile is compatible but could use a better one
-            print(f"Note: {msg}")
+            logger.info("Note: %s", msg)
 
         return True, current_profile, "OK"
 
@@ -855,9 +858,9 @@ class ScoringConfig:
 
         if verbose:
             for issue in issues:
-                print(f"Validation issue: {issue}")
+                logger.warning("Validation issue: %s", issue)
             if not issues:
-                print(f"Category validation passed: {len(self.get_categories())} categories valid")
+                logger.info("Category validation passed: %d categories valid", len(self.get_categories()))
 
         return len(issues) == 0, issues
 

@@ -25,6 +25,8 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Analysis](#analysis)
 - [Viewer](#viewer)
 - [Performance](#performance)
+- [Storage](#storage)
+- [Plugins](#plugins)
 
 ---
 
@@ -972,7 +974,8 @@ Web gallery display and behavior.
       "gallery_mode": "mosaic"
     },
     "cache_ttl_seconds": 60,
-    "notification_duration_ms": 2000
+    "notification_duration_ms": 2000,
+    "path_mapping": {}
   }
 }
 ```
@@ -1026,6 +1029,8 @@ Web gallery display and behavior.
 | `hide_tooltip` | `false` | Hide hover tooltip on cards by default |
 | `hide_rejected` | `true` | Hide rejected photos by default |
 | `gallery_mode` | `"mosaic"` | Default gallery layout (`"grid"` or `"mosaic"`) |
+| **allowed_origins** | | |
+| `allowed_origins` | `["http://localhost:4200", "http://localhost:5000"]` | CORS allowed origins for the FastAPI server. Add your domain or reverse proxy URL when hosting remotely. |
 | **Other** | | |
 | `cache_ttl_seconds` | `60` | Query cache TTL |
 | `notification_duration_ms` | `2000` | Toast duration |
@@ -1060,6 +1065,37 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_vlm_critique` | `false` | Enable VLM-powered critique mode (requires 16gb/24gb VRAM profile) |
 
 **Memory optimization:** Setting `show_similar_button: false` prevents numpy from being loaded, reducing viewer memory footprint. The similar photos feature computes CLIP embedding cosine similarity which requires numpy.
+
+### Path Mapping
+
+Map database paths to local filesystem paths. Useful when photos were scored on one machine (e.g., Windows with UNC paths) but the viewer runs on another (e.g., Linux NAS with mount points).
+
+```json
+{
+  "viewer": {
+    "path_mapping": {
+      "\\\\NAS\\Photos": "/mnt/photos",
+      "D:\\Pictures": "/volume1/pictures"
+    }
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `path_mapping` | `{}` | Dict of source prefix to destination prefix. When serving full-size images or VLM critique, database paths starting with a source prefix are rewritten to use the destination prefix. |
+
+**How it works:**
+- Only applies when **reading files from disk** (full-size image serving, file downloads, VLM critique). Database paths are never modified.
+- Backslash/forward slash normalization is handled automatically: `\\NAS\Photos\img.jpg` and `//NAS/Photos/img.jpg` both match.
+- Mappings are evaluated in order; the first matching prefix wins.
+- Path mapping targets are automatically included in the scan directory allowlist for multi-user security checks.
+
+**Example:** A database populated on Windows stores paths like `\\Sweet\home\Photos\2024\IMG_001.jpg`. On Linux, the same share is mounted at `/nfs/temp-share/Photos`. Configure:
+
+```json
+"path_mapping": {"\\\\Sweet\\home\\Photos": "/nfs/temp-share/Photos"}
+```
 
 ### Password Protection
 
@@ -1122,6 +1158,127 @@ Database performance settings.
 |---------|---------|-------------|
 | `mmap_size_mb` | `12288` | SQLite memory-mapped I/O size |
 | `cache_size_mb` | `64` | SQLite cache size |
+
+---
+
+## Storage
+
+Controls where thumbnails and embeddings are stored. By default, they are stored as BLOB columns in the SQLite database. Filesystem mode stores them as files on disk instead, which can reduce database size and simplify backups.
+
+```json
+{
+  "storage": {
+    "mode": "database",
+    "filesystem_path": "./storage"
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `mode` | `"database"` | Storage backend: `"database"` (SQLite BLOBs) or `"filesystem"` (files on disk) |
+| `filesystem_path` | `"./storage"` | Base directory for filesystem mode. Thumbnails are stored in `<path>/thumbnails/` and embeddings in `<path>/embeddings/`, organized into subdirectories by content hash. |
+
+**Filesystem mode details:**
+- Files are organized by SHA-256 hash of the photo path, with two-character subdirectories to avoid too many files in one directory (e.g., `thumbnails/a3/a3f8..._640.jpg`).
+- Deleting a photo removes all associated thumbnail sizes and embedding files.
+- The directory is created automatically on first use.
+
+---
+
+## Plugins
+
+Event-driven plugin system for reacting to scoring events. Plugins can be Python modules, webhooks, or built-in actions.
+
+### Configuration
+
+```json
+{
+  "plugins": {
+    "enabled": true,
+    "high_score_threshold": 8.0,
+    "webhooks": [
+      {
+        "url": "https://example.com/hook",
+        "events": ["on_score_complete", "on_high_score"],
+        "min_score": 8.0
+      }
+    ],
+    "actions": {
+      "copy_high_scores": {
+        "event": "on_high_score",
+        "action": "copy_to_folder",
+        "folder": "/path/to/best-photos",
+        "min_score": 9.0
+      }
+    }
+  }
+}
+```
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enabled` | `false` | Master switch — when false, no events are emitted |
+| `high_score_threshold` | `8.0` | Minimum aggregate score to trigger `on_high_score` events |
+| `webhooks` | `[]` | List of webhook endpoints to receive JSON POST payloads |
+| `actions` | `{}` | Named built-in actions triggered by events |
+
+### Supported Events
+
+| Event | Trigger | Payload |
+|-------|---------|---------|
+| `on_score_complete` | After each photo is scored | `path`, `filename`, `aggregate`, `aesthetic`, `comp_score`, `category`, `tags` |
+| `on_new_photo` | When a photo enters the database | Same as `on_score_complete` |
+| `on_high_score` | When aggregate ≥ `high_score_threshold` | Same as `on_score_complete` |
+| `on_burst_detected` | When a burst group is identified | `burst_group_id`, `photo_count`, `best_path`, `paths` |
+
+### Writing a Plugin
+
+Place a `.py` file in the `plugins/` directory. Define functions named after the events you want to handle:
+
+```python
+def on_score_complete(data: dict) -> None:
+    print(f"Scored: {data['path']} — {data['aggregate']:.1f}")
+
+def on_high_score(data: dict) -> None:
+    print(f"High score! {data['path']} — {data['aggregate']:.1f}")
+```
+
+See `plugins/example_plugin.py.example` for the full interface.
+
+### Webhooks
+
+Each webhook receives a JSON POST with SSRF protection (private/loopback addresses are blocked):
+
+```json
+{
+  "event": "on_high_score",
+  "data": {
+    "path": "/photos/IMG_001.jpg",
+    "aggregate": 9.2,
+    "aesthetic": 9.5,
+    "comp_score": 8.8,
+    "category": "portrait",
+    "tags": "person, outdoor"
+  }
+}
+```
+
+Webhook options: `url` (required), `events` (list of event names), `min_score` (minimum aggregate to trigger).
+
+### Built-in Actions
+
+| Action | Description | Options |
+|--------|-------------|---------|
+| `copy_to_folder` | Copy photo to a folder | `folder`, `min_score` |
+| `send_notification` | Log a notification | `min_score` |
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/plugins` | List loaded plugins, webhooks, and actions |
+| `POST` | `/api/plugins/test-webhook` | Send a test payload to a webhook URL |
 
 ---
 

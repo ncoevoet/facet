@@ -4,8 +4,10 @@ FastAPI application factory for the Facet API server.
 Replaces Flask viewer — serves JSON API + Angular static files.
 """
 
+import logging
 import os
 import sys
+import time
 
 # Ensure the project root is in Python path for local imports
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -13,10 +15,30 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+
+logger = logging.getLogger(__name__)
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log HTTP requests with method, path, status, and duration."""
+
+    async def dispatch(self, request: Request, call_next):
+        start = time.perf_counter()
+        response = await call_next(request)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        # Skip logging static asset requests to reduce noise
+        path = request.url.path
+        if not path.startswith("/assets/") and not path.endswith((".js", ".css", ".ico", ".map")):
+            logger.info(
+                "%s %s %d (%.0fms)",
+                request.method, path, response.status_code, elapsed_ms,
+            )
+        return response
 
 
 @asynccontextmanager
@@ -27,8 +49,13 @@ async def lifespan(app: FastAPI):
     get_existing_columns()
     is_photo_tags_available()
     backfill_image_dimensions()
+    logger.info("Facet API ready")
     yield
-    # Shutdown: nothing to clean up (sqlite connections are per-request)
+    # Shutdown: clean up plugin thread pool
+    from plugins import get_plugin_manager
+    _plugin_mgr = get_plugin_manager()
+    if _plugin_mgr is not None:
+        _plugin_mgr.shutdown()
 
 
 def create_app() -> FastAPI:
@@ -42,19 +69,23 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
-    # CORS middleware (dev: allow Angular dev server)
+    # Request logging middleware
+    app.add_middleware(RequestLoggingMiddleware)
+
+    # CORS middleware — origins from scoring_config.json viewer.allowed_origins
+    from api.config import _FULL_CONFIG
+    default_origins = ["http://localhost:4200", "http://localhost:5000"]
+    allowed_origins = _FULL_CONFIG.get("viewer", {}).get("allowed_origins", default_origins)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:4200",  # Angular dev server
-            "http://localhost:5000",  # Same-port access
-        ],
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
     # Register routers
+    from api.routers.health import router as health_router
     from api.routers.auth import router as auth_router
     from api.routers.gallery import router as gallery_router
     from api.routers.thumbnails import router as thumbnails_router
@@ -69,7 +100,10 @@ def create_app() -> FastAPI:
     from api.routers.search import router as search_router
     from api.routers.albums import router as albums_router
     from api.routers.critique import router as critique_router
+    from api.routers.burst_culling import router as burst_culling_router
+    from api.routers.plugins import router as plugins_router
 
+    app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(gallery_router)
     app.include_router(thumbnails_router)
@@ -84,6 +118,13 @@ def create_app() -> FastAPI:
     app.include_router(search_router)
     app.include_router(albums_router)
     app.include_router(critique_router)
+    app.include_router(burst_culling_router)
+    app.include_router(plugins_router)
+
+    # Initialise plugin manager (global singleton + router reference)
+    from plugins import init_global_plugin_manager
+    from api.routers.plugins import init_plugin_manager
+    init_plugin_manager(init_global_plugin_manager(config=_FULL_CONFIG))
 
     # Mount Angular static files (production)
     client_dist = os.path.join(_project_root, 'client', 'dist', 'client', 'browser')

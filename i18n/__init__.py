@@ -10,8 +10,11 @@ Provides lightweight JSON-based translation support with:
 """
 
 import json
+import logging
 import os
 from functools import lru_cache
+
+logger = logging.getLogger("facet.i18n")
 
 try:
     from flask import request, g
@@ -95,7 +98,7 @@ def load_translations(lang):
             _translations_cache[lang] = translations
             return translations
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Warning: Could not load translations for '{lang}': {e}")
+        logger.warning("Could not load translations for '%s': %s", lang, e)
         _translations_cache[lang] = {}
         return {}
 

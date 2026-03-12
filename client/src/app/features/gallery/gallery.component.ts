@@ -360,7 +360,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
       const mql = window.matchMedia('(min-width: 768px)');
       this.isDesktop.set(mql.matches);
       this.desktopMql = mql;
-      this.desktopMqlHandler = (e: MediaQueryListEvent) => this.isDesktop.set(e.matches);
+      this.desktopMqlHandler = (e: MediaQueryListEvent) => {
+        this.isDesktop.set(e.matches);
+        if (!e.matches) this.tooltipPhoto.set(null);
+      };
       mql.addEventListener('change', this.desktopMqlHandler);
 
       this.setupIntersectionObserver();

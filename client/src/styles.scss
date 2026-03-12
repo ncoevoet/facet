@@ -16,6 +16,14 @@ html {
   --facet-accent-dim: #7c2d12;
   --facet-accent-text: #ff983f;
   --facet-accent-badge: color-mix(in srgb, var(--facet-accent-dim) 50%, transparent);
+  // Tooltip colors (dark theme defaults)
+  --facet-tooltip-bg: rgb(23 23 23 / 0.97);
+  --facet-tooltip-border: #404040;
+  --facet-tooltip-text: #d4d4d4;
+  --facet-tooltip-text-secondary: #a3a3a3;
+  --facet-tooltip-text-muted: #737373;
+  --facet-tooltip-text-title: #e5e5e5;
+  --facet-tooltip-divider: #404040;
 }
 
 // Theme variants (color only — typography and density inherited from base)
@@ -100,13 +108,79 @@ html.theme-azure {
   --facet-accent-text: #38bdf8;
 }
 
+// Light mode overrides
+html.light-mode {
+  @include mat.theme((
+    color: (theme-type: light, primary: mat.$orange-palette, tertiary: mat.$cyan-palette),
+    typography: Roboto,
+    density: -1,
+  ));
+  --facet-accent: #ea580c;
+  --facet-accent-dim: #fed7aa;
+  --facet-accent-text: #c2410c;
+  --facet-accent-badge: color-mix(in srgb, var(--facet-accent-dim) 50%, transparent);
+  // Tooltip colors (light theme)
+  --facet-tooltip-bg: rgb(255 255 255 / 0.97);
+  --facet-tooltip-border: #d4d4d4;
+  --facet-tooltip-text: #404040;
+  --facet-tooltip-text-secondary: #525252;
+  --facet-tooltip-text-muted: #737373;
+  --facet-tooltip-text-title: #171717;
+  --facet-tooltip-divider: #e5e5e5;
+}
+
+// Light mode + color theme overrides
+html.light-mode.theme-green {
+  @include mat.theme((color: (theme-type: light, primary: mat.$green-palette, tertiary: mat.$cyan-palette)));
+  --facet-accent: #16a34a; --facet-accent-dim: #bbf7d0; --facet-accent-text: #15803d;
+}
+html.light-mode.theme-blue {
+  @include mat.theme((color: (theme-type: light, primary: mat.$blue-palette, tertiary: mat.$orange-palette)));
+  --facet-accent: #2563eb; --facet-accent-dim: #bfdbfe; --facet-accent-text: #1d4ed8;
+}
+html.light-mode.theme-cyan {
+  @include mat.theme((color: (theme-type: light, primary: mat.$cyan-palette, tertiary: mat.$orange-palette)));
+  --facet-accent: #0891b2; --facet-accent-dim: #a5f3fc; --facet-accent-text: #0e7490;
+}
+html.light-mode.theme-violet {
+  @include mat.theme((color: (theme-type: light, primary: mat.$violet-palette, tertiary: mat.$cyan-palette)));
+  --facet-accent: #7c3aed; --facet-accent-dim: #ddd6fe; --facet-accent-text: #6d28d9;
+}
+html.light-mode.theme-rose {
+  @include mat.theme((color: (theme-type: light, primary: mat.$rose-palette, tertiary: mat.$cyan-palette)));
+  --facet-accent: #e11d48; --facet-accent-dim: #fecdd3; --facet-accent-text: #be123c;
+}
+html.light-mode.theme-red {
+  @include mat.theme((color: (theme-type: light, primary: mat.$red-palette, tertiary: mat.$cyan-palette)));
+  --facet-accent: #dc2626; --facet-accent-dim: #fecaca; --facet-accent-text: #b91c1c;
+}
+html.light-mode.theme-yellow {
+  @include mat.theme((color: (theme-type: light, primary: mat.$yellow-palette, tertiary: mat.$violet-palette)));
+  --facet-accent: #ca8a04; --facet-accent-dim: #fef08a; --facet-accent-text: #a16207;
+}
+html.light-mode.theme-magenta {
+  @include mat.theme((color: (theme-type: light, primary: mat.$magenta-palette, tertiary: mat.$cyan-palette)));
+  --facet-accent: #c026d3; --facet-accent-dim: #f5d0fe; --facet-accent-text: #a21caf;
+}
+html.light-mode.theme-azure {
+  @include mat.theme((color: (theme-type: light, primary: mat.$azure-palette, tertiary: mat.$orange-palette)));
+  --facet-accent: #0284c7; --facet-accent-dim: #bae6fd; --facet-accent-text: #0369a1;
+}
+
 body {
-  color-scheme: dark;
-  background-color: #0b0b0b;
+  background-color: var(--mat-sys-surface, #0b0b0b);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
   margin: 0;
   font-family: Roboto, "Helvetica Neue", sans-serif;
+}
+
+html:not(.light-mode) body {
+  color-scheme: dark;
+}
+
+html.light-mode body {
+  color-scheme: light;
 }
 
 html, body {
@@ -116,6 +190,16 @@ html, body {
 // Person selector: reduce height when persons are selected (no label)
 .person-select-compact .mat-mdc-text-field-wrapper {
   --mat-form-field-container-vertical-padding: 4px;
+}
+
+// Header selectors: auto-width panels with no text wrapping
+.cdk-overlay-pane:has(.nowrap-panel) {
+  width: auto !important;
+  min-width: fit-content;
+}
+
+.nowrap-panel .mat-mdc-option {
+  white-space: nowrap;
 }
 
 // Person selector: wider panel with taller rows for face avatars
@@ -129,7 +213,7 @@ html, body {
   }
 }
 
-// Scrollbar styling for dark theme
+// Scrollbar styling
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -146,6 +230,14 @@ html, body {
   &:hover {
     background: #555;
   }
+}
+
+html.light-mode ::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+html.light-mode ::-webkit-scrollbar-thumb {
+  background: #ccc;
+  &:hover { background: #aaa; }
 }
 
 // Compact tab header for stats page

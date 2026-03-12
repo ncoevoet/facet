@@ -2,7 +2,10 @@
 Metrics reporting for Facet batch processing.
 """
 
+import logging
 import time
+
+logger = logging.getLogger("facet.metrics")
 
 try:
     import psutil
@@ -106,7 +109,7 @@ class MetricsReporter:
         if batch_size is not None:
             parts.append(f"batch: {batch_size}")
 
-        print(" | ".join(parts))
+        logger.info(" | ".join(parts))
 
     def print_summary(self, processor_metrics, resource_metrics=None):
         """Print final summary report."""
@@ -122,34 +125,34 @@ class MetricsReporter:
         else:
             time_str = f"{seconds}s"
 
-        print("\n=== Batch Processing Complete ===")
-        print(f"Total: {processed} images in {time_str} ({throughput:.1f} img/s)")
+        logger.info("Batch Processing Complete")
+        logger.info("Total: %d images in %s (%.1f img/s)", processed, time_str, throughput)
 
         # I/O stats
         io_gb = self.total_io_bytes / (1024**3)
         io_rate = self.total_io_bytes / elapsed / (1024**2) if elapsed > 0 else 0
-        print(f"I/O: {io_rate:.0f} MB/s avg | {io_gb:.1f} GB total")
+        logger.info("I/O: %.0f MB/s avg | %.1f GB total", io_rate, io_gb)
 
         # Worker stats
         if self.min_workers != float('inf'):
             if self.min_workers == self.max_workers:
-                print(f"Workers: {self.min_workers}")
+                logger.info("Workers: %d", self.min_workers)
             else:
-                print(f"Workers: min {self.min_workers}, max {self.max_workers}")
+                logger.info("Workers: min %d, max %d", self.min_workers, self.max_workers)
 
         # Batch size stats
         if self.min_batch_size != float('inf'):
             if self.min_batch_size == self.max_batch_size:
-                print(f"Batch size: {self.min_batch_size}")
+                logger.info("Batch size: %d", self.min_batch_size)
             else:
-                print(f"Batch size: min {self.min_batch_size}, max {self.max_batch_size}")
+                logger.info("Batch size: min %d, max %d", self.min_batch_size, self.max_batch_size)
 
         # Queue timeouts
         queue_timeouts = processor_metrics.get('queue_timeouts', 0)
         timeout_pct = (queue_timeouts / max(1, processed)) * 100
-        print(f"Queue stalls: {queue_timeouts} total ({timeout_pct:.1f}%)")
+        logger.info("Queue stalls: %d total (%.1f%%)", queue_timeouts, timeout_pct)
 
         # Memory peaks
-        print(f"Memory peak: {self.peak_memory_gb:.1f} GB | GPU peak: {self.peak_gpu_memory_gb:.1f} GB")
+        logger.info("Memory peak: %.1f GB | GPU peak: %.1f GB", self.peak_memory_gb, self.peak_gpu_memory_gb)
 
 

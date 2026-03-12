@@ -194,7 +194,7 @@ Models are cached in standard locations (`~/.cache/` or `~/.insightface/`).
 cd client
 npm ci
 npx ng build    # Production build → client/dist/
-npx ng serve    # Dev server on http://localhost:4200 (proxies API to :8000)
+npx ng serve    # Dev server on http://localhost:4200 (proxies API to :5000)
 ```
 
 ### SAMP-Net Manual Download

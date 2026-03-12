@@ -2,8 +2,11 @@
 Resource monitoring for face processing.
 """
 
+import logging
 import threading
 import time
+
+logger = logging.getLogger("facet.face_resources")
 
 try:
     import psutil
@@ -57,7 +60,7 @@ class FaceResourceMonitor(threading.Thread):
                         new_batch = max(self.min_batch, int(old_batch * 0.75))
                         if new_batch != old_batch:
                             self.processor.batch_size = new_batch
-                            print(f"\nMemory at {mem:.1f}%, reducing batch to {new_batch}")
+                            logger.warning("Memory at %.1f%%, reducing batch to %d", mem, new_batch)
             except Exception:
                 pass  # Don't crash the monitor
 

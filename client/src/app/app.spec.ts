@@ -5,7 +5,9 @@ import { NEVER } from 'rxjs';
 import { App } from './app';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './features/gallery/gallery.store';
 import { AuthService } from './core/services/auth.service';
+import { ApiService } from './core/services/api.service';
 import { I18nService } from './core/services/i18n.service';
+import { ThemeService } from './core/services/theme.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { MatDialog } from '@angular/material/dialog';
@@ -33,6 +35,8 @@ function createApp(routerUrl = '/') {
       { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
       { provide: CompareFiltersService, useValue: { selectedCategory: compareCategorySig } },
       { provide: MatDialog, useValue: { open: jest.fn() } },
+      { provide: ApiService, useValue: { get: jest.fn(() => NEVER), post: jest.fn(() => NEVER) } },
+      { provide: ThemeService, useValue: { theme: signal(''), darkMode: signal(true), THEMES: [], setTheme: jest.fn(), toggleDarkMode: jest.fn(), accentColor: signal('#ff6600'), complementaryColor: signal('#0099ff') } },
     ],
   });
 

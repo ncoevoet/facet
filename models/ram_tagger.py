@@ -6,8 +6,11 @@ RAM++ provides excellent tag accuracy with ~8GB VRAM requirement,
 making it a good balance between CLIP and VLM taggers.
 """
 
+import logging
 from typing import List, Optional, Dict, Any
 import PIL.Image
+
+logger = logging.getLogger("facet.ram_tagger")
 
 # Lazy imports
 torch = None
@@ -95,7 +98,7 @@ class RAMTagger:
         model_path = self.model_config.get('model_path', self.DEFAULT_MODEL_PATH)
         checkpoint = self.model_config.get('checkpoint', self.DEFAULT_CHECKPOINT)
 
-        print(f"Loading RAM++ from {model_path}...")
+        logger.info("Loading RAM++ from %s...", model_path)
 
         # Download checkpoint from HuggingFace if needed
         try:
@@ -104,7 +107,7 @@ class RAMTagger:
                 repo_id=model_path,
                 filename=checkpoint,
             )
-            print(f"Checkpoint downloaded to: {checkpoint_path}")
+            logger.info("Checkpoint downloaded to: %s", checkpoint_path)
         except ImportError:
             raise ImportError(
                 "huggingface_hub required for RAM++ model download. "
@@ -128,7 +131,7 @@ class RAMTagger:
         # Clear any fragmented memory after loading
         torch.cuda.empty_cache()
 
-        print("RAM++ loaded successfully")
+        logger.info("RAM++ loaded successfully")
 
     def unload(self):
         """Free VRAM by unloading the model."""
@@ -140,7 +143,7 @@ class RAMTagger:
 
         _ensure_imports()
         torch.cuda.empty_cache()
-        print("RAM++ tagger unloaded")
+        logger.info("RAM++ tagger unloaded")
 
     def tag_image(self, image: PIL.Image.Image, max_tags: int = 5, threshold: float = 0.5) -> List[str]:
         """

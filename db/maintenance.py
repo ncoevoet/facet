@@ -4,9 +4,12 @@ Database maintenance functions for Facet.
 VACUUM, ANALYZE, optimization, and viewer database export.
 """
 
+import logging
 import os
 import sqlite3
 from io import BytesIO
+
+logger = logging.getLogger("facet.db_maintenance")
 
 
 def vacuum_database(db_path='photo_scores_pro.db', verbose=True):
@@ -22,8 +25,8 @@ def vacuum_database(db_path='photo_scores_pro.db', verbose=True):
     old_size = os.path.getsize(db_path) if os.path.exists(db_path) else 0
 
     if verbose:
-        print(f"Running VACUUM on {db_path}...")
-        print(f"  Before: {old_size / 1024 / 1024:.2f} MB")
+        logger.info("Running VACUUM on %s...", db_path)
+        logger.info("  Before: %.2f MB", old_size / 1024 / 1024)
 
     conn = sqlite3.connect(db_path)
     conn.execute("VACUUM")
@@ -32,12 +35,12 @@ def vacuum_database(db_path='photo_scores_pro.db', verbose=True):
     new_size = os.path.getsize(db_path)
 
     if verbose:
-        print(f"  After: {new_size / 1024 / 1024:.2f} MB")
+        logger.info("  After: %.2f MB", new_size / 1024 / 1024)
         saved = old_size - new_size
         if saved > 0:
-            print(f"  Saved: {saved / 1024 / 1024:.2f} MB ({saved / old_size * 100:.1f}%)")
+            logger.info("  Saved: %.2f MB (%.1f%%)", saved / 1024 / 1024, saved / old_size * 100)
         else:
-            print("  No space reclaimed (database was already compacted)")
+            logger.info("  No space reclaimed (database was already compacted)")
 
     return old_size, new_size
 
@@ -50,14 +53,14 @@ def analyze_database(db_path='photo_scores_pro.db', verbose=True):
         verbose: If True, print progress
     """
     if verbose:
-        print(f"Running ANALYZE on {db_path}...")
+        logger.info("Running ANALYZE on %s...", db_path)
 
     conn = sqlite3.connect(db_path)
     conn.execute("ANALYZE")
     conn.close()
 
     if verbose:
-        print("  Query planner statistics updated.")
+        logger.info("  Query planner statistics updated.")
 
 
 def optimize_database(db_path='photo_scores_pro.db', verbose=True):
@@ -68,17 +71,13 @@ def optimize_database(db_path='photo_scores_pro.db', verbose=True):
         verbose: If True, print progress
     """
     if verbose:
-        print(f"Optimizing database: {db_path}")
-        print()
+        logger.info("Optimizing database: %s", db_path)
 
     vacuum_database(db_path, verbose)
-    if verbose:
-        print()
     analyze_database(db_path, verbose)
 
     if verbose:
-        print()
-        print("Database optimization complete.")
+        logger.info("Database optimization complete.")
 
 
 def cleanup_orphaned_persons(db_path='photo_scores_pro.db', verbose=True):
@@ -92,7 +91,7 @@ def cleanup_orphaned_persons(db_path='photo_scores_pro.db', verbose=True):
         Number of persons deleted
     """
     if verbose:
-        print(f"Cleaning up orphaned persons in {db_path}...")
+        logger.info("Cleaning up orphaned persons in %s...", db_path)
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -115,9 +114,9 @@ def cleanup_orphaned_persons(db_path='photo_scores_pro.db', verbose=True):
 
     if verbose:
         if count > 0:
-            print(f"  Deleted {count} orphaned person(s)")
+            logger.info("  Deleted %d orphaned person(s)", count)
         else:
-            print("  No orphaned persons found")
+            logger.info("  No orphaned persons found")
 
     return count
 
@@ -134,8 +133,8 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
 
     source_size = os.path.getsize(source_db)
     if verbose:
-        print(f"  Output exists — running incremental update...")
-        print(f"  Source: {source_size / 1024 / 1024:.1f} MB")
+        logger.info("  Output exists — running incremental update...")
+        logger.info("  Source: %.1f MB", source_size / 1024 / 1024)
 
     src_escaped = source_db.replace("'", "''")
     dest_conn = sqlite3.connect(output_path)
@@ -152,7 +151,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
 
     if verbose:
         existing_count = dest_conn.execute("SELECT COUNT(*) FROM main.photos").fetchone()[0]
-        print(f"  Photos: {existing_count} existing, {len(new_paths)} new, {len(deleted_paths)} deleted")
+        logger.info("  Photos: %d existing, %d new, %d deleted", existing_count, len(new_paths), len(deleted_paths))
 
     # --- Delete removed photos (faces cascade via FK ON DELETE CASCADE) ---
     if deleted_paths:
@@ -161,7 +160,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         )
         dest_conn.commit()
         if verbose:
-            print(f"  Removed {len(deleted_paths)} deleted photos")
+            logger.info("  Removed %d deleted photos", len(deleted_paths))
 
     # --- Update metadata for existing photos ---
     # Use intersection of src/dest columns to handle any schema skew gracefully
@@ -178,7 +177,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         dest_conn.execute(f"UPDATE main.photos SET {set_clause}")
         dest_conn.commit()
         if verbose:
-            print(f"  Updated metadata for existing photos")
+            logger.info("  Updated metadata for existing photos")
 
     # --- Insert new photos with stripped BLOBs and NULL thumbnail ---
     batch_size = 200
@@ -201,11 +200,11 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
             )
         dest_conn.commit()
         if verbose:
-            print(f"  Inserted {len(new_paths)} new photos")
+            logger.info("  Inserted %d new photos", len(new_paths))
 
         # Fetch and downsize thumbnails for new photos from source
         if verbose:
-            print(f"  Downsizing thumbnails for new photos to {thumbnail_size}px...")
+            logger.info("  Downsizing thumbnails for new photos to %dpx...", thumbnail_size)
         processed = 0
         for i in range(0, len(new_paths), batch_size):
             batch = new_paths[i:i + batch_size]
@@ -235,7 +234,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                 )
                 dest_conn.commit()
         if verbose:
-            print(f"    Processed {processed} thumbnails")
+            logger.info("    Processed %d thumbnails", processed)
 
     # --- Sync faces ---
     dest_tables = {r[0] for r in dest_conn.execute(
@@ -304,7 +303,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                     f"(SELECT path FROM main.photos WHERE path IN ({','.join('?' * len(new_paths))}))",
                     new_paths
                 ).fetchone()[0]
-                print(f"  Inserted {new_face_count} new faces, downsized {face_resized} face thumbnails")
+                logger.info("  Inserted %d new faces, downsized %d face thumbnails", new_face_count, face_resized)
 
         # Update person_id for existing faces (handles re-clustering without full face re-insert)
         dest_conn.execute(
@@ -315,7 +314,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         )
         dest_conn.commit()
         if verbose:
-            print(f"  Updated person assignments for existing faces")
+            logger.info("  Updated person assignments for existing faces")
 
     # --- Sync persons (full replace — small table) ---
     if 'persons' in dest_tables and 'persons' in src_tables:
@@ -324,7 +323,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         dest_conn.commit()
         if verbose:
             count = dest_conn.execute("SELECT COUNT(*) FROM main.persons").fetchone()[0]
-            print(f"  Synced {count} persons")
+            logger.info("  Synced %d persons", count)
 
     # --- Sync photo_tags (full replace — fast, no BLOBs) ---
     if 'photo_tags' in dest_tables and 'photo_tags' in src_tables:
@@ -333,7 +332,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         dest_conn.commit()
         if verbose:
             count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_tags").fetchone()[0]
-            print(f"  Synced {count} photo_tags")
+            logger.info("  Synced %d photo_tags", count)
 
     # --- Clear stats_cache (viewer regenerates on demand) ---
     if 'stats_cache' in dest_tables:
@@ -343,18 +342,18 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
     # --- Finalize ---
     dest_conn.execute("DETACH DATABASE src")
     if verbose:
-        print("  Running ANALYZE...")
+        logger.info("  Running ANALYZE...")
     dest_conn.execute("ANALYZE")
     dest_conn.close()
 
     output_size = os.path.getsize(output_path)
     saved = source_size - output_size
     if verbose:
-        print(f"\nResult:")
-        print(f"  Source:  {source_size / 1024 / 1024:.1f} MB")
-        print(f"  Output:  {output_path} ({output_size / 1024 / 1024:.1f} MB)")
+        logger.info("Result:")
+        logger.info("  Source:  %.1f MB", source_size / 1024 / 1024)
+        logger.info("  Output:  %s (%.1f MB)", output_path, output_size / 1024 / 1024)
         if saved > 0:
-            print(f"  Saved:   {saved / 1024 / 1024:.1f} MB ({saved / source_size * 100:.1f}%)")
+            logger.info("  Saved:   %.1f MB (%.1f%%)", saved / 1024 / 1024, saved / source_size * 100)
 
     return source_size, output_size
 
@@ -390,8 +389,8 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
 
     source_size = os.path.getsize(source_db)
     if verbose:
-        print(f"Exporting viewer database from {source_db}")
-        print(f"  Source: {source_size / 1024 / 1024:.1f} MB")
+        logger.info("Exporting viewer database from %s", source_db)
+        logger.info("  Source: %.1f MB", source_size / 1024 / 1024)
 
     # Incremental update if output already exists and force is not set
     if os.path.exists(output_path) and not force:
@@ -403,7 +402,7 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
 
     # Use sqlite3.backup() for atomic, WAL-safe copy
     if verbose:
-        print("  Copying database...")
+        logger.info("  Copying database...")
     src_conn = sqlite3.connect(source_db)
     dst_conn = sqlite3.connect(output_path)
     src_conn.backup(dst_conn)
@@ -411,7 +410,7 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
 
     # Strip unused columns from the copy
     if verbose:
-        print("  Stripping unused BLOB columns...")
+        logger.info("  Stripping unused BLOB columns...")
 
     # photos: clip_embedding, histogram_data, raw_sharpness_variance
     dst_conn.execute("UPDATE photos SET clip_embedding = NULL, histogram_data = NULL, raw_sharpness_variance = NULL")
@@ -425,7 +424,7 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     if verbose:
         row = dst_conn.execute("SELECT COUNT(*) FROM photos WHERE thumbnail IS NOT NULL").fetchone()
         total = row[0]
-        print(f"  Downsizing {total} thumbnails to {thumbnail_size}px...")
+        logger.info("  Downsizing %d thumbnails to %dpx...", total, thumbnail_size)
 
     try:
         from tqdm import tqdm
@@ -466,16 +465,16 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
 
         offset += batch_size
         if verbose and not use_tqdm:
-            print(f"    Processed {offset} thumbnails...")
+            logger.info("    Processed %d thumbnails...", offset)
 
     if verbose:
-        print(f"    Resized {resized} thumbnails")
+        logger.info("    Resized %d thumbnails", resized)
 
     # Downsize face thumbnails
     if verbose:
         row = dst_conn.execute("SELECT COUNT(*) FROM faces WHERE face_thumbnail IS NOT NULL").fetchone()
         face_total = row[0]
-        print(f"  Downsizing {face_total} face thumbnails...")
+        logger.info("  Downsizing %d face thumbnails...", face_total)
 
     offset = 0
     face_resized = 0
@@ -511,23 +510,23 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
         offset += batch_size
 
     if verbose:
-        print(f"    Resized {face_resized} face thumbnails")
+        logger.info("    Resized %d face thumbnails", face_resized)
 
     # VACUUM + ANALYZE
     if verbose:
-        print("  Running VACUUM...")
+        logger.info("  Running VACUUM...")
     dst_conn.execute("VACUUM")
     if verbose:
-        print("  Running ANALYZE...")
+        logger.info("  Running ANALYZE...")
     dst_conn.execute("ANALYZE")
     dst_conn.close()
 
     output_size = os.path.getsize(output_path)
     saved = source_size - output_size
     if verbose:
-        print(f"\nResult:")
-        print(f"  Source:  {source_size / 1024 / 1024:.1f} MB")
-        print(f"  Output:  {output_path} ({output_size / 1024 / 1024:.1f} MB)")
-        print(f"  Saved:   {saved / 1024 / 1024:.1f} MB ({saved / source_size * 100:.1f}%)")
+        logger.info("Result:")
+        logger.info("  Source:  %.1f MB", source_size / 1024 / 1024)
+        logger.info("  Output:  %s (%.1f MB)", output_path, output_size / 1024 / 1024)
+        logger.info("  Saved:   %.1f MB (%.1f%%)", saved / 1024 / 1024, saved / source_size * 100)
 
     return source_size, output_size

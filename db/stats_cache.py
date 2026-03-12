@@ -5,8 +5,11 @@ Precomputed aggregations for viewer performance.
 """
 
 import json
+import logging
 import sqlite3
 import time as time_module
+
+logger = logging.getLogger("facet.stats_cache")
 
 from db.connection import get_connection
 from db.schema import _build_create_table_sql, STATS_CACHE_COLUMNS
@@ -30,14 +33,14 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
         stats = {}
 
         if verbose:
-            print("Refreshing statistics cache...")
+            logger.info("Refreshing statistics cache...")
 
         # 1. Total photo count
         total = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
         stats['total_photos'] = total
         _cache_stat(conn, 'total_photos', total, now)
         if verbose:
-            print(f"  Total photos: {total}")
+            logger.info("  Total photos: %d", total)
 
         # 2. Photo count by blink/burst status (for filtered counts)
         try:
@@ -76,7 +79,7 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
             stats['cameras'] = camera_data
             _cache_stat(conn, 'cameras', json.dumps(camera_data), now)
             if verbose:
-                print(f"  Camera models: {len(camera_data)}")
+                logger.info("  Camera models: %d", len(camera_data))
         except sqlite3.OperationalError:
             pass
 
@@ -93,7 +96,7 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
             stats['lenses'] = lens_data
             _cache_stat(conn, 'lenses', json.dumps(lens_data), now)
             if verbose:
-                print(f"  Lens models: {len(lens_data)}")
+                logger.info("  Lens models: %d", len(lens_data))
         except sqlite3.OperationalError:
             pass
 
@@ -111,7 +114,7 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
             stats['persons'] = person_data
             _cache_stat(conn, 'persons', json.dumps(person_data), now)
             if verbose:
-                print(f"  Persons: {len(person_data)}")
+                logger.info("  Persons: %d", len(person_data))
         except sqlite3.OperationalError:
             pass
 
@@ -128,7 +131,7 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
             stats['categories'] = category_data
             _cache_stat(conn, 'categories', json.dumps(category_data), now)
             if verbose:
-                print(f"  Categories: {len(category_data)}")
+                logger.info("  Categories: %d", len(category_data))
         except sqlite3.OperationalError:
             pass
 
@@ -145,7 +148,7 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
             stats['composition_patterns'] = pattern_data
             _cache_stat(conn, 'composition_patterns', json.dumps(pattern_data), now)
             if verbose:
-                print(f"  Composition patterns: {len(pattern_data)}")
+                logger.info("  Composition patterns: %d", len(pattern_data))
         except sqlite3.OperationalError:
             pass
 
@@ -164,17 +167,17 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
                 stats['tags'] = tag_data
                 _cache_stat(conn, 'tags', json.dumps(tag_data), now)
                 if verbose:
-                    print(f"  Tags: {len(tag_data)} (from photo_tags table)")
+                    logger.info("  Tags: %d (from photo_tags table)", len(tag_data))
             else:
                 if verbose:
-                    print("  Tags: skipped (photo_tags table empty - run --migrate-tags)")
+                    logger.info("  Tags: skipped (photo_tags table empty - run --migrate-tags)")
         except sqlite3.OperationalError:
             pass
 
         conn.commit()
 
     if verbose:
-        print("Statistics cache refreshed.")
+        logger.info("Statistics cache refreshed.")
 
     return stats
 

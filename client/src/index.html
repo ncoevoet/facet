@@ -8,8 +8,21 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script>
+    // Apply light-mode class before first paint to match persisted theme
+    (function(){var d=localStorage.getItem('facet_dark_mode');var light=d==='false'||(d===null&&!window.matchMedia('(prefers-color-scheme: dark)').matches);if(light)document.documentElement.classList.add('light-mode')})();
+  </script>
 </head>
 <body>
-  <app-root></app-root>
+  <app-root>
+    <style>
+      .facet-loading{display:flex;align-items:center;justify-content:center;height:100vh;background:#1c1b1f}
+      .light-mode .facet-loading{background:#fff}
+      .facet-spinner{width:40px;height:40px;border:3px solid #ffffff1a;border-top-color:#d0bcff;border-radius:50%;animation:spin .8s linear infinite}
+      .light-mode .facet-spinner{border-color:#0000001a;border-top-color:#6750a4}
+      @keyframes spin{to{transform:rotate(360deg)}}
+    </style>
+    <div class="facet-loading"><div class="facet-spinner"></div></div>
+  </app-root>
 </body>
 </html>

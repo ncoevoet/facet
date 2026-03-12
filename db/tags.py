@@ -4,9 +4,12 @@ Tag migration functions for Facet.
 Populates photo_tags lookup table from tags column.
 """
 
+import logging
 import sqlite3
 
 from db.connection import get_connection
+
+logger = logging.getLogger("facet.db_tags")
 from db.schema import (
     _build_create_table_sql, PHOTO_TAGS_COLUMNS, PHOTO_TAGS_INDEXES,
 )
@@ -32,7 +35,7 @@ def migrate_tags_to_lookup(db_path='photo_scores_pro.db', batch_size=10000):
     # Create backup first
     backup_path = f"{db_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     shutil.copy2(db_path, backup_path)
-    print(f"Created backup: {backup_path}")
+    logger.info("Created backup: %s", backup_path)
 
     with get_connection(db_path, row_factory=False) as conn:
         # Ensure table exists
@@ -50,7 +53,7 @@ def migrate_tags_to_lookup(db_path='photo_scores_pro.db', batch_size=10000):
         total = conn.execute(
             "SELECT COUNT(*) FROM photos WHERE tags IS NOT NULL AND tags != ''"
         ).fetchone()[0]
-        print(f"Processing {total} photos with tags...")
+        logger.info("Processing %d photos with tags...", total)
 
         total_tags = 0
         processed = 0
@@ -80,7 +83,7 @@ def migrate_tags_to_lookup(db_path='photo_scores_pro.db', batch_size=10000):
                 conn.commit()
                 total_tags += len(batch)
                 batch = []
-                print(f"  Processed {processed}/{total} photos ({total_tags} tags)...")
+                logger.info("  Processed %d/%d photos (%d tags)...", processed, total, total_tags)
 
         # Final batch
         if batch:
@@ -91,7 +94,7 @@ def migrate_tags_to_lookup(db_path='photo_scores_pro.db', batch_size=10000):
             conn.commit()
             total_tags += len(batch)
 
-    print(f"Migration complete: {total_tags} tags from {processed} photos")
+    logger.info("Migration complete: %d tags from %d photos", total_tags, processed)
     return total_tags, processed
 
 

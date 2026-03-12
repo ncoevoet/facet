@@ -38,7 +38,7 @@ export interface Person {
       (click)="selected.emit(person().id)"
     >
       <!-- Avatar -->
-      <div class="relative aspect-square bg-neutral-800 overflow-hidden">
+      <div class="relative aspect-square bg-[var(--mat-sys-surface-container)] overflow-hidden">
         @if (person().face_thumbnail) {
           <img
             [src]="person().id | personThumbnailUrl"

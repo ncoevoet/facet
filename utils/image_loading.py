@@ -4,6 +4,7 @@ Image loading utilities for Facet.
 Handles RAW (via rawpy/libraw) and JPEG loading with EXIF transpose.
 """
 
+import logging
 import threading
 from io import BytesIO
 from pathlib import Path
@@ -11,6 +12,8 @@ from pathlib import Path
 import numpy as np
 
 from utils._lazy import ensure_cv2 as _ensure_cv2, ensure_pil as _ensure_pil
+
+logger = logging.getLogger("facet.image_loading")
 
 # All RAW formats supported via rawpy/libraw
 RAW_EXTENSIONS = {'.cr2', '.cr3', '.nef', '.arw', '.raf', '.rw2', '.dng', '.orf', '.srw', '.pef'}
@@ -89,7 +92,7 @@ def load_image_from_path(photo_path, lock=None, use_thumbnail=False):
         return pil_img, img_cv
 
     except Exception as e:
-        print(f"Error loading image {photo_path}: {e}")
+        logger.error("Error loading image %s: %s", photo_path, e)
         return None, None
 
 

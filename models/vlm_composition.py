@@ -5,9 +5,13 @@ Uses Qwen2-VL for detailed composition analysis in 16GB VRAM mode.
 Provides natural language explanations of composition strengths/weaknesses.
 """
 
-from PIL import Image
-from typing import Optional, Dict, Any, List
+import logging
 import re
+from typing import Optional, Dict, Any, List
+
+from PIL import Image
+
+logger = logging.getLogger("facet.vlm_composition")
 
 # Lazy import for torch
 torch = None
@@ -116,7 +120,7 @@ EXPLANATION: [1-2 sentences explaining the score]"""
             return self._parse_response(response)
 
         except Exception as e:
-            print(f"VLM composition analysis error: {e}")
+            logger.error("VLM composition analysis error: %s", e)
             return {
                 'composition_score': 5.0,
                 'explanation': f"Analysis error: {str(e)}",
@@ -168,7 +172,7 @@ EXPLANATION: [1-2 sentences explaining the score]"""
             result['elements'] = {k: v for k, v in elements.items() if v}
 
         except Exception as e:
-            print(f"Response parsing error: {e}")
+            logger.warning("Response parsing error: %s", e)
 
         return result
 

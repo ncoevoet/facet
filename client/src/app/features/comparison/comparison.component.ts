@@ -1,4 +1,4 @@
-import { Component, inject, viewChild } from '@angular/core';
+import { Component, effect, inject, viewChild } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -6,6 +6,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Chart, registerables } from 'chart.js';
 import { AuthService } from '../../core/services/auth.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { CompareFiltersService } from './compare-filters.service';
@@ -14,8 +15,6 @@ import { ComparisonSnapshotsTabComponent } from './comparison-snapshots-tab.comp
 import { ComparisonAbTabComponent } from './comparison-ab-tab.component';
 
 Chart.register(...registerables);
-Chart.defaults.color = '#a3a3a3';
-Chart.defaults.borderColor = '#262626';
 
 @Component({
   selector: 'app-comparison',
@@ -48,7 +47,7 @@ Chart.defaults.borderColor = '#262626';
             <mat-icon>save</mat-icon>
             {{ 'comparison.save' | translate }}
           </button>
-          <button mat-stroked-button (click)="weightsTab()?.loadWeights()"
+          <button mat-stroked-button (click)="weightsTab()?.loadWeights(true)"
             [matTooltip]="'comparison.reset_tooltip' | translate">
             <mat-icon>refresh</mat-icon>
             {{ 'comparison.reset' | translate }}
@@ -102,19 +101,25 @@ Chart.defaults.borderColor = '#262626';
   `,
 })
 export class ComparisonComponent {
-  auth = inject(AuthService);
-  private store = inject(GalleryStore);
-  compareFilters = inject(CompareFiltersService);
+  protected readonly auth = inject(AuthService);
+  private readonly store = inject(GalleryStore);
+  private readonly themeService = inject(ThemeService);
+  protected readonly compareFilters = inject(CompareFiltersService);
 
-  weightsTab = viewChild<ComparisonWeightsTabComponent>('weightsTabEl');
-  snapshotsTab = viewChild<ComparisonSnapshotsTabComponent>('snapshotsTabEl');
-  abTab = viewChild<ComparisonAbTabComponent>('abTabEl');
+  protected readonly weightsTab = viewChild<ComparisonWeightsTabComponent>('weightsTabEl');
+  protected readonly snapshotsTab = viewChild<ComparisonSnapshotsTabComponent>('snapshotsTabEl');
+  protected readonly abTab = viewChild<ComparisonAbTabComponent>('abTabEl');
 
   constructor() {
+    effect(() => {
+      const dark = this.themeService.darkMode();
+      Chart.defaults.color = dark ? '#a3a3a3' : '#525252';
+      Chart.defaults.borderColor = dark ? '#262626' : '#e5e5e5';
+    });
     void this.loadCategories();
   }
 
-  async loadCategories(): Promise<void> {
+  private async loadCategories(): Promise<void> {
     try {
       if (this.store.types().length === 0) {
         await this.store.loadTypeCounts();
@@ -126,13 +131,13 @@ export class ComparisonComponent {
     } catch { /* non-critical */ }
   }
 
-  onTabChange(index: number): void {
+  protected onTabChange(index: number): void {
     if (index === 2 && !this.abTab()?.pairA() && !this.abTab()?.pairLoading()) {
       void this.abTab()?.loadNextPair();
     }
   }
 
-  onWeightsApplied(merged: Record<string, number>): void {
+  protected onWeightsApplied(merged: Record<string, number>): void {
     const tab = this.weightsTab();
     if (tab) tab.weights.set(merged);
   }

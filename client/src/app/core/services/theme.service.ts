@@ -34,6 +34,7 @@ export interface Theme {
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   private readonly STORAGE_KEY = 'facet_theme';
+  private readonly DARK_MODE_KEY = 'facet_dark_mode';
 
   readonly THEMES: Theme[] = [
     { id: '', label: 'Orange', swatch: '#ff6600' },
@@ -49,6 +50,7 @@ export class ThemeService {
   ];
 
   readonly theme = signal(this.loadSaved());
+  readonly darkMode = signal(this.loadDarkMode());
 
   readonly accentColor = computed(() => {
     const current = this.theme();
@@ -62,6 +64,17 @@ export class ThemeService {
 
   constructor() {
     this.applyClass(this.theme());
+    this.applyDarkMode(this.darkMode());
+
+    // Listen for system preference changes when no explicit user choice is saved
+    if (localStorage.getItem(this.DARK_MODE_KEY) === null) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (localStorage.getItem(this.DARK_MODE_KEY) === null) {
+          this.darkMode.set(e.matches);
+          this.applyDarkMode(e.matches);
+        }
+      });
+    }
   }
 
   setTheme(id: string): void {
@@ -70,8 +83,25 @@ export class ThemeService {
     localStorage.setItem(this.STORAGE_KEY, id);
   }
 
+  toggleDarkMode(): void {
+    const dark = !this.darkMode();
+    this.darkMode.set(dark);
+    localStorage.setItem(this.DARK_MODE_KEY, String(dark));
+    this.applyDarkMode(dark);
+  }
+
   private loadSaved(): string {
     return localStorage.getItem(this.STORAGE_KEY) ?? '';
+  }
+
+  private loadDarkMode(): boolean {
+    const stored = localStorage.getItem(this.DARK_MODE_KEY);
+    if (stored !== null) return stored === 'true';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  private applyDarkMode(dark: boolean): void {
+    document.documentElement.classList.toggle('light-mode', !dark);
   }
 
   private applyClass(id: string): void {

@@ -9,9 +9,12 @@ Maps free-form Florence output to Facet's configured tag vocabulary using
 edit-distance matching.
 """
 
+import logging
 import re
 from typing import List, Dict, Any, Optional
 import PIL.Image
+
+logger = logging.getLogger("facet.florence")
 
 # Lazy imports
 torch = None
@@ -100,7 +103,7 @@ class FlorenceTagger:
         dtype_str = self.model_config.get('torch_dtype', 'float32')
         torch_dtype = getattr(torch, dtype_str, torch.float32)
 
-        print(f"Loading Florence-2 tagger: {model_path}")
+        logger.info("Loading Florence-2 tagger: %s", model_path)
 
         self.processor = AutoProcessor.from_pretrained(model_path)
         self.model = Florence2Model.from_pretrained(
@@ -109,7 +112,7 @@ class FlorenceTagger:
         ).to(self.device)
 
         self.model.eval()
-        print(f"Florence-2 loaded (mode: {'GENERATE_TAGS' if self._is_promptgen else 'CAPTION'})")
+        logger.info("Florence-2 loaded (mode: %s)", 'GENERATE_TAGS' if self._is_promptgen else 'CAPTION')
 
     def unload(self):
         """Free VRAM by unloading the model."""

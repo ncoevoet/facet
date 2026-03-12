@@ -41,12 +41,12 @@ interface PersonsResponse {
             [class.border-blue-500]="selectedTarget === person.id"
             [class.border-transparent]="selectedTarget !== person.id"
             [class.bg-blue-900/30]="selectedTarget === person.id"
-            [class.hover:bg-neutral-800]="selectedTarget !== person.id"
+            [class.hover:bg-[var(--mat-sys-surface-container-high)]]="selectedTarget !== person.id"
             (click)="selectedTarget = person.id">
             @if (person.face_thumbnail) {
               <img [src]="person.id | personThumbnailUrl" class="w-16 h-16 rounded-full object-cover" alt="" />
             } @else {
-              <div class="w-16 h-16 rounded-full bg-neutral-700 flex items-center justify-center">
+              <div class="w-16 h-16 rounded-full bg-[var(--mat-sys-surface-container-high)] flex items-center justify-center">
                 <mat-icon class="opacity-40">person</mat-icon>
               </div>
             }

@@ -25,11 +25,14 @@ Usage:
 import argparse
 import csv
 import json
+import logging
 import os
 import sqlite3
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime
+
+logger = logging.getLogger("facet.calibrate")
 
 import numpy as np
 from scipy.optimize import differential_evolution, minimize
@@ -292,24 +295,24 @@ def match_photos(db_rows: list[dict], ava_map: dict[int, dict]) -> list[dict]:
 
 def report_match_summary(all_rows: list[dict], matched: list[dict], ava_map: dict):
     """Print a summary of matched vs unmatched photos."""
-    print(f"\n{'=' * 60}")
-    print("AVA MATCHING SUMMARY")
-    print(f"{'=' * 60}")
-    print(f"  AVA annotations loaded : {len(ava_map):,}")
-    print(f"  Photos in Facet DB     : {len(all_rows):,}")
-    print(f"  Matched photos         : {len(matched):,}")
-    print(f"  Unmatched photos       : {len(all_rows) - len(matched):,}")
+    logger.info("=" * 60)
+    logger.info("AVA MATCHING SUMMARY")
+    logger.info("=" * 60)
+    logger.info("  AVA annotations loaded : %s", f"{len(ava_map):,}")
+    logger.info("  Photos in Facet DB     : %s", f"{len(all_rows):,}")
+    logger.info("  Matched photos         : %s", f"{len(matched):,}")
+    logger.info("  Unmatched photos       : %s", f"{len(all_rows) - len(matched):,}")
 
     if matched:
         cats = Counter(r.get('category') or 'default' for r in matched)
-        print(f"\n  Facet category distribution:")
+        logger.info("  Facet category distribution:")
         for cat, count in sorted(cats.items(), key=lambda x: -x[1]):
-            print(f"    {cat:<20} {count:>6,}")
+            logger.info("    %-20s %6s", cat, f"{count:,}")
 
         # AVA tag distribution (show if tags were parsed)
         has_tags = sum(1 for r in matched if r.get('ava_tags'))
         if has_tags:
-            print(f"\n  AVA tag distribution ({has_tags:,} photos with tags):")
+            logger.info("  AVA tag distribution (%s photos with tags):", f"{has_tags:,}")
             tag_counts = Counter()
             for r in matched:
                 for tag_id in r.get('ava_tags', []):
@@ -317,20 +320,19 @@ def report_match_summary(all_rows: list[dict], matched: list[dict], ava_map: dic
             for tag_id, count in sorted(tag_counts.items(), key=lambda x: -x[1])[:15]:
                 name = AVA_TAG_NAMES.get(tag_id, f'Tag {tag_id}')
                 facet_cat = AVA_TAG_TO_FACET.get(tag_id, '-')
-                print(f"    {name:<30} {count:>6,}  -> {facet_cat}")
+                logger.info("    %-30s %6s  -> %s", name, f"{count:,}", facet_cat)
             if len(tag_counts) > 15:
-                print(f"    ... and {len(tag_counts) - 15} more tags")
+                logger.info("    ... and %d more tags", len(tag_counts) - 15)
 
             # Resolved category distribution
             ava_cats = Counter(r.get('ava_category') for r in matched if r.get('ava_category'))
             if ava_cats:
-                print(f"\n  Resolved AVA -> Facet category distribution:")
+                logger.info("  Resolved AVA -> Facet category distribution:")
                 for cat, count in sorted(ava_cats.items(), key=lambda x: -x[1]):
-                    print(f"    {cat:<20} {count:>6,}")
+                    logger.info("    %-20s %6s", cat, f"{count:,}")
                 unmapped = sum(1 for r in matched if r.get('ava_tags') and not r.get('ava_category'))
                 if unmapped:
-                    print(f"    {'(unmapped)':<20} {unmapped:>6,}")
-    print()
+                    logger.info("    %-20s %6s", "(unmapped)", f"{unmapped:,}")
 
 
 # ---------------------------------------------------------------------------
@@ -352,23 +354,22 @@ def evaluate_baseline(matched: list[dict]) -> None:
     mos = np.array([r['mos'] for r in matched])
     aggregate = np.array([r.get('aggregate') or 5.0 for r in matched])
 
-    print(f"{'=' * 60}")
-    print("BASELINE EVALUATION")
-    print(f"{'=' * 60}")
-    print(f"  Photos used: {len(matched):,}")
-    print()
+    logger.info("=" * 60)
+    logger.info("BASELINE EVALUATION")
+    logger.info("=" * 60)
+    logger.info("  Photos used: %s", f"{len(matched):,}")
 
     # Overall aggregate
     c = compute_correlations(aggregate, mos)
-    print(f"  {'Metric':<25} {'SRCC':>8} {'PLCC':>8} {'MAE':>8}")
-    print(f"  {'-' * 55}")
-    print(f"  {'aggregate (current)':<25} {c['srcc']:>8.4f} {c['plcc']:>8.4f} {c['mae']:>8.4f}")
+    logger.info("  %-25s %8s %8s %8s", "Metric", "SRCC", "PLCC", "MAE")
+    logger.info("  %s", "-" * 55)
+    logger.info("  %-25s %8.4f %8.4f %8.4f", "aggregate (current)", c['srcc'], c['plcc'], c['mae'])
 
     # Per-metric correlations
     for col in METRIC_COLUMNS:
         vals = np.array([r.get(col) or 5.0 for r in matched])
         c = compute_correlations(vals, mos)
-        print(f"  {col:<25} {c['srcc']:>8.4f} {c['plcc']:>8.4f} {c['mae']:>8.4f}")
+        logger.info("  %-25s %8.4f %8.4f %8.4f", col, c['srcc'], c['plcc'], c['mae'])
 
     # Per-category breakdown
     by_cat = defaultdict(list)
@@ -376,14 +377,13 @@ def evaluate_baseline(matched: list[dict]) -> None:
         by_cat[r.get('category') or 'default'].append(r)
 
     if len(by_cat) > 1:
-        print(f"\n  Per-category SRCC (aggregate vs AVA MOS):")
+        logger.info("  Per-category SRCC (aggregate vs AVA MOS):")
         for cat, rows in sorted(by_cat.items()):
             agg = np.array([r.get('aggregate') or 5.0 for r in rows])
             y = np.array([r['mos'] for r in rows])
             if len(rows) >= 5:
                 srcc, _ = spearmanr(agg, y)
-                print(f"    {cat:<20} n={len(rows):>5,}  SRCC={srcc:.4f}")
-    print()
+                logger.info("    %-20s n=%5s  SRCC=%.4f", cat, f"{len(rows):,}", srcc)
 
 
 # ---------------------------------------------------------------------------
@@ -498,12 +498,12 @@ def evaluate_category_detection(matched: list[dict]) -> None:
     # Filter to photos with resolved AVA category
     tagged = [r for r in matched if r.get('ava_category')]
     if not tagged:
-        print("  No photos with resolved AVA categories -- skipping.")
+        logger.info("  No photos with resolved AVA categories -- skipping.")
         return
 
-    print(f"\n{'=' * 70}")
-    print(f"CATEGORY DETECTION VALIDATION ({len(tagged):,} photos with AVA tags)")
-    print(f"{'=' * 70}")
+    logger.info("=" * 70)
+    logger.info("CATEGORY DETECTION VALIDATION (%s photos with AVA tags)", f"{len(tagged):,}")
+    logger.info("=" * 70)
 
     # Collect all categories present
     ava_cats = sorted(set(r['ava_category'] for r in tagged))
@@ -524,8 +524,8 @@ def evaluate_category_detection(matched: list[dict]) -> None:
     for r in tagged:
         facet_totals[r.get('category') or 'default'] += 1
 
-    print(f"\n  {'Category':<20} {'AVA':>6} {'Facet':>6} {'Match':>6} {'Prec':>8} {'Recall':>8} {'F1':>8}")
-    print(f"  {'-' * 68}")
+    logger.info("  %-20s %6s %6s %6s %8s %8s %8s", "Category", "AVA", "Facet", "Match", "Prec", "Recall", "F1")
+    logger.info("  %s", "-" * 68)
 
     total_correct = 0
     category_stats = []
@@ -541,11 +541,11 @@ def evaluate_category_detection(matched: list[dict]) -> None:
         f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
         if ava_count > 0 or facet_count > 0:
-            print(f"  {cat:<20} {ava_count:>6} {facet_count:>6} {tp:>6} {precision:>8.3f} {recall:>8.3f} {f1:>8.3f}")
+            logger.info("  %-20s %6d %6d %6d %8.3f %8.3f %8.3f", cat, ava_count, facet_count, tp, precision, recall, f1)
             category_stats.append((cat, ava_count, facet_count, tp, precision, recall, f1))
 
     accuracy = total_correct / len(tagged) if tagged else 0.0
-    print(f"\n  Overall accuracy: {total_correct:,}/{len(tagged):,} = {accuracy:.1%}")
+    logger.info("  Overall accuracy: %s/%s = %.1f%%", f"{total_correct:,}", f"{len(tagged):,}", accuracy * 100)
 
     # Top misclassification pairs
     misclass = []
@@ -558,9 +558,9 @@ def evaluate_category_detection(matched: list[dict]) -> None:
 
     misclass.sort(key=lambda x: -x[2])
     if misclass:
-        print(f"\n  Top misclassifications:")
+        logger.info("  Top misclassifications:")
         for ava_cat, facet_cat, count, pct in misclass[:15]:
-            print(f"    AVA={ava_cat:<18} -> Facet={facet_cat:<18} ({count:>5,}, {pct:>5.1f}% of AVA {ava_cat})")
+            logger.info("    AVA=%-18s -> Facet=%-18s (%5s, %5.1f%% of AVA %s)", ava_cat, facet_cat, f"{count:,}", pct, ava_cat)
 
     # Print compact confusion matrix for categories with >50 photos
     active_ava = [c for c in ava_cats if sum(confusion[c].values()) >= 50]
@@ -568,17 +568,16 @@ def evaluate_category_detection(matched: list[dict]) -> None:
         fc for ac in active_ava for fc, cnt in confusion[ac].items() if cnt >= 10
     ))
     if active_ava and active_facet:
-        print(f"\n  Confusion matrix (AVA rows x Facet columns, >=50 AVA photos):")
+        logger.info("  Confusion matrix (AVA rows x Facet columns, >=50 AVA photos):")
         header = f"  {'AVA \\ Facet':<18}" + ''.join(f'{c[:8]:>9}' for c in active_facet)
-        print(header)
-        print(f"  {'-' * len(header)}")
+        logger.info("%s", header)
+        logger.info("  %s", "-" * len(header))
         for ac in active_ava:
             row_str = f"  {ac:<18}"
             for fc in active_facet:
                 cnt = confusion[ac].get(fc, 0)
                 row_str += f'{cnt:>9,}' if cnt > 0 else f'{"·":>9}'
-                # Highlight diagonal
-            print(row_str)
+            logger.info("%s", row_str)
 
     return category_stats
 
@@ -601,12 +600,12 @@ def validate_priorities(matched: list[dict]) -> None:
             dual_mapped.append((r, cat_a, cat_b))
 
     if not dual_mapped:
-        print("\n  No photos with dual-mapped AVA tags -- skipping priority validation.")
+        logger.info("  No photos with dual-mapped AVA tags -- skipping priority validation.")
         return
 
-    print(f"\n{'=' * 70}")
-    print(f"PRIORITY VALIDATION ({len(dual_mapped):,} photos with dual AVA tags)")
-    print(f"{'=' * 70}")
+    logger.info("=" * 70)
+    logger.info("PRIORITY VALIDATION (%s photos with dual AVA tags)", f"{len(dual_mapped):,}")
+    logger.info("=" * 70)
 
     # For each (cat_A, cat_B) pair, count Facet assignments
     pair_counts = defaultdict(lambda: Counter())
@@ -615,8 +614,8 @@ def validate_priorities(matched: list[dict]) -> None:
         facet_cat = r.get('category') or 'default'
         pair_counts[pair_key][facet_cat] += 1
 
-    print(f"\n  {'AVA pair':<35} {'Facet assigns ->':<40} {'Conflict?':>10}")
-    print(f"  {'-' * 85}")
+    logger.info("  %-35s %-40s %10s", "AVA pair", "Facet assigns ->", "Conflict?")
+    logger.info("  %s", "-" * 85)
 
     conflicts = 0
     for (cat_a, cat_b), assignments in sorted(pair_counts.items(), key=lambda x: -sum(x[1].values())):
@@ -635,9 +634,9 @@ def validate_priorities(matched: list[dict]) -> None:
         if is_conflict:
             conflicts += 1
 
-        print(f"  {pair_label:<35} {assign_str:<40} {conflict_str:>10}")
+        logger.info("  %-35s %-40s %10s", pair_label, assign_str, conflict_str)
 
-    print(f"\n  Conflicts: {conflicts} pairs where Facet assigns neither AVA category as primary")
+    logger.info("  Conflicts: %d pairs where Facet assigns neither AVA category as primary", conflicts)
 
 
 def analyze_filter_boundaries(matched: list[dict], config_path: str) -> list[dict]:
@@ -650,7 +649,7 @@ def analyze_filter_boundaries(matched: list[dict], config_path: str) -> list[dic
     """
     tagged = [r for r in matched if r.get('ava_category')]
     if not tagged:
-        print("  No photos with resolved AVA categories -- skipping.")
+        logger.info("  No photos with resolved AVA categories -- skipping.")
         return []
 
     # Load current config for filter thresholds
@@ -658,7 +657,7 @@ def analyze_filter_boundaries(matched: list[dict], config_path: str) -> list[dic
         with open(config_path, 'r') as f:
             config = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"  WARNING: Could not load config: {e}")
+        logger.warning("  Could not load config: %s", e)
         return []
 
     # Build category config lookup
@@ -666,9 +665,9 @@ def analyze_filter_boundaries(matched: list[dict], config_path: str) -> list[dic
     for cat in config.get('categories', []):
         cat_configs[cat['name']] = cat
 
-    print(f"\n{'=' * 70}")
-    print(f"FILTER THRESHOLD ANALYSIS ({len(tagged):,} tagged photos)")
-    print(f"{'=' * 70}")
+    logger.info("=" * 70)
+    logger.info("FILTER THRESHOLD ANALYSIS (%s tagged photos)", f"{len(tagged):,}")
+    logger.info("=" * 70)
 
     suggestions = []
 
@@ -686,7 +685,7 @@ def analyze_filter_boundaries(matched: list[dict], config_path: str) -> list[dic
             continue
 
         recall = len(correct) / len(rows) if rows else 0.0
-        print(f"\n  {ava_cat} (recall={recall:.3f}, {len(misclassified)} misclassified as other):")
+        logger.info("  %s (recall=%.3f, %d misclassified as other):", ava_cat, recall, len(misclassified))
 
         cat_cfg = cat_configs.get(ava_cat, {})
         filters = cat_cfg.get('filters', {})
@@ -757,9 +756,8 @@ def _analyze_numeric_filters(
 
             if best_gain > 0 and best_threshold != current_threshold:
                 recall_gain = best_gain / (len(correct) + len(misclassified)) * 100
-                print(f"    {filter_key}: current={current_threshold}, "
-                      f"suggested={best_threshold:.4f} "
-                      f"(+{best_gain} photos, +{recall_gain:.1f}% recall)")
+                logger.info("    %s: current=%s, suggested=%.4f (+%d photos, +%.1f%% recall)",
+                            filter_key, current_threshold, best_threshold, best_gain, recall_gain)
                 suggestions.append({
                     'category': category,
                     'filter_key': filter_key,
@@ -785,9 +783,8 @@ def _analyze_numeric_filters(
 
             if best_gain > 0 and best_threshold != current_threshold:
                 recall_gain = best_gain / (len(correct) + len(misclassified)) * 100
-                print(f"    {filter_key}: current={current_threshold}, "
-                      f"suggested={best_threshold:.4f} "
-                      f"(+{best_gain} photos, +{recall_gain:.1f}% recall)")
+                logger.info("    %s: current=%s, suggested=%.4f (+%d photos, +%.1f%% recall)",
+                            filter_key, current_threshold, best_threshold, best_gain, recall_gain)
                 suggestions.append({
                     'category': category,
                     'filter_key': filter_key,
@@ -827,9 +824,9 @@ def _analyze_tag_filters(
 
     if missing_count > 0:
         pct = missing_count / len(misclassified) * 100
-        print(f"    Missing required tags: {missing_count}/{len(misclassified)} "
-              f"({pct:.0f}%) lack {required_tags[:3]}{'...' if len(required_tags) > 3 else ''} "
-              f"-> tagger bottleneck")
+        logger.info("    Missing required tags: %d/%d (%.0f%%) lack %s -> tagger bottleneck",
+                    missing_count, len(misclassified), pct,
+                    f"{required_tags[:3]}{'...' if len(required_tags) > 3 else ''}")
 
 
 def optimize_modifiers(
@@ -1029,47 +1026,47 @@ def run_ava_tag_analysis(
         for r in tagged:
             by_ava_cat[r['ava_category']].append(r)
 
-        print(f"\n{'=' * 70}")
-        print("MODIFIER OPTIMIZATION")
-        print(f"{'=' * 70}")
+        logger.info("=" * 70)
+        logger.info("MODIFIER OPTIMIZATION")
+        logger.info("=" * 70)
 
         for cat, rows in sorted(by_ava_cat.items(), key=lambda x: -len(x[1])):
             if len(rows) < MIN_PHOTOS_FOR_CATEGORY:
                 continue
 
-            print(f"\n  Optimizing modifiers for '{cat}' ({len(rows):,} photos)...")
+            logger.info("  Optimizing modifiers for '%s' (%s photos)...", cat, f"{len(rows):,}")
             result = optimize_modifiers(rows, cat, config_path)
             if result:
                 delta = result['srcc_after'] - result['srcc_before']
                 sign = '+' if delta >= 0 else ''
-                print(f"    SRCC: {result['srcc_before']:.4f} -> {result['srcc_after']:.4f} ({sign}{delta:.4f})")
-                print(f"    {'Modifier':<35} {'Current':>10} {'Optimized':>10}")
-                print(f"    {'-' * 55}")
+                logger.info("    SRCC: %.4f -> %.4f (%s%.4f)", result['srcc_before'], result['srcc_after'], sign, delta)
+                logger.info("    %-35s %10s %10s", "Modifier", "Current", "Optimized")
+                logger.info("    %s", "-" * 55)
                 for key in ('bonus', 'noise_tolerance_multiplier', '_clipping_multiplier'):
                     cur = result['current'].get(key, '-')
                     opt = result['optimized'].get(key, '-')
                     cur_str = f'{cur:.3f}' if isinstance(cur, float) else str(cur)
                     opt_str = f'{opt:.3f}' if isinstance(opt, float) else str(opt)
-                    print(f"    {key:<35} {cur_str:>10} {opt_str:>10}")
+                    logger.info("    %-35s %10s %10s", key, cur_str, opt_str)
                 modifier_results.append(result)
 
     # Apply modifier results if requested
     if apply_modifiers and modifier_results:
-        print(f"\n{'=' * 70}")
-        print("APPLYING MODIFIER CHANGES")
-        print(f"{'=' * 70}")
+        logger.info("=" * 70)
+        logger.info("APPLYING MODIFIER CHANGES")
+        logger.info("=" * 70)
         _apply_modifier_results(config_path, modifier_results)
     elif modifier_results and not apply_modifiers:
-        print(f"\n  Tip: rerun with --apply to also write optimized modifiers")
+        logger.info("  Tip: rerun with --apply to also write optimized modifiers")
 
     # Apply filter suggestions if requested
     if apply_filters and suggestions:
-        print(f"\n{'=' * 70}")
-        print("APPLYING FILTER THRESHOLD CHANGES")
-        print(f"{'=' * 70}")
+        logger.info("=" * 70)
+        logger.info("APPLYING FILTER THRESHOLD CHANGES")
+        logger.info("=" * 70)
         _apply_filter_suggestions(config_path, suggestions)
     elif suggestions and not apply_filters:
-        print(f"\n  Tip: rerun with --apply-filters to write suggested threshold changes")
+        logger.info("  Tip: rerun with --apply-filters to write suggested threshold changes")
 
 
 def _apply_filter_suggestions(config_path: str, suggestions: list[dict]) -> None:
@@ -1078,7 +1075,7 @@ def _apply_filter_suggestions(config_path: str, suggestions: list[dict]) -> None
         with open(config_path, 'r') as f:
             config = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"  ERROR: Could not load config: {e}", file=sys.stderr)
+        logger.error("  Could not load config: %s", e)
         return
 
     applied = 0
@@ -1093,7 +1090,7 @@ def _apply_filter_suggestions(config_path: str, suggestions: list[dict]) -> None
             filters = cat.setdefault('filters', {})
             old_value = filters.get(filter_key)
             filters[filter_key] = new_value
-            print(f"  {cat_name}.filters.{filter_key}: {old_value} -> {new_value}")
+            logger.info("  %s.filters.%s: %s -> %s", cat_name, filter_key, old_value, new_value)
             applied += 1
             break
 
@@ -1101,10 +1098,10 @@ def _apply_filter_suggestions(config_path: str, suggestions: list[dict]) -> None
         with open(config_path, 'w') as f:
             json.dump(config, f, indent=2)
             f.write('\n')
-        print(f"\n  Applied {applied} filter changes to {config_path}")
-        print(f"  Run: python facet.py --recompute-average")
+        logger.info("  Applied %d filter changes to %s", applied, config_path)
+        logger.info("  Run: python facet.py --recompute-average")
     else:
-        print("  No changes applied.")
+        logger.info("  No changes applied.")
 
 
 def _apply_modifier_results(config_path: str, modifier_results: list[dict]) -> None:
@@ -1113,7 +1110,7 @@ def _apply_modifier_results(config_path: str, modifier_results: list[dict]) -> N
         with open(config_path, 'r') as f:
             config = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"  ERROR: Could not load config: {e}", file=sys.stderr)
+        logger.error("  Could not load config: %s", e)
         return
 
     applied = 0
@@ -1129,7 +1126,7 @@ def _apply_modifier_results(config_path: str, modifier_results: list[dict]) -> N
                 old_val = modifiers.get(key)
                 modifiers[key] = new_val
                 old_str = f'{old_val:.3f}' if isinstance(old_val, (int, float)) else str(old_val)
-                print(f"  {cat_name}.modifiers.{key}: {old_str} -> {new_val:.3f}")
+                logger.info("  %s.modifiers.%s: %s -> %.3f", cat_name, key, old_str, new_val)
             applied += 1
             break
 
@@ -1137,9 +1134,9 @@ def _apply_modifier_results(config_path: str, modifier_results: list[dict]) -> N
         with open(config_path, 'w') as f:
             json.dump(config, f, indent=2)
             f.write('\n')
-        print(f"\n  Applied modifiers for {applied} categories to {config_path}")
+        logger.info("  Applied modifiers for %d categories to %s", applied, config_path)
     else:
-        print("  No modifier changes applied.")
+        logger.info("  No modifier changes applied.")
 
 
 # ---------------------------------------------------------------------------
@@ -1152,14 +1149,14 @@ def print_optimization_result(info: dict, col_to_weight: dict) -> None:
     w_before = info['w_before']
     w_after = info['w_after']
 
-    print(f"\nCategory: {info['category']}  ({info['n_photos']:,} photos matched)")
-    print(f"{'Metric':<30} {'Current':>12} {'Optimized':>12}")
-    print(f"{'-' * 56}")
+    logger.info("Category: %s  (%s photos matched)", info['category'], f"{info['n_photos']:,}")
+    logger.info("%-30s %12s %12s", "Metric", "Current", "Optimized")
+    logger.info("%s", "-" * 56)
     for col, wb, wa in zip(col_names, w_before, w_after):
-        print(f"  {col:<28} {wb * 100:>10.1f}%  {wa * 100:>10.1f}%")
+        logger.info("  %-28s %10.1f%%  %10.1f%%", col, wb * 100, wa * 100)
     delta = info['srcc_after'] - info['srcc_before']
     sign = '+' if delta >= 0 else ''
-    print(f"\n  SRCC before: {info['srcc_before']:.4f}  ->  after: {info['srcc_after']:.4f}  ({sign}{delta:.4f})")
+    logger.info("  SRCC before: %.4f  ->  after: %.4f  (%s%.4f)", info['srcc_before'], info['srcc_after'], sign, delta)
 
 
 def log_run_to_db(db_path: str, info: dict, col_to_weight: dict, current_config_weights: dict) -> None:
@@ -1263,14 +1260,14 @@ def apply_weights_to_config(
         weights_block.update(rounded)
         break
     else:
-        print(f"  WARNING: Category '{category}' not found in scoring_config.json -- skipping apply.", file=sys.stderr)
+        logger.warning("  Category '%s' not found in scoring_config.json -- skipping apply.", category)
         return
 
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=2)
         f.write('\n')
 
-    print(f"  Updated weights for category '{category}' in {config_path}")
+    logger.info("  Updated weights for category '%s' in %s", category, config_path)
 
 
 # ---------------------------------------------------------------------------
@@ -1308,10 +1305,10 @@ def main():
     args = parse_args()
 
     if not os.path.exists(args.db):
-        print(f"ERROR: Database not found: {args.db}", file=sys.stderr)
+        logger.error("Database not found: %s", args.db)
         sys.exit(1)
     if not os.path.exists(args.ava_annotations):
-        print(f"ERROR: AVA annotations file not found: {args.ava_annotations}", file=sys.stderr)
+        logger.error("AVA annotations file not found: %s", args.ava_annotations)
         sys.exit(1)
 
     use_ava_tags = args.ava_tags or args.ava_tags_only
@@ -1320,24 +1317,24 @@ def main():
     # -----------------------------------------------------------------------
     # Phase 1: Load data
     # -----------------------------------------------------------------------
-    print("Loading AVA annotations...")
+    logger.info("Loading AVA annotations...")
     ava_map = parse_ava_annotations(args.ava_annotations)
-    print(f"  Loaded {len(ava_map):,} AVA annotations.")
+    logger.info("  Loaded %s AVA annotations.", f"{len(ava_map):,}")
 
     if use_ava_tags:
         tagged_count = sum(1 for v in ava_map.values() if v['tags'])
-        print(f"  AVA entries with semantic tags: {tagged_count:,}")
+        logger.info("  AVA entries with semantic tags: %s", f"{tagged_count:,}")
 
-    print("Querying Facet database...")
+    logger.info("Querying Facet database...")
     all_rows = query_facet_db(args.db, include_extra=use_ava_tags)
-    print(f"  Found {len(all_rows):,} scored photos in DB.")
+    logger.info("  Found %s scored photos in DB.", f"{len(all_rows):,}")
 
     matched = match_photos(all_rows, ava_map)
     report_match_summary(all_rows, matched, ava_map)
 
     if len(matched) < MIN_PHOTOS_FOR_BASELINE:
-        print(f"ERROR: Only {len(matched)} photos matched AVA. Need at least {MIN_PHOTOS_FOR_BASELINE}.")
-        print("       Score AVA images with: python facet.py /path/to/ava_images/")
+        logger.error("Only %d photos matched AVA. Need at least %d.", len(matched), MIN_PHOTOS_FOR_BASELINE)
+        logger.error("       Score AVA images with: python facet.py /path/to/ava_images/")
         sys.exit(1)
 
     # -----------------------------------------------------------------------
@@ -1365,10 +1362,10 @@ def main():
 
         method = 'de' if args.method == 'de' else 'nelder-mead'
 
-        print(f"{'=' * 60}")
-        print("WEIGHT OPTIMIZATION")
-        print(f"{'=' * 60}")
-        print(f"  Method: {args.method}")
+        logger.info("=" * 60)
+        logger.info("WEIGHT OPTIMIZATION")
+        logger.info("=" * 60)
+        logger.info("  Method: %s", args.method)
 
         optimization_results = []
 
@@ -1383,14 +1380,14 @@ def main():
                 cat_key = cat
 
             if len(rows) < MIN_PHOTOS_FOR_BASELINE:
-                print(f"\n  Skipping '{cat_label}': only {len(rows)} photos (need {MIN_PHOTOS_FOR_BASELINE})")
+                logger.info("  Skipping '%s': only %d photos (need %d)", cat_label, len(rows), MIN_PHOTOS_FOR_BASELINE)
                 continue
 
-            print(f"\n  Optimizing '{cat_label}' ({len(rows):,} photos)...")
+            logger.info("  Optimizing '%s' (%s photos)...", cat_label, f"{len(rows):,}")
             try:
                 info, col_to_weight = optimize_weights(rows, cat_key, method=method)
             except Exception as e:
-                print(f"  ERROR optimizing '{cat_label}': {e}", file=sys.stderr)
+                logger.error("  ERROR optimizing '%s': %s", cat_label, e)
                 continue
 
             print_optimization_result(info, col_to_weight)
@@ -1400,16 +1397,16 @@ def main():
             try:
                 log_run_to_db(args.db, info, col_to_weight, current_config_weights={})
             except Exception as e:
-                print(f"  WARNING: Could not log run to DB: {e}", file=sys.stderr)
+                logger.warning("  Could not log run to DB: %s", e)
 
         # Apply weights if requested
         if args.apply and optimization_results:
-            print(f"\n{'=' * 60}")
-            print("APPLYING OPTIMIZED WEIGHTS")
-            print(f"{'=' * 60}")
+            logger.info("=" * 60)
+            logger.info("APPLYING OPTIMIZED WEIGHTS")
+            logger.info("=" * 60)
 
             if not os.path.exists(args.config):
-                print(f"  ERROR: scoring_config.json not found at {args.config}", file=sys.stderr)
+                logger.error("  scoring_config.json not found at %s", args.config)
                 sys.exit(1)
 
             for cat_key, info, col_to_weight in optimization_results:
@@ -1422,18 +1419,18 @@ def main():
                             snapshot_config_to_db(args.db, cat_key, cat.get('weights', {}), info['srcc_before'])
                             break
                 except Exception as e:
-                    print(f"  WARNING: Could not snapshot config: {e}", file=sys.stderr)
+                    logger.warning("  Could not snapshot config: %s", e)
 
                 # Apply
                 try:
                     apply_weights_to_config(args.config, cat_key, col_to_weight, info['col_names'])
                 except Exception as e:
-                    print(f"  ERROR applying weights for '{cat_key}': {e}", file=sys.stderr)
+                    logger.error("  ERROR applying weights for '%s': %s", cat_key, e)
 
-            print(f"\n  Done. Run the following to recompute all aggregate scores:")
-            print(f"    python facet.py --recompute-average")
+            logger.info("  Done. Run the following to recompute all aggregate scores:")
+            logger.info("    python facet.py --recompute-average")
         elif not args.apply and optimization_results:
-            print(f"\n  Tip: rerun with --apply to write these weights to scoring_config.json")
+            logger.info("  Tip: rerun with --apply to write these weights to scoring_config.json")
 
     # -----------------------------------------------------------------------
     # Phase 5: AVA tag-based analysis (if --ava-tags or --ava-tags-only)

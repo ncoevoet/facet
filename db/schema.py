@@ -4,9 +4,12 @@ Database schema definitions and initialization for Facet.
 Single source of truth for all table and index definitions.
 """
 
+import logging
 import sqlite3
 
 from db.connection import apply_pragmas
+
+logger = logging.getLogger("facet.schema")
 
 # Schema definitions as (name, type_definition) tuples
 # Type definition includes any defaults or constraints
@@ -43,6 +46,8 @@ PHOTOS_COLUMNS = [
     # Flags
     ('is_blink', 'INTEGER CHECK (is_blink IS NULL OR is_blink IN (0, 1))'),
     ('is_burst_lead', 'INTEGER DEFAULT 0 CHECK (is_burst_lead IN (0, 1))'),
+    ('burst_group_id', 'INTEGER'),
+    ('burst_reviewed', 'INTEGER NOT NULL DEFAULT 0 CHECK (burst_reviewed IN (0, 1))'),
     ('is_monochrome', 'INTEGER DEFAULT 0 CHECK (is_monochrome IN (0, 1))'),
     ('is_silhouette', 'INTEGER'),
     ('is_group_portrait', 'INTEGER'),
@@ -158,6 +163,8 @@ INDEXES = [
     # Composite index for camera/lens DISTINCT queries
     ('idx_camera_lens', 'photos', 'camera_model, lens_model'),
     # Duplicate detection indexes
+    ('idx_burst_group', 'photos', 'burst_group_id'),
+    ('idx_burst_reviewed', 'photos', 'burst_reviewed, burst_group_id'),
     ('idx_duplicate_group', 'photos', 'duplicate_group_id'),
     ('idx_duplicate_lead', 'photos', 'is_duplicate_lead'),
     # User rating indexes
@@ -344,11 +351,11 @@ def _migrate_add_missing_columns(conn, table_name, columns):
             base_type = col_type.split()[0] if col_type else 'TEXT'
             try:
                 conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {base_type}")
-                print(f"  Added column: {table_name}.{col_name}")
+                logger.info("  Added column: %s.%s", table_name, col_name)
             except sqlite3.OperationalError as e:
                 # Column might already exist (race condition) or other error
                 if 'duplicate column name' not in str(e).lower():
-                    print(f"  Warning: Could not add {table_name}.{col_name}: {e}")
+                    logger.warning("  Could not add %s.%s: %s", table_name, col_name, e)
 
 
 def init_database(db_path='photo_scores_pro.db'):

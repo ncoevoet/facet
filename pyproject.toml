@@ -104,9 +104,12 @@ include = [
     "processing*",
     "utils*",
     "validation*",
+    "plugins*",
 ]
 exclude = ["venv*", "client*", "docs*", "photos_all*", "pretrained_models*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json"]
 "i18n" = ["*.json"]
+# Pre-built Angular client included in package
+"api" = ["../client/dist/client/browser/**/*"]
