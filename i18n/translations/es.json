@@ -1316,7 +1316,9 @@
     "add_photos": "Anadir al album",
     "photos_added": "Fotos anadidas al album",
     "save_smart": "Guardar como album inteligente",
-    "smart_album": "Album inteligente"
+    "smart_album": "Album inteligente",
+    "confirm_delete_title": "Eliminar album",
+    "confirm_delete_message": "Eliminar album \"{name}\"? Las fotos no se eliminaran."
   },
   "critique": {
     "title": "Por que esta puntuacion?",

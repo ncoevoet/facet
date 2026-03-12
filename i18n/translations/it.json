@@ -1316,7 +1316,9 @@
     "add_photos": "Aggiungi all'album",
     "photos_added": "Foto aggiunte all'album",
     "save_smart": "Salva come album intelligente",
-    "smart_album": "Album intelligente"
+    "smart_album": "Album intelligente",
+    "confirm_delete_title": "Elimina album",
+    "confirm_delete_message": "Eliminare l'album \"{name}\"? Le foto non verranno rimosse."
   },
   "critique": {
     "title": "Perche questo punteggio?",

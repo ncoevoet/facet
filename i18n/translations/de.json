@@ -1316,7 +1316,9 @@
     "add_photos": "Zum Album hinzufugen",
     "photos_added": "Fotos zum Album hinzugefugt",
     "save_smart": "Als intelligentes Album speichern",
-    "smart_album": "Intelligentes Album"
+    "smart_album": "Intelligentes Album",
+    "confirm_delete_title": "Album loschen",
+    "confirm_delete_message": "Album \"{name}\" loschen? Fotos werden nicht entfernt."
   },
   "critique": {
     "title": "Warum diese Bewertung?",

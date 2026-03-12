@@ -42,7 +42,7 @@ export class CreateAlbumDialogComponent {
 
   async save(): Promise<void> {
     if (!this.name.trim()) return;
-    await firstValueFrom(this.albumService.create(this.name.trim(), this.description.trim()));
-    this.dialogRef.close(true);
+    const album = await firstValueFrom(this.albumService.create(this.name.trim(), this.description.trim()));
+    this.dialogRef.close(album);
   }
 }

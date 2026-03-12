@@ -1346,7 +1346,9 @@
     "add_photos": "Add to Album",
     "photos_added": "Photos added to album",
     "save_smart": "Save as Smart Album",
-    "smart_album": "Smart Album"
+    "smart_album": "Smart Album",
+    "confirm_delete_title": "Delete Album",
+    "confirm_delete_message": "Delete album \"{name}\"? Photos will not be removed."
   },
   "critique": {
     "title": "Why This Score?",

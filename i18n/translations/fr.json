@@ -1346,7 +1346,9 @@
     "add_photos": "Ajouter a un album",
     "photos_added": "Photos ajoutees a l'album",
     "save_smart": "Enregistrer comme album intelligent",
-    "smart_album": "Album intelligent"
+    "smart_album": "Album intelligent",
+    "confirm_delete_title": "Supprimer l'album",
+    "confirm_delete_message": "Supprimer l'album \"{name}\" ? Les photos ne seront pas supprimees."
   },
   "critique": {
     "title": "Pourquoi ce score ?",

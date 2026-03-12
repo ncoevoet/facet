@@ -263,8 +263,21 @@ async def api_critique(
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
+        # Select only columns needed for critique (avoid loading BLOB fields)
+        critique_cols = [
+            'path', 'category', 'aggregate', 'aesthetic', 'tech_sharpness',
+            'face_quality', 'eye_sharpness', 'face_sharpness', 'comp_score',
+            'exposure_score', 'color_score', 'contrast_score', 'isolation_bonus',
+            'noise_sigma', 'dynamic_range_stops', 'leading_lines_score',
+            'power_point_score', 'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
+            'subject_sharpness', 'subject_prominence', 'subject_placement',
+            'bg_separation', 'mean_saturation', 'mean_luminance',
+            'face_ratio', 'face_count', 'is_monochrome', 'is_blink',
+            'highlight_clipped', 'shadow_clipped', 'tags', 'shutter_speed',
+        ]
+        col_str = ', '.join(critique_cols)
         photo = conn.execute(
-            f"SELECT * FROM photos WHERE path = ? AND {vis_sql}",
+            f"SELECT {col_str} FROM photos WHERE path = ? AND {vis_sql}",
             [path] + vis_params
         ).fetchone()
 

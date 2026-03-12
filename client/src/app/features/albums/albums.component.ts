@@ -6,9 +6,11 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
+import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CreateAlbumDialogComponent } from './create-album-dialog.component';
+import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-albums',
@@ -75,6 +77,7 @@ import { CreateAlbumDialogComponent } from './create-album-dialog.component';
 export class AlbumsComponent implements OnInit {
   private albumService = inject(AlbumService);
   private dialog = inject(MatDialog);
+  private i18n = inject(I18nService);
   readonly auth = inject(AuthService);
 
   readonly albums = signal<Album[]>([]);
@@ -96,14 +99,22 @@ export class AlbumsComponent implements OnInit {
 
   openCreateDialog(): void {
     const ref = this.dialog.open(CreateAlbumDialogComponent, { width: '400px' });
-    ref.afterClosed().subscribe(result => {
-      if (result) this.loadAlbums();
+    ref.afterClosed().subscribe((album: Album | undefined) => {
+      if (album) this.loadAlbums();
     });
   }
 
   async deleteAlbum(event: Event, album: Album): Promise<void> {
     event.preventDefault();
     event.stopPropagation();
+    const ref = this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: this.i18n.t('albums.confirm_delete_title'),
+        message: this.i18n.t('albums.confirm_delete_message', { name: album.name }),
+      },
+    });
+    const confirmed = await firstValueFrom(ref.afterClosed());
+    if (!confirmed) return;
     await firstValueFrom(this.albumService.delete(album.id));
     this.albums.update(list => list.filter(a => a.id !== album.id));
   }

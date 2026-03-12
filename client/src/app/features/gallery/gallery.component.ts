@@ -532,13 +532,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   createAlbumAndAdd(): void {
     const ref = this.dialog.open(CreateAlbumDialogComponent, { width: '400px' });
-    ref.afterClosed().subscribe(async (result: boolean) => {
-      if (!result) return;
-      const res = await firstValueFrom(this.albumService.list());
-      this.albumOptions.set(res.albums);
-      if (res.albums.length) {
-        await this.addToAlbum(res.albums[0].id);
-      }
+    ref.afterClosed().subscribe(async (album: Album | undefined) => {
+      if (!album) return;
+      this.albumOptions.update(list => [album, ...list]);
+      await this.addToAlbum(album.id);
     });
   }
 

@@ -85,8 +85,13 @@ def _get_first_photo_path(conn, album_row, user_id=None):
             from_clause, from_params = get_photos_from_clause(user_id)
             all_params = from_params + sql_params
             where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+            safe_sorts = ('aggregate', 'aesthetic', 'date_taken', 'comp_score', 'tech_sharpness')
+            sort_col = saved_filters.get('sort', 'aggregate')
+            if sort_col not in safe_sorts:
+                sort_col = 'aggregate'
+            sort_dir = 'ASC' if saved_filters.get('sort_direction') == 'ASC' else 'DESC'
             row = conn.execute(
-                f"SELECT path FROM {from_clause}{where_str} ORDER BY aggregate DESC LIMIT 1",
+                f"SELECT path FROM {from_clause}{where_str} ORDER BY {sort_col} {sort_dir} LIMIT 1",
                 all_params
             ).fetchone()
             return row['path'] if row else None
