@@ -2023,7 +2023,8 @@ class Facet:
                         dynamic_range_stops, noise_sigma, contrast_score, tags,
                         quality_score, topiq_score, composition_explanation, scoring_model, composition_pattern,
                         aesthetic_iaa, face_quality_iqa, liqe_score,
-                        subject_sharpness, subject_prominence, subject_placement, bg_separation
+                        subject_sharpness, subject_prominence, subject_placement, bg_separation,
+                        gps_latitude, gps_longitude
                     )
                     VALUES (
                         :path, :filename, :category, :image_width, :image_height,
@@ -2039,7 +2040,8 @@ class Facet:
                         :dynamic_range_stops, :noise_sigma, :contrast_score, :tags,
                         :quality_score, :topiq_score, :composition_explanation, :scoring_model, :composition_pattern,
                         :aesthetic_iaa, :face_quality_iqa, :liqe_score,
-                        :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation
+                        :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation,
+                        :gps_latitude, :gps_longitude
                     )
                 ''', res)
 

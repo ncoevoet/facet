@@ -37,7 +37,9 @@ class ExifToolBatch:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                text=True
+                text=True,
+                encoding='utf-8',
+                errors='replace'
             )
         except FileNotFoundError:
             # ExifTool not installed
@@ -130,6 +132,8 @@ class ExifToolBatch:
                         ['exiftool', '-j', '-n'] + chunk,
                         capture_output=True,
                         text=True,
+                        encoding='utf-8',
+                        errors='replace',
                         timeout=current_timeout
                     )
 

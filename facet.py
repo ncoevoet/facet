@@ -243,7 +243,9 @@ Configuration:
     ai_group.add_argument('--auto-albums', action='store_true',
                         help='Auto-generate albums from temporal and visual clustering')
     ai_group.add_argument('--extract-gps', action='store_true',
-                        help='Backfill GPS coordinates from EXIF data for existing photos')
+                        help='Backfill GPS coordinates from EXIF data for photos missing GPS')
+    ai_group.add_argument('--rescan-gps', action='store_true',
+                        help='Re-extract GPS coordinates from EXIF for ALL photos (overwrites existing)')
 
     # Configuration
     config_group = parser.add_argument_group('Configuration')
@@ -602,7 +604,18 @@ Configuration:
         import io
 
         config = ScoringConfig(args.config)
-        vlm = VLMTagger(config.get_tagger_model(), config)
+        models_config = config.get_model_config()
+        tag_model = config.get_model_for_task('tagging')
+        model_key_map = {
+            'qwen3-vl-2b': 'qwen3_vl_2b',
+            'qwen2.5-vl-7b': 'qwen2_5_vl_7b',
+        }
+        config_key = model_key_map.get(tag_model)
+        if not config_key or config_key not in models_config:
+            logger.error("VLM tagger not available for profile %s (tagging_model=%s)",
+                         models_config.get('vram_profile', 'legacy'), tag_model)
+            sys.exit(1)
+        vlm = VLMTagger(models_config[config_key], config)
 
         with get_connection(args.db) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(photos)").fetchall()}

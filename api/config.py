@@ -3,7 +3,6 @@ Configuration loading for the FastAPI API server.
 
 """
 
-import fcntl
 import os
 import json
 import math
@@ -15,6 +14,7 @@ import secrets
 
 # --- CONFIG & SHARE SECRET (single parse of scoring_config.json) ---
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scoring_config.json')
+_share_secret_lock = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')
 
 
@@ -30,10 +30,7 @@ def _load_and_ensure_share_secret():
     except Exception:
         config = {}
     if 'share_secret' not in config or not config['share_secret']:
-        lock_path = f"{_CONFIG_PATH}.lock"
-        lock_fd = open(lock_path, 'w')
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        with _share_secret_lock:
             # Re-read after acquiring lock — another worker may have written the secret
             try:
                 with open(_CONFIG_PATH) as f:
@@ -53,9 +50,6 @@ def _load_and_ensure_share_secret():
                 except Exception:
                     os.unlink(tmp_path)
                     raise
-        finally:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            lock_fd.close()
     return config, config['share_secret']
 
 

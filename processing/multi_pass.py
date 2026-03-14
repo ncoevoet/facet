@@ -850,6 +850,8 @@ class ChunkedMultiPassProcessor:
                 'shutter_speed': exif.get('shutter_speed'),
                 'focal_length': exif.get('focal_length'),
                 'focal_length_35mm': exif.get('focal_length_35mm'),
+                'gps_latitude': exif.get('gps_latitude'),
+                'gps_longitude': exif.get('gps_longitude'),
 
                 # Scoring fields
                 'aesthetic': data.get('aesthetic', 5.0),

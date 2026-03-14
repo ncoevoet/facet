@@ -79,19 +79,38 @@ async def api_caption(
         conn.close()
 
 
+def _resolve_vlm_config() -> Optional[dict]:
+    """Resolve the VLM tagger config dict from the active profile.
+
+    Returns the model config dict (with model_path, etc.) or None if
+    the active profile doesn't use a VLM tagger.
+    """
+    models_config = _FULL_CONFIG.get('models', {})
+    profile_name = models_config.get('vram_profile', 'legacy')
+    profile = models_config.get('profiles', {}).get(profile_name, {})
+    tagging_model = profile.get('tagging_model', '')
+
+    # Map tagging_model name to config key
+    model_key_map = {
+        'qwen3-vl-2b': 'qwen3_vl_2b',
+        'qwen2.5-vl-7b': 'qwen2_5_vl_7b',
+    }
+    config_key = model_key_map.get(tagging_model)
+    if not config_key:
+        return None
+
+    vlm_config = models_config.get(config_key, {})
+    return vlm_config if vlm_config.get('model_path') else None
+
+
 def _generate_caption(photo_path: str) -> Optional[str]:
     """Generate a caption for a photo using the VLM tagger.
 
     Returns None if VLM is unavailable (wrong profile, missing config, etc.).
     """
     try:
-        models_config = _FULL_CONFIG.get('models', {})
-        profile = models_config.get('vram_profile', 'legacy')
-        if profile not in ('16gb', '24gb'):
-            return None
-
-        vlm_config = models_config.get('vlm_tagger', {})
-        if not vlm_config.get('model_name'):
+        vlm_config = _resolve_vlm_config()
+        if not vlm_config:
             return None
 
         from api.config import map_disk_path
