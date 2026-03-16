@@ -139,7 +139,42 @@ def generate_all_capsules(conn, config=None, user_id=None):
     except Exception:
         logger.exception("Failed to generate dimension capsules")
 
+    # Global dedup: remove capsules whose photos overlap >60% with a prior capsule
+    max_overlap = capsule_config.get("max_photo_overlap", 0.6)
+    capsules = _deduplicate_capsules(capsules, max_overlap)
+
     return capsules
+
+
+def _deduplicate_capsules(capsules, max_overlap=0.6):
+    """Remove capsules whose photo set overlaps too much with a prior capsule."""
+    kept = []
+    kept_sets: list[set[str]] = []
+
+    for c in capsules:
+        paths = c.get("params", {}).get("paths", [])
+        if not paths:
+            kept.append(c)
+            continue
+
+        path_set = set(paths)
+        # Check overlap with each already-kept capsule
+        dominated = False
+        for existing in kept_sets:
+            overlap = len(path_set & existing)
+            # Overlap relative to the smaller set
+            min_size = min(len(path_set), len(existing))
+            if min_size > 0 and overlap / min_size > max_overlap:
+                dominated = True
+                break
+
+        if not dominated:
+            kept.append(c)
+            kept_sets.append(path_set)
+
+    logger.info("Dedup: %d → %d capsules (removed %d with >%.0f%% overlap)",
+                len(capsules), len(kept), len(capsules) - len(kept), max_overlap * 100)
+    return kept
 
 
 def _generate_journeys(conn, capsule_config, min_aggregate, vis, user_id):
