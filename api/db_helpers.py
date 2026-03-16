@@ -15,7 +15,7 @@ from api.config import (
     _existing_columns_cache, _existing_columns_lock,
     _photo_tags_available, _photo_tags_lock,
     _count_cache, _count_cache_lock, COUNT_CACHE_TTL,
-    is_multi_user_enabled, get_user_directories
+    is_multi_user_enabled, get_user_directories, _FULL_CONFIG,
 )
 from api.database import get_db_connection
 
@@ -248,9 +248,15 @@ def build_photo_select_columns(conn, user_id=None):
     pref_cols = get_preference_columns(user_id)
     pref_col_names = {'star_rating', 'is_favorite', 'is_rejected'}
 
+    # Skip caption_translated when translation is disabled (target_language empty or "en")
+    target_lang = _FULL_CONFIG.get('translation', {}).get('target_language', '')
+    skip_cols = set()
+    if not target_lang or target_lang == 'en':
+        skip_cols.add('caption_translated')
+
     select_cols = list(PHOTO_BASE_COLS)
     for c in PHOTO_OPTIONAL_COLS:
-        if c in existing_cols:
+        if c in existing_cols and c not in skip_cols:
             if c in pref_col_names:
                 select_cols.append(f"{pref_cols[c]} as {c}")
             else:

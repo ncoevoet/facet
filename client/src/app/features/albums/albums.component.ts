@@ -64,15 +64,10 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
       </div>
     }
 
-    @if (albums().length === 0 && !loading() && hasMore()) {
+    @if (albums().length === 0 && !loading()) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">photo_library</mat-icon>
         <p>{{ 'albums.empty' | translate }}</p>
-      </div>
-    } @else if (albums().length === 0 && !loading() && !hasMore()) {
-      <div class="text-center py-16 opacity-60">
-        <mat-icon class="!text-5xl !w-12 !h-12 mb-4">filter_list_off</mat-icon>
-        <p>{{ 'gallery.no_photos' | translate }}</p>
       </div>
     }
 
