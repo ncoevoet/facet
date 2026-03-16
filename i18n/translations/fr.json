@@ -1593,6 +1593,7 @@
     "edit_caption": "Modifier",
     "caption_edit_title": "Modifier la légende",
     "caption_error": "Échec de la génération de la légende",
+    "translating_caption": "Traduction en cours...",
     "location": "Localisation"
   }
 }

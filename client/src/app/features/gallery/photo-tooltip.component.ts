@@ -72,8 +72,8 @@ export class CategoryLabelPipe implements PipeTransform {
             </div>
 
             <!-- Caption (after score) -->
-            @if (p.caption) {
-              <div class="text-xs italic text-[var(--facet-tooltip-text-muted)] mb-1.5 line-clamp-2 max-w-[300px]">{{ p.caption }}</div>
+            @if (p.caption_translated || p.caption) {
+              <div class="text-xs italic text-[var(--facet-tooltip-text-muted)] mb-1.5 line-clamp-2 max-w-[300px]">{{ p.caption_translated || p.caption }}</div>
             }
 
             <!-- Scoring sections: 2-col grid for landscape, stacked for portrait -->

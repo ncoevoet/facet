@@ -70,6 +70,7 @@ export interface Photo {
   is_rejected: boolean | null;
   similarity?: number;
   caption?: string;
+  caption_translated?: string;
   gps_latitude?: number;
   gps_longitude?: number;
 }

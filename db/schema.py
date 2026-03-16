@@ -108,6 +108,7 @@ PHOTOS_COLUMNS = [
 
     # AI captioning
     ('caption', 'TEXT'),
+    ('caption_translated', 'TEXT'),
 
     # GPS coordinates
     ('gps_latitude', 'REAL'),

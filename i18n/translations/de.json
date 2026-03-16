@@ -1593,6 +1593,7 @@
     "edit_caption": "Bearbeiten",
     "caption_edit_title": "Beschreibung bearbeiten",
     "caption_error": "Beschreibung konnte nicht generiert werden",
+    "translating_caption": "Übersetzen...",
     "location": "Standort"
   }
 }

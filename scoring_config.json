@@ -2245,6 +2245,9 @@
     "mode": "database",
     "filesystem_path": "./storage"
   },
+  "translation": {
+    "target_language": ""
+  },
   "performance": {
     "mmap_size_mb": 2048,
     "cache_size_mb": 128

@@ -128,8 +128,10 @@ import { createLeafletMap } from '../../shared/leaflet';
                 </div>
               }
             </div>
-            @if (p.caption) {
-              <p class="text-[var(--mat-sys-on-surface-variant)]">{{ p.caption }}</p>
+            @if (translatingCaption()) {
+              <p class="text-[var(--mat-sys-on-surface-variant)] opacity-60 italic text-xs">{{ 'photo_detail.translating_caption' | translate }}</p>
+            } @else if (displayCaption()) {
+              <p class="text-[var(--mat-sys-on-surface-variant)]">{{ displayCaption() }}</p>
             } @else {
               <p class="text-[var(--mat-sys-on-surface-variant)] opacity-40 italic text-xs">&mdash;</p>
             }
@@ -341,6 +343,9 @@ export class PhotoDetailComponent implements OnInit {
   protected readonly photo = signal<Photo | null>(null);
   protected readonly fullImageLoaded = signal(false);
   protected readonly generatingCaption = signal(false);
+  protected readonly translatingCaption = signal(false);
+  protected readonly translatedCaption = signal<string | null>(null);
+  protected readonly displayCaption = computed(() => this.translatedCaption() ?? this.photo()?.caption ?? null);
   protected readonly stars: readonly number[] = [1, 2, 3, 4, 5];
 
   // Location map
@@ -376,6 +381,32 @@ export class PhotoDetailComponent implements OnInit {
       L.marker([p.gps_latitude!, p.gps_longitude!]).addTo(map);
       this.locationMap = map;
     }, 0);
+  });
+
+  private readonly captionTranslationEffect = effect(() => {
+    const p = this.photo();
+    const locale = this.i18n.locale();
+    if (!p?.caption || locale === 'en') {
+      this.translatedCaption.set(null);
+      return;
+    }
+    // Use caption_translated from API response if already cached
+    if (p.caption_translated) {
+      this.translatedCaption.set(p.caption_translated);
+      return;
+    }
+    // Fetch translation on-demand
+    this.translatingCaption.set(true);
+    firstValueFrom(this.api.get<{ caption: string; lang?: string }>('/caption', { path: p.path, lang: locale }))
+      .then(res => {
+        if (res.lang) {
+          this.translatedCaption.set(res.caption);
+        } else {
+          this.translatedCaption.set(null);
+        }
+      })
+      .catch(() => this.translatedCaption.set(null))
+      .finally(() => this.translatingCaption.set(false));
   });
 
   constructor() {
@@ -470,7 +501,10 @@ export class PhotoDetailComponent implements OnInit {
     try {
       const res = await firstValueFrom(this.api.get<{ caption: string }>('/caption', { path }));
       const p = this.photo();
-      if (p) this.photo.set({ ...p, caption: res.caption });
+      if (p) {
+        this.translatedCaption.set(null);
+        this.photo.set({ ...p, caption: res.caption, caption_translated: undefined });
+      }
     } catch {
       this.snackBar.open(this.i18n.t('photo_detail.caption_error'), '', { duration: 3000 });
     } finally {
@@ -487,7 +521,8 @@ export class PhotoDetailComponent implements OnInit {
       });
       ref.afterClosed().subscribe(result => {
         if (result !== undefined) {
-          this.photo.set({ ...p, caption: result || null });
+          this.translatedCaption.set(null);
+          this.photo.set({ ...p, caption: result || null, caption_translated: undefined });
         }
       });
     });

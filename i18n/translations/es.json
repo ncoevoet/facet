@@ -1593,6 +1593,7 @@
     "edit_caption": "Editar",
     "caption_edit_title": "Editar leyenda",
     "caption_error": "Error al generar la leyenda",
+    "translating_caption": "Traduciendo...",
     "location": "Ubicación"
   }
 }

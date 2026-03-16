@@ -3,6 +3,7 @@ AI Caption router — on-demand photo captioning via VLM.
 
 Returns a cached caption from the DB if available, otherwise generates one
 using the VLM tagger (Qwen3-VL / Qwen2.5-VL) and stores it for future use.
+Optionally translates captions to a configured target language via MarianMT.
 """
 
 import logging
@@ -21,16 +22,27 @@ from api.model_cache import get_or_load_vlm_tagger
 router = APIRouter(tags=["caption"])
 logger = logging.getLogger(__name__)
 
+SUPPORTED_TRANSLATION_LANGS = {'fr', 'de', 'es', 'it'}
+
+
+def _get_target_language() -> str:
+    """Return the configured translation target language, or '' if disabled."""
+    return _FULL_CONFIG.get('translation', {}).get('target_language', '')
+
 
 @router.get("/api/caption")
 async def api_caption(
     path: str = Query(...),
+    lang: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Get an AI-generated caption for a photo.
 
     Returns a cached caption if available, otherwise generates one via VLM.
     Returns 503 if no cached caption exists and VLM is unavailable.
+
+    If ``lang`` matches the configured ``target_language``, returns the
+    translated caption (generating and caching it on-demand if needed).
     """
     if not VIEWER_CONFIG.get('features', {}).get('show_captions', False):
         raise HTTPException(status_code=403, detail="Caption feature is disabled")
@@ -49,13 +61,51 @@ async def api_caption(
         if not photo:
             raise HTTPException(status_code=404, detail="Photo not found")
 
-        # Check if caption column exists and return cached caption
         existing_cols = get_existing_columns(conn)
+
+        # Determine if we should return a translation
+        target_lang = _get_target_language()
+        wants_translation = (
+            lang
+            and lang != 'en'
+            and lang in SUPPORTED_TRANSLATION_LANGS
+            and lang == target_lang
+        )
+
+        # Check if caption column exists and return cached caption/translation
         if 'caption' in existing_cols:
+            cols_to_fetch = 'caption'
+            if wants_translation and 'caption_translated' in existing_cols:
+                cols_to_fetch = 'caption, caption_translated'
+
             row = conn.execute(
-                "SELECT caption FROM photos WHERE path = ?", [path]
+                f"SELECT {cols_to_fetch} FROM photos WHERE path = ?", [path]
             ).fetchone()
+
             if row and row['caption']:
+                # If translation requested and cached, return it
+                if wants_translation and 'caption_translated' in existing_cols:
+                    if row['caption_translated']:
+                        return {
+                            "caption": row['caption_translated'],
+                            "source": "cached",
+                            "lang": target_lang,
+                        }
+                    # Translate on-demand and cache
+                    translated = _translate_caption(row['caption'], target_lang)
+                    if translated:
+                        conn.execute(
+                            "UPDATE photos SET caption_translated = ? WHERE path = ?",
+                            [translated, path],
+                        )
+                        conn.commit()
+                        return {
+                            "caption": translated,
+                            "source": "translated",
+                            "lang": target_lang,
+                        }
+
+                # Return English caption
                 return {"caption": row['caption'], "source": "cached"}
 
         # Try to generate via VLM
@@ -73,6 +123,21 @@ async def api_caption(
                 [caption, path],
             )
             conn.commit()
+
+        # If translation requested, translate the freshly generated caption
+        if wants_translation:
+            translated = _translate_caption(caption, target_lang)
+            if translated and 'caption_translated' in existing_cols:
+                conn.execute(
+                    "UPDATE photos SET caption_translated = ? WHERE path = ?",
+                    [translated, path],
+                )
+                conn.commit()
+                return {
+                    "caption": translated,
+                    "source": "translated",
+                    "lang": target_lang,
+                }
 
         return {"caption": caption, "source": "generated"}
 
@@ -135,6 +200,21 @@ def _generate_caption(photo_path: str) -> Optional[str]:
         return None
 
 
+def _translate_caption(caption: str, target_lang: str) -> Optional[str]:
+    """Translate a caption to the target language using MarianMT.
+
+    Returns None if translation fails.
+    """
+    try:
+        from api.model_cache import get_or_load_caption_translator
+
+        translator = get_or_load_caption_translator(target_lang)
+        return translator.translate(caption)
+    except Exception:
+        logger.exception("Caption translation failed for lang=%s", target_lang)
+        return None
+
+
 class CaptionUpdate(BaseModel):
     path: str
     caption: str
@@ -145,7 +225,10 @@ async def api_update_caption(
     body: CaptionUpdate,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Update the caption for a photo (edition mode required)."""
+    """Update the caption for a photo (edition mode required).
+
+    Clears the cached translation so it gets regenerated on next request.
+    """
     conn = get_db_connection()
     try:
         existing_cols = get_existing_columns(conn)
@@ -162,10 +245,17 @@ async def api_update_caption(
         if not row:
             raise HTTPException(status_code=404, detail="Photo not found")
 
-        conn.execute(
-            f"UPDATE photos SET caption = ? WHERE path = ? AND {vis_sql}",
-            [body.caption or None, body.path] + vis_params,
-        )
+        # Clear translation when caption is manually edited
+        if 'caption_translated' in existing_cols:
+            conn.execute(
+                f"UPDATE photos SET caption = ?, caption_translated = NULL WHERE path = ? AND {vis_sql}",
+                [body.caption or None, body.path] + vis_params,
+            )
+        else:
+            conn.execute(
+                f"UPDATE photos SET caption = ? WHERE path = ? AND {vis_sql}",
+                [body.caption or None, body.path] + vis_params,
+            )
         conn.commit()
         return {"caption": body.caption, "source": "manual"}
     finally:

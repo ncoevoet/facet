@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from api.auth import CurrentUser, get_optional_user, require_authenticated
-from api.config import VIEWER_CONFIG, load_viewer_config
+from api.config import VIEWER_CONFIG, _FULL_CONFIG, load_viewer_config
 from api.database import get_db_connection
 from api.db_helpers import (
     get_existing_columns, get_cached_count, _add_tag_filter,
@@ -86,6 +86,9 @@ def _build_gallery_where(params, conn=None, user_id=None):
         existing_cols = get_existing_columns(conn)
         if 'caption' in existing_cols:
             search_clauses.append("caption LIKE ? ESCAPE '\\'")
+            search_params.append(f"%{escaped_term}%")
+        if 'caption_translated' in existing_cols:
+            search_clauses.append("caption_translated LIKE ? ESCAPE '\\'")
             search_params.append(f"%{escaped_term}%")
 
         where_clauses.append(f"({' OR '.join(search_clauses)})")
@@ -881,6 +884,7 @@ async def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         'features': features,
         'quality_thresholds': VIEWER_CONFIG['quality_thresholds'],
         'notification_duration_ms': VIEWER_CONFIG.get('notification_duration_ms', 2000),
+        'translation_target_language': _FULL_CONFIG.get('translation', {}).get('target_language', ''),
         'is_multi_user': is_multi_user_enabled(),
         'edition_enabled': is_edition_enabled(),
         'edition_authenticated': is_edition_authenticated(user),

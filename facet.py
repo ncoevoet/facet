@@ -240,6 +240,8 @@ Configuration:
     ai_group = parser.add_argument_group('AI features')
     ai_group.add_argument('--generate-captions', action='store_true',
                         help='Generate AI captions for photos without one (requires VLM)')
+    ai_group.add_argument('--translate-captions', action='store_true',
+                        help='Translate English captions to the configured target language (CPU, MarianMT)')
     ai_group.add_argument('--auto-albums', action='store_true',
                         help='Auto-generate albums from temporal and visual clustering')
     ai_group.add_argument('--extract-gps', action='store_true',
@@ -656,6 +658,62 @@ Configuration:
                     conn.commit()
             vlm.unload()
         logger.info("Caption generation complete.")
+        exit()
+
+    # Translate existing captions
+    if args.translate_captions:
+        from models.caption_translator import CaptionTranslator, LANG_MODELS
+        from tqdm import tqdm
+
+        config = ScoringConfig(args.config)
+        target_lang = config.raw_config.get('translation', {}).get('target_language', '')
+        if not target_lang:
+            logger.error("No target_language configured in scoring_config.json → translation section.")
+            sys.exit(1)
+        if target_lang not in LANG_MODELS:
+            logger.error("Unsupported target language: %r. Supported: %s",
+                         target_lang, ', '.join(sorted(LANG_MODELS)))
+            sys.exit(1)
+
+        with get_connection(args.db) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(photos)").fetchall()}
+            if 'caption' not in cols or 'caption_translated' not in cols:
+                print("Error: caption/caption_translated columns not found. "
+                      "Run 'python database.py' to migrate the schema first.")
+                sys.exit(1)
+
+            total = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE caption IS NOT NULL "
+                "AND caption != '' AND (caption_translated IS NULL OR caption_translated = '')"
+            ).fetchone()[0]
+            logger.info("Translating %d captions to %s ...", total, target_lang)
+
+            translator = CaptionTranslator(target_lang)
+            translator.load()
+
+            cursor = conn.execute(
+                "SELECT path, caption FROM photos WHERE caption IS NOT NULL "
+                "AND caption != '' AND (caption_translated IS NULL OR caption_translated = '')"
+            )
+            batch_size = 100
+            with tqdm(total=total, desc=f"Translating → {target_lang}") as pbar:
+                while True:
+                    rows = cursor.fetchmany(batch_size)
+                    if not rows:
+                        break
+                    for row in rows:
+                        try:
+                            translated = translator.translate(row['caption'])
+                            conn.execute(
+                                "UPDATE photos SET caption_translated = ? WHERE path = ?",
+                                (translated, row['path']),
+                            )
+                        except Exception as e:
+                            logger.warning("Translation failed for %s: %s", row['path'], e)
+                        pbar.update(1)
+                    conn.commit()
+            translator.unload()
+        logger.info("Caption translation complete.")
         exit()
 
     # Auto-generate albums

@@ -1593,6 +1593,7 @@
     "edit_caption": "Edit",
     "caption_edit_title": "Edit Caption",
     "caption_error": "Failed to generate caption",
+    "translating_caption": "Translating...",
     "location": "Location"
   }
 }
