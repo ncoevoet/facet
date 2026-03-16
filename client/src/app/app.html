@@ -263,6 +263,21 @@
         </mat-form-field>
       }
 
+      <!-- Capsule filters (visible only on capsules route, lg+) -->
+      @if (isCapsuleRoute()) {
+        <mat-form-field class="!hidden lg:!inline-flex w-44 ml-2" subscriptSizing="dynamic">
+          <mat-label>{{ 'capsules.date_from' | translate }}</mat-label>
+          <input matInput type="date" [value]="capsuleFilters.dateFrom()" (change)="onDateFilterChange(capsuleFilters, 'from', $event)" />
+        </mat-form-field>
+        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
+          <mat-label>{{ 'capsules.date_to' | translate }}</mat-label>
+          <input matInput type="date" [value]="capsuleFilters.dateTo()" (change)="onDateFilterChange(capsuleFilters, 'to', $event)" />
+        </mat-form-field>
+        <button class="!hidden lg:!inline-flex" mat-icon-button [matTooltip]="'capsules.regenerate' | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      }
+
       <!-- Persons search & sort (visible only on persons route, lg+) -->
       @if (auth.isAuthenticated() && isPersonsRoute()) {
         <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">

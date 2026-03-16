@@ -30,6 +30,7 @@ import { AlbumsFiltersService } from './features/albums/albums-filters.service';
 import { PersonsFiltersService } from './features/persons/persons-filters.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { MapFiltersService } from './features/map/map-filters.service';
+import { CapsuleFiltersService } from './features/capsules/capsule-filters.service';
 import { TranslatePipe } from './shared/pipes/translate.pipe';
 import { PersonThumbnailUrlPipe, ThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
 import { MemoriesDialogComponent } from './features/gallery/memories-dialog.component';
@@ -118,6 +119,7 @@ export class App implements OnInit {
   protected readonly personsFilters = inject(PersonsFiltersService);
   protected readonly compareFilters = inject(CompareFiltersService);
   protected readonly mapFilters = inject(MapFiltersService);
+  protected readonly capsuleFilters = inject(CapsuleFiltersService);
   protected readonly mobileSearchOpen = signal(false);
   protected readonly mobileAlbumsSearchOpen = signal(false);
   protected readonly mobilePersonsSearchOpen = signal(false);
@@ -145,6 +147,7 @@ export class App implements OnInit {
   protected readonly isAlbumsRoute = computed(() => this.url().split('?')[0] === '/albums');
   protected readonly isPersonsRoute = computed(() => this.url().split('?')[0] === '/persons');
   protected readonly isMapRoute = computed(() => this.url().split('?')[0] === '/map');
+  protected readonly isCapsuleRoute = computed(() => this.url().split('?')[0] === '/capsules');
 
   protected readonly sortGroups = computed(() => {
     const grouped = this.store.config()?.sort_options_grouped;
