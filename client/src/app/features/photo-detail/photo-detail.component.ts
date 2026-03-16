@@ -18,6 +18,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CategoryLabelPipe } from '../gallery/photo-tooltip.component';
+import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 
@@ -36,6 +37,7 @@ import { createLeafletMap } from '../../shared/leaflet';
     ThumbnailUrlPipe,
     PersonThumbnailUrlPipe,
     CategoryLabelPipe,
+    IsLensNamePipe,
   ],
   template: `
     @if (photo(); as p) {
@@ -261,7 +263,7 @@ import { createLeafletMap } from '../../shared/leaflet';
                 @if (p.camera_model) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.camera' | translate }}</span><span class="val truncate">{{ p.camera_model }}</span></div>
                 }
-                @if (p.lens_model) {
+                @if (p.lens_model && (p.lens_model | isLensName)) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.lens' | translate }}</span><span class="val truncate">{{ p.lens_model }}</span></div>
                 }
                 @if (p.focal_length) {
@@ -295,7 +297,8 @@ import { createLeafletMap } from '../../shared/leaflet';
               <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ 'photo_detail.tags' | translate }}</div>
               <div class="flex gap-1.5 flex-wrap">
                 @for (tag of p.tags_list; track tag) {
-                  <span class="px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs">{{ tag }}</span>
+                  <button class="px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                          (click)="navigateToGallery('tag', tag)">{{ tag }}</button>
                 }
               </div>
             </div>
@@ -307,14 +310,15 @@ import { createLeafletMap } from '../../shared/leaflet';
               <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ 'photo_detail.persons' | translate }}</div>
               <div class="flex gap-3 flex-wrap">
                 @for (person of p.persons; track person.id) {
-                  <div class="flex flex-col items-center gap-1">
+                  <button class="flex flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                          (click)="navigateToGallery('person_id', person.id)">
                     <img
                       [src]="person.id | personThumbnailUrl"
                       [alt]="person.name"
                       class="w-10 h-10 rounded-full object-cover bg-[var(--mat-sys-surface-container)]"
                     />
                     <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ person.name }}</span>
-                  </div>
+                  </button>
                 }
               </div>
             </div>
@@ -510,6 +514,10 @@ export class PhotoDetailComponent implements OnInit {
     } finally {
       this.generatingCaption.set(false);
     }
+  }
+
+  protected navigateToGallery(filter: string, value: string | number): void {
+    this.router.navigate(['/'], { queryParams: { [filter]: String(value) } });
   }
 
   protected editCaption(p: Photo): void {

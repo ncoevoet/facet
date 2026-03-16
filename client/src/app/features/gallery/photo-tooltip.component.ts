@@ -5,6 +5,7 @@ import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../shared/pipes/shutter-speed.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
 
 /** Replace underscores with spaces for display (e.g. "rule_of_thirds" → "Rule Of Thirds"). */
 @Pipe({ name: 'categoryLabel', standalone: true, pure: true })
@@ -18,7 +19,7 @@ export class CategoryLabelPipe implements PipeTransform {
 
 @Component({
   selector: 'app-photo-tooltip',
-  imports: [FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, CategoryLabelPipe],
+  imports: [FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, CategoryLabelPipe, IsLensNamePipe],
   template: `
     @if (photo(); as p) {
       <div
@@ -208,7 +209,7 @@ export class CategoryLabelPipe implements PipeTransform {
               @if (p.camera_model) {
                 <div class="flex justify-between gap-4"><span class="text-[var(--facet-tooltip-text-secondary)]">{{ 'tooltip.camera' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium truncate">{{ p.camera_model }}</span></div>
               }
-              @if (p.lens_model) {
+              @if (p.lens_model && (p.lens_model | isLensName)) {
                 <div class="flex justify-between gap-4"><span class="text-[var(--facet-tooltip-text-secondary)] shrink-0">{{ 'tooltip.lens' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium truncate">{{ p.lens_model }}</span></div>
               }
               @if (p.focal_length) {
