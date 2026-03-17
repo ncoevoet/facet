@@ -46,6 +46,9 @@ exifread>=3.0.0
 # System Monitoring (for batch processing auto-tuning)
 psutil>=5.9.0
 
+# Reverse Geocoding (offline, local GeoNames dataset ~30MB)
+reverse_geocoder>=1.5.1
+
 # Subject Saliency: BiRefNet loaded via transformers (see above)
 
 # GPU Face Clustering (optional, requires conda + CUDA)

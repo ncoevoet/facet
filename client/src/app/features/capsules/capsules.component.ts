@@ -90,7 +90,8 @@ interface CapsulesResponse {
             <div class="flex-1 min-w-0">
               <div class="font-medium text-sm truncate">{{ capsule.title_key | translate:capsule.title_params }}</div>
               <div class="flex items-center gap-1 text-xs opacity-60">
-                <mat-icon class="!text-xs !w-3 !h-3 !leading-3 inline-flex">{{ capsule.icon }}</mat-icon>
+                <mat-icon class="!text-xs !w-3 !h-3 !leading-3 inline-flex"
+                          [matTooltip]="'capsules.type_' + capsule.type | translate">{{ capsule.icon }}</mat-icon>
                 <span>{{ capsule.photo_count }}</span>
               </div>
             </div>
@@ -125,8 +126,11 @@ interface CapsulesResponse {
         [photos]="slideshowPhotos()"
         [hasMore]="false"
         [loading]="slideshowLoading()"
+        [initialSlideIndex]="slideshowStartIndex()"
+        [transitionType]="currentTransition()"
         (closed)="closeSlideshow()"
         (wrapped)="onSlideshowWrapped()"
+        (slideIndexChanged)="onSlideIndexChanged($event)"
       />
     }
 
@@ -164,6 +168,25 @@ export class CapsulesComponent implements OnDestroy {
   protected readonly slideshowLoading = signal(false);
   protected readonly transitionVisible = signal(false);
   protected readonly nextCapsulePreview = signal<Capsule | null>(null);
+  protected readonly slideshowStartIndex = signal(0);
+  protected readonly currentTransition = signal<'crossfade' | 'slide' | 'zoom' | 'kenburns'>('crossfade');
+
+  private readonly typeTransitions: Record<string, 'crossfade' | 'slide' | 'zoom' | 'kenburns'> = {
+    journey: 'slide',
+    location: 'slide',
+    faces_of: 'zoom',
+    golden: 'kenburns',
+    seasonal: 'kenburns',
+    color_story: 'zoom',
+    this_week: 'slide',
+    star_rating: 'kenburns',
+    favorites: 'kenburns',
+  };
+
+  // Per-capsule shuffle + resume state
+  private capsuleShuffledPhotos = new Map<string, Photo[]>();
+  private capsuleResumeIndex = new Map<string, number>();
+  private currentPlayingCapsuleId = '';
 
   private shuffledOrder: Capsule[] = [];
   private currentCapsuleIndex = 0;
@@ -241,15 +264,32 @@ export class CapsulesComponent implements OnDestroy {
   }
 
   private async loadAndStartCapsule(capsule: Capsule): Promise<void> {
+    this.currentPlayingCapsuleId = capsule.id;
+    this.currentTransition.set(this.typeTransitions[capsule.type] ?? 'crossfade');
     this.slideshowLoading.set(true);
     this.slideshowActive.set(true);
+
+    // Resume from cached shuffled photos if available
+    const existing = this.capsuleShuffledPhotos.get(capsule.id);
+    if (existing) {
+      this.slideshowStartIndex.set(this.capsuleResumeIndex.get(capsule.id) ?? 0);
+      this.slideshowPhotos.set(existing);
+      this.slideshowLoading.set(false);
+      return;
+    }
 
     try {
       const res = await firstValueFrom(
         this.api.get<{ photos: Photo[]; capsule: Capsule }>(`/capsules/${capsule.id}/photos`),
       );
       if (this.destroyed) return;
-      this.slideshowPhotos.set(res.photos);
+
+      // Shuffle photos for playback variety
+      const shuffled = [...res.photos];
+      this.shuffleArray(shuffled);
+      this.capsuleShuffledPhotos.set(capsule.id, shuffled);
+      this.slideshowStartIndex.set(0);
+      this.slideshowPhotos.set(shuffled);
     } catch {
       this.slideshowPhotos.set([]);
     } finally {
@@ -275,6 +315,12 @@ export class CapsulesComponent implements OnDestroy {
       );
     } finally {
       this.savingAlbum.set(false);
+    }
+  }
+
+  protected onSlideIndexChanged(index: number): void {
+    if (this.currentPlayingCapsuleId) {
+      this.capsuleResumeIndex.set(this.currentPlayingCapsuleId, index);
     }
   }
 
@@ -327,7 +373,7 @@ export class CapsulesComponent implements OnDestroy {
 
   /** Resolve i18n-dependent title params (e.g. translate season names). */
   private resolveParams(capsule: Capsule): Capsule {
-    if (capsule.type === 'seasonal' && capsule.title_params['season']) {
+    if ((capsule.type === 'seasonal' || capsule.type === 'favorites') && capsule.title_params['season']) {
       const seasonKey = 'capsules.season_' + capsule.title_params['season'];
       return {
         ...capsule,

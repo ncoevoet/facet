@@ -49,6 +49,27 @@ async def lifespan(app: FastAPI):
     get_existing_columns()
     is_photo_tags_available()
     backfill_image_dimensions()
+
+    # Pre-compute capsules in a background thread so first visitor gets instant results
+    from api.config import _FULL_CONFIG
+    if _FULL_CONFIG.get("viewer", {}).get("features", {}).get("show_capsules", True):
+        import threading
+        def _precompute_capsules():
+            try:
+                from api.database import get_db_connection
+                from api.routers.capsules import _set_cached_capsules
+                from analyzers.capsule_generator import generate_all_capsules
+                conn = get_db_connection()
+                try:
+                    capsules = generate_all_capsules(conn, config=_FULL_CONFIG)
+                    _set_cached_capsules(None, capsules)
+                    logger.info("Pre-computed %d capsules on startup", len(capsules))
+                finally:
+                    conn.close()
+            except Exception:
+                logger.warning("Failed to pre-compute capsules", exc_info=True)
+        threading.Thread(target=_precompute_capsules, daemon=True).start()
+
     logger.info("Facet API ready")
     yield
     # Shutdown: clean up plugin thread pool

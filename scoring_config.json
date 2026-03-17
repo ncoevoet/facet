@@ -1845,6 +1845,10 @@
 "capsules": {
     "min_aggregate": 6.0,
     "max_photos_per_capsule": 40,
+    "max_photo_overlap": 0.2,
+    "mmr_lambda": 0.5,
+    "freshness_hours": 24,
+    "reverse_geocoding": true,
     "journey": {
       "min_distance_km": 50,
       "min_photos": 8,
@@ -1882,7 +1886,7 @@
       "min_photos": 15
     },
     "seeded": {
-      "num_seeds": 20,
+      "num_seeds": 10,
       "min_photos": 8,
       "seed_lifetime_minutes": 1440,
       "time_window_days": 7,
@@ -2290,7 +2294,7 @@
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
     "path_mapping": {
-
+		"\\\\Sweet\\home\\Photos": "/nfs/temp-share/Photos"
 	}
   },
   "plugins": {

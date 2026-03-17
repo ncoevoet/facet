@@ -321,6 +321,16 @@ ALBUM_INDEXES = [
 ]
 
 # Per-user preferences for multi-user mode (ratings, favorites, rejected flags)
+# Reverse geocoding cache — grid-cell to place name mapping
+LOCATION_NAMES_COLUMNS = [
+    ('lat_grid', 'REAL NOT NULL'),
+    ('lon_grid', 'REAL NOT NULL'),
+    ('city', 'TEXT'),
+    ('region', 'TEXT'),
+    ('country', 'TEXT'),
+    ('display_name', 'TEXT'),
+]
+
 USER_PREFERENCES_COLUMNS = [
     ('user_id', 'TEXT NOT NULL'),
     ('photo_path', 'TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE'),
@@ -458,6 +468,13 @@ def init_database(db_path='photo_scores_pro.db'):
             constraints=['UNIQUE(album_id, photo_path)']
         ))
         _migrate_add_missing_columns(conn, 'album_photos', ALBUM_PHOTOS_COLUMNS)
+
+        # Create location_names cache table for reverse geocoding
+        conn.execute(_build_create_table_sql(
+            'location_names',
+            LOCATION_NAMES_COLUMNS,
+            constraints=['PRIMARY KEY (lat_grid, lon_grid)']
+        ))
 
         # Create user_preferences table for per-user ratings in multi-user mode
         conn.execute(_build_create_table_sql(

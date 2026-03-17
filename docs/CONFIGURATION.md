@@ -30,6 +30,7 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Performance](#performance)
 - [Storage](#storage)
 - [Plugins](#plugins)
+- [Capsules](#capsules)
 - [Similarity Groups](#similarity-groups)
 
 ---
@@ -1355,6 +1356,114 @@ Webhook options: `url` (required), `events` (list of event names), `min_score` (
 | `POST` | `/api/plugins/test-webhook` | Send a test payload to a webhook URL |
 
 ---
+
+## Capsules
+
+Curated photo diaporamas (slideshows) grouped by theme. Capsules are auto-generated from your photo library and cached with a configurable TTL.
+
+```json
+{
+  "capsules": {
+    "min_aggregate": 6.0,
+    "max_photos_per_capsule": 40,
+    "max_photo_overlap": 0.2,
+    "mmr_lambda": 0.5,
+    "freshness_hours": 24,
+    "reverse_geocoding": true,
+    "journey": {
+      "min_distance_km": 50,
+      "min_photos": 8,
+      "time_gap_hours": 24
+    },
+    "faces_of": { "min_photos": 10 },
+    "seasonal": { "min_photos": 10 },
+    "golden": { "percentile": 99, "max_photos": 50 },
+    "color_story": { "embedding_threshold": 0.75, "min_group_size": 8, "max_groups": 5 },
+    "this_week_years_ago": { "min_photos_per_year": 3 },
+    "seeded": {
+      "num_seeds": 20,
+      "min_photos": 8,
+      "seed_lifetime_minutes": 1440,
+      "time_window_days": 7,
+      "embedding_threshold": 0.7,
+      "location_radius_km": 30
+    },
+    "progress": { "min_improvement_pct": 5, "min_photos": 10, "period_months": 3 },
+    "color_palette": { "min_photos": 8 },
+    "rare_pair": { "max_shared_photos": 5, "min_score": 7.0, "min_photos": 3 },
+    "favorites": { "min_photos": 5 }
+  }
+}
+```
+
+### Global Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `min_aggregate` | `6.0` | Minimum aggregate score for photos to be included in capsules |
+| `max_photos_per_capsule` | `40` | Maximum photos per capsule (MMR diversity applied above 5) |
+| `max_photo_overlap` | `0.2` | Maximum fraction of shared photos between two capsules before dedup removes one |
+| `mmr_lambda` | `0.5` | MMR diversity weight: 0=maximize diversity, 1=maximize quality |
+| `freshness_hours` | `24` | Cache TTL and rotation period for cover photos and seeded capsules |
+| `reverse_geocoding` | `true` | Enable offline reverse geocoding for location/journey capsule titles (requires `reverse_geocoder` package) |
+
+### Capsule Types
+
+| Type | Description |
+|------|-------------|
+| `journey` | Trips detected via GPS clustering + temporal gaps. Titles include destination name when geocoding is enabled. |
+| `faces_of` | Best photos of each recognized person |
+| `seasonal` | Photos grouped by season + year |
+| `golden` | Top 1% by aggregate score |
+| `color_story` | Visually similar groups via CLIP embedding clustering |
+| `this_week` | "This Week, Years Ago" — extended On This Day across ±3 days |
+| `location` | Geotagged photo clusters with reverse-geocoded place names |
+| `person_pair` | Pairs of named persons appearing together |
+| `seeded` | Seed-based discovery via time, similarity, person, tag, location, mood |
+| `progress` | "Your Photography is Improving" from quarterly score trends |
+| `color_palette` | "Color of the Month" from saturation/monochrome profiles |
+| `rare_pair` | Infrequent person pairs in high-scoring photos |
+| `favorites` | Favorited photos grouped by year and season |
+
+### Dimension-Based Capsules
+
+Automatically generated from database columns:
+
+| Dimension | Groups By |
+|-----------|-----------|
+| `year` | Year extracted from date_taken |
+| `month` | Year-month extracted from date_taken |
+| `week` | Year-week extracted from date_taken |
+| `camera` | Camera model |
+| `lens` | Lens model |
+| `tag` | Photo tags (requires `photo_tags` table) |
+| `day_of_week` | Day of week (Sunday–Saturday) |
+| `composition` | SAMP-Net composition pattern (rule_of_thirds, horizontal, etc.) |
+| `focal_range` | Focal length bins: ultra wide (<24mm), wide (24–35mm), standard (36–70mm), portrait (71–135mm), telephoto (136–300mm), super telephoto (300mm+) |
+| `category` | Photo content category (portrait, landscape, street, etc.) |
+| `time_of_day` | Time bins: golden morning, morning, midday, afternoon, golden evening, night |
+| `star_rating` | User star ratings (1–5 stars) |
+
+Cross-dimensional combos are also generated (e.g., camera × year, focal_range × category, category × year).
+
+### Slideshow Transitions
+
+Each capsule type maps to a themed slide transition:
+
+| Transition | Used By | Effect |
+|-----------|---------|--------|
+| `crossfade` | Default | 300ms opacity swap |
+| `slide` | journey, location, this_week | Slide in from right (500ms) |
+| `zoom` | faces_of, color_story | Scale 1.05→1.0 with fade (400ms) |
+| `kenburns` | golden, seasonal, star_rating, favorites | Slow zoom 1.0→1.08 over slide duration |
+
+### Reverse Geocoding
+
+Location and journey capsules use offline reverse geocoding via the `reverse_geocoder` package (local GeoNames dataset, ~30MB, no API calls). Results are cached in the `location_names` database table at 0.1° grid resolution (~11km).
+
+Install: `pip install reverse_geocoder`
+
+Set `"reverse_geocoding": false` to disable and fall back to coordinate display.
 
 ## Similarity Groups
 

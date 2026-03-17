@@ -66,9 +66,10 @@ interface Slide {
       <div class="flex-1 overflow-hidden relative">
         <!-- Layer A -->
         <div
-          class="absolute inset-0 flex gap-0.5"
-          style="transition: opacity 300ms ease"
+          class="absolute inset-0 flex gap-0.5 overflow-hidden"
+          [style.transition]="layerTransitionStyle()"
           [style.opacity]="layerAOpacity()"
+          [style.transform]="layerATransform()"
           [style.z-index]="frontLayer() === 'a' ? 1 : 0"
         >
           @if (layerASlide(); as slide) {
@@ -85,9 +86,10 @@ interface Slide {
 
         <!-- Layer B -->
         <div
-          class="absolute inset-0 flex gap-0.5"
-          style="transition: opacity 300ms ease"
+          class="absolute inset-0 flex gap-0.5 overflow-hidden"
+          [style.transition]="layerTransitionStyle()"
           [style.opacity]="layerBOpacity()"
+          [style.transform]="layerBTransform()"
           [style.z-index]="frontLayer() === 'b' ? 1 : 0"
         >
           @if (layerBSlide(); as slide) {
@@ -174,11 +176,15 @@ export class SlideshowComponent implements OnDestroy {
   readonly photos = input<Photo[]>([]);
   readonly hasMore = input<boolean>(false);
   readonly loading = input<boolean>(false);
+  readonly initialSlideIndex = input<number>(0);
+  readonly transitionType = input<'crossfade' | 'slide' | 'zoom' | 'kenburns'>('crossfade');
 
   /** Emitted when the slideshow requests closing. */
   readonly closed = output<void>();
   /** Emitted when the slideshow wraps around (all slides exhausted). */
   readonly wrapped = output<void>();
+  /** Emitted when the current slide index changes (for resume tracking). */
+  readonly slideIndexChanged = output<number>();
 
   private readonly container = viewChild.required<ElementRef<HTMLElement>>('slideshowContainer');
 
@@ -236,12 +242,24 @@ export class SlideshowComponent implements OnDestroy {
     return { start: start + 1, end: start + count, total: this.photos().length };
   });
 
-  // Two-layer crossfade
+  // Two-layer crossfade + transitions
   readonly layerASlide = signal<Slide | null>(null);
   readonly layerBSlide = signal<Slide | null>(null);
   readonly layerAOpacity = signal(1);
   readonly layerBOpacity = signal(0);
+  readonly layerATransform = signal('none');
+  readonly layerBTransform = signal('none');
   readonly frontLayer = signal<'a' | 'b'>('a');
+
+  /** CSS transition string for layers, derived from transitionType. */
+  readonly layerTransitionStyle = computed(() => {
+    const t = this.transitionType();
+    const dur = this.slideDuration();
+    if (t === 'slide') return 'transform 500ms ease, opacity 300ms ease';
+    if (t === 'zoom') return 'transform 500ms ease, opacity 400ms ease';
+    if (t === 'kenburns') return `transform ${dur}s ease-out, opacity 300ms ease`;
+    return 'opacity 300ms ease';
+  });
 
   // Playback state
   readonly isPlaying = signal(true);
@@ -266,19 +284,27 @@ export class SlideshowComponent implements OnDestroy {
   constructor() {
     // Watch for slides to become available (handles async photo loading)
     effect(() => {
-      const firstSlide = this.slides()[0];
-      if (firstSlide && !untracked(() => this.layerASlide()) && !untracked(() => this.layerBSlide())) {
-        this.layerASlide.set(firstSlide);
+      const slides = this.slides();
+      if (slides.length > 0 && !untracked(() => this.layerASlide()) && !untracked(() => this.layerBSlide())) {
+        const startIdx = untracked(() => this.initialSlideIndex());
+        const idx = startIdx < slides.length ? startIdx : 0;
+        const slide = slides[idx];
+        untracked(() => this.currentSlideIndex.set(idx));
+        this.layerASlide.set(slide);
         this.layerAOpacity.set(1);
         this.frontLayer.set('a');
       }
     });
 
     afterNextRender(() => {
-      // Show first slide immediately in layer A (if already available)
-      const firstSlide = this.slides()[0];
-      if (firstSlide) {
-        this.layerASlide.set(firstSlide);
+      // Show initial slide immediately in layer A (if already available)
+      const slides = this.slides();
+      const startIdx = this.initialSlideIndex();
+      const idx = startIdx < slides.length ? startIdx : 0;
+      const slide = slides[idx];
+      if (slide) {
+        this.currentSlideIndex.set(idx);
+        this.layerASlide.set(slide);
         this.layerAOpacity.set(1);
         this.frontLayer.set('a');
       }
@@ -305,6 +331,9 @@ export class SlideshowComponent implements OnDestroy {
     this.clearHideControlsTimer();
     if (this.crossfadeTimer) {
       clearTimeout(this.crossfadeTimer);
+    }
+    if (this.kenburnsTimer) {
+      clearTimeout(this.kenburnsTimer);
     }
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
@@ -417,6 +446,7 @@ export class SlideshowComponent implements OnDestroy {
 
     Promise.all(preloadPromises).then(() => {
       this.currentSlideIndex.set(slideIndex);
+      this.slideIndexChanged.emit(slideIndex);
       this.crossfadeTo(slide).then(() => {
         if (this.isPlaying()) this.startInterval();
       });
@@ -429,32 +459,75 @@ export class SlideshowComponent implements OnDestroy {
       clearTimeout(this.crossfadeTimer);
       this.crossfadeTimer = null;
     }
+    if (this.kenburnsTimer) {
+      clearTimeout(this.kenburnsTimer);
+      this.kenburnsTimer = null;
+    }
 
     return new Promise<void>((resolve) => {
       const isAFront = this.frontLayer() === 'a';
       const standbySlide = isAFront ? this.layerBSlide : this.layerASlide;
       const standbyOpacity = isAFront ? this.layerBOpacity : this.layerAOpacity;
+      const standbyTransform = isAFront ? this.layerBTransform : this.layerATransform;
       const activeOpacity = isAFront ? this.layerAOpacity : this.layerBOpacity;
+      const activeTransform = isAFront ? this.layerATransform : this.layerBTransform;
       const newFront: 'a' | 'b' = isAFront ? 'b' : 'a';
+
+      const transition = this.transitionType();
+
+      // Position standby layer off-screen / scaled before showing
+      if (transition === 'slide') {
+        standbyTransform.set('translateX(100%)');
+      } else if (transition === 'zoom') {
+        standbyTransform.set('scale(1.05)');
+      } else if (transition === 'kenburns') {
+        standbyTransform.set('scale(1.0)');
+      } else {
+        standbyTransform.set('none');
+      }
 
       // Load slide into standby layer (invisible)
       standbySlide.set(slide);
       standbyOpacity.set(0);
       this.frontLayer.set(newFront);
 
-      // Wait for DOM paint, then fade in
+      const transitionDuration = transition === 'slide' ? 500 : transition === 'zoom' ? 400 : 300;
+
+      // Wait for DOM paint, then animate in
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           standbyOpacity.set(1);
+
+          if (transition === 'slide') {
+            standbyTransform.set('translateX(0)');
+            activeTransform.set('translateX(-100%)');
+          } else if (transition === 'zoom') {
+            standbyTransform.set('scale(1.0)');
+          } else if (transition === 'kenburns') {
+            standbyTransform.set('scale(1.0)');
+          }
+
           this.crossfadeTimer = setTimeout(() => {
             activeOpacity.set(0);
+            // Reset active layer transform for next use
+            activeTransform.set('none');
             this.crossfadeTimer = null;
+
+            // Start Ken Burns slow zoom on the new front layer
+            if (transition === 'kenburns') {
+              this.kenburnsTimer = setTimeout(() => {
+                standbyTransform.set('scale(1.08)');
+              }, 50);
+            }
+
             resolve();
-          }, 300);
+          }, transitionDuration);
         });
       });
     });
   }
+
+  private kenburnsTimer: ReturnType<typeof setTimeout> | null = null;
 
   private startInterval(): void {
     this.clearTimerInterval();

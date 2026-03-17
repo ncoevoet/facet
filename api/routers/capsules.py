@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["capsules"])
 
-# Per-(user, date_from, date_to) cache for full capsule list, regenerated at most once per hour
+# Per-(user, date_from, date_to) cache for full capsule list
 _capsule_cache: dict[tuple, dict] = {}
-_CACHE_TTL = 3600  # 1 hour
+_CACHE_TTL = _FULL_CONFIG.get("capsules", {}).get("freshness_hours", 24) * 3600
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -57,6 +57,13 @@ def _get_cached_capsules(user_id, refresh=False, date_from="", date_to=""):
 
     if not refresh and entry and (now - entry["ts"]) < _CACHE_TTL:
         return entry["data"], True
+
+    # Fall back to the startup precomputed cache (user_id=None, no date filters)
+    # when no user-specific cache exists yet
+    if not refresh and user_id is not None and not date_from and not date_to:
+        fallback = _capsule_cache.get(_cache_key(None))
+        if fallback and (now - fallback["ts"]) < _CACHE_TTL:
+            return fallback["data"], True
 
     return None, False
 

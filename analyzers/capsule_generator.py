@@ -95,6 +95,165 @@ def _count_tags(photos):
     return tag_counts
 
 
+def _pick_cover_photo(paths, capsule_id, top_n=5, freshness_seconds=86400):
+    """Pick a cover photo from top candidates with configurable rotation."""
+    if not paths:
+        return ""
+    candidates = paths[:min(top_n, len(paths))]
+    rotation_seed = int(time.time() // freshness_seconds)
+    rng = random.Random(f"{rotation_seed}:{capsule_id}")
+    return rng.choice(candidates)
+
+
+def _init_geocode_cache(conn):
+    """Ensure location_names table exists (for databases not yet migrated)."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS location_names (
+        lat_grid REAL NOT NULL,
+        lon_grid REAL NOT NULL,
+        city TEXT,
+        region TEXT,
+        country TEXT,
+        display_name TEXT,
+        PRIMARY KEY (lat_grid, lon_grid)
+    )""")
+
+
+def _geocode_grid(conn, lat, lon, grid_resolution=0.1):
+    """Look up or compute a place name for a grid cell. Caches in location_names table.
+
+    Args:
+        conn: SQLite connection
+        lat: Latitude
+        lon: Longitude
+        grid_resolution: Grid cell size in degrees (~11km at 0.1°)
+
+    Returns:
+        str: Display name like "Paris, France" or "" if unavailable
+    """
+    lat_grid = round(lat / grid_resolution) * grid_resolution
+    lon_grid = round(lon / grid_resolution) * grid_resolution
+
+    # Check cache first
+    row = conn.execute(
+        "SELECT display_name FROM location_names WHERE lat_grid = ? AND lon_grid = ?",
+        [lat_grid, lon_grid],
+    ).fetchone()
+    if row:
+        return row["display_name"] or ""
+
+    # Compute and cache
+    try:
+        from analyzers.reverse_geocode import reverse_geocode
+        name = reverse_geocode(lat_grid, lon_grid)
+    except (ImportError, Exception):
+        name = ""
+
+    try:
+        conn.execute(
+            "INSERT OR IGNORE INTO location_names (lat_grid, lon_grid, display_name) VALUES (?, ?, ?)",
+            [lat_grid, lon_grid, name],
+        )
+        conn.commit()
+    except Exception:
+        pass  # Cache write failure is non-fatal
+
+    return name
+
+
+def _geocode_centroid(conn, photos):
+    """Compute centroid of GPS coordinates and return a place name.
+
+    Args:
+        conn: SQLite connection
+        photos: List of rows with gps_latitude/gps_longitude
+
+    Returns:
+        str: Place name for the centroid, or ""
+    """
+    lats = [p["gps_latitude"] for p in photos if p["gps_latitude"] is not None]
+    lons = [p["gps_longitude"] for p in photos if p["gps_longitude"] is not None]
+    if not lats:
+        return ""
+    return _geocode_grid(conn, sum(lats) / len(lats), sum(lons) / len(lons))
+
+
+def _mmr_select(conn, paths, max_photos, lambda_weight=0.5):
+    """Select diverse photos using Maximal Marginal Relevance.
+
+    MMR = λ * quality - (1-λ) * max_cosine_sim(candidate, selected_set)
+    Starts with the highest-quality photo, then greedily adds the best MMR candidate.
+    """
+    if len(paths) <= max_photos:
+        return paths
+
+    placeholders = ",".join(["?"] * len(paths))
+    rows = conn.execute(
+        f"SELECT path, clip_embedding, aggregate FROM photos WHERE path IN ({placeholders})",
+        paths,
+    ).fetchall()
+
+    path_data = {r["path"]: r for r in rows}
+
+    emb_paths = []
+    emb_list = []
+    scores = []
+    no_emb_paths = []
+
+    for p in paths:
+        data = path_data.get(p)
+        if data and data["clip_embedding"]:
+            emb = bytes_to_normalized_embedding(data["clip_embedding"])
+            if emb is not None:
+                emb_paths.append(p)
+                emb_list.append(emb)
+                scores.append(data["aggregate"] or 0)
+                continue
+        no_emb_paths.append(p)
+
+    if not emb_list:
+        return paths[:max_photos]
+
+    emb_matrix = np.stack(emb_list)
+
+    min_score = min(scores)
+    max_score = max(scores)
+    score_range = max_score - min_score if max_score > min_score else 1.0
+    norm_scores = [(s - min_score) / score_range for s in scores]
+
+    n_select = min(max_photos, len(emb_paths))
+    selected_indices = []
+    remaining = set(range(len(emb_paths)))
+
+    # Start with highest quality
+    best_idx = max(remaining, key=lambda i: norm_scores[i])
+    selected_indices.append(best_idx)
+    remaining.discard(best_idx)
+
+    while len(selected_indices) < n_select and remaining:
+        selected_embs = emb_matrix[selected_indices]
+        best_mmr = -float('inf')
+        best_candidate = None
+
+        for i in remaining:
+            quality = norm_scores[i]
+            sims = emb_matrix[i] @ selected_embs.T
+            max_sim = float(np.max(sims))
+            mmr = lambda_weight * quality - (1 - lambda_weight) * max_sim
+            if mmr > best_mmr:
+                best_mmr = mmr
+                best_candidate = i
+
+        if best_candidate is not None:
+            selected_indices.append(best_candidate)
+            remaining.discard(best_candidate)
+        else:
+            break
+
+    result = [emb_paths[i] for i in selected_indices]
+    result.extend(no_emb_paths[:max_photos - len(result)])
+    return result
+
+
 def generate_all_capsules(conn, config=None, user_id=None, date_from=None, date_to=None):
     """Generate all capsule types and return a combined list.
 
@@ -114,19 +273,41 @@ def generate_all_capsules(conn, config=None, user_id=None, date_from=None, date_
     capsule_config = config.get("capsules", {})
     min_aggregate = capsule_config.get("min_aggregate", 6.0)
 
-    from api.db_helpers import get_visibility_clause, to_exif_date
+    # Initialize geocoding cache if enabled
+    if capsule_config.get("reverse_geocoding", True):
+        _init_geocode_cache(conn)
+
+    from api.db_helpers import get_visibility_clause, to_exif_date, HIDE_BURSTS_SQL, HIDE_DUPLICATES_SQL
     vis_sql, vis_params = get_visibility_clause(user_id)
     vis_params = list(vis_params)
+    vis_sql += f" AND {HIDE_BURSTS_SQL} AND {HIDE_DUPLICATES_SQL}"
     if date_from:
         vis_sql += " AND date_taken >= ?"
         vis_params.append(to_exif_date(date_from))
     if date_to:
         vis_sql += " AND date_taken <= ?"
         vis_params.append(to_exif_date(date_to) + " 23:59:59")
-    vis = (vis_sql, tuple(vis_params))
+    vis = (vis_sql, vis_params)
 
     capsules = []
     seen_ids = set()
+
+    # Map generator function names to config keys for enable/disable
+    _GEN_CONFIG_KEYS = {
+        "_generate_journeys": "journey",
+        "_generate_faces_of": "faces_of",
+        "_generate_seasonal": "seasonal",
+        "_generate_golden": "golden",
+        "_generate_color_story": "color_story",
+        "_generate_this_week": "this_week_years_ago",
+        "_generate_location": "location",
+        "_generate_person_pairs": "person_pairs",
+        "_generate_seeded": "seeded",
+        "_generate_progress": "progress",
+        "_generate_color_palette": "color_palette",
+        "_generate_rare_pairs": "rare_pair",
+        "_generate_favorites_by_period": "favorites",
+    }
 
     # Specialized generators (unique algorithms)
     generators = [
@@ -142,9 +323,17 @@ def generate_all_capsules(conn, config=None, user_id=None, date_from=None, date_
         _generate_progress,
         _generate_color_palette,
         _generate_rare_pairs,
+        _generate_favorites_by_period,
     ]
 
+    disabled = set(capsule_config.get("disabled_generators", []))
+
     for gen in generators:
+        cfg_key = _GEN_CONFIG_KEYS.get(gen.__name__, "")
+        if cfg_key in disabled:
+            logger.debug("Skipping disabled generator: %s", gen.__name__)
+            continue
+        t0 = time.time()
         try:
             for c in gen(conn, capsule_config, min_aggregate, vis, user_id):
                 if c["id"] not in seen_ids:
@@ -152,18 +341,37 @@ def generate_all_capsules(conn, config=None, user_id=None, date_from=None, date_
                     capsules.append(c)
         except Exception:
             logger.exception("Failed to generate capsules from %s", gen.__name__)
+        elapsed = time.time() - t0
+        logger.info("  %s: %d capsules in %.1fs", gen.__name__, len(capsules), elapsed)
 
     # Generic dimension-based capsules (single + cross-dimensional)
-    try:
-        for c in _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_id):
-            if c["id"] not in seen_ids:
-                seen_ids.add(c["id"])
-                capsules.append(c)
-    except Exception:
-        logger.exception("Failed to generate dimension capsules")
+    if "dimensions" not in disabled:
+        t0 = time.time()
+        try:
+            for c in _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_id):
+                if c["id"] not in seen_ids:
+                    seen_ids.add(c["id"])
+                    capsules.append(c)
+        except Exception:
+            logger.exception("Failed to generate dimension capsules")
+        logger.info("  _generate_dimension_capsules: %d total in %.1fs", len(capsules), time.time() - t0)
 
-    # Global dedup: remove capsules whose photos overlap >60% with a prior capsule
-    max_overlap = capsule_config.get("max_photo_overlap", 0.6)
+    # Apply MMR diversity to each capsule's photos
+    t0 = time.time()
+    max_photos = capsule_config.get("max_photos_per_capsule", 40)
+    mmr_lambda = capsule_config.get("mmr_lambda", 0.5)
+    freshness_seconds = capsule_config.get("freshness_hours", 24) * 3600
+    for c in capsules:
+        paths = c.get("params", {}).get("paths", [])
+        if len(paths) > 5:
+            c["params"]["paths"] = _mmr_select(conn, paths, max_photos, mmr_lambda)
+            c["photo_count"] = len(c["params"]["paths"])
+            c["cover_photo_path"] = _pick_cover_photo(c["params"]["paths"], c["id"],
+                                                       freshness_seconds=freshness_seconds)
+    logger.info("  MMR diversity pass: %.1fs for %d capsules", time.time() - t0, len(capsules))
+
+    # Global dedup: remove capsules whose photos overlap >80% unique with a prior capsule
+    max_overlap = capsule_config.get("max_photo_overlap", 0.2)
     capsules = _deduplicate_capsules(capsules, max_overlap)
 
     # Sort: interleave types, prioritize specialized generators over dimension combos
@@ -177,7 +385,9 @@ _TYPE_PRIORITY = {
     "journey": 0, "faces_of": 0, "golden": 0, "this_week": 0,
     "seeded": 1, "person_pair": 1, "rare_pair": 1, "color_story": 1,
     "progress": 1, "color_palette": 1, "location": 1,
-    "seasonal": 2, "year": 2, "month": 3, "camera": 3, "lens": 3,
+    "seasonal": 2, "year": 2, "category": 2, "star_rating": 2, "favorites": 2,
+    "month": 3, "camera": 3, "lens": 3, "composition": 3,
+    "focal_range": 3, "time_of_day": 3,
     "tag": 3, "day_of_week": 3, "week": 4,
 }
 
@@ -326,6 +536,8 @@ def _generate_journeys(conn, capsule_config, min_aggregate, vis, user_id):
     for _, start, _ in raw_trips:
         month_counts[start.strftime("%B %Y")] += 1
 
+    geo_enabled = capsule_config.get("reverse_geocoding", True)
+
     capsules = []
     for trip, start_date, end_date in raw_trips:
         month_key = start_date.strftime("%B %Y")
@@ -341,17 +553,28 @@ def _generate_journeys(conn, capsule_config, min_aggregate, vis, user_id):
             title_date = month_key
         trip_id = _stable_id("journey", start_date.isoformat())
 
-        best = max(trip, key=lambda p: p["aggregate"] or 0)
         photo_paths = [p["path"] for p in trip[:max_photos]]
+
+        # Reverse geocode trip centroid for destination name
+        destination = _geocode_centroid(conn, trip) if geo_enabled else ""
+
+        if destination:
+            title_key = "capsules.journey_title_destination"
+            title_params = {"destination": destination, "date": title_date}
+            title = f"Journey to {destination} \u2014 {title_date}"
+        else:
+            title_key = "capsules.journey_title"
+            title_params = {"date": title_date}
+            title = f"Journey \u2014 {title_date}"
 
         capsules.append({
             "type": "journey",
             "id": f"journey_{trip_id}",
-            "title_key": "capsules.journey_title",
-            "title_params": {"date": title_date},
-            "title": f"Journey \u2014 {title_date}",
+            "title_key": title_key,
+            "title_params": title_params,
+            "title": title,
             "subtitle": f"{len(photo_paths)} photos",
-            "cover_photo_path": best["path"],
+            "cover_photo_path": _pick_cover_photo(photo_paths, f"journey_{trip_id}"),
             "photo_count": len(photo_paths),
             "icon": "flight",
             "params": {"paths": photo_paths},
@@ -369,6 +592,9 @@ def _generate_faces_of(conn, capsule_config, min_aggregate, vis, user_id):
     # Cannot use pre-computed `vis` here: photos table is aliased as `ph` in the JOIN
     from api.db_helpers import get_visibility_clause
     vis_sql, vis_params = get_visibility_clause(user_id, table_alias='ph')
+    vis_sql += (" AND (ph.is_burst_lead = 1 OR ph.is_burst_lead IS NULL)"
+                " AND (ph.is_duplicate_lead = 1 OR ph.is_duplicate_lead IS NULL"
+                " OR ph.duplicate_group_id IS NULL)")
 
     rows = conn.execute(
         f"""SELECT p.id, p.name, p.face_count,
@@ -417,7 +643,7 @@ def _generate_faces_of(conn, capsule_config, min_aggregate, vis, user_id):
             "title_params": {"name": name},
             "title": f"Moments with {name}",
             "subtitle": f"{len(unique_paths)} photos",
-            "cover_photo_path": unique_paths[0],
+            "cover_photo_path": _pick_cover_photo(unique_paths, f"faces_{pid}"),
             "photo_count": len(unique_paths),
             "icon": "face",
             "params": {"person_id": pid, "paths": unique_paths},
@@ -462,17 +688,17 @@ def _generate_seasonal(conn, capsule_config, min_aggregate, vis, user_id):
 
         season_title = season.title()
         capsule_id = _stable_id("seasonal", season, str(year))
-        best = photos[0]  # already sorted by aesthetic DESC
 
         paths = [p["path"] for p in photos]
+        cid = f"seasonal_{capsule_id}"
         capsules.append({
             "type": "seasonal",
-            "id": f"seasonal_{capsule_id}",
+            "id": cid,
             "title_key": "capsules.seasonal_title",
             "title_params": {"season": season, "year": str(year)},
             "title": f"{season_title} {year}",
             "subtitle": f"{len(paths)} photos",
-            "cover_photo_path": best["path"],
+            "cover_photo_path": _pick_cover_photo(paths, cid),
             "photo_count": len(paths),
             "icon": _SEASON_ICONS.get(season, "park"),
             "params": {"paths": paths},
@@ -533,7 +759,7 @@ def _generate_golden(conn, capsule_config, min_aggregate, vis, user_id):
         "title_params": {},
         "title": "Golden Collection",
         "subtitle": f"{len(paths)} photos",
-        "cover_photo_path": paths[0],
+        "cover_photo_path": _pick_cover_photo(paths, "golden"),
         "photo_count": len(paths),
         "icon": "diamond",
         "params": {"paths": paths},
@@ -610,17 +836,17 @@ def _generate_color_story(conn, capsule_config, min_aggregate, vis, user_id):
             name = "Visual Story"
 
         paths = [p["path"] for p in group_photos]
-        best = max(group_photos, key=lambda p: p["aggregate"] or 0)
         cid = _stable_id("color", *paths[:3])
+        full_id = f"color_{cid}"
 
         capsules.append({
             "type": "color_story",
-            "id": f"color_{cid}",
+            "id": full_id,
             "title_key": "capsules.color_story_title",
             "title_params": {"name": name},
             "title": name,
             "subtitle": f"{len(paths)} photos",
-            "cover_photo_path": best["path"],
+            "cover_photo_path": _pick_cover_photo(paths, full_id),
             "photo_count": len(paths),
             "icon": "palette",
             "params": {"paths": paths},
@@ -675,7 +901,6 @@ def _generate_this_week(conn, capsule_config, min_aggregate, vis, user_id):
 
         photos = photos[:max_photos]
         paths = [p["path"] for p in photos]
-        best = photos[0]  # already sorted by aggregate DESC
 
         capsules.append({
             "type": "this_week",
@@ -684,7 +909,7 @@ def _generate_this_week(conn, capsule_config, min_aggregate, vis, user_id):
             "title_params": {"year": str(year)},
             "title": f"This Week in {year}",
             "subtitle": f"{len(paths)} photos",
-            "cover_photo_path": best["path"],
+            "cover_photo_path": _pick_cover_photo(paths, f"thisweek_{year}"),
             "photo_count": len(paths),
             "icon": "history",
             "params": {"paths": paths},
@@ -755,17 +980,20 @@ def _generate_location(conn, capsule_config, min_aggregate, vis, user_id):
             continue
 
         paths = [p["path"] for p in photos]
-        # Title from coordinates (reverse geocoding deferred)
-        title = f"{abs(lat):.1f}°{'N' if lat >= 0 else 'S'}, {abs(lon):.1f}°{'E' if lon >= 0 else 'W'}"
+        # Reverse geocode grid cell center, fallback to coordinates
+        geo_enabled = capsule_config.get("reverse_geocoding", True)
+        place_name = _geocode_grid(conn, lat, lon) if geo_enabled else ""
+        title = place_name or f"{abs(lat):.1f}°{'N' if lat >= 0 else 'S'}, {abs(lon):.1f}°{'E' if lon >= 0 else 'W'}"
         cid = _stable_id("loc", f"{lat:.2f}", f"{lon:.2f}")
+        full_id = f"loc_{cid}"
         capsules.append({
             "type": "location",
-            "id": f"loc_{cid}",
+            "id": full_id,
             "title_key": "capsules.location_title",
             "title_params": {"location": title},
             "title": title,
             "subtitle": f"{len(paths)} photos",
-            "cover_photo_path": paths[0],
+            "cover_photo_path": _pick_cover_photo(paths, full_id),
             "photo_count": len(paths),
             "icon": "location_on",
             "params": {"paths": paths},
@@ -813,6 +1041,9 @@ def _generate_person_pairs(conn, capsule_config, min_aggregate, vis, user_id):
 
     from api.db_helpers import get_visibility_clause
     vis_sql, vis_params = get_visibility_clause(user_id, table_alias='ph')
+    vis_sql += (" AND (ph.is_burst_lead = 1 OR ph.is_burst_lead IS NULL)"
+                " AND (ph.is_duplicate_lead = 1 OR ph.is_duplicate_lead IS NULL"
+                " OR ph.duplicate_group_id IS NULL)")
 
     pairs = _fetch_person_pairs(conn, min_aggregate, vis_sql, vis_params, max_photos)
 
@@ -822,14 +1053,15 @@ def _generate_person_pairs(conn, capsule_config, min_aggregate, vis, user_id):
             continue
 
         cid = _stable_id("pair", str(pid1), str(pid2))
+        full_id = f"pair_{cid}"
         capsules.append({
             "type": "person_pair",
-            "id": f"pair_{cid}",
+            "id": full_id,
             "title_key": "capsules.person_pair_title",
             "title_params": {"name1": name1, "name2": name2},
             "title": f"{name1} & {name2}",
             "subtitle": f"{len(unique_paths)} photos",
-            "cover_photo_path": unique_paths[0],
+            "cover_photo_path": _pick_cover_photo(unique_paths, full_id),
             "photo_count": len(unique_paths),
             "icon": "group",
             "params": {"paths": unique_paths},
@@ -841,7 +1073,7 @@ def _generate_person_pairs(conn, capsule_config, min_aggregate, vis, user_id):
 def _generate_seeded(conn, capsule_config, min_aggregate, vis, user_id):
     """Generate seed-based discovery capsules — stable within a time window."""
     cfg = capsule_config.get("seeded", {})
-    num_seeds = cfg.get("num_seeds", 20)
+    num_seeds = cfg.get("num_seeds", 10)
     min_photos = cfg.get("min_photos", 8)
     seed_lifetime_minutes = cfg.get("seed_lifetime_minutes", 1440)
     time_window_days = cfg.get("time_window_days", 7)
@@ -850,6 +1082,11 @@ def _generate_seeded(conn, capsule_config, min_aggregate, vis, user_id):
     max_photos = capsule_config.get("max_photos_per_capsule", 40)
 
     vis_sql, vis_params = vis
+
+    # Align seed lifetime to freshness if not explicitly configured
+    freshness_hours = capsule_config.get("freshness_hours", 24)
+    if "seed_lifetime_minutes" not in cfg:
+        seed_lifetime_minutes = freshness_hours * 60
 
     # Local RNG with time-bucketed seed for stability (avoids mutating global state)
     rng = random.Random(int(time.time() // (seed_lifetime_minutes * 60)))
@@ -1021,7 +1258,10 @@ def _generate_seeded(conn, capsule_config, min_aggregate, vis, user_id):
                 if score > best_score:
                     best_score = score
                     best_photos = nearby
-                    best_axis = ("location", {})
+                    # Reverse geocode seed location for title
+                    geo_enabled = capsule_config.get("reverse_geocoding", True)
+                    place = _geocode_grid(conn, seed_lat, seed_lon) if geo_enabled else ""
+                    best_axis = ("location", {"place": place} if place else {})
 
         # --- Color mood axis ---
         seed_sat = seed["mean_saturation"]
@@ -1067,19 +1307,20 @@ def _generate_seeded(conn, capsule_config, min_aggregate, vis, user_id):
             "similar": "Visually Similar",
             "person": f"More of {axis_params.get('name', '')}",
             "tag": f"{axis_params.get('tag', '')} Collection",
-            "location": "Nearby Places",
+            "location": f"Near {axis_params.get('place', '')}" if axis_params.get('place') else "Nearby Places",
             "mood": "Color Mood",
         }
 
         cid = _stable_id("seeded", axis_type, seed_path)
+        full_id = f"seeded_{cid}"
         capsules.append({
             "type": "seeded",
-            "id": f"seeded_{cid}",
+            "id": full_id,
             "title_key": title_key_map[axis_type],
             "title_params": axis_params,
             "title": title_map[axis_type],
             "subtitle": f"{len(paths)} photos",
-            "cover_photo_path": seed_path,
+            "cover_photo_path": _pick_cover_photo(paths, full_id),
             "photo_count": len(paths),
             "icon": "auto_awesome",
             "params": {"paths": paths},
@@ -1149,15 +1390,16 @@ def _generate_progress(conn, capsule_config, min_aggregate, vis, user_id):
 
     paths = [r["path"] for r in best_photos]
     cid = _stable_id("progress", str(recent_yr), str(recent_qtr))
+    full_id = f"progress_{cid}"
 
     return [{
         "type": "progress",
-        "id": f"progress_{cid}",
+        "id": full_id,
         "title_key": "capsules.progress_title",
         "title_params": {},
         "title": "Your Photography is Improving",
         "subtitle": f"{len(paths)} photos",
-        "cover_photo_path": paths[0],
+        "cover_photo_path": _pick_cover_photo(paths, full_id),
         "photo_count": len(paths),
         "icon": "trending_up",
         "params": {"paths": paths},
@@ -1172,20 +1414,28 @@ def _generate_color_palette(conn, capsule_config, min_aggregate, vis, user_id):
 
     vis_sql, vis_params = vis
 
-    # Get monthly color profiles
+    # Get monthly color profiles — fetch paths with GROUP_CONCAT to avoid per-month queries
+    max_months = cfg.get("max_months", 24)
     rows = conn.execute(
-        f"""SELECT
-               strftime('%Y-%m', {_ISO_DATE}) AS month_key,
-               AVG(mean_saturation) AS avg_sat,
-               AVG(CASE WHEN is_monochrome = 1 THEN 1.0 ELSE 0.0 END) AS mono_ratio,
-               COUNT(*) AS cnt
-           FROM photos
-           WHERE mean_saturation IS NOT NULL AND date_taken IS NOT NULL
-             AND aggregate >= ? AND {vis_sql}
-           GROUP BY month_key
-           HAVING cnt >= ?
-           ORDER BY month_key DESC""",
-        [min_aggregate] + vis_params + [min_photos],
+        f"""SELECT month_key, avg_sat, mono_ratio, cnt, paths FROM (
+            SELECT strftime('%Y-%m', {_ISO_DATE}) AS month_key,
+                   AVG(mean_saturation) AS avg_sat,
+                   AVG(CASE WHEN is_monochrome = 1 THEN 1.0 ELSE 0.0 END) AS mono_ratio,
+                   COUNT(*) AS cnt,
+                   GROUP_CONCAT(path, '||') AS paths
+            FROM (
+                SELECT path, mean_saturation, is_monochrome, date_taken
+                FROM photos
+                WHERE mean_saturation IS NOT NULL AND date_taken IS NOT NULL
+                  AND aggregate >= ? AND {vis_sql}
+                ORDER BY aggregate DESC
+            )
+            GROUP BY month_key
+            HAVING cnt >= ?
+            ORDER BY month_key DESC
+            LIMIT ?
+        )""",
+        [min_aggregate] + vis_params + [min_photos, max_months],
     ).fetchall()
 
     capsules = []
@@ -1204,31 +1454,20 @@ def _generate_color_palette(conn, capsule_config, min_aggregate, vis, user_id):
         else:
             continue  # No distinctive profile
 
-        # Fetch photos for this month
-        photos = conn.execute(
-            f"""SELECT path, aggregate
-               FROM photos
-               WHERE strftime('%Y-%m', {_ISO_DATE}) = ?
-                 AND aggregate >= ? AND {vis_sql}
-               ORDER BY aggregate DESC
-               LIMIT ?""",
-            [month_key, min_aggregate] + vis_params + [max_photos],
-        ).fetchall()
-
-        if len(photos) < min_photos:
+        paths = (row["paths"] or "").split("||")[:max_photos]
+        if len(paths) < min_photos:
             continue
-
-        paths = [p["path"] for p in photos]
         cid = _stable_id("color_palette", month_key, mood)
+        full_id = f"color_palette_{cid}"
 
         capsules.append({
             "type": "color_palette",
-            "id": f"color_palette_{cid}",
+            "id": full_id,
             "title_key": "capsules.color_palette_title",
             "title_params": {"mood": mood, "date": month_key},
             "title": f"{mood} \u2014 {month_key}",
             "subtitle": f"{len(paths)} photos",
-            "cover_photo_path": paths[0],
+            "cover_photo_path": _pick_cover_photo(paths, full_id),
             "photo_count": len(paths),
             "icon": "palette",
             "params": {"paths": paths},
@@ -1247,6 +1486,9 @@ def _generate_rare_pairs(conn, capsule_config, min_aggregate, vis, user_id):
 
     from api.db_helpers import get_visibility_clause
     vis_sql, vis_params = get_visibility_clause(user_id, table_alias='ph')
+    vis_sql += (" AND (ph.is_burst_lead = 1 OR ph.is_burst_lead IS NULL)"
+                " AND (ph.is_duplicate_lead = 1 OR ph.is_duplicate_lead IS NULL"
+                " OR ph.duplicate_group_id IS NULL)")
 
     pairs = _fetch_person_pairs(conn, min_score, vis_sql, vis_params, max_photos)
 
@@ -1256,17 +1498,110 @@ def _generate_rare_pairs(conn, capsule_config, min_aggregate, vis, user_id):
             continue
 
         cid = _stable_id("rare_pair", str(pid1), str(pid2))
+        full_id = f"rare_pair_{cid}"
         capsules.append({
             "type": "rare_pair",
-            "id": f"rare_pair_{cid}",
+            "id": full_id,
             "title_key": "capsules.rare_pair_title",
             "title_params": {"name1": name1, "name2": name2},
             "title": f"{name1} & {name2} \u2014 Rare Moment",
             "subtitle": f"{len(unique_paths)} photos",
-            "cover_photo_path": unique_paths[0],
+            "cover_photo_path": _pick_cover_photo(unique_paths, full_id),
             "photo_count": len(unique_paths),
             "icon": "people_outline",
             "params": {"paths": unique_paths},
+        })
+
+    return capsules
+
+
+def _generate_favorites_by_period(conn, capsule_config, min_aggregate, vis, user_id):
+    """Generate 'Favorites of [Period]' capsules — favorited photos grouped by year and season."""
+    cfg = capsule_config.get("favorites", {})
+    min_photos = cfg.get("min_photos", 5)
+    max_photos = capsule_config.get("max_photos_per_capsule", 40)
+
+    vis_sql, vis_params = vis
+
+    # Resolve is_favorite column based on multi-user mode
+    from api.config import is_multi_user_enabled
+    if user_id and is_multi_user_enabled():
+        fav_join = "JOIN user_preferences up ON up.photo_path = photos.path AND up.user_id = ?"
+        fav_filter = "up.is_favorite = 1"
+        fav_params = [user_id]
+    else:
+        fav_join = ""
+        fav_filter = "photos.is_favorite = 1"
+        fav_params = []
+
+    rows = conn.execute(
+        f"""SELECT path, date_taken, aggregate
+           FROM photos {fav_join}
+           WHERE {fav_filter} AND date_taken IS NOT NULL AND {vis_sql}
+           ORDER BY aggregate DESC""",
+        fav_params + vis_params,
+    ).fetchall()
+
+    if not rows:
+        return []
+
+    # Group by year
+    year_groups = defaultdict(list)
+    # Group by season + year
+    season_groups = defaultdict(list)
+
+    for r in rows:
+        dt = _parse_date(r["date_taken"])
+        if not dt:
+            continue
+        year_groups[dt.year].append(r)
+        season = _month_to_season(dt.month)
+        year = dt.year if not (season == "winter" and dt.month == 12) else dt.year + 1
+        season_groups[(season, year)].append(r)
+
+    capsules = []
+
+    # Yearly favorites
+    for year in sorted(year_groups.keys(), reverse=True):
+        photos = year_groups[year]
+        if len(photos) < min_photos:
+            continue
+
+        paths = [p["path"] for p in photos[:max_photos]]
+        cid = _stable_id("fav_year", str(year))
+        full_id = f"fav_year_{cid}"
+        capsules.append({
+            "type": "favorites",
+            "id": full_id,
+            "title_key": "capsules.favorites_year_title",
+            "title_params": {"year": str(year)},
+            "title": f"Favorites of {year}",
+            "subtitle": f"{len(paths)} photos",
+            "cover_photo_path": _pick_cover_photo(paths, full_id),
+            "photo_count": len(paths),
+            "icon": "favorite",
+            "params": {"paths": paths},
+        })
+
+    # Seasonal favorites (only when there are enough)
+    for (season, year), photos in sorted(season_groups.items(), key=lambda x: (-x[0][1], x[0][0])):
+        if len(photos) < min_photos:
+            continue
+
+        paths = [p["path"] for p in photos[:max_photos]]
+        cid = _stable_id("fav_season", season, str(year))
+        full_id = f"fav_season_{cid}"
+        capsules.append({
+            "type": "favorites",
+            "id": full_id,
+            "title_key": "capsules.favorites_season_title",
+            "title_params": {"season": season, "year": str(year)},
+            "title": f"Favorites — {season.title()} {year}",
+            "subtitle": f"{len(paths)} photos",
+            "cover_photo_path": _pick_cover_photo(paths, full_id),
+            "photo_count": len(paths),
+            "icon": "favorite",
+            "params": {"paths": paths},
         })
 
     return capsules
@@ -1304,13 +1639,21 @@ def _generate_score_per_dim(conn, capsules, capsule_config, min_aggregate,
 
     try:
         group_rows = conn.execute(
-            f"""SELECT {expr} AS dim_val, {label_expr} AS dim_label, COUNT(*) AS cnt
-               FROM photos {join}
-               WHERE aggregate >= ? {extra_filter} AND {vis_sql}
-               GROUP BY dim_val
-               HAVING cnt >= ?
-               ORDER BY cnt DESC
-               LIMIT 50""",
+            f"""SELECT dim_val, dim_label, cnt, paths FROM (
+                SELECT {expr} AS dim_val, {label_expr} AS dim_label,
+                       COUNT(*) AS cnt,
+                       GROUP_CONCAT(path, '||') AS paths
+                FROM (
+                    SELECT path, {expr}, {label_expr}
+                    FROM photos {join}
+                    WHERE aggregate >= ? {extra_filter} AND {vis_sql}
+                    ORDER BY {sort}
+                )
+                GROUP BY dim_val
+                HAVING cnt >= ?
+                ORDER BY cnt DESC
+                LIMIT 20
+            )""",
             [min_aggregate] + vis_params + [min_photos_score],
         ).fetchall()
     except Exception:
@@ -1329,29 +1672,21 @@ def _generate_score_per_dim(conn, capsules, capsule_config, min_aggregate,
         if transform:
             display = transform(display)
 
-        photos = conn.execute(
-            f"""SELECT path
-               FROM photos {join}
-               WHERE {expr} = ? AND aggregate >= ? {extra_filter} AND {vis_sql}
-               ORDER BY {sort}
-               LIMIT ?""",
-            [val, min_aggregate] + vis_params + [max_photos],
-        ).fetchall()
-
-        paths = list(dict.fromkeys(p["path"] for p in photos))
+        paths = list(dict.fromkeys((gr["paths"] or "").split("||")[:max_photos]))
         if len(paths) < min_photos_score:
             continue
 
         cid = _stable_id(cfg_key, str(val))
+        full_id = f"{cfg_key}_{cid}"
         title = f"{score_label}: {display}"
         capsules.append({
             "type": cfg_key,
-            "id": f"{cfg_key}_{cid}",
+            "id": full_id,
             "title_key": "capsules.score_per_dim_title",
             "title_params": {"score": score_label, "dimension": display},
             "title": title,
             "subtitle": f"{len(paths)} photos",
-            "cover_photo_path": paths[0],
+            "cover_photo_path": _pick_cover_photo(paths, full_id),
             "photo_count": len(paths),
             "icon": score_dim["icon"],
             "params": {"paths": paths},
@@ -1506,6 +1841,91 @@ _DIMENSIONS = {
         "is_score": True,
         "score_label": "Face Quality",
     },
+    "composition": {
+        "sql_expr": "composition_pattern",
+        "filter": "composition_pattern IS NOT NULL AND composition_pattern != ''",
+        "icon": "grid_on",
+        "min_photos": 15,
+        "title_tpl": "{value}",
+        "title_key": "capsules.composition_title",
+        "param_name": "pattern",
+        "title_transform": lambda s: s.replace("_", " ").title(),
+    },
+    "focal_range": {
+        "sql_expr": """CASE
+            WHEN focal_length < 24 THEN 'ultra_wide'
+            WHEN focal_length BETWEEN 24 AND 35 THEN 'wide'
+            WHEN focal_length BETWEEN 36 AND 70 THEN 'normal'
+            WHEN focal_length BETWEEN 71 AND 135 THEN 'portrait'
+            WHEN focal_length BETWEEN 136 AND 300 THEN 'telephoto'
+            WHEN focal_length > 300 THEN 'super_telephoto'
+            END""",
+        "filter": "focal_length IS NOT NULL AND focal_length > 0",
+        "icon": "straighten",
+        "min_photos": 15,
+        "title_tpl": "{value}",
+        "title_key": "capsules.focal_range_title",
+        "param_name": "range",
+        "value_map": {
+            "ultra_wide": "Ultra Wide (<24mm)",
+            "wide": "Wide (24\u201335mm)",
+            "normal": "Standard (36\u201370mm)",
+            "portrait": "Portrait (71\u2013135mm)",
+            "telephoto": "Telephoto (136\u2013300mm)",
+            "super_telephoto": "Super Telephoto (300mm+)",
+        },
+    },
+    "category": {
+        "sql_expr": "category",
+        "filter": "category IS NOT NULL AND category != ''",
+        "icon": "category",
+        "min_photos": 15,
+        "title_tpl": "{value}",
+        "title_key": "capsules.category_title",
+        "param_name": "category",
+        "title_transform": lambda s: s.replace("_", " ").title(),
+    },
+    "time_of_day": {
+        "sql_expr": f"""CASE
+            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 5 AND 7 THEN 'golden_morning'
+            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 8 AND 10 THEN 'morning'
+            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 11 AND 14 THEN 'midday'
+            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 15 AND 17 THEN 'afternoon'
+            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 18 AND 20 THEN 'golden_evening'
+            WHEN CAST(SUBSTR({_ISO_DATE}, 12, 2) AS INTEGER) BETWEEN 21 AND 23 THEN 'night'
+            ELSE 'night'
+            END""",
+        "filter": "date_taken IS NOT NULL AND LENGTH(date_taken) > 10",
+        "icon": "schedule",
+        "min_photos": 15,
+        "title_tpl": "Best of {value}",
+        "title_key": "capsules.time_of_day_title",
+        "param_name": "time",
+        "value_map": {
+            "golden_morning": "Golden Morning",
+            "morning": "Morning Light",
+            "midday": "Midday",
+            "afternoon": "Afternoon",
+            "golden_evening": "Golden Evening",
+            "night": "Night",
+        },
+    },
+    "star_rating": {
+        "sql_expr": "star_rating",
+        "filter": "star_rating IS NOT NULL AND star_rating > 0",
+        "icon": "star",
+        "min_photos": 10,
+        "title_tpl": "{value}",
+        "title_key": "capsules.star_rating_title",
+        "param_name": "stars",
+        "value_map": {
+            5: "\u2605\u2605\u2605\u2605\u2605",
+            4: "\u2605\u2605\u2605\u2605",
+            3: "\u2605\u2605\u2605",
+            2: "\u2605\u2605",
+            1: "\u2605",
+        },
+    },
 }
 
 # Cross-dimensional combinations to generate.
@@ -1536,20 +1956,40 @@ _CROSS_DIMENSIONS = [
     ("score_sharpness", "camera"),
     ("score_sharpness", "lens"),
     ("score_face_quality", "person"),
+    # Composition crosses
+    ("composition", "camera"),
+    ("composition", "year"),
+    # Focal range crosses
+    ("focal_range", "category"),
+    ("focal_range", "year"),
+    # Category crosses
+    ("category", "year"),
+    ("category", "camera"),
 ]
 
 
 def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_id):
-    """Generate capsules from single dimensions and cross-dimensional combos."""
+    """Generate capsules from single dimensions and cross-dimensional combos.
+
+    Uses GROUP_CONCAT to fetch paths in a single query per dimension (avoids
+    one query per group value).  Respects a total capsule budget to avoid
+    unbounded generation time on large databases.
+    """
     from api.db_helpers import is_photo_tags_available
     has_tags = is_photo_tags_available()
 
     vis_sql, vis_params = vis
     max_photos = capsule_config.get("max_photos_per_capsule", 40)
+    budget = capsule_config.get("max_dimension_capsules", 200)
     capsules = []
+
+    def _budget_left():
+        return len(capsules) < budget
 
     # --- Single-dimension capsules ---
     for dim_name, dim in _DIMENSIONS.items():
+        if not _budget_left():
+            break
         if dim.get("skip_single"):
             continue
         if dim.get("requires") == "photo_tags" and not has_tags:
@@ -1559,34 +1999,29 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
         min_photos = cfg.get("min_photos", dim.get("min_photos", 10))
 
         if dim.get("single_only"):
-            # Score-based capsules: just top N by a specific metric
             sort = dim.get("sort_override", "aggregate DESC")
             extra_filter = f"AND {dim['filter']}" if dim.get("filter") else ""
             rows = conn.execute(
-                f"""SELECT path, aggregate
-                   FROM photos
+                f"""SELECT path FROM photos
                    WHERE aggregate >= ? {extra_filter} AND {vis_sql}
-                   ORDER BY {sort}
-                   LIMIT ?""",
+                   ORDER BY {sort} LIMIT ?""",
                 [min_aggregate] + vis_params + [max_photos],
             ).fetchall()
             if len(rows) >= min_photos:
                 paths = [r["path"] for r in rows]
                 capsules.append({
-                    "type": dim_name,
-                    "id": dim_name,
+                    "type": dim_name, "id": dim_name,
                     "title_key": dim["title_key"],
                     "title_params": {dim["param_name"]: dim["title_tpl"]},
                     "title": dim["title_tpl"],
                     "subtitle": f"{len(paths)} photos",
-                    "cover_photo_path": paths[0],
-                    "photo_count": len(paths),
-                    "icon": dim["icon"],
+                    "cover_photo_path": _pick_cover_photo(paths, dim_name),
+                    "photo_count": len(paths), "icon": dim["icon"],
                     "params": {"paths": paths},
                 })
             continue
 
-        # Grouped dimension
+        # Grouped dimension — single query with GROUP_CONCAT for paths
         join = dim.get("join", "")
         sql_expr = dim["sql_expr"]
         label_expr = dim.get("label_expr", sql_expr)
@@ -1595,18 +2030,34 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
         value_map = dim.get("value_map")
         title_transform = dim.get("title_transform")
 
-        group_rows = conn.execute(
-            f"""SELECT {sql_expr} AS dim_val, {label_expr} AS dim_label, COUNT(*) AS cnt
-               FROM photos {join}
-               WHERE aggregate >= ? {extra_filter} AND {vis_sql}
-               GROUP BY dim_val
-               HAVING cnt >= ?
-               ORDER BY cnt DESC
-               LIMIT 100""",
-            [min_aggregate] + vis_params + [min_photos],
-        ).fetchall()
+        # Subquery: rank photos within each group by aggregate, take top N
+        # GROUP_CONCAT on the top-ranked paths avoids per-group queries
+        try:
+            group_rows = conn.execute(
+                f"""SELECT dim_val, dim_label, cnt, paths FROM (
+                    SELECT {sql_expr} AS dim_val, {label_expr} AS dim_label,
+                           COUNT(*) AS cnt,
+                           GROUP_CONCAT(path, '||') AS paths
+                    FROM (
+                        SELECT path, {sql_expr}, {label_expr}
+                        FROM photos {join}
+                        WHERE aggregate >= ? {extra_filter} AND {vis_sql}
+                        ORDER BY aggregate DESC
+                    )
+                    GROUP BY dim_val
+                    HAVING cnt >= ?
+                    ORDER BY cnt DESC
+                    LIMIT 30
+                )""",
+                [min_aggregate] + vis_params + [min_photos],
+            ).fetchall()
+        except Exception:
+            logger.debug("Single-dimension %s query failed", dim_name, exc_info=True)
+            continue
 
         for gr in group_rows:
+            if not _budget_left():
+                break
             val = gr["dim_val"]
             label = gr["dim_label"]
             if val is None:
@@ -1618,35 +2069,27 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
             if title_transform:
                 display = title_transform(display)
 
-            photos = conn.execute(
-                f"""SELECT path, aggregate
-                   FROM photos {join}
-                   WHERE {sql_expr} = ? AND aggregate >= ? {extra_filter} AND {vis_sql}
-                   ORDER BY aggregate DESC
-                   LIMIT ?""",
-                [val, min_aggregate] + vis_params + [max_photos],
-            ).fetchall()
-
-            if len(photos) < min_photos:
+            paths = (gr["paths"] or "").split("||")[:max_photos]
+            if len(paths) < min_photos:
                 continue
 
-            paths = [p["path"] for p in photos]
             cid = _stable_id(dim_name, str(val))
+            full_id = f"{dim_name}_{cid}"
             capsules.append({
-                "type": dim_name,
-                "id": f"{dim_name}_{cid}",
+                "type": dim_name, "id": full_id,
                 "title_key": dim["title_key"],
                 "title_params": {dim["param_name"]: display},
                 "title": display,
                 "subtitle": f"{len(paths)} photos",
-                "cover_photo_path": paths[0],
-                "photo_count": len(paths),
-                "icon": dim["icon"],
+                "cover_photo_path": _pick_cover_photo(paths, full_id),
+                "photo_count": len(paths), "icon": dim["icon"],
                 "params": {"paths": paths},
             })
 
     # --- Cross-dimensional capsules ---
     for dim_a_name, dim_b_name in _CROSS_DIMENSIONS:
+        if not _budget_left():
+            break
         dim_a = _DIMENSIONS.get(dim_a_name)
         dim_b = _DIMENSIONS.get(dim_b_name)
         if not dim_a or not dim_b:
@@ -1654,22 +2097,18 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
         if (dim_a.get("requires") == "photo_tags" or dim_b.get("requires") == "photo_tags") and not has_tags:
             continue
 
-        # When one dimension is a score metric, use it as sort override
         score_dim = dim_a if dim_a.get("is_score") else (dim_b if dim_b.get("is_score") else None)
         group_dim = dim_b if dim_a.get("is_score") else (dim_a if dim_b.get("is_score") else None)
 
         if score_dim and not group_dim:
-            continue  # Both are scores — skip
-
+            continue
         if score_dim:
-            # Score × Grouping: group by one dim, sort by score metric
             _generate_score_per_dim(
                 conn, capsules, capsule_config, min_aggregate, vis_sql, vis_params,
                 max_photos, has_tags, dim_a_name, dim_b_name, score_dim, group_dim,
             )
             continue
 
-        # Both are regular grouping dimensions — skip if either is single_only
         if dim_a.get("single_only") or dim_b.get("single_only"):
             continue
 
@@ -1678,7 +2117,6 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
         min_photos_cross = cfg.get("min_photos", max(dim_a.get("min_photos", 10), dim_b.get("min_photos", 10)) // 2)
         min_photos_cross = max(min_photos_cross, 5)
 
-        # Build combined query
         joins = set()
         if dim_a.get("join"):
             joins.add(dim_a["join"])
@@ -1700,15 +2138,22 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
 
         try:
             group_rows = conn.execute(
-                f"""SELECT {expr_a} AS val_a, {label_a} AS lbl_a,
-                       {expr_b} AS val_b, {label_b} AS lbl_b,
-                       COUNT(*) AS cnt
-                   FROM photos {join_clause}
-                   WHERE aggregate >= ? {extra_filter} AND {vis_sql}
-                   GROUP BY val_a, val_b
-                   HAVING cnt >= ?
-                   ORDER BY cnt DESC
-                   LIMIT 100""",
+                f"""SELECT val_a, lbl_a, val_b, lbl_b, cnt, paths FROM (
+                    SELECT {expr_a} AS val_a, {label_a} AS lbl_a,
+                           {expr_b} AS val_b, {label_b} AS lbl_b,
+                           COUNT(*) AS cnt,
+                           GROUP_CONCAT(path, '||') AS paths
+                    FROM (
+                        SELECT path, {expr_a}, {label_a}, {expr_b}, {label_b}
+                        FROM photos {join_clause}
+                        WHERE aggregate >= ? {extra_filter} AND {vis_sql}
+                        ORDER BY aggregate DESC
+                    )
+                    GROUP BY val_a, val_b
+                    HAVING cnt >= ?
+                    ORDER BY cnt DESC
+                    LIMIT 20
+                )""",
                 [min_aggregate] + vis_params + [min_photos_cross],
             ).fetchall()
         except Exception:
@@ -1723,6 +2168,8 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
         transform_b = dim_b.get("title_transform")
 
         for gr in group_rows:
+            if not _budget_left():
+                break
             va, la = gr["val_a"], gr["lbl_a"]
             vb, lb = gr["val_b"], gr["lbl_b"]
             if va is None or vb is None:
@@ -1739,35 +2186,21 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
             if transform_b:
                 disp_b = transform_b(disp_b)
 
-            photos = conn.execute(
-                f"""SELECT path, aggregate
-                   FROM photos {join_clause}
-                   WHERE {expr_a} = ? AND {expr_b} = ?
-                     AND aggregate >= ? {extra_filter} AND {vis_sql}
-                   ORDER BY aggregate DESC
-                   LIMIT ?""",
-                [va, vb, min_aggregate] + vis_params + [max_photos],
-            ).fetchall()
-
-            if len(photos) < min_photos_cross:
-                continue
-
-            paths = list(dict.fromkeys(p["path"] for p in photos))  # dedupe
+            paths = list(dict.fromkeys((gr["paths"] or "").split("||")[:max_photos]))
             if len(paths) < min_photos_cross:
                 continue
 
             cid = _stable_id(cfg_key, str(va), str(vb))
+            full_id = f"{cfg_key}_{cid}"
             title = f"{disp_a} \u2014 {disp_b}"
             capsules.append({
-                "type": cfg_key,
-                "id": f"{cfg_key}_{cid}",
+                "type": cfg_key, "id": full_id,
                 "title_key": "capsules.cross_title",
                 "title_params": {"a": disp_a, "b": disp_b},
                 "title": title,
                 "subtitle": f"{len(paths)} photos",
-                "cover_photo_path": paths[0],
-                "photo_count": len(paths),
-                "icon": dim_a["icon"],
+                "cover_photo_path": _pick_cover_photo(paths, full_id),
+                "photo_count": len(paths), "icon": dim_a["icon"],
                 "params": {"paths": paths},
             })
 

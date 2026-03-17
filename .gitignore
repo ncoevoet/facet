@@ -26,5 +26,8 @@ photos/
 # Config backups
 scoring_config.json.backup.*
 
+# Claude Code
+.claude/todos.md
+
 # Archives
 *.zip

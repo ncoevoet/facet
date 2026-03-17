@@ -379,6 +379,55 @@ GPS coordinates are also extracted automatically during scoring for new photos.
 
 Access via the `/map` route. Controlled by `viewer.features.show_map` (default: `true`).
 
+## Capsules
+
+Curated photo diaporamas (slideshows) grouped by theme. Access via the `/capsules` route.
+
+### Capsule Types
+
+Capsules are auto-generated from your library using multiple algorithms:
+
+- **Journey** — trips detected via GPS clustering, with reverse-geocoded destination names ("Journey to Rome — March 2025")
+- **Moments with [Person]** — best photos of each recognized person
+- **Seasonal Palette** — photos grouped by season + year
+- **Golden Collection** — top 1% by aggregate score
+- **Color Story** — visually similar groups via CLIP embedding clustering
+- **This Week, Years Ago** — extended "On This Day" across ±3 days
+- **Location** — geotagged photo clusters with place names
+- **Favorites** — favorited photos grouped by year and season
+- **Dimension-based** — auto-generated from camera, lens, category, composition pattern, focal length range, time of day, star rating, and cross-dimensional combos
+
+### Slideshow
+
+Click any capsule card to start a slideshow. Features:
+- **Themed transitions** — slide (journeys), zoom (portraits), kenburns (golden/seasonal), crossfade (default)
+- **Auto-chaining** — when a capsule finishes, a transition card shows the next capsule before continuing
+- **Shuffle & resume** — photos are shuffled for variety; resume position is tracked per capsule
+- **Adaptive grouping** — portrait photos are grouped side-by-side based on viewport aspect ratio
+- **Save as album** — save any capsule as a permanent album
+
+### Freshness
+
+Capsules rotate on a configurable schedule (default: 24 hours). Cover photos and seeded discovery capsules align to the same rotation period. The "Regenerate" button in the header forces an immediate refresh.
+
+### Reverse Geocoding
+
+Location and journey capsules show place names (e.g., "Paris, France") instead of coordinates. This uses offline geocoding via the `reverse_geocoder` package — no API calls needed. Results are cached in the database.
+
+Install: `pip install reverse_geocoder`
+
+### API
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/capsules` | Paginated capsule list (cached) |
+| `GET /api/capsules/{id}/photos` | Photos for a specific capsule |
+| `POST /api/capsules/{id}/save-album` | Save capsule as album (edition mode) |
+
+### Configuration
+
+See [Configuration — Capsules](CONFIGURATION.md#capsules) for all settings.
+
 ## AI Culling (Similar Groups)
 
 Find groups of visually similar photos across your library for culling. Unlike burst detection (which groups by time), similar groups use CLIP/SigLIP embedding similarity to find photos that look alike regardless of when they were taken.

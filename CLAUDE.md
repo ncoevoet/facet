@@ -149,7 +149,7 @@ python viewer.py
 
 ## Dependencies
 
-Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `imagehash`, `rawpy`, `fastapi`, `uvicorn`, `pyjwt`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`, `transformers>=4.57.0`, `accelerate>=0.25.0`
+Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `imagehash`, `rawpy`, `fastapi`, `uvicorn`, `pyjwt`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`, `transformers>=4.57.0`, `accelerate>=0.25.0`, `reverse_geocoder`
 
 For GPU face clustering (optional): `cuml`, `cupy` (requires conda + CUDA)
 
@@ -289,6 +289,7 @@ SQLite table `photos` with columns:
 - `persons(id, name, representative_face_id, face_count, centroid, auto_clustered, face_thumbnail)` - Person clusters (name=NULL for auto-clustered)
 - `albums(id, user_id, name, description, cover_photo_path, is_smart, smart_filter_json, share_token, created_at, updated_at)` - Photo albums (manual, smart, and shared)
 - `album_photos(id, album_id, photo_path, position, added_at)` - Album membership with ordering
+- `location_names(lat_grid, lon_grid, city, region, country, display_name)` - Reverse geocoding cache (0.1° grid cells)
 
 ### Performance Optimizations
 
@@ -353,6 +354,8 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Map View:** `GET /api/photos/map?bounds=&zoom=&limit=` and `GET /api/photos/map/count` — geotagged photo locations for Leaflet map. Angular route: `/map`.
 
+**Capsules:** `GET /api/capsules?page=&per_page=&refresh=&date_from=&date_to=` — curated photo diaporamas grouped by theme. `GET /api/capsules/{id}/photos` — photos for a capsule. `POST /api/capsules/{id}/save-album` — save capsule as album. Angular route: `/capsules`. Capsule types: journey (GPS trips with reverse geocoding), faces_of, seasonal, golden, color_story, this_week, location, person_pair, seeded, progress, color_palette, rare_pair, favorites, plus dimension-based: year, month, week, camera, lens, tag, day_of_week, composition, focal_range, category, time_of_day, star_rating, and cross-dimensional combos. Slideshow supports themed transitions (crossfade, slide, zoom, kenburns) per capsule type. Cache TTL configurable via `capsules.freshness_hours` (default: 24).
+
 ### Key Implementation Details
 
 - **Embeddings:** SigLIP 2 NaFlex SO400M (1152-dim, 16gb/24gb, native aspect ratio via `transformers`) or CLIP ViT-L-14 (768-dim, legacy/8gb via `open_clip`)
@@ -404,6 +407,11 @@ For quick reference, here are the actual defaults from the config file:
 | `viewer.features` | `show_captions` | `true` |
 | `viewer.features` | `show_timeline` | `true` |
 | `viewer.features` | `show_map` | `true` |
+| `capsules` | `freshness_hours` | `24` |
+| `capsules` | `reverse_geocoding` | `true` |
+| `capsules` | `min_aggregate` | `6.0` |
+| `capsules` | `max_photos_per_capsule` | `40` |
+| `capsules` | `mmr_lambda` | `0.5` |
 | `similarity_groups` | `default_threshold` | `0.85` |
 | `similarity_groups` | `min_group_size` | `2` |
 | `similarity_groups` | `max_photos` | `10000` |
