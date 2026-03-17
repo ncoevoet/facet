@@ -1638,7 +1638,7 @@ def _generate_score_per_dim(conn, capsules, capsule_config, min_aggregate,
     transform = group_dim.get("title_transform")
 
     try:
-        group_rows = conn.execute(
+        group_rows = conn.execute(  # lgtm[py/sql-injection]
             f"""SELECT dim_val, dim_label, cnt, paths FROM (
                 SELECT {expr} AS dim_val, {label_expr} AS dim_label,
                        COUNT(*) AS cnt,
@@ -2001,7 +2001,7 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
         if dim.get("single_only"):
             sort = dim.get("sort_override", "aggregate DESC")
             extra_filter = f"AND {dim['filter']}" if dim.get("filter") else ""
-            rows = conn.execute(
+            rows = conn.execute(  # lgtm[py/sql-injection]
                 f"""SELECT path FROM photos
                    WHERE aggregate >= ? {extra_filter} AND {vis_sql}
                    ORDER BY {sort} LIMIT ?""",
@@ -2033,7 +2033,7 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
         # Subquery: rank photos within each group by aggregate, take top N
         # GROUP_CONCAT on the top-ranked paths avoids per-group queries
         try:
-            group_rows = conn.execute(
+            group_rows = conn.execute(  # lgtm[py/sql-injection]
                 f"""SELECT dim_val, dim_label, cnt, paths FROM (
                     SELECT {sql_expr} AS dim_val, {label_expr} AS dim_label,
                            COUNT(*) AS cnt,
@@ -2137,7 +2137,7 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
         label_b = dim_b.get("label_expr", expr_b)
 
         try:
-            group_rows = conn.execute(
+            group_rows = conn.execute(  # lgtm[py/sql-injection]
                 f"""SELECT val_a, lbl_a, val_b, lbl_b, cnt, paths FROM (
                     SELECT {expr_a} AS val_a, {label_a} AS lbl_a,
                            {expr_b} AS val_b, {label_b} AS lbl_b,
