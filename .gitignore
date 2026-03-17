@@ -28,6 +28,26 @@ scoring_config.json.backup.*
 
 # Claude Code
 .claude/todos.md
+.claude/snapshot*.txt
+
+# Build output
+dist/
+
+# ML model cache
+.fastembed_cache/
+
+# Misc
+output.log
+*.db.shrink
+sample.*
+test-screenshots/
+test_*.png
+20??-*.png
+.git_diff_tmp
+.mcp.json
+plugins/example_plugin.py.example
+facet_photo.egg-info/
+photos_all/
 
 # Archives
 *.zip
