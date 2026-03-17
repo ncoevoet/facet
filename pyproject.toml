@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "facet-photo"
-version = "1.0.0"
+version = "1.0.1"
 description = "AI-powered photo analysis and gallery — score, cull, organise, and explore your photo library with computer vision and face recognition"
 readme = "README.md"
 license = "MIT"
