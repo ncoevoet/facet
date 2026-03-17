@@ -72,6 +72,7 @@ These commands update specific metrics without full photo reprocessing.
 | `python facet.py --recompute-burst` | Recompute burst detection groups |
 | `python facet.py --detect-duplicates` | Detect duplicate photos using pHash comparison |
 | `python facet.py --generate-captions` | Generate AI captions for photos using VLM (requires 16gb/24gb) |
+| `python facet.py --translate-captions` | Translate English captions to configured target language (CPU, MarianMT) |
 | `python facet.py --extract-gps` | Extract GPS coordinates from EXIF data into database columns |
 | `python facet.py --rescan-gps` | Re-extract GPS coordinates from EXIF for all photos (overwrites existing) |
 | `python facet.py --recompute-embeddings` | Recompute CLIP/SigLIP embeddings for all photos (required after model switch) |
@@ -159,8 +160,11 @@ header from each file and the thumbnail from the database.
 | Command | Description |
 |---------|-------------|
 | `python facet.py --doctor` | Run diagnostic checks (Python, GPU, dependencies, config, database) |
+| `python facet.py --doctor --simulate-gpu "RTX 5070 Ti" --simulate-vram 16` | Simulate GPU hardware for diagnostics |
 
 Prints a structured report covering: Python version, PyTorch/CUDA build, GPU detection and driver, VRAM profile recommendation, optional dependencies, config and database status. When PyTorch can't see the GPU but `nvidia-smi` can, shows the exact `pip install` command to fix it.
+
+Use `--simulate-gpu NAME` and `--simulate-vram GB` to test how Facet would behave with different GPU hardware. Both flags require `--doctor`, and `--simulate-vram` requires `--simulate-gpu`.
 
 ## Model Information
 
@@ -219,6 +223,8 @@ Checks: Score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python database.py --export-viewer-db` | Export/update lightweight database for NAS deployment (incremental if output exists) |
 | `python database.py --export-viewer-db --force-export` | Force full re-export, even if viewer DB already exists |
 | `python database.py --cleanup-orphaned-persons` | Remove persons with no associated faces |
+| `python database.py --migrate-storage-fs` | Migrate thumbnails and embeddings from database BLOBs to filesystem |
+| `python database.py --migrate-storage-db` | Migrate thumbnails and embeddings from filesystem back to database |
 | `python database.py --add-user alice --role admin` | Add a user (prompts for password) |
 | `python database.py --add-user alice --role user --display-name "Alice"` | Add user with display name |
 | `python database.py --migrate-user-preferences --user alice` | Copy ratings from photos to user_preferences |

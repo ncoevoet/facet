@@ -52,11 +52,21 @@ python facet.py --suggest-person-merges --merge-threshold 0.7  # Stricter
 
 Opens browser to merge suggestions page.
 
-### Step 4: Manual Management
+### Step 4: Review Merge Suggestions
+
+The web UI at `/merge-suggestions` shows pairs of person clusters that may be the same individual:
+
+- Adjust the **similarity threshold slider** to control how conservative the suggestions are
+- Review each suggestion side-by-side with face thumbnails
+- **One-click merge** to combine two persons, or **batch merge** to process multiple suggestions at once
+- Also available via CLI: `python facet.py --suggest-person-merges --merge-threshold 0.7`
+
+### Step 5: Manual Management
 
 In the web viewer:
 - Access `/persons` for person management
 - Merge: Select source person, click target, confirm
+- Batch merge: Select multiple persons and merge them into a single target
 - Rename: Click person name to edit inline
 - Delete: Remove person cluster
 
@@ -290,8 +300,18 @@ Access via header button or `/persons`:
 
 - **Grid View** - All recognized persons
 - **Merge** - Select source, click target, confirm
+- **Batch Merge** - Select multiple persons and merge into one target
 - **Delete** - Remove person cluster
 - **Rename** - Click name to edit inline
+
+### Merge Suggestions Page
+
+Access via `/merge-suggestions` or the "Merge Suggestions" button on the Manage Persons page:
+
+- Shows pairs of persons with similar face embeddings that may be the same individual
+- **Threshold slider** — controls similarity cutoff (lower = more suggestions)
+- **One-click merge** — merge a suggested pair instantly
+- **Batch merge** — select multiple suggestions and merge them all at once
 
 ### Photo Cards
 

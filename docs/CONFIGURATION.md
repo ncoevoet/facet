@@ -32,6 +32,9 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Plugins](#plugins)
 - [Capsules](#capsules)
 - [Similarity Groups](#similarity-groups)
+- [Timeline](#timeline)
+- [Map](#map)
+- [Translation](#translation)
 
 ---
 
@@ -1166,10 +1169,10 @@ Map database paths to local filesystem paths. Useful when photos were scored on 
 - Mappings are evaluated in order; the first matching prefix wins.
 - Path mapping targets are automatically included in the scan directory allowlist for multi-user security checks.
 
-**Example:** A database populated on Windows stores paths like `\\Sweet\home\Photos\2024\IMG_001.jpg`. On Linux, the same share is mounted at `/nfs/temp-share/Photos`. Configure:
+**Example:** A database populated on Windows stores paths like `\\NAS\Photos\2024\IMG_001.jpg`. On Linux, the same share is mounted at `/mnt/nas/Photos`. Configure:
 
 ```json
-"path_mapping": {"\\\\Sweet\\home\\Photos": "/nfs/temp-share/Photos"}
+"path_mapping": {"\\\\NAS\\Photos": "/mnt/nas/Photos"}
 ```
 
 ### Password Protection
@@ -1486,6 +1489,54 @@ Settings for the AI similar-photo culling feature, which groups visually similar
 | `min_group_size` | `2` | Minimum number of photos required to form a similarity group |
 | `max_photos` | `10000` | Maximum photos to load for similarity computation (O(n²) cost). Increase for larger libraries at the expense of computation time. |
 | `max_group_size` | `50` | Maximum photos per similarity group. Larger groups are split to keep the UI usable. |
+
+## Timeline
+
+Settings for the chronological timeline view:
+
+```json
+{
+  "timeline": {
+    "photos_per_group": 30
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `photos_per_group` | `30` | Number of photos loaded per date group in the timeline view. Higher values show more photos per date but increase page weight. |
+
+## Map
+
+Settings for the interactive map view:
+
+```json
+{
+  "map": {
+    "cluster_zoom_threshold": 10
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `cluster_zoom_threshold` | `10` | Zoom level at which individual markers replace clusters. Lower values show individual markers earlier (more detail at wider zoom). Range: 1 (world) to 18 (street). |
+
+## Translation
+
+Settings for AI caption translation via MarianMT:
+
+```json
+{
+  "translation": {
+    "target_language": "fr"
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `target_language` | `"fr"` | Target language code for `--translate-captions`. Supported: `fr` (French), `de` (German), `es` (Spanish), `it` (Italian). Uses Helsinki-NLP MarianMT models (CPU, no GPU required). |
 
 ## Share Secret
 

@@ -143,6 +143,31 @@ Adjust scoring behavior per category:
 | `_clipping_multiplier` | float | Scale clipping penalty |
 | `_apply_blink_penalty` | bool | Apply blink detection penalty |
 
+## Subject Saliency Dimensions
+
+Four scoring dimensions derived from AI subject segmentation (BiRefNet). These measure how well the main subject stands out in the frame:
+
+| Weight Key | Metric | Description |
+|-----------|--------|-------------|
+| `subject_sharpness_percent` | Subject sharpness | Compares focus quality between the subject region and the background. High values mean the subject is sharp while the background is soft. |
+| `subject_prominence_percent` | Subject prominence | Ratio of subject area to total frame area. High for macro and tightly-framed subjects, low for wide scenes. |
+| `subject_placement_percent` | Subject placement | Rule-of-thirds scoring for the subject's center of mass. Rewards subjects placed at power points rather than dead center. |
+| `bg_separation_percent` | Background separation | Edge gradient difference at the subject boundary. Measures bokeh quality — how cleanly the subject separates from the background. |
+
+Use `subject_sharpness_percent` and `bg_separation_percent` for portrait and wildlife categories where subject isolation matters. Use `subject_prominence_percent` for macro photography where the subject fills the frame.
+
+## Supplementary IQA Dimensions
+
+Three additional quality models that complement the primary aesthetic score:
+
+| Weight Key | Model | Description |
+|-----------|-------|-------------|
+| `aesthetic_iaa_percent` | TOPIQ IAA | Trained on the AVA dataset to measure **artistic merit** — composition creativity, visual impact, emotional resonance. Differs from the primary aesthetic score which focuses on technical quality. Best for art, creative, and editorial categories. |
+| `face_quality_iqa_percent` | TOPIQ NR-Face | Purpose-built **face quality** assessment. More accurate than generic quality models for evaluating face regions specifically. Best for portrait categories where face clarity is critical. |
+| `liqe_percent` | LIQE | Outputs both a quality score and a **distortion diagnosis** (e.g., motion blur, overexposure, noise). Useful for understanding *why* a photo scores low, not just *that* it scores low. |
+
+These models run automatically as part of the default scoring pipeline and share VRAM with the primary TOPIQ model. Add their weight keys to any category where the specialized assessment is valuable.
+
 ## Category Tags (CLIP Vocabulary)
 
 Tags trigger tag-based categories and are matched using CLIP similarity:

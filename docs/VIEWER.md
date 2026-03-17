@@ -323,11 +323,14 @@ Get an AI-generated natural language caption for any photo. Captions are generat
 | `GET /api/caption?path=<photo_path>` | Get or generate caption for a photo |
 | `PUT /api/caption` | Update caption text (edition mode required) |
 
-Also available via CLI for bulk generation:
+Also available via CLI for bulk generation and translation:
 
 ```bash
-python facet.py --generate-captions    # Generate captions for all uncaptioned photos
+python facet.py --generate-captions      # Generate captions for all uncaptioned photos
+python facet.py --translate-captions     # Translate captions to configured target language
 ```
+
+Caption translation uses MarianMT (CPU, no GPU required). Configure the target language in `scoring_config.json` under `translation.target_language` (default: `"fr"`). Supported languages: French, German, Spanish, Italian.
 
 Controlled by `viewer.features.show_captions` (default: `true`). Requires 16gb or 24gb VRAM profile for VLM-based captioning.
 
@@ -427,6 +430,34 @@ Install: `pip install reverse_geocoder`
 ### Configuration
 
 See [Configuration — Capsules](CONFIGURATION.md#capsules) for all settings.
+
+## Folders View
+
+Browse your photo library by directory structure. Access via the `/folders` route.
+
+- Breadcrumb navigation to move up the directory tree
+- Each folder shows a cover photo (highest-scoring image in that directory)
+- Click a folder to descend into it, or click a photo to open it in the gallery
+- Respects multi-user directory visibility in multi-user mode
+
+## GPS Filter Dialog
+
+Filter photos by geographic location using an interactive map picker:
+
+- Click the location filter button to open the map dialog
+- Click or drag on the map to set a center point
+- Adjust the radius slider to control the search area
+- Photos within the selected radius are filtered into the gallery
+- Requires GPS coordinates (run `--extract-gps` if photos have EXIF GPS data)
+
+## Merge Suggestions
+
+Find person clusters that may be the same individual. Access via `/merge-suggestions` or from the Manage Persons page.
+
+- **Similarity threshold slider** — adjust how similar two persons must look to be suggested as a merge (lower = more suggestions, higher = more conservative)
+- **One-click merge** — review each suggestion and merge with a single click
+- **Batch merge** — select multiple suggestions and merge them all at once
+- Also available via CLI: `python facet.py --suggest-person-merges`
 
 ## AI Culling (Similar Groups)
 

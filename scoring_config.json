@@ -2295,7 +2295,7 @@
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
     "path_mapping": {
-		"\\\\Sweet\\home\\Photos": "/nfs/temp-share/Photos"
+
 	}
   },
   "plugins": {

@@ -1,8 +1,6 @@
 # Facet
 
-**A local-first photo analysis engine that scores, categorizes, and surfaces your best photos using an ensemble of vision models.**
-
-Point Facet at a directory of photos. Local AI models analyze every image across multiple dimensions — aesthetic quality, composition, face detail, technical precision — store scores in a SQLite database, and serve results through an interactive web gallery. Everything runs locally, no cloud, no API keys.
+**Your photos deserve more than a star rating.** Facet is a local photo analysis engine that scores every image across 9 dimensions — from aesthetic appeal to face sharpness — then lets you browse, cull, and organize through an interactive web gallery. No cloud, no subscriptions, no API keys. Your photos stay on your machine.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Angular](https://img.shields.io/badge/Angular-20-dd0031)
@@ -15,149 +13,110 @@ Point Facet at a directory of photos. Local AI models analyze every image across
   <img src="docs/screenshots/hero-mosaic.jpg" alt="Facet — Top Picks mosaic gallery" width="100%">
 </p>
 
+## How It Works
+
+1. **Scan** — Point Facet at a folder of photos. AI models analyze each image for quality, composition, faces, and more. Supports JPG and 10 RAW formats (CR2, CR3, NEF, ARW, RAF, RW2, DNG, ORF, SRW, PEF).
+2. **Browse** — Open the web gallery to explore your library with filters, search, and multiple view modes.
+3. **Cull** — Find your best shots instantly. Facet auto-detects bursts, flags blinks, groups similar photos, and highlights top picks.
+
+Everything runs 100% locally. GPU is auto-detected and optional — Facet adapts to your hardware from CPU-only to 24 GB VRAM.
+
 ## Features
 
-### Gallery
+### Score
 
-Two view modes to browse your library:
+AI models analyze every photo across 9 scoring dimensions: aesthetic quality, composition, face quality, eye sharpness, technical sharpness, color, exposure, subject saliency, and dynamic range. Each photo is automatically categorized (portrait, landscape, macro, street, etc. — 17 categories) and scored with category-specific weights. A **Top Picks** filter surfaces your best photos across the library.
 
-- **Mosaic** — justified rows that preserve aspect ratios for an edge-to-edge layout
-- **Grid** — uniform card grid with optional metadata overlay showing filename, score, date, EXIF, tags, and recognized faces
-
-Hover over any photo for a detailed tooltip with the full score breakdown (quality, composition, technical metrics) and EXIF data.
+Hover over any photo for a detailed tooltip with the full score breakdown and EXIF data.
 
 <img src="docs/screenshots/hover-tooltip.jpg" alt="Hover tooltip with score breakdown" width="100%">
 
-### Filters & Search
+### Cull
 
-Filter by date range, content tag, composition pattern, camera, lens, person, and more. Toggle display options like hiding blinks, best-of-burst, duplicates, and rejected photos. Add custom range filters on any metric.
+Dedicated tools to find your keepers fast:
 
-<img src="docs/screenshots/filter-panel.jpg" alt="Filter sidebar" width="100%">
+- **Burst detection** — groups rapid-fire shots and auto-selects the best one based on sharpness, quality, and blink detection
+- **Similarity groups** — finds visually similar photos across your entire library, regardless of when they were taken
+- **Blink detection** — flags closed-eye shots so you can hide or reject them in one click
+- **Duplicate detection** — identifies near-identical images via perceptual hashing
 
-### Find Similar
+<img src="docs/screenshots/burst-culling.jpg" alt="Burst culling" width="100%">
 
-Select any photo and find visually similar images across your library. Three similarity modes: visual embedding, color palette, and same-person matching. Adjustable similarity threshold.
+### Browse
 
-<img src="docs/screenshots/similar-photos.jpg" alt="Find Similar results" width="100%">
+Multiple ways to explore your library:
 
-### Face Recognition
+- **Gallery modes** — mosaic (justified rows preserving aspect ratios) and grid (uniform cards with metadata overlay)
+- **Filters** — date range, content tag, composition pattern, camera, lens, person, quality level, star rating, and custom metric ranges
+- **Semantic search** — type a natural-language query like "sunset on the beach" or "child playing in snow" and find matching photos
+- **Timeline** — chronological browser with year/month navigation and infinite scroll
+- **Map** — browse geotagged photos on an interactive map with marker clustering
+- **Capsules** — AI-curated themed slideshows: journeys with place names, golden collection, seasonal palettes, moments with a person, and more
+- **Folders** — browse by directory structure with breadcrumb navigation and cover photos
+- **Memories** — "On This Day" retrospective showing photos from the same date in previous years
+- **Slideshow** — full-screen mode with themed transitions, auto-chaining between capsules, and keyboard controls
 
-Automatic face detection with InsightFace, HDBSCAN clustering into person groups, and blink detection. The management UI lets you search, rename, merge, and organize person clusters. Filter the gallery by person to browse all photos of someone.
+<table><tr>
+<td><img src="docs/screenshots/filter-panel.jpg" alt="Filter sidebar" width="100%"></td>
+<td><img src="docs/screenshots/semantic-search.jpg" alt="Semantic search results" width="100%"></td>
+</tr></table>
+
+### Organize
+
+- **Face recognition** — automatic face detection, grouping into persons, and blink detection. Search, rename, merge, and organize person clusters from the management UI. **Merge suggestions** find similar-looking clusters that may be the same person.
+- **Albums** — manual collections with drag-and-drop, or smart albums that auto-populate from saved filter combinations
+- **Ratings & favorites** — star ratings (1–5), favorites, and reject flags. Cycle through ratings with a single click.
+- **Tags** — AI-generated content tags with configurable vocabulary. Click any tag to filter the gallery.
+- **Batch operations** — multi-select with Shift+click and Ctrl+click. Set ratings, toggle favorites, mark rejects, or add to albums in bulk.
 
 <table><tr>
 <td><img src="docs/screenshots/persons-manage.jpg" alt="Manage Persons page" width="100%"></td>
 <td><img src="docs/screenshots/person-gallery.jpg" alt="Person gallery" width="100%"></td>
 </tr></table>
 
-### Semantic Search
+### Understand
 
-Type a natural-language query — "sunset on the beach", "child playing in snow", "golden hour portrait" — and Facet matches it against stored CLIP/SigLIP embeddings to find semantically matching photos across your library.
-
-<img src="docs/screenshots/semantic-search.jpg" alt="Semantic search results" width="100%">
-
-### Albums
-
-Organize photos into manual or smart albums. Manual albums let you drag-and-drop photos into collections. Smart albums auto-populate from saved filter combinations (date ranges, tags, camera, person, score thresholds). Each album has a cover photo, description, and photo count.
-
-<img src="docs/screenshots/albums.jpg" alt="Albums page" width="100%">
-
-### Map View
-
-Browse geotagged photos on an interactive Leaflet map. Markers cluster at low zoom levels and expand as you zoom in. Click any marker to view the photo. Extract GPS coordinates from existing photos with `python facet.py --extract-gps` — new photos are extracted automatically during scoring.
-
-### Timeline View
-
-Chronological photo browser with a year/month sidebar for date-based navigation. Scroll through photos organized by date with cursor-based infinite scroll. Access at `/timeline`.
-
-### Memories ("On This Day")
-
-A retrospective dialog showing photos taken on the same calendar date in previous years. Accessible from the gallery header when photos span multiple years.
-
-### AI Captions
-
-VLM-generated natural-language descriptions for each photo — viewable on the photo detail page and editable in edition mode. Generate captions in bulk with `python facet.py --generate-captions`. Requires 16gb or 24gb VRAM profile.
-
-### Photo Sharing
-
-Share albums via tokenized links that require no authentication. Generate a shareable link from any album, and revoke access at any time. Recipients browse the shared album at `/shared/album/:id`.
-
-### AI Critique
-
-Get a detailed score breakdown for any photo. The rule-based critique shows each metric's raw score, category weight, and weighted contribution to the aggregate. Available on all VRAM profiles. VLM-powered critique (16gb/24gb) adds a natural-language assessment.
-
-<img src="docs/screenshots/critique.jpg" alt="AI Critique dialog" width="100%">
-
-### Burst Culling
-
-Dedicated culling mode for burst groups. Photos in each burst are shown side-by-side with the auto-computed best shot highlighted. Auto-selection uses aggregate score, aesthetic quality, sharpness, and blink detection. Override any selection with one click, then confirm to mark rejects.
-
-<img src="docs/screenshots/burst-culling.jpg" alt="Burst culling" width="100%">
-
-### Statistics
-
-Interactive dashboards across four tabs:
-
-- **Gear** — camera and lens usage timelines, average scores by equipment, top body+lens combos
-- **Categories** — breakdown by content category with shooting profiles (preferred camera, lens, ISO, aperture, focal length per category)
-- **Timeline** — photos per month/year, day-of-week and hour-of-day distributions, shooting hours heatmap
-- **Correlations** — configurable multi-metric charts across any axis (year, ISO, aperture, focal length, etc.)
+- **Statistics** — interactive dashboards: equipment usage, category breakdown, shooting timeline, and custom metric correlations
+- **AI critique** — detailed score breakdown showing each metric's contribution. VLM-powered natural-language assessment available with 16+ GB VRAM.
+- **Weight tuning** — per-category weight editor with live score preview. A/B photo comparison learns from your choices and suggests optimized weights.
+- **Snapshots** — save, restore, and compare weight configurations
+- **AI captions** — natural-language photo descriptions, editable and translatable to 5 languages
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Equipment statistics" width="100%"></td>
 <td><img src="docs/screenshots/stats-categories.jpg" alt="Category analytics" width="100%"></td>
-</tr><tr>
-<td><img src="docs/screenshots/stats-timeline.jpg" alt="Timeline statistics" width="100%"></td>
-<td><img src="docs/screenshots/stats-correlations.jpg" alt="Correlation charts" width="100%"></td>
 </tr></table>
 
-### Weight Tuning
-
-Per-category weight editor with live preview showing how weight changes affect the top-ranked photos. Includes a correlation chart comparing configured weights vs actual impact on scores. Pairwise A/B photo comparison learns from your choices. Requires edition mode.
+<table><tr>
+<td><img src="docs/screenshots/critique.jpg" alt="AI Critique dialog" width="100%"></td>
+<td><img src="docs/screenshots/snapshots.jpg" alt="Snapshots" width="100%"></td>
+</tr></table>
 
 <table><tr>
 <td><img src="docs/screenshots/weights-sliders.jpg" alt="Category weight sliders" width="100%"></td>
 <td><img src="docs/screenshots/weights-compare.jpg" alt="A/B photo comparison" width="100%"></td>
 </tr></table>
 
-### Snapshots
+### Share
 
-Save and restore weight configurations as named snapshots. Compare different tuning approaches side-by-side, roll back to a previous configuration, or share setups across machines via export/import.
+- **Album sharing** — generate shareable links for any album, no login required for recipients. Revoke access at any time.
+- **Photo download** — download individual photos or selections from the gallery
+- **Export** — export all scores to CSV or JSON for external analysis
 
-<img src="docs/screenshots/snapshots.jpg" alt="Snapshots" width="100%">
+### More
 
-### Ratings & Favorites
-
-Star ratings (1-5), favorites, and reject flags on any photo. Cycle through star ratings with a single click in edition mode. Filter the gallery by rating, favorites-only, or hide rejected photos. Ratings are stored in the database and persist across sessions.
-
-### Batch Operations
-
-Multi-select photos with Shift+click for range selection or Ctrl+click for individual picks. The action bar lets you set star ratings, toggle favorites, mark as rejected, or add to albums in bulk. Select all visible photos with one click.
-
-### Slideshow
-
-Full-screen slideshow mode with configurable interval and keyboard controls. Navigate forward/back, pause/resume, or exit at any time. Launches from the gallery toolbar and respects current filters and sort order.
-
-### Dark & Light Mode
-
-Toggle between dark and light themes from the user menu. Respects your system preference (`prefers-color-scheme`) by default. Combines with 10 accent color themes.
-
-### Responsive Design
-
-The UI adapts to any screen size — from mobile (single-column, bottom nav) to tablet (compact grid) to desktop (full mosaic with sidebar).
+- **Dark & light mode** with 10 accent color themes, respects system preference
+- **Responsive** — adapts from mobile to desktop
+- **5 languages** — English, French, German, Spanish, Italian
+- **Multi-user** — per-user directories, ratings, and role-based access for family NAS setups
+- **Plugins & webhooks** — extend Facet with custom actions on scoring events
+- **Scan from web UI** — trigger photo scanning directly from the browser (superadmin role)
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="Mobile gallery" width="100%"></td>
 <td width="33%"><img src="docs/screenshots/tablet-gallery.jpg" alt="Tablet gallery" width="100%"></td>
 <td width="33%"><img src="docs/screenshots/gallery-mosaic.jpg" alt="Desktop mosaic" width="100%"></td>
 </tr></table>
-
-### Multi-Language Support
-
-Available in English, French, German, Spanish, and Italian with a language switcher in the header menu.
-
-### Plugin & Webhook System
-
-Extend Facet with custom plugins and webhooks. Events: `on_score_complete`, `on_new_photo`, `on_burst_detected`, `on_high_score`. Built-in actions include copying high-scoring photos to a folder. See `plugins/example_plugin.py` for the interface.
 
 ## Quick Start
 
@@ -221,37 +180,6 @@ facet-doctor                 # Diagnose GPU issues
 ```
 
 Run `python facet.py --doctor` to diagnose GPU issues. See [Installation](docs/INSTALLATION.md) for VRAM profiles, VLM tagging packages (16gb/24gb), optional dependencies, and [dependency troubleshooting](docs/INSTALLATION.md#troubleshooting-dependency-conflicts).
-
-## Configuration
-
-All settings live in `scoring_config.json`. Key sections:
-
-| Section | Purpose |
-|---------|---------|
-| `categories` | Photo categories with weights, filters, and tag vocabulary |
-| `viewer` | UI defaults, sort options, feature flags, CORS origins |
-| `storage` | Storage mode (`database` or `filesystem`) |
-| `plugins` | Webhook URLs and built-in actions |
-| `performance` | SQLite mmap and cache sizing |
-
-Environment variables: `FACET_LOG_LEVEL` (DEBUG/INFO/WARNING/ERROR), `PORT` (default 5000), `FACET_DB_PATH`.
-
-See [Configuration](docs/CONFIGURATION.md) for the full reference.
-
-## API
-
-The FastAPI server exposes a REST API documented at `/api/docs` (Swagger UI) when running.
-
-Key endpoints:
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /health` | Liveness check |
-| `GET /ready` | Readiness check (database connectivity) |
-| `GET /api/photos` | Paginated photo list with filters |
-| `GET /api/search?q=...` | Semantic text-to-image search |
-| `GET /api/burst-groups` | Burst groups for culling mode |
-| `GET /api/plugins` | Loaded plugins and webhooks |
 
 ## Documentation
 
