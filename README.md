@@ -7,7 +7,6 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Docker-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![PyPI](https://img.shields.io/pypi/v/facet-photo)
 
 <p align="center">
   <img src="docs/screenshots/hero-mosaic.jpg" alt="Facet — Top Picks mosaic gallery" width="100%">
@@ -169,15 +168,6 @@ python facet.py /path/to/photos
 python viewer.py
 ```
 </details>
-
-### PyPI
-
-```bash
-pip install facet-photo
-facet /path/to/photos        # Score photos
-facet-viewer                 # Start the web viewer
-facet-doctor                 # Diagnose GPU issues
-```
 
 Run `python facet.py --doctor` to diagnose GPU issues. See [Installation](docs/INSTALLATION.md) for VRAM profiles, VLM tagging packages (16gb/24gb), optional dependencies, and [dependency troubleshooting](docs/INSTALLATION.md#troubleshooting-dependency-conflicts).
 
