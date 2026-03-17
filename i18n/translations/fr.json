@@ -965,6 +965,7 @@
     "culling": "Tri",
     "memories": "Souvenirs",
     "timeline": "Chronologie",
+    "folders": "Dossiers",
     "map": "Carte",
     "capsules": "Capsules"
   },
@@ -1533,19 +1534,18 @@
   },
   "timeline": {
     "title": "Chronologie",
-    "no_photos": "Aucune photo avec date trouvée",
-    "jump_to_date": "Aller à la date",
-    "photos_on_date": "{count} photos",
     "empty": "Aucune photo avec des dates trouvée.",
-    "more": "plus",
-    "load_more": "Charger plus",
-    "granularity": "Grouper par",
-    "granularity_day": "Jour",
-    "granularity_week": "Semaine",
-    "granularity_month": "Mois",
-    "sort_within": "Tri",
-    "sort_filename": "Nom de fichier",
-    "photos_per_group": "Photos"
+    "years_title": "Années",
+    "months_title": "Mois",
+    "all_years": "Toutes les années",
+    "no_photos_month": "Aucune photo ce mois-ci",
+    "photos_count": "photos"
+  },
+  "folders": {
+    "title": "Dossiers",
+    "empty": "Aucun dossier trouvé.",
+    "root": "Racine",
+    "photos_count": "photos"
   },
   "albums_sharing": {
     "share": "Partager l'album",

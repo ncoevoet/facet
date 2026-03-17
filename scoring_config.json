@@ -2285,7 +2285,8 @@
       "show_captions": true,
       "show_timeline": true,
       "show_map": true,
-      "show_capsules": true
+      "show_capsules": true,
+      "show_folders": true
     },
     "allowed_origins": [
       "http://localhost:4200",

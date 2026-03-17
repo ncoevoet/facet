@@ -238,7 +238,25 @@ async def api_timeline_dates(
         )
         rows = conn.execute(query, sql_params).fetchall()
 
-        dates = [{'date': row['photo_date'], 'count': row['cnt']} for row in rows]
+        dates = []
+        for row in rows:
+            date_val = row['photo_date']
+            # Find hero photo for this date
+            hero_where = list(where_clauses) + [
+                "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-')) = ?"
+            ]
+            hero_params = list(sql_params) + [date_val]
+            hero_where_str = " WHERE " + " AND ".join(hero_where)
+            hero_query = (
+                f"SELECT path FROM {from_clause}{hero_where_str} "
+                f"ORDER BY COALESCE(aggregate, 0) DESC LIMIT 1"
+            )
+            hero_row = conn.execute(hero_query, hero_params).fetchone()
+            dates.append({
+                'date': date_val,
+                'count': row['cnt'],
+                'hero_photo_path': hero_row['path'] if hero_row else None,
+            })
 
     except HTTPException:
         raise
@@ -249,3 +267,127 @@ async def api_timeline_dates(
         conn.close()
 
     return {'dates': dates}
+
+
+@router.get("/api/timeline/years")
+async def api_timeline_years(
+    hide_blinks: str = Query('0'),
+    hide_bursts: str = Query('0'),
+    hide_duplicates: str = Query('0'),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Return year summaries with photo counts and hero thumbnails."""
+    user_id = user.user_id if user else None
+    conn = get_db_connection()
+    try:
+        from_clause, from_params = get_photos_from_clause(user_id)
+        vis_sql, vis_params = get_visibility_clause(user_id)
+
+        where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
+        sql_params = list(from_params) + list(vis_params)
+
+        where_clauses.extend(build_hide_clauses(hide_blinks, hide_bursts, hide_duplicates))
+
+        where_str = " WHERE " + " AND ".join(where_clauses)
+
+        query = (
+            f"SELECT SUBSTR(REPLACE(SUBSTR(date_taken,1,10),':','-'),1,4) as year, "
+            f"COUNT(*) as count "
+            f"FROM {from_clause}{where_str} "
+            f"GROUP BY year ORDER BY year DESC"
+        )
+        rows = conn.execute(query, sql_params).fetchall()
+
+        years = []
+        for row in rows:
+            year_val = row['year']
+            # Find hero photo (highest aggregate) for this year
+            hero_where = list(where_clauses) + [
+                "SUBSTR(REPLACE(SUBSTR(date_taken,1,10),':','-'),1,4) = ?"
+            ]
+            hero_params = list(from_params) + list(vis_params)
+            hero_params.append(year_val)
+            hero_where_str = " WHERE " + " AND ".join(hero_where)
+            hero_query = (
+                f"SELECT path FROM {from_clause}{hero_where_str} "
+                f"ORDER BY COALESCE(aggregate, 0) DESC LIMIT 1"
+            )
+            hero_row = conn.execute(hero_query, hero_params).fetchone()
+            years.append({
+                'year': year_val,
+                'count': row['count'],
+                'hero_photo_path': hero_row['path'] if hero_row else None,
+            })
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to fetch timeline years")
+        return {'years': []}
+    finally:
+        conn.close()
+
+    return {'years': years}
+
+
+@router.get("/api/timeline/months")
+async def api_timeline_months(
+    year: int = Query(..., ge=1900, le=2100),
+    hide_blinks: str = Query('0'),
+    hide_bursts: str = Query('0'),
+    hide_duplicates: str = Query('0'),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Return month summaries for a given year with photo counts and hero thumbnails."""
+    user_id = user.user_id if user else None
+    conn = get_db_connection()
+    try:
+        from_clause, from_params = get_photos_from_clause(user_id)
+        vis_sql, vis_params = get_visibility_clause(user_id)
+
+        where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''",
+                         "SUBSTR(date_taken,1,4) = ?"]
+        sql_params = list(from_params) + list(vis_params) + [str(year)]
+
+        where_clauses.extend(build_hide_clauses(hide_blinks, hide_bursts, hide_duplicates))
+
+        where_str = " WHERE " + " AND ".join(where_clauses)
+
+        query = (
+            f"SELECT SUBSTR(REPLACE(SUBSTR(date_taken,1,7),':','-'),1,7) as month, "
+            f"COUNT(*) as count "
+            f"FROM {from_clause}{where_str} "
+            f"GROUP BY month ORDER BY month ASC"
+        )
+        rows = conn.execute(query, sql_params).fetchall()
+
+        months = []
+        for row in rows:
+            month_val = row['month']
+            # Find hero photo for this month
+            hero_where = list(where_clauses) + [
+                "SUBSTR(REPLACE(SUBSTR(date_taken,1,7),':','-'),1,7) = ?"
+            ]
+            hero_params = list(from_params) + list(vis_params) + [str(year)]
+            hero_params.append(month_val)
+            hero_where_str = " WHERE " + " AND ".join(hero_where)
+            hero_query = (
+                f"SELECT path FROM {from_clause}{hero_where_str} "
+                f"ORDER BY COALESCE(aggregate, 0) DESC LIMIT 1"
+            )
+            hero_row = conn.execute(hero_query, hero_params).fetchone()
+            months.append({
+                'month': month_val,
+                'count': row['count'],
+                'hero_photo_path': hero_row['path'] if hero_row else None,
+            })
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to fetch timeline months")
+        return {'months': []}
+    finally:
+        conn.close()
+
+    return {'months': months}

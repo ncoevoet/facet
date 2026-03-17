@@ -965,6 +965,7 @@
     "culling": "Culling",
     "memories": "Memories",
     "timeline": "Timeline",
+    "folders": "Folders",
     "map": "Map",
     "capsules": "Capsules"
   },
@@ -1533,19 +1534,18 @@
   },
   "timeline": {
     "title": "Timeline",
-    "no_photos": "No photos with dates found",
-    "jump_to_date": "Jump to date",
-    "photos_on_date": "{count} photos",
     "empty": "No photos with dates found.",
-    "more": "more",
-    "load_more": "Load more",
-    "granularity": "Group by",
-    "granularity_day": "Day",
-    "granularity_week": "Week",
-    "granularity_month": "Month",
-    "sort_within": "Sort",
-    "sort_filename": "Filename",
-    "photos_per_group": "Photos"
+    "years_title": "Years",
+    "months_title": "Months",
+    "all_years": "All Years",
+    "no_photos_month": "No photos this month",
+    "photos_count": "photos"
+  },
+  "folders": {
+    "title": "Folders",
+    "empty": "No folders found.",
+    "root": "Root",
+    "photos_count": "photos"
   },
   "albums_sharing": {
     "share": "Share Album",

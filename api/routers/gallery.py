@@ -238,6 +238,11 @@ def _build_gallery_where(params, conn=None, user_id=None):
         except (ValueError, TypeError):
             pass
 
+    if params.get('path_prefix'):
+        norm_prefix = params['path_prefix'].replace('\\', '/').rstrip('/') + '/'
+        where_clauses.append("REPLACE(photos.path, '\\', '/') LIKE ?")
+        sql_params.append(norm_prefix + '%')
+
     return where_clauses, sql_params
 
 
@@ -418,6 +423,7 @@ async def api_photos(
         'max_subject_placement': qp.get('max_subject_placement', ''),
         'min_bg_separation': qp.get('min_bg_separation', ''),
         'max_bg_separation': qp.get('max_bg_separation', ''),
+        'path_prefix': qp.get('path_prefix', ''),
     }
 
     if params.get('type') in TYPE_FILTERS:
@@ -514,6 +520,7 @@ def _enrich_similar_with_full_rows(page_results, conn, user_id):
     ).fetchall()
     photos = split_photo_tags(rows, VIEWER_CONFIG['display']['tags_per_photo'])
     attach_person_data(photos, conn)
+    sanitize_float_values(photos)
     path_to_photo = {p['path']: p for p in photos}
     ordered = []
     for path in paths:
@@ -864,6 +871,7 @@ async def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         features.setdefault('show_albums', True)
         features.setdefault('show_critique', True)
         features.setdefault('show_vlm_critique', False)
+        features.setdefault('show_folders', True)
 
         # Check if albums table exists
         try:

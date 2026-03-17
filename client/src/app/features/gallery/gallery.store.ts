@@ -78,6 +78,7 @@ export interface ViewerConfig {
     show_timeline: boolean;
     show_map: boolean;
     show_capsules: boolean;
+    show_folders: boolean;
   };
   quality_thresholds: {
     good: number;
@@ -190,6 +191,8 @@ export interface GalleryFilters {
   semanticQuery: string;
   // Album filter
   album_id: string;
+  // Folder filter
+  path_prefix: string;
   // GPS filter
   gps_lat: string;
   gps_lng: string;
@@ -238,6 +241,7 @@ const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
   'min_star_rating', 'max_star_rating',
   'min_iso', 'max_iso', 'min_aperture', 'max_aperture', 'min_focal_length', 'max_focal_length',
   'date_from', 'date_to',
+  'path_prefix',
   'gps_lat', 'gps_lng', 'gps_radius_km',
 ];
 
@@ -322,6 +326,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   date_from: '',
   date_to: '',
   composition_pattern: '',
+  path_prefix: '',
   semanticQuery: '',
   album_id: '',
   gps_lat: '',

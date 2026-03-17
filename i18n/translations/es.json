@@ -965,6 +965,7 @@
     "culling": "Selección",
     "memories": "Recuerdos",
     "timeline": "Línea de tiempo",
+    "folders": "Carpetas",
     "map": "Mapa",
     "capsules": "Cápsulas"
   },
@@ -1532,20 +1533,19 @@
     "unavailable": "La generación de descripciones requiere un modelo VLM (16 GB+ VRAM)"
   },
   "timeline": {
-    "title": "Línea de tiempo",
-    "no_photos": "No se encontraron fotos con fecha",
-    "jump_to_date": "Ir a la fecha",
-    "photos_on_date": "{count} fotos",
+    "title": "Cronología",
     "empty": "No se encontraron fotos con fechas.",
-    "more": "más",
-    "load_more": "Cargar más",
-    "granularity": "Agrupar",
-    "granularity_day": "Día",
-    "granularity_week": "Semana",
-    "granularity_month": "Mes",
-    "sort_within": "Orden",
-    "sort_filename": "Nombre",
-    "photos_per_group": "Fotos"
+    "years_title": "Años",
+    "months_title": "Meses",
+    "all_years": "Todos los años",
+    "no_photos_month": "Sin fotos este mes",
+    "photos_count": "fotos"
+  },
+  "folders": {
+    "title": "Carpetas",
+    "empty": "No se encontraron carpetas.",
+    "root": "Raíz",
+    "photos_count": "fotos"
   },
   "albums_sharing": {
     "share": "Compartir álbum",

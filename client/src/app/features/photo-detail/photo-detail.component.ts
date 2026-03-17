@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -19,6 +20,7 @@ import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CategoryLabelPipe } from '../gallery/photo-tooltip.component';
 import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
+import { GalleryStore } from '../gallery/gallery.store';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 
@@ -28,6 +30,7 @@ import { createLeafletMap } from '../../shared/leaflet';
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
+    MatMenuModule,
     MatDialogModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
@@ -47,6 +50,39 @@ import { createLeafletMap } from '../../shared/leaflet';
           <mat-icon>arrow_back</mat-icon>
         </button>
         <span class="flex-1 truncate font-medium">{{ p.filename }}</span>
+
+        @if (store.config()?.features?.show_similar_button) {
+          <button mat-icon-button [matMenuTriggerFor]="similarMenu"
+            [matTooltip]="'similar.find_similar' | translate">
+            <mat-icon>image_search</mat-icon>
+          </button>
+          <mat-menu #similarMenu="matMenu">
+            <button mat-menu-item (click)="openSimilar(p, 'visual')">
+              <mat-icon>image_search</mat-icon> {{ 'similar.mode_visual' | translate }}
+            </button>
+            <button mat-menu-item (click)="openSimilar(p, 'color')">
+              <mat-icon>palette</mat-icon> {{ 'similar.mode_color' | translate }}
+            </button>
+            <button mat-menu-item (click)="openSimilar(p, 'person')">
+              <mat-icon>person_search</mat-icon> {{ 'similar.mode_person' | translate }}
+            </button>
+          </mat-menu>
+        }
+
+        @if (store.config()?.features?.show_critique) {
+          <button mat-icon-button (click)="openCritique(p)"
+            [matTooltip]="'critique.title' | translate">
+            <mat-icon>analytics</mat-icon>
+          </button>
+        }
+
+        @if (auth.isEdition() && p.unassigned_faces > 0) {
+          <button mat-icon-button (click)="openAddPerson(p)"
+            [matTooltip]="'manage_persons.assign_face' | translate">
+            <mat-icon>person_add</mat-icon>
+          </button>
+        }
+
         <button mat-button (click)="download(p.path)" [matTooltip]="'photo_detail.download' | translate">
           <mat-icon>download</mat-icon>
           {{ 'photo_detail.download' | translate }}
@@ -342,6 +378,7 @@ export class PhotoDetailComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
   protected readonly auth = inject(AuthService);
+  protected readonly store = inject(GalleryStore);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
@@ -549,6 +586,51 @@ export class PhotoDetailComponent implements OnInit {
           this.translatedCaption.set(null);
           this.photo.set({ ...p, caption: result || null, caption_translated: undefined });
         }
+      });
+    });
+  }
+
+  protected openSimilar(photo: Photo, mode: 'visual' | 'color' | 'person'): void {
+    this.router.navigate(['/'], {
+      queryParams: { similar_to: photo.path, similarity_mode: mode, min_similarity: '70' },
+    });
+  }
+
+  protected openCritique(photo: Photo): void {
+    import('../gallery/photo-critique-dialog.component').then(m => {
+      const vlmAvailable = this.store.config()?.features?.show_vlm_critique ?? false;
+      this.dialog.open(m.PhotoCritiqueDialogComponent, {
+        data: { photoPath: photo.path, vlmAvailable },
+        width: '95vw',
+        maxWidth: '600px',
+      });
+    });
+  }
+
+  protected openAddPerson(photo: Photo): void {
+    import('../gallery/face-selector-dialog.component').then(m => {
+      const faceRef = this.dialog.open(m.FaceSelectorDialogComponent, {
+        data: { photoPath: photo.path },
+        width: '95vw',
+        maxWidth: '400px',
+      });
+      faceRef.afterClosed().subscribe(face => {
+        if (!face) return;
+        import('../gallery/person-selector-dialog.component').then(m2 => {
+          const persons = this.store.persons().filter(p => p.name);
+          const personRef = this.dialog.open(m2.PersonSelectorDialogComponent, {
+            data: persons,
+            width: '95vw',
+            maxWidth: '400px',
+          });
+          personRef.afterClosed().subscribe(async selected => {
+            if (selected) {
+              await this.store.assignFace(face.id, selected.id, photo.path, selected.name);
+              this.snackBar.open(this.i18n.t('notifications.faces_assigned'), '', { duration: 2000 });
+              this.photo.update(p => p ? { ...p, unassigned_faces: Math.max(0, p.unassigned_faces - 1) } : p);
+            }
+          });
+        });
       });
     });
   }

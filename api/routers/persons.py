@@ -13,7 +13,7 @@ from api.auth import CurrentUser, require_edition, require_authenticated, get_op
 from api.config import VIEWER_CONFIG
 from api.database import get_db_connection
 from api.db_helpers import (
-    get_existing_columns, split_photo_tags, format_date, to_exif_date,
+    get_existing_columns, split_photo_tags, sanitize_float_values, format_date, to_exif_date,
     PHOTO_BASE_COLS, PHOTO_OPTIONAL_COLS,
     HIDE_BLINKS_SQL, HIDE_BURSTS_SQL, get_visibility_clause,
 )
@@ -132,6 +132,7 @@ def _query_person_photos(person_id: int, *, page: int, per_page: int,
 
         tags_limit = VIEWER_CONFIG["display"]["tags_per_photo"]
         photos = split_photo_tags(rows, tags_limit)
+        sanitize_float_values(photos)
     finally:
         conn.close()
 

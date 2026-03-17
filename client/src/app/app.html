@@ -23,6 +23,11 @@
               <mat-icon>view_timeline</mat-icon>
             </a>
           }
+          @if (store.config()?.features?.show_folders) {
+            <a mat-icon-button class="lg:!hidden" routerLink="/folders" routerLinkActive #rlFoldersM="routerLinkActive" [style.color]="rlFoldersM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.folders' | translate">
+              <mat-icon>folder</mat-icon>
+            </a>
+          }
           <a mat-icon-button class="lg:!hidden" routerLink="/persons" routerLinkActive #rlPersonsM="routerLinkActive" [style.color]="rlPersonsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.persons' | translate">
             <mat-icon>people</mat-icon>
           </a>
@@ -65,6 +70,11 @@
           @if (store.config()?.features?.show_timeline) {
             <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/timeline" routerLinkActive #rlTimeline="routerLinkActive" [style.color]="rlTimeline.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.timeline' | translate">
               <mat-icon>view_timeline</mat-icon>
+            </a>
+          }
+          @if (store.config()?.features?.show_folders) {
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/folders" routerLinkActive #rlFolders="routerLinkActive" [style.color]="rlFolders.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.folders' | translate">
+              <mat-icon>folder</mat-icon>
             </a>
           }
           <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/persons" routerLinkActive #rlPersons="routerLinkActive" [style.color]="rlPersons.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.persons' | translate">
@@ -231,25 +241,7 @@
         </mat-form-field>
       }
 
-      <!-- Timeline filters (visible only on timeline route, lg+) -->
-      @if (auth.isAuthenticated() && isTimelineRoute()) {
-        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
-          <mat-label>{{ 'stats.filter.date_from' | translate }}</mat-label>
-          <input matInput type="date" [value]="timelineFilters.dateFrom()" (change)="onDateFilterChange(timelineFilters, 'from', $event)" />
-        </mat-form-field>
-        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
-          <mat-label>{{ 'stats.filter.date_to' | translate }}</mat-label>
-          <input matInput type="date" [value]="timelineFilters.dateTo()" (change)="onDateFilterChange(timelineFilters, 'to', $event)" />
-        </mat-form-field>
-        <button
-          class="!hidden lg:!inline-flex"
-          mat-icon-button
-          (click)="timelineFilters.sortDirection.set(timelineFilters.sortDirection() === 'older' ? 'newer' : 'older')"
-          [matTooltip]="timelineFilters.sortDirection() === 'older' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)"
-        >
-          <mat-icon>{{ timelineFilters.sortDirection() === 'older' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-        </button>
-      }
+      <!-- Timeline: no toolbar controls needed (calendar drill-down is self-contained) -->
 
       <!-- Map filters (visible only on map route, lg+) -->
       @if (auth.isAuthenticated() && isMapRoute()) {
@@ -543,7 +535,7 @@
   }
 
   <!-- Main content -->
-  <main class="flex-1 overflow-auto lg:pb-0" [class.pb-14]="isGalleryRoute() || isAlbumsRoute() || isPersonsRoute() || isTimelineRoute() || isMapRoute() || isCapsuleRoute()">
+  <main class="flex-1 overflow-auto lg:pb-0" [class.pb-14]="isGalleryRoute() || isAlbumsRoute() || isPersonsRoute() || isMapRoute() || isCapsuleRoute()">
     <router-outlet />
   </main>
 
@@ -723,26 +715,6 @@
           <mat-icon>close</mat-icon>
         </button>
       </mat-form-field>
-    </div>
-  }
-
-  <!-- Mobile timeline bottom bar -->
-  @if (auth.isAuthenticated() && isTimelineRoute()) {
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
-        <mat-label>{{ 'ui.labels.from' | translate }}</mat-label>
-        <input matInput type="date" [value]="timelineFilters.dateFrom()" (change)="onDateFilterChange(timelineFilters, 'from', $event)" />
-      </mat-form-field>
-      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
-        <mat-label>{{ 'ui.labels.to' | translate }}</mat-label>
-        <input matInput type="date" [value]="timelineFilters.dateTo()" (change)="onDateFilterChange(timelineFilters, 'to', $event)" />
-      </mat-form-field>
-      <button mat-icon-button class="!w-10 !h-10 shrink-0"
-        (click)="timelineFilters.sortDirection.set(timelineFilters.sortDirection() === 'older' ? 'newer' : 'older')"
-        [matTooltip]="timelineFilters.sortDirection() === 'older' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)"
-      >
-        <mat-icon>{{ timelineFilters.sortDirection() === 'older' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-      </button>
     </div>
   }
 

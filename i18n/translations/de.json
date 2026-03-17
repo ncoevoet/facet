@@ -965,6 +965,7 @@
     "culling": "Auswahl",
     "memories": "Erinnerungen",
     "timeline": "Zeitleiste",
+    "folders": "Ordner",
     "map": "Karte",
     "capsules": "Kapseln"
   },
@@ -1532,20 +1533,19 @@
     "unavailable": "Beschriftungsgenerierung erfordert ein VLM-Modell (16 GB+ VRAM)"
   },
   "timeline": {
-    "title": "Zeitleiste",
-    "no_photos": "Keine Fotos mit Datum gefunden",
-    "jump_to_date": "Zum Datum springen",
-    "photos_on_date": "{count} Fotos",
+    "title": "Zeitstrahl",
     "empty": "Keine Fotos mit Datumsangaben gefunden.",
-    "more": "mehr",
-    "load_more": "Mehr laden",
-    "granularity": "Gruppieren",
-    "granularity_day": "Tag",
-    "granularity_week": "Woche",
-    "granularity_month": "Monat",
-    "sort_within": "Sortierung",
-    "sort_filename": "Dateiname",
-    "photos_per_group": "Fotos"
+    "years_title": "Jahre",
+    "months_title": "Monate",
+    "all_years": "Alle Jahre",
+    "no_photos_month": "Keine Fotos in diesem Monat",
+    "photos_count": "Fotos"
+  },
+  "folders": {
+    "title": "Ordner",
+    "empty": "Keine Ordner gefunden.",
+    "root": "Stammverzeichnis",
+    "photos_count": "Fotos"
   },
   "albums_sharing": {
     "share": "Album teilen",

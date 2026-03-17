@@ -148,6 +148,7 @@ export class App implements OnInit {
   protected readonly isPersonsRoute = computed(() => this.url().split('?')[0] === '/persons');
   protected readonly isMapRoute = computed(() => this.url().split('?')[0] === '/map');
   protected readonly isCapsuleRoute = computed(() => this.url().split('?')[0] === '/capsules');
+  protected readonly isFoldersRoute = computed(() => this.url().split('?')[0] === '/folders');
 
   protected readonly sortGroups = computed(() => {
     const grouped = this.store.config()?.sort_options_grouped;
@@ -215,6 +216,10 @@ export class App implements OnInit {
     if (f.camera) chips.push({ id: 'camera', labelKey: 'gallery.camera', value: f.camera, clearKeys: ['camera'] });
     if (f.lens) chips.push({ id: 'lens', labelKey: 'gallery.lens', value: f.lens, clearKeys: ['lens'] });
     if (f.composition_pattern) chips.push({ id: 'composition_pattern', labelKey: 'gallery.composition_pattern', value: f.composition_pattern, clearKeys: ['composition_pattern'] });
+    if (f.path_prefix) {
+      const folderName = f.path_prefix.replace(/\/$/, '').split('/').pop() || f.path_prefix;
+      chips.push({ id: 'path_prefix', labelKey: 'folders.title', value: folderName, clearKeys: ['path_prefix'] });
+    }
 
     // Person filter — one chip per selected person
     if (f.person_id) {

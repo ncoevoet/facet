@@ -137,14 +137,6 @@ export class CategoryReasonPipe implements PipeTransform {
         <!-- Score breakdown table -->
         <div class="text-xs uppercase tracking-wider opacity-50 mb-2">{{ 'critique.breakdown' | translate }}</div>
         <table class="w-full text-sm mb-4">
-          <thead>
-            <tr class="border-b border-[var(--mat-sys-outline-variant)]">
-              <th class="text-left py-1 font-medium">{{ 'critique.metric' | translate }}</th>
-              <th class="text-right py-1 font-medium w-16">{{ 'critique.value' | translate }}</th>
-              <th class="text-right py-1 font-medium w-20">{{ 'critique.weight' | translate }}</th>
-              <th class="text-right py-1 font-medium w-28">{{ 'critique.contribution_label' | translate }}</th>
-            </tr>
-          </thead>
           <tbody>
             @for (item of c.breakdown; track item.metric_key) {
               <tr class="border-b border-[var(--mat-sys-outline-variant)]/30">
