@@ -1,5 +1,6 @@
 <div class="flex flex-col h-screen">
-  <!-- Toolbar -->
+  <!-- Toolbar (hidden on shared routes) -->
+  @if (!isSharedRoute()) {
   <mat-toolbar class="shrink-0 !px-2 !bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]">
     <div class="flex items-center gap-3 w-full">
       <!-- Nav links -->
@@ -469,6 +470,7 @@
 
     </div>
   </mat-toolbar>
+  }
 
   <!-- Mobile search bar is rendered as a fixed bar above the gallery bottom bar -->
 

@@ -21,6 +21,7 @@ from api.db_helpers import (
     build_photo_select_columns, sanitize_float_values,
     split_photo_tags, attach_person_data, format_date,
 )
+from api.types import VALID_SORT_COLS, SORT_OPTIONS_GROUPED
 
 router = APIRouter(tags=["albums"])
 logger = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col, sort
 
         select_cols = build_photo_select_columns(conn, user_id)
 
-        safe_sort = sort_col if sort_col in ('aggregate', 'aesthetic', 'date_taken', 'comp_score', 'tech_sharpness') else 'aggregate'
+        safe_sort = sort_col if sort_col in VALID_SORT_COLS else 'aggregate'
         rows = conn.execute(
             f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} "
             f"ORDER BY {safe_sort} {sort_dir} LIMIT ? OFFSET ?",
@@ -124,7 +125,7 @@ def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col, sort
 
         select_cols = build_photo_select_columns(conn, user_id)
 
-        safe_sort = sort_col if sort_col in ('aggregate', 'aesthetic', 'date_taken', 'comp_score', 'tech_sharpness', 'position') else 'ap.position'
+        safe_sort = sort_col if sort_col in VALID_SORT_COLS else 'ap.position'
         if sort_col == 'position':
             safe_sort = 'ap.position'
 
@@ -566,8 +567,15 @@ async def get_shared_album(
         except (ValueError, TypeError):
             per_page = VIEWER_CONFIG['pagination']['default_per_page']
 
-        result = _fetch_album_photos(conn, album, user_id, page, per_page, 'aggregate', 'DESC')
+        sort = qp.get('sort', 'aggregate')
+        if sort not in VALID_SORT_COLS:
+            sort = 'aggregate'
+        sort_dir = 'ASC' if qp.get('sort_direction', 'DESC') == 'ASC' else 'DESC'
+
+        result = _fetch_album_photos(conn, album, user_id, page, per_page, sort, sort_dir)
         result['album'] = _album_to_dict(album)
+        if SORT_OPTIONS_GROUPED:
+            result['sort_options_grouped'] = SORT_OPTIONS_GROUPED
         return result
     finally:
         conn.close()

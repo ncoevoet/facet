@@ -147,6 +147,7 @@ export class App implements OnInit {
   protected readonly isPersonsRoute = computed(() => this.url().split('?')[0] === '/persons');
   protected readonly isMapRoute = computed(() => this.url().split('?')[0] === '/map');
   protected readonly isCapsuleRoute = computed(() => this.url().split('?')[0] === '/capsules');
+  protected readonly isSharedRoute = computed(() => this.url().split('?')[0].startsWith('/shared/'));
 
   protected readonly sortGroups = computed(() => {
     const grouped = this.store.config()?.sort_options_grouped;

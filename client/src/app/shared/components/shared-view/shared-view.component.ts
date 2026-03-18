@@ -1,43 +1,53 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { Component, inject, signal, computed, OnInit, afterNextRender, viewChild, DestroyRef, ElementRef } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
+import { Photo } from '../../models/photo.model';
 import { ApiService } from '../../../core/services/api.service';
 import { I18nService } from '../../../core/services/i18n.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
-import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
+import { PersonThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
+import { PhotoCardComponent } from '../photo-card/photo-card.component';
+import { SlideshowComponent } from '../../../features/gallery/slideshow.component';
+import { InfiniteScrollDirective } from '../../directives/infinite-scroll.directive';
 
 type EntityType = 'album' | 'person';
 
-interface SharedPhoto {
-  path: string;
-  filename: string;
-  aggregate: number;
-  aesthetic?: number;
-  date_taken?: string;
+interface SortOption {
+  column: string;
+  label: string;
 }
 
 interface SharedAlbumResponse {
-  album: { id: number; name: string; description: string; is_smart?: boolean; smart_filter_json?: string };
-  photos: SharedPhoto[];
+  album: { id: number; name: string; description: string; is_smart?: boolean };
+  photos: Photo[];
   total: number;
   page: number;
   per_page: number;
   total_pages: number;
   has_more: boolean;
+  sort_options_grouped?: Record<string, SortOption[]>;
 }
 
 interface SharedPersonResponse {
   person: { id: number; name: string; face_count: number };
-  photos: SharedPhoto[];
+  photos: Photo[];
   total: number;
   page: number;
   has_more: boolean;
+}
+
+interface ViewerConfig {
+  quality_thresholds?: { excellent: number; great: number; good: number };
+  features?: Record<string, boolean>;
+  sort_options_grouped?: Record<string, SortOption[]>;
 }
 
 @Component({
@@ -46,8 +56,9 @@ interface SharedPersonResponse {
   host: { class: 'block h-full' },
   imports: [
     MatIconModule, MatButtonModule, MatProgressSpinnerModule,
-    MatSelectModule, MatFormFieldModule,
-    TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe,
+    MatSelectModule, MatFormFieldModule, MatSnackBarModule, MatTooltipModule,
+    TranslatePipe, PersonThumbnailUrlPipe,
+    PhotoCardComponent, SlideshowComponent, InfiniteScrollDirective,
   ],
   template: `
     @if (loading()) {
@@ -70,100 +81,210 @@ interface SharedPersonResponse {
                 alt=""
               />
             }
-            <div>
+            <div class="flex-1">
               <h1 class="text-xl font-semibold">{{ entityName() }}</h1>
               <p class="text-xs opacity-50">{{ 'ui.labels.photo_count' | translate:{ count: total() } }}</p>
             </div>
+            <button mat-icon-button (click)="slideshowActive.set(true)" [matTooltip]="'slideshow.start' | translate">
+              <mat-icon>slideshow</mat-icon>
+            </button>
           </div>
         } @else {
-          <div class="flex items-center justify-between">
-            <div>
-              <h1 class="text-xl font-semibold">{{ entityName() }}</h1>
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <h1 class="text-xl font-semibold truncate">{{ entityName() }}</h1>
               @if (description()) {
                 <p class="text-sm opacity-70 mt-1">{{ description() }}</p>
               }
               <p class="text-xs opacity-50 mt-1">{{ 'albums.photos_count' | translate:{ count: total() } }}</p>
             </div>
-            @if (isSmart()) {
-              <div class="flex items-center gap-2">
-                <mat-form-field class="w-36" subscriptSizing="dynamic">
-                  <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
-                  <mat-select [value]="sortBy()" (selectionChange)="sortBy.set($event.value)">
+            <div class="flex items-center gap-2 shrink-0">
+              <mat-form-field class="w-48" subscriptSizing="dynamic">
+                <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
+                <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="sortBy()" (selectionChange)="onSortChange($event.value)">
+                  @if (sortGroups(); as groups) {
+                    @for (group of groups; track group[0]) {
+                      <mat-optgroup [label]="group[0]">
+                        @for (opt of group[1]; track opt.column) {
+                          <mat-option [value]="opt.column">{{ opt.label }}</mat-option>
+                        }
+                      </mat-optgroup>
+                    }
+                  } @else {
                     <mat-option value="aggregate">{{ 'gallery.sort_aggregate' | translate }}</mat-option>
                     <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
                     <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
-                  </mat-select>
-                </mat-form-field>
-                <button mat-icon-button (click)="toggleSortDirection()">
-                  <mat-icon>{{ sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-                </button>
-              </div>
-            }
+                  }
+                </mat-select>
+              </mat-form-field>
+              <button mat-icon-button (click)="toggleSortDirection()" [matTooltip]="sortDirection() === 'desc' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)">
+                <mat-icon>{{ sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+              </button>
+              <button mat-icon-button (click)="slideshowActive.set(true)" [matTooltip]="'slideshow.start' | translate">
+                <mat-icon>slideshow</mat-icon>
+              </button>
+            </div>
           </div>
         }
       </div>
 
-      <div class="p-4">
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-          @for (photo of sortedPhotos(); track photo.path) {
-            <div class="relative rounded-lg overflow-hidden bg-[var(--mat-sys-surface-container)]">
-              <img [src]="photo.path | thumbnailUrl:320"
-                   [alt]="photo.filename"
-                   class="w-full aspect-square object-cover" />
+      <main #contentArea class="overflow-y-auto" [style.height]="'calc(100% - ' + (selectionCount() > 0 ? '113' : '65') + 'px)'">
+        <div class="p-2">
+          @for (row of mosaicRows(); track $index) {
+            <div class="flex gap-2 mb-2">
+              @for (photo of row.photos; track photo.path; let i = $index) {
+                <app-photo-card
+                  [photo]="photo"
+                  [config]="cardConfig()"
+                  [hideDetails]="true"
+                  [mosaicMode]="true"
+                  [isEditionMode]="false"
+                  [isSelected]="selectedPaths().has(photo.path)"
+                  [thumbSize]="row.widths[i]"
+                  [style.width.px]="row.widths[i]"
+                  [style.height.px]="row.height"
+                  (selectionChange)="toggleSelection($event.photo, $event.event)"
+                  (doubleClicked)="openPhotoDetail($event)"
+                />
+              }
             </div>
           }
+          <div appInfiniteScroll scrollRoot="main" (scrollReached)="onScrollReached()"></div>
         </div>
+      </main>
 
-        @if (hasMore()) {
-          <div class="flex justify-center mt-6">
-            <button mat-flat-button (click)="loadMore()" [disabled]="loadingMore()">
-              @if (loadingMore()) {
-                <mat-spinner diameter="20" class="inline-flex !w-5 !h-5" />
-              } @else {
-                {{ 'ui.buttons.load_more' | translate }}
-              }
-            </button>
+      <!-- Selection action bar -->
+      @if (selectionCount()) {
+        <div class="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-center gap-1 lg:gap-3 px-2 lg:px-6 py-1 lg:py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
+          <span class="text-sm font-medium shrink-0">{{ 'gallery.selection.count' | translate:{ count: selectionCount() } }}</span>
+          <div class="flex items-center gap-0 lg:gap-2">
+            <button mat-icon-button class="lg:!hidden" (click)="clearSelection()" [matTooltip]="'gallery.selection.clear' | translate"><mat-icon>close</mat-icon></button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ 'gallery.selection.clear' | translate }}</button>
+            <button mat-icon-button class="lg:!hidden" (click)="copyPaths()" [matTooltip]="'gallery.selection.copy_filenames' | translate"><mat-icon>content_copy</mat-icon></button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ 'gallery.selection.copy_filenames' | translate }}</button>
+            <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [matTooltip]="'gallery.selection.download' | translate"><mat-icon>download</mat-icon></button>
+            <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()"><mat-icon>download</mat-icon> {{ 'gallery.selection.download' | translate }}</button>
           </div>
-        }
-      </div>
+        </div>
+      }
+
+      <!-- Slideshow overlay -->
+      @if (slideshowActive()) {
+        <app-slideshow
+          [photos]="photos()"
+          [hasMore]="hasMore()"
+          [loading]="loadingMore()"
+          (closed)="slideshowActive.set(false)"
+        />
+      }
     }
   `,
 })
 export class SharedViewComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
+  private readonly snackBar = inject(MatSnackBar);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly contentArea = viewChild<ElementRef<HTMLElement>>('contentArea');
+  private readonly scrollDirective = viewChild(InfiniteScrollDirective);
 
+  // Loading state
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
   protected readonly error = signal('');
+
+  // Entity data
   protected readonly entityName = signal('');
   protected readonly description = signal('');
-  protected readonly photos = signal<SharedPhoto[]>([]);
+  protected readonly photos = signal<Photo[]>([]);
   protected readonly total = signal(0);
   protected readonly hasMore = signal(false);
-  protected readonly isSmart = signal(false);
+
+  // Config (for sort options and card config)
+  protected readonly config = signal<ViewerConfig | null>(null);
+
+  protected readonly cardConfig = computed(() => {
+    const c = this.config();
+    if (!c) return null;
+    return { quality_thresholds: c.quality_thresholds, features: {} };
+  });
+
+  // Sort
   protected readonly sortBy = signal('aggregate');
   protected readonly sortDirection = signal<'asc' | 'desc'>('desc');
 
-  protected readonly sortedPhotos = computed(() => {
-    const photos = [...this.photos()];
-    const sort = this.sortBy();
-    const dir = this.sortDirection() === 'desc' ? -1 : 1;
-    return photos.sort((a, b) => {
-      if (sort === 'date_taken') {
-        return ((a.date_taken ?? '') > (b.date_taken ?? '') ? 1 : -1) * dir;
-      }
-      const va = sort === 'aesthetic' ? (a.aesthetic ?? 0) : (a.aggregate ?? 0);
-      const vb = sort === 'aesthetic' ? (b.aesthetic ?? 0) : (b.aggregate ?? 0);
-      return (va - vb) * dir;
-    });
+  protected readonly sortGroups = computed(() => {
+    const grouped = this.config()?.sort_options_grouped;
+    if (!grouped) return null;
+    return Object.entries(grouped);
   });
+
+  // Mosaic
+  protected readonly containerWidth = signal(0);
+  protected readonly mosaicRows = computed(() => {
+    const photos = this.photos();
+    const width = this.containerWidth();
+    const targetHeight = 168;
+    const gap = 8;
+
+    if (!photos.length || width <= 0) return [];
+
+    const rows: { photos: Photo[]; widths: number[]; height: number }[] = [];
+    let rowPhotos: Photo[] = [];
+    let rowAspects: number[] = [];
+
+    for (const photo of photos) {
+      const aspect = (photo.image_width && photo.image_height)
+        ? photo.image_width / photo.image_height
+        : 4 / 3;
+      rowPhotos.push(photo);
+      rowAspects.push(aspect);
+
+      const totalAspect = rowAspects.reduce((a, b) => a + b, 0);
+      const availableWidth = width - (rowPhotos.length - 1) * gap;
+      const rowHeight = availableWidth / totalAspect;
+
+      if (rowHeight <= targetHeight) {
+        const widths = rowAspects.map(a => Math.floor(a * rowHeight));
+        const usedWidth = widths.reduce((a, b) => a + b, 0) + (widths.length - 1) * gap;
+        widths[widths.length - 1] += width - usedWidth;
+        rows.push({ photos: [...rowPhotos], widths, height: Math.floor(rowHeight) });
+        rowPhotos = [];
+        rowAspects = [];
+      }
+    }
+
+    if (rowPhotos.length) {
+      const widths = rowAspects.map(a => Math.floor(a * targetHeight));
+      rows.push({ photos: [...rowPhotos], widths, height: targetHeight });
+    }
+
+    return rows;
+  });
+
+  // Slideshow
+  protected readonly slideshowActive = signal(false);
+
+  // Multi-select
+  protected readonly selectedPaths = signal<Set<string>>(new Set());
+  protected readonly selectionCount = computed(() => this.selectedPaths().size);
+  private lastSelectedIndex = -1;
 
   protected entityType: EntityType = 'album';
   protected entityId = 0;
   private token = '';
   private currentPage = 1;
+  private resizeObserver: ResizeObserver | null = null;
+
+  constructor() {
+    afterNextRender(() => this.setupResizeObserver());
+    this.destroyRef.onDestroy(() => {
+      this.resizeObserver?.disconnect();
+      this.resizeObserver = null;
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     this.entityType = this.route.snapshot.url[1]?.path === 'person' ? 'person' : 'album';
@@ -179,16 +300,109 @@ export class SharedViewComponent implements OnInit {
       return;
     }
 
+    // Fetch config for quality thresholds (used by photo cards)
+    try {
+      const cfg = await firstValueFrom(this.api.get<ViewerConfig>('/config'));
+      this.config.set(cfg);
+    } catch {
+      // Non-critical — continue without config
+    }
+
     await this.loadPage(1);
   }
 
-  protected async loadMore(): Promise<void> {
-    this.loadingMore.set(true);
-    try {
-      await this.loadPage(this.currentPage + 1, true);
-    } finally {
-      this.loadingMore.set(false);
+  protected onSortChange(value: string): void {
+    this.sortBy.set(value);
+    this.reloadFromFirstPage();
+  }
+
+  protected toggleSortDirection(): void {
+    this.sortDirection.update(d => d === 'desc' ? 'asc' : 'desc');
+    this.reloadFromFirstPage();
+  }
+
+  protected onScrollReached(): void {
+    if (this.hasMore() && !this.loadingMore() && !this.loading()) {
+      this.loadingMore.set(true);
+      this.loadPage(this.currentPage + 1, true)
+        .then(() => this.scrollDirective()?.recheck())
+        .finally(() => this.loadingMore.set(false));
     }
+  }
+
+  // --- Multi-select ---
+
+  protected toggleSelection(photo: Photo, event?: MouseEvent): void {
+    const photos = this.photos();
+    const clickedIndex = photos.findIndex(p => p.path === photo.path);
+    const current = this.selectedPaths();
+    const next = new Set(current);
+
+    if (event?.shiftKey && this.lastSelectedIndex >= 0 && clickedIndex >= 0) {
+      const start = Math.min(this.lastSelectedIndex, clickedIndex);
+      const end = Math.max(this.lastSelectedIndex, clickedIndex);
+      for (let i = start; i <= end; i++) {
+        next.add(photos[i].path);
+      }
+    } else if (next.has(photo.path)) {
+      next.delete(photo.path);
+    } else {
+      next.add(photo.path);
+    }
+
+    if (clickedIndex >= 0) this.lastSelectedIndex = clickedIndex;
+    this.selectedPaths.set(next);
+  }
+
+  protected clearSelection(): void {
+    this.selectedPaths.set(new Set());
+    this.lastSelectedIndex = -1;
+  }
+
+  protected copyPaths(): void {
+    const filenames = [...this.selectedPaths()]
+      .map(p => p.split(/[\\/]/).pop() ?? p)
+      .join('\n');
+    navigator.clipboard.writeText(filenames).then(() => {
+      this.snackBar.open(this.i18n.t('gallery.selection.copied'), '', { duration: 2000 });
+    });
+  }
+
+  protected async downloadSelected(): Promise<void> {
+    const paths = [...this.selectedPaths()];
+    for (const path of paths) {
+      const a = document.createElement('a');
+      a.href = `/api/download?path=${encodeURIComponent(path)}`;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      if (paths.length > 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+  }
+
+  // --- Photo detail navigation ---
+
+  protected openPhotoDetail(photo: Photo): void {
+    const entityPath = this.entityType === 'album' ? 'album' : 'person';
+    this.router.navigate(
+      [`/shared/${entityPath}/${this.entityId}/photo`],
+      {
+        queryParams: { path: photo.path, token: this.token },
+        state: { photo },
+      },
+    );
+  }
+
+  // --- Data loading ---
+
+  private async reloadFromFirstPage(): Promise<void> {
+    this.loading.set(true);
+    this.photos.set([]);
+    this.currentPage = 1;
+    await this.loadPage(1);
   }
 
   private async loadPage(page: number, append = false): Promise<void> {
@@ -213,23 +427,29 @@ export class SharedViewComponent implements OnInit {
     }
   }
 
-  protected toggleSortDirection(): void {
-    this.sortDirection.update(d => d === 'desc' ? 'asc' : 'desc');
-  }
-
   private async loadAlbumPage(page: number, append: boolean): Promise<void> {
     const res = await firstValueFrom(
       this.api.get<SharedAlbumResponse>(
         `/shared/album/${this.entityId}`,
-        { token: this.token, page },
+        {
+          token: this.token,
+          page,
+          sort: this.sortBy(),
+          sort_direction: this.sortDirection() === 'desc' ? 'DESC' : 'ASC',
+        },
       ),
     );
     this.entityName.set(res.album.name);
     this.description.set(res.album.description);
-    this.isSmart.set(res.album.is_smart ?? false);
     this.total.set(res.total);
     this.hasMore.set(res.has_more);
     this.currentPage = res.page;
+
+    // Apply sort_options_grouped from API response if available and config doesn't have them
+    if (res.sort_options_grouped && !this.config()?.sort_options_grouped) {
+      this.config.update(c => c ? { ...c, sort_options_grouped: res.sort_options_grouped } : { sort_options_grouped: res.sort_options_grouped });
+    }
+
     this.applyPhotos(res.photos, append);
   }
 
@@ -247,11 +467,35 @@ export class SharedViewComponent implements OnInit {
     this.applyPhotos(res.photos, append);
   }
 
-  private applyPhotos(photos: SharedPhoto[], append: boolean): void {
+  private applyPhotos(photos: Photo[], append: boolean): void {
+    // Ensure tags_list exists on all photos
+    for (const p of photos) {
+      if (!p.tags_list) {
+        p.tags_list = p.tags ? p.tags.split(',').map(t => t.trim()) : [];
+      }
+      if (!p.persons) {
+        p.persons = [];
+      }
+    }
     if (append) {
       this.photos.update(prev => [...prev, ...photos]);
     } else {
       this.photos.set(photos);
+    }
+  }
+
+  // --- ResizeObserver ---
+
+  private setupResizeObserver(): void {
+    this.resizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        this.containerWidth.set(Math.floor(entry.contentRect.width));
+      }
+    });
+
+    const content = this.contentArea()?.nativeElement ?? document.querySelector('main');
+    if (content) {
+      this.resizeObserver.observe(content);
     }
   }
 }
