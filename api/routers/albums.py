@@ -634,8 +634,7 @@ async def get_shared_album(
         saved_sort_dir = None
         if not is_manual and album['smart_filter_json']:
             try:
-                import json as _json
-                smart_filters = _json.loads(album['smart_filter_json'])
+                smart_filters = json.loads(album['smart_filter_json'])
                 saved_sort = smart_filters.get('sort')
                 saved_sort_dir = smart_filters.get('sort_direction')
             except (ValueError, TypeError):
