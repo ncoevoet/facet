@@ -33,7 +33,7 @@ interface FoldersResponse {
     TranslatePipe,
     ThumbnailUrlPipe,
   ],
-  host: { class: 'block px-4 pt-2 pb-4' },
+  host: { class: 'block px-4 pt-4 pb-4' },
   template: `
     @if (loading() && folders().length === 0) {
       <div class="flex justify-center py-16">

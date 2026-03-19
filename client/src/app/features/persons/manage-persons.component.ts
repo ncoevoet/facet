@@ -85,9 +85,9 @@ export class MergeTargetDialogComponent {
     InfiniteScrollDirective,
   ],
   template: `
-    <div class="px-4 pt-2 pb-4 md:px-6 md:pt-3 md:pb-6">
+    <div class="px-4 pt-4 pb-4">
       <!-- Header -->
-      <div class="flex flex-wrap items-center justify-end gap-4 mb-3">
+      <div class="flex flex-wrap items-center justify-start gap-4 mb-3">
         @if (auth.isEdition()) {
           <!-- Small screen: icon-only button -->
           <a mat-icon-button class="sm:!hidden" routerLink="/merge-suggestions"

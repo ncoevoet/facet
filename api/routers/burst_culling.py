@@ -586,6 +586,9 @@ async def api_culling_groups(
             )
             page_groups.extend(similar_enriched)
 
+        # Sort by photo count descending so largest groups appear first
+        page_groups.sort(key=lambda g: g['count'], reverse=True)
+
         return {
             'groups': page_groups,
             'total_groups': total_groups,

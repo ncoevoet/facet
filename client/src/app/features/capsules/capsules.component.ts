@@ -38,7 +38,7 @@ interface CapsulesResponse {
 @Component({
   selector: 'app-capsules',
   standalone: true,
-  host: { class: 'block px-4 pt-2 pb-4' },
+  host: { class: 'block px-4 pt-4 pb-4' },
   imports: [
     MatButtonModule,
     MatIconModule,

@@ -29,6 +29,7 @@ scoring_config.json.backup.*
 # Claude Code
 .claude/todos.md
 .claude/snapshot*.txt
+.codegraph/
 
 # Build output
 dist/

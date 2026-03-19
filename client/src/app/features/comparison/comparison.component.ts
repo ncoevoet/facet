@@ -30,14 +30,9 @@ Chart.register(...registerables);
     ComparisonAbTabComponent,
   ],
   template: `
-    <div class="p-4 md:p-6 max-w-7xl mx-auto">
-      <h1 class="text-2xl font-semibold mb-6 flex items-center gap-2">
-        <mat-icon>tune</mat-icon>
-        {{ 'comparison.title' | translate }}
-      </h1>
-
+    <div class="p-4 md:p-6 max-w-screen-2xl mx-auto">
       <!-- Top bar: Action buttons -->
-      <div class="flex flex-wrap items-center gap-3 mb-6">
+      <div class="flex flex-wrap items-center gap-3 mb-4 md:mb-6">
         <div class="flex gap-2 ml-auto flex-wrap">
           <button
             mat-flat-button

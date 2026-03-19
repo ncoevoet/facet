@@ -21,7 +21,7 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
 @Component({
   selector: 'app-albums',
   standalone: true,
-  host: { class: 'block px-4 pt-2 pb-4' },
+  host: { class: 'block px-4 pt-4 pb-4' },
   imports: [
     RouterLink, MatButtonModule, MatIconModule, MatDialogModule, MatTooltipModule,
     MatProgressSpinnerModule,

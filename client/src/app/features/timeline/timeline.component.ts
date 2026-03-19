@@ -26,7 +26,7 @@ import { TimelineDatePipe } from './timeline-date.pipe';
   host: { class: 'block h-full overflow-auto' },
   template: `
     <!-- Breadcrumb navigation -->
-    <nav class="flex items-center gap-1 px-4 pt-3 pb-2 text-sm flex-wrap">
+    <nav class="flex items-center gap-1 px-4 pt-4 pb-2 text-sm flex-wrap">
       @switch (level()) {
         @case ('years') {
           <span class="font-medium">{{ 'timeline.years_title' | translate }}</span>
