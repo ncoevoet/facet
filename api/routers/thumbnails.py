@@ -56,9 +56,13 @@ def _cached_image_response(image_bytes: bytes, request: Request) -> Response:
     )
 
 
+def _get_image_jpeg_quality() -> int:
+    return VIEWER_CONFIG['display'].get('image_jpeg_quality', 96)
+
+
 @lru_cache(maxsize=5)
-def _convert_raw_cached(file_path: str, mtime: float) -> bytes:
-    """Convert a RAW file to JPEG bytes, cached by path+mtime."""
+def _convert_raw_cached(file_path: str, mtime: float, quality: int = 96) -> bytes:
+    """Convert a RAW file to JPEG bytes, cached by path+mtime+quality."""
     import rawpy
     from PIL import Image as PILImage
 
@@ -71,18 +75,18 @@ def _convert_raw_cached(file_path: str, mtime: float) -> bytes:
         )
     pil_img = PILImage.fromarray(rgb)
     buffer = BytesIO()
-    pil_img.save(buffer, format='JPEG', quality=92)
+    pil_img.save(buffer, format='JPEG', quality=quality)
     return buffer.getvalue()
 
 
 @lru_cache(maxsize=32)
-def _convert_heif_cached(file_path: str, mtime: float) -> bytes:
-    """Convert a HEIF/HEIC file to JPEG bytes, cached by path+mtime."""
+def _convert_heif_cached(file_path: str, mtime: float, quality: int = 96) -> bytes:
+    """Convert a HEIF/HEIC file to JPEG bytes, cached by path+mtime+quality."""
     from PIL import Image as PILImage
 
     buf = BytesIO()
     with PILImage.open(file_path) as img:
-        img.convert("RGB").save(buf, format="JPEG", quality=92)
+        img.convert("RGB").save(buf, format="JPEG", quality=quality)
     return buf.getvalue()
 
 
@@ -284,7 +288,8 @@ async def image(
     if Path(real_disk).suffix.lower() in RAW_EXTENSIONS:
         try:
             mtime = os.path.getmtime(real_disk)
-            jpeg_bytes = _convert_raw_cached(real_disk, mtime)
+            quality = _get_image_jpeg_quality()
+            jpeg_bytes = _convert_raw_cached(real_disk, mtime, quality)
             return _cached_image_response(jpeg_bytes, request)
         except Exception:
             logger.exception("Failed to convert RAW file: %s", real_disk)
@@ -294,7 +299,8 @@ async def image(
     if Path(real_disk).suffix.lower() in HEIF_EXTENSIONS:
         try:
             mtime = os.path.getmtime(real_disk)
-            jpeg_bytes = _convert_heif_cached(real_disk, mtime)
+            quality = _get_image_jpeg_quality()
+            jpeg_bytes = _convert_heif_cached(real_disk, mtime, quality)
             return _cached_image_response(jpeg_bytes, request)
         except Exception:
             logger.exception("Failed to convert HEIF file: %s", real_disk)

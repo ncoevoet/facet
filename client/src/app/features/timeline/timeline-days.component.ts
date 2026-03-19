@@ -4,6 +4,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { TimelineFiltersService } from './timeline-filters.service';
 
 interface DateEntry {
   date: string;
@@ -69,6 +70,7 @@ interface CalendarCell {
 })
 export class TimelineDaysComponent {
   private readonly api = inject(ApiService);
+  private readonly filters = inject(TimelineFiltersService);
 
   readonly year = input.required<string>();
   readonly month = input.required<string>();
@@ -88,15 +90,20 @@ export class TimelineDaysComponent {
     effect(() => {
       const y = this.year();
       const m = this.month();
-      if (y && m) this.load(+y, +m);
+      const dateFrom = this.filters.dateFrom();
+      const dateTo = this.filters.dateTo();
+      if (y && m) this.load(+y, +m, dateFrom, dateTo);
     });
   }
 
-  private async load(year: number, month: number): Promise<void> {
+  private async load(year: number, month: number, dateFrom: string, dateTo: string): Promise<void> {
     this.loading.set(true);
     try {
+      const params: Record<string, string | number> = { year, month };
+      if (dateFrom) params['date_from'] = dateFrom;
+      if (dateTo) params['date_to'] = dateTo;
       const res = await firstValueFrom(
-        this.api.get<{ dates: DateEntry[] }>('/timeline/dates', { year, month }),
+        this.api.get<{ dates: DateEntry[] }>('/timeline/dates', params),
       );
 
       // Build date lookup

@@ -111,7 +111,7 @@ def load_viewer_config(config=None):
         },
         'pagination': {'default_per_page': 50},
         'dropdowns': {'max_cameras': 50, 'max_lenses': 50, 'max_persons': 50, 'max_tags': 20},
-        'display': {'tags_per_photo': 3, 'card_width_px': 168, 'image_width_px': 160},
+        'display': {'tags_per_photo': 3, 'card_width_px': 168, 'image_width_px': 160, 'image_jpeg_quality': 96},
         'face_thumbnails': {'output_size_px': 64, 'jpeg_quality': 80, 'crop_padding_ratio': 0.2, 'min_crop_size_px': 20},
         'quality_thresholds': {'good': 6, 'great': 7, 'excellent': 8, 'best': 9},
         'photo_types': {'top_picks_min_score': 7, 'low_light_max_luminance': 0.2},

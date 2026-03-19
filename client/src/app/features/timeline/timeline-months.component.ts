@@ -7,6 +7,7 @@ import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineDatePipe } from './timeline-date.pipe';
+import { TimelineFiltersService } from './timeline-filters.service';
 
 interface MonthSummary {
   month: string;
@@ -57,6 +58,7 @@ interface MonthSummary {
 })
 export class TimelineMonthsComponent {
   private readonly api = inject(ApiService);
+  private readonly filters = inject(TimelineFiltersService);
 
   readonly year = input.required<string>();
   readonly monthSelected = output<string>();
@@ -67,15 +69,20 @@ export class TimelineMonthsComponent {
   constructor() {
     effect(() => {
       const y = this.year();
-      if (y) this.load(y);
+      const dateFrom = this.filters.dateFrom();
+      const dateTo = this.filters.dateTo();
+      if (y) this.load(y, dateFrom, dateTo);
     });
   }
 
-  private async load(year: string): Promise<void> {
+  private async load(year: string, dateFrom: string, dateTo: string): Promise<void> {
     this.loading.set(true);
     try {
+      const params: Record<string, string | number> = { year: +year };
+      if (dateFrom) params['date_from'] = dateFrom;
+      if (dateTo) params['date_to'] = dateTo;
       const res = await firstValueFrom(
-        this.api.get<{ months: MonthSummary[] }>('/timeline/months', { year: +year }),
+        this.api.get<{ months: MonthSummary[] }>('/timeline/months', params),
       );
       this.months.set(res.months);
     } finally {

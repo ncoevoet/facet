@@ -119,48 +119,40 @@
           </mat-select>
         </mat-form-field>
 
-        <!-- Person multi-select -->
+        <!-- Person autocomplete with avatar chips -->
         @if (store.persons().length) {
-          <mat-form-field class="!hidden lg:!inline-flex w-44 xl:w-52" subscriptSizing="dynamic"
-            [class.person-select-compact]="selectedPersonIds().length">
+          @for (p of selectedPersons(); track p.id) {
+            <button
+              class="!hidden lg:!inline-flex relative shrink-0 group/person"
+              [matTooltip]="p.name || ('gallery.unknown_person' | translate)"
+              (click)="removePersonChip(p.id)">
+              <img [src]="p.id | personThumbnailUrl" class="w-9 h-9 rounded-full object-cover" alt="" />
+              <div class="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover/person:opacity-100 transition-opacity">
+                <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-white">close</mat-icon>
+              </div>
+            </button>
+          }
+          <mat-form-field class="!hidden lg:!inline-flex w-44 xl:w-52" subscriptSizing="dynamic">
             @if (!selectedPersonIds().length) {
               <mat-label>{{ 'gallery.person' | translate }}</mat-label>
             }
-            <mat-select
-              multiple
-              panelClass="person-select-panel"
-              [value]="selectedPersonIds()"
-              (selectionChange)="onPersonChange($event.value)"
-            >
-              <mat-select-trigger>
-                <div class="flex items-center gap-1.5 overflow-hidden">
-                  @for (p of selectedPersons(); track p.id) {
-                    <img
-                      [src]="p.id | personThumbnailUrl"
-                      [matTooltip]="p.name || ('gallery.unknown_person' | translate)"
-                      class="w-9 h-9 rounded-full object-cover shrink-0"
-                      alt=""
-                      loading="lazy"
-                      (error)="$event.target.style.display='none'"
-                    />
-                  }
-                </div>
-              </mat-select-trigger>
-              @for (p of store.persons(); track p.id) {
-                <mat-option [value]="'' + p.id">
+            <input matInput #personInput
+                   [matAutocomplete]="personAuto"
+                   [value]="personSearchQuery()"
+                   (input)="personSearchQuery.set($any($event.target).value)"
+                   (focus)="personSearchQuery.set('')" />
+            <mat-autocomplete #personAuto="matAutocomplete"
+                              (optionSelected)="onPersonAutoSelected($event)"
+                              [hideSingleSelectionIndicator]="true">
+              @for (p of filteredPersons(); track p.id) {
+                <mat-option [value]="p.id">
                   <div class="flex items-center gap-3">
-                    <img
-                      [src]="p.id | personThumbnailUrl"
-                      class="w-14 h-14 rounded-full object-cover shrink-0"
-                      alt=""
-                      loading="lazy"
-                      (error)="$event.target.style.display='none'"
-                    />
+                    <img [src]="p.id | personThumbnailUrl" class="w-10 h-10 rounded-full object-cover shrink-0" alt="" loading="lazy" />
                     <span class="text-sm">{{ p.name || ('gallery.unknown_person' | translate) }} ({{ p.face_count }})</span>
                   </div>
                 </mat-option>
               }
-            </mat-select>
+            </mat-autocomplete>
           </mat-form-field>
         }
 
@@ -242,7 +234,17 @@
         </mat-form-field>
       }
 
-      <!-- Timeline: no toolbar controls needed (calendar drill-down is self-contained) -->
+      <!-- Timeline date filters (visible only on timeline route, lg+) -->
+      @if (auth.isAuthenticated() && isTimelineRoute()) {
+        <mat-form-field class="!hidden lg:!inline-flex w-44 ml-2" subscriptSizing="dynamic">
+          <mat-label>{{ 'ui.labels.from' | translate }}</mat-label>
+          <input matInput type="date" [value]="timelineFilters.dateFrom()" (change)="onDateFilterChange(timelineFilters, 'from', $event)" />
+        </mat-form-field>
+        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
+          <mat-label>{{ 'ui.labels.to' | translate }}</mat-label>
+          <input matInput type="date" [value]="timelineFilters.dateTo()" (change)="onDateFilterChange(timelineFilters, 'to', $event)" />
+        </mat-form-field>
+      }
 
       <!-- Map filters (visible only on map route, lg+) -->
       @if (auth.isAuthenticated() && isMapRoute()) {
@@ -537,7 +539,7 @@
   }
 
   <!-- Main content -->
-  <main class="flex-1 overflow-auto lg:pb-0" [class.pb-14]="isGalleryRoute() || isAlbumsRoute() || isPersonsRoute() || isMapRoute() || isCapsuleRoute()">
+  <main class="flex-1 overflow-auto lg:pb-0" [class.pb-14]="isGalleryRoute() || isAlbumsRoute() || isPersonsRoute() || isMapRoute() || isCapsuleRoute() || isTimelineRoute()">
     <router-outlet />
   </main>
 
@@ -749,6 +751,20 @@
         (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
         <mat-icon>refresh</mat-icon>
       </button>
+    </div>
+  }
+
+  <!-- Mobile timeline bottom bar -->
+  @if (auth.isAuthenticated() && isTimelineRoute()) {
+    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
+        <mat-label>{{ 'ui.labels.from' | translate }}</mat-label>
+        <input matInput type="date" [value]="timelineFilters.dateFrom()" (change)="onDateFilterChange(timelineFilters, 'from', $event)" />
+      </mat-form-field>
+      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
+        <mat-label>{{ 'ui.labels.to' | translate }}</mat-label>
+        <input matInput type="date" [value]="timelineFilters.dateTo()" (change)="onDateFilterChange(timelineFilters, 'to', $event)" />
+      </mat-form-field>
     </div>
   }
 </div>

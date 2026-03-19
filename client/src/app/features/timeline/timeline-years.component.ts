@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, output } from '@angular/core';
+import { Component, inject, signal, effect, output } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { TimelineFiltersService } from './timeline-filters.service';
 
 interface YearSummary {
   year: string;
@@ -54,23 +55,31 @@ interface YearSummary {
     </div>
   `,
 })
-export class TimelineYearsComponent implements OnInit {
+export class TimelineYearsComponent {
   private readonly api = inject(ApiService);
+  private readonly filters = inject(TimelineFiltersService);
 
   protected readonly years = signal<YearSummary[]>([]);
   protected readonly loading = signal(false);
 
   readonly yearSelected = output<string>();
 
-  ngOnInit(): void {
-    this.load();
+  constructor() {
+    effect(() => {
+      const dateFrom = this.filters.dateFrom();
+      const dateTo = this.filters.dateTo();
+      this.load(dateFrom, dateTo);
+    });
   }
 
-  private async load(): Promise<void> {
+  private async load(dateFrom: string, dateTo: string): Promise<void> {
     this.loading.set(true);
     try {
+      const params: Record<string, string> = {};
+      if (dateFrom) params['date_from'] = dateFrom;
+      if (dateTo) params['date_to'] = dateTo;
       const res = await firstValueFrom(
-        this.api.get<{ years: YearSummary[] }>('/timeline/years'),
+        this.api.get<{ years: YearSummary[] }>('/timeline/years', params),
       );
       this.years.set(res.years);
     } finally {

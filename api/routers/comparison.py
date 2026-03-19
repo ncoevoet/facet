@@ -200,7 +200,7 @@ async def api_download_single(
 
         pil_img = Image.fromarray(rgb)
         buffer = BytesIO()
-        pil_img.save(buffer, format='JPEG', quality=95)
+        pil_img.save(buffer, format='JPEG', quality=VIEWER_CONFIG['display'].get('image_jpeg_quality', 96))
         buffer.seek(0)
 
         download_name = os.path.splitext(os.path.basename(db_path))[0] + '.jpg'

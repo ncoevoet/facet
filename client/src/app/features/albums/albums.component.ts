@@ -187,7 +187,9 @@ export class AlbumsComponent {
       data: { album },
       width: '400px',
     }).afterClosed());
-    if (updated) this.loadAlbums(true);
+    if (updated) {
+      this.albums.update(list => list.map(a => a.id === updated.id ? updated : a));
+    }
   }
 
   protected async deleteAlbum(event: Event, album: Album): Promise<void> {

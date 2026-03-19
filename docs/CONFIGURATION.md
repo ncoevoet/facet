@@ -1001,6 +1001,7 @@ Web gallery display and behavior.
       "tags_per_photo": 4,
       "card_width_px": 168,
       "image_width_px": 160,
+      "image_jpeg_quality": 96,
       "thumbnail_slider": {
         "min_px": 120,
         "max_px": 400,
@@ -1070,6 +1071,7 @@ Web gallery display and behavior.
 | `tags_per_photo` | `4` | Tags shown on cards |
 | `card_width_px` | `168` | Card width |
 | `image_width_px` | `160` | Image width |
+| `image_jpeg_quality` | `96` | JPEG quality for RAW/HEIF conversion in `/api/download` and `/api/image` (1–100) |
 | `thumbnail_slider.min_px` | `120` | Minimum thumbnail size (px) |
 | `thumbnail_slider.max_px` | `400` | Maximum thumbnail size (px) |
 | `thumbnail_slider.default_px` | `168` | Default thumbnail size (px) |

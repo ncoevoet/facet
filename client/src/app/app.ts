@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, OnInit, WritableSignal } from '@angular/core';
+import { Component, inject, computed, signal, OnInit, WritableSignal, viewChild, ElementRef } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
@@ -14,11 +14,11 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatInputModule } from '@angular/material/input';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { ApiService } from './core/services/api.service';
 import { AuthService } from './core/services/auth.service';
 import { I18nService } from './core/services/i18n.service';
@@ -94,13 +94,13 @@ export class EditionDialogComponent {
     MatFormFieldModule,
     MatTooltipModule,
     MatInputModule,
-    MatChipsModule,
     MatBadgeModule,
     MatDividerModule,
     TranslatePipe,
     PersonThumbnailUrlPipe,
     ThumbnailUrlPipe,
     MatSliderModule,
+    MatAutocompleteModule,
   ],
   templateUrl: './app.html',
   host: { class: 'block h-full' },
@@ -147,6 +147,7 @@ export class App implements OnInit {
   protected readonly isPersonsRoute = computed(() => this.url().split('?')[0] === '/persons');
   protected readonly isMapRoute = computed(() => this.url().split('?')[0] === '/map');
   protected readonly isCapsuleRoute = computed(() => this.url().split('?')[0] === '/capsules');
+  protected readonly isTimelineRoute = computed(() => this.url().split('?')[0].startsWith('/timeline'));
   protected readonly isSharedRoute = computed(() => this.url().split('?')[0].startsWith('/shared/'));
 
   protected readonly sortGroups = computed(() => {
@@ -164,6 +165,17 @@ export class App implements OnInit {
     const ids = new Set(this.selectedPersonIds());
     if (!ids.size) return [];
     return this.store.persons().filter(p => ids.has(String(p.id)));
+  });
+
+  protected readonly personSearchQuery = signal('');
+  private readonly personInput = viewChild<ElementRef<HTMLInputElement>>('personInput');
+
+  protected readonly filteredPersons = computed(() => {
+    const query = this.personSearchQuery().toLowerCase().trim();
+    const selected = new Set(this.selectedPersonIds());
+    const all = this.store.persons().filter(p => !selected.has(String(p.id)));
+    if (!query) return all;
+    return all.filter(p => p.name?.toLowerCase().includes(query));
   });
 
   private static readonly RANGE_CHIPS: { minKey: string; maxKey: string; labelKey: string }[] = [
@@ -208,6 +220,16 @@ export class App implements OnInit {
     if (!this.isGalleryRoute()) return [];
     const f = this.store.filters();
     const chips: { id: string; labelKey: string; value: string; clearKeys: string[] }[] = [];
+
+    // Album filter
+    if (f.album_id) {
+      const album = this.store.currentAlbum();
+      const name = album?.name || `#${f.album_id}`;
+      chips.push({ id: 'album', labelKey: 'nav.albums', value: name, clearKeys: ['album_id'] });
+    }
+
+    // Semantic search
+    if (f.semanticQuery) chips.push({ id: 'semanticQuery', labelKey: 'gallery.search_placeholder', value: f.semanticQuery, clearKeys: ['semanticQuery'] });
 
     // Simple string/select filters
     if (f.tag) chips.push({ id: 'tag', labelKey: 'gallery.tag', value: f.tag, clearKeys: ['tag'] });
@@ -276,6 +298,11 @@ export class App implements OnInit {
 
   protected clearFilterChip(chip: { id: string; clearKeys: string[] }): void {
     for (const key of chip.clearKeys) {
+      // Handle album_id chip — navigate back to gallery root
+      if (key === 'album_id') {
+        this.router.navigate(['/']);
+        return;
+      }
       // Handle person_id chip removal (key = "person_N")
       if (key.startsWith('person_')) {
         const pid = key.slice('person_'.length);
@@ -365,6 +392,22 @@ export class App implements OnInit {
     const value = (event.target as HTMLInputElement).value;
     if (field === 'from') service.dateFrom.set(value);
     else service.dateTo.set(value);
+  }
+
+  protected removePersonChip(id: number): void {
+    const ids = this.selectedPersonIds().filter(pid => pid !== String(id));
+    this.store.updateFilter('person_id', ids.join(','));
+  }
+
+  protected onPersonAutoSelected(event: MatAutocompleteSelectedEvent): void {
+    const id = String(event.option.value);
+    const current = this.selectedPersonIds();
+    if (!current.includes(id)) {
+      this.store.updateFilter('person_id', [...current, id].join(','));
+    }
+    this.personSearchQuery.set('');
+    const el = this.personInput()?.nativeElement;
+    if (el) el.value = '';
   }
 
   protected onPersonChange(ids: string[]): void {

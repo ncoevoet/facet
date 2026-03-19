@@ -74,6 +74,18 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'timeline/:year',
+    loadComponent: () =>
+      import('./features/timeline/timeline.component').then(m => m.TimelineComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'timeline/:year/:month',
+    loadComponent: () =>
+      import('./features/timeline/timeline.component').then(m => m.TimelineComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: 'map',
     loadComponent: () =>
       import('./features/map/map.component').then(m => m.MapComponent),

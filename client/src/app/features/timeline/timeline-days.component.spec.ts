@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { TimelineFiltersService } from './timeline-filters.service';
 import { TimelineDaysComponent } from './timeline-days.component';
 
 describe('TimelineDaysComponent', () => {
@@ -12,7 +13,10 @@ describe('TimelineDaysComponent', () => {
     mockApi = { get: jest.fn(() => of({ dates: [] })) };
 
     TestBed.configureTestingModule({
-      providers: [{ provide: ApiService, useValue: mockApi }],
+      providers: [
+        { provide: ApiService, useValue: mockApi },
+        TimelineFiltersService,
+      ],
     });
     TestBed.runInInjectionContext(() => {
       component = new TimelineDaysComponent();
@@ -21,18 +25,27 @@ describe('TimelineDaysComponent', () => {
 
   describe('API call', () => {
     it('should call /timeline/dates with year and month', async () => {
-      await (component as any).load(2024, 6);
+      await (component as any).load(2024, 6, '', '');
       expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', { year: 2024, month: 6 });
     });
 
+    it('should pass date_from and date_to when provided', async () => {
+      await (component as any).load(2024, 6, '2024-06-01', '2024-06-30');
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/dates', {
+        year: 2024, month: 6,
+        date_from: '2024-06-01',
+        date_to: '2024-06-30',
+      });
+    });
+
     it('should set loading false after success', async () => {
-      await (component as any).load(2024, 6);
+      await (component as any).load(2024, 6, '', '');
       expect(component.loading()).toBe(false);
     });
 
     it('should set loading false on error', async () => {
       mockApi.get.mockReturnValue(throwError(() => new Error('fail')));
-      try { await (component as any).load(2024, 6); } catch { /* expected */ }
+      try { await (component as any).load(2024, 6, '', ''); } catch { /* expected */ }
       expect(component.loading()).toBe(false);
     });
   });
@@ -41,7 +54,7 @@ describe('TimelineDaysComponent', () => {
     it('should create correct number of cells for a known month', async () => {
       // June 2024 has 30 days, starts on Saturday → 5 padding cells (Mon-Fri)
       mockApi.get.mockReturnValue(of({ dates: [] }));
-      await (component as any).load(2024, 6);
+      await (component as any).load(2024, 6, '', '');
 
       const cells = component.calendarCells();
       const padCells = cells.filter((c: any) => c.date === null);
@@ -58,7 +71,7 @@ describe('TimelineDaysComponent', () => {
           { date: '2024-06-15', count: 3, hero_photo_path: '/photos/hero.jpg' },
         ],
       }));
-      await (component as any).load(2024, 6);
+      await (component as any).load(2024, 6, '', '');
 
       const cells = component.calendarCells();
       const june15 = cells.find((c: any) => c.date === '2024-06-15');
@@ -69,7 +82,7 @@ describe('TimelineDaysComponent', () => {
 
     it('should give count=0 and no hero to days not in API response', async () => {
       mockApi.get.mockReturnValue(of({ dates: [] }));
-      await (component as any).load(2024, 6);
+      await (component as any).load(2024, 6, '', '');
 
       const cells = component.calendarCells();
       const june1 = cells.find((c: any) => c.date === '2024-06-01');
@@ -79,7 +92,7 @@ describe('TimelineDaysComponent', () => {
 
     it('should format date strings with zero-padded month and day', async () => {
       mockApi.get.mockReturnValue(of({ dates: [] }));
-      await (component as any).load(2024, 1); // January
+      await (component as any).load(2024, 1, '', ''); // January
 
       const cells = component.calendarCells();
       const jan1 = cells.find((c: any) => c.date === '2024-01-01');
@@ -88,7 +101,7 @@ describe('TimelineDaysComponent', () => {
 
     it('February: handles 29 days in a leap year', async () => {
       mockApi.get.mockReturnValue(of({ dates: [] }));
-      await (component as any).load(2024, 2); // Feb 2024 is a leap year
+      await (component as any).load(2024, 2, '', ''); // Feb 2024 is a leap year
 
       const dayCells = component.calendarCells().filter((c: any) => c.date !== null);
       expect(dayCells).toHaveLength(29);
@@ -96,7 +109,7 @@ describe('TimelineDaysComponent', () => {
 
     it('February: handles 28 days in a non-leap year', async () => {
       mockApi.get.mockReturnValue(of({ dates: [] }));
-      await (component as any).load(2023, 2);
+      await (component as any).load(2023, 2, '', '');
 
       const dayCells = component.calendarCells().filter((c: any) => c.date !== null);
       expect(dayCells).toHaveLength(28);

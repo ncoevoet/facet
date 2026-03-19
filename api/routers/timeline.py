@@ -221,6 +221,8 @@ async def api_timeline_dates(
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
     hide_duplicates: str = Query('0'),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return date counts for a calendar heatmap.
@@ -237,6 +239,14 @@ async def api_timeline_dates(
         sql_params = list(from_params) + list(vis_params)
 
         where_clauses.extend(build_hide_clauses(hide_blinks, hide_bursts, hide_duplicates))
+
+        date_filter_expr = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
+        if date_from:
+            where_clauses.append(f"{date_filter_expr} >= ?")
+            sql_params.append(date_from)
+        if date_to:
+            where_clauses.append(f"{date_filter_expr} <= ?")
+            sql_params.append(date_to)
 
         # Filter by year (EXIF format: YYYY:MM:DD)
         year_prefix = str(year)
@@ -272,6 +282,8 @@ async def api_timeline_years(
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
     hide_duplicates: str = Query('0'),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return year summaries with photo counts and hero thumbnails."""
@@ -285,6 +297,14 @@ async def api_timeline_years(
         sql_params = list(from_params) + list(vis_params)
 
         where_clauses.extend(build_hide_clauses(hide_blinks, hide_bursts, hide_duplicates))
+
+        date_filter_expr = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
+        if date_from:
+            where_clauses.append(f"{date_filter_expr} >= ?")
+            sql_params.append(date_from)
+        if date_to:
+            where_clauses.append(f"{date_filter_expr} <= ?")
+            sql_params.append(date_to)
 
         year_expr = "SUBSTR(REPLACE(SUBSTR(date_taken,1,10),':','-'),1,4)"
         rows = _fetch_grouped_summaries(conn, from_clause, where_clauses, sql_params, year_expr, 'DESC')
@@ -311,6 +331,8 @@ async def api_timeline_months(
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
     hide_duplicates: str = Query('0'),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return month summaries for a given year with photo counts and hero thumbnails."""
@@ -325,6 +347,14 @@ async def api_timeline_months(
         sql_params = list(from_params) + list(vis_params) + [str(year)]
 
         where_clauses.extend(build_hide_clauses(hide_blinks, hide_bursts, hide_duplicates))
+
+        date_filter_expr = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
+        if date_from:
+            where_clauses.append(f"{date_filter_expr} >= ?")
+            sql_params.append(date_from)
+        if date_to:
+            where_clauses.append(f"{date_filter_expr} <= ?")
+            sql_params.append(date_to)
 
         month_expr = "SUBSTR(REPLACE(SUBSTR(date_taken,1,7),':','-'),1,7)"
         rows = _fetch_grouped_summaries(conn, from_clause, where_clauses, sql_params, month_expr, 'ASC')

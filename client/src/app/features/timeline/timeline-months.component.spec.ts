@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { TimelineFiltersService } from './timeline-filters.service';
 import { TimelineMonthsComponent } from './timeline-months.component';
 
 describe('TimelineMonthsComponent', () => {
@@ -19,10 +20,12 @@ describe('TimelineMonthsComponent', () => {
     mockApi = { get: jest.fn(() => of(monthsResponse)) };
 
     TestBed.configureTestingModule({
-      providers: [{ provide: ApiService, useValue: mockApi }],
+      providers: [
+        { provide: ApiService, useValue: mockApi },
+        TimelineFiltersService,
+      ],
     });
 
-    // TimelineMonthsComponent requires the `year` input; provide it as a signal fixture
     TestBed.runInInjectionContext(() => {
       component = new TimelineMonthsComponent();
     });
@@ -30,26 +33,33 @@ describe('TimelineMonthsComponent', () => {
 
   describe('loading months for a year', () => {
     it('should call /timeline/months with the year input value', async () => {
-      // Simulate input signal by calling load directly via the private method
-      // accessible via any-typed component
-      await (component as any).load('2024');
+      await (component as any).load('2024', '', '');
       expect(mockApi.get).toHaveBeenCalledWith('/timeline/months', { year: 2024 });
     });
 
+    it('should pass date_from and date_to when provided', async () => {
+      await (component as any).load('2024', '2024-01-01', '2024-12-31');
+      expect(mockApi.get).toHaveBeenCalledWith('/timeline/months', {
+        year: 2024,
+        date_from: '2024-01-01',
+        date_to: '2024-12-31',
+      });
+    });
+
     it('should populate months signal', async () => {
-      await (component as any).load('2024');
+      await (component as any).load('2024', '', '');
       expect(component.months()).toHaveLength(2);
       expect(component.months()[0].month).toBe('2024-06');
     });
 
     it('should set loading false after success', async () => {
-      await (component as any).load('2024');
+      await (component as any).load('2024', '', '');
       expect(component.loading()).toBe(false);
     });
 
     it('should set loading false even on error', async () => {
       mockApi.get.mockReturnValue(throwError(() => new Error('fail')));
-      try { await (component as any).load('2024'); } catch { /* expected */ }
+      try { await (component as any).load('2024', '', ''); } catch { /* expected */ }
       expect(component.loading()).toBe(false);
     });
   });

@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
+import { of } from 'rxjs';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { TimelineComponent } from './timeline.component';
 
@@ -12,9 +13,8 @@ describe('TimelineComponent', () => {
     dateFrom: ReturnType<typeof signal<string>>;
     dateTo: ReturnType<typeof signal<string>>;
     sortDirection: ReturnType<typeof signal<'older' | 'newer'>>;
-    selectedYear: ReturnType<typeof signal<string>>;
-    selectedMonth: ReturnType<typeof signal<string>>;
   };
+  let paramMapSubject: { get: jest.Mock };
 
   beforeEach(() => {
     mockRouter = { navigate: jest.fn() };
@@ -22,68 +22,117 @@ describe('TimelineComponent', () => {
       dateFrom: signal(''),
       dateTo: signal(''),
       sortDirection: signal<'older' | 'newer'>('older'),
-      selectedYear: signal(''),
-      selectedMonth: signal(''),
     };
+    paramMapSubject = { get: jest.fn().mockReturnValue(null) };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: Router, useValue: mockRouter },
         { provide: TimelineFiltersService, useValue: mockFilters },
+        { provide: ActivatedRoute, useValue: { paramMap: of(paramMapSubject) } },
       ],
     });
     component = TestBed.runInInjectionContext(() => new TimelineComponent());
   });
 
   describe('initial state', () => {
-    it('should start at years level', () => {
+    it('should start at years level with no route params', () => {
       expect(component.level()).toBe('years');
     });
 
-    it('ngOnInit should reset selectedYear and selectedMonth', () => {
-      mockFilters.selectedYear.set('2024');
-      mockFilters.selectedMonth.set('2024-06');
-      component.ngOnInit();
-      expect(mockFilters.selectedYear()).toBe('');
-      expect(mockFilters.selectedMonth()).toBe('');
-    });
-  });
-
-  describe('selectedMonthNumber', () => {
-    it('returns empty string when no month selected', () => {
-      mockFilters.selectedMonth.set('');
-      expect(component.selectedMonthNumber()).toBe('');
-    });
-
-    it('extracts month number from YYYY-MM string', () => {
-      mockFilters.selectedMonth.set('2024-06');
-      expect(component.selectedMonthNumber()).toBe('6');
-    });
-
-    it('strips leading zero from month number', () => {
-      mockFilters.selectedMonth.set('2024-03');
-      expect(component.selectedMonthNumber()).toBe('3');
-    });
-
-    it('returns empty string for malformed month', () => {
-      mockFilters.selectedMonth.set('2024');
-      expect(component.selectedMonthNumber()).toBe('');
-    });
-  });
-
-  describe('year selection', () => {
-    it('onYearSelected sets selectedYear and advances to months level', () => {
-      component.onYearSelected('2024');
-      expect(mockFilters.selectedYear()).toBe('2024');
+    it('should be at months level when year param is set', () => {
+      paramMapSubject.get.mockImplementation((key: string) => key === 'year' ? '2024' : null);
+      // Re-create with updated route
+      TestBed.resetTestingModule();
+      const newParamMap = { get: (key: string) => key === 'year' ? '2024' : null };
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: Router, useValue: mockRouter },
+          { provide: TimelineFiltersService, useValue: mockFilters },
+          { provide: ActivatedRoute, useValue: { paramMap: of(newParamMap) } },
+        ],
+      });
+      component = TestBed.runInInjectionContext(() => new TimelineComponent());
       expect(component.level()).toBe('months');
+      expect(component.year()).toBe('2024');
+    });
+
+    it('should be at days level when year and month params are set', () => {
+      TestBed.resetTestingModule();
+      const newParamMap = { get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '6' : null };
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: Router, useValue: mockRouter },
+          { provide: TimelineFiltersService, useValue: mockFilters },
+          { provide: ActivatedRoute, useValue: { paramMap: of(newParamMap) } },
+        ],
+      });
+      component = TestBed.runInInjectionContext(() => new TimelineComponent());
+      expect(component.level()).toBe('days');
+      expect(component.year()).toBe('2024');
+      expect(component.month()).toBe('6');
     });
   });
 
-  describe('month selection', () => {
-    it('onMonthSelected sets selectedMonth and advances to days level', () => {
+  describe('selectedMonthFormatted', () => {
+    it('returns empty string when no params', () => {
+      expect(component.selectedMonthFormatted()).toBe('');
+    });
+
+    it('formats month with zero padding', () => {
+      TestBed.resetTestingModule();
+      const newParamMap = { get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '6' : null };
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: Router, useValue: mockRouter },
+          { provide: TimelineFiltersService, useValue: mockFilters },
+          { provide: ActivatedRoute, useValue: { paramMap: of(newParamMap) } },
+        ],
+      });
+      component = TestBed.runInInjectionContext(() => new TimelineComponent());
+      expect(component.selectedMonthFormatted()).toBe('2024-06');
+    });
+  });
+
+  describe('navigation methods', () => {
+    it('goToYears navigates to /timeline', () => {
+      component.goToYears();
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/timeline']);
+    });
+
+    it('goToMonths navigates to /timeline/:year', () => {
+      TestBed.resetTestingModule();
+      const newParamMap = { get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '6' : null };
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: Router, useValue: mockRouter },
+          { provide: TimelineFiltersService, useValue: mockFilters },
+          { provide: ActivatedRoute, useValue: { paramMap: of(newParamMap) } },
+        ],
+      });
+      component = TestBed.runInInjectionContext(() => new TimelineComponent());
+      component.goToMonths();
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/timeline', '2024']);
+    });
+
+    it('onYearSelected navigates to /timeline/:year', () => {
+      component.onYearSelected('2024');
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/timeline', '2024']);
+    });
+
+    it('onMonthSelected navigates to /timeline/:year/:month', () => {
+      TestBed.resetTestingModule();
+      const newParamMap = { get: (key: string) => key === 'year' ? '2024' : null };
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: Router, useValue: mockRouter },
+          { provide: TimelineFiltersService, useValue: mockFilters },
+          { provide: ActivatedRoute, useValue: { paramMap: of(newParamMap) } },
+        ],
+      });
+      component = TestBed.runInInjectionContext(() => new TimelineComponent());
       component.onMonthSelected('2024-06');
-      expect(mockFilters.selectedMonth()).toBe('2024-06');
-      expect(component.level()).toBe('days');
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/timeline', '2024', '6']);
     });
   });
 
@@ -98,31 +147,6 @@ describe('TimelineComponent', () => {
           sort_direction: 'DESC',
         },
       });
-    });
-  });
-
-  describe('breadcrumb navigation', () => {
-    it('goToYears resets to years level and clears filters', () => {
-      mockFilters.selectedYear.set('2024');
-      mockFilters.selectedMonth.set('2024-06');
-      component.level.set('days');
-
-      component.goToYears();
-
-      expect(component.level()).toBe('years');
-      expect(mockFilters.selectedYear()).toBe('');
-      expect(mockFilters.selectedMonth()).toBe('');
-    });
-
-    it('goToMonths returns to months level and clears selectedMonth', () => {
-      mockFilters.selectedYear.set('2024');
-      mockFilters.selectedMonth.set('2024-06');
-      component.level.set('days');
-
-      component.goToMonths();
-
-      expect(component.level()).toBe('months');
-      expect(mockFilters.selectedMonth()).toBe('');
     });
   });
 });

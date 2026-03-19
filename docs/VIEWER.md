@@ -582,7 +582,8 @@ All stats are user-aware in multi-user mode — each user sees analytics for the
     "display": {
       "tags_per_photo": 4,
       "card_width_px": 168,
-      "image_width_px": 160
+      "image_width_px": 160,
+      "image_jpeg_quality": 96
     }
   }
 }

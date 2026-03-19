@@ -187,11 +187,6 @@ html, body {
   height: 100%;
 }
 
-// Person selector: reduce height when persons are selected (no label)
-.person-select-compact .mat-mdc-text-field-wrapper {
-  --mat-form-field-container-vertical-padding: 4px;
-}
-
 // Header selectors: auto-width panels with no text wrapping
 .cdk-overlay-pane:has(.nowrap-panel) {
   width: auto !important;
@@ -200,17 +195,6 @@ html, body {
 
 .nowrap-panel .mat-mdc-option {
   white-space: nowrap;
-}
-
-// Person selector: wider panel with taller rows for face avatars
-.person-select-panel {
-  min-width: 320px !important;
-
-  .mat-mdc-option {
-    min-height: 76px;
-    padding-top: 4px;
-    padding-bottom: 4px;
-  }
 }
 
 // Scrollbar styling
