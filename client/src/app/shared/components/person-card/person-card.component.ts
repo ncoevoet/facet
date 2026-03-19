@@ -91,15 +91,15 @@ export interface Person {
           </div>
           <!-- Actions (inline, right side) -->
           @if (canEdit() && !isEditing()) {
-            <div class="flex items-center shrink-0 -mr-1" (click)="$event.stopPropagation()">
-              <button mat-icon-button class="!w-7 !h-7 !p-0 inline-flex items-center justify-center" [matTooltip]="'persons.rename' | translate" (click)="editStart.emit(person().id)">
-                <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit</mat-icon>
+            <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" (click)="$event.stopPropagation()">
+              <button mat-icon-button [matTooltip]="'persons.rename' | translate" (click)="editStart.emit(person().id)">
+                <mat-icon class="opacity-60">edit</mat-icon>
               </button>
-              <button mat-icon-button class="!w-7 !h-7 !p-0 inline-flex items-center justify-center" [matTooltip]="'persons.view_photos' | translate" (click)="viewPhotos.emit(person().id)">
-                <mat-icon class="!text-base !w-4 !h-4 !leading-4">photo_library</mat-icon>
+              <button mat-icon-button [matTooltip]="'persons.view_photos' | translate" (click)="viewPhotos.emit(person().id)">
+                <mat-icon class="opacity-60">photo_library</mat-icon>
               </button>
-              <button mat-icon-button class="!w-7 !h-7 !p-0 inline-flex items-center justify-center" [matTooltip]="'persons.delete' | translate" (click)="deleted.emit(person().id)">
-                <mat-icon class="!text-base !w-4 !h-4 !leading-4">delete</mat-icon>
+              <button mat-icon-button [matTooltip]="'persons.delete' | translate" (click)="deleted.emit(person().id)">
+                <mat-icon class="opacity-60">delete</mat-icon>
               </button>
             </div>
           }

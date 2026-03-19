@@ -73,39 +73,38 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">photo_library</mat-icon>
             </div>
           }
-          <div class="p-3">
-            <div class="font-medium text-sm truncate inline-flex items-center gap-1">
-              {{ album.name }}
-              @if (album.is_smart) {
-                <mat-icon class="!text-xs !w-3 !h-3 !leading-3">auto_awesome</mat-icon>
+          <div class="p-3 flex items-start gap-1">
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm truncate inline-flex items-center gap-1">
+                {{ album.name }}
+                @if (album.is_smart) {
+                  <mat-icon class="!text-xs !w-3 !h-3 !leading-3">auto_awesome</mat-icon>
+                }
+              </div>
+              @if (album.description) {
+                <div class="text-xs opacity-60 truncate">{{ album.description }}</div>
               }
             </div>
-            @if (album.description) {
-              <div class="text-xs opacity-60 truncate">{{ album.description }}</div>
+            @if (auth.isEdition()) {
+              <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button mat-icon-button
+                        [matTooltip]="'albums.edit' | translate"
+                        (click)="editAlbum($event, album)">
+                  <mat-icon class="opacity-60">edit</mat-icon>
+                </button>
+                <button mat-icon-button
+                        [matTooltip]="'albums.share' | translate"
+                        (click)="shareAlbum($event, album)">
+                  <mat-icon class="opacity-60">{{ album.is_shared ? 'link' : 'share' }}</mat-icon>
+                </button>
+                <button mat-icon-button
+                        [matTooltip]="'albums.delete' | translate"
+                        (click)="deleteAlbum($event, album)">
+                  <mat-icon class="opacity-60">delete</mat-icon>
+                </button>
+              </div>
             }
           </div>
-          @if (auth.isEdition()) {
-            <div class="flex justify-end gap-0.5 px-1.5 pb-1.5 mt-auto opacity-0 group-hover:opacity-100 transition-opacity">
-              <button mat-icon-button
-                      class="!w-7 !h-7 !p-0"
-                      [matTooltip]="'albums.edit' | translate"
-                      (click)="editAlbum($event, album)">
-                <mat-icon class="!text-sm !w-4 !h-4 !leading-4 opacity-60">edit</mat-icon>
-              </button>
-              <button mat-icon-button
-                      class="!w-7 !h-7 !p-0"
-                      [matTooltip]="'albums.share' | translate"
-                      (click)="shareAlbum($event, album)">
-                <mat-icon class="!text-sm !w-4 !h-4 !leading-4 opacity-60">{{ album.is_shared ? 'link' : 'share' }}</mat-icon>
-              </button>
-              <button mat-icon-button
-                      class="!w-7 !h-7 !p-0"
-                      [matTooltip]="'albums.delete' | translate"
-                      (click)="deleteAlbum($event, album)">
-                <mat-icon class="!text-sm !w-4 !h-4 !leading-4 opacity-60">delete</mat-icon>
-              </button>
-            </div>
-          }
         </a>
       }
     </div>
