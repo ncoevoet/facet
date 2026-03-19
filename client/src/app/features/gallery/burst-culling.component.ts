@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed, Pipe, PipeTransform } from '@angular/core';
+import { Router } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -119,28 +120,10 @@ interface CullingGroupsResponse {
             <div class="rounded-xl border border-[var(--mat-sys-outline-variant)] overflow-hidden transition-opacity duration-300"
                  [class.opacity-40]="(group | isConfirmed:confirmedGroups())"
                  [class.pointer-events-none]="(group | isConfirmed:confirmedGroups())">
-              <!-- Group header -->
-              <div class="flex items-center gap-2 px-4 py-2 bg-[var(--mat-sys-surface-container)]">
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                      [class.bg-blue-600]="group.type === 'burst'"
-                      [class.bg-purple-600]="group.type === 'similar'"
-                      [class.text-white]="true">
-                  {{ (group.type === 'burst' ? 'culling.type_burst' : 'culling.type_similar') | translate }}
-                </span>
-                <span class="text-sm opacity-70">{{ group.reason }}</span>
-                <span class="text-xs opacity-50 ml-auto">{{ group.count }} {{ 'culling.photos' | translate }}</span>
-                @if ((group | isConfirmed:confirmedGroups())) {
-                  <span class="inline-flex items-center gap-1 text-xs text-green-500 font-medium">
-                    <mat-icon class="inline-flex !text-sm !w-4 !h-4 !leading-4">check_circle</mat-icon>
-                    {{ 'culling.confirmed_badge' | translate }}
-                  </span>
-                }
-              </div>
-
               <!-- Photos -->
               <div class="flex gap-2 md:gap-3 overflow-x-auto p-3 items-center">
                 @for (photo of group.photos; track photo.path) {
-                  <div class="relative cursor-pointer rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 h-full max-w-[320px]"
+                  <div class="group/photo relative cursor-pointer rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 h-full max-w-[320px]"
                        [class.border-green-500]="photo.path | isKept:selectionsMap():group.group_id"
                        [class.border-red-500]="!(photo.path | isKept:selectionsMap():group.group_id) && (photo.path | isDecided:selectionsMap():group.group_id)"
                        [class.border-transparent]="!(photo.path | isDecided:selectionsMap():group.group_id)"
@@ -166,20 +149,36 @@ interface CullingGroupsResponse {
                         {{ 'ui.badges.blink' | translate }}
                       </div>
                     }
+                    @if (!(photo.path | isKept:selectionsMap():group.group_id)) {
+                      <button class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 inline-flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                              [matTooltip]="'culling.view_detail' | translate"
+                              (click)="openDetail($event, photo.path)">
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">info</mat-icon>
+                      </button>
+                    }
                   </div>
                 }
               </div>
 
               <!-- Group actions -->
-              <div class="flex gap-2 px-4 py-2 border-t border-[var(--mat-sys-outline-variant)]">
-                <button mat-flat-button (click)="confirmGroup(group)" [disabled]="confirming()"
-                        class="!h-8 !text-sm inline-flex items-center">
-                  <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 mr-1">check_circle</mat-icon>
-                  {{ 'culling.confirm' | translate }}
-                </button>
-                <button mat-stroked-button (click)="skipGroup(group)" class="!h-8 !text-sm">
-                  {{ 'culling.skip' | translate }}
-                </button>
+              <div class="flex items-center gap-2 px-4 py-2 border-t border-[var(--mat-sys-outline-variant)]">
+                <span class="text-xs opacity-50">{{ group.count }} {{ 'culling.photos' | translate }}</span>
+                @if ((group | isConfirmed:confirmedGroups())) {
+                  <span class="inline-flex items-center gap-1 text-xs text-green-500 font-medium">
+                    <mat-icon class="inline-flex !text-sm !w-4 !h-4 !leading-4">check_circle</mat-icon>
+                    {{ 'culling.confirmed_badge' | translate }}
+                  </span>
+                }
+                <div class="flex gap-2 ml-auto">
+                  <button mat-stroked-button (click)="skipGroup(group)" class="!h-8 !text-sm">
+                    {{ 'culling.skip' | translate }}
+                  </button>
+                  <button mat-flat-button (click)="confirmGroup(group)" [disabled]="confirming()"
+                          class="!h-8 !text-sm inline-flex items-center">
+                    <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 mr-1">check_circle</mat-icon>
+                    {{ 'culling.confirm' | translate }}
+                  </button>
+                </div>
               </div>
             </div>
           }
@@ -211,6 +210,7 @@ interface CullingGroupsResponse {
 })
 export class BurstCullingComponent {
   private readonly api = inject(ApiService);
+  private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
 
@@ -316,6 +316,11 @@ export class BurstCullingComponent {
     if (this.hasMore() && !this.loadingMore()) {
       this.loadMore();
     }
+  }
+
+  protected openDetail(event: Event, path: string): void {
+    event.stopPropagation();
+    this.router.navigate(['/photo'], { queryParams: { path } });
   }
 
   protected toggleSelection(path: string, group: CullingGroup): void {

@@ -1516,7 +1516,8 @@
     "confirmed_badge": "Bestätigt",
     "photos": "Fotos",
     "threshold": "Ähnlichkeit",
-    "load_more": "Mehr laden"
+    "load_more": "Mehr laden",
+    "view_detail": "Detail anzeigen"
   },
   "memories": {
     "title": "An diesem Tag",

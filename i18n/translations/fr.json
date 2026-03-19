@@ -1516,7 +1516,8 @@
     "confirmed_badge": "Confirmé",
     "photos": "photos",
     "threshold": "Similarité",
-    "load_more": "Charger plus"
+    "load_more": "Charger plus",
+    "view_detail": "Voir le détail"
   },
   "memories": {
     "title": "Ce jour-là",

@@ -1516,7 +1516,8 @@
     "confirmed_badge": "Confermato",
     "photos": "foto",
     "threshold": "Similarità",
-    "load_more": "Carica altro"
+    "load_more": "Carica altro",
+    "view_detail": "Vedi dettaglio"
   },
   "memories": {
     "title": "In questo giorno",
