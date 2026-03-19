@@ -111,6 +111,7 @@ export class MergeTargetDialogComponent {
             [isEditing]="editingId() === person.id"
             [canEdit]="auth.isEdition()"
             (selected)="onPersonSelected($event)"
+            (viewPhotos)="onViewPhotos($event)"
             (editStart)="startEdit($event)"
             (editSave)="onEditSave($event)"
             (editCancel)="cancelEdit()"
@@ -302,6 +303,10 @@ export class ManagePersonsComponent implements OnInit {
     } else {
       this.router.navigate(['/'], { queryParams: { person_id: String(id) } });
     }
+  }
+
+  onViewPhotos(id: number): void {
+    this.router.navigate(['/'], { queryParams: { person_id: String(id) } });
   }
 
   onEditSave({ id, name }: { id: number; name: string }): void {

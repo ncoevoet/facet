@@ -1,28 +1,17 @@
 """
-Persons API router -- person management and person photo browsing.
+Persons API router -- person management.
 
 """
 
-import math
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from api.auth import CurrentUser, require_edition, require_authenticated, get_optional_user
-from api.config import VIEWER_CONFIG
+from api.auth import CurrentUser, require_edition, require_authenticated
 from api.database import get_db_connection
-from api.db_helpers import (
-    get_existing_columns, split_photo_tags, sanitize_float_values, format_date, to_exif_date,
-    PHOTO_BASE_COLS, PHOTO_OPTIONAL_COLS,
-    HIDE_BLINKS_SQL, HIDE_BURSTS_SQL, get_visibility_clause,
-)
-from api.types import SORT_OPTIONS, VALID_SORT_COLS
 
 router = APIRouter(tags=["persons"])
-
-# Map valid sort column names to their SQL column strings (provably server-origin)
-_SORT_COL_MAP: dict[str, str] = {col: col for col in VALID_SORT_COLS}
 
 
 # --- Pydantic request bodies ---
@@ -43,100 +32,6 @@ class MergeBatchRequest(BaseModel):
 
 class DeleteBatchRequest(BaseModel):
     person_ids: List[int]
-
-
-# --- Helpers ---
-
-def _get_person_info(person_id: int):
-    """Fetch person details including photo count."""
-    conn = get_db_connection()
-    try:
-        row = conn.execute("""
-            SELECT p.id, p.name, p.representative_face_id,
-                   COUNT(DISTINCT f.photo_path) as photo_count
-            FROM persons p
-            LEFT JOIN faces f ON f.person_id = p.id
-            WHERE p.id = ?
-            GROUP BY p.id
-        """, (person_id,)).fetchone()
-    finally:
-        conn.close()
-    if not row:
-        return None
-    return {
-        "id": row["id"],
-        "name": row["name"] or f"Person {row['id']}",
-        "photo_count": row["photo_count"],
-        "representative_face_id": row["representative_face_id"],
-    }
-
-
-def _query_person_photos(person_id: int, *, page: int, per_page: int,
-                         sort: str, direction: str, hide_blinks: str,
-                         hide_bursts: str, date_from: str, date_to: str,
-                         user_id: Optional[str] = None):
-    """Shared query logic for person photo listing.
-
-    Returns (photos, page, total_pages, total_count, sort_col).
-    """
-    offset = (page - 1) * per_page
-
-    # Validate sort column — use dict lookup so interpolated value is a server-origin constant
-    sort_col = _SORT_COL_MAP.get(sort, "aggregate")
-    sort_dir = "ASC" if direction == "ASC" else "DESC"
-
-    # Build query with person filter
-    where_clauses = ["path IN (SELECT photo_path FROM faces WHERE person_id = ?)"]
-    sql_params: list = [person_id]
-
-    # Multi-user visibility
-    if user_id:
-        vis_sql, vis_params = get_visibility_clause(user_id)
-        where_clauses.append(vis_sql)
-        sql_params.extend(vis_params)
-
-    if hide_blinks == "1":
-        where_clauses.append(HIDE_BLINKS_SQL)
-    if hide_bursts == "1":
-        where_clauses.append(HIDE_BURSTS_SQL)
-    if date_from:
-        where_clauses.append("date_taken >= ?")
-        sql_params.append(to_exif_date(date_from))
-    if date_to:
-        where_clauses.append("date_taken <= ?")
-        sql_params.append(to_exif_date(date_to) + " 23:59:59")
-
-    where_sql = " AND ".join(where_clauses)
-
-    conn = get_db_connection()
-    try:
-        row = conn.execute(
-            f"SELECT COUNT(*) FROM photos WHERE {where_sql}", sql_params
-        ).fetchone()
-        total_count = row[0] if row else 0
-        total_pages = max(1, math.ceil(total_count / per_page))
-
-        existing_cols = get_existing_columns(conn)
-        select_cols = list(PHOTO_BASE_COLS) + [
-            c for c in PHOTO_OPTIONAL_COLS if c in existing_cols
-        ]
-
-        query = f"""
-            SELECT {', '.join(select_cols)}
-            FROM photos
-            WHERE {where_sql}
-            ORDER BY {sort_col} {sort_dir}
-            LIMIT ? OFFSET ?
-        """
-        rows = conn.execute(query, sql_params + [per_page, offset]).fetchall()
-
-        tags_limit = VIEWER_CONFIG["display"]["tags_per_photo"]
-        photos = split_photo_tags(rows, tags_limit)
-        sanitize_float_values(photos)
-    finally:
-        conn.close()
-
-    return photos, page, total_pages, total_count, sort_col
 
 
 # --- Endpoints ---
@@ -375,59 +270,3 @@ async def delete_persons_batch(
         raise HTTPException(status_code=500, detail='Internal server error')
     finally:
         conn.close()
-
-
-@router.get("/api/persons/{person_id}/photos")
-async def person_photos(
-    person_id: int,
-    page: int = Query(1, ge=1),
-    per_page: Optional[int] = None,
-    sort: str = Query("aggregate"),
-    dir: str = Query("DESC"),
-    hide_blinks: str = Query(""),
-    hide_bursts: str = Query(""),
-    date_from: str = Query(""),
-    date_to: str = Query(""),
-    user: Optional[CurrentUser] = Depends(get_optional_user),
-):
-    """Get photos for a specific person with pagination (infinite scroll)."""
-    person_info = _get_person_info(person_id)
-    if person_info is None:
-        raise HTTPException(status_code=404, detail="Person not found")
-
-    if per_page is None:
-        per_page = VIEWER_CONFIG["pagination"]["default_per_page"]
-
-    user_id = user.user_id if user else None
-
-    try:
-        photos, current_page, total_pages, total_count, sort_col = _query_person_photos(
-            person_id,
-            page=page,
-            per_page=per_page,
-            sort=sort,
-            direction=dir,
-            hide_blinks=hide_blinks,
-            hide_bursts=hide_bursts,
-            date_from=date_from,
-            date_to=date_to,
-            user_id=user_id,
-        )
-    except Exception:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail='Internal server error')
-
-    # Add formatted date for client rendering
-    for photo in photos:
-        photo["date_formatted"] = format_date(photo.get("date_taken"))
-
-    return {
-        "person": person_info,
-        "photos": photos,
-        "page": current_page,
-        "total_pages": total_pages,
-        "total": total_count,
-        "has_more": current_page < total_pages,
-        "sort_col": sort_col,
-    }

@@ -14,12 +14,6 @@ export const routes: Routes = [
       import('./features/auth/login.component').then(m => m.LoginComponent),
   },
   {
-    path: 'person/:personId',
-    loadComponent: () =>
-      import('./features/persons/person-page.component').then(m => m.PersonPageComponent),
-    canActivate: [authGuard],
-  },
-  {
     path: 'persons',
     loadComponent: () =>
       import('./features/persons/manage-persons.component').then(m => m.ManagePersonsComponent),

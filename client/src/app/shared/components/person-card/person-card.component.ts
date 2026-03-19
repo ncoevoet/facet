@@ -1,6 +1,5 @@
 import { Component, input, output, viewChild, ElementRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -21,7 +20,6 @@ export interface Person {
   standalone: true,
   imports: [
     FormsModule,
-    RouterLink,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -100,13 +98,9 @@ export interface Person {
           <button mat-icon-button [matTooltip]="'persons.rename' | translate" (click)="editStart.emit(person().id)">
             <mat-icon class="!text-lg">edit</mat-icon>
           </button>
-          <a
-            mat-icon-button
-            [routerLink]="'/person/' + person().id"
-            [matTooltip]="'persons.view_photos' | translate"
-          >
+          <button mat-icon-button [matTooltip]="'persons.view_photos' | translate" (click)="viewPhotos.emit(person().id)">
             <mat-icon class="!text-lg">photo_library</mat-icon>
-          </a>
+          </button>
           <button mat-icon-button [matTooltip]="'persons.delete' | translate" (click)="deleted.emit(person().id)">
             <mat-icon class="!text-lg">delete</mat-icon>
           </button>
@@ -124,6 +118,7 @@ export class PersonCardComponent {
   readonly nameInput = viewChild<ElementRef<HTMLInputElement>>('nameInput');
 
   readonly selected = output<number>();
+  readonly viewPhotos = output<number>();
   readonly editStart = output<number>();
   readonly editSave = output<{ id: number; name: string }>();
   readonly editCancel = output<void>();
