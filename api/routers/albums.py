@@ -21,7 +21,7 @@ from api.db_helpers import (
     build_photo_select_columns, sanitize_float_values,
     split_photo_tags, attach_person_data, format_date,
 )
-from api.types import VALID_SORT_COLS, SORT_OPTIONS_GROUPED
+from api.types import VALID_SORT_COLS, SORT_OPTIONS_GROUPED, normalize_params
 
 router = APIRouter(tags=["albums"])
 logger = logging.getLogger(__name__)
@@ -49,6 +49,17 @@ class AlbumPhotosRequest(BaseModel):
 
 
 # --- Helpers ---
+
+def _normalize_smart_filters(filters):
+    """Normalize smart album filter keys to match _build_gallery_where() expectations.
+
+    The Angular store saves person_id/type/quality, but the backend expects person/category/min_score.
+    """
+    result = dict(filters)
+    if 'person_id' in result:
+        result['person'] = result.pop('person_id')
+    return normalize_params(result)
+
 
 def _get_user_id(user):
     return user.user_id if user else None
@@ -94,6 +105,7 @@ def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col, sort
     if album_row['is_smart'] and album_row['smart_filter_json']:
         from api.routers.gallery import _build_gallery_where
         saved_filters = json.loads(album_row['smart_filter_json'])
+        saved_filters = _normalize_smart_filters(saved_filters)
         where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=user_id)
         from_clause, from_params = get_photos_from_clause(user_id)
         all_params = from_params + sql_params
@@ -204,6 +216,12 @@ def _get_first_photo_path(conn, album_row, user_id=None):
         try:
             from api.routers.gallery import _build_gallery_where
             saved_filters = json.loads(album_row['smart_filter_json'])
+            saved_filters = _normalize_smart_filters(saved_filters)
+            # Apply viewer defaults for hide filters (excluded from smart_filter_json but active by default)
+            defaults = VIEWER_CONFIG.get('defaults', {})
+            for key in ('hide_blinks', 'hide_bursts', 'hide_duplicates'):
+                if key not in saved_filters:
+                    saved_filters[key] = '1' if defaults.get(key, False) else '0'
             where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=user_id)
             from_clause, from_params = get_photos_from_clause(user_id)
             all_params = from_params + sql_params
