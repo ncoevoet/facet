@@ -33,15 +33,17 @@ interface MonthSummary {
       </div>
     }
 
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       @for (m of months(); track m.month) {
         <button
           class="group flex flex-col rounded-xl overflow-hidden bg-[var(--mat-sys-surface-container)] hover:shadow-lg transition-shadow cursor-pointer text-left"
           (click)="monthSelected.emit(m.month)">
           @if (m.hero_photo_path) {
-            <img [src]="m.hero_photo_path | thumbnailUrl:320"
-                 [alt]="m.month"
-                 class="w-full aspect-[4/3] object-cover" />
+            <div class="relative w-full aspect-[4/3] overflow-hidden">
+              <img [src]="m.hero_photo_path | thumbnailUrl:320"
+                   [alt]="m.month"
+                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+            </div>
           } @else {
             <div class="w-full aspect-[4/3] flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">calendar_today</mat-icon>

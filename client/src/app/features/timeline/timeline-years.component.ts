@@ -38,9 +38,11 @@ interface YearSummary {
           class="group flex flex-col rounded-xl overflow-hidden bg-[var(--mat-sys-surface-container)] hover:shadow-lg transition-shadow cursor-pointer text-left"
           (click)="yearSelected.emit(y.year)">
           @if (y.hero_photo_path) {
-            <img [src]="y.hero_photo_path | thumbnailUrl:320"
-                 [alt]="y.year"
-                 class="w-full aspect-[4/3] object-cover" />
+            <div class="relative w-full aspect-[4/3] overflow-hidden">
+              <img [src]="y.hero_photo_path | thumbnailUrl:320"
+                   [alt]="y.year"
+                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+            </div>
           } @else {
             <div class="w-full aspect-[4/3] flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">calendar_today</mat-icon>

@@ -87,6 +87,7 @@ describe('FoldersComponent', () => {
           sort: 'date_taken',
           sort_direction: 'DESC',
         },
+        replaceUrl: true,
       });
     });
 

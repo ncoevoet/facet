@@ -65,14 +65,14 @@ interface CapsulesResponse {
       </div>
     }
 
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       @for (capsule of capsules(); track capsule.id) {
         <div
           class="group flex flex-col rounded-xl overflow-hidden bg-[var(--mat-sys-surface-container)] hover:shadow-lg transition-shadow cursor-pointer text-left w-full"
           (click)="playCapsule(capsule)"
         >
           @if (capsule.cover_photo_path) {
-            <div class="relative w-full aspect-square overflow-hidden">
+            <div class="relative w-full aspect-[4/3] overflow-hidden">
               <img [src]="capsule.cover_photo_path | thumbnailUrl:320"
                    [alt]="capsule.title"
                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -82,11 +82,11 @@ interface CapsulesResponse {
               </div>
             </div>
           } @else {
-            <div class="w-full aspect-square flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
+            <div class="w-full aspect-[4/3] flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">{{ capsule.icon }}</mat-icon>
             </div>
           }
-          <div class="p-2 flex items-start gap-1">
+          <div class="p-3 flex items-start gap-1">
             <div class="flex-1 min-w-0">
               <div class="font-medium text-sm truncate">{{ capsule.title_key | translate:capsule.title_params }}</div>
               <div class="flex items-center gap-1 text-xs opacity-60">

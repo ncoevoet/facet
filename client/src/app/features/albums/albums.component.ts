@@ -58,20 +58,22 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
       </div>
     }
 
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       @for (album of albums(); track album.id) {
         <a [routerLink]="['/album', album.id]"
            class="group flex flex-col rounded-xl overflow-hidden bg-[var(--mat-sys-surface-container)] hover:shadow-lg transition-shadow cursor-pointer">
           @if (album.first_photo_path) {
-            <img [src]="album.first_photo_path | thumbnailUrl:320"
-                 [alt]="album.name"
-                 class="w-full aspect-square object-cover" />
+            <div class="relative w-full aspect-[4/3] overflow-hidden">
+              <img [src]="album.first_photo_path | thumbnailUrl:320"
+                   [alt]="album.name"
+                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+            </div>
           } @else {
-            <div class="w-full aspect-square flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
+            <div class="w-full aspect-[4/3] flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">photo_library</mat-icon>
             </div>
           }
-          <div class="p-2">
+          <div class="p-3">
             <div class="font-medium text-sm truncate inline-flex items-center gap-1">
               {{ album.name }}
               @if (album.is_smart) {

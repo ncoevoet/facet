@@ -30,18 +30,18 @@ export interface Person {
   ],
   template: `
     <mat-card
-      class="!overflow-hidden cursor-pointer transition-shadow hover:shadow-lg"
+      class="group !overflow-hidden cursor-pointer transition-shadow hover:shadow-lg"
       [class.!ring-2]="isSelected()"
       [class.!ring-blue-500]="isSelected()"
       (click)="selected.emit(person().id)"
     >
       <!-- Avatar -->
-      <div class="relative aspect-square bg-[var(--mat-sys-surface-container)] overflow-hidden">
+      <div class="relative aspect-[4/3] bg-[var(--mat-sys-surface-container)] overflow-hidden">
         @if (person().face_thumbnail) {
           <img
             [src]="person().id | personThumbnailUrl"
             [alt]="person().name ?? ''"
-            class="absolute inset-0 w-full h-full object-cover"
+            class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
           />
         } @else {
