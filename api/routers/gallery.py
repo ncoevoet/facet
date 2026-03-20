@@ -91,6 +91,9 @@ def _build_gallery_where(params, conn=None, user_id=None):
             search_clauses.append("caption_translated LIKE ? ESCAPE '\\'")
             search_params.append(f"%{escaped_term}%")
 
+        search_clauses.append("EXISTS (SELECT 1 FROM faces f JOIN persons p ON f.person_id = p.id WHERE f.photo_path = photos.path AND p.name LIKE ? ESCAPE '\\')")
+        search_params.append(f"%{escaped_term}%")
+
         where_clauses.append(f"({' OR '.join(search_clauses)})")
         sql_params.extend(search_params)
 

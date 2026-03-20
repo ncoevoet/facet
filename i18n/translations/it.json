@@ -997,6 +997,7 @@
     "lens": "Obiettivo",
     "tag": "Tag",
     "person": "Persona",
+    "person_add": "Aggiungi persona...",
     "all": "Tutti",
     "aggregate_score": "Punteggio complessivo",
     "sort_score": "Punteggio di ordinamento",
@@ -1044,7 +1045,8 @@
       "ratings": "Valutazioni",
       "add_filter": "Aggiungi filtro...",
       "semantic_search": "Ricerca semantica",
-      "location": "Posizione"
+      "location": "Posizione",
+      "persons": "Persone"
     },
     "semantic_search_info": "La ricerca semantica carica gli embedding nella RAM al primo utilizzo. Potrebbe richiedere un momento per le librerie di grandi dimensioni.",
     "select_on_map": "Seleziona sulla mappa",

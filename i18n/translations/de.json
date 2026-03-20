@@ -997,6 +997,7 @@
     "lens": "Objektiv",
     "tag": "Tag",
     "person": "Person",
+    "person_add": "Person hinzufügen...",
     "all": "Alle",
     "aggregate_score": "Gesamtbewertung",
     "sort_score": "Sortierbewertung",
@@ -1044,7 +1045,8 @@
       "ratings": "Bewertungen",
       "add_filter": "Filter hinzufügen...",
       "semantic_search": "Semantische Suche",
-      "location": "Standort"
+      "location": "Standort",
+      "persons": "Personen"
     },
     "semantic_search_info": "Die semantische Suche lädt beim ersten Gebrauch Embeddings in den RAM. Bei großen Bibliotheken kann dies einen Moment dauern.",
     "select_on_map": "Auf Karte auswählen",

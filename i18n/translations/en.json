@@ -997,6 +997,7 @@
     "lens": "Lens",
     "tag": "Tag",
     "person": "Person",
+    "person_add": "Add person...",
     "all": "All",
     "aggregate_score": "Aggregate Score",
     "sort_score": "Sort Score",
@@ -1044,7 +1045,8 @@
       "ratings": "User Ratings",
       "add_filter": "Add Filter...",
       "semantic_search": "Semantic Search",
-      "location": "Location"
+      "location": "Location",
+      "persons": "Persons"
     },
     "semantic_search_info": "Semantic search loads embeddings into RAM on first use. This may take a moment for large libraries.",
     "select_on_map": "Select on map",

@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSelectModule } from '@angular/material/select';
@@ -10,11 +10,13 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { GalleryStore, SMART_ALBUM_EXCLUDE_KEYS } from './gallery.store';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FilterDisplayPipe } from '../../shared/pipes/filter-display.pipe';
+import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { AdditionalFilterDef } from '../../shared/models/filter-def.model';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -129,13 +131,87 @@ function saveSectionStates(states: Record<string, boolean>): void {
     MatCheckboxModule,
     MatInputModule,
     MatTooltipModule,
+    MatAutocompleteModule,
     MatExpansionModule,
     MatDialogModule,
     TranslatePipe,
     FilterDisplayPipe,
+    PersonThumbnailUrlPipe,
   ],
   template: `
-<div data-scroll class="overflow-y-auto px-2 h-full">
+<div data-scroll class="overflow-y-auto px-2 pt-4 lg:pt-0 pb-4 h-full">
+
+      <!-- Search (visible below 2xl, hidden on 2xl+ where header search is shown) -->
+      <div class="!hidden lg:!block 2xl:!hidden mt-4 mb-1">
+        <mat-form-field subscriptSizing="dynamic" class="w-full">
+          <mat-icon matPrefix class="mr-1 opacity-60">search</mat-icon>
+          <input matInput
+            [placeholder]="'gallery.search_placeholder' | translate"
+            [value]="store.filters().search"
+            (keyup.enter)="onSidebarSearchChange($event)"
+            (blur)="onSidebarSearchChange($event)" />
+          @if (store.filters().search) {
+            <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('search', '')">
+              <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
+            </button>
+          }
+        </mat-form-field>
+      </div>
+
+      <!-- Persons -->
+      @if (store.persons().length) {
+        <mat-expansion-panel class="!mb-1 mt-1" [expanded]="sectionStates()['persons'] !== false"
+                             (opened)="onSectionToggle('persons', true)"
+                             (closed)="onSectionToggle('persons', false)"
+                             [style.background-color]="sectionStates()['persons'] !== false ? 'var(--mat-sys-surface-container)' : null">
+          <mat-expansion-panel-header>
+            <mat-panel-title class="flex items-center gap-2">
+              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">people</mat-icon>
+              {{ 'gallery.sidebar.persons' | translate }}
+              @if (sectionActiveCounts()['persons']) {
+                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['persons'] }}</span>
+              }
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <div class="flex flex-col gap-2 pb-2">
+            <mat-form-field subscriptSizing="dynamic" class="w-full">
+              @if (!selectedPersons().length) {
+                <mat-label>{{ 'gallery.person' | translate }}</mat-label>
+              }
+              <input matInput #sidebarPersonInput
+                     [matAutocomplete]="sidebarPersonAuto"
+                     [value]="sidebarPersonQuery()"
+                     [placeholder]="selectedPersons().length ? ('gallery.person_add' | translate) : ''"
+                     (input)="sidebarPersonQuery.set($any($event.target).value)"
+                     (focus)="sidebarPersonQuery.set('')" />
+              <mat-autocomplete #sidebarPersonAuto="matAutocomplete"
+                                (optionSelected)="onSidebarPersonSelected($event)"
+                                [hideSingleSelectionIndicator]="true">
+                @for (p of filteredPersons(); track p.id) {
+                  <mat-option [value]="p.id">
+                    <div class="flex items-center gap-2">
+                      <img [src]="p.id | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" alt="" loading="lazy" />
+                      <span class="text-sm">{{ p.name || ('gallery.unknown_person' | translate) }} ({{ p.face_count }})</span>
+                    </div>
+                  </mat-option>
+                }
+              </mat-autocomplete>
+            </mat-form-field>
+            @if (selectedPersons().length) {
+              <div class="flex flex-wrap gap-1.5">
+                @for (p of selectedPersons(); track p.id) {
+                  <button class="relative shrink-0 group/person" [matTooltip]="p.name || ('gallery.unknown_person' | translate)" (click)="removePersonChip(p.id)">
+                    <img [src]="p.id | personThumbnailUrl" class="w-9 h-9 rounded-full object-cover" alt="" />
+                    <div class="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover/person:opacity-100 transition-opacity">
+                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-white">close</mat-icon>
+                    </div>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </mat-expansion-panel>
+      }
 
       <!-- Date Range -->
       <mat-expansion-panel class="!mb-1 mt-4" [expanded]="sectionStates()['date'] !== false"
@@ -164,7 +240,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
       </mat-expansion-panel>
 
       <!-- Content -->
-      @if (store.tags().length || store.patterns().length) {
+      @if (store.types().length || store.tags().length || store.patterns().length) {
         <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['content'] !== false"
                              (opened)="onSectionToggle('content', true)"
                              (closed)="onSectionToggle('content', false)"
@@ -179,6 +255,17 @@ function saveSectionStates(states: Record<string, boolean>): void {
             </mat-panel-title>
           </mat-expansion-panel-header>
           <div class="flex flex-col gap-2 pb-2">
+            @if (store.types().length) {
+              <mat-form-field subscriptSizing="dynamic" class="w-full lg:!hidden">
+                <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
+                <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().type" (selectionChange)="store.updateFilter('type', $event.value)">
+                  <mat-option value="">{{ 'gallery.all_photos' | translate }}</mat-option>
+                  @for (t of store.types(); track t.id) {
+                    <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
             @if (store.tags().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full">
                 <mat-label>{{ 'gallery.tag' | translate }}</mat-label>
@@ -476,6 +563,45 @@ export class GalleryFilterSidebarComponent {
   readonly sectionStates = signal<Record<string, boolean>>(loadSectionStates());
   readonly sliderConfig = computed(() => this.store.config()?.display?.thumbnail_slider ?? null);
 
+  // Person autocomplete (multi-select with search)
+  readonly sidebarPersonQuery = signal('');
+  private readonly sidebarPersonInput = viewChild<ElementRef<HTMLInputElement>>('sidebarPersonInput');
+
+  readonly selectedPersonIds = computed(() => {
+    const raw = this.store.filters().person_id;
+    return raw ? raw.split(',') : [];
+  });
+
+  readonly selectedPersons = computed(() => {
+    const ids = new Set(this.selectedPersonIds());
+    if (!ids.size) return [];
+    return this.store.persons().filter(p => ids.has(String(p.id)));
+  });
+
+  readonly filteredPersons = computed(() => {
+    const query = this.sidebarPersonQuery().toLowerCase().trim();
+    const selected = new Set(this.selectedPersonIds());
+    const all = this.store.persons().filter(p => !selected.has(String(p.id)));
+    if (!query) return all;
+    return all.filter(p => p.name?.toLowerCase().includes(query));
+  });
+
+  removePersonChip(id: number): void {
+    const ids = this.selectedPersonIds().filter(pid => pid !== String(id));
+    this.store.updateFilter('person_id', ids.join(','));
+  }
+
+  onSidebarPersonSelected(event: MatAutocompleteSelectedEvent): void {
+    const id = String(event.option.value);
+    const current = this.selectedPersonIds();
+    if (!current.includes(id)) {
+      this.store.updateFilter('person_id', [...current, id].join(','));
+    }
+    this.sidebarPersonQuery.set('');
+    const el = this.sidebarPersonInput()?.nativeElement;
+    if (el) el.value = '';
+  }
+
   readonly sectionIcons = SECTION_ICONS;
 
   readonly filterGroups: FilterGroup[] = SECTION_ORDER.map(sectionKey => ({
@@ -487,8 +613,9 @@ export class GalleryFilterSidebarComponent {
     const f = this.store.filters();
     const counts: Record<string, number> = {
       date: (f.date_from ? 1 : 0) + (f.date_to ? 1 : 0),
-      content: (f.tag ? 1 : 0) + (f.composition_pattern ? 1 : 0),
+      content: (f.type ? 1 : 0) + (f.tag ? 1 : 0) + (f.composition_pattern ? 1 : 0),
       equipment: (f.camera ? 1 : 0) + (f.lens ? 1 : 0),
+      persons: f.person_id ? f.person_id.split(',').length : 0,
       display: (f.favorites_only ? 1 : 0) + (f.is_monochrome ? 1 : 0) + (f.hide_rejected ? 1 : 0),
     };
     const fAny = f as Record<string, any>;
@@ -529,6 +656,11 @@ export class GalleryFilterSidebarComponent {
         this.albums.set(res.albums),
       ).catch(() => {});
     }
+  }
+
+  onSidebarSearchChange(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.store.updateFilter('search', value);
   }
 
   onSemanticSearch(event: Event): void {

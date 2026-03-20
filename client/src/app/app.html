@@ -109,45 +109,8 @@
           </mat-select>
         </mat-form-field>
 
-        <!-- Person autocomplete with avatar chips -->
-        @if (store.persons().length) {
-          @for (p of selectedPersons(); track p.id) {
-            <button
-              class="!hidden lg:!inline-flex relative shrink-0 group/person"
-              [matTooltip]="p.name || ('gallery.unknown_person' | translate)"
-              (click)="removePersonChip(p.id)">
-              <img [src]="p.id | personThumbnailUrl" class="w-9 h-9 rounded-full object-cover" alt="" />
-              <div class="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover/person:opacity-100 transition-opacity">
-                <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-white">close</mat-icon>
-              </div>
-            </button>
-          }
-          <mat-form-field class="!hidden lg:!inline-flex w-44 xl:w-52" subscriptSizing="dynamic">
-            @if (!selectedPersonIds().length) {
-              <mat-label>{{ 'gallery.person' | translate }}</mat-label>
-            }
-            <input matInput #personInput
-                   [matAutocomplete]="personAuto"
-                   [value]="personSearchQuery()"
-                   (input)="personSearchQuery.set($any($event.target).value)"
-                   (focus)="personSearchQuery.set('')" />
-            <mat-autocomplete #personAuto="matAutocomplete"
-                              (optionSelected)="onPersonAutoSelected($event)"
-                              [hideSingleSelectionIndicator]="true">
-              @for (p of filteredPersons(); track p.id) {
-                <mat-option [value]="p.id">
-                  <div class="flex items-center gap-3">
-                    <img [src]="p.id | personThumbnailUrl" class="w-10 h-10 rounded-full object-cover shrink-0" alt="" loading="lazy" />
-                    <span class="text-sm">{{ p.name || ('gallery.unknown_person' | translate) }} ({{ p.face_count }})</span>
-                  </div>
-                </mat-option>
-              }
-            </mat-autocomplete>
-          </mat-form-field>
-        }
-
         <!-- Search -->
-        <mat-form-field class="!hidden lg:!inline-flex flex-1 min-w-32 max-w-xs" subscriptSizing="dynamic">
+        <mat-form-field class="!hidden 2xl:!inline-flex flex-1 min-w-32 max-w-xs" subscriptSizing="dynamic">
           <input
             matInput
             [placeholder]="'gallery.search_placeholder' | translate"
