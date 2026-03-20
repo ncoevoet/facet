@@ -8,14 +8,22 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSliderModule } from '@angular/material/slider';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatInputModule } from '@angular/material/input';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { firstValueFrom } from 'rxjs';
 import { Photo } from '../../models/photo.model';
 import { ApiService } from '../../../core/services/api.service';
 import { I18nService } from '../../../core/services/i18n.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
+import { FilterDisplayPipe } from '../../pipes/filter-display.pipe';
+import { AdditionalFilterDef } from '../../models/filter-def.model';
+import {
+  ADDITIONAL_FILTERS, SECTION_ORDER, FILTERS_BY_SECTION,
+  FilterGroup, SECTION_ICONS,
+} from '../../../features/gallery/gallery-filter-sidebar.component';
 import { PhotoCardComponent } from '../photo-card/photo-card.component';
 import { SlideshowComponent } from '../../../features/gallery/slideshow.component';
 import { InfiniteScrollDirective } from '../../directives/infinite-scroll.directive';
@@ -34,6 +42,8 @@ interface FilterOptions {
   cameras: FilterOption[];
   lenses: FilterOption[];
   tags: FilterOption[];
+  patterns: FilterOption[];
+  categories: FilterOption[];
 }
 
 interface SharedAlbumResponse {
@@ -62,6 +72,13 @@ interface SharedFilters {
   tag: string;
   date_from: string;
   date_to: string;
+  composition_pattern: string;
+  category: string;
+  hide_blinks: boolean;
+  hide_bursts: boolean;
+  hide_duplicates: boolean;
+  is_monochrome: boolean;
+  [key: string]: string | boolean;
 }
 
 @Component({
@@ -71,8 +88,8 @@ interface SharedFilters {
   imports: [
     MatIconModule, MatButtonModule, MatProgressSpinnerModule,
     MatSelectModule, MatFormFieldModule, MatSnackBarModule, MatTooltipModule,
-    MatSidenavModule, MatExpansionModule, MatInputModule,
-    TranslatePipe,
+    MatSliderModule, MatSidenavModule, MatExpansionModule, MatInputModule, MatCheckboxModule,
+    TranslatePipe, FilterDisplayPipe,
     PhotoCardComponent, SlideshowComponent, InfiniteScrollDirective,
   ],
   template: `
@@ -101,9 +118,9 @@ interface SharedFilters {
               <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="sortBy()" (selectionChange)="onSortChange($event.value)">
                 @if (sortGroups(); as groups) {
                   @for (group of groups; track group[0]) {
-                    <mat-optgroup [label]="group[0]">
+                    <mat-optgroup [label]="('sort_groups.' + sortGroupKey(group[0])) | translate">
                       @for (opt of group[1]; track opt.column) {
-                        <mat-option [value]="opt.column">{{ opt.label }}</mat-option>
+                        <mat-option [value]="opt.column">{{ 'sort_options.' + opt.column | translate }}</mat-option>
                       }
                     </mat-optgroup>
                   }
@@ -171,33 +188,57 @@ interface SharedFilters {
               </mat-expansion-panel>
             }
 
-            <!-- Tags -->
-            @if (filterOptions()?.tags?.length) {
+            <!-- Content -->
+            @if (filterOptions()?.tags?.length || filterOptions()?.patterns?.length || filterOptions()?.categories?.length) {
               <mat-expansion-panel class="!mb-1">
                 <mat-expansion-panel-header>
                   <mat-panel-title class="flex items-center gap-2">
                     <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">label</mat-icon>
                     {{ 'gallery.sidebar.content' | translate }}
-                    @if (filters().tag) {
-                      <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">1</span>
+                    @if (contentFilterCount()) {
+                      <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ contentFilterCount() }}</span>
                     }
                   </mat-panel-title>
                 </mat-expansion-panel-header>
                 <div class="flex flex-col gap-2 pb-2">
-                  <mat-form-field subscriptSizing="dynamic" class="w-full">
-                    <mat-label>{{ 'gallery.tag' | translate }}</mat-label>
-                    <mat-select [value]="filters().tag" (selectionChange)="updateFilter('tag', $event.value)">
-                      <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
-                      @for (t of filterOptions()!.tags; track t.value) {
-                        <mat-option [value]="t.value">{{ t.value }} ({{ t.count }})</mat-option>
-                      }
-                    </mat-select>
-                  </mat-form-field>
+                  @if (filterOptions()?.tags?.length) {
+                    <mat-form-field subscriptSizing="dynamic" class="w-full">
+                      <mat-label>{{ 'gallery.tag' | translate }}</mat-label>
+                      <mat-select [value]="filters().tag" (selectionChange)="updateFilter('tag', $event.value)">
+                        <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                        @for (t of filterOptions()!.tags; track t.value) {
+                          <mat-option [value]="t.value">{{ t.value }} ({{ t.count }})</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  }
+                  @if (filterOptions()?.patterns?.length) {
+                    <mat-form-field subscriptSizing="dynamic" class="w-full">
+                      <mat-label>{{ 'gallery.composition_pattern' | translate }}</mat-label>
+                      <mat-select [value]="filters().composition_pattern" (selectionChange)="updateFilter('composition_pattern', $event.value)">
+                        <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                        @for (p of filterOptions()!.patterns; track p.value) {
+                          <mat-option [value]="p.value">{{ ('composition_patterns.' + p.value) | translate }} ({{ p.count }})</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  }
+                  @if (filterOptions()?.categories?.length) {
+                    <mat-form-field subscriptSizing="dynamic" class="w-full">
+                      <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
+                      <mat-select [value]="filters().category" (selectionChange)="updateFilter('category', $event.value)">
+                        <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                        @for (cat of filterOptions()!.categories; track cat.value) {
+                          <mat-option [value]="cat.value">{{ 'category_names.' + cat.value | translate }} ({{ cat.count }})</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  }
                 </div>
               </mat-expansion-panel>
             }
 
-            <!-- Date range -->
+            <!-- Date Range -->
             <mat-expansion-panel class="!mb-1">
               <mat-expansion-panel-header>
                 <mat-panel-title class="flex items-center gap-2">
@@ -219,6 +260,70 @@ interface SharedFilters {
                 </mat-form-field>
               </div>
             </mat-expansion-panel>
+
+            <!-- Display Options -->
+            <mat-expansion-panel class="!mb-1">
+              <mat-expansion-panel-header>
+                <mat-panel-title class="flex items-center gap-2">
+                  <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">display_settings</mat-icon>
+                  {{ 'gallery.sidebar.display' | translate }}
+                  @if (displayFilterCount()) {
+                    <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ displayFilterCount() }}</span>
+                  }
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              <div class="flex flex-col gap-2 pb-2">
+                <mat-checkbox
+                  [checked]="filters().hide_blinks"
+                  (change)="updateFilter('hide_blinks', $event.checked)"
+                >{{ 'gallery.hide_blinks' | translate }}</mat-checkbox>
+                <mat-checkbox
+                  [checked]="filters().hide_bursts"
+                  (change)="updateFilter('hide_bursts', $event.checked)"
+                >{{ 'gallery.hide_bursts' | translate }}</mat-checkbox>
+                <mat-checkbox
+                  [checked]="filters().hide_duplicates"
+                  (change)="updateFilter('hide_duplicates', $event.checked)"
+                >{{ 'gallery.hide_duplicates' | translate }}</mat-checkbox>
+                <mat-checkbox
+                  [checked]="filters().is_monochrome"
+                  (change)="updateFilter('is_monochrome', $event.checked)"
+                >{{ 'gallery.monochrome_only' | translate }}</mat-checkbox>
+              </div>
+            </mat-expansion-panel>
+
+            <!-- Metric filter sections (collapsed by default) -->
+            @for (group of filterGroups; track group.sectionKey) {
+              <mat-expansion-panel class="!mb-1">
+                <mat-expansion-panel-header>
+                  <mat-panel-title class="flex items-center gap-2">
+                    <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
+                    {{ group.sectionKey | translate }}
+                    @if (rangeSectionActiveCounts()[group.sectionKey]) {
+                      <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ rangeSectionActiveCounts()[group.sectionKey] }}</span>
+                    }
+                  </mat-panel-title>
+                </mat-expansion-panel-header>
+                <div class="flex flex-col gap-1 pb-1">
+                  @for (def of group.filters; track def.id) {
+                    <div class="flex flex-col gap-0">
+                      <label class="text-xs opacity-60 px-1">{{ def.labelKey | translate }}</label>
+                      <div class="flex items-center gap-1">
+                        <mat-slider [min]="def.sliderMin" [max]="def.sliderMax" [step]="def.step" class="flex-1">
+                          <input matSliderStartThumb
+                            [value]="$any(filters())[def.minKey] ? +$any(filters())[def.minKey] : def.sliderMin"
+                            (valueChange)="onDynamicRangeChange(def, 'min', $event)" />
+                          <input matSliderEndThumb
+                            [value]="$any(filters())[def.maxKey] ? +$any(filters())[def.maxKey] : def.sliderMax"
+                            (valueChange)="onDynamicRangeChange(def, 'max', $event)" />
+                        </mat-slider>
+                        <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">{{ filters() | filterDisplay:def }}</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </mat-expansion-panel>
+            }
 
             <!-- Reset filters -->
             @if (activeFilterCount()) {
@@ -354,11 +459,41 @@ export class SharedViewComponent implements OnInit {
   // Filters (for manual albums)
   protected readonly filters = signal<SharedFilters>({
     camera: '', lens: '', tag: '', date_from: '', date_to: '',
+    composition_pattern: '', category: '',
+    hide_blinks: false, hide_bursts: false, hide_duplicates: false, is_monochrome: false,
   });
   protected readonly filterOptions = signal<FilterOptions | null>(null);
+  protected readonly filterGroups: FilterGroup[] = SECTION_ORDER.map(sectionKey => ({
+    sectionKey,
+    filters: FILTERS_BY_SECTION[sectionKey],
+  }));
+  protected readonly sectionIcons = SECTION_ICONS;
+  protected readonly rangeSectionActiveCounts = computed((): Record<string, number> => {
+    const f = this.filters();
+    const counts: Record<string, number> = {};
+    for (const sectionKey of SECTION_ORDER) {
+      counts[sectionKey] = FILTERS_BY_SECTION[sectionKey].filter(
+        def => f[def.minKey] || f[def.maxKey]
+      ).length;
+    }
+    return counts;
+  });
   protected readonly activeFilterCount = computed(() => {
     const f = this.filters();
-    return [f.camera, f.lens, f.tag, f.date_from, f.date_to].filter(v => !!v).length;
+    let count = [f.camera, f.lens, f.tag, f.date_from, f.date_to, f.composition_pattern, f.category].filter(v => !!v).length
+      + (f.hide_blinks ? 1 : 0) + (f.hide_bursts ? 1 : 0) + (f.hide_duplicates ? 1 : 0) + (f.is_monochrome ? 1 : 0);
+    for (const def of ADDITIONAL_FILTERS) {
+      if (f[def.minKey] || f[def.maxKey]) count++;
+    }
+    return count;
+  });
+  protected readonly contentFilterCount = computed(() => {
+    const f = this.filters();
+    return (f.tag ? 1 : 0) + (f.composition_pattern ? 1 : 0) + (f.category ? 1 : 0);
+  });
+  protected readonly displayFilterCount = computed(() => {
+    const f = this.filters();
+    return (f.hide_blinks ? 1 : 0) + (f.hide_bursts ? 1 : 0) + (f.hide_duplicates ? 1 : 0) + (f.is_monochrome ? 1 : 0);
   });
 
   // Responsive: force single-column grid on small screens
@@ -481,9 +616,9 @@ export class SharedViewComponent implements OnInit {
     this.reloadFromFirstPage();
   }
 
-  protected updateFilter(key: keyof SharedFilters, value: string): void {
+  protected updateFilter(key: keyof SharedFilters, value: string | boolean): void {
     this.filters.update(f => ({ ...f, [key]: value }));
-    this.reloadFromFirstPage();
+    this.refreshFiltered();
   }
 
   protected onDateChange(key: keyof SharedFilters, event: Event): void {
@@ -491,9 +626,35 @@ export class SharedViewComponent implements OnInit {
     this.updateFilter(key, value);
   }
 
+  private rangeDebounce: ReturnType<typeof setTimeout> | null = null;
+
+  protected onDynamicRangeChange(def: AdditionalFilterDef, side: 'min' | 'max', value: number): void {
+    const effectiveSide = (side === 'max' && !this.filters()[def.minKey]) ? 'min' : side;
+    const key = effectiveSide === 'min' ? def.minKey : def.maxKey;
+    const boundary = effectiveSide === 'min' ? def.sliderMin : def.sliderMax;
+    const filterValue = value === boundary ? '' : String(value);
+    this.filters.update(f => ({ ...f, [key]: filterValue }));
+    if (this.rangeDebounce) clearTimeout(this.rangeDebounce);
+    this.rangeDebounce = setTimeout(() => this.refreshFiltered(), 300);
+  }
+
   protected resetFilters(): void {
-    this.filters.set({ camera: '', lens: '', tag: '', date_from: '', date_to: '' } as SharedFilters);
-    this.reloadFromFirstPage();
+    this.filters.set({
+      camera: '', lens: '', tag: '', date_from: '', date_to: '',
+      composition_pattern: '', category: '',
+      hide_blinks: false, hide_bursts: false, hide_duplicates: false, is_monochrome: false,
+    });
+    this.refreshFiltered();
+  }
+
+  /** Reload photos without destroying the DOM (no loading spinner). */
+  private async refreshFiltered(): Promise<void> {
+    this.currentPage = 1;
+    await this.loadPage(1);
+  }
+
+  protected sortGroupKey(groupName: string): string {
+    return groupName.toLowerCase().replace(/\s+/g, '_');
   }
 
   protected onScrollReached(): void {
@@ -609,7 +770,7 @@ export class SharedViewComponent implements OnInit {
 
     // Add active filters to API call
     for (const [key, value] of Object.entries(this.filters())) {
-      if (value) params[key] = value;
+      if (value) params[key] = typeof value === 'boolean' ? '1' : value;
     }
 
     const res = await firstValueFrom(

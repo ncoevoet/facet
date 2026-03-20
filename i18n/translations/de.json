@@ -431,6 +431,7 @@
     "color": "Farbe",
     "exposure": "Belichtung",
     "composition": "Komposition",
+    "subject_saliency": "Motivhervorhebung",
     "camera": "Kamera"
   },
   "sort_options": {
@@ -459,6 +460,15 @@
     "f_stop": "F-Stop",
     "focal_length": "Brennweite",
     "shutter_speed": "Verschlusszeit",
+    "quality_score": "Qualitätswert",
+    "aesthetic_iaa": "Ästhetik (IAA)",
+    "liqe_score": "LIQE-Wert",
+    "face_quality_iqa": "Gesichtsqualität (IQA)",
+    "composition_pattern": "Kompositionsmuster",
+    "subject_sharpness": "Motivschärfe",
+    "subject_prominence": "Motivhervorhebung",
+    "subject_placement": "Motivplatzierung",
+    "bg_separation": "Hintergrundtrennung",
     "face_confidence": "Gesichtserkennung",
     "is_favorite": "Favoriten",
     "is_rejected": "Abgelehnt",

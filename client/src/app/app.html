@@ -288,9 +288,9 @@
           <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
             @if (sortGroups(); as groups) {
               @for (group of groups; track group[0]) {
-                <mat-optgroup [label]="group[0]">
+                <mat-optgroup [label]="('sort_groups.' + sortGroupKey(group[0])) | translate">
                   @for (opt of group[1]; track opt.column) {
-                    <mat-option [value]="opt.column">{{ opt.label }}</mat-option>
+                    <mat-option [value]="opt.column">{{ 'sort_options.' + opt.column | translate }}</mat-option>
                   }
                 </mat-optgroup>
               }

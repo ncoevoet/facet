@@ -156,6 +156,10 @@ export class App implements OnInit {
     return Object.entries(grouped);
   });
 
+  protected sortGroupKey(groupName: string): string {
+    return groupName.toLowerCase().replace(/\s+/g, '_');
+  }
+
   protected readonly selectedPersonIds = computed(() => {
     const raw = this.store.filters().person_id;
     return raw ? raw.split(',') : [];

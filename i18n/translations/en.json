@@ -431,6 +431,7 @@
     "color": "Color",
     "exposure": "Exposure",
     "composition": "Composition",
+    "subject_saliency": "Subject Saliency",
     "camera": "Camera"
   },
   "sort_options": {
@@ -460,6 +461,15 @@
     "focal_length": "Focal Length",
     "shutter_speed": "Shutter Speed",
     "topiq_score": "TOPIQ Score",
+    "quality_score": "Quality Score",
+    "aesthetic_iaa": "Aesthetic (IAA)",
+    "liqe_score": "LIQE Score",
+    "face_quality_iqa": "Face Quality (IQA)",
+    "composition_pattern": "Composition Pattern",
+    "subject_sharpness": "Subject Sharpness",
+    "subject_prominence": "Subject Prominence",
+    "subject_placement": "Subject Placement",
+    "bg_separation": "Background Separation",
     "face_confidence": "Face Confidence",
     "is_favorite": "Favorites",
     "is_rejected": "Rejected"

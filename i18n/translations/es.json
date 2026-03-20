@@ -431,6 +431,7 @@
     "color": "Color",
     "exposure": "Exposición",
     "composition": "Composición",
+    "subject_saliency": "Saliencia del sujeto",
     "camera": "Cámara"
   },
   "sort_options": {
@@ -459,6 +460,15 @@
     "f_stop": "F-Stop",
     "focal_length": "Distancia focal",
     "shutter_speed": "Velocidad de obturación",
+    "quality_score": "Puntuación de calidad",
+    "aesthetic_iaa": "Estética (IAA)",
+    "liqe_score": "Puntuación LIQE",
+    "face_quality_iqa": "Calidad facial (IQA)",
+    "composition_pattern": "Patrón de composición",
+    "subject_sharpness": "Nitidez del sujeto",
+    "subject_prominence": "Prominencia del sujeto",
+    "subject_placement": "Ubicación del sujeto",
+    "bg_separation": "Separación de fondo",
     "face_confidence": "Confianza facial",
     "is_favorite": "Favoritos",
     "is_rejected": "Rechazadas",

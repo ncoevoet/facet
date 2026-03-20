@@ -431,6 +431,7 @@
     "color": "Couleur",
     "exposure": "Exposition",
     "composition": "Composition",
+    "subject_saliency": "Saillance du sujet",
     "camera": "Appareil"
   },
   "sort_options": {
@@ -460,6 +461,15 @@
     "focal_length": "Focale",
     "shutter_speed": "Vitesse d'obturation",
     "topiq_score": "Score TOPIQ",
+    "quality_score": "Score qualite",
+    "aesthetic_iaa": "Esthetique (IAA)",
+    "liqe_score": "Score LIQE",
+    "face_quality_iqa": "Qualite visage (IQA)",
+    "composition_pattern": "Motif de composition",
+    "subject_sharpness": "Nettete sujet",
+    "subject_prominence": "Proeminence sujet",
+    "subject_placement": "Placement sujet",
+    "bg_separation": "Separation fond",
     "face_confidence": "Confiance visage",
     "is_favorite": "Favoris",
     "is_rejected": "Rejetees"

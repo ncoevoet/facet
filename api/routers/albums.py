@@ -201,10 +201,26 @@ def _get_album_filter_options(conn, album_id):
         "GROUP BY pt.tag ORDER BY cnt DESC",
         (album_id,),
     ).fetchall()
+    patterns = conn.execute(
+        "SELECT composition_pattern, COUNT(*) as cnt FROM album_photos ap "
+        "JOIN photos ON photos.path = ap.photo_path "
+        "WHERE ap.album_id = ? AND composition_pattern IS NOT NULL AND composition_pattern != '' "
+        "GROUP BY composition_pattern ORDER BY cnt DESC",
+        (album_id,),
+    ).fetchall()
+    categories = conn.execute(
+        "SELECT category, COUNT(*) as cnt FROM album_photos ap "
+        "JOIN photos ON photos.path = ap.photo_path "
+        "WHERE ap.album_id = ? AND category IS NOT NULL AND category != '' "
+        "GROUP BY category ORDER BY cnt DESC",
+        (album_id,),
+    ).fetchall()
     return {
         'cameras': [{'value': r[0], 'count': r[1]} for r in cameras],
         'lenses': [{'value': r[0], 'count': r[1]} for r in lenses],
         'tags': [{'value': r[0], 'count': r[1]} for r in tags_rows],
+        'patterns': [{'value': r[0], 'count': r[1]} for r in patterns],
+        'categories': [{'value': r[0], 'count': r[1]} for r in categories],
     }
 
 
@@ -655,6 +671,39 @@ async def get_shared_album(
                 'camera', 'lens', 'tag', 'date_from', 'date_to',
                 'hide_blinks', 'hide_bursts', 'hide_duplicates',
                 'composition_pattern', 'category', 'is_monochrome',
+                # Range filters (quality, face, composition, saliency, technical, exposure, ratings)
+                'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
+                'min_quality_score', 'max_quality_score',
+                'min_aesthetic_iaa', 'max_aesthetic_iaa',
+                'min_face_quality_iqa', 'max_face_quality_iqa',
+                'min_liqe', 'max_liqe',
+                'min_face_count', 'max_face_count',
+                'min_face_quality', 'max_face_quality',
+                'min_eye_sharpness', 'max_eye_sharpness',
+                'min_face_sharpness', 'max_face_sharpness',
+                'min_face_ratio', 'max_face_ratio',
+                'min_face_confidence', 'max_face_confidence',
+                'min_composition', 'max_composition',
+                'min_power_point', 'max_power_point',
+                'min_leading_lines', 'max_leading_lines',
+                'min_isolation', 'max_isolation',
+                'min_subject_sharpness', 'max_subject_sharpness',
+                'min_subject_prominence', 'max_subject_prominence',
+                'min_subject_placement', 'max_subject_placement',
+                'min_bg_separation', 'max_bg_separation',
+                'min_sharpness', 'max_sharpness',
+                'min_exposure', 'max_exposure',
+                'min_color', 'max_color',
+                'min_contrast', 'max_contrast',
+                'min_saturation', 'max_saturation',
+                'min_noise', 'max_noise',
+                'min_dynamic_range', 'max_dynamic_range',
+                'min_luminance', 'max_luminance',
+                'min_histogram_spread', 'max_histogram_spread',
+                'min_iso', 'max_iso',
+                'min_aperture', 'max_aperture',
+                'min_focal_length', 'max_focal_length',
+                'min_star_rating', 'max_star_rating',
             )
             filters = {k: qp[k] for k in _FILTER_KEYS if qp.get(k)}
 
