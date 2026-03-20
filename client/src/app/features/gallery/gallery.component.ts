@@ -56,7 +56,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
   template: `
     <mat-sidenav-container class="h-full">
       <!-- Filter sidebar -->
-      <mat-sidenav #filterDrawer disableClose="false" mode="side" position="end" class="w-[min(320px,100vw)] p-0"
+      <mat-sidenav #filterDrawer disableClose="false" [mode]="isDesktop() ? 'side' : 'over'" position="end" class="w-[min(320px,100vw)] p-0"
         (openedChange)="onFilterDrawerChange($event)">
         <app-gallery-filter-sidebar />
       </mat-sidenav>

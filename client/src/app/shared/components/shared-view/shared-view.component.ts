@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, effect, viewChild, DestroyRef, ElementRef } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, effect, viewChild, DestroyRef, ElementRef, afterNextRender } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
@@ -86,17 +86,17 @@ interface SharedFilters {
         <p>{{ error() }}</p>
       </div>
     } @else {
-      <div class="bg-[var(--mat-sys-surface)] border-b border-[var(--mat-sys-outline-variant)] px-4 py-3">
-        <div class="flex items-center justify-between gap-2">
-          <div class="min-w-0 flex-1">
+      <div class="bg-[var(--mat-sys-surface)] border-b border-[var(--mat-sys-outline-variant)] px-2 md:px-4 py-1 md:py-3">
+        <div class="flex items-center gap-2">
+          <div class="hidden md:block min-w-0 shrink">
             <h1 class="text-xl font-semibold truncate">{{ entityName() }}</h1>
             @if (description()) {
               <p class="text-sm opacity-70 mt-1">{{ description() }}</p>
             }
             <p class="text-xs opacity-50 mt-1">{{ 'albums.photos_count' | translate:{ count: total() } }}</p>
           </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <mat-form-field class="w-48" subscriptSizing="dynamic">
+          <div class="flex items-center gap-1 md:gap-2 flex-1 min-w-0">
+            <mat-form-field class="flex-1 min-w-0 md:max-w-xs" subscriptSizing="dynamic">
               <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
               <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="sortBy()" (selectionChange)="onSortChange($event.value)">
                 @if (sortGroups(); as groups) {
@@ -117,24 +117,24 @@ interface SharedFilters {
             <button mat-icon-button (click)="toggleSortDirection()" [matTooltip]="sortDirection() === 'desc' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)">
               <mat-icon>{{ sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
             </button>
-            <button mat-icon-button (click)="slideshowActive.set(true)" [matTooltip]="'slideshow.start' | translate">
-              <mat-icon>slideshow</mat-icon>
-            </button>
             @if (isManualAlbum()) {
               <button mat-icon-button (click)="filterDrawer.toggle()" [matTooltip]="'gallery.filters' | translate">
-                <mat-icon [style.color]="activeFilterCount() ? 'var(--mat-sys-primary)' : ''">tune</mat-icon>
+                <mat-icon [style.color]="filterDrawer.opened || activeFilterCount() ? 'var(--mat-sys-primary)' : ''">tune</mat-icon>
               </button>
             }
+            <button mat-icon-button class="shrink-0 ml-auto" (click)="slideshowActive.set(true)" [matTooltip]="'slideshow.start' | translate">
+              <mat-icon>slideshow</mat-icon>
+            </button>
           </div>
         </div>
       </div>
 
-      <mat-sidenav-container class="overflow-hidden" [style.height]="'calc(100% - ' + (selectionCount() > 0 ? '113' : '65') + 'px)'">
-        <mat-sidenav #filterDrawer mode="side" position="end" class="w-[min(320px,100vw)] p-0">
-          <div class="overflow-y-auto px-2 h-full">
-            <!-- Camera -->
-            @if (filterOptions()?.cameras?.length) {
-              <mat-expansion-panel class="!mb-1 mt-4">
+      <mat-sidenav-container class="overflow-hidden" [style.height]="'calc(100% - ' + (selectionCount() > 0 ? '113' : '65') + 'px)'" [class.pb-10]="!isDesktop() && !selectionCount()">
+        <mat-sidenav #filterDrawer [mode]="isDesktop() ? 'side' : 'over'" position="end" class="w-[min(320px,100vw)] p-0">
+          <div class="overflow-y-auto px-2 pt-4 pb-4 h-full">
+            <!-- Equipment -->
+            @if (filterOptions()?.cameras?.length || filterOptions()?.lenses?.length) {
+              <mat-expansion-panel class="!mb-1">
                 <mat-expansion-panel-header>
                   <mat-panel-title class="flex items-center gap-2">
                     <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">photo_camera</mat-icon>
@@ -234,19 +234,35 @@ interface SharedFilters {
 
         <mat-sidenav-content #contentArea>
           <div class="p-2">
-            @for (row of mosaicRows(); track $index) {
-              <div class="flex gap-2 mb-2">
-                @for (photo of row.photos; track photo.path; let i = $index) {
+            @if (isDesktop()) {
+              @for (row of mosaicRows(); track $index) {
+                <div class="flex gap-2 mb-2">
+                  @for (photo of row.photos; track photo.path; let i = $index) {
+                    <app-photo-card
+                      [photo]="photo"
+                      [config]="cardConfig()"
+                      [hideDetails]="true"
+                      [mosaicMode]="true"
+                      [isEditionMode]="false"
+                      [isSelected]="selectedPaths().has(photo.path)"
+                      [thumbSize]="row.widths[i]"
+                      [style.width.px]="row.widths[i]"
+                      [style.height.px]="row.height"
+                      (selectionChange)="toggleSelection($event.photo, $event.event)"
+                      (doubleClicked)="openPhotoDetail($event)"
+                    />
+                  }
+                </div>
+              }
+            } @else {
+              <div class="grid grid-cols-1 gap-2">
+                @for (photo of photos(); track photo.path) {
                   <app-photo-card
                     [photo]="photo"
                     [config]="cardConfig()"
                     [hideDetails]="true"
-                    [mosaicMode]="true"
                     [isEditionMode]="false"
                     [isSelected]="selectedPaths().has(photo.path)"
-                    [thumbSize]="row.widths[i]"
-                    [style.width.px]="row.widths[i]"
-                    [style.height.px]="row.height"
                     (selectionChange)="toggleSelection($event.photo, $event.event)"
                     (doubleClicked)="openPhotoDetail($event)"
                   />
@@ -260,9 +276,9 @@ interface SharedFilters {
 
       <!-- Selection action bar -->
       @if (selectionCount()) {
-        <div class="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-center gap-1 lg:gap-3 px-2 lg:px-6 py-1 lg:py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
+        <div class="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 lg:gap-3 px-2 lg:px-6 py-1 lg:py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
           <span class="text-sm font-medium shrink-0">{{ 'gallery.selection.count' | translate:{ count: selectionCount() } }}</span>
-          <div class="flex items-center gap-0 lg:gap-2">
+          <div class="flex items-center gap-0 lg:gap-2 ml-auto">
             <button mat-icon-button class="lg:!hidden" (click)="clearSelection()" [matTooltip]="'gallery.selection.clear' | translate"><mat-icon>close</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ 'gallery.selection.clear' | translate }}</button>
             <button mat-icon-button class="lg:!hidden" (click)="copyPaths()" [matTooltip]="'gallery.selection.copy_filenames' | translate"><mat-icon>content_copy</mat-icon></button>
@@ -270,6 +286,14 @@ interface SharedFilters {
             <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [matTooltip]="'gallery.selection.download' | translate"><mat-icon>download</mat-icon></button>
             <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()"><mat-icon>download</mat-icon> {{ 'gallery.selection.download' | translate }}</button>
           </div>
+        </div>
+      }
+
+      <!-- Mobile bottom bar -->
+      @if (!selectionCount()) {
+        <div class="md:hidden fixed bottom-0 left-0 right-0 z-50 h-11 flex items-center gap-2 px-4 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+          <span class="text-sm font-medium truncate">{{ entityName() }}</span>
+          <span class="text-xs opacity-60 ml-auto shrink-0">{{ total() }}</span>
         </div>
       }
 
@@ -337,6 +361,11 @@ export class SharedViewComponent implements OnInit {
     return [f.camera, f.lens, f.tag, f.date_from, f.date_to].filter(v => !!v).length;
   });
 
+  // Responsive: force single-column grid on small screens
+  protected readonly isDesktop = signal(false);
+  private desktopMql: MediaQueryList | null = null;
+  private desktopMqlHandler: ((e: MediaQueryListEvent) => void) | null = null;
+
   // Mosaic
   protected readonly containerWidth = signal(0);
   protected readonly mosaicRows = computed(() => {
@@ -395,6 +424,14 @@ export class SharedViewComponent implements OnInit {
   private resizeObserver: ResizeObserver | null = null;
 
   constructor() {
+    afterNextRender(() => {
+      const mql = window.matchMedia('(min-width: 768px)');
+      this.isDesktop.set(mql.matches);
+      this.desktopMql = mql;
+      this.desktopMqlHandler = (e: MediaQueryListEvent) => this.isDesktop.set(e.matches);
+      mql.addEventListener('change', this.desktopMqlHandler);
+    });
+
     // Set up ResizeObserver once loading completes and mat-sidenav-content is in the DOM
     effect(() => {
       if (!this.loading() && !this.resizeObserver) {
@@ -403,6 +440,9 @@ export class SharedViewComponent implements OnInit {
       }
     });
     this.destroyRef.onDestroy(() => {
+      if (this.desktopMql && this.desktopMqlHandler) {
+        this.desktopMql.removeEventListener('change', this.desktopMqlHandler);
+      }
       this.resizeObserver?.disconnect();
       this.resizeObserver = null;
     });

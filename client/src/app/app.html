@@ -40,16 +40,6 @@
           <a mat-icon-button class="lg:!hidden" routerLink="/stats" routerLinkActive #rlStatsM="routerLinkActive" [style.color]="rlStatsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate">
             <mat-icon>bar_chart</mat-icon>
           </a>
-          @if (auth.isEdition()) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/culling" routerLinkActive #rlCullingM="routerLinkActive" [style.color]="rlCullingM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.culling' | translate">
-              <mat-icon>burst_mode</mat-icon>
-            </a>
-          }
-          @if (auth.isEdition()) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/compare" routerLinkActive #rlCompareM="routerLinkActive" [style.color]="rlCompareM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.compare' | translate">
-              <mat-icon>tune</mat-icon>
-            </a>
-          }
           @if (store.config()?.features?.show_memories && hasMemories()) {
             <button mat-icon-button class="lg:!hidden" (click)="openMemoriesDialog()" [matTooltip]="'nav.memories' | translate">
               <mat-icon>auto_awesome</mat-icon>
@@ -96,7 +86,7 @@
           }
           @if (auth.isEdition()) {
             <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/compare" routerLinkActive #rlCompare="routerLinkActive" [style.color]="rlCompare.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.compare' | translate">
-              <mat-icon>tune</mat-icon>
+              <mat-icon>compare</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_memories && hasMemories()) {
@@ -397,6 +387,14 @@
                 <mat-icon class="!text-amber-400">lock_open</mat-icon>
                 {{ 'edition.label' | translate }}
               </button>
+              <a mat-menu-item class="lg:!hidden" routerLink="/culling">
+                <mat-icon>burst_mode</mat-icon>
+                {{ 'nav.culling' | translate }}
+              </a>
+              <a mat-menu-item class="lg:!hidden" routerLink="/compare">
+                <mat-icon>compare</mat-icon>
+                {{ 'nav.compare' | translate }}
+              </a>
             } @else {
               <button mat-menu-item (click)="showEditionDialog()" [matTooltip]="'edition.unlock_title' | translate">
                 <mat-icon>lock</mat-icon>
@@ -479,7 +477,7 @@
 
   <!-- Active filter chips bar (gallery route only, when filters are active) -->
   @if (auth.isAuthenticated() && isGalleryRoute() && (activeFilterChips().length || store.filters().similar_to)) {
-    <div class="flex items-center gap-2 flex-wrap px-4 py-2 bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]">
+    <div class="flex items-center gap-2 flex-wrap px-2 lg:px-4 py-2 bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]">
       @if (store.filters().similar_to) {
         <div class="inline-flex items-center gap-1.5 pl-1 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
           <img [src]="store.filters().similar_to | thumbnailUrl:48"
@@ -517,21 +515,35 @@
         </div>
       }
       @for (chip of activeFilterChips(); track chip.id) {
-        <div class="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
-          <span class="opacity-70">{{ chip.labelKey | translate }}</span>
-          @if (chip.value) {
-            <span class="mx-0.5">{{ chip.value }}</span>
-          }
-          <button
-            class="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black/20 transition-colors"
-            (click)="clearFilterChip(chip)"
-          >
-            <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
-          </button>
-        </div>
+        @if (chip.personId) {
+          <div class="inline-flex items-center gap-1 pl-0.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium"
+               [matTooltip]="chip.value">
+            <img [src]="chip.personId | personThumbnailUrl" class="w-5 h-5 rounded-full object-cover shrink-0" alt="" />
+            <span class="hidden xl:inline mx-0.5">{{ chip.value }}</span>
+            <button
+              class="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black/20 transition-colors"
+              (click)="clearFilterChip(chip)"
+            >
+              <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
+            </button>
+          </div>
+        } @else {
+          <div class="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
+            <span class="opacity-70">{{ chip.labelKey | translate }}</span>
+            @if (chip.value) {
+              <span class="mx-0.5">{{ chip.value }}</span>
+            }
+            <button
+              class="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black/20 transition-colors"
+              (click)="clearFilterChip(chip)"
+            >
+              <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
+            </button>
+          </div>
+        }
       }
       @if (activeFilterChips().length > 1) {
-        <button class="text-xs opacity-60 hover:opacity-100 transition-opacity" (click)="store.resetFilters()">
+        <button class="text-xs opacity-60 hover:opacity-100 transition-opacity ml-auto shrink-0" (click)="store.resetFilters()">
           {{ 'gallery.reset_filters' | translate }}
         </button>
       }
@@ -545,63 +557,46 @@
 
   <!-- Mobile gallery bottom bar (< md only) -->
   @if (auth.isAuthenticated() && isGalleryRoute()) {
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-0 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <!-- Type menu -->
-      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobileTypeMenu" [matTooltip]="'ui.filters.type' | translate">
-        <mat-icon>photo_library</mat-icon>
-      </button>
-      <mat-menu #mobileTypeMenu="matMenu">
-        <button mat-menu-item (click)="onTypeChange('')">
-          <span [class.font-bold]="!store.filters().type">{{ 'gallery.all_photos' | translate }}</span>
-        </button>
-        @for (t of store.types(); track t.id) {
-          <button mat-menu-item (click)="onTypeChange(t.id)">
-            <span [class.font-bold]="store.filters().type === t.id">{{ t.label }} ({{ t.count }})</span>
-          </button>
-        }
-      </mat-menu>
-
-      <!-- Sort menu -->
-      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobileSortMenu" [matTooltip]="'ui.sort.toggle_direction' | translate">
-        <mat-icon>sort</mat-icon>
-      </button>
-      <mat-menu #mobileSortMenu="matMenu">
-        @if (sortGroups(); as groups) {
-          @for (group of groups; track group[0]; let last = $last) {
-            @for (opt of group[1]; track opt.column) {
-              <button mat-menu-item (click)="onSortChange(opt.column)">
-                <span [class.font-bold]="store.filters().sort === opt.column">{{ opt.label }}</span>
-              </button>
-            }
-            @if (!last) {
-              <mat-divider />
-            }
-          }
-        } @else {
-          <button mat-menu-item (click)="onSortChange('aggregate')">{{ 'gallery.sort_aggregate' | translate }}</button>
-          <button mat-menu-item (click)="onSortChange('aesthetic')">{{ 'gallery.sort_aesthetic' | translate }}</button>
-          <button mat-menu-item (click)="onSortChange('date_taken')">{{ 'gallery.sort_date' | translate }}</button>
-        }
-        <mat-divider />
-        <button mat-menu-item (click)="toggleSortDirection()">
-          <mat-icon>{{ store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-          {{ store.filters().sort_direction === 'DESC' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate) }}
-        </button>
-      </mat-menu>
-
+    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
       <!-- Search toggle -->
-      <button mat-icon-button class="!w-10 !h-10" (click)="mobileSearchOpen.set(!mobileSearchOpen())" [matTooltip]="'ui.filters.search' | translate">
+      <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="mobileSearchOpen.set(!mobileSearchOpen())" [matTooltip]="'ui.filters.search' | translate">
         <mat-icon>search</mat-icon>
       </button>
 
+      <!-- Sort selector with label -->
+      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
+        <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
+        <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
+          @if (sortGroups(); as groups) {
+            @for (group of groups; track group[0]) {
+              <mat-optgroup [label]="group[0]">
+                @for (opt of group[1]; track opt.column) {
+                  <mat-option [value]="opt.column">{{ opt.label }}</mat-option>
+                }
+              </mat-optgroup>
+            }
+          } @else {
+            <mat-option value="aggregate">{{ 'gallery.sort_aggregate' | translate }}</mat-option>
+            <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
+            <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Sort direction toggle -->
+      <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="toggleSortDirection()"
+        [matTooltip]="store.filters().sort_direction === 'DESC' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)">
+        <mat-icon>{{ store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+      </button>
+
       <!-- Slideshow toggle -->
-      <button mat-icon-button class="!w-10 !h-10" (click)="store.slideshowActive.set(!store.slideshowActive())" [matTooltip]="'slideshow.start' | translate">
+      <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="store.slideshowActive.set(!store.slideshowActive())" [matTooltip]="'slideshow.start' | translate">
         <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
       </button>
 
       <!-- Filter drawer toggle -->
       <button
-        mat-icon-button class="!w-10 !h-10"
+        mat-icon-button class="!w-10 !h-10 shrink-0"
         (click)="store.setFilterDrawerOpen(!store.filterDrawerOpen())"
         [matTooltip]="'ui.buttons.filters' | translate"
         [matBadge]="store.activeFilterCount() || null"
@@ -610,9 +605,6 @@
       >
         <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">tune</mat-icon>
       </button>
-
-      <!-- Photo count -->
-      <span class="text-xs opacity-70 min-w-[3ch] text-center ml-auto" [matTooltip]="'ui.labels.photos' | translate">{{ store.total() }}</span>
     </div>
   }
 

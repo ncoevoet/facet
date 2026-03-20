@@ -216,10 +216,10 @@ export class App implements OnInit {
     { minKey: 'date_from', maxKey: 'date_to', labelKey: 'gallery.sidebar.date' },
   ];
 
-  protected readonly activeFilterChips = computed<{ id: string; labelKey: string; value: string; clearKeys: string[] }[]>(() => {
+  protected readonly activeFilterChips = computed<{ id: string; labelKey: string; value: string; clearKeys: string[]; personId?: number }[]>(() => {
     if (!this.isGalleryRoute()) return [];
     const f = this.store.filters();
-    const chips: { id: string; labelKey: string; value: string; clearKeys: string[] }[] = [];
+    const chips: { id: string; labelKey: string; value: string; clearKeys: string[]; personId?: number }[] = [];
 
     // Album filter
     if (f.album_id) {
@@ -248,7 +248,7 @@ export class App implements OnInit {
       for (const pid of ids) {
         const person = this.store.persons().find(p => String(p.id) === pid);
         const name = person?.name || `#${pid}`;
-        chips.push({ id: `person_${pid}`, labelKey: 'gallery.person', value: name, clearKeys: [`person_${pid}`] });
+        chips.push({ id: `person_${pid}`, labelKey: 'gallery.person', value: name, clearKeys: [`person_${pid}`], personId: Number(pid) });
       }
     }
 
