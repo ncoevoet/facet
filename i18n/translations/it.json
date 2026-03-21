@@ -1715,6 +1715,7 @@
   "photo_detail": {
     "back": "Indietro",
     "download": "Scarica",
+    "downloading": "Download in corso…",
     "caption": "Didascalia",
     "no_caption": "Nessuna didascalia disponibile",
     "persons": "Persone",

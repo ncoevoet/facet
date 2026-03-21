@@ -1715,6 +1715,7 @@
   "photo_detail": {
     "back": "Back",
     "download": "Download",
+    "downloading": "Downloading…",
     "caption": "Caption",
     "no_caption": "No caption available",
     "persons": "Persons",

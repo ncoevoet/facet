@@ -24,6 +24,7 @@ import { GalleryStore } from './gallery.store';
 import { Photo } from '../../shared/models/photo.model';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PhotoTooltipComponent } from './photo-tooltip.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
@@ -218,8 +219,8 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
           }
           <button mat-icon-button class="lg:!hidden" (click)="copyPaths()" [matTooltip]="'gallery.selection.copy_filenames' | translate"><mat-icon>content_copy</mat-icon></button>
           <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ 'gallery.selection.copy_filenames' | translate }}</button>
-          <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [matTooltip]="'gallery.selection.download' | translate"><mat-icon>download</mat-icon></button>
-          <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()"><mat-icon>download</mat-icon> {{ 'gallery.selection.download' | translate }}</button>
+          <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="'gallery.selection.download' | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
+          <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
         </div>
       </div>
     }
@@ -236,9 +237,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly photoActions = inject(PhotoActionsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly api = inject(ApiService);
 
   // Album options for "Add to album" menu
   protected readonly albumOptions = signal<Album[]>([]);
+  protected readonly downloading = signal(false);
 
   private resizeObserver: ResizeObserver | null = null;
   private readonly scrollDirective = viewChild(InfiniteScrollDirective);
@@ -484,13 +487,16 @@ export class GalleryComponent implements OnInit, OnDestroy {
     await this.executeBatchAction(p => this.store.batchRating(p, rating), 'gallery.selection.batch_rated', { rating });
   }
 
-  private triggerDownload(path: string): void {
+  private async triggerDownload(path: string): Promise<void> {
+    const blob = await firstValueFrom(this.api.getRaw(`/api/download?path=${encodeURIComponent(path)}`));
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = `/api/download?path=${encodeURIComponent(path)}`;
-    a.download = '';
+    a.href = url;
+    a.download = path.split(/[\\/]/).pop() ?? '';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   protected downloadPhoto(photo: Photo): void {
@@ -501,12 +507,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   protected async downloadSelected(): Promise<void> {
-    const paths = [...this.selectedPaths()];
-    for (const path of paths) {
-      this.triggerDownload(path);
-      if (paths.length > 1) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+    this.downloading.set(true);
+    try {
+      const paths = [...this.selectedPaths()];
+      for (const path of paths) {
+        await this.triggerDownload(path);
       }
+    } finally {
+      this.downloading.set(false);
     }
   }
 

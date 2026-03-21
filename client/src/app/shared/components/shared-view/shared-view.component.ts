@@ -389,8 +389,8 @@ interface SharedFilters {
             <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ 'gallery.selection.clear' | translate }}</button>
             <button mat-icon-button class="lg:!hidden" (click)="copyPaths()" [matTooltip]="'gallery.selection.copy_filenames' | translate"><mat-icon>content_copy</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ 'gallery.selection.copy_filenames' | translate }}</button>
-            <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [matTooltip]="'gallery.selection.download' | translate"><mat-icon>download</mat-icon></button>
-            <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()"><mat-icon>download</mat-icon> {{ 'gallery.selection.download' | translate }}</button>
+            <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="'gallery.selection.download' | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
+            <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
           </div>
         </div>
       }
@@ -428,6 +428,7 @@ export class SharedViewComponent implements OnInit {
   // Loading state
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
+  protected readonly downloading = signal(false);
   protected readonly error = signal('');
 
   // Entity data
@@ -703,17 +704,22 @@ export class SharedViewComponent implements OnInit {
   }
 
   protected async downloadSelected(): Promise<void> {
-    const paths = [...this.selectedPaths()];
-    for (const path of paths) {
-      const a = document.createElement('a');
-      a.href = `/api/download?path=${encodeURIComponent(path)}&token=${encodeURIComponent(this.token)}`;
-      a.download = '';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      if (paths.length > 1) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+    this.downloading.set(true);
+    try {
+      const paths = [...this.selectedPaths()];
+      for (const path of paths) {
+        const blob = await firstValueFrom(this.api.getRaw(`/api/download?path=${encodeURIComponent(path)}&token=${encodeURIComponent(this.token)}`));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = path.split(/[\\/]/).pop() ?? '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       }
+    } finally {
+      this.downloading.set(false);
     }
   }
 

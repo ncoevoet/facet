@@ -1715,6 +1715,7 @@
   "photo_detail": {
     "back": "Volver",
     "download": "Descargar",
+    "downloading": "Descargando…",
     "caption": "Descripción",
     "no_caption": "Sin descripción disponible",
     "persons": "Personas",

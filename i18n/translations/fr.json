@@ -1715,6 +1715,7 @@
   "photo_detail": {
     "back": "Retour",
     "download": "Télécharger",
+    "downloading": "Téléchargement…",
     "caption": "Légende",
     "no_caption": "Aucune légende disponible",
     "persons": "Personnes",
