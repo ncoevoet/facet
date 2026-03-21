@@ -2,7 +2,9 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
+import { signal } from '@angular/core';
 import { ApiService } from '../../../core/services/api.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { I18nService } from '../../../core/services/i18n.service';
 import { SharedViewComponent } from './shared-view.component';
 
@@ -47,6 +49,7 @@ describe('SharedViewComponent', () => {
       providers: [
         SharedViewComponent,
         { provide: ApiService, useValue: mockApi },
+        { provide: AuthService, useValue: { downloadProfiles: signal([]) } },
         { provide: I18nService, useValue: mockI18n },
         { provide: ActivatedRoute, useValue: mockRoute },
       ],

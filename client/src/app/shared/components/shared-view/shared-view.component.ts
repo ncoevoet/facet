@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatExpansionModule } from '@angular/material/expansion';
@@ -16,6 +17,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { firstValueFrom } from 'rxjs';
 import { Photo } from '../../models/photo.model';
 import { ApiService } from '../../../core/services/api.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { I18nService } from '../../../core/services/i18n.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { SortGroupKeyPipe } from '../../pipes/sort-group-key.pipe';
@@ -87,7 +89,7 @@ interface SharedFilters {
   standalone: true,
   host: { class: 'block h-full' },
   imports: [
-    MatIconModule, MatButtonModule, MatProgressSpinnerModule,
+    MatIconModule, MatButtonModule, MatProgressSpinnerModule, MatMenuModule,
     MatSelectModule, MatFormFieldModule, MatSnackBarModule, MatTooltipModule,
     MatSliderModule, MatSidenavModule, MatExpansionModule, MatInputModule, MatCheckboxModule,
     TranslatePipe, FilterDisplayPipe, SortGroupKeyPipe,
@@ -389,8 +391,19 @@ interface SharedFilters {
             <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ 'gallery.selection.clear' | translate }}</button>
             <button mat-icon-button class="lg:!hidden" (click)="copyPaths()" [matTooltip]="'gallery.selection.copy_filenames' | translate"><mat-icon>content_copy</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ 'gallery.selection.copy_filenames' | translate }}</button>
-            <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="'gallery.selection.download' | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
-            <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
+            @if (auth.downloadProfiles().length) {
+              <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()" [matTooltip]="'gallery.selection.download' | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
+              <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
+              <mat-menu #dlMenu="matMenu">
+                <button mat-menu-item (click)="downloadSelected()"><mat-icon>image</mat-icon> {{ 'download.type_original' | translate }}</button>
+                @for (profile of auth.downloadProfiles(); track profile) {
+                  <button mat-menu-item (click)="downloadSelected('darktable', profile)"><mat-icon>photo_filter</mat-icon> {{ profile }}</button>
+                }
+              </mat-menu>
+            } @else {
+              <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="'gallery.selection.download' | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
+              <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
+            }
           </div>
         </div>
       }
@@ -419,6 +432,7 @@ export class SharedViewComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
+  protected readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly destroyRef = inject(DestroyRef);
@@ -703,20 +717,21 @@ export class SharedViewComponent implements OnInit {
     });
   }
 
-  protected async downloadSelected(): Promise<void> {
+  protected async downloadSelected(type = 'original', profile?: string): Promise<void> {
     this.downloading.set(true);
     try {
       const paths = [...this.selectedPaths()];
       for (const path of paths) {
-        const blob = await firstValueFrom(this.api.getRaw(`/api/download?path=${encodeURIComponent(path)}&token=${encodeURIComponent(this.token)}`));
-        const url = URL.createObjectURL(blob);
+        const url = this.api.downloadUrl(path, type, profile, this.token);
+        const blob = await firstValueFrom(this.api.getRaw(url));
+        const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
+        a.href = blobUrl;
         a.download = path.split(/[\\/]/).pop() ?? '';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(blobUrl);
       }
     } finally {
       this.downloading.set(false);

@@ -1734,5 +1734,9 @@
     "caption_error": "Échec de la génération de la légende",
     "translating_caption": "Traduction en cours...",
     "location": "Localisation"
+  },
+  "download": {
+    "type_original": "Original",
+    "type_raw": "Fichier RAW"
   }
 }

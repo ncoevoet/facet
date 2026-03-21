@@ -28,3 +28,4 @@ class AuthStatusResponse(BaseModel):
     user_role: Optional[str] = None
     display_name: Optional[str] = None
     features: dict = {}
+    download_profiles: list[str] = []

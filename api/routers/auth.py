@@ -102,6 +102,9 @@ async def auth_status(user: Optional[CurrentUser] = Depends(get_optional_user)):
     authenticated = user is not None and user.is_authenticated
     edition_auth = is_edition_authenticated(user) if user else False
 
+    dt_profiles = VIEWER_CONFIG.get('raw_processor', {}).get('darktable', {}).get('profiles', [])
+    profile_names = [p['name'] for p in dt_profiles if 'name' in p]
+
     return AuthStatusResponse(
         authenticated=authenticated,
         multi_user=multi_user,
@@ -111,6 +114,7 @@ async def auth_status(user: Optional[CurrentUser] = Depends(get_optional_user)):
         user_role=user.role if user else None,
         display_name=user.display_name if user else None,
         features=VIEWER_CONFIG.get('features', {}),
+        download_profiles=profile_names,
     )
 
 

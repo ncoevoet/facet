@@ -1,9 +1,7 @@
 """RAW-to-JPEG conversion backends for the download and thumbnail endpoints.
 
-Supports two backends configured via ``viewer.raw_processor.backend``:
-
-- ``rawpy`` (default) — in-process conversion via libraw.
-- ``darktable`` — shells out to ``darktable-cli``, honouring XMP sidecars.
+- Display (``/image``) always uses rawpy (``convert_raw_to_jpeg``).
+- Downloads can use named darktable profiles (``convert_raw_darktable``).
 """
 
 from __future__ import annotations
@@ -14,6 +12,7 @@ import shutil
 import subprocess
 import tempfile
 from io import BytesIO
+from pathlib import Path
 
 from api.config import VIEWER_CONFIG
 
@@ -25,35 +24,82 @@ def _get_raw_config() -> dict:
     return VIEWER_CONFIG.get('raw_processor', {})
 
 
+# ---------------------------------------------------------------------------
+# Display conversion (always rawpy)
+# ---------------------------------------------------------------------------
+
 def convert_raw_to_jpeg(file_path: str, quality: int = 96) -> bytes:
-    """Convert a RAW file to JPEG bytes using the configured backend.
+    """Convert a RAW file to JPEG bytes via rawpy/libraw.
 
-    Parameters
-    ----------
-    file_path:
-        Absolute path to the RAW file on disk.
-    quality:
-        JPEG quality (1-100).
-
-    Returns
-    -------
-    bytes
-        The JPEG file contents.
-
-    Raises
-    ------
-    RuntimeError
-        If the configured backend fails (binary not found, conversion error).
+    Used by the ``/image`` display endpoint.  Always uses rawpy so that the
+    browser preview is independent of any darktable style configuration.
     """
-    raw_config = _get_raw_config()
-    backend = raw_config.get('backend', 'rawpy')
-    if backend == 'darktable':
-        return _convert_darktable(file_path, quality, raw_config)
     return _convert_rawpy(file_path, quality)
 
 
+# ---------------------------------------------------------------------------
+# Darktable profile conversion (for downloads only)
+# ---------------------------------------------------------------------------
+
+def convert_raw_darktable(file_path: str, profile_name: str, quality: int = 96) -> bytes:
+    """Convert a RAW file to JPEG using a named darktable profile.
+
+    Raises ``ValueError`` if the profile is not found in the config.
+    Raises ``RuntimeError`` if darktable-cli fails.
+    """
+    raw_config = _get_raw_config()
+    dt_config = raw_config.get('darktable', {})
+    profiles = dt_config.get('profiles', [])
+
+    profile = next((p for p in profiles if p.get('name') == profile_name), None)
+    if profile is None:
+        raise ValueError(f"Unknown darktable profile: {profile_name}")
+
+    return _convert_darktable(file_path, quality, dt_config, profile)
+
+
+def get_darktable_profiles() -> list[str]:
+    """Return the list of configured darktable profile names."""
+    raw_config = _get_raw_config()
+    profiles = raw_config.get('darktable', {}).get('profiles', [])
+    return [p['name'] for p in profiles if 'name' in p]
+
+
+# ---------------------------------------------------------------------------
+# Companion RAW detection
+# ---------------------------------------------------------------------------
+
+def find_companion_raw(disk_path: str) -> str | None:
+    """Find a companion RAW file for a given photo on disk.
+
+    Checks for files with the same stem and any supported RAW extension
+    in the same directory.  Returns the absolute path of the first match,
+    or ``None`` if no companion RAW exists.
+
+    If *disk_path* is itself a RAW file, returns that path directly.
+    """
+    from utils.image_loading import RAW_EXTENSIONS
+
+    p = Path(disk_path)
+    if p.suffix.lower() in RAW_EXTENSIONS:
+        return disk_path
+
+    stem = p.stem
+    parent = p.parent
+    for ext in RAW_EXTENSIONS:
+        for candidate_ext in (ext, ext.upper()):
+            candidate = parent / (stem + candidate_ext)
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Internal backends
+# ---------------------------------------------------------------------------
+
 def _convert_rawpy(file_path: str, quality: int) -> bytes:
-    """Convert via rawpy/libraw (default backend)."""
+    """Convert via rawpy/libraw."""
     import rawpy
     from PIL import Image as PILImage
 
@@ -70,12 +116,10 @@ def _convert_rawpy(file_path: str, quality: int) -> bytes:
     return buffer.getvalue()
 
 
-def _convert_darktable(file_path: str, quality: int, raw_config: dict) -> bytes:
-    """Convert via darktable-cli, honouring XMP sidecars."""
-    dt_config = raw_config.get('darktable', {})
+def _convert_darktable(file_path: str, quality: int, dt_config: dict, profile: dict) -> bytes:
+    """Convert via darktable-cli using profile-specific settings."""
     executable = dt_config.get('executable', 'darktable-cli')
 
-    # Resolve executable
     resolved = shutil.which(executable) if not os.path.isabs(executable) else executable
     if not resolved or not os.path.isfile(resolved):
         raise RuntimeError(f"darktable-cli not found: {executable}")
@@ -93,19 +137,19 @@ def _convert_darktable(file_path: str, quality: int, raw_config: dict) -> bytes:
 
         cmd.append(tmp_output)
 
-        # Optional flags
-        if dt_config.get('hq', True):
+        # Profile-specific flags
+        if profile.get('hq', True):
             cmd.extend(['--hq', 'true'])
 
-        width = dt_config.get('width')
+        width = profile.get('width')
         if width:
             cmd.extend(['--width', str(int(width))])
 
-        height = dt_config.get('height')
+        height = profile.get('height')
         if height:
             cmd.extend(['--height', str(int(height))])
 
-        extra = dt_config.get('extra_args', [])
+        extra = profile.get('extra_args', [])
         if extra and isinstance(extra, list):
             cmd.extend(str(a) for a in extra)
 

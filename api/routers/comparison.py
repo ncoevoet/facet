@@ -148,19 +148,14 @@ async def api_comparison_next_pair(
     return pair
 
 
-@router.get("/api/download")
-async def api_download_single(
-    path: str = Query(..., alias='path'),
-    user: Optional[CurrentUser] = Depends(get_optional_user),
-):
-    """Download a single photo file (validated against database).
+def _validate_and_resolve(path: str, user: Optional[CurrentUser]):
+    """Validate a photo path against DB and resolve to disk path.
 
-    RAW files (CR2/CR3) are converted to full-resolution JPEG on-the-fly.
+    Returns (db_path, real_disk) or raises HTTPException.
     """
     if not path:
         raise HTTPException(status_code=400, detail='path required')
 
-    # Validate path exists in the database and user has visibility
     conn = get_db_connection()
     try:
         user_id = user.user_id if user else None
@@ -175,10 +170,7 @@ async def api_download_single(
     if not row:
         raise HTTPException(status_code=404, detail='File not found')
 
-    # Use DB-returned path to break taint chain from user input
     db_path = row['path']
-
-    # Map database path to local disk path
     disk_path = map_disk_path(db_path)
     real_disk = os.path.realpath(disk_path)
     if is_multi_user_enabled():
@@ -188,11 +180,99 @@ async def api_download_single(
     if not os.path.isfile(real_disk):
         raise HTTPException(status_code=404, detail='File not found on disk')
 
-    # Convert RAW files to JPEG for download
-    if Path(real_disk).suffix.lower() in RAW_EXTENSIONS:
-        from api.raw_processing import convert_raw_to_jpeg
+    return db_path, real_disk
 
-        quality = VIEWER_CONFIG['display'].get('image_jpeg_quality', 96)
+
+@router.get("/api/download/options")
+async def api_download_options(
+    path: str = Query(...),
+    is_shared: bool = Query(False),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Return available download types for a photo."""
+    from api.raw_processing import find_companion_raw, get_darktable_profiles
+
+    db_path, real_disk = _validate_and_resolve(path, user)
+
+    options: list[dict] = [{'type': 'original', 'label': 'original'}]
+
+    raw_path = find_companion_raw(real_disk)
+    if raw_path:
+        for profile_name in get_darktable_profiles():
+            options.append({'type': 'darktable', 'profile': profile_name, 'label': profile_name})
+        if not is_shared:
+            ext = Path(raw_path).suffix.lstrip('.').lower()
+            options.append({'type': 'raw', 'label': 'raw', 'extension': ext})
+
+    return {'options': options}
+
+
+@router.get("/api/download")
+async def api_download_single(
+    path: str = Query(...),
+    type: str = Query('original'),
+    profile: str = Query(''),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Download a single photo file (validated against database).
+
+    Supports three download types via the ``type`` query parameter:
+
+    - ``original`` — serve the file as-is (JPG/HEIF) or rawpy-converted (RAW).
+    - ``darktable`` — convert companion RAW with a named darktable profile.
+    - ``raw`` — serve the companion RAW file as-is.
+    """
+    from api.raw_processing import convert_raw_to_jpeg, convert_raw_darktable, find_companion_raw
+
+    db_path, real_disk = _validate_and_resolve(path, user)
+
+    quality = VIEWER_CONFIG['display'].get('image_jpeg_quality', 96)
+    stem = os.path.splitext(os.path.basename(db_path))[0]
+
+    # --- Darktable profile export ---
+    if type == 'darktable':
+        raw_path = find_companion_raw(real_disk)
+        if not raw_path:
+            # Fall back to original when no RAW companion exists
+            return _serve_original(real_disk, db_path, quality)
+
+        try:
+            jpeg_bytes = convert_raw_darktable(raw_path, profile, quality)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f'Unknown darktable profile: {profile}')
+        except Exception:
+            logger.exception("Darktable conversion failed: %s (profile=%s)", real_disk, profile)
+            raise HTTPException(status_code=500, detail='Failed to convert RAW file')
+
+        safe_profile = profile.replace('"', '').replace('/', '_')
+        download_name = f'{stem}_{safe_profile}.jpg'
+        return StreamingResponse(
+            BytesIO(jpeg_bytes),
+            media_type='image/jpeg',
+            headers={'Content-Disposition': f'attachment; filename="{download_name}"'},
+        )
+
+    # --- RAW file download ---
+    if type == 'raw':
+        raw_path = find_companion_raw(real_disk)
+        if not raw_path:
+            return _serve_original(real_disk, db_path, quality)
+
+        return FileResponse(
+            raw_path,
+            media_type='application/octet-stream',
+            filename=os.path.basename(raw_path),
+        )
+
+    # --- Original file download ---
+    return _serve_original(real_disk, db_path, quality)
+
+
+def _serve_original(real_disk: str, db_path: str, quality: int):
+    """Serve a photo file as-is, converting standalone RAW via rawpy."""
+    from api.raw_processing import convert_raw_to_jpeg
+
+    if Path(real_disk).suffix.lower() in RAW_EXTENSIONS:
         try:
             jpeg_bytes = convert_raw_to_jpeg(real_disk, quality)
         except Exception:
@@ -200,7 +280,6 @@ async def api_download_single(
             raise HTTPException(status_code=500, detail='Failed to convert RAW file')
 
         download_name = os.path.splitext(os.path.basename(db_path))[0] + '.jpg'
-
         return StreamingResponse(
             BytesIO(jpeg_bytes),
             media_type='image/jpeg',

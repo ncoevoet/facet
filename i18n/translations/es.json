@@ -1734,5 +1734,9 @@
     "caption_error": "Error al generar la leyenda",
     "translating_caption": "Traduciendo...",
     "location": "Ubicación"
+  },
+  "download": {
+    "type_original": "Original",
+    "type_raw": "Archivo RAW"
   }
 }

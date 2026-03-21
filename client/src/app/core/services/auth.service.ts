@@ -12,6 +12,7 @@ export interface AuthStatus {
   user_role: string | null;
   display_name: string | null;
   features: Record<string, boolean>;
+  download_profiles: string[];
 }
 
 interface LoginResponse {
@@ -34,6 +35,7 @@ export class AuthService {
   readonly isSuperadmin = computed(() => this.status()?.user_role === 'superadmin');
   readonly isMultiUser = computed(() => this.status()?.multi_user ?? false);
   readonly features = computed(() => this.status()?.features ?? {});
+  readonly downloadProfiles = computed(() => this.status()?.download_profiles ?? []);
 
   get token(): string | null {
     return localStorage.getItem(this.TOKEN_KEY);

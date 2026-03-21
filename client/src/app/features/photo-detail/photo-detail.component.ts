@@ -21,6 +21,14 @@ import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CategoryLabelPipe } from '../gallery/photo-tooltip.component';
 import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
+import { DownloadIconPipe } from '../../shared/pipes/download-icon.pipe';
+
+interface DownloadOption {
+  type: 'original' | 'darktable' | 'raw';
+  profile?: string;
+  label: string;
+  extension?: string;
+}
 import { GalleryStore } from '../gallery/gallery.store';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
@@ -42,6 +50,7 @@ import { createLeafletMap } from '../../shared/leaflet';
     PersonThumbnailUrlPipe,
     CategoryLabelPipe,
     IsLensNamePipe,
+    DownloadIconPipe,
   ],
   template: `
     @if (photo(); as p) {
@@ -84,10 +93,29 @@ import { createLeafletMap } from '../../shared/leaflet';
           </button>
         }
 
-        <button mat-button (click)="download(p.path)" [disabled]="downloading()" [matTooltip]="'photo_detail.download' | translate">
-          <mat-icon>download</mat-icon>
-          {{ 'photo_detail.download' | translate }}
-        </button>
+        @if (downloadOptions().length > 1) {
+          <button mat-button [matMenuTriggerFor]="downloadMenu" [matTooltip]="'photo_detail.download' | translate">
+            <mat-icon>download</mat-icon>
+            {{ 'photo_detail.download' | translate }}
+          </button>
+          <mat-menu #downloadMenu="matMenu">
+            @for (opt of downloadOptions(); track opt.type + (opt.profile ?? '')) {
+              <button mat-menu-item (click)="download(p.path, opt.type, opt.profile)">
+                <mat-icon>{{ opt.type | downloadIcon }}</mat-icon>
+                @if (opt.type === 'darktable') {
+                  {{ opt.profile }}
+                } @else {
+                  {{ ('download.type_' + opt.type) | translate }}
+                }
+              </button>
+            }
+          </mat-menu>
+        } @else {
+          <button mat-button (click)="download(p.path)" [matTooltip]="'photo_detail.download' | translate">
+            <mat-icon>download</mat-icon>
+            {{ 'photo_detail.download' | translate }}
+          </button>
+        }
       </div>
 
       <!-- Main content: image + info -->
@@ -370,12 +398,6 @@ import { createLeafletMap } from '../../shared/leaflet';
         <mat-icon class="!text-4xl text-[var(--mat-sys-on-surface-variant)]">hourglass_empty</mat-icon>
       </div>
     }
-    @if (downloading()) {
-      <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2 px-3 py-2 rounded-full bg-[var(--mat-sys-surface-container-high)] shadow-lg">
-        <mat-spinner diameter="20"></mat-spinner>
-        <span class="text-sm">{{ 'photo_detail.downloading' | translate }}</span>
-      </div>
-    }
   `,
   host: { class: 'block h-full overflow-y-auto lg:overflow-y-hidden' },
 })
@@ -394,12 +416,21 @@ export class PhotoDetailComponent implements OnInit {
 
   protected readonly photo = signal<Photo | null>(null);
   protected readonly fullImageLoaded = signal(false);
-  protected readonly downloading = signal(false);
+  protected readonly downloadOptions = signal<DownloadOption[]>([]);
   protected readonly generatingCaption = signal(false);
   protected readonly translatingCaption = signal(false);
   protected readonly translatedCaption = signal<string | null>(null);
   protected readonly displayCaption = computed(() => this.translatedCaption() ?? this.photo()?.caption ?? null);
   protected readonly stars: readonly number[] = [1, 2, 3, 4, 5];
+
+  // Download options
+  private downloadOptionsEffect = effect(() => {
+    const p = this.photo();
+    if (!p) { this.downloadOptions.set([]); return; }
+    firstValueFrom(this.api.get<{ options: DownloadOption[] }>('/download/options', { path: p.path }))
+      .then(res => this.downloadOptions.set(res.options))
+      .catch(() => this.downloadOptions.set([{ type: 'original', label: 'original' }]));
+  });
 
   // Location
   protected readonly locationName = signal('');
@@ -528,21 +559,13 @@ export class PhotoDetailComponent implements OnInit {
     this.location.back();
   }
 
-  protected async download(path: string): Promise<void> {
-    this.downloading.set(true);
-    try {
-      const blob = await firstValueFrom(this.api.getRaw(`/api/download?path=${encodeURIComponent(path)}`));
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = path.split(/[\\/]/).pop() ?? '';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } finally {
-      this.downloading.set(false);
-    }
+  protected download(path: string, type = 'original', profile?: string): void {
+    const a = document.createElement('a');
+    a.href = this.api.downloadUrl(path, type, profile);
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   protected onFullImageLoad(): void {

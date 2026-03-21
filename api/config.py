@@ -112,13 +112,9 @@ def load_viewer_config(config=None):
         'pagination': {'default_per_page': 50},
         'dropdowns': {'max_cameras': 50, 'max_lenses': 50, 'max_persons': 50, 'max_tags': 20},
         'raw_processor': {
-            'backend': 'rawpy',
             'darktable': {
                 'executable': 'darktable-cli',
-                'hq': True,
-                'width': None,
-                'height': None,
-                'extra_args': [],
+                'profiles': [],
             },
         },
         'display': {'tags_per_photo': 3, 'card_width_px': 168, 'image_width_px': 160, 'image_jpeg_quality': 96},

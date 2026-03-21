@@ -59,4 +59,12 @@ export class ApiService {
   imageUrl(path: string): string {
     return `/image?path=${encodeURIComponent(path)}`;
   }
+
+  /** Build download URL with type and optional profile/token */
+  downloadUrl(path: string, type = 'original', profile = '', token = ''): string {
+    const params = new URLSearchParams({ path, type });
+    if (profile) params.set('profile', profile);
+    if (token) params.set('token', token);
+    return `/api/download?${params}`;
+  }
 }

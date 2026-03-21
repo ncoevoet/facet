@@ -1734,5 +1734,9 @@
     "caption_error": "Generazione della didascalia non riuscita",
     "translating_caption": "Traduzione in corso...",
     "location": "Posizione"
+  },
+  "download": {
+    "type_original": "Originale",
+    "type_raw": "File RAW"
   }
 }

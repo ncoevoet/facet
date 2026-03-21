@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatMenuModule } from '@angular/material/menu';
 import { firstValueFrom } from 'rxjs';
 import { Photo } from '../../models/photo.model';
 import { ApiService } from '../../../core/services/api.service';
@@ -14,14 +14,22 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
 import { CategoryLabelPipe } from '../../../features/gallery/photo-tooltip.component';
 import { IsLensNamePipe } from '../../pipes/is-lens-name.pipe';
+import { DownloadIconPipe } from '../../pipes/download-icon.pipe';
+
+interface DownloadOption {
+  type: 'original' | 'darktable' | 'raw';
+  profile?: string;
+  label: string;
+  extension?: string;
+}
 
 @Component({
   selector: 'app-shared-photo-detail',
   standalone: true,
   imports: [
-    MatIconModule, MatButtonModule, MatTooltipModule, MatProgressSpinnerModule,
+    MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule,
     FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe,
-    CategoryLabelPipe, IsLensNamePipe,
+    CategoryLabelPipe, IsLensNamePipe, DownloadIconPipe,
   ],
   host: { class: 'block h-full overflow-y-auto lg:overflow-y-hidden' },
   template: `
@@ -32,10 +40,29 @@ import { IsLensNamePipe } from '../../pipes/is-lens-name.pipe';
           <mat-icon>arrow_back</mat-icon>
         </button>
         <span class="flex-1 truncate font-medium">{{ p.filename }}</span>
-        <button mat-button (click)="download(p.path)" [disabled]="downloading()" [matTooltip]="'photo_detail.download' | translate">
-          <mat-icon>download</mat-icon>
-          {{ 'photo_detail.download' | translate }}
-        </button>
+        @if (downloadOptions().length > 1) {
+          <button mat-button [matMenuTriggerFor]="downloadMenu" [matTooltip]="'photo_detail.download' | translate">
+            <mat-icon>download</mat-icon>
+            {{ 'photo_detail.download' | translate }}
+          </button>
+          <mat-menu #downloadMenu="matMenu">
+            @for (opt of downloadOptions(); track opt.type + (opt.profile ?? '')) {
+              <button mat-menu-item (click)="download(p.path, opt.type, opt.profile)">
+                <mat-icon>{{ opt.type | downloadIcon }}</mat-icon>
+                @if (opt.type === 'darktable') {
+                  {{ opt.profile }}
+                } @else {
+                  {{ ('download.type_' + opt.type) | translate }}
+                }
+              </button>
+            }
+          </mat-menu>
+        } @else {
+          <button mat-button (click)="download(p.path)" [matTooltip]="'photo_detail.download' | translate">
+            <mat-icon>download</mat-icon>
+            {{ 'photo_detail.download' | translate }}
+          </button>
+        }
       </div>
 
       <!-- Main content: image + info -->
@@ -246,12 +273,6 @@ import { IsLensNamePipe } from '../../pipes/is-lens-name.pipe';
         <mat-icon class="!text-4xl text-[var(--mat-sys-on-surface-variant)]">hourglass_empty</mat-icon>
       </div>
     }
-    @if (downloading()) {
-      <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2 px-3 py-2 rounded-full bg-[var(--mat-sys-surface-container-high)] shadow-lg">
-        <mat-spinner diameter="20"></mat-spinner>
-        <span class="text-sm">{{ 'photo_detail.downloading' | translate }}</span>
-      </div>
-    }
   `,
 })
 export class SharedPhotoDetailComponent implements OnInit {
@@ -262,7 +283,7 @@ export class SharedPhotoDetailComponent implements OnInit {
 
   protected readonly photo = signal<Photo | null>(null);
   protected readonly fullImageLoaded = signal(false);
-  protected readonly downloading = signal(false);
+  protected readonly downloadOptions = signal<DownloadOption[]>([]);
   protected readonly translatingCaption = signal(false);
   protected readonly translatedCaption = signal<string | null>(null);
   protected readonly displayCaption = computed(() => this.translatedCaption() ?? this.photo()?.caption ?? null);
@@ -276,6 +297,15 @@ export class SharedPhotoDetailComponent implements OnInit {
     const p = this.photo();
     if (!p) return false;
     return !!(p.camera_model || p.lens_model || p.focal_length || p.f_stop || p.shutter_speed || p.iso);
+  });
+
+  // Download options
+  private downloadOptionsEffect = effect(() => {
+    const p = this.photo();
+    if (!p) { this.downloadOptions.set([]); return; }
+    firstValueFrom(this.api.get<{ options: DownloadOption[] }>('/download/options', { path: p.path, is_shared: true }))
+      .then(res => this.downloadOptions.set(res.options))
+      .catch(() => this.downloadOptions.set([{ type: 'original', label: 'original' }]));
   });
 
   private readonly captionTranslationEffect = effect(() => {
@@ -307,9 +337,7 @@ export class SharedPhotoDetailComponent implements OnInit {
   }
 
   private get sharedBasePath(): string {
-    // Determine if we came from album or person by checking URL segments
     const url = this.route.snapshot.url;
-    // url segments: ['shared', 'album'|'person', ':id', 'photo']
     const entityType = url[1]?.path ?? 'album';
     const entityId = url[2]?.path ?? '';
     return `/shared/${entityType}/${entityId}`;
@@ -320,7 +348,6 @@ export class SharedPhotoDetailComponent implements OnInit {
     if (statePhoto) {
       this.photo.set(statePhoto);
     } else {
-      // Try loading from API
       const path = this.route.snapshot.queryParamMap.get('path');
       if (path) {
         try {
@@ -350,21 +377,13 @@ export class SharedPhotoDetailComponent implements OnInit {
     this.fullImageLoaded.set(true);
   }
 
-  protected async download(path: string): Promise<void> {
-    this.downloading.set(true);
-    try {
-      const blob = await firstValueFrom(this.api.getRaw(`/api/download?path=${encodeURIComponent(path)}&token=${encodeURIComponent(this.token)}`));
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = path.split(/[\\/]/).pop() ?? '';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } finally {
-      this.downloading.set(false);
-    }
+  protected download(path: string, type = 'original', profile?: string): void {
+    const a = document.createElement('a');
+    a.href = this.api.downloadUrl(path, type, profile, this.token);
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   private navigateBack(): void {

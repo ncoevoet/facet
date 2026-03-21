@@ -11,7 +11,7 @@ import { PhotoDetailComponent } from './photo-detail.component';
 describe('PhotoDetailComponent', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let component: any;
-  let mockApi: { get: jest.Mock; post: jest.Mock; imageUrl: jest.Mock };
+  let mockApi: { get: jest.Mock; post: jest.Mock; imageUrl: jest.Mock; downloadUrl: jest.Mock };
   let mockRouter: { navigate: jest.Mock };
   let mockLocation: { back: jest.Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: jest.Mock } } };
@@ -68,6 +68,7 @@ describe('PhotoDetailComponent', () => {
       get: jest.fn(() => of(samplePhoto)),
       post: jest.fn(() => of({})),
       imageUrl: jest.fn((path: string) => `/image?path=${encodeURIComponent(path)}`),
+      downloadUrl: jest.fn((path: string, type = 'original', profile?: string) => `/api/download?path=${encodeURIComponent(path)}&type=${type}${profile ? '&profile=' + profile : ''}`),
     };
     mockRouter = { navigate: jest.fn() };
     mockLocation = { back: jest.fn() };

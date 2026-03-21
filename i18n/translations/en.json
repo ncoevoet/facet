@@ -1734,5 +1734,9 @@
     "caption_error": "Failed to generate caption",
     "translating_caption": "Translating...",
     "location": "Location"
+  },
+  "download": {
+    "type_original": "Original",
+    "type_raw": "RAW file"
   }
 }

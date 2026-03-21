@@ -1734,5 +1734,9 @@
     "caption_error": "Beschreibung konnte nicht generiert werden",
     "translating_caption": "Übersetzen...",
     "location": "Standort"
+  },
+  "download": {
+    "type_original": "Original",
+    "type_raw": "RAW-Datei"
   }
 }
