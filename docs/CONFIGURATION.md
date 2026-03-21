@@ -997,6 +997,16 @@ Web gallery display and behavior.
       "max_tags": 20,
       "min_photos_for_person": 10
     },
+    "raw_processor": {
+      "backend": "rawpy",
+      "darktable": {
+        "executable": "darktable-cli",
+        "hq": true,
+        "width": null,
+        "height": null,
+        "extra_args": []
+      }
+    },
     "display": {
       "tags_per_photo": 4,
       "card_width_px": 168,
@@ -1067,6 +1077,13 @@ Web gallery display and behavior.
 | `max_persons` | `50` | Max persons |
 | `max_tags` | `20` | Max tags |
 | `min_photos_for_person` | `10` | Hide persons with fewer photos from dropdown |
+| **raw_processor** | | |
+| `backend` | `"rawpy"` | RAW conversion backend: `"rawpy"` (in-process libraw) or `"darktable"` (darktable-cli, honours XMP sidecars) |
+| `darktable.executable` | `"darktable-cli"` | darktable-cli binary name or absolute path |
+| `darktable.hq` | `true` | Pass `--hq true` for high-quality export |
+| `darktable.width` | `null` | Max output width (`null` = full resolution) |
+| `darktable.height` | `null` | Max output height (`null` = full resolution) |
+| `darktable.extra_args` | `[]` | Additional CLI arguments (e.g., `["--style", "my-look"]`) |
 | **display** | | |
 | `tags_per_photo` | `4` | Tags shown on cards |
 | `card_width_px` | `168` | Card width |

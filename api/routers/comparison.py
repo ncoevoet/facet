@@ -4,6 +4,7 @@ Comparison router -- pairwise photo ranking, weight optimization, downloads.
 """
 
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -13,6 +14,8 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
@@ -187,26 +190,19 @@ async def api_download_single(
 
     # Convert RAW files to JPEG for download
     if Path(real_disk).suffix.lower() in RAW_EXTENSIONS:
-        import rawpy
-        from PIL import Image
+        from api.raw_processing import convert_raw_to_jpeg
 
-        with rawpy.imread(real_disk) as raw:
-            rgb = raw.postprocess(
-                use_camera_wb=True,
-                no_auto_bright=False,
-                output_color=rawpy.ColorSpace.sRGB,
-                output_bps=8
-            )
-
-        pil_img = Image.fromarray(rgb)
-        buffer = BytesIO()
-        pil_img.save(buffer, format='JPEG', quality=VIEWER_CONFIG['display'].get('image_jpeg_quality', 96))
-        buffer.seek(0)
+        quality = VIEWER_CONFIG['display'].get('image_jpeg_quality', 96)
+        try:
+            jpeg_bytes = convert_raw_to_jpeg(real_disk, quality)
+        except Exception:
+            logger.exception("Failed to convert RAW file for download: %s", real_disk)
+            raise HTTPException(status_code=500, detail='Failed to convert RAW file')
 
         download_name = os.path.splitext(os.path.basename(db_path))[0] + '.jpg'
 
         return StreamingResponse(
-            buffer,
+            BytesIO(jpeg_bytes),
             media_type='image/jpeg',
             headers={'Content-Disposition': f'attachment; filename="{download_name}"'},
         )

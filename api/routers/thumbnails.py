@@ -63,20 +63,9 @@ def _get_image_jpeg_quality() -> int:
 @lru_cache(maxsize=5)
 def _convert_raw_cached(file_path: str, mtime: float, quality: int = 96) -> bytes:
     """Convert a RAW file to JPEG bytes, cached by path+mtime+quality."""
-    import rawpy
-    from PIL import Image as PILImage
+    from api.raw_processing import convert_raw_to_jpeg
 
-    with rawpy.imread(file_path) as raw:
-        rgb = raw.postprocess(
-            use_camera_wb=True,
-            no_auto_bright=False,
-            output_color=rawpy.ColorSpace.sRGB,
-            output_bps=8,
-        )
-    pil_img = PILImage.fromarray(rgb)
-    buffer = BytesIO()
-    pil_img.save(buffer, format='JPEG', quality=quality)
-    return buffer.getvalue()
+    return convert_raw_to_jpeg(file_path, quality)
 
 
 @lru_cache(maxsize=32)

@@ -198,6 +198,30 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
     else:
         _warn("exiftool", "not found in PATH — EXIF extraction will be limited")
 
+    # darktable-cli (only checked when configured as RAW processor)
+    try:
+        import json as _json
+        with open(config_path) as _f:
+            _cfg = _json.load(_f)
+        raw_proc = _cfg.get('viewer', {}).get('raw_processor', {})
+    except Exception:
+        raw_proc = {}
+
+    if raw_proc.get('backend') == 'darktable':
+        dt_exec = raw_proc.get('darktable', {}).get('executable', 'darktable-cli')
+        dt_path = shutil.which(dt_exec) if not os.path.isabs(dt_exec) else dt_exec
+        if dt_path and os.path.isfile(dt_path):
+            try:
+                result = subprocess.run(
+                    [dt_path, '--version'], capture_output=True, text=True, timeout=5,
+                )
+                version = result.stdout.strip().split('\n')[0] if result.stdout else ''
+                _ok("darktable-cli", f"{version} ({dt_path})" if version else dt_path)
+            except Exception:
+                _ok("darktable-cli", dt_path)
+        else:
+            _warn("darktable-cli", f"not found ({dt_exec}) — RAW downloads will fail")
+
     # --- Config & Database ---
     _section("Config / Database")
     if os.path.exists(config_path):
