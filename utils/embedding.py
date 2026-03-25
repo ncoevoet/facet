@@ -4,7 +4,11 @@ Embedding serialization utilities for Facet.
 Convert between numpy arrays and bytes for database storage.
 """
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def embedding_to_bytes(embedding):
@@ -88,7 +92,13 @@ def filter_uniform_embeddings(embeddings, associated=None):
 
     # Find most common dimension
     from collections import Counter
-    target_dim = Counter(dims).most_common(1)[0][0]
+    dim_counts = Counter(dims)
+    target_dim = dim_counts.most_common(1)[0][0]
+    dropped = len(dims) - dim_counts[target_dim]
+    logger.warning(
+        "Mixed embedding dimensions detected: %s — keeping dim=%d, dropping %d/%d embeddings",
+        dict(dim_counts), target_dim, dropped, len(dims),
+    )
 
     if associated is not None:
         filtered_emb = []

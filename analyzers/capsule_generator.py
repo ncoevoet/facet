@@ -217,11 +217,12 @@ def _mmr_select(conn, paths, max_photos, lambda_weight=0.5):
         return paths[:max_photos]
 
     # Filter to uniform embedding dimension (CLIP 768 vs SigLIP 1152)
-    emb_list, indices = filter_uniform_embeddings(emb_list, list(range(len(emb_list))))
+    combined = list(zip(emb_paths, scores))
+    emb_list, combined = filter_uniform_embeddings(emb_list, combined)
     if not emb_list:
         return paths[:max_photos]
-    emb_paths = [emb_paths[i] for i in indices]
-    scores = [scores[i] for i in indices]
+    emb_paths, scores = zip(*combined)
+    emb_paths, scores = list(emb_paths), list(scores)
 
     emb_matrix = np.stack(emb_list)
 
@@ -1130,13 +1131,11 @@ def _generate_seeded(conn, capsule_config, min_aggregate, vis, user_id):
     # Pre-decode embeddings once for vectorized similarity (avoids per-seed reload)
     _emb_list = []
     _emb_indices = []  # maps emb_matrix row → rows index
-    _emb_paths = []
     for ri, r in enumerate(rows):
         emb = bytes_to_normalized_embedding(r["clip_embedding"])
         if emb is not None:
             _emb_list.append(emb)
             _emb_indices.append(ri)
-            _emb_paths.append(r["path"])
     # Filter to uniform embedding dimension (CLIP 768 vs SigLIP 1152)
     _emb_list, _emb_indices = filter_uniform_embeddings(_emb_list, _emb_indices)
     _emb_paths = [rows[i]["path"] for i in _emb_indices]
