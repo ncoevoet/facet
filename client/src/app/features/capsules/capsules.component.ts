@@ -224,6 +224,7 @@ export class CapsulesComponent implements OnDestroy {
   private async loadCapsules(refresh = false): Promise<void> {
     if (this.loading()) return;
     this.loading.set(true);
+    if (refresh) this.filters.refreshing.set(true);
     try {
       const res = await firstValueFrom(
         this.api.get<CapsulesResponse>('/capsules', {
@@ -246,6 +247,7 @@ export class CapsulesComponent implements OnDestroy {
       if (this.currentPage === 1) this.capsules.set([]);
     } finally {
       this.loading.set(false);
+      this.filters.refreshing.set(false);
     }
   }
 

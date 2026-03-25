@@ -221,7 +221,7 @@
           <mat-label>{{ 'capsules.date_to' | translate }}</mat-label>
           <input matInput type="date" [value]="capsuleFilters.dateTo()" (change)="onDateFilterChange(capsuleFilters, 'to', $event)" />
         </mat-form-field>
-        <button class="!hidden lg:!inline-flex" mat-icon-button [matTooltip]="'capsules.regenerate' | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
+        <button class="!hidden lg:!inline-flex" mat-icon-button [disabled]="capsuleFilters.refreshing()" [matTooltip]="'capsules.regenerate' | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
           <mat-icon>refresh</mat-icon>
         </button>
       }

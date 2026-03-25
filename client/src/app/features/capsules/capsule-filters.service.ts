@@ -6,4 +6,6 @@ export class CapsuleFiltersService {
   readonly dateTo = signal('');
   /** Incremented to trigger regeneration. */
   readonly regenerate = signal(0);
+  /** True while a refresh request is in flight. */
+  readonly refreshing = signal(false);
 }
