@@ -7,7 +7,7 @@ import numpy as np
 from collections import defaultdict
 
 from api.database import get_db_connection
-from utils.embedding import bytes_to_normalized_embedding
+from utils.embedding import bytes_to_normalized_embedding, filter_uniform_embeddings
 from utils.union_find import UnionFind
 
 logger = logging.getLogger(__name__)
@@ -102,6 +102,9 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
             if emb is not None:
                 embeddings.append(emb)
                 valid_indices.append(i)
+
+        # Filter to uniform embedding dimension (CLIP 768 vs SigLIP 1152)
+        embeddings, valid_indices = filter_uniform_embeddings(embeddings, valid_indices)
 
         if len(embeddings) < 2:
             return []

@@ -176,7 +176,7 @@ def _search_vec(conn, text_emb, limit, threshold, vis_sql, vis_params):
 def _load_embedding_matrix(conn, vis_sql, vis_params, user_id):
     """Fallback: load all photo embeddings into a numpy matrix."""
     global _embedding_cache
-    from utils.embedding import bytes_to_normalized_embedding
+    from utils.embedding import bytes_to_normalized_embedding, filter_uniform_embeddings
 
     row = conn.execute(
         f"SELECT COUNT(*) FROM photos WHERE clip_embedding IS NOT NULL AND {vis_sql}",
@@ -199,6 +199,9 @@ def _load_embedding_matrix(conn, vis_sql, vis_params, user_id):
         if emb is not None:
             paths.append(row['path'])
             embeddings.append(emb)
+
+    # Filter to uniform embedding dimension (CLIP 768 vs SigLIP 1152)
+    embeddings, paths = filter_uniform_embeddings(embeddings, paths)
 
     if not embeddings:
         _embedding_cache = None

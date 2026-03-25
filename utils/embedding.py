@@ -60,3 +60,43 @@ def bytes_to_normalized_embedding(data, dim=None):
     if norm < 1e-10:
         return None
     return embedding / norm
+
+
+def filter_uniform_embeddings(embeddings, associated=None):
+    """Filter embeddings to keep only those matching the most common dimension.
+
+    When a database contains mixed embedding dimensions (e.g. 768 from CLIP and
+    1152 from SigLIP), np.stack() will fail.  This filters to a single uniform
+    dimension by keeping whichever dimension is most frequent.
+
+    Args:
+        embeddings: list of numpy arrays (may have different shapes)
+        associated: optional list of associated data (same length as embeddings)
+            to filter in parallel
+
+    Returns:
+        If *associated* is None: filtered list of embeddings.
+        If *associated* is provided: tuple (filtered_embeddings, filtered_associated).
+    """
+    if not embeddings:
+        return ([], []) if associated is not None else []
+
+    dims = [e.shape[0] for e in embeddings]
+    # Fast path: all same dimension
+    if dims.count(dims[0]) == len(dims):
+        return (embeddings, associated) if associated is not None else embeddings
+
+    # Find most common dimension
+    from collections import Counter
+    target_dim = Counter(dims).most_common(1)[0][0]
+
+    if associated is not None:
+        filtered_emb = []
+        filtered_assoc = []
+        for e, a in zip(embeddings, associated):
+            if e.shape[0] == target_dim:
+                filtered_emb.append(e)
+                filtered_assoc.append(a)
+        return filtered_emb, filtered_assoc
+    else:
+        return [e for e in embeddings if e.shape[0] == target_dim]

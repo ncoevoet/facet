@@ -29,7 +29,7 @@ from datetime import date, timedelta
 import numpy as np
 
 from utils.date_utils import parse_date as _parse_date
-from utils.embedding import bytes_to_normalized_embedding
+from utils.embedding import bytes_to_normalized_embedding, filter_uniform_embeddings
 from utils.union_find import UnionFind
 
 logger = logging.getLogger("facet.capsules")
@@ -215,6 +215,13 @@ def _mmr_select(conn, paths, max_photos, lambda_weight=0.5):
 
     if not emb_list:
         return paths[:max_photos]
+
+    # Filter to uniform embedding dimension (CLIP 768 vs SigLIP 1152)
+    emb_list, indices = filter_uniform_embeddings(emb_list, list(range(len(emb_list))))
+    if not emb_list:
+        return paths[:max_photos]
+    emb_paths = [emb_paths[i] for i in indices]
+    scores = [scores[i] for i in indices]
 
     emb_matrix = np.stack(emb_list)
 
@@ -803,6 +810,9 @@ def _generate_color_story(conn, capsule_config, min_aggregate, vis, user_id):
             embeddings.append(emb)
             valid_photos.append(r)
 
+    # Filter to uniform embedding dimension (CLIP 768 vs SigLIP 1152)
+    embeddings, valid_photos = filter_uniform_embeddings(embeddings, valid_photos)
+
     if len(embeddings) < min_group_size:
         return []
 
@@ -1127,6 +1137,9 @@ def _generate_seeded(conn, capsule_config, min_aggregate, vis, user_id):
             _emb_list.append(emb)
             _emb_indices.append(ri)
             _emb_paths.append(r["path"])
+    # Filter to uniform embedding dimension (CLIP 768 vs SigLIP 1152)
+    _emb_list, _emb_indices = filter_uniform_embeddings(_emb_list, _emb_indices)
+    _emb_paths = [rows[i]["path"] for i in _emb_indices]
     emb_matrix = np.stack(_emb_list) if _emb_list else None
 
     # Pick seed indices deterministically
