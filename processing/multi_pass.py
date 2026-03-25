@@ -343,8 +343,9 @@ class ChunkedMultiPassProcessor:
         # Track results for each photo
         results = {path: {} for path in paths}
 
-        # Supplementary models are optional — load failures skip rather than abort
+        # Supplementary/optional models — load failures skip rather than abort
         supplementary = set(self.model_manager.get_active_profile().get('supplementary_pyiqa', []))
+        supplementary.add('saliency')  # BiRefNet is optional (may require HF auth)
 
         # Run each pass group
         for group_idx, model_group in enumerate(self.pass_groups):
