@@ -95,7 +95,7 @@ These models share VRAM with the primary TOPIQ model and run as part of the defa
 
 ### Subject Saliency
 
-The `--pass saliency` and `--recompute-saliency` commands use BiRefNet-dynamic (`ZhengPeng7/BiRefNet-dynamic` from HuggingFace, via the `transformers` library) to generate a binary subject mask, then derive four metrics:
+The `--pass saliency` and `--recompute-saliency` commands use BiRefNet-dynamic (`ZhengPeng7/BiRefNet_dynamic` from HuggingFace, via the `transformers` library) to generate a binary subject mask, then derive four metrics:
 
 - **Subject Sharpness**: Laplacian variance on the subject mask region vs background. Detects whether the main subject is in focus.
 - **Subject Prominence**: Ratio of subject area to total frame area. High values indicate a dominant subject (e.g., macro photos).

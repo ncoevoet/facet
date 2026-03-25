@@ -32,7 +32,7 @@ def _ensure_imports():
 class SaliencyScorer:
     """Wrapper around BiRefNet for subject saliency detection."""
 
-    DEFAULT_MODEL = 'ZhengPeng7/BiRefNet-dynamic'
+    DEFAULT_MODEL = 'ZhengPeng7/BiRefNet_dynamic'
     DEFAULT_RESOLUTION = 1024
     DEFAULT_MASK_THRESHOLD = 0.3
     DEFAULT_MIN_SUBJECT_PIXELS = 50

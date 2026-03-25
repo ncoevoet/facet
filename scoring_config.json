@@ -2016,7 +2016,7 @@
       "max_new_tokens": 256
     },
     "saliency": {
-      "model": "ZhengPeng7/BiRefNet-dynamic",
+      "model": "ZhengPeng7/BiRefNet_dynamic",
       "resolution": 1024,
       "mask_threshold": 0.3,
       "min_subject_pixels": 50,
