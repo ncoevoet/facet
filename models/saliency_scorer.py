@@ -1,6 +1,6 @@
 """BiRefNet-based subject saliency detection for Facet.
 
-Uses BiRefNet-dynamic (Bilateral Reference Network, multi-resolution variant)
+Uses BiRefNet_dynamic (Bilateral Reference Network, multi-resolution variant)
 via HuggingFace transformers to generate binary subject masks, then derives
 subject-aware quality metrics:
   - subject_sharpness: Laplacian variance on subject vs background
@@ -44,7 +44,7 @@ class SaliencyScorer:
 
         Args:
             device: Device to use ('cuda', 'cpu', or None for auto)
-            model_name: HuggingFace model ID (default: ZhengPeng7/BiRefNet-dynamic)
+            model_name: HuggingFace model ID (default: ZhengPeng7/BiRefNet_dynamic)
             resolution: Input resolution for BiRefNet (default: 1024)
             mask_threshold: Sigmoid threshold for binary mask (default: 0.3)
             min_subject_pixels: Minimum pixels to consider a subject detected (default: 50)

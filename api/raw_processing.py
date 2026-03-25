@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import os
 import shutil
@@ -76,6 +77,7 @@ async def convert_raw_darktable_async(file_path: str, profile_name: str, quality
     return await _convert_darktable_async(file_path, quality, dt_config, profile)
 
 
+@functools.lru_cache(maxsize=1)
 def is_darktable_available() -> bool:
     """Check whether the configured darktable-cli executable exists."""
     dt_config = _get_raw_config().get('darktable', {})

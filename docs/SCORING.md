@@ -212,7 +212,7 @@ Default weights are optimized for **TOPIQ** (0.93 SRCC), the aesthetic model for
 | `8gb` | CLIP+MLP (0.76 SRCC) | CLIP ViT-L-14 | CLIP similarity | Default weights work well |
 | `legacy` | CLIP+MLP on CPU | CLIP ViT-L-14 | CLIP similarity | Default weights, slower |
 
-All profiles additionally run supplementary PyIQA models (TOPIQ IAA, TOPIQ NR-Face, LIQE) and optionally BiRefNet-dynamic for subject saliency.
+All profiles additionally run supplementary PyIQA models (TOPIQ IAA, TOPIQ NR-Face, LIQE) and optionally BiRefNet_dynamic for subject saliency.
 
 Run `--compute-recommendations` after switching profiles to analyze score distributions.
 

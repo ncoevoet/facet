@@ -41,7 +41,7 @@ updating specific metrics without full reprocessing. Available passes:
 | `composition` | SAMP-Net | `composition_pattern` (14 patterns) + `comp_score` | ~2 GB |
 | `faces` | InsightFace buffalo_l | Face detection, landmarks, blink detection, recognition embeddings | ~2 GB |
 | `embeddings` | CLIP ViT-L-14 or SigLIP 2 NaFlex | `clip_embedding` BLOB for similarity/tagging | 4-5 GB |
-| `saliency` | BiRefNet-dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 GB |
+| `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 GB |
 
 ## Preview & Export
 
@@ -64,7 +64,7 @@ These commands update specific metrics without full photo reprocessing.
 | `python facet.py --recompute-category portrait` | Recompute scores for a single category only |
 | `python facet.py --recompute-tags` | Re-tag all photos using configured model |
 | `python facet.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
-| `python facet.py --recompute-saliency` | Recompute subject saliency metrics (BiRefNet-dynamic, GPU) |
+| `python facet.py --recompute-saliency` | Recompute subject saliency metrics (BiRefNet_dynamic, GPU) |
 | `python facet.py --recompute-composition-cpu` | Recompute composition (rule-based, CPU) |
 | `python facet.py --recompute-composition-gpu` | Rescan with SAMP-Net (GPU required) |
 | `python facet.py --recompute-iqa` | Recompute supplementary IQA metrics (TOPIQ IAA, NR-Face, LIQE) from thumbnails |

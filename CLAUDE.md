@@ -429,7 +429,7 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 - **Quality:** TOPIQ (0.93 SRCC), HyperIQA (0.90), DBCNN (0.90), MUSIQ (0.87)
 - **Supplementary PyIQA:** TOPIQ IAA (aesthetic merit), TOPIQ NR-Face (face quality), LIQE (quality + distortion diagnosis)
 - **Composition:** SAMP-Net for pattern detection (14 patterns including rule_of_thirds, golden_ratio, vanishing_point)
-- **Subject saliency:** BiRefNet-dynamic (`ZhengPeng7/BiRefNet-dynamic`) via `transformers` — subject sharpness, prominence, placement, background separation
+- **Subject saliency:** BiRefNet_dynamic (`ZhengPeng7/BiRefNet_dynamic`) via `transformers` — subject sharpness, prominence, placement, background separation
 - **Faces:** InsightFace buffalo_l for detection with 106-point landmarks and recognition embeddings
 - **Tagging:** CLIP similarity (legacy/8gb), Qwen3.5-2B (16gb), Qwen3.5-4B (24gb)
 - Face recognition uses HDBSCAN clustering on embeddings (standalone hdbscan library)

@@ -381,7 +381,7 @@ Controls which AI models are used based on VRAM.
     "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
     "saliency": {
       "enabled": false,
-      "description": "BiRefNet-dynamic subject saliency detection (~2 GB VRAM)"
+      "description": "BiRefNet_dynamic subject saliency detection (~2 GB VRAM)"
     },
     "samp_net": {
       "model_path": "pretrained_models/samp_net.pth",
@@ -424,7 +424,7 @@ Controls which AI models are used based on VRAM.
 | `florence_2_large.model_path` | `"MiaoshouAI/Florence-2-large-PromptGen-v2.0"` | Florence-2 PromptGen model for tagging |
 | `florence_2_large.vlm_batch_size` | `4` | Images per Florence-2 inference batch |
 | `supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | Additional PyIQA models to run |
-| `saliency.enabled` | `false` | Enable BiRefNet-dynamic subject saliency |
+| `saliency.enabled` | `false` | Enable BiRefNet_dynamic subject saliency |
 | `samp_net.input_size` | `384` | Image size for inference |
 
 ### VRAM Auto-Detection
