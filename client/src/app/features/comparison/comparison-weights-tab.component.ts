@@ -22,7 +22,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CompareFiltersService } from './compare-filters.service';
-import { WeightIconPipe, WeightLabelKeyPipe } from './comparison.pipes';
+import { WeightIconPipe, WeightLabelKeyPipe, FilterValueFormatPipe, ModifierValueFormatPipe } from './comparison.pipes';
 
 interface CategoryWeights {
   weights: Record<string, number>;
@@ -48,14 +48,22 @@ interface WeightImpactResponse {
 
 const BOOLEAN_FILTER_KEYS = ['has_face', 'is_monochrome', 'is_silhouette', 'is_group_portrait'] as const;
 
-const NUMERIC_FILTER_RANGES: [string, string, string][] = [
-  ['face_ratio_min', 'face_ratio_max', 'comparison.filter.face_ratio'],
-  ['face_count_min', 'face_count_max', 'comparison.filter.face_count'],
-  ['iso_min', 'iso_max', 'comparison.filter.iso'],
-  ['shutter_speed_min', 'shutter_speed_max', 'comparison.filter.shutter_speed'],
-  ['focal_length_min', 'focal_length_max', 'comparison.filter.focal_length'],
-  ['f_stop_min', 'f_stop_max', 'comparison.filter.f_stop'],
-  ['luminance_min', 'luminance_max', 'comparison.filter.luminance'],
+interface NumericFilterRange {
+  minKey: string;
+  maxKey: string;
+  labelKey: string;
+  step: number;
+  placeholder: [string, string];
+}
+
+const NUMERIC_FILTER_RANGES: NumericFilterRange[] = [
+  { minKey: 'face_ratio_min', maxKey: 'face_ratio_max', labelKey: 'comparison.filter.face_ratio', step: 0.01, placeholder: ['0.05', '0.8'] },
+  { minKey: 'face_count_min', maxKey: 'face_count_max', labelKey: 'comparison.filter.face_count', step: 1, placeholder: ['1', '10'] },
+  { minKey: 'iso_min', maxKey: 'iso_max', labelKey: 'comparison.filter.iso', step: 100, placeholder: ['100', '6400'] },
+  { minKey: 'shutter_speed_min', maxKey: 'shutter_speed_max', labelKey: 'comparison.filter.shutter_speed', step: 0.001, placeholder: ['0.001', '1'] },
+  { minKey: 'focal_length_min', maxKey: 'focal_length_max', labelKey: 'comparison.filter.focal_length', step: 1, placeholder: ['24', '200'] },
+  { minKey: 'f_stop_min', maxKey: 'f_stop_max', labelKey: 'comparison.filter.f_stop', step: 0.1, placeholder: ['1.4', '22'] },
+  { minKey: 'luminance_min', maxKey: 'luminance_max', labelKey: 'comparison.filter.luminance', step: 0.01, placeholder: ['0.0', '1.0'] },
 ];
 
 class SignalErrorMatcher {
@@ -84,6 +92,8 @@ class SignalErrorMatcher {
     ThumbnailUrlPipe,
     WeightIconPipe,
     WeightLabelKeyPipe,
+    FilterValueFormatPipe,
+    ModifierValueFormatPipe,
   ],
   template: `
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
@@ -192,39 +202,39 @@ class SignalErrorMatcher {
         </mat-card-header>
         <mat-card-content class="!pt-4">
           <div class="flex flex-col gap-4">
-            <mat-form-field>
-              <mat-label>{{ 'comparison.modifier.bonus' | translate }}</mat-label>
-              <input matInput type="number" step="0.1" min="-5" max="5"
-                [errorStateMatcher]="modifierMatchers['bonus']"
-                [ngModel]="getModifierNum('bonus')"
-                (ngModelChange)="setModifierNum('bonus', $event)" />
-              <mat-hint>{{ 'comparison.modifier.bonus_hint' | translate }}</mat-hint>
-              @if (modifierErrors()['bonus']) {
-                <mat-error>{{ modifierErrors()['bonus'] | translate }}</mat-error>
-              }
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>{{ 'comparison.modifier.noise_tolerance' | translate }}</mat-label>
-              <input matInput type="number" step="0.1" min="0" max="2"
-                [errorStateMatcher]="modifierMatchers['noise_tolerance_multiplier']"
-                [ngModel]="getModifierNum('noise_tolerance_multiplier')"
-                (ngModelChange)="setModifierNum('noise_tolerance_multiplier', $event)" />
-              <mat-hint>{{ 'comparison.modifier.noise_tolerance_hint' | translate }}</mat-hint>
-              @if (modifierErrors()['noise_tolerance_multiplier']) {
-                <mat-error>{{ modifierErrors()['noise_tolerance_multiplier'] | translate }}</mat-error>
-              }
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>{{ 'comparison.modifier.clipping_multiplier' | translate }}</mat-label>
-              <input matInput type="number" step="0.1" min="0" max="5"
-                [errorStateMatcher]="modifierMatchers['_clipping_multiplier']"
-                [ngModel]="getModifierNum('_clipping_multiplier')"
-                (ngModelChange)="setModifierNum('_clipping_multiplier', $event)" />
-              <mat-hint>{{ 'comparison.modifier.clipping_multiplier_hint' | translate }}</mat-hint>
-              @if (modifierErrors()['_clipping_multiplier']) {
-                <mat-error>{{ modifierErrors()['_clipping_multiplier'] | translate }}</mat-error>
-              }
-            </mat-form-field>
+            <div>
+              <div class="flex items-center gap-3">
+                <mat-icon class="text-gray-400 shrink-0">add_circle</mat-icon>
+                <span class="w-40 shrink-0 text-sm">{{ 'comparison.modifier.bonus' | translate }}</span>
+                <mat-slider class="grow" [min]="-5" [max]="5" [step]="0.1" [discrete]="true" [displayWith]="displayBonus">
+                  <input matSliderThumb [value]="getModifierNum('bonus') ?? 0" (valueChange)="setModifierNum('bonus', $event)" />
+                </mat-slider>
+                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('bonus') | modifierValueFormat:'bonus' }}</span>
+              </div>
+              <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ 'comparison.modifier.bonus_hint' | translate }}</p>
+            </div>
+            <div>
+              <div class="flex items-center gap-3">
+                <mat-icon class="text-gray-400 shrink-0">grain</mat-icon>
+                <span class="w-40 shrink-0 text-sm">{{ 'comparison.modifier.noise_tolerance' | translate }}</span>
+                <mat-slider class="grow" [min]="0" [max]="200" [step]="5" [discrete]="true" [displayWith]="displayPercent">
+                  <input matSliderThumb [value]="(getModifierNum('noise_tolerance_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('noise_tolerance_multiplier', $event / 100)" />
+                </mat-slider>
+                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('noise_tolerance_multiplier') | modifierValueFormat:'noise_tolerance_multiplier' }}</span>
+              </div>
+              <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ 'comparison.modifier.noise_tolerance_hint' | translate }}</p>
+            </div>
+            <div>
+              <div class="flex items-center gap-3">
+                <mat-icon class="text-gray-400 shrink-0">highlight</mat-icon>
+                <span class="w-40 shrink-0 text-sm">{{ 'comparison.modifier.clipping_multiplier' | translate }}</span>
+                <mat-slider class="grow" [min]="0" [max]="500" [step]="10" [discrete]="true" [displayWith]="displayPercent">
+                  <input matSliderThumb [value]="(getModifierNum('_clipping_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('_clipping_multiplier', $event / 100)" />
+                </mat-slider>
+                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('_clipping_multiplier') | modifierValueFormat:'_clipping_multiplier' }}</span>
+              </div>
+              <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ 'comparison.modifier.clipping_multiplier_hint' | translate }}</p>
+            </div>
             <mat-divider />
             <div class="flex flex-col gap-0.5">
               <mat-checkbox [checked]="!!modifiers()['_skip_clipping_penalty']" (change)="setModifierBool('_skip_clipping_penalty', $event.checked)">
@@ -289,28 +299,32 @@ class SignalErrorMatcher {
               </mat-form-field>
             }
             <mat-divider />
-            @for (range of numericFilterRanges; track range[0]) {
+            @for (range of numericFilterRanges; track range.minKey) {
               <div>
-                <div class="text-sm text-gray-400 mb-1">{{ range[2] | translate }}</div>
+                <div class="text-sm text-gray-400 mb-1">{{ range.labelKey | translate }}</div>
                 <div class="flex gap-2">
                   <mat-form-field class="flex-1" subscriptSizing="dynamic">
                     <mat-label>{{ 'comparison.filter.min' | translate }}</mat-label>
-                    <input matInput type="number" [errorStateMatcher]="filterMatchers[range[0]]"
-                      [ngModel]="getFilterNum(range[0])" (ngModelChange)="setFilterNum(range[0], $event)" />
-                    @if (filterErrors()[range[0]]) {
-                      <mat-error>{{ filterErrors()[range[0]] | translate }}</mat-error>
+                    <input matInput type="number" [step]="range.step" [placeholder]="range.placeholder[0]"
+                      [errorStateMatcher]="filterMatchers[range.minKey]"
+                      [ngModel]="getFilterNum(range.minKey)" (ngModelChange)="setFilterNum(range.minKey, $event)" />
+                    <span matTextSuffix class="text-xs text-gray-400 ml-1">{{ getFilterNum(range.minKey) | filterValueFormat:range.minKey }}</span>
+                    @if (filterErrors()[range.minKey]) {
+                      <mat-error>{{ filterErrors()[range.minKey] | translate }}</mat-error>
                     }
                   </mat-form-field>
                   <mat-form-field class="flex-1" subscriptSizing="dynamic">
                     <mat-label>{{ 'comparison.filter.max' | translate }}</mat-label>
-                    <input matInput type="number" [errorStateMatcher]="filterMatchers[range[1]]"
-                      [ngModel]="getFilterNum(range[1])" (ngModelChange)="setFilterNum(range[1], $event)" />
-                    @if (filterErrors()[range[1]]) {
-                      <mat-error>{{ filterErrors()[range[1]] | translate }}</mat-error>
+                    <input matInput type="number" [step]="range.step" [placeholder]="range.placeholder[1]"
+                      [errorStateMatcher]="filterMatchers[range.maxKey]"
+                      [ngModel]="getFilterNum(range.maxKey)" (ngModelChange)="setFilterNum(range.maxKey, $event)" />
+                    <span matTextSuffix class="text-xs text-gray-400 ml-1">{{ getFilterNum(range.maxKey) | filterValueFormat:range.maxKey }}</span>
+                    @if (filterErrors()[range.maxKey]) {
+                      <mat-error>{{ filterErrors()[range.maxKey] | translate }}</mat-error>
                     }
                   </mat-form-field>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">{{ (range[2] + '_hint') | translate }}</p>
+                <p class="text-xs text-gray-500 mt-1">{{ (range.labelKey + '_hint') | translate }}</p>
               </div>
             }
           </div>
@@ -421,6 +435,15 @@ export class ComparisonWeightsTabComponent {
   readonly modifierMatchers: Record<string, SignalErrorMatcher> = {};
   readonly filterMatchers: Record<string, SignalErrorMatcher> = {};
 
+  /** Display function for bonus slider thumb: shows signed value with 1 decimal. */
+  readonly displayBonus = (value: number): string => {
+    const sign = value >= 0 ? '+' : '';
+    return sign + value.toFixed(1);
+  };
+
+  /** Display function for percent-based slider thumbs (noise tolerance, clipping). */
+  readonly displayPercent = (value: number): string => Math.round(value) + '%';
+
   constructor() {
     // React to category changes
     toObservable(this.compareFilters.selectedCategory).pipe(
@@ -433,7 +456,7 @@ export class ComparisonWeightsTabComponent {
     for (const k of ['bonus', 'noise_tolerance_multiplier', '_clipping_multiplier']) {
       this.modifierMatchers[k] = new SignalErrorMatcher(() => k in this.modifierErrors());
     }
-    for (const [minKey, maxKey] of NUMERIC_FILTER_RANGES) {
+    for (const { minKey, maxKey } of NUMERIC_FILTER_RANGES) {
       this.filterMatchers[minKey] = new SignalErrorMatcher(() => minKey in this.filterErrors());
       this.filterMatchers[maxKey] = new SignalErrorMatcher(() => maxKey in this.filterErrors());
     }
