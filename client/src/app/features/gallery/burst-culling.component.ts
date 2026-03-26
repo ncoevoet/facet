@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, Pipe, PipeTransform, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, Pipe, PipeTransform, OnDestroy, WritableSignal } from '@angular/core';
 import { Router } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
@@ -284,6 +284,21 @@ export class BurstCullingComponent implements OnDestroy {
     void this.loadGroups();
   }
 
+  /** Update a signal holding a Map by cloning and setting a key. */
+  private updateMapSignal<K, V>(sig: WritableSignal<Map<K, V>>, key: K, value: V): void {
+    sig.update(m => { const next = new Map(m); next.set(key, value); return next; });
+  }
+
+  /** Update a signal holding a Map by cloning and deleting a key. */
+  private deleteMapKey<K, V>(sig: WritableSignal<Map<K, V>>, key: K): void {
+    sig.update(m => { if (!m.has(key)) return m; const next = new Map(m); next.delete(key); return next; });
+  }
+
+  /** Update a signal holding a Set by cloning and adding a value. */
+  private addToSetSignal<V>(sig: WritableSignal<Set<V>>, value: V): void {
+    sig.update(s => { const next = new Set(s); next.add(value); return next; });
+  }
+
   ngOnDestroy(): void {
     this.clearAllPassTimers();
   }
@@ -383,9 +398,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   protected selectExclusive(path: string, group: CullingGroup): void {
-    const map = new Map(this.selectionsMap());
-    map.set(group.group_id, new Set([path]));
-    this.selectionsMap.set(map);
+    this.updateMapSignal(this.selectionsMap, group.group_id, new Set([path]));
   }
 
   protected async confirmGroup(group: CullingGroup): Promise<void> {
@@ -400,11 +413,7 @@ export class BurstCullingComponent implements OnDestroy {
         paths: group.photos.map(p => p.path),
         keep_paths: [...kept],
       }));
-      this.confirmedGroups.update(s => {
-        const next = new Set(s);
-        next.add(this.groupKey(group));
-        return next;
-      });
+      this.addToSetSignal(this.confirmedGroups, this.groupKey(group));
       this.snackBar.open(this.i18n.t('culling.confirmed'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } catch {
       this.snackBar.open(this.i18n.t('culling.error_confirming'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
@@ -420,30 +429,19 @@ export class BurstCullingComponent implements OnDestroy {
     this.clearPassTimer(key);
 
     // Start the 5-second countdown
-    this.passingGroups.update(m => {
-      const next = new Map(m);
-      next.set(key, 5);
-      return next;
-    });
+    this.updateMapSignal(this.passingGroups, key, 5);
 
     const intervalId = setInterval(() => {
-      this.passingGroups.update(m => {
-        const current = m.get(key);
-        if (current === undefined) return m;
-        const next = new Map(m);
-        next.set(key, current - 1);
-        return next;
-      });
+      const current = this.passingGroups().get(key);
+      if (current !== undefined) {
+        this.updateMapSignal(this.passingGroups, key, current - 1);
+      }
     }, 1000);
 
     const timeoutId = setTimeout(() => {
       this.clearPassTimer(key);
       // Hide the group after timeout
-      this.hiddenGroups.update(s => {
-        const next = new Set(s);
-        next.add(key);
-        return next;
-      });
+      this.addToSetSignal(this.hiddenGroups, key);
     }, 5000);
 
     this.passTimers.set(key, { timeoutId, intervalId });
@@ -461,12 +459,7 @@ export class BurstCullingComponent implements OnDestroy {
       clearInterval(timers.intervalId);
       this.passTimers.delete(key);
     }
-    this.passingGroups.update(m => {
-      if (!m.has(key)) return m;
-      const next = new Map(m);
-      next.delete(key);
-      return next;
-    });
+    this.deleteMapKey(this.passingGroups, key);
   }
 
   private clearAllPassTimers(): void {
@@ -504,13 +497,9 @@ export class BurstCullingComponent implements OnDestroy {
         }));
       }
 
-      this.confirmedGroups.update(s => {
-        const next = new Set(s);
-        for (const g of remaining) {
-          next.add(this.groupKey(g));
-        }
-        return next;
-      });
+      for (const g of remaining) {
+        this.addToSetSignal(this.confirmedGroups, this.groupKey(g));
+      }
       this.snackBar.open(this.i18n.t('culling.confirmed'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } catch {
       this.snackBar.open(this.i18n.t('culling.error_auto_select'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });

@@ -74,7 +74,12 @@ class CategoryFilter:
         """
         if not self.filters:
             return None
+        return (self._check_numeric(photo_data)
+                or self._check_booleans(photo_data)
+                or self._check_tags(photo_data))
 
+    def _check_numeric(self, photo_data: dict) -> dict | None:
+        """Check all numeric range filters, return first mismatch or None."""
         numeric_fields = {
             "face_ratio": photo_data.get("face_ratio"),
             "face_count": photo_data.get("face_count"),
@@ -104,6 +109,10 @@ class CategoryFilter:
                 if num_actual > max_val:
                     return {"key": f"{field}_max", "required": max_val, "actual": round(num_actual, 3)}
 
+        return None
+
+    def _check_booleans(self, photo_data: dict) -> dict | None:
+        """Check all boolean filters, return first mismatch or None."""
         bool_mappings = {
             "has_face": lambda pd: (pd.get("face_count") or 0) > 0,
             "is_monochrome": lambda pd: bool(pd.get("is_monochrome", 0)),
@@ -118,28 +127,34 @@ class CategoryFilter:
                 if actual != required:
                     return {"key": field, "required": required, "actual": actual}
 
+        return None
+
+    def _check_tags(self, photo_data: dict) -> dict | None:
+        """Check required and excluded tag filters, return first mismatch or None."""
         required_tags = self.filters.get("required_tags", [])
         excluded_tags = self.filters.get("excluded_tags", [])
         match_mode = self.filters.get("tag_match_mode", "any")
 
-        if required_tags or excluded_tags:
-            tags_str = photo_data.get("tags") or ""
-            photo_tags = [t.strip().lower() for t in tags_str.split(",") if t.strip()]
+        if not required_tags and not excluded_tags:
+            return None
 
-            if required_tags:
-                required_lower = [t.lower() for t in required_tags]
-                if match_mode == "any":
-                    if not any(tag in photo_tags for tag in required_lower):
-                        return {"key": "required_tags", "required": required_tags, "actual": []}
-                else:
-                    missing = [t for t in required_lower if t not in photo_tags]
-                    if missing:
-                        return {"key": "required_tags", "required": required_tags, "actual": [t for t in required_lower if t in photo_tags]}
+        tags_str = photo_data.get("tags") or ""
+        photo_tags = [t.strip().lower() for t in tags_str.split(",") if t.strip()]
 
-            if excluded_tags:
-                excluded_lower = [t.lower() for t in excluded_tags]
-                matched_excluded = [t for t in excluded_lower if t in photo_tags]
-                if matched_excluded:
-                    return {"key": "excluded_tags", "required": excluded_tags, "actual": matched_excluded}
+        if required_tags:
+            required_lower = [t.lower() for t in required_tags]
+            if match_mode == "any":
+                if not any(tag in photo_tags for tag in required_lower):
+                    return {"key": "required_tags", "required": required_tags, "actual": []}
+            else:
+                missing = [t for t in required_lower if t not in photo_tags]
+                if missing:
+                    return {"key": "required_tags", "required": required_tags, "actual": [t for t in required_lower if t in photo_tags]}
+
+        if excluded_tags:
+            excluded_lower = [t.lower() for t in excluded_tags]
+            matched_excluded = [t for t in excluded_lower if t in photo_tags]
+            if matched_excluded:
+                return {"key": "excluded_tags", "required": excluded_tags, "actual": matched_excluded}
 
         return None

@@ -17,6 +17,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["persons"])
 
+_SORT_CLAUSES = {
+    "name_asc": "ORDER BY COALESCE(p.name, '') ASC, p.face_count DESC",
+    "name_desc": "ORDER BY COALESCE(p.name, '') DESC, p.face_count DESC",
+    "count_asc": "ORDER BY p.face_count ASC, p.id",
+    "count_desc": "ORDER BY p.face_count DESC, p.id",
+    "quality_asc": "ORDER BY rep_quality ASC, p.id",
+    "quality_desc": "ORDER BY rep_quality DESC, p.id",
+}
+
 
 # --- Pydantic request bodies ---
 
@@ -49,18 +58,7 @@ async def list_persons(
     user: CurrentUser = Depends(require_authenticated),
 ):
     """List all persons with pagination and search."""
-    if sort == "name_asc":
-        order_clause = "ORDER BY COALESCE(p.name, '') ASC, p.face_count DESC"
-    elif sort == "name_desc":
-        order_clause = "ORDER BY COALESCE(p.name, '') DESC, p.face_count DESC"
-    elif sort == "count_asc":
-        order_clause = "ORDER BY p.face_count ASC, p.id"
-    elif sort == "quality_asc":
-        order_clause = "ORDER BY rep_quality ASC, p.id"
-    elif sort == "quality_desc":
-        order_clause = "ORDER BY rep_quality DESC, p.id"
-    else:  # count_desc (default)
-        order_clause = "ORDER BY p.face_count DESC, p.id"
+    order_clause = _SORT_CLAUSES.get(sort, _SORT_CLAUSES["count_desc"])
 
     where_clause = ""
     params: list = []
