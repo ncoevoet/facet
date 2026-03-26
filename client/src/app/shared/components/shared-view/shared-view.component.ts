@@ -14,6 +14,8 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDatepickerModule, MatDatepickerInputEvent } from '@angular/material/datepicker';
+import { toIsoDateString } from '../../utils/date-format';
 import { firstValueFrom } from 'rxjs';
 import { Photo } from '../../models/photo.model';
 import { ApiService } from '../../../core/services/api.service';
@@ -94,7 +96,7 @@ interface SharedFilters {
   imports: [
     MatIconModule, MatButtonModule, MatProgressSpinnerModule, MatMenuModule,
     MatSelectModule, MatFormFieldModule, MatSnackBarModule, MatTooltipModule,
-    MatSliderModule, MatSidenavModule, MatExpansionModule, MatInputModule, MatCheckboxModule,
+    MatSliderModule, MatSidenavModule, MatExpansionModule, MatInputModule, MatCheckboxModule, MatDatepickerModule,
     TranslatePipe, FilterDisplayPipe, SortGroupKeyPipe,
     PhotoCardComponent, SlideshowComponent, InfiniteScrollDirective,
   ],
@@ -258,11 +260,15 @@ interface SharedFilters {
               <div class="flex flex-col gap-2 pb-2">
                 <mat-form-field subscriptSizing="dynamic" class="w-full">
                   <mat-label>{{ 'gallery.date_from' | translate }}</mat-label>
-                  <input matInput type="date" [value]="filters().date_from" (change)="onDateChange('date_from', $event)" />
+                  <input matInput [matDatepicker]="fromDp" [value]="filters().date_from" (dateChange)="onDateChange('date_from', $event)" />
+                  <mat-datepicker-toggle matIconSuffix [for]="fromDp" />
+                  <mat-datepicker #fromDp />
                 </mat-form-field>
                 <mat-form-field subscriptSizing="dynamic" class="w-full">
                   <mat-label>{{ 'gallery.date_to' | translate }}</mat-label>
-                  <input matInput type="date" [value]="filters().date_to" (change)="onDateChange('date_to', $event)" />
+                  <input matInput [matDatepicker]="toDp" [value]="filters().date_to" (dateChange)="onDateChange('date_to', $event)" />
+                  <mat-datepicker-toggle matIconSuffix [for]="toDp" />
+                  <mat-datepicker #toDp />
                 </mat-form-field>
               </div>
             </mat-expansion-panel>
@@ -635,9 +641,8 @@ export class SharedViewComponent implements OnInit {
     this.refreshFiltered();
   }
 
-  protected onDateChange(key: keyof SharedFilters, event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    this.updateFilter(key, value);
+  protected onDateChange(key: keyof SharedFilters, event: MatDatepickerInputEvent<Date>): void {
+    this.updateFilter(key, toIsoDateString(event.value));
   }
 
   private rangeDebounce: ReturnType<typeof setTimeout> | null = null;

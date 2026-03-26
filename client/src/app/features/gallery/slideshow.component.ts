@@ -761,6 +761,10 @@ export class SlideshowComponent implements OnDestroy {
   /** Poll until new slides appear from a loading next page. */
   private waitForMoreSlides(): void {
     this.clearTimerInterval();
+    // Ensure next page is requested (covers edge case where nextSlideIndex() skipped it)
+    if (this.hasMore() && !this.loading()) {
+      this.store.nextPage();
+    }
     this.intervalId = setInterval(() => {
       const slides = this.slides();
       const nextIdx = this.currentSlideIndex() + 1;
@@ -773,6 +777,9 @@ export class SlideshowComponent implements OnDestroy {
         this.clearTimerInterval();
         this.progress.set(0);
         this.preloadAndAdvance(0);
+      } else if (!this.loading()) {
+        // Retry if previous request failed or was not triggered
+        this.store.nextPage();
       }
     }, 200);
   }

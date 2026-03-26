@@ -10,6 +10,8 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatDatepickerModule, MatDatepickerInputEvent } from '@angular/material/datepicker';
+import { toIsoDateString } from '../../shared/utils/date-format';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
@@ -134,6 +136,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
     MatTooltipModule,
     MatAutocompleteModule,
     MatExpansionModule,
+    MatDatepickerModule,
     MatDialogModule,
     TranslatePipe,
     FilterDisplayPipe,
@@ -231,11 +234,15 @@ function saveSectionStates(states: Record<string, boolean>): void {
         <div class="flex flex-col gap-2 pb-2">
           <mat-form-field subscriptSizing="dynamic" class="w-full">
             <mat-label>{{ 'gallery.date_from' | translate }}</mat-label>
-            <input matInput type="date" [value]="store.filters().date_from" (change)="onDateChange('date_from', $event)" />
+            <input matInput [matDatepicker]="fromDp" [value]="store.filters().date_from" (dateChange)="onDateChange('date_from', $event)" />
+            <mat-datepicker-toggle matIconSuffix [for]="fromDp" />
+            <mat-datepicker #fromDp />
           </mat-form-field>
           <mat-form-field subscriptSizing="dynamic" class="w-full">
             <mat-label>{{ 'gallery.date_to' | translate }}</mat-label>
-            <input matInput type="date" [value]="store.filters().date_to" (change)="onDateChange('date_to', $event)" />
+            <input matInput [matDatepicker]="toDp" [value]="store.filters().date_to" (dateChange)="onDateChange('date_to', $event)" />
+            <mat-datepicker-toggle matIconSuffix [for]="toDp" />
+            <mat-datepicker #toDp />
           </mat-form-field>
         </div>
       </mat-expansion-panel>
@@ -643,9 +650,8 @@ export class GalleryFilterSidebarComponent {
     this.store.updateFilter(key as 'min_score', filterValue);
   }
 
-  onDateChange(key: 'date_from' | 'date_to', event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    this.store.updateFilter(key, value);
+  onDateChange(key: 'date_from' | 'date_to', event: MatDatepickerInputEvent<Date>): void {
+    this.store.updateFilter(key, toIsoDateString(event.value));
   }
 
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;

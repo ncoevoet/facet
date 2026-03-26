@@ -17,6 +17,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatDatepickerModule, MatDatepickerInputEvent } from '@angular/material/datepicker';
+import { toIsoDateString } from './shared/utils/date-format';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { ApiService } from './core/services/api.service';
 import { AuthService } from './core/services/auth.service';
@@ -96,6 +98,7 @@ export class EditionDialogComponent {
     MatInputModule,
     MatBadgeModule,
     MatDividerModule,
+    MatDatepickerModule,
     TranslatePipe,
     SortGroupKeyPipe,
     PersonThumbnailUrlPipe,
@@ -366,8 +369,8 @@ export class App implements OnInit {
     this.compareFilters.selectedCategory.set(cat);
   }
 
-  protected onDateFilterChange(service: { dateFrom: WritableSignal<string>; dateTo: WritableSignal<string> }, field: 'from' | 'to', event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
+  protected onDateFilterChange(service: { dateFrom: WritableSignal<string>; dateTo: WritableSignal<string> }, field: 'from' | 'to', event: MatDatepickerInputEvent<Date>): void {
+    const value = toIsoDateString(event.value);
     if (field === 'from') service.dateFrom.set(value);
     else service.dateTo.set(value);
   }
