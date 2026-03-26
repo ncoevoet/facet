@@ -305,6 +305,7 @@
       "equal_quality": "Both photos are equally good (or equally bad)",
       "cant_compare": "Can't decide or photos are too different to compare",
       "suggest_weights": "Suggest optimal weights based on your comparisons",
+      "suggest_weights_disabled": "Need at least {min} comparisons ({count} so far)",
       "apply_config": "Save suggested weights to config file",
       "recalculate": "Recalculate all categories and aggregate scores using current config",
       "reset_weights": "Reset weight sliders to original values",

@@ -305,6 +305,7 @@
       "equal_quality": "Les deux photos sont de qualite egale (ou egalement mauvaises)",
       "cant_compare": "Impossible de decider ou photos trop differentes pour comparer",
       "suggest_weights": "Suggerer des poids optimaux bases sur vos comparaisons",
+      "suggest_weights_disabled": "Il faut au moins {min} comparaisons ({count} pour l'instant)",
       "apply_config": "Sauvegarder les poids suggeres dans le fichier de configuration",
       "recalculate": "Recalculer toutes les categories et scores agreges avec la configuration actuelle",
       "reset_weights": "Reinitialiser les curseurs de poids aux valeurs d'origine",

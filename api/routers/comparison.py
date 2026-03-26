@@ -486,6 +486,8 @@ async def api_comparison_stats(
     from comparison import ComparisonManager
     manager = ComparisonManager(DEFAULT_DB_PATH)
     stats = manager.get_statistics()
+    settings = get_comparison_mode_settings()
+    stats['min_comparisons_for_optimization'] = settings.get('min_comparisons_for_optimization', 30)
     return stats
 
 

@@ -32,6 +32,7 @@ interface ComparisonStats {
   category_breakdown: { category: string; count: number }[];
   unique_photos_compared: number;
   photos_with_learned_scores: number;
+  min_comparisons_for_optimization?: number;
 }
 
 interface LearnedWeightsResponse {
@@ -155,7 +156,7 @@ interface LearnedWeightsResponse {
                   <mat-icon>drag_handle</mat-icon>
                   {{ 'comparison.tie' | translate }}
                 </button>
-                <button mat-stroked-button [disabled]="pairSubmitting()" (click)="loadNextPair()">
+                <button mat-stroked-button [disabled]="pairSubmitting()" (click)="skipPair()">
                   <mat-icon>skip_next</mat-icon>
                   {{ 'comparison.skip' | translate }}
                 </button>
@@ -204,10 +205,12 @@ interface LearnedWeightsResponse {
               <mat-card-title class="!text-sm">{{ 'compare.actions.suggest_weights' | translate }}</mat-card-title>
             </mat-card-header>
             <mat-card-content class="!pt-2">
-              <button mat-stroked-button class="w-full mb-3" [disabled]="learnedWeightsLoading()"
-                (click)="loadLearnedWeights()">
+              <button mat-stroked-button class="w-full mb-3" [disabled]="suggestDisabled()"
+                (click)="loadLearnedWeights()" [matTooltip]="suggestTooltip()">
                 @if (learnedWeightsLoading()) {
                   <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
+                } @else {
+                  <mat-icon>auto_fix_high</mat-icon>
                 }
                 {{ 'compare.actions.suggest_weights' | translate }}
               </button>
@@ -306,6 +309,23 @@ export class ComparisonAbTabComponent {
     Object.keys(this.learnedWeights()?.current_weights ?? {}).filter(k => k.endsWith('_percent')),
   );
 
+  protected readonly suggestDisabled = computed(() => {
+    if (this.learnedWeightsLoading()) return true;
+    const stats = this.comparisonStats();
+    if (!stats) return true;
+    return stats.total_comparisons < (stats.min_comparisons_for_optimization ?? 30);
+  });
+
+  protected readonly suggestTooltip = computed(() => {
+    const stats = this.comparisonStats();
+    if (!stats) return '';
+    const min = stats.min_comparisons_for_optimization ?? 30;
+    if (stats.total_comparisons < min) {
+      return this.i18n.t('compare.tooltips.suggest_weights_disabled', { count: stats.total_comparisons, min });
+    }
+    return this.i18n.t('compare.tooltips.suggest_weights');
+  });
+
   protected onStrategyChange(value: string): void {
     this.strategy.set(value);
     if (this.pairA()) void this.loadNextPair();
@@ -364,6 +384,26 @@ export class ComparisonAbTabComponent {
     }
   }
 
+  protected async skipPair(): Promise<void> {
+    const a = this.pairA();
+    const b = this.pairB();
+    const cat = this.compareFilters.selectedCategory();
+    if (!a || !b || !cat) return;
+
+    this.pairSubmitting.set(true);
+    try {
+      await firstValueFrom(
+        this.api.post('/comparison/submit', { photo_a: a, photo_b: b, winner: 'skip', category: cat }),
+      );
+      void this.loadComparisonStats();
+      await this.loadNextPair();
+    } catch {
+      this.pairError.set(this.i18n.t('comparison.error_submitting'));
+    } finally {
+      this.pairSubmitting.set(false);
+    }
+  }
+
   private async loadComparisonStats(): Promise<void> {
     try {
       const data = await firstValueFrom(this.api.get<ComparisonStats>('/comparison/stats'));
@@ -403,7 +443,7 @@ export class ComparisonAbTabComponent {
       case 'ArrowLeft': void this.submitComparison('a'); event.preventDefault(); break;
       case 'ArrowRight': void this.submitComparison('b'); event.preventDefault(); break;
       case 't': case 'T': void this.submitComparison('tie'); event.preventDefault(); break;
-      case 's': case 'S': void this.loadNextPair(); event.preventDefault(); break;
+      case 's': case 'S': void this.skipPair(); event.preventDefault(); break;
     }
   }
 }

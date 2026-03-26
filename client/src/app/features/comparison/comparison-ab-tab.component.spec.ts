@@ -159,8 +159,8 @@ describe('ComparisonAbTabComponent', () => {
       expect(spy).toHaveBeenCalledWith('tie');
     });
 
-    it('should call loadNextPair on "s"', () => {
-      const spy = jest.spyOn(component, 'loadNextPair');
+    it('should call skipPair on "s"', () => {
+      const spy = jest.spyOn(component, 'skipPair');
       const event = new KeyboardEvent('keydown', { key: 's' });
       component.onKeydown(event);
       expect(spy).toHaveBeenCalled();
@@ -232,6 +232,92 @@ describe('ComparisonAbTabComponent', () => {
       component.applyWeights();
 
       expect(emitSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('skipPair', () => {
+    beforeEach(() => {
+      component.pairA.set('/photo1.jpg');
+      component.pairB.set('/photo2.jpg');
+      mockApi.post.mockReturnValue(of({}));
+      mockApi.get.mockReturnValue(of({ a: '/photo3.jpg', b: '/photo4.jpg', score_a: 6, score_b: 9 }));
+    });
+
+    it('should post winner=skip and load next pair', async () => {
+      await component.skipPair();
+
+      expect(mockApi.post).toHaveBeenCalledWith('/comparison/submit', {
+        photo_a: '/photo1.jpg',
+        photo_b: '/photo2.jpg',
+        winner: 'skip',
+        category: 'portrait',
+      });
+      expect(component.pairA()).toBe('/photo3.jpg');
+    });
+
+    it('should not increment comparisonCount', async () => {
+      expect(component.comparisonCount()).toBe(0);
+
+      await component.skipPair();
+
+      expect(component.comparisonCount()).toBe(0);
+    });
+
+    it('should set error on failure', async () => {
+      mockApi.post.mockReturnValue(throwError(() => new Error('fail')));
+
+      await component.skipPair();
+
+      expect(component.pairError()).toBe('comparison.error_submitting');
+    });
+
+    it('should do nothing without category', async () => {
+      compareFilters.selectedCategory.set('');
+
+      await component.skipPair();
+
+      expect(mockApi.post).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('suggestDisabled', () => {
+    it('should be true when stats are null', () => {
+      component.comparisonStats.set(null);
+      expect(component.suggestDisabled()).toBe(true);
+    });
+
+    it('should be true when total_comparisons is below threshold', () => {
+      component.comparisonStats.set({ total_comparisons: 10, min_comparisons_for_optimization: 30, winner_breakdown: {} });
+      expect(component.suggestDisabled()).toBe(true);
+    });
+
+    it('should be false when total_comparisons meets threshold', () => {
+      component.comparisonStats.set({ total_comparisons: 30, min_comparisons_for_optimization: 30, winner_breakdown: {} });
+      expect(component.suggestDisabled()).toBe(false);
+    });
+
+    it('should be true when loading', () => {
+      component.comparisonStats.set({ total_comparisons: 100, min_comparisons_for_optimization: 30, winner_breakdown: {} });
+      component.learnedWeightsLoading.set(true);
+      expect(component.suggestDisabled()).toBe(true);
+    });
+  });
+
+  describe('suggestTooltip', () => {
+    it('should return empty string when stats are null', () => {
+      component.comparisonStats.set(null);
+      expect(component.suggestTooltip()).toBe('');
+    });
+
+    it('should return disabled tooltip when below threshold', () => {
+      component.comparisonStats.set({ total_comparisons: 5, min_comparisons_for_optimization: 30, winner_breakdown: {} });
+      component.suggestTooltip();
+      expect(mockI18n.t).toHaveBeenCalledWith('compare.tooltips.suggest_weights_disabled', { count: 5, min: 30 });
+    });
+
+    it('should return normal tooltip when threshold met', () => {
+      component.comparisonStats.set({ total_comparisons: 50, min_comparisons_for_optimization: 30, winner_breakdown: {} });
+      expect(component.suggestTooltip()).toBe('compare.tooltips.suggest_weights');
     });
   });
 

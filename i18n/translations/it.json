@@ -305,6 +305,7 @@
       "equal_quality": "Entrambe le foto sono ugualmente buone (o ugualmente scadenti)",
       "cant_compare": "Non riesci a decidere o le foto sono troppo diverse per essere confrontate",
       "suggest_weights": "Suggerisci pesi ottimali basati sui tuoi confronti",
+      "suggest_weights_disabled": "Servono almeno {min} confronti ({count} finora)",
       "apply_config": "Salva i pesi suggeriti nel file di configurazione",
       "recalculate": "Ricalcola tutte le categorie e i punteggi aggregati usando la configurazione corrente",
       "reset_weights": "Ripristina i cursori dei pesi ai valori originali",

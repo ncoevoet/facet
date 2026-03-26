@@ -305,6 +305,7 @@
       "equal_quality": "Beide Fotos sind gleich gut (oder gleich schlecht)",
       "cant_compare": "Kann mich nicht entscheiden oder Fotos sind zu unterschiedlich zum Vergleichen",
       "suggest_weights": "Optimale Gewichte basierend auf Ihren Vergleichen vorschlagen",
+      "suggest_weights_disabled": "Mindestens {min} Vergleiche erforderlich ({count} bisher)",
       "apply_config": "Vorgeschlagene Gewichte in Konfigurationsdatei speichern",
       "recalculate": "Alle Kategorien und Gesamtwertungen mit aktueller Konfiguration neu berechnen",
       "reset_weights": "Gewichtungsregler auf Originalwerte zurücksetzen",
