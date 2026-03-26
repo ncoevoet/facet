@@ -165,7 +165,7 @@ interface AppConfig {
         <!-- Selection checkmark -->
         @if (isSelected()) {
           <div class="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[var(--mat-sys-primary)] flex items-center justify-center z-20">
-            <mat-icon class="!text-base !w-4 !h-4 text-white">check</mat-icon>
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">check</mat-icon>
           </div>
         }
       </div>

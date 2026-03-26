@@ -370,11 +370,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
       else drawer.close();
     });
 
-    // Re-check sentinel whenever photos, card width, or gallery mode change
+    // Re-check sentinel whenever photos, card width, gallery mode, or hide_details change
     effect(() => {
       this.store.photos(); // track dependency
       this.store.cardWidth(); // track dependency
       this.store.galleryMode(); // track dependency
+      this.effectiveHideDetails(); // track dependency — toggling details changes card height
       this.scrollDirective()?.recheck();
       // Clear tooltip when photos change (prevents stale tooltips after filter changes)
       untracked(() => this.tooltipPhoto.set(null));
@@ -406,7 +407,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
     await Promise.all([this.store.loadFilterOptions(), this.store.loadTypeCounts()]);
     await this.store.loadPhotos();
     this.store.initializing.set(false);
-    this.scrollDirective()?.recheck();
+    // IntersectionObserver fires too early before DOM paint — defer recheck
+    requestAnimationFrame(() => setTimeout(() => this.scrollDirective()?.recheck()));
     if (this.store.config()?.features?.show_albums) {
       firstValueFrom(this.albumService.list()).then(res =>
         this.albumOptions.set(res.albums.filter(a => !a.is_smart)),

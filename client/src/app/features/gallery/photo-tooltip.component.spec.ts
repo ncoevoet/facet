@@ -266,6 +266,49 @@ describe('PhotoTooltipComponent', () => {
       expect(fixture.nativeElement.textContent).toContain('8.0');
     });
   });
+
+  describe('Person avatars', () => {
+    it('renders person avatar images when persons are present', () => {
+      fixture.componentInstance.photo.set(makePhoto({
+        persons: [
+          { id: 1, name: 'Alice' },
+          { id: 2, name: 'Bob' },
+        ],
+      }));
+      fixture.detectChanges();
+      const avatars = fixture.nativeElement.querySelectorAll('img[class*="rounded-full"]');
+      expect(avatars.length).toBe(2);
+      expect(avatars[0].src).toContain('/person_thumbnail/1');
+      expect(avatars[0].alt).toBe('Alice');
+      expect(avatars[1].src).toContain('/person_thumbnail/2');
+      expect(avatars[1].alt).toBe('Bob');
+    });
+
+    it('does not render person section when persons array is empty', () => {
+      fixture.componentInstance.photo.set(makePhoto({ persons: [] }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).not.toContain('tooltip.persons');
+    });
+
+    it('renders persons label', () => {
+      fixture.componentInstance.photo.set(makePhoto({
+        persons: [{ id: 1, name: 'Alice' }],
+      }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.persons');
+    });
+
+    it('handles person with empty name', () => {
+      fixture.componentInstance.photo.set(makePhoto({
+        persons: [{ id: 3, name: '' }],
+      }));
+      fixture.detectChanges();
+      const avatars = fixture.nativeElement.querySelectorAll('img[class*="rounded-full"]');
+      expect(avatars.length).toBe(1);
+      expect(avatars[0].src).toContain('/person_thumbnail/3');
+      expect(avatars[0].alt).toBe('');
+    });
+  });
 });
 
 describe('CategoryLabelPipe', () => {

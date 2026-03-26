@@ -4,7 +4,7 @@ import { Photo } from '../../shared/models/photo.model';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../shared/pipes/shutter-speed.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
 
 /** Replace underscores with spaces for display (e.g. "rule_of_thirds" → "Rule Of Thirds"). */
@@ -19,7 +19,7 @@ export class CategoryLabelPipe implements PipeTransform {
 
 @Component({
   selector: 'app-photo-tooltip',
-  imports: [FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, CategoryLabelPipe, IsLensNamePipe],
+  imports: [FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe, CategoryLabelPipe, IsLensNamePipe],
   template: `
     @if (photo(); as p) {
       <div
@@ -234,6 +234,23 @@ export class CategoryLabelPipe implements PipeTransform {
             @for (tag of p.tags_list; track tag) {
               <span class="px-1.5 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded text-[10px]">{{ tag }}</span>
             }
+          </div>
+        }
+
+        <!-- Zone D: Person avatars -->
+        @if (p.persons.length) {
+          <div class="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-[var(--facet-tooltip-divider)]">
+            <span class="text-[10px] text-[var(--facet-tooltip-text-muted)] uppercase tracking-wider shrink-0">{{ 'tooltip.persons' | translate }}</span>
+            <div class="flex gap-1 flex-wrap">
+              @for (person of p.persons; track person.id) {
+                <img
+                  [src]="person.id | personThumbnailUrl"
+                  [alt]="person.name"
+                  [title]="person.name"
+                  class="w-6 h-6 rounded-full object-cover ring-1 ring-[var(--facet-tooltip-divider)]"
+                />
+              }
+            </div>
           </div>
         }
 
