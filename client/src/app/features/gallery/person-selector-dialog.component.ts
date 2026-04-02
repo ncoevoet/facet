@@ -27,6 +27,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
     <h2 mat-dialog-title class="truncate" [matTooltip]="'manage_persons.assign_face' | translate">{{ 'manage_persons.assign_face' | translate }}</h2>
     <mat-dialog-content class="!flex !flex-col gap-3 min-w-[320px]">
       <mat-form-field subscriptSizing="dynamic" class="w-full">
+        <mat-label>{{ 'manage_persons.search_persons' | translate }}</mat-label>
         <mat-icon matPrefix>search</mat-icon>
         <input matInput
                [placeholder]="'manage_persons.search_persons' | translate"

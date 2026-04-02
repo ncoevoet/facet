@@ -107,7 +107,7 @@ interface CullingGroupsResponse {
         <div class="flex items-center gap-2 ml-auto">
           <span class="text-xs opacity-60">{{ 'culling.threshold' | translate }}</span>
           <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
-            <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" />
+            <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="'culling.threshold' | translate" />
           </mat-slider>
           <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
           <button mat-icon-button (click)="showHelp.set(!showHelp())" class="!w-8 !h-8 !p-0"

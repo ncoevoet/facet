@@ -168,7 +168,7 @@ interface Slide {
             <mat-icon class="!text-white">{{ isPlaying() ? 'pause' : 'play_arrow' }}</mat-icon>
           </button>
           <mat-slider min="1" max="15" step="1" class="flex-1" [matTooltip]="'slideshow.duration_label' | translate">
-            <input matSliderThumb [value]="duration()" (valueChange)="onDurationChange($event)" />
+            <input matSliderThumb [value]="duration()" (valueChange)="onDurationChange($event)" [attr.aria-label]="'slideshow.duration_label' | translate" />
           </mat-slider>
           <span class="text-white text-xs opacity-70 shrink-0 w-8 text-right">{{ duration() }}s</span>
           @if (currentSlide(); as slide) {

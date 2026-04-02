@@ -132,7 +132,7 @@ class SignalErrorMatcher {
                     {{ key | weightLabelKey | translate }}
                   </span>
                   <mat-slider class="grow" [min]="0" [max]="100" [step]="1" [discrete]="true" [showTickMarks]="false">
-                    <input matSliderThumb [value]="weights()[key]" (valueChange)="setWeight(key, $event)" />
+                    <input matSliderThumb [value]="weights()[key]" (valueChange)="setWeight(key, $event)" [attr.aria-label]="key | weightLabelKey | translate" />
                   </mat-slider>
                   <span class="w-12 text-right text-sm font-mono tabular-nums">{{ weights()[key] }}%</span>
                 </div>
@@ -207,7 +207,7 @@ class SignalErrorMatcher {
                 <mat-icon class="text-gray-400 shrink-0">add_circle</mat-icon>
                 <span class="w-40 shrink-0 text-sm">{{ 'comparison.modifier.bonus' | translate }}</span>
                 <mat-slider class="grow" [min]="-5" [max]="5" [step]="0.1" [discrete]="true" [displayWith]="displayBonus">
-                  <input matSliderThumb [value]="getModifierNum('bonus') ?? 0" (valueChange)="setModifierNum('bonus', $event)" />
+                  <input matSliderThumb [value]="getModifierNum('bonus') ?? 0" (valueChange)="setModifierNum('bonus', $event)" [attr.aria-label]="'comparison.modifier.bonus' | translate" />
                 </mat-slider>
                 <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('bonus') | modifierValueFormat:'bonus' }}</span>
               </div>
@@ -218,7 +218,7 @@ class SignalErrorMatcher {
                 <mat-icon class="text-gray-400 shrink-0">grain</mat-icon>
                 <span class="w-40 shrink-0 text-sm">{{ 'comparison.modifier.noise_tolerance' | translate }}</span>
                 <mat-slider class="grow" [min]="0" [max]="200" [step]="5" [discrete]="true" [displayWith]="displayPercent">
-                  <input matSliderThumb [value]="(getModifierNum('noise_tolerance_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('noise_tolerance_multiplier', $event / 100)" />
+                  <input matSliderThumb [value]="(getModifierNum('noise_tolerance_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('noise_tolerance_multiplier', $event / 100)" [attr.aria-label]="'comparison.modifier.noise_tolerance' | translate" />
                 </mat-slider>
                 <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('noise_tolerance_multiplier') | modifierValueFormat:'noise_tolerance_multiplier' }}</span>
               </div>
@@ -229,7 +229,7 @@ class SignalErrorMatcher {
                 <mat-icon class="text-gray-400 shrink-0">highlight</mat-icon>
                 <span class="w-40 shrink-0 text-sm">{{ 'comparison.modifier.clipping_multiplier' | translate }}</span>
                 <mat-slider class="grow" [min]="0" [max]="500" [step]="10" [discrete]="true" [displayWith]="displayPercent">
-                  <input matSliderThumb [value]="(getModifierNum('_clipping_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('_clipping_multiplier', $event / 100)" />
+                  <input matSliderThumb [value]="(getModifierNum('_clipping_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('_clipping_multiplier', $event / 100)" [attr.aria-label]="'comparison.modifier.clipping_multiplier' | translate" />
                 </mat-slider>
                 <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('_clipping_multiplier') | modifierValueFormat:'_clipping_multiplier' }}</span>
               </div>

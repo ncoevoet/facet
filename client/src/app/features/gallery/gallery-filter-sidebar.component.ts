@@ -187,6 +187,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
       <!-- Search (visible below 2xl, hidden on 2xl+ where header search is shown) -->
       <div class="!hidden lg:!block 2xl:!hidden mt-4 mb-1">
         <mat-form-field subscriptSizing="dynamic" class="w-full">
+          <mat-label>{{ 'ui.filters.search' | translate }}</mat-label>
           <mat-icon matPrefix class="mr-1 opacity-60">search</mat-icon>
           <input matInput
             [placeholder]="'gallery.search_placeholder' | translate"
@@ -451,7 +452,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
             <div class="hidden md:flex items-center gap-2 mt-2">
               <label class="text-sm opacity-70 shrink-0">{{ 'gallery.thumbnail_size' | translate }}</label>
               <mat-slider [min]="sc.min_px" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
-                <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" />
+                <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="'gallery.thumbnail_size' | translate" />
               </mat-slider>
               <span class="text-xs opacity-60 w-10 text-right">{{ store.cardWidth() }}px</span>
             </div>
@@ -547,10 +548,12 @@ function saveSectionStates(states: Record<string, boolean>): void {
                   <mat-slider [min]="def.sliderMin" [max]="def.sliderMax" [step]="def.step" class="flex-1">
                     <input matSliderStartThumb
                       [value]="$any(store.filters())[def.minKey] ? +$any(store.filters())[def.minKey] : def.sliderMin"
-                      (valueChange)="onDynamicRangeChange(def, 'min', $event)" />
+                      (valueChange)="onDynamicRangeChange(def, 'min', $event)"
+                      [attr.aria-label]="(def.labelKey | translate) + ' min'" />
                     <input matSliderEndThumb
                       [value]="$any(store.filters())[def.maxKey] ? +$any(store.filters())[def.maxKey] : def.sliderMax"
-                      (valueChange)="onDynamicRangeChange(def, 'max', $event)" />
+                      (valueChange)="onDynamicRangeChange(def, 'max', $event)"
+                      [attr.aria-label]="(def.labelKey | translate) + ' max'" />
                   </mat-slider>
                   <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">{{ store.filters() | filterDisplay:def }}</span>
                 </div>

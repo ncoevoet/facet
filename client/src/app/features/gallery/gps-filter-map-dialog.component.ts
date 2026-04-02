@@ -28,7 +28,7 @@ export interface GpsFilterData {
       <div class="flex items-center gap-3 px-4 py-3">
         <span class="text-sm opacity-70 shrink-0">{{ 'gallery.gps_radius' | translate }}:</span>
         <mat-slider class="flex-1" [min]="1" [max]="100" [step]="1">
-          <input matSliderThumb [value]="radiusKm()" (valueChange)="onRadiusChange($event)" />
+          <input matSliderThumb [value]="radiusKm()" (valueChange)="onRadiusChange($event)" [attr.aria-label]="'gallery.gps_radius' | translate" />
         </mat-slider>
         <span class="text-sm font-medium w-12 text-right">{{ radiusKm() }} km</span>
       </div>
