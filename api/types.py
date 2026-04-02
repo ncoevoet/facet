@@ -3,11 +3,15 @@ Sort/type/filter definitions for the API server.
 
 """
 
+import logging
 import time
+
 from config import ScoringConfig
 from api.config import VIEWER_CONFIG, _photo_types_cache, _photo_types_lock
 from api.top_picks import get_top_picks_score_sql
 from api.db_helpers import build_hide_clauses
+
+logger = logging.getLogger(__name__)
 
 
 # --- SORT OPTIONS (loaded from config) ---
@@ -193,6 +197,7 @@ def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False,
         union_query = " UNION ALL ".join(query_parts)
         results = conn.execute(union_query, all_params).fetchall()
     except Exception:
+        logger.exception("Failed to compute photo type counts")
         return []
     finally:
         conn.close()

@@ -50,7 +50,7 @@ class DeleteBatchRequest(BaseModel):
 # --- Endpoints ---
 
 @router.get("/api/persons")
-async def list_persons(
+def list_persons(
     page: int = Query(1, ge=1),
     per_page: int = Query(48, ge=1, le=200),
     search: str = Query(""),
@@ -101,7 +101,7 @@ async def list_persons(
 
 
 @router.post("/api/persons/{person_id}/rename")
-async def rename_person(
+def rename_person(
     person_id: int,
     body: RenamePersonRequest,
     user: CurrentUser = Depends(require_edition),
@@ -118,25 +118,25 @@ async def rename_person(
 
 
 @router.post("/api/persons/merge")
-async def merge_persons_json(
+def merge_persons_json(
     body: MergeRequest,
     user: CurrentUser = Depends(require_edition),
 ):
     """Merge source person into target person (JSON body)."""
-    return await _do_merge(body.source_id, body.target_id)
+    return _do_merge(body.source_id, body.target_id)
 
 
 @router.post("/api/persons/merge/{source_id}/{target_id}")
-async def merge_persons(
+def merge_persons(
     source_id: int,
     target_id: int,
     user: CurrentUser = Depends(require_edition),
 ):
     """Merge source person into target person (path params)."""
-    return await _do_merge(source_id, target_id)
+    return _do_merge(source_id, target_id)
 
 
-async def _do_merge(source_id: int, target_id: int):
+def _do_merge(source_id: int, target_id: int):
     """Shared merge logic."""
     if source_id == target_id:
         raise HTTPException(status_code=400, detail="Cannot merge a person into itself")
@@ -171,7 +171,7 @@ async def _do_merge(source_id: int, target_id: int):
 
 
 @router.post("/api/persons/merge_batch")
-async def merge_persons_batch(
+def merge_persons_batch(
     body: MergeBatchRequest,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -226,7 +226,7 @@ async def merge_persons_batch(
 
 
 @router.post("/api/persons/{person_id}/delete")
-async def delete_person(
+def delete_person(
     person_id: int,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -251,7 +251,7 @@ async def delete_person(
 
 
 @router.post("/api/persons/delete_batch")
-async def delete_persons_batch(
+def delete_persons_batch(
     body: DeleteBatchRequest,
     user: CurrentUser = Depends(require_edition),
 ):

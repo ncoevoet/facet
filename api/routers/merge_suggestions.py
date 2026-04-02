@@ -13,7 +13,7 @@ router = APIRouter(tags=["merge_suggestions"])
 
 
 @router.get("/api/merge_suggestions")
-async def get_merge_suggestions(
+def get_merge_suggestions(
     threshold: float = Query(0.6, ge=0.0, le=1.0),
     user: CurrentUser = Depends(require_authenticated),
 ):

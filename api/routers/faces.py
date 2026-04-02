@@ -8,7 +8,6 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional
 
 from api.auth import CurrentUser, require_edition, require_auth
 from api.config import is_multi_user_enabled, _stats_cache
@@ -40,7 +39,7 @@ class UnassignPersonRequest(BaseModel):
 
 class SetRatingRequest(BaseModel):
     photo_path: str
-    rating: int
+    rating: int = Field(ge=0, le=5)
 
 
 class TogglePhotoRequest(BaseModel):
@@ -57,7 +56,7 @@ class BatchRatingRequest(BaseModel):
 
 
 @router.get("/api/person/{person_id}/faces")
-async def api_person_faces(
+def api_person_faces(
     person_id: int,
     user: CurrentUser = Depends(require_auth),
 ):
@@ -78,7 +77,7 @@ async def api_person_faces(
 
 
 @router.post("/api/person/{person_id}/avatar")
-async def api_set_person_avatar(
+def api_set_person_avatar(
     person_id: int,
     body: AvatarRequest,
     user: CurrentUser = Depends(require_edition),
@@ -112,7 +111,7 @@ async def api_set_person_avatar(
 
 
 @router.get("/api/photo/faces")
-async def api_photo_faces(
+def api_photo_faces(
     path: str,
     user: CurrentUser = Depends(require_auth),
 ):
@@ -133,7 +132,7 @@ async def api_photo_faces(
 
 
 @router.post("/api/face/{face_id}/assign")
-async def api_assign_face(
+def api_assign_face(
     face_id: int,
     body: AssignFaceRequest,
     user: CurrentUser = Depends(require_edition),
@@ -166,7 +165,7 @@ async def api_assign_face(
 
 
 @router.post("/api/photo/assign_all_faces")
-async def api_assign_all_faces(
+def api_assign_all_faces(
     body: AssignAllFacesRequest,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -202,7 +201,7 @@ async def api_assign_all_faces(
 
 
 @router.post("/api/photo/unassign_person")
-async def api_unassign_person(
+def api_unassign_person(
     body: UnassignPersonRequest,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -253,14 +252,11 @@ async def api_unassign_person(
 
 
 @router.post("/api/photo/set_rating")
-async def api_set_rating(
+def api_set_rating(
     body: SetRatingRequest,
     user: CurrentUser = Depends(require_auth),
 ):
     """Set star rating (0-5) for a photo."""
-    if body.rating < 0 or body.rating > 5:
-        raise HTTPException(status_code=400, detail="rating must be integer 0-5")
-
     conn = get_db_connection()
     try:
         if user.user_id and is_multi_user_enabled():
@@ -283,7 +279,7 @@ async def api_set_rating(
 
 
 @router.post("/api/photo/toggle_favorite")
-async def api_toggle_favorite(
+def api_toggle_favorite(
     body: TogglePhotoRequest,
     user: CurrentUser = Depends(require_auth),
 ):
@@ -332,7 +328,7 @@ async def api_toggle_favorite(
 
 
 @router.post("/api/photo/toggle_rejected")
-async def api_toggle_rejected(
+def api_toggle_rejected(
     body: TogglePhotoRequest,
     user: CurrentUser = Depends(require_auth),
 ):
@@ -412,7 +408,7 @@ def _batch_update(
 
 
 @router.post("/api/photos/batch_favorite")
-async def api_batch_favorite(
+def api_batch_favorite(
     body: BatchPhotoRequest,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -432,7 +428,7 @@ async def api_batch_favorite(
 
 
 @router.post("/api/photos/batch_reject")
-async def api_batch_reject(
+def api_batch_reject(
     body: BatchPhotoRequest,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -452,7 +448,7 @@ async def api_batch_reject(
 
 
 @router.post("/api/photos/batch_rating")
-async def api_batch_rating(
+def api_batch_rating(
     body: BatchRatingRequest,
     user: CurrentUser = Depends(require_edition),
 ):

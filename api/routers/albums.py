@@ -269,7 +269,7 @@ def _get_first_photo_path(conn, album_row, user_id=None):
 # --- Endpoints ---
 
 @router.get("/api/albums")
-async def list_albums(
+def list_albums(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     page: int = Query(1, ge=1),
     per_page: int = Query(48, ge=1, le=200),
@@ -345,7 +345,7 @@ async def list_albums(
 
 
 @router.post("/api/albums")
-async def create_album(
+def create_album(
     body: CreateAlbumRequest,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -369,7 +369,7 @@ async def create_album(
 
 
 @router.get("/api/albums/{album_id}")
-async def get_album(
+def get_album(
     album_id: int,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -389,7 +389,7 @@ async def get_album(
 
 
 @router.put("/api/albums/{album_id}")
-async def update_album(
+def update_album(
     album_id: int,
     body: UpdateAlbumRequest,
     user: CurrentUser = Depends(require_edition),
@@ -436,7 +436,7 @@ async def update_album(
 
 
 @router.delete("/api/albums/{album_id}")
-async def delete_album(
+def delete_album(
     album_id: int,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -454,7 +454,7 @@ async def delete_album(
 
 
 @router.post("/api/albums/{album_id}/photos")
-async def add_photos_to_album(
+def add_photos_to_album(
     album_id: int,
     body: AlbumPhotosRequest,
     user: CurrentUser = Depends(require_edition),
@@ -507,7 +507,7 @@ async def add_photos_to_album(
 
 
 @router.delete("/api/albums/{album_id}/photos")
-async def remove_photos_from_album(
+def remove_photos_from_album(
     album_id: int,
     body: AlbumPhotosRequest,
     user: CurrentUser = Depends(require_edition),
@@ -538,7 +538,7 @@ async def remove_photos_from_album(
 
 
 @router.get("/api/albums/{album_id}/photos")
-async def get_album_photos(
+def get_album_photos(
     request: Request,
     album_id: int,
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -569,7 +569,7 @@ async def get_album_photos(
 # --- Sharing endpoints ---
 
 @router.post("/api/albums/{album_id}/share")
-async def share_album(
+def share_album(
     album_id: int,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -595,7 +595,7 @@ async def share_album(
 
 
 @router.delete("/api/albums/{album_id}/share")
-async def unshare_album(
+def unshare_album(
     album_id: int,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -612,7 +612,7 @@ async def unshare_album(
 
 
 @router.get("/api/shared/album/{album_id}")
-async def get_shared_album(
+def get_shared_album(
     request: Request,
     album_id: int,
     token: str = Query(...),

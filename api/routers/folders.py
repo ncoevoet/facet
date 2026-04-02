@@ -4,7 +4,6 @@ Folders router — filesystem directory browsing with cover photos.
 """
 
 import logging
-import sqlite3
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
@@ -23,7 +22,7 @@ def _normalize_path(path: str) -> str:
 
 
 @router.get("/api/folders")
-async def api_folders(
+def api_folders(
     prefix: str = Query('', description="Parent directory path, empty = root level"),
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
@@ -118,7 +117,7 @@ async def api_folders(
                 'cover_photo_path': entry['best_path'],
             })
 
-    except sqlite3.Error:
+    except Exception:
         logger.exception("Failed to fetch folders")
         return {'folders': [], 'has_direct_photos': False}
     finally:

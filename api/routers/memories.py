@@ -31,7 +31,7 @@ def _get_top_per_year():
 
 
 @router.get("/api/memories/check")
-async def check_memories(
+def check_memories(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_str: Optional[str] = Query(None, alias="date"),
 ):
@@ -78,7 +78,7 @@ async def check_memories(
 
 
 @router.get("/api/memories")
-async def get_memories(
+def get_memories(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_str: Optional[str] = Query(None, alias="date"),
 ):

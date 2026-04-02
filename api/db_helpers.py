@@ -110,9 +110,11 @@ def get_existing_columns(conn=None):
 
     if conn is None:
         conn = get_db_connection()
-        cursor = conn.execute('PRAGMA table_info(photos)')
-        result = {row[1] for row in cursor.fetchall()}
-        conn.close()
+        try:
+            cursor = conn.execute('PRAGMA table_info(photos)')
+            result = {row[1] for row in cursor.fetchall()}
+        finally:
+            conn.close()
     else:
         cursor = conn.execute('PRAGMA table_info(photos)')
         result = {row[1] for row in cursor.fetchall()}
@@ -138,6 +140,7 @@ def is_photo_tags_available(conn=None):
         row = conn.execute("SELECT COUNT(*) FROM photo_tags").fetchone()
         result = row[0] > 0 if row else False
     except Exception:
+        logger.debug("photo_tags table not available", exc_info=True)
         result = False
 
     if close_conn:
@@ -339,6 +342,7 @@ def attach_person_data(photos, conn):
             photo['persons'] = path_to_persons.get(photo['path'], [])
             photo['unassigned_faces'] = path_to_unassigned.get(photo['path'], 0)
     except Exception:
+        logger.exception("Failed to attach person data")
         for photo in photos:
             photo['persons'] = []
             photo['unassigned_faces'] = 0

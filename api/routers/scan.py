@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import deque
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -27,7 +28,7 @@ _scan_lock = threading.Lock()
 _scan_state = {
     'running': False,
     'process': None,
-    'output_lines': [],
+    'output_lines': deque(maxlen=500),
     'started_at': None,
     'directories': [],
     'exit_code': None,
@@ -38,8 +39,6 @@ def _read_scan_output(proc):
     """Background thread to read subprocess output."""
     for line in proc.stdout:
         _scan_state['output_lines'].append(line.rstrip('\n'))
-        if len(_scan_state['output_lines']) > 500:
-            _scan_state['output_lines'] = _scan_state['output_lines'][-500:]
     proc.wait()
     _scan_state['exit_code'] = proc.returncode
     _scan_state['running'] = False
@@ -50,7 +49,7 @@ class ScanStartRequest(BaseModel):
 
 
 @router.post("/start")
-async def start_scan(
+def start_scan(
     body: ScanStartRequest,
     user: CurrentUser = Depends(require_superadmin),
 ):
@@ -92,7 +91,7 @@ async def start_scan(
 
         _scan_state['running'] = True
         _scan_state['process'] = proc
-        _scan_state['output_lines'] = []
+        _scan_state['output_lines'] = deque(maxlen=500)
         _scan_state['started_at'] = time.time()
         _scan_state['directories'] = directories
         _scan_state['exit_code'] = None
@@ -118,7 +117,7 @@ async def start_scan(
 
 
 @router.get("/status")
-async def scan_status(
+def scan_status(
     lines: int = Query(20),
     user: CurrentUser = Depends(require_superadmin),
 ):
@@ -138,7 +137,7 @@ def _verify_superadmin_token(token: Optional[str]) -> None:
 
 
 def _build_scan_snapshot(lines: int) -> dict:
-    output_lines = _scan_state['output_lines'][-lines:]
+    output_lines = list(_scan_state['output_lines'])[-lines:]
     elapsed = None
     if _scan_state['started_at']:
         elapsed = round(time.time() - _scan_state['started_at'], 1)
@@ -191,7 +190,7 @@ async def scan_stream(
 
 
 @router.get("/directories")
-async def scan_directories(
+def scan_directories(
     user: CurrentUser = Depends(require_superadmin),
 ):
     """List all configured directories available for scanning."""

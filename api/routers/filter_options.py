@@ -44,7 +44,7 @@ def _cached_filter_query(cache_key, result_key, query_fn):
 
 
 @router.get("/cameras")
-async def cameras(user: Optional[CurrentUser] = Depends(get_optional_user)):
+def cameras(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load camera options with counts."""
     vis, vp = _vis_where(user)
     def query(conn):
@@ -58,7 +58,7 @@ async def cameras(user: Optional[CurrentUser] = Depends(get_optional_user)):
 
 
 @router.get("/lenses")
-async def lenses(user: Optional[CurrentUser] = Depends(get_optional_user)):
+def lenses(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load lens options with counts."""
     vis, vp = _vis_where(user)
     def query(conn):
@@ -72,7 +72,7 @@ async def lenses(user: Optional[CurrentUser] = Depends(get_optional_user)):
 
 
 @router.get("/tags")
-async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
+def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load tag options with counts."""
     from db import get_cached_stat, DEFAULT_DB_PATH
 
@@ -127,7 +127,7 @@ async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
 
 
 @router.get("/persons")
-async def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depends(get_optional_user)):
+def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load person options with photo counts. `ids` forces specific persons to be included."""
     vis, vp = _vis_where(user)
     forced_ids = [int(i) for i in ids.split(',') if i.strip().isdigit()] if ids else []
@@ -175,7 +175,7 @@ async def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depen
 
 
 @router.get("/patterns")
-async def patterns(user: Optional[CurrentUser] = Depends(get_optional_user)):
+def patterns(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load composition pattern options with counts."""
     vis, vp = _vis_where(user)
     def query(conn):
@@ -193,7 +193,7 @@ async def patterns(user: Optional[CurrentUser] = Depends(get_optional_user)):
 
 
 @router.get("/apertures")
-async def apertures(user: Optional[CurrentUser] = Depends(get_optional_user)):
+def apertures(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load distinct rounded aperture values with counts."""
     vis, vp = _vis_where(user)
     def query(conn):
@@ -212,7 +212,7 @@ async def apertures(user: Optional[CurrentUser] = Depends(get_optional_user)):
 
 
 @router.get("/focal_lengths")
-async def focal_lengths(user: Optional[CurrentUser] = Depends(get_optional_user)):
+def focal_lengths(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load distinct rounded focal length values with counts."""
     vis, vp = _vis_where(user)
     def query(conn):
@@ -231,7 +231,7 @@ async def focal_lengths(user: Optional[CurrentUser] = Depends(get_optional_user)
 
 
 @router.get("/categories")
-async def categories(user: Optional[CurrentUser] = Depends(get_optional_user)):
+def categories(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load category options with counts."""
     vis, vp = _vis_where(user)
     def query(conn):
@@ -249,7 +249,7 @@ async def categories(user: Optional[CurrentUser] = Depends(get_optional_user)):
 
 
 @router.get("/location_name")
-async def location_name(lat: float, lng: float):
+def location_name(lat: float, lng: float):
     """Reverse geocode coordinates to a place name, using location_names cache."""
     from analyzers.capsule_generator import geocode_grid
 

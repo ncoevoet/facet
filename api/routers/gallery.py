@@ -9,9 +9,10 @@ import sqlite3
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from api.auth import CurrentUser, get_optional_user, require_authenticated
-from api.config import VIEWER_CONFIG, _FULL_CONFIG, load_viewer_config
+from api.auth import CurrentUser, get_optional_user
+from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_db_connection
+from api.models.gallery import GalleryParams
 from api.db_helpers import (
     get_existing_columns, get_cached_count, _add_tag_filter,
     get_art_tags_from_config, build_hide_clauses,
@@ -23,41 +24,36 @@ from api.db_helpers import (
 )
 from api.top_picks import get_top_picks_score_sql, get_top_picks_threshold
 from api.types import (
-    VALID_SORT_COLS, TYPE_FILTERS, QUALITY_MAP, normalize_params, get_photo_types
+    VALID_SORT_COLS, TYPE_FILTERS, normalize_params, get_photo_types
 )
 
 router = APIRouter(tags=["gallery"])
 logger = logging.getLogger(__name__)
 
 
-def _build_gallery_where(params, conn=None, user_id=None):
-    """Build WHERE clauses for gallery queries."""
-    where_clauses = []
-    sql_params = []
 
-    if user_id:
-        vis_sql, vis_params = get_visibility_clause(user_id)
-        where_clauses.append(vis_sql)
-        sql_params.extend(vis_params)
+def _add_range_filter(where_clauses, sql_params, params, column, min_key, max_key, is_float=True):
+    """Add min/max range filter for a numeric column."""
+    min_val = params.get(min_key, '')
+    max_val = params.get(max_key, '')
+    if min_val:
+        try:
+            val = float(min_val) if is_float else int(min_val)
+            where_clauses.append(f"{column} >= ?")
+            sql_params.append(val)
+        except ValueError:
+            pass
+    if max_val:
+        try:
+            val = float(max_val) if is_float else int(max_val)
+            where_clauses.append(f"{column} <= ?")
+            sql_params.append(val)
+        except ValueError:
+            pass
 
-    def add_range_filter(column, min_key, max_key, is_float=True):
-        min_val = params.get(min_key, '')
-        max_val = params.get(max_key, '')
-        if min_val:
-            try:
-                val = float(min_val) if is_float else int(min_val)
-                where_clauses.append(f"{column} >= ?")
-                sql_params.append(val)
-            except ValueError:
-                pass
-        if max_val:
-            try:
-                val = float(max_val) if is_float else int(max_val)
-                where_clauses.append(f"{column} <= ?")
-                sql_params.append(val)
-            except ValueError:
-                pass
 
+def _apply_text_filters(where_clauses, sql_params, params, conn):
+    """Apply camera, lens, search, tag, composition, person, category filters."""
     if params.get('camera'):
         where_clauses.append("camera_model = ?")
         sql_params.append(params['camera'])
@@ -127,6 +123,17 @@ def _build_gallery_where(params, conn=None, user_id=None):
         where_clauses.append("category = ?")
         sql_params.append(params['category'])
 
+    if params.get('is_silhouette') == '1':
+        where_clauses.append("is_silhouette = 1")
+
+
+def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id):
+    """Apply visibility, top picks, aggregate minimum, and hide blinks/bursts/duplicates."""
+    if user_id:
+        vis_sql, vis_params = get_visibility_clause(user_id)
+        where_clauses.append(vis_sql)
+        sql_params.extend(vis_params)
+
     if params.get('min_aggregate'):
         try:
             where_clauses.append("aggregate >= ?")
@@ -140,9 +147,6 @@ def _build_gallery_where(params, conn=None, user_id=None):
         where_clauses.append(f"({top_picks_expr}) >= ?")
         sql_params.append(threshold)
 
-    if params.get('is_silhouette') == '1':
-        where_clauses.append("is_silhouette = 1")
-
     hb = params.get('hide_blinks', '')
     hide_blinks_val = hb if hb in ('1', 'true') else params.get('no_blink', '')
     hbr = params.get('hide_bursts', '')
@@ -150,6 +154,9 @@ def _build_gallery_where(params, conn=None, user_id=None):
     hide_duplicates_val = params.get('hide_duplicates', '')
     where_clauses.extend(build_hide_clauses(hide_blinks_val, hide_bursts_val, hide_duplicates_val))
 
+
+def _apply_preference_filters(where_clauses, sql_params, params, user_id):
+    """Apply star rating, favorites, and rejected filters."""
     pref_cols = get_preference_columns(user_id)
     if params.get('min_rating'):
         try:
@@ -166,43 +173,53 @@ def _build_gallery_where(params, conn=None, user_id=None):
     elif params.get('hide_rejected') in ('1', 'true'):
         where_clauses.append(f"({pref_cols['is_rejected']} = 0 OR {pref_cols['is_rejected']} IS NULL)")
 
-    add_range_filter("aggregate", "min_score", "max_score")
-    add_range_filter("aesthetic", "min_aesthetic", "max_aesthetic")
-    add_range_filter("quality_score", "min_quality_score", "max_quality_score")
-    add_range_filter("topiq_score", "min_topiq", "max_topiq")
-    add_range_filter("tech_sharpness", "min_sharpness", "max_sharpness")
-    add_range_filter("exposure_score", "min_exposure", "max_exposure")
-    add_range_filter("color_score", "min_color", "max_color")
-    add_range_filter("contrast_score", "min_contrast", "max_contrast")
-    add_range_filter("noise_sigma", "min_noise", "max_noise")
-    add_range_filter("mean_saturation", "min_saturation", "max_saturation")
-    add_range_filter("mean_luminance", "min_luminance", "max_luminance")
-    add_range_filter("histogram_spread", "min_histogram_spread", "max_histogram_spread")
-    add_range_filter("dynamic_range_stops", "min_dynamic_range", "max_dynamic_range")
-    add_range_filter("comp_score", "min_composition", "max_composition")
-    add_range_filter("power_point_score", "min_power_point", "max_power_point")
-    add_range_filter("leading_lines_score", "min_leading_lines", "max_leading_lines")
-    add_range_filter("isolation_bonus", "min_isolation", "max_isolation")
-    add_range_filter("face_count", "min_face_count", "max_face_count", is_float=False)
-    add_range_filter("face_quality", "min_face_quality", "max_face_quality")
-    add_range_filter("eye_sharpness", "min_eye_sharpness", "max_eye_sharpness")
-    add_range_filter("face_sharpness", "min_face_sharpness", "max_face_sharpness")
-    add_range_filter("face_ratio", "min_face_ratio", "max_face_ratio")
-    add_range_filter("face_confidence", "min_face_confidence", "max_face_confidence")
-    add_range_filter("star_rating", "min_star_rating", "max_star_rating", is_float=False)
 
-    add_range_filter("aesthetic_iaa", "min_aesthetic_iaa", "max_aesthetic_iaa")
-    add_range_filter("face_quality_iqa", "min_face_quality_iqa", "max_face_quality_iqa")
-    add_range_filter("liqe_score", "min_liqe", "max_liqe")
-    add_range_filter("subject_sharpness", "min_subject_sharpness", "max_subject_sharpness")
-    add_range_filter("subject_prominence", "min_subject_prominence", "max_subject_prominence")
-    add_range_filter("subject_placement", "min_subject_placement", "max_subject_placement")
-    add_range_filter("bg_separation", "min_bg_separation", "max_bg_separation")
+def _apply_score_range_filters(where_clauses, sql_params, params):
+    """Apply all score/metric range filters."""
+    rf = _add_range_filter
+    rf(where_clauses, sql_params, params, "aggregate", "min_score", "max_score")
+    rf(where_clauses, sql_params, params, "aesthetic", "min_aesthetic", "max_aesthetic")
+    rf(where_clauses, sql_params, params, "quality_score", "min_quality_score", "max_quality_score")
+    rf(where_clauses, sql_params, params, "topiq_score", "min_topiq", "max_topiq")
+    rf(where_clauses, sql_params, params, "tech_sharpness", "min_sharpness", "max_sharpness")
+    rf(where_clauses, sql_params, params, "exposure_score", "min_exposure", "max_exposure")
+    rf(where_clauses, sql_params, params, "color_score", "min_color", "max_color")
+    rf(where_clauses, sql_params, params, "contrast_score", "min_contrast", "max_contrast")
+    rf(where_clauses, sql_params, params, "noise_sigma", "min_noise", "max_noise")
+    rf(where_clauses, sql_params, params, "mean_saturation", "min_saturation", "max_saturation")
+    rf(where_clauses, sql_params, params, "mean_luminance", "min_luminance", "max_luminance")
+    rf(where_clauses, sql_params, params, "histogram_spread", "min_histogram_spread", "max_histogram_spread")
+    rf(where_clauses, sql_params, params, "dynamic_range_stops", "min_dynamic_range", "max_dynamic_range")
+    rf(where_clauses, sql_params, params, "comp_score", "min_composition", "max_composition")
+    rf(where_clauses, sql_params, params, "power_point_score", "min_power_point", "max_power_point")
+    rf(where_clauses, sql_params, params, "leading_lines_score", "min_leading_lines", "max_leading_lines")
+    rf(where_clauses, sql_params, params, "isolation_bonus", "min_isolation", "max_isolation")
+    rf(where_clauses, sql_params, params, "face_count", "min_face_count", "max_face_count", is_float=False)
+    rf(where_clauses, sql_params, params, "face_quality", "min_face_quality", "max_face_quality")
+    rf(where_clauses, sql_params, params, "eye_sharpness", "min_eye_sharpness", "max_eye_sharpness")
+    rf(where_clauses, sql_params, params, "face_sharpness", "min_face_sharpness", "max_face_sharpness")
+    rf(where_clauses, sql_params, params, "face_ratio", "min_face_ratio", "max_face_ratio")
+    rf(where_clauses, sql_params, params, "face_confidence", "min_face_confidence", "max_face_confidence")
+    rf(where_clauses, sql_params, params, "star_rating", "min_star_rating", "max_star_rating", is_float=False)
+    rf(where_clauses, sql_params, params, "aesthetic_iaa", "min_aesthetic_iaa", "max_aesthetic_iaa")
+    rf(where_clauses, sql_params, params, "face_quality_iqa", "min_face_quality_iqa", "max_face_quality_iqa")
+    rf(where_clauses, sql_params, params, "liqe_score", "min_liqe", "max_liqe")
+    rf(where_clauses, sql_params, params, "subject_sharpness", "min_subject_sharpness", "max_subject_sharpness")
+    rf(where_clauses, sql_params, params, "subject_prominence", "min_subject_prominence", "max_subject_prominence")
+    rf(where_clauses, sql_params, params, "subject_placement", "min_subject_placement", "max_subject_placement")
+    rf(where_clauses, sql_params, params, "bg_separation", "min_bg_separation", "max_bg_separation")
 
-    add_range_filter("iso", "min_iso", "max_iso", is_float=False)
-    add_range_filter("f_stop", "min_aperture", "max_aperture")
-    add_range_filter("focal_length", "min_focal_length", "max_focal_length")
 
+def _apply_exif_range_filters(where_clauses, sql_params, params):
+    """Apply ISO, aperture, and focal length range filters."""
+    rf = _add_range_filter
+    rf(where_clauses, sql_params, params, "iso", "min_iso", "max_iso", is_float=False)
+    rf(where_clauses, sql_params, params, "f_stop", "min_aperture", "max_aperture")
+    rf(where_clauses, sql_params, params, "focal_length", "min_focal_length", "max_focal_length")
+
+
+def _apply_date_album_geo_filters(where_clauses, sql_params, params):
+    """Apply date range, album membership, GPS radius, and path prefix filters."""
     if params.get('date_from'):
         try:
             date_from = to_exif_date(params['date_from'])
@@ -248,11 +265,22 @@ def _build_gallery_where(params, conn=None, user_id=None):
         where_clauses.append("REPLACE(photos.path, '\\', '/') LIKE ? ESCAPE '\\'")
         sql_params.append(escaped + '%')
 
+
+def _build_gallery_where(params, conn=None, user_id=None):
+    """Build WHERE clauses for gallery queries."""
+    where_clauses = []
+    sql_params = []
+    _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id)
+    _apply_text_filters(where_clauses, sql_params, params, conn)
+    _apply_preference_filters(where_clauses, sql_params, params, user_id)
+    _apply_score_range_filters(where_clauses, sql_params, params)
+    _apply_exif_range_filters(where_clauses, sql_params, params)
+    _apply_date_album_geo_filters(where_clauses, sql_params, params)
     return where_clauses, sql_params
 
 
 @router.get("/api/photo")
-async def api_photo(
+def api_photo(
     path: str = Query(...),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -288,7 +316,7 @@ async def api_photo(
 
 
 @router.get("/api/type_counts")
-async def api_type_counts(
+def api_type_counts(
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
     hide_duplicates: str = Query('0'),
@@ -304,7 +332,7 @@ async def api_type_counts(
 
 
 @router.get("/api/photos")
-async def api_photos(
+def api_photos(
     request: Request,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -313,123 +341,25 @@ async def api_photos(
     defaults_cfg = VIEWER_CONFIG['defaults']
     default_per_page = VIEWER_CONFIG['pagination']['default_per_page']
 
-    try:
-        page = int(qp.get('page', 1))
-    except (ValueError, TypeError):
-        page = 1
-    try:
-        per_page = int(qp.get('per_page', default_per_page))
-    except (ValueError, TypeError):
-        per_page = default_per_page
-
-    default_type = defaults_cfg.get('type', '')
+    # Normalize semantic params (quality→min_score, type→filter overrides)
     normalized = normalize_params(qp)
 
-    params = {
+    # Merge query params with normalized values and defaults
+    default_type = defaults_cfg.get('type', '')
+    merged = {
+        **qp,
+        **{k: v for k, v in normalized.items() if v},
         'sort': normalized.get('sort') or qp.get('sort', defaults_cfg['sort']),
         'dir': qp.get('sort_direction') or qp.get('dir', defaults_cfg['sort_direction']),
-        'camera': qp.get('camera', ''),
-        'lens': qp.get('lens', ''),
-        'per_page': per_page,
-        'quality': qp.get('quality', ''),
-        'type': qp.get('type', '' if (qp.get('person') or qp.get('person_id')) else default_type),
-        'hide_blinks': qp.get('hide_blinks', '0'),
-        'hide_bursts': qp.get('hide_bursts', '0'),
-        'hide_duplicates': qp.get('hide_duplicates', '0'),
-        'burst_only': qp.get('burst_only', ''),
-        'no_blink': qp.get('no_blink', ''),
-        'search': qp.get('search', ''),
-        'tag': qp.get('tag', ''),
         'person': qp.get('person') or qp.get('person_id', ''),
-        'min_score': normalized.get('min_score', ''),
-        'max_score': qp.get('max_score', ''),
-        'min_aesthetic': qp.get('min_aesthetic', ''),
-        'max_aesthetic': qp.get('max_aesthetic', ''),
-        'min_sharpness': qp.get('min_sharpness', ''),
-        'max_sharpness': qp.get('max_sharpness', ''),
-        'min_exposure': qp.get('min_exposure', ''),
-        'max_exposure': qp.get('max_exposure', ''),
-        'min_face_count': normalized.get('min_face_count', ''),
-        'max_face_count': normalized.get('max_face_count', ''),
-        'min_face_ratio': normalized.get('min_face_ratio', ''),
-        'max_face_ratio': normalized.get('max_face_ratio', ''),
-        'min_face_quality': qp.get('min_face_quality', ''),
-        'max_face_quality': qp.get('max_face_quality', ''),
-        'min_eye_sharpness': qp.get('min_eye_sharpness', ''),
-        'max_eye_sharpness': qp.get('max_eye_sharpness', ''),
-        'min_iso': qp.get('min_iso', ''),
-        'max_iso': qp.get('max_iso', ''),
-        'min_aperture': qp.get('min_aperture', ''),
-        'max_aperture': qp.get('max_aperture', ''),
-        'min_focal_length': qp.get('min_focal_length', ''),
-        'max_focal_length': qp.get('max_focal_length', ''),
-        'date_from': qp.get('date_from', ''),
-        'date_to': qp.get('date_to', ''),
-        'is_monochrome': normalized.get('is_monochrome', ''),
-        'category': normalized.get('category', ''),
-        'min_aggregate': normalized.get('min_aggregate', ''),
-        'max_luminance': normalized.get('max_luminance', ''),
-        'is_silhouette': normalized.get('is_silhouette', ''),
-        'require_tags': normalized.get('require_tags', ''),
-        'exclude_tags': normalized.get('exclude_tags', ''),
-        'exclude_art': normalized.get('exclude_art', ''),
-        'top_picks_filter': normalized.get('top_picks_filter', ''),
-        'min_rating': qp.get('min_rating', ''),
-        'favorites_only': qp.get('favorites_only', ''),
-        'hide_rejected': qp.get('hide_rejected', ''),
-        'show_rejected': qp.get('show_rejected', ''),
-        'min_dynamic_range': qp.get('min_dynamic_range', ''),
-        'max_dynamic_range': qp.get('max_dynamic_range', ''),
-        'min_contrast': qp.get('min_contrast', ''),
-        'max_contrast': qp.get('max_contrast', ''),
-        'min_noise': qp.get('min_noise', ''),
-        'max_noise': qp.get('max_noise', ''),
-        'min_color': qp.get('min_color', ''),
-        'max_color': qp.get('max_color', ''),
-        'min_composition': qp.get('min_composition', ''),
-        'max_composition': qp.get('max_composition', ''),
-        'min_face_sharpness': qp.get('min_face_sharpness', ''),
-        'max_face_sharpness': qp.get('max_face_sharpness', ''),
-        'min_isolation': qp.get('min_isolation', ''),
-        'max_isolation': qp.get('max_isolation', ''),
-        'min_luminance': qp.get('min_luminance', ''),
-        'min_histogram_spread': qp.get('min_histogram_spread', ''),
-        'max_histogram_spread': qp.get('max_histogram_spread', ''),
-        'min_power_point': qp.get('min_power_point', ''),
-        'max_power_point': qp.get('max_power_point', ''),
-        'min_leading_lines': qp.get('min_leading_lines', ''),
-        'max_leading_lines': qp.get('max_leading_lines', ''),
-        'min_quality_score': qp.get('min_quality_score', ''),
-        'max_quality_score': qp.get('max_quality_score', ''),
-        'min_saturation': qp.get('min_saturation', ''),
-        'max_saturation': qp.get('max_saturation', ''),
-        'min_face_confidence': qp.get('min_face_confidence', ''),
-        'max_face_confidence': qp.get('max_face_confidence', ''),
-        'min_star_rating': qp.get('min_star_rating', ''),
-        'max_star_rating': qp.get('max_star_rating', ''),
-        'min_topiq': qp.get('min_topiq', ''),
-        'max_topiq': qp.get('max_topiq', ''),
-        'composition_pattern': qp.get('composition_pattern', ''),
-        'album_id': qp.get('album_id', ''),
-        'gps_lat': qp.get('gps_lat', ''),
-        'gps_lng': qp.get('gps_lng', ''),
-        'gps_radius_km': qp.get('gps_radius_km', ''),
-        'min_aesthetic_iaa': qp.get('min_aesthetic_iaa', ''),
-        'max_aesthetic_iaa': qp.get('max_aesthetic_iaa', ''),
-        'min_face_quality_iqa': qp.get('min_face_quality_iqa', ''),
-        'max_face_quality_iqa': qp.get('max_face_quality_iqa', ''),
-        'min_liqe': qp.get('min_liqe', ''),
-        'max_liqe': qp.get('max_liqe', ''),
-        'min_subject_sharpness': qp.get('min_subject_sharpness', ''),
-        'max_subject_sharpness': qp.get('max_subject_sharpness', ''),
-        'min_subject_prominence': qp.get('min_subject_prominence', ''),
-        'max_subject_prominence': qp.get('max_subject_prominence', ''),
-        'min_subject_placement': qp.get('min_subject_placement', ''),
-        'max_subject_placement': qp.get('max_subject_placement', ''),
-        'min_bg_separation': qp.get('min_bg_separation', ''),
-        'max_bg_separation': qp.get('max_bg_separation', ''),
-        'path_prefix': qp.get('path_prefix', ''),
+        'type': qp.get('type', '' if (qp.get('person') or qp.get('person_id')) else default_type),
+        'per_page': qp.get('per_page', str(default_per_page)),
     }
+
+    gallery_params = GalleryParams.model_validate(merged)
+    page = max(1, gallery_params.page)
+    per_page = gallery_params.per_page
+    params = gallery_params.model_dump()
 
     if params.get('type') in TYPE_FILTERS:
         for key, value in TYPE_FILTERS[params['type']].items():
@@ -778,7 +708,7 @@ _MODE_DEFAULT_MIN_SIM = {
 
 
 @router.get("/api/similar_photos/{photo_path:path}")
-async def api_similar_photos(
+def api_similar_photos(
     photo_path: str,
     mode: str = Query("visual"),
     limit: int = Query(20),
@@ -794,9 +724,8 @@ async def api_similar_photos(
       - color: histogram intersection + saturation/luminance distance
       - person: same person_id or face embedding cosine similarity
     """
-    viewer_config = load_viewer_config()
-    if not viewer_config.get('features', {}).get('show_similar_button', True):
-        return {'error': 'Similar photos feature is disabled'}
+    if not VIEWER_CONFIG.get('features', {}).get('show_similar_button', True):
+        raise HTTPException(status_code=503, detail='Similar photos feature is disabled')
 
     if mode not in _MODE_DEFAULT_MIN_SIM:
         mode = 'visual'
@@ -817,7 +746,7 @@ async def api_similar_photos(
         """, [photo_path] + vis_params).fetchone()
 
         if not source:
-            return {'error': 'Photo not found'}
+            raise HTTPException(status_code=404, detail='Photo not found')
 
         source = dict(source)
         message = None
@@ -850,13 +779,13 @@ async def api_similar_photos(
 
     except sqlite3.Error:
         logger.exception("Failed to find similar photos")
-        return {'error': 'Internal server error'}
+        raise HTTPException(status_code=500, detail='Internal server error')
     finally:
         conn.close()
 
 
 @router.get("/api/config")
-async def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
+def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Get viewer configuration for Angular client initialization."""
     from api.config import is_multi_user_enabled
     from api.auth import is_edition_enabled, is_edition_authenticated

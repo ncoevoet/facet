@@ -31,7 +31,7 @@ def _get_target_language() -> str:
 
 
 @router.get("/api/caption")
-async def api_caption(
+def api_caption(
     path: str = Query(...),
     lang: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -223,7 +223,7 @@ class CaptionUpdate(BaseModel):
 
 
 @router.put("/api/caption")
-async def api_update_caption(
+def api_update_caption(
     body: CaptionUpdate,
     user: CurrentUser = Depends(require_edition),
 ):

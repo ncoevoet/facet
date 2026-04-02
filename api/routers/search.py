@@ -286,7 +286,7 @@ def _fts_search(conn, query, limit):
 
 
 @router.get("/api/search")
-async def api_search(
+def api_search(
     request: Request,
     q: str = Query(..., min_length=1, max_length=500),
     limit: int = Query(50, ge=1, le=200),

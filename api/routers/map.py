@@ -108,7 +108,7 @@ def _get_individual_photos(conn, base_where, base_params, limit):
 
 
 @router.get("/api/photos/map")
-async def api_photos_map(
+def api_photos_map(
     bounds: str = Query(..., description="sw_lat,sw_lng,ne_lat,ne_lng"),
     zoom: int = Query(10, ge=0, le=22),
     limit: int = Query(500, ge=1, le=2000),
@@ -176,7 +176,7 @@ async def api_photos_map(
 
 
 @router.get("/api/photos/map/count")
-async def api_photos_map_count(
+def api_photos_map_count(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return count of photos with GPS data, for nav badge visibility."""
@@ -207,7 +207,7 @@ class GpsUpdateRequest(BaseModel):
 
 
 @router.put("/api/photo/gps")
-async def api_update_gps(
+def api_update_gps(
     body: GpsUpdateRequest,
     user: CurrentUser = Depends(require_edition),
 ):

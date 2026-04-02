@@ -171,7 +171,7 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None):
 # --- Endpoints ---
 
 @router.get("/api/burst-groups")
-async def get_burst_groups(
+def get_burst_groups(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
@@ -268,7 +268,7 @@ async def select_burst_photos(
 # --- Similar Groups (AI Culling) ---
 
 @router.get("/api/similar-groups")
-async def get_similar_groups(
+def get_similar_groups(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     threshold: float = Query(0.85, ge=0.5, le=0.99),
     page: int = Query(1, ge=1),

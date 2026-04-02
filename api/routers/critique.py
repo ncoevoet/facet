@@ -309,7 +309,7 @@ def _build_rule_critique(photo):
 
 
 @router.get("/api/critique")
-async def api_critique(
+def api_critique(
     path: str = Query(...),
     mode: str = Query("rule"),
     user: Optional[CurrentUser] = Depends(get_optional_user),

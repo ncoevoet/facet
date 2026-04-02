@@ -79,13 +79,8 @@ def _convert_heif_cached(file_path: str, mtime: float, quality: int = 96) -> byt
     return buf.getvalue()
 
 
-@lru_cache(maxsize=_thumbnail_cache_size)
-def _resize_thumbnail(thumbnail_bytes: bytes, size: int) -> bytes:
-    """Resize a thumbnail to the given max dimension. Returns JPEG bytes.
-
-    Uses lower quality for tiny placeholders (size <= 48) to minimize payload
-    for progressive blur-up loading.
-    """
+def _do_resize(thumbnail_bytes: bytes, size: int) -> bytes:
+    """Pure resize without caching."""
     from PIL import Image
     img = Image.open(BytesIO(thumbnail_bytes))
     if max(img.size) <= size:
@@ -97,8 +92,28 @@ def _resize_thumbnail(thumbnail_bytes: bytes, size: int) -> bytes:
     return buf.getvalue()
 
 
+_resize_cache: dict[tuple[str, int], bytes] = {}
+
+
+def _get_or_resize(photo_path: str, thumbnail_bytes: bytes, size: int) -> bytes:
+    """Resize a thumbnail with (path, size) caching. Caller provides bytes to avoid double-fetch."""
+    key = (photo_path, size)
+    cached = _resize_cache.get(key)
+    if cached is not None:
+        return cached
+    resized = _do_resize(thumbnail_bytes, size)
+    # Evict oldest entries when cache exceeds limit
+    if len(_resize_cache) >= _thumbnail_cache_size:
+        # Remove first ~10% of entries
+        evict_count = max(1, _thumbnail_cache_size // 10)
+        for old_key in list(_resize_cache.keys())[:evict_count]:
+            del _resize_cache[old_key]
+    _resize_cache[key] = resized
+    return resized
+
+
 @router.get("/thumbnail")
-async def get_thumbnail(
+def get_thumbnail(
     request: Request,
     path: str = Query(...),
     size: Optional[int] = Query(None),
@@ -115,10 +130,10 @@ async def get_thumbnail(
         conn.close()
 
     if row and row['thumbnail']:
-        thumb_bytes = row['thumbnail']
         if size and 0 < size < 640:
-            thumb_bytes = _resize_thumbnail(thumb_bytes, size)
-        return _cached_image_response(thumb_bytes, request)
+            resized = _get_or_resize(path, row['thumbnail'], size)
+            return _cached_image_response(resized, request)
+        return _cached_image_response(row['thumbnail'], request)
     return Response(content="Thumbnail not found", status_code=404)
 
 
@@ -203,7 +218,7 @@ def _get_face_thumbnail_data(face_id: int):
 
 
 @router.get("/face_thumbnail/{face_id}")
-async def face_thumbnail(
+def face_thumbnail(
     face_id: int,
     request: Request,
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -218,7 +233,7 @@ async def face_thumbnail(
 
 
 @router.get("/person_thumbnail/{person_id}")
-async def person_thumbnail(
+def person_thumbnail(
     person_id: int,
     request: Request,
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -246,7 +261,7 @@ async def person_thumbnail(
 
 
 @router.get("/image")
-async def image(
+def image(
     request: Request,
     path: str = Query(...),
     user: Optional[CurrentUser] = Depends(get_optional_user),

@@ -24,14 +24,13 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
-    VIEWER_CONFIG, _FULL_CONFIG, _CONFIG_PATH, FACET_SCRIPT,
+    VIEWER_CONFIG, _CONFIG_PATH, FACET_SCRIPT,
     get_comparison_mode_settings, map_disk_path,
     reload_config, _stats_cache, get_all_scan_directories,
     is_multi_user_enabled,
 )
 from api.database import get_db_connection
 from api.db_helpers import get_visibility_clause
-from api.types import TYPE_TO_CATEGORY
 from db import DEFAULT_DB_PATH
 from utils.image_loading import RAW_EXTENSIONS
 
@@ -132,7 +131,7 @@ class RestoreWeightsBody(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/api/comparison/next_pair")
-async def api_comparison_next_pair(
+def api_comparison_next_pair(
     strategy: str = Query('uncertainty'),
     category: Optional[str] = Query(None),
     user: CurrentUser = Depends(require_edition),
@@ -185,7 +184,7 @@ def _validate_and_resolve(path: str, user: Optional[CurrentUser]):
 
 
 @router.get("/api/download/options")
-async def api_download_options(
+def api_download_options(
     path: str = Query(...),
     is_shared: bool = Query(False),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -295,7 +294,7 @@ def _serve_original(real_disk: str, db_path: str, quality: int):
 
 
 @router.post("/api/comparison/submit")
-async def api_comparison_submit(
+def api_comparison_submit(
     body: ComparisonSubmitBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -319,7 +318,7 @@ async def api_comparison_submit(
 
 
 @router.post("/api/comparison/reset")
-async def api_comparison_reset(
+def api_comparison_reset(
     user: CurrentUser = Depends(require_edition),
 ):
     """Reset all comparison data."""
@@ -479,7 +478,7 @@ async def api_update_weights(
 
 
 @router.get("/api/comparison/stats")
-async def api_comparison_stats(
+def api_comparison_stats(
     user: CurrentUser = Depends(require_edition),
 ):
     """Get comparison statistics."""
@@ -492,7 +491,7 @@ async def api_comparison_stats(
 
 
 @router.get("/api/comparison/photo_metrics")
-async def api_comparison_photo_metrics(
+def api_comparison_photo_metrics(
     paths: str = Query(''),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -543,7 +542,7 @@ async def api_comparison_photo_metrics(
 
 
 @router.get("/api/comparison/category_weights")
-async def api_comparison_category_weights(
+def api_comparison_category_weights(
     category: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -586,7 +585,7 @@ async def api_comparison_category_weights(
 
 
 @router.get("/api/comparison/learned_weights")
-async def api_comparison_learned_weights(
+def api_comparison_learned_weights(
     category: Optional[str] = Query(None),
     include_ties: str = Query('true'),
     use_cv: str = Query('false'),
@@ -698,7 +697,7 @@ async def api_comparison_learned_weights(
 
 
 @router.post("/api/comparison/preview_score")
-async def api_comparison_preview_score(
+def api_comparison_preview_score(
     body: PreviewScoreBody,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -791,12 +790,12 @@ async def api_comparison_preview_score(
 
 
 @router.post("/api/comparison/suggest_filters")
-async def api_comparison_suggest_filters(
+def api_comparison_suggest_filters(
     body: SuggestFiltersBody,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Suggest filter changes when moving a photo to another category."""
-    from config import ScoringConfig, CategoryFilter
+    from config import ScoringConfig
 
     if not body.path or not body.target_category:
         raise HTTPException(status_code=400, detail='Missing path or target_category')
@@ -1037,7 +1036,7 @@ async def api_comparison_suggest_filters(
 
 
 @router.post("/api/comparison/override_category")
-async def api_comparison_override_category(
+def api_comparison_override_category(
     body: OverrideCategoryBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1074,7 +1073,7 @@ async def api_comparison_override_category(
 
 
 @router.get("/api/comparison/history")
-async def api_comparison_history(
+def api_comparison_history(
     limit: int = Query(50),
     offset: int = Query(0),
     category: Optional[str] = Query(None),
@@ -1104,7 +1103,7 @@ async def api_comparison_history(
 
 
 @router.post("/api/comparison/edit")
-async def api_comparison_edit(
+def api_comparison_edit(
     body: ComparisonEditBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1132,7 +1131,7 @@ async def api_comparison_edit(
 
 
 @router.post("/api/comparison/delete")
-async def api_comparison_delete(
+def api_comparison_delete(
     body: ComparisonDeleteBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1158,7 +1157,7 @@ async def api_comparison_delete(
 
 
 @router.get("/api/comparison/coverage")
-async def api_comparison_coverage(
+def api_comparison_coverage(
     category: Optional[str] = Query(None),
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1176,7 +1175,7 @@ async def api_comparison_coverage(
 
 
 @router.get("/api/comparison/confidence")
-async def api_comparison_confidence(
+def api_comparison_confidence(
     category: Optional[str] = Query(None),
     n_bootstrap: int = Query(100),
     user: CurrentUser = Depends(require_edition),
@@ -1227,7 +1226,7 @@ async def api_comparison_confidence(
 
 
 @router.get("/api/config/weight_snapshots")
-async def api_weight_snapshots(
+def api_weight_snapshots(
     category: Optional[str] = Query(None),
     limit: int = Query(20),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -1270,7 +1269,7 @@ async def api_weight_snapshots(
 
 
 @router.post("/api/config/save_snapshot")
-async def api_save_weight_snapshot(
+def api_save_weight_snapshot(
     body: SaveSnapshotBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1310,7 +1309,7 @@ async def api_save_weight_snapshot(
 
 
 @router.post("/api/config/restore_weights")
-async def api_restore_weights(
+def api_restore_weights(
     body: RestoreWeightsBody,
     user: CurrentUser = Depends(require_edition),
 ):

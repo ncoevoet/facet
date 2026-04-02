@@ -5,8 +5,6 @@ Provides /health (liveness) and /ready (readiness) for orchestrators
 and load balancers.
 """
 
-import sqlite3
-
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
@@ -16,13 +14,13 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-async def health():
+def health():
     """Liveness check — confirms the process is running."""
     return {"status": "ok"}
 
 
 @router.get("/ready")
-async def ready():
+def ready():
     """Readiness check — verifies the database is accessible."""
     checks = {}
     try:
@@ -32,7 +30,7 @@ async def ready():
             checks["database"] = "ok"
         finally:
             conn.close()
-    except (sqlite3.Error, OSError) as exc:
+    except Exception:
         checks["database"] = "unavailable"
         return JSONResponse(
             status_code=503,

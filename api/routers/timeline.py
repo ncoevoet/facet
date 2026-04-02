@@ -4,7 +4,6 @@ Timeline router — date-grouped photo browsing and calendar heatmap.
 """
 
 import logging
-import sqlite3
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -54,7 +53,7 @@ def _fetch_grouped_summaries(conn, from_clause, where_clauses, sql_params, group
 
 
 @router.get("/api/timeline")
-async def api_timeline(
+def api_timeline(
     cursor: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=500),
     direction: str = Query("older"),
@@ -203,7 +202,7 @@ async def api_timeline(
 
     except HTTPException:
         raise
-    except sqlite3.Error:
+    except Exception:
         logger.exception("Failed to fetch timeline")
         return {'groups': [], 'next_cursor': None, 'has_more': False}
     finally:
@@ -217,7 +216,7 @@ async def api_timeline(
 
 
 @router.get("/api/timeline/dates")
-async def api_timeline_dates(
+def api_timeline_dates(
     year: int = Query(..., ge=1900, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
     hide_blinks: str = Query('0'),
@@ -266,7 +265,7 @@ async def api_timeline_dates(
 
     except HTTPException:
         raise
-    except sqlite3.Error:
+    except Exception:
         logger.exception("Failed to fetch timeline dates")
         return {'dates': []}
     finally:
@@ -276,7 +275,7 @@ async def api_timeline_dates(
 
 
 @router.get("/api/timeline/years")
-async def api_timeline_years(
+def api_timeline_years(
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
     hide_duplicates: str = Query('0'),
@@ -310,7 +309,7 @@ async def api_timeline_years(
 
     except HTTPException:
         raise
-    except sqlite3.Error:
+    except Exception:
         logger.exception("Failed to fetch timeline years")
         return {'years': []}
     finally:
@@ -320,7 +319,7 @@ async def api_timeline_years(
 
 
 @router.get("/api/timeline/months")
-async def api_timeline_months(
+def api_timeline_months(
     year: int = Query(..., ge=1900, le=2100),
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
@@ -356,7 +355,7 @@ async def api_timeline_months(
 
     except HTTPException:
         raise
-    except sqlite3.Error:
+    except Exception:
         logger.exception("Failed to fetch timeline months")
         return {'months': []}
     finally:

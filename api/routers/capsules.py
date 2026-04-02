@@ -107,7 +107,7 @@ def _resolve_capsule(capsule_id: str, user_id, date_from="", date_to="") -> dict
 
 
 @router.get("/api/capsules")
-async def get_capsules(
+def get_capsules(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     refresh: bool = Query(False),
     page: int = Query(1, ge=1),
@@ -151,7 +151,7 @@ async def get_capsules(
 
 
 @router.get("/api/capsules/{capsule_id}/photos")
-async def get_capsule_photos(
+def get_capsule_photos(
     capsule_id: str,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -210,7 +210,7 @@ async def get_capsule_photos(
 
 
 @router.post("/api/capsules/{capsule_id}/save-album")
-async def save_capsule_as_album(
+def save_capsule_as_album(
     capsule_id: str,
     user: CurrentUser = Depends(require_edition),
 ):

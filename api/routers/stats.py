@@ -20,8 +20,8 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
-    VIEWER_CONFIG, CORRELATION_X_AXES, CORRELATION_Y_METRICS, FACET_SCRIPT,
-    _get_stats_cached, _stats_cache, _FULL_CONFIG, _CONFIG_PATH, reload_config,
+    CORRELATION_X_AXES, CORRELATION_Y_METRICS, FACET_SCRIPT,
+    _get_stats_cached, _stats_cache, _CONFIG_PATH, reload_config,
 )
 from api.database import get_db_connection
 from api.db_helpers import get_visibility_clause, to_exif_date, to_iso_date

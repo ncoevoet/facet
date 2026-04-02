@@ -3,6 +3,7 @@ Configuration loading for the FastAPI API server.
 
 """
 
+import logging
 import os
 import json
 import math
@@ -11,6 +12,8 @@ import tempfile
 import threading
 import time
 import secrets
+
+logger = logging.getLogger(__name__)
 
 # --- CONFIG & SHARE SECRET (single parse of scoring_config.json) ---
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scoring_config.json')
@@ -28,6 +31,7 @@ def _load_and_ensure_share_secret():
         with open(_CONFIG_PATH) as f:
             config = json.load(f)
     except Exception:
+        logger.debug("Could not load %s, using empty config", _CONFIG_PATH)
         config = {}
     if 'share_secret' not in config or not config['share_secret']:
         with _share_secret_lock:
@@ -36,6 +40,7 @@ def _load_and_ensure_share_secret():
                 with open(_CONFIG_PATH) as f:
                     config = json.load(f)
             except Exception:
+                logger.debug("Could not re-read %s after lock, using empty config", _CONFIG_PATH)
                 config = {}
             if 'share_secret' not in config or not config['share_secret']:
                 config['share_secret'] = secrets.token_hex(32)
@@ -131,6 +136,7 @@ def load_viewer_config(config=None):
             with open(_CONFIG_PATH) as f:
                 config = json.load(f)
         except Exception:
+            logger.debug("Could not load config for viewer, using defaults", exc_info=True)
             return defaults
     viewer = config.get('viewer', {})
     for key, value in defaults.items():
