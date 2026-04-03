@@ -512,7 +512,10 @@
     "person_not_found": "Personne non trouvee",
     "photo_not_found": "Photo non trouvee",
     "thumbnail_not_found": "Miniature non trouvee",
-    "database_error": "Erreur de base de donnees"
+    "database_error": "Erreur de base de donnees",
+    "rate_limited": "Trop de requêtes — veuillez patienter",
+    "access_denied": "Accès refusé",
+    "server_error": "Erreur serveur — veuillez réessayer"
   },
   "language": {
     "en": "Anglais",

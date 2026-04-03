@@ -512,7 +512,10 @@
     "person_not_found": "Person not found",
     "photo_not_found": "Photo not found",
     "thumbnail_not_found": "Thumbnail not found",
-    "database_error": "Database Error"
+    "database_error": "Database Error",
+    "rate_limited": "Too many requests — please wait a moment",
+    "access_denied": "Access denied",
+    "server_error": "Server error — please try again"
   },
   "language": {
     "en": "English",

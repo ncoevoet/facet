@@ -516,7 +516,10 @@
     "person_not_found": "Person nicht gefunden",
     "photo_not_found": "Foto nicht gefunden",
     "thumbnail_not_found": "Vorschaubild nicht gefunden",
-    "database_error": "Datenbankfehler"
+    "database_error": "Datenbankfehler",
+    "rate_limited": "Zu viele Anfragen — bitte warten Sie einen Moment",
+    "access_denied": "Zugriff verweigert",
+    "server_error": "Serverfehler — bitte versuchen Sie es erneut"
   },
   "language": {
     "en": "Englisch",
