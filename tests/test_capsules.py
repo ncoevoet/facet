@@ -27,7 +27,7 @@ def _make_capsule(id_="c1", type_="journey", title="Trip", subtitle="A trip",
         "cover_photo_path": cover,
         "photo_count": photo_count,
         "icon": "map",
-        "params": {"paths": paths or ["/a.jpg", "/b.jpg"]},
+        "params": {"paths": ["/a.jpg", "/b.jpg"] if paths is None else paths},
     }
 
 

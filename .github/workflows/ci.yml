@@ -54,5 +54,5 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci
         working-directory: client
-      - run: npx ng lint --no-progress
+      - run: npx ng lint
         working-directory: client
