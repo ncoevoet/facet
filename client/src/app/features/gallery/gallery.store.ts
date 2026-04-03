@@ -622,6 +622,8 @@ export class GalleryStore {
     const extra: Partial<GalleryFilters> = {};
     if (key === 'hide_rejected' && value) extra.favorites_only = false;
     if (key === 'favorites_only' && value) extra.hide_rejected = false;
+    // Reload person dropdown when person filter is cleared (was seeded with filtered subset)
+    const wasPersonFiltered = !!this.filters().person_id;
     this.filters.update(current => ({ ...current, [key]: value, ...extra, page: 1 }));
     if ((DISPLAY_OPTION_KEYS as string[]).includes(key as string)) {
       saveDisplayOptionsToStorage(this.filters());
@@ -629,6 +631,9 @@ export class GalleryStore {
     this.syncUrl();
     if (!GalleryStore.DISPLAY_ONLY_KEYS.has(key)) {
       await this.loadPhotos();
+    }
+    if (key === 'person_id' && wasPersonFiltered && !value) {
+      this.reloadPersonOptions();
     }
   }
 
@@ -719,6 +724,18 @@ export class GalleryStore {
         .map(([id, name, face_count]: [number, string | null, number]) => ({id, name, face_count})),
     );
     this.patterns.set((patternsRes.patterns ?? []).map(([value, count]: [string, number]) => ({value, count})));
+  }
+
+  /** Reload person dropdown without filter restriction */
+  private async reloadPersonOptions(): Promise<void> {
+    try {
+      const res = await firstValueFrom(
+        this.api.get<{persons: [number, string | null, number][]}>('/filter_options/persons'),
+      );
+      this.persons.set(
+        (res.persons ?? []).map(([id, name, face_count]: [number, string | null, number]) => ({id, name, face_count})),
+      );
+    } catch { /* keep existing list */ }
   }
 
   /** Set star rating for a photo (0 = clear) */
