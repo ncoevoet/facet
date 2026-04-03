@@ -10,7 +10,6 @@ import struct
 import time
 from config import ScoringConfig
 
-logger = logging.getLogger("facet.api.db_helpers")
 from api.config import (
     _existing_columns_cache, _existing_columns_lock,
     _photo_tags_available, _photo_tags_lock,
@@ -18,6 +17,8 @@ from api.config import (
     is_multi_user_enabled, get_user_directories, _FULL_CONFIG,
 )
 from api.database import get_db_connection
+
+logger = logging.getLogger("facet.api.db_helpers")
 
 # --- DATE FORMATTING ---
 

@@ -4,6 +4,10 @@ from contextlib import contextmanager
 from unittest import mock
 
 import pytest
+from fastapi.testclient import TestClient
+
+from api import create_app
+from api.auth import CurrentUser
 
 
 def _cm(conn):
@@ -11,10 +15,6 @@ def _cm(conn):
     def _ctx():
         yield conn
     return _ctx()
-from fastapi.testclient import TestClient
-
-from api import create_app
-from api.auth import CurrentUser
 
 
 @pytest.fixture()

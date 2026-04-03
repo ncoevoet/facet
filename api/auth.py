@@ -22,7 +22,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from api.config import (
     JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRY_HOURS,
     VIEWER_CONFIG,
-    is_multi_user_enabled, get_user_config
+    is_multi_user_enabled
 )
 
 

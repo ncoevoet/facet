@@ -5,7 +5,7 @@ Handles login, logout, edition auth, and auth status.
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from api.auth import (
     create_access_token, verify_password, verify_legacy_password,

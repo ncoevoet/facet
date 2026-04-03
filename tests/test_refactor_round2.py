@@ -13,7 +13,6 @@ Complete coverage for all changed code paths:
 import sqlite3
 from unittest import mock
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app

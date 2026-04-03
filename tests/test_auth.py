@@ -15,7 +15,6 @@ from api.auth import (
     verify_legacy_password,
     _is_hashed,
     RateLimiter,
-    CurrentUser,
 )
 
 _AUTH_MODULE = "api.routers.auth"

@@ -4,7 +4,6 @@ import sqlite3
 from contextlib import contextmanager
 from unittest import mock
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -166,7 +165,7 @@ class TestPersonsEndpoint:
         """When `ids` is provided, _cached_filter_query is not called."""
         db_path = str(tmp_path / "test.db")
         _make_db(db_path, [(1, "Alice")], [(i, 1, f"/p_{i}.jpg") for i in range(3)])
-        conn_factory = _conn_factory(db_path)
+        _conn_factory(db_path)
         app = create_app()
         cache_mock = mock.MagicMock()
         with (

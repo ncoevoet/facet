@@ -5,6 +5,9 @@ from unittest import mock
 
 import numpy as np
 import pytest
+from fastapi.testclient import TestClient
+
+from api import create_app
 
 
 def _cm(conn):
@@ -12,9 +15,6 @@ def _cm(conn):
     def _ctx():
         yield conn
     return _ctx()
-from fastapi.testclient import TestClient
-
-from api import create_app
 
 
 @pytest.fixture()

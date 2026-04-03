@@ -9,14 +9,11 @@ import os
 import shutil
 import asyncio
 import sqlite3
-import subprocess
 import sys
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Literal, Optional
-
-logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
@@ -33,6 +30,8 @@ from api.database import get_db
 from api.db_helpers import get_visibility_clause
 from db import DEFAULT_DB_PATH
 from utils.image_loading import RAW_EXTENSIONS
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["comparison"])
 
@@ -219,7 +218,7 @@ async def api_download_single(
     - ``darktable`` — convert companion RAW with a named darktable profile.
     - ``raw`` — serve the companion RAW file as-is.
     """
-    from api.raw_processing import convert_raw_to_jpeg, convert_raw_darktable_async, find_companion_raw
+    from api.raw_processing import convert_raw_darktable_async, find_companion_raw
 
     db_path, real_disk = _validate_and_resolve(path, user)
 

@@ -13,10 +13,6 @@ from api import create_app
 from api.auth import (
     CurrentUser,
     require_authenticated,
-    require_edition,
-    require_auth,
-    require_superadmin,
-    get_optional_user,
 )
 
 _AUTH_MODULE = "api.auth"

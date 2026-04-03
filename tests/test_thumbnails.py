@@ -1,6 +1,5 @@
 """Tests for the thumbnails API router (api/routers/thumbnails.py)."""
 
-import struct
 from contextlib import contextmanager
 from io import BytesIO
 from unittest import mock

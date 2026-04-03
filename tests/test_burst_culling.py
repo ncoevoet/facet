@@ -5,14 +5,14 @@ from unittest import mock
 
 import pytest
 
+from api.routers.burst_culling import _compute_burst_score, _format_group
+
 
 def _cm(conn):
     @contextmanager
     def _ctx():
         yield conn
     return _ctx()
-
-from api.routers.burst_culling import _compute_burst_score, _format_group
 
 
 # ---------------------------------------------------------------------------

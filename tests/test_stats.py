@@ -8,7 +8,6 @@ Uses real SQLite databases (same pattern as test_refactor_round2.py).
 import sqlite3
 from unittest import mock
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app

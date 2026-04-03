@@ -54,7 +54,7 @@ _scoring_config = ScoringConfig(validate=False)
 _config_categories = _scoring_config.get_categories()
 
 
-def _build_type_definitions():
+def _build_type_definitions(categories):
     """Build type definitions from config categories."""
     pt = VIEWER_CONFIG['photo_types']
     threshold = pt.get('top_picks_min_score', 7)
@@ -65,7 +65,7 @@ def _build_type_definitions():
     ]
 
     # Auto-include all categories from config (label resolved via i18n on frontend)
-    for cat in _config_categories:
+    for cat in categories:
         cat_name = cat.get('name', '')
         if cat_name and cat_name != 'default':
             types.append((cat_name, cat_name, "category = ?", [cat_name]))
@@ -73,22 +73,22 @@ def _build_type_definitions():
     return types
 
 
-TYPE_DEFINITIONS = _build_type_definitions()
+TYPE_DEFINITIONS = _build_type_definitions(_config_categories)
 
 
-def _build_type_filters():
+def _build_type_filters(categories):
     """Build type filters from config categories."""
     filters = {
         'top_picks': {'top_picks_filter': '1'},
     }
-    for cat in _config_categories:
+    for cat in categories:
         cat_name = cat.get('name', '')
         if cat_name:
             filters[cat_name] = {'category': cat_name}
     return filters
 
 
-TYPE_FILTERS = _build_type_filters()
+TYPE_FILTERS = _build_type_filters(_config_categories)
 del _scoring_config, _config_categories
 
 TYPE_LABELS = {type_id: label for type_id, label, *_ in TYPE_DEFINITIONS}

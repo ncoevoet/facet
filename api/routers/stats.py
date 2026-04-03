@@ -9,7 +9,6 @@ import logging
 import math
 import shutil
 import sqlite3
-import subprocess
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -408,20 +407,24 @@ def api_stats_gear(
 
             cam_tl, len_tl, com_tl = {}, {}, {}
             for cam, lens, month, count in cur.fetchall():
-                if not month: continue
+                if not month:
+                    continue
                 month = to_iso_date(month)
                 # Cameras
                 if cam:
-                    if cam not in cam_tl: cam_tl[cam] = []
+                    if cam not in cam_tl:
+                        cam_tl[cam] = []
                     cam_tl[cam].append((month, count))
                 # Lenses
                 if lens:
-                    if lens not in len_tl: len_tl[lens] = []
+                    if lens not in len_tl:
+                        len_tl[lens] = []
                     len_tl[lens].append((month, count))
                 # Combos
                 if cam and lens:
                     combo = f"{cam} + {lens}"
-                    if combo not in com_tl: com_tl[combo] = []
+                    if combo not in com_tl:
+                        com_tl[combo] = []
                     com_tl[combo].append((month, count))
 
             # Helper to consolidate histories (since the above is grouped by camera AND lens, we need to sum for individual cameras/lenses)

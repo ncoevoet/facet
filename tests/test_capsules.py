@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
-from api.auth import CurrentUser, require_authenticated, require_edition
+from api.auth import CurrentUser, require_authenticated
 
 _AUTH_MODULE = "api.auth"
 _ROUTER_MODULE = "api.routers.capsules"
@@ -78,7 +78,7 @@ class TestListCapsules:
         with (
             mock.patch(f"{_ROUTER_MODULE}._capsule_cache", {}),
             mock.patch(f"{_ROUTER_MODULE}.get_db", return_value=nullcontext(mock_conn)),
-            mock.patch(f"{_ROUTER_MODULE}.generate_all_capsules", create=True) as mock_gen,
+            mock.patch(f"{_ROUTER_MODULE}.generate_all_capsules", create=True),
             mock.patch("analyzers.capsule_generator.generate_all_capsules", return_value=capsules),
         ):
             resp = client.get("/api/capsules")

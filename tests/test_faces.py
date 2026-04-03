@@ -4,15 +4,13 @@ Tests for the faces API router — rating, favorites, face assignment.
 Uses mock-based approach since face operations are mutations.
 """
 
-import sqlite3
 from contextlib import contextmanager
 from unittest import mock
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
-from api.auth import CurrentUser, require_authenticated, require_auth, require_edition
+from api.auth import CurrentUser, require_authenticated
 
 
 # ---------------------------------------------------------------------------
