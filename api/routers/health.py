@@ -8,7 +8,7 @@ and load balancers.
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from api.database import get_db_connection
+from api.database import get_db
 
 router = APIRouter(tags=["health"])
 
@@ -24,12 +24,9 @@ def ready():
     """Readiness check — verifies the database is accessible."""
     checks = {}
     try:
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             conn.execute("SELECT 1")
             checks["database"] = "ok"
-        finally:
-            conn.close()
     except Exception:
         checks["database"] = "unavailable"
         return JSONResponse(

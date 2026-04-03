@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import get_visibility_clause
 from api.similarity_groups import compute_similarity_groups
 from utils.date_utils import parse_date
@@ -180,25 +180,23 @@ def get_burst_groups(
 
     Uses precomputed burst_group_id. Groups where burst_reviewed=1 are excluded.
     """
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        vis_sql, vis_params = get_visibility_clause(user_id)
-        formatted, total_groups, total_pages = _query_burst_groups(
-            conn, vis_sql, vis_params, page=page, per_page=per_page,
-        )
-        return {
-            'groups': formatted,
-            'total_groups': total_groups,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': total_pages,
-        }
-    except sqlite3.Error:
-        logger.exception("Failed to fetch burst groups")
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
+            formatted, total_groups, total_pages = _query_burst_groups(
+                conn, vis_sql, vis_params, page=page, per_page=per_page,
+            )
+            return {
+                'groups': formatted,
+                'total_groups': total_groups,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': total_pages,
+            }
+        except sqlite3.Error:
+            logger.exception("Failed to fetch burst groups")
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/burst-groups/select")
@@ -211,58 +209,56 @@ async def select_burst_photos(
     Sets is_burst_lead=1 for kept photos, is_rejected=1 for non-kept,
     and burst_reviewed=1 for all photos in the group.
     """
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        vis_sql, vis_params = get_visibility_clause(user_id)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
 
-        # Fetch photos in this burst group
-        photos = conn.execute(
-            f"""SELECT path FROM photos
-                WHERE burst_group_id = ? AND {vis_sql}""",
-            [body.burst_id] + vis_params,
-        ).fetchall()
+            # Fetch photos in this burst group
+            photos = conn.execute(
+                f"""SELECT path FROM photos
+                    WHERE burst_group_id = ? AND {vis_sql}""",
+                [body.burst_id] + vis_params,
+            ).fetchall()
 
-        if not photos:
-            raise HTTPException(status_code=404, detail='Burst group not found')
+            if not photos:
+                raise HTTPException(status_code=404, detail='Burst group not found')
 
-        group_paths = {p['path'] for p in photos}
-        keep_set = set(body.keep_paths)
+            group_paths = {p['path'] for p in photos}
+            keep_set = set(body.keep_paths)
 
-        # Validate that all keep_paths are in the burst group
-        invalid = keep_set - group_paths
-        if invalid:
-            raise HTTPException(
-                status_code=400,
-                detail=f'Paths not in burst group: {list(invalid)[:3]}',
-            )
+            # Validate that all keep_paths are in the burst group
+            invalid = keep_set - group_paths
+            if invalid:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f'Paths not in burst group: {list(invalid)[:3]}',
+                )
 
-        # Batch update burst lead status and mark as reviewed
-        keep_paths = list(keep_set)
-        reject_paths = list(group_paths - keep_set)
-        if keep_paths:
-            placeholders = ','.join('?' * len(keep_paths))
-            conn.execute(
-                f"UPDATE photos SET is_burst_lead = 1, burst_reviewed = 1 WHERE path IN ({placeholders})",
-                keep_paths,
-            )
-        if reject_paths:
-            placeholders = ','.join('?' * len(reject_paths))
-            conn.execute(
-                f"UPDATE photos SET is_burst_lead = 0, is_rejected = 1, burst_reviewed = 1 WHERE path IN ({placeholders})",
-                reject_paths,
-            )
+            # Batch update burst lead status and mark as reviewed
+            keep_paths = list(keep_set)
+            reject_paths = list(group_paths - keep_set)
+            if keep_paths:
+                placeholders = ','.join('?' * len(keep_paths))
+                conn.execute(
+                    f"UPDATE photos SET is_burst_lead = 1, burst_reviewed = 1 WHERE path IN ({placeholders})",
+                    keep_paths,
+                )
+            if reject_paths:
+                placeholders = ','.join('?' * len(reject_paths))
+                conn.execute(
+                    f"UPDATE photos SET is_burst_lead = 0, is_rejected = 1, burst_reviewed = 1 WHERE path IN ({placeholders})",
+                    reject_paths,
+                )
 
-        conn.commit()
-        return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(group_paths - keep_set)}
+            conn.commit()
+            return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(group_paths - keep_set)}
 
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Failed to select burst photos")
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Failed to select burst photos")
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 # --- Similar Groups (AI Culling) ---
@@ -281,46 +277,44 @@ def get_similar_groups(
     entire library (not limited to temporal bursts). Groups are shuffled
     randomly using the provided seed for consistent pagination.
     """
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        all_groups = compute_similarity_groups(conn, threshold=threshold, user_id=user_id)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            all_groups = compute_similarity_groups(conn, threshold=threshold, user_id=user_id)
 
-        # Shuffle so the user sees different groups each session
-        shuffled = list(all_groups)
-        random.Random(seed).shuffle(shuffled)
+            # Shuffle so the user sees different groups each session
+            shuffled = list(all_groups)
+            random.Random(seed).shuffle(shuffled)
 
-        total_groups = len(shuffled)
-        total_pages = max(1, math.ceil(total_groups / per_page))
-        offset = (page - 1) * per_page
-        page_groups = shuffled[offset:offset + per_page]
+            total_groups = len(shuffled)
+            total_pages = max(1, math.ceil(total_groups / per_page))
+            offset = (page - 1) * per_page
+            page_groups = shuffled[offset:offset + per_page]
 
-        # Batch-fetch all photos for this page in a single query
-        vis_sql, vis_params = get_visibility_clause(user_id)
-        photos_by_group = _fetch_similar_group_photos(conn, page_groups, vis_sql, vis_params)
+            # Batch-fetch all photos for this page in a single query
+            vis_sql, vis_params = get_visibility_clause(user_id)
+            photos_by_group = _fetch_similar_group_photos(conn, page_groups, vis_sql, vis_params)
 
-        formatted = []
-        for group_idx, group in enumerate(page_groups):
-            photo_list = photos_by_group.get(group_idx, [])
-            formatted.append({
-                'burst_id': offset + group_idx,
-                'photos': photo_list,
-                'best_path': group['best_path'],
-                'count': group['count'],
-            })
+            formatted = []
+            for group_idx, group in enumerate(page_groups):
+                photo_list = photos_by_group.get(group_idx, [])
+                formatted.append({
+                    'burst_id': offset + group_idx,
+                    'photos': photo_list,
+                    'best_path': group['best_path'],
+                    'count': group['count'],
+                })
 
-        return {
-            'groups': formatted,
-            'total_groups': total_groups,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': total_pages,
-        }
-    except sqlite3.Error:
-        logger.exception("Failed to fetch similar groups")
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            return {
+                'groups': formatted,
+                'total_groups': total_groups,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': total_pages,
+            }
+        except sqlite3.Error:
+            logger.exception("Failed to fetch similar groups")
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/similar-groups/select")
@@ -334,50 +328,48 @@ async def select_similar_photos(
     client, avoiding an expensive recomputation of all similarity groups.
     Non-kept photos are marked as is_rejected=1.
     """
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        vis_sql, vis_params = get_visibility_clause(user_id)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
 
-        group_paths = set(body.paths)
-        keep_set = set(body.keep_paths)
+            group_paths = set(body.paths)
+            keep_set = set(body.keep_paths)
 
-        # Validate that all keep_paths are in the group
-        invalid = keep_set - group_paths
-        if invalid:
-            raise HTTPException(
-                status_code=400,
-                detail=f'Paths not in similarity group: {list(invalid)[:3]}',
-            )
+            # Validate that all keep_paths are in the group
+            invalid = keep_set - group_paths
+            if invalid:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f'Paths not in similarity group: {list(invalid)[:3]}',
+                )
 
-        # Mark non-kept photos as rejected (batch UPDATE with visibility check)
-        reject_paths = list(group_paths - keep_set)
-        if reject_paths:
-            placeholders = ','.join('?' * len(reject_paths))
-            conn.execute(
-                f"UPDATE photos SET is_rejected = 1 WHERE path IN ({placeholders}) AND {vis_sql}",
-                reject_paths + vis_params,
-            )
+            # Mark non-kept photos as rejected (batch UPDATE with visibility check)
+            reject_paths = list(group_paths - keep_set)
+            if reject_paths:
+                placeholders = ','.join('?' * len(reject_paths))
+                conn.execute(
+                    f"UPDATE photos SET is_rejected = 1 WHERE path IN ({placeholders}) AND {vis_sql}",
+                    reject_paths + vis_params,
+                )
 
-        # Mark ALL photos in the group as similarity_reviewed
-        all_paths = list(group_paths)
-        if all_paths:
-            placeholders = ','.join('?' * len(all_paths))
-            conn.execute(
-                f"UPDATE photos SET similarity_reviewed = 1 WHERE path IN ({placeholders}) AND {vis_sql}",
-                all_paths + vis_params,
-            )
+            # Mark ALL photos in the group as similarity_reviewed
+            all_paths = list(group_paths)
+            if all_paths:
+                placeholders = ','.join('?' * len(all_paths))
+                conn.execute(
+                    f"UPDATE photos SET similarity_reviewed = 1 WHERE path IN ({placeholders}) AND {vis_sql}",
+                    all_paths + vis_params,
+                )
 
-        conn.commit()
-        return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
+            conn.commit()
+            return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
 
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Failed to select similar photos")
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Failed to select similar photos")
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 # --- Unified Culling Groups ---
@@ -544,64 +536,62 @@ async def api_culling_groups(
     Each group includes a `type` field ("burst" or "similar") and a human-readable
     `reason` string.
     """
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        vis_sql, vis_params = get_visibility_clause(user_id)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
 
-        # Count both types to compute total without fetching all data
-        burst_count = _count_unreviewed_burst_groups(conn, vis_sql, vis_params)
-        similar_count, similar_shuffled = _count_unreviewed_similar_groups(
-            conn, similarity_threshold, user_id, seed,
-        )
-
-        total_groups = burst_count + similar_count
-        total_pages = max(1, math.ceil(total_groups / per_page))
-        offset = (page - 1) * per_page
-
-        # Determine which groups fall in this page (bursts first, then similar)
-        page_groups = []
-        remaining = per_page
-
-        if offset < burst_count:
-            # Page includes some burst groups
-            burst_page = (offset // per_page) + 1 if per_page else 1
-            burst_offset_in_page = offset % per_page if per_page else 0
-            burst_slice = _fetch_unreviewed_burst_groups(
-                conn, vis_sql, vis_params,
-                page=burst_page, per_page=per_page,
+            # Count both types to compute total without fetching all data
+            burst_count = _count_unreviewed_burst_groups(conn, vis_sql, vis_params)
+            similar_count, similar_shuffled = _count_unreviewed_similar_groups(
+                conn, similarity_threshold, user_id, seed,
             )
-            # If the offset doesn't align with burst pagination, slice manually
-            if burst_offset_in_page > 0:
-                burst_slice = burst_slice[burst_offset_in_page:]
-            page_groups.extend(burst_slice[:remaining])
-            remaining -= len(page_groups)
 
-        if remaining > 0 and similar_shuffled:
-            # Page includes some similar groups
-            similar_offset = max(0, offset - burst_count)
-            similar_slice = similar_shuffled[similar_offset:similar_offset + remaining]
-            similar_enriched = _fetch_unreviewed_similar_groups(
-                conn, similarity_threshold, vis_sql, vis_params, seed, user_id,
-                page_groups=similar_slice, offset=similar_offset,
-            )
-            page_groups.extend(similar_enriched)
+            total_groups = burst_count + similar_count
+            total_pages = max(1, math.ceil(total_groups / per_page))
+            offset = (page - 1) * per_page
 
-        # Sort by photo count descending so largest groups appear first
-        page_groups.sort(key=lambda g: g['count'], reverse=True)
+            # Determine which groups fall in this page (bursts first, then similar)
+            page_groups = []
+            remaining = per_page
 
-        return {
-            'groups': page_groups,
-            'total_groups': total_groups,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': total_pages,
-        }
-    except sqlite3.Error:
-        logger.exception("Failed to fetch culling groups")
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            if offset < burst_count:
+                # Page includes some burst groups
+                burst_page = (offset // per_page) + 1 if per_page else 1
+                burst_offset_in_page = offset % per_page if per_page else 0
+                burst_slice = _fetch_unreviewed_burst_groups(
+                    conn, vis_sql, vis_params,
+                    page=burst_page, per_page=per_page,
+                )
+                # If the offset doesn't align with burst pagination, slice manually
+                if burst_offset_in_page > 0:
+                    burst_slice = burst_slice[burst_offset_in_page:]
+                page_groups.extend(burst_slice[:remaining])
+                remaining -= len(page_groups)
+
+            if remaining > 0 and similar_shuffled:
+                # Page includes some similar groups
+                similar_offset = max(0, offset - burst_count)
+                similar_slice = similar_shuffled[similar_offset:similar_offset + remaining]
+                similar_enriched = _fetch_unreviewed_similar_groups(
+                    conn, similarity_threshold, vis_sql, vis_params, seed, user_id,
+                    page_groups=similar_slice, offset=similar_offset,
+                )
+                page_groups.extend(similar_enriched)
+
+            # Sort by photo count descending so largest groups appear first
+            page_groups.sort(key=lambda g: g['count'], reverse=True)
+
+            return {
+                'groups': page_groups,
+                'total_groups': total_groups,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': total_pages,
+            }
+        except sqlite3.Error:
+            logger.exception("Failed to fetch culling groups")
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/culling-groups/confirm")

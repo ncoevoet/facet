@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
@@ -130,8 +130,7 @@ def api_photos_map(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail='Invalid bounds format. Expected: sw_lat,sw_lng,ne_lat,ne_lng')
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -171,9 +170,6 @@ def api_photos_map(
                 conn, base_where, base_params, limit,
             )
 
-    finally:
-        conn.close()
-
 
 @router.get("/api/photos/map/count")
 def api_photos_map_count(
@@ -184,8 +180,7 @@ def api_photos_map_count(
     if 'gps_latitude' not in existing_cols or 'gps_longitude' not in existing_cols:
         return {'count': 0}
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -196,8 +191,6 @@ def api_photos_map_count(
         ).fetchone()
 
         return {'count': row['cnt']}
-    finally:
-        conn.close()
 
 
 class GpsUpdateRequest(BaseModel):
@@ -219,27 +212,25 @@ def api_update_gps(
     if (body.gps_latitude is None) != (body.gps_longitude is None):
         raise HTTPException(status_code=400, detail="Both latitude and longitude must be set or both must be null")
 
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        vis_sql, vis_params = get_visibility_clause(user_id)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
 
-        row = conn.execute(
-            f"SELECT path FROM photos WHERE path = ? AND {vis_sql}",
-            [body.path] + vis_params,
-        ).fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Photo not found")
+            row = conn.execute(
+                f"SELECT path FROM photos WHERE path = ? AND {vis_sql}",
+                [body.path] + vis_params,
+            ).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Photo not found")
 
-        conn.execute(
-            f"UPDATE photos SET gps_latitude = ?, gps_longitude = ? WHERE path = ? AND {vis_sql}",
-            [body.gps_latitude, body.gps_longitude, body.path] + vis_params,
-        )
-        conn.commit()
-        return {'gps_latitude': body.gps_latitude, 'gps_longitude': body.gps_longitude}
-    except sqlite3.Error:
-        logger.exception("Database error updating GPS for photo %s", body.path)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            conn.execute(
+                f"UPDATE photos SET gps_latitude = ?, gps_longitude = ? WHERE path = ? AND {vis_sql}",
+                [body.gps_latitude, body.gps_longitude, body.path] + vis_params,
+            )
+            conn.commit()
+            return {'gps_latitude': body.gps_latitude, 'gps_longitude': body.gps_longitude}
+        except sqlite3.Error:
+            logger.exception("Database error updating GPS for photo %s", body.path)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')

@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, is_multi_user_enabled, get_user_directories, get_all_scan_directories
-from api.database import get_db_connection
+from api.database import get_db, get_db_connection
 from utils.image_loading import RAW_EXTENSIONS, HEIF_EXTENSIONS
 
 logger = logging.getLogger(__name__)
@@ -123,11 +123,8 @@ def get_thumbnail(
     if not _check_path_visibility(path, user):
         return Response(content="Not found", status_code=404)
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute("SELECT thumbnail FROM photos WHERE path = ?", (path,)).fetchone()
-    finally:
-        conn.close()
 
     if row and row['thumbnail']:
         if size and 0 < size < 640:
@@ -241,13 +238,10 @@ def person_thumbnail(
     """Return stored face thumbnail for a person."""
     if is_multi_user_enabled() and (user is None or not user.is_authenticated):
         return Response(content="Not found", status_code=404)
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         person = conn.execute("""
             SELECT face_thumbnail, representative_face_id FROM persons WHERE id = ?
         """, (person_id,)).fetchone()
-    finally:
-        conn.close()
 
     if person and person['face_thumbnail']:
         return _cached_image_response(person['face_thumbnail'], request)
@@ -271,11 +265,8 @@ def image(
         return Response(content="Not found", status_code=404)
 
     # Verify the path exists in the database to prevent path traversal
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute("SELECT path FROM photos WHERE path = ?", (path,)).fetchone()
-    finally:
-        conn.close()
     if not row:
         return Response(content="Not found", status_code=404)
 

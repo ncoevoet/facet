@@ -1,8 +1,16 @@
 """Tests for the critique API router (api/routers/critique.py)."""
 
+from contextlib import contextmanager
 from unittest import mock
 
 import pytest
+
+
+def _cm(conn):
+    @contextmanager
+    def _ctx():
+        yield conn
+    return _ctx()
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -82,14 +90,14 @@ class TestCritiqueEndpoint:
 
         with (
             mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.critique.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.critique.get_visibility_clause", return_value=("1=1", [])),
         ):
             resp = client.get("/api/critique", params={"path": "/photos/missing.jpg"})
 
         assert resp.status_code == 404
         assert "not found" in resp.json()["detail"].lower()
-        mock_conn.close.assert_called_once()
+
 
     def test_rule_critique_success(self, client):
         """Rule mode returns breakdown, strengths, weaknesses, and category."""
@@ -111,7 +119,7 @@ class TestCritiqueEndpoint:
 
         with (
             mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.critique.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.critique.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.critique._build_rule_critique", return_value=fake_result),
         ):
@@ -124,7 +132,7 @@ class TestCritiqueEndpoint:
         assert len(body["breakdown"]) == 1
         assert isinstance(body["strengths"], list)
         assert isinstance(body["weaknesses"], list)
-        mock_conn.close.assert_called_once()
+
 
     def test_vlm_mode_unavailable(self, client):
         """When mode=vlm but profile is legacy, vlm_available=False in response."""
@@ -144,7 +152,7 @@ class TestCritiqueEndpoint:
 
         with (
             mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.critique.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.critique.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
             mock.patch("api.routers.critique._FULL_CONFIG", {"models": {"vram_profile": "legacy"}}),
@@ -155,7 +163,7 @@ class TestCritiqueEndpoint:
         body = resp.json()
         assert body.get("vlm_available") is False
         assert "vlm_critique" not in body
-        mock_conn.close.assert_called_once()
+
 
 
 # ---------------------------------------------------------------------------

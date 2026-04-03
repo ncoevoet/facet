@@ -1,5 +1,6 @@
 """Tests for the memories endpoint (api/routers/memories.py)."""
 
+from contextlib import nullcontext
 from unittest import mock
 
 import pytest
@@ -33,13 +34,13 @@ class TestMemoriesEndpoint:
     def test_invalid_date_format_returns_400(self, client):
         """Non-ISO date string should return 400."""
         with (
-            mock.patch("api.routers.memories.get_db_connection") as mock_get_conn,
+            mock.patch("api.routers.memories.get_db") as mock_get_conn,
             mock.patch("api.routers.memories.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.memories.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
             mock.patch("api.routers.memories.get_photos_from_clause", return_value=("photos", [])),
         ):
             mock_conn = mock.MagicMock()
-            mock_get_conn.return_value = mock_conn
+            mock_get_conn.return_value = nullcontext(mock_conn)
             resp = client.get("/api/memories", params={"date": "not-a-date"})
 
         assert resp.status_code == 400
@@ -51,7 +52,7 @@ class TestMemoriesEndpoint:
         mock_conn.execute.return_value.fetchall.return_value = []
 
         with (
-            mock.patch("api.routers.memories.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.memories.get_db", return_value=nullcontext(mock_conn)),
             mock.patch("api.routers.memories.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.memories.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
             mock.patch("api.routers.memories.get_photos_from_clause", return_value=("photos", [])),
@@ -65,7 +66,7 @@ class TestMemoriesEndpoint:
         assert body["date"] == "2025-03-14"
         assert body["has_memories"] is False
         assert body["years"] == []
-        mock_conn.close.assert_called_once()
+
 
     def test_defaults_to_today(self, client):
         """When no date is provided, defaults to today."""
@@ -73,7 +74,7 @@ class TestMemoriesEndpoint:
         mock_conn.execute.return_value.fetchall.return_value = []
 
         with (
-            mock.patch("api.routers.memories.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.memories.get_db", return_value=nullcontext(mock_conn)),
             mock.patch("api.routers.memories.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.memories.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
             mock.patch("api.routers.memories.get_photos_from_clause", return_value=("photos", [])),
@@ -100,7 +101,7 @@ class TestMemoriesEndpoint:
         ]
 
         with (
-            mock.patch("api.routers.memories.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.memories.get_db", return_value=nullcontext(mock_conn)),
             mock.patch("api.routers.memories.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.memories.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
             mock.patch("api.routers.memories.get_photos_from_clause", return_value=("photos", [])),
@@ -131,7 +132,7 @@ class TestMemoriesEndpoint:
         mock_conn.execute.return_value.fetchall.return_value = []
 
         with (
-            mock.patch("api.routers.memories.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.memories.get_db", return_value=nullcontext(mock_conn)),
             mock.patch("api.routers.memories.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.memories.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
             mock.patch("api.routers.memories.get_photos_from_clause", return_value=("photos", [])),
@@ -157,7 +158,7 @@ class TestMemoriesEndpoint:
         ]
 
         with (
-            mock.patch("api.routers.memories.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.memories.get_db", return_value=nullcontext(mock_conn)),
             mock.patch("api.routers.memories.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.memories.build_photo_select_columns", return_value=["path"]),
             mock.patch("api.routers.memories.get_photos_from_clause", return_value=("photos", [])),

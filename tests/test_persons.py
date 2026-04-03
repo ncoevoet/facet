@@ -1,8 +1,16 @@
 """Tests for the persons API router (api/routers/persons.py)."""
 
+from contextlib import contextmanager
 from unittest import mock
 
 import pytest
+
+
+def _cm(conn):
+    @contextmanager
+    def _ctx():
+        yield conn
+    return _ctx()
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -42,7 +50,7 @@ class TestMergePersons:
         mock_conn.execute.return_value.fetchone.return_value = (5,)
 
         with mock.patch(
-            "api.routers.persons.get_db_connection", return_value=mock_conn
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
         ):
             resp = client.post(
                 "/api/persons/merge", json={"source_id": 1, "target_id": 2}
@@ -59,7 +67,7 @@ class TestMergePersons:
         # Source person deleted
         assert any("DELETE FROM persons" in c for c in calls)
         mock_conn.commit.assert_called_once()
-        mock_conn.close.assert_called_once()
+
 
     def test_merge_via_path_params(self, client):
         """POST /api/persons/merge/{source}/{target} also works."""
@@ -67,7 +75,7 @@ class TestMergePersons:
         mock_conn.execute.return_value.fetchone.return_value = (3,)
 
         with mock.patch(
-            "api.routers.persons.get_db_connection", return_value=mock_conn
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
         ):
             resp = client.post("/api/persons/merge/1/2")
 
@@ -105,7 +113,7 @@ class TestMergeBatch:
         mock_conn.execute.return_value.fetchone.return_value = (12,)
 
         with mock.patch(
-            "api.routers.persons.get_db_connection", return_value=mock_conn
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
         ):
             resp = client.post(
                 "/api/persons/merge_batch",
@@ -125,7 +133,7 @@ class TestMergeBatch:
         # Source persons deleted
         assert any("DELETE FROM persons" in c for c in calls)
         mock_conn.commit.assert_called_once()
-        mock_conn.close.assert_called_once()
+
 
 
 class TestRenamePerson:
@@ -136,7 +144,7 @@ class TestRenamePerson:
         mock_conn = mock.MagicMock()
 
         with mock.patch(
-            "api.routers.persons.get_db_connection", return_value=mock_conn
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
         ):
             resp = client.post(
                 "/api/persons/1/rename", json={"name": "Alice"}
@@ -151,14 +159,14 @@ class TestRenamePerson:
             "UPDATE persons SET name = ? WHERE id = ?", ("Alice", 1)
         )
         mock_conn.commit.assert_called_once()
-        mock_conn.close.assert_called_once()
+
 
     def test_rename_person_clear(self, client):
         """Renaming with empty string sets name to NULL."""
         mock_conn = mock.MagicMock()
 
         with mock.patch(
-            "api.routers.persons.get_db_connection", return_value=mock_conn
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
         ):
             resp = client.post(
                 "/api/persons/1/rename", json={"name": ""}
@@ -183,7 +191,7 @@ class TestDeletePerson:
         mock_conn = mock.MagicMock()
 
         with mock.patch(
-            "api.routers.persons.get_db_connection", return_value=mock_conn
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
         ):
             resp = client.post("/api/persons/1/delete")
 
@@ -200,7 +208,7 @@ class TestDeletePerson:
             "DELETE FROM persons WHERE id = ?", (1,)
         )
         mock_conn.commit.assert_called_once()
-        mock_conn.close.assert_called_once()
+
 
 
 class TestDeleteBatch:
@@ -211,7 +219,7 @@ class TestDeleteBatch:
         mock_conn = mock.MagicMock()
 
         with mock.patch(
-            "api.routers.persons.get_db_connection", return_value=mock_conn
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
         ):
             resp = client.post(
                 "/api/persons/delete_batch",
@@ -227,7 +235,7 @@ class TestDeleteBatch:
         assert any("UPDATE faces SET person_id = NULL" in c for c in calls)
         assert any("DELETE FROM persons" in c for c in calls)
         mock_conn.commit.assert_called_once()
-        mock_conn.close.assert_called_once()
+
 
     def test_delete_batch_empty(self, client):
         """Empty person_ids returns 400."""
@@ -268,7 +276,7 @@ class TestListPersons:
         ]
 
         with mock.patch(
-            "api.routers.persons.get_db_connection", return_value=mock_conn
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
         ):
             resp = client.get("/api/persons", params={"page": 1, "per_page": 48})
 
@@ -279,7 +287,7 @@ class TestListPersons:
         assert len(body["persons"]) == 2
         assert body["persons"][0]["id"] == 1
         assert body["persons"][0]["name"] == "Alice"
-        mock_conn.close.assert_called_once()
+
 
     def test_search_by_name(self, client):
         """Searching with a text string filters by name LIKE."""
@@ -288,7 +296,7 @@ class TestListPersons:
         mock_conn.execute.return_value.fetchall.return_value = []
 
         with mock.patch(
-            "api.routers.persons.get_db_connection", return_value=mock_conn
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
         ):
             resp = client.get("/api/persons", params={"search": "alice"})
 
@@ -308,7 +316,7 @@ class TestListPersons:
         mock_conn.execute.return_value.fetchall.return_value = []
 
         with mock.patch(
-            "api.routers.persons.get_db_connection", return_value=mock_conn
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
         ):
             resp = client.get("/api/persons", params={"search": "42"})
 

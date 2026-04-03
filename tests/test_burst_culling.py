@@ -1,8 +1,16 @@
 """Tests for burst culling helpers and endpoints (api/routers/burst_culling.py)."""
 
+from contextlib import contextmanager
 from unittest import mock
 
 import pytest
+
+
+def _cm(conn):
+    @contextmanager
+    def _ctx():
+        yield conn
+    return _ctx()
 
 from api.routers.burst_culling import _compute_burst_score, _format_group
 
@@ -99,7 +107,7 @@ class TestBurstGroupsEndpoint:
         mock_conn.execute.return_value.fetchall.return_value = []
 
         with (
-            mock.patch("api.routers.burst_culling.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
         ):
             resp = client.get("/api/burst-groups")
@@ -116,7 +124,7 @@ class TestBurstGroupsEndpoint:
         mock_conn.execute.return_value.fetchall.return_value = []
 
         with (
-            mock.patch("api.routers.burst_culling.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
         ):
             resp = client.post(
@@ -137,7 +145,7 @@ class TestBurstGroupsEndpoint:
         mock_conn.execute.return_value.fetchall.return_value = [row_a, row_b]
 
         with (
-            mock.patch("api.routers.burst_culling.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
         ):
             resp = client.post(

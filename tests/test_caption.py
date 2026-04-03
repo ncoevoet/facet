@@ -1,8 +1,16 @@
 """Tests for the caption generation endpoint (api/routers/caption.py)."""
 
+from contextlib import contextmanager
 from unittest import mock
 
 import pytest
+
+
+def _cm(conn):
+    @contextmanager
+    def _ctx():
+        yield conn
+    return _ctx()
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -36,13 +44,13 @@ class TestCaptionEndpoint:
 
         with (
             mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
-            mock.patch("api.routers.caption.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.caption.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.caption.get_visibility_clause", return_value=("1=1", [])),
         ):
             resp = client.get("/api/caption", params={"path": "/photos/missing.jpg"})
 
         assert resp.status_code == 404
-        mock_conn.close.assert_called_once()
+
 
     def test_returns_cached_caption(self, client):
         """When the DB already has a caption, return it with source='cached'."""
@@ -56,7 +64,7 @@ class TestCaptionEndpoint:
 
         with (
             mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
-            mock.patch("api.routers.caption.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.caption.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.caption.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
         ):
@@ -66,7 +74,7 @@ class TestCaptionEndpoint:
         body = resp.json()
         assert body["caption"] == "A beautiful sunset over the ocean"
         assert body["source"] == "cached"
-        mock_conn.close.assert_called_once()
+
 
     def test_vlm_unavailable_returns_503(self, client):
         """When no cached caption and VLM is unavailable, return 503."""
@@ -78,7 +86,7 @@ class TestCaptionEndpoint:
 
         with (
             mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
-            mock.patch("api.routers.caption.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.caption.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.caption.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
             mock.patch("api.routers.caption._generate_caption", return_value=None),
@@ -87,7 +95,7 @@ class TestCaptionEndpoint:
 
         assert resp.status_code == 503
         assert "unavailable" in resp.json()["detail"].lower()
-        mock_conn.close.assert_called_once()
+
 
     def test_generates_and_stores_caption(self, client):
         """When no cached caption, generate via VLM and store it."""
@@ -99,7 +107,7 @@ class TestCaptionEndpoint:
 
         with (
             mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
-            mock.patch("api.routers.caption.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.caption.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.caption.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
             mock.patch("api.routers.caption._generate_caption", return_value="A golden retriever playing in a park"),
@@ -112,7 +120,7 @@ class TestCaptionEndpoint:
         assert body["source"] == "generated"
         # Verify it attempted to store the caption
         mock_conn.commit.assert_called_once()
-        mock_conn.close.assert_called_once()
+
 
     def test_no_caption_column_skips_cache(self, client):
         """When caption column doesn't exist, skip cache lookup and storage."""
@@ -121,7 +129,7 @@ class TestCaptionEndpoint:
 
         with (
             mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
-            mock.patch("api.routers.caption.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.caption.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.caption.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.caption.get_existing_columns", return_value={"path", "aggregate"}),
             mock.patch("api.routers.caption._generate_caption", return_value="Generated caption"),

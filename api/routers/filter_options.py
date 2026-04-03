@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends
 
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import is_photo_tags_available, get_visibility_clause
 
 router = APIRouter(prefix="/api/filter_options", tags=["filter_options"])
@@ -35,11 +35,8 @@ def _cached_filter_query(cache_key, result_key, query_fn):
         if data and is_fresh:
             return {result_key: data, 'cached': True}
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         data = query_fn(conn)
-    finally:
-        conn.close()
     return {result_key: data, 'cached': False}
 
 
@@ -84,8 +81,7 @@ def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
         if data and is_fresh:
             return {'tags': data[:max_tags], 'cached': True}
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         if is_photo_tags_available(conn):
             try:
                 vis_sub = f' AND photo_path IN (SELECT path FROM photos WHERE 1=1{vis})' if vis else ''
@@ -122,8 +118,6 @@ def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
         except sqlite3.Error:
             logger.exception("Failed to query tags")
             return {'tags': [], 'cached': False}
-    finally:
-        conn.close()
 
 
 @router.get("/persons")
@@ -165,11 +159,8 @@ def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depends(get
 
     if forced_ids:
         # Bypass cache when forced IDs are requested to always include them
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             data = query(conn)
-        finally:
-            conn.close()
         return {'persons': data, 'cached': False}
     return _cached_filter_query('persons', 'persons', query)
 
@@ -253,9 +244,6 @@ def location_name(lat: float, lng: float):
     """Reverse geocode coordinates to a place name, using location_names cache."""
     from analyzers.capsule_generator import geocode_grid
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         name = geocode_grid(conn, lat, lng)
         return {"display_name": name}
-    finally:
-        conn.close()

@@ -1,5 +1,6 @@
 """Tests for the albums API router (api/routers/albums.py)."""
 
+from contextlib import nullcontext
 from unittest import mock
 
 import pytest
@@ -59,7 +60,7 @@ class TestListAlbums:
 
         with (
             mock.patch(f"{_ALBUMS_MODULE}.get_optional_user", return_value=None),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db_connection", return_value=mock_conn),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
         ):
             resp = client.get("/api/albums")
 
@@ -67,7 +68,7 @@ class TestListAlbums:
         body = resp.json()
         assert body["albums"] == []
         assert body["total"] == 0
-        mock_conn.close.assert_called_once()
+
 
     def test_list_albums_with_results(self, client):
         """Returns album dicts with expected fields."""
@@ -90,7 +91,7 @@ class TestListAlbums:
 
         with (
             mock.patch(f"{_ALBUMS_MODULE}.get_optional_user", return_value=None),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db_connection", return_value=mock_conn),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
         ):
             resp = client.get("/api/albums")
 
@@ -104,7 +105,7 @@ class TestListAlbums:
         assert "is_smart" in album
         assert "created_at" in album
         assert "photo_count" in album
-        mock_conn.close.assert_called_once()
+
 
 
 class TestCrud:
@@ -135,7 +136,7 @@ class TestCrud:
 
         with (
             mock.patch(f"{_ALBUMS_MODULE}.require_edition", return_value=_EDITION_USER),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db_connection", return_value=mock_conn),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
         ):
             resp = client.post("/api/albums", json={"name": "New Album", "description": "desc"})
 
@@ -144,7 +145,7 @@ class TestCrud:
         assert body["name"] == "New Album"
         assert body["photo_count"] == 0
         mock_conn.commit.assert_called_once()
-        mock_conn.close.assert_called_once()
+
 
     def test_get_album_not_found(self, client):
         """GET /api/albums/999 returns 404 when album does not exist."""
@@ -153,13 +154,13 @@ class TestCrud:
 
         with (
             mock.patch(f"{_ALBUMS_MODULE}.get_optional_user", return_value=None),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db_connection", return_value=mock_conn),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
         ):
             resp = client.get("/api/albums/999")
 
         assert resp.status_code == 404
         assert resp.json()["detail"] == "Album not found"
-        mock_conn.close.assert_called_once()
+
 
     def test_delete_album(self, client):
         """DELETE /api/albums/1 deletes album and its photos."""
@@ -171,7 +172,7 @@ class TestCrud:
 
         with (
             mock.patch(f"{_ALBUMS_MODULE}.require_edition", return_value=_EDITION_USER),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db_connection", return_value=mock_conn),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
         ):
             resp = client.delete("/api/albums/1")
 
@@ -185,7 +186,7 @@ class TestCrud:
         ]
         assert len(delete_calls) == 2
         mock_conn.commit.assert_called_once()
-        mock_conn.close.assert_called_once()
+
 
 
 class TestSharing:
@@ -200,7 +201,7 @@ class TestSharing:
 
         with (
             mock.patch(f"{_ALBUMS_MODULE}.require_edition", return_value=_EDITION_USER),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db_connection", return_value=mock_conn),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
         ):
             resp = client.post("/api/albums/1/share")
 
@@ -211,7 +212,7 @@ class TestSharing:
         assert body["share_url"].startswith("/shared/album/1?token=")
         assert len(body["share_token"]) > 0
         mock_conn.commit.assert_called_once()
-        mock_conn.close.assert_called_once()
+
 
     def test_shared_album_invalid_token(self, client):
         """GET /api/shared/album/1 with wrong token returns 403."""
@@ -222,13 +223,13 @@ class TestSharing:
 
         with (
             mock.patch(f"{_ALBUMS_MODULE}.get_optional_user", return_value=None),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db_connection", return_value=mock_conn),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
         ):
             resp = client.get("/api/shared/album/1", params={"token": "wrong"})
 
         assert resp.status_code == 403
         assert "Invalid share token" in resp.json()["detail"]
-        mock_conn.close.assert_called_once()
+
 
     def test_shared_album_valid_token(self, client):
         """GET /api/shared/album/1 with correct token returns album data."""
@@ -246,7 +247,7 @@ class TestSharing:
 
         with (
             mock.patch(f"{_ALBUMS_MODULE}.get_optional_user", return_value=None),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db_connection", return_value=mock_conn),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
             mock.patch(f"{_ALBUMS_MODULE}.get_visibility_clause", return_value=("1=1", [])),
             mock.patch(f"{_ALBUMS_MODULE}.get_photos_from_clause", return_value=("photos", [])),
             mock.patch(f"{_ALBUMS_MODULE}.build_photo_select_columns", return_value=["photos.path"]),
@@ -267,4 +268,4 @@ class TestSharing:
         assert body["album"]["is_shared"] is True
         assert "photos" in body
         assert body["total"] == 0
-        mock_conn.close.assert_called_once()
+

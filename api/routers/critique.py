@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import get_visibility_clause
 from api.model_cache import get_or_load_vlm_tagger
 
@@ -323,8 +323,7 @@ def api_critique(
     if not VIEWER_CONFIG.get('features', {}).get('show_critique', True):
         raise HTTPException(status_code=403, detail="Critique feature is disabled")
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -362,9 +361,6 @@ def api_critique(
                 result['vlm_available'] = False
 
         return result
-
-    finally:
-        conn.close()
 
 
 def _get_vlm_critique(photo, rule_critique):

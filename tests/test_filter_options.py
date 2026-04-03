@@ -1,6 +1,7 @@
 """Tests for /filter_options/persons endpoint — focusing on the `ids` force-include logic."""
 
 import sqlite3
+from contextlib import contextmanager
 from unittest import mock
 
 import pytest
@@ -36,6 +37,18 @@ def _conn_factory(db_path: str):
     return factory
 
 
+def _db_factory(db_path: str):
+    """Return a context-manager factory compatible with get_db()."""
+    @contextmanager
+    def factory():
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        try:
+            yield conn
+        finally:
+            conn.close()
+    return factory
+
+
 
 # ---------------------------------------------------------------------------
 # Tests
@@ -52,7 +65,7 @@ class TestPersonsEndpoint:
         conn_factory = _conn_factory(db_path)
         app = create_app()
         with (
-            mock.patch("api.routers.filter_options.get_db_connection", conn_factory),
+            mock.patch("api.routers.filter_options.get_db", _db_factory(db_path)),
             mock.patch("api.routers.filter_options.VIEWER_CONFIG", {
                 "dropdowns": {"min_photos_for_person": 2, "max_persons": 100}
             }),
@@ -76,7 +89,7 @@ class TestPersonsEndpoint:
         conn_factory = _conn_factory(db_path)
         app = create_app()
         with (
-            mock.patch("api.routers.filter_options.get_db_connection", conn_factory),
+            mock.patch("api.routers.filter_options.get_db", _db_factory(db_path)),
             mock.patch("api.routers.filter_options.VIEWER_CONFIG", {
                 "dropdowns": {"min_photos_for_person": 2, "max_persons": 100}
             }),
@@ -100,7 +113,7 @@ class TestPersonsEndpoint:
         conn_factory = _conn_factory(db_path)
         app = create_app()
         with (
-            mock.patch("api.routers.filter_options.get_db_connection", conn_factory),
+            mock.patch("api.routers.filter_options.get_db", _db_factory(db_path)),
             mock.patch("api.routers.filter_options.VIEWER_CONFIG", {
                 "dropdowns": {"min_photos_for_person": 3, "max_persons": 100}
             }),
@@ -119,7 +132,7 @@ class TestPersonsEndpoint:
         conn_factory = _conn_factory(db_path)
         app = create_app()
         with (
-            mock.patch("api.routers.filter_options.get_db_connection", conn_factory),
+            mock.patch("api.routers.filter_options.get_db", _db_factory(db_path)),
             mock.patch("api.routers.filter_options.VIEWER_CONFIG", {
                 "dropdowns": {"min_photos_for_person": 1, "max_persons": 100}
             }),
@@ -138,7 +151,7 @@ class TestPersonsEndpoint:
         conn_factory = _conn_factory(db_path)
         app = create_app()
         with (
-            mock.patch("api.routers.filter_options.get_db_connection", conn_factory),
+            mock.patch("api.routers.filter_options.get_db", _db_factory(db_path)),
             mock.patch("api.routers.filter_options.VIEWER_CONFIG", {
                 "dropdowns": {"min_photos_for_person": 1, "max_persons": 100}
             }),
@@ -157,7 +170,7 @@ class TestPersonsEndpoint:
         app = create_app()
         cache_mock = mock.MagicMock()
         with (
-            mock.patch("api.routers.filter_options.get_db_connection", conn_factory),
+            mock.patch("api.routers.filter_options.get_db", _db_factory(db_path)),
             mock.patch("api.routers.filter_options.VIEWER_CONFIG", {
                 "dropdowns": {"min_photos_for_person": 1, "max_persons": 100}
             }),

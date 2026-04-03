@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.auth import CurrentUser, require_edition, require_authenticated
-from api.database import get_db_connection
+from api.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +73,7 @@ def list_persons(
             where_clause = "WHERE p.name LIKE ?"
             params.append(f"%{term}%")
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute(
             f"SELECT COUNT(*) FROM persons p {where_clause}", params
         ).fetchone()
@@ -94,8 +93,6 @@ def list_persons(
             LIMIT ? OFFSET ?
         """, params + [per_page, offset]).fetchall()
         persons = [dict(row) for row in persons]
-    finally:
-        conn.close()
 
     return {"persons": persons, "total": total, "sort": sort}
 
@@ -108,12 +105,9 @@ def rename_person(
 ):
     """Rename a person (set or update their name)."""
     name = body.name.strip()
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         conn.execute("UPDATE persons SET name = ? WHERE id = ?", (name or None, person_id))
         conn.commit()
-    finally:
-        conn.close()
     return {"success": True, "name": name or f"Person {person_id}"}
 
 
@@ -141,33 +135,31 @@ def _do_merge(source_id: int, target_id: int):
     if source_id == target_id:
         raise HTTPException(status_code=400, detail="Cannot merge a person into itself")
 
-    conn = get_db_connection()
-    try:
-        # 1. Move all faces from source to target
-        conn.execute("UPDATE faces SET person_id = ? WHERE person_id = ?",
-                     (target_id, source_id))
+    with get_db() as conn:
+        try:
+            # 1. Move all faces from source to target
+            conn.execute("UPDATE faces SET person_id = ? WHERE person_id = ?",
+                         (target_id, source_id))
 
-        # 2. Update target face_count
-        row = conn.execute("SELECT COUNT(*) FROM faces WHERE person_id = ?",
-                           (target_id,)).fetchone()
-        count = row[0] if row else 0
-        conn.execute("UPDATE persons SET face_count = ? WHERE id = ?",
-                     (count, target_id))
+            # 2. Update target face_count
+            row = conn.execute("SELECT COUNT(*) FROM faces WHERE person_id = ?",
+                               (target_id,)).fetchone()
+            count = row[0] if row else 0
+            conn.execute("UPDATE persons SET face_count = ? WHERE id = ?",
+                         (count, target_id))
 
-        # 3. Delete source person
-        conn.execute("DELETE FROM persons WHERE id = ?", (source_id,))
+            # 3. Delete source person
+            conn.execute("DELETE FROM persons WHERE id = ?", (source_id,))
 
-        conn.commit()
+            conn.commit()
 
-        return {"success": True, "new_count": count}
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Database error merging person %d into %d", source_id, target_id)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            return {"success": True, "new_count": count}
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error merging person %d into %d", source_id, target_id)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/persons/merge_batch")
@@ -181,48 +173,45 @@ def merge_persons_batch(
     if body.target_id in body.source_ids:
         raise HTTPException(status_code=400, detail="Target cannot be in source list")
 
-    conn = get_db_connection()
-    try:
-        # Move all faces from sources to target
-        placeholders = ",".join("?" * len(body.source_ids))
-        conn.execute(
-            f"UPDATE faces SET person_id = ? WHERE person_id IN ({placeholders})",
-            [body.target_id] + body.source_ids,
-        )
+    with get_db() as conn:
+        try:
+            # Move all faces from sources to target
+            placeholders = ",".join("?" * len(body.source_ids))
+            conn.execute(
+                f"UPDATE faces SET person_id = ? WHERE person_id IN ({placeholders})",
+                [body.target_id] + body.source_ids,
+            )
 
-        # Update target face_count
-        row = conn.execute(
-            "SELECT COUNT(*) FROM faces WHERE person_id = ?",
-            (body.target_id,),
-        ).fetchone()
-        new_count = row[0] if row else 0
-        conn.execute(
-            "UPDATE persons SET face_count = ? WHERE id = ?",
-            (new_count, body.target_id),
-        )
+            # Update target face_count
+            row = conn.execute(
+                "SELECT COUNT(*) FROM faces WHERE person_id = ?",
+                (body.target_id,),
+            ).fetchone()
+            new_count = row[0] if row else 0
+            conn.execute(
+                "UPDATE persons SET face_count = ? WHERE id = ?",
+                (new_count, body.target_id),
+            )
 
-        # Delete source persons
-        conn.execute(
-            f"DELETE FROM persons WHERE id IN ({placeholders})",
-            body.source_ids,
-        )
-        conn.commit()
+            # Delete source persons
+            conn.execute(
+                f"DELETE FROM persons WHERE id IN ({placeholders})",
+                body.source_ids,
+            )
+            conn.commit()
 
-
-        return {
-            "success": True,
-            "target_id": body.target_id,
-            "merged_count": len(body.source_ids),
-            "new_count": new_count,
-        }
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Database error in batch merge to person %d", body.target_id)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            return {
+                "success": True,
+                "target_id": body.target_id,
+                "merged_count": len(body.source_ids),
+                "new_count": new_count,
+            }
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error in batch merge to person %d", body.target_id)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/persons/{person_id}/delete")
@@ -231,23 +220,21 @@ def delete_person(
     user: CurrentUser = Depends(require_edition),
 ):
     """Delete a person and unassign all their faces."""
-    conn = get_db_connection()
-    try:
-        # 1. Unassign all faces from this person (set person_id to NULL)
-        conn.execute("UPDATE faces SET person_id = NULL WHERE person_id = ?", (person_id,))
+    with get_db() as conn:
+        try:
+            # 1. Unassign all faces from this person (set person_id to NULL)
+            conn.execute("UPDATE faces SET person_id = NULL WHERE person_id = ?", (person_id,))
 
-        # 2. Delete the person
-        conn.execute("DELETE FROM persons WHERE id = ?", (person_id,))
+            # 2. Delete the person
+            conn.execute("DELETE FROM persons WHERE id = ?", (person_id,))
 
-        conn.commit()
+            conn.commit()
 
-        return {"success": True}
-    except sqlite3.Error:
-        logger.exception("Database error deleting person %d", person_id)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            return {"success": True}
+        except sqlite3.Error:
+            logger.exception("Database error deleting person %d", person_id)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/persons/delete_batch")
@@ -259,27 +246,25 @@ def delete_persons_batch(
     if not body.person_ids:
         raise HTTPException(status_code=400, detail="No person_ids provided")
 
-    conn = get_db_connection()
-    try:
-        placeholders = ",".join("?" * len(body.person_ids))
-        # 1. Unassign all faces from these persons
-        conn.execute(
-            f"UPDATE faces SET person_id = NULL WHERE person_id IN ({placeholders})",
-            body.person_ids,
-        )
+    with get_db() as conn:
+        try:
+            placeholders = ",".join("?" * len(body.person_ids))
+            # 1. Unassign all faces from these persons
+            conn.execute(
+                f"UPDATE faces SET person_id = NULL WHERE person_id IN ({placeholders})",
+                body.person_ids,
+            )
 
-        # 2. Delete the persons
-        conn.execute(
-            f"DELETE FROM persons WHERE id IN ({placeholders})",
-            body.person_ids,
-        )
+            # 2. Delete the persons
+            conn.execute(
+                f"DELETE FROM persons WHERE id IN ({placeholders})",
+                body.person_ids,
+            )
 
-        conn.commit()
+            conn.commit()
 
-        return {"success": True, "deleted_count": len(body.person_ids)}
-    except sqlite3.Error:
-        logger.exception("Database error in batch delete persons")
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            return {"success": True, "deleted_count": len(body.person_ids)}
+        except sqlite3.Error:
+            logger.exception("Database error in batch delete persons")
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')

@@ -79,7 +79,7 @@ class TestRequireEditionEnforcement:
         admin = CurrentUser(user_id="a1", role="admin")
         app.dependency_overrides[require_authenticated] = lambda: admin
         # Mock DB to avoid real database access
-        with mock.patch("api.routers.albums.get_db_connection"):
+        with mock.patch("api.routers.albums.get_db"):
             resp = client.post(self.ENDPOINT, json={"name": "test"})
         # Should NOT be 401 or 403 — auth passed
         assert resp.status_code not in (401, 403)
@@ -89,7 +89,7 @@ class TestRequireEditionEnforcement:
         app, client = _make_app_and_client(raise_server_exceptions=False)
         sa = CurrentUser(user_id="sa1", role="superadmin")
         app.dependency_overrides[require_authenticated] = lambda: sa
-        with mock.patch("api.routers.albums.get_db_connection"):
+        with mock.patch("api.routers.albums.get_db"):
             resp = client.post(self.ENDPOINT, json={"name": "test"})
         assert resp.status_code not in (401, 403)
 
@@ -114,7 +114,7 @@ class TestRequireAuthEnforcement:
             app, client = _make_app_and_client(raise_server_exceptions=False)
             user = CurrentUser(user_id="u1", role="user")
             app.dependency_overrides[require_authenticated] = lambda: user
-            with mock.patch("api.routers.faces.get_db_connection"):
+            with mock.patch("api.routers.faces.get_db"):
                 resp = client.post(
                     self.ENDPOINT,
                     json={"path": "/fake.jpg", "rating": 3},
@@ -149,7 +149,7 @@ class TestRequireAuthEnforcement:
             app, client = _make_app_and_client(raise_server_exceptions=False)
             user = CurrentUser(user_id="viewer1", role="user", edition_authenticated=True)
             app.dependency_overrides[require_authenticated] = lambda: user
-            with mock.patch("api.routers.faces.get_db_connection"):
+            with mock.patch("api.routers.faces.get_db"):
                 resp = client.post(
                     self.ENDPOINT,
                     json={"path": "/fake.jpg", "rating": 3},

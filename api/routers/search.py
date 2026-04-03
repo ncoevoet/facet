@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import (
     get_existing_columns, get_visibility_clause, get_photos_from_clause,
     get_preference_columns, PHOTO_BASE_COLS, PHOTO_OPTIONAL_COLS,
@@ -297,84 +297,82 @@ def api_search(
     if not VIEWER_CONFIG.get('features', {}).get('show_semantic_search', True):
         return {'photos': [], 'total': 0, 'query': q, 'error': 'Semantic search is disabled'}
 
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        vis_sql, vis_params = get_visibility_clause(user_id)
-        existing_cols = get_existing_columns(conn)
-        from_clause, from_params = get_photos_from_clause(user_id)
-        pref_cols = get_preference_columns(user_id)
-        pref_col_names = {'star_rating', 'is_favorite', 'is_rejected'}
-        select_cols = list(PHOTO_BASE_COLS)
-        for c in PHOTO_OPTIONAL_COLS:
-            if c in existing_cols:
-                if c in pref_col_names:
-                    select_cols.append(f"{pref_cols[c]} as {c}")
-                else:
-                    select_cols.append(c)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
+            existing_cols = get_existing_columns(conn)
+            from_clause, from_params = get_photos_from_clause(user_id)
+            pref_cols = get_preference_columns(user_id)
+            pref_col_names = {'star_rating', 'is_favorite', 'is_rejected'}
+            select_cols = list(PHOTO_BASE_COLS)
+            for c in PHOTO_OPTIONAL_COLS:
+                if c in existing_cols:
+                    if c in pref_col_names:
+                        select_cols.append(f"{pref_cols[c]} as {c}")
+                    else:
+                        select_cols.append(c)
 
-        embedding_scores = {}
-        fts_scores = {}
+            embedding_scores = {}
+            fts_scores = {}
 
-        # --- FTS5 text search ---
-        if _has_fts(conn):
-            fts_scores = _fts_search(conn, q, limit)
+            # --- FTS5 text search ---
+            if _has_fts(conn):
+                fts_scores = _fts_search(conn, q, limit)
 
-        # --- Embedding-based search ---
-        text_emb = _encode_text(q)
+            # --- Embedding-based search ---
+            text_emb = _encode_text(q)
 
-        if _check_vec_available(conn):
-            embedding_scores = _search_vec(conn, text_emb, limit, threshold, vis_sql, vis_params)
-        else:
-            embedding_scores = _search_numpy(conn, text_emb, limit, threshold, vis_sql, vis_params, user_id)
+            if _check_vec_available(conn):
+                embedding_scores = _search_vec(conn, text_emb, limit, threshold, vis_sql, vis_params)
+            else:
+                embedding_scores = _search_numpy(conn, text_emb, limit, threshold, vis_sql, vis_params, user_id)
 
-        # --- Merge results ---
-        # Embedding weight 0.7, FTS weight 0.3
-        all_paths = set(embedding_scores) | set(fts_scores)
-        sim_by_path = {}
-        for path in all_paths:
-            emb_score = embedding_scores.get(path, 0.0)
-            fts_score = fts_scores.get(path, 0.0)
-            sim_by_path[path] = emb_score * 0.7 + fts_score * 0.3
+            # --- Merge results ---
+            # Embedding weight 0.7, FTS weight 0.3
+            all_paths = set(embedding_scores) | set(fts_scores)
+            sim_by_path = {}
+            for path in all_paths:
+                emb_score = embedding_scores.get(path, 0.0)
+                fts_score = fts_scores.get(path, 0.0)
+                sim_by_path[path] = emb_score * 0.7 + fts_score * 0.3
 
-        if not sim_by_path:
-            return {'photos': [], 'total': 0, 'query': q}
+            if not sim_by_path:
+                return {'photos': [], 'total': 0, 'query': q}
 
-        # Keep only the top results after merging
-        if len(sim_by_path) > limit:
-            top_paths = sorted(sim_by_path, key=sim_by_path.get, reverse=True)[:limit]
-            sim_by_path = {p: sim_by_path[p] for p in top_paths}
+            # Keep only the top results after merging
+            if len(sim_by_path) > limit:
+                top_paths = sorted(sim_by_path, key=sim_by_path.get, reverse=True)[:limit]
+                sim_by_path = {p: sim_by_path[p] for p in top_paths}
 
-        # Fetch full photo data for all matching paths
-        matching_paths = list(sim_by_path.keys())
-        placeholders = ','.join(['?'] * len(matching_paths))
-        rows = conn.execute(
-            f"SELECT {', '.join(select_cols)} FROM {from_clause} "
-            f"WHERE photos.path IN ({placeholders})",
-            from_params + matching_paths
-        ).fetchall()
+            # Fetch full photo data for all matching paths
+            matching_paths = list(sim_by_path.keys())
+            placeholders = ','.join(['?'] * len(matching_paths))
+            rows = conn.execute(
+                f"SELECT {', '.join(select_cols)} FROM {from_clause} "
+                f"WHERE photos.path IN ({placeholders})",
+                from_params + matching_paths
+            ).fetchall()
 
-        tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
-        photos = split_photo_tags(rows, tags_limit)
-        for photo in photos:
-            photo['date_formatted'] = format_date(photo.get('date_taken'))
-            photo['similarity'] = round(sim_by_path.get(photo['path'], 0), 4)
+            tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
+            photos = split_photo_tags(rows, tags_limit)
+            for photo in photos:
+                photo['date_formatted'] = format_date(photo.get('date_taken'))
+                photo['similarity'] = round(sim_by_path.get(photo['path'], 0), 4)
 
-        attach_person_data(photos, conn)
+            attach_person_data(photos, conn)
 
-        # Sort by similarity (descending)
-        photos.sort(key=lambda p: p.get('similarity', 0), reverse=True)
+            # Sort by similarity (descending)
+            photos.sort(key=lambda p: p.get('similarity', 0), reverse=True)
 
-        sanitize_float_values(photos)
+            sanitize_float_values(photos)
 
-        return {
-            'photos': photos,
-            'total': len(photos),
-            'query': q,
-        }
+            return {
+                'photos': photos,
+                'total': len(photos),
+                'query': q,
+            }
 
-    except Exception:
-        logger.exception("Semantic search failed for query: %s", q)
-        return {'photos': [], 'total': 0, 'query': q, 'error': 'Search failed'}
-    finally:
-        conn.close()
+        except Exception:
+            logger.exception("Semantic search failed for query: %s", q)
+            return {'photos': [], 'total': 0, 'query': q, 'error': 'Search failed'}

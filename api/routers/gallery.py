@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
-from api.database import get_db_connection
+from api.database import get_db
 from api.models.gallery import GalleryParams
 from api.db_helpers import (
     get_existing_columns, get_cached_count, _add_tag_filter,
@@ -285,34 +285,32 @@ def api_photo(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Get a single photo by path (same shape as gallery items)."""
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        from_clause, from_params = get_photos_from_clause(user_id)
-        vis_sql, vis_params = get_visibility_clause(user_id)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            from_clause, from_params = get_photos_from_clause(user_id)
+            vis_sql, vis_params = get_visibility_clause(user_id)
 
-        select_cols = build_photo_select_columns(conn, user_id)
+            select_cols = build_photo_select_columns(conn, user_id)
 
-        query = f"SELECT {', '.join(select_cols)} FROM {from_clause} WHERE photos.path = ? AND {vis_sql}"
-        row = conn.execute(query, from_params + [path] + vis_params).fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Photo not found")
+            query = f"SELECT {', '.join(select_cols)} FROM {from_clause} WHERE photos.path = ? AND {vis_sql}"
+            row = conn.execute(query, from_params + [path] + vis_params).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Photo not found")
 
-        photos = split_photo_tags([row], VIEWER_CONFIG['display']['tags_per_photo'])
-        photo = photos[0]
-        photo['date_formatted'] = format_date(photo.get('date_taken'))
-        attach_person_data([photo], conn)
+            photos = split_photo_tags([row], VIEWER_CONFIG['display']['tags_per_photo'])
+            photo = photos[0]
+            photo['date_formatted'] = format_date(photo.get('date_taken'))
+            attach_person_data([photo], conn)
 
-        sanitize_float_values([photo])
+            sanitize_float_values([photo])
 
-        return photo
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Failed to fetch photo details")
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            return photo
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Failed to fetch photo details")
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.get("/api/type_counts")
@@ -370,53 +368,51 @@ def api_photos(
     sort_dir = 'ASC' if params['dir'] == 'ASC' else 'DESC'
     order_by_clause = f"{sort_col} {sort_dir}, path ASC"
 
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        from_clause, from_params = get_photos_from_clause(user_id)
-        where_clauses, sql_params = _build_gallery_where(params, conn, user_id=user_id)
-        all_params = from_params + sql_params
-        where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            from_clause, from_params = get_photos_from_clause(user_id)
+            where_clauses, sql_params = _build_gallery_where(params, conn, user_id=user_id)
+            all_params = from_params + sql_params
+            where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
-        total_count = get_cached_count(conn, where_str, all_params, from_clause=from_clause)
-        total_pages = max(1, math.ceil(total_count / per_page))
-        offset = (page - 1) * per_page
+            total_count = get_cached_count(conn, where_str, all_params, from_clause=from_clause)
+            total_pages = max(1, math.ceil(total_count / per_page))
+            offset = (page - 1) * per_page
 
-        existing_cols = get_existing_columns(conn)
-        pref_cols = get_preference_columns(user_id)
-        pref_col_names = {'star_rating', 'is_favorite', 'is_rejected'}
-        select_cols = list(PHOTO_BASE_COLS)
-        for c in PHOTO_OPTIONAL_COLS:
-            if c in existing_cols:
-                if c in pref_col_names:
-                    select_cols.append(f"{pref_cols[c]} as {c}")
-                else:
-                    select_cols.append(c)
+            existing_cols = get_existing_columns(conn)
+            pref_cols = get_preference_columns(user_id)
+            pref_col_names = {'star_rating', 'is_favorite', 'is_rejected'}
+            select_cols = list(PHOTO_BASE_COLS)
+            for c in PHOTO_OPTIONAL_COLS:
+                if c in existing_cols:
+                    if c in pref_col_names:
+                        select_cols.append(f"{pref_cols[c]} as {c}")
+                    else:
+                        select_cols.append(c)
 
-        needs_top_picks_score = (
-            params.get('top_picks_filter') == '1' or
-            'top_picks_score' in order_by_clause
-        )
-        if needs_top_picks_score:
-            top_picks_expr = get_top_picks_score_sql()
-            select_cols.append(f"({top_picks_expr}) as top_picks_score")
+            needs_top_picks_score = (
+                params.get('top_picks_filter') == '1' or
+                'top_picks_score' in order_by_clause
+            )
+            if needs_top_picks_score:
+                top_picks_expr = get_top_picks_score_sql()
+                select_cols.append(f"({top_picks_expr}) as top_picks_score")
 
-        query = f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
-        rows = conn.execute(query, all_params + [per_page, offset]).fetchall()
+            query = f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
+            rows = conn.execute(query, all_params + [per_page, offset]).fetchall()
 
-        tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
-        photos = split_photo_tags(rows, tags_limit)
+            tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
+            photos = split_photo_tags(rows, tags_limit)
 
-        for photo in photos:
-            photo['date_formatted'] = format_date(photo.get('date_taken'))
+            for photo in photos:
+                photo['date_formatted'] = format_date(photo.get('date_taken'))
 
-        attach_person_data(photos, conn)
+            attach_person_data(photos, conn)
 
-    except sqlite3.Error:
-        logger.exception("Failed to fetch gallery photos")
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+        except sqlite3.Error:
+            logger.exception("Failed to fetch gallery photos")
+            raise HTTPException(status_code=500, detail='Internal server error')
 
     sanitize_float_values(photos)
 
@@ -732,56 +728,54 @@ def api_similar_photos(
 
     effective_min_sim = min_similarity if min_similarity is not None else _MODE_DEFAULT_MIN_SIM[mode]
 
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        vis_sql, vis_params = get_visibility_clause(user_id)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
 
-        # Load source photo with all columns needed across modes
-        source = conn.execute(f"""
-            SELECT path, phash, clip_embedding, histogram_data, mean_saturation,
-                   mean_luminance, is_monochrome,
-                   aggregate, aesthetic, date_taken
-            FROM photos WHERE path = ? AND {vis_sql}
-        """, [photo_path] + vis_params).fetchone()
+            # Load source photo with all columns needed across modes
+            source = conn.execute(f"""
+                SELECT path, phash, clip_embedding, histogram_data, mean_saturation,
+                       mean_luminance, is_monochrome,
+                       aggregate, aesthetic, date_taken
+                FROM photos WHERE path = ? AND {vis_sql}
+            """, [photo_path] + vis_params).fetchone()
 
-        if not source:
-            raise HTTPException(status_code=404, detail='Photo not found')
+            if not source:
+                raise HTTPException(status_code=404, detail='Photo not found')
 
-        source = dict(source)
-        message = None
+            source = dict(source)
+            message = None
 
-        if mode == 'visual':
-            results, message = _find_similar_visual(conn, source, photo_path, effective_min_sim, vis_sql, vis_params)
-        elif mode == 'color':
-            results, message = _find_similar_color(conn, source, photo_path, effective_min_sim, vis_sql, vis_params)
-        elif mode == 'person':
-            results, message = _find_similar_person(conn, source, photo_path, effective_min_sim, vis_sql, vis_params, user_id=user_id)
-        else:
-            results, message = [], None
+            if mode == 'visual':
+                results, message = _find_similar_visual(conn, source, photo_path, effective_min_sim, vis_sql, vis_params)
+            elif mode == 'color':
+                results, message = _find_similar_color(conn, source, photo_path, effective_min_sim, vis_sql, vis_params)
+            elif mode == 'person':
+                results, message = _find_similar_person(conn, source, photo_path, effective_min_sim, vis_sql, vis_params, user_id=user_id)
+            else:
+                results, message = [], None
 
-        total_count = len(results)
-        page_results = results[offset:offset + limit]
+            total_count = len(results)
+            page_results = results[offset:offset + limit]
 
-        if full:
-            page_results = _enrich_similar_with_full_rows(page_results, conn, user_id)
+            if full:
+                page_results = _enrich_similar_with_full_rows(page_results, conn, user_id)
 
-        response = {
-            'source': photo_path,
-            'mode': mode,
-            'similar': page_results,
-            'total': total_count,
-            'has_more': (offset + limit) < total_count,
-        }
-        if message:
-            response['message'] = message
-        return response
+            response = {
+                'source': photo_path,
+                'mode': mode,
+                'similar': page_results,
+                'total': total_count,
+                'has_more': (offset + limit) < total_count,
+            }
+            if message:
+                response['message'] = message
+            return response
 
-    except sqlite3.Error:
-        logger.exception("Failed to find similar photos")
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+        except sqlite3.Error:
+            logger.exception("Failed to find similar photos")
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.get("/api/config")
@@ -792,8 +786,7 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
     from api.types import SORT_OPTIONS, SORT_OPTIONS_GROUPED, QUALITY_LEVELS, TYPE_LABELS
 
     features = dict(VIEWER_CONFIG.get('features', {}))
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         has_embeddings = conn.execute(
             "SELECT 1 FROM photos WHERE clip_embedding IS NOT NULL LIMIT 1"
         ).fetchone() is not None
@@ -812,8 +805,6 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
             conn.execute("SELECT 1 FROM albums LIMIT 0")
         except sqlite3.OperationalError:
             features['show_albums'] = False
-    finally:
-        conn.close()
 
     return {
         'sort_options': SORT_OPTIONS,

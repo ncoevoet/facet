@@ -1,5 +1,6 @@
 """Tests for the health and readiness check endpoints (api/routers/health.py)."""
 
+from contextlib import nullcontext
 from unittest import mock
 
 import pytest
@@ -26,18 +27,17 @@ class TestReadyEndpoint:
         mock_conn = mock.MagicMock()
         mock_conn.execute.return_value = None
 
-        with mock.patch("api.routers.health.get_db_connection", return_value=mock_conn):
+        with mock.patch("api.routers.health.get_db", return_value=nullcontext(mock_conn)):
             resp = client.get("/ready")
 
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "ready"
         assert body["checks"]["database"] == "ok"
-        mock_conn.close.assert_called_once()
 
     def test_not_ready_when_database_unavailable(self, client):
         with mock.patch(
-            "api.routers.health.get_db_connection",
+            "api.routers.health.get_db",
             side_effect=Exception("connection refused"),
         ):
             resp = client.get("/ready")
@@ -51,11 +51,10 @@ class TestReadyEndpoint:
         mock_conn = mock.MagicMock()
         mock_conn.execute.side_effect = Exception("disk I/O error")
 
-        with mock.patch("api.routers.health.get_db_connection", return_value=mock_conn):
+        with mock.patch("api.routers.health.get_db", return_value=nullcontext(mock_conn)):
             resp = client.get("/ready")
 
         assert resp.status_code == 503
         body = resp.json()
         assert body["status"] == "not_ready"
         assert body["checks"]["database"] == "unavailable"
-        mock_conn.close.assert_called_once()

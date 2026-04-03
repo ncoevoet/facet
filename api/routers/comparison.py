@@ -29,7 +29,7 @@ from api.config import (
     reload_config, _stats_cache, get_all_scan_directories,
     is_multi_user_enabled,
 )
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import get_visibility_clause
 from db import DEFAULT_DB_PATH
 from utils.image_loading import RAW_EXTENSIONS
@@ -156,16 +156,13 @@ def _validate_and_resolve(path: str, user: Optional[CurrentUser]):
     if not path:
         raise HTTPException(status_code=400, detail='path required')
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
         row = conn.execute(
             f"SELECT path FROM photos WHERE path = ? AND {vis_sql}",
             [path] + vis_params
         ).fetchone()
-    finally:
-        conn.close()
 
     if not row:
         raise HTTPException(status_code=404, detail='File not found')
@@ -322,18 +319,16 @@ def api_comparison_reset(
     user: CurrentUser = Depends(require_edition),
 ):
     """Reset all comparison data."""
-    conn = get_db_connection()
-    try:
-        conn.execute("DELETE FROM comparisons")
-        conn.execute("DELETE FROM learned_scores")
-        conn.execute("DELETE FROM weight_optimization_runs")
-        conn.commit()
-        return {'success': True, 'message': 'All comparison data has been reset'}
-    except sqlite3.Error:
-        logger.exception("Failed to reset comparison data")
-        raise HTTPException(status_code=500, detail='Reset failed')
-    finally:
-        conn.close()
+    with get_db() as conn:
+        try:
+            conn.execute("DELETE FROM comparisons")
+            conn.execute("DELETE FROM learned_scores")
+            conn.execute("DELETE FROM weight_optimization_runs")
+            conn.commit()
+            return {'success': True, 'message': 'All comparison data has been reset'}
+        except sqlite3.Error:
+            logger.exception("Failed to reset comparison data")
+            raise HTTPException(status_code=500, detail='Reset failed')
 
 
 @router.post("/api/recalculate")
@@ -524,14 +519,11 @@ def api_comparison_photo_metrics(
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         placeholders = ','.join(['?' for _ in path_list])
         cols = ', '.join(metric_columns)
         query = f"SELECT {cols} FROM photos WHERE path IN ({placeholders}) AND {vis_sql}"
         rows = conn.execute(query, path_list + vis_params).fetchall()
-    finally:
-        conn.close()
 
     result = {}
     for row in rows:
@@ -603,14 +595,11 @@ def api_comparison_learned_weights(
     optimizer = WeightOptimizer(DEFAULT_DB_PATH)
 
     # Check if we have enough comparisons
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute(
             "SELECT COUNT(*) FROM comparisons WHERE winner IN ('a', 'b', 'tie')"
         ).fetchone()
         count = row[0] if row else 0
-    finally:
-        conn.close()
 
     settings = get_comparison_mode_settings()
     min_comparisons = settings.get('min_comparisons_for_optimization', 30)
@@ -711,11 +700,8 @@ def api_comparison_preview_score(
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute(f"SELECT * FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
-    finally:
-        conn.close()
 
     if not row:
         raise HTTPException(status_code=404, detail='Photo not found')
@@ -804,11 +790,8 @@ def api_comparison_suggest_filters(
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute(f"SELECT * FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
-    finally:
-        conn.close()
 
     if not row:
         raise HTTPException(status_code=404, detail='Photo not found')
@@ -1048,8 +1031,7 @@ def api_comparison_override_category(
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute(f"SELECT category FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail='Photo not found')
@@ -1059,8 +1041,6 @@ def api_comparison_override_category(
         # Update the category
         conn.execute(f"UPDATE photos SET category = ? WHERE path = ? AND {vis_sql}", [body.category, body.path] + vis_params)
         conn.commit()
-    finally:
-        conn.close()
 
     _stats_cache.clear()
 
@@ -1233,8 +1213,7 @@ def api_weight_snapshots(
 ):
     """List weight configuration snapshots."""
     try:
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             if category:
                 cursor = conn.execute("""
                     SELECT * FROM weight_config_snapshots
@@ -1261,8 +1240,6 @@ def api_weight_snapshots(
                 snapshots.append(snapshot)
 
             return {'snapshots': snapshots}
-        finally:
-            conn.close()
     except Exception:
         logger.exception("Failed to list weight snapshots")
         raise HTTPException(status_code=500, detail='Internal server error')
@@ -1281,8 +1258,7 @@ def api_save_weight_snapshot(
         config = ScoringConfig(validate=False)
         weights = config.get_weights(body.category)
 
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cursor = conn.execute("""
                 INSERT INTO weight_config_snapshots
                 (category, weights, description, accuracy_before, accuracy_after,
@@ -1299,8 +1275,6 @@ def api_save_weight_snapshot(
             ))
             conn.commit()
             snapshot_id = cursor.lastrowid
-        finally:
-            conn.close()
 
         return {'success': True, 'snapshot_id': snapshot_id}
     except Exception:
@@ -1319,13 +1293,10 @@ def api_restore_weights(
 
     try:
         # Get snapshot
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             row = conn.execute("""
                 SELECT * FROM weight_config_snapshots WHERE id = ?
             """, (body.snapshot_id,)).fetchone()
-        finally:
-            conn.close()
 
         if not row:
             raise HTTPException(status_code=404, detail='Snapshot not found')

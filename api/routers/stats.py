@@ -23,7 +23,7 @@ from api.config import (
     CORRELATION_X_AXES, CORRELATION_Y_METRICS, FACET_SCRIPT,
     _get_stats_cached, _stats_cache, _CONFIG_PATH, reload_config,
 )
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import get_visibility_clause, to_exif_date, to_iso_date
 
 router = APIRouter(tags=["stats"])
@@ -125,8 +125,7 @@ def api_stats_overview(
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
     def compute():
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
 
             cur.execute(f'''SELECT COUNT(*) as total,
@@ -163,8 +162,6 @@ def api_stats_overview(
                 total_tags = tags_row[0] if tags_row else 0
             except sqlite3.OperationalError:
                 total_tags = 0
-        finally:
-            conn.close()
 
         # Format dates
         date_start = ''
@@ -202,8 +199,7 @@ def api_stats_score_distribution(
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
     def compute():
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
 
             # 0.5-point buckets
@@ -212,8 +208,6 @@ def api_stats_score_distribution(
                            GROUP BY bucket ORDER BY bucket''', vp)
             rows = cur.fetchall()
             total = sum(r[1] for r in rows) or 1
-        finally:
-            conn.close()
 
         bins = []
         for r in rows:
@@ -244,8 +238,7 @@ def api_stats_top_cameras(
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
     def compute():
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
             cur.execute(f'''SELECT camera_model, COUNT(*) as cnt,
                            ROUND(AVG(aggregate), 2) as avg_agg,
@@ -254,8 +247,6 @@ def api_stats_top_cameras(
                            GROUP BY camera_model HAVING cnt >= 10
                            ORDER BY avg_agg DESC LIMIT 20''', vp)
             cameras = [{'name': r[0], 'count': r[1], 'avg_score': r[2], 'avg_aesthetic': r[3]} for r in cur.fetchall()]
-        finally:
-            conn.close()
         return cameras
 
     user_id = user.user_id if user else None
@@ -274,8 +265,7 @@ def api_stats_categories(
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
     def compute():
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
 
             cur.execute(f'''
@@ -320,8 +310,6 @@ def api_stats_categories(
                 ) WHERE rn = 1
             ''', vp)
             top_lenses = {r[0]: r[1] for r in cur.fetchall()}
-        finally:
-            conn.close()
 
         return [
             {
@@ -360,8 +348,7 @@ def api_stats_gear(
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
     def compute():
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
             # Camera bodies
             cur.execute(f'''SELECT camera_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
@@ -418,7 +405,7 @@ def api_stats_gear(
             cur.execute(f'''SELECT camera_model, lens_model, SUBSTR(date_taken,1,7) as month, COUNT(*) as cnt
                            FROM photos WHERE date_taken IS NOT NULL {vis}
                            GROUP BY camera_model, lens_model, month''', vp)
-            
+
             cam_tl, len_tl, com_tl = {}, {}, {}
             for cam, lens, month, count in cur.fetchall():
                 if not month: continue
@@ -451,8 +438,6 @@ def api_stats_gear(
             consolidate_history(len_tl, lenses)
             consolidate_history(com_tl, combos)
 
-        finally:
-            conn.close()
         return {'cameras': cameras, 'lenses': lenses, 'combos': combos, 'categories': categories}
 
     user_id = user.user_id if user else None
@@ -470,8 +455,7 @@ def api_stats_settings(
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
     def compute():
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
 
             # ISO distribution with buckets
@@ -551,8 +535,6 @@ def api_stats_settings(
                            FROM photos WHERE aggregate IS NOT NULL{vis}
                            GROUP BY bucket ORDER BY bucket''', vp)
             score_dist = [{'label': str(r[0]), 'count': r[1]} for r in cur.fetchall()]
-        finally:
-            conn.close()
 
         return {'iso': iso, 'aperture': aperture, 'focal_length': focal, 'shutter_speed': shutter, 'score_distribution': score_dist}
 
@@ -571,8 +553,7 @@ def api_stats_timeline(
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
     def compute():
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
 
             # Monthly
@@ -601,8 +582,6 @@ def api_stats_timeline(
                            FROM photos WHERE date_taken IS NOT NULL AND date_taken != ''{vis}
                            GROUP BY day ORDER BY cnt DESC LIMIT 10''', vp)
             top_days = [{'date': r[0], 'count': r[1]} for r in cur.fetchall()]
-        finally:
-            conn.close()
         return {'monthly': monthly, 'yearly': yearly, 'heatmap': heatmap, 'top_days': top_days}
 
     user_id = user.user_id if user else None
@@ -637,8 +616,7 @@ def api_stats_correlations(
     cache_key = f"corr:{x}:{','.join(sorted(y_metrics))}:{group_by}:{min_samples}:{date_from}:{date_to}:{category}:{user_id or ''}"
 
     def compute():
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
             x_def = CORRELATION_X_AXES[x]
             x_sql = x_def['sql']
@@ -695,8 +673,6 @@ def api_stats_correlations(
                           ORDER BY {x_sort}"""
                 cur.execute(sql, date_params + vp + [min_samples])
                 rows = cur.fetchall()
-        finally:
-            conn.close()
 
         if group_by:
             # Build ordered labels from all x_buckets
@@ -740,8 +716,7 @@ def api_stats_categories_breakdown(user: Optional[CurrentUser] = Depends(get_opt
     vis, vp = _vis_where(user)
 
     def compute():
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
 
             # Per-category counts and averages
@@ -793,8 +768,6 @@ def api_stats_categories_breakdown(user: Optional[CurrentUser] = Depends(get_opt
                 if cat not in distributions:
                     distributions[cat] = []
                 distributions[cat].append({'bucket': r[1], 'count': r[2]})
-        finally:
-            conn.close()
         return {
             'categories': categories,
             'distributions': distributions,
@@ -833,8 +806,7 @@ def api_stats_categories_correlations(user: Optional[CurrentUser] = Depends(get_
     vis, vp = _vis_where(user)
 
     def compute():
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
 
             # For each category, compute Pearson r between each weight dimension and aggregate
@@ -865,8 +837,6 @@ def api_stats_categories_correlations(user: Optional[CurrentUser] = Depends(get_
                     if cat not in results:
                         results[cat] = {}
                     results[cat][weight_key] = round(pearson_r, 3)
-        finally:
-            conn.close()
 
         # Also include configured weight percentages for comparison
         from config import ScoringConfig
@@ -905,8 +875,7 @@ def api_stats_categories_metrics(
         cols = list(_WEIGHT_COLUMNS.values())
         col_sql = ', '.join(cols)
 
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
             cur.execute(
                 f'SELECT {col_sql}, aggregate FROM photos WHERE category = ?{vis} LIMIT 5000',
@@ -919,8 +888,6 @@ def api_stats_categories_metrics(
                 for i, key in enumerate(_WEIGHT_COLUMNS):
                     metrics[key].append(row[i] if row[i] is not None else 0)
                 current_aggregate.append(row[len(cols)] if row[len(cols)] is not None else 0)
-        finally:
-            conn.close()
 
         return {
             'category': category,
@@ -955,8 +922,7 @@ def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get_optio
             })
 
         # Fetch photo data needed for filter evaluation
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cur = conn.cursor()
             cur.execute(f'''
                 SELECT tags, face_count, face_ratio, is_silhouette, is_group_portrait,
@@ -1012,8 +978,6 @@ def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get_optio
                     for j in range(i + 1, len(matched)):
                         pair = tuple(sorted([matched[i], matched[j]]))
                         overlap_pairs[pair] += 1
-        finally:
-            conn.close()
 
         # Build overlap list sorted by count
         overlaps = [

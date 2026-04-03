@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import _FULL_CONFIG
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import (
     build_photo_select_columns,
     sanitize_float_values,
@@ -91,14 +91,11 @@ def _resolve_capsule(capsule_id: str, user_id, date_from="", date_to="") -> dict
     """Find a capsule by ID from cache (generating if needed). Raises 404."""
     cached, hit = _get_cached_capsules(user_id, date_from=date_from, date_to=date_to)
     if not hit:
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             from analyzers.capsule_generator import generate_all_capsules
             cached = generate_all_capsules(conn, config=_FULL_CONFIG, user_id=user_id,
                                            date_from=date_from, date_to=date_to)
             _set_cached_capsules(user_id, cached, date_from=date_from, date_to=date_to)
-        finally:
-            conn.close()
 
     for c in cached:
         if c["id"] == capsule_id:
@@ -122,19 +119,17 @@ def get_capsules(
 
     cached, hit = _get_cached_capsules(user_id, refresh, date_from=date_from, date_to=date_to)
     if not hit:
-        conn = get_db_connection()
-        try:
-            from analyzers.capsule_generator import generate_all_capsules
+        with get_db() as conn:
+            try:
+                from analyzers.capsule_generator import generate_all_capsules
 
-            cached = generate_all_capsules(conn, config=_FULL_CONFIG, user_id=user_id,
-                                           date_from=date_from, date_to=date_to,
-                                           shuffle=refresh)
-            _set_cached_capsules(user_id, cached, date_from=date_from, date_to=date_to)
-        except (sqlite3.Error, ValueError, TypeError, KeyError):
-            logger.exception("Failed to generate capsules")
-            raise HTTPException(status_code=500, detail="Failed to generate capsules")
-        finally:
-            conn.close()
+                cached = generate_all_capsules(conn, config=_FULL_CONFIG, user_id=user_id,
+                                               date_from=date_from, date_to=date_to,
+                                               shuffle=refresh)
+                _set_cached_capsules(user_id, cached, date_from=date_from, date_to=date_to)
+            except (sqlite3.Error, ValueError, TypeError, KeyError):
+                logger.exception("Failed to generate capsules")
+                raise HTTPException(status_code=500, detail="Failed to generate capsules")
 
     total = len(cached)
     start = (page - 1) * per_page
@@ -163,50 +158,48 @@ def get_capsule_photos(
     if not paths:
         return {"photos": [], "capsule": _capsule_summary(capsule)}
 
-    conn = get_db_connection()
-    try:
-        # Fetch full photo data for these paths
-        select_cols = build_photo_select_columns(conn, user_id)
-        inner_cols = ", ".join(select_cols)
+    with get_db() as conn:
+        try:
+            # Fetch full photo data for these paths
+            select_cols = build_photo_select_columns(conn, user_id)
+            inner_cols = ", ".join(select_cols)
 
-        vis_sql, vis_params = get_visibility_clause(user_id)
+            vis_sql, vis_params = get_visibility_clause(user_id)
 
-        placeholders = ",".join(["?"] * len(paths))
-        query = f"""
-            SELECT {inner_cols}
-            FROM photos
-            WHERE path IN ({placeholders})
-              AND {vis_sql}
-        """
-        rows = conn.execute(query, paths + vis_params).fetchall()
+            placeholders = ",".join(["?"] * len(paths))
+            query = f"""
+                SELECT {inner_cols}
+                FROM photos
+                WHERE path IN ({placeholders})
+                  AND {vis_sql}
+            """
+            rows = conn.execute(query, paths + vis_params).fetchall()
 
-        from api.config import VIEWER_CONFIG
+            from api.config import VIEWER_CONFIG
 
-        tags_limit = VIEWER_CONFIG.get("display", {}).get("tags_per_photo", 10)
-        photos = split_photo_tags(rows, tags_limit)
+            tags_limit = VIEWER_CONFIG.get("display", {}).get("tags_per_photo", 10)
+            photos = split_photo_tags(rows, tags_limit)
 
-        for photo in photos:
-            photo["date_formatted"] = format_date(photo.get("date_taken"))
+            for photo in photos:
+                photo["date_formatted"] = format_date(photo.get("date_taken"))
 
-        attach_person_data(photos, conn)
-        sanitize_float_values(photos)
+            attach_person_data(photos, conn)
+            sanitize_float_values(photos)
 
-        # Preserve the original path ordering
-        path_order = {p: i for i, p in enumerate(paths)}
-        photos.sort(key=lambda p: path_order.get(p.get("path"), 999999))
+            # Preserve the original path ordering
+            path_order = {p: i for i, p in enumerate(paths)}
+            photos.sort(key=lambda p: path_order.get(p.get("path"), 999999))
 
-        return {
-            "photos": photos,
-            "capsule": _capsule_summary(capsule),
-        }
+            return {
+                "photos": photos,
+                "capsule": _capsule_summary(capsule),
+            }
 
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Failed to fetch capsule photos for %s", capsule_id)
-        raise HTTPException(status_code=500, detail="Internal server error")
-    finally:
-        conn.close()
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Failed to fetch capsule photos for %s", capsule_id)
+            raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/api/capsules/{capsule_id}/save-album")
@@ -226,22 +219,20 @@ def save_capsule_as_album(
     description = capsule.get("subtitle", "")
     cover_path = capsule.get("cover_photo_path")
 
-    conn = get_db_connection()
-    try:
-        cursor = conn.execute(
-            """INSERT INTO albums (user_id, name, description, is_smart, cover_photo_path)
-               VALUES (?, ?, ?, 0, ?)""",
-            (user_id, name, description, cover_path),
-        )
-        album_id = cursor.lastrowid
-        conn.executemany(
-            "INSERT OR IGNORE INTO album_photos (album_id, photo_path, position) VALUES (?, ?, ?)",
-            [(album_id, path, i) for i, path in enumerate(paths)],
-        )
-        conn.commit()
-        return {"album_id": album_id, "name": name}
-    except sqlite3.Error:
-        logger.exception("Failed to save capsule %s as album", capsule_id)
-        raise HTTPException(status_code=500, detail="Failed to save album")
-    finally:
-        conn.close()
+    with get_db() as conn:
+        try:
+            cursor = conn.execute(
+                """INSERT INTO albums (user_id, name, description, is_smart, cover_photo_path)
+                   VALUES (?, ?, ?, 0, ?)""",
+                (user_id, name, description, cover_path),
+            )
+            album_id = cursor.lastrowid
+            conn.executemany(
+                "INSERT OR IGNORE INTO album_photos (album_id, photo_path, position) VALUES (?, ?, ?)",
+                [(album_id, path, i) for i, path in enumerate(paths)],
+            )
+            conn.commit()
+            return {"album_id": album_id, "name": name}
+        except sqlite3.Error:
+            logger.exception("Failed to save capsule %s as album", capsule_id)
+            raise HTTPException(status_code=500, detail="Failed to save album")

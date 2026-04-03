@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from api.auth import CurrentUser, require_edition, require_auth
 from api.config import is_multi_user_enabled, _stats_cache
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import update_person_face_count
 
 logger = logging.getLogger(__name__)
@@ -61,8 +61,7 @@ def api_person_faces(
     user: CurrentUser = Depends(require_auth),
 ):
     """Get all faces belonging to a person."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         faces = conn.execute("""
             SELECT f.id, f.photo_path, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2
             FROM faces f
@@ -72,8 +71,6 @@ def api_person_faces(
             LIMIT 36
         """, (person_id,)).fetchall()
         return {'faces': [dict(f) for f in faces]}
-    finally:
-        conn.close()
 
 
 @router.post("/api/person/{person_id}/avatar")
@@ -83,31 +80,29 @@ def api_set_person_avatar(
     user: CurrentUser = Depends(require_edition),
 ):
     """Set a face as the representative avatar for a person."""
-    conn = get_db_connection()
-    try:
-        face = conn.execute("""
-            SELECT id, face_thumbnail FROM faces WHERE id = ? AND person_id = ?
-        """, (body.face_id, person_id)).fetchone()
+    with get_db() as conn:
+        try:
+            face = conn.execute("""
+                SELECT id, face_thumbnail FROM faces WHERE id = ? AND person_id = ?
+            """, (body.face_id, person_id)).fetchone()
 
-        if not face:
-            raise HTTPException(status_code=404, detail="Face not found or does not belong to this person")
+            if not face:
+                raise HTTPException(status_code=404, detail="Face not found or does not belong to this person")
 
-        conn.execute("""
-            UPDATE persons SET representative_face_id = ?, face_thumbnail = ?
-            WHERE id = ?
-        """, (body.face_id, face['face_thumbnail'], person_id))
+            conn.execute("""
+                UPDATE persons SET representative_face_id = ?, face_thumbnail = ?
+                WHERE id = ?
+            """, (body.face_id, face['face_thumbnail'], person_id))
 
-        conn.commit()
+            conn.commit()
 
-        return {'success': True}
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Database error setting person avatar %d", person_id)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            return {'success': True}
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error setting person avatar %d", person_id)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.get("/api/photo/faces")
@@ -116,8 +111,7 @@ def api_photo_faces(
     user: CurrentUser = Depends(require_auth),
 ):
     """Get all faces in a photo with their current person assignment."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         faces = conn.execute("""
             SELECT f.id, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2,
                    f.person_id, p.name as person_name
@@ -127,8 +121,6 @@ def api_photo_faces(
             ORDER BY f.face_index
         """, (path,)).fetchall()
         return {'faces': [dict(f) for f in faces]}
-    finally:
-        conn.close()
 
 
 @router.post("/api/face/{face_id}/assign")
@@ -138,30 +130,28 @@ def api_assign_face(
     user: CurrentUser = Depends(require_edition),
 ):
     """Assign a face to a person."""
-    conn = get_db_connection()
-    try:
-        face = conn.execute("SELECT person_id FROM faces WHERE id = ?", (face_id,)).fetchone()
-        if not face:
-            raise HTTPException(status_code=404, detail="Face not found")
+    with get_db() as conn:
+        try:
+            face = conn.execute("SELECT person_id FROM faces WHERE id = ?", (face_id,)).fetchone()
+            if not face:
+                raise HTTPException(status_code=404, detail="Face not found")
 
-        old_person_id = face['person_id']
-        conn.execute("UPDATE faces SET person_id = ? WHERE id = ?", (body.person_id, face_id))
+            old_person_id = face['person_id']
+            conn.execute("UPDATE faces SET person_id = ? WHERE id = ?", (body.person_id, face_id))
 
-        if old_person_id:
-            update_person_face_count(conn, old_person_id)
-        update_person_face_count(conn, body.person_id)
+            if old_person_id:
+                update_person_face_count(conn, old_person_id)
+            update_person_face_count(conn, body.person_id)
 
-        conn.commit()
+            conn.commit()
 
-        return {'success': True}
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Database error assigning face %d", face_id)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            return {'success': True}
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error assigning face %d", face_id)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/photo/assign_all_faces")
@@ -170,34 +160,32 @@ def api_assign_all_faces(
     user: CurrentUser = Depends(require_edition),
 ):
     """Assign all unassigned faces in a photo to a person."""
-    conn = get_db_connection()
-    try:
-        faces = conn.execute("""
-            SELECT id FROM faces WHERE photo_path = ? AND person_id IS NULL
-        """, (body.photo_path,)).fetchall()
+    with get_db() as conn:
+        try:
+            faces = conn.execute("""
+                SELECT id FROM faces WHERE photo_path = ? AND person_id IS NULL
+            """, (body.photo_path,)).fetchall()
 
-        if not faces:
-            raise HTTPException(status_code=404, detail="No unassigned faces found")
+            if not faces:
+                raise HTTPException(status_code=404, detail="No unassigned faces found")
 
-        face_ids = [f['id'] for f in faces]
-        placeholders = ','.join('?' * len(face_ids))
-        conn.execute(f"""
-            UPDATE faces SET person_id = ? WHERE id IN ({placeholders})
-        """, [body.person_id] + face_ids)
+            face_ids = [f['id'] for f in faces]
+            placeholders = ','.join('?' * len(face_ids))
+            conn.execute(f"""
+                UPDATE faces SET person_id = ? WHERE id IN ({placeholders})
+            """, [body.person_id] + face_ids)
 
-        update_person_face_count(conn, body.person_id)
+            update_person_face_count(conn, body.person_id)
 
-        conn.commit()
+            conn.commit()
 
-        return {'success': True, 'assigned_count': len(face_ids)}
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Database error assigning all faces for photo %s", body.photo_path)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            return {'success': True, 'assigned_count': len(face_ids)}
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error assigning all faces for photo %s", body.photo_path)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/photo/unassign_person")
@@ -206,49 +194,46 @@ def api_unassign_person(
     user: CurrentUser = Depends(require_edition),
 ):
     """Unassign all faces of a specific person from a photo."""
-    conn = get_db_connection()
-    try:
-        faces = conn.execute("""
-            SELECT id FROM faces
-            WHERE photo_path = ? AND person_id = ?
-        """, (body.photo_path, body.person_id)).fetchall()
+    with get_db() as conn:
+        try:
+            faces = conn.execute("""
+                SELECT id FROM faces
+                WHERE photo_path = ? AND person_id = ?
+            """, (body.photo_path, body.person_id)).fetchall()
 
-        if not faces:
-            raise HTTPException(status_code=404, detail="No faces found")
+            if not faces:
+                raise HTTPException(status_code=404, detail="No faces found")
 
-        conn.execute("""
-            UPDATE faces SET person_id = NULL
-            WHERE photo_path = ? AND person_id = ?
-        """, (body.photo_path, body.person_id))
+            conn.execute("""
+                UPDATE faces SET person_id = NULL
+                WHERE photo_path = ? AND person_id = ?
+            """, (body.photo_path, body.person_id))
 
-        update_person_face_count(conn, body.person_id)
+            update_person_face_count(conn, body.person_id)
 
-        new_count = conn.execute(
-            "SELECT face_count FROM persons WHERE id = ?",
-            (body.person_id,)
-        ).fetchone()
+            new_count = conn.execute(
+                "SELECT face_count FROM persons WHERE id = ?",
+                (body.person_id,)
+            ).fetchone()
 
-        person_deleted = False
-        if new_count and new_count[0] == 0:
-            conn.execute("DELETE FROM persons WHERE id = ?", (body.person_id,))
-            person_deleted = True
+            person_deleted = False
+            if new_count and new_count[0] == 0:
+                conn.execute("DELETE FROM persons WHERE id = ?", (body.person_id,))
+                person_deleted = True
 
-        conn.commit()
+            conn.commit()
 
-
-        return {
-            'success': True,
-            'unassigned_count': len(faces),
-            'person_deleted': person_deleted
-        }
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Database error unassigning person %d from photo %s", body.person_id, body.photo_path)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            return {
+                'success': True,
+                'unassigned_count': len(faces),
+                'person_deleted': person_deleted
+            }
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error unassigning person %d from photo %s", body.person_id, body.photo_path)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/photo/set_rating")
@@ -257,25 +242,23 @@ def api_set_rating(
     user: CurrentUser = Depends(require_auth),
 ):
     """Set star rating (0-5) for a photo."""
-    conn = get_db_connection()
-    try:
-        if user.user_id and is_multi_user_enabled():
-            conn.execute("""
-                INSERT INTO user_preferences (user_id, photo_path, star_rating)
-                VALUES (?, ?, ?)
-                ON CONFLICT(user_id, photo_path) DO UPDATE SET star_rating = excluded.star_rating
-            """, (user.user_id, body.photo_path, body.rating))
-        else:
-            conn.execute("UPDATE photos SET star_rating = ? WHERE path = ?", (body.rating, body.photo_path))
-        conn.commit()
-        _stats_cache.clear()
-        return {'success': True, 'rating': body.rating}
-    except sqlite3.Error:
-        logger.exception("Database error setting rating for photo %s", body.photo_path)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+    with get_db() as conn:
+        try:
+            if user.user_id and is_multi_user_enabled():
+                conn.execute("""
+                    INSERT INTO user_preferences (user_id, photo_path, star_rating)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(user_id, photo_path) DO UPDATE SET star_rating = excluded.star_rating
+                """, (user.user_id, body.photo_path, body.rating))
+            else:
+                conn.execute("UPDATE photos SET star_rating = ? WHERE path = ?", (body.rating, body.photo_path))
+            conn.commit()
+            _stats_cache.clear()
+            return {'success': True, 'rating': body.rating}
+        except sqlite3.Error:
+            logger.exception("Database error setting rating for photo %s", body.photo_path)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/photo/toggle_favorite")
@@ -284,47 +267,45 @@ def api_toggle_favorite(
     user: CurrentUser = Depends(require_auth),
 ):
     """Toggle favorite flag for a photo."""
-    conn = get_db_connection()
-    try:
-        if user.user_id and is_multi_user_enabled():
-            row = conn.execute(
-                "SELECT is_favorite FROM user_preferences WHERE user_id = ? AND photo_path = ?",
-                (user.user_id, body.photo_path)
-            ).fetchone()
-            current = row['is_favorite'] if row else 0
-            new_value = 0 if current else 1
-            if new_value == 1:
-                conn.execute("""
-                    INSERT INTO user_preferences (user_id, photo_path, is_favorite, is_rejected)
-                    VALUES (?, ?, 1, 0)
-                    ON CONFLICT(user_id, photo_path) DO UPDATE SET is_favorite = 1, is_rejected = 0
-                """, (user.user_id, body.photo_path))
+    with get_db() as conn:
+        try:
+            if user.user_id and is_multi_user_enabled():
+                row = conn.execute(
+                    "SELECT is_favorite FROM user_preferences WHERE user_id = ? AND photo_path = ?",
+                    (user.user_id, body.photo_path)
+                ).fetchone()
+                current = row['is_favorite'] if row else 0
+                new_value = 0 if current else 1
+                if new_value == 1:
+                    conn.execute("""
+                        INSERT INTO user_preferences (user_id, photo_path, is_favorite, is_rejected)
+                        VALUES (?, ?, 1, 0)
+                        ON CONFLICT(user_id, photo_path) DO UPDATE SET is_favorite = 1, is_rejected = 0
+                    """, (user.user_id, body.photo_path))
+                else:
+                    conn.execute("""
+                        INSERT INTO user_preferences (user_id, photo_path, is_favorite)
+                        VALUES (?, ?, 0)
+                        ON CONFLICT(user_id, photo_path) DO UPDATE SET is_favorite = 0
+                    """, (user.user_id, body.photo_path))
             else:
-                conn.execute("""
-                    INSERT INTO user_preferences (user_id, photo_path, is_favorite)
-                    VALUES (?, ?, 0)
-                    ON CONFLICT(user_id, photo_path) DO UPDATE SET is_favorite = 0
-                """, (user.user_id, body.photo_path))
-        else:
-            row = conn.execute("SELECT is_favorite FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Photo not found")
-            new_value = 0 if row['is_favorite'] else 1
-            if new_value == 1:
-                conn.execute("UPDATE photos SET is_favorite = 1, is_rejected = 0 WHERE path = ?", (body.photo_path,))
-            else:
-                conn.execute("UPDATE photos SET is_favorite = 0 WHERE path = ?", (body.photo_path,))
-        conn.commit()
-        _stats_cache.clear()
-        return {'success': True, 'is_favorite': new_value == 1, 'is_rejected': False if new_value == 1 else None}
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Database error toggling favorite for photo %s", body.photo_path)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+                row = conn.execute("SELECT is_favorite FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="Photo not found")
+                new_value = 0 if row['is_favorite'] else 1
+                if new_value == 1:
+                    conn.execute("UPDATE photos SET is_favorite = 1, is_rejected = 0 WHERE path = ?", (body.photo_path,))
+                else:
+                    conn.execute("UPDATE photos SET is_favorite = 0 WHERE path = ?", (body.photo_path,))
+            conn.commit()
+            _stats_cache.clear()
+            return {'success': True, 'is_favorite': new_value == 1, 'is_rejected': False if new_value == 1 else None}
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error toggling favorite for photo %s", body.photo_path)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/photo/toggle_rejected")
@@ -333,47 +314,45 @@ def api_toggle_rejected(
     user: CurrentUser = Depends(require_auth),
 ):
     """Toggle rejected flag for a photo."""
-    conn = get_db_connection()
-    try:
-        if user.user_id and is_multi_user_enabled():
-            row = conn.execute(
-                "SELECT is_rejected FROM user_preferences WHERE user_id = ? AND photo_path = ?",
-                (user.user_id, body.photo_path)
-            ).fetchone()
-            current = row['is_rejected'] if row else 0
-            new_value = 0 if current else 1
-            if new_value == 1:
-                conn.execute("""
-                    INSERT INTO user_preferences (user_id, photo_path, is_rejected, star_rating, is_favorite)
-                    VALUES (?, ?, 1, 0, 0)
-                    ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0
-                """, (user.user_id, body.photo_path))
+    with get_db() as conn:
+        try:
+            if user.user_id and is_multi_user_enabled():
+                row = conn.execute(
+                    "SELECT is_rejected FROM user_preferences WHERE user_id = ? AND photo_path = ?",
+                    (user.user_id, body.photo_path)
+                ).fetchone()
+                current = row['is_rejected'] if row else 0
+                new_value = 0 if current else 1
+                if new_value == 1:
+                    conn.execute("""
+                        INSERT INTO user_preferences (user_id, photo_path, is_rejected, star_rating, is_favorite)
+                        VALUES (?, ?, 1, 0, 0)
+                        ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0
+                    """, (user.user_id, body.photo_path))
+                else:
+                    conn.execute("""
+                        INSERT INTO user_preferences (user_id, photo_path, is_rejected)
+                        VALUES (?, ?, 0)
+                        ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 0
+                    """, (user.user_id, body.photo_path))
             else:
-                conn.execute("""
-                    INSERT INTO user_preferences (user_id, photo_path, is_rejected)
-                    VALUES (?, ?, 0)
-                    ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 0
-                """, (user.user_id, body.photo_path))
-        else:
-            row = conn.execute("SELECT is_rejected FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Photo not found")
-            new_value = 0 if row['is_rejected'] else 1
-            if new_value == 1:
-                conn.execute("UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path = ?", (body.photo_path,))
-            else:
-                conn.execute("UPDATE photos SET is_rejected = 0 WHERE path = ?", (body.photo_path,))
-        conn.commit()
-        _stats_cache.clear()
-        return {'success': True, 'is_rejected': new_value == 1, 'star_rating': 0 if new_value == 1 else None, 'is_favorite': False if new_value == 1 else None}
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Database error toggling rejected for photo %s", body.photo_path)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+                row = conn.execute("SELECT is_rejected FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="Photo not found")
+                new_value = 0 if row['is_rejected'] else 1
+                if new_value == 1:
+                    conn.execute("UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path = ?", (body.photo_path,))
+                else:
+                    conn.execute("UPDATE photos SET is_rejected = 0 WHERE path = ?", (body.photo_path,))
+            conn.commit()
+            _stats_cache.clear()
+            return {'success': True, 'is_rejected': new_value == 1, 'star_rating': 0 if new_value == 1 else None, 'is_favorite': False if new_value == 1 else None}
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error toggling rejected for photo %s", body.photo_path)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 def _batch_update(
@@ -388,23 +367,21 @@ def _batch_update(
     if not photo_paths:
         return {'success': True, 'count': 0}
 
-    conn = get_db_connection()
-    try:
-        if user.user_id and is_multi_user_enabled():
-            conn.executemany(multi_user_sql, multi_user_params)
-        else:
-            conn.execute(single_user_sql, single_user_params)
-        conn.commit()
-        _stats_cache.clear()
-        return {'success': True, 'count': len(photo_paths)}
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Database error in batch update")
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+    with get_db() as conn:
+        try:
+            if user.user_id and is_multi_user_enabled():
+                conn.executemany(multi_user_sql, multi_user_params)
+            else:
+                conn.execute(single_user_sql, single_user_params)
+            conn.commit()
+            _stats_cache.clear()
+            return {'success': True, 'count': len(photo_paths)}
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error in batch update")
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/photos/batch_favorite")

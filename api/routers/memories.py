@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, get_optional_user
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import (
     build_photo_select_columns, sanitize_float_values,
     get_visibility_clause, get_photos_from_clause,
@@ -50,31 +50,29 @@ def check_memories(
     month_day = target.strftime("%m-%d")
     target_year = target.strftime("%Y")
 
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        vis_sql, vis_params = get_visibility_clause(user_id)
-        from_clause, from_params = get_photos_from_clause(user_id)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
+            from_clause, from_params = get_photos_from_clause(user_id)
 
-        query = f"""
-            SELECT 1 FROM {from_clause}
-            WHERE strftime('%m-%d', date_taken) = ?
-              AND strftime('%Y', date_taken) < ?
-              AND date_taken IS NOT NULL
-              AND {vis_sql}
-            LIMIT 1
-        """
-        params = from_params + [month_day, target_year] + vis_params
-        row = conn.execute(query, params).fetchone()
-        return {'has_memories': row is not None}
+            query = f"""
+                SELECT 1 FROM {from_clause}
+                WHERE strftime('%m-%d', date_taken) = ?
+                  AND strftime('%Y', date_taken) < ?
+                  AND date_taken IS NOT NULL
+                  AND {vis_sql}
+                LIMIT 1
+            """
+            params = from_params + [month_day, target_year] + vis_params
+            row = conn.execute(query, params).fetchone()
+            return {'has_memories': row is not None}
 
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Failed to check memories")
-        return {'has_memories': False}
-    finally:
-        conn.close()
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Failed to check memories")
+            return {'has_memories': False}
 
 
 @router.get("/api/memories")
@@ -100,88 +98,86 @@ def get_memories(
     month_day = target.strftime("%m-%d")
     target_year = target.strftime("%Y")
 
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        vis_sql, vis_params = get_visibility_clause(user_id)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
 
-        select_cols = build_photo_select_columns(conn, user_id)
+            select_cols = build_photo_select_columns(conn, user_id)
 
-        from_clause, from_params = get_photos_from_clause(user_id)
+            from_clause, from_params = get_photos_from_clause(user_id)
 
-        top_per_year = _get_top_per_year()
+            top_per_year = _get_top_per_year()
 
-        # Use ROW_NUMBER() to keep only top N per year at the DB level,
-        # plus a total count per year via a window COUNT.
-        # Safety cap: 50 years * top_per_year photos.
-        safety_limit = 50 * top_per_year
+            # Use ROW_NUMBER() to keep only top N per year at the DB level,
+            # plus a total count per year via a window COUNT.
+            # Safety cap: 50 years * top_per_year photos.
+            safety_limit = 50 * top_per_year
 
-        inner_cols = ', '.join(select_cols)
-        query = f"""
-            SELECT * FROM (
-                SELECT {inner_cols},
-                    strftime('%Y', date_taken) AS _year,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY strftime('%Y', date_taken)
-                        ORDER BY aggregate DESC, path ASC
-                    ) AS _rn,
-                    COUNT(*) OVER (
-                        PARTITION BY strftime('%Y', date_taken)
-                    ) AS _year_total
-                FROM {from_clause}
-                WHERE strftime('%m-%d', date_taken) = ?
-                  AND strftime('%Y', date_taken) < ?
-                  AND date_taken IS NOT NULL
-                  AND {vis_sql}
-            ) WHERE _rn <= ?
-            ORDER BY _year DESC, aggregate DESC
-            LIMIT ?
-        """
-        params = from_params + [month_day, target_year] + vis_params + [top_per_year, safety_limit]
-        rows = conn.execute(query, params).fetchall()
+            inner_cols = ', '.join(select_cols)
+            query = f"""
+                SELECT * FROM (
+                    SELECT {inner_cols},
+                        strftime('%Y', date_taken) AS _year,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY strftime('%Y', date_taken)
+                            ORDER BY aggregate DESC, path ASC
+                        ) AS _rn,
+                        COUNT(*) OVER (
+                            PARTITION BY strftime('%Y', date_taken)
+                        ) AS _year_total
+                    FROM {from_clause}
+                    WHERE strftime('%m-%d', date_taken) = ?
+                      AND strftime('%Y', date_taken) < ?
+                      AND date_taken IS NOT NULL
+                      AND {vis_sql}
+                ) WHERE _rn <= ?
+                ORDER BY _year DESC, aggregate DESC
+                LIMIT ?
+            """
+            params = from_params + [month_day, target_year] + vis_params + [top_per_year, safety_limit]
+            rows = conn.execute(query, params).fetchall()
 
-        # Group by year
-        from api.config import VIEWER_CONFIG
-        tags_limit = VIEWER_CONFIG.get('display', {}).get('tags_per_photo', 10)
-        all_photos = split_photo_tags(rows, tags_limit)
+            # Group by year
+            from api.config import VIEWER_CONFIG
+            tags_limit = VIEWER_CONFIG.get('display', {}).get('tags_per_photo', 10)
+            all_photos = split_photo_tags(rows, tags_limit)
 
-        for photo in all_photos:
-            photo['date_formatted'] = format_date(photo.get('date_taken'))
+            for photo in all_photos:
+                photo['date_formatted'] = format_date(photo.get('date_taken'))
 
-        attach_person_data(all_photos, conn)
+            attach_person_data(all_photos, conn)
 
-        # Build year groups from the pre-limited results
-        year_groups: dict[str, dict] = {}
-        for photo in all_photos:
-            year = photo.pop('_year', None)
-            photo.pop('_rn', None)
-            year_total = photo.pop('_year_total', 0)
-            if not year:
-                continue
-            if year not in year_groups:
-                year_groups[year] = {'photos': [], 'total_count': year_total}
-            year_groups[year]['photos'].append(photo)
+            # Build year groups from the pre-limited results
+            year_groups: dict[str, dict] = {}
+            for photo in all_photos:
+                year = photo.pop('_year', None)
+                photo.pop('_rn', None)
+                year_total = photo.pop('_year_total', 0)
+                if not year:
+                    continue
+                if year not in year_groups:
+                    year_groups[year] = {'photos': [], 'total_count': year_total}
+                year_groups[year]['photos'].append(photo)
 
-        years = []
-        for year in sorted(year_groups.keys(), key=int, reverse=True):
-            group = year_groups[year]
-            sanitize_float_values(group['photos'])
-            years.append({
-                'year': year,
-                'photos': group['photos'],
-                'total_count': group['total_count'],
-            })
+            years = []
+            for year in sorted(year_groups.keys(), key=int, reverse=True):
+                group = year_groups[year]
+                sanitize_float_values(group['photos'])
+                years.append({
+                    'year': year,
+                    'photos': group['photos'],
+                    'total_count': group['total_count'],
+                })
 
-        return {
-            'years': years,
-            'has_memories': len(years) > 0,
-            'date': target.isoformat(),
-        }
+            return {
+                'years': years,
+                'has_memories': len(years) > 0,
+                'date': target.isoformat(),
+            }
 
-    except HTTPException:
-        raise
-    except sqlite3.Error:
-        logger.exception("Failed to fetch memories")
-        raise HTTPException(status_code=500, detail="Internal server error")
-    finally:
-        conn.close()
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Failed to fetch memories")
+            raise HTTPException(status_code=500, detail="Internal server error")

@@ -1,9 +1,17 @@
 """Tests for the semantic search endpoint (api/routers/search.py)."""
 
+from contextlib import contextmanager
 from unittest import mock
 
 import numpy as np
 import pytest
+
+
+def _cm(conn):
+    @contextmanager
+    def _ctx():
+        yield conn
+    return _ctx()
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -43,7 +51,7 @@ class TestSearch:
                 "features": {"show_semantic_search": True},
                 "display": {"tags_per_photo": 3},
             }),
-            mock.patch("api.routers.search.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.search.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.search.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.search.get_existing_columns", return_value={"path", "aggregate"}),
             mock.patch("api.routers.search.get_photos_from_clause", return_value=("photos", [])),
@@ -56,7 +64,7 @@ class TestSearch:
         body = resp.json()
         assert body["photos"] == []
         assert body["total"] == 0
-        mock_conn.close.assert_called_once()
+
 
     def test_successful_search(self, client):
         """Mock matrix with 3 embeddings, text_emb that matches 2 above threshold."""
@@ -85,7 +93,7 @@ class TestSearch:
                 "features": {"show_semantic_search": True},
                 "display": {"tags_per_photo": 3},
             }),
-            mock.patch("api.routers.search.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.search.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.search.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.search.get_existing_columns", return_value={"path", "aggregate"}),
             mock.patch("api.routers.search.get_photos_from_clause", return_value=("photos", [])),
@@ -110,7 +118,7 @@ class TestSearch:
         # Sorted by similarity descending: a (1.0) before c (0.9)
         assert body["photos"][0]["path"] == "/photos/a.jpg"
         assert body["photos"][1]["path"] == "/photos/c.jpg"
-        mock_conn.close.assert_called_once()
+
 
     def test_dimension_mismatch(self, client):
         """When text_emb dimension != matrix columns, returns empty."""
@@ -131,7 +139,7 @@ class TestSearch:
                 "features": {"show_semantic_search": True},
                 "display": {"tags_per_photo": 3},
             }),
-            mock.patch("api.routers.search.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.search.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.search.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.search.get_existing_columns", return_value={"path", "aggregate"}),
             mock.patch("api.routers.search.get_photos_from_clause", return_value=("photos", [])),
@@ -145,7 +153,7 @@ class TestSearch:
         body = resp.json()
         assert body["photos"] == []
         assert body["total"] == 0
-        mock_conn.close.assert_called_once()
+
 
     def test_no_results_above_threshold(self, client):
         """When all similarities are below threshold, returns empty."""
@@ -165,7 +173,7 @@ class TestSearch:
                 "features": {"show_semantic_search": True},
                 "display": {"tags_per_photo": 3},
             }),
-            mock.patch("api.routers.search.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.search.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.search.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.search.get_existing_columns", return_value={"path", "aggregate"}),
             mock.patch("api.routers.search.get_photos_from_clause", return_value=("photos", [])),
@@ -179,7 +187,7 @@ class TestSearch:
         body = resp.json()
         assert body["photos"] == []
         assert body["total"] == 0
-        mock_conn.close.assert_called_once()
+
 
     def test_search_error_returns_safe(self, client):
         """When _encode_text raises, returns error dict not 500."""
@@ -193,7 +201,7 @@ class TestSearch:
                 "features": {"show_semantic_search": True},
                 "display": {"tags_per_photo": 3},
             }),
-            mock.patch("api.routers.search.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.search.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.search.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.search.get_existing_columns", return_value={"path", "aggregate"}),
             mock.patch("api.routers.search.get_photos_from_clause", return_value=("photos", [])),
@@ -207,7 +215,7 @@ class TestSearch:
         body = resp.json()
         assert body["photos"] == []
         assert "error" in body
-        mock_conn.close.assert_called_once()
+
 
     def test_query_validation(self, client):
         """Empty query returns 422 validation error."""
