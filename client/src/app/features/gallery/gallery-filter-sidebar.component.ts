@@ -1,4 +1,4 @@
-import { Component, computed, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSelectModule } from '@angular/material/select';
@@ -675,6 +675,9 @@ export class GalleryFilterSidebarComponent {
         this.albums.set(res.albums),
       ).catch(() => {});
     }
+    inject(DestroyRef).onDestroy(() => {
+      if (this.searchTimeout) clearTimeout(this.searchTimeout);
+    });
   }
 
   onSidebarSearchChange(event: Event): void {
