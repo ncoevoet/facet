@@ -578,6 +578,7 @@ export class GalleryStore {
   async nextPage(): Promise<void> {
     if (!this.hasMore() || this.loading()) return;
 
+    const seq = this._loadSeq;
     this.loading.set(true);
     const f = this.filters();
     const nextPage = f.page + 1;
@@ -585,21 +586,26 @@ export class GalleryStore {
     try {
       if (f.similar_to) {
         const res = await this.fetchSimilarPage(f, (nextPage - 1) * f.per_page);
+        if (seq !== this._loadSeq) return;
         this.photos.update(current => [...current, ...(res.similar ?? [])]);
         this.total.set(res.total);
         this.hasMore.set(res.has_more);
       } else {
         const params = this.buildApiParams(this.filters());
         const res = await firstValueFrom(this.api.get<PhotosResponse>('/photos', params));
+        if (seq !== this._loadSeq) return;
         this.photos.update(current => [...current, ...res.photos]);
         this.total.set(res.total);
         this.hasMore.set(res.has_more);
       }
     } catch {
+      if (seq !== this._loadSeq) return;
       // Revert page increment on error
       this.filters.update(current => ({ ...current, page: f.page }));
     } finally {
-      this.loading.set(false);
+      if (seq === this._loadSeq) {
+        this.loading.set(false);
+      }
     }
   }
 
