@@ -5,7 +5,7 @@ import { AlbumService } from '../../core/services/album.service';
 import { EditAlbumDialogComponent, EditAlbumDialogData } from './edit-album-dialog.component';
 
 describe('EditAlbumDialogComponent', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let component: any;
   let mockAlbumService: { update: jest.Mock };
   let mockDialogRef: { close: jest.Mock };

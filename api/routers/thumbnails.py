@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, is_multi_user_enabled, get_user_directories, get_all_scan_directories
-from api.database import get_db_connection
+from api.database import get_db, get_db_connection
 from utils.image_loading import RAW_EXTENSIONS, HEIF_EXTENSIONS
 
 logger = logging.getLogger(__name__)
@@ -79,13 +79,8 @@ def _convert_heif_cached(file_path: str, mtime: float, quality: int = 96) -> byt
     return buf.getvalue()
 
 
-@lru_cache(maxsize=_thumbnail_cache_size)
-def _resize_thumbnail(thumbnail_bytes: bytes, size: int) -> bytes:
-    """Resize a thumbnail to the given max dimension. Returns JPEG bytes.
-
-    Uses lower quality for tiny placeholders (size <= 48) to minimize payload
-    for progressive blur-up loading.
-    """
+def _do_resize(thumbnail_bytes: bytes, size: int) -> bytes:
+    """Pure resize without caching."""
     from PIL import Image
     img = Image.open(BytesIO(thumbnail_bytes))
     if max(img.size) <= size:
@@ -97,8 +92,28 @@ def _resize_thumbnail(thumbnail_bytes: bytes, size: int) -> bytes:
     return buf.getvalue()
 
 
+_resize_cache: dict[tuple[str, int], bytes] = {}
+
+
+def _get_or_resize(photo_path: str, thumbnail_bytes: bytes, size: int) -> bytes:
+    """Resize a thumbnail with (path, size) caching. Caller provides bytes to avoid double-fetch."""
+    key = (photo_path, size)
+    cached = _resize_cache.get(key)
+    if cached is not None:
+        return cached
+    resized = _do_resize(thumbnail_bytes, size)
+    # Evict oldest entries when cache exceeds limit
+    if len(_resize_cache) >= _thumbnail_cache_size:
+        # Remove first ~10% of entries
+        evict_count = max(1, _thumbnail_cache_size // 10)
+        for old_key in list(_resize_cache.keys())[:evict_count]:
+            del _resize_cache[old_key]
+    _resize_cache[key] = resized
+    return resized
+
+
 @router.get("/thumbnail")
-async def get_thumbnail(
+def get_thumbnail(
     request: Request,
     path: str = Query(...),
     size: Optional[int] = Query(None),
@@ -108,17 +123,14 @@ async def get_thumbnail(
     if not _check_path_visibility(path, user):
         return Response(content="Not found", status_code=404)
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute("SELECT thumbnail FROM photos WHERE path = ?", (path,)).fetchone()
-    finally:
-        conn.close()
 
     if row and row['thumbnail']:
-        thumb_bytes = row['thumbnail']
         if size and 0 < size < 640:
-            thumb_bytes = _resize_thumbnail(thumb_bytes, size)
-        return _cached_image_response(thumb_bytes, request)
+            resized = _get_or_resize(path, row['thumbnail'], size)
+            return _cached_image_response(resized, request)
+        return _cached_image_response(row['thumbnail'], request)
     return Response(content="Thumbnail not found", status_code=404)
 
 
@@ -203,7 +215,7 @@ def _get_face_thumbnail_data(face_id: int):
 
 
 @router.get("/face_thumbnail/{face_id}")
-async def face_thumbnail(
+def face_thumbnail(
     face_id: int,
     request: Request,
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -218,7 +230,7 @@ async def face_thumbnail(
 
 
 @router.get("/person_thumbnail/{person_id}")
-async def person_thumbnail(
+def person_thumbnail(
     person_id: int,
     request: Request,
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -226,13 +238,10 @@ async def person_thumbnail(
     """Return stored face thumbnail for a person."""
     if is_multi_user_enabled() and (user is None or not user.is_authenticated):
         return Response(content="Not found", status_code=404)
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         person = conn.execute("""
             SELECT face_thumbnail, representative_face_id FROM persons WHERE id = ?
         """, (person_id,)).fetchone()
-    finally:
-        conn.close()
 
     if person and person['face_thumbnail']:
         return _cached_image_response(person['face_thumbnail'], request)
@@ -246,7 +255,7 @@ async def person_thumbnail(
 
 
 @router.get("/image")
-async def image(
+def image(
     request: Request,
     path: str = Query(...),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -256,11 +265,8 @@ async def image(
         return Response(content="Not found", status_code=404)
 
     # Verify the path exists in the database to prevent path traversal
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute("SELECT path FROM photos WHERE path = ?", (path,)).fetchone()
-    finally:
-        conn.close()
     if not row:
         return Response(content="Not found", status_code=404)
 

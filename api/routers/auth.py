@@ -4,12 +4,12 @@ Authentication router.
 Handles login, logout, edition auth, and auth status.
 """
 
-import hmac
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from api.auth import (
-    create_access_token, verify_password,
+    create_access_token, verify_password, verify_legacy_password,
+    upgrade_legacy_password, _login_limiter,
     CurrentUser, get_optional_user, require_authenticated,
     is_edition_enabled, is_edition_authenticated,
 )
@@ -24,12 +24,16 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(body: LoginRequest):
+def login(body: LoginRequest, request: Request):
     """Authenticate and receive a JWT token.
 
     In multi-user mode: requires username + password.
     In legacy mode: requires password only (matches viewer password).
     """
+    client_ip = request.client.host if request.client else "unknown"
+    if not _login_limiter.is_allowed(client_ip):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
+
     multi_user = is_multi_user_enabled()
 
     if multi_user:
@@ -60,21 +64,33 @@ async def login(body: LoginRequest):
             token = create_access_token({'sub': '_anonymous', 'role': 'user'})
             return LoginResponse(access_token=token)
 
-        if not hmac.compare_digest(body.password, password):
+        if not verify_legacy_password(body.password, password):
             raise HTTPException(status_code=401, detail="Invalid password")
+
+        # Upgrade plaintext password to PBKDF2 hash on first successful login
+        # (idempotent — checks on-disk value, not stale in-memory VIEWER_CONFIG)
+        upgrade_legacy_password('password', body.password)
 
         token = create_access_token({'sub': '_legacy', 'role': 'user'})
         return LoginResponse(access_token=token)
 
 
 @router.post("/edition/login", response_model=LoginResponse)
-async def edition_login(body: EditionLoginRequest):
+def edition_login(body: EditionLoginRequest, request: Request):
     """Authenticate for edition mode (legacy single-user only)."""
+    client_ip = request.client.host if request.client else "unknown"
+    if not _login_limiter.is_allowed(client_ip):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
+
     if is_multi_user_enabled():
         raise HTTPException(status_code=400, detail="Use /api/auth/login for multi-user auth")
     edition_password = VIEWER_CONFIG.get('edition_password', '')
-    if not edition_password or not hmac.compare_digest(body.password, edition_password):
+    if not edition_password or not verify_legacy_password(body.password, edition_password):
         raise HTTPException(status_code=401, detail="Invalid password")
+
+    # Upgrade plaintext edition password to PBKDF2 hash
+    # (idempotent — checks on-disk value, not stale in-memory VIEWER_CONFIG)
+    upgrade_legacy_password('edition_password', body.password)
 
     token = create_access_token({
         'sub': '_legacy',
@@ -85,7 +101,7 @@ async def edition_login(body: EditionLoginRequest):
 
 
 @router.post("/edition/logout", response_model=LoginResponse)
-async def edition_logout(user: CurrentUser = Depends(require_authenticated)):
+def edition_logout(user: CurrentUser = Depends(require_authenticated)):
     """Drop edition privileges and return a non-edition token."""
     token = create_access_token({
         'sub': user.user_id or '_legacy',
@@ -96,7 +112,7 @@ async def edition_logout(user: CurrentUser = Depends(require_authenticated)):
 
 
 @router.get("/status", response_model=AuthStatusResponse)
-async def auth_status(user: Optional[CurrentUser] = Depends(get_optional_user)):
+def auth_status(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Get current authentication status and available features."""
     multi_user = is_multi_user_enabled()
     authenticated = user is not None and user.is_authenticated

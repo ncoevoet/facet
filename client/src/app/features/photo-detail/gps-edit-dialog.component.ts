@@ -35,7 +35,7 @@ export interface GpsEditDialogData {
     <mat-dialog-content class="!p-0">
       <div #mapContainer class="w-full h-64"></div>
       <div class="px-4 py-2 text-xs text-[var(--mat-sys-on-surface-variant)]">
-        @if (selectedLat() != null) {
+        @if (selectedLat() !== null) {
           {{ selectedLat()! | fixed:6 }}, {{ selectedLng()! | fixed:6 }}
         } @else {
           {{ 'photo_detail.gps_click_to_place' | translate }}
@@ -43,7 +43,7 @@ export interface GpsEditDialogData {
       </div>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      @if (selectedLat() != null) {
+      @if (selectedLat() !== null) {
         <button mat-button (click)="clearLocation()" class="!mr-auto">{{ 'photo_detail.gps_clear' | translate }}</button>
       }
       <button mat-button mat-dialog-close>{{ 'ui.buttons.cancel' | translate }}</button>
@@ -79,13 +79,13 @@ export class GpsEditDialogComponent {
     const container = this.mapContainer().nativeElement;
     const lat = this.selectedLat() ?? 48.8566;
     const lng = this.selectedLng() ?? 2.3522;
-    const zoom = this.selectedLat() != null ? 13 : 5;
+    const zoom = this.selectedLat() !== null ? 13 : 5;
 
     this.map = createLeafletMap(container).setView([lat, lng], zoom);
     // Force Leaflet to recalculate container size after dialog renders
     this.map.invalidateSize();
 
-    if (this.selectedLat() != null && this.selectedLng() != null) {
+    if (this.selectedLat() !== null && this.selectedLng() !== null) {
       this.placeMarker(this.selectedLat()!, this.selectedLng()!);
     }
 

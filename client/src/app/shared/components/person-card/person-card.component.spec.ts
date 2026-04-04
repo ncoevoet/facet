@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { I18nService } from '../../../core/services/i18n.service';
 import { PersonCardComponent, Person } from './person-card.component';
 
+/* eslint-disable @angular-eslint/component-selector */
 @Component({
   selector: 'test-host',
   standalone: true,
@@ -17,7 +18,7 @@ class TestHostComponent {
 describe('PersonCardComponent', () => {
   let fixture: ComponentFixture<TestHostComponent>;
   let host: TestHostComponent;
-  const mockI18n = { t: jest.fn((key: string) => key), currentLang: jest.fn(() => 'en') };
+  const mockI18n = { t: jest.fn((key: string) => key), currentLang: jest.fn(() => 'en'), locale: jest.fn(() => 'en') };
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({

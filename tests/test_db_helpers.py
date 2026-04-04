@@ -1,6 +1,5 @@
 """Tests for date conversion helpers in api.db_helpers."""
 
-import pytest
 
 from api.db_helpers import to_exif_date, to_iso_date
 

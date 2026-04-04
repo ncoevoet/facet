@@ -9,7 +9,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { PhotoDetailComponent } from './photo-detail.component';
 
 describe('PhotoDetailComponent', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let component: any;
   let mockApi: { get: jest.Mock; post: jest.Mock; imageUrl: jest.Mock; downloadUrl: jest.Mock; getRaw: jest.Mock };
   let mockRouter: { navigate: jest.Mock };

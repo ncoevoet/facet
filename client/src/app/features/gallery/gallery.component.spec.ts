@@ -15,7 +15,7 @@ import { ScoreClassPipe } from '../../shared/pipes/score.pipes';
 describe('GalleryComponent', () => {
   let component: GalleryComponent;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let mockStore: any;
   let mockApi: { thumbnailUrl: jest.Mock };
   let mockAuth: Record<string, unknown>;

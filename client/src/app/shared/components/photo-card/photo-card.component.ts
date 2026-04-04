@@ -41,13 +41,18 @@ interface AppConfig {
   ],
   template: `
     <div
+      role="button"
+      tabindex="0"
       class="relative rounded-lg overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container)] transition-all h-full"
       [class.md:aspect-square]="hideDetails() && !mosaicMode()"
       [class.ring-2]="isSelected()"
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
       [class.md:hover:ring-2]="!isSelected()"
       [class.md:hover:ring-[var(--mat-sys-outline-variant)]]="!isSelected()"
+      [attr.aria-label]="photo().filename"
       (click)="onSelect($event)"
+      (keydown.enter)="onKeySelect($event)"
+      (keydown.space)="onKeySelect($event)"
       (dblclick)="doubleClicked.emit(photo()); $event.stopPropagation()"
       (mouseenter)="tooltipShow.emit({photo: photo(), event: $event})"
       (mouseleave)="tooltipHide.emit()"
@@ -222,6 +227,7 @@ interface AppConfig {
                 } @else {
                   <img [src]="person.id | personThumbnailUrl"
                        class="w-8 h-8 rounded-full border border-neutral-700 object-cover cursor-pointer"
+                       [alt]="person.name"
                        [matTooltip]="person.name"
                        (click)="personFilterClicked.emit(person.id); $event.stopPropagation()" />
                 }
@@ -270,6 +276,11 @@ export class PhotoCardComponent {
 
   onSelect(event: MouseEvent): void {
     this.selectionChange.emit({ photo: this.photo(), event });
+  }
+
+  onKeySelect(event: Event): void {
+    event.preventDefault();
+    this.selectionChange.emit({ photo: this.photo(), event: event as MouseEvent });
   }
   readonly tooltipShow = output<{ photo: Photo; event: MouseEvent }>();
   readonly tooltipHide = output<void>();

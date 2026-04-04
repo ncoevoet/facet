@@ -71,7 +71,7 @@ interface MergeSuggestionsResponse {
       <div class="flex items-center gap-3 mb-6">
         <span class="text-sm text-gray-400 shrink-0">{{ 'persons.similarity_threshold' | translate }}</span>
         <mat-slider [min]="0.3" [max]="0.9" [step]="0.05" [discrete]="true" class="flex-1 max-w-xs">
-          <input matSliderThumb [value]="threshold()" (valueChange)="onThresholdChange($event)" />
+          <input matSliderThumb [value]="threshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="'persons.similarity_threshold' | translate" />
         </mat-slider>
         <span class="text-sm font-mono w-12">{{ threshold() * 100 | fixed:0 }}%</span>
       </div>

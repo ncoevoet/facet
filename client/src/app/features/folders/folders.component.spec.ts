@@ -5,7 +5,7 @@ import { ApiService } from '../../core/services/api.service';
 import { FoldersComponent } from './folders.component';
 
 describe('FoldersComponent', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let component: any;
   let mockApi: { get: jest.Mock };
   let mockRouter: { navigate: jest.Mock };

@@ -25,6 +25,7 @@ def _get_similarity_config():
             'max_group_size': sg.get('max_group_size', 50),
         }
     except Exception:
+        logger.debug("Failed to read similarity_groups config, using defaults", exc_info=True)
         return {'default_threshold': 0.85, 'min_group_size': 2, 'max_photos': 10000, 'max_group_size': 50}
 
 
@@ -118,15 +119,18 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         # Union-Find for connected components
         uf = UnionFind(n)
 
-        # Compute similarities in chunks
+        # Compute similarities in chunks (vectorized pair extraction)
         chunk_size = 500
         for i in range(0, n, chunk_size):
             chunk = emb_matrix[i:i+chunk_size]
             sims = chunk @ emb_matrix.T  # (chunk_size, n)
             for ci in range(len(chunk)):
-                for j in range(i + ci + 1, n):
-                    if sims[ci, j] >= threshold:
-                        uf.union(i + ci, j)
+                global_i = i + ci
+                # Upper triangle only: compare with indices > global_i
+                row = sims[ci, global_i + 1:]
+                js = np.where(row >= threshold)[0] + global_i + 1
+                for j in js:
+                    uf.union(global_i, int(j))
 
         # Build groups
         groups_map = defaultdict(list)

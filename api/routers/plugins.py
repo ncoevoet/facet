@@ -45,7 +45,7 @@ class TestWebhookRequest(BaseModel):
 # --- Endpoints ---
 
 @router.get("/api/plugins")
-async def list_plugins(
+def list_plugins(
     user: Optional[CurrentUser] = Depends(require_edition),
 ):
     """List loaded plugins, webhooks, and configured actions."""
@@ -59,7 +59,7 @@ async def list_plugins(
 
 
 @router.post("/api/plugins/test-webhook")
-async def test_webhook(
+def test_webhook(
     body: TestWebhookRequest,
     user: Optional[CurrentUser] = Depends(require_edition),
 ):

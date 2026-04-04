@@ -580,7 +580,7 @@
                (keyup.enter)="onSearchChange($event); mobileSearchOpen.set(false)"
                (blur)="onSearchChange($event)"
                [placeholder]="'gallery.search_placeholder' | translate"
-               autofocus />
+               />
         <mat-icon matPrefix class="opacity-60">search</mat-icon>
         <button matSuffix mat-icon-button (click)="clearSearch(); mobileSearchOpen.set(false)">
           <mat-icon>close</mat-icon>
@@ -630,7 +630,7 @@
   @if (auth.isAuthenticated() && isAlbumsRoute() && mobileAlbumsSearchOpen()) {
     <div class="lg:hidden fixed bottom-[45px] left-0 right-0 z-50 px-4 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)]">
       <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
-        <input matInput [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" [placeholder]="'albums.search' | translate" autofocus />
+        <input matInput [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" [placeholder]="'albums.search' | translate" />
         <mat-icon matPrefix class="opacity-60">search</mat-icon>
         <button matSuffix mat-icon-button (click)="albumsFilters.search.set(''); mobileAlbumsSearchOpen.set(false)">
           <mat-icon>close</mat-icon>
@@ -668,7 +668,7 @@
   @if (auth.isAuthenticated() && isPersonsRoute() && mobilePersonsSearchOpen()) {
     <div class="lg:hidden fixed bottom-[45px] left-0 right-0 z-50 px-4 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)]">
       <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
-        <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" [placeholder]="'persons.search_placeholder' | translate" autofocus />
+        <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" [placeholder]="'persons.search_placeholder' | translate" />
         <mat-icon matPrefix class="opacity-60">search</mat-icon>
         <button matSuffix mat-icon-button (click)="personsFilters.search.set(''); mobilePersonsSearchOpen.set(false)">
           <mat-icon>close</mat-icon>

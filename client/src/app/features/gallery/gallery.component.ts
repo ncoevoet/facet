@@ -520,13 +520,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.clearSelection();
   }
 
-  createAlbumAndAdd(): void {
+  async createAlbumAndAdd(): Promise<void> {
     const ref = this.dialog.open(CreateAlbumDialogComponent, { width: '400px' });
-    ref.afterClosed().subscribe(async (album: Album | undefined) => {
-      if (!album) return;
-      this.albumOptions.update(list => [album, ...list]);
-      await this.addToAlbum(album.id);
-    });
+    const album = await firstValueFrom(ref.afterClosed());
+    if (!album) return;
+    this.albumOptions.update(list => [album, ...list]);
+    await this.addToAlbum(album.id);
   }
 
   openCritique(photo: Photo): void {
@@ -613,18 +612,17 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.photoActions.openAddPerson(photo);
   }
 
-  removePerson(photo: Photo, personId: number): void {
+  async removePerson(photo: Photo, personId: number): Promise<void> {
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
         title: this.i18n.t('manage_persons.remove_person_title'),
         message: this.i18n.t('manage_persons.confirm_remove_person'),
       },
     });
-    ref.afterClosed().subscribe(confirmed => {
-      if (confirmed) {
-        this.store.unassignPerson(photo.path, personId);
-      }
-    });
+    const confirmed = await firstValueFrom(ref.afterClosed());
+    if (confirmed) {
+      this.store.unassignPerson(photo.path, personId);
+    }
   }
 
   filterByPerson(personId: number): void {

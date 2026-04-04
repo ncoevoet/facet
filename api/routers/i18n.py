@@ -37,13 +37,13 @@ def _load_translations(lang: str) -> dict:
 
 
 @router.get("/api/i18n/languages")
-async def get_languages():
+def get_languages():
     """List supported languages."""
     return {'languages': SUPPORTED_LANGUAGES, 'default': 'en'}
 
 
 @router.get("/api/i18n/{lang}")
-async def get_translations(lang: str):
+def get_translations(lang: str):
     """Serve translation JSON for the specified language."""
     if lang not in SUPPORTED_LANGUAGES:
         raise HTTPException(status_code=404, detail=f"Language '{lang}' not supported")

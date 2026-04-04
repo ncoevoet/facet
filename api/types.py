@@ -3,11 +3,15 @@ Sort/type/filter definitions for the API server.
 
 """
 
+import logging
 import time
+
 from config import ScoringConfig
 from api.config import VIEWER_CONFIG, _photo_types_cache, _photo_types_lock
 from api.top_picks import get_top_picks_score_sql
 from api.db_helpers import build_hide_clauses
+
+logger = logging.getLogger(__name__)
 
 
 # --- SORT OPTIONS (loaded from config) ---
@@ -50,7 +54,7 @@ _scoring_config = ScoringConfig(validate=False)
 _config_categories = _scoring_config.get_categories()
 
 
-def _build_type_definitions():
+def _build_type_definitions(categories):
     """Build type definitions from config categories."""
     pt = VIEWER_CONFIG['photo_types']
     threshold = pt.get('top_picks_min_score', 7)
@@ -61,7 +65,7 @@ def _build_type_definitions():
     ]
 
     # Auto-include all categories from config (label resolved via i18n on frontend)
-    for cat in _config_categories:
+    for cat in categories:
         cat_name = cat.get('name', '')
         if cat_name and cat_name != 'default':
             types.append((cat_name, cat_name, "category = ?", [cat_name]))
@@ -69,63 +73,23 @@ def _build_type_definitions():
     return types
 
 
-TYPE_DEFINITIONS = _build_type_definitions()
+TYPE_DEFINITIONS = _build_type_definitions(_config_categories)
 
 
-def _build_type_filters():
+def _build_type_filters(categories):
     """Build type filters from config categories."""
     filters = {
         'top_picks': {'top_picks_filter': '1'},
     }
-    for cat in _config_categories:
+    for cat in categories:
         cat_name = cat.get('name', '')
         if cat_name:
             filters[cat_name] = {'category': cat_name}
     return filters
 
 
-TYPE_FILTERS = _build_type_filters()
+TYPE_FILTERS = _build_type_filters(_config_categories)
 del _scoring_config, _config_categories
-
-TYPE_DEFAULT_SORTS = {
-    'top_picks': [('top_picks_score', 'DESC'), ('date_taken', 'DESC')],
-    'portraits': [('face_quality', 'DESC'), ('eye_sharpness', 'DESC'), ('aesthetic', 'DESC')],
-    'people': [('aggregate', 'DESC'), ('face_quality', 'DESC')],
-    'landscapes': [('aesthetic', 'DESC'), ('tech_sharpness', 'DESC'), ('comp_score', 'DESC')],
-    'architecture': [('aesthetic', 'DESC'), ('tech_sharpness', 'DESC'), ('comp_score', 'DESC')],
-    'nature': [('aesthetic', 'DESC'), ('tech_sharpness', 'DESC'), ('color_score', 'DESC')],
-    'animals': [('aesthetic', 'DESC'), ('tech_sharpness', 'DESC')],
-    'art': [('aesthetic', 'DESC'), ('color_score', 'DESC')],
-    'bw': [('histogram_spread', 'DESC'), ('contrast_score', 'DESC')],
-    'low_light': [('exposure_score', 'DESC'), ('tech_sharpness', 'DESC')],
-    'silhouettes': [('aesthetic', 'DESC'), ('histogram_spread', 'DESC')],
-    'macro': [('tech_sharpness', 'DESC'), ('aesthetic', 'DESC'), ('isolation_bonus', 'DESC')],
-    'astro': [('aesthetic', 'DESC'), ('comp_score', 'DESC')],
-    'street': [('aesthetic', 'DESC'), ('comp_score', 'DESC'), ('face_quality', 'DESC')],
-    'long_exposure': [('shutter_speed', 'DESC'), ('aesthetic', 'DESC'), ('comp_score', 'DESC')],
-    'aerial': [('comp_score', 'DESC'), ('aesthetic', 'DESC'), ('color_score', 'DESC')],
-    'concert': [('aesthetic', 'DESC'), ('comp_score', 'DESC'), ('exposure_score', 'DESC')],
-}
-
-TYPE_TO_CATEGORY = {
-    'portraits': 'portrait',
-    'people': 'human_others',
-    'landscapes': 'others',
-    'architecture': 'architecture',
-    'nature': 'macro',
-    'animals': 'wildlife',
-    'art': 'art',
-    'bw': 'monochrome',
-    'low_light': 'night',
-    'silhouettes': 'silhouette',
-    'macro': 'macro',
-    'astro': 'astro',
-    'street': 'street',
-    'long_exposure': 'long_exposure',
-    'aerial': 'aerial',
-    'concert': 'concert',
-    'top_picks': 'portrait',
-}
 
 TYPE_LABELS = {type_id: label for type_id, label, *_ in TYPE_DEFINITIONS}
 QUALITY_MAP = VIEWER_CONFIG['quality_thresholds']
@@ -193,6 +157,7 @@ def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False,
         union_query = " UNION ALL ".join(query_parts)
         results = conn.execute(union_query, all_params).fetchall()
     except Exception:
+        logger.exception("Failed to compute photo type counts")
         return []
     finally:
         conn.close()

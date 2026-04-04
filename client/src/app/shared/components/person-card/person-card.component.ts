@@ -72,6 +72,7 @@ export interface Person {
                   [value]="person().name ?? ''"
                   (keyup.enter)="onSave()"
                   (keyup.escape)="editCancel.emit()"
+                  [attr.aria-label]="'persons.rename' | translate"
                 />
                 <button mat-icon-button class="!w-7 !h-7" [matTooltip]="'dialog.confirm' | translate" (click)="onSave()">
                   <mat-icon class="!text-base">check</mat-icon>

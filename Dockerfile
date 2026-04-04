@@ -45,7 +45,8 @@ COPY storage/ storage/
 COPY validation/ validation/
 COPY viewer/ viewer/
 COPY facet.py database.py viewer.py tag_existing.py validate_db.py calibrate.py diagnostics.py ./
-COPY scoring_config.json pyproject.toml ./
+# scoring_config.json is NOT baked in — mount it via docker-compose volume
+COPY pyproject.toml ./
 
 RUN useradd --create-home --shell /bin/bash facet \
     && chown -R facet:facet /app

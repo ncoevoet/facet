@@ -66,6 +66,7 @@ const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   ...overrides,
 });
 
+/* eslint-disable @angular-eslint/component-selector */
 @Component({
   selector: 'test-host',
   imports: [PhotoTooltipComponent],
@@ -78,7 +79,7 @@ class TestHostComponent {
 
 describe('PhotoTooltipComponent', () => {
   let fixture: ComponentFixture<TestHostComponent>;
-  const mockI18n = { t: (key: string) => key };
+  const mockI18n = { t: (key: string) => key, locale: jest.fn(() => 'en') };
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({

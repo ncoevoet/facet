@@ -75,7 +75,7 @@ interface MemoriesResponse {
                     class="w-32 h-32 object-cover"
                     loading="lazy" />
                   <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5 opacity-0 group-hover/mem:opacity-100 transition-opacity">
-                    @if (photo.aggregate != null) {
+                    @if (photo.aggregate !== null) {
                       <span class="text-xs text-white font-medium">{{ photo.aggregate | number:'1.1-1' }}</span>
                     }
                   </div>

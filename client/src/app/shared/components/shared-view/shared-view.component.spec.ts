@@ -21,7 +21,7 @@ function buildMockRoute(
 }
 
 describe('SharedViewComponent', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let component: any;
   let mockApi: { get: jest.Mock };
   let mockI18n: { t: jest.Mock };

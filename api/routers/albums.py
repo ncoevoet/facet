@@ -6,7 +6,6 @@ Albums router — user-curated photo collections and smart albums.
 import hmac
 import json
 import logging
-import math
 import secrets
 import sqlite3
 from typing import Optional
@@ -16,11 +15,11 @@ from pydantic import BaseModel, Field
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import VIEWER_CONFIG
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import (
     get_visibility_clause, get_photos_from_clause,
     build_photo_select_columns, sanitize_float_values,
-    split_photo_tags, attach_person_data, format_date,
+    split_photo_tags, attach_person_data, format_date, paginate,
 )
 from api.types import VALID_SORT_COLS, SORT_OPTIONS_GROUPED, normalize_params
 
@@ -174,7 +173,7 @@ def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col, sort
 
     sanitize_float_values(photos)
 
-    total_pages = max(1, math.ceil(total / per_page))
+    total_pages, _ = paginate(total, page, per_page)
     return {
         'photos': photos,
         'total': total,
@@ -269,7 +268,7 @@ def _get_first_photo_path(conn, album_row, user_id=None):
 # --- Endpoints ---
 
 @router.get("/api/albums")
-async def list_albums(
+def list_albums(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     page: int = Query(1, ge=1),
     per_page: int = Query(48, ge=1, le=200),
@@ -278,8 +277,7 @@ async def list_albums(
     sort: str = Query("updated_at"),
 ):
     """List all albums accessible to the current user with pagination."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = _get_user_id(user)
 
         where_clauses = []
@@ -307,7 +305,7 @@ async def list_albums(
         # photo_count sort needs a subquery since it's not a column
         if sort == 'photo_count':
             order_by = '(SELECT COUNT(*) FROM album_photos WHERE album_id = albums.id) DESC'
-        offset = (page - 1) * per_page
+        total_pages, offset = paginate(total, page, per_page)
         rows = conn.execute(
             f"SELECT * FROM albums{where_str} ORDER BY {order_by} LIMIT ? OFFSET ?",
             params + [per_page, offset]
@@ -330,8 +328,6 @@ async def list_albums(
             album['photo_count'] = count_map.get(row['id'], 0)
             album['first_photo_path'] = _get_first_photo_path(conn, row, user_id)
             albums.append(album)
-
-        total_pages = max(1, math.ceil(total / per_page))
         return {
             'albums': albums,
             'total': total,
@@ -340,18 +336,15 @@ async def list_albums(
             'total_pages': total_pages,
             'has_more': page < total_pages,
         }
-    finally:
-        conn.close()
 
 
 @router.post("/api/albums")
-async def create_album(
+def create_album(
     body: CreateAlbumRequest,
     user: CurrentUser = Depends(require_edition),
 ):
     """Create a new album."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = _get_user_id(user)
         cursor = conn.execute(
             """INSERT INTO albums (user_id, name, description, is_smart, smart_filter_json)
@@ -364,18 +357,15 @@ async def create_album(
         result = _album_to_dict(album)
         result['photo_count'] = 0
         return result
-    finally:
-        conn.close()
 
 
 @router.get("/api/albums/{album_id}")
-async def get_album(
+def get_album(
     album_id: int,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Get album details with photo count."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = _get_user_id(user)
         album = _check_album_access(conn, album_id, user_id)
         result = _album_to_dict(album)
@@ -384,19 +374,16 @@ async def get_album(
         ).fetchone()
         result['photo_count'] = row[0] if row else 0
         return result
-    finally:
-        conn.close()
 
 
 @router.put("/api/albums/{album_id}")
-async def update_album(
+def update_album(
     album_id: int,
     body: UpdateAlbumRequest,
     user: CurrentUser = Depends(require_edition),
 ):
     """Update album name, description, or cover photo."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = _get_user_id(user)
         _check_album_access(conn, album_id, user_id)
 
@@ -431,30 +418,25 @@ async def update_album(
         ).fetchone()
         result['photo_count'] = row[0] if row else 0
         return result
-    finally:
-        conn.close()
 
 
 @router.delete("/api/albums/{album_id}")
-async def delete_album(
+def delete_album(
     album_id: int,
     user: CurrentUser = Depends(require_edition),
 ):
     """Delete an album and its photo associations."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = _get_user_id(user)
         _check_album_access(conn, album_id, user_id)
         conn.execute("DELETE FROM album_photos WHERE album_id = ?", (album_id,))
         conn.execute("DELETE FROM albums WHERE id = ?", (album_id,))
         conn.commit()
         return {'ok': True}
-    finally:
-        conn.close()
 
 
 @router.post("/api/albums/{album_id}/photos")
-async def add_photos_to_album(
+def add_photos_to_album(
     album_id: int,
     body: AlbumPhotosRequest,
     user: CurrentUser = Depends(require_edition),
@@ -462,8 +444,7 @@ async def add_photos_to_album(
     """Add photos to an album (batch)."""
     if not body.photo_paths:
         raise HTTPException(status_code=400, detail="photo_paths must not be empty")
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = _get_user_id(user)
         _check_album_access(conn, album_id, user_id)
 
@@ -502,12 +483,10 @@ async def add_photos_to_album(
         ).fetchone()
         count = row[0] if row else 0
         return {'ok': True, 'added': added, 'photo_count': count}
-    finally:
-        conn.close()
 
 
 @router.delete("/api/albums/{album_id}/photos")
-async def remove_photos_from_album(
+def remove_photos_from_album(
     album_id: int,
     body: AlbumPhotosRequest,
     user: CurrentUser = Depends(require_edition),
@@ -515,8 +494,7 @@ async def remove_photos_from_album(
     """Remove photos from an album (batch)."""
     if not body.photo_paths:
         raise HTTPException(status_code=400, detail="photo_paths must not be empty")
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = _get_user_id(user)
         _check_album_access(conn, album_id, user_id)
 
@@ -533,19 +511,16 @@ async def remove_photos_from_album(
         ).fetchone()
         count = row[0] if row else 0
         return {'ok': True, 'photo_count': count}
-    finally:
-        conn.close()
 
 
 @router.get("/api/albums/{album_id}/photos")
-async def get_album_photos(
+def get_album_photos(
     request: Request,
     album_id: int,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Get photos in an album with pagination and sorting."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = _get_user_id(user)
         album = _check_album_access(conn, album_id, user_id)
 
@@ -562,20 +537,17 @@ async def get_album_photos(
         sort_dir = 'ASC' if qp.get('sort_direction', 'ASC') == 'ASC' else 'DESC'
 
         return _fetch_album_photos(conn, album, user_id, page, per_page, sort, sort_dir)
-    finally:
-        conn.close()
 
 
 # --- Sharing endpoints ---
 
 @router.post("/api/albums/{album_id}/share")
-async def share_album(
+def share_album(
     album_id: int,
     user: CurrentUser = Depends(require_edition),
 ):
     """Generate a share token for public album access."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = _get_user_id(user)
         album = _check_album_access(conn, album_id, user_id)
         # Reuse existing token if already shared, otherwise generate a new random one
@@ -590,37 +562,31 @@ async def share_album(
             'share_url': f"/shared/album/{album_id}?token={token}",
             'share_token': token,
         }
-    finally:
-        conn.close()
 
 
 @router.delete("/api/albums/{album_id}/share")
-async def unshare_album(
+def unshare_album(
     album_id: int,
     user: CurrentUser = Depends(require_edition),
 ):
     """Revoke public sharing for an album."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = _get_user_id(user)
         _check_album_access(conn, album_id, user_id)
         conn.execute("UPDATE albums SET share_token = NULL WHERE id = ?", (album_id,))
         conn.commit()
         return {'ok': True}
-    finally:
-        conn.close()
 
 
 @router.get("/api/shared/album/{album_id}")
-async def get_shared_album(
+def get_shared_album(
     request: Request,
     album_id: int,
     token: str = Query(...),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Public endpoint to view a shared album via token."""
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         album = conn.execute("SELECT * FROM albums WHERE id = ?", (album_id,)).fetchone()
         if not album:
             raise HTTPException(status_code=404, detail="Album not found")
@@ -723,5 +689,3 @@ async def get_shared_album(
                 logger.debug("Failed to build album filter options", exc_info=True)
 
         return result
-    finally:
-        conn.close()

@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
 
 from api.model_cache import get_or_load_vlm_tagger
@@ -31,7 +31,7 @@ def _get_target_language() -> str:
 
 
 @router.get("/api/caption")
-async def api_caption(
+def api_caption(
     path: str = Query(...),
     lang: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -47,8 +47,7 @@ async def api_caption(
     if not VIEWER_CONFIG.get('features', {}).get('show_captions', False):
         raise HTTPException(status_code=403, detail="Caption feature is disabled")
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -141,9 +140,6 @@ async def api_caption(
 
         return {"caption": caption, "source": "generated"}
 
-    finally:
-        conn.close()
-
 
 def _resolve_vlm_config() -> Optional[dict]:
     """Resolve the VLM tagger config dict from the active profile.
@@ -223,7 +219,7 @@ class CaptionUpdate(BaseModel):
 
 
 @router.put("/api/caption")
-async def api_update_caption(
+def api_update_caption(
     body: CaptionUpdate,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -231,8 +227,7 @@ async def api_update_caption(
 
     Clears the cached translation so it gets regenerated on next request.
     """
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         existing_cols = get_existing_columns(conn)
         if 'caption' not in existing_cols:
             raise HTTPException(status_code=400, detail="Caption column not available")
@@ -260,5 +255,3 @@ async def api_update_caption(
             )
         conn.commit()
         return {"caption": body.caption, "source": "manual"}
-    finally:
-        conn.close()

@@ -1,5 +1,6 @@
 """Tests for the map photo endpoints (api/routers/map.py)."""
 
+from contextlib import nullcontext
 from unittest import mock
 
 import pytest
@@ -33,11 +34,11 @@ class TestPhotosMap:
         """Invalid bounds string returns error."""
         with (
             mock.patch("api.routers.map.get_existing_columns", return_value={"gps_latitude", "gps_longitude", "path"}),
-            mock.patch("api.routers.map.get_db_connection") as mock_get_conn,
+            mock.patch("api.routers.map.get_db") as mock_get_conn,
             mock.patch("api.routers.map.get_visibility_clause", return_value=("1=1", [])),
         ):
             mock_conn = mock.MagicMock()
-            mock_get_conn.return_value = mock_conn
+            mock_get_conn.return_value = nullcontext(mock_conn)
             resp = client.get("/api/photos/map", params={"bounds": "invalid"})
 
         assert resp.status_code == 400
@@ -47,11 +48,11 @@ class TestPhotosMap:
         """Bounds with wrong number of values returns error."""
         with (
             mock.patch("api.routers.map.get_existing_columns", return_value={"gps_latitude", "gps_longitude"}),
-            mock.patch("api.routers.map.get_db_connection") as mock_get_conn,
+            mock.patch("api.routers.map.get_db") as mock_get_conn,
             mock.patch("api.routers.map.get_visibility_clause", return_value=("1=1", [])),
         ):
             mock_conn = mock.MagicMock()
-            mock_get_conn.return_value = mock_conn
+            mock_get_conn.return_value = nullcontext(mock_conn)
             resp = client.get("/api/photos/map", params={"bounds": "40.0,-74.0,41.0"})
 
         assert resp.status_code == 400
@@ -67,7 +68,7 @@ class TestPhotosMap:
 
         with (
             mock.patch("api.routers.map.get_existing_columns", return_value={"gps_latitude", "gps_longitude"}),
-            mock.patch("api.routers.map.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.map.get_db", return_value=nullcontext(mock_conn)),
             mock.patch("api.routers.map.get_visibility_clause", return_value=("1=1", [])),
         ):
             resp = client.get("/api/photos/map", params={
@@ -81,7 +82,7 @@ class TestPhotosMap:
         assert len(body["clusters"]) == 2
         assert body["clusters"][0]["count"] == 15
         assert body["clusters"][0]["representative_path"] == "/photos/a.jpg"
-        mock_conn.close.assert_called_once()
+
 
     def test_individual_points_at_high_zoom(self, client):
         """At zoom >= 10, returns individual photo points."""
@@ -93,7 +94,7 @@ class TestPhotosMap:
 
         with (
             mock.patch("api.routers.map.get_existing_columns", return_value={"gps_latitude", "gps_longitude"}),
-            mock.patch("api.routers.map.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.map.get_db", return_value=nullcontext(mock_conn)),
             mock.patch("api.routers.map.get_visibility_clause", return_value=("1=1", [])),
         ):
             resp = client.get("/api/photos/map", params={
@@ -107,7 +108,7 @@ class TestPhotosMap:
         assert len(body["photos"]) == 2
         assert body["photos"][0]["path"] == "/photos/a.jpg"
         assert body["photos"][0]["lat"] == 40.7128
-        mock_conn.close.assert_called_once()
+
 
     def test_empty_results(self, client):
         """Returns empty list when no photos in bounds."""
@@ -116,7 +117,7 @@ class TestPhotosMap:
 
         with (
             mock.patch("api.routers.map.get_existing_columns", return_value={"gps_latitude", "gps_longitude"}),
-            mock.patch("api.routers.map.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.map.get_db", return_value=nullcontext(mock_conn)),
             mock.patch("api.routers.map.get_visibility_clause", return_value=("1=1", [])),
         ):
             resp = client.get("/api/photos/map", params={
@@ -127,7 +128,7 @@ class TestPhotosMap:
         assert resp.status_code == 200
         body = resp.json()
         assert body["photos"] == []
-        mock_conn.close.assert_called_once()
+
 
 
 class TestPhotosMapCount:
@@ -146,14 +147,14 @@ class TestPhotosMapCount:
 
         with (
             mock.patch("api.routers.map.get_existing_columns", return_value={"gps_latitude", "gps_longitude"}),
-            mock.patch("api.routers.map.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.map.get_db", return_value=nullcontext(mock_conn)),
             mock.patch("api.routers.map.get_visibility_clause", return_value=("1=1", [])),
         ):
             resp = client.get("/api/photos/map/count")
 
         assert resp.status_code == 200
         assert resp.json()["count"] == 42
-        mock_conn.close.assert_called_once()
+
 
     def test_returns_zero_when_no_gps_photos(self, client):
         mock_conn = mock.MagicMock()
@@ -161,7 +162,7 @@ class TestPhotosMapCount:
 
         with (
             mock.patch("api.routers.map.get_existing_columns", return_value={"gps_latitude", "gps_longitude"}),
-            mock.patch("api.routers.map.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.map.get_db", return_value=nullcontext(mock_conn)),
             mock.patch("api.routers.map.get_visibility_clause", return_value=("1=1", [])),
         ):
             resp = client.get("/api/photos/map/count")

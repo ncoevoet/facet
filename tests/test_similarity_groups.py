@@ -6,7 +6,6 @@ import time
 from unittest import mock
 
 import numpy as np
-import pytest
 
 from api.similarity_groups import compute_similarity_groups
 from utils.embedding import bytes_to_normalized_embedding as decode_embedding

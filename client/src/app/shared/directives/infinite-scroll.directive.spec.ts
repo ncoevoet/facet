@@ -3,18 +3,18 @@ import { TestBed } from '@angular/core/testing';
 import { InfiniteScrollDirective } from './infinite-scroll.directive';
 
 /** Captured IntersectionObserver instances and their callbacks. */
-let observerInstances: Array<{
+let observerInstances: {
   callback: IntersectionObserverCallback;
   options: IntersectionObserverInit | undefined;
   observe: jest.Mock;
   unobserve: jest.Mock;
   disconnect: jest.Mock;
-}>;
+}[];
 
 beforeEach(() => {
   observerInstances = [];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   (globalThis as any).IntersectionObserver = jest.fn((callback: IntersectionObserverCallback, options?: IntersectionObserverInit) => {
     const instance = {
       callback,

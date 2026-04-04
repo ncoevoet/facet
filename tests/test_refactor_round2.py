@@ -13,7 +13,6 @@ Complete coverage for all changed code paths:
 import sqlite3
 from unittest import mock
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -88,10 +87,16 @@ def _make_db(path: str, photos: list[dict], persons=None, faces=None):
 
 
 def _conn_factory(db_path: str):
+    from contextlib import contextmanager
+
+    @contextmanager
     def factory():
         c = sqlite3.connect(db_path, check_same_thread=False)
         c.row_factory = sqlite3.Row
-        return c
+        try:
+            yield c
+        finally:
+            c.close()
     return factory
 
 
@@ -125,7 +130,7 @@ class TestGalleryConnScope:
         _make_db(db_path, [_photo("/a.jpg", "2024:03:11 10:00:00")])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.gallery.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
             mock.patch("api.db_helpers._existing_columns_cache", None),
         ):
@@ -143,7 +148,7 @@ class TestGalleryConnScope:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.gallery.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
             mock.patch("api.db_helpers._existing_columns_cache", None),
         ):
@@ -161,7 +166,7 @@ class TestGalleryConnScope:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.gallery.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
             mock.patch("api.db_helpers._existing_columns_cache", None),
         ):
@@ -180,7 +185,7 @@ class TestGalleryConnScope:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.gallery.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
             mock.patch("api.db_helpers._existing_columns_cache", None),
         ):
@@ -199,7 +204,7 @@ class TestGalleryConnScope:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.gallery.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
             mock.patch("api.db_helpers._existing_columns_cache", None),
         ):
@@ -214,7 +219,7 @@ class TestGalleryConnScope:
         _make_db(db_path, [_photo("/a.jpg", "2024:06:15 12:00:00")])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.gallery.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
             mock.patch("api.db_helpers._existing_columns_cache", None),
         ):
@@ -225,16 +230,26 @@ class TestGalleryConnScope:
         assert resp.json()["photos"] == []
 
     def test_conn_closed_on_error(self, tmp_path):
-        """Connection is closed even when query raises inside the try block."""
+        """Connection is closed even when query raises inside the with block."""
+        from contextlib import contextmanager
+
         conn_mock = mock.MagicMock()
         conn_mock.execute.side_effect = RuntimeError("simulated DB error")
+
+        @contextmanager
+        def _get_db_mock():
+            try:
+                yield conn_mock
+            finally:
+                conn_mock.close()
+
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.gallery.get_db_connection", return_value=conn_mock),
+            mock.patch("api.routers.gallery.get_db", _get_db_mock),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
             mock.patch("api.db_helpers._existing_columns_cache", None),
         ):
-            resp = TestClient(app).get("/api/photos?page=1")
+            resp = TestClient(app, raise_server_exceptions=False).get("/api/photos?page=1")
         assert resp.status_code == 500
         conn_mock.close.assert_called_once()
 
@@ -261,7 +276,7 @@ class TestStatsOverview:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.stats._get_stats_cached",
                        side_effect=lambda _key, fn: fn()),
         ):
@@ -276,7 +291,7 @@ class TestStatsOverview:
         _make_db(db_path, [_photo("/nodates.jpg", None)])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.stats._get_stats_cached",
                        side_effect=lambda _key, fn: fn()),
         ):
@@ -289,7 +304,7 @@ class TestStatsOverview:
         db_path = self._db_with_dates(tmp_path, ["2024:07:04 12:00:00"])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.stats._get_stats_cached",
                        side_effect=lambda _key, fn: fn()),
         ):
@@ -311,7 +326,7 @@ class TestStatsTimeline:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.stats._get_stats_cached",
                        side_effect=lambda _key, fn: fn()),
         ):
@@ -333,7 +348,7 @@ class TestStatsTimeline:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.stats._get_stats_cached",
                        side_effect=lambda _key, fn: fn()),
         ):
@@ -356,7 +371,7 @@ class TestStatsGear:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.stats._get_stats_cached",
                        side_effect=lambda _key, fn: fn()),
         ):
@@ -383,7 +398,7 @@ class TestStatsCorrelations:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.stats._get_stats_cached",
                        side_effect=lambda _key, fn: fn()),
         ):
@@ -406,7 +421,7 @@ class TestStatsCorrelations:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db_connection", _conn_factory(db_path)),
+            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.stats._get_stats_cached",
                        side_effect=lambda _key, fn: fn()),
         ):

@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, effect } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, effect, untracked } from '@angular/core';
 import { RouterLink, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -192,7 +192,7 @@ export class ManagePersonsComponent implements OnInit {
       this.personsFilters.sortDirection();
       this.personsFilters.search();
       if (this.initialized) {
-        this.loadPersons(true);
+        untracked(() => this.loadPersons(true));
       }
     });
   }

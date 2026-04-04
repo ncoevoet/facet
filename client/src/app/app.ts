@@ -48,7 +48,7 @@ import { MemoriesDialogComponent } from './features/gallery/memories-dialog.comp
       <p class="text-sm opacity-70 mb-3">{{ 'edition.unlock_description' | translate }}</p>
       <mat-form-field class="w-full">
         <mat-label>{{ 'edition.password_placeholder' | translate }}</mat-label>
-        <input matInput type="password" [(ngModel)]="password" (keyup.enter)="submit()" autofocus />
+        <input matInput type="password" [(ngModel)]="password" (keyup.enter)="submit()" />
       </mat-form-field>
       @if (error()) {
         <p class="text-red-400 text-sm">{{ 'edition.invalid_password' | translate }}</p>

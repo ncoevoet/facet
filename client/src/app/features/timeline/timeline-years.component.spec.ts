@@ -5,7 +5,7 @@ import { TimelineFiltersService } from './timeline-filters.service';
 import { TimelineYearsComponent } from './timeline-years.component';
 
 describe('TimelineYearsComponent', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let component: any;
   let mockApi: { get: jest.Mock };
 

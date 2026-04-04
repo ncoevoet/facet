@@ -9,14 +9,11 @@ import os
 import shutil
 import asyncio
 import sqlite3
-import subprocess
 import sys
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Literal, Optional
-
-logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
@@ -24,16 +21,17 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
-    VIEWER_CONFIG, _FULL_CONFIG, _CONFIG_PATH, FACET_SCRIPT,
+    VIEWER_CONFIG, _CONFIG_PATH, FACET_SCRIPT,
     get_comparison_mode_settings, map_disk_path,
     reload_config, _stats_cache, get_all_scan_directories,
     is_multi_user_enabled,
 )
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import get_visibility_clause
-from api.types import TYPE_TO_CATEGORY
 from db import DEFAULT_DB_PATH
 from utils.image_loading import RAW_EXTENSIONS
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["comparison"])
 
@@ -132,7 +130,7 @@ class RestoreWeightsBody(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/api/comparison/next_pair")
-async def api_comparison_next_pair(
+def api_comparison_next_pair(
     strategy: str = Query('uncertainty'),
     category: Optional[str] = Query(None),
     user: CurrentUser = Depends(require_edition),
@@ -157,16 +155,13 @@ def _validate_and_resolve(path: str, user: Optional[CurrentUser]):
     if not path:
         raise HTTPException(status_code=400, detail='path required')
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
         row = conn.execute(
             f"SELECT path FROM photos WHERE path = ? AND {vis_sql}",
             [path] + vis_params
         ).fetchone()
-    finally:
-        conn.close()
 
     if not row:
         raise HTTPException(status_code=404, detail='File not found')
@@ -185,7 +180,7 @@ def _validate_and_resolve(path: str, user: Optional[CurrentUser]):
 
 
 @router.get("/api/download/options")
-async def api_download_options(
+def api_download_options(
     path: str = Query(...),
     is_shared: bool = Query(False),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -223,7 +218,7 @@ async def api_download_single(
     - ``darktable`` — convert companion RAW with a named darktable profile.
     - ``raw`` — serve the companion RAW file as-is.
     """
-    from api.raw_processing import convert_raw_to_jpeg, convert_raw_darktable_async, find_companion_raw
+    from api.raw_processing import convert_raw_darktable_async, find_companion_raw
 
     db_path, real_disk = _validate_and_resolve(path, user)
 
@@ -295,7 +290,7 @@ def _serve_original(real_disk: str, db_path: str, quality: int):
 
 
 @router.post("/api/comparison/submit")
-async def api_comparison_submit(
+def api_comparison_submit(
     body: ComparisonSubmitBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -319,22 +314,20 @@ async def api_comparison_submit(
 
 
 @router.post("/api/comparison/reset")
-async def api_comparison_reset(
+def api_comparison_reset(
     user: CurrentUser = Depends(require_edition),
 ):
     """Reset all comparison data."""
-    conn = get_db_connection()
-    try:
-        conn.execute("DELETE FROM comparisons")
-        conn.execute("DELETE FROM learned_scores")
-        conn.execute("DELETE FROM weight_optimization_runs")
-        conn.commit()
-        return {'success': True, 'message': 'All comparison data has been reset'}
-    except sqlite3.Error:
-        logger.exception("Failed to reset comparison data")
-        raise HTTPException(status_code=500, detail='Reset failed')
-    finally:
-        conn.close()
+    with get_db() as conn:
+        try:
+            conn.execute("DELETE FROM comparisons")
+            conn.execute("DELETE FROM learned_scores")
+            conn.execute("DELETE FROM weight_optimization_runs")
+            conn.commit()
+            return {'success': True, 'message': 'All comparison data has been reset'}
+        except sqlite3.Error:
+            logger.exception("Failed to reset comparison data")
+            raise HTTPException(status_code=500, detail='Reset failed')
 
 
 @router.post("/api/recalculate")
@@ -479,7 +472,7 @@ async def api_update_weights(
 
 
 @router.get("/api/comparison/stats")
-async def api_comparison_stats(
+def api_comparison_stats(
     user: CurrentUser = Depends(require_edition),
 ):
     """Get comparison statistics."""
@@ -492,7 +485,7 @@ async def api_comparison_stats(
 
 
 @router.get("/api/comparison/photo_metrics")
-async def api_comparison_photo_metrics(
+def api_comparison_photo_metrics(
     paths: str = Query(''),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -525,14 +518,11 @@ async def api_comparison_photo_metrics(
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         placeholders = ','.join(['?' for _ in path_list])
         cols = ', '.join(metric_columns)
         query = f"SELECT {cols} FROM photos WHERE path IN ({placeholders}) AND {vis_sql}"
         rows = conn.execute(query, path_list + vis_params).fetchall()
-    finally:
-        conn.close()
 
     result = {}
     for row in rows:
@@ -543,7 +533,7 @@ async def api_comparison_photo_metrics(
 
 
 @router.get("/api/comparison/category_weights")
-async def api_comparison_category_weights(
+def api_comparison_category_weights(
     category: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -586,7 +576,7 @@ async def api_comparison_category_weights(
 
 
 @router.get("/api/comparison/learned_weights")
-async def api_comparison_learned_weights(
+def api_comparison_learned_weights(
     category: Optional[str] = Query(None),
     include_ties: str = Query('true'),
     use_cv: str = Query('false'),
@@ -604,14 +594,11 @@ async def api_comparison_learned_weights(
     optimizer = WeightOptimizer(DEFAULT_DB_PATH)
 
     # Check if we have enough comparisons
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute(
             "SELECT COUNT(*) FROM comparisons WHERE winner IN ('a', 'b', 'tie')"
         ).fetchone()
         count = row[0] if row else 0
-    finally:
-        conn.close()
 
     settings = get_comparison_mode_settings()
     min_comparisons = settings.get('min_comparisons_for_optimization', 30)
@@ -698,7 +685,7 @@ async def api_comparison_learned_weights(
 
 
 @router.post("/api/comparison/preview_score")
-async def api_comparison_preview_score(
+def api_comparison_preview_score(
     body: PreviewScoreBody,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -712,11 +699,8 @@ async def api_comparison_preview_score(
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute(f"SELECT * FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
-    finally:
-        conn.close()
 
     if not row:
         raise HTTPException(status_code=404, detail='Photo not found')
@@ -791,12 +775,12 @@ async def api_comparison_preview_score(
 
 
 @router.post("/api/comparison/suggest_filters")
-async def api_comparison_suggest_filters(
+def api_comparison_suggest_filters(
     body: SuggestFiltersBody,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Suggest filter changes when moving a photo to another category."""
-    from config import ScoringConfig, CategoryFilter
+    from config import ScoringConfig
 
     if not body.path or not body.target_category:
         raise HTTPException(status_code=400, detail='Missing path or target_category')
@@ -805,11 +789,8 @@ async def api_comparison_suggest_filters(
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute(f"SELECT * FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
-    finally:
-        conn.close()
 
     if not row:
         raise HTTPException(status_code=404, detail='Photo not found')
@@ -1037,7 +1018,7 @@ async def api_comparison_suggest_filters(
 
 
 @router.post("/api/comparison/override_category")
-async def api_comparison_override_category(
+def api_comparison_override_category(
     body: OverrideCategoryBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1049,8 +1030,7 @@ async def api_comparison_override_category(
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         row = conn.execute(f"SELECT category FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail='Photo not found')
@@ -1060,8 +1040,6 @@ async def api_comparison_override_category(
         # Update the category
         conn.execute(f"UPDATE photos SET category = ? WHERE path = ? AND {vis_sql}", [body.category, body.path] + vis_params)
         conn.commit()
-    finally:
-        conn.close()
 
     _stats_cache.clear()
 
@@ -1074,7 +1052,7 @@ async def api_comparison_override_category(
 
 
 @router.get("/api/comparison/history")
-async def api_comparison_history(
+def api_comparison_history(
     limit: int = Query(50),
     offset: int = Query(0),
     category: Optional[str] = Query(None),
@@ -1104,7 +1082,7 @@ async def api_comparison_history(
 
 
 @router.post("/api/comparison/edit")
-async def api_comparison_edit(
+def api_comparison_edit(
     body: ComparisonEditBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1132,7 +1110,7 @@ async def api_comparison_edit(
 
 
 @router.post("/api/comparison/delete")
-async def api_comparison_delete(
+def api_comparison_delete(
     body: ComparisonDeleteBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1158,7 +1136,7 @@ async def api_comparison_delete(
 
 
 @router.get("/api/comparison/coverage")
-async def api_comparison_coverage(
+def api_comparison_coverage(
     category: Optional[str] = Query(None),
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1176,7 +1154,7 @@ async def api_comparison_coverage(
 
 
 @router.get("/api/comparison/confidence")
-async def api_comparison_confidence(
+def api_comparison_confidence(
     category: Optional[str] = Query(None),
     n_bootstrap: int = Query(100),
     user: CurrentUser = Depends(require_edition),
@@ -1227,15 +1205,14 @@ async def api_comparison_confidence(
 
 
 @router.get("/api/config/weight_snapshots")
-async def api_weight_snapshots(
+def api_weight_snapshots(
     category: Optional[str] = Query(None),
     limit: int = Query(20),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """List weight configuration snapshots."""
     try:
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             if category:
                 cursor = conn.execute("""
                     SELECT * FROM weight_config_snapshots
@@ -1262,15 +1239,13 @@ async def api_weight_snapshots(
                 snapshots.append(snapshot)
 
             return {'snapshots': snapshots}
-        finally:
-            conn.close()
     except Exception:
         logger.exception("Failed to list weight snapshots")
         raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/config/save_snapshot")
-async def api_save_weight_snapshot(
+def api_save_weight_snapshot(
     body: SaveSnapshotBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1282,8 +1257,7 @@ async def api_save_weight_snapshot(
         config = ScoringConfig(validate=False)
         weights = config.get_weights(body.category)
 
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             cursor = conn.execute("""
                 INSERT INTO weight_config_snapshots
                 (category, weights, description, accuracy_before, accuracy_after,
@@ -1300,8 +1274,6 @@ async def api_save_weight_snapshot(
             ))
             conn.commit()
             snapshot_id = cursor.lastrowid
-        finally:
-            conn.close()
 
         return {'success': True, 'snapshot_id': snapshot_id}
     except Exception:
@@ -1310,7 +1282,7 @@ async def api_save_weight_snapshot(
 
 
 @router.post("/api/config/restore_weights")
-async def api_restore_weights(
+def api_restore_weights(
     body: RestoreWeightsBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -1320,13 +1292,10 @@ async def api_restore_weights(
 
     try:
         # Get snapshot
-        conn = get_db_connection()
-        try:
+        with get_db() as conn:
             row = conn.execute("""
                 SELECT * FROM weight_config_snapshots WHERE id = ?
             """, (body.snapshot_id,)).fetchone()
-        finally:
-            conn.close()
 
         if not row:
             raise HTTPException(status_code=404, detail='Snapshot not found')

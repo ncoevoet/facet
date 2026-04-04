@@ -297,7 +297,8 @@ export class CapsulesComponent implements OnDestroy {
       this.slideshowStartIndex.set(0);
       this.slideshowPhotos.set(shuffled);
     } catch {
-      this.slideshowPhotos.set([]);
+      this.slideshowActive.set(false);
+      this.snackBar.open(this.i18n.t('capsules.load_error'), '', { duration: 3000 });
     } finally {
       this.slideshowLoading.set(false);
     }

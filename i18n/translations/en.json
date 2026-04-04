@@ -512,7 +512,10 @@
     "person_not_found": "Person not found",
     "photo_not_found": "Photo not found",
     "thumbnail_not_found": "Thumbnail not found",
-    "database_error": "Database Error"
+    "database_error": "Database Error",
+    "rate_limited": "Too many requests — please wait a moment",
+    "access_denied": "Access denied",
+    "server_error": "Server error — please try again"
   },
   "language": {
     "en": "English",
@@ -1675,6 +1678,7 @@
     "save_as_album": "Save as album",
     "saved_as_album": "Saved as album",
     "save_album_error": "Failed to save album",
+    "load_error": "Failed to load capsule photos",
     "seeded_time_title": "Around {date}",
     "seeded_similar_title": "Visually Similar",
     "seeded_person_title": "More of {name}",

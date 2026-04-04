@@ -10,7 +10,6 @@ import struct
 import time
 from config import ScoringConfig
 
-logger = logging.getLogger("facet.api.db_helpers")
 from api.config import (
     _existing_columns_cache, _existing_columns_lock,
     _photo_tags_available, _photo_tags_lock,
@@ -18,6 +17,8 @@ from api.config import (
     is_multi_user_enabled, get_user_directories, _FULL_CONFIG,
 )
 from api.database import get_db_connection
+
+logger = logging.getLogger("facet.api.db_helpers")
 
 # --- DATE FORMATTING ---
 
@@ -110,9 +111,11 @@ def get_existing_columns(conn=None):
 
     if conn is None:
         conn = get_db_connection()
-        cursor = conn.execute('PRAGMA table_info(photos)')
-        result = {row[1] for row in cursor.fetchall()}
-        conn.close()
+        try:
+            cursor = conn.execute('PRAGMA table_info(photos)')
+            result = {row[1] for row in cursor.fetchall()}
+        finally:
+            conn.close()
     else:
         cursor = conn.execute('PRAGMA table_info(photos)')
         result = {row[1] for row in cursor.fetchall()}
@@ -138,6 +141,7 @@ def is_photo_tags_available(conn=None):
         row = conn.execute("SELECT COUNT(*) FROM photo_tags").fetchone()
         result = row[0] > 0 if row else False
     except Exception:
+        logger.debug("photo_tags table not available", exc_info=True)
         result = False
 
     if close_conn:
@@ -243,6 +247,16 @@ def get_cached_count(conn, where_str, sql_params, from_clause="photos"):
 
 
 
+def paginate(total: int, page: int, per_page: int) -> tuple[int, int]:
+    """Calculate pagination values.
+
+    Returns (total_pages, offset).
+    """
+    total_pages = max(1, math.ceil(total / per_page))
+    offset = (page - 1) * per_page
+    return total_pages, offset
+
+
 def sanitize_float_values(data):
     """Replace NaN/Infinity with None in a list of dicts."""
     for item in data:
@@ -339,6 +353,7 @@ def attach_person_data(photos, conn):
             photo['persons'] = path_to_persons.get(photo['path'], [])
             photo['unassigned_faces'] = path_to_unassigned.get(photo['path'], 0)
     except Exception:
+        logger.exception("Failed to attach person data")
         for photo in photos:
             photo['persons'] = []
             photo['unassigned_faces'] = 0

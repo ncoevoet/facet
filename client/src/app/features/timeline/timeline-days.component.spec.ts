@@ -5,7 +5,7 @@ import { TimelineFiltersService } from './timeline-filters.service';
 import { TimelineDaysComponent } from './timeline-days.component';
 
 describe('TimelineDaysComponent', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let component: any;
   let mockApi: { get: jest.Mock };
 

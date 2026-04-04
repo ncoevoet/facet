@@ -119,7 +119,7 @@ interface TimelineEntry {
                   </tr>
                 </thead>
                 <tbody>
-                  @for (row of heatmapRows(); track $index) {
+                  @for (row of heatmapRows(); track row.day) {
                     <tr>
                       <td class="p-1 text-gray-300 font-medium">{{ row.day }}</td>
                       @for (count of row.cells; track $index) {

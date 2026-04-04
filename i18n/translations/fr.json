@@ -512,7 +512,10 @@
     "person_not_found": "Personne non trouvee",
     "photo_not_found": "Photo non trouvee",
     "thumbnail_not_found": "Miniature non trouvee",
-    "database_error": "Erreur de base de donnees"
+    "database_error": "Erreur de base de donnees",
+    "rate_limited": "Trop de requêtes — veuillez patienter",
+    "access_denied": "Accès refusé",
+    "server_error": "Erreur serveur — veuillez réessayer"
   },
   "language": {
     "en": "Anglais",
@@ -1676,6 +1679,7 @@
     "save_as_album": "Enregistrer en album",
     "saved_as_album": "Enregistré en album",
     "save_album_error": "Échec de l'enregistrement",
+    "load_error": "Impossible de charger les photos de la capsule",
     "seeded_time_title": "Autour de {date}",
     "seeded_similar_title": "Visuellement similaires",
     "seeded_person_title": "Plus de {name}",

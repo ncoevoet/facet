@@ -1,11 +1,19 @@
 """Tests for the timeline endpoint (api/routers/timeline.py)."""
 
+from contextlib import contextmanager
 from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
+
+
+def _cm(conn):
+    @contextmanager
+    def _ctx():
+        yield conn
+    return _ctx()
 
 
 @pytest.fixture()
@@ -37,7 +45,7 @@ class TestTimelineEndpoint:
         mock_conn.execute.return_value.fetchall.side_effect = [date_rows, photo_rows_1, photo_rows_2]
 
         with (
-            mock.patch("api.routers.timeline.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.timeline.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
             mock.patch("api.routers.timeline.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
@@ -55,7 +63,7 @@ class TestTimelineEndpoint:
         assert body["groups"][0]["date"] == "2025-03-10"
         assert body["groups"][0]["count"] == 5
         assert body["has_more"] is False
-        mock_conn.close.assert_called_once()
+
 
     def test_cursor_pagination(self, client):
         """Cursor parameter filters dates before/after the cursor."""
@@ -65,7 +73,7 @@ class TestTimelineEndpoint:
         ]
 
         with (
-            mock.patch("api.routers.timeline.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.timeline.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
             mock.patch("api.routers.timeline.build_photo_select_columns", return_value=["path"]),
@@ -93,7 +101,7 @@ class TestTimelineEndpoint:
         mock_conn.execute.return_value.fetchall.side_effect = [date_rows] + photo_rows
 
         with (
-            mock.patch("api.routers.timeline.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.timeline.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
             mock.patch("api.routers.timeline.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
@@ -120,7 +128,7 @@ class TestTimelineEndpoint:
         ]
 
         with (
-            mock.patch("api.routers.timeline.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.timeline.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
             mock.patch("api.routers.timeline.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
@@ -149,7 +157,7 @@ class TestTimelineEndpoint:
         ]
 
         with (
-            mock.patch("api.routers.timeline.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.timeline.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
             mock.patch("api.routers.timeline.build_photo_select_columns", return_value=["path", "date_taken", "aggregate", "tags"]),
@@ -168,13 +176,15 @@ class TestTimelineEndpoint:
         body = resp.json()
         assert len(body["groups"]) == 1
 
-    def test_db_error_returns_empty(self, client):
+    def test_db_error_returns_empty(self):
         """On database exception, returns empty result instead of 500."""
+        app = create_app()
+        client = TestClient(app, raise_server_exceptions=False)
         mock_conn = mock.MagicMock()
         mock_conn.execute.side_effect = Exception("DB error")
 
         with (
-            mock.patch("api.routers.timeline.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.timeline.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
         ):
@@ -197,7 +207,7 @@ class TestTimelineDates:
         ]
 
         with (
-            mock.patch("api.routers.timeline.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.timeline.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
         ):
@@ -208,7 +218,7 @@ class TestTimelineDates:
         assert len(body["dates"]) == 2
         assert body["dates"][0]["date"] == "2025-03-10"
         assert body["dates"][0]["count"] == 15
-        mock_conn.close.assert_called_once()
+
 
     def test_year_and_month_filter(self, client):
         mock_conn = mock.MagicMock()
@@ -217,7 +227,7 @@ class TestTimelineDates:
         ]
 
         with (
-            mock.patch("api.routers.timeline.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.timeline.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
         ):
@@ -227,12 +237,14 @@ class TestTimelineDates:
         body = resp.json()
         assert len(body["dates"]) == 1
 
-    def test_db_error_returns_empty_dates(self, client):
+    def test_db_error_returns_empty_dates(self):
+        app = create_app()
+        client = TestClient(app, raise_server_exceptions=False)
         mock_conn = mock.MagicMock()
         mock_conn.execute.side_effect = Exception("DB error")
 
         with (
-            mock.patch("api.routers.timeline.get_db_connection", return_value=mock_conn),
+            mock.patch("api.routers.timeline.get_db", lambda: _cm(mock_conn)),
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
         ):

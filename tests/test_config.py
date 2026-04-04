@@ -1,13 +1,14 @@
 """Tests for the core config module (ScoringConfig, CategoryFilter, determine_category)."""
 
 import os
-import pytest
 
-# Resolve the real scoring_config.json path (repo root)
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "scoring_config.json")
+import pytest
 
 from config.category_filter import CategoryFilter
 from config.scoring_config import ScoringConfig
+
+# Resolve the real scoring_config.json path (repo root)
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "scoring_config.json")
 
 
 @pytest.fixture(scope="module")

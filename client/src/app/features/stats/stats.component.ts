@@ -124,6 +124,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                     <mat-card-header class="!flex !items-center !justify-between !gap-4">
                       <mat-card-title>{{ 'stats.category_metric_title' | translate }}</mat-card-title>
                       <mat-form-field class="flex-1 min-w-0 !-mt-2" subscriptSizing="dynamic">
+                        <mat-label>{{ 'stats.category_metric_title' | translate }}</mat-label>
                         <mat-select [ngModel]="categoryMetric()" (ngModelChange)="categoryMetric.set($event)">
                           @for (opt of categoryMetricOptions; track opt.key) {
                             <mat-option [value]="opt.key">{{ 'stats.category_metrics.' + opt.key | translate }}</mat-option>
@@ -305,7 +306,7 @@ export class StatsComponent {
       const cat = this.statsFilters.filterCategory();
       const from = this.statsFilters.dateFrom();
       const to = this.statsFilters.dateTo();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const qp: any = {};
       if (cat) qp.category = cat;
       if (from) qp.date_from = from;

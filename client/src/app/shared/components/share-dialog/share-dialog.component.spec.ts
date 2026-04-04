@@ -5,7 +5,7 @@ import { ApiService } from '../../../core/services/api.service';
 import { ShareDialogComponent, ShareDialogData } from './share-dialog.component';
 
 describe('ShareDialogComponent', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let component: any;
   let mockApi: { post: jest.Mock; get: jest.Mock; delete: jest.Mock };
   let mockDialogRef: { close: jest.Mock };

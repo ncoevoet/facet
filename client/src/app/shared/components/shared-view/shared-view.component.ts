@@ -324,10 +324,12 @@ interface SharedFilters {
                         <mat-slider [min]="def.sliderMin" [max]="def.sliderMax" [step]="def.step" class="flex-1">
                           <input matSliderStartThumb
                             [value]="$any(filters())[def.minKey] ? +$any(filters())[def.minKey] : def.sliderMin"
-                            (valueChange)="onDynamicRangeChange(def, 'min', $event)" />
+                            (valueChange)="onDynamicRangeChange(def, 'min', $event)"
+                            [attr.aria-label]="(def.labelKey | translate) + ' min'" />
                           <input matSliderEndThumb
                             [value]="$any(filters())[def.maxKey] ? +$any(filters())[def.maxKey] : def.sliderMax"
-                            (valueChange)="onDynamicRangeChange(def, 'max', $event)" />
+                            (valueChange)="onDynamicRangeChange(def, 'max', $event)"
+                            [attr.aria-label]="(def.labelKey | translate) + ' max'" />
                         </mat-slider>
                         <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">{{ filters() | filterDisplay:def }}</span>
                       </div>

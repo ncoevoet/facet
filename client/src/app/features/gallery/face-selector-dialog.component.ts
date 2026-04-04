@@ -41,6 +41,7 @@ interface PhotoFace {
               class="relative rounded-full overflow-hidden border-2 border-transparent hover:border-[var(--mat-sys-primary)] transition-colors"
               (click)="dialogRef.close(face)">
               <img [src]="face.id | faceThumbnailUrl"
+                   alt=""
                    class="w-28 h-28 object-cover" />
             </button>
           }

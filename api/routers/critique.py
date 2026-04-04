@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import get_visibility_clause
 from api.model_cache import get_or_load_vlm_tagger
 
@@ -24,6 +24,7 @@ _WEAKNESS_THRESHOLD = 5.0
 # Noise thresholds
 _NOISE_CLEAN_THRESHOLD = 3.0
 _NOISE_HIGH_THRESHOLD = 8.0
+_NOISE_PENALTY_THRESHOLD = 4.0
 
 # Metric labels for human-readable output
 METRIC_LABELS = {
@@ -272,8 +273,8 @@ def _check_penalties(photo):
     penalties = {}
     if photo.get('is_blink'):
         penalties['blink'] = True
-    if photo.get('noise_sigma') and photo['noise_sigma'] > 4:
-        noise_penalty = min(1.5, max(0, (photo['noise_sigma'] - 4) * 0.3))
+    if photo.get('noise_sigma') and photo['noise_sigma'] > _NOISE_PENALTY_THRESHOLD:
+        noise_penalty = min(1.5, max(0, (photo['noise_sigma'] - _NOISE_PENALTY_THRESHOLD) * 0.3))
         if noise_penalty > 0:
             penalties['noise'] = round(-noise_penalty, 2)
     if photo.get('highlight_clipped') and photo['highlight_clipped'] > 0:
@@ -308,7 +309,7 @@ def _build_rule_critique(photo):
 
 
 @router.get("/api/critique")
-async def api_critique(
+def api_critique(
     path: str = Query(...),
     mode: str = Query("rule"),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -322,8 +323,7 @@ async def api_critique(
     if not VIEWER_CONFIG.get('features', {}).get('show_critique', True):
         raise HTTPException(status_code=403, detail="Critique feature is disabled")
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -361,9 +361,6 @@ async def api_critique(
                 result['vlm_available'] = False
 
         return result
-
-    finally:
-        conn.close()
 
 
 def _get_vlm_critique(photo, rule_critique):

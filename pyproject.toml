@@ -88,6 +88,14 @@ facet-db = "database:main"
 facet-tag = "tag_existing:main"
 facet-doctor = "diagnostics:main"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning:pydantic",
+    "ignore::DeprecationWarning:pkg_resources",
+]
+
 [tool.setuptools]
 py-modules = ["facet", "viewer", "database", "tag_existing", "calibrate", "validate_db", "diagnostics"]
 

@@ -46,7 +46,7 @@ jest.mock('leaflet', () => ({
 import { MapComponent } from './map.component';
 
 describe('MapComponent', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let component: any;
   let mockApi: { get: jest.Mock; thumbnailUrl: jest.Mock };
 

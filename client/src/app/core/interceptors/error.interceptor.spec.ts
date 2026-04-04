@@ -5,19 +5,29 @@ import {
   HttpErrorResponse,
 } from '@angular/common/http';
 import { throwError } from 'rxjs';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { errorInterceptor } from './error.interceptor';
 import { AuthService } from '../services/auth.service';
+import { I18nService } from '../services/i18n.service';
 
 describe('errorInterceptor', () => {
   let authMock: { token: string | null; logout: jest.Mock };
+  let snackBarMock: { open: jest.Mock };
+  let i18nMock: { t: jest.Mock; locale: jest.Mock };
   let next: jest.MockedFunction<HttpHandlerFn>;
 
   beforeEach(() => {
     authMock = { token: null, logout: jest.fn() };
+    snackBarMock = { open: jest.fn() };
+    i18nMock = { t: jest.fn((key: string) => key), locale: jest.fn(() => 'en') };
     next = jest.fn();
 
     TestBed.configureTestingModule({
-      providers: [{ provide: AuthService, useValue: authMock }],
+      providers: [
+        { provide: AuthService, useValue: authMock },
+        { provide: MatSnackBar, useValue: snackBarMock },
+        { provide: I18nService, useValue: i18nMock },
+      ],
     });
   });
 
@@ -83,6 +93,45 @@ describe('errorInterceptor', () => {
       },
       error: (err: HttpErrorResponse) => {
         expect(err.status).toBe(401);
+        done();
+      },
+    });
+  });
+
+  it('shows snackbar on 429 rate limit', (done) => {
+    const req = new HttpRequest('GET', '/api/photos');
+    const error = new HttpErrorResponse({ status: 429, url: '/api/photos' });
+    next.mockReturnValue(throwError(() => error));
+
+    runInterceptor(req).subscribe({
+      error: () => {
+        expect(snackBarMock.open).toHaveBeenCalledWith('errors.rate_limited', '', { duration: 5000 });
+        done();
+      },
+    });
+  });
+
+  it('shows snackbar on 403 for non-auth URLs', (done) => {
+    const req = new HttpRequest('GET', '/api/photos');
+    const error = new HttpErrorResponse({ status: 403, url: '/api/photos' });
+    next.mockReturnValue(throwError(() => error));
+
+    runInterceptor(req).subscribe({
+      error: () => {
+        expect(snackBarMock.open).toHaveBeenCalledWith('errors.access_denied', '', { duration: 3000 });
+        done();
+      },
+    });
+  });
+
+  it('shows snackbar on 500 server error', (done) => {
+    const req = new HttpRequest('GET', '/api/photos');
+    const error = new HttpErrorResponse({ status: 500, url: '/api/photos' });
+    next.mockReturnValue(throwError(() => error));
+
+    runInterceptor(req).subscribe({
+      error: () => {
+        expect(snackBarMock.open).toHaveBeenCalledWith('errors.server_error', '', { duration: 3000 });
         done();
       },
     });

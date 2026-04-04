@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -26,7 +26,9 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ 'ui.buttons.cancel' | translate }}</button>
-      <button mat-flat-button [disabled]="!name.trim()" (click)="save()">{{ 'albums.save_smart' | translate }}</button>
+      <button mat-flat-button [disabled]="!name.trim() || saving()" (click)="save()">
+        {{ saving() ? ('ui.buttons.saving' | translate) : ('albums.save_smart' | translate) }}
+      </button>
     </mat-dialog-actions>
   `,
 })
@@ -36,12 +38,18 @@ export class SaveSmartAlbumDialogComponent {
   private data = inject<{ filterJson: string }>(MAT_DIALOG_DATA);
 
   name = '';
+  readonly saving = signal(false);
 
   async save(): Promise<void> {
-    if (!this.name.trim()) return;
-    await firstValueFrom(
-      this.albumService.create(this.name.trim(), '', true, this.data.filterJson),
-    );
-    this.dialogRef.close(true);
+    if (!this.name.trim() || this.saving()) return;
+    this.saving.set(true);
+    try {
+      await firstValueFrom(
+        this.albumService.create(this.name.trim(), '', true, this.data.filterJson),
+      );
+      this.dialogRef.close(true);
+    } catch {
+      this.saving.set(false);
+    }
   }
 }

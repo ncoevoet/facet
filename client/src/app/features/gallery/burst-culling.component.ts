@@ -107,7 +107,7 @@ interface CullingGroupsResponse {
         <div class="flex items-center gap-2 ml-auto">
           <span class="text-xs opacity-60">{{ 'culling.threshold' | translate }}</span>
           <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
-            <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" />
+            <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="'culling.threshold' | translate" />
           </mat-slider>
           <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
           <button mat-icon-button (click)="showHelp.set(!showHelp())" class="!w-8 !h-8 !p-0"
@@ -432,10 +432,13 @@ export class BurstCullingComponent implements OnDestroy {
     this.updateMapSignal(this.passingGroups, key, 5);
 
     const intervalId = setInterval(() => {
-      const current = this.passingGroups().get(key);
-      if (current !== undefined) {
-        this.updateMapSignal(this.passingGroups, key, current - 1);
-      }
+      this.passingGroups.update(m => {
+        const current = m.get(key);
+        if (current === undefined) return m;
+        const next = new Map(m);
+        next.set(key, current - 1);
+        return next;
+      });
     }, 1000);
 
     const timeoutId = setTimeout(() => {
@@ -497,9 +500,11 @@ export class BurstCullingComponent implements OnDestroy {
         }));
       }
 
-      for (const g of remaining) {
-        this.addToSetSignal(this.confirmedGroups, this.groupKey(g));
-      }
+      this.confirmedGroups.update(s => {
+        const next = new Set(s);
+        for (const g of remaining) next.add(this.groupKey(g));
+        return next;
+      });
       this.snackBar.open(this.i18n.t('culling.confirmed'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } catch {
       this.snackBar.open(this.i18n.t('culling.error_auto_select'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });

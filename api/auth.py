@@ -5,9 +5,13 @@ Replaces Flask session-based auth with stateless JWT tokens.
 Supports all 4 auth modes: no-password, legacy password, edition password, multi-user RBAC.
 """
 
+import collections
 import hmac
 import hashlib
+import logging
 import os
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -18,7 +22,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from api.config import (
     JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRY_HOURS,
     VIEWER_CONFIG,
-    is_multi_user_enabled, get_user_config
+    is_multi_user_enabled
 )
 
 
@@ -175,6 +179,117 @@ def verify_password(password: str, stored_hash: str) -> bool:
         return hmac.compare_digest(actual_dk, expected_dk)
     except (ValueError, AttributeError):
         return False
+
+
+# --- LEGACY PASSWORD VERIFICATION ---
+
+logger = logging.getLogger(__name__)
+
+
+def _is_hashed(value: str) -> bool:
+    """Return True if value looks like a stored PBKDF2 hash (salt_hex:dk_hex)."""
+    parts = value.split(':')
+    if len(parts) != 2 or len(parts[0]) != 32 or len(parts[1]) != 64:
+        return False
+    try:
+        bytes.fromhex(parts[0])
+        bytes.fromhex(parts[1])
+        return True
+    except ValueError:
+        return False
+
+
+def verify_legacy_password(candidate: str, stored: str) -> bool:
+    """Verify a password against either a PBKDF2 hash or plaintext value."""
+    if not stored:
+        return False
+    if _is_hashed(stored):
+        return verify_password(candidate, stored)
+    return hmac.compare_digest(candidate, stored)
+
+
+def upgrade_legacy_password(config_key: str, plaintext: str):
+    """Hash a plaintext password and rewrite it in scoring_config.json.
+
+    Called after a successful login against a plaintext password.
+    Uses the same atomic write pattern as _load_and_ensure_share_secret().
+    """
+    from api.config import _CONFIG_PATH, _share_secret_lock, reload_config
+    import json
+    import shutil
+    import tempfile
+
+    hashed = hash_password(plaintext)
+    with _share_secret_lock:
+        try:
+            with open(_CONFIG_PATH) as f:
+                config = json.load(f)
+        except Exception:
+            logger.warning("Cannot upgrade password: failed to read config")
+            return
+        viewer = config.get('viewer', {})
+        if viewer.get(config_key, '') and not _is_hashed(viewer[config_key]):
+            viewer[config_key] = hashed
+            config['viewer'] = viewer
+            shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
+            dir_name = os.path.dirname(_CONFIG_PATH)
+            fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
+            try:
+                with os.fdopen(fd, 'w') as f:
+                    json.dump(config, f, indent=2)
+                os.replace(tmp_path, _CONFIG_PATH)
+                reload_config()
+                logger.info("Upgraded plaintext %s to PBKDF2 hash", config_key)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                logger.exception("Failed to upgrade password hash for %s", config_key)
+
+
+def check_legacy_password_warnings():
+    """Log warnings at startup if plaintext passwords are detected."""
+    for key in ('password', 'edition_password'):
+        value = VIEWER_CONFIG.get(key, '')
+        if value and not _is_hashed(value):
+            logger.warning(
+                "Plaintext %s detected in scoring_config.json — "
+                "will be hashed on next successful login", key
+            )
+
+
+# --- RATE LIMITING ---
+
+class RateLimiter:
+    """Sliding-window rate limiter keyed by string (e.g. IP address)."""
+
+    def __init__(self, max_attempts: int = 5, window_seconds: int = 60):
+        self._max = max_attempts
+        self._window = window_seconds
+        self._lock = threading.Lock()
+        self._attempts: dict[str, collections.deque] = {}
+
+    def is_allowed(self, key: str) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            # Periodically prune stale keys to prevent unbounded growth
+            if len(self._attempts) > 10000:
+                cutoff = now - self._window
+                stale = [k for k, dq in self._attempts.items() if not dq or dq[-1] < cutoff]
+                for k in stale:
+                    del self._attempts[k]
+            dq = self._attempts.setdefault(key, collections.deque())
+            cutoff = now - self._window
+            while dq and dq[0] < cutoff:
+                dq.popleft()
+            if len(dq) >= self._max:
+                return False
+            dq.append(now)
+            return True
+
+
+_login_limiter = RateLimiter(max_attempts=5, window_seconds=60)
 
 
 # --- EDITION MODE HELPERS ---

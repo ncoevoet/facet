@@ -6,7 +6,7 @@ import { ApiService } from '../../core/services/api.service';
 import { MemoriesDialogComponent } from './memories-dialog.component';
 
 describe('MemoriesDialogComponent', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let component: any;
   let mockApi: { get: jest.Mock };
   let mockRouter: { navigate: jest.Mock };

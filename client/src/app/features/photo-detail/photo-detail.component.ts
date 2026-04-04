@@ -10,10 +10,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { Photo } from '../../shared/models/photo.model';
-import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
-import { I18nService } from '../../core/services/i18n.service';
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
+import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.directive';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../shared/pipes/shutter-speed.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -164,7 +163,7 @@ import { createLeafletMap } from '../../shared/leaflet';
               <!-- Star rating -->
               @for (star of stars; track star) {
                 <button class="w-8 h-8 rounded-full inline-flex items-center justify-center hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer" (click)="setRating(p.path, star)">
-                  <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !text-yellow-400">{{ p.star_rating != null && star <= p.star_rating! ? 'star' : 'star_border' }}</mat-icon>
+                  <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !text-yellow-400">{{ p.star_rating !== null && star <= p.star_rating! ? 'star' : 'star_border' }}</mat-icon>
                 </button>
               }
               <div class="flex-1"></div>
@@ -214,38 +213,38 @@ import { createLeafletMap } from '../../shared/leaflet';
             <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ 'photo_detail.quality' | translate }}</div>
             <div class="flex flex-col gap-0.5">
               <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.aesthetic' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.aesthetic | fixed:1 }}</span></div>
-              @if (p.quality_score != null) {
+              @if (p.quality_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.quality_score' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.quality_score | fixed:1 }}</span></div>
               }
-              @if (p.topiq_score != null) {
+              @if (p.topiq_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.topiq_score' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.topiq_score | fixed:1 }}</span></div>
               }
-              @if (p.tech_sharpness != null) {
+              @if (p.tech_sharpness !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.tech_sharpness' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.tech_sharpness | fixed:1 }}</span></div>
               }
-              @if (p.face_count > 0 && p.face_quality != null) {
+              @if (p.face_count > 0 && p.face_quality !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.face_quality' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.face_quality | fixed:1 }}</span></div>
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.faces' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.face_count }}</span></div>
                 @if (p.face_ratio) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.face_ratio' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.face_ratio * 100 | fixed:0 }}%</span></div>
                 }
-                @if (p.face_sharpness != null) {
+                @if (p.face_sharpness !== null) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.face_sharpness' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.face_sharpness | fixed:1 }}</span></div>
                 }
-                @if (p.eye_sharpness != null) {
+                @if (p.eye_sharpness !== null) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.eye_sharpness' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.eye_sharpness | fixed:1 }}</span></div>
                 }
-                @if (p.face_confidence != null) {
+                @if (p.face_confidence !== null) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.face_confidence' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.face_confidence * 100 | fixed:0 }}%</span></div>
                 }
               }
-              @if (p.aesthetic_iaa != null) {
+              @if (p.aesthetic_iaa !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.aesthetic_iaa' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.aesthetic_iaa | fixed:1 }}</span></div>
               }
-              @if (p.face_quality_iqa != null) {
+              @if (p.face_quality_iqa !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.face_quality_iqa' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.face_quality_iqa | fixed:1 }}</span></div>
               }
-              @if (p.liqe_score != null) {
+              @if (p.liqe_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.liqe_score' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.liqe_score | fixed:1 }}</span></div>
               }
             </div>
@@ -255,39 +254,39 @@ import { createLeafletMap } from '../../shared/leaflet';
           <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
             <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ 'photo_detail.composition' | translate }}</div>
             <div class="flex flex-col gap-0.5">
-              @if (p.comp_score != null) {
+              @if (p.comp_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.composition' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.comp_score | fixed:1 }}</span></div>
               }
               @if (p.composition_pattern) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.pattern' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ ('composition_patterns.' + p.composition_pattern) | translate }}</span></div>
               }
-              @if (p.power_point_score != null) {
+              @if (p.power_point_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.power_points' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.power_point_score | fixed:1 }}</span></div>
               }
-              @if (p.leading_lines_score != null) {
+              @if (p.leading_lines_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.leading_lines' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.leading_lines_score | fixed:1 }}</span></div>
               }
-              @if (p.isolation_bonus != null) {
+              @if (p.isolation_bonus !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.isolation' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.isolation_bonus | fixed:1 }}</span></div>
               }
             </div>
           </div>
 
           <!-- Subject Saliency section -->
-          @if (p.subject_sharpness != null || p.subject_prominence != null || p.subject_placement != null || p.bg_separation != null) {
+          @if (p.subject_sharpness !== null || p.subject_prominence !== null || p.subject_placement !== null || p.bg_separation !== null) {
             <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
               <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ 'photo_detail.saliency' | translate }}</div>
               <div class="flex flex-col gap-0.5">
-                @if (p.subject_sharpness != null) {
+                @if (p.subject_sharpness !== null) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.subject_sharpness' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.subject_sharpness | fixed:1 }}</span></div>
                 }
-                @if (p.subject_prominence != null) {
+                @if (p.subject_prominence !== null) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.subject_prominence' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.subject_prominence | fixed:1 }}</span></div>
                 }
-                @if (p.subject_placement != null) {
+                @if (p.subject_placement !== null) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.subject_placement' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.subject_placement | fixed:1 }}</span></div>
                 }
-                @if (p.bg_separation != null) {
+                @if (p.bg_separation !== null) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.bg_separation' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.bg_separation | fixed:1 }}</span></div>
                 }
               </div>
@@ -298,28 +297,28 @@ import { createLeafletMap } from '../../shared/leaflet';
           <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
             <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ 'photo_detail.technical' | translate }}</div>
             <div class="flex flex-col gap-0.5">
-              @if (p.exposure_score != null) {
+              @if (p.exposure_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.exposure' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.exposure_score | fixed:1 }}</span></div>
               }
-              @if (p.color_score != null) {
+              @if (p.color_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.color' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.color_score | fixed:1 }}</span></div>
               }
-              @if (p.contrast_score != null) {
+              @if (p.contrast_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.contrast' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.contrast_score | fixed:1 }}</span></div>
               }
-              @if (p.dynamic_range_stops != null) {
+              @if (p.dynamic_range_stops !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.dynamic_range' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.dynamic_range_stops | fixed:1 }}</span></div>
               }
-              @if (p.mean_saturation != null) {
+              @if (p.mean_saturation !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.saturation' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ (p.mean_saturation * 100) | fixed:0 }}%</span></div>
               }
-              @if (p.noise_sigma != null) {
+              @if (p.noise_sigma !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.noise' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.noise_sigma | fixed:1 }}</span></div>
               }
-              @if (p.mean_luminance != null) {
+              @if (p.mean_luminance !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.luminance' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.mean_luminance * 100 | fixed:0 }}%</span></div>
               }
-              @if (p.histogram_spread != null) {
+              @if (p.histogram_spread !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.histogram_spread' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.histogram_spread | fixed:1 }}</span></div>
               }
             </div>
@@ -353,7 +352,7 @@ import { createLeafletMap } from '../../shared/leaflet';
           }
 
           <!-- Location -->
-          @if (p.gps_latitude != null && p.gps_longitude != null) {
+          @if (p.gps_latitude !== null && p.gps_longitude !== null) {
             <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
               <div class="flex items-center justify-between mb-2">
                 <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ 'photo_detail.location' | translate }}</div>
@@ -423,27 +422,21 @@ import { createLeafletMap } from '../../shared/leaflet';
   `,
   host: { class: 'block h-full overflow-y-auto lg:overflow-y-hidden' },
 })
-export class PhotoDetailComponent implements OnInit {
+export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly location = inject(Location);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly api = inject(ApiService);
   protected readonly auth = inject(AuthService);
   protected readonly store = inject(GalleryStore);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
-  private readonly i18n = inject(I18nService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly photoActions = inject(PhotoActionsService);
 
-  protected readonly photo = signal<Photo | null>(null);
-  protected readonly fullImageLoaded = signal(false);
+  readonly photo = signal<Photo | null>(null);
   protected readonly downloading = signal(false);
   protected readonly downloadOptions = signal<DownloadOption[]>([]);
   protected readonly generatingCaption = signal(false);
-  protected readonly translatingCaption = signal(false);
-  protected readonly translatedCaption = signal<string | null>(null);
-  protected readonly displayCaption = computed(() => this.translatedCaption() ?? this.photo()?.caption ?? null);
   protected readonly stars: readonly number[] = [1, 2, 3, 4, 5];
 
   // Zoom & pan state
@@ -526,33 +519,8 @@ export class PhotoDetailComponent implements OnInit {
     }, 0);
   });
 
-  private readonly captionTranslationEffect = effect(() => {
-    const p = this.photo();
-    const locale = this.i18n.locale();
-    if (!p?.caption || locale === 'en') {
-      this.translatedCaption.set(null);
-      return;
-    }
-    // Use caption_translated from API response if already cached
-    if (p.caption_translated) {
-      this.translatedCaption.set(p.caption_translated);
-      return;
-    }
-    // Fetch translation on-demand
-    this.translatingCaption.set(true);
-    firstValueFrom(this.api.get<{ caption: string; lang?: string }>('/caption', { path: p.path, lang: locale }))
-      .then(res => {
-        if (res.lang) {
-          this.translatedCaption.set(res.caption);
-        } else {
-          this.translatedCaption.set(null);
-        }
-      })
-      .catch(() => this.translatedCaption.set(null))
-      .finally(() => this.translatingCaption.set(false));
-  });
-
   constructor() {
+    super();
     this.destroyRef.onDestroy(() => {
       if (this.locationMapTimeout !== null) clearTimeout(this.locationMapTimeout);
       if (this.locationMap) { this.locationMap.remove(); this.locationMap = null; }
@@ -565,17 +533,6 @@ export class PhotoDetailComponent implements OnInit {
       el.addEventListener('touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false });
     });
   }
-
-  protected readonly fullImageUrl = computed(() => {
-    const p = this.photo();
-    return p ? this.api.imageUrl(p.path) : '';
-  });
-
-  protected readonly hasExif = computed(() => {
-    const p = this.photo();
-    if (!p) return false;
-    return !!(p.camera_model || p.lens_model || p.focal_length || p.f_stop || p.shutter_speed || p.iso);
-  });
 
   async ngOnInit(): Promise<void> {
     // Try router state (passed from gallery via navigate(..., { state }))
@@ -611,6 +568,34 @@ export class PhotoDetailComponent implements OnInit {
     this.location.back();
   }
 
+  @HostListener('document:keydown.arrowleft')
+  protected prevPhoto(): void {
+    this.navigateAdjacentPhoto(-1);
+  }
+
+  @HostListener('document:keydown.arrowright')
+  protected nextPhoto(): void {
+    this.navigateAdjacentPhoto(1);
+  }
+
+  private navigateAdjacentPhoto(delta: number): void {
+    const current = this.photo();
+    if (!current) return;
+    const photos = this.store.photos();
+    if (photos.length === 0) return;
+    const idx = photos.findIndex(p => p.path === current.path);
+    if (idx === -1) return;
+    const nextIdx = idx + delta;
+    if (nextIdx < 0 || nextIdx >= photos.length) return;
+    const next = photos[nextIdx];
+    this.router.navigate(['/photo'], {
+      queryParams: { path: next.path },
+      state: { photo: next },
+    });
+    this.photo.set(next);
+    this.fullImageLoaded.set(false);
+  }
+
   protected async download(path: string, type = 'original', profile?: string): Promise<void> {
     this.downloading.set(true);
     try {
@@ -622,10 +607,6 @@ export class PhotoDetailComponent implements OnInit {
     } finally {
       this.downloading.set(false);
     }
-  }
-
-  protected onFullImageLoad(): void {
-    this.fullImageLoaded.set(true);
   }
 
   protected async setRating(path: string, rating: number): Promise<void> {

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
-from api.database import get_db_connection
+from api.database import get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
@@ -30,8 +30,8 @@ def _get_cluster_zoom_threshold():
         return 10
 
 
-def _get_clustered_photos(conn, bounds, zoom, vis_sql, vis_params, existing_cols,
-                          date_from, date_to, user_id, base_where, base_params, limit):
+def _get_clustered_photos(conn, zoom, date_from, date_to, user_id,
+                          base_where, base_params, limit):
     """Return clustered photo locations grouped into grid cells for low zoom levels."""
     effective_zoom = max(zoom, 2)
     cell_size = 180.0 / (2 ** effective_zoom)
@@ -80,8 +80,7 @@ def _get_clustered_photos(conn, bounds, zoom, vis_sql, vis_params, existing_cols
     return {'clusters': clusters, 'photos': []}
 
 
-def _get_individual_photos(conn, bounds, vis_sql, vis_params, existing_cols,
-                           base_where, base_params, limit):
+def _get_individual_photos(conn, base_where, base_params, limit):
     """Return individual photo locations for high zoom levels."""
     rows = conn.execute(
         f"SELECT path, gps_latitude AS lat, gps_longitude AS lng, "
@@ -109,7 +108,7 @@ def _get_individual_photos(conn, bounds, vis_sql, vis_params, existing_cols,
 
 
 @router.get("/api/photos/map")
-async def api_photos_map(
+def api_photos_map(
     bounds: str = Query(..., description="sw_lat,sw_lng,ne_lat,ne_lng"),
     zoom: int = Query(10, ge=0, le=22),
     limit: int = Query(500, ge=1, le=2000),
@@ -131,8 +130,7 @@ async def api_photos_map(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail='Invalid bounds format. Expected: sw_lat,sw_lng,ne_lat,ne_lng')
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -164,21 +162,17 @@ async def api_photos_map(
 
         if zoom < _get_cluster_zoom_threshold():
             return _get_clustered_photos(
-                conn, bounds, zoom, vis_sql, vis_params, existing_cols,
-                date_from, date_to, user_id, base_where, base_params, limit,
+                conn, zoom, date_from, date_to, user_id,
+                base_where, base_params, limit,
             )
         else:
             return _get_individual_photos(
-                conn, bounds, vis_sql, vis_params, existing_cols,
-                base_where, base_params, limit,
+                conn, base_where, base_params, limit,
             )
-
-    finally:
-        conn.close()
 
 
 @router.get("/api/photos/map/count")
-async def api_photos_map_count(
+def api_photos_map_count(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return count of photos with GPS data, for nav badge visibility."""
@@ -186,8 +180,7 @@ async def api_photos_map_count(
     if 'gps_latitude' not in existing_cols or 'gps_longitude' not in existing_cols:
         return {'count': 0}
 
-    conn = get_db_connection()
-    try:
+    with get_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -198,8 +191,6 @@ async def api_photos_map_count(
         ).fetchone()
 
         return {'count': row['cnt']}
-    finally:
-        conn.close()
 
 
 class GpsUpdateRequest(BaseModel):
@@ -209,7 +200,7 @@ class GpsUpdateRequest(BaseModel):
 
 
 @router.put("/api/photo/gps")
-async def api_update_gps(
+def api_update_gps(
     body: GpsUpdateRequest,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -221,27 +212,25 @@ async def api_update_gps(
     if (body.gps_latitude is None) != (body.gps_longitude is None):
         raise HTTPException(status_code=400, detail="Both latitude and longitude must be set or both must be null")
 
-    conn = get_db_connection()
-    try:
-        user_id = user.user_id if user else None
-        vis_sql, vis_params = get_visibility_clause(user_id)
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
 
-        row = conn.execute(
-            f"SELECT path FROM photos WHERE path = ? AND {vis_sql}",
-            [body.path] + vis_params,
-        ).fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Photo not found")
+            row = conn.execute(
+                f"SELECT path FROM photos WHERE path = ? AND {vis_sql}",
+                [body.path] + vis_params,
+            ).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Photo not found")
 
-        conn.execute(
-            f"UPDATE photos SET gps_latitude = ?, gps_longitude = ? WHERE path = ? AND {vis_sql}",
-            [body.gps_latitude, body.gps_longitude, body.path] + vis_params,
-        )
-        conn.commit()
-        return {'gps_latitude': body.gps_latitude, 'gps_longitude': body.gps_longitude}
-    except sqlite3.Error:
-        logger.exception("Database error updating GPS for photo %s", body.path)
-        conn.rollback()
-        raise HTTPException(status_code=500, detail='Internal server error')
-    finally:
-        conn.close()
+            conn.execute(
+                f"UPDATE photos SET gps_latitude = ?, gps_longitude = ? WHERE path = ? AND {vis_sql}",
+                [body.gps_latitude, body.gps_longitude, body.path] + vis_params,
+            )
+            conn.commit()
+            return {'gps_latitude': body.gps_latitude, 'gps_longitude': body.gps_longitude}
+        except sqlite3.Error:
+            logger.exception("Database error updating GPS for photo %s", body.path)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')

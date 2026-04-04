@@ -512,7 +512,10 @@
     "person_not_found": "Persona non trovata",
     "photo_not_found": "Foto non trovata",
     "thumbnail_not_found": "Miniatura non trovata",
-    "database_error": "Errore del database"
+    "database_error": "Errore del database",
+    "rate_limited": "Troppe richieste — attendere un momento",
+    "access_denied": "Accesso negato",
+    "server_error": "Errore del server — riprovare"
   },
   "language": {
     "en": "Inglese",
@@ -1677,6 +1680,7 @@
     "save_as_album": "Salva come album",
     "saved_as_album": "Salvato come album",
     "save_album_error": "Impossibile salvare l'album",
+    "load_error": "Impossibile caricare le foto della capsula",
     "seeded_time_title": "Intorno a {date}",
     "seeded_similar_title": "Visivamente simili",
     "seeded_person_title": "Ancora {name}",

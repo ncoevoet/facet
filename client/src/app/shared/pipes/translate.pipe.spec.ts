@@ -4,10 +4,10 @@ import { I18nService } from '../../core/services/i18n.service';
 
 describe('TranslatePipe', () => {
   let pipe: TranslatePipe;
-  let i18nMock: { t: jest.Mock };
+  let i18nMock: { t: jest.Mock; locale: jest.Mock };
 
   beforeEach(() => {
-    i18nMock = { t: jest.fn() };
+    i18nMock = { t: jest.fn(), locale: jest.fn().mockReturnValue('en') };
 
     TestBed.configureTestingModule({
       providers: [

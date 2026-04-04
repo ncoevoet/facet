@@ -6,7 +6,7 @@ import { TimelineFiltersService } from './timeline-filters.service';
 import { TimelineComponent } from './timeline.component';
 
 describe('TimelineComponent', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let component: any;
   let mockRouter: { navigate: jest.Mock };
   let mockFilters: {

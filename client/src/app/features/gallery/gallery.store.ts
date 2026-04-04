@@ -394,6 +394,7 @@ export class GalleryStore {
   readonly photos = signal<Photo[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
+  private _loadSeq = 0;
   readonly hasMore = signal(false);
   readonly config = signal<ViewerConfig | null>(null);
   readonly filterDrawerOpen = signal(localStorage.getItem(DRAWER_STATE_KEY) === 'true');
@@ -521,6 +522,7 @@ export class GalleryStore {
   async loadPhotos(): Promise<void> {
     // Always load from page 1 — only nextPage() uses page > 1
     this.filters.update(current => ({ ...current, page: 1 }));
+    const seq = ++this._loadSeq;
     const prevPhotos = this.photos();
     const prevTotal = this.total();
     const prevHasMore = this.hasMore();
@@ -531,6 +533,7 @@ export class GalleryStore {
 
       if (f.similar_to) {
         const res = await this.fetchSimilarPage(f, (f.page - 1) * f.per_page);
+        if (seq !== this._loadSeq) return;
         this.photos.set(res.similar ?? []);
         this.total.set(res.total);
         this.hasMore.set(res.has_more);
@@ -545,6 +548,7 @@ export class GalleryStore {
             threshold: 0.15,
           }),
         );
+        if (seq !== this._loadSeq) return;
         this.photos.set(res.photos);
         this.total.set(res.total);
         this.hasMore.set(false);
@@ -553,16 +557,20 @@ export class GalleryStore {
 
       const params = this.buildApiParams(f);
       const res = await firstValueFrom(this.api.get<PhotosResponse>('/photos', params));
+      if (seq !== this._loadSeq) return;
       this.photos.set(res.photos);
       this.total.set(res.total);
       this.hasMore.set(res.has_more);
     } catch {
+      if (seq !== this._loadSeq) return;
       // Network error — restore previous state
       this.photos.set(prevPhotos);
       this.total.set(prevTotal);
       this.hasMore.set(prevHasMore);
     } finally {
-      this.loading.set(false);
+      if (seq === this._loadSeq) {
+        this.loading.set(false);
+      }
     }
   }
 
@@ -570,6 +578,7 @@ export class GalleryStore {
   async nextPage(): Promise<void> {
     if (!this.hasMore() || this.loading()) return;
 
+    const seq = this._loadSeq;
     this.loading.set(true);
     const f = this.filters();
     const nextPage = f.page + 1;
@@ -577,21 +586,26 @@ export class GalleryStore {
     try {
       if (f.similar_to) {
         const res = await this.fetchSimilarPage(f, (nextPage - 1) * f.per_page);
+        if (seq !== this._loadSeq) return;
         this.photos.update(current => [...current, ...(res.similar ?? [])]);
         this.total.set(res.total);
         this.hasMore.set(res.has_more);
       } else {
         const params = this.buildApiParams(this.filters());
         const res = await firstValueFrom(this.api.get<PhotosResponse>('/photos', params));
+        if (seq !== this._loadSeq) return;
         this.photos.update(current => [...current, ...res.photos]);
         this.total.set(res.total);
         this.hasMore.set(res.has_more);
       }
     } catch {
+      if (seq !== this._loadSeq) return;
       // Revert page increment on error
       this.filters.update(current => ({ ...current, page: f.page }));
     } finally {
-      this.loading.set(false);
+      if (seq === this._loadSeq) {
+        this.loading.set(false);
+      }
     }
   }
 
@@ -608,6 +622,8 @@ export class GalleryStore {
     const extra: Partial<GalleryFilters> = {};
     if (key === 'hide_rejected' && value) extra.favorites_only = false;
     if (key === 'favorites_only' && value) extra.hide_rejected = false;
+    // Reload person dropdown when person filter is cleared (was seeded with filtered subset)
+    const wasPersonFiltered = !!this.filters().person_id;
     this.filters.update(current => ({ ...current, [key]: value, ...extra, page: 1 }));
     if ((DISPLAY_OPTION_KEYS as string[]).includes(key as string)) {
       saveDisplayOptionsToStorage(this.filters());
@@ -615,6 +631,9 @@ export class GalleryStore {
     this.syncUrl();
     if (!GalleryStore.DISPLAY_ONLY_KEYS.has(key)) {
       await this.loadPhotos();
+    }
+    if (key === 'person_id' && wasPersonFiltered && !value) {
+      this.reloadPersonOptions();
     }
   }
 
@@ -649,7 +668,10 @@ export class GalleryStore {
       hide_rejected: defaults?.hide_rejected ?? true,
     });
     this.resetCardWidth();
-    this.setGalleryMode(defaults?.gallery_mode ?? 'grid');
+    // Preserve user's gallery mode preference from localStorage
+    if (!localStorage.getItem(GALLERY_MODE_KEY)) {
+      this.setGalleryMode(defaults?.gallery_mode ?? 'grid');
+    }
     saveDisplayOptionsToStorage(this.filters());
     this.syncUrl();
     await this.loadPhotos();
@@ -705,6 +727,18 @@ export class GalleryStore {
         .map(([id, name, face_count]: [number, string | null, number]) => ({id, name, face_count})),
     );
     this.patterns.set((patternsRes.patterns ?? []).map(([value, count]: [string, number]) => ({value, count})));
+  }
+
+  /** Reload person dropdown without filter restriction */
+  private async reloadPersonOptions(): Promise<void> {
+    try {
+      const res = await firstValueFrom(
+        this.api.get<{persons: [number, string | null, number][]}>('/filter_options/persons'),
+      );
+      this.persons.set(
+        (res.persons ?? []).map(([id, name, face_count]: [number, string | null, number]) => ({id, name, face_count})),
+      );
+    } catch { /* keep existing list */ }
   }
 
   /** Set star rating for a photo (0 = clear) */
@@ -833,6 +867,8 @@ export class GalleryStore {
       params['hide_duplicates'] = String(f.hide_duplicates);
     if (f.hide_rejected !== (defaults?.hide_rejected ?? true))
       params['hide_rejected'] = String(f.hide_rejected);
+    if (f.hide_tooltip !== (defaults?.hide_tooltip ?? false))
+      params['hide_tooltip'] = String(f.hide_tooltip);
     if (f.favorites_only) params['favorites_only'] = 'true';
     if (f.is_monochrome) params['is_monochrome'] = 'true';
 
