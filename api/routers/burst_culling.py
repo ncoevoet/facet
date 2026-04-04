@@ -573,6 +573,9 @@ async def api_culling_groups(
                     conn, similarity_threshold, vis_sql, vis_params, seed, user_id,
                     page_groups=similar_slice, offset=similar_offset,
                 )
+                # Offset similar group IDs by burst_count to avoid ID collisions
+                for g in similar_enriched:
+                    g['group_id'] += burst_count
                 page_groups.extend(similar_enriched)
 
             # Sort by photo count descending so largest groups appear first

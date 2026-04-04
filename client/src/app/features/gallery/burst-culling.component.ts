@@ -319,8 +319,11 @@ export class BurstCullingComponent implements OnDestroy {
   private autoSelectBest(groups: CullingGroup[], base?: Map<number, Set<string>>): Map<number, Set<string>> {
     const map = base ? new Map(base) : new Map<number, Set<string>>();
     for (const group of groups) {
-      if (group.best_path) {
-        map.set(group.group_id, new Set([group.best_path]));
+      if (!map.has(group.group_id)) {
+        const best = group.best_path || group.photos[0]?.path;
+        if (best) {
+          map.set(group.group_id, new Set([best]));
+        }
       }
     }
     return map;

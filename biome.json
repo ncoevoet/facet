@@ -1,0 +1,12 @@
+{
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
+  "json": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  }
+}
