@@ -89,6 +89,19 @@ class ComparisonDeleteBody(BaseModel):
     id: int
 
 
+def _validate_weight_dict(v: dict) -> dict:
+    """Validate that all weight values are numeric and within allowed ranges."""
+    for key, value in v.items():
+        if key == 'bonus':
+            if not isinstance(value, (int, float)) or not (-5 <= value <= 5):
+                raise ValueError(f'bonus must be between -5 and 5, got {value}')
+        elif not isinstance(value, (int, float)):
+            raise ValueError(f'Weight "{key}" must be numeric, got {type(value).__name__}')
+        elif not (0 <= value <= 100):
+            raise ValueError(f'Weight "{key}" must be between 0 and 100, got {value}')
+    return v
+
+
 class UpdateWeightsBody(BaseModel):
     category: str
     weights: dict
@@ -96,34 +109,14 @@ class UpdateWeightsBody(BaseModel):
     filters: Optional[dict] = None
     recalculate: bool = False
 
-    @field_validator('weights')
-    @classmethod
-    def validate_weights(cls, v: dict) -> dict:
-        for key, value in v.items():
-            if key == 'bonus':
-                if not isinstance(value, (int, float)) or not (-5 <= value <= 5):
-                    raise ValueError(f'bonus must be between -5 and 5, got {value}')
-            elif isinstance(value, (int, float)):
-                if not (0 <= value <= 100):
-                    raise ValueError(f'Weight "{key}" must be between 0 and 100, got {value}')
-        return v
+    validate_weights = field_validator('weights')(_validate_weight_dict)
 
 
 class PreviewScoreBody(BaseModel):
     path: str
     weights: dict = {}
 
-    @field_validator('weights')
-    @classmethod
-    def validate_weights(cls, v: dict) -> dict:
-        for key, value in v.items():
-            if key == 'bonus':
-                if not isinstance(value, (int, float)) or not (-5 <= value <= 5):
-                    raise ValueError(f'bonus must be between -5 and 5, got {value}')
-            elif isinstance(value, (int, float)):
-                if not (0 <= value <= 100):
-                    raise ValueError(f'Weight "{key}" must be between 0 and 100, got {value}')
-        return v
+    validate_weights = field_validator('weights')(_validate_weight_dict)
 
 
 class SuggestFiltersBody(BaseModel):
