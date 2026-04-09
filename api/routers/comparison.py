@@ -17,7 +17,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
@@ -96,10 +96,34 @@ class UpdateWeightsBody(BaseModel):
     filters: Optional[dict] = None
     recalculate: bool = False
 
+    @field_validator('weights')
+    @classmethod
+    def validate_weights(cls, v: dict) -> dict:
+        for key, value in v.items():
+            if key == 'bonus':
+                if not isinstance(value, (int, float)) or not (-5 <= value <= 5):
+                    raise ValueError(f'bonus must be between -5 and 5, got {value}')
+            elif isinstance(value, (int, float)):
+                if not (0 <= value <= 100):
+                    raise ValueError(f'Weight "{key}" must be between 0 and 100, got {value}')
+        return v
+
 
 class PreviewScoreBody(BaseModel):
     path: str
     weights: dict = {}
+
+    @field_validator('weights')
+    @classmethod
+    def validate_weights(cls, v: dict) -> dict:
+        for key, value in v.items():
+            if key == 'bonus':
+                if not isinstance(value, (int, float)) or not (-5 <= value <= 5):
+                    raise ValueError(f'bonus must be between -5 and 5, got {value}')
+            elif isinstance(value, (int, float)):
+                if not (0 <= value <= 100):
+                    raise ValueError(f'Weight "{key}" must be between 0 and 100, got {value}')
+        return v
 
 
 class SuggestFiltersBody(BaseModel):

@@ -32,7 +32,12 @@ sample.*
 output.log
 *.db.shrink
 .git_diff_tmp
-tests/
 .mcp.json
+
+# Test and dev tooling
+tests/
+test-screenshots/
+.pytest_cache/
+.ruff_cache/
 .codegraph/
 .claude/

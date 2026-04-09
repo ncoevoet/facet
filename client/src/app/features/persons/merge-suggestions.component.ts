@@ -93,7 +93,7 @@ interface MergeSuggestionsResponse {
                 <img
                   [src]="suggestion.person1.id | personThumbnailUrl"
                   class="w-16 h-16 rounded-full object-cover shrink-0"
-                  alt=""
+                  [alt]="suggestion.person1.name || ('persons.unnamed' | translate)"
                 />
                 <div class="min-w-0">
                   <p class="font-medium truncate">
@@ -125,7 +125,7 @@ interface MergeSuggestionsResponse {
                 <img
                   [src]="suggestion.person2.id | personThumbnailUrl"
                   class="w-16 h-16 rounded-full object-cover shrink-0"
-                  alt=""
+                  [alt]="suggestion.person2.name || ('persons.unnamed' | translate)"
                 />
                 <div class="min-w-0">
                   <p class="font-medium truncate">

@@ -4,6 +4,7 @@ Sort/type/filter definitions for the API server.
 """
 
 import logging
+import sqlite3
 import time
 
 from config import ScoringConfig
@@ -156,7 +157,7 @@ def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False,
 
         union_query = " UNION ALL ".join(query_parts)
         results = conn.execute(union_query, all_params).fetchall()
-    except Exception:
+    except sqlite3.Error:
         logger.exception("Failed to compute photo type counts")
         return []
     finally:

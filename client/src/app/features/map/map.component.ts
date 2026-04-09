@@ -204,7 +204,7 @@ export class MapComponent implements OnInit, OnDestroy {
             const countLabel = this.escapeHtml(this.i18n.t('map.cluster_photos', { count: cluster.count }));
             marker.bindPopup(
               `<div style="text-align:center">` +
-              `<img src="${thumbUrl}" style="max-width:150px;border-radius:6px;display:block;margin:0 auto" />` +
+              `<img src="${thumbUrl}" alt="${countLabel}" style="max-width:150px;border-radius:6px;display:block;margin:0 auto" />` +
               `<div style="margin-top:4px;font-size:13px;font-weight:500">${countLabel}</div>` +
               `</div>`,
               { maxWidth: 200, minWidth: 160 },
@@ -224,7 +224,7 @@ export class MapComponent implements OnInit, OnDestroy {
           const scoreLabel = this.escapeHtml(this.i18n.t('map.score', { score }));
           marker.bindPopup(
             `<div style="text-align:center;cursor:pointer" data-photo-path="${this.escapeHtml(photo.path)}">` +
-            `<img src="${thumbUrl}" style="max-width:150px;border-radius:6px;display:block;margin:0 auto" />` +
+            `<img src="${thumbUrl}" alt="${this.escapeHtml(photo.filename)}" style="max-width:150px;border-radius:6px;display:block;margin:0 auto" />` +
             `<div style="margin-top:4px;font-size:13px">${this.escapeHtml(photo.filename)}</div>` +
             (photo.date_taken ? `<div style="font-size:11px;opacity:0.7">${this.escapeHtml(photo.date_taken)}</div>` : '') +
             `<div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:2px;font-size:11px">` +

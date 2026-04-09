@@ -6,6 +6,7 @@ Database helper functions for the FastAPI API server.
 import hashlib
 import logging
 import math
+import sqlite3
 import struct
 import time
 from config import ScoringConfig
@@ -140,7 +141,7 @@ def is_photo_tags_available(conn=None):
     try:
         row = conn.execute("SELECT COUNT(*) FROM photo_tags").fetchone()
         result = row[0] > 0 if row else False
-    except Exception:
+    except sqlite3.OperationalError:
         logger.debug("photo_tags table not available", exc_info=True)
         result = False
 
@@ -352,7 +353,7 @@ def attach_person_data(photos, conn):
         for photo in photos:
             photo['persons'] = path_to_persons.get(photo['path'], [])
             photo['unassigned_faces'] = path_to_unassigned.get(photo['path'], 0)
-    except Exception:
+    except sqlite3.Error:
         logger.exception("Failed to attach person data")
         for photo in photos:
             photo['persons'] = []

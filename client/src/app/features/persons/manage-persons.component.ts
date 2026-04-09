@@ -44,7 +44,7 @@ interface PersonsResponse {
             [class.hover:bg-[var(--mat-sys-surface-container-high)]]="selectedTarget !== person.id"
             (click)="selectedTarget = person.id">
             @if (person.face_thumbnail) {
-              <img [src]="person.id | personThumbnailUrl" class="w-16 h-16 rounded-full object-cover" alt="" />
+              <img [src]="person.id | personThumbnailUrl" class="w-16 h-16 rounded-full object-cover" [alt]="person.name || ('persons.unnamed' | translate)" />
             } @else {
               <div class="w-16 h-16 rounded-full bg-[var(--mat-sys-surface-container-high)] flex items-center justify-center">
                 <mat-icon class="opacity-40">person</mat-icon>

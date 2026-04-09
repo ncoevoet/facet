@@ -481,7 +481,7 @@
         @if (chip.personId) {
           <div class="inline-flex items-center gap-1 pl-0.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium"
                [matTooltip]="chip.value">
-            <img [src]="chip.personId | personThumbnailUrl" class="w-5 h-5 rounded-full object-cover shrink-0" alt="" />
+            <img [src]="chip.personId | personThumbnailUrl" class="w-5 h-5 rounded-full object-cover shrink-0" [alt]="chip.value" />
             <span class="hidden xl:inline mx-0.5">{{ chip.value }}</span>
             <button
               class="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black/20 transition-colors"

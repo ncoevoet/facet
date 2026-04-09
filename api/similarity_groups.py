@@ -1,6 +1,7 @@
 """Similarity group computation using CLIP/SigLIP embeddings."""
 
 import logging
+import sqlite3
 import time
 import json
 import numpy as np
@@ -24,7 +25,7 @@ def _get_similarity_config():
             'max_photos': sg.get('max_photos', 10000),
             'max_group_size': sg.get('max_group_size', 50),
         }
-    except Exception:
+    except (KeyError, TypeError, ImportError):
         logger.debug("Failed to read similarity_groups config, using defaults", exc_info=True)
         return {'default_threshold': 0.85, 'min_group_size': 2, 'max_photos': 10000, 'max_group_size': 50}
 
@@ -156,7 +157,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
                 (cache_key, json.dumps(groups), time.time())
             )
             conn.commit()
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.debug("Failed to cache similarity groups: %s", e)
 
         return groups

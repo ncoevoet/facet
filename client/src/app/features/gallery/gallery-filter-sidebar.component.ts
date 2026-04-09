@@ -234,7 +234,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
                 @for (p of filteredPersons(); track p.id) {
                   <mat-option [value]="p.id">
                     <div class="flex items-center gap-2">
-                      <img [src]="p.id | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" alt="" loading="lazy" />
+                      <img [src]="p.id | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" [alt]="p.name || ('gallery.unknown_person' | translate)" loading="lazy" />
                       <span class="text-sm">{{ p.name || ('gallery.unknown_person' | translate) }} ({{ p.face_count }})</span>
                     </div>
                   </mat-option>
@@ -245,7 +245,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
               <div class="flex flex-wrap gap-1.5">
                 @for (p of selectedPersons(); track p.id) {
                   <button class="relative shrink-0 group/person" [matTooltip]="p.name || ('gallery.unknown_person' | translate)" (click)="removePersonChip(p.id)">
-                    <img [src]="p.id | personThumbnailUrl" class="w-9 h-9 rounded-full object-cover" alt="" />
+                    <img [src]="p.id | personThumbnailUrl" class="w-9 h-9 rounded-full object-cover" [alt]="p.name || ('gallery.unknown_person' | translate)" />
                     <div class="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover/person:opacity-100 transition-opacity">
                       <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-white">close</mat-icon>
                     </div>
