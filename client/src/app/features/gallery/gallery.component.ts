@@ -208,7 +208,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
               </button>
             </mat-menu>
           }
-          @if (store.config()?.features?.show_albums) {
+          @if (auth.isEdition() && store.config()?.features?.show_albums) {
             <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="albumMenu" [matTooltip]="'albums.add_photos' | translate"><mat-icon>photo_library</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="albumMenu"><mat-icon>photo_library</mat-icon> {{ 'albums.add_photos' | translate }}</button>
             <mat-menu #albumMenu="matMenu">

@@ -86,7 +86,7 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
               }
             </div>
             @if (auth.isEdition()) {
-              <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="flex items-center shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <button mat-icon-button
                         [matTooltip]="'albums.edit' | translate"
                         (click)="editAlbum($event, album)">
