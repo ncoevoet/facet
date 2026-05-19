@@ -28,8 +28,25 @@ logger = logging.getLogger(__name__)
 
 _text_encoder = None
 _embedding_cache = None  # numpy fallback: {'matrix': np.array, 'paths': list, 'count': int}
+
+# Split-TTL availability tracking.
+#
+# Why split: a uniform 5-min TTL pins False after a single transient failure,
+# so the multi-second NumPy fallback runs for 5 minutes even if sqlite-vec
+# recovered immediately. Splitting lets successful state stay cached cheaply
+# (no per-request probe overhead) while failed state gets re-checked
+# aggressively so recovery is detected quickly.
+_VEC_SUCCESS_TTL = 300  # 5 min — once known good, no need to re-probe often
+_VEC_FAILURE_TTL = 30   # 30 s — once failing, re-probe quickly to catch recovery
 _vec_available = None
-_vec_checked_at = 0.0
+_vec_success_checked_at = 0.0
+_vec_failure_checked_at = 0.0
+
+_FTS_SUCCESS_TTL = 300
+_FTS_FAILURE_TTL = 30
+_fts_available = None
+_fts_success_checked_at = 0.0
+_fts_failure_checked_at = 0.0
 
 # Fallback counters — observable via /metrics. Incremented when the NumPy
 # fallback path runs instead of sqlite-vec, or when the FTS5 query throws
@@ -40,16 +57,30 @@ _search_fts_skip_total = 0
 
 
 async def _check_vec_available(conn):
-    """Check if the photos_vec virtual table exists and has rows (TTL cached)."""
+    """Check if sqlite-vec extension is loaded and photos_vec is populated.
+
+    Caches True for 5 min (cheap re-use), re-probes False every 30 s
+    (limits the fallback-pinned window after a transient failure).
+    Emits a single WARN on True→False transition; subsequent failures
+    within the TTL window are silent so logs don't flood.
+    """
     import time
-    global _vec_available, _vec_checked_at
+    global _vec_available, _vec_success_checked_at, _vec_failure_checked_at
     now = time.monotonic()
-    if _vec_available is not None and (now - _vec_checked_at) < 300:
-        return _vec_available
+    if _vec_available is True and (now - _vec_success_checked_at) < _VEC_SUCCESS_TTL:
+        return True
+    if _vec_available is False and (now - _vec_failure_checked_at) < _VEC_FAILURE_TTL:
+        return False
+
+    previous = _vec_available
+
     if not HAS_SQLITE_VEC:
         _vec_available = False
-        _vec_checked_at = now
+        _vec_failure_checked_at = now
+        if previous is True:
+            logger.warning("sqlite-vec became unavailable — falling back to NumPy")
         return False
+
     try:
         cur = await conn.execute(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='photos_vec'"
@@ -58,16 +89,37 @@ async def _check_vec_available(conn):
         await cur.close()
         if not row or row[0] == 0:
             _vec_available = False
-            _vec_checked_at = now
+            _vec_failure_checked_at = now
+            if previous is True:
+                logger.warning(
+                    "sqlite-vec became unavailable (photos_vec missing) — falling back to NumPy"
+                )
             return False
         cur = await conn.execute("SELECT 1 FROM photos_vec LIMIT 1")
         exists = await cur.fetchone()
         await cur.close()
-        _vec_available = exists is not None
+        if exists is not None:
+            _vec_available = True
+            _vec_success_checked_at = now
+            if previous is False:
+                logger.info("sqlite-vec recovered — /api/search now using vec0 KNN")
+            return True
+        _vec_available = False
+        _vec_failure_checked_at = now
+        if previous is True:
+            logger.warning(
+                "sqlite-vec became unavailable (photos_vec empty) — falling back to NumPy"
+            )
+        return False
     except sqlite3.Error:
         _vec_available = False
-    _vec_checked_at = now
-    return _vec_available
+        _vec_failure_checked_at = now
+        if previous is True:
+            logger.warning(
+                "sqlite-vec became unavailable (query error) — falling back to NumPy",
+                exc_info=True,
+            )
+        return False
 
 
 def _load_text_encoder():
@@ -268,28 +320,48 @@ async def _search_numpy(conn, text_emb, limit, threshold, vis_sql, vis_params, u
     return await asyncio.to_thread(_compute)
 
 
-_fts_available = None
-_fts_checked_at = 0.0
-
-
 async def _has_fts(conn):
-    """Check if the photos_fts table exists (TTL cached, 5 min)."""
+    """Check if the photos_fts table exists, split-TTL cached.
+
+    Caches True for 5 min, False for 30 s. Emits a single WARN on
+    True→False transition so the first failure is loud.
+    """
     import time
-    global _fts_available, _fts_checked_at
+    global _fts_available, _fts_success_checked_at, _fts_failure_checked_at
     now = time.monotonic()
-    if _fts_available is not None and (now - _fts_checked_at) < 300:
-        return _fts_available
+    if _fts_available is True and (now - _fts_success_checked_at) < _FTS_SUCCESS_TTL:
+        return True
+    if _fts_available is False and (now - _fts_failure_checked_at) < _FTS_FAILURE_TTL:
+        return False
+
+    previous = _fts_available
+
     try:
         cur = await conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='photos_fts'"
         )
         row = await cur.fetchone()
         await cur.close()
-        _fts_available = row is not None
+        if row is not None:
+            _fts_available = True
+            _fts_success_checked_at = now
+            if previous is False:
+                logger.info("photos_fts table recovered — BM25 text search re-enabled")
+            return True
+        _fts_available = False
+        _fts_failure_checked_at = now
+        if previous is True:
+            logger.warning("photos_fts table missing — text search will skip BM25")
+        return False
     except sqlite3.OperationalError:
         _fts_available = False
-    _fts_checked_at = now
-    return _fts_available
+        _fts_failure_checked_at = now
+        if previous is True:
+            logger.warning(
+                "photos_fts query error — text search will skip BM25",
+                exc_info=True,
+            )
+        return False
 
 
 async def _fts_search(conn, query, limit):

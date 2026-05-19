@@ -105,7 +105,13 @@ async def get_async_db():
                 await conn.enable_load_extension(False)
             except Exception:
                 # Non-fatal: search will fall back to NumPy via _check_vec_available.
-                pass
+                # Log loudly — silent failure here was the root cause of an
+                # ~unknown-duration perf regression before c542ff7.
+                import logging
+                logging.getLogger(__name__).warning(
+                    "sqlite-vec load failed on async connection — /api/search will use NumPy fallback",
+                    exc_info=True,
+                )
         conn.row_factory = aiosqlite.Row
         yield conn
     finally:
