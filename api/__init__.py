@@ -52,7 +52,19 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan — startup/shutdown hooks."""
-    # Startup: warm up caches
+    # Apply any pending schema migrations before warming caches that read the
+    # column list.  init_database is idempotent: it CREATEs missing tables and
+    # ALTERs in missing columns from db/schema.py.  Without this, an older
+    # photo_scores_pro.db missing newer columns (similarity_reviewed,
+    # burst_group_id, gps_*, caption, ...) causes runtime 500s on the
+    # culling, capsules, and similar-photos endpoints.
+    from api.database import DEFAULT_DB_PATH
+    from db.schema import init_database
+    try:
+        init_database(DEFAULT_DB_PATH)
+    except Exception:
+        logger.warning("Schema migration on startup failed", exc_info=True)
+
     from api.db_helpers import get_existing_columns, is_photo_tags_available, backfill_image_dimensions
     get_existing_columns()
     is_photo_tags_available()
