@@ -20,7 +20,7 @@ jobs:
           python-version: "3.12"
           cache: "pip"
       - name: Install test dependencies
-        run: pip install pytest fastapi[standard] httpx pyjwt pillow numpy scipy scikit-learn opencv-python-headless tqdm
+        run: pip install pytest pytest-asyncio fastapi[standard] httpx pyjwt pillow numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite
       - name: Run tests
         run: python -m pytest --tb=short -q
 
