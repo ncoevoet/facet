@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG
-from api.database import get_db
+from api.database import get_async_db, get_db
 from api.db_helpers import (
     build_hide_clauses, build_date_range_clauses,
     build_photo_select_columns, sanitize_float_values,
@@ -31,10 +31,14 @@ def _get_photos_per_group():
         return 30
 
 
-def _fetch_grouped_summaries(conn, from_clause, where_clauses, sql_params, group_expr, order='ASC'):
-    """Return (group_key, count, hero_photo_path) rows in one query (no N+1)."""
+def _build_grouped_summaries_query(from_clause, where_clauses, group_expr, order='ASC'):
+    """Build the parameterized SQL for grouped (year/month/date) summaries.
+
+    Returns the query string only; callers bind ``sql_params`` separately.
+    Shared by both the sync and async helpers so the SQL stays in one place.
+    """
     where_str = " WHERE " + " AND ".join(where_clauses)
-    query = (
+    return (
         f"SELECT group_key, cnt, path as hero_photo_path FROM ("
         f"  SELECT "
         f"    {group_expr} as group_key, "
@@ -48,7 +52,21 @@ def _fetch_grouped_summaries(conn, from_clause, where_clauses, sql_params, group
         f") WHERE rn = 1 "
         f"ORDER BY group_key {order}"
     )
+
+
+def _fetch_grouped_summaries(conn, from_clause, where_clauses, sql_params, group_expr, order='ASC'):
+    """Return (group_key, count, hero_photo_path) rows in one query (no N+1)."""
+    query = _build_grouped_summaries_query(from_clause, where_clauses, group_expr, order)
     return conn.execute(query, sql_params).fetchall()
+
+
+async def _fetch_grouped_summaries_async(conn, from_clause, where_clauses, sql_params, group_expr, order='ASC'):
+    """Async variant for aiosqlite — same SQL, awaitable cursor."""
+    query = _build_grouped_summaries_query(from_clause, where_clauses, group_expr, order)
+    cursor = await conn.execute(query, sql_params)
+    rows = await cursor.fetchall()
+    await cursor.close()
+    return rows
 
 
 
@@ -214,7 +232,7 @@ def api_timeline(
 
 
 @router.get("/api/timeline/dates")
-def api_timeline_dates(
+async def api_timeline_dates(
     year: int = Query(..., ge=1900, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
     hide_blinks: str = Query('0'),
@@ -227,10 +245,11 @@ def api_timeline_dates(
     """Return date counts for a calendar heatmap.
 
     Returns dates with photo counts for the given year (and optionally month).
+    Migrated to async (aiosqlite).
     """
     user_id = user.user_id if user else None
-    with get_db() as conn:
-        try:
+    try:
+        async with get_async_db() as conn:
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -254,24 +273,26 @@ def api_timeline_dates(
                 sql_params.append(year_prefix)
 
             date_expr = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
-            rows = _fetch_grouped_summaries(conn, from_clause, where_clauses, sql_params, date_expr, 'ASC')
+            rows = await _fetch_grouped_summaries_async(
+                conn, from_clause, where_clauses, sql_params, date_expr, 'ASC',
+            )
 
             dates = [
                 {'date': row['group_key'], 'count': row['cnt'], 'hero_photo_path': row['hero_photo_path']}
                 for row in rows
             ]
 
-        except HTTPException:
-            raise
-        except Exception:
-            logger.exception("Failed to fetch timeline dates")
-            return {'dates': []}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to fetch timeline dates")
+        return {'dates': []}
 
     return {'dates': dates}
 
 
 @router.get("/api/timeline/years")
-def api_timeline_years(
+async def api_timeline_years(
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
     hide_duplicates: str = Query('0'),
@@ -279,10 +300,15 @@ def api_timeline_years(
     date_to: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
-    """Return year summaries with photo counts and hero thumbnails."""
+    """Return year summaries with photo counts and hero thumbnails.
+
+    Migrated to async (aiosqlite) — single-query endpoint, ideal first
+    candidate. Sync behavior preserved: same WHERE-clause builders, same
+    response shape.
+    """
     user_id = user.user_id if user else None
-    with get_db() as conn:
-        try:
+    try:
+        async with get_async_db() as conn:
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -296,24 +322,26 @@ def api_timeline_years(
             sql_params.extend(date_params)
 
             year_expr = "SUBSTR(REPLACE(SUBSTR(date_taken,1,10),':','-'),1,4)"
-            rows = _fetch_grouped_summaries(conn, from_clause, where_clauses, sql_params, year_expr, 'DESC')
+            rows = await _fetch_grouped_summaries_async(
+                conn, from_clause, where_clauses, sql_params, year_expr, 'DESC',
+            )
 
             years = [
                 {'year': row['group_key'], 'count': row['cnt'], 'hero_photo_path': row['hero_photo_path']}
                 for row in rows
             ]
 
-        except HTTPException:
-            raise
-        except Exception:
-            logger.exception("Failed to fetch timeline years")
-            return {'years': []}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to fetch timeline years")
+        return {'years': []}
 
     return {'years': years}
 
 
 @router.get("/api/timeline/months")
-def api_timeline_months(
+async def api_timeline_months(
     year: int = Query(..., ge=1900, le=2100),
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
@@ -324,8 +352,8 @@ def api_timeline_months(
 ):
     """Return month summaries for a given year with photo counts and hero thumbnails."""
     user_id = user.user_id if user else None
-    with get_db() as conn:
-        try:
+    try:
+        async with get_async_db() as conn:
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -340,17 +368,19 @@ def api_timeline_months(
             sql_params.extend(date_params)
 
             month_expr = "SUBSTR(REPLACE(SUBSTR(date_taken,1,7),':','-'),1,7)"
-            rows = _fetch_grouped_summaries(conn, from_clause, where_clauses, sql_params, month_expr, 'ASC')
+            rows = await _fetch_grouped_summaries_async(
+                conn, from_clause, where_clauses, sql_params, month_expr, 'ASC',
+            )
 
             months = [
                 {'month': row['group_key'], 'count': row['cnt'], 'hero_photo_path': row['hero_photo_path']}
                 for row in rows
             ]
 
-        except HTTPException:
-            raise
-        except Exception:
-            logger.exception("Failed to fetch timeline months")
-            return {'months': []}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to fetch timeline months")
+        return {'months': []}
 
     return {'months': months}
