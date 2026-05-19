@@ -55,6 +55,9 @@ reverse_geocoder>=1.5.1
 # Vector search (sqlite-vec for CLIP/SigLIP embedding KNN queries)
 sqlite-vec>=0.1.6
 
+# Async SQLite for FastAPI read endpoints (see api/database.py get_async_db)
+aiosqlite>=0.20.0
+
 # Subject Saliency: BiRefNet loaded via transformers (see above)
 
 # GPU Face Clustering (optional, requires conda + CUDA)

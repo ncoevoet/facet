@@ -693,6 +693,23 @@ python database.py --refresh-stats   # Precompute aggregations
 python database.py --optimize        # Defragment database
 ```
 
+### Async SQLite (opt-in, for high-concurrency read paths)
+
+`api.database.get_async_db()` is an aiosqlite-backed async context manager
+parallel to `get_db()`. Endpoints are currently sync (FastAPI offloads them
+to a worker thread pool, which is fine at typical concurrency). For high-
+concurrency read paths (>5 simultaneous users), individual endpoints can be
+migrated by:
+
+1. Change `def foo(...)` to `async def foo(...)`.
+2. Replace `with get_db() as conn:` with `async with get_async_db() as conn:`.
+3. `await` every `.execute()` and `.fetchone()` / `.fetchall()`.
+4. Keep write paths sync — aiosqlite serializes writes anyway, and the sync
+   path's connection pool is already battle-tested.
+
+The plan's hottest candidates are `/api/photos`, `/api/timeline`,
+`/api/search`. Migrate one at a time and benchmark before promoting.
+
 ### Statistics Cache
 
 Precomputed aggregations with 5-minute TTL:

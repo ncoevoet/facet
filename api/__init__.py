@@ -8,12 +8,20 @@ import logging
 import os
 import sys
 import time
+import warnings
 from contextlib import asynccontextmanager
 
 # Ensure the project root is in Python path for local imports
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
+
+# scikit-image 0.26 deprecated SimilarityTransform.estimate() but InsightFace
+# 0.7.3 still calls it. Drop once upstream ships a fix.
+warnings.filterwarnings(
+    "ignore", category=FutureWarning,
+    message=r".*estimate.*deprecated.*", module=r"insightface\..*",
+)
 
 from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402

@@ -13,6 +13,13 @@ os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "0")
 import warnings
 warnings.filterwarnings("ignore", message=".*unauthenticated requests.*")
+# scikit-image 0.26 deprecated SimilarityTransform.estimate() but InsightFace
+# 0.7.3 still uses the old call site. Remove this filter once upstream ships
+# a fix using SimilarityTransform.from_estimate.
+warnings.filterwarnings(
+    "ignore", category=FutureWarning,
+    message=r".*estimate.*deprecated.*", module=r"insightface\..*",
+)
 
 import logging
 logging.getLogger("transformers").setLevel(logging.ERROR)
