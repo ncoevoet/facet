@@ -72,9 +72,17 @@ class VLMTagger:
         self.processor = None
         self.device = 'cuda'
 
-        # Detect model family from path
+        # Detect model family from path, with explicit override via config.
+        # The override lets power users point at a non-Qwen model path while
+        # forcing one of the existing families (e.g. set family='qwen3' and
+        # model_path='custom/finetuned-qwen3' to bypass the name-based heuristic).
+        # Non-Qwen architectures (Pixtral, InternVL, ...) still need a new
+        # branch in `load()` below — the override alone won't make them work.
         model_path = model_config.get('model_path', '')
-        if 'Qwen3.5' in model_path or 'qwen3_5' in model_path or 'qwen3.5' in model_path:
+        family_override = model_config.get('family')
+        if family_override in ('qwen3_5', 'qwen3', 'qwen2_5'):
+            self.family = family_override
+        elif 'Qwen3.5' in model_path or 'qwen3_5' in model_path or 'qwen3.5' in model_path:
             self.family = 'qwen3_5'
         elif 'Qwen3' in model_path or 'qwen3' in model_path:
             self.family = 'qwen3'

@@ -204,6 +204,52 @@ def _make_eye_landmarks(open_aperture: float):
     return landmarks
 
 
+class TestPoseGatedBlink:
+    """is_blinking() should bail out when the head is turned too far for EAR
+    to be reliable, but only when 3D landmarks are enabled."""
+
+    @staticmethod
+    def _fake_face(pose, ear_aperture=0.4):
+        """Build a stand-in face object with the landmarks + pose attrs the
+        method expects, without importing InsightFace."""
+        import types
+        landmarks = _make_eye_landmarks(open_aperture=ear_aperture)
+        return types.SimpleNamespace(
+            landmark_2d_106=landmarks,
+            pose=np.asarray(pose, dtype=np.float32) if pose is not None else None,
+        )
+
+    def _analyzer(self, enable_3d):
+        analyzer = FaceAnalyzer.__new__(FaceAnalyzer)
+        analyzer.enable_3d_landmarks = enable_3d
+        analyzer.blink_ear_threshold = 0.21
+        return analyzer
+
+    def test_extreme_yaw_skips_blink_when_3d_enabled(self):
+        # ear_aperture=0.4 gives EAR=0.04 < 0.21 → would normally be blinking,
+        # but yaw=60° is past the 35° gate, so skip.
+        analyzer = self._analyzer(enable_3d=True)
+        face = self._fake_face(pose=[60.0, 5.0, 0.0], ear_aperture=0.4)
+        assert bool(analyzer.is_blinking(face)) is False
+
+    def test_extreme_pitch_skips_blink_when_3d_enabled(self):
+        analyzer = self._analyzer(enable_3d=True)
+        face = self._fake_face(pose=[0.0, -50.0, 0.0], ear_aperture=0.4)
+        assert bool(analyzer.is_blinking(face)) is False
+
+    def test_neutral_pose_runs_blink_check(self):
+        analyzer = self._analyzer(enable_3d=True)
+        face = self._fake_face(pose=[5.0, 5.0, 0.0], ear_aperture=0.4)
+        # Neutral pose, low EAR → real blink
+        assert bool(analyzer.is_blinking(face)) is True
+
+    def test_extreme_yaw_ignored_when_3d_disabled(self):
+        # Without 3D landmarks, the pose attribute should NOT short-circuit.
+        analyzer = self._analyzer(enable_3d=False)
+        face = self._fake_face(pose=[60.0, 5.0, 0.0], ear_aperture=0.4)
+        assert bool(analyzer.is_blinking(face)) is True
+
+
 class TestEarMath:
     def test_open_eye_high_ear(self):
         landmarks = _make_eye_landmarks(open_aperture=3.0)

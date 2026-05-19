@@ -208,6 +208,18 @@ class FaceAnalyzer:
                 # Generate face thumbnail from full-res image (already in memory)
                 'thumbnail': self._crop_face_thumbnail(img_cv, bbox),
             }
+            # 3D head pose [yaw, pitch, roll] in degrees — only populated when
+            # enable_3d_landmarks=True and the landmark_3d_68 module ran.
+            # InsightFace exposes face.pose as a numpy array of 3 floats.
+            if self.enable_3d_landmarks and hasattr(face, 'pose') and face.pose is not None:
+                try:
+                    pose = np.asarray(face.pose, dtype=np.float32).flatten()
+                    if pose.size >= 3:
+                        detail['pose_yaw'] = float(pose[0])
+                        detail['pose_pitch'] = float(pose[1])
+                        detail['pose_roll'] = float(pose[2])
+                except (ValueError, TypeError):
+                    pass
             face_details.append(detail)
 
         return {
@@ -247,15 +259,35 @@ class FaceAnalyzer:
         ear_r = FaceAnalyzer.calculate_ear(landmarks, FaceAnalyzer.RIGHT_EYE_INDICES)
         return (ear_l + ear_r) / 2.0
 
+    # When |yaw| or |pitch| exceeds this (degrees), the eye landmarks are
+    # foreshortened or occluded enough that EAR is unreliable — skip the
+    # blink check entirely rather than flag a false positive.
+    POSE_BLINK_GATE_DEG = 35.0
+
     def is_blinking(self, face):
         """Returns True if EAR is below the threshold for either eye.
 
         Uses Eye Aspect Ratio (EAR) to detect closed eyes.
         EAR ~0.25-0.30 for open eyes, ~0.10 for closed eyes.
         Threshold is configurable via blink_ear_threshold (default 0.21).
+
+        When 3D landmarks are enabled and the head pose shows the face
+        sufficiently turned (|yaw|>35° or |pitch|>35°), EAR becomes
+        unreliable due to foreshortening — bail out instead of guessing.
         """
         if not hasattr(face, 'landmark_2d_106'):
             return False
+
+        if self.enable_3d_landmarks and hasattr(face, 'pose') and face.pose is not None:
+            try:
+                pose = np.asarray(face.pose, dtype=np.float32).flatten()
+                if pose.size >= 2 and (
+                    abs(pose[0]) > self.POSE_BLINK_GATE_DEG
+                    or abs(pose[1]) > self.POSE_BLINK_GATE_DEG
+                ):
+                    return False
+            except (ValueError, TypeError):
+                pass
 
         kps = face.landmark_2d_106
         avg_ear = self.compute_avg_ear(kps)
