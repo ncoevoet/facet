@@ -5,7 +5,6 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatInputModule } from '@angular/material/input';
@@ -131,7 +130,6 @@ function saveSectionStates(states: Record<string, boolean>): void {
     MatSliderModule,
     MatIconModule,
     MatButtonModule,
-    MatButtonToggleModule,
     MatFormFieldModule,
     MatCheckboxModule,
     MatInputModule,
@@ -405,18 +403,6 @@ function saveSectionStates(states: Record<string, boolean>): void {
               (change)="store.updateFilter('hide_details', $event.checked)"
             >{{ 'gallery.hide_details' | translate }}</mat-checkbox>
           }
-          <div class="!hidden lg:!flex flex-col gap-1">
-            <label class="text-sm opacity-70">{{ 'gallery.tooltip_mode.label' | translate }}</label>
-            <mat-button-toggle-group
-              [value]="store.filters().tooltip_mode"
-              (change)="store.updateFilter('tooltip_mode', $event.value)"
-              hideSingleSelectionIndicator
-            >
-              <mat-button-toggle value="hover">{{ 'gallery.tooltip_mode.hover' | translate }}</mat-button-toggle>
-              <mat-button-toggle value="click">{{ 'gallery.tooltip_mode.click' | translate }}</mat-button-toggle>
-              <mat-button-toggle value="off">{{ 'gallery.tooltip_mode.off' | translate }}</mat-button-toggle>
-            </mat-button-toggle-group>
-          </div>
           <mat-checkbox
             [checked]="store.filters().hide_blinks"
             (change)="store.updateFilter('hide_blinks', $event.checked)"

@@ -82,6 +82,7 @@ async def lifespan(app: FastAPI):
     # ballooning on long-running deployments. Skip if interval <= 0.
     wal_minutes = int(_FULL_CONFIG.get("performance", {}).get("wal_checkpoint_minutes", 30))
     wal_stop = None
+    wal_thread = None
     if wal_minutes > 0:
         import threading
         wal_stop = threading.Event()
@@ -101,13 +102,19 @@ async def lifespan(app: FastAPI):
                 except _sqlite3.Error:
                     logger.warning("WAL checkpoint failed", exc_info=True)
 
-        threading.Thread(target=_wal_checkpoint_loop, daemon=True, name="wal-checkpoint").start()
+        # daemon=True so the thread doesn't block process exit if join() times out,
+        # but we still try to join cleanly on lifespan shutdown.
+        wal_thread = threading.Thread(target=_wal_checkpoint_loop, daemon=True, name="wal-checkpoint")
+        wal_thread.start()
         logger.info("WAL checkpoint thread enabled (every %d min)", wal_minutes)
 
     logger.info("Facet API ready")
     yield
     if wal_stop is not None:
         wal_stop.set()
+    if wal_thread is not None:
+        # Bound the join so a stuck PRAGMA can't hang shutdown.
+        wal_thread.join(timeout=5.0)
     # Shutdown: clean up plugin thread pool
     from plugins import get_plugin_manager
     _plugin_mgr = get_plugin_manager()

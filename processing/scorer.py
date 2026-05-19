@@ -552,7 +552,8 @@ class Facet:
                 thumbnail_size=face_proc_settings.get('face_thumbnail_size', 128),
                 thumbnail_quality=face_proc_settings.get('face_thumbnail_quality', 85),
                 blink_ear_threshold=face_settings.get('blink_ear_threshold', 0.21),
-                min_faces_for_group=face_settings.get('min_faces_for_group', 4)
+                min_faces_for_group=face_settings.get('min_faces_for_group', 4),
+                enable_3d_landmarks=face_settings.get('enable_3d_landmarks', False),
             )
             self.tech_analyzer = TechnicalAnalyzer()
 

@@ -67,18 +67,34 @@ async def get_async_db():
 
     conn = await aiosqlite.connect(DEFAULT_DB_PATH)
     try:
-        # Issue pragmas via the async connection so they run on its worker
-        # thread (aiosqlite owns the underlying sqlite3.Connection there).
+        # Mirror the full sync pragma set (db/connection.py:apply_pragmas) over
+        # the aiosqlite worker thread. We can't call apply_pragmas directly
+        # because aiosqlite owns the underlying sqlite3.Connection on its own
+        # thread and cross-thread sqlite3 use raises ProgrammingError.
+        from db.connection import get_pragma_values
+        pv = get_pragma_values()
+        mmap_bytes = (
+            int(_viewer_perf['mmap_size_mb']) * 1024 * 1024
+            if _viewer_perf.get('mmap_size_mb') is not None
+            else pv['mmap_size']
+        )
+        cache_kb = (
+            int(_viewer_perf['cache_size_mb']) * 1000
+            if _viewer_perf.get('cache_size_mb') is not None
+            else pv['cache_size_kb']
+        )
         await conn.execute("PRAGMA journal_mode = WAL")
+        await conn.execute("PRAGMA busy_timeout = 5000")
+        await conn.execute("PRAGMA foreign_keys = ON")
         await conn.execute("PRAGMA synchronous = NORMAL")
+        await conn.execute(f"PRAGMA cache_size = -{cache_kb}")
         await conn.execute("PRAGMA temp_store = MEMORY")
-        mmap_size_mb = _viewer_perf.get('mmap_size_mb')
-        if mmap_size_mb:
-            await conn.execute(f"PRAGMA mmap_size = {int(mmap_size_mb) * 1024 * 1024}")
-        cache_size_mb = _viewer_perf.get('cache_size_mb')
-        if cache_size_mb:
-            # Negative cache_size = kibibytes; convert MB -> KB.
-            await conn.execute(f"PRAGMA cache_size = -{int(cache_size_mb) * 1024}")
+        await conn.execute(f"PRAGMA mmap_size = {mmap_bytes}")
+        await conn.execute("PRAGMA journal_size_limit = 67108864")
+        # sqlite-vec loads only on the sync path's connection-factory hook; the
+        # async surface skips it because vec0 virtual tables can be queried
+        # without the extension being loaded in the *current* connection
+        # (sqlite-vec is a per-connection extension and only writes need it).
         conn.row_factory = aiosqlite.Row
         yield conn
     finally:

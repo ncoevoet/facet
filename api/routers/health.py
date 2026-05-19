@@ -5,15 +5,48 @@ Provides /health (liveness) and /ready (readiness) for orchestrators
 and load balancers.
 """
 
+import collections
 import logging
+import threading
+import time
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
-from api.database import get_db
+from api.config import _FULL_CONFIG
+from api.database import get_async_db, get_db
 
 logger = logging.getLogger(__name__)
+
+# Sliding-window rate limiter for /api/client-errors keyed by IP.
+# 20 reports per 60 seconds keeps logs sane while permitting bursty
+# Angular crash-on-load scenarios. In-process, single-worker only — for
+# multi-worker deployments use an external rate limiter / log filter.
+_CLIENT_ERROR_RATE_MAX = 20
+_CLIENT_ERROR_RATE_WINDOW = 60.0
+_client_error_attempts: dict[str, collections.deque] = {}
+_client_error_lock = threading.Lock()
+
+
+def _client_error_rate_check(key: str) -> bool:
+    now = time.monotonic()
+    cutoff = now - _CLIENT_ERROR_RATE_WINDOW
+    with _client_error_lock:
+        dq = _client_error_attempts.setdefault(key, collections.deque())
+        while dq and dq[0] < cutoff:
+            dq.popleft()
+        if len(dq) >= _CLIENT_ERROR_RATE_MAX:
+            return False
+        dq.append(now)
+        return True
+
+
+def _sanitize_log_field(value: str | None) -> str:
+    """Strip newlines and control chars so attacker input can't forge log lines."""
+    if not value:
+        return ""
+    return "".join(ch if 32 <= ord(ch) < 127 or ch == "\t" else "?" for ch in value)
 
 router = APIRouter(tags=["health"])
 
@@ -25,12 +58,22 @@ def health():
 
 
 @router.get("/ready")
-def ready():
-    """Readiness check — verifies the database is accessible."""
-    checks = {}
+async def ready():
+    """Readiness check — verifies the database is accessible.
+
+    Reference implementation of the get_async_db() migration pattern: the
+    endpoint is fully async, opens an aiosqlite connection, runs a trivial
+    query without blocking the event loop, and records its elapsed time
+    into the readiness payload. Real load tests should compare this against
+    the sync /health endpoint's response time at the same concurrency.
+    """
+    checks: dict = {}
+    t0 = time.monotonic()
     try:
-        with get_db() as conn:
-            conn.execute("SELECT 1")
+        async with get_async_db() as conn:
+            cursor = await conn.execute("SELECT 1")
+            await cursor.fetchone()
+            await cursor.close()
             checks["database"] = "ok"
     except Exception:
         checks["database"] = "unavailable"
@@ -39,7 +82,27 @@ def ready():
             content={"status": "not_ready", "checks": checks},
         )
 
-    return {"status": "ready", "checks": checks}
+    elapsed_ms = (time.monotonic() - t0) * 1000.0
+    _ready_latency_samples.append(elapsed_ms)
+    if len(_ready_latency_samples) > _LATENCY_RING_SIZE:
+        _ready_latency_samples.pop(0)
+    return {"status": "ready", "checks": checks, "elapsed_ms": round(elapsed_ms, 2)}
+
+
+# Ring buffer for /ready async DB latency — exposed via /metrics.
+_LATENCY_RING_SIZE = 100
+_ready_latency_samples: list[float] = []
+
+
+def _metrics_enabled() -> bool:
+    """Read viewer.features.metrics_enabled (default False, opt-in).
+
+    Public metrics expose photo/person/face counts and DB size — useful intel
+    for an attacker fingerprinting a public deployment. Defaults to disabled;
+    enable explicitly when the endpoint is reachable only from the local
+    Prometheus scraper / monitoring network.
+    """
+    return bool(_FULL_CONFIG.get("viewer", {}).get("features", {}).get("metrics_enabled", False))
 
 
 @router.get("/metrics")
@@ -57,7 +120,12 @@ def metrics():
 
     Intentionally lightweight (no histograms / counters that require state) —
     sufficient for monitoring scan progress and library size over time.
+
+    Opt-in via ``viewer.features.metrics_enabled = true`` in scoring_config.json.
     """
+    if not _metrics_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
     lines: list[str] = []
 
     def gauge(name: str, value: float | int, help_text: str) -> None:
@@ -110,6 +178,31 @@ def metrics():
     except Exception:
         pass
 
+    # Async readiness check latency — sampled from /ready hits, ring of last 100
+    if _ready_latency_samples:
+        sorted_samples = sorted(_ready_latency_samples)
+        n = len(sorted_samples)
+        gauge(
+            "facet_ready_async_latency_ms_count",
+            n,
+            "Number of /ready async DB samples in the ring",
+        )
+        gauge(
+            "facet_ready_async_latency_ms_p50",
+            sorted_samples[n // 2],
+            "Median latency of async DB readiness check (ms)",
+        )
+        gauge(
+            "facet_ready_async_latency_ms_p95",
+            sorted_samples[min(n - 1, int(n * 0.95))],
+            "95th percentile latency of async DB readiness check (ms)",
+        )
+        gauge(
+            "facet_ready_async_latency_ms_max",
+            sorted_samples[-1],
+            "Max latency of async DB readiness check in the ring (ms)",
+        )
+
     body = "\n".join(lines) + "\n"
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4")
 
@@ -128,17 +221,24 @@ class ClientErrorReport(BaseModel):
 def report_client_error(report: ClientErrorReport, request: Request):
     """Receive an SPA crash report and log it server-side.
 
-    No DB writes — these are diagnostic logs only. Rate-limit-friendly: the
-    GlobalErrorHandler caps in-flight reports at 5 to avoid floods.
+    No DB writes — these are diagnostic logs only. Rate-limited at 20
+    reports per IP per minute (in-process sliding window). All user-supplied
+    fields are stripped of newlines and control chars before logging to
+    prevent log injection. The remote IP is taken from request.client.host
+    — behind a reverse proxy this is the proxy's IP, not the originator;
+    document via X-Forwarded-For if abuse triage is needed.
     """
     client_ip = request.client.host if request.client else "unknown"
+    if not _client_error_rate_check(client_ip):
+        raise HTTPException(status_code=429, detail="Too many error reports")
+
+    name = _sanitize_log_field(report.name) or "Error"
+    message = _sanitize_log_field(report.message)
+    url = _sanitize_log_field(report.url)
     logger.warning(
         "SPA error from %s — %s: %s (url=%s)",
-        client_ip,
-        report.name or "Error",
-        report.message,
-        report.url,
+        client_ip, name, message, url,
     )
     if report.stack:
-        logger.warning("SPA stack:\n%s", report.stack)
+        logger.warning("SPA stack: %s", _sanitize_log_field(report.stack))
     return {"received": True}

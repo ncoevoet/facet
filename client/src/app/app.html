@@ -302,6 +302,21 @@
           </mat-select>
         </mat-form-field>
 
+        <!-- Tooltip-mode menu — first item in the gallery icon cluster -->
+        <button
+          class="!hidden lg:!inline-flex"
+          mat-icon-button
+          [matMenuTriggerFor]="tooltipModeMenu"
+          [matTooltip]="'gallery.tooltip_mode.label' | translate"
+          [attr.aria-label]="'gallery.tooltip_mode.label' | translate"
+        >
+          <mat-icon>{{
+            store.filters().tooltip_mode === 'click' ? 'touch_app'
+            : store.filters().tooltip_mode === 'off' ? 'visibility_off'
+            : 'chat_bubble_outline'
+          }}</mat-icon>
+        </button>
+
         <button
           class="!hidden lg:!inline-flex"
           mat-icon-button
@@ -333,6 +348,21 @@
         >
           <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">tune</mat-icon>
         </button>
+
+        <mat-menu #tooltipModeMenu="matMenu">
+          <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'hover')">
+            <mat-icon>chat_bubble_outline</mat-icon>
+            {{ 'gallery.tooltip_mode.hover' | translate }}
+          </button>
+          <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'click')">
+            <mat-icon>touch_app</mat-icon>
+            {{ 'gallery.tooltip_mode.click' | translate }}
+          </button>
+          <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
+            <mat-icon>visibility_off</mat-icon>
+            {{ 'gallery.tooltip_mode.off' | translate }}
+          </button>
+        </mat-menu>
       }
 
       <!-- User menu (authenticated: account + language + edition + logout) -->
@@ -545,6 +575,32 @@
           }
         </mat-select>
       </mat-form-field>
+
+      <!-- Tooltip-mode menu (mobile, first in icon cluster) -->
+      <button mat-icon-button class="!w-10 !h-10 shrink-0"
+              [matMenuTriggerFor]="tooltipModeMenuMobile"
+              [matTooltip]="'gallery.tooltip_mode.label' | translate"
+              [attr.aria-label]="'gallery.tooltip_mode.label' | translate">
+        <mat-icon>{{
+          store.filters().tooltip_mode === 'click' ? 'touch_app'
+          : store.filters().tooltip_mode === 'off' ? 'visibility_off'
+          : 'chat_bubble_outline'
+        }}</mat-icon>
+      </button>
+      <mat-menu #tooltipModeMenuMobile="matMenu">
+        <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'hover')">
+          <mat-icon>chat_bubble_outline</mat-icon>
+          {{ 'gallery.tooltip_mode.hover' | translate }}
+        </button>
+        <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'click')">
+          <mat-icon>touch_app</mat-icon>
+          {{ 'gallery.tooltip_mode.click' | translate }}
+        </button>
+        <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
+          <mat-icon>visibility_off</mat-icon>
+          {{ 'gallery.tooltip_mode.off' | translate }}
+        </button>
+      </mat-menu>
 
       <!-- Sort direction toggle -->
       <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="toggleSortDirection()"

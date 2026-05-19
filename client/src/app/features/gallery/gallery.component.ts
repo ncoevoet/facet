@@ -66,30 +66,6 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
 
       <!-- Main content -->
       <mat-sidenav-content>
-        <!-- Display toolbar -->
-        <div class="flex items-center gap-2 px-2 md:px-4 pt-2 md:pt-4">
-          <button mat-icon-button
-                  [matTooltip]="'gallery.tooltip_mode.label' | translate"
-                  [attr.aria-label]="'gallery.tooltip_mode.label' | translate"
-                  [matMenuTriggerFor]="tooltipMenu">
-            <mat-icon>{{ tooltipModeIcon() }}</mat-icon>
-          </button>
-          <mat-menu #tooltipMenu="matMenu">
-            <button mat-menu-item (click)="setTooltipMode('hover')">
-              <mat-icon>highlight_alt</mat-icon>
-              {{ 'gallery.tooltip_mode.hover' | translate }}
-            </button>
-            <button mat-menu-item (click)="setTooltipMode('click')">
-              <mat-icon>touch_app</mat-icon>
-              {{ 'gallery.tooltip_mode.click' | translate }}
-            </button>
-            <button mat-menu-item (click)="setTooltipMode('off')">
-              <mat-icon>visibility_off</mat-icon>
-              {{ 'gallery.tooltip_mode.off' | translate }}
-            </button>
-          </mat-menu>
-        </div>
-
         <!-- Hidden-photos banner -->
         @if (showHiddenBanner()) {
           <div class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex items-center gap-3 text-sm">
@@ -215,7 +191,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
     }
 
     <!-- Photo details tooltip (single instance, repositioned on hover, hidden on small/touch devices) -->
-    @if (!isTouchDevice() && isDesktop() && !tooltipDisabled()) {
+    @if (!tooltipDisabled() && (tooltipMode() === 'click' || (isDesktop() && !isTouchDevice()))) {
       <app-photo-tooltip
         [photo]="tooltipPhoto()"
         [x]="tooltipX()"
@@ -362,20 +338,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
       hide_bursts: false,
       hide_duplicates: false,
     });
-  }
-
-  /** Icon for the tooltip-mode toolbar button — reflects current mode. */
-  readonly tooltipModeIcon = computed(() => {
-    switch (this.tooltipMode()) {
-      case 'click': return 'touch_app';
-      case 'off': return 'visibility_off';
-      default: return 'info';
-    }
-  });
-
-  setTooltipMode(mode: 'hover' | 'click' | 'off'): void {
-    void this.store.updateFilter('tooltip_mode', mode);
-    if (mode !== 'hover') this.hideTooltip();
   }
 
   /** Container width for mosaic layout (updated via ResizeObserver) */
@@ -605,9 +567,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   showTooltip(event: MouseEvent, photo: Photo): void {
-    if (this.isTouchDevice() || this.tooltipMode() === 'off') return;
+    const mode = this.tooltipMode();
+    if (mode === 'off') return;
+    // Hover mode is meaningless on touch (mouseenter fires once on tap and
+    // sticks) so we suppress it there. Click mode is the intended touch path
+    // and must work — only block hover on touch devices.
+    if (mode === 'hover' && this.isTouchDevice()) return;
     // In click mode, toggle: clicking the same photo hides the tooltip.
-    if (this.tooltipMode() === 'click' && this.tooltipPhoto() === photo) {
+    if (mode === 'click' && this.tooltipPhoto() === photo) {
       this.hideTooltip();
       return;
     }

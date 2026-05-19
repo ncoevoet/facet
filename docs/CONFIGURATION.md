@@ -1164,6 +1164,7 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_rating_controls` | `true` | Show star rating and favorite controls |
 | `show_rating_badge` | `true` | Show rating badge on photo cards |
 | `show_scan_button` | `false` | Show scan trigger button for superadmin users (requires GPU on viewer host) |
+| `metrics_enabled` | `false` | Enable the public `GET /metrics` Prometheus endpoint. Off by default — it exposes photo/person/face counts, DB size, and process memory; enable only when the endpoint is reachable from the scraper network, not from the public internet. |
 | `show_semantic_search` | `true` | Show semantic search bar (text-to-image search using CLIP/SigLIP embeddings) |
 | `show_albums` | `true` | Show albums feature (create, manage, and browse photo albums) |
 | `show_critique` | `true` | Show AI critique button on photo cards (rule-based score breakdown) |

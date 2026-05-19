@@ -1,6 +1,5 @@
 import { ErrorHandler, Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { HttpBackend, HttpClient } from '@angular/common/http';
 
 /**
  * Self-hosted crash sink. Catches anything Angular hands to ErrorHandler
@@ -11,7 +10,11 @@ import { firstValueFrom } from 'rxjs';
  */
 @Injectable({ providedIn: 'root' })
 export class GlobalErrorHandler implements ErrorHandler {
-  private readonly http = inject(HttpClient);
+  // Use HttpBackend directly to bypass interceptors. An auth/error interceptor
+  // failure would otherwise route back through this handler (POST -> interceptor
+  // -> handler) creating a tight loop. HttpBackend is the raw transport — no
+  // interceptor chain — so a network failure here cannot retrigger us.
+  private readonly http = new HttpClient(inject(HttpBackend));
   private inFlight = 0;
   private readonly MAX_INFLIGHT = 5;
 
@@ -20,13 +23,14 @@ export class GlobalErrorHandler implements ErrorHandler {
     if (this.inFlight >= this.MAX_INFLIGHT) return;
     this.inFlight++;
     const payload = this.buildPayload(error);
-    firstValueFrom(this.http.post('/api/client-errors', payload, {
+    this.http.post('/api/client-errors', payload, {
       headers: { 'Content-Type': 'application/json' },
-    })).catch(() => {
-      // Network errors here are expected (e.g. the backend itself crashed).
-      // We already console.error'd above; nothing else to do.
-    }).finally(() => {
-      this.inFlight--;
+    }).subscribe({
+      // .subscribe rather than firstValueFrom so we never throw out of
+      // handleError. Network errors here are expected (e.g. backend down);
+      // console.error already captured the original.
+      next: () => { this.inFlight--; },
+      error: () => { this.inFlight--; },
     });
   }
 
