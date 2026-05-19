@@ -127,6 +127,21 @@ async def lifespan(app: FastAPI):
     if wal_thread is not None:
         # Bound the join so a stuck PRAGMA can't hang shutdown.
         wal_thread.join(timeout=5.0)
+    # One-time WAL checkpoint on clean shutdown so the next start doesn't
+    # inherit a bloated -wal file. Best-effort: a failure here is logged but
+    # never blocks shutdown.
+    if wal_minutes > 0:
+        try:
+            import sqlite3 as _sqlite3_shutdown
+            from api.database import get_db_connection
+            conn = get_db_connection()
+            try:
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                conn.commit()
+            finally:
+                conn.close()
+        except _sqlite3_shutdown.Error:
+            logger.warning("Final WAL checkpoint on shutdown failed", exc_info=True)
     # Shutdown: clean up plugin thread pool
     from plugins import get_plugin_manager
     _plugin_mgr = get_plugin_manager()

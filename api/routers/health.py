@@ -19,6 +19,9 @@ from api.database import get_async_db, get_db
 
 logger = logging.getLogger(__name__)
 
+# Process uptime — captured at module import time. Exposed via /metrics.
+_PROCESS_START_TIME = time.monotonic()
+
 # Sliding-window rate limiter for /api/client-errors keyed by IP.
 # 20 reports per 60 seconds keeps logs sane while permitting bursty
 # Angular crash-on-load scenarios. In-process, single-worker only — for
@@ -175,6 +178,38 @@ def metrics():
         import os as _os
         rss = psutil.Process(_os.getpid()).memory_info().rss
         gauge("facet_process_memory_bytes", rss, "Resident set size of the API process")
+    except Exception:
+        pass
+
+    # Process uptime
+    gauge(
+        "facet_uptime_seconds",
+        round(time.monotonic() - _PROCESS_START_TIME, 1),
+        "Seconds since the API process started",
+    )
+
+    # GPU VRAM (best-effort, requires torch with CUDA)
+    try:
+        import torch
+        if torch.cuda.is_available():
+            allocated = torch.cuda.memory_allocated(0)
+            reserved = torch.cuda.memory_reserved(0)
+            total = torch.cuda.get_device_properties(0).total_memory
+            gauge("facet_gpu_vram_allocated_bytes", allocated,
+                  "GPU memory currently allocated by torch")
+            gauge("facet_gpu_vram_reserved_bytes", reserved,
+                  "GPU memory reserved by torch's caching allocator")
+            gauge("facet_gpu_vram_total_bytes", total,
+                  "Total GPU memory available on device 0")
+    except Exception:
+        pass
+
+    # Scan activity — read from the scan module's global state.
+    try:
+        from api.routers.scan import _scan_state
+        is_running = bool((_scan_state or {}).get("running"))
+        gauge("facet_scan_active", 1 if is_running else 0,
+              "1 if a scan is currently running, 0 otherwise")
     except Exception:
         pass
 
