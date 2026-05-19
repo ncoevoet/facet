@@ -11,7 +11,9 @@ open-clip-torch>=2.20.0
 # HuggingFace Transformers - required for BiRefNet saliency, SigLIP 2 NaFlex embeddings,
 # and VLM taggers (Qwen3-VL / Qwen2.5-VL on 16gb/24gb profiles)
 transformers>=4.57.0
-# accelerate>=0.25.0              # Optional: needed for VLM taggers with device_map="auto"
+# accelerate is required for VLM taggers (device_map="auto") and SigLIP 2.
+# install.sh installs it unconditionally — keep it here for direct pip users too.
+accelerate>=0.25.0
 
 # Image Processing
 opencv-python>=4.8.0

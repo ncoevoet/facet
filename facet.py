@@ -107,6 +107,16 @@ def _print_scan_summary(db_path, todo_list, raw_paired_skipped):
     logger.info("=" * 60)
 
 
+def _get_photo_column_count(db_path: str) -> int:
+    """Return the number of columns currently on the photos table (0 if absent)."""
+    import sqlite3
+    try:
+        with sqlite3.connect(db_path) as conn:
+            return len(list(conn.execute("PRAGMA table_info(photos)")))
+    except sqlite3.Error:
+        return 0
+
+
 def main():
     import argparse
 
@@ -220,9 +230,12 @@ Configuration:
     db_group.add_argument('--recompute-iqa', action='store_true',
                         help='Recompute supplementary IQA metrics (TOPIQ IAA, NR-Face, LIQE) from stored thumbnails')
     db_group.add_argument('--upgrade-db', action='store_true',
-                        help='Run all metric backfills (recompute-iqa, recompute-saliency, recompute-composition-cpu, '
-                             'recompute-burst, recompute-blinks, recompute-average) in one pass. '
-                             'Idempotent — re-runs are safe.')
+                        help='Migrate schema + run the full backfill chain '
+                             '(extract-gps, detect-duplicates, recompute-iqa, '
+                             'recompute-saliency, recompute-composition-cpu, '
+                             'recompute-burst, recompute-blinks, recompute-average). '
+                             'Idempotent — re-runs are safe. '
+                             'Does NOT run heavy steps like --generate-captions.')
     db_group.add_argument('--compute-recommendations', action='store_true',
                         help='Analyze database and show scoring recommendations')
     db_group.add_argument('--apply-recommendations', action='store_true',
@@ -536,7 +549,24 @@ Configuration:
         logger.info("=" * 60)
         logger.info("Upgrading DB — running backfill chain")
         logger.info("=" * 60)
+
+        # Step 0: schema migration FIRST so subsequent steps can read/write
+        # any new columns added since the DB was last initialised.
+        from db.schema import init_database
+        from db import DEFAULT_DB_PATH
+        db_path = args.db or DEFAULT_DB_PATH
+        logger.info("--- Schema migration (init_database) ---")
+        before_cols = _get_photo_column_count(db_path)
+        init_database(db_path)
+        after_cols = _get_photo_column_count(db_path)
+        if after_cols > before_cols:
+            logger.info("  Added %d column(s) to photos table", after_cols - before_cols)
+        else:
+            logger.info("  Schema already up to date")
+
         steps = [
+            ("--extract-gps", "GPS coordinates from EXIF"),
+            ("--detect-duplicates", "Duplicate detection (pHash)"),
             ("--recompute-iqa", "TOPIQ IAA + NR-Face + LIQE"),
             ("--recompute-saliency", "Subject saliency (BiRefNet)"),
             ("--recompute-composition-cpu", "Rule-based composition"),
@@ -549,12 +579,22 @@ Configuration:
             cmd_base += ["--db", args.db]
         if args.config:
             cmd_base += ["--config", args.config]
+        failures = []
         for flag, label in steps:
             logger.info("--- %s ---", label)
             result = subprocess.run(cmd_base + [flag])
             if result.returncode != 0:
                 logger.warning("Step %s exited with code %d; continuing", flag, result.returncode)
-        logger.info("Upgrade complete.")
+                failures.append((flag, result.returncode))
+        logger.info("=" * 60)
+        if failures:
+            logger.warning("Upgrade complete with %d failed step(s):", len(failures))
+            for flag, code in failures:
+                logger.warning("  %s exit=%d", flag, code)
+        else:
+            logger.info("Upgrade complete — all %d steps succeeded.", len(steps))
+        logger.info("Captions and VLM tags are NOT part of --upgrade-db (heavy).")
+        logger.info("Run them explicitly with --generate-captions / --recompute-tags-vlm if desired.")
         exit()
 
     # Extract faces mode (needs GPU for face analysis)
