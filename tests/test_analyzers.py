@@ -233,3 +233,149 @@ class TestEarMath:
         # Right eye (fixture defaults): v1 = v2 = 3.0, h = 10 -> EAR = 0.3
         avg = FaceAnalyzer.compute_avg_ear(landmarks)
         assert avg == pytest.approx((0.2 + 0.3) / 2, abs=0.005)
+
+
+# ---------------------------------------------------------------------------
+# TechnicalAnalyzer — extended coverage (dynamic range, noise, contrast, histogram)
+# ---------------------------------------------------------------------------
+
+
+class TestDynamicRange:
+    def test_none_image_returns_zero(self):
+        out = TechnicalAnalyzer.get_dynamic_range(None)
+        assert out == {'dynamic_range_stops': 0}
+
+    def test_uniform_image_low_range(self):
+        img = np.full((50, 50, 3), 128, dtype=np.uint8)
+        out = TechnicalAnalyzer.get_dynamic_range(img)
+        # p2 == p98 -> log2(1) == 0
+        assert out['dynamic_range_stops'] == pytest.approx(0.0, abs=0.05)
+
+    def test_full_range_image_max_range(self):
+        # Bottom half black, top half white -> p2~0, p98~255
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        img[50:, :, :] = 255
+        out = TechnicalAnalyzer.get_dynamic_range(img)
+        # p2 clamped to 1 (function rule), p98 = 255 -> log2(255) ≈ 7.99
+        assert out['dynamic_range_stops'] >= 7.0
+
+    def test_returns_rounded_float(self):
+        img = np.full((20, 20, 3), 100, dtype=np.uint8)
+        out = TechnicalAnalyzer.get_dynamic_range(img)
+        assert isinstance(out['dynamic_range_stops'], float)
+
+
+class TestNoiseEstimate:
+    def test_none_image_returns_zero(self):
+        out = TechnicalAnalyzer.get_noise_estimate(None)
+        assert out == {'noise_sigma': 0}
+
+    def test_uniform_image_low_noise(self):
+        img = np.full((50, 50, 3), 100, dtype=np.uint8)
+        out = TechnicalAnalyzer.get_noise_estimate(img)
+        # Immerkaer on a constant image -> 0
+        assert out['noise_sigma'] == pytest.approx(0.0, abs=0.1)
+
+    def test_random_image_high_noise(self):
+        rng = np.random.default_rng(13)
+        img = rng.integers(0, 255, (100, 100, 3), dtype=np.uint8)
+        out = TechnicalAnalyzer.get_noise_estimate(img)
+        # Random ~uniform noise — sigma should be well above clean threshold (>15)
+        assert out['noise_sigma'] > 15.0
+
+    def test_noise_monotonic_with_amplitude(self):
+        rng = np.random.default_rng(13)
+        base = np.full((100, 100, 3), 128, dtype=np.uint8)
+        low_noise = (base + rng.normal(0, 5, base.shape)).clip(0, 255).astype(np.uint8)
+        high_noise = (base + rng.normal(0, 30, base.shape)).clip(0, 255).astype(np.uint8)
+        s1 = TechnicalAnalyzer.get_noise_estimate(low_noise)['noise_sigma']
+        s2 = TechnicalAnalyzer.get_noise_estimate(high_noise)['noise_sigma']
+        assert s2 > s1
+
+
+class TestContrastScore:
+    def test_none_image_returns_zero(self):
+        out = TechnicalAnalyzer.get_contrast_score(None)
+        assert out['contrast_score'] == 0
+        assert out['rms_contrast'] == 0
+
+    def test_uniform_image_low_contrast(self):
+        img = np.full((50, 50, 3), 100, dtype=np.uint8)
+        out = TechnicalAnalyzer.get_contrast_score(img)
+        # Flat image -> near-zero rms_contrast
+        assert out['rms_contrast'] == pytest.approx(0.0, abs=0.1)
+
+    def test_high_contrast_image_scores_higher(self):
+        flat = np.full((100, 100, 3), 128, dtype=np.uint8)
+        bipolar = np.zeros((100, 100, 3), dtype=np.uint8)
+        bipolar[50:, :, :] = 255
+        s_flat = TechnicalAnalyzer.get_contrast_score(flat)['rms_contrast']
+        s_bipolar = TechnicalAnalyzer.get_contrast_score(bipolar)['rms_contrast']
+        assert s_bipolar > s_flat
+
+
+class TestHistogramData:
+    def test_none_image_returns_defaults(self):
+        out = TechnicalAnalyzer.get_histogram_data(None)
+        assert out['exposure_score'] == 5.0
+        assert out['shadow_clipped'] == 0
+        assert out['highlight_clipped'] == 0
+        assert out['is_silhouette'] == 0
+
+    def test_all_black_flags_shadow_clip(self):
+        img = np.zeros((50, 50, 3), dtype=np.uint8)
+        out = TechnicalAnalyzer.get_histogram_data(img)
+        assert out['shadow_clipped'] == 1
+        assert out['mean_luminance'] == pytest.approx(0.0, abs=0.01)
+
+    def test_all_white_flags_highlight_clip(self):
+        img = np.full((50, 50, 3), 255, dtype=np.uint8)
+        out = TechnicalAnalyzer.get_histogram_data(img)
+        assert out['highlight_clipped'] == 1
+        assert out['mean_luminance'] == pytest.approx(1.0, abs=0.01)
+
+    def test_mid_gray_no_clipping(self):
+        img = np.full((50, 50, 3), 128, dtype=np.uint8)
+        out = TechnicalAnalyzer.get_histogram_data(img)
+        assert out['shadow_clipped'] == 0
+        assert out['highlight_clipped'] == 0
+        assert out['mean_luminance'] == pytest.approx(0.5, abs=0.02)
+
+    def test_bimodal_silhouette_pattern(self):
+        # Half black, half white — classic silhouette pattern
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        img[:, 50:, :] = 255
+        out = TechnicalAnalyzer.get_histogram_data(img)
+        assert out['is_silhouette'] == 1
+
+    def test_histogram_bytes_length(self):
+        img = np.full((10, 10, 3), 50, dtype=np.uint8)
+        out = TechnicalAnalyzer.get_histogram_data(img)
+        # 256 float32s = 1024 bytes
+        assert len(out['histogram_bytes']) == 256 * 4
+
+
+# ---------------------------------------------------------------------------
+# CompositionAnalyzer — leading lines
+# ---------------------------------------------------------------------------
+
+
+class TestLeadingLines:
+    def test_none_image_returns_zero(self):
+        out = CompositionAnalyzer.detect_leading_lines(None)
+        assert out == {'leading_lines_score': 0, 'line_count': 0}
+
+    def test_uniform_image_no_lines(self):
+        img = np.full((200, 200, 3), 100, dtype=np.uint8)
+        out = CompositionAnalyzer.detect_leading_lines(img)
+        assert out['line_count'] == 0
+        assert out['leading_lines_score'] == 0
+
+    def test_strong_diagonal_detected(self):
+        # 300x300 black image with a thick white diagonal line
+        import cv2
+        img = np.zeros((300, 300, 3), dtype=np.uint8)
+        cv2.line(img, (20, 20), (280, 280), (255, 255, 255), thickness=4)
+        out = CompositionAnalyzer.detect_leading_lines(img)
+        assert out['line_count'] >= 1
+        assert out['leading_lines_score'] > 0
