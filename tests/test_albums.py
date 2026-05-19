@@ -139,10 +139,9 @@ class TestCrud:
 
         mock_conn.execute.side_effect = execute_side_effect
 
-        with (
-            mock.patch(f"{_ALBUMS_MODULE}.require_edition", return_value=_EDITION_USER),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
-        ):
+        # Auth is overridden by the fixture's app.dependency_overrides;
+        # only mock the DB context manager here.
+        with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)):
             resp = client.post("/api/albums", json={"name": "New Album", "description": "desc"})
 
         assert resp.status_code == 200
@@ -175,10 +174,8 @@ class TestCrud:
         # _check_album_access: SELECT * FROM albums WHERE id = ?
         mock_conn.execute.return_value.fetchone.return_value = album_row
 
-        with (
-            mock.patch(f"{_ALBUMS_MODULE}.require_edition", return_value=_EDITION_USER),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
-        ):
+        # Auth is overridden by the fixture; only mock the DB context manager.
+        with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)):
             resp = client.delete("/api/albums/1")
 
         assert resp.status_code == 200
@@ -204,10 +201,8 @@ class TestSharing:
         mock_conn = mock.MagicMock()
         mock_conn.execute.return_value.fetchone.return_value = album_row
 
-        with (
-            mock.patch(f"{_ALBUMS_MODULE}.require_edition", return_value=_EDITION_USER),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
-        ):
+        # Auth is overridden by the fixture; only mock the DB context manager.
+        with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)):
             resp = client.post("/api/albums/1/share")
 
         assert resp.status_code == 200

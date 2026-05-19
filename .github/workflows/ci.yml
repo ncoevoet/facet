@@ -50,6 +50,15 @@ jobs:
           python-version: "3.12"
       - run: pip install ruff
       - run: ruff check api/ tests/ --select E,F,W --ignore E501
+      - name: Forbid broken FastAPI auth mock pattern
+        run: |
+          if grep -rn 'mock\.patch.*\(api\.routers\.[a-z_]\+\.require_\|api\.routers\.[a-z_]\+\.get_optional_user\)' tests/ ; then
+            echo "::error::Found broken Pattern A — mock.patch on module-level FastAPI auth dependencies."
+            echo "::error::These patches are no-ops against Depends()-captured references; tests will pass-by-accident."
+            echo "Use the conftest fixtures (edition_client / regular_client / superadmin_client / anonymous_client)"
+            echo "or app.dependency_overrides[require_edition] = lambda: ... instead. See tests/conftest.py."
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: "24"

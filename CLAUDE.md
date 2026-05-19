@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **No backward-compatibility fallbacks.** When renaming or restructuring config keys, methods, or APIs, do NOT add legacy aliases, fallback lookups, or shims for old names. Update all references to use the new names directly. Old names should be removed completely.
 - **No custom CSS classes in Angular components.** Use plain Tailwind CSS utilities exclusively. Never define custom CSS classes in component `styles`. Use Angular `host` property for `:host` styling (e.g., `host: { class: 'block h-full' }`). All styling must be done via Tailwind utility classes in templates.
 - **Use pipes instead of method calls in Angular templates.** Never call component methods from template expressions (e.g., `{{ method(value) }}`). Use Angular pipes for data transformation in templates to avoid unnecessary change detection cycles.
+- **No `mock.patch` on FastAPI auth dependencies.** Use `app.dependency_overrides[require_edition] = ...` or the shared `edition_client` / `regular_client` / `superadmin_client` / `anonymous_client` fixtures in `tests/conftest.py`. FastAPI captures dependency callables inside `Depends()` at app creation, so module-level `mock.patch` rebinds the symbol but not the captured reference — the mock is silently inert and tests pass-by-accident.
 
 ## Code Review
 

@@ -3,6 +3,14 @@
 Existing test files define their own ``client`` fixture locally, which takes
 precedence over conftest-level fixtures.  The fixtures here are additive —
 they provide common helpers so new tests can import less boilerplate.
+
+**Auth fixtures**: use ``edition_client`` / ``regular_client`` /
+``superadmin_client`` / ``anonymous_client`` instead of ``mock.patch`` on
+``api.routers.X.require_*``. FastAPI captures dependency callables inside
+``Depends()`` at route registration; module-level ``mock.patch`` rebinds the
+symbol but not the captured reference, so it's silently inert and tests
+pass-by-accident. ``app.dependency_overrides`` is the documented FastAPI
+mechanism that actually bypasses the captured reference.
 """
 
 from unittest.mock import MagicMock
@@ -11,7 +19,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
-from api.auth import CurrentUser
+from api.auth import (
+    CurrentUser, get_optional_user, require_authenticated,
+    require_edition, require_superadmin,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +88,79 @@ def app():
 
 @pytest.fixture()
 def client(app):
-    """TestClient wrapping the Facet FastAPI app."""
+    """TestClient wrapping the Facet FastAPI app, no auth overrides.
+
+    Use this only for endpoints that don't require auth. For auth-protected
+    endpoints use ``edition_client`` / ``regular_client`` / ``superadmin_client``
+    / ``anonymous_client`` so the test exercises the actual ``Depends()`` chain.
+    """
     return TestClient(app)
+
+
+def _make_client_with_user(user):
+    """Build a TestClient where every auth dependency yields ``user``.
+
+    Yields a cleanup-aware fixture body (caller wraps in ``yield ... clear()``).
+    """
+    app = create_app()
+    for dep in (require_edition, require_authenticated, require_superadmin, get_optional_user):
+        # Bind ``user`` via default arg so the lambda doesn't close over a
+        # mutating outer ``user`` reference.
+        app.dependency_overrides[dep] = lambda u=user: u
+    return app
+
+
+@pytest.fixture()
+def edition_client():
+    """TestClient where every auth dependency yields an edition-authenticated user.
+
+    Use this for endpoints decorated with ``Depends(require_edition)``.
+    """
+    user = CurrentUser(user_id="test", role="admin", edition_authenticated=True)
+    app = _make_client_with_user(user)
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def superadmin_client():
+    """TestClient where every auth dependency yields a superadmin user.
+
+    Use this for endpoints decorated with ``Depends(require_superadmin)``
+    (e.g. ``/api/scan/*``).
+    """
+    user = CurrentUser(
+        user_id="root", role="superadmin", display_name="Super Admin",
+        edition_authenticated=True,
+    )
+    app = _make_client_with_user(user)
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def regular_client():
+    """TestClient with a non-edition authenticated user.
+
+    ``require_edition`` is intentionally NOT overridden — endpoints that need
+    it will hit the real dependency and return 403, exercising the
+    access-denied path.
+    """
+    user = CurrentUser(user_id="u1", role="user", display_name="User One")
+    app = create_app()
+    app.dependency_overrides[require_authenticated] = lambda: user
+    app.dependency_overrides[get_optional_user] = lambda: user
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def anonymous_client():
+    """TestClient with no authenticated user — exercises the public path."""
+    app = create_app()
+    app.dependency_overrides[get_optional_user] = lambda: None
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 
 # ---------------------------------------------------------------------------
