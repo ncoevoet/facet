@@ -4,11 +4,15 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Chart } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ChartHeightPipe } from './chart-height.pipe';
+import { downloadCsv } from '../../shared/utils/csv';
 
 export interface GearItem {
   name: string;
@@ -49,6 +53,9 @@ const GEAR_METRIC_OPTIONS = [
     MatFormFieldModule,
     MatSelectModule,
     MatProgressSpinnerModule,
+    MatButtonModule,
+    MatIconModule,
+    MatTooltipModule,
     TranslatePipe,
     ChartHeightPipe,
   ],
@@ -64,6 +71,11 @@ const GEAR_METRIC_OPTIONS = [
             }
           </mat-select>
         </mat-form-field>
+        <button mat-icon-button class="shrink-0" [disabled]="items().length === 0"
+          [matTooltip]="'stats.export_csv' | translate"
+          [attr.aria-label]="'stats.export_csv' | translate" (click)="exportCsv()">
+          <mat-icon>download</mat-icon>
+        </button>
       </mat-card-header>
       <mat-card-content class="!pt-4">
         @if (loading()) {
@@ -201,6 +213,12 @@ export class GearChartCardComponent {
     });
 
     this.destroyRef.onDestroy(() => this.destroyChart());
+  }
+
+  /** Export the card's gear rows as a CSV file. */
+  protected exportCsv(): void {
+    const slug = this.titleKey().split('.').pop() ?? 'gear';
+    downloadCsv(`facet-${slug}`, this.items());
   }
 
   private destroyChart(): void {

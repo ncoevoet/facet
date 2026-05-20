@@ -2486,6 +2486,7 @@
   },
   "performance": {
     "mmap_size_mb": 2048,
-    "cache_size_mb": 128
+    "cache_size_mb": 128,
+    "slow_request_ms": 1000
   }
 }

@@ -363,7 +363,8 @@ The cache is stored in the `stats_cache` table with a 5-minute TTL. Run `--stats
 "performance": {
   "mmap_size_mb": 12288,
   "cache_size_mb": 64,
-  "wal_checkpoint_minutes": 30
+  "wal_checkpoint_minutes": 30,
+  "slow_request_ms": 1000
 }
 ```
 

@@ -367,7 +367,10 @@ async def api_photos(
     try:
         gallery_params = GalleryParams.model_validate(merged)
     except ValidationError as e:
-        raise HTTPException(status_code=422, detail=e.errors())
+        # Log the structured detail server-side; return a clean message rather
+        # than leaking Pydantic internals (loc/type/ctx/url) to the client.
+        logger.warning("Gallery parameter validation failed: %s", e.errors())
+        raise HTTPException(status_code=422, detail="Invalid gallery parameters") from e
     page = max(1, gallery_params.page)
     per_page = gallery_params.per_page
     params = gallery_params.model_dump()

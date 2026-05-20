@@ -24,8 +24,10 @@ warnings.filterwarnings(
 )
 
 from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.encoders import jsonable_encoder  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from fastapi.responses import FileResponse  # noqa: E402
+from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 
@@ -33,20 +35,64 @@ logger = logging.getLogger(__name__)
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Log HTTP requests with method, path, status, and duration."""
+    """Log HTTP requests with method, path, status, and duration.
+
+    Requests slower than ``slow_request_ms`` are logged at WARNING with a SLOW
+    marker so they stand out in production logs. A threshold <= 0 disables the
+    escalation (everything stays at INFO).
+    """
+
+    def __init__(self, app, slow_request_ms: int = 1000):
+        super().__init__(app)
+        self.slow_request_ms = slow_request_ms
 
     async def dispatch(self, request: Request, call_next):
         start = time.perf_counter()
-        response = await call_next(request)
-        elapsed_ms = (time.perf_counter() - start) * 1000
-        # Skip logging static asset requests to reduce noise
-        path = request.url.path
-        if not path.startswith("/assets/") and not path.endswith((".js", ".css", ".ico", ".map")):
-            logger.info(
-                "%s %s %d (%.0fms)",
-                request.method, path, response.status_code, elapsed_ms,
-            )
-        return response
+        # Default to 500: if the inner app raises, no response is produced and
+        # the exception propagates to ServerErrorMiddleware which returns 500.
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            # finally — so failed requests (and slow failures) are still logged.
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            # Skip logging static asset requests to reduce noise
+            path = request.url.path
+            if not path.startswith("/assets/") and not path.endswith((".js", ".css", ".ico", ".map")):
+                if 0 < self.slow_request_ms < elapsed_ms:
+                    logger.warning(
+                        "SLOW %s %s %d (%.0fms)",
+                        request.method, path, status_code, elapsed_ms,
+                    )
+                else:
+                    logger.info(
+                        "%s %s %d (%.0fms)",
+                        request.method, path, status_code, elapsed_ms,
+                    )
+
+
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Handle request-validation (422) errors.
+
+    FastAPI's default 422 is silent server-side, which makes a malformed client
+    request hard to diagnose. This logs the failure at WARNING and returns
+    FastAPI's standard 422 body unchanged, so clients see no difference.
+    """
+    logger.warning("422 %s %s — %s", request.method, request.url.path, exc.errors())
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
+
+
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all for unhandled errors.
+
+    Logs the traceback and returns a clean JSON body so a failure never leaks a
+    stack trace or an HTML error page. HTTPException keeps its own handler and
+    is unaffected.
+    """
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @asynccontextmanager
@@ -173,11 +219,14 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
-    # Request logging middleware
-    app.add_middleware(RequestLoggingMiddleware)
+    from api.config import _FULL_CONFIG
+
+    # Request logging middleware — requests slower than the configured
+    # threshold (performance.slow_request_ms) are logged at WARNING.
+    slow_request_ms = int(_FULL_CONFIG.get("performance", {}).get("slow_request_ms", 1000))
+    app.add_middleware(RequestLoggingMiddleware, slow_request_ms=slow_request_ms)
 
     # CORS middleware — origins from scoring_config.json viewer.allowed_origins
-    from api.config import _FULL_CONFIG
     default_origins = ["http://localhost:4200", "http://localhost:5000"]
     allowed_origins = _FULL_CONFIG.get("viewer", {}).get("allowed_origins", default_origins)
     app.add_middleware(
@@ -187,6 +236,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Exception handlers — uniform JSON error responses + server-side logging.
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
 
     # Register routers
     from api.routers.health import router as health_router

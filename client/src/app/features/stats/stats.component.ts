@@ -21,6 +21,7 @@ import { GearChartCardComponent, GearItem } from './gear-chart-card.component';
 import { ChartHeightPipe } from './chart-height.pipe';
 import { StatsTimelineTabComponent } from './stats-timeline-tab.component';
 import { StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
+import { downloadCsv } from '../../shared/utils/csv';
 
 Chart.register(...registerables);
 Chart.defaults.color = '#a3a3a3';
@@ -158,8 +159,13 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                 }
 
                 <mat-card class="lg:col-span-2 2xl:col-span-1">
-                  <mat-card-header>
+                  <mat-card-header class="!flex !items-center !justify-between">
                     <mat-card-title>{{ 'stats.score_histogram' | translate }}</mat-card-title>
+                    <button mat-icon-button class="shrink-0" [disabled]="scoreBins().length === 0"
+                      [matTooltip]="'stats.export_csv' | translate"
+                      [attr.aria-label]="'stats.export_csv' | translate" (click)="exportScoreBinsCsv()">
+                      <mat-icon>download</mat-icon>
+                    </button>
                   </mat-card-header>
                   <mat-card-content class="!pt-4">
                     @if (scoreLoading()) {
@@ -178,10 +184,17 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                 <mat-card>
                   <mat-card-header class="!flex !items-center !justify-between">
                     <mat-card-title>{{ 'stats.categories_gear_profile' | translate }}</mat-card-title>
-                    <button mat-icon-button (click)="showGearProfileHelp.set(!showGearProfileHelp())"
-                      [matTooltip]="'stats.gear_profile_help.tooltip' | translate">
-                      <mat-icon>help_outline</mat-icon>
-                    </button>
+                    <div class="flex items-center shrink-0">
+                      <button mat-icon-button [disabled]="categoryStats().length === 0"
+                        [matTooltip]="'stats.export_csv' | translate"
+                        [attr.aria-label]="'stats.export_csv' | translate" (click)="exportCategoriesCsv()">
+                        <mat-icon>download</mat-icon>
+                      </button>
+                      <button mat-icon-button (click)="showGearProfileHelp.set(!showGearProfileHelp())"
+                        [matTooltip]="'stats.gear_profile_help.tooltip' | translate">
+                        <mat-icon>help_outline</mat-icon>
+                      </button>
+                    </div>
                   </mat-card-header>
                   @if (showGearProfileHelp()) {
                     <div class="mx-4 mb-2 text-sm text-gray-400">
@@ -439,6 +452,16 @@ export class StatsComponent {
       const data = await firstValueFrom(this.api.get<TopCamera[]>('/stats/top_cameras', this.filterParams));
       this.topCameras.set(data);
     } catch { /* empty */ }
+  }
+
+  /** Export the per-category statistics table as CSV. */
+  protected exportCategoriesCsv(): void {
+    downloadCsv('facet-categories', this.categoryStats());
+  }
+
+  /** Export the score-distribution histogram as CSV. */
+  protected exportScoreBinsCsv(): void {
+    downloadCsv('facet-score-distribution', this.scoreBins());
   }
 
   private translateCategory(name: string): string {

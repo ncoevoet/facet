@@ -1,6 +1,9 @@
 import { Component, inject, signal, computed, viewChild, ElementRef, effect, Pipe, PipeTransform, DestroyRef } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { Chart } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
@@ -8,6 +11,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
+import { downloadCsv } from '../../shared/utils/csv';
 
 /** Pipe to compute heatmap circle color from count:max. */
 @Pipe({ name: 'heatmapColor', standalone: true })
@@ -41,6 +45,9 @@ interface TimelineEntry {
   imports: [
     MatCardModule,
     MatProgressSpinnerModule,
+    MatButtonModule,
+    MatIconModule,
+    MatTooltipModule,
     TranslatePipe,
     HeatmapColorPipe,
     HeatmapSizePipe,
@@ -48,8 +55,13 @@ interface TimelineEntry {
   template: `
     <div class="mt-4 flex flex-col gap-4">
       <mat-card>
-        <mat-card-header>
+        <mat-card-header class="!flex !items-center !justify-between">
           <mat-card-title>{{ 'stats.photos_over_time' | translate }}</mat-card-title>
+          <button mat-icon-button class="shrink-0" [disabled]="timeline().length === 0"
+            [matTooltip]="'stats.export_csv' | translate"
+            [attr.aria-label]="'stats.export_csv' | translate" (click)="exportCsv()">
+            <mat-icon>download</mat-icon>
+          </button>
         </mat-card-header>
         <mat-card-content class="!pt-4">
           @if (timelineLoading()) {
@@ -258,6 +270,11 @@ export class StatsTimelineTabComponent {
       }
     } catch { /* empty */ }
     finally { this.timelineLoading.set(false); }
+  }
+
+  /** Export the monthly photo timeline as CSV. */
+  exportCsv(): void {
+    downloadCsv('facet-timeline', this.timeline());
   }
 
   private buildAreaLine(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {

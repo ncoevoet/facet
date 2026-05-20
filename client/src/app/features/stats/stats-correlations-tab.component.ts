@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
 import { Chart } from 'chart.js';
@@ -12,6 +13,7 @@ import { ApiService } from '../../core/services/api.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
+import { downloadCsv, CsvValue } from '../../shared/utils/csv';
 
 interface CorrelationApiResponse {
   labels: string[];
@@ -34,14 +36,20 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
     MatFormFieldModule,
     MatSelectModule,
     MatIconModule,
+    MatTooltipModule,
     MatProgressSpinnerModule,
     TranslatePipe,
   ],
   template: `
     <div class="mt-4 flex flex-col gap-4">
       <mat-card>
-        <mat-card-header>
+        <mat-card-header class="!flex !items-center !justify-between">
           <mat-card-title>{{ 'stats.metric_correlations' | translate }}</mat-card-title>
+          <button mat-icon-button class="shrink-0" [disabled]="!corrData()"
+            [matTooltip]="'stats.export_csv' | translate"
+            [attr.aria-label]="'stats.export_csv' | translate" (click)="exportCsv()">
+            <mat-icon>download</mat-icon>
+          </button>
         </mat-card-header>
         <mat-card-content class="!pt-4">
           <!-- Controls: row 1 — X Axis + Group By -->
@@ -190,6 +198,34 @@ export class StatsCorrelationsTabComponent {
       this.corrData.set(data);
     } catch { /* empty */ }
     finally { this.correlationLoading.set(false); }
+  }
+
+  /** Export the loaded correlation buckets as CSV (one row per bucket, or per bucket+group). */
+  exportCsv(): void {
+    const data = this.corrData();
+    if (!data || !data.labels?.length) return;
+    const xCol = data.x_axis || 'x';
+    const records: Record<string, CsvValue>[] = [];
+    if (data.groups && Object.keys(data.groups).length > 0) {
+      const metrics = this.corrYMetrics();
+      for (const [group, byLabel] of Object.entries(data.groups)) {
+        for (const label of data.labels) {
+          const cell = byLabel[label] ?? {};
+          const rec: Record<string, CsvValue> = { [xCol]: label, group };
+          for (const m of metrics) rec[m] = cell[m] ?? null;
+          records.push(rec);
+        }
+      }
+    } else if (data.metrics) {
+      const metricsData = data.metrics;
+      const metrics = Object.keys(metricsData);
+      data.labels.forEach((label, i) => {
+        const rec: Record<string, CsvValue> = { [xCol]: label };
+        for (const m of metrics) rec[m] = metricsData[m]?.[i] ?? null;
+        records.push(rec);
+      });
+    }
+    downloadCsv('facet-correlations', records);
   }
 
   private buildCorrelationChart(apiData: CorrelationApiResponse): void {

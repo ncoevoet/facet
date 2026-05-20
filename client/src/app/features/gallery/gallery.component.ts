@@ -9,8 +9,10 @@ import {
   afterNextRender,
   effect,
   untracked,
+  DestroyRef,
 } from '@angular/core';
-import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatSidenav, MatSidenavModule, MatSidenavContent } from '@angular/material/sidenav';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -181,6 +183,19 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
       </mat-sidenav-content>
     </mat-sidenav-container>
 
+    <!-- Scroll-to-top button -->
+    @if (showScrollTop() && !selectionCount()) {
+      <button
+        mat-mini-fab
+        class="!fixed right-4 lg:right-6 bottom-[60px] lg:bottom-6 z-40"
+        [matTooltip]="'gallery.scroll_to_top' | translate"
+        [attr.aria-label]="'gallery.scroll_to_top' | translate"
+        (click)="scrollToTop()"
+      >
+        <mat-icon>arrow_upward</mat-icon>
+      </button>
+    }
+
     <!-- Slideshow overlay -->
     @if (store.slideshowActive()) {
       <app-slideshow
@@ -279,6 +294,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private readonly scrollDirective = viewChild(InfiniteScrollDirective);
   private readonly filterDrawer = viewChild<MatSidenav>('filterDrawer');
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly scrollContent = viewChild(MatSidenavContent);
+
+  /** True once the gallery content is scrolled far enough to show the scroll-to-top button. */
+  protected readonly showScrollTop = signal(false);
 
   // Sidebar scroll preservation
   private savedFilterScroll = 0;
@@ -393,6 +413,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.isTouchDevice.set(window.matchMedia('(hover: none)').matches);
       this.desktop.setup();
       this.setupResizeObserver();
+      this.setupScrollTracking();
     });
 
     // Sync store.filterDrawerOpen signal → mat-sidenav
@@ -691,5 +712,19 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (this.store.hasMore() && !this.store.loading() && !this.store.initializing()) {
       this.store.nextPage().then(() => this.scrollDirective()?.recheck());
     }
+  }
+
+  /** Toggle the scroll-to-top button based on how far the gallery content is scrolled. */
+  private setupScrollTracking(): void {
+    const content = this.scrollContent();
+    if (!content) return;
+    content.elementScrolled()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.showScrollTop.set(content.measureScrollOffset('top') > 800));
+  }
+
+  /** Smoothly scroll the gallery content back to the top. */
+  protected scrollToTop(): void {
+    this.scrollContent()?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }

@@ -723,6 +723,7 @@
     "avg": "moy",
     "score_distribution": "Distribution des scores",
     "score_histogram": "Histogramme des scores",
+    "export_csv": "Exporter en CSV",
     "timeline": "Chronologie",
     "photos_over_time": "Photos dans le temps",
     "period": "Periode",
@@ -1045,6 +1046,8 @@
     "hide_bursts": "Meilleure de la rafale",
     "hide_duplicates": "Masquer doublons",
     "reset_filters": "Réinitialiser",
+    "scroll_to_top": "Remonter en haut",
+    "photo_grid": "Grille de photos",
     "active_filters": "{count} filtres actifs",
     "unknown_person": "Inconnu",
     "selection": {
