@@ -8,7 +8,7 @@ import time
 logger = logging.getLogger("facet.metrics")
 
 try:
-    import psutil
+    import psutil  # noqa: F401 — import is the availability probe
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False

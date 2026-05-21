@@ -8,9 +8,8 @@ import sqlite3
 from db import get_connection
 import numpy as np
 import time
-from pathlib import Path
 
-from utils import bytes_to_embedding
+from utils import bytes_to_embedding, load_image_for_face_crop, crop_face_with_padding
 from faces.processor import FaceProcessor
 
 import logging
@@ -136,7 +135,6 @@ class FaceClusterer:
                    If False (default), preserve all existing persons and match new faces to them.
             preserve_named_only: If True, only preserve named persons, delete unnamed ones.
         """
-        import time
         import hdbscan  # Use standalone library, not sklearn (sklearn has epsilon bug)
 
         if force:
@@ -214,7 +212,7 @@ class FaceClusterer:
 
         # Print summary
         unique_labels = set(labels)
-        n_clusters = len([l for l in unique_labels if l >= 0])
+        n_clusters = len([lbl for lbl in unique_labels if lbl >= 0])
         n_noise = list(labels).count(-1)
         logger.info("\nClustering complete in %.1fs total", t4-t0)
         logger.info("Found %s person clusters, %s unclustered faces", n_clusters, n_noise)

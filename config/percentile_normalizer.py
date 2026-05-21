@@ -6,7 +6,6 @@ Dataset-aware normalization using percentile values.
 
 import json
 import logging
-import os
 import sqlite3
 from db import get_connection
 
@@ -198,7 +197,6 @@ class PercentileNormalizer:
         Spearman correlation captures monotonic (not just linear) relationships,
         making it better for scoring metrics that may have nonlinear effects.
         """
-        import math
         if len(x) != len(y) or len(x) < 10:
             return None
 
@@ -382,12 +380,12 @@ class PercentileNormalizer:
         # Most recent change
         last = applied[0]
         last_old = last.get('old_value')
-        last_proposed = last.get('proposed_value')
+        last.get('proposed_value')
 
         # Second most recent
         prev = applied[1]
-        prev_old = prev.get('old_value')
-        prev_proposed = prev.get('proposed_value')
+        prev.get('old_value')
+        prev.get('proposed_value')
 
         # Check if current proposal reverses the last change
         # Pattern: prev_old -> prev_proposed -> last_old -> last_proposed
@@ -492,7 +490,6 @@ class PercentileNormalizer:
             normalizer: Optional PercentileNormalizer instance for normalization-aware analysis.
         """
         issues = []
-        import math
 
         # Extract normalization context if available
         norm_target = normalizer.target_percentile if normalizer else None
@@ -501,8 +498,8 @@ class PercentileNormalizer:
 
         # Get analysis thresholds from config
         analysis = config.get_analysis_settings() if config else {}
-        aesthetic_max_threshold = analysis.get('aesthetic_max_threshold', 9.0)
-        aesthetic_target = analysis.get('aesthetic_target', 9.5)
+        analysis.get('aesthetic_max_threshold', 9.0)
+        analysis.get('aesthetic_target', 9.5)
         quality_avg_threshold = analysis.get('quality_avg_threshold', 7.5)
         quality_weight_threshold = analysis.get('quality_weight_threshold_percent', 10) / 100
         correlation_threshold = analysis.get('correlation_dominant_threshold', 0.5)
@@ -526,7 +523,7 @@ class PercentileNormalizer:
         sample = conn.execute(
             "SELECT scoring_model FROM photos WHERE scoring_model IS NOT NULL LIMIT 1"
         ).fetchone()
-        scoring_model = sample[0] if sample else 'clip-mlp'
+        sample[0] if sample else 'clip-mlp'
 
         # === Pre-fetch all metric values and correlations ===
         score_cols = ['aesthetic', 'tech_sharpness', 'exposure_score', 'color_score',
@@ -758,7 +755,7 @@ class PercentileNormalizer:
                             lower = col_b if w_b <= w_a else col_a
                             w_lower_pct = int(weight_map.get(lower, 0) * 100)
                             w_higher = col_a if lower == col_b else col_b
-                            w_higher_pct = int(weight_map.get(w_higher, 0) * 100)
+                            int(weight_map.get(w_higher, 0) * 100)
                             issues.append({
                                 'issue_type': 'collinearity',
                                 'description': f"{col_a} and {col_b} are highly correlated (r={corr:.3f}) — combined weight is effectively doubled",
@@ -768,7 +765,7 @@ class PercentileNormalizer:
                                                f"influence is {int(w_a*100)+int(w_b*100)}% — much more than intended. "
                                                f"Reducing {lower} ({w_lower_pct}%) avoids double-counting the same signal.",
                                 'proposals': [{
-                                    'location': f'scoring_config.json -> weights',
+                                    'location': 'scoring_config.json -> weights',
                                     'change': f'Consider reducing weight of {lower}',
                                     'reason': f'Collinearity r={corr:.3f} means redundant scoring'
                                 }],
@@ -921,7 +918,7 @@ class PercentileNormalizer:
                                    f"'great' from 'outstanding'. Scaling or adjusting normalization for {col} would "
                                    f"spread out the top scores.",
                     'proposals': [{
-                        'location': f'scoring_config.json',
+                        'location': 'scoring_config.json',
                         'change': f'Adjust scale or normalization for {col}',
                         'reason': f'p90/max ratio > {ceiling_threshold}'
                     }],
@@ -1115,10 +1112,10 @@ class PercentileNormalizer:
             issues.append({
                 'issue_type': 'missing_data',
                 'description': f"Missing metrics detected: {detail}",
-                'explanation': f"Some photos have NULL values for key scoring metrics. This typically happens "
-                               f"when photos were added before a metric was introduced, when scoring was "
-                               f"interrupted, or when a model wasn't available during scanning. These photos "
-                               f"get incomplete aggregates. Run 'python facet.py /path --force' to rescan them.",
+                'explanation': "Some photos have NULL values for key scoring metrics. This typically happens "
+                               "when photos were added before a metric was introduced, when scoring was "
+                               "interrupted, or when a model wasn't available during scanning. These photos "
+                               "get incomplete aggregates. Run 'python facet.py /path --force' to rescan them.",
                 'proposals': [{
                     'location': 'Command line',
                     'change': 'Run re-scan for photos with missing metrics',
@@ -2021,7 +2018,6 @@ class PercentileNormalizer:
         Returns:
             Path to backup file if created, None otherwise
         """
-        import json
         import shutil
         from datetime import datetime
 

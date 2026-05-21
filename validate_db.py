@@ -10,7 +10,6 @@ Usage:
 
 import argparse
 import logging
-import sys
 
 from db import DEFAULT_DB_PATH, get_connection
 from validation import DatabaseValidator

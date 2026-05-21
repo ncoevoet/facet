@@ -427,7 +427,7 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
         logger.info("  Downsizing %d thumbnails to %dpx...", total, thumbnail_size)
 
     try:
-        from tqdm import tqdm
+        from tqdm import tqdm  # noqa: F401 — import is the availability probe
         use_tqdm = True
     except ImportError:
         use_tqdm = False

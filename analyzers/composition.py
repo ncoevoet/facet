@@ -7,7 +7,6 @@ Rule-of-thirds, golden ratio, leading lines detection.
 import cv2
 import numpy as np
 
-from analyzers.image_cache import ImageCache
 
 class CompositionAnalyzer:
     """Evaluates the mathematical placement of subjects within the frame."""

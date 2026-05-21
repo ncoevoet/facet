@@ -110,7 +110,6 @@ def main() -> int:
     t0 = time.monotonic()
     scored = 0
     failed = 0
-    BATCH_SIZE = 1  # qalign is heavy; per-image keeps VRAM stable
     for i, path in enumerate(paths, 1):
         try:
             img = Image.open(path).convert("RGB")

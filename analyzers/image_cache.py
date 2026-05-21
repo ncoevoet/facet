@@ -3,7 +3,6 @@ Image cache for pre-computed transformations.
 """
 
 import cv2
-import numpy as np
 
 class ImageCache:
     """

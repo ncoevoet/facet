@@ -69,9 +69,11 @@ def main() -> int:
     args = p.parse_args()
 
     if not args.db.exists():
-        log.error("DB not found: %s", args.db); return 1
+        log.error("DB not found: %s", args.db)
+        return 1
     if not args.weights.exists():
-        log.error("Weights not found: %s", args.weights); return 1
+        log.error("Weights not found: %s", args.weights)
+        return 1
 
     state = torch.load(args.weights, map_location="cpu", weights_only=False)
     dim = state["embedding_dim"]

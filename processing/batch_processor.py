@@ -13,8 +13,6 @@ from pathlib import Path
 
 logger = logging.getLogger("facet.batch")
 
-import cv2
-import numpy as np
 import torch
 import imagehash
 from tqdm import tqdm

@@ -181,7 +181,7 @@ class ResourceMonitor:
             try:
                 self._collect_metrics()
                 self._apply_tuning()
-            except Exception as e:
+            except Exception:
                 pass  # Don't crash the monitor on errors
 
             # Sleep in small increments to allow quick shutdown

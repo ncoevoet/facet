@@ -30,7 +30,6 @@ import os
 import sqlite3
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime
 
 logger = logging.getLogger("facet.calibrate")
 
@@ -569,7 +568,8 @@ def evaluate_category_detection(matched: list[dict]) -> None:
     ))
     if active_ava and active_facet:
         logger.info("  Confusion matrix (AVA rows x Facet columns, >=50 AVA photos):")
-        header = f"  {'AVA \\ Facet':<18}" + ''.join(f'{c[:8]:>9}' for c in active_facet)
+        ava_facet_label = 'AVA \\ Facet'
+        header = f"  {ava_facet_label:<18}" + ''.join(f'{c[:8]:>9}' for c in active_facet)
         logger.info("%s", header)
         logger.info("  %s", "-" * len(header))
         for ac in active_ava:
@@ -729,7 +729,7 @@ def _analyze_numeric_filters(
         if not correct_vals or not misclass_vals:
             continue
 
-        correct_arr = np.array(correct_vals)
+        np.array(correct_vals)
         misclass_arr = np.array(misclass_vals)
 
         # Sweep thresholds to find better boundary
@@ -738,7 +738,6 @@ def _analyze_numeric_filters(
             candidates = np.percentile(misclass_arr, [5, 10, 15, 20, 25])
             best_threshold = current_threshold
             best_gain = 0
-            best_loss = 0
 
             for candidate in candidates:
                 if candidate >= current_threshold:
@@ -751,7 +750,6 @@ def _analyze_numeric_filters(
                 net = gained - lost
                 if net > best_gain:
                     best_gain = net
-                    best_loss = lost
                     best_threshold = float(candidate)
 
             if best_gain > 0 and best_threshold != current_threshold:

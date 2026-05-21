@@ -8,9 +8,7 @@ Processes files in chunks of 50 to avoid command-line limits and enable timeout 
 import atexit
 import json
 import logging
-import os
 import subprocess
-import time
 from pathlib import Path
 
 logger = logging.getLogger("facet.exiftool")

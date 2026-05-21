@@ -123,3 +123,26 @@ exclude = ["venv*", "client*", "docs*", "photos_all*", "pretrained_models*"]
 "i18n" = ["*.json"]
 # Pre-built Angular client included in package
 "api" = ["../client/dist/client/browser/**/*"]
+
+[tool.ruff.lint.per-file-ignores]
+# These modules intentionally run setup code before their imports — sys.path
+# bootstrapping (so a script works when run from any directory) and
+# warnings.filterwarnings. Reordering the imports would break that setup, so
+# E402 (module-import-not-at-top) is expected and suppressed here.
+#
+# __init__.py files re-export submodule symbols as the package's public API —
+# the imports are intentional even when unused within __init__.py itself.
+"**/__init__.py" = ["F401"]
+"analyzers/face.py" = ["E402"]
+"calibrate.py" = ["E402"]
+"config/percentile_normalizer.py" = ["E402"]
+"config/scoring_config.py" = ["E402"]
+"database.py" = ["E402"]
+"db/stats_cache.py" = ["E402"]
+"db/tags.py" = ["E402"]
+"facet.py" = ["E402"]
+"faces/processor.py" = ["E402"]
+"processing/batch_processor.py" = ["E402"]
+"processing/resource_monitor.py" = ["E402"]
+"processing/scorer.py" = ["E402"]
+"tag_existing.py" = ["E402"]

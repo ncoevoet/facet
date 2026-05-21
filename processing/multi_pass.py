@@ -15,12 +15,9 @@ Key features:
 
 import gc
 import logging
-import os
 import time
-import threading
-import queue
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Callable, Tuple, Iterator
+from typing import List, Dict, Any
 
 from tqdm import tqdm
 
@@ -424,7 +421,7 @@ class ChunkedMultiPassProcessor:
         _ensure_imports()
         import imagehash
         from utils import load_image_from_path, _rawpy_lock
-        from analyzers import TechnicalAnalyzer, CompositionAnalyzer, ImageCache
+        from analyzers import TechnicalAnalyzer, ImageCache
 
         # Get a TechnicalAnalyzer instance (stateless, so we can create one)
         tech_analyzer = TechnicalAnalyzer()
@@ -707,7 +704,7 @@ class ChunkedMultiPassProcessor:
             color = img_data.get('color', {})
             histogram = img_data.get('histogram', {})
             mono = img_data.get('mono', {})
-            dynamic_range = img_data.get('dynamic_range', {})
+            img_data.get('dynamic_range', {})
             noise = img_data.get('noise', {})
             contrast = img_data.get('contrast', {})
 

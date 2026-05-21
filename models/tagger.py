@@ -5,7 +5,6 @@ Uses CLIP/SigLIP embeddings to generate semantic tags for images based on
 similarity to predefined tag vocabulary.
 """
 
-import numpy as np
 
 from utils import bytes_to_embedding
 
@@ -55,7 +54,6 @@ class CLIPTagger:
 
     def _precompute_text_embeddings(self):
         """Precompute text embeddings for all tag vocabulary."""
-        import torch
 
         if self.model is None:
             return

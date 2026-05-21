@@ -4,12 +4,10 @@ Database consistency validation for Facet.
 
 import logging
 import sqlite3
-from collections import defaultdict
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
-import numpy as np
 
-from db import DEFAULT_DB_PATH, get_connection
+from db import get_connection
 from validation.validation_result import ValidationResult
 
 logger = logging.getLogger("facet.validator")

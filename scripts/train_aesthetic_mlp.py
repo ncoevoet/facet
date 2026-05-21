@@ -141,9 +141,11 @@ def main() -> int:
     torch.manual_seed(SEED)
 
     if not args.db.exists():
-        log.error("DB not found: %s", args.db); return 1
+        log.error("DB not found: %s", args.db)
+        return 1
     if not args.ava.exists():
-        log.error("AVA.txt not found: %s", args.ava); return 1
+        log.error("AVA.txt not found: %s", args.ava)
+        return 1
 
     log.info("Loading AVA ground truth from %s", args.ava)
     mos = load_ava(args.ava)

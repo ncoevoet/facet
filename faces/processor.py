@@ -5,18 +5,15 @@ Producer-consumer processor for parallel face operations.
 """
 
 import logging
-import sqlite3
 from db import get_connection
-import numpy as np
 import threading
 import queue
 import time
-from pathlib import Path
 
 logger = logging.getLogger("facet.face_processor")
 
-from utils import load_image_from_path, crop_face_with_padding, bytes_to_embedding, load_image_for_face_crop
-from faces.resource_monitor import FaceResourceMonitor, HAS_PSUTIL
+from utils import load_image_from_path, crop_face_with_padding, load_image_for_face_crop
+from faces.resource_monitor import FaceResourceMonitor
 
 try:
     from tqdm import tqdm
@@ -95,7 +92,6 @@ class FaceProcessor:
 
     def _worker_thread_extract(self):
         """Worker thread for face extraction (GPU face detection)."""
-        from PIL import ImageOps
 
         while not self.stop_event.is_set():
             try:
@@ -137,7 +133,7 @@ class FaceProcessor:
                 with self.metrics_lock:
                     self.metrics['processed'] += 1
 
-            except Exception as e:
+            except Exception:
                 with self.metrics_lock:
                     self.metrics['errors'] += 1
                 self.result_queue.put(None)
@@ -197,7 +193,7 @@ class FaceProcessor:
                     self.metrics['processed'] += 1
                     self.metrics['total_bytes'] += len(thumbnail_bytes)
 
-            except Exception as e:
+            except Exception:
                 with self.metrics_lock:
                     self.metrics['errors'] += 1
                 self.result_queue.put(None)

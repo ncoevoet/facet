@@ -593,7 +593,6 @@ class Facet:
         TOPIQ for aesthetics instead.
         """
         # Check if current CLIP model is compatible with the MLP head (768-dim only)
-        clip_model_name = self._clip_model_name
         clip_config = self.config.get_clip_config()
         embedding_dim = clip_config.get('embedding_dim', 768)
 
@@ -850,10 +849,9 @@ class Facet:
         score_max = scoring_limits.get('score_max', 10.0)
 
         # Get thresholds from config (stored as percentages)
-        portrait_ratio = 0.05
         blink_penalty = 0.5
         if cfg:
-            portrait_ratio = (cfg.get_threshold('portrait_face_ratio_percent') or 5) / 100
+            (cfg.get_threshold('portrait_face_ratio_percent') or 5) / 100
             blink_penalty = (cfg.get_threshold('blink_penalty_percent') or 50) / 100
 
         safe_float = _safe_float
@@ -908,8 +906,8 @@ class Facet:
         leading_lines_blend = penalties['leading_lines_blend']
 
         # Quality score (stored for compatibility but not used in aggregate)
-        quality_score = safe_float(m.get('quality_score'), 5.0)
-        scoring_model = m.get('scoring_model', 'clip-mlp')
+        safe_float(m.get('quality_score'), 5.0)
+        m.get('scoring_model', 'clip-mlp')
 
         # Determine photo category using helper
         category = self._determine_photo_category(m, cfg)
@@ -933,7 +931,6 @@ class Facet:
             comp = comp_raw
 
         # Quality weight is redistributed to aesthetic (no separate quality signal)
-        quality_weight = 0.0
         aes_extra = w.get('quality', 0.0)
 
         # =================================================================
@@ -1392,7 +1389,7 @@ class Facet:
             for row in tqdm(rows, desc="Recomputing composition"):
                 path = row['path']
                 thumbnail_blob = row['thumbnail']
-                face_count = row['face_count'] or 0
+                row['face_count'] or 0
 
                 if not thumbnail_blob:
                     continue

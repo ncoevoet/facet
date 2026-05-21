@@ -36,11 +36,9 @@ CLI Usage:
 
 import json
 import logging
-import math
 import shutil
-import sqlite3
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 import numpy as np
 from scipy.optimize import minimize
 from db import DEFAULT_DB_PATH, get_connection
