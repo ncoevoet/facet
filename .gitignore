@@ -16,6 +16,9 @@ env/
 debug.log
 *.db
 *.db.backup.*
+*.db-shm
+*.db-wal
+*.db-journal
 pretrained_models/
 aesthetic_predictor_weights.pth
 
@@ -29,6 +32,7 @@ scoring_config.json.backup.*
 # Claude Code
 .claude/todos.md
 .claude/snapshot*.txt
+.claude/review-all/
 .codegraph/
 
 # Build output
