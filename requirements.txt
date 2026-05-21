@@ -67,3 +67,6 @@ aiosqlite>=0.20.0
 # GPU Face Clustering (optional, requires conda + CUDA)
 # cuml
 # cupy
+
+# Testing — async test support (tests/test_async_db.py uses @pytest.mark.asyncio)
+pytest-asyncio>=0.23.0
