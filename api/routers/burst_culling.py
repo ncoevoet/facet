@@ -310,7 +310,6 @@ async def select_burst_photos(
                     reject_paths,
                 )
 
-            conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
             conn.commit()
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(group_paths - keep_set)}
 
@@ -423,7 +422,6 @@ async def select_similar_photos(
                     all_paths + vis_params,
                 )
 
-            conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
             conn.commit()
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
 
@@ -559,12 +557,46 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
     return result
 
 
+def _get_rejected_paths(conn, user_id):
+    """Fetch set of rejected paths for the current user."""
+    from_clause, from_params = get_photos_from_clause(user_id)
+    is_rejected_col = "COALESCE(up.is_rejected, 0)" if (user_id and is_multi_user_enabled()) else "photos.is_rejected"
+    rows = conn.execute(
+        f"SELECT photos.path FROM {from_clause} WHERE {is_rejected_col} = 1",
+        from_params
+    ).fetchall()
+    return {r['path'] for r in rows}
+
+
+def _filter_similar_groups(conn, all_groups, user_id):
+    """Filter out rejected photos from precomputed similarity groups on read."""
+    rejected_paths = _get_rejected_paths(conn, user_id)
+    if not rejected_paths:
+        return all_groups
+
+    filtered = []
+    for g in all_groups:
+        paths = [p for p in g['paths'] if p not in rejected_paths]
+        if len(paths) >= 2:
+            best_path = g['best_path']
+            if best_path in rejected_paths:
+                best_path = paths[0]
+            filtered.append({
+                'paths': paths,
+                'best_path': best_path,
+                'count': len(paths)
+            })
+    return filtered
+
+
 def _count_unreviewed_similar_groups(conn, threshold, user_id, seed, exclude_rejected=False):
     """Return (count, shuffled_groups) for unreviewed similar groups.
 
     The shuffled groups list is lightweight (paths only, no photo data).
     """
-    all_groups = compute_similarity_groups(conn, threshold=threshold, user_id=user_id, exclude_rejected=exclude_rejected)
+    all_groups = compute_similarity_groups(conn, threshold=threshold, user_id=user_id)
+    if exclude_rejected:
+        all_groups = _filter_similar_groups(conn, all_groups, user_id)
     if not all_groups:
         return 0, []
     shuffled = list(all_groups)
@@ -581,7 +613,9 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
         offset: The global offset of the first group in page_groups (for group_id assignment).
     """
     if page_groups is None:
-        all_groups = compute_similarity_groups(conn, threshold=threshold, user_id=user_id, exclude_rejected=exclude_rejected)
+        all_groups = compute_similarity_groups(conn, threshold=threshold, user_id=user_id)
+        if exclude_rejected:
+            all_groups = _filter_similar_groups(conn, all_groups, user_id)
         if not all_groups:
             return []
         shuffled = list(all_groups)
@@ -601,13 +635,18 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
     results = []
     for group_idx, group in enumerate(page_groups):
         photo_list = photos_by_group.get(group_idx, [])
+        best_path = group['best_path']
+        if exclude_rejected and photo_list:
+            if best_path not in {p['path'] for p in photo_list}:
+                best_path = photo_list[0]['path']
+                
         results.append({
             'group_id': offset + group_idx,
             'type': 'similar',
             'reason': reason,
             'photos': photo_list,
-            'best_path': group['best_path'],
-            'count': group['count'],
+            'best_path': best_path,
+            'count': len(photo_list),
             'similarity_percent': sim_pct,
         })
 
