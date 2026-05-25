@@ -23,6 +23,17 @@ from utils.date_utils import parse_date
 
 logger = logging.getLogger(__name__)
 
+
+def _rejected_clause(user_id):
+    """Return (from_clause, from_params, is_rejected_col) for filtering rejected photos."""
+    from_clause, from_params = get_photos_from_clause(user_id)
+    if user_id and is_multi_user_enabled():
+        is_rejected_col = "COALESCE(up.is_rejected, 0)"
+    else:
+        is_rejected_col = "photos.is_rejected"
+    return from_clause, from_params, is_rejected_col
+
+
 router = APIRouter(tags=["burst_culling"])
 
 
@@ -112,8 +123,7 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
     Each group is a dict from ``_format_group`` keyed by burst_group_id.
     """
     if exclude_rejected:
-        from_clause, from_params = get_photos_from_clause(user_id)
-        is_rejected_col = "COALESCE(up.is_rejected, 0)" if (user_id and is_multi_user_enabled()) else "photos.is_rejected"
+        from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
         count_row = conn.execute(
             f"""SELECT COUNT(*) as cnt FROM (
                     SELECT burst_group_id
@@ -198,8 +208,7 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
     if gid_list:
         placeholders = ','.join('?' * len(gid_list))
         if exclude_rejected:
-            from_clause, from_params = get_photos_from_clause(user_id)
-            is_rejected_col = "COALESCE(up.is_rejected, 0)" if (user_id and is_multi_user_enabled()) else "photos.is_rejected"
+            from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
             all_photos = conn.execute(
                 f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
                            tech_sharpness, is_blink, is_burst_lead, burst_group_id
@@ -463,8 +472,7 @@ def _enrich_burst_group(group):
 def _count_unreviewed_burst_groups(conn, vis_sql, vis_params, exclude_rejected=False, user_id=None):
     """Return the count of unreviewed burst groups."""
     if exclude_rejected:
-        from_clause, from_params = get_photos_from_clause(user_id)
-        is_rejected_col = "COALESCE(up.is_rejected, 0)" if (user_id and is_multi_user_enabled()) else "photos.is_rejected"
+        from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
         row = conn.execute(
             f"""SELECT COUNT(*) as cnt FROM (
                     SELECT burst_group_id
@@ -518,8 +526,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
     placeholders = ','.join('?' * len(unique_paths))
     
     if exclude_rejected:
-        from_clause, from_params = get_photos_from_clause(user_id)
-        is_rejected_col = "COALESCE(up.is_rejected, 0)" if (user_id and is_multi_user_enabled()) else "photos.is_rejected"
+        from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
         rows = conn.execute(
             f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
                        tech_sharpness, is_blink
@@ -559,8 +566,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
 
 def _get_rejected_paths(conn, user_id):
     """Fetch set of rejected paths for the current user."""
-    from_clause, from_params = get_photos_from_clause(user_id)
-    is_rejected_col = "COALESCE(up.is_rejected, 0)" if (user_id and is_multi_user_enabled()) else "photos.is_rejected"
+    from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
     rows = conn.execute(
         f"SELECT photos.path FROM {from_clause} WHERE {is_rejected_col} = 1",
         from_params
@@ -636,6 +642,9 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
     for group_idx, group in enumerate(page_groups):
         photo_list = photos_by_group.get(group_idx, [])
         best_path = group['best_path']
+        # When page_groups are pre-sliced by the caller, _filter_similar_groups
+        # already fixed best_path. But _fetch_similar_group_photos may have
+        # further filtered photos (e.g. visibility), so a final check is needed.
         if exclude_rejected and photo_list:
             if best_path not in {p['path'] for p in photo_list}:
                 best_path = photo_list[0]['path']

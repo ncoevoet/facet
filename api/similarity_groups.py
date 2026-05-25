@@ -30,7 +30,7 @@ def _get_similarity_config():
         return {'default_threshold': 0.85, 'min_group_size': 2, 'max_photos': 10000, 'max_group_size': 50}
 
 
-def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=None, exclude_rejected=False):
+def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=None):
     """
     Compute groups of visually similar photos using stored CLIP/SigLIP embeddings.
 
@@ -43,7 +43,6 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
                    Defaults to scoring_config similarity_groups.default_threshold.
         min_size: Minimum group size. Defaults to scoring_config similarity_groups.min_group_size.
         user_id: Optional user ID for visibility filtering in multi-user mode.
-        exclude_rejected: Exclude rejected photos from similarity culling.
 
     Returns:
         List of groups, each: { paths: [...], best_path: str, count: int }
@@ -66,7 +65,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         vis_sql, vis_params = get_visibility_clause(user_id)
 
         # Check cache first
-        cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_10k_{exclude_rejected}"
+        cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_10k"
         cached = conn.execute(
             "SELECT value, updated_at FROM stats_cache WHERE key = ?",
             (cache_key,)
@@ -81,32 +80,16 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         # Exclude burst non-leads to avoid overlap with burst culling. The
         # similarity_reviewed column is guaranteed present by the lifespan
         # init_database() migration (api/__init__.py:lifespan).
-        if exclude_rejected:
-            from api.db_helpers import get_photos_from_clause, is_multi_user_enabled
-            from_clause, from_params = get_photos_from_clause(user_id)
-            is_rejected_col = "COALESCE(up.is_rejected, 0)" if (user_id and is_multi_user_enabled()) else "photos.is_rejected"
-            rows = conn.execute(
-                f"""SELECT photos.path, clip_embedding, aggregate FROM {from_clause}
-                   WHERE clip_embedding IS NOT NULL
-                     AND (is_burst_lead = 1 OR is_burst_lead IS NULL)
-                     AND (similarity_reviewed IS NULL OR similarity_reviewed = 0)
-                     AND {vis_sql}
-                     AND {is_rejected_col} = 0
-                   ORDER BY date_taken DESC
-                   LIMIT ?""",
-                from_params + vis_params + [max_photos]
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                f"""SELECT path, clip_embedding, aggregate FROM photos
-                   WHERE clip_embedding IS NOT NULL
-                     AND (is_burst_lead = 1 OR is_burst_lead IS NULL)
-                     AND (similarity_reviewed IS NULL OR similarity_reviewed = 0)
-                     AND {vis_sql}
-                   ORDER BY date_taken DESC
-                   LIMIT ?""",
-                vis_params + [max_photos]
-            ).fetchall()
+        rows = conn.execute(
+            f"""SELECT path, clip_embedding, aggregate FROM photos
+               WHERE clip_embedding IS NOT NULL
+                 AND (is_burst_lead = 1 OR is_burst_lead IS NULL)
+                 AND (similarity_reviewed IS NULL OR similarity_reviewed = 0)
+                 AND {vis_sql}
+               ORDER BY date_taken DESC
+               LIMIT ?""",
+            vis_params + [max_photos]
+        ).fetchall()
 
         if len(rows) < 2:
             return []
