@@ -1565,6 +1565,7 @@
   },
   "culling": {
     "title": "Sélection",
+    "exclude_rejected": "Exclure les rejetées",
     "no_bursts": "Aucun groupe à examiner",
     "group_progress": "Groupe {current} sur {total}",
     "auto_best": "MEILLEUR",

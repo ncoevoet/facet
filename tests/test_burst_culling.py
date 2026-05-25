@@ -155,3 +155,40 @@ class TestBurstGroupsEndpoint:
 
         assert resp.status_code == 400
         assert "not in burst group" in resp.json()["detail"].lower()
+
+
+class TestCullingGroupsEndpoint:
+    @pytest.fixture()
+    def client(self):
+        from fastapi.testclient import TestClient
+        from api import create_app
+        from api.auth import get_optional_user, require_edition, CurrentUser
+
+        app = create_app()
+        fake_user = CurrentUser(user_id="test", edition_authenticated=True)
+        app.dependency_overrides[get_optional_user] = lambda: fake_user
+        app.dependency_overrides[require_edition] = lambda: fake_user
+        yield TestClient(app)
+        app.dependency_overrides.clear()
+
+    def test_get_culling_groups_exclude_rejected(self, client):
+        mock_conn = mock.MagicMock()
+
+        # Mock count/queries to return empty lists cleanly
+        count_row = mock.MagicMock()
+        count_row.__getitem__ = lambda self, k: 0
+        mock_conn.execute.return_value.fetchone.return_value = count_row
+        mock_conn.execute.return_value.fetchall.return_value = []
+
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
+            mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.routers.burst_culling.compute_similarity_groups", return_value=[]),
+        ):
+            resp = client.get("/api/culling-groups?exclude_rejected=true")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["groups"] == []
+        assert body["total_groups"] == 0
+

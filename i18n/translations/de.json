@@ -1569,6 +1569,7 @@
   },
   "culling": {
     "title": "Aussortierung",
+    "exclude_rejected": "Abgelehnte ausschließen",
     "no_bursts": "Keine Gruppen zu prüfen",
     "group_progress": "Gruppe {current} von {total}",
     "auto_best": "BESTE",

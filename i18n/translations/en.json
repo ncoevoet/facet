@@ -1563,6 +1563,7 @@
   },
   "culling": {
     "title": "Culling",
+    "exclude_rejected": "Exclude rejected",
     "no_bursts": "No groups to review",
     "group_progress": "Group {current} of {total}",
     "auto_best": "BEST",
