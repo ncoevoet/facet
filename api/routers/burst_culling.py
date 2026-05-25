@@ -310,6 +310,7 @@ async def select_burst_photos(
                     reject_paths,
                 )
 
+            conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
             conn.commit()
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(group_paths - keep_set)}
 
@@ -422,6 +423,7 @@ async def select_similar_photos(
                     all_paths + vis_params,
                 )
 
+            conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
             conn.commit()
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
 

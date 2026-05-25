@@ -344,6 +344,7 @@ def api_toggle_rejected(
                     conn.execute("UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path = ?", (body.photo_path,))
                 else:
                     conn.execute("UPDATE photos SET is_rejected = 0 WHERE path = ?", (body.photo_path,))
+            conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
             conn.commit()
             _stats_cache.clear()
             return {'success': True, 'is_rejected': new_value == 1, 'star_rating': 0 if new_value == 1 else None, 'is_favorite': False if new_value == 1 else None}
@@ -373,6 +374,7 @@ def _batch_update(
                 conn.executemany(multi_user_sql, multi_user_params)
             else:
                 conn.execute(single_user_sql, single_user_params)
+            conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
             conn.commit()
             _stats_cache.clear()
             return {'success': True, 'count': len(photo_paths)}
