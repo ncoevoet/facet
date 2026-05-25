@@ -30,7 +30,7 @@ def _rejected_clause(user_id):
     if user_id and is_multi_user_enabled():
         is_rejected_col = "COALESCE(up.is_rejected, 0)"
     else:
-        is_rejected_col = "photos.is_rejected"
+        is_rejected_col = "COALESCE(photos.is_rejected, 0)"
     return from_clause, from_params, is_rejected_col
 
 
@@ -645,7 +645,7 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
         # When page_groups are pre-sliced by the caller, _filter_similar_groups
         # already fixed best_path. But _fetch_similar_group_photos may have
         # further filtered photos (e.g. visibility), so a final check is needed.
-        if exclude_rejected and photo_list:
+        if photo_list:
             if best_path not in {p['path'] for p in photo_list}:
                 best_path = photo_list[0]['path']
                 
