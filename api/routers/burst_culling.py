@@ -431,6 +431,13 @@ async def select_similar_photos(
                     all_paths + vis_params,
                 )
 
+            # Invalidate similarity-groups cache: the kept photos now carry
+            # similarity_reviewed=1 and must be excluded from subsequent group
+            # computations. Read-time _filter_similar_groups only handles
+            # is_rejected, so without this DELETE the cache may show kept
+            # photos as still-unreviewed for up to the 1h TTL.
+            conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
+
             conn.commit()
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
 
@@ -575,7 +582,14 @@ def _get_rejected_paths(conn, user_id):
 
 
 def _filter_similar_groups(conn, all_groups, user_id):
-    """Filter out rejected photos from precomputed similarity groups on read."""
+    """Filter out rejected photos from precomputed similarity groups on read.
+
+    best_path may still point to a rejected path after this filter; the
+    rejected photo is excluded from the visible photo list downstream by
+    _fetch_similar_group_photos (exclude_rejected=True), and
+    _fetch_unreviewed_similar_groups then falls back to the aggregate-top
+    of the visible set.
+    """
     rejected_paths = _get_rejected_paths(conn, user_id)
     if not rejected_paths:
         return all_groups
@@ -584,13 +598,10 @@ def _filter_similar_groups(conn, all_groups, user_id):
     for g in all_groups:
         paths = [p for p in g['paths'] if p not in rejected_paths]
         if len(paths) >= 2:
-            best_path = g['best_path']
-            if best_path in rejected_paths:
-                best_path = paths[0]
             filtered.append({
                 'paths': paths,
-                'best_path': best_path,
-                'count': len(paths)
+                'best_path': g['best_path'],
+                'count': len(paths),
             })
     return filtered
 
@@ -645,17 +656,16 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
         # When page_groups are pre-sliced by the caller, _filter_similar_groups
         # already fixed best_path. But _fetch_similar_group_photos may have
         # further filtered photos (e.g. visibility), so a final check is needed.
-        if photo_list:
-            if best_path not in {p['path'] for p in photo_list}:
-                best_path = photo_list[0]['path']
-                
+        if photo_list and best_path not in {p['path'] for p in photo_list}:
+            best_path = photo_list[0]['path']
+
         results.append({
             'group_id': offset + group_idx,
             'type': 'similar',
             'reason': reason,
             'photos': photo_list,
             'best_path': best_path,
-            'count': len(photo_list),
+            'count': group['count'],
             'similarity_percent': sim_pct,
         })
 

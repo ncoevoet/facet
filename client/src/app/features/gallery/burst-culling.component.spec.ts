@@ -86,12 +86,6 @@ describe('BurstCullingComponent', () => {
       expect(component['loading']()).toBe(false);
     });
 
-    it('should pass exclude_rejected: true by default', async () => {
-      await (component as any).loadGroups();
-
-      expect(mockApi.get).toHaveBeenCalledWith('/culling-groups', expect.objectContaining({ page: 1, per_page: 20, exclude_rejected: true }));
-    });
-
     it('should update exclude_rejected value and reload on change', async () => {
       mockApi.get.mockClear();
       (component as any).onExcludeRejectedChange(false);

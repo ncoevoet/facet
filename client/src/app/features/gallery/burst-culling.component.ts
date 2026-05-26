@@ -107,7 +107,9 @@ interface CullingGroupsResponse {
       <div class="flex items-center gap-3 shrink-0 mb-3">
         <h2 class="text-lg font-semibold">{{ 'culling.title' | translate }}</h2>
         <div class="flex flex-wrap items-center gap-3 md:gap-4 ml-auto">
-          <mat-checkbox [checked]="excludeRejected()" (change)="onExcludeRejectedChange($event.checked)" class="text-xs opacity-80">
+          <mat-checkbox [checked]="excludeRejected()" (change)="onExcludeRejectedChange($event.checked)"
+                        [aria-label]="'culling.exclude_rejected' | translate"
+                        class="text-xs opacity-80">
             {{ 'culling.exclude_rejected' | translate }}
           </mat-checkbox>
           <div class="flex items-center gap-2">
@@ -320,6 +322,9 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly loadingMore = signal(false);
   protected readonly confirming = signal(false);
 
+  /** Monotonic id bumped on every filter change; loadGroups/loadMore drop late responses whose generation no longer matches. */
+  private loadGenerationId = 0;
+
   /** group_id -> set of kept paths */
   protected readonly selectionsMap = signal<Map<number, Set<string>>>(new Map());
 
@@ -413,16 +418,16 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected onThresholdChange(value: number): void {
     this.similarityThreshold.set(value);
-    this.currentPage.set(1);
-    this.groups.set([]);
-    this.confirmedGroups.set(new Set());
-    this.selectionsMap.set(new Map());
-    this.clearAllPassTimers();
-    void this.loadGroups();
+    this.resetForReload();
   }
 
   protected onExcludeRejectedChange(value: boolean): void {
     this.excludeRejected.set(value);
+    this.resetForReload();
+  }
+
+  private resetForReload(): void {
+    this.loadGenerationId++;
     this.currentPage.set(1);
     this.groups.set([]);
     this.confirmedGroups.set(new Set());
@@ -432,39 +437,45 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   protected async loadGroups(): Promise<void> {
+    const gen = this.loadGenerationId;
     this.loading.set(true);
     try {
       const data = await firstValueFrom(
         this.api.get<CullingGroupsResponse>('/culling-groups', this.buildParams(1)),
       );
+      if (gen !== this.loadGenerationId) return;
       this.groups.set(data.groups);
       this.totalGroups.set(data.total_groups);
       this.totalPages.set(data.total_pages);
       this.currentPage.set(1);
       this.selectionsMap.set(this.autoSelectBest(data.groups));
     } catch {
+      if (gen !== this.loadGenerationId) return;
       this.snackBar.open(this.i18n.t('culling.error_loading'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
-      this.loading.set(false);
+      if (gen === this.loadGenerationId) this.loading.set(false);
     }
   }
 
   protected async loadMore(): Promise<void> {
     if (!this.hasMore()) return;
+    const gen = this.loadGenerationId;
     this.loadingMore.set(true);
     try {
       const nextPage = this.currentPage() + 1;
       const data = await firstValueFrom(
         this.api.get<CullingGroupsResponse>('/culling-groups', this.buildParams(nextPage)),
       );
+      if (gen !== this.loadGenerationId) return;
       this.groups.update(existing => [...existing, ...data.groups]);
       this.totalPages.set(data.total_pages);
       this.currentPage.set(nextPage);
       this.selectionsMap.set(this.autoSelectBest(data.groups, this.selectionsMap()));
     } catch {
+      if (gen !== this.loadGenerationId) return;
       this.snackBar.open(this.i18n.t('culling.error_loading'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
-      this.loadingMore.set(false);
+      if (gen === this.loadGenerationId) this.loadingMore.set(false);
     }
   }
 

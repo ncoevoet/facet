@@ -174,7 +174,6 @@ class TestCullingGroupsEndpoint:
     def test_get_culling_groups_exclude_rejected(self, client):
         mock_conn = mock.MagicMock()
 
-        # Mock count/queries to return empty lists cleanly
         count_row = mock.MagicMock()
         count_row.__getitem__ = lambda self, k: 0
         mock_conn.execute.return_value.fetchone.return_value = count_row
@@ -191,4 +190,93 @@ class TestCullingGroupsEndpoint:
         body = resp.json()
         assert body["groups"] == []
         assert body["total_groups"] == 0
+
+
+class TestFilterSimilarGroups:
+    """Unit tests for read-time rejected-photo filtering of cached similar groups."""
+
+    def _conn_with_rejected(self, rejected_paths):
+        conn = mock.MagicMock()
+        conn.execute.return_value.fetchall.return_value = [
+            {'path': p} for p in rejected_paths
+        ]
+        return conn
+
+    def test_drops_rejected_path_and_preserves_count_semantic(self):
+        from api.routers.burst_culling import _filter_similar_groups
+
+        all_groups = [{
+            'paths': ['/a.jpg', '/b.jpg', '/c.jpg'],
+            'best_path': '/a.jpg',
+            'count': 3,
+        }]
+        conn = self._conn_with_rejected(['/a.jpg'])
+
+        filtered = _filter_similar_groups(conn, all_groups, user_id=None)
+
+        assert len(filtered) == 1
+        assert filtered[0]['paths'] == ['/b.jpg', '/c.jpg']
+        assert filtered[0]['count'] == 2
+        assert filtered[0]['best_path'] == '/a.jpg'
+
+    def test_drops_groups_below_min_size(self):
+        from api.routers.burst_culling import _filter_similar_groups
+
+        all_groups = [{
+            'paths': ['/a.jpg', '/b.jpg'],
+            'best_path': '/a.jpg',
+            'count': 2,
+        }]
+        conn = self._conn_with_rejected(['/a.jpg'])
+
+        filtered = _filter_similar_groups(conn, all_groups, user_id=None)
+
+        assert filtered == []
+
+    def test_no_rejected_returns_input_unchanged(self):
+        from api.routers.burst_culling import _filter_similar_groups
+
+        all_groups = [{'paths': ['/a.jpg', '/b.jpg'], 'best_path': '/a.jpg', 'count': 2}]
+        conn = self._conn_with_rejected([])
+
+        filtered = _filter_similar_groups(conn, all_groups, user_id=None)
+
+        assert filtered is all_groups
+
+
+class TestSelectSimilarInvalidatesCache:
+    """Verify the similarity_groups_* cache is dropped when a similar group is reviewed,
+    so kept (similarity_reviewed=1) photos don't linger in the 1h cache.
+    """
+
+    @pytest.fixture()
+    def client(self):
+        from fastapi.testclient import TestClient
+        from api import create_app
+        from api.auth import require_edition, CurrentUser
+
+        app = create_app()
+        fake_user = CurrentUser(user_id="test", edition_authenticated=True)
+        app.dependency_overrides[require_edition] = lambda: fake_user
+        yield TestClient(app)
+        app.dependency_overrides.clear()
+
+    def test_select_similar_deletes_stats_cache(self, client):
+        mock_conn = mock.MagicMock()
+
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
+            mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
+        ):
+            resp = client.post(
+                "/api/similar-groups/select",
+                json={"paths": ["/a.jpg", "/b.jpg"], "keep_paths": ["/a.jpg"]},
+            )
+
+        assert resp.status_code == 200
+        executed_sql = [c.args[0] for c in mock_conn.execute.call_args_list]
+        assert any(
+            "DELETE FROM stats_cache" in s and "similarity_groups_" in s
+            for s in executed_sql
+        ), f"cache invalidation DELETE missing from: {executed_sql}"
 
