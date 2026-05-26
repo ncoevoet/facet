@@ -352,33 +352,75 @@ USER_PREFERENCES_INDEXES = [
     ('idx_user_prefs_rating', 'user_preferences', 'user_id, star_rating'),
 ]
 
-# FTS5 full-text search virtual table and sync triggers
+# FTS5 full-text search virtual table and sync triggers.
+#
+# Covering schema: every field the gallery free-text search ever scanned via
+# LIKE is now an FTS5 column, so the search clause collapses to a single
+# `photos_fts MATCH ?`. Person names are joined separately at query time
+# because they live in the `persons` table.
+PHOTOS_FTS_COLUMNS = [
+    'filename',
+    'caption',
+    'caption_translated',
+    'tags',
+    'camera_model',
+    'lens_model',
+    'category',
+]
+
 PHOTOS_FTS_CREATE = """
 CREATE VIRTUAL TABLE IF NOT EXISTS photos_fts USING fts5(
     path UNINDEXED,
+    filename,
     caption,
+    caption_translated,
     tags,
+    camera_model,
+    lens_model,
+    category,
     content='photos',
     content_rowid='rowid'
 )
 """
 
+_FTS_INSERT_COLS = "rowid, path, " + ", ".join(PHOTOS_FTS_COLUMNS)
+_FTS_NEW_VALUES = "new.rowid, new.path, " + ", ".join(f"new.{c}" for c in PHOTOS_FTS_COLUMNS)
+_FTS_OLD_VALUES = "old.rowid, old.path, " + ", ".join(f"old.{c}" for c in PHOTOS_FTS_COLUMNS)
+_FTS_UPDATE_OF = ", ".join(PHOTOS_FTS_COLUMNS)
+
 PHOTOS_FTS_TRIGGERS = [
-    """CREATE TRIGGER IF NOT EXISTS photos_fts_ai AFTER INSERT ON photos BEGIN
-    INSERT INTO photos_fts(rowid, path, caption, tags)
-    VALUES (new.rowid, new.path, new.caption, new.tags);
+    f"""CREATE TRIGGER IF NOT EXISTS photos_fts_ai AFTER INSERT ON photos BEGIN
+    INSERT INTO photos_fts({_FTS_INSERT_COLS})
+    VALUES ({_FTS_NEW_VALUES});
 END""",
-    """CREATE TRIGGER IF NOT EXISTS photos_fts_ad AFTER DELETE ON photos BEGIN
-    INSERT INTO photos_fts(photos_fts, rowid, path, caption, tags)
-    VALUES ('delete', old.rowid, old.path, old.caption, old.tags);
+    f"""CREATE TRIGGER IF NOT EXISTS photos_fts_ad AFTER DELETE ON photos BEGIN
+    INSERT INTO photos_fts(photos_fts, {_FTS_INSERT_COLS})
+    VALUES ('delete', {_FTS_OLD_VALUES});
 END""",
-    """CREATE TRIGGER IF NOT EXISTS photos_fts_au AFTER UPDATE OF caption, tags ON photos BEGIN
-    INSERT INTO photos_fts(photos_fts, rowid, path, caption, tags)
-    VALUES ('delete', old.rowid, old.path, old.caption, old.tags);
-    INSERT INTO photos_fts(rowid, path, caption, tags)
-    VALUES (new.rowid, new.path, new.caption, new.tags);
+    f"""CREATE TRIGGER IF NOT EXISTS photos_fts_au AFTER UPDATE OF {_FTS_UPDATE_OF} ON photos BEGIN
+    INSERT INTO photos_fts(photos_fts, {_FTS_INSERT_COLS})
+    VALUES ('delete', {_FTS_OLD_VALUES});
+    INSERT INTO photos_fts({_FTS_INSERT_COLS})
+    VALUES ({_FTS_NEW_VALUES});
 END""",
 ]
+
+
+def fts_schema_is_current(conn) -> bool:
+    """Return True if the on-disk photos_fts table matches the current covering schema.
+
+    Used at init time to detect the pre-covering schema (path, caption, tags only)
+    and trigger a drop + recreate + rebuild so callers see the same column set
+    they expect from `PHOTOS_FTS_COLUMNS`.
+    """
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='photos_fts'"
+    ).fetchone()
+    if row is None:
+        return True
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(photos_fts)").fetchall()}
+    needed = {'path', *PHOTOS_FTS_COLUMNS}
+    return needed.issubset(existing)
 
 
 def _build_create_table_sql(table_name, columns, constraints=None):
@@ -567,7 +609,15 @@ def init_database(db_path='photo_scores_pro.db'):
         _migrate_add_missing_columns(conn, 'comparisons', COMPARISONS_COLUMNS)
         _migrate_add_missing_columns(conn, 'learned_scores', LEARNED_SCORES_COLUMNS)
 
-        # Create FTS5 full-text search table and sync triggers
+        # Create FTS5 full-text search table and sync triggers. If a previous
+        # narrower schema is detected (caption+tags only), drop it so the
+        # CREATE below installs the covering schema. The FTS data is then
+        # repopulated by db.fts.rebuild_fts (or whoever rebuilds next).
+        if not fts_schema_is_current(conn):
+            logger.info("photos_fts schema outdated — dropping for recreate")
+            for trigger in ('photos_fts_ai', 'photos_fts_ad', 'photos_fts_au'):
+                conn.execute(f"DROP TRIGGER IF EXISTS {trigger}")
+            conn.execute("DROP TABLE IF EXISTS photos_fts")
         conn.execute(PHOTOS_FTS_CREATE)
         for trigger_sql in PHOTOS_FTS_TRIGGERS:
             conn.execute(trigger_sql)

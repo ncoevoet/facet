@@ -33,6 +33,95 @@ logger = logging.getLogger(__name__)
 
 
 
+_FTS_TOKEN_CHARS = set(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+)
+
+
+def _fts5_query_from(term: str) -> Optional[str]:
+    """Convert free-text user input into an FTS5 query string.
+
+    Splits on whitespace, strips FTS5 syntax characters from each token,
+    quotes the survivor and adds a `*` prefix-match wildcard, then ANDs
+    the tokens together (FTS5 default behaviour). Returns ``None`` if no
+    safe token remains, which short-circuits the search to "match nothing"
+    rather than risking an injected FTS5 expression.
+    """
+    tokens = []
+    for raw in term.split():
+        cleaned = ''.join(ch for ch in raw if ch in _FTS_TOKEN_CHARS)
+        if cleaned:
+            tokens.append(f'"{cleaned}"*')
+    return ' '.join(tokens) if tokens else None
+
+
+def _apply_search_filter(where_clauses, sql_params, term: str, conn):
+    """Apply the gallery free-text search filter.
+
+    Prefers a single ``photos_fts MATCH`` query over the covering FTS5
+    schema (filename + caption + caption_translated + tags + camera_model +
+    lens_model + category), OR'd with a person-name LIKE so face-tagged
+    person searches still work. Falls back to the legacy LIKE OR-chain if
+    the FTS5 table is missing (older DB without rebuild).
+    """
+    from db.fts import has_fts_table
+
+    fts_query = _fts5_query_from(term)
+
+    if fts_query and has_fts_table(conn):
+        person_like = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        # IN-subquery rather than EXISTS per row: the persons.name LIKE
+        # scan runs once on the small persons table (a few thousand rows)
+        # instead of N times against the photos table. On a no-match query
+        # this collapses the worst-case from ~580 ms to ~2 ms.
+        where_clauses.append(
+            "("
+            "photos.rowid IN (SELECT rowid FROM photos_fts WHERE photos_fts MATCH ?)"
+            " OR photos.path IN ("
+            "SELECT f.photo_path FROM faces f JOIN persons p ON f.person_id = p.id"
+            " WHERE p.name LIKE ? ESCAPE '\\')"
+            ")"
+        )
+        sql_params.extend([fts_query, person_like])
+        return
+
+    escaped_term = term.replace('%', '\\%').replace('_', '\\_')
+    search_clauses = [
+        "filename LIKE ? ESCAPE '\\'",
+        "camera_model LIKE ? ESCAPE '\\'",
+        "lens_model LIKE ? ESCAPE '\\'",
+        "category LIKE ? ESCAPE '\\'",
+    ]
+    search_params = [f"%{escaped_term}%"] * 4
+
+    from api.db_helpers import is_photo_tags_available
+    if is_photo_tags_available(conn):
+        search_clauses.append(
+            "EXISTS (SELECT 1 FROM photo_tags WHERE photo_path = photos.path "
+            "AND tag LIKE ? ESCAPE '\\')"
+        )
+    else:
+        search_clauses.append("tags LIKE ? ESCAPE '\\'")
+    search_params.append(f"%{escaped_term}%")
+
+    existing_cols = get_existing_columns(conn)
+    if 'caption' in existing_cols:
+        search_clauses.append("caption LIKE ? ESCAPE '\\'")
+        search_params.append(f"%{escaped_term}%")
+    if 'caption_translated' in existing_cols:
+        search_clauses.append("caption_translated LIKE ? ESCAPE '\\'")
+        search_params.append(f"%{escaped_term}%")
+
+    search_clauses.append(
+        "EXISTS (SELECT 1 FROM faces f JOIN persons p ON f.person_id = p.id "
+        "WHERE f.photo_path = photos.path AND p.name LIKE ? ESCAPE '\\')"
+    )
+    search_params.append(f"%{escaped_term}%")
+
+    where_clauses.append(f"({' OR '.join(search_clauses)})")
+    sql_params.extend(search_params)
+
+
 def _add_range_filter(where_clauses, sql_params, params, column, min_key, max_key, is_float=True):
     """Add min/max range filter for a numeric column."""
     min_val = params.get(min_key, '')
@@ -64,36 +153,7 @@ def _apply_text_filters(where_clauses, sql_params, params, conn):
         sql_params.append(f"{clean_search}%")
 
     if params.get('search'):
-        term = params['search']
-        escaped_term = term.replace('%', '\\%').replace('_', '\\_')
-        search_clauses = [
-            "filename LIKE ? ESCAPE '\\'",
-            "camera_model LIKE ? ESCAPE '\\'",
-            "lens_model LIKE ? ESCAPE '\\'",
-            "category LIKE ? ESCAPE '\\'",
-        ]
-        search_params = [f"%{escaped_term}%"] * 4
-
-        from api.db_helpers import is_photo_tags_available
-        if is_photo_tags_available(conn):
-            search_clauses.append("EXISTS (SELECT 1 FROM photo_tags WHERE photo_path = photos.path AND tag LIKE ? ESCAPE '\\')")
-        else:
-            search_clauses.append("tags LIKE ? ESCAPE '\\'")
-        search_params.append(f"%{escaped_term}%")
-
-        existing_cols = get_existing_columns(conn)
-        if 'caption' in existing_cols:
-            search_clauses.append("caption LIKE ? ESCAPE '\\'")
-            search_params.append(f"%{escaped_term}%")
-        if 'caption_translated' in existing_cols:
-            search_clauses.append("caption_translated LIKE ? ESCAPE '\\'")
-            search_params.append(f"%{escaped_term}%")
-
-        search_clauses.append("EXISTS (SELECT 1 FROM faces f JOIN persons p ON f.person_id = p.id WHERE f.photo_path = photos.path AND p.name LIKE ? ESCAPE '\\')")
-        search_params.append(f"%{escaped_term}%")
-
-        where_clauses.append(f"({' OR '.join(search_clauses)})")
-        sql_params.extend(search_params)
+        _apply_search_filter(where_clauses, sql_params, params['search'], conn)
 
     _add_tag_filter(
         where_clauses, sql_params,

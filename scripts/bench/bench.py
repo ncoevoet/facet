@@ -100,6 +100,12 @@ SUITES: dict[str, list[Endpoint]] = {
             "/api/photos",
             {"search": "sunset", "page": 1, "per_page": 64},
         ),
+        Endpoint(
+            "photos?search=NOMATCH",
+            "GET",
+            "/api/photos",
+            {"search": "xyzpqrnomatch", "page": 1, "per_page": 64},
+        ),
     ],
     "semantic_search": [
         Endpoint(
