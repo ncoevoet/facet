@@ -80,10 +80,18 @@ describe('BurstCullingComponent', () => {
     it('should load culling groups from API', async () => {
       await (component as any).loadGroups();
 
-      expect(mockApi.get).toHaveBeenCalledWith('/culling-groups', expect.objectContaining({ page: 1, per_page: 20 }));
+      expect(mockApi.get).toHaveBeenCalledWith('/culling-groups', expect.objectContaining({ page: 1, per_page: 20, exclude_rejected: true }));
       expect(component['groups']()).toHaveLength(2);
       expect(component['totalGroups']()).toBe(2);
       expect(component['loading']()).toBe(false);
+    });
+
+    it('should update exclude_rejected value and reload on change', async () => {
+      mockApi.get.mockClear();
+      (component as any).onExcludeRejectedChange(false);
+
+      expect(component['excludeRejected']()).toBe(false);
+      expect(mockApi.get).toHaveBeenCalledWith('/culling-groups', expect.objectContaining({ page: 1, per_page: 20, exclude_rejected: false }));
     });
 
     it('should auto-select best photo in each group', async () => {

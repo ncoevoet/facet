@@ -7,6 +7,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSliderModule } from '@angular/material/slider';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -90,6 +91,7 @@ interface CullingGroupsResponse {
     MatProgressSpinnerModule,
     MatSnackBarModule,
     MatSliderModule,
+    MatCheckboxModule,
     TranslatePipe,
     ThumbnailUrlPipe,
     IsKeptPipe,
@@ -104,12 +106,19 @@ interface CullingGroupsResponse {
       <!-- Header -->
       <div class="flex items-center gap-3 shrink-0 mb-3">
         <h2 class="text-lg font-semibold">{{ 'culling.title' | translate }}</h2>
-        <div class="flex items-center gap-2 ml-auto">
-          <span class="text-xs opacity-60">{{ 'culling.threshold' | translate }}</span>
-          <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
-            <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="'culling.threshold' | translate" />
-          </mat-slider>
-          <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
+        <div class="flex flex-wrap items-center gap-3 md:gap-4 ml-auto">
+          <mat-checkbox [checked]="excludeRejected()" (change)="onExcludeRejectedChange($event.checked)"
+                        [aria-label]="'culling.exclude_rejected' | translate"
+                        class="text-xs opacity-80">
+            {{ 'culling.exclude_rejected' | translate }}
+          </mat-checkbox>
+          <div class="flex items-center gap-2">
+            <span class="text-xs opacity-60">{{ 'culling.threshold' | translate }}</span>
+            <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
+              <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="'culling.threshold' | translate" />
+            </mat-slider>
+            <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
+          </div>
           <button mat-icon-button (click)="showHelp.set(!showHelp())" class="!w-8 !h-8 !p-0"
                   [matTooltip]="'culling.help' | translate">
             <mat-icon class="!text-lg !w-5 !h-5 !leading-5 opacity-60">help_outline</mat-icon>
@@ -306,11 +315,15 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected readonly showHelp = signal(false);
   protected readonly similarityThreshold = signal(85);
+  protected readonly excludeRejected = signal(true);
   protected readonly groups = signal<CullingGroup[]>([]);
   protected readonly totalGroups = signal(0);
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
   protected readonly confirming = signal(false);
+
+  /** Monotonic id bumped on every filter change; loadGroups/loadMore drop late responses whose generation no longer matches. */
+  private loadGenerationId = 0;
 
   /** group_id -> set of kept paths */
   protected readonly selectionsMap = signal<Map<number, Set<string>>>(new Map());
@@ -380,12 +393,13 @@ export class BurstCullingComponent implements OnDestroy {
     return `${group.group_id}_${group.type}`;
   }
 
-  private buildParams(page: number): Record<string, string | number> {
+  private buildParams(page: number): Record<string, string | number | boolean> {
     return {
       page,
       per_page: 20,
       similarity_threshold: (this.similarityThreshold() / 100).toString(),
       seed: this.similarSeed,
+      exclude_rejected: this.excludeRejected(),
     };
   }
 
@@ -404,6 +418,16 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected onThresholdChange(value: number): void {
     this.similarityThreshold.set(value);
+    this.resetForReload();
+  }
+
+  protected onExcludeRejectedChange(value: boolean): void {
+    this.excludeRejected.set(value);
+    this.resetForReload();
+  }
+
+  private resetForReload(): void {
+    this.loadGenerationId++;
     this.currentPage.set(1);
     this.groups.set([]);
     this.confirmedGroups.set(new Set());
@@ -413,39 +437,45 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   protected async loadGroups(): Promise<void> {
+    const gen = this.loadGenerationId;
     this.loading.set(true);
     try {
       const data = await firstValueFrom(
         this.api.get<CullingGroupsResponse>('/culling-groups', this.buildParams(1)),
       );
+      if (gen !== this.loadGenerationId) return;
       this.groups.set(data.groups);
       this.totalGroups.set(data.total_groups);
       this.totalPages.set(data.total_pages);
       this.currentPage.set(1);
       this.selectionsMap.set(this.autoSelectBest(data.groups));
     } catch {
+      if (gen !== this.loadGenerationId) return;
       this.snackBar.open(this.i18n.t('culling.error_loading'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
-      this.loading.set(false);
+      if (gen === this.loadGenerationId) this.loading.set(false);
     }
   }
 
   protected async loadMore(): Promise<void> {
     if (!this.hasMore()) return;
+    const gen = this.loadGenerationId;
     this.loadingMore.set(true);
     try {
       const nextPage = this.currentPage() + 1;
       const data = await firstValueFrom(
         this.api.get<CullingGroupsResponse>('/culling-groups', this.buildParams(nextPage)),
       );
+      if (gen !== this.loadGenerationId) return;
       this.groups.update(existing => [...existing, ...data.groups]);
       this.totalPages.set(data.total_pages);
       this.currentPage.set(nextPage);
       this.selectionsMap.set(this.autoSelectBest(data.groups, this.selectionsMap()));
     } catch {
+      if (gen !== this.loadGenerationId) return;
       this.snackBar.open(this.i18n.t('culling.error_loading'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
-      this.loadingMore.set(false);
+      if (gen === this.loadGenerationId) this.loadingMore.set(false);
     }
   }
 

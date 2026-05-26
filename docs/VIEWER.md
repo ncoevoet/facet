@@ -885,7 +885,7 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `POST /api/burst-groups/select` | Select keepers from a burst group |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Groups of visually similar photos |
 | `POST /api/similar-groups/select` | Select keepers from a similar group |
-| `GET /api/culling-groups` | Combined burst and similar groups |
+| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Combined burst and similar groups. `exclude_rejected` (default `true`) hides photos with `is_rejected=1`; groups with fewer than 2 remaining photos are dropped |
 | `POST /api/culling-groups/confirm` | Confirm culling selections |
 
 ### Scan
