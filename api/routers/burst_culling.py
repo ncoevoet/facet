@@ -531,7 +531,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
 
     unique_paths = list(set(all_paths))
     placeholders = ','.join('?' * len(unique_paths))
-    
+
     if exclude_rejected:
         from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
         rows = conn.execute(
