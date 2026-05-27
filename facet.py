@@ -1215,6 +1215,11 @@ Configuration:
         logger.info("Exported %d photos to %s", len(photos), output_file)
         exit()
 
+    if not args.photo_paths:
+        logger.error("photo_paths is required unless using --recompute-average or --compute-percentiles")
+        parser.print_help()
+        exit(1)
+
     # Full mode - initialize with GPU models for photo processing
     # Multi-pass mode skips eager loading of heavy GPU models (CLIP, SAMP-Net)
     # since multi-pass loads its own models per pass via ModelManager
@@ -1224,11 +1229,6 @@ Configuration:
     # Initialise plugin manager for scoring events
     from plugins import init_global_plugin_manager
     init_global_plugin_manager(config=scorer.config.config)
-
-    if not args.photo_paths:
-        logger.error("photo_paths is required unless using --recompute-average or --compute-percentiles")
-        parser.print_help()
-        exit(1)
 
     # 1. Gather files recursively from subfolders (or single files)
     valid_suffixes = {'.jpg', '.jpeg'} | HEIF_EXTENSIONS | RAW_EXTENSIONS

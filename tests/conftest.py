@@ -13,16 +13,33 @@ pass-by-accident. ``app.dependency_overrides`` is the documented FastAPI
 mechanism that actually bypasses the captured reference.
 """
 
-from unittest.mock import MagicMock
+import os
+import tempfile
 
-import pytest
-from fastapi.testclient import TestClient
+# Point ``DB_PATH`` at a per-session tmp file BEFORE any project module is
+# imported. ``db.connection.DEFAULT_DB_PATH`` and every ``from db import
+# DEFAULT_DB_PATH`` re-export (api.database, api.routers.comparison,
+# comparison.comparison_manager, …) capture the env value at import time,
+# so a late ``monkeypatch`` would only patch the symbol in one module while
+# the rest keep their original captured copy. Setting the env up-front
+# routes every captured copy at the same fresh, schema-initialised DB.
+_TEST_DB_FILE = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+_TEST_DB_FILE.close()
+os.environ["DB_PATH"] = _TEST_DB_FILE.name
 
-from api import create_app
-from api.auth import (
+from unittest.mock import MagicMock  # noqa: E402
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from api import create_app  # noqa: E402
+from api.auth import (  # noqa: E402
     CurrentUser, get_optional_user, require_authenticated,
     require_edition, require_superadmin,
 )
+from db.schema import init_database  # noqa: E402
+
+init_database(_TEST_DB_FILE.name)
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +99,13 @@ MINIMAL_SCORING_CONFIG: dict = {
 
 @pytest.fixture()
 def app():
-    """Create a fresh FastAPI application."""
+    """Create a fresh FastAPI application.
+
+    The session DB (pointed at via ``DB_PATH`` env var set at module top)
+    is already schema-initialised, so routes that read core tables
+    (``photos``, ``albums``, ``persons``, ``comparisons``, …) return
+    empty results instead of 500-ing on missing tables.
+    """
     return create_app()
 
 
