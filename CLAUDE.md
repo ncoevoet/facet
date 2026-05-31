@@ -156,6 +156,8 @@ python database.py --export-viewer-db --force-export     # Full re-export
 
 # Cleanup and storage migration
 python database.py --cleanup-orphaned-persons    # Delete persons with no assigned faces
+python database.py --cleanup-missing-photos     # Remove photos no longer on disk from the database (cascades & clears cache)
+python database.py --cleanup-missing-photos --dry-run # Preview missing photos without deleting
 python database.py --migrate-storage-fs          # Migrate thumbnails/embeddings from DB to filesystem
 python database.py --migrate-storage-db          # Migrate thumbnails/embeddings from filesystem to DB
 
