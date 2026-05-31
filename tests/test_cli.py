@@ -222,7 +222,7 @@ class TestDatabaseCli:
     def test_cleanup_missing_photos_execution(self, seeded_db):
         # Refresh stats cache first so we can verify invalidation
         _run(DATABASE, '--db', seeded_db, '--refresh-stats')
-        
+
         # Verify stats cache has entries
         conn = sqlite3.connect(seeded_db)
         stats_count = conn.execute("SELECT COUNT(*) FROM stats_cache").fetchone()[0]
