@@ -42,6 +42,7 @@ from db import (
     analyze_database,
     cleanup_orphaned_persons,
     export_viewer_db,
+    cleanup_missing_photos,
 )
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'scoring_config.json')
@@ -198,6 +199,16 @@ def main():
         help='Delete persons with no assigned faces'
     )
     parser.add_argument(
+        '--cleanup-missing-photos',
+        action='store_true',
+        help='Remove deleted files from the database'
+    )
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Preview missing files without deleting (use with --cleanup-missing-photos)'
+    )
+    parser.add_argument(
         '--export-viewer-db',
         nargs='?',
         const='photo_scores_viewer.db',
@@ -258,6 +269,9 @@ def main():
 
     args = parser.parse_args()
 
+    if args.dry_run and not args.cleanup_missing_photos:
+        parser.error("--dry-run can only be used with --cleanup-missing-photos")
+
     if args.stats_info:
         # Show stats cache status
         logger.info("Statistics cache status:")
@@ -311,6 +325,8 @@ def main():
         analyze_database(args.db, verbose=True)
     elif args.cleanup_orphaned_persons:
         cleanup_orphaned_persons(args.db, verbose=True)
+    elif args.cleanup_missing_photos:
+        cleanup_missing_photos(args.db, dry_run=args.dry_run, verbose=True)
     elif args.export_viewer_db:
         export_viewer_db(args.db, output_path=args.export_viewer_db, verbose=True, force=args.force_export)
     elif args.add_user:

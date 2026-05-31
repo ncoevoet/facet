@@ -80,6 +80,73 @@ def optimize_database(db_path='photo_scores_pro.db', verbose=True):
         logger.info("Database optimization complete.")
 
 
+def cleanup_missing_photos(db_path='photo_scores_pro.db', dry_run=False, verbose=True):
+    """Delete photos from the database that are no longer on disk.
+
+    Args:
+        db_path: Path to SQLite database
+        dry_run: If True, only preview what would be deleted
+        verbose: If True, print progress
+
+    Returns:
+        Number of photos deleted
+    """
+    if verbose:
+        logger.info("Checking for missing photos in %s...", db_path)
+
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT path FROM photos")
+    all_paths = [row[0] for row in cursor.fetchall()]
+
+    if verbose:
+        logger.info("Found %d photos in the database. Checking filesystem...", len(all_paths))
+
+    deleted_paths = []
+    for path in all_paths:
+        if not os.path.exists(path):
+            deleted_paths.append(path)
+
+    if not deleted_paths:
+        if verbose:
+            logger.info("No missing files found. The database is up to date.")
+        conn.close()
+        return 0
+
+    if verbose:
+        logger.info("Found %d photos in the database that are missing on disk.", len(deleted_paths))
+
+    if dry_run:
+        if verbose:
+            logger.info("DRY RUN: The following files would be removed:")
+            for p in deleted_paths[:10]:
+                logger.info("  - %s", p)
+            if len(deleted_paths) > 10:
+                logger.info("  ... and %d more.", len(deleted_paths) - 10)
+    else:
+        if verbose:
+            logger.info("Removing missing files from the database (cascading deletes will clean up faces, tags, etc.)...")
+        
+        batch_size = 500
+        for i in range(0, len(deleted_paths), batch_size):
+            batch = [(p,) for p in deleted_paths[i:i+batch_size]]
+            cursor.executemany("DELETE FROM photos WHERE path = ?", batch)
+        
+        # Invalidate stats cache since photo counts and details have changed
+        try:
+            cursor.execute("DELETE FROM stats_cache")
+        except sqlite3.OperationalError:
+            pass
+
+        conn.commit()
+        if verbose:
+            logger.info("Successfully removed %d missing files from the database.", len(deleted_paths))
+
+    conn.close()
+    return len(deleted_paths)
+
 def cleanup_orphaned_persons(db_path='photo_scores_pro.db', verbose=True):
     """Delete persons with no assigned faces.
 

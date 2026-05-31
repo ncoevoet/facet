@@ -207,6 +207,46 @@ class TestDatabaseCli:
         result = _run(DATABASE, '--db', seeded_db, '--cleanup-orphaned-persons')
         assert result.returncode == 0
 
+    def test_cleanup_missing_photos_dry_run(self, seeded_db):
+        result = _run(DATABASE, '--db', seeded_db, '--cleanup-missing-photos', '--dry-run')
+        assert result.returncode == 0
+        combined = result.stdout + result.stderr
+        assert 'Found 2 photos in the database that are missing on disk.' in combined
+        assert 'DRY RUN' in combined
+        # Check that photos were not deleted
+        conn = sqlite3.connect(seeded_db)
+        count = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
+        conn.close()
+        assert count == 2
+
+    def test_cleanup_missing_photos_execution(self, seeded_db):
+        # Refresh stats cache first so we can verify invalidation
+        _run(DATABASE, '--db', seeded_db, '--refresh-stats')
+        
+        # Verify stats cache has entries
+        conn = sqlite3.connect(seeded_db)
+        stats_count = conn.execute("SELECT COUNT(*) FROM stats_cache").fetchone()[0]
+        assert stats_count > 0
+        conn.close()
+
+        result = _run(DATABASE, '--db', seeded_db, '--cleanup-missing-photos')
+        assert result.returncode == 0
+        combined = result.stdout + result.stderr
+        assert 'Successfully removed 2 missing files from the database.' in combined
+
+        # Check that photos were deleted and stats_cache was cleared
+        conn = sqlite3.connect(seeded_db)
+        count = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
+        stats_count = conn.execute("SELECT COUNT(*) FROM stats_cache").fetchone()[0]
+        conn.close()
+        assert count == 0
+        assert stats_count == 0
+
+    def test_dry_run_alone_errors(self, seeded_db):
+        result = _run(DATABASE, '--db', seeded_db, '--dry-run')
+        assert result.returncode != 0
+        assert 'can only be used with --cleanup-missing-photos' in (result.stdout + result.stderr)
+
 
 # ---------------------------------------------------------------------------
 # facet.py — read-only entry points
