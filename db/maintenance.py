@@ -80,6 +80,125 @@ def optimize_database(db_path='photo_scores_pro.db', verbose=True):
         logger.info("Database optimization complete.")
 
 
+def cleanup_missing_photos(db_path='photo_scores_pro.db', dry_run=False, force=False, verbose=True):
+    """Delete photos from the database that are no longer on disk.
+
+    Cascading foreign keys clean up faces, tags, comparisons, learned scores
+    and per-user preferences. Stores without a cascade are cleaned explicitly
+    so no orphans remain: album memberships (album_photos), album covers, and
+    the sqlite-vec index (photos_vec).
+
+    Args:
+        db_path: Path to SQLite database
+        dry_run: If True, only preview what would be deleted
+        force: If True, delete even when every photo appears missing. Off by
+            default so a temporarily unmounted volume (e.g. a NAS share) cannot
+            wipe the whole database.
+        verbose: If True, print progress
+
+    Returns:
+        Number of photos deleted (or that would be deleted in dry-run)
+    """
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(f"Database not found: {db_path}")
+
+    if verbose:
+        logger.info("Checking for missing photos in %s...", db_path)
+
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT path FROM photos")
+    all_paths = [row[0] for row in cursor.fetchall()]
+
+    if verbose:
+        logger.info("Found %d photos in the database. Checking filesystem...", len(all_paths))
+
+    deleted_paths = [path for path in all_paths if not os.path.exists(path)]
+
+    if not deleted_paths:
+        if verbose:
+            logger.info("No missing files found. The database is up to date.")
+        conn.close()
+        return 0
+
+    if verbose:
+        logger.info("Found %d photos in the database that are missing on disk.", len(deleted_paths))
+
+    if dry_run:
+        if verbose:
+            logger.info("DRY RUN: The following files would be removed:")
+            for p in deleted_paths[:10]:
+                logger.info("  - %s", p)
+            if len(deleted_paths) > 10:
+                logger.info("  ... and %d more.", len(deleted_paths) - 10)
+        conn.close()
+        return len(deleted_paths)
+
+    if len(deleted_paths) == len(all_paths) and not force:
+        conn.close()
+        raise RuntimeError(
+            f"All {len(all_paths)} photos appear missing on disk — refusing to wipe the "
+            "database. Check that the photo volume is mounted, preview with --dry-run, "
+            "then re-run with --force if this is intended."
+        )
+
+    if verbose:
+        logger.info("Removing missing files from the database (cascading deletes will clean up faces, tags, etc.)...")
+
+    batch_size = 500
+    for i in range(0, len(deleted_paths), batch_size):
+        params = [(p,) for p in deleted_paths[i:i + batch_size]]
+        cursor.executemany("DELETE FROM photos WHERE path = ?", params)
+        # album_photos.photo_path has no ON DELETE CASCADE — drop memberships explicitly.
+        cursor.executemany("DELETE FROM album_photos WHERE photo_path = ?", params)
+        # An album cover may point at a now-deleted photo.
+        cursor.executemany("UPDATE albums SET cover_photo_path = NULL WHERE cover_photo_path = ?", params)
+
+    # Faces were cascade-deleted; refresh person face counts so the viewer stays accurate.
+    cursor.execute(
+        "UPDATE persons SET face_count = "
+        "(SELECT COUNT(*) FROM faces WHERE faces.person_id = persons.id)"
+    )
+    emptied_persons = cursor.execute(
+        "SELECT COUNT(*) FROM persons WHERE face_count = 0"
+    ).fetchone()[0]
+
+    # Invalidate stats cache since photo counts and details have changed
+    try:
+        cursor.execute("DELETE FROM stats_cache")
+    except sqlite3.OperationalError:
+        pass
+
+    conn.commit()
+
+    # photos_vec (sqlite-vec) has no FK or trigger. Clean it best-effort after the
+    # main delete commits — the vector index is derived and rebuildable.
+    from db.connection import HAS_SQLITE_VEC, load_sqlite_vec
+    from db.vec import _vec_table_exists
+    load_sqlite_vec(conn)
+    if HAS_SQLITE_VEC and _vec_table_exists(conn):
+        try:
+            for i in range(0, len(deleted_paths), batch_size):
+                chunk = deleted_paths[i:i + batch_size]
+                placeholders = ','.join('?' * len(chunk))
+                cursor.execute(f"DELETE FROM photos_vec WHERE path IN ({placeholders})", chunk)
+            conn.commit()
+        except sqlite3.Error as ex:
+            logger.warning("Could not clean photos_vec entries (rebuild with --populate-vec): %s", ex)
+
+    if verbose:
+        logger.info("Successfully removed %d missing files from the database.", len(deleted_paths))
+        if emptied_persons:
+            logger.info(
+                "%d person(s) now have no faces — run --cleanup-orphaned-persons to remove them.",
+                emptied_persons,
+            )
+
+    conn.close()
+    return len(deleted_paths)
+
 def cleanup_orphaned_persons(db_path='photo_scores_pro.db', verbose=True):
     """Delete persons with no assigned faces.
 
