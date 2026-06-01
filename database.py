@@ -209,6 +209,11 @@ def main():
         help='Preview missing files without deleting (use with --cleanup-missing-photos)'
     )
     parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Delete even if every photo appears missing (use with --cleanup-missing-photos)'
+    )
+    parser.add_argument(
         '--export-viewer-db',
         nargs='?',
         const='photo_scores_viewer.db',
@@ -326,7 +331,7 @@ def main():
     elif args.cleanup_orphaned_persons:
         cleanup_orphaned_persons(args.db, verbose=True)
     elif args.cleanup_missing_photos:
-        cleanup_missing_photos(args.db, dry_run=args.dry_run, verbose=True)
+        cleanup_missing_photos(args.db, dry_run=args.dry_run, force=args.force, verbose=True)
     elif args.export_viewer_db:
         export_viewer_db(args.db, output_path=args.export_viewer_db, verbose=True, force=args.force_export)
     elif args.add_user:

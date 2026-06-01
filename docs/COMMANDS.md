@@ -233,8 +233,9 @@ Checks: Score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python database.py --export-viewer-db` | Export/update lightweight database for NAS deployment (incremental if output exists) |
 | `python database.py --export-viewer-db --force-export` | Force full re-export, even if viewer DB already exists |
 | `python database.py --cleanup-orphaned-persons` | Remove persons with no associated faces |
-| `python database.py --cleanup-missing-photos` | Remove photos no longer on disk from the database (cascading deletes clean up tags, detected faces, etc. and invalidate stats cache) |
+| `python database.py --cleanup-missing-photos` | Remove photos no longer on disk from the database (cascading deletes clean up tags, detected faces, etc.; also clears album memberships, the vector index, and invalidates stats cache) |
 | `python database.py --cleanup-missing-photos --dry-run` | Preview missing files without deleting |
+| `python database.py --cleanup-missing-photos --force` | Proceed even when every photo appears missing (guard against deleting everything when a volume is unmounted) |
 | `python database.py --migrate-storage-fs` | Migrate thumbnails and embeddings from database BLOBs to filesystem |
 | `python database.py --migrate-storage-db` | Migrate thumbnails and embeddings from filesystem back to database |
 | `python database.py --add-user alice --role admin` | Add a user (prompts for password) |

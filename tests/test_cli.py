@@ -229,7 +229,8 @@ class TestDatabaseCli:
         assert stats_count > 0
         conn.close()
 
-        result = _run(DATABASE, '--db', seeded_db, '--cleanup-missing-photos')
+        # Both seeded photos are missing → all-missing guard requires --force.
+        result = _run(DATABASE, '--db', seeded_db, '--cleanup-missing-photos', '--force')
         assert result.returncode == 0
         combined = result.stdout + result.stderr
         assert 'Successfully removed 2 missing files from the database.' in combined
@@ -241,6 +242,45 @@ class TestDatabaseCli:
         conn.close()
         assert count == 0
         assert stats_count == 0
+
+    def test_cleanup_missing_photos_all_missing_refused_without_force(self, seeded_db):
+        # Every photo missing looks like an unmounted volume → refuse to wipe.
+        result = _run(DATABASE, '--db', seeded_db, '--cleanup-missing-photos')
+        assert result.returncode != 0
+        assert 'refusing to wipe' in (result.stdout + result.stderr)
+        conn = sqlite3.connect(seeded_db)
+        count = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
+        conn.close()
+        assert count == 2  # nothing deleted
+
+    def test_cleanup_missing_photos_cascades_and_cleans_orphans(self, seeded_db, tmp_path):
+        # Point /a.jpg at a real file so it survives; /b.jpg stays missing. This
+        # also keeps us under the all-missing guard without needing --force.
+        present = tmp_path / 'present.jpg'
+        present.write_bytes(b'x')
+        conn = sqlite3.connect(seeded_db)
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("UPDATE photos SET path = ? WHERE path = '/a.jpg'", (str(present),))
+        # Dependent rows for the missing photo: cascaded (faces, photo_tags) and
+        # non-cascaded (album_photos, album cover).
+        conn.execute("INSERT INTO faces(photo_path, face_index, embedding) VALUES ('/b.jpg', 0, X'00')")
+        conn.execute("INSERT INTO photo_tags(photo_path, tag) VALUES ('/b.jpg', 'beach')")
+        conn.execute("INSERT INTO albums(name, cover_photo_path) VALUES ('A', '/b.jpg')")
+        album_id = conn.execute("SELECT id FROM albums").fetchone()[0]
+        conn.execute("INSERT INTO album_photos(album_id, photo_path) VALUES (?, '/b.jpg')", (album_id,))
+        conn.commit()
+        conn.close()
+
+        result = _run(DATABASE, '--db', seeded_db, '--cleanup-missing-photos')
+        assert result.returncode == 0, result.stderr
+
+        conn = sqlite3.connect(seeded_db)
+        assert conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0] == 1  # present.jpg remains
+        assert conn.execute("SELECT COUNT(*) FROM faces WHERE photo_path = '/b.jpg'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM photo_tags WHERE photo_path = '/b.jpg'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM album_photos WHERE photo_path = '/b.jpg'").fetchone()[0] == 0
+        assert conn.execute("SELECT cover_photo_path FROM albums WHERE id = ?", (album_id,)).fetchone()[0] is None
+        conn.close()
 
     def test_dry_run_alone_errors(self, seeded_db):
         result = _run(DATABASE, '--db', seeded_db, '--dry-run')
