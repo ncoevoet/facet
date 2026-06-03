@@ -62,6 +62,39 @@ jobs:
             echo "or app.dependency_overrides[require_edition] = lambda: ... instead. See tests/conftest.py."
             exit 1
           fi
+      - name: Forbid Dockerfile COPY of untracked paths
+        run: |
+          # A clean clone contains only git-tracked files. If the Dockerfile
+          # COPYs a path that isn't tracked (e.g. a leftover dir that only
+          # exists on a contributor's machine), `docker build` fails on a fresh
+          # checkout with `"/<path>": not found` (issue #10). Assert every local
+          # COPY source is tracked. `--from=<stage>` COPYs read from a build
+          # stage rather than the git context, so they are skipped.
+          set -f
+          fail=0
+          while IFS= read -r line; do
+            set -- $line
+            shift                          # drop the COPY keyword
+            srcs=(); from_stage=0
+            for tok in "$@"; do
+              case "$tok" in
+                --from=*) from_stage=1 ;;
+                --*) ;;                    # ignore other flags (e.g. --chown)
+                *) srcs+=("$tok") ;;
+              esac
+            done
+            [ "$from_stage" = 1 ] && continue
+            (( ${#srcs[@]} >= 2 )) || continue
+            unset 'srcs[${#srcs[@]}-1]'    # drop the destination (last token)
+            for s in "${srcs[@]}"; do
+              if [ -z "$(git ls-files -- "$s")" ]; then
+                echo "::error file=Dockerfile::COPY source '$s' is not git-tracked; it is absent on a clean clone and the build will fail."
+                fail=1
+              fi
+            done
+          done < <(grep -iE '^[[:space:]]*COPY[[:space:]]' Dockerfile)
+          [ "$fail" = 0 ] && echo "All Dockerfile COPY sources are git-tracked."
+          exit $fail
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
