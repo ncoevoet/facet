@@ -38,7 +38,7 @@ jobs:
           cache: "npm"
           cache-dependency-path: client/package.json
       - run: npm install --no-audit --no-fund
-      - run: npm test -- --ci --passWithNoTests
+      - run: npm test
 
   lint:
     name: Lint
