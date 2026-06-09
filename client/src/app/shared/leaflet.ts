@@ -1,10 +1,12 @@
 import * as L from 'leaflet';
 
-// Fix Leaflet default marker icon paths (broken when bundled)
+// Fix Leaflet default marker icon paths (broken when bundled). Icons are
+// vendored from node_modules to /leaflet-images at build time (see angular.json
+// assets) so the map works offline instead of fetching from a CDN.
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconRetinaUrl: '/leaflet-images/marker-icon-2x.png',
+  iconUrl: '/leaflet-images/marker-icon.png',
+  shadowUrl: '/leaflet-images/marker-shadow.png',
 });
 
 /** Create a Leaflet map with the standard OSM tile layer. */

@@ -35,6 +35,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "marker-*.png",
+                "input": "node_modules/leaflet/dist/images",
+                "output": "leaflet-images"
               }
             ],
             "styles": [
