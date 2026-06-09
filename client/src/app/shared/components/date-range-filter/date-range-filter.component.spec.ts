@@ -4,7 +4,7 @@ import { I18nService } from '../../../core/services/i18n.service';
 import { DateRangeFilterComponent } from './date-range-filter.component';
 
 @Component({
-  selector: 'test-host',
+  selector: 'app-drf-host',
   imports: [DateRangeFilterComponent],
   template: `
     <app-date-range-filter
