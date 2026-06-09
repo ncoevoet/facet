@@ -354,7 +354,7 @@ interface SharedFilters {
         <mat-sidenav-content #contentArea>
           <div class="p-2">
             @if (isDesktop()) {
-              @for (row of mosaicRows(); track $index) {
+              @for (row of mosaicRows(); track row.photos[0]?.path ?? $index) {
                 <div class="flex gap-2 mb-2">
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card

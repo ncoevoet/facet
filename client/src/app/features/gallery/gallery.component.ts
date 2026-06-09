@@ -121,7 +121,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
             </div>
           } @else {
             <div class="flex flex-col gap-2 p-2 md:p-4">
-              @for (row of mosaicRows(); track $index) {
+              @for (row of mosaicRows(); track row.photos[0]?.path ?? $index) {
                 <div class="flex gap-2" style="content-visibility: auto; contain-intrinsic-size: auto 300px">
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
