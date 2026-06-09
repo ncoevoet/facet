@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, OnInit, WritableSignal } from '@angular/core';
+import { Component, inject, computed, signal, OnInit } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
@@ -34,6 +34,7 @@ import { TranslatePipe } from './shared/pipes/translate.pipe';
 import { SortGroupKeyPipe } from './shared/pipes/sort-group-key.pipe';
 import { PersonThumbnailUrlPipe, ThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
 import { MemoriesDialogComponent } from './features/gallery/memories-dialog.component';
+import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
 
 /** Inline dialog for edition password prompt. */
 @Component({
@@ -101,6 +102,7 @@ export class EditionDialogComponent {
     PersonThumbnailUrlPipe,
     ThumbnailUrlPipe,
     MatSliderModule,
+    DateRangeFilterComponent,
   ],
   templateUrl: './app.html',
   host: { class: 'block h-full' },
@@ -364,12 +366,6 @@ export class App implements OnInit {
 
   protected onCompareCategoryChange(cat: string): void {
     this.compareFilters.selectedCategory.set(cat);
-  }
-
-  protected onDateFilterChange(service: { dateFrom: WritableSignal<string>; dateTo: WritableSignal<string> }, field: 'from' | 'to', event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    if (field === 'from') service.dateFrom.set(value);
-    else service.dateTo.set(value);
   }
 
   protected switchLang(lang: string): void {

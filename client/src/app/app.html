@@ -152,14 +152,11 @@
             }
           </mat-select>
         </mat-form-field>
-        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
-          <mat-label>{{ 'stats.filter.date_from' | translate }}</mat-label>
-          <input matInput type="date" [value]="statsFilters.dateFrom()" (change)="onDateFilterChange(statsFilters, 'from', $event)" />
-        </mat-form-field>
-        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
-          <mat-label>{{ 'stats.filter.date_to' | translate }}</mat-label>
-          <input matInput type="date" [value]="statsFilters.dateTo()" (change)="onDateFilterChange(statsFilters, 'to', $event)" />
-        </mat-form-field>
+        <app-date-range-filter
+          [from]="statsFilters.dateFrom()" [to]="statsFilters.dateTo()"
+          fromLabel="stats.filter.date_from" toLabel="stats.filter.date_to"
+          fromClass="!hidden lg:!inline-flex w-44"
+          (fromChange)="statsFilters.dateFrom.set($event)" (toChange)="statsFilters.dateTo.set($event)" />
       }
 
       <!-- Albums filters (visible only on albums route, lg+) -->
@@ -189,38 +186,28 @@
 
       <!-- Timeline date filters (visible only on timeline route, lg+) -->
       @if (auth.isAuthenticated() && isTimelineRoute()) {
-        <mat-form-field class="!hidden lg:!inline-flex w-44 ml-2" subscriptSizing="dynamic">
-          <mat-label>{{ 'ui.labels.from' | translate }}</mat-label>
-          <input matInput type="date" [value]="timelineFilters.dateFrom()" (change)="onDateFilterChange(timelineFilters, 'from', $event)" />
-        </mat-form-field>
-        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
-          <mat-label>{{ 'ui.labels.to' | translate }}</mat-label>
-          <input matInput type="date" [value]="timelineFilters.dateTo()" (change)="onDateFilterChange(timelineFilters, 'to', $event)" />
-        </mat-form-field>
+        <app-date-range-filter
+          [from]="timelineFilters.dateFrom()" [to]="timelineFilters.dateTo()"
+          fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
+          (fromChange)="timelineFilters.dateFrom.set($event)" (toChange)="timelineFilters.dateTo.set($event)" />
       }
 
       <!-- Map filters (visible only on map route, lg+) -->
       @if (auth.isAuthenticated() && isMapRoute()) {
-        <mat-form-field class="!hidden lg:!inline-flex w-44 ml-2" subscriptSizing="dynamic">
-          <mat-label>{{ 'map.date_from' | translate }}</mat-label>
-          <input matInput type="date" [value]="mapFilters.dateFrom()" (change)="onDateFilterChange(mapFilters, 'from', $event)" />
-        </mat-form-field>
-        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
-          <mat-label>{{ 'map.date_to' | translate }}</mat-label>
-          <input matInput type="date" [value]="mapFilters.dateTo()" (change)="onDateFilterChange(mapFilters, 'to', $event)" />
-        </mat-form-field>
+        <app-date-range-filter
+          [from]="mapFilters.dateFrom()" [to]="mapFilters.dateTo()"
+          fromLabel="map.date_from" toLabel="map.date_to"
+          fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
+          (fromChange)="mapFilters.dateFrom.set($event)" (toChange)="mapFilters.dateTo.set($event)" />
       }
 
       <!-- Capsule filters (visible only on capsules route, lg+) -->
       @if (isCapsuleRoute()) {
-        <mat-form-field class="!hidden lg:!inline-flex w-44 ml-2" subscriptSizing="dynamic">
-          <mat-label>{{ 'capsules.date_from' | translate }}</mat-label>
-          <input matInput type="date" [value]="capsuleFilters.dateFrom()" (change)="onDateFilterChange(capsuleFilters, 'from', $event)" />
-        </mat-form-field>
-        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
-          <mat-label>{{ 'capsules.date_to' | translate }}</mat-label>
-          <input matInput type="date" [value]="capsuleFilters.dateTo()" (change)="onDateFilterChange(capsuleFilters, 'to', $event)" />
-        </mat-form-field>
+        <app-date-range-filter
+          [from]="capsuleFilters.dateFrom()" [to]="capsuleFilters.dateTo()"
+          fromLabel="capsules.date_from" toLabel="capsules.date_to"
+          fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
+          (fromChange)="capsuleFilters.dateFrom.set($event)" (toChange)="capsuleFilters.dateTo.set($event)" />
         <button class="!hidden lg:!inline-flex" mat-icon-button [disabled]="capsuleFilters.refreshing()" [matTooltip]="'capsules.regenerate' | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
           <mat-icon>refresh</mat-icon>
         </button>
@@ -736,28 +723,21 @@
   <!-- Mobile map bottom bar -->
   @if (auth.isAuthenticated() && isMapRoute()) {
     <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
-        <mat-label>{{ 'ui.labels.from' | translate }}</mat-label>
-        <input matInput type="date" [value]="mapFilters.dateFrom()" (change)="onDateFilterChange(mapFilters, 'from', $event)" />
-      </mat-form-field>
-      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
-        <mat-label>{{ 'ui.labels.to' | translate }}</mat-label>
-        <input matInput type="date" [value]="mapFilters.dateTo()" (change)="onDateFilterChange(mapFilters, 'to', $event)" />
-      </mat-form-field>
+      <app-date-range-filter
+        [from]="mapFilters.dateFrom()" [to]="mapFilters.dateTo()"
+        fromClass="flex-1 min-w-0"
+        (fromChange)="mapFilters.dateFrom.set($event)" (toChange)="mapFilters.dateTo.set($event)" />
     </div>
   }
 
   <!-- Mobile capsules bottom bar -->
   @if (auth.isAuthenticated() && isCapsuleRoute()) {
     <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
-        <mat-label>{{ 'capsules.date_from' | translate }}</mat-label>
-        <input matInput type="date" [value]="capsuleFilters.dateFrom()" (change)="onDateFilterChange(capsuleFilters, 'from', $event)" />
-      </mat-form-field>
-      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
-        <mat-label>{{ 'capsules.date_to' | translate }}</mat-label>
-        <input matInput type="date" [value]="capsuleFilters.dateTo()" (change)="onDateFilterChange(capsuleFilters, 'to', $event)" />
-      </mat-form-field>
+      <app-date-range-filter
+        [from]="capsuleFilters.dateFrom()" [to]="capsuleFilters.dateTo()"
+        fromLabel="capsules.date_from" toLabel="capsules.date_to"
+        fromClass="flex-1 min-w-0"
+        (fromChange)="capsuleFilters.dateFrom.set($event)" (toChange)="capsuleFilters.dateTo.set($event)" />
       <button mat-icon-button class="!w-10 !h-10 shrink-0" [matTooltip]="'capsules.regenerate' | translate"
         (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
         <mat-icon>refresh</mat-icon>
@@ -768,14 +748,10 @@
   <!-- Mobile timeline bottom bar -->
   @if (auth.isAuthenticated() && isTimelineRoute()) {
     <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
-        <mat-label>{{ 'ui.labels.from' | translate }}</mat-label>
-        <input matInput type="date" [value]="timelineFilters.dateFrom()" (change)="onDateFilterChange(timelineFilters, 'from', $event)" />
-      </mat-form-field>
-      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
-        <mat-label>{{ 'ui.labels.to' | translate }}</mat-label>
-        <input matInput type="date" [value]="timelineFilters.dateTo()" (change)="onDateFilterChange(timelineFilters, 'to', $event)" />
-      </mat-form-field>
+      <app-date-range-filter
+        [from]="timelineFilters.dateFrom()" [to]="timelineFilters.dateTo()"
+        fromClass="flex-1 min-w-0"
+        (fromChange)="timelineFilters.dateFrom.set($event)" (toChange)="timelineFilters.dateTo.set($event)" />
     </div>
   }
 </div>
