@@ -22,11 +22,11 @@ from pydantic import BaseModel, field_validator
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
     VIEWER_CONFIG, _CONFIG_PATH, FACET_SCRIPT,
-    get_comparison_mode_settings, map_disk_path,
-    reload_config, _stats_cache, get_all_scan_directories,
-    is_multi_user_enabled,
+    get_comparison_mode_settings,
+    reload_config, _stats_cache,
 )
 from api.database import get_db
+from api.path_validation import resolve_photo_disk_path
 from api.db_helpers import get_visibility_clause
 from db import DEFAULT_DB_PATH
 from utils.image_loading import RAW_EXTENSIONS
@@ -184,15 +184,7 @@ def _validate_and_resolve(path: str, user: Optional[CurrentUser]):
         raise HTTPException(status_code=404, detail='File not found')
 
     db_path = row['path']
-    disk_path = map_disk_path(db_path)
-    real_disk = os.path.realpath(disk_path)
-    if is_multi_user_enabled():
-        if not any(real_disk.startswith(os.path.realpath(d) + os.sep) for d in get_all_scan_directories()):
-            raise HTTPException(status_code=404, detail='File not found')
-
-    if not os.path.isfile(real_disk):
-        raise HTTPException(status_code=404, detail='File not found on disk')
-
+    real_disk = resolve_photo_disk_path(db_path)
     return db_path, real_disk
 
 

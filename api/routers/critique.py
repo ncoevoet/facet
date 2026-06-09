@@ -374,7 +374,7 @@ def _get_vlm_critique(photo, rule_critique):
         if not VIEWER_CONFIG.get('features', {}).get('show_vlm_critique', False):
             return None
 
-        from api.config import map_disk_path
+        from api.path_validation import resolve_photo_disk_path
         from PIL import Image
 
         vlm_config = models_config.get('vlm_tagger', {})
@@ -399,7 +399,7 @@ def _get_vlm_critique(photo, rule_critique):
             f"Give a 2-3 sentence photography critique with specific improvement suggestions."
         )
 
-        disk_path = map_disk_path(photo['path'])
+        disk_path = resolve_photo_disk_path(photo['path'])
         img = Image.open(disk_path).convert('RGB')
         img.thumbnail((640, 640))
 

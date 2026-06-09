@@ -16,6 +16,7 @@ from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
+from api.path_validation import resolve_photo_disk_path
 
 from api.model_cache import get_or_load_vlm_tagger
 
@@ -170,19 +171,22 @@ def _resolve_vlm_config() -> Optional[dict]:
 def _generate_caption(photo_path: str) -> Optional[str]:
     """Generate a caption for a photo using the VLM tagger.
 
-    Returns None if VLM is unavailable (wrong profile, missing config, etc.).
+    ``photo_path`` must already be a DB-validated, user-visible path. The disk
+    path is resolved through the scan-directory allowlist before the image is
+    opened. Returns None if VLM is unavailable (wrong profile, missing config,
+    or a generation error).
     """
-    try:
-        vlm_config = _resolve_vlm_config()
-        if not vlm_config:
-            return None
+    vlm_config = _resolve_vlm_config()
+    if not vlm_config:
+        return None
 
-        from api.config import map_disk_path
+    disk_path = resolve_photo_disk_path(photo_path)
+
+    try:
         from PIL import Image
 
         tagger = get_or_load_vlm_tagger(vlm_config, _FULL_CONFIG)
 
-        disk_path = map_disk_path(photo_path)
         img = Image.open(disk_path).convert('RGB')
         img.thumbnail((640, 640))
 
