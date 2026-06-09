@@ -69,3 +69,4 @@ photos_all/
 
 # Benchmark results — keep dir via .gitkeep, ignore generated JSON
 bench/results/*.json
+.claude/loop/

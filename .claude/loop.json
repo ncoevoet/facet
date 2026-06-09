@@ -1,0 +1,9 @@
+{
+  "oracle": {
+    "lint": "venv/bin/ruff check api/ tests/ --select E,F,W --ignore E501 && cd client && npx ng lint",
+    "test": "venv/bin/python -m pytest -q && cd client && npm run test",
+    "build": "cd client && npx ng build",
+    "mandatory": ["lint", "test", "build"]
+  },
+  "budget": { "maxIterations": 20, "maxRepeatedFailures": 3 }
+}
