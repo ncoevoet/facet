@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, firstValueFrom } from 'rxjs';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatIconModule } from '@angular/material/icon';
@@ -320,7 +322,24 @@ export class App implements OnInit {
     });
   }
 
+  private readonly snackBar = inject(MatSnackBar);
+  private readonly swUpdate = inject(SwUpdate, { optional: true });
+
+  /** Offer a reload when the service worker has installed a new version. */
+  private setupUpdateNotifications(): void {
+    if (!this.swUpdate?.isEnabled) return;
+    this.swUpdate.versionUpdates
+      .pipe(filter((e): e is VersionReadyEvent => e.type === 'VERSION_READY'))
+      .subscribe(() => {
+        const ref = this.snackBar.open(
+          this.i18n.t('pwa.update_available'), this.i18n.t('pwa.reload'),
+        );
+        ref.onAction().subscribe(() => location.reload());
+      });
+  }
+
   async ngOnInit(): Promise<void> {
+    this.setupUpdateNotifications();
     await this.i18n.load();
     this.store.loadTypeCounts();
     this.store.loadConfig();

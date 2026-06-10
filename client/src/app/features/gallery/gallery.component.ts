@@ -18,6 +18,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatBottomSheet, MatBottomSheetModule } from '@angular/material/bottom-sheet';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -56,6 +57,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
     MatDialogModule,
     MatMenuModule,
     MatTooltipModule,
+    MatBottomSheetModule,
     TranslatePipe,
     MatSnackBarModule,
     PhotoTooltipComponent,
@@ -300,12 +302,14 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
             <button mat-icon-button class="lg:!hidden" (click)="selectAll()" [matTooltip]="'gallery.selection.select_all' | translate"><mat-icon>select_all</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="selectAll()"><mat-icon>select_all</mat-icon> {{ 'gallery.selection.select_all' | translate }}</button>
           }
+          <!-- Mobile: single Actions trigger opening a touch-friendly bottom sheet -->
+          <button mat-flat-button class="lg:!hidden" (click)="openActionsSheet()" [disabled]="downloading()">
+            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
+            {{ 'gallery.selection.actions' | translate }}
+          </button>
           @if (auth.isEdition()) {
-            <button mat-icon-button class="lg:!hidden" (click)="batchFavorite()" [matTooltip]="'gallery.selection.favorite' | translate"><mat-icon>favorite</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="batchFavorite()"><mat-icon>favorite</mat-icon> {{ 'gallery.selection.favorite' | translate }}</button>
-            <button mat-icon-button class="lg:!hidden" (click)="batchReject()" [matTooltip]="'gallery.selection.reject' | translate"><mat-icon>thumb_down</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="batchReject()"><mat-icon>thumb_down</mat-icon> {{ 'gallery.selection.reject' | translate }}</button>
-            <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="rateMenu" [matTooltip]="'gallery.selection.rate' | translate"><mat-icon>star</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="rateMenu"><mat-icon>star</mat-icon> {{ 'gallery.selection.rate' | translate }}</button>
             <mat-menu #rateMenu="matMenu">
               @for (star of [1, 2, 3, 4, 5]; track star) {
@@ -319,7 +323,6 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
             </mat-menu>
           }
           @if (auth.isEdition() && store.config()?.features?.show_albums) {
-            <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="albumMenu" [matTooltip]="'albums.add_photos' | translate"><mat-icon>photo_library</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="albumMenu"><mat-icon>photo_library</mat-icon> {{ 'albums.add_photos' | translate }}</button>
             <mat-menu #albumMenu="matMenu">
               @for (album of albumOptions(); track album.id) {
@@ -331,10 +334,8 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
               </button>
             </mat-menu>
           }
-          <button mat-icon-button class="lg:!hidden" (click)="copyPaths()" [matTooltip]="'gallery.selection.copy_filenames' | translate"><mat-icon>content_copy</mat-icon></button>
           <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ 'gallery.selection.copy_filenames' | translate }}</button>
           @if (auth.downloadProfiles().length) {
-            <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()" [matTooltip]="'gallery.selection.download' | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
             <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
             <mat-menu #dlMenu="matMenu">
               <button mat-menu-item (click)="downloadSelected()"><mat-icon>image</mat-icon> {{ 'download.type_original' | translate }}</button>
@@ -344,7 +345,6 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
               <button mat-menu-item (click)="downloadSelected('raw')"><mat-icon>raw_on</mat-icon> {{ 'download.type_raw' | translate }}</button>
             </mat-menu>
           } @else {
-            <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="'gallery.selection.download' | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
             <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
           }
         </div>
@@ -360,6 +360,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly store = inject(GalleryStore);
   protected readonly auth = inject(AuthService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly bottomSheet = inject(MatBottomSheet);
   private readonly i18n = inject(I18nService);
   private readonly dialog = inject(MatDialog);
   private readonly albumService = inject(AlbumService);
@@ -771,6 +772,31 @@ export class GalleryComponent implements OnInit, OnDestroy {
       queryParams: { path: photo.path },
       state: { photo },
     });
+  }
+
+  /** Open the mobile bulk-actions bottom sheet and dispatch the chosen action. */
+  protected async openActionsSheet(): Promise<void> {
+    const { GalleryActionsSheetComponent } = await import('./gallery-actions-sheet.component');
+    const ref = this.bottomSheet.open(GalleryActionsSheetComponent, {
+      data: {
+        count: this.selectionCount(),
+        isEdition: this.auth.isEdition(),
+        showAlbums: !!this.store.config()?.features?.show_albums,
+        albums: this.albumOptions(),
+        downloadProfiles: this.auth.downloadProfiles(),
+      },
+    });
+    const action = await firstValueFrom(ref.afterDismissed());
+    if (!action) return;
+    switch (action.kind) {
+      case 'favorite': await this.batchFavorite(); break;
+      case 'reject': await this.batchReject(); break;
+      case 'rate': await this.batchRate(action.rating); break;
+      case 'album': await this.addToAlbum(action.albumId); break;
+      case 'create-album': await this.createAlbumAndAdd(); break;
+      case 'copy': this.copyPaths(); break;
+      case 'download': await this.downloadSelected(action.type, action.profile); break;
+    }
   }
 
   protected async downloadSelected(type = 'original', profile?: string): Promise<void> {

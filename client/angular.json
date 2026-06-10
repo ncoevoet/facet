@@ -45,7 +45,8 @@
             "styles": [
               "node_modules/leaflet/dist/leaflet.css",
               "src/styles.scss"
-            ]
+            ],
+            "serviceWorker": "ngsw-config.json"
           },
           "configurations": {
             "production": {
@@ -72,7 +73,9 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true,
-              "polyfills": ["zone.js"]
+              "polyfills": [
+                "zone.js"
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -101,7 +104,9 @@
             "buildTarget": "client:build:test",
             "tsConfig": "tsconfig.spec.json",
             "runner": "vitest",
-            "setupFiles": ["src/test-setup.ts"]
+            "setupFiles": [
+              "src/test-setup.ts"
+            ]
           }
         },
         "lint": {

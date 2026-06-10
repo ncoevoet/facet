@@ -192,7 +192,8 @@
     "histogram_spread": "Istogramma",
     "star_rating": "Valutazione",
     "topiq_score": "TOPIQ",
-    "persons": "Persone"
+    "persons": "Persone",
+    "histogram": "Istogramma"
   },
   "notifications": {
     "copied": "Copiato!",
@@ -1064,7 +1065,8 @@
       "batch_favorited": "{count} foto aggiunte ai preferiti",
       "batch_rejected": "{count} foto rifiutate",
       "batch_rated": "{count} foto valutate {rating} stelle",
-      "select_all": "Seleziona tutto"
+      "select_all": "Seleziona tutto",
+      "actions": "Azioni"
     },
     "composition_pattern": "Composizione",
     "sidebar": {
@@ -1844,5 +1846,9 @@
     "section_global": "Globale",
     "comp_left_wins": "Vince la foto a sinistra",
     "comp_right_wins": "Vince la foto a destra"
+  },
+  "pwa": {
+    "update_available": "È disponibile una nuova versione",
+    "reload": "Ricarica"
   }
 }

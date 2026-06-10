@@ -192,7 +192,8 @@
     "subject_placement": "Placement",
     "bg_separation": "BG Separation",
     "caption": "Caption",
-    "persons": "Persons"
+    "persons": "Persons",
+    "histogram": "Histogram"
   },
   "notifications": {
     "copied": "Copied!",
@@ -1064,7 +1065,8 @@
       "batch_favorited": "{count} photos favorited",
       "batch_rejected": "{count} photos rejected",
       "batch_rated": "{count} photos rated {rating} stars",
-      "select_all": "Select all"
+      "select_all": "Select all",
+      "actions": "Actions"
     },
     "composition_pattern": "Composition",
     "sidebar": {
@@ -1842,5 +1844,9 @@
     "section_global": "Global",
     "comp_left_wins": "Left photo wins",
     "comp_right_wins": "Right photo wins"
+  },
+  "pwa": {
+    "update_available": "A new version is available",
+    "reload": "Reload"
   }
 }

@@ -21,6 +21,7 @@ import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CategoryLabelPipe } from '../gallery/photo-tooltip.component';
 import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
 import { DownloadIconPipe } from '../../shared/pipes/download-icon.pipe';
+import { HistogramComponent } from '../../shared/components/histogram/histogram.component';
 import { DownloadOption } from '../../shared/models/download.model';
 import { downloadAll } from '../../shared/utils/download';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -45,6 +46,7 @@ import { createLeafletMap } from '../../shared/leaflet';
     CategoryLabelPipe,
     IsLensNamePipe,
     DownloadIconPipe,
+    HistogramComponent,
   ],
   template: `
     @if (photo(); as p) {
@@ -350,6 +352,12 @@ import { createLeafletMap } from '../../shared/leaflet';
               </div>
             </div>
           }
+
+          <!-- Luminance histogram -->
+          <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
+            <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ 'tooltip.histogram' | translate }}</div>
+            <app-histogram [src]="p.path | thumbnailUrl:640" />
+          </div>
 
           <!-- Location -->
           @if (p.gps_latitude !== null && p.gps_longitude !== null) {

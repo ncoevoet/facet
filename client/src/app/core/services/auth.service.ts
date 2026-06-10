@@ -87,7 +87,19 @@ export class AuthService {
   logout(): void {
     localStorage.removeItem(this.TOKEN_KEY);
     this.status.set(null);
+    this.clearThumbnailCaches();
     this.router.navigate(['/login']);
+  }
+
+  /** Drop service-worker thumbnail caches so they can't leak across users
+   * sharing a browser (multi-user deployments). */
+  private clearThumbnailCaches(): void {
+    if (!('caches' in window)) return;
+    caches.keys()
+      .then(keys => Promise.allSettled(
+        keys.filter(k => k.includes(':thumbnails:')).map(k => caches.delete(k)),
+      ))
+      .catch(() => { /* cache API unavailable - nothing to clear */ });
   }
 
   /** Drop edition privileges without navigating away */

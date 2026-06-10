@@ -6,6 +6,7 @@ import { ShutterSpeedPipe } from '../../shared/pipes/shutter-speed.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
+import { HistogramComponent } from '../../shared/components/histogram/histogram.component';
 
 /** Replace underscores with spaces for display (e.g. "rule_of_thirds" → "Rule Of Thirds"). */
 @Pipe({ name: 'categoryLabel', standalone: true, pure: true })
@@ -19,7 +20,7 @@ export class CategoryLabelPipe implements PipeTransform {
 
 @Component({
   selector: 'app-photo-tooltip',
-  imports: [FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe, CategoryLabelPipe, IsLensNamePipe],
+  imports: [FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe, CategoryLabelPipe, IsLensNamePipe, HistogramComponent],
   template: `
     @if (photo(); as p) {
       <div
@@ -226,6 +227,12 @@ export class CategoryLabelPipe implements PipeTransform {
               }
             </div>
           }
+
+          <!-- Luminance histogram (computed from the cached thumbnail) -->
+          <div class="min-w-[120px]">
+            <div class="text-[10px] text-[var(--facet-tooltip-text-muted)] uppercase tracking-wider mb-1">{{ 'tooltip.histogram' | translate }}</div>
+            <app-histogram [src]="p.path | thumbnailUrl:640" />
+          </div>
         </div>
 
         <!-- Zone C: Tags (full width) -->

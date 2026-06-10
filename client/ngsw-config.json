@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/@angular/service-worker/config/schema.json",
+  "index": "/index.html",
+  "assetGroups": [
+    {
+      "name": "app",
+      "installMode": "prefetch",
+      "resources": {
+        "files": ["/favicon.ico", "/favicon.svg", "/index.html", "/manifest.webmanifest", "/*.css", "/*.js"]
+      }
+    },
+    {
+      "name": "assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": ["/icon-*.png", "/**/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"]
+      }
+    }
+  ],
+  "dataGroups": [
+    {
+      "name": "thumbnails",
+      "urls": ["/thumbnail**", "/person_thumbnail/**", "/face_thumbnail/**"],
+      "cacheConfig": {
+        "strategy": "performance",
+        "maxSize": 1000,
+        "maxAge": "7d"
+      }
+    },
+    {
+      "name": "i18n-config",
+      "urls": ["/api/i18n/**"],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "timeout": "2s",
+        "maxSize": 10,
+        "maxAge": "1d"
+      }
+    }
+  ],
+  "navigationUrls": ["/**", "!/**/*.*", "!/api/**"]
+}

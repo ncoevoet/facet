@@ -192,7 +192,8 @@
     "subject_placement": "Placement",
     "bg_separation": "Séparation fond",
     "caption": "Légende",
-    "persons": "Personnes"
+    "persons": "Personnes",
+    "histogram": "Histogramme"
   },
   "notifications": {
     "copied": "Copie !",
@@ -1064,7 +1065,8 @@
       "batch_favorited": "{count} photos mises en favori",
       "batch_rejected": "{count} photos rejetees",
       "batch_rated": "{count} photos notees {rating} etoiles",
-      "select_all": "Tout sélectionner"
+      "select_all": "Tout sélectionner",
+      "actions": "Actions"
     },
     "composition_pattern": "Composition",
     "sidebar": {
@@ -1844,5 +1846,9 @@
     "section_global": "Global",
     "comp_left_wins": "La photo de gauche gagne",
     "comp_right_wins": "La photo de droite gagne"
+  },
+  "pwa": {
+    "update_available": "Une nouvelle version est disponible",
+    "reload": "Recharger"
   }
 }
