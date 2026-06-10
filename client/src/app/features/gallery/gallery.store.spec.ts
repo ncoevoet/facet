@@ -1,10 +1,12 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { Router, ActivatedRoute } from '@angular/router';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlbumService } from '../../core/services/album.service';
+import { I18nService } from '../../core/services/i18n.service';
 import {
   GalleryStore,
   DEFAULT_FILTERS,
@@ -130,18 +132,22 @@ function makeConfig(overrides: Partial<ViewerConfig> = {}): ViewerConfig {
 describe('GalleryStore', () => {
   let store: GalleryStore;
   let apiGet: Mock;
+  let apiPost: Mock;
+  let snackOpen: Mock;
   let routerNavigate: Mock;
   let queryParams: Record<string, string>;
 
   beforeEach(() => {
     apiGet = vi.fn();
+    apiPost = vi.fn(() => of({}));
+    snackOpen = vi.fn();
     routerNavigate = vi.fn();
     queryParams = {};
 
     TestBed.configureTestingModule({
       providers: [
         GalleryStore,
-        { provide: ApiService, useValue: { get: apiGet } },
+        { provide: ApiService, useValue: { get: apiGet, post: apiPost } },
         { provide: Router, useValue: { navigate: routerNavigate } },
         {
           provide: ActivatedRoute,
@@ -149,6 +155,8 @@ describe('GalleryStore', () => {
         },
         { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
+        { provide: MatSnackBar, useValue: { open: snackOpen } },
+        { provide: I18nService, useValue: { t: (k: string) => k } },
       ],
     });
 
@@ -717,5 +725,154 @@ describe('GalleryStore', () => {
       const params = routerNavigate.mock.calls[0][1].queryParams;
       expect(params).not.toHaveProperty('hide_blinks');
     });
+  });
+});
+
+describe('GalleryStore selection', () => {
+  let store: GalleryStore;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        GalleryStore,
+        { provide: ApiService, useValue: { get: vi.fn(), post: vi.fn(() => of({})) } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
+        { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+        { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: I18nService, useValue: { t: (k: string) => k } },
+      ],
+    });
+    store = TestBed.inject(GalleryStore);
+    store.photos.set([
+      makePhoto({ path: '/a.jpg' }),
+      makePhoto({ path: '/b.jpg' }),
+      makePhoto({ path: '/c.jpg' }),
+      makePhoto({ path: '/d.jpg' }),
+    ]);
+  });
+
+  it('toggles a single photo', () => {
+    store.toggleSelection(store.photos()[1]);
+    expect([...store.selectedPaths()]).toEqual(['/b.jpg']);
+    store.toggleSelection(store.photos()[1]);
+    expect(store.selectionCount()).toBe(0);
+  });
+
+  it('shift-click extends the range from the last selected index', () => {
+    store.toggleSelection(store.photos()[0]);
+    store.toggleSelection(store.photos()[2], { shiftKey: true } as MouseEvent);
+    expect([...store.selectedPaths()].sort()).toEqual(['/a.jpg', '/b.jpg', '/c.jpg']);
+  });
+
+  it('selectAllLoaded selects every loaded photo', () => {
+    store.selectAllLoaded();
+    expect(store.selectionCount()).toBe(4);
+  });
+
+  it('selectAllLoaded is idempotent', () => {
+    store.selectAllLoaded();
+    store.selectAllLoaded();
+    expect(store.selectionCount()).toBe(4);
+  });
+
+  it('clearSelection empties the set and resets range anchor', () => {
+    store.selectAllLoaded();
+    store.clearSelection();
+    expect(store.selectionCount()).toBe(0);
+    store.toggleSelection(store.photos()[2], { shiftKey: true } as MouseEvent);
+    expect([...store.selectedPaths()]).toEqual(['/c.jpg']);
+  });
+
+  it('restoreSelection rehydrates a saved set', () => {
+    store.restoreSelection(['/a.jpg', '/d.jpg']);
+    expect([...store.selectedPaths()].sort()).toEqual(['/a.jpg', '/d.jpg']);
+  });
+});
+
+describe('GalleryStore optimistic mutations', () => {
+  let store: GalleryStore;
+  let apiPost: Mock;
+  let snackOpen: Mock;
+
+  beforeEach(() => {
+    apiPost = vi.fn(() => of({}));
+    snackOpen = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        GalleryStore,
+        { provide: ApiService, useValue: { get: vi.fn(), post: apiPost } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
+        { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+        { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
+        { provide: MatSnackBar, useValue: { open: snackOpen } },
+        { provide: I18nService, useValue: { t: (k: string) => k } },
+      ],
+    });
+    store = TestBed.inject(GalleryStore);
+    store.photos.set([
+      makePhoto({ path: '/a.jpg', is_favorite: false, is_rejected: false, star_rating: 3 }),
+      makePhoto({ path: '/b.jpg', is_favorite: true, is_rejected: false, star_rating: null }),
+    ]);
+  });
+
+  it('toggleFavorite applies the flag synchronously before the API resolves', () => {
+    apiPost.mockReturnValue(of({ is_favorite: true }));
+    void store.toggleFavorite('/a.jpg');
+    expect(store.photos()[0].is_favorite).toBe(true);
+  });
+
+  it('toggleFavorite reverts and notifies on API error', async () => {
+    apiPost.mockReturnValue(throwError(() => new Error('boom')));
+    await store.toggleFavorite('/a.jpg');
+    expect(store.photos()[0].is_favorite).toBe(false);
+    expect(snackOpen).toHaveBeenCalledWith('errors.action_failed', '', expect.anything());
+  });
+
+  it('toggleFavorite reconciles with server truth', async () => {
+    apiPost.mockReturnValue(of({ is_favorite: false }));
+    await store.toggleFavorite('/a.jpg');
+    expect(store.photos()[0].is_favorite).toBe(false);
+  });
+
+  it('toggleRejected clears favorite optimistically', () => {
+    apiPost.mockReturnValue(of({ is_rejected: true }));
+    void store.toggleRejected('/b.jpg');
+    expect(store.photos()[1].is_rejected).toBe(true);
+    expect(store.photos()[1].is_favorite).toBe(false);
+  });
+
+  it('batchReject returns the pre-mutation snapshot on success', async () => {
+    const snap = await store.batchReject(['/a.jpg', '/b.jpg']);
+    expect(snap).not.toBeNull();
+    expect(snap!.get('/a.jpg')).toEqual({ is_favorite: false, is_rejected: false, star_rating: 3 });
+    expect(snap!.get('/b.jpg')).toEqual({ is_favorite: true, is_rejected: false, star_rating: null });
+    expect(store.photos()[0].is_rejected).toBe(true);
+    expect(store.photos()[0].star_rating).toBeNull();
+  });
+
+  it('batchReject reverts everything and returns null on error', async () => {
+    apiPost.mockReturnValue(throwError(() => new Error('boom')));
+    const snap = await store.batchReject(['/a.jpg', '/b.jpg']);
+    expect(snap).toBeNull();
+    expect(store.photos()[0].is_rejected).toBe(false);
+    expect(store.photos()[0].star_rating).toBe(3);
+    expect(store.photos()[1].is_favorite).toBe(true);
+    expect(snackOpen).toHaveBeenCalled();
+  });
+
+  it('batchRating applies optimistically and reverts on error', async () => {
+    apiPost.mockReturnValue(throwError(() => new Error('boom')));
+    const result = await store.batchRating(['/a.jpg'], 5);
+    expect(result).toBeNull();
+    expect(store.photos()[0].star_rating).toBe(3);
+  });
+
+  it('setRating reverts on error', async () => {
+    apiPost.mockReturnValue(throwError(() => new Error('boom')));
+    await store.setRating('/a.jpg', 5);
+    expect(store.photos()[0].star_rating).toBe(3);
   });
 });

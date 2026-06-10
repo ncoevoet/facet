@@ -43,13 +43,14 @@ interface AppConfig {
     <div
       role="button"
       tabindex="0"
-      class="relative rounded-lg overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container)] transition-all h-full"
+      class="relative rounded-lg overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container)] transition-all h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
       [class.md:aspect-square]="hideDetails() && !mosaicMode()"
       [class.ring-2]="isSelected()"
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
       [class.md:hover:ring-2]="!isSelected()"
       [class.md:hover:ring-[var(--mat-sys-outline-variant)]]="!isSelected()"
       [attr.aria-label]="photo().filename"
+      [attr.aria-pressed]="isSelected()"
       (click)="onSelect($event)"
       (keydown.enter)="onKeySelect($event)"
       (keydown.space)="onKeySelect($event)"
@@ -68,7 +69,9 @@ interface AppConfig {
           class="w-full bg-[var(--mat-sys-surface-container)] transition-opacity duration-500"
           [class.md:h-full]="hideDetails()"
           [class.md:object-cover]="hideDetails()"
-          [style.opacity]="imageLoaded() ? '1' : '0'"
+          [class.grayscale]="isEditionMode() && photo().is_rejected"
+          [class.opacity-60]="isEditionMode() && photo().is_rejected"
+          [style.opacity]="imageLoaded() ? (isEditionMode() && photo().is_rejected ? '0.6' : '1') : '0'"
           (load)="imageLoaded.set(true)"
         />
 
@@ -76,6 +79,14 @@ interface AppConfig {
         @if (isEditionMode() && photo().is_favorite) {
           <div class="absolute bottom-1.5 right-3 z-20 pointer-events-none transition-opacity md:group-hover/img:opacity-0">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md">favorite</mat-icon>
+          </div>
+        }
+
+        <!-- Persistent rejected badge (shape + desaturation, not color alone) -->
+        @if (isEditionMode() && photo().is_rejected) {
+          <div class="absolute bottom-1.5 left-3 z-20 pointer-events-none flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 transition-opacity md:group-hover/img:opacity-0"
+               [attr.aria-label]="'rating.rejected_badge' | translate">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md" aria-hidden="true">thumb_down</mat-icon>
           </div>
         }
 
@@ -148,9 +159,11 @@ interface AppConfig {
                     [class.text-red-400]="photo().is_rejected"
                     [class.text-white]="!photo().is_rejected"
                     [matTooltip]="(photo().is_rejected ? 'rating.unmark_rejected' : 'rating.mark_rejected') | translate"
+                    [attr.aria-label]="(photo().is_rejected ? 'rating.unmark_rejected' : 'rating.mark_rejected') | translate"
+                    [attr.aria-pressed]="!!photo().is_rejected"
                     (click)="rejectedToggled.emit(photo().path); $event.stopPropagation()"
                     (dblclick)="$event.stopPropagation()">
-                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">{{ photo().is_rejected ? 'thumb_down' : 'thumb_down_off_alt' }}</mat-icon>
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">{{ photo().is_rejected ? 'thumb_down' : 'thumb_down_off_alt' }}</mat-icon>
                   </button>
                 }
                 <button
@@ -158,9 +171,11 @@ interface AppConfig {
                   [class.text-red-400]="photo().is_favorite"
                   [class.text-white]="!photo().is_favorite"
                   [matTooltip]="(photo().is_favorite ? 'rating.remove_favorite' : 'rating.add_favorite') | translate"
+                  [attr.aria-label]="(photo().is_favorite ? 'rating.remove_favorite' : 'rating.add_favorite') | translate"
+                  [attr.aria-pressed]="!!photo().is_favorite"
                   (click)="favoriteToggled.emit(photo().path); $event.stopPropagation()"
                   (dblclick)="$event.stopPropagation()">
-                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">{{ photo().is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">{{ photo().is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
                 </button>
               </div>
             </div>
@@ -169,7 +184,7 @@ interface AppConfig {
 
         <!-- Selection checkmark -->
         @if (isSelected()) {
-          <div class="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[var(--mat-sys-primary)] flex items-center justify-center z-20">
+          <div class="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[var(--mat-sys-primary)] flex items-center justify-center z-20" aria-hidden="true">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">check</mat-icon>
           </div>
         }

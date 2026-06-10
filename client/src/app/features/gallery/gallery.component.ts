@@ -36,6 +36,7 @@ import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { SlideshowComponent } from './slideshow.component';
 import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.component';
 import { PhotoCardComponent } from '../../shared/components/photo-card/photo-card.component';
+import { PhotoSkeletonComponent } from '../../shared/components/photo-skeleton/photo-skeleton.component';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
@@ -56,6 +57,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
     SlideshowComponent,
     GalleryFilterSidebarComponent,
     PhotoCardComponent,
+    PhotoSkeletonComponent,
     InfiniteScrollDirective,
   ],
   template: `
@@ -158,10 +160,25 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
           }
         }
 
-        <!-- Loading spinner -->
+        <!-- Loading skeletons -->
         @if (store.loading()) {
-          <div class="flex justify-center p-8">
-            <mat-spinner diameter="40"></mat-spinner>
+          <div role="status" [attr.aria-label]="'gallery.loading_photos' | translate" aria-busy="true">
+            @if (!store.photos().length) {
+              <div
+                class="grid grid-cols-1 gap-2 p-2 md:p-4 gallery-grid"
+                [style.--gallery-cols]="'repeat(auto-fill, minmax(' + cardWidth() + 'px, 1fr))'"
+              >
+                @for (i of skeletonItems(); track i) {
+                  <app-photo-skeleton [height]="cardWidth()" />
+                }
+              </div>
+            } @else {
+              <div class="flex gap-2 p-2 md:p-4">
+                @for (i of appendSkeletonItems(); track i) {
+                  <app-photo-skeleton class="flex-1" [height]="cardWidth()" />
+                }
+              </div>
+            }
           </div>
         }
 
@@ -222,6 +239,10 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
         <div class="flex items-center gap-0 lg:gap-2">
           <button mat-icon-button class="lg:!hidden" (click)="clearSelection()" [matTooltip]="'gallery.selection.clear' | translate"><mat-icon>close</mat-icon></button>
           <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ 'gallery.selection.clear' | translate }}</button>
+          @if (!allLoadedSelected()) {
+            <button mat-icon-button class="lg:!hidden" (click)="selectAll()" [matTooltip]="'gallery.selection.select_all' | translate"><mat-icon>select_all</mat-icon></button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="selectAll()"><mat-icon>select_all</mat-icon> {{ 'gallery.selection.select_all' | translate }}</button>
+          }
           @if (auth.isEdition()) {
             <button mat-icon-button class="lg:!hidden" (click)="batchFavorite()" [matTooltip]="'gallery.selection.favorite' | translate"><mat-icon>favorite</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="batchFavorite()"><mat-icon>favorite</mat-icon> {{ 'gallery.selection.favorite' | translate }}</button>
@@ -273,7 +294,10 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
       </div>
     }
   `,
-  host: { class: 'block h-full' },
+  host: {
+    class: 'block h-full',
+    '(document:keydown.control.a)': 'onSelectAllShortcut($event)',
+  },
 })
 export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly store = inject(GalleryStore);
@@ -309,10 +333,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly tooltipY = signal(0);
   protected readonly tooltipFlipped = signal(false);
 
-  // Selection state
-  protected readonly selectedPaths = signal<Set<string>>(new Set());
-  protected readonly selectionCount = computed(() => this.selectedPaths().size);
-  private lastSelectedIndex = -1;
+  // Selection state lives in the store (survives navigation, visible to services)
+  protected readonly selectedPaths = this.store.selectedPaths;
+  protected readonly selectionCount = this.store.selectionCount;
+
+  /** True when every loaded photo is already selected. */
+  protected readonly allLoadedSelected = computed(() =>
+    this.store.photos().length > 0 && this.selectionCount() >= this.store.photos().length,
+  );
 
   /** True when the device has no hover capability (touch device) */
   protected readonly isTouchDevice = signal(false);
@@ -325,6 +353,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Card min-width from store for the responsive grid */
   readonly cardWidth = computed(() => this.store.cardWidth() || 168);
+
+  /** Skeleton placeholders for the initial load (matches a typical first page). */
+  protected readonly skeletonItems = computed(() => Array.from({ length: 24 }, (_, i) => i));
+  /** Skeleton placeholders for an appended page (single row). */
+  protected readonly appendSkeletonItems = computed(() => {
+    const width = this.containerWidth() || 1200;
+    const cols = Math.max(1, Math.floor(width / (this.cardWidth() + 8)));
+    return Array.from({ length: cols }, (_, i) => i);
+  });
 
   /** Whether the viewport is md+ (768px) — mosaic is only available on desktop */
   private readonly desktop = useDesktopSignal({
@@ -490,29 +527,26 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   protected toggleSelection(photo: Photo, event?: MouseEvent): void {
-    const photos = this.store.photos();
-    const clickedIndex = photos.findIndex(p => p.path === photo.path);
-    const current = this.selectedPaths();
-    const next = new Set(current);
-
-    if (event?.shiftKey && this.lastSelectedIndex >= 0 && clickedIndex >= 0) {
-      const start = Math.min(this.lastSelectedIndex, clickedIndex);
-      const end = Math.max(this.lastSelectedIndex, clickedIndex);
-      for (let i = start; i <= end; i++) {
-        next.add(photos[i].path);
-      }
-    } else if (next.has(photo.path)) {
-      next.delete(photo.path);
-    } else {
-      next.add(photo.path);
-    }
-
-    if (clickedIndex >= 0) this.lastSelectedIndex = clickedIndex;
-    this.selectedPaths.set(next);
+    this.store.toggleSelection(photo, event);
   }
 
   protected clearSelection(): void {
-    this.selectedPaths.set(new Set());
+    this.store.clearSelection();
+  }
+
+  protected selectAll(): void {
+    this.store.selectAllLoaded();
+  }
+
+  /** Ctrl+A selects all loaded photos unless focus is in an input or a dialog is open. */
+  protected onSelectAllShortcut(event: Event): void {
+    const target = event.target as HTMLElement | null;
+    if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+    if (target?.isContentEditable) return;
+    if (document.querySelector('mat-dialog-container')) return;
+    if (!this.store.photos().length) return;
+    event.preventDefault();
+    this.selectAll();
   }
 
   protected copyPaths(): void {
@@ -525,12 +559,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   private async executeBatchAction(
-    action: (paths: string[]) => Promise<void>,
+    action: (paths: string[]) => Promise<unknown | null>,
     i18nKey: string,
     extraParams?: Record<string, unknown>,
   ): Promise<void> {
     const paths = [...this.selectedPaths()];
-    await action(paths);
+    const result = await action(paths);
+    if (result === null) return; // store reverted and notified
     this.clearSelection();
     this.snackBar.open(this.i18n.t(i18nKey, { count: paths.length, ...extraParams }), '', { duration: 2000 });
   }

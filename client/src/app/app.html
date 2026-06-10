@@ -6,91 +6,91 @@
       <!-- Nav links -->
       @if (auth.isAuthenticated()) {
         <nav class="flex items-center gap-0 lg:gap-1">
-          <a mat-icon-button class="lg:!hidden" routerLink="/" routerLinkActive #rlGalleryM="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGalleryM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.gallery_tooltip' | translate" (dblclick)="resetAllFilters()">
+          <a mat-icon-button class="lg:!hidden" routerLink="/" routerLinkActive #rlGalleryM="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGalleryM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.gallery_tooltip' | translate" [attr.aria-label]="'nav.gallery_tooltip' | translate" (dblclick)="resetAllFilters()">
             <mat-icon>diamond</mat-icon>
           </a>
           @if (store.config()?.features?.show_albums) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/albums" routerLinkActive #rlAlbumsM="routerLinkActive" [style.color]="rlAlbumsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.albums' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/albums" routerLinkActive #rlAlbumsM="routerLinkActive" [style.color]="rlAlbumsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.albums' | translate" [attr.aria-label]="'nav.albums' | translate">
               <mat-icon>photo_album</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_capsules) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/capsules" routerLinkActive #rlCapsulesM="routerLinkActive" [style.color]="rlCapsulesM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.capsules' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/capsules" routerLinkActive #rlCapsulesM="routerLinkActive" [style.color]="rlCapsulesM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.capsules' | translate" [attr.aria-label]="'nav.capsules' | translate">
               <mat-icon>auto_stories</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_timeline) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/timeline" routerLinkActive #rlTimelineM="routerLinkActive" [style.color]="rlTimelineM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.timeline' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/timeline" routerLinkActive #rlTimelineM="routerLinkActive" [style.color]="rlTimelineM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.timeline' | translate" [attr.aria-label]="'nav.timeline' | translate">
               <mat-icon>view_timeline</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_folders) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/folders" routerLinkActive #rlFoldersM="routerLinkActive" [style.color]="rlFoldersM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.folders' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/folders" routerLinkActive #rlFoldersM="routerLinkActive" [style.color]="rlFoldersM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.folders' | translate" [attr.aria-label]="'nav.folders' | translate">
               <mat-icon>folder</mat-icon>
             </a>
           }
-          <a mat-icon-button class="lg:!hidden" routerLink="/persons" routerLinkActive #rlPersonsM="routerLinkActive" [style.color]="rlPersonsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.persons' | translate">
+          <a mat-icon-button class="lg:!hidden" routerLink="/persons" routerLinkActive #rlPersonsM="routerLinkActive" [style.color]="rlPersonsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.persons' | translate" [attr.aria-label]="'nav.persons' | translate">
             <mat-icon>people</mat-icon>
           </a>
           @if (store.config()?.features?.show_map && hasGeoPhotos()) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/map" routerLinkActive #rlMapM="routerLinkActive" [style.color]="rlMapM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.map' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/map" routerLinkActive #rlMapM="routerLinkActive" [style.color]="rlMapM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.map' | translate" [attr.aria-label]="'nav.map' | translate">
               <mat-icon>map</mat-icon>
             </a>
           }
-          <a mat-icon-button class="lg:!hidden" routerLink="/stats" routerLinkActive #rlStatsM="routerLinkActive" [style.color]="rlStatsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate">
+          <a mat-icon-button class="lg:!hidden" routerLink="/stats" routerLinkActive #rlStatsM="routerLinkActive" [style.color]="rlStatsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate" [attr.aria-label]="'nav.stats' | translate">
             <mat-icon>bar_chart</mat-icon>
           </a>
           @if (store.config()?.features?.show_memories && hasMemories()) {
-            <button mat-icon-button class="lg:!hidden" (click)="openMemoriesDialog()" [matTooltip]="'nav.memories' | translate">
+            <button mat-icon-button class="lg:!hidden" (click)="openMemoriesDialog()" [matTooltip]="'nav.memories' | translate" [attr.aria-label]="'nav.memories' | translate">
               <mat-icon>auto_awesome</mat-icon>
             </button>
           }
-          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/" routerLinkActive #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.gallery_tooltip' | translate" (dblclick)="resetAllFilters()">
+          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/" routerLinkActive #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.gallery_tooltip' | translate" [attr.aria-label]="'nav.gallery_tooltip' | translate" (dblclick)="resetAllFilters()">
             <mat-icon>diamond</mat-icon>
           </a>
           @if (store.config()?.features?.show_albums) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/albums" routerLinkActive #rlAlbums="routerLinkActive" [style.color]="rlAlbums.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.albums' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/albums" routerLinkActive #rlAlbums="routerLinkActive" [style.color]="rlAlbums.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.albums' | translate" [attr.aria-label]="'nav.albums' | translate">
               <mat-icon>photo_album</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_capsules) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/capsules" routerLinkActive #rlCapsules="routerLinkActive" [style.color]="rlCapsules.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.capsules' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/capsules" routerLinkActive #rlCapsules="routerLinkActive" [style.color]="rlCapsules.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.capsules' | translate" [attr.aria-label]="'nav.capsules' | translate">
               <mat-icon>auto_stories</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_timeline) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/timeline" routerLinkActive #rlTimeline="routerLinkActive" [style.color]="rlTimeline.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.timeline' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/timeline" routerLinkActive #rlTimeline="routerLinkActive" [style.color]="rlTimeline.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.timeline' | translate" [attr.aria-label]="'nav.timeline' | translate">
               <mat-icon>view_timeline</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_folders) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/folders" routerLinkActive #rlFolders="routerLinkActive" [style.color]="rlFolders.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.folders' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/folders" routerLinkActive #rlFolders="routerLinkActive" [style.color]="rlFolders.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.folders' | translate" [attr.aria-label]="'nav.folders' | translate">
               <mat-icon>folder</mat-icon>
             </a>
           }
-          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/persons" routerLinkActive #rlPersons="routerLinkActive" [style.color]="rlPersons.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.persons' | translate">
+          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/persons" routerLinkActive #rlPersons="routerLinkActive" [style.color]="rlPersons.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.persons' | translate" [attr.aria-label]="'nav.persons' | translate">
             <mat-icon>people</mat-icon>
           </a>
           @if (store.config()?.features?.show_map && hasGeoPhotos()) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/map" routerLinkActive #rlMap="routerLinkActive" [style.color]="rlMap.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.map' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/map" routerLinkActive #rlMap="routerLinkActive" [style.color]="rlMap.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.map' | translate" [attr.aria-label]="'nav.map' | translate">
               <mat-icon>map</mat-icon>
             </a>
           }
-          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/stats" routerLinkActive #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate">
+          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/stats" routerLinkActive #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate" [attr.aria-label]="'nav.stats' | translate">
             <mat-icon>bar_chart</mat-icon>
           </a>
           @if (auth.isEdition()) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/culling" routerLinkActive #rlCulling="routerLinkActive" [style.color]="rlCulling.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.culling' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/culling" routerLinkActive #rlCulling="routerLinkActive" [style.color]="rlCulling.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.culling' | translate" [attr.aria-label]="'nav.culling' | translate">
               <mat-icon>burst_mode</mat-icon>
             </a>
           }
           @if (auth.isEdition()) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/compare" routerLinkActive #rlCompare="routerLinkActive" [style.color]="rlCompare.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.compare' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/compare" routerLinkActive #rlCompare="routerLinkActive" [style.color]="rlCompare.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.compare' | translate" [attr.aria-label]="'nav.compare' | translate">
               <mat-icon>compare</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_memories && hasMemories()) {
-            <button mat-icon-button class="!hidden lg:!inline-flex" (click)="openMemoriesDialog()" [matTooltip]="'nav.memories' | translate">
+            <button mat-icon-button class="!hidden lg:!inline-flex" (click)="openMemoriesDialog()" [matTooltip]="'nav.memories' | translate" [attr.aria-label]="'nav.memories' | translate">
               <mat-icon>auto_awesome</mat-icon>
             </button>
           }
@@ -208,7 +208,7 @@
           fromLabel="capsules.date_from" toLabel="capsules.date_to"
           fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
           (fromChange)="capsuleFilters.dateFrom.set($event)" (toChange)="capsuleFilters.dateTo.set($event)" />
-        <button class="!hidden lg:!inline-flex" mat-icon-button [disabled]="capsuleFilters.refreshing()" [matTooltip]="'capsules.regenerate' | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
+        <button class="!hidden lg:!inline-flex" mat-icon-button [disabled]="capsuleFilters.refreshing()" [matTooltip]="'capsules.regenerate' | translate" [attr.aria-label]="'capsules.regenerate' | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
           <mat-icon>refresh</mat-icon>
         </button>
       }
@@ -738,7 +738,7 @@
         fromLabel="capsules.date_from" toLabel="capsules.date_to"
         fromClass="flex-1 min-w-0"
         (fromChange)="capsuleFilters.dateFrom.set($event)" (toChange)="capsuleFilters.dateTo.set($event)" />
-      <button mat-icon-button class="!w-10 !h-10 shrink-0" [matTooltip]="'capsules.regenerate' | translate"
+      <button mat-icon-button class="!w-10 !h-10 shrink-0" [matTooltip]="'capsules.regenerate' | translate" [attr.aria-label]="'capsules.regenerate' | translate"
         (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
         <mat-icon>refresh</mat-icon>
       </button>

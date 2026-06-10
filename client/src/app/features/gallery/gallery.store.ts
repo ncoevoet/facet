@@ -1,9 +1,11 @@
 import { Injectable, inject, signal, computed, effect, untracked } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlbumService, Album } from '../../core/services/album.service';
+import { I18nService } from '../../core/services/i18n.service';
 import { Photo } from '../../shared/models/photo.model';
 import {
   type GalleryFilters, type GalleryMode, type TooltipMode, type DisplayOptions,
@@ -33,6 +35,13 @@ export interface PhotosResponse {
   per_page: number;
   has_more: boolean;
   hidden_summary?: HiddenSummary;
+}
+
+/** Pre-mutation flag state, used to revert optimistic updates and power undo. */
+export interface PhotoFlagSnapshot {
+  is_favorite: boolean;
+  is_rejected: boolean;
+  star_rating: number | null;
 }
 
 export interface TypeCount {
@@ -115,6 +124,8 @@ export class GalleryStore {
   private albumService = inject(AlbumService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  private snackBar = inject(MatSnackBar);
+  private i18n = inject(I18nService);
 
   // --- State signals ---
   readonly filters = signal<GalleryFilters>({ ...DEFAULT_FILTERS });
@@ -134,6 +145,48 @@ export class GalleryStore {
 
   // Hidden-photo summary (populated from /photos response)
   readonly hiddenSummary = signal<HiddenSummary>({ total: 0, blinks: 0, bursts: 0, duplicates: 0 });
+
+  // --- Selection state (store-level so it survives navigation and is visible to services) ---
+  readonly selectedPaths = signal<Set<string>>(new Set());
+  readonly selectionCount = computed(() => this.selectedPaths().size);
+  private lastSelectedIndex = -1;
+
+  /** Toggle a photo's selection; shift-click extends from the last selected index. */
+  toggleSelection(photo: Photo, event?: MouseEvent): void {
+    const photos = this.photos();
+    const clickedIndex = photos.findIndex(p => p.path === photo.path);
+    const next = new Set(this.selectedPaths());
+
+    if (event?.shiftKey && this.lastSelectedIndex >= 0 && clickedIndex >= 0) {
+      const start = Math.min(this.lastSelectedIndex, clickedIndex);
+      const end = Math.max(this.lastSelectedIndex, clickedIndex);
+      for (let i = start; i <= end; i++) {
+        next.add(photos[i].path);
+      }
+    } else if (next.has(photo.path)) {
+      next.delete(photo.path);
+    } else {
+      next.add(photo.path);
+    }
+
+    if (clickedIndex >= 0) this.lastSelectedIndex = clickedIndex;
+    this.selectedPaths.set(next);
+  }
+
+  /** Select every currently loaded photo. */
+  selectAllLoaded(): void {
+    this.selectedPaths.set(new Set(this.photos().map(p => p.path)));
+  }
+
+  clearSelection(): void {
+    this.selectedPaths.set(new Set());
+    this.lastSelectedIndex = -1;
+  }
+
+  /** Restore a previously captured selection (used by undo). */
+  restoreSelection(paths: Iterable<string>): void {
+    this.selectedPaths.set(new Set(paths));
+  }
 
   // Filter options
   readonly types = signal<TypeCount[]>([]);
@@ -469,69 +522,155 @@ export class GalleryStore {
     } catch { /* keep existing list */ }
   }
 
-  /** Set star rating for a photo (0 = clear) */
-  async setRating(photoPath: string, rating: number): Promise<void> {
-    try {
-      await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: photoPath, rating }));
-      this.photos.update(photos =>
-        photos.map(p => p.path === photoPath ? { ...p, star_rating: rating || null } : p),
-      );
-    } catch { /* ignore */ }
+  /** Patch one photo's fields in place. */
+  patchPhoto(path: string, partial: Partial<Photo>): void {
+    this.photos.update(photos =>
+      photos.map(p => p.path === path ? { ...p, ...partial } : p),
+    );
   }
 
-  /** Toggle favorite flag for a photo */
+  /** Patch many photos at once. */
+  private patchPhotos(pathSet: ReadonlySet<string>, partial: Partial<Photo>): void {
+    this.photos.update(photos =>
+      photos.map(p => pathSet.has(p.path) ? { ...p, ...partial } : p),
+    );
+  }
+
+  /** Capture pre-mutation flag state for the given paths (revert / undo input). */
+  private snapshotFlags(paths: string[]): Map<string, PhotoFlagSnapshot> {
+    const pathSet = new Set(paths);
+    const snap = new Map<string, PhotoFlagSnapshot>();
+    for (const p of this.photos()) {
+      if (pathSet.has(p.path)) {
+        snap.set(p.path, {
+          is_favorite: !!p.is_favorite,
+          is_rejected: !!p.is_rejected,
+          star_rating: p.star_rating ?? null,
+        });
+      }
+    }
+    return snap;
+  }
+
+  private revertSnapshot(snap: Map<string, PhotoFlagSnapshot>): void {
+    this.photos.update(photos =>
+      photos.map(p => snap.has(p.path) ? { ...p, ...snap.get(p.path)! } : p),
+    );
+  }
+
+  private notifyActionFailed(): void {
+    this.snackBar.open(this.i18n.t('errors.action_failed'), '', { duration: 3000 });
+  }
+
+  /** Set star rating for a photo (0 = clear). Optimistic with revert on error. */
+  async setRating(photoPath: string, rating: number): Promise<void> {
+    const snap = this.snapshotFlags([photoPath]);
+    this.patchPhoto(photoPath, { star_rating: rating || null });
+    try {
+      await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: photoPath, rating }));
+    } catch {
+      this.revertSnapshot(snap);
+      this.notifyActionFailed();
+    }
+  }
+
+  /** Toggle favorite flag for a photo. Optimistic, reconciled with server truth. */
   async toggleFavorite(photoPath: string): Promise<void> {
+    const snap = this.snapshotFlags([photoPath]);
+    const prev = snap.get(photoPath);
+    if (!prev) return;
+    const next = !prev.is_favorite;
+    this.patchPhoto(photoPath, {
+      is_favorite: next,
+      is_rejected: next ? false : prev.is_rejected,
+    });
     try {
       const res = await firstValueFrom(
         this.api.post<{ is_favorite: boolean }>('/photo/toggle_favorite', { photo_path: photoPath }),
       );
-      this.photos.update(photos =>
-        photos.map(p => p.path === photoPath
-          ? { ...p, is_favorite: res.is_favorite, is_rejected: res.is_favorite ? false : p.is_rejected }
-          : p),
-      );
-    } catch { /* ignore */ }
+      this.patchPhoto(photoPath, {
+        is_favorite: res.is_favorite,
+        is_rejected: res.is_favorite ? false : prev.is_rejected,
+      });
+    } catch {
+      this.revertSnapshot(snap);
+      this.notifyActionFailed();
+    }
   }
 
-  /** Toggle rejected flag for a photo */
+  /** Toggle rejected flag for a photo. Optimistic, reconciled with server truth. */
   async toggleRejected(photoPath: string): Promise<void> {
+    const snap = this.snapshotFlags([photoPath]);
+    const prev = snap.get(photoPath);
+    if (!prev) return;
+    const next = !prev.is_rejected;
+    this.patchPhoto(photoPath, {
+      is_rejected: next,
+      is_favorite: next ? false : prev.is_favorite,
+    });
     try {
       const res = await firstValueFrom(
         this.api.post<{ is_rejected: boolean }>('/photo/toggle_rejected', { photo_path: photoPath }),
       );
-      this.photos.update(photos =>
-        photos.map(p => p.path === photoPath
-          ? { ...p, is_rejected: res.is_rejected, is_favorite: res.is_rejected ? false : p.is_favorite }
-          : p),
-      );
-    } catch { /* ignore */ }
+      this.patchPhoto(photoPath, {
+        is_rejected: res.is_rejected,
+        is_favorite: res.is_rejected ? false : prev.is_favorite,
+      });
+    } catch {
+      this.revertSnapshot(snap);
+      this.notifyActionFailed();
+    }
   }
 
-  /** Batch favorite multiple photos */
-  async batchFavorite(paths: string[]): Promise<void> {
-    await firstValueFrom(this.api.post('/photos/batch_favorite', { photo_paths: paths }));
-    const pathSet = new Set(paths);
-    this.photos.update(photos =>
-      photos.map(p => pathSet.has(p.path) ? { ...p, is_favorite: true, is_rejected: false } : p),
-    );
+  /**
+   * Batch favorite multiple photos. Optimistic with revert on error.
+   * Returns the pre-mutation snapshot for undo, or null on failure.
+   */
+  async batchFavorite(paths: string[]): Promise<Map<string, PhotoFlagSnapshot> | null> {
+    const snap = this.snapshotFlags(paths);
+    this.patchPhotos(new Set(paths), { is_favorite: true, is_rejected: false });
+    try {
+      await firstValueFrom(this.api.post('/photos/batch_favorite', { photo_paths: paths }));
+      return snap;
+    } catch {
+      this.revertSnapshot(snap);
+      this.notifyActionFailed();
+      return null;
+    }
   }
 
-  /** Batch reject multiple photos */
-  async batchReject(paths: string[]): Promise<void> {
-    await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: paths }));
-    const pathSet = new Set(paths);
-    this.photos.update(photos =>
-      photos.map(p => pathSet.has(p.path) ? { ...p, is_rejected: true, is_favorite: false, star_rating: null } : p),
-    );
+  /**
+   * Batch reject multiple photos. Optimistic with revert on error.
+   * Returns the pre-mutation snapshot for undo, or null on failure.
+   */
+  async batchReject(paths: string[]): Promise<Map<string, PhotoFlagSnapshot> | null> {
+    const snap = this.snapshotFlags(paths);
+    this.patchPhotos(new Set(paths), { is_rejected: true, is_favorite: false, star_rating: null });
+    try {
+      await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: paths }));
+      return snap;
+    } catch {
+      this.revertSnapshot(snap);
+      this.notifyActionFailed();
+      return null;
+    }
   }
 
-  /** Batch set rating for multiple photos */
-  async batchRating(paths: string[], rating: number): Promise<void> {
-    await firstValueFrom(this.api.post('/photos/batch_rating', { photo_paths: paths, rating }));
-    const pathSet = new Set(paths);
-    this.photos.update(photos =>
-      photos.map(p => pathSet.has(p.path) ? { ...p, star_rating: rating || null } : p),
-    );
+  /**
+   * Batch set rating for multiple photos. Optimistic with revert on error.
+   * Returns the pre-mutation snapshot for undo, or null on failure.
+   */
+  async batchRating(paths: string[], rating: number): Promise<Map<string, PhotoFlagSnapshot> | null> {
+    const snap = this.snapshotFlags(paths);
+    this.patchPhotos(new Set(paths), { star_rating: rating || null });
+    try {
+      await firstValueFrom(this.api.post('/photos/batch_rating', { photo_paths: paths, rating }));
+      return snap;
+    } catch {
+      this.revertSnapshot(snap);
+      this.notifyActionFailed();
+      return null;
+    }
   }
 
   /** Unassign a person from a photo */

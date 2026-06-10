@@ -522,7 +522,8 @@
     "database_error": "Database Error",
     "rate_limited": "Too many requests — please wait a moment",
     "access_denied": "Access denied",
-    "server_error": "Server error — please try again"
+    "server_error": "Server error — please try again",
+    "action_failed": "Action failed — change reverted"
   },
   "language": {
     "en": "English",
@@ -543,7 +544,8 @@
     "add_favorite": "Add to favorites",
     "remove_favorite": "Remove from favorites",
     "mark_rejected": "Mark as rejected",
-    "unmark_rejected": "Remove rejected mark"
+    "unmark_rejected": "Remove rejected mark",
+    "rejected_badge": "Rejected"
   },
   "similar": {
     "title": "Similar Photos",
@@ -1061,7 +1063,8 @@
       "rate": "Rate",
       "batch_favorited": "{count} photos favorited",
       "batch_rejected": "{count} photos rejected",
-      "batch_rated": "{count} photos rated {rating} stars"
+      "batch_rated": "{count} photos rated {rating} stars",
+      "select_all": "Select all"
     },
     "composition_pattern": "Composition",
     "sidebar": {
@@ -1124,7 +1127,8 @@
     "subject_prominence_range": "Subject Prominence",
     "subject_placement_range": "Subject Placement",
     "bg_separation_range": "BG Separation",
-    "gps_clear": "Clear location"
+    "gps_clear": "Clear location",
+    "loading_photos": "Loading photos…"
   },
   "composition_patterns": {
     "none": "None",

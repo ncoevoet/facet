@@ -522,7 +522,8 @@
     "database_error": "Errore del database",
     "rate_limited": "Troppe richieste — attendere un momento",
     "access_denied": "Accesso negato",
-    "server_error": "Errore del server — riprovare"
+    "server_error": "Errore del server — riprovare",
+    "action_failed": "Azione non riuscita — modifica annullata"
   },
   "language": {
     "en": "Inglese",
@@ -543,7 +544,8 @@
     "add_favorite": "Aggiungi ai preferiti",
     "remove_favorite": "Rimuovi dai preferiti",
     "mark_rejected": "Segna come scartata",
-    "unmark_rejected": "Rimuovi segno di scarto"
+    "unmark_rejected": "Rimuovi segno di scarto",
+    "rejected_badge": "Scartata"
   },
   "similar": {
     "title": "Foto simili",
@@ -1061,7 +1063,8 @@
       "rate": "Valuta",
       "batch_favorited": "{count} foto aggiunte ai preferiti",
       "batch_rejected": "{count} foto rifiutate",
-      "batch_rated": "{count} foto valutate {rating} stelle"
+      "batch_rated": "{count} foto valutate {rating} stelle",
+      "select_all": "Seleziona tutto"
     },
     "composition_pattern": "Composizione",
     "sidebar": {
@@ -1124,7 +1127,8 @@
     "quality_score_range": "Punteggio qualità",
     "saturation_range": "Saturazione",
     "star_rating_range": "Valutazione a stelle",
-    "gps_clear": "Rimuovi posizione"
+    "gps_clear": "Rimuovi posizione",
+    "loading_photos": "Caricamento foto…"
   },
   "composition_patterns": {
     "none": "Nessuno",
