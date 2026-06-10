@@ -307,8 +307,33 @@ python facet.py --comparison-stats
 # Optimize weights from comparisons
 python facet.py --optimize-weights
 
+# Restrict training data to specific sources
+python facet.py --optimize-weights --optimize-sources vote,culling
+
 # Apply to all photos
 python facet.py --recompute-average
+```
+
+### Label-to-Weight Pipeline
+
+Beyond explicit A/B votes, two more label streams feed the optimizer:
+
+1. **Culling decisions** are captured automatically on every burst/similar
+   confirm (`source='culling'`).
+2. **Star ratings, favorites and rejections** are materialized into synthetic
+   pairs with `python facet.py --sync-label-comparisons` (`source='rating'`).
+   Re-running re-syncs from the current labels, so retracted ratings disappear.
+
+The optimizer weighs each source by reliability (vote 1.0, rating 0.7,
+culling 0.5) when maximizing the Bradley-Terry likelihood.
+
+Recommended cadence:
+
+```bash
+python facet.py --mine-insights          # what signal exists, drift, health
+python facet.py --sync-label-comparisons # refresh rating-derived pairs
+python facet.py --optimize-weights       # learn weights from all sources
+python facet.py --recompute-average      # apply + persist percentile snapshot
 ```
 
 ### In-UI Weight Tuning

@@ -251,6 +251,16 @@ Configuration:
                         help='Preview projected score changes without modifying config (use with --compute-recommendations)')
     db_group.add_argument('--verbose', '-v', action='store_true',
                         help='Show detailed statistics (use with --compute-recommendations)')
+    db_group.add_argument('--mine-insights', nargs='?', const='stdout', metavar='REPORT.json',
+                        help='Data-mining report: label inventory, metric-label correlations, '
+                             'category distribution, percentile drift, comparison health '
+                             '(optionally writes the full report as JSON)')
+    db_group.add_argument('--sync-label-comparisons', action='store_true',
+                        help='Rebuild rating-derived comparison pairs (source=rating) from '
+                             'star ratings, favorites and rejections')
+    db_group.add_argument('--optimize-sources', type=str, metavar='vote,culling,rating',
+                        help='Restrict --optimize-weights training data to these comparison '
+                             'sources (default: all, with per-source reliability weighting)')
 
     # Face recognition
     face_group = parser.add_argument_group('Face recognition')
@@ -381,10 +391,35 @@ Configuration:
     if args.optimize_weights:
         from optimization import run_weight_optimization
         config_path = args.config or 'scoring_config.json'
+        sources = None
+        if args.optimize_sources:
+            sources = [s.strip() for s in args.optimize_sources.split(',') if s.strip()]
         run_weight_optimization(
             db_path=args.db,
             config_path=config_path,
+            sources=sources,
         )
+        exit()
+
+    # Sync rating-derived comparison pairs (lightweight - no GPU needed)
+    if args.sync_label_comparisons:
+        from optimization.label_pairs import sync_label_comparisons
+        init_database(args.db)
+        inserted = sync_label_comparisons(args.db)
+        logger.info("Inserted %d rating-derived comparison pairs", inserted)
+        exit()
+
+    # Data-mining insights report (lightweight - no GPU needed)
+    if args.mine_insights:
+        from optimization.insights_miner import InsightsMiner, print_insights_report
+        init_database(args.db)
+        miner = InsightsMiner(args.db)
+        report = miner.run()
+        print_insights_report(report)
+        if args.mine_insights != 'stdout':
+            with open(args.mine_insights, 'w', encoding='utf-8') as f:
+                json.dump(report, f, indent=2, default=str)
+            logger.info("Report written to %s", args.mine_insights)
         exit()
 
     # List models mode (lightweight - no GPU needed)

@@ -90,6 +90,11 @@ class WeightOptimizer:
         'isolation_bonus': 10.0,
     }
 
+    # Reliability prior per comparison source: explicit A/B votes count
+    # fully; synthetic pairs derived from star ratings and culling decisions
+    # carry real signal but more noise, so their likelihood terms weigh less
+    SOURCE_WEIGHTS = {'vote': 1.0, 'rating': 0.7, 'culling': 0.5}
+
     def __init__(self, db_path: str = DEFAULT_DB_PATH, config_path: str = 'scoring_config.json'):
         self.db_path = db_path
         self.config_path = config_path
@@ -108,6 +113,81 @@ class WeightOptimizer:
         scales = np.where(scales > 1e-8, scales, 1.0)
         return X / scales
 
+    def _fetch_comparison_data(
+        self,
+        conn,
+        category: Optional[str] = None,
+        include_ties: bool = True,
+        sources: Optional[List[str]] = None,
+    ):
+        """Fetch comparisons joined with both photos' metric columns.
+
+        Single source of truth for the optimizer's training data (direct,
+        cross-validated and bootstrap paths all consume it).
+
+        Args:
+            conn: Open DB connection
+            category: Restrict to one category (None = all)
+            include_ties: Include 'tie' outcomes
+            sources: Restrict to these comparison sources (None = all)
+
+        Returns:
+            Tuple (comparisons, X_a, X_b, winners, row_weights):
+            - comparisons: list of {photo_a, photo_b, winner, source}
+            - X_a/X_b: scaled feature matrices (n x len(SCORE_COMPONENTS))
+            - winners: 1 for 'a', -1 for 'b', 0 for tie
+            - row_weights: per-row likelihood weight from SOURCE_WEIGHTS
+        """
+        select_a = ', '.join(f'p1.{c} AS a_{c}' for c in self.SCORE_COMPONENTS)
+        select_b = ', '.join(f'p2.{c} AS b_{c}' for c in self.SCORE_COMPONENTS)
+        where_clauses = [
+            "winner IN ('a', 'b', 'tie')" if include_ties else "winner IN ('a', 'b')"
+        ]
+        params: List = []
+        if category:
+            where_clauses.append("c.category = ?")
+            params.append(category)
+        if sources:
+            placeholders = ','.join('?' * len(sources))
+            where_clauses.append(f"COALESCE(c.source, 'vote') IN ({placeholders})")
+            params.extend(sources)
+
+        cursor = conn.execute(f"""
+            SELECT c.photo_a_path, c.photo_b_path, c.winner,
+                   COALESCE(c.source, 'vote') AS source,
+                   {select_a},
+                   {select_b}
+            FROM comparisons c
+            JOIN photos p1 ON c.photo_a_path = p1.path
+            JOIN photos p2 ON c.photo_b_path = p2.path
+            WHERE {' AND '.join(where_clauses)}
+        """, params)
+
+        comparisons = []
+        features_a, features_b, winners, row_weights = [], [], [], []
+        for row in cursor:
+            comparisons.append({
+                'photo_a': row['photo_a_path'],
+                'photo_b': row['photo_b_path'],
+                'winner': row['winner'],
+                'source': row['source'],
+            })
+            features_a.append([float(row[f'a_{c}'] or 0.0) for c in self.SCORE_COMPONENTS])
+            features_b.append([float(row[f'b_{c}'] or 0.0) for c in self.SCORE_COMPONENTS])
+            winners.append(1 if row['winner'] == 'a' else (-1 if row['winner'] == 'b' else 0))
+            row_weights.append(self.SOURCE_WEIGHTS.get(row['source'], 1.0))
+
+        n = len(self.SCORE_COMPONENTS)
+        if not comparisons:
+            return [], np.zeros((0, n)), np.zeros((0, n)), np.array([]), np.array([])
+        return (
+            comparisons,
+            self._scale_features(np.array(features_a)),
+            self._scale_features(np.array(features_b)),
+            np.array(winners),
+            np.array(row_weights),
+        )
+
     def optimize_weights_direct(
         self,
         category: Optional[str] = None,
@@ -116,6 +196,7 @@ class WeightOptimizer:
         tie_sensitivity: float = 0.1,
         min_improvement_threshold: float = 2.0,
         l2_regularization: float = 0.01,
+        sources: Optional[List[str]] = None,
     ) -> Dict:
         """
         Directly optimize weights to maximize comparison agreement.
@@ -149,62 +230,9 @@ class WeightOptimizer:
             - per_comparison: list of (photo_a, photo_b, winner, predicted_correct)
         """
         with get_connection(self.db_path) as conn:
-            # Get comparisons
-            where_clauses = ["winner IN ('a', 'b')"]
-            if include_ties:
-                where_clauses = ["winner IN ('a', 'b', 'tie')"]
-
-            params = []
-            if category:
-                where_clauses.append("c.category = ?")
-                params.append(category)
-
-            where_sql = " AND ".join(where_clauses)
-            cursor = conn.execute(f"""
-                SELECT c.photo_a_path, c.photo_b_path, c.winner,
-                       p1.aesthetic as a_aesthetic, p1.quality_score as a_quality_score,
-                       p1.face_quality as a_face_quality, p1.face_sharpness as a_face_sharpness,
-                       p1.eye_sharpness as a_eye_sharpness, p1.tech_sharpness as a_tech_sharpness,
-                       p1.comp_score as a_comp_score, p1.power_point_score as a_power_point_score,
-                       p1.leading_lines_score as a_leading_lines_score,
-                       p1.exposure_score as a_exposure_score, p1.color_score as a_color_score,
-                       p1.contrast_score as a_contrast_score, p1.dynamic_range_stops as a_dynamic_range_stops,
-                       p1.mean_saturation as a_mean_saturation, p1.noise_sigma as a_noise_sigma,
-                       p1.isolation_bonus as a_isolation_bonus,
-                       p2.aesthetic as b_aesthetic, p2.quality_score as b_quality_score,
-                       p2.face_quality as b_face_quality, p2.face_sharpness as b_face_sharpness,
-                       p2.eye_sharpness as b_eye_sharpness, p2.tech_sharpness as b_tech_sharpness,
-                       p2.comp_score as b_comp_score, p2.power_point_score as b_power_point_score,
-                       p2.leading_lines_score as b_leading_lines_score,
-                       p2.exposure_score as b_exposure_score, p2.color_score as b_color_score,
-                       p2.contrast_score as b_contrast_score, p2.dynamic_range_stops as b_dynamic_range_stops,
-                       p2.mean_saturation as b_mean_saturation, p2.noise_sigma as b_noise_sigma,
-                       p2.isolation_bonus as b_isolation_bonus
-                FROM comparisons c
-                JOIN photos p1 ON c.photo_a_path = p1.path
-                JOIN photos p2 ON c.photo_b_path = p2.path
-                WHERE {where_sql}
-            """, params)
-
-            comparisons = []
-            features_a_list = []
-            features_b_list = []
-
-            for row in cursor:
-                winner = row['winner']
-                features_a = [
-                    float(row[f'a_{c}'] or 0.0) for c in self.SCORE_COMPONENTS
-                ]
-                features_b = [
-                    float(row[f'b_{c}'] or 0.0) for c in self.SCORE_COMPONENTS
-                ]
-                comparisons.append({
-                    'photo_a': row['photo_a_path'],
-                    'photo_b': row['photo_b_path'],
-                    'winner': winner,
-                })
-                features_a_list.append(features_a)
-                features_b_list.append(features_b)
+            comparisons, X_a, X_b, winners, row_weights = self._fetch_comparison_data(
+                conn, category=category, include_ties=include_ties, sources=sources,
+            )
 
             if len(comparisons) < min_comparisons:
                 return {
@@ -212,8 +240,6 @@ class WeightOptimizer:
                     'comparison_count': len(comparisons),
                 }
 
-            X_a = self._scale_features(np.array(features_a_list))
-            X_b = self._scale_features(np.array(features_b_list))
             n_features = len(self.SCORE_COMPONENTS)
 
             # Load current weights
@@ -223,17 +249,6 @@ class WeightOptimizer:
                 old_w = old_w / old_w.sum()
             else:
                 old_w = np.ones(n_features) / n_features
-
-            # Encode winners: 1 for 'a', -1 for 'b', 0 for 'tie'
-            winners = []
-            for comp in comparisons:
-                if comp['winner'] == 'a':
-                    winners.append(1)
-                elif comp['winner'] == 'b':
-                    winners.append(-1)
-                else:
-                    winners.append(0)
-            winners = np.array(winners)
 
             theta = tie_sensitivity
 
@@ -263,7 +278,6 @@ class WeightOptimizer:
                             nll = -d
                         else:
                             nll = np.log1p(np.exp(-d))
-                        total_nll += nll
                         pred_correct = d > 0
                     elif winner == -1:  # B wins
                         # Log P(B > A) = log(sigmoid(-diff)) = -log(1 + exp(diff))
@@ -273,15 +287,16 @@ class WeightOptimizer:
                             nll = d
                         else:
                             nll = np.log1p(np.exp(d))
-                        total_nll += nll
                         pred_correct = d < 0
                     else:  # Tie - Davidson model approximation
                         # For ties, we use a simpler model: higher probability near diff=0
                         # -log P(tie) ≈ (diff/theta)^2 for small theta
                         # This encourages equal scores for ties
                         nll = (d / (theta + 0.1)) ** 2
-                        total_nll += nll
                         pred_correct = abs(d) < 0.5  # Consider "correct" if scores close
+
+                    # Down-weight noisier comparison sources (rating/culling)
+                    total_nll += row_weights[i] * nll
 
                     if return_predictions:
                         predictions.append(pred_correct)
@@ -401,6 +416,10 @@ class WeightOptimizer:
             ))
             conn.commit()
 
+            source_counts: Dict[str, int] = {}
+            for comp in comparisons:
+                source_counts[comp['source']] = source_counts.get(comp['source'], 0) + 1
+
             return {
                 'old_weights': old_weights,
                 'new_weights': new_weights,
@@ -411,6 +430,7 @@ class WeightOptimizer:
                 'suggest_changes': suggest_changes,
                 'comparisons_used': len(comparisons),
                 'ties_included': sum(1 for c in comparisons if c['winner'] == 'tie'),
+                'source_counts': source_counts,
                 'per_comparison': per_comparison,
                 'method': 'direct_preference_optimization',
             }
@@ -421,6 +441,7 @@ class WeightOptimizer:
         n_folds: int = 5,
         min_comparisons: int = 30,
         include_ties: bool = True,
+        sources: Optional[List[str]] = None,
     ) -> Dict:
         """
         K-fold cross-validation for robust weight optimization.
@@ -442,44 +463,9 @@ class WeightOptimizer:
             - fold_results: per-fold accuracy scores
         """
         with get_connection(self.db_path) as conn:
-            # Get all comparisons
-            where_clauses = ["winner IN ('a', 'b')"]
-            if include_ties:
-                where_clauses = ["winner IN ('a', 'b', 'tie')"]
-
-            params = []
-            if category:
-                where_clauses.append("c.category = ?")
-                params.append(category)
-
-            where_sql = " AND ".join(where_clauses)
-            cursor = conn.execute(f"""
-                SELECT c.photo_a_path, c.photo_b_path, c.winner,
-                       p1.aesthetic as a_aesthetic, p1.quality_score as a_quality_score,
-                       p1.face_quality as a_face_quality, p1.face_sharpness as a_face_sharpness,
-                       p1.eye_sharpness as a_eye_sharpness, p1.tech_sharpness as a_tech_sharpness,
-                       p1.comp_score as a_comp_score, p1.power_point_score as a_power_point_score,
-                       p1.leading_lines_score as a_leading_lines_score,
-                       p1.exposure_score as a_exposure_score, p1.color_score as a_color_score,
-                       p1.contrast_score as a_contrast_score, p1.dynamic_range_stops as a_dynamic_range_stops,
-                       p1.mean_saturation as a_mean_saturation, p1.noise_sigma as a_noise_sigma,
-                       p1.isolation_bonus as a_isolation_bonus,
-                       p2.aesthetic as b_aesthetic, p2.quality_score as b_quality_score,
-                       p2.face_quality as b_face_quality, p2.face_sharpness as b_face_sharpness,
-                       p2.eye_sharpness as b_eye_sharpness, p2.tech_sharpness as b_tech_sharpness,
-                       p2.comp_score as b_comp_score, p2.power_point_score as b_power_point_score,
-                       p2.leading_lines_score as b_leading_lines_score,
-                       p2.exposure_score as b_exposure_score, p2.color_score as b_color_score,
-                       p2.contrast_score as b_contrast_score, p2.dynamic_range_stops as b_dynamic_range_stops,
-                       p2.mean_saturation as b_mean_saturation, p2.noise_sigma as b_noise_sigma,
-                       p2.isolation_bonus as b_isolation_bonus
-                FROM comparisons c
-                JOIN photos p1 ON c.photo_a_path = p1.path
-                JOIN photos p2 ON c.photo_b_path = p2.path
-                WHERE {where_sql}
-            """, params)
-
-            all_data = list(cursor)
+            all_data, X_a, X_b, winners, row_weights = self._fetch_comparison_data(
+                conn, category=category, include_ties=include_ties, sources=sources,
+            )
 
             if len(all_data) < min_comparisons:
                 return {
@@ -490,20 +476,7 @@ class WeightOptimizer:
             if len(all_data) < n_folds:
                 n_folds = len(all_data)
 
-            # Prepare data
             n_features = len(self.SCORE_COMPONENTS)
-            X_a = self._scale_features(np.array([
-                [float(row[f'a_{c}'] or 0.0) for c in self.SCORE_COMPONENTS]
-                for row in all_data
-            ]))
-            X_b = self._scale_features(np.array([
-                [float(row[f'b_{c}'] or 0.0) for c in self.SCORE_COMPONENTS]
-                for row in all_data
-            ]))
-            winners = np.array([
-                1 if row['winner'] == 'a' else (-1 if row['winner'] == 'b' else 0)
-                for row in all_data
-            ])
 
             # Create fold indices
             indices = np.arange(len(all_data))
@@ -526,6 +499,7 @@ class WeightOptimizer:
                 train_X_a = X_a[train_indices]
                 train_X_b = X_b[train_indices]
                 train_winners = winners[train_indices]
+                train_rw = row_weights[train_indices]
 
                 def neg_log_likelihood_train(weights):
                     w_sum = weights.sum()
@@ -539,13 +513,13 @@ class WeightOptimizer:
                     diff = scores_a - scores_b
 
                     total_nll = 0.0
-                    for d, winner in zip(diff, train_winners):
+                    for d, winner, rw in zip(diff, train_winners, train_rw):
                         if winner == 1:
-                            total_nll += np.log1p(np.exp(-np.clip(d, -20, 20)))
+                            total_nll += rw * np.log1p(np.exp(-np.clip(d, -20, 20)))
                         elif winner == -1:
-                            total_nll += np.log1p(np.exp(np.clip(d, -20, 20)))
+                            total_nll += rw * np.log1p(np.exp(np.clip(d, -20, 20)))
                         else:
-                            total_nll += (d / 0.2) ** 2
+                            total_nll += rw * (d / 0.2) ** 2
                     return total_nll
 
                 # Optimize
@@ -626,6 +600,7 @@ class WeightOptimizer:
         category: Optional[str] = None,
         n_bootstrap: int = 100,
         min_comparisons: int = 30,
+        sources: Optional[List[str]] = None,
     ) -> Dict:
         """
         Bootstrap resampling to estimate weight uncertainty.
@@ -647,41 +622,9 @@ class WeightOptimizer:
             - stable_components: components with narrow CIs
         """
         with get_connection(self.db_path) as conn:
-            # Get comparisons
-            where_clauses = ["winner IN ('a', 'b', 'tie')"]
-            params = []
-            if category:
-                where_clauses.append("c.category = ?")
-                params.append(category)
-
-            where_sql = " AND ".join(where_clauses)
-            cursor = conn.execute(f"""
-                SELECT c.photo_a_path, c.photo_b_path, c.winner,
-                       p1.aesthetic as a_aesthetic, p1.quality_score as a_quality_score,
-                       p1.face_quality as a_face_quality, p1.face_sharpness as a_face_sharpness,
-                       p1.eye_sharpness as a_eye_sharpness, p1.tech_sharpness as a_tech_sharpness,
-                       p1.comp_score as a_comp_score, p1.power_point_score as a_power_point_score,
-                       p1.leading_lines_score as a_leading_lines_score,
-                       p1.exposure_score as a_exposure_score, p1.color_score as a_color_score,
-                       p1.contrast_score as a_contrast_score, p1.dynamic_range_stops as a_dynamic_range_stops,
-                       p1.mean_saturation as a_mean_saturation, p1.noise_sigma as a_noise_sigma,
-                       p1.isolation_bonus as a_isolation_bonus,
-                       p2.aesthetic as b_aesthetic, p2.quality_score as b_quality_score,
-                       p2.face_quality as b_face_quality, p2.face_sharpness as b_face_sharpness,
-                       p2.eye_sharpness as b_eye_sharpness, p2.tech_sharpness as b_tech_sharpness,
-                       p2.comp_score as b_comp_score, p2.power_point_score as b_power_point_score,
-                       p2.leading_lines_score as b_leading_lines_score,
-                       p2.exposure_score as b_exposure_score, p2.color_score as b_color_score,
-                       p2.contrast_score as b_contrast_score, p2.dynamic_range_stops as b_dynamic_range_stops,
-                       p2.mean_saturation as b_mean_saturation, p2.noise_sigma as b_noise_sigma,
-                       p2.isolation_bonus as b_isolation_bonus
-                FROM comparisons c
-                JOIN photos p1 ON c.photo_a_path = p1.path
-                JOIN photos p2 ON c.photo_b_path = p2.path
-                WHERE {where_sql}
-            """, params)
-
-            all_data = list(cursor)
+            all_data, X_a, X_b, winners, row_weights = self._fetch_comparison_data(
+                conn, category=category, include_ties=True, sources=sources,
+            )
 
             if len(all_data) < min_comparisons:
                 return {
@@ -689,20 +632,7 @@ class WeightOptimizer:
                     'comparison_count': len(all_data),
                 }
 
-            # Prepare data
             n_features = len(self.SCORE_COMPONENTS)
-            X_a = self._scale_features(np.array([
-                [float(row[f'a_{c}'] or 0.0) for c in self.SCORE_COMPONENTS]
-                for row in all_data
-            ]))
-            X_b = self._scale_features(np.array([
-                [float(row[f'b_{c}'] or 0.0) for c in self.SCORE_COMPONENTS]
-                for row in all_data
-            ]))
-            winners = np.array([
-                1 if row['winner'] == 'a' else (-1 if row['winner'] == 'b' else 0)
-                for row in all_data
-            ])
 
             bootstrap_weights = []
             np.random.seed(42)
@@ -713,6 +643,7 @@ class WeightOptimizer:
                 boot_X_a = X_a[indices]
                 boot_X_b = X_b[indices]
                 boot_winners = winners[indices]
+                boot_rw = row_weights[indices]
 
                 def neg_log_likelihood_boot(weights):
                     w_sum = weights.sum()
@@ -726,13 +657,13 @@ class WeightOptimizer:
                     diff = scores_a - scores_b
 
                     total_nll = 0.0
-                    for d, winner in zip(diff, boot_winners):
+                    for d, winner, rw in zip(diff, boot_winners, boot_rw):
                         if winner == 1:
-                            total_nll += np.log1p(np.exp(-np.clip(d, -20, 20)))
+                            total_nll += rw * np.log1p(np.exp(-np.clip(d, -20, 20)))
                         elif winner == -1:
-                            total_nll += np.log1p(np.exp(np.clip(d, -20, 20)))
+                            total_nll += rw * np.log1p(np.exp(np.clip(d, -20, 20)))
                         else:
-                            total_nll += (d / 0.2) ** 2
+                            total_nll += rw * (d / 0.2) ** 2
                     return total_nll
 
                 bounds = [(0.0, 0.60) for _ in range(n_features)]
@@ -990,8 +921,14 @@ def run_weight_optimization(
     db_path: str = DEFAULT_DB_PATH,
     config_path: str = 'scoring_config.json',
     min_comparisons: int = 30,
+    sources: Optional[List[str]] = None,
 ):
-    """Run weight optimization from CLI. Optimizes and saves weights automatically."""
+    """Run weight optimization from CLI. Optimizes and saves weights automatically.
+
+    Args:
+        sources: Restrict training data to these comparison sources
+                 (vote/culling/rating); None uses all with reliability weighting
+    """
     optimizer = WeightOptimizer(db_path, config_path)
 
     logger.info("=" * 60)
@@ -1002,6 +939,7 @@ def run_weight_optimization(
     result = optimizer.optimize_weights_direct(
         category=None,
         min_comparisons=min_comparisons,
+        sources=sources,
     )
 
     if 'error' in result:
@@ -1009,6 +947,9 @@ def run_weight_optimization(
         return
 
     logger.info("Comparisons used: %d", result['comparisons_used'])
+    for source, count in sorted(result.get('source_counts', {}).items()):
+        weight = WeightOptimizer.SOURCE_WEIGHTS.get(source, 1.0)
+        logger.info("  source %s: %d (likelihood weight %.1f)", source, count, weight)
     logger.info("Accuracy before: %.1f%%", result['accuracy_before'])
     logger.info("Accuracy after:  %.1f%%", result['accuracy_after'])
     logger.info("Improvement:     %+.1f pp", result['improvement'])

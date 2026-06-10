@@ -198,7 +198,11 @@ Use `--simulate-gpu NAME` and `--simulate-vram GB` to test how Facet would behav
 | Command | Description |
 |---------|-------------|
 | `python facet.py --comparison-stats` | Show pairwise comparison statistics |
-| `python facet.py --optimize-weights` | Optimize and save weights based on comparisons |
+| `python facet.py --optimize-weights` | Optimize and save weights based on comparisons (all sources, reliability-weighted) |
+| `python facet.py --optimize-weights --optimize-sources vote,culling` | Restrict training data to specific comparison sources |
+| `python facet.py --sync-label-comparisons` | Rebuild rating-derived pairs (source=rating) from star ratings/favorites/rejections |
+| `python facet.py --mine-insights` | Data-mining report: label inventory, metric-label correlations, category distribution, percentile drift, comparison health |
+| `python facet.py --mine-insights report.json` | Same, also writes the full report as JSON |
 
 ## Configuration
 

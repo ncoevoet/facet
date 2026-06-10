@@ -133,7 +133,10 @@ python facet.py --validate-categories  # Validate category configurations and sh
 
 # Pairwise comparison and weight optimization
 python facet.py --comparison-stats              # Show pairwise comparison statistics
-python facet.py --optimize-weights              # Optimize scoring weights from comparisons
+python facet.py --optimize-weights              # Optimize scoring weights from comparisons (all sources, reliability-weighted)
+python facet.py --optimize-weights --optimize-sources vote,culling  # Restrict training sources
+python facet.py --sync-label-comparisons       # Rebuild rating-derived pairs from stars/favorites/rejections
+python facet.py --mine-insights [report.json]  # Data-mining report: labels, correlations, drift, comparison health
 
 # Face clustering (additional)
 python facet.py --cluster-faces-incremental-named  # Cluster preserving only named persons
