@@ -212,6 +212,9 @@ COMPARISONS_COLUMNS = [
     ('timestamp', "TEXT DEFAULT (datetime('now'))"),
     ('session_id', 'TEXT'),
     ('user_id', 'TEXT'),  # NULL for legacy pre-multi-user data
+    # 'vote' = explicit A/B vote, 'culling' = derived from burst/similar culling,
+    # 'rating' = synthetic pair from star ratings/favorites
+    ('source', "TEXT NOT NULL DEFAULT 'vote'"),
 ]
 
 COMPARISONS_INDEXES = [
@@ -219,6 +222,7 @@ COMPARISONS_INDEXES = [
     ('idx_comparisons_photo_b', 'comparisons', 'photo_b_path'),
     ('idx_comparisons_timestamp', 'comparisons', 'timestamp DESC'),
     ('idx_comparisons_category', 'comparisons', 'category'),
+    ('idx_comparisons_source', 'comparisons', 'source'),
 ]
 
 # Learned scores from Bradley-Terry model
@@ -447,15 +451,22 @@ def _migrate_add_missing_columns(conn, table_name, columns):
 
     for col_name, col_type in columns:
         if col_name not in existing_cols:
-            # Extract base type (without constraints/defaults for ALTER TABLE)
+            # SQLite accepts NOT NULL with a constant DEFAULT in ADD COLUMN and
+            # backfills existing rows; fall back to the base type for typedefs
+            # it rejects (e.g. REFERENCES with non-constant defaults)
             base_type = col_type.split()[0] if col_type else 'TEXT'
-            try:
-                conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {base_type}")
-                logger.info("  Added column: %s.%s", table_name, col_name)
-            except sqlite3.OperationalError as e:
-                # Column might already exist (race condition) or other error
-                if 'duplicate column name' not in str(e).lower():
-                    logger.warning("  Could not add %s.%s: %s", table_name, col_name, e)
+            candidates = [col_type] if col_type and col_type != base_type else []
+            candidates.append(base_type)
+            for typedef in candidates:
+                try:
+                    conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {typedef}")
+                    logger.info("  Added column: %s.%s", table_name, col_name)
+                    break
+                except sqlite3.OperationalError as e:
+                    if 'duplicate column name' in str(e).lower():
+                        break
+                    if typedef == candidates[-1]:
+                        logger.warning("  Could not add %s.%s: %s", table_name, col_name, e)
 
 
 def init_database(db_path='photo_scores_pro.db'):
@@ -563,6 +574,11 @@ def init_database(db_path='photo_scores_pro.db'):
         if HAS_SQLITE_VEC:
             _init_vec_table(conn)
 
+        # Migrate existing tables before index creation - new indexes may
+        # target columns added here (e.g., comparisons.source)
+        _migrate_add_missing_columns(conn, 'comparisons', COMPARISONS_COLUMNS)
+        _migrate_add_missing_columns(conn, 'learned_scores', LEARNED_SCORES_COLUMNS)
+
         # Create all indexes
         for idx_name, table, column_expr in INDEXES:
             conn.execute(
@@ -604,10 +620,6 @@ def init_database(db_path='photo_scores_pro.db'):
             conn.execute(
                 f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
             )
-
-        # Migrate existing tables - add missing columns (e.g., user_id on comparisons/learned_scores)
-        _migrate_add_missing_columns(conn, 'comparisons', COMPARISONS_COLUMNS)
-        _migrate_add_missing_columns(conn, 'learned_scores', LEARNED_SCORES_COLUMNS)
 
         # Create FTS5 full-text search table and sync triggers. If a previous
         # narrower schema is detected (caption+tags only), drop it so the

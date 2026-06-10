@@ -110,6 +110,45 @@ class PercentileNormalizer:
 
         return self.category_percentiles
 
+    PERSIST_KEY = 'percentiles_snapshot'
+
+    def save_to_stats_cache(self, conn):
+        """Persist computed percentiles into stats_cache for staleness tracking.
+
+        Stores the percentile values together with the photo count and
+        timestamp at which scores were last normalized, so later analysis
+        can report drift between stored scores and the current library.
+        """
+        import time
+        photo_count = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
+        snapshot = {
+            'percentiles': self.percentiles,
+            'category_percentiles': self.category_percentiles,
+            'target_percentile': self.target_percentile,
+            'photo_count': photo_count,
+            'computed_at': time.time(),
+        }
+        conn.execute(
+            "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+            (self.PERSIST_KEY, json.dumps(snapshot), time.time()),
+        )
+
+    @classmethod
+    def load_persisted(cls, conn):
+        """Load the persisted percentile snapshot, or None if absent/invalid."""
+        try:
+            row = conn.execute(
+                "SELECT value FROM stats_cache WHERE key = ?", (cls.PERSIST_KEY,)
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return None
+        if not row:
+            return None
+        try:
+            return json.loads(row[0])
+        except (json.JSONDecodeError, TypeError):
+            return None
+
     def normalize_with_category(self, metric, raw_value, category):
         """Apply category-specific normalization.
 

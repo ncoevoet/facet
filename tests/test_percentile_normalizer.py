@@ -292,3 +292,67 @@ class TestDetectConflicts:
         broken = {'priority': 1, 'proposals': [{'location': 'no arrow here', 'change': ''}]}
         result = normalizer._detect_conflicts([broken])
         assert broken in result
+
+
+class TestPercentilePersistence:
+    def _add_stats_cache(self, db_path):
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS stats_cache "
+            "(key TEXT PRIMARY KEY, value TEXT, updated_at REAL)"
+        )
+        conn.commit()
+        return conn
+
+    def test_save_and_load_round_trip(self, normalizer, percentile_db):
+        normalizer.compute_percentiles()
+        conn = self._add_stats_cache(percentile_db)
+        normalizer.save_to_stats_cache(conn)
+        conn.commit()
+        from config.percentile_normalizer import PercentileNormalizer
+        snapshot = PercentileNormalizer.load_persisted(conn)
+        conn.close()
+        assert snapshot is not None
+        assert snapshot['percentiles'] == normalizer.percentiles
+        assert snapshot['target_percentile'] == 95
+        assert snapshot['photo_count'] == 100
+        assert snapshot['computed_at'] > 0
+
+    def test_save_overwrites_previous_snapshot(self, normalizer, percentile_db):
+        normalizer.compute_percentiles()
+        conn = self._add_stats_cache(percentile_db)
+        normalizer.save_to_stats_cache(conn)
+        normalizer.percentiles['raw_sharpness_variance'] = 42.0
+        normalizer.save_to_stats_cache(conn)
+        conn.commit()
+        from config.percentile_normalizer import PercentileNormalizer
+        snapshot = PercentileNormalizer.load_persisted(conn)
+        count = conn.execute(
+            "SELECT COUNT(*) FROM stats_cache WHERE key = ?",
+            (PercentileNormalizer.PERSIST_KEY,)
+        ).fetchone()[0]
+        conn.close()
+        assert count == 1
+        assert snapshot['percentiles']['raw_sharpness_variance'] == 42.0
+
+    def test_load_returns_none_when_absent(self, percentile_db):
+        from config.percentile_normalizer import PercentileNormalizer
+        conn = self._add_stats_cache(percentile_db)
+        assert PercentileNormalizer.load_persisted(conn) is None
+        conn.close()
+
+    def test_load_returns_none_without_table(self, percentile_db):
+        from config.percentile_normalizer import PercentileNormalizer
+        conn = sqlite3.connect(percentile_db)
+        assert PercentileNormalizer.load_persisted(conn) is None
+        conn.close()
+
+    def test_load_returns_none_on_corrupt_json(self, percentile_db):
+        from config.percentile_normalizer import PercentileNormalizer
+        conn = self._add_stats_cache(percentile_db)
+        conn.execute(
+            "INSERT INTO stats_cache (key, value, updated_at) VALUES (?, ?, 0)",
+            (PercentileNormalizer.PERSIST_KEY, '{not json'),
+        )
+        assert PercentileNormalizer.load_persisted(conn) is None
+        conn.close()

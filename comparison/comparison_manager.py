@@ -395,3 +395,69 @@ class ComparisonManager:
                 'optimization_ready': total >= 30,
                 'recommendations': recommendations,
             }
+
+
+def record_culling_pairs(
+    conn,
+    keep_paths: List[str],
+    reject_paths: List[str],
+    user_id: Optional[str] = None,
+    group_type: str = 'burst',
+    max_pairs_per_group: int = 12,
+) -> int:
+    """
+    Derive pairwise preference comparisons from a culling decision.
+
+    Each rejected photo is paired against up to two kept photos (round-robin
+    over the kept list) with the kept photo as winner, capped at
+    max_pairs_per_group rows per call so large groups don't flood the
+    comparisons table. Pairs are stored canonically ordered
+    (photo_a_path < photo_b_path) with source='culling' and never overwrite
+    an existing comparison: INSERT OR IGNORE lets the
+    UNIQUE(photo_a_path, photo_b_path) constraint keep explicit votes intact.
+
+    Runs inside the caller's transaction - does not commit.
+
+    Args:
+        conn: Open SQLite connection (transaction managed by caller)
+        keep_paths: Photos the user kept
+        reject_paths: Photos the user rejected
+        user_id: Optional user identifier for multi-user mode
+        group_type: 'burst' or 'similar' (recorded in session_id)
+        max_pairs_per_group: Cap on generated pairs per call
+
+    Returns:
+        Number of comparison rows actually inserted
+    """
+    if not keep_paths or not reject_paths:
+        return 0
+    placeholders = ','.join('?' * len(keep_paths))
+    categories = dict(conn.execute(
+        f"SELECT path, category FROM photos WHERE path IN ({placeholders})",
+        keep_paths,
+    ).fetchall())
+    rows = []
+    kept = sorted(keep_paths)
+    for i, rejected in enumerate(sorted(reject_paths)):
+        picks = {kept[i % len(kept)], kept[(i + 1) % len(kept)]}
+        for winner_path in sorted(picks):
+            if len(rows) >= max_pairs_per_group:
+                break
+            a, b = sorted((winner_path, rejected))
+            rows.append((
+                a, b, 'a' if a == winner_path else 'b',
+                categories.get(winner_path),
+                f'cull-{group_type}', user_id, 'culling',
+            ))
+        if len(rows) >= max_pairs_per_group:
+            break
+    before = conn.total_changes
+    conn.executemany("""
+        INSERT OR IGNORE INTO comparisons
+        (photo_a_path, photo_b_path, winner, category, session_id, user_id, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, rows)
+    inserted = conn.total_changes - before
+    if inserted:
+        logger.info("Recorded %d culling comparison pairs (%s)", inserted, group_type)
+    return inserted

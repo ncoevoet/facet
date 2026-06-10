@@ -1130,6 +1130,11 @@ Configuration:
             normalizer=normalizer,
             category_filter=args.recompute_category,
         )
+        if normalizer is not None:
+            with get_connection(scorer.db_path, row_factory=False) as conn:
+                normalizer.save_to_stats_cache(conn)
+                conn.commit()
+            logger.info("Persisted percentile snapshot for drift tracking")
         if not args.recompute_category:
             process_bursts(scorer.db_path, scorer.config.config_path)
         logger.info("Recalculation done.")

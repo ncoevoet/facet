@@ -284,6 +284,20 @@ Train weights by comparing photo pairs:
 - Keyboard: A (left wins), B (right wins), T (tie), S (skip)
 - Progress bar shows comparisons toward 50 minimum
 
+### Comparison Sources
+
+Comparisons carry a `source` marker so the optimizer can weight them by reliability:
+
+- `vote` — explicit A/B votes from the comparison interface
+- `culling` — derived automatically from burst/similar culling decisions: each
+  rejected photo is paired against up to two kept photos from the same group
+  (capped at 12 pairs per group). Kept photos win. Explicit votes on the same
+  pair are never overwritten.
+- `rating` — synthetic pairs generated from star ratings and favorites
+
+Reviewing burst groups in the viewer therefore grows the training set for
+weight optimization without any extra effort.
+
 ### Weight Optimization
 
 ```bash

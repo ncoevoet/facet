@@ -326,7 +326,7 @@ SQLite table `photos` with columns:
 - `albums(id, user_id, name, description, cover_photo_path, is_smart, smart_filter_json, share_token, created_at, updated_at)` - Photo albums (manual, smart, and shared)
 - `album_photos(id, album_id, photo_path, position, added_at)` - Album membership with ordering
 - `location_names(lat_grid, lon_grid, city, region, country, display_name)` - Reverse geocoding cache (0.1° grid cells)
-- `comparisons(id, photo_a_path, photo_b_path, winner, category, timestamp, session_id, user_id)` - Pairwise photo comparisons
+- `comparisons(id, photo_a_path, photo_b_path, winner, category, timestamp, session_id, user_id, source)` - Pairwise photo comparisons (`source`: `vote` = explicit A/B, `culling` = derived from burst/similar culling decisions, `rating` = synthetic from star ratings/favorites)
 - `learned_scores(photo_path, learned_score, comparison_count, category, updated_at, user_id)` - Scores derived from comparisons
 - `weight_optimization_runs(id, timestamp, category, comparisons_used, old_weights, new_weights, mse_before, mse_after)` - Weight optimization history
 - `weight_config_snapshots(id, timestamp, category, weights, description, accuracy_before, accuracy_after, comparisons_used, created_by)` - Saved weight configurations

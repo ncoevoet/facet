@@ -19,6 +19,7 @@ from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_db
 from api.db_helpers import get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause
 from api.similarity_groups import compute_similarity_groups
+from comparison.comparison_manager import record_culling_pairs
 from utils.date_utils import parse_date
 
 logger = logging.getLogger(__name__)
@@ -319,6 +320,11 @@ async def select_burst_photos(
                     reject_paths,
                 )
 
+            record_culling_pairs(
+                conn, keep_paths, reject_paths,
+                user_id=user_id, group_type='burst',
+            )
+
             conn.commit()
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(group_paths - keep_set)}
 
@@ -437,6 +443,11 @@ async def select_similar_photos(
             # is_rejected, so without this DELETE the cache may show kept
             # photos as still-unreviewed for up to the 1h TTL.
             conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
+
+            record_culling_pairs(
+                conn, list(keep_set), reject_paths,
+                user_id=user_id, group_type='similar',
+            )
 
             conn.commit()
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
