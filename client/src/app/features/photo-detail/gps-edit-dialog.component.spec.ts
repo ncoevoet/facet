@@ -5,10 +5,11 @@ import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { GpsEditDialogComponent, GpsEditDialogData } from './gps-edit-dialog.component';
+import type { GpsEditDialogComponent, GpsEditDialogData } from './gps-edit-dialog.component';
 
-// Mock Leaflet
-vi.mock('leaflet', () => ({
+// Mock Leaflet via vi.doMock + dynamic import: the unit-test builder wraps
+// spec modules, which defeats vi.mock hoisting and can leak the real Leaflet.
+vi.doMock('leaflet', () => ({
   Icon: { Default: { mergeOptions: vi.fn() } },
   map: vi.fn(() => ({
     setView: vi.fn().mockReturnThis(),
@@ -24,10 +25,15 @@ vi.mock('leaflet', () => ({
 }));
 
 describe('GpsEditDialogComponent', () => {
+  let GpsEditDialogComponentClass: typeof GpsEditDialogComponent;
   let component: GpsEditDialogComponent;
   let mockDialogRef: { close: Mock };
   let mockApi: { put: Mock };
   let mockSnackBar: { open: Mock };
+
+  beforeAll(async () => {
+    ({ GpsEditDialogComponent: GpsEditDialogComponentClass } = await import('./gps-edit-dialog.component'));
+  });
 
   function createComponent(data: GpsEditDialogData) {
     TestBed.resetTestingModule();
@@ -37,7 +43,7 @@ describe('GpsEditDialogComponent', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        GpsEditDialogComponent,
+        GpsEditDialogComponentClass,
         { provide: MatDialogRef, useValue: mockDialogRef },
         { provide: MAT_DIALOG_DATA, useValue: data },
         { provide: ApiService, useValue: mockApi },
@@ -45,7 +51,7 @@ describe('GpsEditDialogComponent', () => {
         { provide: I18nService, useValue: { t: (k: string) => k } },
       ],
     });
-    component = TestBed.inject(GpsEditDialogComponent);
+    component = TestBed.inject(GpsEditDialogComponentClass);
   }
 
   it('should initialize with provided coordinates', () => {

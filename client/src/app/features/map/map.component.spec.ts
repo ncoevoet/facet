@@ -4,59 +4,58 @@ import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 
-// Mock Leaflet before importing the component.
-// vi.mock is hoisted, so the mock objects are created via vi.hoisted() to be
-// available both inside the factory and in the test bodies.
-const { mockMarkersLayer, mockCircleMarker, mockMarker, mockMap, leafletMock } = vi.hoisted(() => {
-  const mockMarkersLayer = {
-    addTo: vi.fn().mockReturnThis(),
-    clearLayers: vi.fn(),
-  };
+// Mock Leaflet before importing the component. vi.doMock + dynamic import is
+// used instead of vi.mock because the unit-test builder wraps spec modules,
+// which defeats vi.mock hoisting and let the real Leaflet leak in under CI.
+const mockMarkersLayer = {
+  addTo: vi.fn().mockReturnThis(),
+  clearLayers: vi.fn(),
+};
 
-  const mockCircleMarker = {
-    bindTooltip: vi.fn().mockReturnThis(),
-    bindPopup: vi.fn().mockReturnThis(),
-    addTo: vi.fn().mockReturnThis(),
-  };
+const mockCircleMarker = {
+  bindTooltip: vi.fn().mockReturnThis(),
+  bindPopup: vi.fn().mockReturnThis(),
+  addTo: vi.fn().mockReturnThis(),
+};
 
-  const mockMarker = {
-    bindPopup: vi.fn().mockReturnThis(),
-    addTo: vi.fn().mockReturnThis(),
-    on: vi.fn().mockReturnThis(),
-    getPopup: vi.fn(() => ({ getElement: vi.fn(() => null) })),
-  };
+const mockMarker = {
+  bindPopup: vi.fn().mockReturnThis(),
+  addTo: vi.fn().mockReturnThis(),
+  on: vi.fn().mockReturnThis(),
+  getPopup: vi.fn(() => ({ getElement: vi.fn(() => null) })),
+};
 
-  const mockMap = {
-    setView: vi.fn().mockReturnThis(),
-    getBounds: vi.fn(() => ({
-      getSouthWest: () => ({ lat: 40, lng: -5 }),
-      getNorthEast: () => ({ lat: 55, lng: 15 }),
-    })),
-    getZoom: vi.fn(() => 5),
-    on: vi.fn(),
-    off: vi.fn(),
-    remove: vi.fn(),
-  };
+const mockMap = {
+  setView: vi.fn().mockReturnThis(),
+  getBounds: vi.fn(() => ({
+    getSouthWest: () => ({ lat: 40, lng: -5 }),
+    getNorthEast: () => ({ lat: 55, lng: 15 }),
+  })),
+  getZoom: vi.fn(() => 5),
+  on: vi.fn(),
+  off: vi.fn(),
+  remove: vi.fn(),
+};
 
-  const leafletMock = {
-    Icon: { Default: { mergeOptions: vi.fn() } },
-    map: vi.fn(() => mockMap),
-    tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
-    layerGroup: vi.fn(() => mockMarkersLayer),
-    circleMarker: vi.fn(() => mockCircleMarker),
-    marker: vi.fn(() => mockMarker),
-  };
+const leafletMock = {
+  Icon: { Default: { mergeOptions: vi.fn() } },
+  map: vi.fn(() => mockMap),
+  tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
+  layerGroup: vi.fn(() => mockMarkersLayer),
+  circleMarker: vi.fn(() => mockCircleMarker),
+  marker: vi.fn(() => mockMarker),
+};
 
-  return { mockMarkersLayer, mockCircleMarker, mockMarker, mockMap, leafletMock };
-});
-
-vi.mock('leaflet', () => leafletMock);
-
-import { MapComponent } from './map.component';
+vi.doMock('leaflet', () => leafletMock);
 
 describe('MapComponent', () => {
+  let MapComponent: typeof import('./map.component').MapComponent;
   let component: any;
   let mockApi: { get: Mock; thumbnailUrl: Mock };
+
+  beforeAll(async () => {
+    ({ MapComponent } = await import('./map.component'));
+  });
 
   beforeEach(() => {
     vi.useFakeTimers();

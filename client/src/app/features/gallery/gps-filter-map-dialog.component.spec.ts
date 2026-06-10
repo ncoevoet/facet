@@ -1,10 +1,11 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
-import { GpsFilterMapDialogComponent } from './gps-filter-map-dialog.component';
+import type { GpsFilterMapDialogComponent } from './gps-filter-map-dialog.component';
 
-// Mock Leaflet
-vi.mock('leaflet', () => ({
+// Mock Leaflet via vi.doMock + dynamic import: the unit-test builder wraps
+// spec modules, which defeats vi.mock hoisting and can leak the real Leaflet.
+vi.doMock('leaflet', () => ({
   Icon: { Default: { mergeOptions: vi.fn() } },
   map: vi.fn(() => ({
     setView: vi.fn().mockReturnThis(),
@@ -24,8 +25,13 @@ vi.mock('leaflet', () => ({
 }));
 
 describe('GpsFilterMapDialogComponent', () => {
+  let GpsFilterMapDialogComponentClass: typeof GpsFilterMapDialogComponent;
   let component: GpsFilterMapDialogComponent;
   let mockDialogRef: { close: Mock };
+
+  beforeAll(async () => {
+    ({ GpsFilterMapDialogComponent: GpsFilterMapDialogComponentClass } = await import('./gps-filter-map-dialog.component'));
+  });
 
   function createComponent(data: Record<string, unknown> = {}) {
     TestBed.resetTestingModule();
@@ -33,12 +39,12 @@ describe('GpsFilterMapDialogComponent', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        GpsFilterMapDialogComponent,
+        GpsFilterMapDialogComponentClass,
         { provide: MatDialogRef, useValue: mockDialogRef },
         { provide: MAT_DIALOG_DATA, useValue: data },
       ],
     });
-    component = TestBed.inject(GpsFilterMapDialogComponent);
+    component = TestBed.inject(GpsFilterMapDialogComponentClass);
   }
 
   it('should initialize with default values when no data provided', () => {
