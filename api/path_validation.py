@@ -6,6 +6,12 @@ path traversal and symlink escape: callers must already have confirmed the
 ``db_path`` exists in the database and is visible to the requesting user (via
 the visibility clause), but the mapped disk path is still canonicalised and
 checked against the scan-directory allowlist before any file is opened.
+
+The allowlist is enforced whenever scan directories are configured (always in
+multi-user mode, fail-closed; and in single-user mode when ``path_mapping`` or
+user directories are set). Pure-local single-user installs expose no
+configurable root, so there the database-membership check performed by callers
+is the containment boundary.
 """
 
 import os
@@ -27,8 +33,8 @@ def resolve_photo_disk_path(db_path: str) -> str:
             be visible to the current user.
 
     Returns:
-        The canonical real disk path, guaranteed to exist on disk and (in
-        multi-user mode) to live under an allowed scan directory.
+        The canonical real disk path, guaranteed to exist on disk and, when
+        scan directories are configured, to live under an allowed one.
 
     Raises:
         HTTPException: 404 if the resolved path escapes the scan-directory
@@ -36,10 +42,11 @@ def resolve_photo_disk_path(db_path: str) -> str:
     """
     disk_path = map_disk_path(db_path)
     real_disk = os.path.realpath(disk_path)
-    if is_multi_user_enabled():
+    scan_dirs = get_all_scan_directories()
+    if is_multi_user_enabled() or scan_dirs:
         if not any(
             real_disk.startswith(os.path.realpath(d) + os.sep)
-            for d in get_all_scan_directories()
+            for d in scan_dirs
         ):
             raise HTTPException(status_code=404, detail='File not found')
     if not os.path.isfile(real_disk):

@@ -11,12 +11,13 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 
 from api.auth import CurrentUser, get_optional_user
-from api.config import VIEWER_CONFIG, is_multi_user_enabled, get_user_directories, get_all_scan_directories
+from api.config import VIEWER_CONFIG, is_multi_user_enabled, get_user_directories
 from api.database import get_db, get_db_connection
+from api.path_validation import resolve_photo_disk_path
 from utils.image_loading import RAW_EXTENSIONS, HEIF_EXTENSIONS
 
 logger = logging.getLogger(__name__)
@@ -270,13 +271,9 @@ def image(
     if not row:
         return Response(content="Not found", status_code=404)
 
-    from api.config import map_disk_path, is_multi_user_enabled
-    disk_path = map_disk_path(row['path'])
-    real_disk = os.path.realpath(disk_path)
-    if is_multi_user_enabled():
-        if not any(real_disk.startswith(os.path.realpath(d) + os.sep) for d in get_all_scan_directories()):
-            return Response(content="Not found", status_code=404)
-    if not os.path.isfile(real_disk):
+    try:
+        real_disk = resolve_photo_disk_path(row['path'])
+    except HTTPException:
         return Response(content="Not found", status_code=404)
 
     # Convert RAW files to JPEG for browser display (cached to avoid repeated conversion)

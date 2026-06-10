@@ -66,6 +66,35 @@ def test_raises_404_when_outside_allowlist_multiuser(tmp_path):
     assert exc.value.status_code == 404
 
 
+def test_allowlist_enforced_single_user_when_roots_configured(tmp_path):
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    photo = allowed / "photo.jpg"
+    photo.write_bytes(b"x")
+    with (
+        mock.patch(f"{_MOD}.map_disk_path", return_value=str(photo)),
+        mock.patch(f"{_MOD}.is_multi_user_enabled", return_value=False),
+        mock.patch(f"{_MOD}.get_all_scan_directories", return_value=[str(allowed)]),
+    ):
+        result = resolve_photo_disk_path("/db/photo.jpg")
+    assert result == os.path.realpath(str(photo))
+
+
+def test_escape_blocked_single_user_when_roots_configured(tmp_path):
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    outside = tmp_path / "secret.jpg"
+    outside.write_bytes(b"x")  # exists, but outside the configured root
+    with (
+        mock.patch(f"{_MOD}.map_disk_path", return_value=str(outside)),
+        mock.patch(f"{_MOD}.is_multi_user_enabled", return_value=False),
+        mock.patch(f"{_MOD}.get_all_scan_directories", return_value=[str(allowed)]),
+    ):
+        with pytest.raises(HTTPException) as exc:
+            resolve_photo_disk_path("/db/secret.jpg")
+    assert exc.value.status_code == 404
+
+
 def test_traversal_escape_blocked_multiuser(tmp_path):
     allowed = tmp_path / "allowed"
     allowed.mkdir()
