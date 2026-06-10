@@ -17,7 +17,13 @@ from unittest import mock
 _STUBBED_MODULES = []
 for _name in ("torch", "imagehash"):
     if importlib.util.find_spec(_name) is None and _name not in sys.modules:
-        sys.modules[_name] = mock.MagicMock()
+        _stub = mock.MagicMock()
+        if _name == "torch":
+            # scipy.stats probes torch.Tensor via issubclass() at import time;
+            # a MagicMock attribute is not a class and raises TypeError, so the
+            # stub must expose a real Tensor class.
+            _stub.Tensor = type("Tensor", (), {})
+        sys.modules[_name] = _stub
         _STUBBED_MODULES.append(_name)
 
 from processing.batch_processor import BatchProcessor  # noqa: E402
