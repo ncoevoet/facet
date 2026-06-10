@@ -2197,11 +2197,32 @@ class Facet:
             )
             conn.commit()
 
-    def get_already_scanned_set(self):
-        """Fetches all known paths to avoid re-processing existing images."""
+    def filter_unscanned_paths(self, paths, chunk=900):
+        """Return the subset of paths not yet present in the photos table.
+
+        Uses chunked IN() probes against the path primary key instead of
+        loading the entire path column into memory, so memory stays O(chunk)
+        regardless of library size.
+
+        Args:
+            paths: Iterable of resolved path strings
+            chunk: Paths per query (SQLite parameter limit is 999)
+
+        Returns:
+            Set of paths from the input that are NOT in the database
+        """
+        paths = list(paths)
+        unscanned = set(paths)
         with get_connection(self.db_path, row_factory=False) as conn:
-            cursor = conn.execute('SELECT path FROM photos')
-            return {row[0] for row in cursor.fetchall()}
+            for i in range(0, len(paths), chunk):
+                batch = paths[i:i + chunk]
+                placeholders = ','.join('?' * len(batch))
+                cursor = conn.execute(
+                    f'SELECT path FROM photos WHERE path IN ({placeholders})',
+                    batch,
+                )
+                unscanned.difference_update(row[0] for row in cursor.fetchall())
+        return unscanned
 
     def commit(self):
         with get_connection(self.db_path, row_factory=False) as conn:

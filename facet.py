@@ -937,7 +937,7 @@ Configuration:
             logger.error("Failed to load VLM tagger")
             exit(1)
 
-        from utils import load_image_from_path, _rawpy_lock, tags_to_string
+        from utils import load_image_from_path, tags_to_string
         tagging_settings = config.get_tagging_settings()
         max_tags = tagging_settings.get('max_tags', 5)
         batch_size = tagger.batch_size
@@ -951,7 +951,7 @@ Configuration:
 
                 for row in batch:
                     try:
-                        pil_img, _ = load_image_from_path(row['path'], lock=_rawpy_lock)
+                        pil_img, _ = load_image_from_path(row['path'])
                         if pil_img:
                             images.append(pil_img)
                             paths.append(row['path'])
@@ -1070,7 +1070,7 @@ Configuration:
                     conn.commit()
             else:
                 # VLM taggers load full images from disk
-                from utils import load_image_from_path, _rawpy_lock
+                from utils import load_image_from_path
                 batch_size = 16
 
                 with get_connection(args.db) as conn:
@@ -1084,7 +1084,7 @@ Configuration:
 
                         for row in batch:
                             try:
-                                pil_img, _ = load_image_from_path(row['path'], lock=_rawpy_lock)
+                                pil_img, _ = load_image_from_path(row['path'])
                                 if pil_img:
                                     images.append(pil_img)
                                     paths.append(row['path'])
@@ -1272,10 +1272,13 @@ Configuration:
     # Identify JPEGs to avoid double-processing if RAW+JPEG pairs exist
     jpeg_like = {'.jpg', '.jpeg'} | HEIF_EXTENSIONS
     jpegs_stems = {f.stem.lower() for f in all_files if f.suffix.lower() in jpeg_like}
-    scanned_set = set() if args.force else scorer.get_already_scanned_set()
+    if args.force:
+        unscanned = {str(f.resolve()) for f in all_files}
+    else:
+        unscanned = scorer.filter_unscanned_paths(str(f.resolve()) for f in all_files)
 
     # Filter the list to only include new or un-scanned files
-    todo_list = [f for f in all_files if str(f.resolve()) not in scanned_set
+    todo_list = [f for f in all_files if str(f.resolve()) in unscanned
                  and not (f.suffix.lower() in RAW_EXTENSIONS and f.stem.lower() in jpegs_stems)]
     raw_paired_skipped = sum(
         1 for f in all_files
@@ -1337,6 +1340,12 @@ Configuration:
         exit()
 
     # 2. Main Processing Loop
+    from utils import configure_raw_decoding
+    _proc = scorer.config.get_processing_settings()
+    configure_raw_decoding(
+        concurrency=_proc.get('raw_decode_concurrency', 0),
+        timeout_seconds=_proc.get('raw_decode_timeout_seconds', 120),
+    )
     try:
         # Check for single-pass mode or specific pass
         if args.single_pass_name:

@@ -5,7 +5,10 @@ Handles RAW (via rawpy/libraw) and JPEG loading with EXIF transpose.
 """
 
 import logging
+import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from io import BytesIO
 from pathlib import Path
 
@@ -31,13 +34,133 @@ RAW_EXTENSIONS = {'.cr2', '.cr3', '.nef', '.arw', '.raf', '.rw2', '.dng', '.orf'
 HEIF_EXTENSIONS = {'.heic', '.heif'} if _heif_available else set()
 
 
-# Module-level lock for rawpy thread-safety
-# libraw (underlying C library) has internal state that isn't thread-safe
-# when extract_thumb() fails and falls back to postprocess() on the same raw object
-_rawpy_lock = threading.Lock()
+# RAW decode concurrency. LibRaw is reentrant when each decode uses its own
+# rawpy.imread() instance (which every call site here does), so a global mutex
+# is unnecessary for correctness. The semaphore acts as a memory governor:
+# each 45-60MP demosaic peaks at roughly 200-400MB of intermediates, so
+# in-flight decodes must stay bounded.
+
+def _auto_decode_concurrency():
+    """Pick a safe default RAW decode concurrency from CPU and available RAM."""
+    cpu = os.cpu_count() or 2
+    limit = max(1, min(4, cpu // 2))
+    try:
+        import psutil
+        available_gb = psutil.virtual_memory().available / 2 ** 30
+        limit = max(1, min(limit, int(available_gb // 3)))
+    except ImportError:
+        limit = min(limit, 2)
+    return limit
 
 
-def load_image_from_path(photo_path, lock=None, use_thumbnail=False):
+# Hung RAW decodes (stalled NAS I/O) cannot be killed; timed-out decode
+# threads are abandoned and keep their semaphore slot until they finish.
+# After _ABANDON_BUDGET abandonments the scan fails fast instead of wedging.
+_ABANDON_BUDGET = 2
+
+_decode_concurrency = _auto_decode_concurrency()
+_raw_semaphore = threading.BoundedSemaphore(_decode_concurrency)
+_decode_timeout = 0.0  # 0 = disabled; scanners opt in via configure_raw_decoding()
+_decode_executor = None
+_abandoned_decodes = 0
+_state_lock = threading.Lock()
+
+
+def configure_raw_decoding(concurrency=None, timeout_seconds=None):
+    """Configure RAW decode concurrency and timeout for a scan run.
+
+    Args:
+        concurrency: Max simultaneous RAW decodes (None/0 = keep auto value,
+                     1 = fully serialized, matching the historical global lock)
+        timeout_seconds: Abandon a decode after this many seconds
+                         (None = keep current, 0 = disabled)
+    """
+    global _decode_concurrency, _raw_semaphore, _decode_timeout, _decode_executor
+    with _state_lock:
+        if concurrency:
+            _decode_concurrency = max(1, int(concurrency))
+            _raw_semaphore = threading.BoundedSemaphore(_decode_concurrency)
+            if _decode_executor is not None:
+                _decode_executor.shutdown(wait=False)
+                _decode_executor = None
+        if timeout_seconds is not None:
+            _decode_timeout = max(0.0, float(timeout_seconds))
+    logger.info(
+        "RAW decoding configured: concurrency=%d, timeout=%ss",
+        _decode_concurrency, _decode_timeout or 'off',
+    )
+
+
+def _get_decode_executor():
+    global _decode_executor
+    with _state_lock:
+        if _decode_executor is None:
+            _decode_executor = ThreadPoolExecutor(
+                max_workers=_decode_concurrency + _ABANDON_BUDGET,
+                thread_name_prefix='rawdecode',
+            )
+        return _decode_executor
+
+
+def _decode_raw(photo, use_thumbnail):
+    """Decode a RAW file to a PIL image. Runs under the decode semaphore."""
+    import rawpy
+    Image, ImageOps = _ensure_pil()
+    pil_img = None
+    with _raw_semaphore:
+        if use_thumbnail:
+            # Try thumbnail extraction first (faster, lower quality)
+            with rawpy.imread(str(photo)) as raw:
+                try:
+                    thumb = raw.extract_thumb()
+                    if thumb.format == rawpy.ThumbFormat.JPEG:
+                        pil_img = Image.open(BytesIO(thumb.data))
+                        pil_img = ImageOps.exif_transpose(pil_img)
+                    else:
+                        pil_img = Image.fromarray(thumb.data)
+                except Exception:
+                    pass  # Will fall back to demosaic below
+
+        # Full demosaic (default, best quality)
+        if pil_img is None:
+            with rawpy.imread(str(photo)) as raw:
+                rgb = raw.postprocess(
+                    use_camera_wb=True,
+                    no_auto_bright=False,
+                    output_color=rawpy.ColorSpace.sRGB,
+                    output_bps=8
+                )
+                pil_img = Image.fromarray(rgb)
+    return pil_img
+
+
+def _decode_raw_with_timeout(photo, use_thumbnail):
+    """Decode a RAW file, abandoning the attempt after the configured timeout.
+
+    Raises RuntimeError once the abandonment budget is exhausted - at that
+    point the storage is almost certainly stalled and continuing would wedge
+    every decode slot.
+    """
+    global _abandoned_decodes
+    future = _get_decode_executor().submit(_decode_raw, photo, use_thumbnail)
+    try:
+        return future.result(timeout=_decode_timeout)
+    except FuturesTimeoutError:
+        with _state_lock:
+            _abandoned_decodes += 1
+            abandoned = _abandoned_decodes
+        logger.error(
+            "RAW decode timed out after %.0fs (%d/%d abandoned): %s",
+            _decode_timeout, abandoned, _ABANDON_BUDGET, photo,
+        )
+        if abandoned > _ABANDON_BUDGET:
+            raise RuntimeError(
+                f"{abandoned} RAW decodes hung - storage likely stalled"
+            ) from None
+        return None
+
+
+def load_image_from_path(photo_path, use_thumbnail=False):
     """
     Load image from path, handling RAW files (CR2/CR3) and JPEGs.
 
@@ -45,9 +168,11 @@ def load_image_from_path(photo_path, lock=None, use_thumbnail=False):
     Set use_thumbnail=True for faster loading when lower quality is acceptable.
     Applies EXIF transpose for proper orientation.
 
+    RAW decodes run under a bounded semaphore (see configure_raw_decoding)
+    and optionally a per-decode timeout.
+
     Args:
         photo_path: Path to image file (str or Path)
-        lock: Optional threading.Lock for rawpy (uses module lock if None)
         use_thumbnail: If True, extract embedded thumbnail from RAW (faster, lower quality).
                       If False (default), use full demosaic for RAW (slower, best quality).
 
@@ -58,40 +183,16 @@ def load_image_from_path(photo_path, lock=None, use_thumbnail=False):
     Image, ImageOps = _ensure_pil()
     cv2 = _ensure_cv2()
 
-    if lock is None:
-        lock = _rawpy_lock
-
     try:
         photo = Path(photo_path)
-        pil_img = None
 
-        # Handle RAW files
         if photo.suffix.lower() in RAW_EXTENSIONS:
-            import rawpy
-            with lock:  # Serialize rawpy access to prevent libraw state corruption
-                if use_thumbnail:
-                    # Try thumbnail extraction first (faster, lower quality)
-                    with rawpy.imread(str(photo)) as raw:
-                        try:
-                            thumb = raw.extract_thumb()
-                            if thumb.format == rawpy.ThumbFormat.JPEG:
-                                pil_img = Image.open(BytesIO(thumb.data))
-                                pil_img = ImageOps.exif_transpose(pil_img)
-                            else:
-                                pil_img = Image.fromarray(thumb.data)
-                        except Exception:
-                            pass  # Will fall back to demosaic below
-
-                # Full demosaic (default, best quality)
-                if pil_img is None:
-                    with rawpy.imread(str(photo)) as raw:
-                        rgb = raw.postprocess(
-                            use_camera_wb=True,
-                            no_auto_bright=False,
-                            output_color=rawpy.ColorSpace.sRGB,
-                            output_bps=8
-                        )
-                        pil_img = Image.fromarray(rgb)
+            if _decode_timeout > 0:
+                pil_img = _decode_raw_with_timeout(photo, use_thumbnail)
+            else:
+                pil_img = _decode_raw(photo, use_thumbnail)
+            if pil_img is None:
+                return None, None
         else:
             pil_img = Image.open(photo)
             pil_img = ImageOps.exif_transpose(pil_img)
@@ -103,6 +204,8 @@ def load_image_from_path(photo_path, lock=None, use_thumbnail=False):
 
         return pil_img, img_cv
 
+    except RuntimeError:
+        raise
     except Exception as e:
         logger.error("Error loading image %s: %s", photo_path, e)
         return None, None

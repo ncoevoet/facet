@@ -20,7 +20,7 @@ from tqdm import tqdm
 from analyzers import CompositionAnalyzer, ImageCache
 from utils import (
     load_image_from_path, get_tag_params, detect_silhouette,
-    tags_to_string, _rawpy_lock
+    tags_to_string
 )
 from processing.resource_monitor import ResourceMonitor, HAS_PSUTIL
 from processing.metrics_reporter import MetricsReporter
@@ -49,6 +49,13 @@ class BatchProcessor:
         self.result_queue = queue.Queue()
         self.stop_event = threading.Event()
 
+        # EXIF prefetch: a background thread batch-fetches EXIF ahead of the
+        # GPU thread so _process_batch never blocks on exiftool subprocesses
+        self.exif_prefetch_enabled = (config or {}).get('exif_prefetch', True)
+        self._exif_cache = {}
+        self._exif_lock = threading.Lock()
+        self._exif_prefetch_thread = None
+
         # Metrics for dynamic tuning (thread-safe with locks)
         self._metrics_lock = threading.Lock()
         self.metrics = {
@@ -70,6 +77,49 @@ class BatchProcessor:
         with self._metrics_lock:
             return self.metrics.copy()
 
+    def _start_exif_prefetch(self, photo_paths):
+        """Start the background EXIF prefetch thread for the given worklist."""
+        if not self.exif_prefetch_enabled or not photo_paths:
+            return
+        paths = list(photo_paths)
+
+        def _prefetch():
+            try:
+                from exiftool import get_exif_batch
+            except ImportError:
+                return
+            for i in range(0, len(paths), 500):
+                if self.stop_event.is_set():
+                    return
+                chunk_exif = get_exif_batch(paths[i:i + 500], chunk_size=100)
+                with self._exif_lock:
+                    self._exif_cache.update(chunk_exif)
+
+        self._exif_prefetch_thread = threading.Thread(
+            target=_prefetch, name='exif-prefetch', daemon=True
+        )
+        self._exif_prefetch_thread.start()
+
+    def _get_batch_exif(self, paths):
+        """EXIF for a batch: prefetch cache first, synchronous fetch for misses.
+
+        pop() keeps the cache from holding entries past their consumption.
+        """
+        resolved = {p: str(Path(p).resolve()) for p in paths}
+        batch_exif = {}
+        with self._exif_lock:
+            for rp in resolved.values():
+                if rp in self._exif_cache:
+                    batch_exif[rp] = self._exif_cache.pop(rp)
+        missing = [p for p, rp in resolved.items() if rp not in batch_exif]
+        if missing:
+            try:
+                from exiftool import get_exif_batch
+                batch_exif.update(get_exif_batch(missing))
+            except ImportError:
+                pass
+        return batch_exif
+
     def _load_image(self, photo_path):
         """Load and preprocess a single image (runs in worker thread).
 
@@ -87,7 +137,7 @@ class BatchProcessor:
                 pass
 
             # Use shared image loading function
-            pil_img, img_cv = load_image_from_path(photo_path, lock=_rawpy_lock)
+            pil_img, img_cv = load_image_from_path(photo_path)
 
             if pil_img is None:
                 return {'path': str(photo_path), 'error': 'Failed to load image'}
@@ -174,13 +224,9 @@ class BatchProcessor:
         if not batch:
             return
 
-        # Fetch EXIF for this batch
+        # Fetch EXIF for this batch (prefetched in background when enabled)
         paths = [item['path'] for item in batch]
-        try:
-            from exiftool import get_exif_batch
-            batch_exif = get_exif_batch(paths)
-        except ImportError:
-            batch_exif = {}
+        batch_exif = self._get_batch_exif(paths)
 
         # Extract PIL images and pre-processed CLIP inputs
         pil_images = [item['pil_img'] for item in batch]
@@ -388,6 +434,8 @@ class BatchProcessor:
         # Start resource monitor (mandatory auto-tuning)
         self.resource_monitor.start()
 
+        self._start_exif_prefetch(photo_paths)
+
         try:
             # Split work among workers
             chunk_size = (total + self.num_workers - 1) // self.num_workers
@@ -518,6 +566,8 @@ class BatchProcessor:
 
         # Start resource monitor (mandatory auto-tuning)
         self.resource_monitor.start()
+
+        self._start_exif_prefetch(all_paths)
 
         try:
             # Pre-partition among workers to avoid lock contention

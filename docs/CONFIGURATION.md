@@ -587,6 +587,10 @@ Unified processing settings for GPU batch processing and multi-pass mode.
 | `gpu_batch_size` | `16` | Images per GPU batch (VRAM-limited) |
 | `ram_chunk_size` | `32` | Images per RAM chunk (multi-pass) |
 | `num_workers` | `4` | Image loader threads |
+| `load_workers` | `num_workers` | Multi-pass chunk loader threads (capped at 8, `1` = sequential) |
+| `raw_decode_concurrency` | `0` (auto) | Max simultaneous RAW decodes; auto-sized from CPU/RAM (1-4), `1` = fully serialized |
+| `raw_decode_timeout_seconds` | `120` | Abandon a hung RAW decode after this delay (`0` = disabled); scan fails fast after repeated hangs |
+| `exif_prefetch` | `true` | Single-pass mode: prefetch EXIF in background instead of blocking the GPU thread |
 | **auto_tuning** | | |
 | `enabled` | `true` | Enable auto-tuning |
 | `monitor_interval_seconds` | `5` | Resource check interval |

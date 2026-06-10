@@ -455,6 +455,10 @@ For quick reference, here are the actual defaults from the config file:
 | `face_detection` | `min_confidence_percent` | `65` |
 | `face_detection` | `blink_ear_threshold` | `0.28` |
 | `face_detection` | `min_faces_for_group` | `4` |
+| `processing` | `load_workers` | `num_workers` (multi-pass chunk loader threads, cap 8) |
+| `processing` | `raw_decode_concurrency` | `0` (auto: 1-4 from CPU/RAM; `1` = serialized) |
+| `processing` | `raw_decode_timeout_seconds` | `120` (`0` = disabled) |
+| `processing` | `exif_prefetch` | `true` |
 | `face_clustering` | `min_faces_per_person` | `2` |
 | `face_clustering` | `min_samples` | `2` |
 | `face_clustering` | `merge_threshold` | `0.6` |

@@ -77,6 +77,9 @@ class ChunkedMultiPassProcessor:
         # Get settings from unified 'processing' config
         proc_config = self.config.get('processing', {})
         self.chunk_size = proc_config.get('ram_chunk_size', 100)
+        self.load_workers = max(1, min(
+            int(proc_config.get('load_workers', proc_config.get('num_workers', 4))), 8
+        ))
 
         # Processing mode: 'auto', 'multi-pass', 'single-pass'
         self.mode = proc_config.get('mode', 'auto')
@@ -420,7 +423,9 @@ class ChunkedMultiPassProcessor:
         """
         _ensure_imports()
         import imagehash
-        from utils import load_image_from_path, _rawpy_lock
+        from concurrent.futures import ThreadPoolExecutor
+        from pathlib import Path
+        from utils import load_image_from_path
         from analyzers import TechnicalAnalyzer, ImageCache
 
         # Get a TechnicalAnalyzer instance (stateless, so we can create one)
@@ -430,66 +435,98 @@ class ChunkedMultiPassProcessor:
         exposure_settings = self.scorer.config.get_exposure_settings()
         mono_settings = self.scorer.config.get_monochrome_settings()
 
+        # One batched exiftool call for the whole chunk instead of one
+        # subprocess round-trip per image; per-image fallback below covers
+        # paths missing from the batch result
+        try:
+            from exiftool import get_exif_batch
+            chunk_exif = get_exif_batch(paths, chunk_size=100)
+        except ImportError:
+            chunk_exif = {}
+
+        def _load_one(path):
+            pil_img, img_cv = load_image_from_path(path)
+            if pil_img is None:
+                return None
+
+            img_h, img_w = img_cv.shape[:2]
+
+            # Create ImageCache for efficient repeated operations
+            cache = ImageCache(img_cv)
+
+            resolved = str(Path(path).resolve())
+            exif_data = chunk_exif.get(resolved) or self.scorer.get_exif_data(path)
+
+            # Compute technical metrics (all CPU operations)
+            sharpness_data = tech_analyzer.get_sharpness_data(img_cv, cache=cache)
+            color_data = tech_analyzer.get_color_harmony_data(img_cv, cache=cache)
+            histogram_data = tech_analyzer.get_histogram_data(
+                img_cv,
+                shadow_threshold=exposure_settings.get('shadow_clip_threshold_percent', 15) / 100,
+                highlight_threshold=exposure_settings.get('highlight_clip_threshold_percent', 10) / 100,
+                cache=cache
+            )
+            mono_data = tech_analyzer.detect_monochrome(
+                img_cv,
+                threshold=mono_settings.get('saturation_threshold_percent', 10) / 100,
+                cache=cache
+            )
+            dynamic_range_data = tech_analyzer.get_dynamic_range(img_cv, cache=cache)
+            noise_data = tech_analyzer.get_noise_estimate(img_cv, cache=cache)
+            contrast_data = tech_analyzer.get_contrast_score(img_cv, cache=cache)
+
+            # Compute perceptual hash
+            phash = str(imagehash.phash(pil_img))
+
+            return {
+                'pil': pil_img,
+                'cv': img_cv,
+                'path': path,
+                'width': img_w,
+                'height': img_h,
+                'cache': cache,
+                # EXIF data
+                'exif': exif_data,
+                # Technical metrics
+                'sharpness': sharpness_data,
+                'color': color_data,
+                'histogram': histogram_data,
+                'mono': mono_data,
+                'dynamic_range': dynamic_range_data,
+                'noise': noise_data,
+                'contrast': contrast_data,
+                # Hash
+                'phash': phash,
+            }
+
+        # Image decode + CPU analysis release the GIL (cv2/numpy/rawpy), so a
+        # thread pool gives real parallelism; in-flight RAW decode memory is
+        # bounded separately by the decode semaphore in utils.image_loading
         images = {}
-        for path in paths:
-            try:
-                pil_img, img_cv = load_image_from_path(path, lock=_rawpy_lock)
-                if pil_img is None:
-                    continue
-
-                img_h, img_w = img_cv.shape[:2]
-
-                # Create ImageCache for efficient repeated operations
-                cache = ImageCache(img_cv)
-
-                # Extract EXIF data
-                exif_data = self.scorer.get_exif_data(path)
-
-                # Compute technical metrics (all CPU operations)
-                sharpness_data = tech_analyzer.get_sharpness_data(img_cv, cache=cache)
-                color_data = tech_analyzer.get_color_harmony_data(img_cv, cache=cache)
-                histogram_data = tech_analyzer.get_histogram_data(
-                    img_cv,
-                    shadow_threshold=exposure_settings.get('shadow_clip_threshold_percent', 15) / 100,
-                    highlight_threshold=exposure_settings.get('highlight_clip_threshold_percent', 10) / 100,
-                    cache=cache
-                )
-                mono_data = tech_analyzer.detect_monochrome(
-                    img_cv,
-                    threshold=mono_settings.get('saturation_threshold_percent', 10) / 100,
-                    cache=cache
-                )
-                dynamic_range_data = tech_analyzer.get_dynamic_range(img_cv, cache=cache)
-                noise_data = tech_analyzer.get_noise_estimate(img_cv, cache=cache)
-                contrast_data = tech_analyzer.get_contrast_score(img_cv, cache=cache)
-
-                # Compute perceptual hash
-                phash = str(imagehash.phash(pil_img))
-
-                # Store all computed data
-                images[path] = {
-                    'pil': pil_img,
-                    'cv': img_cv,
-                    'path': path,
-                    'width': img_w,
-                    'height': img_h,
-                    'cache': cache,
-                    # EXIF data
-                    'exif': exif_data,
-                    # Technical metrics
-                    'sharpness': sharpness_data,
-                    'color': color_data,
-                    'histogram': histogram_data,
-                    'mono': mono_data,
-                    'dynamic_range': dynamic_range_data,
-                    'noise': noise_data,
-                    'contrast': contrast_data,
-                    # Hash
-                    'phash': phash,
-                }
-
-            except Exception as e:
-                logger.error("Failed to load %s: %s", path, e)
+        if self.load_workers > 1 and len(paths) > 1:
+            with ThreadPoolExecutor(
+                max_workers=self.load_workers, thread_name_prefix='imgload'
+            ) as pool:
+                futures = {pool.submit(_load_one, path): path for path in paths}
+                for future, path in futures.items():
+                    try:
+                        data = future.result()
+                        if data is not None:
+                            images[path] = data
+                    except RuntimeError:
+                        raise  # decode abandonment budget exhausted - fail fast
+                    except Exception as e:
+                        logger.error("Failed to load %s: %s", path, e)
+        else:
+            for path in paths:
+                try:
+                    data = _load_one(path)
+                    if data is not None:
+                        images[path] = data
+                except RuntimeError:
+                    raise
+                except Exception as e:
+                    logger.error("Failed to load %s: %s", path, e)
 
         return images
 
