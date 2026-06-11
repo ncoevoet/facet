@@ -5,6 +5,7 @@ Facet class and supporting functions extracted from facet.py.
 """
 import os
 import sys
+import sqlite3
 
 # Ensure the script's directory is in Python path for local imports
 # This allows running the script from any directory
@@ -1354,10 +1355,25 @@ class Facet:
                 categories_updated += 1
 
                 new_exposure = round(row_dict.get('exposure_score', 5.0), 4)
-                conn.execute(
-                    "UPDATE photos SET aggregate = ?, config_version = ?, category = ?, is_group_portrait = ?, exposure_score = ? WHERE path = ?",
-                    (round(new_score, 2), self.config.version_hash, category, new_is_group, new_exposure, row_dict['path'])
-                )
+                try:
+                    conn.execute(
+                        "UPDATE photos SET aggregate = ?, config_version = ?, category = ?, is_group_portrait = ?, exposure_score = ? WHERE path = ?",
+                        (round(new_score, 2), self.config.version_hash, category, new_is_group, new_exposure, row_dict['path'])
+                    )
+                except sqlite3.DatabaseError as e:
+                    # Updating `category` fires the photos_fts_au trigger; a
+                    # corrupt FTS5 index surfaces here as "database disk image
+                    # is malformed" even though PRAGMA integrity_check passes
+                    # (it doesn't validate FTS shadow tables). Point at the fix
+                    # instead of crashing with a misleading disk-image error.
+                    if 'malformed' in str(e).lower():
+                        raise RuntimeError(
+                            "Aggregate update failed with 'database disk image is malformed'. "
+                            "This is almost always a corrupt FTS5 search index (the photos_fts "
+                            "trigger fires on category changes), not actual data corruption. "
+                            "Run 'python database.py --rebuild-fts' and retry --recompute-average."
+                        ) from e
+                    raise
 
             conn.commit()
 
