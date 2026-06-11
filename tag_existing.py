@@ -86,6 +86,51 @@ def run_tagging(db_path, tagger, config):
     return tag_untagged_photos(db_path, tagger, threshold, max_tags)
 
 
+def build_clip_tagger(config, device=None):
+    """Load the active profile's CLIP/SigLIP model and return a ready CLIPTagger.
+
+    The model identity (name + backend) is resolved from the profile via
+    ``config.get_clip_config()`` so the tag-vocabulary text is encoded by the
+    same model that produced the stored image embeddings. Shared by the
+    standalone re-tagging CLI and the scan's finalization auto-tag step.
+    """
+    clip_cfg = config.get_clip_config()
+    clip_model_name = clip_cfg.get('model_name', 'ViT-L-14')
+    clip_backend = clip_cfg.get('backend', 'open_clip')
+
+    if device is None:
+        from utils.device import get_device
+        device = get_device()
+
+    if clip_backend == 'transformers':
+        from transformers import AutoModel
+        model = AutoModel.from_pretrained(clip_model_name, trust_remote_code=True)
+        model = model.to(device).eval()
+    else:
+        import open_clip
+        clip_pretrained = clip_cfg.get('pretrained', 'laion2b_s32b_b82k')
+        model, _, _ = open_clip.create_model_and_transforms(
+            clip_model_name, pretrained=clip_pretrained)
+        model = model.to(device).eval()
+
+    return CLIPTagger(model, device, config=config,
+                      model_name=clip_model_name, backend=clip_backend)
+
+
+def resolve_scan_tagger(scorer):
+    """Pick the tagger for a scan's finalization auto-tag step.
+
+    Single-pass scans keep the embedding model resident on ``scorer.tagger``.
+    Multi-pass scans load/release the embedding model per pass, leaving
+    ``scorer.tagger`` and ``scorer.model`` as ``None`` — so the profile's
+    CLIP/SigLIP model must be reloaded to encode the tag vocabulary. (Building a
+    tagger from ``scorer.model is None`` silently yields zero tags.)
+    """
+    if scorer.tagger:
+        return scorer.tagger
+    return build_clip_tagger(scorer.config, device=getattr(scorer, 'device', None))
+
+
 def main():
     parser = argparse.ArgumentParser(description='Tag existing photos using stored CLIP embeddings')
     parser.add_argument('--db', default='photo_scores_pro.db', help='Database path')
@@ -110,25 +155,7 @@ def main():
     logger.info("  Max tags: %s", max_tags)
 
     # Load CLIP model and tagger
-
-    clip_cfg = config.get_clip_config()
-    clip_model_name = clip_cfg.get('model_name', 'ViT-L-14')
-    clip_backend = clip_cfg.get('backend', 'open_clip')
-    from utils.device import get_device
-    device = get_device()
-
-    if clip_backend == 'transformers':
-        from transformers import AutoModel
-        model = AutoModel.from_pretrained(clip_model_name, trust_remote_code=True)
-        model = model.to(device).eval()
-    else:
-        import open_clip
-        clip_pretrained = clip_cfg.get('pretrained', 'laion2b_s32b_b82k')
-        model, _, _ = open_clip.create_model_and_transforms(clip_model_name, pretrained=clip_pretrained)
-        model = model.to(device).eval()
-
-    tagger = CLIPTagger(model, device, config=config, model_name=clip_model_name,
-                        backend=clip_backend)
+    tagger = build_clip_tagger(config)
     logger.info("Tagger initialized with %d tag categories", len(tagger.tag_vocabulary))
 
     # Count photos to tag

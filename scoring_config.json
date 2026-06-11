@@ -2115,7 +2115,7 @@
       "model_name": "google/siglip2-so400m-patch16-naflex",
       "backend": "transformers",
       "embedding_dim": 1152,
-      "similarity_threshold_percent": 18
+      "similarity_threshold_percent": 8
     },
     "clip_legacy": {
       "model_name": "ViT-L-14",

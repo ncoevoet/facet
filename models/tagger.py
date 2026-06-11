@@ -90,7 +90,14 @@ class CLIPTagger:
         from transformers import AutoTokenizer
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        inputs = tokenizer(all_texts, padding=True, return_tensors="pt").to(self.device)
+        # SigLIP/SigLIP2 are trained with a fixed 64-token context and max_length
+        # padding. Dynamic padding (padding=True) shifts the text embeddings out of
+        # the image-text space, collapsing all tag similarities to noise (~0.03-0.05
+        # cosine) so nothing clears the threshold. Pad to the trained length instead.
+        inputs = tokenizer(
+            all_texts, padding="max_length", max_length=64, truncation=True,
+            return_tensors="pt",
+        ).to(self.device)
 
         with torch.no_grad():
             text_features = self.model.get_text_features(**inputs)

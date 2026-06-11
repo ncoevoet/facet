@@ -1603,23 +1603,20 @@ Configuration:
     emit_progress('bursts', force=True)
     process_bursts(scorer.db_path, scorer.config.config_path)
 
-    # 6. Auto-tag photos using stored CLIP embeddings
+    # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
     emit_progress('tagging', force=True)
-    from tag_existing import run_tagging
-    from models.tagger import CLIPTagger
+    from tag_existing import run_tagging, resolve_scan_tagger
 
-    # Use existing tagger if available, or create one with scorer's model
-    tagger = scorer.tagger if scorer.tagger else CLIPTagger(
-        scorer.model, scorer.device, config=scorer.config,
-        model_name=scorer._clip_model_name,
-        backend=scorer._clip_backend
-    )
+    # In multi-pass mode the embedding model is loaded per-pass and released,
+    # so resolve_scan_tagger reloads the profile's model to encode the tag
+    # vocabulary (building a tagger from scorer.model is None yields no tags).
+    tagger = resolve_scan_tagger(scorer)
 
     tagged = run_tagging(scorer.db_path, tagger, scorer.config)
     if tagged:
         logger.info("Tagged %d photos with missing tags.", tagged)
     elif tagged == 0:
-        logger.info("All photos already have tags.")
+        logger.info("No new tags assigned (all photos already tagged, or none cleared the similarity threshold).")
 
     _print_scan_summary(scorer.db_path, todo_list, raw_paired_skipped)
 
