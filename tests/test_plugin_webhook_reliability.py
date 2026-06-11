@@ -128,7 +128,7 @@ class TestPayloadShape:
 
             return _Resp()
 
-        from pathlib import PosixPath
+        from pathlib import PurePosixPath
         with mock.patch(
             'plugins.PluginManager._validate_webhook_url',
             return_value='93.184.216.34',
@@ -136,7 +136,7 @@ class TestPayloadShape:
             mgr._send_webhook(
                 'http://example.com/hook',
                 'on_score_complete',
-                {'path': PosixPath('/photos/a.jpg')},
+                {'path': PurePosixPath('/photos/a.jpg')},
             )
 
         body = json.loads(captured['data'].decode('utf-8'))
