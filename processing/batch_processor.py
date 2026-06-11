@@ -57,6 +57,7 @@ class BatchProcessor:
         self._exif_cache = {}
         self._exif_lock = threading.Lock()
         self._exif_prefetch_thread = None
+        self._exif_stop = threading.Event()
 
         # Metrics for dynamic tuning (thread-safe with locks)
         self._metrics_lock = threading.Lock()
@@ -91,16 +92,26 @@ class BatchProcessor:
             except ImportError:
                 return
             for i in range(0, len(paths), 500):
-                if self.stop_event.is_set():
+                if self._exif_stop.is_set():
                     return
                 chunk_exif = get_exif_batch(paths[i:i + 500], chunk_size=100)
                 with self._exif_lock:
                     self._exif_cache.update(chunk_exif)
 
+        self._exif_stop.clear()
         self._exif_prefetch_thread = threading.Thread(
             target=_prefetch, name='exif-prefetch', daemon=True
         )
         self._exif_prefetch_thread.start()
+
+    def _stop_exif_prefetch(self):
+        """Signal the prefetch thread to stop, join it, and drop stale cache."""
+        self._exif_stop.set()
+        if self._exif_prefetch_thread is not None:
+            self._exif_prefetch_thread.join(timeout=5.0)
+            self._exif_prefetch_thread = None
+        with self._exif_lock:
+            self._exif_cache.clear()
 
     def _get_batch_exif(self, paths):
         """EXIF for a batch: prefetch cache first, synchronous fetch for misses.
@@ -509,8 +520,9 @@ class BatchProcessor:
                 )
 
         finally:
-            # Stop resource monitor
+            # Stop resource monitor and EXIF prefetch
             self.resource_monitor.stop()
+            self._stop_exif_prefetch()
 
         self.scorer.commit()
 
@@ -629,7 +641,7 @@ class BatchProcessor:
 
                         processed += 1
                         if self.on_progress:
-                            self.on_progress(processed, total)
+                            self.on_progress(processed, total_count)
                     except queue.Empty:
                         continue
 
@@ -653,8 +665,9 @@ class BatchProcessor:
                 )
 
         finally:
-            # Stop resource monitor
+            # Stop resource monitor and EXIF prefetch
             self.resource_monitor.stop()
+            self._stop_exif_prefetch()
 
         self.scorer.commit()
         return None

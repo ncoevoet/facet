@@ -712,6 +712,9 @@ export class GalleryStore {
       if (!now) continue;
       if (!want.is_rejected && now.is_rejected) toUnreject.push(path);
       if (want.is_rejected && !now.is_rejected) toReject.push(path);
+      // A rejected photo holds no favorite/rating server-side, so re-rejecting
+      // (above) is the whole restore - skip favorite/rating replay for it.
+      if (want.is_rejected) continue;
       if (want.is_favorite && !now.is_favorite) toFavorite.push(path);
       if (!want.is_favorite && now.is_favorite) toUnfavorite.push(path);
       const wantRating = want.star_rating ?? 0;

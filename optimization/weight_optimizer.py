@@ -948,6 +948,16 @@ def run_weight_optimization(
             "the legacy 'others' block, which the v4 config does not read. Pass "
             "--optimize-category <name> to actually change scoring."
         )
+    else:
+        with open(config_path) as f:
+            valid_categories = [c.get('name') for c in json.load(f).get('categories', [])]
+        if category not in valid_categories:
+            logger.error(
+                "Unknown --optimize-category '%s': not a v4 category. Optimized weights "
+                "would be written to a block the config never reads. Valid categories: %s",
+                category, ', '.join(sorted(n for n in valid_categories if n)),
+            )
+            return
 
     logger.info("Optimizing weights via direct preference optimization...")
     result = optimizer.optimize_weights_direct(

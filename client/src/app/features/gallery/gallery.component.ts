@@ -41,7 +41,7 @@ import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.componen
 import { PhotoCardComponent } from '../../shared/components/photo-card/photo-card.component';
 import { PhotoSkeletonComponent } from '../../shared/components/photo-skeleton/photo-skeleton.component';
 import {
-  GalleryRow, buildGridRows, buildMosaicRows, totalRowsHeight, windowRange,
+  GalleryRow, buildGridRows, buildMosaicRows, gridColumnCount, totalRowsHeight, windowRange,
 } from './gallery-rows.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
@@ -98,9 +98,10 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
             <div
               id="gallery-rows-host"
               role="grid"
+              tabindex="0"
               [attr.aria-label]="'gallery.photo_grid' | translate"
               [attr.aria-rowcount]="rowsModel().length"
-              class="flex flex-col p-2 md:p-4"
+              class="flex flex-col p-2 md:p-4 outline-none"
               (keydown)="onGridKeydown($event)"
             >
               <div [style.height.px]="topSpacer()" aria-hidden="true"></div>
@@ -144,8 +145,9 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
           } @else if (effectiveGalleryMode() === 'grid') {
             <div
               role="grid"
+              tabindex="0"
               [attr.aria-label]="'gallery.photo_grid' | translate"
-              class="grid grid-cols-1 gap-2 p-2 md:p-4 gallery-grid"
+              class="grid grid-cols-1 gap-2 p-2 md:p-4 gallery-grid outline-none"
               [style.--gallery-cols]="'repeat(auto-fill, minmax(' + cardWidth() + 'px, 1fr))'"
               (keydown)="onGridKeydown($event)"
             >
@@ -180,7 +182,13 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
               }
             </div>
           } @else {
-            <div class="flex flex-col gap-2 p-2 md:p-4" (keydown)="onGridKeydown($event)">
+            <div
+              role="grid"
+              tabindex="0"
+              [attr.aria-label]="'gallery.photo_grid' | translate"
+              class="flex flex-col gap-2 p-2 md:p-4 outline-none"
+              (keydown)="onGridKeydown($event)"
+            >
               @for (row of mosaicRows(); track row.photos[0]?.path ?? $index) {
                 <div class="flex gap-2" style="content-visibility: auto; contain-intrinsic-size: auto 300px">
                   @for (photo of row.photos; track photo.path; let i = $index) {
@@ -537,48 +545,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Mosaic row layout: justified rows of photos preserving aspect ratios */
   readonly mosaicRows = computed(() => {
     const photos = this.store.photos();
-    const width = this.containerWidth();
-    const targetHeight = this.store.cardWidth() || 168;
-    const gap = 8;
-
+    // Rows live inside the p-2 md:p-4 container - subtract its padding
+    const width = this.containerWidth() - (this.isDesktop() ? 32 : 16);
     if (!photos.length || width <= 0) return [];
-
-    const rows: { photos: Photo[]; widths: number[]; height: number; startIndex: number }[] = [];
-    let rowPhotos: Photo[] = [];
-    let rowAspects: number[] = [];
-    let rowStart = 0;
-
-    for (const photo of photos) {
-      const aspect = (photo.image_width && photo.image_height)
-        ? photo.image_width / photo.image_height
-        : 4 / 3;
-      rowPhotos.push(photo);
-      rowAspects.push(aspect);
-
-      const totalAspect = rowAspects.reduce((a, b) => a + b, 0);
-      const availableWidth = width - (rowPhotos.length - 1) * gap;
-      const rowHeight = availableWidth / totalAspect;
-
-      if (rowHeight <= targetHeight) {
-        // Finalize this row
-        const widths = rowAspects.map(a => Math.floor(a * rowHeight));
-        // Distribute rounding remainder to last photo
-        const usedWidth = widths.reduce((a, b) => a + b, 0) + (widths.length - 1) * gap;
-        widths[widths.length - 1] += width - usedWidth;
-        rows.push({ photos: [...rowPhotos], widths, height: Math.floor(rowHeight), startIndex: rowStart });
-        rowStart += rowPhotos.length;
-        rowPhotos = [];
-        rowAspects = [];
-      }
-    }
-
-    // Last incomplete row: use target height, left-aligned
-    if (rowPhotos.length) {
-      const widths = rowAspects.map(a => Math.floor(a * targetHeight));
-      rows.push({ photos: [...rowPhotos], widths, height: targetHeight, startIndex: rowStart });
-    }
-
-    return rows;
+    return buildMosaicRows(photos, width, this.store.cardWidth() || 168, GalleryComponent.ROW_GAP);
   });
 
   constructor() {
@@ -713,7 +683,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const target = event.target as HTMLElement | null;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
     if (target?.isContentEditable) return;
-    if (document.querySelector('mat-dialog-container')) return;
+    if (document.querySelector('mat-dialog-container, mat-bottom-sheet-container')) return;
     if (!this.store.photos().length) return;
     event.preventDefault();
     this.selectAll();
@@ -967,9 +937,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Columns per row in grid mode (mirrors the CSS auto-fill column math). */
   private gridColumns(): number {
-    const width = this.containerWidth() || 0;
-    if (width <= 0 || !this.isDesktop()) return 1;
-    return Math.max(1, Math.floor((width + 8) / (this.cardWidth() + 8)));
+    if (!this.isDesktop()) return 1;
+    const width = this.containerWidth() - 32;
+    return gridColumnCount(width, this.cardWidth(), GalleryComponent.ROW_GAP);
   }
 
   /** Vertical step for the active index: grid = ±columns, mosaic = same offset in adjacent row. */

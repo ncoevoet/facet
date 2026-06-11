@@ -12,7 +12,8 @@ export function computeLuminanceHistogram(data: Uint8ClampedArray, bins = 64): n
     const luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
     counts[Math.min(bins - 1, Math.floor(luma * scale))]++;
   }
-  const max = Math.max(...counts);
+  let max = 0;
+  for (const c of counts) if (c > max) max = c;
   return max > 0 ? counts.map(c => c / max) : counts;
 }
 

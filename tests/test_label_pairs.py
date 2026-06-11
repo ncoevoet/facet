@@ -49,7 +49,7 @@ class TestGenerateRatingPairs:
     def test_star_gap_rule_skips_adjacent_stars(self, label_db):
         _, conn = label_db
         pairs = generate_rating_pairs(conn)
-        winners_losers = [(w, l) for w, l, _ in pairs]
+        winners_losers = [(w, loser) for w, loser, _ in pairs]
         # 5 vs 3 = gap 2 -> included
         assert ('/l/star5.jpg', '/l/star3.jpg') in winners_losers
         # 5 vs 4 and 4 vs 3 = gap 1 -> excluded
@@ -59,7 +59,7 @@ class TestGenerateRatingPairs:
     def test_favorites_paired_against_unlabeled(self, label_db):
         _, conn = label_db
         pairs = generate_rating_pairs(conn)
-        unlabeled_losers = [l for w, l, _ in pairs if l.startswith('/l/plain')]
+        unlabeled_losers = [loser for w, loser, _ in pairs if loser.startswith('/l/plain')]
         assert unlabeled_losers
 
     def test_global_cap(self, label_db):

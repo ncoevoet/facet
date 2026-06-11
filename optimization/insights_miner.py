@@ -11,6 +11,7 @@ stored scores have drifted from current percentiles.
 import logging
 
 import numpy as np
+from scipy.stats import rankdata
 
 from db import get_connection
 
@@ -35,9 +36,7 @@ def _roc_auc(scores, labels):
     neg = scores[~labels]
     if len(pos) == 0 or len(neg) == 0:
         return None
-    order = np.argsort(np.concatenate([pos, neg]))
-    ranks = np.empty(len(order), dtype=float)
-    ranks[order] = np.arange(1, len(order) + 1)
+    ranks = rankdata(np.concatenate([pos, neg]))
     rank_sum_pos = ranks[:len(pos)].sum()
     auc = (rank_sum_pos - len(pos) * (len(pos) + 1) / 2) / (len(pos) * len(neg))
     return float(auc)

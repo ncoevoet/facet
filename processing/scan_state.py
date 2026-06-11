@@ -123,12 +123,12 @@ def get_failed_paths(db_path, scope='last'):
             rows = conn.execute("SELECT DISTINCT path FROM scan_failures").fetchall()
         elif scope == 'last':
             rows = conn.execute(
-                "SELECT path FROM scan_failures WHERE scan_run_id = "
+                "SELECT DISTINCT path FROM scan_failures WHERE scan_run_id = "
                 "(SELECT MAX(scan_run_id) FROM scan_failures)"
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT path FROM scan_failures WHERE scan_run_id = ?", (scope,)
+                "SELECT DISTINCT path FROM scan_failures WHERE scan_run_id = ?", (scope,)
             ).fetchall()
         return [r[0] for r in rows]
 

@@ -21,6 +21,8 @@ WATCH_SUFFIXES = {
     '.cr2', '.cr3', '.nef', '.arw', '.raf', '.rw2', '.dng', '.orf', '.srw', '.pef',
 }
 
+MAX_CONSECUTIVE_FAILURES = 3
+
 
 class _PendingChanges:
     """Thread-safe accumulator of changed paths with a settle timestamp."""
@@ -114,9 +116,11 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
         result = subprocess.run(cmd)
         if result.returncode == 0:
             logger.info("Scan finished.")
-        else:
-            logger.warning("Scan exited with code %d", result.returncode)
+            return True
+        logger.warning("Scan exited with code %d", result.returncode)
+        return False
 
+    consecutive_failures = 0
     try:
         if initial_scan:
             _run_scan('initial')
@@ -126,7 +130,15 @@ def run_watch_loop(directories, db_path, config_path=None, debounce_seconds=30,
             time.sleep(1)
             batch = pending.take_if_settled(debounce_seconds)
             if batch:
-                _run_scan(f'{len(batch)} changed files')
+                if _run_scan(f'{len(batch)} changed files'):
+                    consecutive_failures = 0
+                else:
+                    consecutive_failures += 1
+                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                        logger.error(
+                            "Stopping watch mode: %d consecutive scans failed. Fix the "
+                            "underlying error and restart.", consecutive_failures)
+                        break
     except KeyboardInterrupt:
         logger.info("Watch mode stopped.")
     finally:

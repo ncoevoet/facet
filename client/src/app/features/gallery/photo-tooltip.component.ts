@@ -231,7 +231,7 @@ export class CategoryLabelPipe implements PipeTransform {
           <!-- Luminance histogram (computed from the cached thumbnail) -->
           <div class="min-w-[120px]">
             <div class="text-[10px] text-[var(--facet-tooltip-text-muted)] uppercase tracking-wider mb-1">{{ 'tooltip.histogram' | translate }}</div>
-            <app-histogram [src]="p.path | thumbnailUrl:640" />
+            <app-histogram [src]="p.path | thumbnailUrl:160" />
           </div>
         </div>
 

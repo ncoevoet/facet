@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, effect, input, signal, untracked,
+  ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal, untracked,
 } from '@angular/core';
 import { computeLuminanceHistogram, histogramPolygonPoints } from '../../utils/histogram';
 
@@ -27,8 +27,11 @@ export class HistogramComponent {
   readonly bins = input<number[] | null>(null);
 
   protected readonly points = signal('');
+  private destroyed = false;
+  private currentUrl = '';
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => { this.destroyed = true; });
     effect(() => {
       const precomputed = this.bins();
       if (precomputed?.length) {
@@ -43,9 +46,11 @@ export class HistogramComponent {
   }
 
   private sample(url: string): void {
+    this.currentUrl = url;
     const img = new Image();
     img.decoding = 'async';
     img.onload = () => {
+      if (this.destroyed || this.currentUrl !== url) return;
       try {
         const scale = Math.min(1, 160 / (img.naturalWidth || 160));
         const w = Math.max(1, Math.round((img.naturalWidth || 160) * scale));
@@ -57,9 +62,7 @@ export class HistogramComponent {
         if (!ctx) return;
         ctx.drawImage(img, 0, 0, w, h);
         const values = computeLuminanceHistogram(ctx.getImageData(0, 0, w, h).data);
-        if (this.src() === url) {
-          this.points.set(histogramPolygonPoints(values, 128, 40));
-        }
+        this.points.set(histogramPolygonPoints(values, 128, 40));
       } catch { /* canvas unavailable - histogram stays hidden */ }
     };
     img.src = url;
