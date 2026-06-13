@@ -4,9 +4,12 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.10] — 2026-06-13
+
 ### Changed
-- Docker model cache persists across container restarts (written to the facet home dir)
+- Docker model cache persists across container restarts (written to the facet home dir); `HOME` pinned to `/home/facet` so the cache path is deterministic
 - SAMP-Net treated as optional — a missing weight file no longer aborts a scan; SAMP-Net/U2-Net-P weights fetched from a rehosted release
+- Self-host Roboto and Material Icons instead of the Google Fonts CDN (offline-capable, no third-party requests)
 
 ### Fixed
 - Stop the real Leaflet module leaking into the shared Vitest module registry (flaky map-component test on CI)
@@ -196,7 +199,8 @@ Maintenance release.
 - No silent `except` blocks — all errors logged via Python `logging`
 - CodeQL SSRF alerts resolved
 
-[Unreleased]: https://github.com/ncoevoet/facet/compare/v1.0.9...HEAD
+[Unreleased]: https://github.com/ncoevoet/facet/compare/v1.0.10...HEAD
+[1.0.10]: https://github.com/ncoevoet/facet/compare/v1.0.9...v1.0.10
 [1.0.9]: https://github.com/ncoevoet/facet/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/ncoevoet/facet/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/ncoevoet/facet/compare/v1.0.6...v1.0.7
