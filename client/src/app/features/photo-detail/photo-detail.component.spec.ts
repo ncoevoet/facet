@@ -12,13 +12,11 @@ import { I18nService } from '../../core/services/i18n.service';
 // (which runs L.Icon.Default.mergeOptions at module load). Without this mock, importing
 // the real component caches the real shared/leaflet in the shared module registry and
 // poisons map.component.spec's leaflet mock (createLeafletMap keeps the real L) — a
-// flaky CI failure. Mocking here keeps the real Leaflet out of the registry entirely.
-vi.doMock('leaflet', () => ({
-  Icon: { Default: { mergeOptions: vi.fn() } },
-  map: vi.fn(() => ({ setView: vi.fn().mockReturnThis(), remove: vi.fn(), on: vi.fn() })),
-  tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
-  marker: vi.fn(() => ({ addTo: vi.fn() })),
-}));
+// flaky CI failure. The shared singleton keeps the real Leaflet out of the registry and
+// makes every leaflet-using spec's binding identical regardless of load order.
+import { leafletMock } from '../../../testing/leaflet-mock';
+
+vi.doMock('leaflet', () => leafletMock);
 
 let PhotoDetailComponent: typeof import('./photo-detail.component').PhotoDetailComponent;
 

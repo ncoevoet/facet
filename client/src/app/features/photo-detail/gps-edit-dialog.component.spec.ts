@@ -8,21 +8,11 @@ import { I18nService } from '../../core/services/i18n.service';
 import type { GpsEditDialogComponent, GpsEditDialogData } from './gps-edit-dialog.component';
 
 // Mock Leaflet via vi.doMock + dynamic import: the unit-test builder wraps
-// spec modules, which defeats vi.mock hoisting and can leak the real Leaflet.
-vi.doMock('leaflet', () => ({
-  Icon: { Default: { mergeOptions: vi.fn() } },
-  map: vi.fn(() => ({
-    setView: vi.fn().mockReturnThis(),
-    on: vi.fn(),
-    remove: vi.fn(),
-    invalidateSize: vi.fn(),
-  })),
-  tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
-  marker: vi.fn(() => ({
-    addTo: vi.fn().mockReturnThis(),
-    remove: vi.fn(),
-  })),
-}));
+// spec modules, which defeats vi.mock hoisting and can leak the real Leaflet. The
+// shared singleton makes every leaflet-using spec's registry binding identical.
+import { leafletMock } from '../../../testing/leaflet-mock';
+
+vi.doMock('leaflet', () => leafletMock);
 
 describe('GpsEditDialogComponent', () => {
   let GpsEditDialogComponentClass: typeof GpsEditDialogComponent;
