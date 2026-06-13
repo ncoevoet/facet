@@ -403,6 +403,116 @@ def _calculate_scoring_penalties(metrics, config):
         'leading_lines_blend': leading_lines_blend,
     }
 
+
+# Metric keys that calculate_aggregate_logic weights. Single source of truth for
+# the scoring feature space, shared with the weight optimizer so training and
+# serving use the exact same metrics. 'quality' is intentionally excluded from
+# the optimizable set: it is always 0 here (redistributed into 'aesthetic').
+SCORING_METRIC_KEYS = (
+    'aesthetic', 'face_quality', 'face_sharpness', 'eye_sharpness', 'tech_sharpness',
+    'composition', 'power_point', 'leading_lines',
+    'exposure', 'color', 'contrast', 'dynamic_range', 'saturation', 'noise',
+    'isolation',
+    'aesthetic_iaa', 'face_quality_iqa', 'liqe',
+    'subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation',
+)
+
+
+def build_metric_vector(m, cfg, category, weights=None, penalties=None):
+    """Build the per-metric 0-10 scoring vector (pre-weighting).
+
+    Single source of truth for the metric values that feed the weighted
+    aggregate. Used by calculate_aggregate_logic for scoring and by the weight
+    optimizer for training, so both share the exact same feature space. Returns
+    {metric_key: value}; values sit in each metric's natural 0-10 range and
+    'noise' is pre-inverted (higher = less noise = better).
+
+    weights: current category weights (only used for the legacy quality->aesthetic
+             redistribution); defaults to cfg.get_weights(category).
+    penalties: precomputed _calculate_scoring_penalties result, to avoid a second
+               pass when the caller already has it.
+    """
+    safe_float = _safe_float
+    w = weights if weights is not None else (cfg.get_weights(category) if cfg else {})
+    exif_settings = cfg.get_exif_adjustments() if cfg else {}
+
+    # ISO-aware sharpness compensation
+    adjusted_sharpness = safe_float(m.get('tech_sharpness'), 5.0)
+    if exif_settings.get('iso_sharpness_compensation', True):
+        iso = safe_float(m.get('iso'), None)
+        if iso and iso > 800:
+            adjusted_sharpness = min(10.0, adjusted_sharpness + 0.5 * np.log2(iso / 800))
+
+    # Aperture-based isolation boost, normalized to 0-10
+    effective_isolation = safe_float(m.get('isolation_bonus'), 1.0)
+    if exif_settings.get('aperture_isolation_boost', True):
+        f_stop = safe_float(m.get('f_stop'), None)
+        if f_stop and f_stop <= 2.8:
+            multiplier = 1.5 if f_stop <= 2.0 else 1.3
+            effective_isolation = min(3.0, effective_isolation * multiplier)
+    isolation_score = min(10.0, (effective_isolation - 1.0) * 5.0)
+
+    dynamic_range_score = min(10.0, safe_float(m.get('histogram_spread'), 0) / 6.0)
+
+    if penalties is None:
+        penalties = _calculate_scoring_penalties(m, cfg)
+    noise_sigma = penalties['noise_sigma']
+    leading_lines = penalties['leading_lines']
+    leading_lines_blend = penalties['leading_lines_blend']
+
+    aes = safe_float(m.get('aesthetic'), 5.0)
+    exp = safe_float(m.get('exposure_score'), 5.0)
+    col = safe_float(m.get('color_score'), 5.0)
+    if m.get('is_monochrome', 0):
+        col = 5.0  # Neutral - don't penalize B&W for low color entropy
+    comp_raw = safe_float(m.get('comp_score'), 5.0)
+    contrast = safe_float(m.get('contrast_score'), 5.0)
+    face_qual = safe_float(m.get('face_quality'), 5.0)
+    eye_sharp = safe_float(m.get('eye_sharpness'), 5.0)
+
+    # Leading-lines bonus only for non-portrait categories
+    if category not in ('portrait', 'group_portrait') and leading_lines > 0:
+        comp = min(10.0, comp_raw + (leading_lines * leading_lines_blend))
+    else:
+        comp = comp_raw
+
+    # Quality weight is redistributed into aesthetic (no separate quality signal)
+    aes_extra = w.get('quality', 0.0)
+    aesthetic_value = (
+        aes + aes_extra / max(w.get('aesthetic', 0.01), 0.01)
+        if w.get('aesthetic', 0) > 0 else aes
+    )
+
+    face_sharp = safe_float(m.get('face_sharpness'), 5.0)
+    power_point = safe_float(m.get('power_point_score'), 5.0)
+    saturation = min(10.0, safe_float(m.get('mean_saturation'), 0.5) * 10.0)
+    noise_score = max(0.0, min(10.0, 10.0 - noise_sigma * 0.7))
+
+    return {
+        'aesthetic': aesthetic_value,
+        'face_quality': face_qual,
+        'face_sharpness': face_sharp,
+        'eye_sharpness': eye_sharp,
+        'tech_sharpness': adjusted_sharpness,
+        'composition': comp,
+        'power_point': power_point,
+        'leading_lines': leading_lines,
+        'exposure': exp,
+        'color': col,
+        'contrast': contrast,
+        'dynamic_range': dynamic_range_score,
+        'saturation': saturation,
+        'noise': noise_score,
+        'isolation': isolation_score,
+        'aesthetic_iaa': safe_float(m.get('aesthetic_iaa'), 5.0),
+        'face_quality_iqa': safe_float(m.get('face_quality_iqa'), 5.0),
+        'liqe': safe_float(m.get('liqe_score'), 5.0),
+        'subject_sharpness': safe_float(m.get('subject_sharpness'), 5.0),
+        'subject_prominence': safe_float(m.get('subject_prominence'), 5.0),
+        'subject_placement': safe_float(m.get('subject_placement'), 5.0),
+        'bg_separation': safe_float(m.get('bg_separation'), 5.0),
+    }
+
 # MAIN SCORER CLASS
 # ============================================
 
@@ -849,34 +959,8 @@ class Facet:
         score_min = scoring_limits.get('score_min', 0.0)
         score_max = scoring_limits.get('score_max', 10.0)
 
-        # Get thresholds from config (stored as percentages)
-        blink_penalty = 0.5
-        if cfg:
-            (cfg.get_threshold('portrait_face_ratio_percent') or 5) / 100
-            blink_penalty = (cfg.get_threshold('blink_penalty_percent') or 50) / 100
-
-        safe_float = _safe_float
-
-        # EXIF-aware adjustments
-        exif_settings = cfg.get_exif_adjustments() if cfg else {}
-
-        # 1. ISO-aware sharpness compensation
-        adjusted_sharpness = safe_float(m.get('tech_sharpness'), 5.0)
-        if exif_settings.get('iso_sharpness_compensation', True):
-            iso = safe_float(m.get('iso'), None)
-            if iso and iso > 800:
-                adjusted_sharpness = min(10.0, adjusted_sharpness + 0.5 * np.log2(iso / 800))
-
-        # 2. Aperture-based isolation boost
-        effective_isolation = m.get('isolation_bonus', 1.0)
-        if exif_settings.get('aperture_isolation_boost', True):
-            f_stop = safe_float(m.get('f_stop'), None)
-            if f_stop and f_stop <= 2.8:
-                multiplier = 1.5 if f_stop <= 2.0 else 1.3
-                effective_isolation = min(3.0, effective_isolation * multiplier)
-
-        # 3. Normalize isolation to 0-10 scale for use as scoring component
-        isolation_score = min(10.0, (effective_isolation - 1.0) * 5.0)
+        # Blink penalty multiplier (stored as percentage)
+        blink_penalty = (cfg.get_threshold('blink_penalty_percent') or 50) / 100 if cfg else 0.5
 
         # Get exposure settings for clipping penalty
         exposure_settings = cfg.get_exposure_settings() if cfg else {}
@@ -894,92 +978,21 @@ class Facet:
             if shadow_clipped or highlight_clipped:
                 clipping_penalty = (shadow_clipped * 0.5) + (highlight_clipped * 1.0)
 
-        # Dynamic range score for landscapes (histogram spread normalized to 0-10)
-        dynamic_range_score = min(10.0, safe_float(m.get('histogram_spread'), 0) / 6.0)
-
-        # Calculate penalties and leading lines from extracted helper
+        # Calculate penalties from extracted helper
         penalties = _calculate_scoring_penalties(m, cfg)
         noise_penalty = penalties['noise_penalty']
-        noise_sigma = penalties['noise_sigma']
         bimodality_penalty = penalties['bimodality_penalty']
         oversaturation_penalty = penalties['oversaturation_penalty']
-        leading_lines = penalties['leading_lines']
-        leading_lines_blend = penalties['leading_lines_blend']
 
-        # Quality score (stored for compatibility but not used in aggregate)
-        safe_float(m.get('quality_score'), 5.0)
-        m.get('scoring_model', 'clip-mlp')
-
-        # Determine photo category using helper
+        # Determine photo category and load weights
         category = self._determine_photo_category(m, cfg)
         w = cfg.get_weights(category) if cfg else {}
 
-        # Common metrics
-        aes = safe_float(m.get('aesthetic'), 5.0)
-        exp = safe_float(m.get('exposure_score'), 5.0)
-        col = safe_float(m.get('color_score'), 5.0)
-        if m.get('is_monochrome', 0):
-            col = 5.0  # Neutral — don't penalize B&W for low color entropy
-        comp_raw = safe_float(m.get('comp_score'), 5.0)
-        contrast = safe_float(m.get('contrast_score'), 5.0)
-        face_qual = safe_float(m.get('face_quality'), 5.0)
-        eye_sharp = safe_float(m.get('eye_sharpness'), 5.0)
-
-        # Add leading lines bonus for non-portrait categories
-        if category not in ('portrait', 'group_portrait') and leading_lines > 0:
-            comp = min(10.0, comp_raw + (leading_lines * leading_lines_blend))
-        else:
-            comp = comp_raw
-
-        # Quality weight is redistributed to aesthetic (no separate quality signal)
-        aes_extra = w.get('quality', 0.0)
-
         # =================================================================
-        # DATA-DRIVEN SCORING: Generic metric-based calculation from config
+        # DATA-DRIVEN SCORING: weighted sum over the shared metric vector
+        # (same feature space used by the weight optimizer for training)
         # =================================================================
-
-        # Additional metrics for expanded weight system
-        face_sharp = safe_float(m.get('face_sharpness'), 5.0)
-        power_point = safe_float(m.get('power_point_score'), 5.0)
-        saturation = min(10.0, safe_float(m.get('mean_saturation'), 0.5) * 10.0)  # Normalize 0-1 to 0-10
-
-        # Noise score: invert noise_sigma so lower noise = higher score (max 10, min 0)
-        # Typical noise_sigma range is 0-15, so we map inversely
-        noise_score = max(0.0, min(10.0, 10.0 - noise_sigma * 0.7))
-
-        # Define all available metrics with their current values and valid ranges
-        # Format: metric_name -> (value, min, max)
-        metrics_map = {
-            # Primary quality metrics
-            'aesthetic': (aes + aes_extra / max(w.get('aesthetic', 0.01), 0.01) if w.get('aesthetic', 0) > 0 else aes, 0.0, 10.0),
-            'quality': (0.0, 0.0, 10.0),
-            'face_quality': (face_qual, 0.0, 10.0),
-            'face_sharpness': (face_sharp, 0.0, 10.0),
-            'eye_sharpness': (eye_sharp, 0.0, 10.0),
-            'tech_sharpness': (adjusted_sharpness, 0.0, 10.0),
-            # Composition metrics
-            'composition': (comp, 0.0, 10.0),
-            'power_point': (power_point, 0.0, 10.0),
-            'leading_lines': (leading_lines, 0.0, 10.0),
-            # Technical metrics
-            'exposure': (exp, 0.0, 10.0),
-            'color': (col, 0.0, 10.0),
-            'contrast': (contrast, 0.0, 10.0),
-            'dynamic_range': (dynamic_range_score, 0.0, 10.0),
-            'saturation': (saturation, 0.0, 10.0),
-            'noise': (noise_score, 0.0, 10.0),  # Inverted: higher = less noise = better
-            # Bonuses
-            'isolation': (isolation_score, 0.0, 10.0),
-            # Supplementary PyIQA scores (only contribute if configured with non-zero weight)
-            'aesthetic_iaa': (safe_float(m.get('aesthetic_iaa'), 5.0), 0.0, 10.0),
-            'face_quality_iqa': (safe_float(m.get('face_quality_iqa'), 5.0), 0.0, 10.0),
-            'liqe': (safe_float(m.get('liqe_score'), 5.0), 0.0, 10.0),
-            # Subject saliency metrics (only contribute if configured with non-zero weight)
-            'subject_sharpness': (safe_float(m.get('subject_sharpness'), 5.0), 0.0, 10.0),
-            'subject_prominence': (safe_float(m.get('subject_prominence'), 5.0), 0.0, 10.0),
-            'subject_placement': (safe_float(m.get('subject_placement'), 5.0), 0.0, 10.0),
-            'bg_separation': (safe_float(m.get('bg_separation'), 5.0), 0.0, 10.0),
-        }
+        metric_values = build_metric_vector(m, cfg, category, weights=w, penalties=penalties)
 
         # Get category flags from config (with sensible defaults)
         # Face categories get blink penalty by default
@@ -999,14 +1012,12 @@ class Facet:
         # Skip oversaturation penalty for certain categories
         skip_oversaturation = w.get('_skip_oversaturation_penalty', category in ('night', 'astro', 'concert'))
 
-        # Calculate weighted sum from config
+        # Calculate weighted sum from config (all metrics share the 0-10 range)
         score = 0.0
-        for metric_name, (metric_value, metric_min, metric_max) in metrics_map.items():
+        for metric_name, metric_value in metric_values.items():
             weight = w.get(metric_name, 0.0)
             if weight > 0:
-                # Clamp metric to valid range
-                clamped_value = max(metric_min, min(metric_max, metric_value))
-                score += clamped_value * weight
+                score += max(0.0, min(10.0, metric_value)) * weight
 
         # Apply blink penalty (multiplier on the whole score)
         if apply_blink_penalty and m.get('is_blink'):

@@ -1,17 +1,23 @@
 """Tests for source-aware weight optimization (optimization/weight_optimizer.py).
 
-Verifies the refactored _fetch_comparison_data, source filtering, and that
-the source reliability weighting actually shifts the optimum when a noisy
-source disagrees with explicit votes.
+Verifies the refactored _fetch_comparison_data, source filtering, that the
+source reliability weighting actually shifts the optimum when a noisy source
+disagrees with explicit votes, the production-aligned feature space, the
+config-key apply path, and the held-out gate on the apply decision.
 """
 
+import json
+import shutil
 import sqlite3
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from db.schema import init_database
-from optimization.weight_optimizer import WeightOptimizer
+from optimization.weight_optimizer import WeightOptimizer, run_weight_optimization
+
+REPO_CONFIG = Path(__file__).resolve().parent.parent / 'scoring_config.json'
 
 
 def _seed(db_path, n_photos=40, seed=3):
@@ -142,3 +148,86 @@ class TestOptimizationRecoversPlantedSignal:
 
         # With down-weighting, the optimizer should track the clean votes better
         assert weighted['new_weights']['aesthetic'] >= unweighted['new_weights']['aesthetic']
+
+
+class TestFeatureSpaceAlignment:
+    def test_components_are_config_metric_keys(self):
+        keys = set(WeightOptimizer.SCORE_COMPONENTS)
+        # Metrics the production scorer weights but the old optimizer omitted
+        for k in ('liqe', 'aesthetic_iaa', 'face_quality_iqa',
+                  'subject_sharpness', 'subject_prominence', 'subject_placement',
+                  'bg_separation'):
+            assert k in keys, f"{k} must be optimizable"
+        # 'quality' is always 0 in scoring (redistributed into aesthetic)
+        assert 'quality' not in keys
+        # No stale DB-column names leaking in
+        for stale in ('comp_score', 'color_score', 'noise_sigma', 'mean_saturation',
+                      'dynamic_range_stops', 'isolation_bonus', 'quality_score'):
+            assert stale not in keys
+
+    def test_liqe_feature_tracks_liqe_score_column(self, tmp_path):
+        db_path = str(tmp_path / "feat.db")
+        init_database(db_path)
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "INSERT INTO photos (path, filename, liqe_score) VALUES ('/p.jpg', 'p.jpg', 9.0)"
+        )
+        conn.commit()
+        conn.close()
+        opt = WeightOptimizer(db_path, str(REPO_CONFIG))
+        from db import get_connection
+        with get_connection(db_path) as conn:
+            row = dict(conn.execute("SELECT * FROM photos WHERE path='/p.jpg'").fetchone())
+        idx = opt.SCORE_COMPONENTS.index('liqe')
+        vec = opt._metric_vector(row, category='portrait')
+        assert vec[idx] == pytest.approx(9.0)
+
+
+class TestApplyWritesConfigKeys:
+    def test_apply_writes_metric_percent_keys(self, tmp_path):
+        cfg = tmp_path / "cfg.json"
+        cfg.write_text(json.dumps(
+            {"categories": [{"name": "portrait", "weights": {"aesthetic_percent": 100}}]}
+        ))
+        opt = WeightOptimizer("unused.db", str(cfg))
+        opt.apply_optimized_weights(
+            {"liqe": 0.4, "subject_sharpness": 0.6}, category="portrait", backup=False
+        )
+        weights = json.loads(cfg.read_text())["categories"][0]["weights"]
+        assert weights["liqe_percent"] == 40.0
+        assert weights["subject_sharpness_percent"] == 60.0
+
+
+class TestHeldOutGate:
+    def _setup(self, tmp_path):
+        db_path = str(tmp_path / "gate.db")
+        init_database(db_path)
+        aesthetics = _seed(db_path)
+        _add_comparisons(db_path, aesthetics, "vote", agree=True, count=80)
+        # run_weight_optimization(category='default') filters by comparison
+        # category, so tag the seeded votes accordingly
+        conn = sqlite3.connect(db_path)
+        conn.execute("UPDATE comparisons SET category = 'default'")
+        conn.commit()
+        conn.close()
+        cfg = tmp_path / "cfg.json"
+        shutil.copy(REPO_CONFIG, cfg)
+        return db_path, str(cfg)
+
+    def test_gate_blocks_apply_when_improvement_below_threshold(self, tmp_path):
+        db_path, cfg = self._setup(tmp_path)
+        before = Path(cfg).read_text()
+        run_weight_optimization(
+            db_path=db_path, config_path=cfg, category="default",
+            min_comparisons=30, min_improvement=999.0,
+        )
+        assert Path(cfg).read_text() == before  # nothing written
+
+    def test_force_applies_despite_gate(self, tmp_path):
+        db_path, cfg = self._setup(tmp_path)
+        before = Path(cfg).read_text()
+        run_weight_optimization(
+            db_path=db_path, config_path=cfg, category="default",
+            min_comparisons=30, min_improvement=999.0, force=True,
+        )
+        assert Path(cfg).read_text() != before  # forced write

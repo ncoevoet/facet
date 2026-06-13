@@ -339,7 +339,10 @@ Configuration:
     weight_group.add_argument('--comparison-stats', action='store_true',
                         help='Show pairwise comparison statistics')
     weight_group.add_argument('--optimize-weights', action='store_true',
-                        help='Optimize and save scoring weights based on pairwise comparisons')
+                        help='Optimize and save scoring weights based on pairwise comparisons '
+                             '(applied only if held-out k-fold accuracy beats current weights)')
+    weight_group.add_argument('--optimize-force', action='store_true',
+                        help='Apply optimized weights even if the held-out accuracy gate is not met')
 
     # Model information
     model_group = parser.add_argument_group('Model information')
@@ -432,6 +435,7 @@ Configuration:
             config_path=config_path,
             sources=sources,
             category=args.optimize_category,
+            force=args.optimize_force,
         )
         exit()
 
