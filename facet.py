@@ -36,7 +36,7 @@ if _script_dir not in sys.path:
 import json
 from pathlib import Path
 from datetime import datetime
-from db import init_database, get_connection
+from db import DEFAULT_DB_PATH, init_database, get_connection
 
 try:
     from tqdm import tqdm
@@ -115,6 +115,29 @@ def _get_photo_column_count(db_path: str) -> int:
             return len(list(conn.execute("PRAGMA table_info(photos)")))
     except sqlite3.Error:
         return 0
+
+
+def _log_scan_db_destination(db_path: str):
+    """Log the exact SQLite file written by the scan."""
+    raw_path = str(db_path)
+    resolved_path = os.path.realpath(raw_path)
+
+    try:
+        with get_connection(raw_path, row_factory=False) as conn:
+            photo_count = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
+        size_bytes = os.path.getsize(resolved_path)
+        size_mb = size_bytes / (1024 * 1024)
+        summary = f"{photo_count} photos, {size_mb:.1f} MiB"
+    except Exception as e:
+        summary = f"summary unavailable ({e})"
+
+    if raw_path == resolved_path:
+        logger.info("Scan database file: %s (%s)", resolved_path, summary)
+    else:
+        logger.info(
+            "Scan database file: %s (resolved to %s, %s)",
+            raw_path, resolved_path, summary,
+        )
 
 
 def main():
@@ -351,8 +374,8 @@ Configuration:
     config_group = parser.add_argument_group('Configuration')
     config_group.add_argument('--config', type=str, default=None,
                         help='Path to custom scoring config JSON file')
-    config_group.add_argument('--db', type=str, default='photo_scores_pro.db',
-                        help='Path to database file (default: photo_scores_pro.db)')
+    config_group.add_argument('--db', type=str, default=DEFAULT_DB_PATH,
+                        help=f'Path to database file (default: {DEFAULT_DB_PATH})')
     config_group.add_argument('--validate-categories', action='store_true',
                         help='Validate category configurations')
 
@@ -605,7 +628,6 @@ Configuration:
 
         # Step 0: schema migration FIRST so subsequent steps can read/write
         # any new columns added since the DB was last initialised.
-        from db import DEFAULT_DB_PATH
         db_path = args.db or DEFAULT_DB_PATH
         logger.info("--- Schema migration (init_database) ---")
         before_cols = _get_photo_column_count(db_path)
@@ -1312,6 +1334,7 @@ Configuration:
     # since multi-pass loads its own models per pass via ModelManager
     use_multi_pass = not (args.dry_run or args.single_pass)
     scorer = Facet(db_path=args.db, config_path=args.config, multi_pass=use_multi_pass)
+    _log_scan_db_destination(scorer.db_path)
 
     # Initialise plugin manager for scoring events
     from plugins import init_global_plugin_manager
@@ -1630,6 +1653,7 @@ Configuration:
     except Exception:
         logger.warning("Auto-populate of photos_vec failed (non-fatal)", exc_info=True)
 
+    _log_scan_db_destination(scorer.db_path)
     emit_progress('done', force=True)
     logger.info("All tasks complete.")
 
