@@ -50,6 +50,7 @@ client/package-lock.json
 
 # ML model cache
 .fastembed_cache/
+model-cache/
 
 # Misc
 output.log
@@ -70,3 +71,4 @@ photos_all/
 # Benchmark results — keep dir via .gitkeep, ignore generated JSON
 bench/results/*.json
 .claude/loop/
+
