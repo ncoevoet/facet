@@ -503,10 +503,13 @@ async def api_photos(
                 top_picks_expr = get_top_picks_score_sql()
                 select_cols.append(f"({top_picks_expr}) as top_picks_score")
 
-            query = f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
-            cur = await conn.execute(query, all_params + [per_page, offset])
-            rows = await cur.fetchall()
-            await cur.close()
+            if total_count:
+                query = f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
+                cur = await conn.execute(query, all_params + [per_page, offset])
+                rows = await cur.fetchall()
+                await cur.close()
+            else:
+                rows = []
 
             tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
             photos = split_photo_tags(rows, tags_limit)
