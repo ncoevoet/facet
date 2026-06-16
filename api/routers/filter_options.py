@@ -337,12 +337,15 @@ def _compute_metric_ranges():
         cur = conn.execute(f"SELECT {', '.join(columns)} FROM photos")
         rows = cur.fetchall()
 
+    if not rows:
+        return {}
+    # Build the full matrix once (NULL -> nan) and slice per column, instead of
+    # re-iterating every row once per metric in Python.
+    matrix = np.array(rows, dtype=float)
+
     result = {}
     for idx, (_column, min_key, _max_key, _is_float) in enumerate(metrics):
-        values = np.fromiter(
-            (row[idx] for row in rows if row[idx] is not None),
-            dtype=float,
-        )
+        values = matrix[:, idx]
         values = values[np.isfinite(values)]
         if values.size == 0:
             continue
