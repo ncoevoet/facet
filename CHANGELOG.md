@@ -4,6 +4,24 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.11] — 2026-06-16
+
+### Added
+- Gallery filter finder — search filters by name from the sidebar; metrics split into Common and Advanced groups
+- Data-driven slider bounds and distribution histograms on metric filters — the observed min/max clamp each slider, with a 20-bin sparkline of the value distribution
+
+### Changed
+- Gallery sidebar reorganized — display preferences (hide details, virtual scroll, layout) split into a "View" section, separated from result-affecting filters under "Refine"; "Save as smart album" pinned as a sticky footer
+- Range filters debounced so dragging a slider fires a single request instead of one per step
+- Index the range-filterable metric columns and skip the page query when the filtered count is zero, so metric filtering uses an index instead of a full-table scan
+- Compute metric-range histograms in a single matrix build instead of re-scanning the result set per metric
+- Bump CI actions to the Node 24 runtime majors (checkout/setup-node/setup-python)
+
+### Fixed
+- Give the filter finder input an accessible name for screen readers
+- Align the weight optimizer with production scoring and gate "apply" on held-out accuracy; strip stale weight keys when applying optimized weights
+- Share one complete Leaflet mock across map specs to stop a flaky CI failure
+
 ## [1.0.10] — 2026-06-13
 
 ### Changed
@@ -199,7 +217,8 @@ Maintenance release.
 - No silent `except` blocks — all errors logged via Python `logging`
 - CodeQL SSRF alerts resolved
 
-[Unreleased]: https://github.com/ncoevoet/facet/compare/v1.0.10...HEAD
+[Unreleased]: https://github.com/ncoevoet/facet/compare/v1.0.11...HEAD
+[1.0.11]: https://github.com/ncoevoet/facet/compare/v1.0.10...v1.0.11
 [1.0.10]: https://github.com/ncoevoet/facet/compare/v1.0.9...v1.0.10
 [1.0.9]: https://github.com/ncoevoet/facet/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/ncoevoet/facet/compare/v1.0.7...v1.0.8
