@@ -132,6 +132,7 @@ export class GalleryStore {
   readonly currentAlbum = signal<Album | null>(null);
   readonly initializing = signal(false);
   private smartSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private rangeLoadTimer: ReturnType<typeof setTimeout> | null = null;
   readonly photos = signal<Photo[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
@@ -421,10 +422,33 @@ export class GalleryStore {
     }
     this.syncUrl();
     if (!GalleryStore.DISPLAY_ONLY_KEYS.has(key)) {
+      this.cancelRangeLoad();
       await this.loadPhotos();
     }
     if (key === 'person_id' && wasPersonFiltered && !value) {
       this.reloadPersonOptions();
+    }
+  }
+
+  /** Update a range filter; reload is debounced so a slider drag fires one request. */
+  updateFilterDebounced<K extends keyof GalleryFilters>(key: K, value: GalleryFilters[K]): void {
+    this.filters.update(current => ({ ...current, [key]: value, page: 1 }));
+    this.syncUrl();
+    this.scheduleRangeLoad();
+  }
+
+  private scheduleRangeLoad(): void {
+    if (this.rangeLoadTimer) clearTimeout(this.rangeLoadTimer);
+    this.rangeLoadTimer = setTimeout(() => {
+      this.rangeLoadTimer = null;
+      void this.loadPhotos();
+    }, 300);
+  }
+
+  private cancelRangeLoad(): void {
+    if (this.rangeLoadTimer) {
+      clearTimeout(this.rangeLoadTimer);
+      this.rangeLoadTimer = null;
     }
   }
 
@@ -437,6 +461,7 @@ export class GalleryStore {
     if (Object.keys(updates).some(k => (DISPLAY_OPTION_KEYS as string[]).includes(k))) {
       saveDisplayOptionsToStorage(this.filters());
     }
+    this.cancelRangeLoad();
     this.syncUrl();
     await this.loadPhotos();
   }
@@ -464,6 +489,7 @@ export class GalleryStore {
       this.setGalleryMode(defaults?.gallery_mode ?? 'grid');
     }
     saveDisplayOptionsToStorage(this.filters());
+    this.cancelRangeLoad();
     this.syncUrl();
     await this.loadPhotos();
   }

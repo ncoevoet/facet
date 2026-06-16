@@ -1088,7 +1088,8 @@
       "location": "Posizione",
       "persons": "Persone",
       "smart_album_filter_notice": "Album intelligente — i filtri vengono salvati automaticamente.",
-      "virtual_scroll": "Scorrimento rapido (virtualizzato)"
+      "virtual_scroll": "Scorrimento rapido (virtualizzato)",
+      "any": "Tutti"
     },
     "semantic_search_info": "La ricerca semantica carica gli embedding nella RAM al primo utilizzo. Potrebbe richiedere un momento per le librerie di grandi dimensioni.",
     "select_on_map": "Seleziona sulla mappa",

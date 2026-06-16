@@ -143,7 +143,18 @@ function saveSectionStates(states: Record<string, boolean>): void {
     PersonThumbnailUrlPipe,
   ],
   template: `
-<div data-scroll class="overflow-y-auto px-2 pt-4 lg:pt-3 pb-4 h-full">
+<div data-scroll class="overflow-y-auto px-2 pb-4 h-full">
+
+      <div class="sticky top-0 z-20 -mx-2 px-2 pt-3 pb-2 bg-[var(--mat-sys-surface)] flex items-center gap-2">
+        <span class="text-sm font-medium opacity-80">{{ 'gallery.filters' | translate }}</span>
+        @if (store.activeFilterCount()) {
+          <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ store.activeFilterCount() }}</span>
+          <button mat-button class="!ml-auto !min-w-0 !px-2 !text-xs" (click)="store.resetFilters()">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">close</mat-icon>
+            {{ 'gallery.reset_filters' | translate }}
+          </button>
+        }
+      </div>
 
       <!-- Semantic Search (top of sidebar) -->
       @if (store.config()?.features?.show_semantic_search) {
@@ -185,7 +196,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
       }
 
       <!-- Search (visible below 2xl, hidden on 2xl+ where header search is shown) -->
-      <div class="!hidden lg:!block 2xl:!hidden mt-4 mb-1">
+      <div class="2xl:!hidden mt-4 mb-1">
         <mat-form-field subscriptSizing="dynamic" class="w-full">
           <mat-label>{{ 'ui.filters.search' | translate }}</mat-label>
           <mat-icon matPrefix class="mr-1 opacity-60">search</mat-icon>
@@ -555,7 +566,13 @@ function saveSectionStates(states: Record<string, boolean>): void {
                       (valueChange)="onDynamicRangeChange(def, 'max', $event)"
                       [attr.aria-label]="(def.labelKey | translate) + ' max'" />
                   </mat-slider>
-                  <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">{{ store.filters() | filterDisplay:def }}</span>
+                  <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">
+                    @if ($any(store.filters())[def.minKey] || $any(store.filters())[def.maxKey]) {
+                      {{ store.filters() | filterDisplay:def }}
+                    } @else {
+                      {{ 'gallery.sidebar.any' | translate }}
+                    }
+                  </span>
                 </div>
               </div>
             }
@@ -660,7 +677,7 @@ export class GalleryFilterSidebarComponent {
     const { key, value: filterValue } = computeRangeFilterUpdate(
       def, side, value, (this.store.filters() as Record<string, any>)[def.minKey],
     );
-    this.store.updateFilter(key as 'min_score', filterValue);
+    this.store.updateFilterDebounced(key as 'min_score', filterValue);
   }
 
   onDateChange(key: 'date_from' | 'date_to', event: MatDatepickerInputEvent<Date>): void {
