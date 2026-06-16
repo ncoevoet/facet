@@ -61,7 +61,7 @@ describe('GalleryFilterSidebarComponent', () => {
       providers: [
         GalleryFilterSidebarComponent,
         { provide: GalleryStore, useValue: mockStore },
-        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en') } },
+        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
         { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
         { provide: MatDialog, useValue: { open: vi.fn() } },

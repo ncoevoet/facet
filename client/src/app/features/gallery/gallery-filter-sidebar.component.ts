@@ -1,5 +1,5 @@
 import { Component, computed, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
@@ -23,6 +23,7 @@ import { AdditionalFilterDef } from '../../shared/models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../shared/utils/range-filter';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
+import { I18nService } from '../../core/services/i18n.service';
 import { SaveSmartAlbumDialogComponent } from '../albums/save-smart-album-dialog.component';
 
 export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
@@ -69,16 +70,21 @@ export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   { id: 'star_rating_range', labelKey: 'gallery.star_rating_range', sectionKey: 'gallery.sidebar.ratings', minKey: 'min_star_rating', maxKey: 'max_star_rating', sliderMin: 0, sliderMax: 5, step: 1, spanWidth: 'w-16' },
 ];
 
-export const SECTION_ORDER = [
+export const COMMON_SECTION_ORDER = [
   'gallery.sidebar.quality',
+  'gallery.sidebar.ratings',
+];
+
+export const ADVANCED_SECTION_ORDER = [
   'gallery.sidebar.extended_quality',
   'gallery.sidebar.face',
   'gallery.sidebar.composition',
   'gallery.sidebar.saliency',
   'gallery.sidebar.technical',
   'gallery.sidebar.exposure_range',
-  'gallery.sidebar.ratings',
 ];
+
+export const SECTION_ORDER = [...COMMON_SECTION_ORDER, ...ADVANCED_SECTION_ORDER];
 
 export interface FilterGroup {
   sectionKey: string;
@@ -125,6 +131,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
   host: { class: 'block h-full' },
   imports: [
     DecimalPipe,
+    NgTemplateOutlet,
     FormsModule,
     MatSelectModule,
     MatSliderModule,
@@ -155,6 +162,35 @@ function saveSectionStates(states: Record<string, boolean>): void {
           </button>
         }
       </div>
+
+      <!-- Find a filter -->
+      <mat-form-field subscriptSizing="dynamic" class="w-full !mb-1">
+        <mat-icon matPrefix class="mr-1 opacity-60">manage_search</mat-icon>
+        <input matInput [placeholder]="'gallery.sidebar.find_filter' | translate"
+               [value]="filterQuery()" (input)="filterQuery.set($any($event.target).value)" />
+        @if (filterQuery()) {
+          <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="filterQuery.set('')">
+            <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
+          </button>
+        }
+      </mat-form-field>
+
+      @if (filterQuery().trim()) {
+        @if (noFilterMatches()) {
+          <p class="text-xs opacity-50 px-2 py-3">{{ 'gallery.sidebar.no_filters_match' | translate }}</p>
+        }
+        @for (group of searchResultGroups(); track group.sectionKey) {
+          <div class="px-1 pt-2 pb-1">
+            <div class="flex items-center gap-2 text-xs font-medium opacity-70 mb-1">
+              <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-60">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
+              {{ group.sectionKey | translate }}
+            </div>
+            @for (def of group.filters; track def.id) {
+              <ng-container [ngTemplateOutlet]="metricRow" [ngTemplateOutletContext]="{ $implicit: def }" />
+            }
+          </div>
+        }
+      } @else {
 
       <!-- Semantic Search (top of sidebar) -->
       @if (store.config()?.features?.show_semantic_search) {
@@ -537,7 +573,44 @@ function saveSectionStates(states: Record<string, boolean>): void {
       }
 
       <!-- Metric filter sections (collapsed by default) -->
-      @for (group of filterGroups; track group.sectionKey) {
+      <!-- Common metric sections -->
+      @for (group of commonFilterGroups(); track group.sectionKey) {
+        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
+      }
+
+      <!-- Advanced metrics (collapsed; nested sections) -->
+      <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['advanced'] === true"
+                           (opened)="onSectionToggle('advanced', true)"
+                           (closed)="onSectionToggle('advanced', false)"
+                           [style.background-color]="sectionStates()['advanced'] === true ? 'var(--mat-sys-surface-container)' : null">
+        <mat-expansion-panel-header>
+          <mat-panel-title class="flex items-center gap-2">
+            <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">tune</mat-icon>
+            {{ 'gallery.sidebar.advanced_metrics' | translate }}
+            @if (advancedActiveCount()) {
+              <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ advancedActiveCount() }}</span>
+            }
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <div class="flex flex-col gap-1 pb-1">
+          @for (group of advancedFilterGroups(); track group.sectionKey) {
+            <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
+          }
+        </div>
+      </mat-expansion-panel>
+      }
+
+      <!-- Save as smart album -->
+      @if (store.config()?.features?.show_albums && auth.isEdition() && store.activeFilterCount() > 0 && !store.filters().album_id) {
+        <div class="py-3 px-1">
+          <button mat-stroked-button class="w-full" (click)="saveAsSmartAlbum()">
+            <mat-icon>bookmark_add</mat-icon>
+            {{ 'albums.save_smart' | translate }}
+          </button>
+        </div>
+      }
+
+      <ng-template #metricPanel let-group>
         <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()[group.sectionKey] === true"
                              (opened)="onSectionToggle(group.sectionKey, true)"
                              (closed)="onSectionToggle(group.sectionKey, false)"
@@ -553,42 +626,36 @@ function saveSectionStates(states: Record<string, boolean>): void {
           </mat-expansion-panel-header>
           <div class="flex flex-col gap-1 pb-1">
             @for (def of group.filters; track def.id) {
-              <div class="flex flex-col gap-0">
-                <span class="text-xs opacity-60 px-1">{{ def.labelKey | translate }}</span>
-                <div class="flex items-center gap-1">
-                  <mat-slider [min]="def.sliderMin" [max]="def.sliderMax" [step]="def.step" class="flex-1">
-                    <input matSliderStartThumb
-                      [value]="$any(store.filters())[def.minKey] ? +$any(store.filters())[def.minKey] : def.sliderMin"
-                      (valueChange)="onDynamicRangeChange(def, 'min', $event)"
-                      [attr.aria-label]="(def.labelKey | translate) + ' min'" />
-                    <input matSliderEndThumb
-                      [value]="$any(store.filters())[def.maxKey] ? +$any(store.filters())[def.maxKey] : def.sliderMax"
-                      (valueChange)="onDynamicRangeChange(def, 'max', $event)"
-                      [attr.aria-label]="(def.labelKey | translate) + ' max'" />
-                  </mat-slider>
-                  <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">
-                    @if ($any(store.filters())[def.minKey] || $any(store.filters())[def.maxKey]) {
-                      {{ store.filters() | filterDisplay:def }}
-                    } @else {
-                      {{ 'gallery.sidebar.any' | translate }}
-                    }
-                  </span>
-                </div>
-              </div>
+              <ng-container [ngTemplateOutlet]="metricRow" [ngTemplateOutletContext]="{ $implicit: def }" />
             }
           </div>
         </mat-expansion-panel>
-      }
+      </ng-template>
 
-      <!-- Save as smart album -->
-      @if (store.config()?.features?.show_albums && auth.isEdition() && store.activeFilterCount() > 0 && !store.filters().album_id) {
-        <div class="py-3 px-1">
-          <button mat-stroked-button class="w-full" (click)="saveAsSmartAlbum()">
-            <mat-icon>bookmark_add</mat-icon>
-            {{ 'albums.save_smart' | translate }}
-          </button>
+      <ng-template #metricRow let-def>
+        <div class="flex flex-col gap-0">
+          <span class="text-xs opacity-60 px-1">{{ def.labelKey | translate }}</span>
+          <div class="flex items-center gap-1">
+            <mat-slider [min]="def.sliderMin" [max]="def.sliderMax" [step]="def.step" class="flex-1">
+              <input matSliderStartThumb
+                [value]="$any(store.filters())[def.minKey] ? +$any(store.filters())[def.minKey] : def.sliderMin"
+                (valueChange)="onDynamicRangeChange(def, 'min', $event)"
+                [attr.aria-label]="(def.labelKey | translate) + ' min'" />
+              <input matSliderEndThumb
+                [value]="$any(store.filters())[def.maxKey] ? +$any(store.filters())[def.maxKey] : def.sliderMax"
+                (valueChange)="onDynamicRangeChange(def, 'max', $event)"
+                [attr.aria-label]="(def.labelKey | translate) + ' max'" />
+            </mat-slider>
+            <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">
+              @if ($any(store.filters())[def.minKey] || $any(store.filters())[def.maxKey]) {
+                {{ store.filters() | filterDisplay:def }}
+              } @else {
+                {{ 'gallery.sidebar.any' | translate }}
+              }
+            </span>
+          </div>
         </div>
-      }
+      </ng-template>
     </div>
   `,
 })
@@ -641,11 +708,42 @@ export class GalleryFilterSidebarComponent {
   }
 
   readonly sectionIcons = SECTION_ICONS;
+  private i18n = inject(I18nService);
 
-  readonly filterGroups: FilterGroup[] = SECTION_ORDER.map(sectionKey => ({
-    sectionKey,
-    filters: FILTERS_BY_SECTION[sectionKey],
-  }));
+  readonly filterQuery = signal('');
+
+  private readonly translatedDefs = computed(() => {
+    this.i18n.translations();
+    const m: Record<string, { label: string; section: string }> = {};
+    for (const d of ADDITIONAL_FILTERS) {
+      m[d.id] = { label: this.i18n.t(d.labelKey).toLowerCase(), section: this.i18n.t(d.sectionKey).toLowerCase() };
+    }
+    return m;
+  });
+
+  private matchGroups(order: string[]): FilterGroup[] {
+    const q = this.filterQuery().trim().toLowerCase();
+    if (!q) return order.map(sectionKey => ({ sectionKey, filters: FILTERS_BY_SECTION[sectionKey] }));
+    const tr = this.translatedDefs();
+    const out: FilterGroup[] = [];
+    for (const sectionKey of order) {
+      const all = FILTERS_BY_SECTION[sectionKey];
+      const sectionMatches = all.length > 0 && tr[all[0].id].section.includes(q);
+      const filters = sectionMatches ? all : all.filter(d => tr[d.id].label.includes(q));
+      if (filters.length) out.push({ sectionKey, filters });
+    }
+    return out;
+  }
+
+  readonly commonFilterGroups = computed(() => this.matchGroups(COMMON_SECTION_ORDER));
+  readonly advancedFilterGroups = computed(() => this.matchGroups(ADVANCED_SECTION_ORDER));
+  readonly searchResultGroups = computed(() => [...this.commonFilterGroups(), ...this.advancedFilterGroups()]);
+  readonly noFilterMatches = computed(() => !!this.filterQuery().trim() && this.searchResultGroups().length === 0);
+
+  readonly advancedActiveCount = computed(() => {
+    const counts = this.sectionActiveCounts();
+    return ADVANCED_SECTION_ORDER.reduce((sum, key) => sum + (counts[key] || 0), 0);
+  });
 
   readonly sectionActiveCounts = computed((): Record<string, number> => {
     const f = this.store.filters();

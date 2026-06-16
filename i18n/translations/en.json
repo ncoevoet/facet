@@ -1089,7 +1089,10 @@
       "persons": "Persons",
       "smart_album_filter_notice": "Smart album — filter changes are saved automatically.",
       "virtual_scroll": "Fast scrolling (virtualized)",
-      "any": "Any"
+      "any": "Any",
+      "find_filter": "Find a filter…",
+      "no_filters_match": "No filters match",
+      "advanced_metrics": "Advanced metrics"
     },
     "semantic_search_info": "Semantic search loads embeddings into RAM on first use. This may take a moment for large libraries.",
     "select_on_map": "Select on map",
