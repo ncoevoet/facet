@@ -588,6 +588,87 @@ def _similar_result(row, similarity):
     }
 
 
+def _vec_knn_similar(conn, source_embedding, photo_path, min_similarity, vis_sql, vis_params):
+    """CLIP-only similar search via sqlite-vec vec0 KNN (sync, runs inside to_thread).
+
+    Replaces the brute-force full-table NumPy cosine scan in the no-pHash-candidate
+    branch of ``_find_similar_visual`` with an indexed vec0 KNN against ``photos_vec``.
+    ``distance_metric=cosine`` makes ``1 - distance`` the cosine similarity, matching
+    the NumPy dot product of L2-normalized embeddings — so top-K ordering is identical.
+
+    Returns the result list (``[:500]``) on success, or ``None`` to signal the caller
+    to fall back to the NumPy scan (sqlite-vec unavailable, ``photos_vec`` missing/empty,
+    or no source embedding). An empty match set returns ``[]`` (a valid result), not
+    ``None`` — that is a successful query that found nothing.
+    """
+    import numpy as np
+    from db.connection import HAS_SQLITE_VEC
+
+    if not HAS_SQLITE_VEC or source_embedding is None:
+        return None
+
+    # Availability guard (plan Topic 2 step 2): photos_vec may be absent or empty.
+    # Catch OperationalError (table missing / extension not loaded) → NumPy fallback.
+    try:
+        if conn.execute("SELECT 1 FROM photos_vec LIMIT 1").fetchone() is None:
+            return None
+    except sqlite3.OperationalError:
+        return None
+
+    # vec0 MATCH cannot carry a WHERE clause, so over-fetch (k large) then post-filter
+    # by visibility/self. k≥2000 keeps the top-500 most-similar even after filtering.
+    k = 2000
+    query_bytes = np.asarray(source_embedding, dtype=np.float32).tobytes()
+    try:
+        knn_rows = conn.execute(
+            "SELECT path, distance FROM photos_vec WHERE embedding MATCH ? AND k = ?",
+            [query_bytes, k],
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return None
+
+    if not knn_rows:
+        return []
+
+    dist_by_path = {}
+    ordered_paths = []
+    for r in knn_rows:
+        p = r['path']
+        if p == photo_path or p in dist_by_path:
+            continue
+        dist_by_path[p] = r['distance']
+        ordered_paths.append(p)
+
+    if not ordered_paths:
+        return []
+
+    # Fetch display columns + apply visibility in one pass, chunked to stay under
+    # SQLite's variable limit on older builds.
+    meta_by_path = {}
+    for start in range(0, len(ordered_paths), 500):
+        chunk = ordered_paths[start:start + 500]
+        placeholders = ','.join('?' * len(chunk))
+        meta_rows = conn.execute(
+            f"""SELECT path, filename, date_taken, aggregate, aesthetic
+                FROM photos WHERE path IN ({placeholders}) AND {vis_sql}""",
+            chunk + vis_params,
+        ).fetchall()
+        for mr in meta_rows:
+            meta_by_path[mr['path']] = dict(mr)
+
+    results = []
+    for p in ordered_paths:
+        row = meta_by_path.get(p)
+        if row is None:
+            continue
+        sim = max(0.0, 1.0 - dist_by_path[p])
+        if sim >= min_similarity:
+            results.append(_similar_result(row, sim))
+
+    results.sort(key=lambda x: x['similarity'], reverse=True)
+    return results[:500]
+
+
 def _find_similar_visual(conn, source, photo_path, min_similarity, vis_sql, vis_params):
     """Find visually similar photos using pHash hamming distance (primary) + CLIP cosine (secondary)."""
     import numpy as np
@@ -611,6 +692,12 @@ def _find_similar_visual(conn, source, photo_path, min_similarity, vis_sql, vis_
     rows = [dict(r) for r in rows]
 
     if not rows:
+        # CLIP-only fallback (no pHash candidates). Prefer the indexed vec0 KNN
+        # path; _vec_knn_similar returns None when sqlite-vec is unavailable, in
+        # which case we keep the original brute-force NumPy scan below unchanged.
+        vec_results = _vec_knn_similar(conn, source_embedding, photo_path, min_similarity, vis_sql, vis_params)
+        if vec_results is not None:
+            return vec_results, None
         clip_rows = conn.execute(f"""
             SELECT path, filename, clip_embedding, date_taken, aggregate, aesthetic
             FROM photos
