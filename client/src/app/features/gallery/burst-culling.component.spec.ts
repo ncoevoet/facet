@@ -5,7 +5,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { UndoService } from '../../core/services/undo.service';
-import { BurstCullingComponent, IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe } from './burst-culling.component';
+import { BurstCullingComponent } from './burst-culling.component';
 
 describe('BurstCullingComponent', () => {
   let component: BurstCullingComponent;
@@ -452,120 +452,5 @@ describe('BurstCullingComponent', () => {
   });
 });
 
-describe('IsKeptPipe', () => {
-  const pipe = new IsKeptPipe();
-
-  it('should return true when path is in the kept set for the burst', () => {
-    const map = new Map<number, Set<string>>();
-    map.set(1, new Set(['/photo1.jpg']));
-
-    expect(pipe.transform('/photo1.jpg', map, 1)).toBe(true);
-  });
-
-  it('should return false when path is not in the kept set', () => {
-    const map = new Map<number, Set<string>>();
-    map.set(1, new Set(['/photo1.jpg']));
-
-    expect(pipe.transform('/photo2.jpg', map, 1)).toBe(false);
-  });
-
-  it('should return false when burst_id has no entry', () => {
-    const map = new Map<number, Set<string>>();
-
-    expect(pipe.transform('/photo1.jpg', map, 99)).toBe(false);
-  });
-});
-
-describe('IsDecidedPipe', () => {
-  const pipe = new IsDecidedPipe();
-
-  it('should return true when burst has selections and path is not kept', () => {
-    const map = new Map<number, Set<string>>();
-    map.set(1, new Set(['/photo1.jpg']));
-
-    expect(pipe.transform('/photo2.jpg', map, 1)).toBe(true);
-  });
-
-  it('should return false when path is kept', () => {
-    const map = new Map<number, Set<string>>();
-    map.set(1, new Set(['/photo1.jpg']));
-
-    expect(pipe.transform('/photo1.jpg', map, 1)).toBe(false);
-  });
-
-  it('should return false when burst has no entry', () => {
-    const map = new Map<number, Set<string>>();
-
-    expect(pipe.transform('/photo1.jpg', map, 1)).toBe(false);
-  });
-
-  it('should return false when kept set is empty', () => {
-    const map = new Map<number, Set<string>>();
-    map.set(1, new Set());
-
-    expect(pipe.transform('/photo1.jpg', map, 1)).toBe(false);
-  });
-});
-
-describe('IsConfirmedPipe', () => {
-  const pipe = new IsConfirmedPipe();
-
-  it('should return true when group is confirmed', () => {
-    const group = { group_id: 1, type: 'burst' as const, reason: '', photos: [], best_path: '', count: 0 };
-    const confirmed = new Set(['1_burst']);
-
-    expect(pipe.transform(group as any, confirmed)).toBe(true);
-  });
-
-  it('should return false when group is not confirmed', () => {
-    const group = { group_id: 2, type: 'similar' as const, reason: '', photos: [], best_path: '', count: 0 };
-    const confirmed = new Set(['1_burst']);
-
-    expect(pipe.transform(group as any, confirmed)).toBe(false);
-  });
-
-  it('should distinguish between burst and similar types', () => {
-    const burstGroup = { group_id: 1, type: 'burst' as const, reason: '', photos: [], best_path: '', count: 0 };
-    const similarGroup = { group_id: 1, type: 'similar' as const, reason: '', photos: [], best_path: '', count: 0 };
-    const confirmed = new Set(['1_burst']);
-
-    expect(pipe.transform(burstGroup as any, confirmed)).toBe(true);
-    expect(pipe.transform(similarGroup as any, confirmed)).toBe(false);
-  });
-});
-
-describe('IsPassingPipe', () => {
-  const pipe = new IsPassingPipe();
-
-  it('should return true when group is in passingGroups', () => {
-    const group = { group_id: 1, type: 'burst' as const, reason: '', photos: [], best_path: '', count: 0 };
-    const passing = new Map([['1_burst', 4]]);
-
-    expect(pipe.transform(group as any, passing)).toBe(true);
-  });
-
-  it('should return false when group is not in passingGroups', () => {
-    const group = { group_id: 2, type: 'similar' as const, reason: '', photos: [], best_path: '', count: 0 };
-    const passing = new Map([['1_burst', 4]]);
-
-    expect(pipe.transform(group as any, passing)).toBe(false);
-  });
-});
-
-describe('PassCountdownPipe', () => {
-  const pipe = new PassCountdownPipe();
-
-  it('should return countdown value for group in passingGroups', () => {
-    const group = { group_id: 1, type: 'burst' as const, reason: '', photos: [], best_path: '', count: 0 };
-    const passing = new Map([['1_burst', 3]]);
-
-    expect(pipe.transform(group as any, passing)).toBe(3);
-  });
-
-  it('should return 0 for group not in passingGroups', () => {
-    const group = { group_id: 2, type: 'similar' as const, reason: '', photos: [], best_path: '', count: 0 };
-    const passing = new Map([['1_burst', 3]]);
-
-    expect(pipe.transform(group as any, passing)).toBe(0);
-  });
-});
+// The IsKept/IsDecided/IsConfirmed/IsPassing/PassCountdown pipe tests moved to
+// burst-culling.pipes.spec.ts alongside their extracted source.
