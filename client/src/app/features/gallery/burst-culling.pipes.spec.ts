@@ -1,7 +1,13 @@
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
-  CullingGroup,
+  FacesForPathPipe, IsEyesClosedPipe,
+  CullingGroup, CullingPhoto, CullingFace,
 } from './burst-culling.pipes';
+
+const photo = (overrides: Partial<CullingPhoto> = {}): CullingPhoto => ({
+  path: '/p.jpg', filename: 'p.jpg', aggregate: 8, aesthetic: 8, tech_sharpness: 8,
+  is_blink: 0, is_burst_lead: 0, date_taken: null, burst_score: 8, ...overrides,
+});
 
 const group = (overrides: Partial<CullingGroup> = {}): CullingGroup => ({
   group_id: 1, type: 'burst', reason: '', photos: [], best_path: '', count: 0, ...overrides,
@@ -87,5 +93,39 @@ describe('PassCountdownPipe', () => {
 
   it('returns 0 for a group not in passingGroups', () => {
     expect(pipe.transform(group({ group_id: 2, type: 'similar' }), new Map([['1_burst', 3]]))).toBe(0);
+  });
+});
+
+describe('FacesForPathPipe', () => {
+  const pipe = new FacesForPathPipe();
+
+  it('returns the faces for a known path', () => {
+    const faces: CullingFace[] = [{ id: 1, face_index: 0 }];
+    const map = new Map<string, CullingFace[]>([['/p.jpg', faces]]);
+    expect(pipe.transform('/p.jpg', map)).toBe(faces);
+  });
+
+  it('returns an empty array for an unknown path', () => {
+    expect(pipe.transform('/missing.jpg', new Map())).toEqual([]);
+  });
+});
+
+describe('IsEyesClosedPipe', () => {
+  const pipe = new IsEyesClosedPipe();
+
+  it('returns true when is_blink is set', () => {
+    expect(pipe.transform(photo({ is_blink: 1 }))).toBe(true);
+  });
+
+  it('returns true when eyes_open_score is at or below the threshold', () => {
+    expect(pipe.transform(photo({ eyes_open_score: 3 }))).toBe(true);
+  });
+
+  it('returns false when eyes are open and no blink', () => {
+    expect(pipe.transform(photo({ eyes_open_score: 9 }))).toBe(false);
+  });
+
+  it('returns false when eyes_open_score is absent', () => {
+    expect(pipe.transform(photo())).toBe(false);
   });
 });

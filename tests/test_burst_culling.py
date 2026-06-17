@@ -5,7 +5,11 @@ from unittest import mock
 
 import pytest
 
-from api.routers.burst_culling import _compute_burst_score, _format_group
+from api.routers.burst_culling import (
+    _compute_burst_score,
+    _compute_cull_reason,
+    _format_group,
+)
 
 
 def _cm(conn):
@@ -74,6 +78,75 @@ class TestFormatGroup:
         score = result['photos'][0]['burst_score']
         # Should be rounded to 2 decimal places
         assert score == round(score, 2)
+
+    def test_attaches_cull_reason_to_every_photo(self):
+        photos = [
+            {'path': '/low.jpg', 'filename': 'low.jpg', 'aggregate': 2, 'aesthetic': 2,
+             'tech_sharpness': 2, 'is_blink': 0, 'is_burst_lead': 0, 'date_taken': '2024:01:01'},
+            {'path': '/high.jpg', 'filename': 'high.jpg', 'aggregate': 10, 'aesthetic': 10,
+             'tech_sharpness': 10, 'is_blink': 0, 'is_burst_lead': 0, 'date_taken': '2024:01:01'},
+        ]
+        result = _format_group(photos, 7)
+        # Best photo (first after sort) gets the 'best' key.
+        assert result['photos'][0]['path'] == '/high.jpg'
+        assert result['photos'][0]['cull_reason']['key'] == 'best'
+        # The weaker photo gets a non-'best' reason.
+        assert result['photos'][1]['path'] == '/low.jpg'
+        assert result['photos'][1]['cull_reason']['key'] != 'best'
+
+
+class TestComputeCullReason:
+    def _best(self, **kw):
+        base = {'path': '/best.jpg', 'aggregate': 9.0, 'aesthetic': 9.0,
+                'tech_sharpness': 9.0, 'is_blink': 0, 'face_count': 0}
+        base.update(kw)
+        return base
+
+    def test_best_photo_returns_best_key(self):
+        best = self._best()
+        assert _compute_cull_reason(best, best) == {'key': 'best', 'value': None}
+
+    def test_best_matched_by_path(self):
+        best = self._best()
+        same_path = dict(best)
+        assert _compute_cull_reason(same_path, best)['key'] == 'best'
+
+    def test_blink_flag_wins(self):
+        best = self._best()
+        photo = self._best(path='/x.jpg', is_blink=1)
+        assert _compute_cull_reason(photo, best)['key'] == 'eyes_closed'
+
+    def test_eyes_closed_score(self):
+        best = self._best(face_count=1, eyes_open_score=9.0)
+        photo = self._best(path='/x.jpg', face_count=1, eyes_open_score=2.0)
+        assert _compute_cull_reason(photo, best)['key'] == 'eyes_closed'
+
+    def test_eyes_score_ignored_without_face(self):
+        # face_count=0 means eyes_open_score must not trigger eyes_closed.
+        best = self._best(eyes_open_score=9.0)
+        photo = self._best(path='/x.jpg', eyes_open_score=1.0, tech_sharpness=9.0,
+                           aesthetic=9.0, aggregate=9.0)
+        assert _compute_cull_reason(photo, best)['key'] != 'eyes_closed'
+
+    def test_soft_when_sharpness_lower(self):
+        best = self._best(tech_sharpness=9.0)
+        photo = self._best(path='/x.jpg', tech_sharpness=7.0)
+        assert _compute_cull_reason(photo, best)['key'] == 'soft'
+
+    def test_lower_aesthetic(self):
+        best = self._best(aesthetic=9.0)
+        photo = self._best(path='/x.jpg', aesthetic=8.0)
+        assert _compute_cull_reason(photo, best)['key'] == 'lower_aesthetic'
+
+    def test_lower_overall_catch_all(self):
+        best = self._best(aggregate=9.0)
+        photo = self._best(path='/x.jpg', aggregate=8.0)
+        assert _compute_cull_reason(photo, best)['key'] == 'lower_overall'
+
+    def test_near_duplicate_when_no_clear_defect(self):
+        best = self._best()
+        photo = self._best(path='/x.jpg')  # identical metrics, different path
+        assert _compute_cull_reason(photo, best)['key'] == 'near_duplicate'
 
 
 # ---------------------------------------------------------------------------

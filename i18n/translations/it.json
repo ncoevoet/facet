@@ -1610,6 +1610,18 @@
     "load_more": "Carica altro",
     "view_detail": "Vedi dettaglio",
     "cancel_pass": "Annulla",
+    "strictness": "Rigore",
+    "strictness_tooltip": "Più alto conserva solo la foto migliore; più basso conserva anche i quasi pari",
+    "face_grid_title": "Volti di questo gruppo",
+    "reason": {
+      "best": "La migliore del gruppo",
+      "eyes_closed": "Occhi chiusi",
+      "soft": "Leggermente sfocata",
+      "expression": "Espressione più debole",
+      "lower_aesthetic": "Estetica inferiore",
+      "lower_overall": "Punteggio complessivo inferiore",
+      "near_duplicate": "Quasi duplicata"
+    },
     "lightbox": {
       "navigate": "Naviga",
       "keep": "Mantieni",

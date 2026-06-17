@@ -104,6 +104,68 @@ def _compute_burst_score(photo):
     return score
 
 
+# Thresholds for deriving a plain-language cull reason from already-loaded
+# signals. Kept conservative so reasons only appear when clearly meaningful.
+_CULL_EYES_CLOSED_MAX = 4.0       # eyes_open_score (0-10) at/below this = closed
+_CULL_EXPRESSION_MIN = 4.0        # expression_score (0-10) below this = poor expression
+_CULL_SHARP_DELTA = 1.0           # tech_sharpness gap vs best before flagging "soft"
+_CULL_AESTHETIC_DELTA = 0.5       # aesthetic gap vs best before flagging "lower aesthetic"
+_CULL_AGGREGATE_DELTA = 0.3       # aggregate gap vs best before flagging "lower overall"
+
+
+def _compute_cull_reason(photo, best):
+    """Return a stable machine reason key for why ``photo`` ranks below ``best``.
+
+    Returns a dict ``{'key': <str>, 'value': <float|None>}`` translated client-side
+    via the i18n ``culling.reason.*`` keys. ``best`` is the group's auto-best photo
+    dict (same photo when called on the best one, yielding the 'best' key).
+
+    Derived only from fields already loaded for the group (no full critique call).
+    Ordering matches user priority: blink/eyes first, then sharpness, aesthetic,
+    overall. Falls back to 'lower_overall' when the photo simply scores lower.
+    """
+    if photo is best or (best is not None and photo.get('path') == best.get('path')):
+        return {'key': 'best', 'value': None}
+
+    has_face = (photo.get('face_count') or 0) > 0
+
+    # 1. Blink / eyes closed (face photos only) — highest-priority defect.
+    if photo.get('is_blink'):
+        return {'key': 'eyes_closed', 'value': None}
+    if has_face:
+        eyes = photo.get('eyes_open_score')
+        if eyes is not None and eyes <= _CULL_EYES_CLOSED_MAX:
+            return {'key': 'eyes_closed', 'value': None}
+
+    # 2. Softer than the best frame.
+    sharp = photo.get('tech_sharpness')
+    best_sharp = best.get('tech_sharpness') if best else None
+    if sharp is not None and best_sharp is not None and (best_sharp - sharp) >= _CULL_SHARP_DELTA:
+        return {'key': 'soft', 'value': None}
+
+    # 3. Poorer expression than the best frame (face photos only).
+    if has_face:
+        expr = photo.get('expression_score')
+        best_expr = best.get('expression_score') if best else None
+        if (expr is not None and best_expr is not None
+                and expr < _CULL_EXPRESSION_MIN and best_expr - expr >= 1.0):
+            return {'key': 'expression', 'value': None}
+
+    # 4. Lower aesthetic appeal.
+    aes = photo.get('aesthetic')
+    best_aes = best.get('aesthetic') if best else None
+    if aes is not None and best_aes is not None and (best_aes - aes) >= _CULL_AESTHETIC_DELTA:
+        return {'key': 'lower_aesthetic', 'value': None}
+
+    # 5. Catch-all: lower overall score.
+    agg = photo.get('aggregate')
+    best_agg = best.get('aggregate') if best else None
+    if agg is not None and best_agg is not None and (best_agg - agg) >= _CULL_AGGREGATE_DELTA:
+        return {'key': 'lower_overall', 'value': None}
+
+    return {'key': 'near_duplicate', 'value': None}
+
+
 def _format_group(photos, burst_group_id):
     """Format a burst group for the API response."""
     scored = []
@@ -117,6 +179,7 @@ def _format_group(photos, burst_group_id):
             'is_blink': p.get('is_blink') or 0,
             'eyes_open_score': p.get('eyes_open_score'),
             'expression_score': p.get('expression_score'),
+            'face_count': p.get('face_count') or 0,
             'is_burst_lead': p.get('is_burst_lead') or 0,
             'date_taken': p.get('date_taken'),
             'burst_score': round(_compute_burst_score(p), 2),
@@ -124,6 +187,10 @@ def _format_group(photos, burst_group_id):
 
     scored.sort(key=lambda x: x['burst_score'], reverse=True)
     best_path = scored[0]['path'] if scored else None
+
+    best = scored[0] if scored else None
+    for p in scored:
+        p['cull_reason'] = _compute_cull_reason(p, best)
 
     return {
         'burst_id': burst_group_id,
@@ -595,10 +662,12 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
         # Sort by aggregate DESC and limit
         photos.sort(key=lambda x: x.get('aggregate') or 0, reverse=True)
         photos = photos[:max_per_group]
+        best = photos[0] if photos else None
         for pd in photos:
             pd['is_blink'] = pd.get('is_blink') or 0
             pd['is_burst_lead'] = 0
             pd['burst_score'] = round(_compute_burst_score(pd), 2)
+            pd['cull_reason'] = _compute_cull_reason(pd, best)
         result[idx] = photos
     return result
 

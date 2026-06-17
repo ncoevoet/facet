@@ -1614,6 +1614,18 @@
     "load_more": "Mehr laden",
     "view_detail": "Detail anzeigen",
     "cancel_pass": "Abbrechen",
+    "strictness": "Strenge",
+    "strictness_tooltip": "Höher behält nur das beste Foto; niedriger behält auch knappe Treffer",
+    "face_grid_title": "Gesichter in dieser Gruppe",
+    "reason": {
+      "best": "Beste der Gruppe",
+      "eyes_closed": "Augen geschlossen",
+      "soft": "Leicht unscharf",
+      "expression": "Schwächerer Ausdruck",
+      "lower_aesthetic": "Geringere Ästhetik",
+      "lower_overall": "Geringere Gesamtwertung",
+      "near_duplicate": "Beinahe-Duplikat"
+    },
     "lightbox": {
       "navigate": "Navigieren",
       "keep": "Behalten",

@@ -10,14 +10,15 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe, FaceThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { I18nService } from '../../core/services/i18n.service';
 import { UndoService } from '../../core/services/undo.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { firstValueFrom } from 'rxjs';
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
-  CullingGroup,
+  CullReasonPipe, FacesForPathPipe, IsEyesClosedPipe,
+  CullingGroup, CullingFace,
 } from './burst-culling.pipes';
 
 interface CullingGroupsResponse {
@@ -41,11 +42,15 @@ interface CullingGroupsResponse {
     MatCheckboxModule,
     TranslatePipe,
     ThumbnailUrlPipe,
+    FaceThumbnailUrlPipe,
     IsKeptPipe,
     IsDecidedPipe,
     IsConfirmedPipe,
     IsPassingPipe,
     PassCountdownPipe,
+    CullReasonPipe,
+    FacesForPathPipe,
+    IsEyesClosedPipe,
     InfiniteScrollDirective,
   ],
   template: `
@@ -65,6 +70,13 @@ interface CullingGroupsResponse {
               <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="'culling.threshold' | translate" />
             </mat-slider>
             <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
+          </div>
+          <div class="flex items-center gap-2" [matTooltip]="'culling.strictness_tooltip' | translate">
+            <span class="text-xs opacity-60">{{ 'culling.strictness' | translate }}</span>
+            <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="10" [discrete]="true">
+              <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="'culling.strictness' | translate" />
+            </mat-slider>
+            <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
           </div>
           <button mat-icon-button (click)="showHelp.set(!showHelp())" class="!w-8 !h-8 !p-0"
                   [matTooltip]="'culling.help' | translate">
@@ -111,6 +123,10 @@ interface CullingGroupsResponse {
                     @if (photo.path === group.best_path) {
                       <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-600 text-white text-xs font-bold">
                         {{ 'culling.auto_best' | translate }}
+                      </div>
+                    } @else if (photo.cull_reason; as reason) {
+                      <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-xs font-medium max-w-[160px] truncate">
+                        {{ reason | cullReason }}
                       </div>
                     }
                     @if (photo.path | isKept:selectionsMap():group.group_id) {
@@ -249,6 +265,45 @@ interface CullingGroupsResponse {
             }
           </div>
         }
+
+        <!-- Face / expression close-up grid -->
+        @if (faceGridHasFaces()) {
+          <div class="border-t border-white/10 px-4 py-3 overflow-x-auto"
+               role="presentation"
+               (click)="$event.stopPropagation()"
+               (keydown)="$event.stopPropagation()">
+            <div class="text-white/50 text-xs mb-2">{{ 'culling.face_grid_title' | translate }}</div>
+            <div class="flex gap-3 items-start">
+              @for (photo of lbGroup.photos; track photo.path) {
+                @if ((photo.path | facesForPath:faceMap()).length > 0) {
+                  <div class="flex flex-col items-center gap-1 flex-shrink-0">
+                    <div class="flex gap-1">
+                      @for (face of photo.path | facesForPath:faceMap(); track face.id) {
+                        <div class="relative">
+                          <img [src]="face.id | faceThumbnailUrl"
+                               class="w-16 h-16 rounded object-cover border-2 border-white/20"
+                               [class.border-green-500]="photo.path === lbGroup.best_path"
+                               [class.border-red-500]="(photo | isEyesClosed)"
+                               [alt]="photo.filename" loading="lazy" />
+                          @if (photo | isEyesClosed) {
+                            <div class="absolute bottom-0 inset-x-0 bg-yellow-600/90 text-white text-[10px] leading-tight text-center font-bold py-0.5">
+                              {{ 'ui.badges.blink' | translate }}
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                    @if (photo.path === lbGroup.best_path) {
+                      <span class="text-green-400 text-[10px] font-bold">{{ 'culling.auto_best' | translate }}</span>
+                    } @else if (photo.cull_reason; as reason) {
+                      <span class="text-white/60 text-[10px] max-w-[80px] truncate">{{ reason | cullReason }}</span>
+                    }
+                  </div>
+                }
+              }
+            </div>
+          </div>
+        }
       </div>
     }
   `,
@@ -263,6 +318,8 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected readonly showHelp = signal(false);
   protected readonly similarityThreshold = signal(85);
+  /** Auto-keep strictness (0-100): higher keeps fewer photos below the best. */
+  protected readonly strictness = signal(100);
   protected readonly excludeRejected = signal(true);
   protected readonly groups = signal<CullingGroup[]>([]);
   protected readonly totalGroups = signal(0);
@@ -301,6 +358,17 @@ export class BurstCullingComponent implements OnDestroy {
     const key = this.lightboxGroupId();
     if (!key) return null;
     return this.groups().find(g => this.groupKey(g) === key) ?? null;
+  });
+
+  /** photo path -> detected faces, loaded lazily when a lightbox group opens. */
+  protected readonly faceMap = signal<Map<string, CullingFace[]>>(new Map());
+
+  /** True when at least one photo in the focused group has loaded faces. */
+  protected readonly faceGridHasFaces = computed(() => {
+    const group = this.lightboxGroup();
+    if (!group) return false;
+    const map = this.faceMap();
+    return group.photos.some(p => (map.get(p.path)?.length ?? 0) > 0);
   });
 
   /** Groups visible in the UI (excludes hidden groups that completed pass timeout) */
@@ -355,18 +423,64 @@ export class BurstCullingComponent implements OnDestroy {
     const map = base ? new Map(base) : new Map<number, Set<string>>();
     for (const group of groups) {
       if (!map.has(group.group_id)) {
-        const best = group.best_path || group.photos[0]?.path;
-        if (best) {
-          map.set(group.group_id, new Set([best]));
+        const kept = this.computeAutoKeep(group);
+        if (kept.size > 0) {
+          map.set(group.group_id, kept);
         }
       }
     }
     return map;
   }
 
+  /**
+   * Derive the auto-keep set for a group from the current strictness (0-100).
+   * The best photo is always kept; additional photos whose burst_score falls
+   * within a strictness-derived margin of the best are also kept. At strictness
+   * 100 only the single best survives; at 0 everything within ~5 points stays.
+   */
+  private computeAutoKeep(group: CullingGroup): Set<string> {
+    const best = group.best_path || group.photos[0]?.path;
+    if (!best) return new Set<string>();
+    const kept = new Set<string>([best]);
+
+    const bestScore = group.photos.find(p => p.path === best)?.burst_score
+      ?? Math.max(0, ...group.photos.map(p => p.burst_score));
+    // strictness 100 -> margin 0 (only the best); strictness 0 -> margin 5.
+    const margin = (100 - this.strictness()) / 100 * 5;
+    if (margin > 0) {
+      for (const photo of group.photos) {
+        if (bestScore - photo.burst_score <= margin) {
+          kept.add(photo.path);
+        }
+      }
+    }
+    return kept;
+  }
+
   protected onThresholdChange(value: number): void {
     this.similarityThreshold.set(value);
     this.resetForReload();
+  }
+
+  /**
+   * Re-derive the auto-keep selection for every loaded group from the new
+   * strictness. Purely client-side over the burst_score values already
+   * returned — no backend round-trip. Confirmed groups are left untouched.
+   */
+  protected onStrictnessChange(value: number): void {
+    this.strictness.set(value);
+    const confirmed = this.confirmedGroups();
+    const map = new Map<number, Set<string>>();
+    for (const group of this.groups()) {
+      if (confirmed.has(this.groupKey(group))) {
+        const existing = this.selectionsMap().get(group.group_id);
+        if (existing) map.set(group.group_id, existing);
+        continue;
+      }
+      const kept = this.computeAutoKeep(group);
+      if (kept.size > 0) map.set(group.group_id, kept);
+    }
+    this.selectionsMap.set(map);
   }
 
   protected onExcludeRejectedChange(value: boolean): void {
@@ -443,10 +557,40 @@ export class BurstCullingComponent implements OnDestroy {
   protected openLightbox(group: CullingGroup, index: number): void {
     this.lightboxGroupId.set(this.groupKey(group));
     this.lightboxIndex.set(index);
+    void this.loadFacesForGroup(group);
   }
 
   protected closeLightbox(): void {
     this.lightboxGroupId.set(null);
+  }
+
+  /**
+   * Lazily fetch detected faces for each photo in the focused group via the
+   * existing per-photo faces endpoint, so the lightbox can tile face crops.
+   * Results are cached in faceMap; already-loaded paths are skipped.
+   */
+  private async loadFacesForGroup(group: CullingGroup): Promise<void> {
+    const missing = group.photos.filter(p => !this.faceMap().has(p.path));
+    if (missing.length === 0) return;
+    await Promise.all(missing.map(async photo => {
+      try {
+        const data = await firstValueFrom(
+          this.api.get<{ faces: CullingFace[] }>('/photo/faces', { path: photo.path }),
+        );
+        this.faceMap.update(m => {
+          const next = new Map(m);
+          next.set(photo.path, data.faces ?? []);
+          return next;
+        });
+      } catch {
+        // Best-effort: record an empty result so we don't refetch on every open.
+        this.faceMap.update(m => {
+          const next = new Map(m);
+          next.set(photo.path, []);
+          return next;
+        });
+      }
+    }));
   }
 
   private clampIndex(value: number, max: number): number {

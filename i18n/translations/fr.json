@@ -1610,6 +1610,18 @@
     "load_more": "Charger plus",
     "view_detail": "Voir le détail",
     "cancel_pass": "Annuler",
+    "strictness": "Rigueur",
+    "strictness_tooltip": "Plus élevé ne garde que la meilleure photo ; plus bas garde aussi les quasi-égalités",
+    "face_grid_title": "Visages de ce groupe",
+    "reason": {
+      "best": "Meilleure du groupe",
+      "eyes_closed": "Yeux fermés",
+      "soft": "Légèrement floue",
+      "expression": "Expression moins bonne",
+      "lower_aesthetic": "Esthétique moindre",
+      "lower_overall": "Note globale moindre",
+      "near_duplicate": "Quasi-doublon"
+    },
     "lightbox": {
       "navigate": "Naviguer",
       "keep": "Garder",

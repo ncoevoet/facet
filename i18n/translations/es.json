@@ -1610,6 +1610,18 @@
     "load_more": "Cargar más",
     "view_detail": "Ver detalle",
     "cancel_pass": "Cancelar",
+    "strictness": "Rigor",
+    "strictness_tooltip": "Más alto conserva solo la mejor foto; más bajo conserva también los casi empates",
+    "face_grid_title": "Rostros de este grupo",
+    "reason": {
+      "best": "La mejor del grupo",
+      "eyes_closed": "Ojos cerrados",
+      "soft": "Ligeramente borrosa",
+      "expression": "Expresión más débil",
+      "lower_aesthetic": "Estética inferior",
+      "lower_overall": "Puntuación global inferior",
+      "near_duplicate": "Casi duplicada"
+    },
     "lightbox": {
       "navigate": "Navegar",
       "keep": "Mantener",

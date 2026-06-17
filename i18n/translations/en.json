@@ -1608,6 +1608,18 @@
     "load_more": "Load more",
     "view_detail": "View detail",
     "cancel_pass": "Cancel",
+    "strictness": "Strictness",
+    "strictness_tooltip": "Higher keeps only the single best photo; lower keeps near-ties too",
+    "face_grid_title": "Faces in this group",
+    "reason": {
+      "best": "Best of group",
+      "eyes_closed": "Eyes closed",
+      "soft": "Slightly soft",
+      "expression": "Weaker expression",
+      "lower_aesthetic": "Lower aesthetic",
+      "lower_overall": "Lower overall",
+      "near_duplicate": "Near-duplicate"
+    },
     "lightbox": {
       "navigate": "Navigate",
       "keep": "Keep",
