@@ -68,3 +68,54 @@ def test_learned_score_inert_when_absent():
     assert pick_lead([a, b]) is a
     # And a None learned_score must not change the score.
     assert composite_lead_score({'aggregate': 7.0, 'learned_score': None}) == 7.0
+
+
+def test_process_bursts_uses_composite_tiebreak(tmp_path):
+    """Integration guard for the LIVE burst path (processing.scorer.process_bursts).
+
+    The composite tie-break was once wired only into an unused alternative burst
+    processor, while process_bursts still picked the lead via raw max(aggregate)
+    and never loaded the eyes/expression columns. This test puts a
+    blink frame with a *slightly higher* aggregate in the same burst as an open-eyes
+    frame and asserts the open-eyes frame wins — it FAILS on the old max(aggregate).
+    """
+    import os
+    import sqlite3
+    from db.schema import init_database
+    from processing.scorer import process_bursts
+
+    db_path = str(tmp_path / "burst.db")
+    init_database(db_path)
+
+    phash = "ffff0000ffff0000"          # identical -> Hamming 0, always co-bursts
+    when = "2024:01:01 12:00:00"        # identical timestamps -> within any window
+    rows = [
+        # (path, filename, aggregate, eyes_open_score) — blink leads on aggregate
+        ("/blink.jpg", "blink.jpg", 7.05, 1.0),
+        ("/open.jpg", "open.jpg", 7.00, 10.0),
+    ]
+    conn = sqlite3.connect(db_path)
+    for path, filename, agg, eyes in rows:
+        conn.execute(
+            "INSERT INTO photos (path, filename, date_taken, aggregate, phash, "
+            "face_count, eyes_open_score, expression_score, tech_sharpness) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (path, filename, when, agg, phash, 1, eyes, 5.0, 5.0),
+        )
+    conn.commit()
+    conn.close()
+
+    config_path = os.path.join(os.path.dirname(__file__), "..", "scoring_config.json")
+    process_bursts(db_path, config_path=config_path)
+
+    conn = sqlite3.connect(db_path)
+    leads = dict(conn.execute("SELECT path, is_burst_lead FROM photos").fetchall())
+    groups = dict(conn.execute("SELECT path, burst_group_id FROM photos").fetchall())
+    conn.close()
+
+    # Both frames landed in one burst group, and the open-eyes frame is the lead
+    # despite the blink frame's higher aggregate.
+    assert groups["/open.jpg"] is not None
+    assert groups["/open.jpg"] == groups["/blink.jpg"]
+    assert leads["/open.jpg"] == 1
+    assert leads["/blink.jpg"] == 0

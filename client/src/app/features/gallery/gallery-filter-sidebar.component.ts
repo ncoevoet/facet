@@ -749,9 +749,19 @@ export class GalleryFilterSidebarComponent {
   private clampDef(def: AdditionalFilterDef): AdditionalFilterDef {
     const r = this.store.metricRanges()[def.minKey];
     if (!r) return def;
-    const lo = Number((Math.floor(r.min / def.step + 1e-9) * def.step).toFixed(6));
-    const hi = Number((Math.ceil(r.max / def.step - 1e-9) * def.step).toFixed(6));
+    let lo = Number((Math.floor(r.min / def.step + 1e-9) * def.step).toFixed(6));
+    let hi = Number((Math.ceil(r.max / def.step - 1e-9) * def.step).toFixed(6));
     if (!(hi > lo)) return def;
+    // Never clamp away an active filter value: if a persisted/URL value sits
+    // outside the data-driven bounds, widen the bounds so the slider can still
+    // represent and reach it. Otherwise the thumb pins to the edge while the
+    // effective filter (and its display text + active-count badge) keep the old
+    // out-of-range value, with no way to drag back to it.
+    const f = this.store.filters() as unknown as Record<string, unknown>;
+    const activeMin = Number(f[def.minKey]);
+    const activeMax = Number(f[def.maxKey]);
+    if (f[def.minKey] && Number.isFinite(activeMin)) lo = Math.min(lo, activeMin);
+    if (f[def.maxKey] && Number.isFinite(activeMax)) hi = Math.max(hi, activeMax);
     return { ...def, sliderMin: lo, sliderMax: hi };
   }
 

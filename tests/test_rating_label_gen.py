@@ -46,6 +46,13 @@ def rating_db(tmp_path):
     return db_path
 
 
+@pytest.fixture(autouse=True)
+def _inline_rating_sync(monkeypatch):
+    # The rating-comparison rebuild is normally debounced; run it inline so the
+    # mint-on-rating assertions below see the derived rows immediately.
+    monkeypatch.setattr("api.routers.faces._RATING_SYNC_DEBOUNCE_S", 0)
+
+
 def _client(db_path):
     # Rating endpoints use require_auth, which in single-user mode demands an
     # edition-authenticated user. Override it directly (per CLAUDE.md — no
@@ -106,3 +113,24 @@ def test_mint_is_idempotent_on_retract(rating_db):
         client.post("/api/photo/set_rating", json={"photo_path": "/r/a.jpg", "rating": 0})
         client.post("/api/photo/set_rating", json={"photo_path": "/r/b.jpg", "rating": 0})
     assert _count_rating_comparisons(rating_db) == 0
+
+
+def test_rapid_ratings_coalesce_into_one_rebuild(rating_db, monkeypatch):
+    """N rapid rating changes schedule ONE debounced rebuild, not N (perf)."""
+    from api.routers import faces
+    import optimization.label_pairs as lp
+
+    monkeypatch.setattr(faces, "_RATING_SYNC_DEBOUNCE_S", 5)   # debounce active (overrides autouse)
+    monkeypatch.setattr("db.DEFAULT_DB_PATH", rating_db)
+    calls = []
+    monkeypatch.setattr(lp, "sync_label_comparisons", lambda *a, **k: calls.append(1))
+    try:
+        for _ in range(3):
+            faces._mint_rating_comparisons(None)
+        assert len(faces._rating_sync_timers) == 1   # three clicks -> one pending timer
+        assert calls == []                            # nothing ran yet (within debounce window)
+        faces.flush_rating_comparisons()
+        assert calls == [1]                           # coalesced into exactly one rebuild
+        assert not faces._rating_sync_timers
+    finally:
+        faces.flush_rating_comparisons()              # ensure no stray timer leaks to other tests

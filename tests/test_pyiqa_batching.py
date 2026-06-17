@@ -9,7 +9,6 @@ mismatched sizes split into per-shape forwards.
 """
 
 import numpy as np
-import torch
 from PIL import Image
 
 from models.pyiqa_scorer import PyIQAScorer

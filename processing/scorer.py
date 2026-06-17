@@ -2377,8 +2377,12 @@ def process_bursts(db_path, config_path='scoring_config.json'):
 
     with get_connection(db_path) as conn:
         photos = conn.execute(
-            "SELECT path, date_taken, aggregate, phash FROM photos "
-            "WHERE phash IS NOT NULL ORDER BY date_taken"
+            "SELECT path, date_taken, aggregate, phash, "
+            "face_count, eyes_open_score, expression_score, tech_sharpness, "
+            "(SELECT ls.learned_score FROM learned_scores ls "
+            " WHERE ls.photo_path = photos.path AND ls.user_id IS NULL "
+            " AND ls.category IS NULL) AS learned_score "
+            "FROM photos WHERE phash IS NOT NULL ORDER BY date_taken"
         ).fetchall()
         if not photos:
             return
@@ -2406,6 +2410,7 @@ def process_bursts(db_path, config_path='scoring_config.json'):
             return bin(int(hash1, 16) ^ int(hash2, 16)).count('1')
 
         from utils.date_utils import parse_date
+        from utils.selection import pick_lead
 
         def shares_person(path1, path2):
             """Check if two photos share at least one identified person."""
@@ -2456,7 +2461,9 @@ def process_bursts(db_path, config_path='scoring_config.json'):
             else:
                 # Finalize previous burst
                 if current_burst:
-                    winner = max(current_burst, key=lambda x: x['aggregate'] or 0)
+                    # Composite best-of: aggregate dominates, eyes-open / expression /
+                    # sharpness break near-ties toward the better keeper frame.
+                    winner = pick_lead([dict(p) for p in current_burst])
                     conn.execute("UPDATE photos SET is_burst_lead = 1 WHERE path = ?", (winner['path'],))
                     if len(current_burst) >= 2:
                         for p in current_burst:
@@ -2472,7 +2479,7 @@ def process_bursts(db_path, config_path='scoring_config.json'):
 
         # Handle final burst
         if current_burst:
-            winner = max(current_burst, key=lambda x: x['aggregate'] or 0)
+            winner = pick_lead([dict(p) for p in current_burst])
             conn.execute("UPDATE photos SET is_burst_lead = 1 WHERE path = ?", (winner['path'],))
             if len(current_burst) >= 2:
                 for p in current_burst:

@@ -238,6 +238,18 @@ class ChunkedMultiPassProcessor:
             if supp_model not in models:
                 models.append(supp_model)
 
+        # Optional extended-IQA tier (config-gated OFF by default). Each scorer
+        # writes its own dedicated column (see PYIQA_COLUMN_MAP); they are in the
+        # supplementary set so a load/VRAM failure skips the pass instead of
+        # aborting the scan.
+        try:
+            ext = self.scorer.config.get_extended_iqa_settings()
+        except Exception:
+            ext = {}
+        for ext_model in ('qalign', 'aesthetic_v25', 'deqa'):
+            if ext.get(ext_model) and ext_model not in models:
+                models.append(ext_model)
+
         # Saliency model (BiRefNet) if enabled for this profile
         if active_profile.get('saliency_enabled', False):
             models.append('saliency')
@@ -354,6 +366,8 @@ class ChunkedMultiPassProcessor:
         supplementary = set(self.model_manager.get_active_profile().get('supplementary_pyiqa', []))
         supplementary.add('saliency')  # BiRefNet is optional (may require HF auth)
         supplementary.add('samp_net')  # SAMP-Net is optional (weights may be unavailable — composition is skipped)
+        # Extended-IQA scorers are heavy/experimental — load/VRAM failure skips the pass.
+        supplementary.update(('qalign', 'qalign_8bit', 'qalign_4bit', 'aesthetic_v25', 'deqa'))
 
         # Run each pass group
         for group_idx, model_group in enumerate(self.pass_groups):
@@ -548,7 +562,8 @@ class ChunkedMultiPassProcessor:
 
     # PyIQA models list
     PYIQA_MODELS = ['topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
-                    'topiq_iaa', 'topiq_nr_face', 'liqe']
+                    'topiq_iaa', 'topiq_nr_face', 'liqe',
+                    'qalign', 'qalign_8bit', 'qalign_4bit', 'aesthetic_v25', 'deqa']
 
     def _run_model_pass(self, model_name: str, model: Any,
                         images: Dict[str, Dict], results: Dict[str, Dict]):
@@ -712,6 +727,12 @@ class ChunkedMultiPassProcessor:
         'topiq_iaa': 'aesthetic_iaa',
         'topiq_nr_face': 'face_quality_iqa',
         'liqe': 'liqe_score',
+        # Optional extended-IQA tier (config-gated OFF by default) -> dedicated columns.
+        'qalign': 'qalign_score',
+        'qalign_8bit': 'qalign_score',
+        'qalign_4bit': 'qalign_score',
+        'aesthetic_v25': 'aesthetic_v25',
+        'deqa': 'deqa_score',
     }
 
     def _pass_pyiqa(self, scorer: Any, model_name: str, images: Dict, results: Dict):

@@ -2,7 +2,6 @@ import { of, Observable } from 'rxjs';
 import { downloadAll } from './download';
 
 describe('downloadAll', () => {
-  let createObjectURLSpy: ReturnType<typeof vi.spyOn>;
   let revokeObjectURLSpy: ReturnType<typeof vi.spyOn>;
   let appendChildSpy: ReturnType<typeof vi.spyOn>;
   let removeChildSpy: ReturnType<typeof vi.spyOn>;
@@ -13,8 +12,10 @@ describe('downloadAll', () => {
     anchors = [];
     clickSpy = vi.fn();
 
-    // jsdom may not implement URL.createObjectURL — define/spy it.
-    createObjectURLSpy = vi
+    // jsdom may not implement URL.createObjectURL — define/spy it. We never assert
+    // on its call count (a shared global other specs also touch), only on the blob
+    // URL it returns, so the spy itself doesn't need to be captured.
+    vi
       .spyOn(URL, 'createObjectURL')
       .mockImplementation((obj: Blob | MediaSource) => `blob:mock/${(obj as Blob).size}`);
     revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
@@ -65,17 +66,19 @@ describe('downloadAll', () => {
 
     expect(buildUrl).toHaveBeenCalledWith('photos/IMG_1234.jpg');
     expect(rawFn).toHaveBeenCalledWith('http://api/raw?path=photos/IMG_1234.jpg');
-    expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
 
+    // Assert on the operation's own anchor, not the global URL.* call counts:
+    // createObjectURL/revokeObjectURL are shared globals other specs also touch,
+    // so exact-count assertions flake under vitest's parallel file execution.
     expect(anchors).toHaveLength(1);
     const a = anchors[0];
-    expect(a.href).toContain('blob:mock/');
+    expect(a.href).toContain('blob:mock/'); // proves createObjectURL ran for this download
     expect(a.download).toBe('IMG_1234.jpg');
 
     expect(appendChildSpy).toHaveBeenCalledWith(a);
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(removeChildSpy).toHaveBeenCalledWith(a);
-    expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith(a.href); // blob URL freed (no leak)
   });
 
   it('derives the filename from the last path segment, supporting both / and \\ separators', async () => {
@@ -101,7 +104,11 @@ describe('downloadAll', () => {
     expect(rawFn).toHaveBeenCalledTimes(3);
     expect(clickSpy).toHaveBeenCalledTimes(3);
     expect(anchors.map((a) => a.download)).toEqual(['one.jpg', 'two.jpg', 'three.jpg']);
-    expect(createObjectURLSpy).toHaveBeenCalledTimes(3);
-    expect(revokeObjectURLSpy).toHaveBeenCalledTimes(3);
+    // One blob URL created (href set) and freed per download — scoped to this
+    // operation's anchors so it can't flake on sibling specs' global URL.* calls.
+    for (const a of anchors) {
+      expect(a.href).toContain('blob:mock/');
+      expect(revokeObjectURLSpy).toHaveBeenCalledWith(a.href);
+    }
   });
 });

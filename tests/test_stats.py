@@ -416,7 +416,7 @@ class TestGear:
         assert resp.status_code == 200
         data = resp.json()
         assert any(c["name"] == "Canon R6" and c["count"] == 3 for c in data["cameras"])
-        assert any(l["name"] == "RF 50mm" and l["count"] == 3 for l in data["lenses"])
+        assert any(lens["name"] == "RF 50mm" and lens["count"] == 3 for lens in data["lenses"])
         # Combo present with a consolidated monthly history
         combo = next(c for c in data["combos"] if c["name"] == "Canon R6 + RF 50mm")
         assert combo["count"] == 3

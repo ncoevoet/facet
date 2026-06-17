@@ -75,6 +75,32 @@ describe('GalleryFilterSidebarComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  describe('clampDef', () => {
+    const scoreDef = {
+      id: 'score_range', minKey: 'min_score', maxKey: 'max_score',
+      sliderMin: 0, sliderMax: 10, step: 0.5,
+    };
+
+    it('clamps slider bounds to the data-driven range when no value is out of range', () => {
+      const store = (component as any).store;
+      store.metricRanges.set({ min_score: { min: 5, max: 9, buckets: [] } });
+      store.filters.set({ ...store.filters(), min_score: '', max_score: '' });
+      const clamped = (component as any).clampDef(scoreDef);
+      expect(clamped.sliderMin).toBe(5);
+      expect(clamped.sliderMax).toBe(9);
+    });
+
+    it('widens bounds so an active value below the data min stays reachable', () => {
+      const store = (component as any).store;
+      store.metricRanges.set({ min_score: { min: 5, max: 9, buckets: [] } });
+      // A persisted/URL min of 2 sits below the data minimum of 5.
+      store.filters.set({ ...store.filters(), min_score: '2', max_score: '' });
+      const clamped = (component as any).clampDef(scoreDef);
+      expect(clamped.sliderMin).toBeLessThanOrEqual(2); // not pinned to 5 — reachable
+      expect(clamped.sliderMax).toBe(9);                // data max unchanged
+    });
+  });
+
   describe('sectionActiveCounts', () => {
     it('returns 0 for all sections when no filters are active', () => {
       const mockStore = (component as any).store;

@@ -20,7 +20,6 @@ exact 0-10 feature space the scorer produces, plus the embedding.
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
 import numpy as np
 

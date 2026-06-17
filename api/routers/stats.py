@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
     CORRELATION_X_AXES, CORRELATION_Y_METRICS, FACET_SCRIPT,
-    _get_stats_cached, _get_stats_cached_async, _stats_cache,
+    _get_stats_cached_async, _stats_cache,
     _CONFIG_PATH, reload_config,
 )
 from api.database import get_async_db

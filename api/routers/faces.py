@@ -4,7 +4,9 @@ Faces API router — face management, rating, favorites, rejected.
 """
 
 import logging
+import os
 import sqlite3
+import threading
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -240,23 +242,64 @@ def api_unassign_person(
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
-def _mint_rating_comparisons(user_id):
-    """Best-effort: rebuild source='rating' comparison pairs after a label change.
+# --- Debounced rating-derived comparison sync ---------------------------------
+# sync_label_comparisons rebuilds ALL source='rating' pairs from scratch (a full
+# DELETE + regenerate over every labelled photo), so firing it on every click is
+# O(all-labels) wasted work when a user rates a batch in quick succession. We
+# coalesce: each rating change (re)schedules a single rebuild a short debounce
+# after the last change, per user scope. Set FACET_RATING_SYNC_DEBOUNCE_S=0 to
+# run inline (used by tests).
+try:
+    _RATING_SYNC_DEBOUNCE_S = float(os.environ.get("FACET_RATING_SYNC_DEBOUNCE_S", "3") or 0)
+except ValueError:
+    _RATING_SYNC_DEBOUNCE_S = 3.0
+_rating_sync_lock = threading.Lock()
+_rating_sync_timers = {}  # scope (user_id or None) -> (Timer, db_path)
 
-    Closes the label gap so star ratings / favorites / rejections immediately
-    become training signal for the weight optimizer and personal ranker
-    (Topic 1 step 7). sync_label_comparisons is idempotent (it deletes and
-    regenerates all source='rating' rows), so calling it per click is correct,
-    if currently un-incremental. Failures are logged but never raised — the
-    rating write has already succeeded and must not be rolled back.
-    """
+
+def _run_rating_sync(db_path, scope):
+    """Rebuild source='rating' pairs for one scope. Best-effort: never raises."""
+    with _rating_sync_lock:
+        _rating_sync_timers.pop(scope, None)
     try:
         from optimization.label_pairs import sync_label_comparisons
-        from db import DEFAULT_DB_PATH
-        scoped = user_id if (user_id and is_multi_user_enabled()) else None
-        sync_label_comparisons(DEFAULT_DB_PATH, user_id=scoped)
-    except Exception:
+        sync_label_comparisons(db_path, user_id=scope)
+    except (sqlite3.Error, ImportError):
         logger.warning("Failed to sync rating-derived comparisons", exc_info=True)
+
+
+def _mint_rating_comparisons(user_id):
+    """Schedule a debounced rebuild of source='rating' comparison pairs.
+
+    Closes the label gap so star ratings / favorites / rejections become training
+    signal for the weight optimizer and personal ranker (Topic 1 step 7) without a
+    manual --sync-label-comparisons. Coalesces rapid clicks into one rebuild; the
+    rating write has already succeeded and must never be rolled back by this.
+    """
+    from db import DEFAULT_DB_PATH
+    scope = user_id if (user_id and is_multi_user_enabled()) else None
+    db_path = DEFAULT_DB_PATH
+    if _RATING_SYNC_DEBOUNCE_S <= 0:
+        _run_rating_sync(db_path, scope)
+        return
+    with _rating_sync_lock:
+        existing = _rating_sync_timers.get(scope)
+        if existing is not None:
+            existing[0].cancel()
+        timer = threading.Timer(_RATING_SYNC_DEBOUNCE_S, _run_rating_sync, args=(db_path, scope))
+        timer.daemon = True
+        _rating_sync_timers[scope] = (timer, db_path)
+        timer.start()
+
+
+def flush_rating_comparisons():
+    """Run any pending debounced rating syncs immediately (tests / shutdown)."""
+    with _rating_sync_lock:
+        pending = list(_rating_sync_timers.items())
+        _rating_sync_timers.clear()
+    for scope, (timer, db_path) in pending:
+        timer.cancel()
+        _run_rating_sync(db_path, scope)
 
 
 @router.post("/api/photo/set_rating")

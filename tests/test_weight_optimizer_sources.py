@@ -215,6 +215,40 @@ class TestApplyWritesConfigKeys:
         # quality is a real (redistributed) metric key and must be preserved if present
         assert weights["liqe_percent"] == 50.0
 
+    def test_apply_keeps_enabled_extended_iqa_weight(self, tmp_path):
+        # When the extended-IQA tier is enabled, its weighted *_percent is a real
+        # (config-gated) scoring metric and must survive the stale-key strip; a
+        # genuinely-unknown key is still removed.
+        cfg = tmp_path / "cfg.json"
+        cfg.write_text(json.dumps({
+            "iqa_extended": {"qalign": True},
+            "categories": [{"name": "portrait", "weights": {
+                "aesthetic_percent": 50,
+                "qalign_percent": 10,        # enabled extended metric -> keep
+                "bogus_metric_percent": 5,   # unknown -> strip
+            }}],
+        }))
+        opt = WeightOptimizer("unused.db", str(cfg))
+        opt.apply_optimized_weights(
+            {"aesthetic": 0.6, "face_quality": 0.4}, category="portrait", backup=False
+        )
+        weights = json.loads(cfg.read_text())["categories"][0]["weights"]
+        assert weights["qalign_percent"] == 10        # preserved (tier enabled)
+        assert "bogus_metric_percent" not in weights   # stripped (unknown)
+        assert weights["aesthetic_percent"] == 60.0
+
+    def test_apply_strips_extended_iqa_weight_when_disabled(self, tmp_path):
+        # With the tier OFF (default), an extended *_percent key is just cruft.
+        cfg = tmp_path / "cfg.json"
+        cfg.write_text(json.dumps({"categories": [{"name": "portrait", "weights": {
+            "aesthetic_percent": 90,
+            "qalign_percent": 10,   # tier disabled -> strip
+        }}]}))
+        opt = WeightOptimizer("unused.db", str(cfg))
+        opt.apply_optimized_weights({"aesthetic": 1.0}, category="portrait", backup=False)
+        weights = json.loads(cfg.read_text())["categories"][0]["weights"]
+        assert "qalign_percent" not in weights
+
 
 class TestHeldOutGate:
     def _setup(self, tmp_path):

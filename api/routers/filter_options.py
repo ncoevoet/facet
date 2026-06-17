@@ -320,37 +320,57 @@ def location_name(lat: float, lng: float):
         return {"display_name": name}
 
 
+# Max rows materialized for the metric histograms (exact min/max come from SQL,
+# so this only bounds the sparkline sample, never the slider bounds).
+_METRIC_RANGE_SAMPLE_CAP = 50000
+
+
 def _compute_metric_ranges():
     """Observed min/max and a value histogram per numeric metric column.
 
     Powers data-driven slider bounds (clamping) and the distribution sparkline
-    in the gallery filter sidebar. Computed in a single scan and cached; values
-    are global (not visibility-filtered) since they are only a UI hint.
+    in the gallery filter sidebar. Bounds are exact (SQL MIN/MAX); the histogram
+    is from a bounded sample. Cached; values are global (not visibility-filtered)
+    since they are only a UI hint.
     """
     import numpy as np
     from api.routers.gallery import SCORE_RANGE_COLUMNS, EXIF_RANGE_COLUMNS
 
     metrics = SCORE_RANGE_COLUMNS + EXIF_RANGE_COLUMNS
-    columns = [m[0] for m in metrics]
+    columns = [m[0] for m in metrics]  # hardcoded column names — safe to interpolate
     n_bins = 20
+    # Histograms are sparkline hints, so a bounded, evenly-spaced sample is enough.
+    # Exact min/max still come from a SQL aggregate (cheap, no row materialization),
+    # so slider bounds stay precise while memory stays O(sample), not O(table).
+    sample_cap = _METRIC_RANGE_SAMPLE_CAP
     with get_db() as conn:
-        cur = conn.execute(f"SELECT {', '.join(columns)} FROM photos")
+        total = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
+        if not total:
+            return {}
+        agg_select = ', '.join(f"MIN({c}), MAX({c})" for c in columns)
+        agg = conn.execute(f"SELECT {agg_select} FROM photos").fetchone()
+        stride = max(1, -(-total // sample_cap))  # ceil(total / sample_cap)
+        if stride > 1:
+            cur = conn.execute(
+                f"SELECT {', '.join(columns)} FROM photos WHERE rowid % {stride} = 0"
+            )
+        else:
+            cur = conn.execute(f"SELECT {', '.join(columns)} FROM photos")
         rows = cur.fetchall()
 
     if not rows:
         return {}
-    # Build the full matrix once (NULL -> nan) and slice per column, instead of
-    # re-iterating every row once per metric in Python.
+    # NULL -> nan; slice per column instead of re-iterating rows per metric.
     matrix = np.array(rows, dtype=float)
 
     result = {}
     for idx, (_column, min_key, _max_key, _is_float) in enumerate(metrics):
+        v_min, v_max = agg[idx * 2], agg[idx * 2 + 1]
+        if v_min is None or v_max is None:
+            continue
+        v_min, v_max = float(v_min), float(v_max)
         values = matrix[:, idx]
         values = values[np.isfinite(values)]
-        if values.size == 0:
-            continue
-        v_min = float(values.min())
-        v_max = float(values.max())
         if v_max <= v_min:
             buckets = [int(values.size)]
         else:

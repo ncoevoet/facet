@@ -807,6 +807,15 @@ class WeightOptimizer:
         # get_weights treats every '*_percent' as a weight and renormalizes over
         # them, so cruft would silently dilute the real metrics.
         valid_metric_keys = set(SCORING_METRIC_KEYS) | {'quality'}
+        # Keep config-enabled extended-IQA metrics: build_metric_vector exposes
+        # qalign/aesthetic_v25/deqa to the aggregate only when their iqa_extended
+        # flag is on, so a user who enabled and weighted one must not have that
+        # weight stripped here as if it were cruft.
+        try:
+            ext = self.cfg.get_extended_iqa_settings()
+            valid_metric_keys |= {k for k in ('qalign', 'aesthetic_v25', 'deqa') if ext.get(k)}
+        except Exception:
+            pass
         for key in [k for k in cat_weights
                     if k.endswith('_percent') and k[:-len('_percent')] not in valid_metric_keys]:
             del cat_weights[key]
