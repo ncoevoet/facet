@@ -1465,6 +1465,7 @@
     "split_dialog_title": "Dividi in una nuova persona",
     "split_dialog_desc": "Seleziona i volti da spostare in una nuova persona.",
     "split_name_placeholder": "Nome della nuova persona (facoltativo)",
+    "split_select_face": "Seleziona volto {index}",
     "no_faces": "Nessun volto trovato per questa persona",
     "split_done": "Persona divisa",
     "split_error": "Impossibile dividere la persona"

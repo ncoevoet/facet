@@ -158,6 +158,56 @@ def test_worker_failure_releases_lock(db_path):
     assert ar._retrain_running is False
 
 
+def test_commit_failure_after_claim_releases_slot(db_path, monkeypatch):
+    """A commit failure right after the slot is claimed must release it.
+
+    Regression: the slot was claimed (``_retrain_running = True``) under the lock
+    BEFORE ``conn.commit()``, but only ever cleared by the dispatched worker. If
+    the commit raised (e.g. SQLite "database is locked" under concurrent writes),
+    the function returned before dispatching the worker and the slot stayed True
+    for the whole process lifetime — auto-retrain silently never ran again.
+    """
+    real_connect = sqlite3.connect
+
+    class _FailingCommitConn:
+        def __init__(self, conn):
+            self._conn = conn
+
+        def __getattr__(self, name):
+            return getattr(self._conn, name)
+
+        def commit(self):
+            raise sqlite3.OperationalError("database is locked")
+
+    def fake_connect(path, *args, **kwargs):
+        return _FailingCommitConn(real_connect(path, *args, **kwargs))
+
+    monkeypatch.setattr(sqlite3, "connect", fake_connect)
+
+    with mock.patch("optimization.personal_ranker.train_ranker") as train:
+        # Crossing the threshold claims the slot, then commit blows up.
+        assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25) is False
+
+    # No worker was dispatched...
+    train.assert_not_called()
+    assert ar._active_threads == []
+    # ...and the slot was released so future retrains are not blocked forever.
+    assert ar._retrain_running is False
+
+
+def test_thread_start_failure_releases_slot(db_path, monkeypatch):
+    """If the daemon thread can't start, the claimed slot must still be released."""
+    def boom_start(self):
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(threading.Thread, "start", boom_start)
+
+    with mock.patch("optimization.personal_ranker.train_ranker"):
+        assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25) is False
+
+    assert ar._retrain_running is False
+
+
 def test_gated_result_logged_and_lock_released(db_path):
     """A retrain that fails the held-out CV gate writes nothing but releases cleanly."""
     def gated_train(db_path=None, user_id=None, **kwargs):

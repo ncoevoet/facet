@@ -142,6 +142,7 @@ def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = RETRAIN_THR
     scope = user_id or None
 
     import sqlite3
+    dispatch = False
     try:
         conn = sqlite3.connect(db_path)
         try:
@@ -160,6 +161,15 @@ def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = RETRAIN_THR
         finally:
             conn.close()
     except sqlite3.Error:
+        # The commit (or a read/write) failed AFTER we may have claimed the
+        # in-flight slot under the lock. Release it here, otherwise
+        # _retrain_running stays True for the whole process lifetime and
+        # auto-retrain silently never runs again (the worker that would clear
+        # it is never dispatched). "database is locked" is realistic because
+        # this runs right after a culling/rating write on another connection.
+        if dispatch:
+            with _retrain_lock:
+                _retrain_running = False
         logger.warning("Auto-retrain counter update failed (scope=%s)", scope, exc_info=True)
         return False
 
@@ -171,6 +181,15 @@ def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = RETRAIN_THR
     t = threading.Thread(
         target=_run_retrain, args=(db_path, scope), name=f"auto-retrain-{scope}", daemon=True,
     )
+    try:
+        t.start()
+    except Exception:  # noqa: BLE001 — releasing the claimed slot is the point
+        # Thread failed to start (e.g. resource exhaustion). We already claimed
+        # the slot and reset the counter, so release the slot so the next event
+        # can dispatch again instead of being blocked forever.
+        with _retrain_lock:
+            _retrain_running = False
+        logger.warning("Auto-retrain dispatch failed to start (scope=%s)", scope, exc_info=True)
+        return False
     _active_threads.append(t)
-    t.start()
     return True

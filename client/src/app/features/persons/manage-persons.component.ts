@@ -150,12 +150,13 @@ export class NewPersonDialogComponent {
         <p class="text-sm opacity-60 text-center py-8">{{ 'persons.no_faces' | translate }}</p>
       } @else {
         <div class="flex flex-wrap gap-2 justify-center">
-          @for (face of faces(); track face.id) {
+          @for (face of faces(); track face.id; let i = $index) {
             <button
               class="relative rounded-lg overflow-hidden border-2 transition-colors"
               [class.border-blue-500]="selectedIds().has(face.id)"
               [class.border-transparent]="!selectedIds().has(face.id)"
               [attr.aria-pressed]="selectedIds().has(face.id)"
+              [attr.aria-label]="'persons.split_select_face' | translate:{ index: i + 1 }"
               (click)="toggle(face.id)">
               <img [src]="face.id | faceThumbnailUrl" alt="" class="w-24 h-24 object-cover" />
               @if (selectedIds().has(face.id)) {

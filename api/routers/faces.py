@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, require_edition, require_auth
 from api.config import is_multi_user_enabled, _stats_cache
 from api.database import get_async_db, get_db
-from api.db_helpers import update_person_face_count
+from api.db_helpers import update_person_face_count, trigger_auto_retrain
 
 logger = logging.getLogger(__name__)
 
@@ -283,7 +283,7 @@ def _mint_rating_comparisons(user_id):
     from db import DEFAULT_DB_PATH
     scope = user_id if (user_id and is_multi_user_enabled()) else None
     db_path = DEFAULT_DB_PATH
-    _trigger_auto_retrain(db_path, scope)
+    trigger_auto_retrain(db_path, user_id)
     if _RATING_SYNC_DEBOUNCE_S <= 0:
         _run_rating_sync(db_path, scope)
         return
@@ -295,19 +295,6 @@ def _mint_rating_comparisons(user_id):
         timer.daemon = True
         _rating_sync_timers[scope] = (timer, db_path)
         timer.start()
-
-
-def _trigger_auto_retrain(db_path, scope, added=1):
-    """Best-effort, non-blocking nudge to the personal-ranker auto-retrain.
-
-    Isolated so a missing optimization dep (e.g. sklearn) or any failure never
-    affects the rating/culling write that already committed.
-    """
-    try:
-        from optimization.auto_retrain import maybe_retrain
-        maybe_retrain(db_path, scope, added=added)
-    except Exception:  # noqa: BLE001 — never let retrain bookkeeping break the request
-        logger.debug("Auto-retrain trigger skipped", exc_info=True)
 
 
 def flush_rating_comparisons():

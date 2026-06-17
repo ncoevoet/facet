@@ -1465,6 +1465,7 @@
     "split_dialog_title": "Séparer en une nouvelle personne",
     "split_dialog_desc": "Sélectionnez les visages à déplacer vers une nouvelle personne.",
     "split_name_placeholder": "Nom de la nouvelle personne (facultatif)",
+    "split_select_face": "Sélectionner le visage {index}",
     "no_faces": "Aucun visage trouvé pour cette personne",
     "split_done": "Personne séparée",
     "split_error": "Échec de la séparation de la personne"

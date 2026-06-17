@@ -877,10 +877,41 @@ Configuration:
         facet.recompute_iqa_from_thumbnails()
         exit()
 
-    # Extract OCR text-in-image from stored thumbnails (opt-in, CPU; no-op if no engine)
-    if args.recompute_ocr:
+    # Shared scaffolding for the per-facet thumbnail recompute passes below
+    # (OCR, colour facet): decode each stored thumbnail once and UPDATE the
+    # columns the callback returns. ``compute(img)`` returns
+    # ``(updates: dict[column -> value], counted: bool)``; columns come from a
+    # literal dict at each call site (never user input). Returns (total, counted).
+    def _recompute_from_thumbnails(desc, compute):
         import io
         from PIL import Image
+        with get_connection(args.db) as conn:
+            rows = conn.execute(
+                "SELECT path, thumbnail FROM photos WHERE thumbnail IS NOT NULL"
+            ).fetchall()
+        counted = 0
+        with get_connection(args.db) as conn:
+            for row in tqdm(rows, desc=desc):
+                blob = row['thumbnail']
+                if not blob:
+                    continue
+                try:
+                    img = Image.open(io.BytesIO(blob)).convert('RGB')
+                except Exception:
+                    continue
+                updates, is_counted = compute(img)
+                set_sql = ", ".join(f"{col} = ?" for col in updates)
+                conn.execute(
+                    f"UPDATE photos SET {set_sql} WHERE path = ?",
+                    (*updates.values(), row['path']),
+                )
+                if is_counted:
+                    counted += 1
+            conn.commit()
+        return len(rows), counted
+
+    # Extract OCR text-in-image from stored thumbnails (opt-in, CPU; no-op if no engine)
+    if args.recompute_ocr:
         from analyzers.ocr import extract_text, is_ocr_available
 
         init_database(args.db)  # Ensure ocr_text column exists
@@ -891,66 +922,27 @@ Configuration:
             )
             exit()
 
-        with get_connection(args.db) as conn:
-            rows = conn.execute(
-                "SELECT path, thumbnail FROM photos WHERE thumbnail IS NOT NULL"
-            ).fetchall()
+        def _ocr_update(img):
+            text = extract_text(img)
+            return {'ocr_text': text}, bool(text)
 
-        logger.info("Running OCR on %d photos...", len(rows))
-        updated = 0
-        with get_connection(args.db) as conn:
-            for row in tqdm(rows, desc="OCR"):
-                blob = row['thumbnail']
-                if not blob:
-                    continue
-                try:
-                    img = Image.open(io.BytesIO(blob)).convert('RGB')
-                except Exception:
-                    continue
-                text = extract_text(img)
-                conn.execute(
-                    "UPDATE photos SET ocr_text = ? WHERE path = ?",
-                    (text, row['path'])
-                )
-                if text:
-                    updated += 1
-            conn.commit()
-        logger.info("OCR complete: %d photos with detected text.", updated)
+        total, updated = _recompute_from_thumbnails("OCR", _ocr_update)
+        logger.info("OCR complete: %d/%d photos with detected text.", updated, total)
         logger.info("Run 'python database.py --rebuild-fts' to index ocr_text for search.")
         exit()
 
     # Extract dominant hue + colour temperature from stored thumbnails (CPU, fast)
     if args.recompute_colors:
-        import io
-        from PIL import Image
         from analyzers.color_facet import extract_color_facet
 
         init_database(args.db)  # Ensure dominant_hue / color_temp columns exist
-        with get_connection(args.db) as conn:
-            rows = conn.execute(
-                "SELECT path, thumbnail FROM photos WHERE thumbnail IS NOT NULL"
-            ).fetchall()
 
-        logger.info("Extracting color facets for %d photos...", len(rows))
-        updated = 0
-        with get_connection(args.db) as conn:
-            for row in tqdm(rows, desc="Color facet"):
-                blob = row['thumbnail']
-                if not blob:
-                    continue
-                try:
-                    img = Image.open(io.BytesIO(blob)).convert('RGB')
-                except Exception:
-                    continue
-                hue, temp = extract_color_facet(img)
-                conn.execute(
-                    "UPDATE photos SET dominant_hue = ?, color_temp = ? WHERE path = ?",
-                    (hue, temp, row['path'])
-                )
-                if temp is not None:
-                    updated += 1
-            conn.commit()
-        logger.info("Color facet extraction complete: %d photos updated.", updated)
+        def _color_update(img):
+            hue, temp = extract_color_facet(img)
+            return {'dominant_hue': hue, 'color_temp': temp}, temp is not None
+
+        total, updated = _recompute_from_thumbnails("Color facet", _color_update)
+        logger.info("Color facet extraction complete: %d/%d photos updated.", updated, total)
         exit()
 
     # Recompute burst detection

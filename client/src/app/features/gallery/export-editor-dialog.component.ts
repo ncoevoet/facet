@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -34,7 +34,7 @@ export interface ExportEditorDialogData {
     <mat-dialog-content class="flex flex-col gap-3">
       <p class="text-sm opacity-80">{{ 'export.description' | translate }}</p>
 
-      <mat-radio-group [(ngModel)]="mode" class="flex flex-col gap-2">
+      <mat-radio-group [ngModel]="mode()" (ngModelChange)="mode.set($event)" class="flex flex-col gap-2">
         <mat-radio-button value="sidecars">{{ 'export.mode_sidecars' | translate }}</mat-radio-button>
         @if (data.albumId) {
           <mat-radio-button value="copy">{{ 'export.mode_copy' | translate }}</mat-radio-button>
@@ -42,13 +42,13 @@ export interface ExportEditorDialogData {
         }
       </mat-radio-group>
 
-      @if (mode === 'sidecars') {
-        <mat-checkbox [(ngModel)]="overwrite">{{ 'export.overwrite' | translate }}</mat-checkbox>
+      @if (mode() === 'sidecars') {
+        <mat-checkbox [ngModel]="overwrite()" (ngModelChange)="overwrite.set($event)">{{ 'export.overwrite' | translate }}</mat-checkbox>
         <p class="text-xs opacity-60">{{ 'export.overwrite_hint' | translate }}</p>
       } @else {
         <mat-form-field class="w-full">
           <mat-label>{{ 'export.target_dir' | translate }}</mat-label>
-          <input matInput [(ngModel)]="targetDir" />
+          <input matInput [ngModel]="targetDir()" (ngModelChange)="targetDir.set($event)" />
         </mat-form-field>
       }
     </mat-dialog-content>
@@ -68,25 +68,25 @@ export class ExportEditorDialogComponent {
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
 
-  mode: AlbumExportMode = 'sidecars';
-  overwrite = false;
-  targetDir = '';
+  readonly mode = signal<AlbumExportMode>('sidecars');
+  readonly overwrite = signal(false);
+  readonly targetDir = signal('');
   readonly running = signal(false);
 
-  canRun(): boolean {
-    if (this.mode === 'sidecars') {
+  readonly canRun = computed(() => {
+    if (this.mode() === 'sidecars') {
       return !!this.data.albumId || !!this.data.paths?.length;
     }
-    return !!this.targetDir.trim();
-  }
+    return !!this.targetDir().trim();
+  });
 
   async run(): Promise<void> {
     if (!this.canRun() || this.running()) return;
     this.running.set(true);
     try {
       const result = this.data.albumId
-        ? await firstValueFrom(this.exportService.exportAlbum(this.data.albumId, this.mode, this.targetDir.trim(), this.overwrite))
-        : await firstValueFrom(this.exportService.exportSidecars(this.data.paths ?? [], this.overwrite));
+        ? await firstValueFrom(this.exportService.exportAlbum(this.data.albumId, this.mode(), this.targetDir().trim(), this.overwrite()))
+        : await firstValueFrom(this.exportService.exportSidecars(this.data.paths ?? [], this.overwrite()));
       const count = ('copied' in result ? result.copied : result.written) ?? 0;
       this.snackBar.open(this.i18n.t('export.done', { count }), '', { duration: 2500 });
       this.dialogRef.close(result);

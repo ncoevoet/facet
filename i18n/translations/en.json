@@ -1463,6 +1463,7 @@
     "split_dialog_title": "Split into new person",
     "split_dialog_desc": "Select the faces to move into a new person.",
     "split_name_placeholder": "New person name (optional)",
+    "split_select_face": "Select face {index}",
     "no_faces": "No faces found for this person",
     "split_done": "Person split",
     "split_error": "Failed to split person"

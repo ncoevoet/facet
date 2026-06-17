@@ -1469,6 +1469,7 @@
     "split_dialog_title": "In neue Person aufteilen",
     "split_dialog_desc": "Wählen Sie die Gesichter aus, die in eine neue Person verschoben werden sollen.",
     "split_name_placeholder": "Name der neuen Person (optional)",
+    "split_select_face": "Gesicht {index} auswählen",
     "no_faces": "Keine Gesichter für diese Person gefunden",
     "split_done": "Person aufgeteilt",
     "split_error": "Person konnte nicht aufgeteilt werden"
