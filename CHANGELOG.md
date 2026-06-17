@@ -4,6 +4,22 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] "Prism" — 2026-06-17
+
+### Added
+- Extended IQA tier is now usable end-to-end. Aesthetic Predictor V2.5 (`aesthetic_v25`) loads via the `aesthetic-predictor-v2-5` package, and Q-Align (`iqa_extended.qalign`) takes a selectable quantisation variant — `"4bit"` (runs on a 16GB card), `"8bit"`, or `true`/`"full"`. Their scores are written to dedicated columns during a normal scan. New `iqa-extended` optional dependency group (`pip install -e .[iqa-extended]`).
+
+### Changed
+- Burst best-of selection now applies the composite eyes-open / expression / sharpness tie-break on the live `--recompute-burst` path, not just an unused code path.
+- Per-metric filter ranges computed from exact SQL `MIN`/`MAX` plus a bounded histogram sample instead of materialising the whole `photos` table.
+
+### Fixed
+- Burst composite tie-break was effectively dead — wired only into a never-instantiated processor while the live scan picked the lead by aggregate alone; the live path now also persists the extended-IQA columns it scores.
+- Weight optimizer no longer deletes a config-enabled extended-IQA weight (`qalign`/`aesthetic_v25`/`deqa`) when stripping stale keys.
+- Rating clicks coalesce into a single rating-derived comparison rebuild instead of rebuilding the full set per click.
+- Gallery metric sliders keep an active out-of-range filter value reachable instead of pinning to the data-driven bound.
+- Flaky client `download` spec (asserted on the shared global `URL.createObjectURL` spy count under parallel vitest).
+
 ## [1.0.11] — 2026-06-16
 
 ### Added
@@ -217,7 +233,8 @@ Maintenance release.
 - No silent `except` blocks — all errors logged via Python `logging`
 - CodeQL SSRF alerts resolved
 
-[Unreleased]: https://github.com/ncoevoet/facet/compare/v1.0.11...HEAD
+[Unreleased]: https://github.com/ncoevoet/facet/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/ncoevoet/facet/compare/v1.0.11...v1.1.0
 [1.0.11]: https://github.com/ncoevoet/facet/compare/v1.0.10...v1.0.11
 [1.0.10]: https://github.com/ncoevoet/facet/compare/v1.0.9...v1.0.10
 [1.0.9]: https://github.com/ncoevoet/facet/compare/v1.0.8...v1.0.9
