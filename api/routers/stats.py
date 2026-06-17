@@ -20,9 +20,10 @@ from pydantic import BaseModel
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
     CORRELATION_X_AXES, CORRELATION_Y_METRICS, FACET_SCRIPT,
-    _get_stats_cached, _stats_cache, _CONFIG_PATH, reload_config,
+    _get_stats_cached_async, _stats_cache,
+    _CONFIG_PATH, reload_config,
 )
-from api.database import get_db
+from api.database import get_async_db
 from api.db_helpers import get_visibility_clause, to_exif_date, to_iso_date
 
 router = APIRouter(tags=["stats"])
@@ -114,7 +115,7 @@ def _stats_filter_where(user: Optional[CurrentUser],
 # --- Endpoints ---
 
 @router.get('/api/stats/overview')
-def api_stats_overview(
+async def api_stats_overview(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -123,30 +124,33 @@ def api_stats_overview(
     """Aggregate overview stats for the Angular stats page."""
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
-    def compute():
-        with get_db() as conn:
-            cur = conn.cursor()
-
-            cur.execute(f'''SELECT COUNT(*) as total,
+    async def compute():
+        async with get_async_db() as conn:
+            cur = await conn.execute(f'''SELECT COUNT(*) as total,
                            ROUND(AVG(aggregate), 2) as avg_agg,
                            ROUND(AVG(aesthetic), 2) as avg_aes,
                            ROUND(AVG(comp_score), 2) as avg_comp,
                            MIN(date_taken) as date_start,
                            MAX(date_taken) as date_end
                            FROM photos WHERE 1=1{vis}''', vp)
-            row = cur.fetchone()
+            row = await cur.fetchone()
+            await cur.close()
 
             # Total faces
             try:
-                faces_row = cur.execute(f'''SELECT COUNT(*) FROM faces
-                    WHERE photo_path IN (SELECT path FROM photos WHERE 1=1{vis})''', vp).fetchone()
+                cur = await conn.execute(f'''SELECT COUNT(*) FROM faces
+                    WHERE photo_path IN (SELECT path FROM photos WHERE 1=1{vis})''', vp)
+                faces_row = await cur.fetchone()
+                await cur.close()
                 total_faces = faces_row[0] if faces_row else 0
             except sqlite3.OperationalError:
                 total_faces = 0
 
             # Total persons
             try:
-                persons_row = cur.execute('SELECT COUNT(*) FROM persons').fetchone()
+                cur = await conn.execute('SELECT COUNT(*) FROM persons')
+                persons_row = await cur.fetchone()
+                await cur.close()
                 total_persons = persons_row[0] if persons_row else 0
             except sqlite3.OperationalError:
                 total_persons = 0
@@ -155,7 +159,9 @@ def api_stats_overview(
             try:
                 from api.db_helpers import is_photo_tags_available
                 if is_photo_tags_available(conn):
-                    tags_row = cur.execute('SELECT COUNT(DISTINCT tag) FROM photo_tags').fetchone()
+                    cur = await conn.execute('SELECT COUNT(DISTINCT tag) FROM photo_tags')
+                    tags_row = await cur.fetchone()
+                    await cur.close()
                 else:
                     tags_row = (0,)
                 total_tags = tags_row[0] if tags_row else 0
@@ -184,11 +190,11 @@ def api_stats_overview(
 
     user_id = user.user_id if user else None
     cache_key = f'overview:{user_id or ""}:{date_from or ""}:{date_to or ""}:{category or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.get('/api/stats/score_distribution')
-def api_stats_score_distribution(
+async def api_stats_score_distribution(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -197,15 +203,14 @@ def api_stats_score_distribution(
     """Score distribution histogram for the Angular stats page."""
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
-    def compute():
-        with get_db() as conn:
-            cur = conn.cursor()
-
+    async def compute():
+        async with get_async_db() as conn:
             # 0.5-point buckets
-            cur.execute(f'''SELECT ROUND(aggregate * 2) / 2.0 AS bucket, COUNT(*) as cnt
+            cur = await conn.execute(f'''SELECT ROUND(aggregate * 2) / 2.0 AS bucket, COUNT(*) as cnt
                            FROM photos WHERE aggregate IS NOT NULL{vis}
                            GROUP BY bucket ORDER BY bucket''', vp)
-            rows = cur.fetchall()
+            rows = await cur.fetchall()
+            await cur.close()
             total = sum(r[1] for r in rows) or 1
 
         bins = []
@@ -223,11 +228,11 @@ def api_stats_score_distribution(
 
     user_id = user.user_id if user else None
     cache_key = f'score_dist:{user_id or ""}:{date_from or ""}:{date_to or ""}:{category or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.get('/api/stats/top_cameras')
-def api_stats_top_cameras(
+async def api_stats_top_cameras(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -236,25 +241,26 @@ def api_stats_top_cameras(
     """Top cameras ranked by average aggregate score."""
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
-    def compute():
-        with get_db() as conn:
-            cur = conn.cursor()
-            cur.execute(f'''SELECT camera_model, COUNT(*) as cnt,
+    async def compute():
+        async with get_async_db() as conn:
+            cur = await conn.execute(f'''SELECT camera_model, COUNT(*) as cnt,
                            ROUND(AVG(aggregate), 2) as avg_agg,
                            ROUND(AVG(aesthetic), 2) as avg_aes
                            FROM photos WHERE camera_model IS NOT NULL AND camera_model != ''{vis}
                            GROUP BY camera_model HAVING cnt >= 10
                            ORDER BY avg_agg DESC LIMIT 20''', vp)
-            cameras = [{'name': r[0], 'count': r[1], 'avg_score': r[2], 'avg_aesthetic': r[3]} for r in cur.fetchall()]
+            rows = await cur.fetchall()
+            await cur.close()
+            cameras = [{'name': r[0], 'count': r[1], 'avg_score': r[2], 'avg_aesthetic': r[3]} for r in rows]
         return cameras
 
     user_id = user.user_id if user else None
     cache_key = f'top_cameras:{user_id or ""}:{date_from or ""}:{date_to or ""}:{category or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.get('/api/stats/categories')
-def api_stats_categories(
+async def api_stats_categories(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -263,11 +269,9 @@ def api_stats_categories(
     """Category stats in the format the Angular component expects (CategoryStat[])."""
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
-    def compute():
-        with get_db() as conn:
-            cur = conn.cursor()
-
-            cur.execute(f'''
+    async def compute():
+        async with get_async_db() as conn:
+            cur = await conn.execute(f'''
                 SELECT category, COUNT(*) as cnt,
                        ROUND(AVG(aggregate), 2),
                        ROUND(AVG(aesthetic), 2),
@@ -283,11 +287,12 @@ def api_stats_categories(
                 FROM photos WHERE 1=1{vis}
                 GROUP BY category ORDER BY cnt DESC
             ''', vp)
-            rows = cur.fetchall()
+            rows = await cur.fetchall()
+            await cur.close()
             total = sum(r[1] for r in rows) or 1
 
             # Top camera per category
-            cur.execute(f'''
+            cur = await conn.execute(f'''
                 SELECT category, camera_model FROM (
                     SELECT category, camera_model, COUNT(*) as cnt,
                            ROW_NUMBER() OVER (PARTITION BY category ORDER BY COUNT(*) DESC) as rn
@@ -296,10 +301,11 @@ def api_stats_categories(
                     GROUP BY category, camera_model
                 ) WHERE rn = 1
             ''', vp)
-            top_cameras = {r[0]: r[1] for r in cur.fetchall()}
+            top_cameras = {r[0]: r[1] for r in await cur.fetchall()}
+            await cur.close()
 
             # Top lens per category
-            cur.execute(f'''
+            cur = await conn.execute(f'''
                 SELECT category, lens_model FROM (
                     SELECT category, lens_model, COUNT(*) as cnt,
                            ROW_NUMBER() OVER (PARTITION BY category ORDER BY COUNT(*) DESC) as rn
@@ -308,7 +314,8 @@ def api_stats_categories(
                     GROUP BY category, lens_model
                 ) WHERE rn = 1
             ''', vp)
-            top_lenses = {r[0]: r[1] for r in cur.fetchall()}
+            top_lenses = {r[0]: r[1] for r in await cur.fetchall()}
+            await cur.close()
 
         return [
             {
@@ -334,11 +341,11 @@ def api_stats_categories(
 
     user_id = user.user_id if user else None
     cache_key = f'categories_stats:{user_id or ""}:{date_from or ""}:{date_to or ""}:{category or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.get('/api/stats/gear')
-def api_stats_gear(
+async def api_stats_gear(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -346,11 +353,10 @@ def api_stats_gear(
 ):
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
-    def compute():
-        with get_db() as conn:
-            cur = conn.cursor()
+    async def compute():
+        async with get_async_db() as conn:
             # Camera bodies
-            cur.execute(f'''SELECT camera_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
+            cur = await conn.execute(f'''SELECT camera_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
                            ROUND(AVG(tech_sharpness),2), ROUND(AVG(comp_score),2),
                            ROUND(AVG(exposure_score),2), ROUND(AVG(color_score),2),
                            ROUND(AVG(ISO),0), ROUND(AVG(f_stop),1),
@@ -358,14 +364,16 @@ def api_stats_gear(
                            ROUND(AVG(face_count),2), ROUND(AVG(is_monochrome),3), ROUND(AVG(dynamic_range_stops),2)
                            FROM photos WHERE camera_model IS NOT NULL AND camera_model != ''{vis}
                            GROUP BY camera_model ORDER BY cnt DESC LIMIT 20''', vp)
+            rows = await cur.fetchall()
+            await cur.close()
             cameras = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3],
                         'avg_sharpness': r[4], 'avg_composition': r[5], 'avg_exposure': r[6], 'avg_color': r[7],
                         'avg_iso': r[8] or 0, 'avg_f_stop': r[9] or 0, 'avg_focal_length': r[10] or 0,
                         'avg_face_count': r[11] or 0, 'avg_monochrome': r[12] or 0, 'avg_dynamic_range': r[13] or 0,
-                        'history': []} for r in cur.fetchall()]
+                        'history': []} for r in rows]
 
             # Lenses
-            cur.execute(f'''SELECT lens_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
+            cur = await conn.execute(f'''SELECT lens_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
                            ROUND(AVG(tech_sharpness),2), ROUND(AVG(comp_score),2),
                            ROUND(AVG(exposure_score),2), ROUND(AVG(color_score),2),
                            ROUND(AVG(ISO),0), ROUND(AVG(f_stop),1),
@@ -373,14 +381,16 @@ def api_stats_gear(
                            ROUND(AVG(face_count),2), ROUND(AVG(is_monochrome),3), ROUND(AVG(dynamic_range_stops),2)
                            FROM photos WHERE lens_model IS NOT NULL AND lens_model != ''{vis}
                            GROUP BY lens_model ORDER BY cnt DESC LIMIT 20''', vp)
+            rows = await cur.fetchall()
+            await cur.close()
             lenses = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3],
                        'avg_sharpness': r[4], 'avg_composition': r[5], 'avg_exposure': r[6], 'avg_color': r[7],
                        'avg_iso': r[8] or 0, 'avg_f_stop': r[9] or 0, 'avg_focal_length': r[10] or 0,
                        'avg_face_count': r[11] or 0, 'avg_monochrome': r[12] or 0, 'avg_dynamic_range': r[13] or 0,
-                       'history': []} for r in cur.fetchall()]
+                       'history': []} for r in rows]
 
             # Combos
-            cur.execute(f'''SELECT camera_model || ' + ' || lens_model as combo, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
+            cur = await conn.execute(f'''SELECT camera_model || ' + ' || lens_model as combo, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
                            ROUND(AVG(tech_sharpness),2), ROUND(AVG(comp_score),2),
                            ROUND(AVG(exposure_score),2), ROUND(AVG(color_score),2),
                            ROUND(AVG(ISO),0), ROUND(AVG(f_stop),1),
@@ -388,25 +398,30 @@ def api_stats_gear(
                            ROUND(AVG(face_count),2), ROUND(AVG(is_monochrome),3), ROUND(AVG(dynamic_range_stops),2)
                            FROM photos WHERE camera_model IS NOT NULL AND camera_model != '' AND lens_model IS NOT NULL AND lens_model != ''{vis}
                            GROUP BY camera_model, lens_model ORDER BY cnt DESC LIMIT 20''', vp)
+            rows = await cur.fetchall()
+            await cur.close()
             combos = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3],
                        'avg_sharpness': r[4], 'avg_composition': r[5], 'avg_exposure': r[6], 'avg_color': r[7],
                        'avg_iso': r[8] or 0, 'avg_f_stop': r[9] or 0, 'avg_focal_length': r[10] or 0,
                        'avg_face_count': r[11] or 0, 'avg_monochrome': r[12] or 0, 'avg_dynamic_range': r[13] or 0,
-                       'history': []} for r in cur.fetchall()]
+                       'history': []} for r in rows]
 
             # Category distribution
-            cur.execute(f'''SELECT category, COUNT(*) as cnt
+            cur = await conn.execute(f'''SELECT category, COUNT(*) as cnt
                            FROM photos WHERE category IS NOT NULL AND category != ''{vis}
                            GROUP BY category ORDER BY cnt DESC''', vp)
-            categories = [{'name': r[0], 'count': r[1]} for r in cur.fetchall()]
+            categories = [{'name': r[0], 'count': r[1]} for r in await cur.fetchall()]
+            await cur.close()
 
             # Timelines (monthly usage)
-            cur.execute(f'''SELECT camera_model, lens_model, SUBSTR(date_taken,1,7) as month, COUNT(*) as cnt
+            cur = await conn.execute(f'''SELECT camera_model, lens_model, SUBSTR(date_taken,1,7) as month, COUNT(*) as cnt
                            FROM photos WHERE date_taken IS NOT NULL {vis}
                            GROUP BY camera_model, lens_model, month''', vp)
+            tl_rows = await cur.fetchall()
+            await cur.close()
 
             cam_tl, len_tl, com_tl = {}, {}, {}
-            for cam, lens, month, count in cur.fetchall():
+            for cam, lens, month, count in tl_rows:
                 if not month:
                     continue
                 month = to_iso_date(month)
@@ -445,11 +460,11 @@ def api_stats_gear(
 
     user_id = user.user_id if user else None
     cache_key = f'gear:{user_id or ""}:{date_from or ""}:{date_to or ""}:{category or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.get('/api/stats/settings')
-def api_stats_settings(
+async def api_stats_settings(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -457,12 +472,10 @@ def api_stats_settings(
 ):
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
-    def compute():
-        with get_db() as conn:
-            cur = conn.cursor()
-
+    async def compute():
+        async with get_async_db() as conn:
             # ISO distribution with buckets
-            cur.execute(f'''SELECT
+            cur = await conn.execute(f'''SELECT
                 CASE
                     WHEN ISO <= 100 THEN '100'
                     WHEN ISO <= 200 THEN '200'
@@ -478,16 +491,18 @@ def api_stats_settings(
                 MIN(ISO) as sort_key
                 FROM photos WHERE ISO IS NOT NULL AND ISO > 0{vis}
                 GROUP BY iso_bucket ORDER BY sort_key''', vp)
-            iso = [{'label': r[0], 'count': r[1]} for r in cur.fetchall()]
+            iso = [{'label': r[0], 'count': r[1]} for r in await cur.fetchall()]
+            await cur.close()
 
             # Aperture usage
-            cur.execute(f'''SELECT ROUND(f_stop, 1) as ap, COUNT(*) as cnt
+            cur = await conn.execute(f'''SELECT ROUND(f_stop, 1) as ap, COUNT(*) as cnt
                            FROM photos WHERE f_stop IS NOT NULL AND f_stop > 0{vis}
                            GROUP BY ap ORDER BY ap''', vp)
-            aperture = [{'value': r[0], 'count': r[1]} for r in cur.fetchall()]
+            aperture = [{'value': r[0], 'count': r[1]} for r in await cur.fetchall()]
+            await cur.close()
 
             # Focal length distribution (prefer 35mm equivalent)
-            cur.execute(f'''SELECT
+            cur = await conn.execute(f'''SELECT
                 CASE
                     WHEN COALESCE(focal_length_35mm, focal_length) < 20 THEN '<20mm'
                     WHEN COALESCE(focal_length_35mm, focal_length) < 35 THEN '20-34mm'
@@ -502,10 +517,11 @@ def api_stats_settings(
                 MIN(COALESCE(focal_length_35mm, focal_length)) as sort_key
                 FROM photos WHERE COALESCE(focal_length_35mm, focal_length) IS NOT NULL AND COALESCE(focal_length_35mm, focal_length) > 0{vis}
                 GROUP BY focal_bucket ORDER BY sort_key''', vp)
-            focal = [{'label': r[0], 'count': r[1]} for r in cur.fetchall()]
+            focal = [{'label': r[0], 'count': r[1]} for r in await cur.fetchall()]
+            await cur.close()
 
             # Shutter speed distribution with SQL binning
-            cur.execute(f'''SELECT
+            cur = await conn.execute(f'''SELECT
                 CASE
                     WHEN ss < 0.00025 THEN '1/8000-1/4000'
                     WHEN ss < 0.0005  THEN '1/4000-1/2000'
@@ -531,23 +547,25 @@ def api_stats_settings(
                     WHERE shutter_speed IS NOT NULL AND shutter_speed != ''{vis}
                 ) WHERE ss IS NOT NULL AND ss > 0
                 GROUP BY shutter_bucket ORDER BY sort_key''', vp)
-            shutter = [{'label': r[0], 'count': r[1]} for r in cur.fetchall()]
+            shutter = [{'label': r[0], 'count': r[1]} for r in await cur.fetchall()]
+            await cur.close()
 
             # Score distribution in 0.5-point buckets
-            cur.execute(f'''SELECT ROUND(aggregate * 2) / 2.0 AS bucket, COUNT(*) as cnt
+            cur = await conn.execute(f'''SELECT ROUND(aggregate * 2) / 2.0 AS bucket, COUNT(*) as cnt
                            FROM photos WHERE aggregate IS NOT NULL{vis}
                            GROUP BY bucket ORDER BY bucket''', vp)
-            score_dist = [{'label': str(r[0]), 'count': r[1]} for r in cur.fetchall()]
+            score_dist = [{'label': str(r[0]), 'count': r[1]} for r in await cur.fetchall()]
+            await cur.close()
 
         return {'iso': iso, 'aperture': aperture, 'focal_length': focal, 'shutter_speed': shutter, 'score_distribution': score_dist}
 
     user_id = user.user_id if user else None
     cache_key = f'settings:{user_id or ""}:{date_from or ""}:{date_to or ""}:{category or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.get('/api/stats/timeline')
-def api_stats_timeline(
+async def api_stats_timeline(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -555,45 +573,47 @@ def api_stats_timeline(
 ):
     vis, vp = _stats_filter_where(user, date_from, date_to, category)
 
-    def compute():
-        with get_db() as conn:
-            cur = conn.cursor()
-
+    async def compute():
+        async with get_async_db() as conn:
             # Monthly
-            cur.execute(f'''SELECT SUBSTR(date_taken, 1, 7) as month, COUNT(*) as cnt, ROUND(AVG(aggregate), 2) as avg_agg
+            cur = await conn.execute(f'''SELECT SUBSTR(date_taken, 1, 7) as month, COUNT(*) as cnt, ROUND(AVG(aggregate), 2) as avg_agg
                            FROM photos WHERE date_taken IS NOT NULL AND date_taken != ''{vis}
                            GROUP BY month ORDER BY month''', vp)
-            monthly = [{'month': to_iso_date(r[0]), 'count': r[1], 'avg_score': r[2] or 0} for r in cur.fetchall()]
+            monthly = [{'month': to_iso_date(r[0]), 'count': r[1], 'avg_score': r[2] or 0} for r in await cur.fetchall()]
+            await cur.close()
 
             # Yearly
-            cur.execute(f'''SELECT SUBSTR(date_taken, 1, 4) as year, COUNT(*) as cnt
+            cur = await conn.execute(f'''SELECT SUBSTR(date_taken, 1, 4) as year, COUNT(*) as cnt
                            FROM photos WHERE date_taken IS NOT NULL AND date_taken != ''{vis}
                            GROUP BY year ORDER BY year''', vp)
-            yearly = [{'year': r[0], 'count': r[1]} for r in cur.fetchall()]
+            yearly = [{'year': r[0], 'count': r[1]} for r in await cur.fetchall()]
+            await cur.close()
 
             # Heatmap (day of week x hour)
-            cur.execute(f'''SELECT
+            cur = await conn.execute(f'''SELECT
                 CAST(STRFTIME('%w', REPLACE(SUBSTR(date_taken,1,10),':','-')) AS INTEGER) as dow,
                 CAST(SUBSTR(date_taken, 12, 2) AS INTEGER) as hour,
                 COUNT(*) as cnt
                 FROM photos WHERE date_taken IS NOT NULL AND LENGTH(date_taken) >= 13{vis}
                 GROUP BY dow, hour''', vp)
-            heatmap = [{'day': r[0], 'hour': r[1], 'count': r[2]} for r in cur.fetchall()]
+            heatmap = [{'day': r[0], 'hour': r[1], 'count': r[2]} for r in await cur.fetchall()]
+            await cur.close()
 
             # Top days
-            cur.execute(f'''SELECT REPLACE(SUBSTR(date_taken, 1, 10), ':', '-') as day, COUNT(*) as cnt
+            cur = await conn.execute(f'''SELECT REPLACE(SUBSTR(date_taken, 1, 10), ':', '-') as day, COUNT(*) as cnt
                            FROM photos WHERE date_taken IS NOT NULL AND date_taken != ''{vis}
                            GROUP BY day ORDER BY cnt DESC LIMIT 10''', vp)
-            top_days = [{'date': r[0], 'count': r[1]} for r in cur.fetchall()]
+            top_days = [{'date': r[0], 'count': r[1]} for r in await cur.fetchall()]
+            await cur.close()
         return {'monthly': monthly, 'yearly': yearly, 'heatmap': heatmap, 'top_days': top_days}
 
     user_id = user.user_id if user else None
     cache_key = f'timeline:{user_id or ""}:{date_from or ""}:{date_to or ""}:{category or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.get('/api/stats/correlations')
-def api_stats_correlations(
+async def api_stats_correlations(
     x: str = Query('iso'),
     y: str = Query('aggregate'),
     group_by: str = Query(''),
@@ -618,9 +638,8 @@ def api_stats_correlations(
     user_id = user.user_id if user else None
     cache_key = f"corr:{x}:{','.join(sorted(y_metrics))}:{group_by}:{min_samples}:{date_from}:{date_to}:{category}:{user_id or ''}"
 
-    def compute():
-        with get_db() as conn:
-            cur = conn.cursor()
+    async def compute():
+        async with get_async_db() as conn:
             x_def = CORRELATION_X_AXES[x]
             x_sql = x_def['sql']
             x_filter = x_def['filter']
@@ -653,8 +672,9 @@ def api_stats_correlations(
                 top_n = g_def['top_n']
 
                 # Find top N groups by count
-                cur.execute(f"SELECT {g_sql}, COUNT(*) as cnt FROM photos WHERE {g_filter} AND {x_filter} AND {date_filter} AND {vis_filter} GROUP BY {g_sql} ORDER BY cnt DESC LIMIT ?", date_params + vp + [top_n])
-                top_groups = [r[0] for r in cur.fetchall()]
+                cur = await conn.execute(f"SELECT {g_sql}, COUNT(*) as cnt FROM photos WHERE {g_filter} AND {x_filter} AND {date_filter} AND {vis_filter} GROUP BY {g_sql} ORDER BY cnt DESC LIMIT ?", date_params + vp + [top_n])
+                top_groups = [r[0] for r in await cur.fetchall()]
+                await cur.close()
                 if not top_groups:
                     return {'labels': [], 'groups': {}, 'metrics': y_metrics, 'x_axis': x, 'group_by': group_by}
 
@@ -665,8 +685,9 @@ def api_stats_correlations(
                           GROUP BY x_bucket, group_val
                           HAVING cnt >= ?
                           ORDER BY {x_sort}"""
-                cur.execute(sql, date_params + vp + top_groups + [min_samples])
-                rows = cur.fetchall()
+                cur = await conn.execute(sql, date_params + vp + top_groups + [min_samples])
+                rows = await cur.fetchall()
+                await cur.close()
             else:
                 sql = f"""SELECT {x_sql} AS x_bucket, {metric_cols}, COUNT(*) AS cnt
                           FROM photos
@@ -674,56 +695,61 @@ def api_stats_correlations(
                           GROUP BY x_bucket
                           HAVING cnt >= ?
                           ORDER BY {x_sort}"""
-                cur.execute(sql, date_params + vp + [min_samples])
-                rows = cur.fetchall()
+                cur = await conn.execute(sql, date_params + vp + [min_samples])
+                rows = await cur.fetchall()
+                await cur.close()
 
-        if group_by:
-            # Build ordered labels from all x_buckets
-            seen = {}
-            labels = []
-            for r in rows:
-                if r[0] not in seen:
-                    seen[r[0]] = True
-                    labels.append(str(r[0]))
+        # The aggregation below is pure CPU work over the already-loaded rows
+        # (no further DB access). For large result sets it can build wide
+        # group/metric matrices, so offload it from the event loop.
+        def _aggregate():
+            if group_by:
+                # Build ordered labels from all x_buckets
+                seen = {}
+                labels = []
+                for r in rows:
+                    if r[0] not in seen:
+                        seen[r[0]] = True
+                        labels.append(str(r[0]))
 
-            # Build groups dict: {group_name: {label: {metric: value, count: N}}}
-            groups = {}
-            for r in rows:
-                lbl = str(r[0])
-                grp = str(r[1])
-                if grp not in groups:
-                    groups[grp] = {}
-                bucket = {}
+                # Build groups dict: {group_name: {label: {metric: value, count: N}}}
+                groups = {}
+                for r in rows:
+                    lbl = str(r[0])
+                    grp = str(r[1])
+                    if grp not in groups:
+                        groups[grp] = {}
+                    bucket = {}
+                    for i, m in enumerate(y_metrics):
+                        bucket[m] = r[2 + i]
+                    bucket['count'] = r[2 + len(y_metrics)]
+                    groups[grp][lbl] = bucket
+
+                return {'labels': labels, 'groups': groups, 'metrics': y_metrics, 'x_axis': x, 'group_by': group_by}
+            else:
+                labels = [str(r[0]) for r in rows]
+                metrics = {}
                 for i, m in enumerate(y_metrics):
-                    bucket[m] = r[2 + i]
-                bucket['count'] = r[2 + len(y_metrics)]
-                groups[grp][lbl] = bucket
+                    metrics[m] = [r[1 + i] for r in rows]
+                counts = [r[1 + len(y_metrics)] for r in rows]
 
-            return {'labels': labels, 'groups': groups, 'metrics': y_metrics, 'x_axis': x, 'group_by': group_by}
-        else:
-            labels = [str(r[0]) for r in rows]
-            metrics = {}
-            for i, m in enumerate(y_metrics):
-                metrics[m] = [r[1 + i] for r in rows]
-            counts = [r[1 + len(y_metrics)] for r in rows]
+                return {'labels': labels, 'metrics': metrics, 'counts': counts, 'x_axis': x, 'group_by': ''}
 
-            return {'labels': labels, 'metrics': metrics, 'counts': counts, 'x_axis': x, 'group_by': ''}
+        return await asyncio.to_thread(_aggregate)
 
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 # --- Categories tab endpoints ---
 
 @router.get('/api/stats/categories/breakdown')
-def api_stats_categories_breakdown(user: Optional[CurrentUser] = Depends(get_optional_user)):
+async def api_stats_categories_breakdown(user: Optional[CurrentUser] = Depends(get_optional_user)):
     vis, vp = _vis_where(user)
 
-    def compute():
-        with get_db() as conn:
-            cur = conn.cursor()
-
+    async def compute():
+        async with get_async_db() as conn:
             # Per-category counts and averages
-            cur.execute(f'''
+            cur = await conn.execute(f'''
                 SELECT category, COUNT(*) as cnt,
                        ROUND(AVG(aggregate), 2) as avg_agg,
                        ROUND(AVG(aesthetic), 2) as avg_aes,
@@ -735,11 +761,13 @@ def api_stats_categories_breakdown(user: Optional[CurrentUser] = Depends(get_opt
                 FROM photos WHERE 1=1{vis}
                 GROUP BY category ORDER BY cnt DESC
             ''', vp)
+            cat_rows = await cur.fetchall()
+            await cur.close()
 
             categories = []
             total = 0
             uncategorized = 0
-            for r in cur.fetchall():
+            for r in cat_rows:
                 cat = r[0] or ''
                 cnt = r[1]
                 total += cnt
@@ -759,14 +787,16 @@ def api_stats_categories_breakdown(user: Optional[CurrentUser] = Depends(get_opt
                 categories.append(entry)
 
             # Score distribution per category (0.5-point buckets)
-            cur.execute(f'''
+            cur = await conn.execute(f'''
                 SELECT category, ROUND(aggregate * 2) / 2.0 AS bucket, COUNT(*) as cnt
                 FROM photos WHERE aggregate IS NOT NULL{vis}
                 GROUP BY category, bucket ORDER BY category, bucket
             ''', vp)
+            dist_rows = await cur.fetchall()
+            await cur.close()
 
             distributions = {}
-            for r in cur.fetchall():
+            for r in dist_rows:
                 cat = r[0] or '(uncategorized)'
                 if cat not in distributions:
                     distributions[cat] = []
@@ -780,7 +810,7 @@ def api_stats_categories_breakdown(user: Optional[CurrentUser] = Depends(get_opt
 
     user_id = user.user_id if user else None
     cache_key = f'cat_breakdown:{user_id or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.get('/api/stats/categories/weights')
@@ -805,18 +835,16 @@ def api_stats_categories_weights(user: Optional[CurrentUser] = Depends(get_optio
 
 
 @router.get('/api/stats/categories/correlations')
-def api_stats_categories_correlations(user: Optional[CurrentUser] = Depends(get_optional_user)):
+async def api_stats_categories_correlations(user: Optional[CurrentUser] = Depends(get_optional_user)):
     vis, vp = _vis_where(user)
 
-    def compute():
-        with get_db() as conn:
-            cur = conn.cursor()
-
+    async def compute():
+        async with get_async_db() as conn:
             # For each category, compute Pearson r between each weight dimension and aggregate
             # Using: r = (N*SUM(xy) - SUM(x)*SUM(y)) / sqrt((N*SUM(x^2) - SUM(x)^2) * (N*SUM(y^2) - SUM(y)^2))
             results = {}
             for weight_key, col in _WEIGHT_COLUMNS.items():
-                cur.execute(f'''
+                cur = await conn.execute(f'''
                     SELECT category,
                         COUNT(*) as n,
                         SUM(CAST({col} AS REAL)) as sx,
@@ -830,8 +858,10 @@ def api_stats_categories_correlations(user: Optional[CurrentUser] = Depends(get_
                     GROUP BY category
                     HAVING COUNT(*) >= 10
                 ''', vp)
+                corr_rows = await cur.fetchall()
+                await cur.close()
 
-                for r in cur.fetchall():
+                for r in corr_rows:
                     cat = r[0]
                     n, sx, sy, sxy, sx2, sy2 = r[1], r[2], r[3], r[4], r[5], r[6]
                     denom = math.sqrt((n * sx2 - sx * sx) * (n * sy2 - sy * sy))
@@ -860,11 +890,11 @@ def api_stats_categories_correlations(user: Optional[CurrentUser] = Depends(get_
 
     user_id = user.user_id if user else None
     cache_key = f'cat_correlations:{user_id or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.get('/api/stats/categories/metrics')
-def api_stats_categories_metrics(
+async def api_stats_categories_metrics(
     category: str = Query(...),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -874,20 +904,21 @@ def api_stats_categories_metrics(
 
     vis, vp = _vis_where(user)
 
-    def compute():
+    async def compute():
         cols = list(_WEIGHT_COLUMNS.values())
         col_sql = ', '.join(cols)
 
-        with get_db() as conn:
-            cur = conn.cursor()
-            cur.execute(
+        async with get_async_db() as conn:
+            cur = await conn.execute(
                 f'SELECT {col_sql}, aggregate FROM photos WHERE category = ?{vis} LIMIT 5000',
                 [category] + vp,
             )
+            rows = await cur.fetchall()
+            await cur.close()
 
             metrics = {k: [] for k in _WEIGHT_COLUMNS}
             current_aggregate = []
-            for row in cur.fetchall():
+            for row in rows:
                 for i, key in enumerate(_WEIGHT_COLUMNS):
                     metrics[key].append(row[i] if row[i] is not None else 0)
                 current_aggregate.append(row[len(cols)] if row[len(cols)] is not None else 0)
@@ -901,14 +932,14 @@ def api_stats_categories_metrics(
 
     user_id = user.user_id if user else None
     cache_key = f'cat_metrics:{category}:{user_id or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.get('/api/stats/categories/overlap')
-def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get_optional_user)):
+async def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get_optional_user)):
     vis, vp = _vis_where(user)
 
-    def compute():
+    async def compute():
         from config import ScoringConfig
         from config.category_filter import CategoryFilter
 
@@ -925,27 +956,30 @@ def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get_optio
             })
 
         # Fetch photo data needed for filter evaluation
-        with get_db() as conn:
-            cur = conn.cursor()
-            cur.execute(f'''
+        async with get_async_db() as conn:
+            cur = await conn.execute(f'''
                 SELECT tags, face_count, face_ratio, is_silhouette, is_group_portrait,
                        is_monochrome, mean_luminance, ISO, shutter_speed, focal_length,
                        f_stop, category
                 FROM photos WHERE 1=1{vis}
             ''', vp)
+            photo_rows = await cur.fetchall()
+            await cur.close()
 
-            columns = ['tags', 'face_count', 'face_ratio', 'is_silhouette', 'is_group_portrait',
-                        'is_monochrome', 'mean_luminance', 'iso', 'shutter_speed', 'focal_length',
-                        'f_stop', 'category']
+        columns = ['tags', 'face_count', 'face_ratio', 'is_silhouette', 'is_group_portrait',
+                    'is_monochrome', 'mean_luminance', 'iso', 'shutter_speed', 'focal_length',
+                    'f_stop', 'category']
 
-            # Count overlaps
+        # Per-row CategoryFilter evaluation is CPU-bound (one filter pass per
+        # photo across every category). Offload it from the event loop.
+        def _evaluate():
             overlap_pairs = defaultdict(int)
             match_counts = defaultdict(int)  # how many photos match each filter
             assigned_counts = defaultdict(int)  # how many are actually assigned
             uncategorized = 0
             total = 0
 
-            for row in cur.fetchall():
+            for row in photo_rows:
                 total += 1
                 photo_data = dict(zip(columns, row))
 
@@ -982,6 +1016,12 @@ def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get_optio
                         pair = tuple(sorted([matched[i], matched[j]]))
                         overlap_pairs[pair] += 1
 
+            return overlap_pairs, match_counts, assigned_counts, uncategorized, total
+
+        overlap_pairs, match_counts, assigned_counts, uncategorized, total = (
+            await asyncio.to_thread(_evaluate)
+        )
+
         # Build overlap list sorted by count
         overlaps = [
             {'pair': list(pair), 'count': count}
@@ -1012,7 +1052,7 @@ def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get_optio
 
     user_id = user.user_id if user else None
     cache_key = f'cat_overlap:{user_id or ""}'
-    return _get_stats_cached(cache_key, compute)
+    return await _get_stats_cached_async(cache_key, compute)
 
 
 @router.post('/api/stats/categories/update')

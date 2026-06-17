@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from api.auth import CurrentUser, require_edition, require_authenticated
 from api.config import VIEWER_CONFIG, invalidate_stats_cache
-from api.database import get_db
+from api.database import get_async_db, get_db
 from api.db_helpers import reassign_faces_to_person
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ class AssignFacesRequest(BaseModel):
 # --- Endpoints ---
 
 @router.get("/api/persons")
-def list_persons(
+async def list_persons(
     page: int = Query(1, ge=1),
     per_page: int = Query(48, ge=1, le=200),
     search: str = Query(""),
@@ -82,14 +82,16 @@ def list_persons(
             where_clause = "WHERE p.name LIKE ?"
             params.append(f"%{term}%")
 
-    with get_db() as conn:
-        row = conn.execute(
+    async with get_async_db() as conn:
+        cur = await conn.execute(
             f"SELECT COUNT(*) FROM persons p {where_clause}", params
-        ).fetchone()
+        )
+        row = await cur.fetchone()
+        await cur.close()
         total = row[0] if row else 0
 
         offset = (page - 1) * per_page
-        persons = conn.execute(f"""
+        cur = await conn.execute(f"""
             SELECT p.id, p.name, p.representative_face_id, p.face_count,
                    CASE WHEN p.face_thumbnail IS NOT NULL THEN 1 ELSE 0 END as face_thumbnail,
                    (COALESCE(photos.eye_sharpness, 0) / 10.0 * 0.7 +
@@ -100,8 +102,10 @@ def list_persons(
             {where_clause}
             {order_clause}
             LIMIT ? OFFSET ?
-        """, params + [per_page, offset]).fetchall()
-        persons = [dict(row) for row in persons]
+        """, params + [per_page, offset])
+        rows = await cur.fetchall()
+        await cur.close()
+        persons = [dict(row) for row in rows]
 
     return {"persons": persons, "total": total, "sort": sort}
 
@@ -285,7 +289,7 @@ def delete_persons_batch(
 
 
 @router.get("/api/persons/needs_naming")
-def api_persons_needs_naming(
+async def api_persons_needs_naming(
     min_faces: Optional[int] = Query(None, ge=0),
     user: CurrentUser = Depends(require_authenticated),
 ):
@@ -296,14 +300,16 @@ def api_persons_needs_naming(
         except (TypeError, ValueError):
             min_faces = 5
 
-    with get_db() as conn:
-        rows = conn.execute("""
+    async with get_async_db() as conn:
+        cur = await conn.execute("""
             SELECT p.id, p.name, p.representative_face_id, p.face_count,
                    CASE WHEN p.face_thumbnail IS NOT NULL THEN 1 ELSE 0 END as face_thumbnail
             FROM persons p
             WHERE p.name IS NULL AND p.auto_clustered = 1 AND p.face_count >= ?
             ORDER BY p.face_count DESC, p.id
-        """, (min_faces,)).fetchall()
+        """, (min_faces,))
+        rows = await cur.fetchall()
+        await cur.close()
 
     return {
         "persons": [dict(r) for r in rows],

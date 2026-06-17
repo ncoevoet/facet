@@ -48,9 +48,11 @@ describe('GalleryFilterSidebarComponent', () => {
       tags: signal([]),
       persons: signal([]),
       compositionPatterns: signal([]),
+      metricRanges: signal({}),
       config: signal(null),
       activeFilterCount: signal(0),
       updateFilter: vi.fn(),
+      updateFilterDebounced: vi.fn(),
       updateFilters: vi.fn(),
       resetFilters: vi.fn(),
       setFilterDrawerOpen: vi.fn(),
@@ -60,7 +62,7 @@ describe('GalleryFilterSidebarComponent', () => {
       providers: [
         GalleryFilterSidebarComponent,
         { provide: GalleryStore, useValue: mockStore },
-        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en') } },
+        { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
         { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
         { provide: MatDialog, useValue: { open: vi.fn() } },
@@ -73,6 +75,32 @@ describe('GalleryFilterSidebarComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  describe('clampDef', () => {
+    const scoreDef = {
+      id: 'score_range', minKey: 'min_score', maxKey: 'max_score',
+      sliderMin: 0, sliderMax: 10, step: 0.5,
+    };
+
+    it('clamps slider bounds to the data-driven range when no value is out of range', () => {
+      const store = (component as any).store;
+      store.metricRanges.set({ min_score: { min: 5, max: 9, buckets: [] } });
+      store.filters.set({ ...store.filters(), min_score: '', max_score: '' });
+      const clamped = (component as any).clampDef(scoreDef);
+      expect(clamped.sliderMin).toBe(5);
+      expect(clamped.sliderMax).toBe(9);
+    });
+
+    it('widens bounds so an active value below the data min stays reachable', () => {
+      const store = (component as any).store;
+      store.metricRanges.set({ min_score: { min: 5, max: 9, buckets: [] } });
+      // A persisted/URL min of 2 sits below the data minimum of 5.
+      store.filters.set({ ...store.filters(), min_score: '2', max_score: '' });
+      const clamped = (component as any).clampDef(scoreDef);
+      expect(clamped.sliderMin).toBeLessThanOrEqual(2); // not pinned to 5 — reachable
+      expect(clamped.sliderMax).toBe(9);                // data max unchanged
+    });
+  });
+
   describe('sectionActiveCounts', () => {
     it('returns 0 for all sections when no filters are active', () => {
       const mockStore = (component as any).store;
@@ -81,7 +109,7 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(counts['date']).toBe(0);
       expect(counts['content']).toBe(0);
       expect(counts['equipment']).toBe(0);
-      expect(counts['display']).toBe(0);
+      expect(counts['refine']).toBe(0);
       expect(counts['gallery.sidebar.quality']).toBe(0);
       expect(counts['gallery.sidebar.face']).toBe(0);
     });
@@ -108,10 +136,10 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(component.sectionActiveCounts()['equipment']).toBe(2);
     });
 
-    it('counts favorites_only, is_monochrome, hide_rejected for display section', () => {
+    it('counts favorites_only, is_monochrome, hide_rejected for refine section', () => {
       const mockStore = (component as any).store;
       mockStore.filters.set({ ...mockStore.filters(), favorites_only: true, is_monochrome: true, hide_rejected: true });
-      expect(component.sectionActiveCounts()['display']).toBe(3);
+      expect(component.sectionActiveCounts()['refine']).toBe(3);
     });
 
     it('counts active metric filters by min/max key', () => {
@@ -145,46 +173,46 @@ describe('GalleryFilterSidebarComponent', () => {
     it('clears min filter at slider minimum', () => {
       const mockStore = (component as any).store;
       component.onDynamicRangeChange(iaaFilter, 'min', 0);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_aesthetic_iaa', '');
+      expect(mockStore.updateFilterDebounced).toHaveBeenCalledWith('min_aesthetic_iaa', '');
     });
 
     it('redirects max to min when min is at default', () => {
       const mockStore = (component as any).store;
       component.onDynamicRangeChange(iaaFilter, 'max', 7.5);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_aesthetic_iaa', '7.5');
+      expect(mockStore.updateFilterDebounced).toHaveBeenCalledWith('min_aesthetic_iaa', '7.5');
     });
 
     it('clears max filter at slider maximum when min is set', () => {
       const mockStore = (component as any).store;
       mockStore.filters.set({ ...mockStore.filters(), min_aesthetic_iaa: '5' });
       component.onDynamicRangeChange(iaaFilter, 'max', 10);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_aesthetic_iaa', '');
+      expect(mockStore.updateFilterDebounced).toHaveBeenCalledWith('max_aesthetic_iaa', '');
     });
 
     it('stores string value for non-boundary min', () => {
       const mockStore = (component as any).store;
       component.onDynamicRangeChange(iaaFilter, 'min', 6.5);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_aesthetic_iaa', '6.5');
+      expect(mockStore.updateFilterDebounced).toHaveBeenCalledWith('min_aesthetic_iaa', '6.5');
     });
 
     it('stores string value for non-boundary max when min is set', () => {
       const mockStore = (component as any).store;
       mockStore.filters.set({ ...mockStore.filters(), min_aesthetic_iaa: '3' });
       component.onDynamicRangeChange(iaaFilter, 'max', 7.5);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_aesthetic_iaa', '7.5');
+      expect(mockStore.updateFilterDebounced).toHaveBeenCalledWith('max_aesthetic_iaa', '7.5');
     });
 
     it('clears min at non-zero boundary (ISO 50)', () => {
       const mockStore = (component as any).store;
       component.onDynamicRangeChange(isoFilter, 'min', 50);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_iso', '');
+      expect(mockStore.updateFilterDebounced).toHaveBeenCalledWith('min_iso', '');
     });
 
     it('clears max at non-standard boundary (ISO 25600) when min is set', () => {
       const mockStore = (component as any).store;
       mockStore.filters.set({ ...mockStore.filters(), min_iso: '100' });
       component.onDynamicRangeChange(isoFilter, 'max', 25600);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_iso', '');
+      expect(mockStore.updateFilterDebounced).toHaveBeenCalledWith('max_iso', '');
     });
   });
 });

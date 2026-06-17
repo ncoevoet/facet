@@ -35,6 +35,8 @@ PHOTOS_COLUMNS = [
     ('face_quality', 'REAL'),
     ('eye_sharpness', 'REAL'),
     ('face_sharpness', 'REAL'),
+    ('eyes_open_score', 'REAL'),    # Continuous 0-10 eyes-open (min across faces), from 106-pt landmarks
+    ('expression_score', 'REAL'),   # Continuous 0-10 mouth-state quality (mean across faces)
     ('face_ratio', 'REAL CHECK (face_ratio IS NULL OR (face_ratio >= 0 AND face_ratio <= 1))'),
     ('tech_sharpness', 'REAL'),
     ('color_score', 'REAL'),
@@ -95,6 +97,10 @@ PHOTOS_COLUMNS = [
     ('face_quality_iqa', 'REAL'),    # TOPIQ NR-Face (dedicated face quality)
     ('liqe_score', 'REAL'),          # LIQE quality score
     ('aesthetic_clip', 'REAL'),      # CLIP/SigLIP text-projection aesthetic (supplementary, free from cached embedding)
+    # Extended IQA tier (optional, config-gated OFF by default; never replaces TOPIQ)
+    ('qalign_score', 'REAL'),        # Q-Align LLM-based IQA (AVA MOS scale)
+    ('aesthetic_v25', 'REAL'),       # Aesthetic Predictor V2.5 (SigLIP head)
+    ('deqa_score', 'REAL'),          # DeQA-Score VLM IQA
 
     # Subject saliency metrics (BiRefNet)
     ('subject_sharpness', 'REAL'),   # Laplacian variance on subject mask
@@ -193,6 +199,35 @@ INDEXES = [
     ('idx_rejected_aggregate', 'photos', 'is_rejected, aggregate DESC'),
     # GPS indexes
     ('idx_gps', 'photos', 'gps_latitude, gps_longitude'),
+    # Range-filterable metric columns exposed by the gallery sidebar. Without
+    # these, filtering on a metric walks the full idx_aggregate (126k+ rows)
+    # because the planner has no usable index for the predicate.
+    ('idx_quality_score', 'photos', 'quality_score'),
+    ('idx_aesthetic_iaa', 'photos', 'aesthetic_iaa'),
+    ('idx_face_quality_iqa', 'photos', 'face_quality_iqa'),
+    ('idx_liqe_score', 'photos', 'liqe_score'),
+    ('idx_eye_sharpness', 'photos', 'eye_sharpness'),
+    ('idx_face_sharpness', 'photos', 'face_sharpness'),
+    ('idx_face_confidence', 'photos', 'face_confidence'),
+    ('idx_comp_score', 'photos', 'comp_score'),
+    ('idx_power_point_score', 'photos', 'power_point_score'),
+    ('idx_leading_lines_score', 'photos', 'leading_lines_score'),
+    ('idx_isolation_bonus', 'photos', 'isolation_bonus'),
+    ('idx_subject_sharpness', 'photos', 'subject_sharpness'),
+    ('idx_subject_prominence', 'photos', 'subject_prominence'),
+    ('idx_subject_placement', 'photos', 'subject_placement'),
+    ('idx_bg_separation', 'photos', 'bg_separation'),
+    ('idx_exposure_score', 'photos', 'exposure_score'),
+    ('idx_color_score', 'photos', 'color_score'),
+    ('idx_contrast_score', 'photos', 'contrast_score'),
+    ('idx_mean_saturation', 'photos', 'mean_saturation'),
+    ('idx_noise_sigma', 'photos', 'noise_sigma'),
+    ('idx_dynamic_range_stops', 'photos', 'dynamic_range_stops'),
+    ('idx_mean_luminance', 'photos', 'mean_luminance'),
+    ('idx_histogram_spread', 'photos', 'histogram_spread'),
+    ('idx_iso', 'photos', 'iso'),
+    ('idx_f_stop', 'photos', 'f_stop'),
+    ('idx_focal_length', 'photos', 'focal_length'),
 ]
 
 # Photo tags lookup table for fast exact-match queries (replaces LIKE '%tag%')

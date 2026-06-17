@@ -304,11 +304,14 @@ weight optimization without any extra effort.
 # Check comparison stats
 python facet.py --comparison-stats
 
-# Optimize weights from comparisons
-python facet.py --optimize-weights
+# Optimize weights from comparisons (applied only if it generalizes)
+python facet.py --optimize-weights --optimize-category portrait
 
 # Restrict training data to specific sources
-python facet.py --optimize-weights --optimize-sources vote,culling
+python facet.py --optimize-weights --optimize-category portrait --optimize-sources vote,culling
+
+# Apply even if the held-out gate is not met
+python facet.py --optimize-weights --optimize-category portrait --optimize-force
 
 # Apply to all photos
 python facet.py --recompute-average
@@ -325,7 +328,18 @@ Beyond explicit A/B votes, two more label streams feed the optimizer:
    Re-running re-syncs from the current labels, so retracted ratings disappear.
 
 The optimizer weighs each source by reliability (vote 1.0, rating 0.7,
-culling 0.5) when maximizing the Bradley-Terry likelihood.
+culling 0.5) when maximizing the Bradley-Terry likelihood. It trains on the
+exact 0-10 metric vector the scorer uses (including `liqe`, `aesthetic_iaa`,
+`face_quality_iqa` and the subject-saliency metrics), so optimized weights map
+directly onto production scoring.
+
+Weights are **applied only if they generalize**: the final weights are fit on
+all comparisons, but the decision to write them is gated on held-out k-fold
+accuracy, not training accuracy. If the held-out gain over the current weights
+is below the threshold (default 2 pp) the run reports the numbers and writes
+nothing — pass `--optimize-force` to override. Optimization is per-category and
+needs labelled comparisons **for that category**; categories with no votes
+cannot be tuned from data.
 
 Recommended cadence:
 

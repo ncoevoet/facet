@@ -2,12 +2,19 @@
 Tests for the stats API router endpoints.
 
 Covers: score_distribution, top_cameras, categories, correlations.
-Uses real SQLite databases (same pattern as test_refactor_round2.py).
+
+The stats GET endpoints are async (Topic 2 step 4): they read through
+``get_async_db`` (aiosqlite) and cache via ``_get_stats_cached_async``. The
+tests therefore patch ``get_async_db`` with a real aiosqlite-backed temp DB
+(a MagicMock is not awaitable) and bypass the async cache so each request
+recomputes against the seeded data. The POST write endpoint stays sync.
 """
 
 import sqlite3
+from contextlib import asynccontextmanager
 from unittest import mock
 
+import aiosqlite
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -35,7 +42,9 @@ _PHOTOS_SCHEMA = """
         noise_sigma REAL, contrast_score REAL,
         mean_saturation REAL, quality_score REAL,
         power_point_score REAL, leading_lines_score REAL,
-        face_confidence REAL
+        face_confidence REAL,
+        is_silhouette INTEGER DEFAULT 0, is_group_portrait INTEGER DEFAULT 0,
+        mean_luminance REAL
     );
     CREATE TABLE faces (
         id INTEGER PRIMARY KEY, photo_path TEXT, face_index INTEGER,
@@ -81,18 +90,26 @@ def _make_stats_db(db_path, photos):
     conn.close()
 
 
-def _conn_factory(db_path: str):
-    from contextlib import contextmanager
+def _async_conn_factory(db_path: str):
+    """Yield a real aiosqlite Connection bound to the test DB.
 
-    @contextmanager
-    def factory():
-        c = sqlite3.connect(db_path, check_same_thread=False)
-        c.row_factory = sqlite3.Row
+    The stats GET handlers are async and reach the DB via get_async_db; a
+    MagicMock is not awaitable, so tests patch get_async_db with this factory.
+    """
+    @asynccontextmanager
+    async def factory():
+        c = await aiosqlite.connect(db_path)
+        c.row_factory = aiosqlite.Row
         try:
             yield c
         finally:
-            c.close()
+            await c.close()
     return factory
+
+
+async def _cache_passthrough(_key, compute_fn):
+    """Async cache stand-in: always recompute (await the async compute_fn)."""
+    return await compute_fn()
 
 
 def _create_app_no_auth():
@@ -103,17 +120,19 @@ def _create_app_no_auth():
 
 # Common mock context for all stats tests: bypass cache + clear stale state.
 def _stats_mocks(db_path):
-    """Return a context manager that patches get_db, cache, and column cache."""
+    """Return a context manager that patches get_async_db, the async cache,
+    and the column/count caches so each request hits the seeded temp DB."""
     from contextlib import ExitStack
 
     class _Ctx:
         def __enter__(self):
             self._stack = ExitStack()
             self._stack.enter_context(
-                mock.patch("api.routers.stats.get_db", _conn_factory(db_path)))
+                mock.patch("api.routers.stats.get_async_db",
+                           _async_conn_factory(db_path)))
             self._stack.enter_context(
-                mock.patch("api.routers.stats._get_stats_cached",
-                           side_effect=lambda _key, fn: fn()))
+                mock.patch("api.routers.stats._get_stats_cached_async",
+                           _cache_passthrough))
             self._stack.enter_context(
                 mock.patch("api.db_helpers._existing_columns_cache", None))
             self._stack.enter_context(
@@ -313,3 +332,180 @@ class TestCorrelations:
                 "/api/stats/correlations?x=iso&y=aggregate&min_samples=1")
         assert resp.status_code == 200
         assert resp.json()["labels"] == []
+
+    def test_group_by_branch(self, tmp_path):
+        """group_by exercises the asyncio.to_thread aggregation path."""
+        db_path = str(tmp_path / "test.db")
+        _make_stats_db(db_path, [
+            _photo(f"/canon_i100_{i}.jpg", camera_model="Canon R6", iso=100, aggregate=8.0)
+            for i in range(4)
+        ] + [
+            _photo(f"/sony_i800_{i}.jpg", camera_model="Sony A7IV", iso=800, aggregate=5.0)
+            for i in range(4)
+        ])
+        app = _create_app_no_auth()
+        with _stats_mocks(db_path):
+            resp = TestClient(app).get(
+                "/api/stats/correlations"
+                "?x=iso&y=aggregate&group_by=camera_model&min_samples=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["group_by"] == "camera_model"
+        assert "Canon R6" in data["groups"]
+        assert "Sony A7IV" in data["groups"]
+        # Canon photos are all ISO 100 with aggregate 8.0
+        canon = data["groups"]["Canon R6"]
+        assert canon["100"]["aggregate"] == 8.0
+        assert canon["100"]["count"] == 4
+
+
+# ---------------------------------------------------------------------------
+# TestOverview
+# ---------------------------------------------------------------------------
+
+class TestOverview:
+
+    def test_overview_aggregates(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_stats_db(db_path, [
+            _photo("/a.jpg", aggregate=8.0, aesthetic=7.0, comp_score=6.0,
+                   date_taken="2024:01:01 10:00:00"),
+            _photo("/b.jpg", aggregate=6.0, aesthetic=5.0, comp_score=4.0,
+                   date_taken="2024:06:01 10:00:00"),
+        ])
+        app = _create_app_no_auth()
+        with _stats_mocks(db_path):
+            resp = TestClient(app).get("/api/stats/overview")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_photos"] == 2
+        assert data["avg_score"] == 7.0
+        assert data["avg_aesthetic"] == 6.0
+        assert data["avg_composition"] == 5.0
+        # Dates are formatted to ISO (YYYY-MM-DD...) from the EXIF colon form
+        assert data["date_range_start"].startswith("2024-01-01")
+        assert data["date_range_end"].startswith("2024-06-01")
+
+    def test_overview_empty_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_stats_db(db_path, [])
+        app = _create_app_no_auth()
+        with _stats_mocks(db_path):
+            resp = TestClient(app).get("/api/stats/overview")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_photos"] == 0
+
+
+# ---------------------------------------------------------------------------
+# TestGear / TestSettings / TestTimeline
+# ---------------------------------------------------------------------------
+
+class TestGear:
+
+    def test_gear_groups_cameras_and_lenses(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_stats_db(db_path, [
+            _photo(f"/c_{i}.jpg", camera_model="Canon R6", lens_model="RF 50mm",
+                   date_taken="2024:01:01 10:00:00")
+            for i in range(3)
+        ])
+        app = _create_app_no_auth()
+        with _stats_mocks(db_path):
+            resp = TestClient(app).get("/api/stats/gear")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert any(c["name"] == "Canon R6" and c["count"] == 3 for c in data["cameras"])
+        assert any(lens["name"] == "RF 50mm" and lens["count"] == 3 for lens in data["lenses"])
+        # Combo present with a consolidated monthly history
+        combo = next(c for c in data["combos"] if c["name"] == "Canon R6 + RF 50mm")
+        assert combo["count"] == 3
+        assert combo["history"] and combo["history"][0]["count"] == 3
+
+
+class TestSettings:
+
+    def test_settings_buckets(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_stats_db(db_path, [
+            _photo("/a.jpg", iso=100, f_stop=2.8, focal_length=50,
+                   shutter_speed="1/1000"),
+            _photo("/b.jpg", iso=3200, f_stop=5.6, focal_length=200,
+                   shutter_speed="1/60"),
+        ])
+        app = _create_app_no_auth()
+        with _stats_mocks(db_path):
+            resp = TestClient(app).get("/api/stats/settings")
+        assert resp.status_code == 200
+        data = resp.json()
+        iso_labels = {b["label"] for b in data["iso"]}
+        assert "100" in iso_labels and "3200" in iso_labels
+        assert sum(b["count"] for b in data["score_distribution"]) == 2
+
+
+class TestTimeline:
+
+    def test_timeline_monthly_and_yearly(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_stats_db(db_path, [
+            _photo("/a.jpg", date_taken="2024:01:15 10:00:00", aggregate=8.0),
+            _photo("/b.jpg", date_taken="2024:01:20 11:00:00", aggregate=6.0),
+            _photo("/c.jpg", date_taken="2023:12:25 09:00:00", aggregate=7.0),
+        ])
+        app = _create_app_no_auth()
+        with _stats_mocks(db_path):
+            resp = TestClient(app).get("/api/stats/timeline")
+        assert resp.status_code == 200
+        data = resp.json()
+        # 2024-01 has 2 photos averaging 7.0
+        jan = next(m for m in data["monthly"] if m["month"].startswith("2024-01"))
+        assert jan["count"] == 2
+        assert jan["avg_score"] == 7.0
+        years = {y["year"]: y["count"] for y in data["yearly"]}
+        assert years["2024"] == 2
+        assert years["2023"] == 1
+
+
+# ---------------------------------------------------------------------------
+# TestCategoriesBreakdown / TestCategoriesOverlap
+# ---------------------------------------------------------------------------
+
+class TestCategoriesBreakdown:
+
+    def test_breakdown_counts_and_distributions(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_stats_db(db_path, [
+            _photo("/a.jpg", category="portrait", aggregate=8.0),
+            _photo("/b.jpg", category="portrait", aggregate=8.0),
+            _photo("/c.jpg", category="landscape", aggregate=6.0),
+        ])
+        app = _create_app_no_auth()
+        with _stats_mocks(db_path):
+            resp = TestClient(app).get("/api/stats/categories/breakdown")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 3
+        portrait = next(c for c in data["categories"] if c["name"] == "portrait")
+        assert portrait["count"] == 2
+        assert "portrait" in data["distributions"]
+
+
+class TestCategoriesOverlap:
+
+    def test_overlap_runs_filter_evaluation(self, tmp_path):
+        """Exercises the asyncio.to_thread per-row CategoryFilter path."""
+        db_path = str(tmp_path / "test.db")
+        _make_stats_db(db_path, [
+            _photo("/a.jpg", category="portrait", face_ratio=0.3, face_count=1),
+            _photo("/b.jpg", category="landscape", face_ratio=0.0, face_count=0),
+            _photo("/c.jpg", category="", face_ratio=0.0, face_count=0),
+        ])
+        app = _create_app_no_auth()
+        with _stats_mocks(db_path):
+            resp = TestClient(app).get("/api/stats/categories/overlap")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 3
+        assert data["uncategorized"] == 1
+        assert isinstance(data["overlaps"], list)
+        assert isinstance(data["per_category"], list)

@@ -14,4 +14,3 @@ from utils.detection import (
     DEFAULT_FACE_PADDING_RATIO, DEFAULT_FACE_THUMBNAIL_SIZE,
     DEFAULT_FACE_THUMBNAIL_QUALITY,
 )
-from utils.burst import IncrementalBurstProcessor

@@ -487,11 +487,14 @@ class ModelManager:
             'qwen3_5_4b_tagger': lambda: self._load_vlm_tagger('qwen3_5_4b'),
             'saliency': self._load_saliency,
             'florence_tagger': self._load_florence_tagger,
+            'aesthetic_v25': self._load_aesthetic_v25,
+            'deqa': self._load_deqa,
         }
 
-        # PyIQA models
+        # PyIQA models (qalign variants are pyiqa-backed too; gated OFF by config)
         pyiqa_models = ['topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
-                        'topiq_iaa', 'topiq_nr_face', 'liqe']
+                        'topiq_iaa', 'topiq_nr_face', 'liqe',
+                        'qalign', 'qalign_8bit', 'qalign_4bit']
 
         if model_name in loaders:
             return loaders[model_name]()
@@ -641,6 +644,43 @@ class ModelManager:
             logger.error("Failed to load PyIQA %s: %s", model_name, e)
             return None
 
+    def _load_aesthetic_v25(self):
+        """Load Aesthetic Predictor V2.5 (optional extended-IQA tier, gated OFF)."""
+        if 'aesthetic_v25' in self.models:
+            return self.models['aesthetic_v25']
+        try:
+            from models.aesthetic_v25_scorer import AestheticV25Scorer
+            scorer = AestheticV25Scorer(device=self.device)
+            scorer.load()
+            self.models['aesthetic_v25'] = scorer
+            logger.info("Aesthetic Predictor V2.5 loaded")
+            return scorer
+        except Exception as e:
+            logger.error("Failed to load Aesthetic Predictor V2.5: %s", e)
+            return None
+
+    def _load_deqa(self):
+        """Load DeQA-Score VLM (optional extended-IQA tier, gated OFF; 16GB+ GPU).
+
+        Returns None (logged "skipped") when the GPU is too small, leaving the
+        deqa_score column NULL rather than failing the pass.
+        """
+        if 'deqa' in self.models:
+            return self.models['deqa']
+        try:
+            from models.deqa_scorer import DeQAScorer
+            scorer = DeQAScorer(device=self.device)
+            if not scorer.can_run():
+                logger.warning("DeQA-Score skipped: insufficient VRAM (needs 16GB+)")
+                return None
+            scorer.load()
+            self.models['deqa'] = scorer
+            logger.info("DeQA-Score loaded")
+            return scorer
+        except Exception as e:
+            logger.error("Failed to load DeQA-Score: %s", e)
+            return None
+
     def _load_saliency(self):
         """Load BiRefNet saliency detection model."""
         if 'saliency' in self.models:
@@ -783,6 +823,11 @@ class ModelManager:
         'topiq_iaa': 2,       # Shares backbone with TOPIQ
         'topiq_nr_face': 2,   # Shares backbone with TOPIQ
         'liqe': 2,            # CLIP-based quality assessment
+        'qalign': 14,         # Q-Align full precision (mPLUG-Owl2 base), 16GB+ GPU
+        'qalign_8bit': 8,     # Q-Align 8-bit
+        'qalign_4bit': 5,     # Q-Align 4-bit
+        'aesthetic_v25': 2,   # Aesthetic Predictor V2.5 (SigLIP head)
+        'deqa': 16,           # DeQA-Score VLM (very heavy)
         'saliency': 2,        # BiRefNet saliency detection
         'florence_tagger': 4,  # ~1.5GB weights + ~2GB inference
     }
@@ -845,10 +890,14 @@ class ModelManager:
         For CPU mode (vram = 0), uses system RAM thresholds since PyIQA
         models (TOPIQ, HyperIQA) work on CPU with identical quality.
 
-        Priority is based on benchmark accuracy (SRCC on KonIQ-10k):
-        - topiq: 0.93 SRCC, ~2GB VRAM/RAM (best accuracy)
-        - hyperiqa: 0.90 SRCC, ~2GB VRAM/RAM
+        Priority is based on published no-reference IQA accuracy (Spearman SRCC
+        on the KonIQ-10k benchmark, as reported by the pyiqa model zoo /
+        TOPIQ paper arXiv:2308.03060 and HyperIQA CVPR'20):
+        - topiq:          ~0.92 SRCC, ~2GB VRAM/RAM (best accuracy)
+        - hyperiqa:       ~0.91 SRCC, ~2GB VRAM/RAM
         - clip_aesthetic: ~0.76 SRCC, ~4GB VRAM
+        These are dataset-level figures; to measure SRCC against THIS library's
+        own star ratings, run ``python facet.py --eval-iqa-srcc``.
 
         Args:
             available_vram: Available VRAM in GB (0.0 for CPU-only)
@@ -861,15 +910,15 @@ class ModelManager:
             ram_gb = self.detect_system_ram_gb()
             # Need ~8GB total: CLIP(1.5) + TOPIQ(2) + InsightFace(2) + overhead(2.5)
             if ram_gb >= 8:
-                return 'topiq'       # 0.93 SRCC
+                return 'topiq'       # ~0.92 SRCC (KonIQ-10k)
             elif ram_gb >= 6:
-                return 'hyperiqa'    # 0.90 SRCC
-            return 'clip_aesthetic'  # 0.76 SRCC (fallback for <6GB RAM)
+                return 'hyperiqa'    # ~0.91 SRCC
+            return 'clip_aesthetic'  # ~0.76 SRCC (fallback for <6GB RAM)
 
         # GPU mode: VRAM-based selection
         quality_models = [
-            ('topiq', 2),       # Best accuracy (0.93), lightweight
-            ('hyperiqa', 2),    # Second best (0.90), lightweight
+            ('topiq', 2),       # Best accuracy (~0.92 SRCC), lightweight
+            ('hyperiqa', 2),    # Second best (~0.91 SRCC), lightweight
             ('clip_aesthetic', 4),  # Fallback
         ]
 

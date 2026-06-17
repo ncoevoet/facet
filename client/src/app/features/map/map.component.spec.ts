@@ -6,45 +6,17 @@ import { I18nService } from '../../core/services/i18n.service';
 
 // Mock Leaflet before importing the component. vi.doMock + dynamic import is
 // used instead of vi.mock because the unit-test builder wraps spec modules,
-// which defeats vi.mock hoisting and let the real Leaflet leak in under CI.
-const mockMarkersLayer = {
-  addTo: vi.fn().mockReturnThis(),
-  clearLayers: vi.fn(),
-};
-
-const mockCircleMarker = {
-  bindTooltip: vi.fn().mockReturnThis(),
-  bindPopup: vi.fn().mockReturnThis(),
-  addTo: vi.fn().mockReturnThis(),
-};
-
-const mockMarker = {
-  bindPopup: vi.fn().mockReturnThis(),
-  addTo: vi.fn().mockReturnThis(),
-  on: vi.fn().mockReturnThis(),
-  getPopup: vi.fn(() => ({ getElement: vi.fn(() => null) })),
-};
-
-const mockMap = {
-  setView: vi.fn().mockReturnThis(),
-  getBounds: vi.fn(() => ({
-    getSouthWest: () => ({ lat: 40, lng: -5 }),
-    getNorthEast: () => ({ lat: 55, lng: 15 }),
-  })),
-  getZoom: vi.fn(() => 5),
-  on: vi.fn(),
-  off: vi.fn(),
-  remove: vi.fn(),
-};
-
-const leafletMock = {
-  Icon: { Default: { mergeOptions: vi.fn() } },
-  map: vi.fn(() => mockMap),
-  tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
-  layerGroup: vi.fn(() => mockMarkersLayer),
-  circleMarker: vi.fn(() => mockCircleMarker),
-  marker: vi.fn(() => mockMarker),
-};
+// which defeats vi.mock hoisting and let the real Leaflet leak in under CI. The
+// mock is shared across every leaflet-using spec so the registry-cached
+// shared/leaflet binding is identical regardless of spec load order.
+import {
+  leafletMock,
+  leafletMockMap as mockMap,
+  leafletMockLayerGroup as mockMarkersLayer,
+  leafletMockCircleMarker as mockCircleMarker,
+  leafletMockMarker as mockMarker,
+  resetLeafletMock,
+} from '../../../testing/leaflet-mock';
 
 vi.doMock('leaflet', () => leafletMock);
 
@@ -59,6 +31,7 @@ describe('MapComponent', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    resetLeafletMock();
 
     mockApi = {
       get: vi.fn(() => of({ clusters: [], photos: [] })),

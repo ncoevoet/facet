@@ -36,9 +36,9 @@ COMPOSITION_PATTERNS = [
 
 # Weight download URLs
 # Note: U2-Net-P weights must be downloaded from Google Drive
-U2NETP_GDRIVE_ID = "1rbSTGKAE-MTxBYHd-51l2hMOQPT_7EPy"
-U2NETP_GDRIVE_URL = f"https://drive.google.com/uc?export=download&id={U2NETP_GDRIVE_ID}"
-SAMPNET_WEIGHTS_URL = "https://github.com/bcmi/Image-Composition-Assessment-with-SAMP/releases/download/v1.0/samp_net.pth"
+WEIGHTS_RELEASE_BASE_URL = "https://github.com/ncoevoet/facet/releases/download/model-weights-v1"
+U2NETP_WEIGHTS_URL = f"{WEIGHTS_RELEASE_BASE_URL}/u2netp.pth"
+SAMPNET_WEIGHTS_URL = f"{WEIGHTS_RELEASE_BASE_URL}/samp_net.pth"
 
 
 # =============================================================================
@@ -398,8 +398,7 @@ class SaliencyDetector:
 
         logger.info("Downloading U2-Net-P weights to %s...", self.weights_path)
         try:
-            # Try Google Drive direct download
-            urllib.request.urlretrieve(U2NETP_GDRIVE_URL, self.weights_path)
+            urllib.request.urlretrieve(U2NETP_WEIGHTS_URL, self.weights_path)
             # Check if file is too small (might be HTML error page)
             if os.path.getsize(self.weights_path) < 1000000:  # < 1MB is likely an error
                 os.remove(self.weights_path)
@@ -407,8 +406,7 @@ class SaliencyDetector:
             logger.info("U2-Net-P download complete.")
         except Exception as e:
             logger.error("Failed to auto-download U2-Net-P weights: %s", e)
-            logger.info("Please download manually from Google Drive:")
-            logger.info("  https://drive.google.com/file/d/1rbSTGKAE-MTxBYHd-51l2hMOQPT_7EPy/view")
+            logger.info("Please download manually from: %s", U2NETP_WEIGHTS_URL)
             logger.info("  Save as: %s", self.weights_path)
             # Don't raise - will use random initialization
 
@@ -866,15 +864,14 @@ class SAMPNetScorer:
                 raise Exception("download resulted in an invalid file (too small)")
             logger.info("SAMP-Net download complete.")
         except Exception as e:
-            # The upstream GitHub release URL has been intermittently 404 since
-            # late 2025. Don't bring down the whole pipeline — composition
-            # scoring is one signal among many and the caller catches None.
+            # Composition is one signal among many; ModelManager catches the
+            # resulting None and the pass loop skips SAMP-Net, so a download
+            # failure must not bring down the whole pipeline.
             logger.warning(
                 "SAMP-Net weights unavailable (%s). Composition scoring will be skipped.",
                 e,
             )
-            logger.warning("  To enable, download manually from Google Drive:")
-            logger.warning("    https://drive.google.com/file/d/1sIcYr5cQGbxm--tCGaASmN0xtE_r-QUg/view")
+            logger.warning("  To enable, download manually from: %s", SAMPNET_WEIGHTS_URL)
             logger.warning("  and place the file at: %s", self.model_path)
             raise RuntimeError(
                 "SAMP-Net weights download failed — see WARNING above for manual install."

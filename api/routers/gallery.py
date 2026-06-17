@@ -235,48 +235,59 @@ def _apply_preference_filters(where_clauses, sql_params, params, user_id):
         where_clauses.append(f"({pref_cols['is_rejected']} = 0 OR {pref_cols['is_rejected']} IS NULL)")
 
 
+# Single source of truth for numeric range filters: (column, min_key, max_key, is_float).
+# Drives both the WHERE-clause builders below and the /filter_options/metric_ranges endpoint.
+SCORE_RANGE_COLUMNS = [
+    ("aggregate", "min_score", "max_score", True),
+    ("aesthetic", "min_aesthetic", "max_aesthetic", True),
+    ("quality_score", "min_quality_score", "max_quality_score", True),
+    ("topiq_score", "min_topiq", "max_topiq", True),
+    ("tech_sharpness", "min_sharpness", "max_sharpness", True),
+    ("exposure_score", "min_exposure", "max_exposure", True),
+    ("color_score", "min_color", "max_color", True),
+    ("contrast_score", "min_contrast", "max_contrast", True),
+    ("noise_sigma", "min_noise", "max_noise", True),
+    ("mean_saturation", "min_saturation", "max_saturation", True),
+    ("mean_luminance", "min_luminance", "max_luminance", True),
+    ("histogram_spread", "min_histogram_spread", "max_histogram_spread", True),
+    ("dynamic_range_stops", "min_dynamic_range", "max_dynamic_range", True),
+    ("comp_score", "min_composition", "max_composition", True),
+    ("power_point_score", "min_power_point", "max_power_point", True),
+    ("leading_lines_score", "min_leading_lines", "max_leading_lines", True),
+    ("isolation_bonus", "min_isolation", "max_isolation", True),
+    ("face_count", "min_face_count", "max_face_count", False),
+    ("face_quality", "min_face_quality", "max_face_quality", True),
+    ("eye_sharpness", "min_eye_sharpness", "max_eye_sharpness", True),
+    ("face_sharpness", "min_face_sharpness", "max_face_sharpness", True),
+    ("face_ratio", "min_face_ratio", "max_face_ratio", True),
+    ("face_confidence", "min_face_confidence", "max_face_confidence", True),
+    ("star_rating", "min_star_rating", "max_star_rating", False),
+    ("aesthetic_iaa", "min_aesthetic_iaa", "max_aesthetic_iaa", True),
+    ("face_quality_iqa", "min_face_quality_iqa", "max_face_quality_iqa", True),
+    ("liqe_score", "min_liqe", "max_liqe", True),
+    ("subject_sharpness", "min_subject_sharpness", "max_subject_sharpness", True),
+    ("subject_prominence", "min_subject_prominence", "max_subject_prominence", True),
+    ("subject_placement", "min_subject_placement", "max_subject_placement", True),
+    ("bg_separation", "min_bg_separation", "max_bg_separation", True),
+]
+
+EXIF_RANGE_COLUMNS = [
+    ("iso", "min_iso", "max_iso", False),
+    ("f_stop", "min_aperture", "max_aperture", True),
+    ("focal_length", "min_focal_length", "max_focal_length", True),
+]
+
+
 def _apply_score_range_filters(where_clauses, sql_params, params):
     """Apply all score/metric range filters."""
-    rf = _add_range_filter
-    rf(where_clauses, sql_params, params, "aggregate", "min_score", "max_score")
-    rf(where_clauses, sql_params, params, "aesthetic", "min_aesthetic", "max_aesthetic")
-    rf(where_clauses, sql_params, params, "quality_score", "min_quality_score", "max_quality_score")
-    rf(where_clauses, sql_params, params, "topiq_score", "min_topiq", "max_topiq")
-    rf(where_clauses, sql_params, params, "tech_sharpness", "min_sharpness", "max_sharpness")
-    rf(where_clauses, sql_params, params, "exposure_score", "min_exposure", "max_exposure")
-    rf(where_clauses, sql_params, params, "color_score", "min_color", "max_color")
-    rf(where_clauses, sql_params, params, "contrast_score", "min_contrast", "max_contrast")
-    rf(where_clauses, sql_params, params, "noise_sigma", "min_noise", "max_noise")
-    rf(where_clauses, sql_params, params, "mean_saturation", "min_saturation", "max_saturation")
-    rf(where_clauses, sql_params, params, "mean_luminance", "min_luminance", "max_luminance")
-    rf(where_clauses, sql_params, params, "histogram_spread", "min_histogram_spread", "max_histogram_spread")
-    rf(where_clauses, sql_params, params, "dynamic_range_stops", "min_dynamic_range", "max_dynamic_range")
-    rf(where_clauses, sql_params, params, "comp_score", "min_composition", "max_composition")
-    rf(where_clauses, sql_params, params, "power_point_score", "min_power_point", "max_power_point")
-    rf(where_clauses, sql_params, params, "leading_lines_score", "min_leading_lines", "max_leading_lines")
-    rf(where_clauses, sql_params, params, "isolation_bonus", "min_isolation", "max_isolation")
-    rf(where_clauses, sql_params, params, "face_count", "min_face_count", "max_face_count", is_float=False)
-    rf(where_clauses, sql_params, params, "face_quality", "min_face_quality", "max_face_quality")
-    rf(where_clauses, sql_params, params, "eye_sharpness", "min_eye_sharpness", "max_eye_sharpness")
-    rf(where_clauses, sql_params, params, "face_sharpness", "min_face_sharpness", "max_face_sharpness")
-    rf(where_clauses, sql_params, params, "face_ratio", "min_face_ratio", "max_face_ratio")
-    rf(where_clauses, sql_params, params, "face_confidence", "min_face_confidence", "max_face_confidence")
-    rf(where_clauses, sql_params, params, "star_rating", "min_star_rating", "max_star_rating", is_float=False)
-    rf(where_clauses, sql_params, params, "aesthetic_iaa", "min_aesthetic_iaa", "max_aesthetic_iaa")
-    rf(where_clauses, sql_params, params, "face_quality_iqa", "min_face_quality_iqa", "max_face_quality_iqa")
-    rf(where_clauses, sql_params, params, "liqe_score", "min_liqe", "max_liqe")
-    rf(where_clauses, sql_params, params, "subject_sharpness", "min_subject_sharpness", "max_subject_sharpness")
-    rf(where_clauses, sql_params, params, "subject_prominence", "min_subject_prominence", "max_subject_prominence")
-    rf(where_clauses, sql_params, params, "subject_placement", "min_subject_placement", "max_subject_placement")
-    rf(where_clauses, sql_params, params, "bg_separation", "min_bg_separation", "max_bg_separation")
+    for column, min_key, max_key, is_float in SCORE_RANGE_COLUMNS:
+        _add_range_filter(where_clauses, sql_params, params, column, min_key, max_key, is_float=is_float)
 
 
 def _apply_exif_range_filters(where_clauses, sql_params, params):
     """Apply ISO, aperture, and focal length range filters."""
-    rf = _add_range_filter
-    rf(where_clauses, sql_params, params, "iso", "min_iso", "max_iso", is_float=False)
-    rf(where_clauses, sql_params, params, "f_stop", "min_aperture", "max_aperture")
-    rf(where_clauses, sql_params, params, "focal_length", "min_focal_length", "max_focal_length")
+    for column, min_key, max_key, is_float in EXIF_RANGE_COLUMNS:
+        _add_range_filter(where_clauses, sql_params, params, column, min_key, max_key, is_float=is_float)
 
 
 def _apply_date_album_geo_filters(where_clauses, sql_params, params):
@@ -442,7 +453,13 @@ async def api_photos(
 
     sort_col = params['sort'] if params['sort'] in VALID_SORT_COLS else 'aggregate'
     sort_dir = 'ASC' if params['dir'] == 'ASC' else 'DESC'
-    order_by_clause = f"{sort_col} {sort_dir}, path ASC"
+    if sort_col == 'learned_score':
+        # Personal-ranker sort: untrained photos (NULL learned_score) always sink,
+        # regardless of direction, so the gallery degrades gracefully to a stable
+        # path order on an untrained DB.
+        order_by_clause = f"(learned_score IS NULL) ASC, learned_score {sort_dir}, path ASC"
+    else:
+        order_by_clause = f"{sort_col} {sort_dir}, path ASC"
 
     try:
         async with get_async_db() as conn:
@@ -503,10 +520,24 @@ async def api_photos(
                 top_picks_expr = get_top_picks_score_sql()
                 select_cols.append(f"({top_picks_expr}) as top_picks_score")
 
-            query = f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
-            cur = await conn.execute(query, all_params + [per_page, offset])
-            rows = await cur.fetchall()
-            await cur.close()
+            if sort_col == 'learned_score':
+                # Opt-in alternate sort from the personal ranker. Correlated
+                # subquery (not a JOIN) avoids ambiguity with photos.category /
+                # photos.user_id; scoped to the global pooled ranker (category
+                # NULL, user_id NULL). NULL when untrained -> sorts last.
+                select_cols.append(
+                    "(SELECT ls.learned_score FROM learned_scores ls "
+                    "WHERE ls.photo_path = photos.path AND ls.user_id IS NULL "
+                    "AND ls.category IS NULL) AS learned_score"
+                )
+
+            if total_count:
+                query = f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
+                cur = await conn.execute(query, all_params + [per_page, offset])
+                rows = await cur.fetchall()
+                await cur.close()
+            else:
+                rows = []
 
             tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
             photos = split_photo_tags(rows, tags_limit)
@@ -574,6 +605,87 @@ def _similar_result(row, similarity):
     }
 
 
+def _vec_knn_similar(conn, source_embedding, photo_path, min_similarity, vis_sql, vis_params):
+    """CLIP-only similar search via sqlite-vec vec0 KNN (sync, runs inside to_thread).
+
+    Replaces the brute-force full-table NumPy cosine scan in the no-pHash-candidate
+    branch of ``_find_similar_visual`` with an indexed vec0 KNN against ``photos_vec``.
+    ``distance_metric=cosine`` makes ``1 - distance`` the cosine similarity, matching
+    the NumPy dot product of L2-normalized embeddings — so top-K ordering is identical.
+
+    Returns the result list (``[:500]``) on success, or ``None`` to signal the caller
+    to fall back to the NumPy scan (sqlite-vec unavailable, ``photos_vec`` missing/empty,
+    or no source embedding). An empty match set returns ``[]`` (a valid result), not
+    ``None`` — that is a successful query that found nothing.
+    """
+    import numpy as np
+    from db.connection import HAS_SQLITE_VEC
+
+    if not HAS_SQLITE_VEC or source_embedding is None:
+        return None
+
+    # Availability guard (plan Topic 2 step 2): photos_vec may be absent or empty.
+    # Catch OperationalError (table missing / extension not loaded) → NumPy fallback.
+    try:
+        if conn.execute("SELECT 1 FROM photos_vec LIMIT 1").fetchone() is None:
+            return None
+    except sqlite3.OperationalError:
+        return None
+
+    # vec0 MATCH cannot carry a WHERE clause, so over-fetch (k large) then post-filter
+    # by visibility/self. k≥2000 keeps the top-500 most-similar even after filtering.
+    k = 2000
+    query_bytes = np.asarray(source_embedding, dtype=np.float32).tobytes()
+    try:
+        knn_rows = conn.execute(
+            "SELECT path, distance FROM photos_vec WHERE embedding MATCH ? AND k = ?",
+            [query_bytes, k],
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return None
+
+    if not knn_rows:
+        return []
+
+    dist_by_path = {}
+    ordered_paths = []
+    for r in knn_rows:
+        p = r['path']
+        if p == photo_path or p in dist_by_path:
+            continue
+        dist_by_path[p] = r['distance']
+        ordered_paths.append(p)
+
+    if not ordered_paths:
+        return []
+
+    # Fetch display columns + apply visibility in one pass, chunked to stay under
+    # SQLite's variable limit on older builds.
+    meta_by_path = {}
+    for start in range(0, len(ordered_paths), 500):
+        chunk = ordered_paths[start:start + 500]
+        placeholders = ','.join('?' * len(chunk))
+        meta_rows = conn.execute(
+            f"""SELECT path, filename, date_taken, aggregate, aesthetic
+                FROM photos WHERE path IN ({placeholders}) AND {vis_sql}""",
+            chunk + vis_params,
+        ).fetchall()
+        for mr in meta_rows:
+            meta_by_path[mr['path']] = dict(mr)
+
+    results = []
+    for p in ordered_paths:
+        row = meta_by_path.get(p)
+        if row is None:
+            continue
+        sim = max(0.0, 1.0 - dist_by_path[p])
+        if sim >= min_similarity:
+            results.append(_similar_result(row, sim))
+
+    results.sort(key=lambda x: x['similarity'], reverse=True)
+    return results[:500]
+
+
 def _find_similar_visual(conn, source, photo_path, min_similarity, vis_sql, vis_params):
     """Find visually similar photos using pHash hamming distance (primary) + CLIP cosine (secondary)."""
     import numpy as np
@@ -597,6 +709,12 @@ def _find_similar_visual(conn, source, photo_path, min_similarity, vis_sql, vis_
     rows = [dict(r) for r in rows]
 
     if not rows:
+        # CLIP-only fallback (no pHash candidates). Prefer the indexed vec0 KNN
+        # path; _vec_knn_similar returns None when sqlite-vec is unavailable, in
+        # which case we keep the original brute-force NumPy scan below unchanged.
+        vec_results = _vec_knn_similar(conn, source_embedding, photo_path, min_similarity, vis_sql, vis_params)
+        if vec_results is not None:
+            return vec_results, None
         clip_rows = conn.execute(f"""
             SELECT path, filename, clip_embedding, date_taken, aggregate, aesthetic
             FROM photos

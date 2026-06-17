@@ -11,9 +11,8 @@ import sys
 from unittest import mock
 
 # Stub heavy GPU-only imports when absent (e.g. the CI test job has no GPU
-# stack) so this module imports. Track what we install and drop it in
-# teardown_module so the stub does not leak into later test modules' view of
-# sys.modules (a stray fake torch would mask real imports elsewhere).
+# stack) so this module imports. The stubs are removed from sys.modules the
+# instant batch_processor is imported (see below).
 _STUBBED_MODULES = []
 for _name in ("torch", "imagehash"):
     if importlib.util.find_spec(_name) is None and _name not in sys.modules:
@@ -28,11 +27,14 @@ for _name in ("torch", "imagehash"):
 
 from processing.batch_processor import BatchProcessor  # noqa: E402
 
-
-def teardown_module(module):
-    """Remove the import-time module stubs this file installed, if any."""
-    for _name in _STUBBED_MODULES:
-        sys.modules.pop(_name, None)
+# Drop the stubs from sys.modules NOW, not in teardown_module: pytest imports
+# every test module during collection before running any test, so a stub left
+# here would leak into later modules' collection (e.g. make their `import torch`
+# resolve to this fake, masking a real-torch requirement and defeating
+# `importorskip("torch")`). batch_processor already holds its own references, so
+# removing the entries now is safe for this file's tests.
+for _name in _STUBBED_MODULES:
+    sys.modules.pop(_name, None)
 
 
 def _make_processor(**kwargs):

@@ -135,6 +135,14 @@ PYIQA_MODELS = {
 }
 
 
+# Models whose forward pass is per-sample independent in eval mode and accept a
+# stacked same-size batch tensor, so real batching gives results bit-identical to
+# per-image scoring. Resolution-sensitive multi-scale models (musiq*), the
+# variable-output LIQE, and the VLM Q-Align variants stay serial (forced
+# fixed-size batching would shift their scores).
+_BATCHABLE_MODELS = {'topiq', 'hyperiqa', 'dbcnn', 'topiq_iaa', 'topiq_nr_face', 'clipiqa+'}
+
+
 class PyIQAScorer:
     """Wrapper for pyiqa image quality assessment models."""
 
@@ -281,44 +289,102 @@ class PyIQAScorer:
         elif hasattr(raw_score, 'item'):
             raw_score = raw_score.item()
 
-        # Ensure Python float
-        raw_score = float(raw_score)
+        return self._finalize_raw(raw_score)
 
-        # Handle lower_better models (invert score)
+    def _finalize_raw(self, raw_score) -> float:
+        """Apply lower_better inversion then normalize a raw scalar to 0-10."""
+        raw_score = float(raw_score)
         if self.model_info['lower_better']:
             min_val, max_val = self.model_info['score_range']
             raw_score = float(max_val) - raw_score + float(min_val)
-
         return self._normalize_score(raw_score)
 
+    @property
+    def supports_batching(self) -> bool:
+        """Whether this model can be scored with a stacked same-size batch tensor."""
+        return self.model_name in _BATCHABLE_MODELS
+
+    def _extract_batch_raw(self, out, n: int) -> list:
+        """Turn a batched model output into a list of n raw scalars.
+
+        Raises ValueError if the output doesn't have n elements so the caller
+        falls back to serial scoring rather than silently mis-aligning scores.
+        """
+        if isinstance(out, torch.Tensor):
+            flat = out.detach().cpu().flatten()
+            if flat.numel() != n:
+                raise ValueError(f"batched output has {flat.numel()} elements, expected {n}")
+            return [float(x) for x in flat.tolist()]
+        if isinstance(out, (list, tuple)):
+            if len(out) != n:
+                raise ValueError(f"batched output has {len(out)} elements, expected {n}")
+            return [float(x.item()) if hasattr(x, 'item') else float(x) for x in out]
+        raise ValueError(f"unbatchable output type: {type(out)}")
+
+    def _score_batch_serial(self, images: list[Image.Image]) -> list[float]:
+        """Per-image scoring with skip-aggregation (the original behavior)."""
+        scores: list[float] = []
+        skipped: dict[str, int] = {}
+        for image in images:
+            try:
+                scores.append(float(self.score_image(image)))
+            except Exception as e:
+                msg = str(e)
+                skipped[msg] = skipped.get(msg, 0) + 1
+                scores.append(5.0)
+        for msg, count in skipped.items():
+            logger.warning("  %s skipped %d image(s): %s", self.model_name, count, msg)
+        return scores
+
     def score_batch(self, images: list[Image.Image]) -> list[float]:
-        """Score a batch of images.
+        """Score a batch of images, normalized to 0-10.
 
-        Args:
-            images: List of PIL Images
-
-        Returns:
-            List of quality scores normalized to 0-10 as Python floats
+        For batchable models, same-size preprocessed images are stacked into a
+        single tensor and scored in one forward pass (bit-identical to per-image
+        in eval mode). Non-batchable models and any group that errors fall back
+        to per-image scoring.
         """
         if not self._loaded:
             self.load()
 
-        scores = []
+        if not self.supports_batching or len(images) <= 1:
+            return self._score_batch_serial(images)
+
+        from collections import defaultdict
+
+        # Preprocess once; group by tensor shape so each forward is a clean stack.
+        try:
+            tensors = [self._preprocess_image(img) for img in images]
+        except Exception:
+            return self._score_batch_serial(images)
+
+        groups: dict = defaultdict(list)
+        for idx, t in enumerate(tensors):
+            groups[tuple(t.shape[2:])].append(idx)
+
+        scores: list = [None] * len(images)
         skipped: dict[str, int] = {}
-        for image in images:
+        for _shape, idxs in groups.items():
             try:
-                score = self.score_image(image)
-                # Ensure Python float
-                scores.append(float(score))
+                with torch.no_grad():
+                    out = self.model(torch.cat([tensors[i] for i in idxs], dim=0))
+                raws = self._extract_batch_raw(out, len(idxs))
+                for k, i in enumerate(idxs):
+                    scores[i] = self._finalize_raw(raws[k])
             except Exception as e:
+                # Per-group serial fallback keeps a single bad shape from failing all.
                 msg = str(e)
-                skipped[msg] = skipped.get(msg, 0) + 1
-                scores.append(5.0)  # Default middle score as float
+                for i in idxs:
+                    try:
+                        scores[i] = float(self.score_image(images[i]))
+                    except Exception as e2:
+                        skipped[str(e2)] = skipped.get(str(e2), 0) + 1
+                        scores[i] = 5.0
+                logger.debug("  %s batch group fell back to serial: %s", self.model_name, msg)
 
         for msg, count in skipped.items():
             logger.warning("  %s skipped %d image(s): %s", self.model_name, count, msg)
-
-        return scores
+        return [float(s) for s in scores]
 
     @property
     def vram_gb(self) -> float:

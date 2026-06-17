@@ -4,6 +4,7 @@ AI Critique router — rule-based and VLM-powered score explanations.
 Provides per-photo analysis: score breakdown, strengths, weaknesses, suggestions.
 """
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -11,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
-from api.database import get_db
+from api.database import get_async_db
 from api.db_helpers import get_visibility_clause
 from api.model_cache import get_or_load_vlm_tagger
 
@@ -309,7 +310,7 @@ def _build_rule_critique(photo):
 
 
 @router.get("/api/critique")
-def api_critique(
+async def api_critique(
     path: str = Query(...),
     mode: str = Query("rule"),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -323,7 +324,7 @@ def api_critique(
     if not VIEWER_CONFIG.get('features', {}).get('show_critique', True):
         raise HTTPException(status_code=403, detail="Critique feature is disabled")
 
-    with get_db() as conn:
+    async with get_async_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -342,10 +343,12 @@ def api_critique(
             'focal_length', 'f_stop', 'iso',
         ]
         col_str = ', '.join(critique_cols)
-        photo = conn.execute(
+        cur = await conn.execute(
             f"SELECT {col_str} FROM photos WHERE path = ? AND {vis_sql}",
             [path] + vis_params
-        ).fetchone()
+        )
+        photo = await cur.fetchone()
+        await cur.close()
 
         if not photo:
             raise HTTPException(status_code=404, detail="Photo not found")
@@ -354,7 +357,9 @@ def api_critique(
         result = _build_rule_critique(photo)
 
         if mode == 'vlm':
-            vlm_critique = _get_vlm_critique(photo, result)
+            # VLM inference is GPU/CPU-bound and blocking — run it off the
+            # event loop so it never stalls other async requests.
+            vlm_critique = await asyncio.to_thread(_get_vlm_critique, photo, result)
             if vlm_critique:
                 result['vlm_critique'] = vlm_critique
             else:

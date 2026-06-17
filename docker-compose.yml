@@ -8,6 +8,9 @@ services:
       - ./data:/app/data
       - ./scoring_config.json:/app/scoring_config.json
       - ./storage:/app/storage
+      - ./model-cache/huggingface:/home/facet/.cache/huggingface
+      - ./model-cache/insightface:/home/facet/.insightface
+      - ./model-cache/pretrained:/app/pretrained_models
     environment:
       - FACET_LOG_LEVEL=INFO
       - DB_PATH=/app/data/photo_scores_pro.db

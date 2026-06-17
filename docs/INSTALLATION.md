@@ -149,10 +149,18 @@ python -c "import torch, cv2, fastapi, insightface, open_clip, numpy, scipy, skl
 
 ### Optional Packages
 
-| Package | Purpose |
-|---------|---------|
-| `cuml`, `cupy` | GPU-accelerated face clustering (requires conda + CUDA) |
-| `onnxruntime-gpu` | GPU-accelerated face detection |
+Each unlocks a feature; without it Facet degrades gracefully (skips the feature or uses a fallback) rather than failing.
+
+| Package | Unlocks / purpose | Without it |
+|---------|-------------------|-----------|
+| `sqlite-vec>=0.1.6` | On-disk KNN for semantic search & similarity | Falls back to in-memory NumPy embedding cache |
+| `watchdog` | Watch mode (`--watch` daemon re-scans new files) | `--watch` unavailable |
+| `pillow-heif` | HEIF/HEIC decode | HEIF/HEIC files skipped |
+| `rawpy` | RAW decode (CR2/CR3/NEF/ARW/…) | RAW files skipped (already in base `requirements.txt`) |
+| `cuml`, `cupy` | GPU-accelerated face clustering (conda + CUDA) | Clustering runs on CPU via `hdbscan` (default) |
+| `onnxruntime-gpu` | GPU-accelerated face detection | CPU `onnxruntime` (slower) |
+| `darktable-cli` (system) | RAW/darktable profile export from the viewer | Only original/embedded download offered |
+| `exiftool` (system) | Best EXIF/GPS extraction | Falls back to `exifread`, then PIL |
 
 ## Troubleshooting Dependency Conflicts
 

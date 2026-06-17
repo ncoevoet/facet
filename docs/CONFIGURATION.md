@@ -15,6 +15,7 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Penalties](#penalties)
 - [Normalization](#normalization)
 - [Models](#models)
+- [Quality Assessment Models](#quality-assessment-models)
 - [Processing](#processing)
 - [Burst Detection](#burst-detection)
 - [Burst Scoring](#burst-scoring)
@@ -733,16 +734,48 @@ Detect duplicate photos globally using perceptual hash (pHash) comparison.
 ```json
 {
   "duplicate_detection": {
-    "similarity_threshold_percent": 90
+    "similarity_threshold_percent": 90,
+    "prefilter_hamming": 12,
+    "embedding_cosine_threshold": 0.90
   }
 }
 ```
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `similarity_threshold_percent` | `90` | pHash similarity threshold (90% = Hamming distance <= 6 of 64 bits) |
+| `similarity_threshold_percent` | `90` | Strict pHash gate (90% = Hamming distance <= 6 of 64 bits); used as the sole criterion when an embedding is missing for either photo |
+| `prefilter_hamming` | `12` | Stage-1 loose Hamming gate for the candidate set when both photos have embeddings (coerced to be >= the strict gate) |
+| `embedding_cosine_threshold` | `0.90` | Stage-2 SigLIP/CLIP cosine gate: a loose-pHash candidate only merges when cosine >= this |
 
-Run `python facet.py --detect-duplicates` to detect and group duplicates.
+Detection is two-stage: loose pHash candidates (recall) confirmed by a tight embedding cosine gate (precision). Photos without an embedding fall back to the strict pHash-only criterion, so behavior is unchanged when embeddings are absent.
+
+Run `python facet.py --detect-duplicates` to detect and group duplicates. Run `python facet.py --sweep-dedup-thresholds [labels.json]` to evaluate the cosine gate — with a labels JSON it prints a precision/recall table, otherwise the candidate-cosine distribution and how many strict-pHash collisions the gate rejects.
+
+---
+
+## Extended IQA tier (optional)
+
+Heavy/experimental quality scorers, **OFF by default** and **never a replacement for TOPIQ** — they add supplementary columns only when explicitly enabled. When enabled, the extended scorers run **during a normal scan** and write their own columns; a load/VRAM failure is logged and the column is left `NULL` (the scan never aborts).
+
+```json
+{
+  "iqa_extended": {
+    "qalign": "4bit",
+    "aesthetic_v25": true,
+    "deqa": false
+  }
+}
+```
+
+| Setting | Default | Accepted values | Column | Description |
+|---------|---------|-----------------|--------|-------------|
+| `qalign` | `false` | `false` · `"4bit"` · `"8bit"` · `true`/`"full"` | `qalign_score` | Q-Align LLM-based IQA (pyiqa-backed). `"4bit"` (~6-8GB VRAM) is the practical choice on a 16GB card; `"8bit"` ~12-14GB; full precision (`true`) wants 16GB+. 4-/8-bit need `bitsandbytes`. |
+| `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (SigLIP head, ~2GB). Requires the `aesthetic-predictor-v2-5` package. |
+| `deqa` | `false` | `true` / `false` | `deqa_score` | DeQA-Score VLM IQA (16GB+ GPU; skipped & left NULL otherwise). |
+
+**Install the optional dependencies** for whatever you enable: `pip install -e .[iqa-extended]` (adds `aesthetic-predictor-v2-5` + `bitsandbytes`), or uncomment the matching lines in `requirements.txt`. Q-Align itself ships with `pyiqa`; DeQA-Score downloads via `transformers`.
+
+When enabled, each metric is exposed to the weighted aggregate but defaults to weight 0, so `--recompute-average` is byte-identical until you give it a weight. Run `python facet.py --eval-iqa-srcc` to measure how well each metric ranks your library against your own star ratings.
 
 ---
 

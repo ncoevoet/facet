@@ -6,6 +6,7 @@ using the VLM tagger (Qwen3-VL / Qwen2.5-VL) and stores it for future use.
 Optionally translates captions to a configured target language via MarianMT.
 """
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -14,7 +15,7 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
-from api.database import get_db
+from api.database import get_async_db, get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
 from api.path_validation import resolve_photo_disk_path
 
@@ -32,7 +33,7 @@ def _get_target_language() -> str:
 
 
 @router.get("/api/caption")
-def api_caption(
+async def api_caption(
     path: str = Query(...),
     lang: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -48,20 +49,25 @@ def api_caption(
     if not VIEWER_CONFIG.get('features', {}).get('show_captions', False):
         raise HTTPException(status_code=403, detail="Caption feature is disabled")
 
-    with get_db() as conn:
+    async with get_async_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
         # Check the photo exists
-        photo = conn.execute(
+        cur = await conn.execute(
             f"SELECT path FROM photos WHERE path = ? AND {vis_sql}",
             [path] + vis_params,
-        ).fetchone()
+        )
+        photo = await cur.fetchone()
+        await cur.close()
 
         if not photo:
             raise HTTPException(status_code=404, detail="Photo not found")
 
-        existing_cols = get_existing_columns(conn)
+        # get_existing_columns() with no args reads the cached column set
+        # (or opens its own sync connection); it must not receive the
+        # aiosqlite conn, whose execute() is a coroutine.
+        existing_cols = get_existing_columns()
 
         # Determine if we should return a translation
         target_lang = _get_target_language()
@@ -78,9 +84,11 @@ def api_caption(
             if wants_translation and 'caption_translated' in existing_cols:
                 cols_to_fetch = 'caption, caption_translated'
 
-            row = conn.execute(
+            cur = await conn.execute(
                 f"SELECT {cols_to_fetch} FROM photos WHERE path = ?", [path]
-            ).fetchone()
+            )
+            row = await cur.fetchone()
+            await cur.close()
 
             if row and row['caption']:
                 # If translation requested and cached, return it
@@ -91,14 +99,17 @@ def api_caption(
                             "source": "cached",
                             "lang": target_lang,
                         }
-                    # Translate on-demand and cache
-                    translated = _translate_caption(row['caption'], target_lang)
+                    # Translate on-demand and cache. Translation is a blocking
+                    # model call — offload it from the event loop.
+                    translated = await asyncio.to_thread(
+                        _translate_caption, row['caption'], target_lang
+                    )
                     if translated:
-                        conn.execute(
+                        await conn.execute(
                             "UPDATE photos SET caption_translated = ? WHERE path = ?",
                             [translated, path],
                         )
-                        conn.commit()
+                        await conn.commit()
                         return {
                             "caption": translated,
                             "source": "translated",
@@ -108,8 +119,9 @@ def api_caption(
                 # Return English caption
                 return {"caption": row['caption'], "source": "cached"}
 
-        # Try to generate via VLM
-        caption = _generate_caption(path)
+        # Try to generate via VLM. Generation is a blocking GPU/CPU call —
+        # offload it from the event loop.
+        caption = await asyncio.to_thread(_generate_caption, path)
         if caption is None:
             raise HTTPException(
                 status_code=503,
@@ -118,21 +130,23 @@ def api_caption(
 
         # Store in DB if the column exists
         if 'caption' in existing_cols:
-            conn.execute(
+            await conn.execute(
                 "UPDATE photos SET caption = ? WHERE path = ?",
                 [caption, path],
             )
-            conn.commit()
+            await conn.commit()
 
         # If translation requested, translate the freshly generated caption
         if wants_translation:
-            translated = _translate_caption(caption, target_lang)
+            translated = await asyncio.to_thread(
+                _translate_caption, caption, target_lang
+            )
             if translated and 'caption_translated' in existing_cols:
-                conn.execute(
+                await conn.execute(
                     "UPDATE photos SET caption_translated = ? WHERE path = ?",
                     [translated, path],
                 )
-                conn.commit()
+                await conn.commit()
                 return {
                     "caption": translated,
                     "source": "translated",

@@ -31,6 +31,8 @@ from typing import Dict, List, Optional
 import numpy as np
 from scipy.optimize import minimize
 from db import DEFAULT_DB_PATH, get_connection
+from config import ScoringConfig
+from processing.scorer import build_metric_vector, SCORING_METRIC_KEYS
 
 logger = logging.getLogger("facet.optimizer")
 
@@ -45,50 +47,10 @@ class WeightOptimizer:
     table; raw comparisons feed the optimizer directly).
     """
 
-    # Score components that can be weighted (must match photos table columns)
-    SCORE_COMPONENTS = [
-        # Primary quality metrics
-        'aesthetic',
-        'quality_score',
-        'face_quality',
-        'face_sharpness',
-        'eye_sharpness',
-        'tech_sharpness',
-        # Composition metrics
-        'comp_score',
-        'power_point_score',
-        'leading_lines_score',
-        # Technical metrics
-        'exposure_score',
-        'color_score',
-        'contrast_score',
-        'dynamic_range_stops',
-        'mean_saturation',
-        'noise_sigma',          # Note: lower is better (inverted in scoring)
-        # Bonuses
-        'isolation_bonus',
-    ]
-
-    # Maximum natural scale for each feature, used to normalize to 0–1 before
-    # optimization so that weight percentages are directly interpretable.
-    FEATURE_SCALES = {
-        'aesthetic': 10.0,
-        'quality_score': 10.0,
-        'face_quality': 10.0,
-        'face_sharpness': 100.0,
-        'eye_sharpness': 10.0,
-        'tech_sharpness': 10.0,
-        'comp_score': 10.0,
-        'power_point_score': 10.0,
-        'leading_lines_score': 10.0,
-        'exposure_score': 10.0,
-        'color_score': 10.0,
-        'contrast_score': 10.0,
-        'dynamic_range_stops': 15.0,
-        'mean_saturation': 1.0,
-        'noise_sigma': 5.0,
-        'isolation_bonus': 10.0,
-    }
+    # Score components that can be weighted. Shared with the scorer so the
+    # optimizer trains on the exact metric vector production scores (config keys,
+    # all 0-10, 'noise' pre-inverted). 'quality' is excluded (always 0).
+    SCORE_COMPONENTS = list(SCORING_METRIC_KEYS)
 
     # Reliability prior per comparison source: explicit A/B votes count
     # fully; synthetic pairs derived from star ratings and culling decisions
@@ -98,20 +60,25 @@ class WeightOptimizer:
     def __init__(self, db_path: str = DEFAULT_DB_PATH, config_path: str = 'scoring_config.json'):
         self.db_path = db_path
         self.config_path = config_path
+        self._cfg: Optional[ScoringConfig] = None
 
-    def _scale_features(self, X: np.ndarray) -> np.ndarray:
-        """Normalize feature columns to 0–1 using FEATURE_SCALES.
+    @property
+    def cfg(self) -> ScoringConfig:
+        """Lazily-loaded scoring config (for metric-vector construction)."""
+        if self._cfg is None:
+            self._cfg = ScoringConfig(self.config_path)
+        return self._cfg
 
-        Each column is divided by its scale so that all features occupy roughly
-        the same range.  This makes optimized weight percentages directly
-        comparable across features with different natural units.
+    def _metric_vector(self, row: dict, category: Optional[str]) -> List[float]:
+        """Build the production metric vector for one photo, in component order.
+
+        Uses the photo's own determined category when none is supplied so the
+        category-dependent terms (leading-lines blend, isolation) match scoring.
+        Values are clamped to 0-10 exactly as the scorer clamps them.
         """
-        scales = np.array([
-            self.FEATURE_SCALES.get(c, 10.0) for c in self.SCORE_COMPONENTS
-        ])
-        # Avoid division by zero
-        scales = np.where(scales > 1e-8, scales, 1.0)
-        return X / scales
+        cat = category or self.cfg.determine_category(row)
+        vec = build_metric_vector(row, self.cfg, cat, weights=self.cfg.get_weights(cat))
+        return [max(0.0, min(10.0, vec.get(c, 0.0))) for c in self.SCORE_COMPONENTS]
 
     def _fetch_comparison_data(
         self,
@@ -120,26 +87,27 @@ class WeightOptimizer:
         include_ties: bool = True,
         sources: Optional[List[str]] = None,
     ):
-        """Fetch comparisons joined with both photos' metric columns.
+        """Fetch comparisons and build both photos' production metric vectors.
 
         Single source of truth for the optimizer's training data (direct,
-        cross-validated and bootstrap paths all consume it).
+        cross-validated and bootstrap paths all consume it). Each photo's feature
+        row is the same 0-10 metric vector the scorer weights, so optimized
+        weights apply directly to production scoring.
 
         Args:
             conn: Open DB connection
-            category: Restrict to one category (None = all)
+            category: Restrict to one category (None = all); also used as the
+                      scoring category for the metric vectors when set
             include_ties: Include 'tie' outcomes
             sources: Restrict to these comparison sources (None = all)
 
         Returns:
             Tuple (comparisons, X_a, X_b, winners, row_weights):
             - comparisons: list of {photo_a, photo_b, winner, source}
-            - X_a/X_b: scaled feature matrices (n x len(SCORE_COMPONENTS))
+            - X_a/X_b: metric matrices (n x len(SCORE_COMPONENTS)), each 0-10
             - winners: 1 for 'a', -1 for 'b', 0 for tie
             - row_weights: per-row likelihood weight from SOURCE_WEIGHTS
         """
-        select_a = ', '.join(f'p1.{c} AS a_{c}' for c in self.SCORE_COMPONENTS)
-        select_b = ', '.join(f'p2.{c} AS b_{c}' for c in self.SCORE_COMPONENTS)
         where_clauses = [
             "winner IN ('a', 'b', 'tie')" if include_ties else "winner IN ('a', 'b')"
         ]
@@ -152,38 +120,53 @@ class WeightOptimizer:
             where_clauses.append(f"COALESCE(c.source, 'vote') IN ({placeholders})")
             params.extend(sources)
 
-        cursor = conn.execute(f"""
+        n = len(self.SCORE_COMPONENTS)
+        rows = conn.execute(f"""
             SELECT c.photo_a_path, c.photo_b_path, c.winner,
-                   COALESCE(c.source, 'vote') AS source,
-                   {select_a},
-                   {select_b}
+                   COALESCE(c.source, 'vote') AS source
             FROM comparisons c
             JOIN photos p1 ON c.photo_a_path = p1.path
             JOIN photos p2 ON c.photo_b_path = p2.path
             WHERE {' AND '.join(where_clauses)}
-        """, params)
+        """, params).fetchall()
+
+        if not rows:
+            return [], np.zeros((0, n)), np.zeros((0, n)), np.array([]), np.array([])
+
+        # Fetch full photo rows once for every photo involved
+        paths = {r['photo_a_path'] for r in rows} | {r['photo_b_path'] for r in rows}
+        photos: Dict[str, dict] = {}
+        path_list = list(paths)
+        for start in range(0, len(path_list), 900):
+            chunk = path_list[start:start + 900]
+            ph = ','.join('?' * len(chunk))
+            for pr in conn.execute(f"SELECT * FROM photos WHERE path IN ({ph})", chunk):
+                photos[pr['path']] = dict(pr)
 
         comparisons = []
         features_a, features_b, winners, row_weights = [], [], [], []
-        for row in cursor:
+        for row in rows:
+            a = photos.get(row['photo_a_path'])
+            b = photos.get(row['photo_b_path'])
+            if a is None or b is None:
+                continue
             comparisons.append({
                 'photo_a': row['photo_a_path'],
                 'photo_b': row['photo_b_path'],
                 'winner': row['winner'],
                 'source': row['source'],
             })
-            features_a.append([float(row[f'a_{c}'] or 0.0) for c in self.SCORE_COMPONENTS])
-            features_b.append([float(row[f'b_{c}'] or 0.0) for c in self.SCORE_COMPONENTS])
+            features_a.append(self._metric_vector(a, category))
+            features_b.append(self._metric_vector(b, category))
             winners.append(1 if row['winner'] == 'a' else (-1 if row['winner'] == 'b' else 0))
             row_weights.append(self.SOURCE_WEIGHTS.get(row['source'], 1.0))
 
-        n = len(self.SCORE_COMPONENTS)
         if not comparisons:
             return [], np.zeros((0, n)), np.zeros((0, n)), np.array([]), np.array([])
         return (
             comparisons,
-            self._scale_features(np.array(features_a)),
-            self._scale_features(np.array(features_b)),
+            np.array(features_a),
+            np.array(features_b),
             np.array(winners),
             np.array(row_weights),
         )
@@ -729,22 +712,11 @@ class WeightOptimizer:
             }
 
     def _load_current_weights(self, category: Optional[str]) -> Dict[str, float]:
-        """Load current weights from scoring_config.json."""
-        # Mapping from DB column names to config key names
-        db_to_config = {
-            'aesthetic': 'aesthetic',
-            'face_quality': 'face_quality',
-            'eye_sharpness': 'eye_sharpness',
-            'tech_sharpness': 'tech_sharpness',
-            'color_score': 'color',
-            'exposure_score': 'exposure',
-            'comp_score': 'composition',
-            'isolation_bonus': 'isolation',
-            'quality_score': 'quality',
-            'contrast_score': 'contrast',
-            'dynamic_range_stops': 'dynamic_range',
-        }
+        """Load current weights from scoring_config.json.
 
+        Components are config metric keys (see SCORING_METRIC_KEYS), so the
+        '<key>_percent' lookup is direct - no DB-column translation.
+        """
         try:
             with open(self.config_path) as f:
                 config = json.load(f)
@@ -765,13 +737,9 @@ class WeightOptimizer:
 
             # Convert percent values to decimal weights
             weights = {}
-            for db_col in self.SCORE_COMPONENTS:
-                config_key = db_to_config.get(db_col, db_col)
-                percent_key = f"{config_key}_percent"
-                if percent_key in cat_weights:
-                    weights[db_col] = cat_weights[percent_key] / 100.0
-                else:
-                    weights[db_col] = 0.0
+            for key in self.SCORE_COMPONENTS:
+                percent_key = f"{key}_percent"
+                weights[key] = cat_weights.get(percent_key, 0.0) / 100.0
 
             # If all weights are 0, use uniform distribution
             if sum(weights.values()) == 0:
@@ -830,29 +798,30 @@ class WeightOptimizer:
                 config['weights'][category] = {}
             cat_weights = config['weights'][category]
 
-        # Mapping from DB column names to config key names
-        db_to_config = {
-            'aesthetic': 'aesthetic',
-            'face_quality': 'face_quality',
-            'eye_sharpness': 'eye_sharpness',
-            'tech_sharpness': 'tech_sharpness',
-            'color_score': 'color',
-            'exposure_score': 'exposure',
-            'comp_score': 'composition',
-            'isolation_bonus': 'isolation',
-            'quality_score': 'quality',
-            'contrast_score': 'contrast',
-            'dynamic_range_stops': 'dynamic_range',
-        }
-
-        # Convert decimal weights to percentages
+        # Components are config metric keys - write '<key>_percent' directly
         for component, weight in new_weights.items():
-            config_key = db_to_config.get(component, component)
-            key = f"{config_key}_percent"
-            cat_weights[key] = round(weight * 100, 1)
+            cat_weights[f"{component}_percent"] = round(weight * 100, 1)
+
+        # Drop stale '<base>_percent' keys whose base is not a real scoring metric
+        # (e.g. DB-column-named keys a pre-alignment apply may have left behind).
+        # get_weights treats every '*_percent' as a weight and renormalizes over
+        # them, so cruft would silently dilute the real metrics.
+        valid_metric_keys = set(SCORING_METRIC_KEYS) | {'quality'}
+        # Keep config-enabled extended-IQA metrics: build_metric_vector exposes
+        # qalign/aesthetic_v25/deqa to the aggregate only when their iqa_extended
+        # flag is on, so a user who enabled and weighted one must not have that
+        # weight stripped here as if it were cruft.
+        try:
+            ext = self.cfg.get_extended_iqa_settings()
+            valid_metric_keys |= {k for k in ('qalign', 'aesthetic_v25', 'deqa') if ext.get(k)}
+        except Exception:
+            pass
+        for key in [k for k in cat_weights
+                    if k.endswith('_percent') and k[:-len('_percent')] not in valid_metric_keys]:
+            del cat_weights[key]
 
         # Post-rounding normalization to ensure weights sum to exactly 100%
-        percent_keys = [f"{db_to_config.get(c, c)}_percent" for c in new_weights.keys()]
+        percent_keys = [f"{c}_percent" for c in new_weights.keys()]
         total = sum(cat_weights[k] for k in percent_keys if k in cat_weights)
         if total > 0 and abs(total - 100.0) > 0.01:
             # Adjust largest weight to compensate for rounding error
@@ -923,8 +892,15 @@ def run_weight_optimization(
     min_comparisons: int = 30,
     sources: Optional[List[str]] = None,
     category: Optional[str] = None,
+    min_improvement: float = 2.0,
+    force: bool = False,
 ):
-    """Run weight optimization from CLI. Optimizes and saves weights automatically.
+    """Run weight optimization from CLI. Applies weights only if they generalize.
+
+    The final weights are fit on all comparisons, but the decision to apply is
+    gated on held-out k-fold accuracy (not training accuracy), so weights that
+    merely overfit the labelled set are not written. Pass force=True to apply
+    regardless of the gate.
 
     Args:
         sources: Restrict training data to these comparison sources
@@ -935,6 +911,9 @@ def run_weight_optimization(
                   are pooled and the result is written to the legacy 'others'
                   block (which v4 config does NOT read - pass an explicit
                   category to actually affect scoring).
+        min_improvement: Minimum held-out accuracy gain (pp) over current weights
+                  required to apply.
+        force: Apply the fitted weights even if the held-out gate is not met.
     """
     optimizer = WeightOptimizer(db_path, config_path)
 
@@ -974,15 +953,45 @@ def run_weight_optimization(
     for source, count in sorted(result.get('source_counts', {}).items()):
         weight = WeightOptimizer.SOURCE_WEIGHTS.get(source, 1.0)
         logger.info("  source %s: %d (likelihood weight %.1f)", source, count, weight)
-    logger.info("Accuracy before: %.1f%%", result['accuracy_before'])
-    logger.info("Accuracy after:  %.1f%%", result['accuracy_after'])
-    logger.info("Improvement:     %+.1f pp", result['improvement'])
-    logger.info("Log-likelihood:  %.4f", result.get('log_likelihood', 0.0))
+    logger.info("Accuracy before:       %.1f%% (current weights, full set)", result['accuracy_before'])
+    logger.info("Accuracy after (train): %.1f%% (fitted weights, same set - optimistic)", result['accuracy_after'])
+    logger.info("Log-likelihood:        %.4f", result.get('log_likelihood', 0.0))
+
+    # Held-out generalization estimate gates the apply decision
+    cv = optimizer.optimize_weights_with_cv(
+        category=category, min_comparisons=min_comparisons, sources=sources,
+    )
+    cv_accuracy = cv.get('cv_accuracy')
+    if 'error' in cv:
+        logger.warning("Cross-validation unavailable (%s); falling back to train accuracy for the gate.", cv['error'])
+        held_out = result['accuracy_after']
+    else:
+        held_out = cv_accuracy
+        logger.info(
+            "Held-out accuracy:      %.1f%% +/- %.1f (%d-fold CV) - the honest estimate",
+            cv_accuracy, cv.get('cv_std', 0.0), cv.get('n_folds', 0),
+        )
+
+    held_out_improvement = held_out - result['accuracy_before']
+    logger.info("Held-out improvement:   %+.1f pp", held_out_improvement)
 
     logger.info("Optimized weights:")
     for component, weight in sorted(result['new_weights'].items(), key=lambda x: -x[1]):
         if weight > 0.01:
             logger.info("  %s: %.1f%%", component, weight * 100)
+
+    should_apply = force or held_out_improvement >= min_improvement
+    if not should_apply:
+        logger.info(
+            "NOT applying: held-out gain %+.1f pp is below the %.1f pp threshold. "
+            "Weights likely overfit the %d labelled comparisons. Use force=True to override.",
+            held_out_improvement, min_improvement, result['comparisons_used'],
+        )
+        logger.info("=" * 60)
+        return
+
+    if force and held_out_improvement < min_improvement:
+        logger.warning("Forcing apply despite held-out gain %+.1f pp below threshold.", held_out_improvement)
 
     logger.info("Applying weights to config...")
     backup_path = optimizer.apply_optimized_weights(
@@ -992,6 +1001,6 @@ def run_weight_optimization(
     if backup_path:
         logger.info("  Backup created: %s", backup_path)
     logger.info("  Config updated: %s", config_path)
-    logger.info("Run 'python facet.py --recalculate' to apply new weights to scores.")
+    logger.info("Run 'python facet.py --recompute-average' to apply new weights to scores.")
 
     logger.info("=" * 60)

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
-from api.database import get_db
+from api.database import get_async_db, get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
@@ -30,8 +30,8 @@ def _get_cluster_zoom_threshold():
         return 10
 
 
-def _get_clustered_photos(conn, zoom, date_from, date_to, user_id,
-                          base_where, base_params, limit):
+async def _get_clustered_photos(conn, zoom, date_from, date_to, user_id,
+                                base_where, base_params, limit):
     """Return clustered photo locations grouped into grid cells for low zoom levels."""
     effective_zoom = max(zoom, 2)
     cell_size = 180.0 / (2 ** effective_zoom)
@@ -47,7 +47,7 @@ def _get_clustered_photos(conn, zoom, date_from, date_to, user_id,
         p2_where += " AND p2.date_taken <= ?"
         p2_params.append(date_to + " 23:59:59")
 
-    rows = conn.execute(
+    cur = await conn.execute(
         f"SELECT "
         f"  AVG(gps_latitude) AS avg_lat, "
         f"  AVG(gps_longitude) AS avg_lng, "
@@ -66,7 +66,9 @@ def _get_clustered_photos(conn, zoom, date_from, date_to, user_id,
         + [cell_size, cell_size, cell_size, cell_size]
         + base_params
         + [cell_size, cell_size, limit],
-    ).fetchall()
+    )
+    rows = await cur.fetchall()
+    await cur.close()
 
     clusters = [
         {
@@ -80,9 +82,9 @@ def _get_clustered_photos(conn, zoom, date_from, date_to, user_id,
     return {'clusters': clusters, 'photos': []}
 
 
-def _get_individual_photos(conn, base_where, base_params, limit):
+async def _get_individual_photos(conn, base_where, base_params, limit):
     """Return individual photo locations for high zoom levels."""
-    rows = conn.execute(
+    cur = await conn.execute(
         f"SELECT path, gps_latitude AS lat, gps_longitude AS lng, "
         f"  aggregate, filename, date_taken, category "
         f"FROM photos "
@@ -90,7 +92,9 @@ def _get_individual_photos(conn, base_where, base_params, limit):
         f"ORDER BY aggregate DESC "
         f"LIMIT ?",
         base_params + [limit],
-    ).fetchall()
+    )
+    rows = await cur.fetchall()
+    await cur.close()
 
     photos = [
         {
@@ -108,7 +112,7 @@ def _get_individual_photos(conn, base_where, base_params, limit):
 
 
 @router.get("/api/photos/map")
-def api_photos_map(
+async def api_photos_map(
     bounds: str = Query(..., description="sw_lat,sw_lng,ne_lat,ne_lng"),
     zoom: int = Query(10, ge=0, le=22),
     limit: int = Query(500, ge=1, le=2000),
@@ -130,7 +134,7 @@ def api_photos_map(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail='Invalid bounds format. Expected: sw_lat,sw_lng,ne_lat,ne_lng')
 
-    with get_db() as conn:
+    async with get_async_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -161,18 +165,18 @@ def api_photos_map(
             base_params.append(date_to + " 23:59:59")
 
         if zoom < _get_cluster_zoom_threshold():
-            return _get_clustered_photos(
+            return await _get_clustered_photos(
                 conn, zoom, date_from, date_to, user_id,
                 base_where, base_params, limit,
             )
         else:
-            return _get_individual_photos(
+            return await _get_individual_photos(
                 conn, base_where, base_params, limit,
             )
 
 
 @router.get("/api/photos/map/count")
-def api_photos_map_count(
+async def api_photos_map_count(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return count of photos with GPS data, for nav badge visibility."""
@@ -180,15 +184,17 @@ def api_photos_map_count(
     if 'gps_latitude' not in existing_cols or 'gps_longitude' not in existing_cols:
         return {'count': 0}
 
-    with get_db() as conn:
+    async with get_async_db() as conn:
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
 
-        row = conn.execute(
+        cur = await conn.execute(
             f"SELECT COUNT(*) AS cnt FROM photos "
             f"WHERE gps_latitude IS NOT NULL AND gps_longitude IS NOT NULL AND {vis_sql}",
             vis_params,
-        ).fetchone()
+        )
+        row = await cur.fetchone()
+        await cur.close()
 
         return {'count': row['cnt']}
 

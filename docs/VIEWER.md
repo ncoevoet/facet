@@ -2,6 +2,17 @@
 
 FastAPI + Angular single-page application for browsing, filtering, and managing photos.
 
+## Contents
+
+- [Starting the Viewer](#starting-the-viewer) · [Authentication](#authentication) · [Filtering Options](#filtering-options) · [Sorting](#sorting) · [Gallery Features](#gallery-features)
+- [Person Management](#person-management) · [Scan Trigger (Superadmin)](#scan-trigger-superadmin) · [Semantic Search](#semantic-search) · [Albums](#albums)
+- [AI Critique](#ai-critique) · [AI Captioning](#ai-captioning) · [Memories ("On This Day")](#memories-on-this-day) · [Timeline View](#timeline-view) · [Map View](#map-view) · [Capsules](#capsules)
+- [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [AI Culling (Similar Groups)](#ai-culling-similar-groups) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
+- [EXIF Statistics](#exif-statistics) · [Keyboard Shortcuts](#keyboard-shortcuts-gallery) · [Undo](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
+- [Configuration](#configuration) · [Performance](#performance) · [API Endpoints](#api-endpoints) · [Troubleshooting](#troubleshooting)
+
+> **Feature requirements** are tagged inline: `[GPU]` · `[16gb/24gb]` (VRAM profile) · `[Edition]` (edition password) · `[Superadmin]`. See the [feature matrix](../README.md#feature-availability--requirements).
+
 ## Starting the Viewer
 
 ### Production
@@ -13,10 +24,10 @@ python viewer.py
 
 This serves both the API and the pre-built Angular application on a single port.
 
-For higher throughput (4 Uvicorn workers):
+For higher throughput, run in production mode (Uvicorn, no auto-reload). Add `--workers N` to scale (default 1):
 
 ```bash
-python viewer.py --production
+python viewer.py --production --workers 4
 ```
 
 ### Development
@@ -107,6 +118,8 @@ python database.py --migrate-user-preferences --user alice
 ```
 
 ## Filtering Options
+
+<p align="center"><img src="screenshots/filter-sidebar-full.jpg" alt="Filter sidebar with every section expanded" width="360"></p>
 
 ### Primary Filters
 
@@ -211,6 +224,8 @@ Active filters shown as removable chips with counts at top of gallery.
 
 ## Person Management
 
+> Browsing persons is open to all viewers; renaming, merging, avatar changes and face assignment require `[Edition]`.
+
 ### Person Filter
 
 Dropdown shows persons with face thumbnails. Click to filter gallery.
@@ -307,7 +322,7 @@ Get a detailed breakdown of a photo's scores with strengths, weaknesses, and imp
 
 Available on all VRAM profiles. Analyzes stored metrics (aesthetic, composition, sharpness, face quality, etc.) and generates a structured explanation of why the photo scored the way it did.
 
-### VLM Critique
+### VLM Critique `[GPU]` `[16gb/24gb]`
 
 Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) to provide a richer, context-aware critique. Requires 16gb or 24gb VRAM profile and `viewer.features.show_vlm_critique: true`.
 
@@ -320,9 +335,9 @@ Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) to provide a richer, context-
 
 Controlled by `viewer.features.show_critique` (default: `true`) and `viewer.features.show_vlm_critique` (default: `false`).
 
-## AI Captioning
+## AI Captioning `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Get an AI-generated natural language caption for any photo. Captions are generated on first request and cached in the `caption` database column. Captions can be edited manually in edition mode via the photo detail page.
+Get an AI-generated natural language caption for any photo. Captions are generated on first request and cached in the `caption` database column. Captions can be edited manually in edition mode via the photo detail page. (Caption *translation* runs on CPU — see below.)
 
 ### API
 
@@ -927,8 +942,9 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 
 | Endpoint | Description |
 |----------|-------------|
-| `POST /api/scan/start` | Start a scoring scan (superadmin only) |
-| `GET /api/scan/status` | Check scan progress |
+| `POST /api/scan/start` | `[Superadmin]` Start a scoring scan |
+| `GET /api/scan/status` | Check scan progress (structured `progress`: `{phase, current, total, eta_seconds}`) |
+| `GET /api/scan/stream?token=<jwt>` | `[Superadmin]` Real-time progress via Server-Sent Events; token is passed as a query param (the `EventSource` API can't set headers), with automatic fallback to polling `/status` |
 | `GET /api/scan/directories` | List configured scan directories |
 
 ### Face Management

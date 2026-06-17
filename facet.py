@@ -36,7 +36,7 @@ if _script_dir not in sys.path:
 import json
 from pathlib import Path
 from datetime import datetime
-from db import init_database, get_connection
+from db import DEFAULT_DB_PATH, init_database, get_connection
 
 try:
     from tqdm import tqdm
@@ -115,6 +115,29 @@ def _get_photo_column_count(db_path: str) -> int:
             return len(list(conn.execute("PRAGMA table_info(photos)")))
     except sqlite3.Error:
         return 0
+
+
+def _log_scan_db_destination(db_path: str):
+    """Log the exact SQLite file written by the scan."""
+    raw_path = str(db_path)
+    resolved_path = os.path.realpath(raw_path)
+
+    try:
+        with get_connection(raw_path, row_factory=False) as conn:
+            photo_count = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
+        size_bytes = os.path.getsize(resolved_path)
+        size_mb = size_bytes / (1024 * 1024)
+        summary = f"{photo_count} photos, {size_mb:.1f} MiB"
+    except Exception as e:
+        summary = f"summary unavailable ({e})"
+
+    if raw_path == resolved_path:
+        logger.info("Scan database file: %s (%s)", resolved_path, summary)
+    else:
+        logger.info(
+            "Scan database file: %s (resolved to %s, %s)",
+            raw_path, resolved_path, summary,
+        )
 
 
 def main():
@@ -229,6 +252,9 @@ Configuration:
                         help='Recompute aggregate scores for a single category only')
     db_group.add_argument('--detect-duplicates', action='store_true',
                         help='Detect duplicate photos using pHash comparison')
+    db_group.add_argument('--sweep-dedup-thresholds', nargs='?', const='', metavar='LABELS_JSON',
+                        help='Evaluate near-dup cosine thresholds. With a labels JSON, prints a '
+                             'precision/recall table; without, prints the candidate-cosine distribution.')
     db_group.add_argument('--recompute-embeddings', action='store_true',
                         help='Recompute CLIP/SigLIP embeddings for all photos (required after model switch)')
     db_group.add_argument('--recompute-tags', action='store_true',
@@ -290,6 +316,8 @@ Configuration:
                         help='Clear and regenerate ALL face thumbnails from original images')
     face_group.add_argument('--recompute-blinks', action='store_true',
                         help='Recompute blink detection using stored landmarks (CPU only, fast)')
+    face_group.add_argument('--recompute-eyes-expression', action='store_true',
+                        help='Recompute eyes-open and expression scores from stored landmarks (CPU only, fast)')
     face_group.add_argument('--recompute-burst', action='store_true',
                         help='Recompute burst detection groups')
     face_group.add_argument('--suggest-person-merges', action='store_true',
@@ -316,7 +344,22 @@ Configuration:
     weight_group.add_argument('--comparison-stats', action='store_true',
                         help='Show pairwise comparison statistics')
     weight_group.add_argument('--optimize-weights', action='store_true',
-                        help='Optimize and save scoring weights based on pairwise comparisons')
+                        help='Optimize and save scoring weights based on pairwise comparisons '
+                             '(applied only if held-out k-fold accuracy beats current weights)')
+    weight_group.add_argument('--optimize-force', action='store_true',
+                        help='Apply optimized weights even if the held-out accuracy gate is not met')
+    weight_group.add_argument('--train-ranker', action='store_true',
+                        help='Train the personal ranker over [embedding + scores] and write '
+                             'learned_scores (gated on held-out k-fold accuracy vs the aggregate '
+                             'baseline; use --train-ranker-force to write regardless)')
+    weight_group.add_argument('--train-ranker-force', action='store_true',
+                        help='Write learned_scores even if the ranker accuracy gate is not met')
+    weight_group.add_argument('--ranker-category', type=str, metavar='CATEGORY',
+                        help='Restrict --train-ranker to one category (default: pool all)')
+    weight_group.add_argument('--report-unreviewed-bursts', action='store_true',
+                        help='Report how many burst groups remain unreviewed (read-only)')
+    weight_group.add_argument('--eval-iqa-srcc', action='store_true',
+                        help='Report Spearman SRCC of each IQA/aesthetic metric vs star ratings (read-only)')
 
     # Model information
     model_group = parser.add_argument_group('Model information')
@@ -351,8 +394,8 @@ Configuration:
     config_group = parser.add_argument_group('Configuration')
     config_group.add_argument('--config', type=str, default=None,
                         help='Path to custom scoring config JSON file')
-    config_group.add_argument('--db', type=str, default='photo_scores_pro.db',
-                        help='Path to database file (default: photo_scores_pro.db)')
+    config_group.add_argument('--db', type=str, default=DEFAULT_DB_PATH,
+                        help=f'Path to database file (default: {DEFAULT_DB_PATH})')
     config_group.add_argument('--validate-categories', action='store_true',
                         help='Validate category configurations')
 
@@ -409,7 +452,51 @@ Configuration:
             config_path=config_path,
             sources=sources,
             category=args.optimize_category,
+            force=args.optimize_force,
         )
+        exit()
+
+    # Train the personal ranker -> learned_scores (lightweight - no GPU needed)
+    if args.train_ranker:
+        from optimization import train_ranker
+        init_database(args.db)
+        result = train_ranker(
+            db_path=args.db or DEFAULT_DB_PATH,
+            category=args.ranker_category,
+            config_path=args.config or 'scoring_config.json',
+            force=args.train_ranker_force,
+        )
+        if 'error' in result:
+            logger.warning("Ranker not trained: %s", result['error'])
+        else:
+            logger.info("Ranker: held-out %.1f%% vs aggregate baseline %.1f%% (%+.1f pp); %s %d learned_scores",
+                        result['cv_accuracy'], result['baseline_accuracy'], result['improvement_pp'],
+                        'gated, wrote' if result.get('gated') else 'wrote', result.get('written', 0))
+        exit()
+
+    # Evaluate IQA metric SRCC vs star ratings (read-only, no GPU)
+    if args.eval_iqa_srcc:
+        from optimization.iqa_eval import print_iqa_srcc_report
+        print_iqa_srcc_report(args.db or DEFAULT_DB_PATH)
+        exit()
+
+    # Report unreviewed burst groups (read-only, no GPU)
+    if args.report_unreviewed_bursts:
+        import sqlite3 as _sqlite3
+        from api.routers.burst_culling import _count_unreviewed_burst_groups
+        init_database(args.db)
+        with get_connection(args.db or DEFAULT_DB_PATH) as conn:
+            conn.row_factory = _sqlite3.Row
+            total = _count_unreviewed_burst_groups(conn, '1=1', [])
+            unreviewed = conn.execute(
+                "SELECT COUNT(DISTINCT burst_group_id) FROM photos "
+                "WHERE burst_group_id IS NOT NULL AND burst_reviewed = 0"
+            ).fetchone()[0]
+        logger.info("Unreviewed burst groups (>=2 photos): %d", total)
+        logger.info("Distinct unreviewed burst_group_ids: %d", unreviewed)
+        logger.info("FLAG (decision, not applied): the portrait leading-lines weight fix "
+                    "(commit 90a892d, ~+3.1pp) is kept gated — apply via --optimize-category portrait "
+                    "if desired; no scoring_config.json change is made by this report.")
         exit()
 
     # Sync rating-derived comparison pairs (lightweight - no GPU needed)
@@ -444,6 +531,13 @@ Configuration:
         from utils.duplicate import detect_duplicates
         init_database(args.db)
         detect_duplicates(args.db, config_path=args.config)
+        exit()
+
+    # Evaluate near-dup cosine thresholds (read-only, no GPU)
+    if args.sweep_dedup_thresholds is not None:
+        from utils.duplicate import report_dedup_thresholds
+        labels = args.sweep_dedup_thresholds or None
+        report_dedup_thresholds(args.db or DEFAULT_DB_PATH, config_path=args.config, labels_path=labels)
         exit()
 
     # Import scorer (deferred to avoid loading heavy modules for --help)
@@ -593,6 +687,12 @@ Configuration:
         scorer.recompute_blink_detection()
         exit()
 
+    # Recompute eyes-open + expression scores using stored landmarks (CPU only, fast)
+    if args.recompute_eyes_expression:
+        scorer = Facet(db_path=args.db, config_path=args.config, lightweight=True)
+        scorer.recompute_eyes_expression()
+        exit()
+
     # --upgrade-db: run the full backfill chain in dependency order by
     # re-invoking this script with each individual flag. Subprocess isolation
     # keeps model loads and GPU memory clean between steps. Idempotent — each
@@ -605,7 +705,6 @@ Configuration:
 
         # Step 0: schema migration FIRST so subsequent steps can read/write
         # any new columns added since the DB was last initialised.
-        from db import DEFAULT_DB_PATH
         db_path = args.db or DEFAULT_DB_PATH
         logger.info("--- Schema migration (init_database) ---")
         before_cols = _get_photo_column_count(db_path)
@@ -624,6 +723,7 @@ Configuration:
             ("--recompute-composition-cpu", "Rule-based composition"),
             ("--recompute-burst", "Burst detection grouping"),
             ("--recompute-blinks", "Blink detection from landmarks"),
+            ("--recompute-eyes-expression", "Eyes-open + expression from landmarks"),
             ("--recompute-average", "Aggregate scores"),
         ]
         cmd_base = [sys.executable, os.path.abspath(__file__)]
@@ -1312,6 +1412,7 @@ Configuration:
     # since multi-pass loads its own models per pass via ModelManager
     use_multi_pass = not (args.dry_run or args.single_pass)
     scorer = Facet(db_path=args.db, config_path=args.config, multi_pass=use_multi_pass)
+    _log_scan_db_destination(scorer.db_path)
 
     # Initialise plugin manager for scoring events
     from plugins import init_global_plugin_manager
@@ -1630,6 +1731,7 @@ Configuration:
     except Exception:
         logger.warning("Auto-populate of photos_vec failed (non-fatal)", exc_info=True)
 
+    _log_scan_db_destination(scorer.db_path)
     emit_progress('done', force=True)
     logger.info("All tasks complete.")
 

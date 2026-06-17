@@ -470,10 +470,47 @@ class ScoringConfig:
         })
 
     def get_duplicate_detection_settings(self):
-        """Get duplicate detection settings (similarity threshold)."""
+        """Get duplicate detection settings.
+
+        Two-stage near-dup keys (with safe defaults when absent):
+        - similarity_threshold_percent: strict pHash-only Hamming gate used when
+          an embedding is missing for either photo (backward-compatible path).
+        - prefilter_hamming: looser Hamming gate for the stage-1 candidate set
+          when both photos have embeddings (recall); coerced to be >= the strict
+          gate so two-stage is never stricter than pHash-only.
+        - embedding_cosine_threshold: stage-2 SigLIP/CLIP cosine gate (precision);
+          a loose-pHash candidate only merges if cosine >= this.
+        """
         return self.config.get('duplicate_detection', {
-            'similarity_threshold_percent': 90
+            'similarity_threshold_percent': 90,
+            'prefilter_hamming': 12,
+            'embedding_cosine_threshold': 0.90,
         })
+
+    def get_extended_iqa_settings(self):
+        """Get the optional extended-IQA tier flags (all OFF by default).
+
+        These gate the heavy/experimental scorers that are NEVER a replacement
+        for TOPIQ — they add supplementary columns only when explicitly enabled:
+        - qalign: Q-Align LLM-based IQA (pyiqa-backed). Accepts a bool (True =
+          full precision, 16GB+) or a quantisation variant string: '4bit'
+          (~6-8GB, the practical choice for a 16GB card), '8bit' (~12-14GB),
+          or 'full'. Returned normalised to False | 'full' | '8bit' | '4bit'.
+        - aesthetic_v25: Aesthetic Predictor V2.5 (light SigLIP head, ~2GB)
+        - deqa: DeQA-Score VLM (very heavy; 16GB+ GPU to validate)
+        """
+        section = self.config.get('iqa_extended', {})
+        qalign_raw = section.get('qalign', False)
+        if isinstance(qalign_raw, str):
+            variant = qalign_raw.strip().lower()
+            qalign = variant if variant in ('full', '8bit', '4bit') else ('full' if variant else False)
+        else:
+            qalign = 'full' if qalign_raw else False
+        return {
+            'qalign': qalign,
+            'aesthetic_v25': bool(section.get('aesthetic_v25', False)),
+            'deqa': bool(section.get('deqa', False)),
+        }
 
     def get_face_clustering_settings(self):
         """Get face clustering settings."""

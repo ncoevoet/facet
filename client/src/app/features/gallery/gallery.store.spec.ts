@@ -506,6 +506,50 @@ describe('GalleryStore', () => {
     });
   });
 
+  describe('updateFilterDebounced()', () => {
+    beforeEach(() => {
+      apiGet.mockReturnValue(of(makePhotosResponse()));
+    });
+
+    it('should update the filter and URL synchronously without an immediate reload', () => {
+      store.updateFilterDebounced('min_score', '7');
+
+      expect(store.filters().min_score).toBe('7');
+      expect(store.filters().page).toBe(1);
+      expect(routerNavigate).toHaveBeenCalled();
+      expect(apiGet).not.toHaveBeenCalled();
+    });
+
+    it('should coalesce rapid range updates into a single reload', async () => {
+      vi.useFakeTimers();
+      try {
+        store.updateFilterDebounced('min_score', '5');
+        store.updateFilterDebounced('min_score', '6');
+        store.updateFilterDebounced('min_score', '7');
+        expect(apiGet).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(300);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(apiGet).toHaveBeenCalledTimes(1);
+      expect(apiGet).toHaveBeenCalledWith('/photos', expect.objectContaining({ min_score: '7' }));
+    });
+
+    it('should let an immediate updateFilter cancel a pending debounced reload', async () => {
+      vi.useFakeTimers();
+      try {
+        store.updateFilterDebounced('min_score', '7');
+        await store.updateFilter('camera', 'Canon');
+        await vi.advanceTimersByTimeAsync(300);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(apiGet).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('updateFilters()', () => {
     beforeEach(() => {
       apiGet.mockReturnValue(of(makePhotosResponse()));

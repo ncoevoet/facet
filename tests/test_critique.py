@@ -1,19 +1,72 @@
-"""Tests for the critique API router (api/routers/critique.py)."""
+"""Tests for the critique API router (api/routers/critique.py).
 
-from contextlib import contextmanager
+GET /api/critique is async (Topic 2 step 7), so endpoint-level tests patch
+get_async_db with a real aiosqlite-backed temp DB rather than a MagicMock
+(a MagicMock is not awaitable). VLM inference (_get_vlm_critique) is patched
+with a plain stub since it is wrapped in asyncio.to_thread in the handler.
+"""
+
+import sqlite3
+from contextlib import asynccontextmanager
 from unittest import mock
 
+import aiosqlite
 import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
 
 
-def _cm(conn):
-    @contextmanager
-    def _ctx():
-        yield conn
-    return _ctx()
+# Columns selected by the critique endpoint (must all exist in the test DB).
+_CRITIQUE_COLS = [
+    'path', 'category', 'aggregate', 'aesthetic', 'tech_sharpness',
+    'face_quality', 'eye_sharpness', 'face_sharpness', 'comp_score',
+    'exposure_score', 'color_score', 'contrast_score', 'isolation_bonus',
+    'noise_sigma', 'dynamic_range_stops', 'leading_lines_score',
+    'power_point_score', 'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
+    'subject_sharpness', 'subject_prominence', 'subject_placement',
+    'bg_separation', 'mean_saturation', 'mean_luminance',
+    'face_ratio', 'face_count', 'is_monochrome', 'is_blink',
+    'is_silhouette', 'is_group_portrait',
+    'highlight_clipped', 'shadow_clipped', 'tags', 'shutter_speed',
+    'focal_length', 'f_stop', 'iso',
+]
+
+_CRITIQUE_SCHEMA = (
+    "CREATE TABLE photos (path TEXT PRIMARY KEY, "
+    + ", ".join(f"{c} TEXT" for c in _CRITIQUE_COLS if c != 'path')
+    + ", is_rejected INTEGER DEFAULT 0);"
+)
+
+
+def _make_db(path, photos):
+    conn = sqlite3.connect(path)
+    conn.executescript(_CRITIQUE_SCHEMA)
+    for p in photos:
+        cols = list(p.keys())
+        placeholders = ", ".join("?" for _ in cols)
+        conn.execute(
+            f"INSERT INTO photos ({', '.join(cols)}) VALUES ({placeholders})",
+            [p[c] for c in cols],
+        )
+    conn.commit()
+    conn.close()
+
+
+def _async_conn_factory(db_path):
+    @asynccontextmanager
+    async def factory():
+        c = await aiosqlite.connect(db_path)
+        c.row_factory = aiosqlite.Row
+        try:
+            yield c
+        finally:
+            await c.close()
+    return factory
+
+
+def _fake_vis(user_id, table_alias=None):
+    return ("1=1", [])
 
 
 def _make_photo(**overrides):
@@ -83,15 +136,15 @@ class TestCritiqueEndpoint:
         assert resp.status_code == 403
         assert "disabled" in resp.json()["detail"].lower()
 
-    def test_photo_not_found(self, client):
+    def test_photo_not_found(self, client, tmp_path):
         """Unknown path returns 404."""
-        mock_conn = mock.MagicMock()
-        mock_conn.execute.return_value.fetchone.return_value = None
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [])  # empty -> path not found
 
         with (
             mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_db", lambda: _cm(mock_conn)),
-            mock.patch("api.routers.critique.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
         ):
             resp = client.get("/api/critique", params={"path": "/photos/missing.jpg"})
 
@@ -99,8 +152,11 @@ class TestCritiqueEndpoint:
         assert "not found" in resp.json()["detail"].lower()
 
 
-    def test_rule_critique_success(self, client):
+    def test_rule_critique_success(self, client, tmp_path):
         """Rule mode returns breakdown, strengths, weaknesses, and category."""
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+
         fake_result = {
             "category": "landscape",
             "category_reason": {"reason_key": "matched", "category": "landscape", "details": []},
@@ -114,13 +170,10 @@ class TestCritiqueEndpoint:
             "penalties": {},
         }
 
-        mock_conn = mock.MagicMock()
-        mock_conn.execute.return_value.fetchone.return_value = _make_photo()
-
         with (
             mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_db", lambda: _cm(mock_conn)),
-            mock.patch("api.routers.critique.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
             mock.patch("api.routers.critique._build_rule_critique", return_value=fake_result),
         ):
             resp = client.get("/api/critique", params={"path": "/photos/test.jpg"})
@@ -134,8 +187,16 @@ class TestCritiqueEndpoint:
         assert isinstance(body["weaknesses"], list)
 
 
-    def test_vlm_mode_unavailable(self, client):
-        """When mode=vlm but profile is legacy, vlm_available=False in response."""
+    def test_vlm_mode_unavailable(self, client, tmp_path):
+        """When mode=vlm but VLM returns nothing, vlm_available=False in response.
+
+        _get_vlm_critique is the blocking inference call (wrapped in
+        asyncio.to_thread by the handler); patch it with a plain stub returning
+        None to simulate an unavailable VLM.
+        """
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+
         fake_rule = {
             "category": "landscape",
             "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
@@ -147,15 +208,12 @@ class TestCritiqueEndpoint:
             "penalties": {},
         }
 
-        mock_conn = mock.MagicMock()
-        mock_conn.execute.return_value.fetchone.return_value = _make_photo()
-
         with (
             mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_db", lambda: _cm(mock_conn)),
-            mock.patch("api.routers.critique.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
             mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
-            mock.patch("api.routers.critique._FULL_CONFIG", {"models": {"vram_profile": "legacy"}}),
+            mock.patch("api.routers.critique._get_vlm_critique", return_value=None),
         ):
             resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
 
@@ -163,6 +221,36 @@ class TestCritiqueEndpoint:
         body = resp.json()
         assert body.get("vlm_available") is False
         assert "vlm_critique" not in body
+
+    def test_vlm_mode_available(self, client, tmp_path):
+        """When mode=vlm and VLM returns text, it appears as vlm_critique."""
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+
+        fake_rule = {
+            "category": "landscape",
+            "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
+            "aggregate": 7.5,
+            "breakdown": [],
+            "strengths": [],
+            "weaknesses": [],
+            "suggestions": [],
+            "penalties": {},
+        }
+
+        with (
+            mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
+            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+            mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
+            mock.patch("api.routers.critique._get_vlm_critique", return_value="A lovely landscape."),
+        ):
+            resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["vlm_critique"] == "A lovely landscape."
+        assert "vlm_available" not in body
 
 
 

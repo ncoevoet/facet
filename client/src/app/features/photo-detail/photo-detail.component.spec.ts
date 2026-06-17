@@ -7,7 +7,18 @@ import { signal } from '@angular/core';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { PhotoDetailComponent } from './photo-detail.component';
+
+// Mock Leaflet via vi.doMock + dynamic import: the component pulls in shared/leaflet
+// (which runs L.Icon.Default.mergeOptions at module load). Without this mock, importing
+// the real component caches the real shared/leaflet in the shared module registry and
+// poisons map.component.spec's leaflet mock (createLeafletMap keeps the real L) — a
+// flaky CI failure. The shared singleton keeps the real Leaflet out of the registry and
+// makes every leaflet-using spec's binding identical regardless of load order.
+import { leafletMock } from '../../../testing/leaflet-mock';
+
+vi.doMock('leaflet', () => leafletMock);
+
+let PhotoDetailComponent: typeof import('./photo-detail.component').PhotoDetailComponent;
 
 describe('PhotoDetailComponent', () => {
    
@@ -63,6 +74,10 @@ describe('PhotoDetailComponent', () => {
     });
     component = TestBed.inject(PhotoDetailComponent);
   }
+
+  beforeAll(async () => {
+    ({ PhotoDetailComponent } = await import('./photo-detail.component'));
+  });
 
   beforeEach(() => {
     mockApi = {

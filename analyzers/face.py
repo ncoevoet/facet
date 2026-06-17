@@ -263,6 +263,93 @@ class FaceAnalyzer:
     # blink check entirely rather than flag a false positive.
     POSE_BLINK_GATE_DEG = 35.0
 
+    # 106-point landmark mouth region (insightface 2d_106): indices 52-71 cover
+    # the outer + inner lip contour. The expression heuristic uses the block's
+    # vertical/horizontal extent rather than specific corner indices, so it is
+    # robust to landmark jitter and works on stored landmarks (no pose needed).
+    MOUTH_INDICES = list(range(52, 72))
+
+    # Continuous EAR -> openness mapping. EAR ~0.10 fully closed, ~0.28+ wide open.
+    EAR_CLOSED = 0.12
+    EAR_OPEN = 0.28
+
+    @staticmethod
+    def _eye_width(landmarks, eye_indices):
+        """Horizontal (outer-inner corner) span of one eye."""
+        return float(np.linalg.norm(landmarks[eye_indices[0]] - landmarks[eye_indices[1]]))
+
+    @classmethod
+    def compute_eyes_open_score(cls, landmarks, pose=None):
+        """Continuous 0-10 eyes-open score from a 106-point landmark array.
+
+        10 = wide open, 0 = fully closed, linearly mapped from the average EAR.
+        Returns ``None`` (neutral / unknown) when the head is turned enough that
+        EAR is unreliable: detected from explicit head ``pose`` (|yaw|/|pitch| >
+        POSE_BLINK_GATE_DEG) when available, otherwise from strong left/right eye
+        width asymmetry in the landmarks themselves (a foreshortening proxy, so
+        the backfill path with no stored pose still gates turned heads).
+        """
+        landmarks = np.asarray(landmarks, dtype=np.float32)
+        if landmarks.shape[0] < 96:
+            return None
+        if pose is not None:
+            try:
+                p = np.asarray(pose, dtype=np.float32).flatten()
+                if p.size >= 2 and (
+                    abs(p[0]) > cls.POSE_BLINK_GATE_DEG
+                    or abs(p[1]) > cls.POSE_BLINK_GATE_DEG
+                ):
+                    return None
+            except (ValueError, TypeError):
+                pass
+        lw = cls._eye_width(landmarks, cls.LEFT_EYE_INDICES)
+        rw = cls._eye_width(landmarks, cls.RIGHT_EYE_INDICES)
+        if lw > 0 and rw > 0 and (min(lw, rw) / max(lw, rw)) < 0.45:
+            # One eye is <45% the width of the other -> head strongly turned.
+            return None
+        ear = cls.compute_avg_ear(landmarks)
+        frac = (ear - cls.EAR_CLOSED) / (cls.EAR_OPEN - cls.EAR_CLOSED)
+        return float(max(0.0, min(1.0, frac)) * 10.0)
+
+    @classmethod
+    def compute_expression_score(cls, landmarks):
+        """Continuous 0-10 mouth-state quality from a 106-point landmark array.
+
+        A composed mouth (gently closed / slight smile) scores high; a wide-open
+        mouth (mid-speech, yawning) scores low — for burst/duplicate culling we
+        prefer the frame with the most composed expression. Derived from the
+        vertical-to-horizontal extent of the mouth landmark block, which is scale
+        invariant. Returns ``None`` when the mouth geometry is degenerate.
+        """
+        landmarks = np.asarray(landmarks, dtype=np.float32)
+        if landmarks.shape[0] <= cls.MOUTH_INDICES[-1]:
+            return None
+        mouth = landmarks[cls.MOUTH_INDICES]
+        w = float(mouth[:, 0].max() - mouth[:, 0].min())
+        h = float(mouth[:, 1].max() - mouth[:, 1].min())
+        if w <= 1e-6:
+            return None
+        open_ratio = h / w
+        # Calibrated to the real mouth-block extent distribution over 754 stored
+        # faces (open_ratio percentiles: p10=0.36 composed ... p90=0.84 wide
+        # open). Map p10->10 (composed/closed) and p90->0 (wide open) so the
+        # score spreads usefully across typical faces rather than saturating.
+        open_lo, open_hi = 0.36, 0.84
+        frac = (open_ratio - open_lo) / (open_hi - open_lo)
+        return float((1.0 - max(0.0, min(1.0, frac))) * 10.0)
+
+    @staticmethod
+    def aggregate_eyes_open(scores):
+        """Photo-level eyes-open = worst (min) valid face: any closed eye drags it down."""
+        vals = [s for s in scores if s is not None]
+        return min(vals) if vals else None
+
+    @staticmethod
+    def aggregate_expression(scores):
+        """Photo-level expression = mean of valid faces."""
+        vals = [s for s in scores if s is not None]
+        return float(sum(vals) / len(vals)) if vals else None
+
     def is_blinking(self, face):
         """Returns True if EAR is below the threshold for either eye.
 

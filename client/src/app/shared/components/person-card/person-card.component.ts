@@ -33,7 +33,12 @@ export interface Person {
       class="group !overflow-hidden cursor-pointer transition-shadow hover:shadow-lg"
       [class.!ring-2]="isSelected()"
       [class.!ring-blue-500]="isSelected()"
+      role="button"
+      tabindex="0"
+      [attr.aria-label]="person().name || ('persons.unnamed' | translate)"
       (click)="selected.emit(person().id)"
+      (keydown.enter)="selected.emit(person().id)"
+      (keydown.space)="selected.emit(person().id); $event.preventDefault()"
     >
       <!-- Avatar -->
       <div class="relative aspect-[4/3] bg-[var(--mat-sys-surface-container)] overflow-hidden">

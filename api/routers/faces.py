@@ -4,14 +4,16 @@ Faces API router — face management, rating, favorites, rejected.
 """
 
 import logging
+import os
 import sqlite3
+import threading
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from api.auth import CurrentUser, require_edition, require_auth
 from api.config import is_multi_user_enabled, _stats_cache
-from api.database import get_db
+from api.database import get_async_db, get_db
 from api.db_helpers import update_person_face_count
 
 logger = logging.getLogger(__name__)
@@ -56,20 +58,22 @@ class BatchRatingRequest(BaseModel):
 
 
 @router.get("/api/person/{person_id}/faces")
-def api_person_faces(
+async def api_person_faces(
     person_id: int,
     user: CurrentUser = Depends(require_auth),
 ):
     """Get all faces belonging to a person."""
-    with get_db() as conn:
-        faces = conn.execute("""
+    async with get_async_db() as conn:
+        cur = await conn.execute("""
             SELECT f.id, f.photo_path, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2
             FROM faces f
             LEFT JOIN photos p ON f.photo_path = p.path
             WHERE f.person_id = ?
             ORDER BY p.aggregate DESC
             LIMIT 36
-        """, (person_id,)).fetchall()
+        """, (person_id,))
+        faces = await cur.fetchall()
+        await cur.close()
         return {'faces': [dict(f) for f in faces]}
 
 
@@ -106,20 +110,22 @@ def api_set_person_avatar(
 
 
 @router.get("/api/photo/faces")
-def api_photo_faces(
+async def api_photo_faces(
     path: str,
     user: CurrentUser = Depends(require_auth),
 ):
     """Get all faces in a photo with their current person assignment."""
-    with get_db() as conn:
-        faces = conn.execute("""
+    async with get_async_db() as conn:
+        cur = await conn.execute("""
             SELECT f.id, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2,
                    f.person_id, p.name as person_name
             FROM faces f
             LEFT JOIN persons p ON f.person_id = p.id
             WHERE f.photo_path = ?
             ORDER BY f.face_index
-        """, (path,)).fetchall()
+        """, (path,))
+        faces = await cur.fetchall()
+        await cur.close()
         return {'faces': [dict(f) for f in faces]}
 
 
@@ -236,6 +242,66 @@ def api_unassign_person(
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
+# --- Debounced rating-derived comparison sync ---------------------------------
+# sync_label_comparisons rebuilds ALL source='rating' pairs from scratch (a full
+# DELETE + regenerate over every labelled photo), so firing it on every click is
+# O(all-labels) wasted work when a user rates a batch in quick succession. We
+# coalesce: each rating change (re)schedules a single rebuild a short debounce
+# after the last change, per user scope. Set FACET_RATING_SYNC_DEBOUNCE_S=0 to
+# run inline (used by tests).
+try:
+    _RATING_SYNC_DEBOUNCE_S = float(os.environ.get("FACET_RATING_SYNC_DEBOUNCE_S", "3") or 0)
+except ValueError:
+    _RATING_SYNC_DEBOUNCE_S = 3.0
+_rating_sync_lock = threading.Lock()
+_rating_sync_timers = {}  # scope (user_id or None) -> (Timer, db_path)
+
+
+def _run_rating_sync(db_path, scope):
+    """Rebuild source='rating' pairs for one scope. Best-effort: never raises."""
+    with _rating_sync_lock:
+        _rating_sync_timers.pop(scope, None)
+    try:
+        from optimization.label_pairs import sync_label_comparisons
+        sync_label_comparisons(db_path, user_id=scope)
+    except (sqlite3.Error, ImportError):
+        logger.warning("Failed to sync rating-derived comparisons", exc_info=True)
+
+
+def _mint_rating_comparisons(user_id):
+    """Schedule a debounced rebuild of source='rating' comparison pairs.
+
+    Closes the label gap so star ratings / favorites / rejections become training
+    signal for the weight optimizer and personal ranker (Topic 1 step 7) without a
+    manual --sync-label-comparisons. Coalesces rapid clicks into one rebuild; the
+    rating write has already succeeded and must never be rolled back by this.
+    """
+    from db import DEFAULT_DB_PATH
+    scope = user_id if (user_id and is_multi_user_enabled()) else None
+    db_path = DEFAULT_DB_PATH
+    if _RATING_SYNC_DEBOUNCE_S <= 0:
+        _run_rating_sync(db_path, scope)
+        return
+    with _rating_sync_lock:
+        existing = _rating_sync_timers.get(scope)
+        if existing is not None:
+            existing[0].cancel()
+        timer = threading.Timer(_RATING_SYNC_DEBOUNCE_S, _run_rating_sync, args=(db_path, scope))
+        timer.daemon = True
+        _rating_sync_timers[scope] = (timer, db_path)
+        timer.start()
+
+
+def flush_rating_comparisons():
+    """Run any pending debounced rating syncs immediately (tests / shutdown)."""
+    with _rating_sync_lock:
+        pending = list(_rating_sync_timers.items())
+        _rating_sync_timers.clear()
+    for scope, (timer, db_path) in pending:
+        timer.cancel()
+        _run_rating_sync(db_path, scope)
+
+
 @router.post("/api/photo/set_rating")
 def api_set_rating(
     body: SetRatingRequest,
@@ -254,6 +320,7 @@ def api_set_rating(
                 conn.execute("UPDATE photos SET star_rating = ? WHERE path = ?", (body.rating, body.photo_path))
             conn.commit()
             _stats_cache.clear()
+            _mint_rating_comparisons(user.user_id)
             return {'success': True, 'rating': body.rating}
         except sqlite3.Error:
             logger.exception("Database error setting rating for photo %s", body.photo_path)
@@ -299,6 +366,7 @@ def api_toggle_favorite(
                     conn.execute("UPDATE photos SET is_favorite = 0 WHERE path = ?", (body.photo_path,))
             conn.commit()
             _stats_cache.clear()
+            _mint_rating_comparisons(user.user_id)
             return {'success': True, 'is_favorite': new_value == 1, 'is_rejected': False if new_value == 1 else None}
         except HTTPException:
             raise
@@ -346,6 +414,7 @@ def api_toggle_rejected(
                     conn.execute("UPDATE photos SET is_rejected = 0 WHERE path = ?", (body.photo_path,))
             conn.commit()
             _stats_cache.clear()
+            _mint_rating_comparisons(user.user_id)
             return {'success': True, 'is_rejected': new_value == 1, 'star_rating': 0 if new_value == 1 else None, 'is_favorite': False if new_value == 1 else None}
         except HTTPException:
             raise

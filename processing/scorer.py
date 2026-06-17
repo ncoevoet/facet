@@ -403,6 +403,134 @@ def _calculate_scoring_penalties(metrics, config):
         'leading_lines_blend': leading_lines_blend,
     }
 
+
+# Metric keys that calculate_aggregate_logic weights. Single source of truth for
+# the scoring feature space, shared with the weight optimizer so training and
+# serving use the exact same metrics. 'quality' is intentionally excluded from
+# the optimizable set: it is always 0 here (redistributed into 'aesthetic').
+SCORING_METRIC_KEYS = (
+    'aesthetic', 'face_quality', 'face_sharpness', 'eye_sharpness', 'tech_sharpness',
+    'composition', 'power_point', 'leading_lines',
+    'exposure', 'color', 'contrast', 'dynamic_range', 'saturation', 'noise',
+    'isolation',
+    'aesthetic_iaa', 'face_quality_iqa', 'liqe',
+    'subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation',
+)
+
+
+def build_metric_vector(m, cfg, category, weights=None, penalties=None):
+    """Build the per-metric 0-10 scoring vector (pre-weighting).
+
+    Single source of truth for the metric values that feed the weighted
+    aggregate. Used by calculate_aggregate_logic for scoring and by the weight
+    optimizer for training, so both share the exact same feature space. Returns
+    {metric_key: value}; values sit in each metric's natural 0-10 range and
+    'noise' is pre-inverted (higher = less noise = better).
+
+    weights: current category weights (only used for the legacy quality->aesthetic
+             redistribution); defaults to cfg.get_weights(category).
+    penalties: precomputed _calculate_scoring_penalties result, to avoid a second
+               pass when the caller already has it.
+    """
+    safe_float = _safe_float
+    w = weights if weights is not None else (cfg.get_weights(category) if cfg else {})
+    exif_settings = cfg.get_exif_adjustments() if cfg else {}
+
+    # ISO-aware sharpness compensation
+    adjusted_sharpness = safe_float(m.get('tech_sharpness'), 5.0)
+    if exif_settings.get('iso_sharpness_compensation', True):
+        iso = safe_float(m.get('iso'), None)
+        if iso and iso > 800:
+            adjusted_sharpness = min(10.0, adjusted_sharpness + 0.5 * np.log2(iso / 800))
+
+    # Aperture-based isolation boost, normalized to 0-10
+    effective_isolation = safe_float(m.get('isolation_bonus'), 1.0)
+    if exif_settings.get('aperture_isolation_boost', True):
+        f_stop = safe_float(m.get('f_stop'), None)
+        if f_stop and f_stop <= 2.8:
+            multiplier = 1.5 if f_stop <= 2.0 else 1.3
+            effective_isolation = min(3.0, effective_isolation * multiplier)
+    isolation_score = min(10.0, (effective_isolation - 1.0) * 5.0)
+
+    dynamic_range_score = min(10.0, safe_float(m.get('histogram_spread'), 0) / 6.0)
+
+    if penalties is None:
+        penalties = _calculate_scoring_penalties(m, cfg)
+    noise_sigma = penalties['noise_sigma']
+    leading_lines = penalties['leading_lines']
+    leading_lines_blend = penalties['leading_lines_blend']
+
+    aes = safe_float(m.get('aesthetic'), 5.0)
+    exp = safe_float(m.get('exposure_score'), 5.0)
+    col = safe_float(m.get('color_score'), 5.0)
+    if m.get('is_monochrome', 0):
+        col = 5.0  # Neutral - don't penalize B&W for low color entropy
+    comp_raw = safe_float(m.get('comp_score'), 5.0)
+    contrast = safe_float(m.get('contrast_score'), 5.0)
+    face_qual = safe_float(m.get('face_quality'), 5.0)
+    eye_sharp = safe_float(m.get('eye_sharpness'), 5.0)
+
+    # Leading-lines bonus only for non-portrait categories
+    if category not in ('portrait', 'group_portrait') and leading_lines > 0:
+        comp = min(10.0, comp_raw + (leading_lines * leading_lines_blend))
+    else:
+        comp = comp_raw
+
+    # Quality weight is redistributed into aesthetic (no separate quality signal)
+    aes_extra = w.get('quality', 0.0)
+    aesthetic_value = (
+        aes + aes_extra / max(w.get('aesthetic', 0.01), 0.01)
+        if w.get('aesthetic', 0) > 0 else aes
+    )
+
+    face_sharp = safe_float(m.get('face_sharpness'), 5.0)
+    power_point = safe_float(m.get('power_point_score'), 5.0)
+    saturation = min(10.0, safe_float(m.get('mean_saturation'), 0.5) * 10.0)
+    noise_score = max(0.0, min(10.0, 10.0 - noise_sigma * 0.7))
+
+    result = {
+        'aesthetic': aesthetic_value,
+        'face_quality': face_qual,
+        'face_sharpness': face_sharp,
+        'eye_sharpness': eye_sharp,
+        'tech_sharpness': adjusted_sharpness,
+        'composition': comp,
+        'power_point': power_point,
+        'leading_lines': leading_lines,
+        'exposure': exp,
+        'color': col,
+        'contrast': contrast,
+        'dynamic_range': dynamic_range_score,
+        'saturation': saturation,
+        'noise': noise_score,
+        'isolation': isolation_score,
+        'aesthetic_iaa': safe_float(m.get('aesthetic_iaa'), 5.0),
+        'face_quality_iqa': safe_float(m.get('face_quality_iqa'), 5.0),
+        'liqe': safe_float(m.get('liqe_score'), 5.0),
+        'subject_sharpness': safe_float(m.get('subject_sharpness'), 5.0),
+        'subject_prominence': safe_float(m.get('subject_prominence'), 5.0),
+        'subject_placement': safe_float(m.get('subject_placement'), 5.0),
+        'bg_separation': safe_float(m.get('bg_separation'), 5.0),
+    }
+
+    # Extended IQA tier (config-gated OFF by default). Each metric is exposed to
+    # the weighted aggregate only when its column is enabled; its weight defaults
+    # to 0, so the aggregate is byte-identical until a weight is configured. When
+    # disabled the keys are absent, leaving the feature space identical to before.
+    if cfg is not None:
+        try:
+            ext = cfg.get_extended_iqa_settings()
+        except Exception:
+            ext = {}
+        if ext.get('qalign'):
+            result['qalign'] = safe_float(m.get('qalign_score'), 5.0)
+        if ext.get('aesthetic_v25'):
+            result['aesthetic_v25'] = safe_float(m.get('aesthetic_v25'), 5.0)
+        if ext.get('deqa'):
+            result['deqa'] = safe_float(m.get('deqa_score'), 5.0)
+
+    return result
+
 # MAIN SCORER CLASS
 # ============================================
 
@@ -849,34 +977,8 @@ class Facet:
         score_min = scoring_limits.get('score_min', 0.0)
         score_max = scoring_limits.get('score_max', 10.0)
 
-        # Get thresholds from config (stored as percentages)
-        blink_penalty = 0.5
-        if cfg:
-            (cfg.get_threshold('portrait_face_ratio_percent') or 5) / 100
-            blink_penalty = (cfg.get_threshold('blink_penalty_percent') or 50) / 100
-
-        safe_float = _safe_float
-
-        # EXIF-aware adjustments
-        exif_settings = cfg.get_exif_adjustments() if cfg else {}
-
-        # 1. ISO-aware sharpness compensation
-        adjusted_sharpness = safe_float(m.get('tech_sharpness'), 5.0)
-        if exif_settings.get('iso_sharpness_compensation', True):
-            iso = safe_float(m.get('iso'), None)
-            if iso and iso > 800:
-                adjusted_sharpness = min(10.0, adjusted_sharpness + 0.5 * np.log2(iso / 800))
-
-        # 2. Aperture-based isolation boost
-        effective_isolation = m.get('isolation_bonus', 1.0)
-        if exif_settings.get('aperture_isolation_boost', True):
-            f_stop = safe_float(m.get('f_stop'), None)
-            if f_stop and f_stop <= 2.8:
-                multiplier = 1.5 if f_stop <= 2.0 else 1.3
-                effective_isolation = min(3.0, effective_isolation * multiplier)
-
-        # 3. Normalize isolation to 0-10 scale for use as scoring component
-        isolation_score = min(10.0, (effective_isolation - 1.0) * 5.0)
+        # Blink penalty multiplier (stored as percentage)
+        blink_penalty = (cfg.get_threshold('blink_penalty_percent') or 50) / 100 if cfg else 0.5
 
         # Get exposure settings for clipping penalty
         exposure_settings = cfg.get_exposure_settings() if cfg else {}
@@ -894,92 +996,21 @@ class Facet:
             if shadow_clipped or highlight_clipped:
                 clipping_penalty = (shadow_clipped * 0.5) + (highlight_clipped * 1.0)
 
-        # Dynamic range score for landscapes (histogram spread normalized to 0-10)
-        dynamic_range_score = min(10.0, safe_float(m.get('histogram_spread'), 0) / 6.0)
-
-        # Calculate penalties and leading lines from extracted helper
+        # Calculate penalties from extracted helper
         penalties = _calculate_scoring_penalties(m, cfg)
         noise_penalty = penalties['noise_penalty']
-        noise_sigma = penalties['noise_sigma']
         bimodality_penalty = penalties['bimodality_penalty']
         oversaturation_penalty = penalties['oversaturation_penalty']
-        leading_lines = penalties['leading_lines']
-        leading_lines_blend = penalties['leading_lines_blend']
 
-        # Quality score (stored for compatibility but not used in aggregate)
-        safe_float(m.get('quality_score'), 5.0)
-        m.get('scoring_model', 'clip-mlp')
-
-        # Determine photo category using helper
+        # Determine photo category and load weights
         category = self._determine_photo_category(m, cfg)
         w = cfg.get_weights(category) if cfg else {}
 
-        # Common metrics
-        aes = safe_float(m.get('aesthetic'), 5.0)
-        exp = safe_float(m.get('exposure_score'), 5.0)
-        col = safe_float(m.get('color_score'), 5.0)
-        if m.get('is_monochrome', 0):
-            col = 5.0  # Neutral — don't penalize B&W for low color entropy
-        comp_raw = safe_float(m.get('comp_score'), 5.0)
-        contrast = safe_float(m.get('contrast_score'), 5.0)
-        face_qual = safe_float(m.get('face_quality'), 5.0)
-        eye_sharp = safe_float(m.get('eye_sharpness'), 5.0)
-
-        # Add leading lines bonus for non-portrait categories
-        if category not in ('portrait', 'group_portrait') and leading_lines > 0:
-            comp = min(10.0, comp_raw + (leading_lines * leading_lines_blend))
-        else:
-            comp = comp_raw
-
-        # Quality weight is redistributed to aesthetic (no separate quality signal)
-        aes_extra = w.get('quality', 0.0)
-
         # =================================================================
-        # DATA-DRIVEN SCORING: Generic metric-based calculation from config
+        # DATA-DRIVEN SCORING: weighted sum over the shared metric vector
+        # (same feature space used by the weight optimizer for training)
         # =================================================================
-
-        # Additional metrics for expanded weight system
-        face_sharp = safe_float(m.get('face_sharpness'), 5.0)
-        power_point = safe_float(m.get('power_point_score'), 5.0)
-        saturation = min(10.0, safe_float(m.get('mean_saturation'), 0.5) * 10.0)  # Normalize 0-1 to 0-10
-
-        # Noise score: invert noise_sigma so lower noise = higher score (max 10, min 0)
-        # Typical noise_sigma range is 0-15, so we map inversely
-        noise_score = max(0.0, min(10.0, 10.0 - noise_sigma * 0.7))
-
-        # Define all available metrics with their current values and valid ranges
-        # Format: metric_name -> (value, min, max)
-        metrics_map = {
-            # Primary quality metrics
-            'aesthetic': (aes + aes_extra / max(w.get('aesthetic', 0.01), 0.01) if w.get('aesthetic', 0) > 0 else aes, 0.0, 10.0),
-            'quality': (0.0, 0.0, 10.0),
-            'face_quality': (face_qual, 0.0, 10.0),
-            'face_sharpness': (face_sharp, 0.0, 10.0),
-            'eye_sharpness': (eye_sharp, 0.0, 10.0),
-            'tech_sharpness': (adjusted_sharpness, 0.0, 10.0),
-            # Composition metrics
-            'composition': (comp, 0.0, 10.0),
-            'power_point': (power_point, 0.0, 10.0),
-            'leading_lines': (leading_lines, 0.0, 10.0),
-            # Technical metrics
-            'exposure': (exp, 0.0, 10.0),
-            'color': (col, 0.0, 10.0),
-            'contrast': (contrast, 0.0, 10.0),
-            'dynamic_range': (dynamic_range_score, 0.0, 10.0),
-            'saturation': (saturation, 0.0, 10.0),
-            'noise': (noise_score, 0.0, 10.0),  # Inverted: higher = less noise = better
-            # Bonuses
-            'isolation': (isolation_score, 0.0, 10.0),
-            # Supplementary PyIQA scores (only contribute if configured with non-zero weight)
-            'aesthetic_iaa': (safe_float(m.get('aesthetic_iaa'), 5.0), 0.0, 10.0),
-            'face_quality_iqa': (safe_float(m.get('face_quality_iqa'), 5.0), 0.0, 10.0),
-            'liqe': (safe_float(m.get('liqe_score'), 5.0), 0.0, 10.0),
-            # Subject saliency metrics (only contribute if configured with non-zero weight)
-            'subject_sharpness': (safe_float(m.get('subject_sharpness'), 5.0), 0.0, 10.0),
-            'subject_prominence': (safe_float(m.get('subject_prominence'), 5.0), 0.0, 10.0),
-            'subject_placement': (safe_float(m.get('subject_placement'), 5.0), 0.0, 10.0),
-            'bg_separation': (safe_float(m.get('bg_separation'), 5.0), 0.0, 10.0),
-        }
+        metric_values = build_metric_vector(m, cfg, category, weights=w, penalties=penalties)
 
         # Get category flags from config (with sensible defaults)
         # Face categories get blink penalty by default
@@ -999,14 +1030,12 @@ class Facet:
         # Skip oversaturation penalty for certain categories
         skip_oversaturation = w.get('_skip_oversaturation_penalty', category in ('night', 'astro', 'concert'))
 
-        # Calculate weighted sum from config
+        # Calculate weighted sum from config (all metrics share the 0-10 range)
         score = 0.0
-        for metric_name, (metric_value, metric_min, metric_max) in metrics_map.items():
+        for metric_name, metric_value in metric_values.items():
             weight = w.get(metric_name, 0.0)
             if weight > 0:
-                # Clamp metric to valid range
-                clamped_value = max(metric_min, min(metric_max, metric_value))
-                score += clamped_value * weight
+                score += max(0.0, min(10.0, metric_value)) * weight
 
         # Apply blink penalty (multiplier on the whole score)
         if apply_blink_penalty and m.get('is_blink'):
@@ -1268,6 +1297,7 @@ class Facet:
                 noise_sigma, mean_saturation, power_point_score, dynamic_range_stops,
                 histogram_data, topiq_score,
                 aesthetic_iaa, face_quality_iqa, liqe_score,
+                qalign_score, aesthetic_v25, deqa_score,
                 subject_sharpness, subject_prominence, subject_placement, bg_separation
             """
             if category_filter:
@@ -1532,6 +1562,69 @@ class Facet:
         blink_count = sum(1 for v in photo_blink_status.values() if v == 1)
         logger.info("Finished. Updated %s photos (%s with blinks).", len(photo_blink_status), blink_count)
 
+    def recompute_eyes_expression(self):
+        """Re-compute eyes-open and expression scores from stored 106-pt landmarks.
+
+        Mirrors :meth:`recompute_blink_detection` — reads the stored
+        ``landmark_2d_106`` blob for each face, computes a continuous eyes-open
+        score (aggregated as the worst/min across a photo's faces) and a
+        mouth-state expression score (mean across faces), and writes them to
+        ``photos.eyes_open_score`` / ``photos.expression_score``. No InsightFace
+        re-run — pure geometry on stored landmarks.
+        """
+        import numpy as np
+        from collections import defaultdict
+        from tqdm import tqdm
+        from analyzers import FaceAnalyzer as _FaceAnalyzer
+
+        with get_connection(self.db_path) as conn:
+            landmark_rows = conn.execute(
+                "SELECT photo_path, landmark_2d_106 FROM faces "
+                "WHERE landmark_2d_106 IS NOT NULL"
+            ).fetchall()
+            no_landmark_count = conn.execute(
+                "SELECT COUNT(*) FROM faces WHERE landmark_2d_106 IS NULL"
+            ).fetchone()[0]
+
+            if not landmark_rows:
+                logger.info("No faces with stored landmarks — nothing to compute.")
+                if no_landmark_count:
+                    logger.info("  %s faces lack landmarks; re-scan to store them.", no_landmark_count)
+                return 0
+
+            logger.info("Computing eyes/expression from stored landmarks for %s faces...",
+                        len(landmark_rows))
+
+            per_photo_eyes = defaultdict(list)
+            per_photo_expr = defaultdict(list)
+            for row in tqdm(landmark_rows, desc="Eyes/expression from landmarks"):
+                path = row['photo_path']
+                try:
+                    landmarks = np.frombuffer(row['landmark_2d_106'], dtype=np.float32).reshape(106, 2)
+                except Exception as e:
+                    logger.warning("Error decoding landmarks for %s: %s", path, e)
+                    continue
+                per_photo_eyes[path].append(_FaceAnalyzer.compute_eyes_open_score(landmarks))
+                per_photo_expr[path].append(_FaceAnalyzer.compute_expression_score(landmarks))
+
+            update_data = []
+            for path in per_photo_eyes:
+                eyes = _FaceAnalyzer.aggregate_eyes_open(per_photo_eyes[path])
+                expr = _FaceAnalyzer.aggregate_expression(per_photo_expr[path])
+                update_data.append((eyes, expr, path))
+
+            logger.info("Saving results to database...")
+            conn.executemany(
+                "UPDATE photos SET eyes_open_score = ?, expression_score = ? WHERE path = ?",
+                update_data,
+            )
+            conn.commit()
+
+        if no_landmark_count:
+            logger.info("Note: %s faces lack stored landmarks (skipped).", no_landmark_count)
+        logger.info("Finished. Updated %s photos with eyes/expression scores.", len(update_data))
+        return len(update_data)
+
     def rescan_samp_composition(self, batch_size: int = 16):
         """
         Rescan composition scores using SAMP-Net from stored thumbnails.
@@ -1634,11 +1727,30 @@ class Facet:
         logger.info("Run --recompute-average to update aggregate scores with new comp_score values")
 
     # Model name -> DB column for supplementary IQA metrics
-    _IQA_MODELS = [
+    # Always-on supplementary IQA models (pyiqa-backed, ~2GB each).
+    _BASE_IQA_MODELS = [
         ('topiq_iaa', 'aesthetic_iaa'),
         ('topiq_nr_face', 'face_quality_iqa'),
         ('liqe', 'liqe_score'),
     ]
+
+    @property
+    def _IQA_MODELS(self):
+        """Base IQA models plus any config-enabled extended pyiqa models.
+
+        Q-Align is pyiqa-backed, so when ``iqa_extended.qalign`` is enabled it
+        slots into the same VRAM-aware multi-pass scoring as the base models
+        (writing the qalign_score column). It is OFF by default — full Q-Align
+        wants 16GB+ VRAM. Non-pyiqa extended scorers (Aesthetic V2.5, DeQA) have
+        their own loaders and are not part of this list.
+        """
+        models = list(self._BASE_IQA_MODELS)
+        try:
+            if self.config.get_extended_iqa_settings().get('qalign'):
+                models.append(('qalign', 'qalign_score'))
+        except Exception:
+            pass
+        return models
 
     def recompute_iqa_from_thumbnails(self, batch_size: int = 64):
         """Recompute supplementary IQA metrics from stored thumbnails.
@@ -2024,6 +2136,11 @@ class Facet:
         with get_connection(self.db_path, row_factory=False) as conn:
             # Batch insert photos
             for res, _ in results_with_images:
+                # Optional extended-IQA columns default to NULL for callers/passes
+                # that did not compute them (named-param INSERT needs every key).
+                res.setdefault('qalign_score', None)
+                res.setdefault('aesthetic_v25', None)
+                res.setdefault('deqa_score', None)
                 conn.execute('''
                     INSERT OR REPLACE INTO photos (
                         path, filename, category, image_width, image_height,
@@ -2039,6 +2156,7 @@ class Facet:
                         dynamic_range_stops, noise_sigma, contrast_score, tags,
                         quality_score, topiq_score, composition_explanation, scoring_model, composition_pattern,
                         aesthetic_iaa, face_quality_iqa, liqe_score,
+                        qalign_score, aesthetic_v25, deqa_score,
                         subject_sharpness, subject_prominence, subject_placement, bg_separation,
                         gps_latitude, gps_longitude, scanned_at
                     )
@@ -2056,6 +2174,7 @@ class Facet:
                         :dynamic_range_stops, :noise_sigma, :contrast_score, :tags,
                         :quality_score, :topiq_score, :composition_explanation, :scoring_model, :composition_pattern,
                         :aesthetic_iaa, :face_quality_iqa, :liqe_score,
+                        :qalign_score, :aesthetic_v25, :deqa_score,
                         :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation,
                         :gps_latitude, :gps_longitude, datetime('now')
                     )
@@ -2266,8 +2385,12 @@ def process_bursts(db_path, config_path='scoring_config.json'):
 
     with get_connection(db_path) as conn:
         photos = conn.execute(
-            "SELECT path, date_taken, aggregate, phash FROM photos "
-            "WHERE phash IS NOT NULL ORDER BY date_taken"
+            "SELECT path, date_taken, aggregate, phash, "
+            "face_count, eyes_open_score, expression_score, tech_sharpness, "
+            "(SELECT ls.learned_score FROM learned_scores ls "
+            " WHERE ls.photo_path = photos.path AND ls.user_id IS NULL "
+            " AND ls.category IS NULL) AS learned_score "
+            "FROM photos WHERE phash IS NOT NULL ORDER BY date_taken"
         ).fetchall()
         if not photos:
             return
@@ -2295,6 +2418,7 @@ def process_bursts(db_path, config_path='scoring_config.json'):
             return bin(int(hash1, 16) ^ int(hash2, 16)).count('1')
 
         from utils.date_utils import parse_date
+        from utils.selection import pick_lead
 
         def shares_person(path1, path2):
             """Check if two photos share at least one identified person."""
@@ -2345,7 +2469,9 @@ def process_bursts(db_path, config_path='scoring_config.json'):
             else:
                 # Finalize previous burst
                 if current_burst:
-                    winner = max(current_burst, key=lambda x: x['aggregate'] or 0)
+                    # Composite best-of: aggregate dominates, eyes-open / expression /
+                    # sharpness break near-ties toward the better keeper frame.
+                    winner = pick_lead([dict(p) for p in current_burst])
                     conn.execute("UPDATE photos SET is_burst_lead = 1 WHERE path = ?", (winner['path'],))
                     if len(current_burst) >= 2:
                         for p in current_burst:
@@ -2361,7 +2487,7 @@ def process_bursts(db_path, config_path='scoring_config.json'):
 
         # Handle final burst
         if current_burst:
-            winner = max(current_burst, key=lambda x: x['aggregate'] or 0)
+            winner = pick_lead([dict(p) for p in current_burst])
             conn.execute("UPDATE photos SET is_burst_lead = 1 WHERE path = ?", (winner['path'],))
             if len(current_burst) >= 2:
                 for p in current_burst:

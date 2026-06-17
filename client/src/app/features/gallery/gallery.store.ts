@@ -55,6 +55,12 @@ export interface FilterOption {
   count: number;
 }
 
+export interface MetricRange {
+  min: number;
+  max: number;
+  buckets: number[];
+}
+
 export interface PersonOption {
   id: number;
   name: string | null;
@@ -132,6 +138,7 @@ export class GalleryStore {
   readonly currentAlbum = signal<Album | null>(null);
   readonly initializing = signal(false);
   private smartSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private rangeLoadTimer: ReturnType<typeof setTimeout> | null = null;
   readonly photos = signal<Photo[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
@@ -205,6 +212,7 @@ export class GalleryStore {
   readonly tags = signal<FilterOption[]>([]);
   readonly persons = signal<PersonOption[]>([]);
   readonly patterns = signal<FilterOption[]>([]);
+  readonly metricRanges = signal<Record<string, MetricRange>>({});
 
   /** Reverse-geocoded place name for the active GPS filter. */
   readonly gpsLocationName = signal('');
@@ -421,10 +429,33 @@ export class GalleryStore {
     }
     this.syncUrl();
     if (!GalleryStore.DISPLAY_ONLY_KEYS.has(key)) {
+      this.cancelRangeLoad();
       await this.loadPhotos();
     }
     if (key === 'person_id' && wasPersonFiltered && !value) {
       this.reloadPersonOptions();
+    }
+  }
+
+  /** Update a range filter; reload is debounced so a slider drag fires one request. */
+  updateFilterDebounced<K extends keyof GalleryFilters>(key: K, value: GalleryFilters[K]): void {
+    this.filters.update(current => ({ ...current, [key]: value, page: 1 }));
+    this.syncUrl();
+    this.scheduleRangeLoad();
+  }
+
+  private scheduleRangeLoad(): void {
+    if (this.rangeLoadTimer) clearTimeout(this.rangeLoadTimer);
+    this.rangeLoadTimer = setTimeout(() => {
+      this.rangeLoadTimer = null;
+      void this.loadPhotos();
+    }, 300);
+  }
+
+  private cancelRangeLoad(): void {
+    if (this.rangeLoadTimer) {
+      clearTimeout(this.rangeLoadTimer);
+      this.rangeLoadTimer = null;
     }
   }
 
@@ -437,6 +468,7 @@ export class GalleryStore {
     if (Object.keys(updates).some(k => (DISPLAY_OPTION_KEYS as string[]).includes(k))) {
       saveDisplayOptionsToStorage(this.filters());
     }
+    this.cancelRangeLoad();
     this.syncUrl();
     await this.loadPhotos();
   }
@@ -464,6 +496,7 @@ export class GalleryStore {
       this.setGalleryMode(defaults?.gallery_mode ?? 'grid');
     }
     saveDisplayOptionsToStorage(this.filters());
+    this.cancelRangeLoad();
     this.syncUrl();
     await this.loadPhotos();
   }
@@ -507,13 +540,14 @@ export class GalleryStore {
 
   /** Load all filter dropdown options in parallel */
   async loadFilterOptions(): Promise<void> {
-    const [camerasRes, lensesRes, tagsRes, personsRes, patternsRes] = await Promise.all([
+    const [camerasRes, lensesRes, tagsRes, personsRes, patternsRes, rangesRes] = await Promise.all([
       firstValueFrom(this.api.get<{cameras: [string, number][]}>('/filter_options/cameras')).catch(() => ({cameras: []})),
       firstValueFrom(this.api.get<{lenses: [string, number][]}>('/filter_options/lenses')).catch(() => ({lenses: []})),
       firstValueFrom(this.api.get<{tags: [string, number][]}>('/filter_options/tags')).catch(() => ({tags: []})),
       firstValueFrom(this.api.get<{persons: [number, string | null, number][]}>('/filter_options/persons',
         this.filters().person_id ? { ids: this.filters().person_id } : undefined)).catch(() => ({persons: []})),
       firstValueFrom(this.api.get<{patterns: [string, number][]}>('/filter_options/patterns')).catch(() => ({patterns: []})),
+      firstValueFrom(this.api.get<{ranges: Record<string, MetricRange>}>('/filter_options/metric_ranges')).catch(() => ({ranges: {}})),
     ]);
     this.cameras.set((camerasRes.cameras ?? []).map(([value, count]: [string, number]) => ({value, count})));
     this.lenses.set((lensesRes.lenses ?? []).map(([value, count]: [string, number]) => ({value, count})));
@@ -523,6 +557,7 @@ export class GalleryStore {
         .map(([id, name, face_count]: [number, string | null, number]) => ({id, name, face_count})),
     );
     this.patterns.set((patternsRes.patterns ?? []).map(([value, count]: [string, number]) => ({value, count})));
+    this.metricRanges.set(rangesRes.ranges ?? {});
   }
 
   /** Reload person dropdown without filter restriction */

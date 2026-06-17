@@ -124,6 +124,11 @@ async def _get_cached_count_async_passthrough(conn, where_str, sql_params, from_
     return row[0] if row else 0
 
 
+async def _stats_cache_passthrough(_key, fn):
+    """Async stub for _get_stats_cached_async: awaits the compute fn, no cache."""
+    return await fn()
+
+
 _TEST_PHOTOS_COLUMNS = {
     "path", "filename", "date_taken", "camera_model", "lens_model", "iso",
     "f_stop", "shutter_speed", "focal_length", "focal_length_35mm",
@@ -326,9 +331,9 @@ class TestStatsOverview:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
-            mock.patch("api.routers.stats._get_stats_cached",
-                       side_effect=lambda _key, fn: fn()),
+            mock.patch("api.routers.stats.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.stats._get_stats_cached_async",
+                       _stats_cache_passthrough),
         ):
             resp = TestClient(app).get("/api/stats/overview")
         assert resp.status_code == 200
@@ -341,9 +346,9 @@ class TestStatsOverview:
         _make_db(db_path, [_photo("/nodates.jpg", None)])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
-            mock.patch("api.routers.stats._get_stats_cached",
-                       side_effect=lambda _key, fn: fn()),
+            mock.patch("api.routers.stats.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.stats._get_stats_cached_async",
+                       _stats_cache_passthrough),
         ):
             resp = TestClient(app).get("/api/stats/overview")
         data = resp.json()
@@ -354,9 +359,9 @@ class TestStatsOverview:
         db_path = self._db_with_dates(tmp_path, ["2024:07:04 12:00:00"])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
-            mock.patch("api.routers.stats._get_stats_cached",
-                       side_effect=lambda _key, fn: fn()),
+            mock.patch("api.routers.stats.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.stats._get_stats_cached_async",
+                       _stats_cache_passthrough),
         ):
             resp = TestClient(app).get("/api/stats/overview")
         data = resp.json()
@@ -376,9 +381,9 @@ class TestStatsTimeline:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
-            mock.patch("api.routers.stats._get_stats_cached",
-                       side_effect=lambda _key, fn: fn()),
+            mock.patch("api.routers.stats.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.stats._get_stats_cached_async",
+                       _stats_cache_passthrough),
         ):
             resp = TestClient(app).get("/api/stats/timeline")
         assert resp.status_code == 200
@@ -398,9 +403,9 @@ class TestStatsTimeline:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
-            mock.patch("api.routers.stats._get_stats_cached",
-                       side_effect=lambda _key, fn: fn()),
+            mock.patch("api.routers.stats.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.stats._get_stats_cached_async",
+                       _stats_cache_passthrough),
         ):
             resp = TestClient(app).get("/api/stats/timeline")
         monthly = resp.json()["monthly"]
@@ -421,9 +426,9 @@ class TestStatsGear:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
-            mock.patch("api.routers.stats._get_stats_cached",
-                       side_effect=lambda _key, fn: fn()),
+            mock.patch("api.routers.stats.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.stats._get_stats_cached_async",
+                       _stats_cache_passthrough),
         ):
             resp = TestClient(app).get("/api/stats/gear")
         assert resp.status_code == 200
@@ -448,9 +453,9 @@ class TestStatsCorrelations:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
-            mock.patch("api.routers.stats._get_stats_cached",
-                       side_effect=lambda _key, fn: fn()),
+            mock.patch("api.routers.stats.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.stats._get_stats_cached_async",
+                       _stats_cache_passthrough),
         ):
             # Filter to March-July only, exclude January
             resp = TestClient(app).get(
@@ -471,9 +476,9 @@ class TestStatsCorrelations:
         ])
         app = _create_app_no_auth()
         with (
-            mock.patch("api.routers.stats.get_db", _conn_factory(db_path)),
-            mock.patch("api.routers.stats._get_stats_cached",
-                       side_effect=lambda _key, fn: fn()),
+            mock.patch("api.routers.stats.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.stats._get_stats_cached_async",
+                       _stats_cache_passthrough),
         ):
             resp = TestClient(app).get(
                 "/api/stats/correlations?x=iso&y=aggregate&min_samples=1"
