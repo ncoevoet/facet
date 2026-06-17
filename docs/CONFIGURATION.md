@@ -734,16 +734,22 @@ Detect duplicate photos globally using perceptual hash (pHash) comparison.
 ```json
 {
   "duplicate_detection": {
-    "similarity_threshold_percent": 90
+    "similarity_threshold_percent": 90,
+    "prefilter_hamming": 12,
+    "embedding_cosine_threshold": 0.90
   }
 }
 ```
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `similarity_threshold_percent` | `90` | pHash similarity threshold (90% = Hamming distance <= 6 of 64 bits) |
+| `similarity_threshold_percent` | `90` | Strict pHash gate (90% = Hamming distance <= 6 of 64 bits); used as the sole criterion when an embedding is missing for either photo |
+| `prefilter_hamming` | `12` | Stage-1 loose Hamming gate for the candidate set when both photos have embeddings (coerced to be >= the strict gate) |
+| `embedding_cosine_threshold` | `0.90` | Stage-2 SigLIP/CLIP cosine gate: a loose-pHash candidate only merges when cosine >= this |
 
-Run `python facet.py --detect-duplicates` to detect and group duplicates.
+Detection is two-stage: loose pHash candidates (recall) confirmed by a tight embedding cosine gate (precision). Photos without an embedding fall back to the strict pHash-only criterion, so behavior is unchanged when embeddings are absent.
+
+Run `python facet.py --detect-duplicates` to detect and group duplicates. Run `python facet.py --sweep-dedup-thresholds [labels.json]` to evaluate the cosine gate — with a labels JSON it prints a precision/recall table, otherwise the candidate-cosine distribution and how many strict-pHash collisions the gate rejects.
 
 ---
 

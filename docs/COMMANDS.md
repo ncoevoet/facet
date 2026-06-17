@@ -88,8 +88,10 @@ These commands update specific metrics without full photo reprocessing.
 | `python facet.py --recompute-iqa` | `[GPU]` `[8gb/16gb/24gb]` Recompute supplementary IQA metrics (TOPIQ IAA, NR-Face, LIQE) from thumbnails |
 | `python facet.py --upgrade-db` | Backfill all metric columns on an older DB by running recompute-iqa / saliency / composition-cpu / burst / blinks / average in sequence. Each step is idempotent. |
 | `python facet.py --recompute-blinks` | Recompute blink detection |
+| `python facet.py --recompute-eyes-expression` | Recompute eyes-open + expression scores from stored 106-pt landmarks (CPU, fast) |
 | `python facet.py --recompute-burst` | Recompute burst detection groups |
-| `python facet.py --detect-duplicates` | Detect duplicate photos using pHash comparison |
+| `python facet.py --detect-duplicates` | Detect duplicate photos (two-stage pHash + embedding cosine) |
+| `python facet.py --sweep-dedup-thresholds [labels.json]` | Evaluate near-dup cosine thresholds (precision/recall table with labels, else candidate-cosine distribution) |
 | `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Generate AI captions for photos using VLM |
 | `python facet.py --translate-captions` | Translate English captions to configured target language (CPU, MarianMT) |
 | `python facet.py --extract-gps` | Extract GPS coordinates from EXIF data into database columns |
