@@ -136,8 +136,9 @@ def detect_duplicates(db_path, config_path=None):
         apply_pragmas(conn)
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
-            "SELECT path, phash, aggregate, clip_embedding FROM photos "
-            "WHERE phash IS NOT NULL ORDER BY path"
+            "SELECT path, phash, aggregate, clip_embedding, "
+            "face_count, eyes_open_score, expression_score, tech_sharpness "
+            "FROM photos WHERE phash IS NOT NULL ORDER BY path"
         )
         rows = cursor.fetchall()
 
@@ -146,7 +147,17 @@ def detect_duplicates(db_path, config_path=None):
         return
 
     paths = [r['path'] for r in rows]
-    aggregates = [r['aggregate'] or 0.0 for r in rows]
+    # Per-row dicts for composite lead selection (aggregate + eyes/expression/sharpness).
+    lead_data = [
+        {
+            'aggregate': r['aggregate'] or 0.0,
+            'face_count': r['face_count'],
+            'eyes_open_score': r['eyes_open_score'],
+            'expression_score': r['expression_score'],
+            'tech_sharpness': r['tech_sharpness'],
+        }
+        for r in rows
+    ]
     n = len(paths)
 
     # Convert hex hashes to uint64 numpy array for vectorized comparison
@@ -185,10 +196,13 @@ def detect_duplicates(db_path, config_path=None):
         apply_pragmas(conn)
         conn.execute("UPDATE photos SET duplicate_group_id = NULL, is_duplicate_lead = 0")
 
+        from utils.selection import composite_lead_score
+
         group_id = 1
         for _root, members in sorted(dup_groups.items()):
-            # Find the member with the highest aggregate score
-            best_idx = max(members, key=lambda idx: aggregates[idx])
+            # Composite best-of: aggregate dominates, eyes-open / expression /
+            # sharpness break near-ties toward the better keeper frame.
+            best_idx = max(members, key=lambda idx: composite_lead_score(lead_data[idx]))
 
             for idx in members:
                 is_lead = 1 if idx == best_idx else 0

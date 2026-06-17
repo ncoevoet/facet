@@ -61,7 +61,13 @@ class CullingConfirmBody(BaseModel):
 # --- Helpers ---
 
 def _get_burst_weights():
-    """Read burst_scoring weights from scoring_config.json."""
+    """Read burst_scoring weights from scoring_config.json.
+
+    Returns (aggregate, aesthetic, sharpness, blink, eyes, expression). The eyes
+    and expression weights default to 0 so behavior is unchanged unless they are
+    configured; when a photo has faces, they let open-eyes / composed-expression
+    frames win near-ties within a burst.
+    """
     try:
         from api.config import _FULL_CONFIG
         bs = _FULL_CONFIG.get('burst_scoring', {})
@@ -70,21 +76,32 @@ def _get_burst_weights():
             bs.get('weight_aesthetic', 0.25),
             bs.get('weight_sharpness', 0.2),
             bs.get('weight_blink', 0.15),
+            bs.get('weight_eyes', 0.0),
+            bs.get('weight_expression', 0.0),
         )
     except (KeyError, TypeError, ValueError):
-        return (0.4, 0.25, 0.2, 0.15)
+        return (0.4, 0.25, 0.2, 0.15, 0.0, 0.0)
 
 
 def _compute_burst_score(photo):
     """Compute burst culling score for ranking photos within a group."""
-    w_agg, w_aes, w_sharp, w_blink = _get_burst_weights()
+    w_agg, w_aes, w_sharp, w_blink, w_eyes, w_expr = _get_burst_weights()
     aggregate = photo.get('aggregate') or 0
     aesthetic = photo.get('aesthetic') or 0
     sharpness = photo.get('tech_sharpness') or 0
     is_blink = photo.get('is_blink') or 0
     blink_score = 0 if is_blink else 10
-    return (aggregate * w_agg + aesthetic * w_aes
-            + sharpness * w_sharp + blink_score * w_blink)
+    score = (aggregate * w_agg + aesthetic * w_aes
+             + sharpness * w_sharp + blink_score * w_blink)
+    # Eyes/expression only apply to photos with faces; default weights are 0.
+    if (photo.get('face_count') or 0) > 0:
+        eyes = photo.get('eyes_open_score')
+        expr = photo.get('expression_score')
+        if eyes is not None:
+            score += eyes * w_eyes
+        if expr is not None:
+            score += expr * w_expr
+    return score
 
 
 def _format_group(photos, burst_group_id):
@@ -98,6 +115,8 @@ def _format_group(photos, burst_group_id):
             'aesthetic': p.get('aesthetic'),
             'tech_sharpness': p.get('tech_sharpness'),
             'is_blink': p.get('is_blink') or 0,
+            'eyes_open_score': p.get('eyes_open_score'),
+            'expression_score': p.get('expression_score'),
             'is_burst_lead': p.get('is_burst_lead') or 0,
             'date_taken': p.get('date_taken'),
             'burst_score': round(_compute_burst_score(p), 2),
@@ -212,7 +231,8 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
             from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
             all_photos = conn.execute(
                 f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
-                           tech_sharpness, is_blink, is_burst_lead, burst_group_id
+                           tech_sharpness, is_blink, is_burst_lead, burst_group_id,
+                           eyes_open_score, expression_score, face_count
                     FROM {from_clause}
                     WHERE burst_group_id IN ({placeholders}) AND {vis_sql}
                       AND {is_rejected_col} = 0
@@ -222,7 +242,8 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
         else:
             all_photos = conn.execute(
                 f"""SELECT path, filename, date_taken, aggregate, aesthetic,
-                           tech_sharpness, is_blink, is_burst_lead, burst_group_id
+                           tech_sharpness, is_blink, is_burst_lead, burst_group_id,
+                           eyes_open_score, expression_score, face_count
                     FROM photos
                     WHERE burst_group_id IN ({placeholders}) AND {vis_sql}
                     ORDER BY burst_group_id, date_taken""",
@@ -547,7 +568,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
         from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
         rows = conn.execute(
             f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
-                       tech_sharpness, is_blink
+                       tech_sharpness, is_blink, eyes_open_score, expression_score, face_count
                 FROM {from_clause}
                 WHERE photos.path IN ({placeholders}) AND {vis_sql}
                   AND {is_rejected_col} = 0""",
@@ -556,7 +577,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
     else:
         rows = conn.execute(
             f"""SELECT path, filename, date_taken, aggregate, aesthetic,
-                       tech_sharpness, is_blink
+                       tech_sharpness, is_blink, eyes_open_score, expression_score, face_count
                 FROM photos
                 WHERE path IN ({placeholders}) AND {vis_sql}""",
             unique_paths + vis_params,

@@ -204,11 +204,14 @@ class IncrementalBurstProcessor:
         # Reset all burst leads
         conn.execute("UPDATE photos SET is_burst_lead = 0")
 
+        from utils.selection import pick_lead
+
         leaders_marked = 0
         for burst in self.active_bursts:
             if burst:
-                # Find highest aggregate score in burst
-                winner = max(burst, key=lambda x: x.get('aggregate') or 0)
+                # Composite best-of: aggregate dominates, but eyes-open / expression /
+                # face sharpness break near-ties toward the better keeper frame.
+                winner = pick_lead(burst)
                 conn.execute(
                     "UPDATE photos SET is_burst_lead = 1 WHERE path = ?",
                     (winner['path'],)
