@@ -1882,6 +1882,21 @@
     "type_original": "Original",
     "type_raw": "RAW-Datei"
   },
+  "export": {
+    "action": "In Editor exportieren",
+    "title": "In Editor exportieren",
+    "description": "Schreibe deine Bewertungen, Auswahl und Schlagwörter als XMP-Begleitdateien, die Lightroom, darktable und andere Editoren lesen. Originalbilder werden nie verändert.",
+    "mode_sidecars": "XMP-Begleitdateien schreiben",
+    "mode_copy": "Auswahl in einen Ordner kopieren",
+    "mode_symlink": "Auswahl per Symlink in einen Ordner",
+    "overwrite": "Vorhandene .xmp-Dateien überschreiben",
+    "overwrite_hint": "Standardmäßig aus: eine von darktable erstellte .xmp bleibt erhalten und Facet schreibt stattdessen eine .facet.xmp.",
+    "target_dir": "Zielordner",
+    "run": "Exportieren",
+    "running": "Exportiere…",
+    "done": "{count} Foto(s) exportiert",
+    "failed": "Export fehlgeschlagen"
+  },
   "undo": {
     "action": "Rückgängig",
     "restored": "Aktion rückgängig gemacht",

@@ -1878,6 +1878,21 @@
     "type_original": "Original",
     "type_raw": "Archivo RAW"
   },
+  "export": {
+    "action": "Exportar al editor",
+    "title": "Exportar al editor",
+    "description": "Escribe tus valoraciones, selecciones y etiquetas como archivos XMP que leen Lightroom, darktable y otros editores. Las imágenes originales nunca se modifican.",
+    "mode_sidecars": "Escribir archivos XMP",
+    "mode_copy": "Copiar la selección a una carpeta",
+    "mode_symlink": "Enlazar (symlink) la selección a una carpeta",
+    "overwrite": "Sobrescribir archivos .xmp existentes",
+    "overwrite_hint": "Desactivado por defecto: se conserva un .xmp creado por darktable y Facet escribe un .facet.xmp en su lugar.",
+    "target_dir": "Carpeta de destino",
+    "run": "Exportar",
+    "running": "Exportando…",
+    "done": "{count} foto(s) exportada(s)",
+    "failed": "Error al exportar"
+  },
   "undo": {
     "action": "Deshacer",
     "restored": "Acción deshecha",

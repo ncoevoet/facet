@@ -321,6 +321,7 @@ def create_app() -> FastAPI:
     from api.routers.map import router as map_router
     from api.routers.capsules import router as capsules_router
     from api.routers.folders import router as folders_router
+    from api.routers.export import router as export_router
 
     app.include_router(health_router)
     app.include_router(auth_router)
@@ -345,6 +346,7 @@ def create_app() -> FastAPI:
     app.include_router(map_router)
     app.include_router(capsules_router)
     app.include_router(folders_router)
+    app.include_router(export_router)
 
     # Check for plaintext passwords at startup
     from api.auth import check_legacy_password_warnings

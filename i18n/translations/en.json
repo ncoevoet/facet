@@ -1876,6 +1876,21 @@
     "type_original": "Original",
     "type_raw": "RAW file"
   },
+  "export": {
+    "action": "Export to editor",
+    "title": "Export to editor",
+    "description": "Write your ratings, picks and tags as XMP sidecars that Lightroom, darktable and other editors read. Original images are never modified.",
+    "mode_sidecars": "Write XMP sidecars",
+    "mode_copy": "Copy selects to a folder",
+    "mode_symlink": "Symlink selects to a folder",
+    "overwrite": "Overwrite existing .xmp sidecars",
+    "overwrite_hint": "Off by default: a darktable-authored .xmp is preserved and Facet writes a .facet.xmp instead.",
+    "target_dir": "Target folder",
+    "run": "Export",
+    "running": "Exporting…",
+    "done": "Exported {count} photo(s)",
+    "failed": "Export failed"
+  },
   "undo": {
     "action": "Undo",
     "restored": "Action undone",
