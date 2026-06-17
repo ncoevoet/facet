@@ -9,3 +9,4 @@ from optimization.weight_optimizer import (
     print_comparison_stats,
     run_weight_optimization,
 )
+from optimization.personal_ranker import train_ranker

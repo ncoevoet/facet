@@ -348,6 +348,16 @@ Configuration:
                              '(applied only if held-out k-fold accuracy beats current weights)')
     weight_group.add_argument('--optimize-force', action='store_true',
                         help='Apply optimized weights even if the held-out accuracy gate is not met')
+    weight_group.add_argument('--train-ranker', action='store_true',
+                        help='Train the personal ranker over [embedding + scores] and write '
+                             'learned_scores (gated on held-out k-fold accuracy vs the aggregate '
+                             'baseline; use --train-ranker-force to write regardless)')
+    weight_group.add_argument('--train-ranker-force', action='store_true',
+                        help='Write learned_scores even if the ranker accuracy gate is not met')
+    weight_group.add_argument('--ranker-category', type=str, metavar='CATEGORY',
+                        help='Restrict --train-ranker to one category (default: pool all)')
+    weight_group.add_argument('--report-unreviewed-bursts', action='store_true',
+                        help='Report how many burst groups remain unreviewed (read-only)')
 
     # Model information
     model_group = parser.add_argument_group('Model information')
@@ -442,6 +452,43 @@ Configuration:
             category=args.optimize_category,
             force=args.optimize_force,
         )
+        exit()
+
+    # Train the personal ranker -> learned_scores (lightweight - no GPU needed)
+    if args.train_ranker:
+        from optimization import train_ranker
+        init_database(args.db)
+        result = train_ranker(
+            db_path=args.db or DEFAULT_DB_PATH,
+            category=args.ranker_category,
+            config_path=args.config or 'scoring_config.json',
+            force=args.train_ranker_force,
+        )
+        if 'error' in result:
+            logger.warning("Ranker not trained: %s", result['error'])
+        else:
+            logger.info("Ranker: held-out %.1f%% vs aggregate baseline %.1f%% (%+.1f pp); %s %d learned_scores",
+                        result['cv_accuracy'], result['baseline_accuracy'], result['improvement_pp'],
+                        'gated, wrote' if result.get('gated') else 'wrote', result.get('written', 0))
+        exit()
+
+    # Report unreviewed burst groups (read-only, no GPU)
+    if args.report_unreviewed_bursts:
+        from db import get_connection
+        from api.routers.burst_culling import _count_unreviewed_burst_groups
+        init_database(args.db)
+        with get_connection(args.db or DEFAULT_DB_PATH) as conn:
+            conn.row_factory = __import__('sqlite3').Row
+            total = _count_unreviewed_burst_groups(conn, '1=1', [])
+            unreviewed = conn.execute(
+                "SELECT COUNT(DISTINCT burst_group_id) FROM photos "
+                "WHERE burst_group_id IS NOT NULL AND burst_reviewed = 0"
+            ).fetchone()[0]
+        logger.info("Unreviewed burst groups (>=2 photos): %d", total)
+        logger.info("Distinct unreviewed burst_group_ids: %d", unreviewed)
+        logger.info("FLAG (decision, not applied): the portrait leading-lines weight fix "
+                    "(commit 90a892d, ~+3.1pp) is kept gated — apply via --optimize-category portrait "
+                    "if desired; no scoring_config.json change is made by this report.")
         exit()
 
     # Sync rating-derived comparison pairs (lightweight - no GPU needed)
