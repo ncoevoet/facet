@@ -17,10 +17,10 @@ export interface Photo {
   aesthetic_iaa: number | null;
   face_quality_iqa: number | null;
   liqe_score: number | null;
-  // Extended IQA tier (config-gated; null unless iqa_extended is enabled)
-  qalign_score: number | null;
-  aesthetic_v25: number | null;
-  deqa_score: number | null;
+  // Extended IQA tier (config-gated; optional — absent/null unless iqa_extended is enabled)
+  qalign_score?: number | null;
+  aesthetic_v25?: number | null;
+  deqa_score?: number | null;
   // Subject saliency
   subject_sharpness: number | null;
   subject_prominence: number | null;
