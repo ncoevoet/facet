@@ -755,23 +755,25 @@ Run `python facet.py --detect-duplicates` to detect and group duplicates. Run `p
 
 ## Extended IQA tier (optional)
 
-Heavy/experimental quality scorers, **OFF by default** and **never a replacement for TOPIQ** — they add supplementary columns only when explicitly enabled. Q-Align and DeQA-Score need a 16GB+ GPU to run; Aesthetic V2.5 is light.
+Heavy/experimental quality scorers, **OFF by default** and **never a replacement for TOPIQ** — they add supplementary columns only when explicitly enabled. When enabled, the extended scorers run **during a normal scan** and write their own columns; a load/VRAM failure is logged and the column is left `NULL` (the scan never aborts).
 
 ```json
 {
   "iqa_extended": {
-    "qalign": false,
-    "aesthetic_v25": false,
+    "qalign": "4bit",
+    "aesthetic_v25": true,
     "deqa": false
   }
 }
 ```
 
-| Setting | Default | Column | Description |
-|---------|---------|--------|-------------|
-| `qalign` | `false` | `qalign_score` | Q-Align LLM-based IQA (pyiqa-backed; full precision ~14GB VRAM) |
-| `aesthetic_v25` | `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (SigLIP head, ~2GB) |
-| `deqa` | `false` | `deqa_score` | DeQA-Score VLM IQA (16GB+ GPU; skipped & left NULL otherwise) |
+| Setting | Default | Accepted values | Column | Description |
+|---------|---------|-----------------|--------|-------------|
+| `qalign` | `false` | `false` · `"4bit"` · `"8bit"` · `true`/`"full"` | `qalign_score` | Q-Align LLM-based IQA (pyiqa-backed). `"4bit"` (~6-8GB VRAM) is the practical choice on a 16GB card; `"8bit"` ~12-14GB; full precision (`true`) wants 16GB+. 4-/8-bit need `bitsandbytes`. |
+| `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (SigLIP head, ~2GB). Requires the `aesthetic-predictor-v2-5` package. |
+| `deqa` | `false` | `true` / `false` | `deqa_score` | DeQA-Score VLM IQA (16GB+ GPU; skipped & left NULL otherwise). |
+
+**Install the optional dependencies** for whatever you enable: `pip install -e .[iqa-extended]` (adds `aesthetic-predictor-v2-5` + `bitsandbytes`), or uncomment the matching lines in `requirements.txt`. Q-Align itself ships with `pyiqa`; DeQA-Score downloads via `transformers`.
 
 When enabled, each metric is exposed to the weighted aggregate but defaults to weight 0, so `--recompute-average` is byte-identical until you give it a weight. Run `python facet.py --eval-iqa-srcc` to measure how well each metric ranks your library against your own star ratings.
 

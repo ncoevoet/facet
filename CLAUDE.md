@@ -194,6 +194,8 @@ For GPU face clustering (optional): `cuml`, `cupy` (requires conda + CUDA)
 
 For vector search (optional): `sqlite-vec>=0.1.6` (enables KNN search in SQLite, replaces in-memory NumPy cache)
 
+For the extended IQA tier (optional, `scoring_config.json` `iqa_extended`, OFF by default): `aesthetic-predictor-v2-5` (for `aesthetic_v25`) and `bitsandbytes>=0.43.0` (for `qalign` 4-/8-bit). Install via `pip install -e .[iqa-extended]`. Q-Align ships with `pyiqa`; DeQA-Score loads via `transformers`.
+
 External tool: `exiftool` (command-line, optional — `exifread` fallback handles all RAW formats)
 
 ## Architecture

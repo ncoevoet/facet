@@ -66,13 +66,17 @@ class AestheticV25Scorer:
     def load(self):
         """Load the SigLIP backbone + aesthetic head to the target device.
 
-        Lazily imports torch + transformers and downloads weights on first use.
+        Aesthetic Predictor V2.5 is NOT a plain HuggingFace AutoModel repo — it is
+        distributed via the ``aesthetic-predictor-v2-5`` package, which assembles
+        the SigLIP backbone (``google/siglip-so400m-patch14-384``) with the linear
+        aesthetic head. We use its ``convert_v2_5_from_siglip`` factory; torch and
+        the package are imported lazily here so the constructor stays CPU-clean.
         """
         if self._loaded:
             return
 
         import torch  # noqa: F401  (lazy heavy import)
-        from transformers import AutoModel, AutoProcessor
+        from aesthetic_predictor_v2_5 import convert_v2_5_from_siglip
 
         if self._device is None:
             from utils.device import get_device
@@ -80,11 +84,20 @@ class AestheticV25Scorer:
         else:
             self.device = self._device
 
-        logger.info("Loading Aesthetic Predictor V2.5: %s", self.MODEL_ID)
-        self.model = AutoModel.from_pretrained(self.MODEL_ID, trust_remote_code=True)
-        self.model = self.model.to(self.device).eval()
-        self.processor = AutoProcessor.from_pretrained(self.MODEL_ID, trust_remote_code=True)
+        logger.info("Loading Aesthetic Predictor V2.5 (%s)", self.MODEL_ID)
+        # Factory downloads the aesthetic head + the SigLIP encoder on first use.
+        model, processor = convert_v2_5_from_siglip(low_cpu_mem_usage=True)
+        self.model = model.to(self.device).eval()
+        self.processor = processor
         self._loaded = True
+
+    def _model_dtype(self):
+        """Parameter dtype of the loaded model (to match pixel_values)."""
+        import torch  # noqa: F401
+        try:
+            return next(self.model.parameters()).dtype
+        except StopIteration:
+            return None
 
     def unload(self):
         """Free the model/processor and release VRAM."""
@@ -169,11 +182,14 @@ class AestheticV25Scorer:
         if image.mode != "RGB":
             image = image.convert("RGB")
 
-        inputs = self.processor(images=image, return_tensors="pt")
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        pixel_values = self.processor(images=image, return_tensors="pt").pixel_values
+        pixel_values = pixel_values.to(self.device)
+        dtype = self._model_dtype()
+        if dtype is not None:
+            pixel_values = pixel_values.to(dtype)
 
         with torch.no_grad():
-            output = self.model(**inputs)
+            output = self.model(pixel_values)
 
         raw = self._extract_raw(output)
         return self._normalize_score(raw)
@@ -195,10 +211,13 @@ class AestheticV25Scorer:
 
         try:
             rgb = [im.convert("RGB") if im.mode != "RGB" else im for im in images]
-            inputs = self.processor(images=rgb, return_tensors="pt")
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            pixel_values = self.processor(images=rgb, return_tensors="pt").pixel_values
+            pixel_values = pixel_values.to(self.device)
+            dtype = self._model_dtype()
+            if dtype is not None:
+                pixel_values = pixel_values.to(dtype)
             with torch.no_grad():
-                output = self.model(**inputs)
+                output = self.model(pixel_values)
 
             logits = output.logits if hasattr(output, "logits") else output
             if isinstance(logits, (list, tuple)):

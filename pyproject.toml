@@ -70,6 +70,13 @@ gpu-clustering = [
     "cuml",
     "cupy",
 ]
+iqa-extended = [
+    # Optional extended-IQA tier (scoring_config.json "iqa_extended", OFF by default).
+    # aesthetic_v25 needs the predictor package; qalign 4-/8-bit quantisation needs
+    # bitsandbytes. Q-Align itself ships with pyiqa; DeQA-Score loads via transformers.
+    "aesthetic-predictor-v2-5",
+    "bitsandbytes>=0.43.0",
+]
 watch = [
     "watchdog>=4.0",
 ]

@@ -1297,6 +1297,7 @@ class Facet:
                 noise_sigma, mean_saturation, power_point_score, dynamic_range_stops,
                 histogram_data, topiq_score,
                 aesthetic_iaa, face_quality_iqa, liqe_score,
+                qalign_score, aesthetic_v25, deqa_score,
                 subject_sharpness, subject_prominence, subject_placement, bg_separation
             """
             if category_filter:
@@ -2135,6 +2136,11 @@ class Facet:
         with get_connection(self.db_path, row_factory=False) as conn:
             # Batch insert photos
             for res, _ in results_with_images:
+                # Optional extended-IQA columns default to NULL for callers/passes
+                # that did not compute them (named-param INSERT needs every key).
+                res.setdefault('qalign_score', None)
+                res.setdefault('aesthetic_v25', None)
+                res.setdefault('deqa_score', None)
                 conn.execute('''
                     INSERT OR REPLACE INTO photos (
                         path, filename, category, image_width, image_height,
@@ -2150,6 +2156,7 @@ class Facet:
                         dynamic_range_stops, noise_sigma, contrast_score, tags,
                         quality_score, topiq_score, composition_explanation, scoring_model, composition_pattern,
                         aesthetic_iaa, face_quality_iqa, liqe_score,
+                        qalign_score, aesthetic_v25, deqa_score,
                         subject_sharpness, subject_prominence, subject_placement, bg_separation,
                         gps_latitude, gps_longitude, scanned_at
                     )
@@ -2167,6 +2174,7 @@ class Facet:
                         :dynamic_range_stops, :noise_sigma, :contrast_score, :tags,
                         :quality_score, :topiq_score, :composition_explanation, :scoring_model, :composition_pattern,
                         :aesthetic_iaa, :face_quality_iqa, :liqe_score,
+                        :qalign_score, :aesthetic_v25, :deqa_score,
                         :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation,
                         :gps_latitude, :gps_longitude, datetime('now')
                     )

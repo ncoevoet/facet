@@ -246,7 +246,13 @@ class ChunkedMultiPassProcessor:
             ext = self.scorer.config.get_extended_iqa_settings()
         except Exception:
             ext = {}
-        for ext_model in ('qalign', 'aesthetic_v25', 'deqa'):
+        # qalign is normalized to False | 'full' | '8bit' | '4bit' -> model name.
+        qalign_variant = ext.get('qalign')
+        if qalign_variant:
+            qalign_model = {'4bit': 'qalign_4bit', '8bit': 'qalign_8bit'}.get(qalign_variant, 'qalign')
+            if qalign_model not in models:
+                models.append(qalign_model)
+        for ext_model in ('aesthetic_v25', 'deqa'):
             if ext.get(ext_model) and ext_model not in models:
                 models.append(ext_model)
 
@@ -868,6 +874,11 @@ class ChunkedMultiPassProcessor:
                 'aesthetic_iaa': data.get('aesthetic_iaa'),
                 'face_quality_iqa': data.get('face_quality_iqa'),
                 'liqe_score': data.get('liqe_score'),
+                # Extended IQA tier (config-gated; None unless enabled). Carried so
+                # build_metric_vector can weight them when a weight is configured.
+                'qalign_score': data.get('qalign_score'),
+                'aesthetic_v25': data.get('aesthetic_v25'),
+                'deqa_score': data.get('deqa_score'),
                 # Subject saliency metrics
                 'subject_sharpness': data.get('subject_sharpness'),
                 'subject_prominence': data.get('subject_prominence'),
@@ -979,6 +990,11 @@ class ChunkedMultiPassProcessor:
                 'aesthetic_iaa': data.get('aesthetic_iaa'),
                 'face_quality_iqa': data.get('face_quality_iqa'),
                 'liqe_score': data.get('liqe_score'),
+
+                # Extended IQA tier (config-gated; None unless enabled)
+                'qalign_score': data.get('qalign_score'),
+                'aesthetic_v25': data.get('aesthetic_v25'),
+                'deqa_score': data.get('deqa_score'),
 
                 # Subject saliency metrics
                 'subject_sharpness': data.get('subject_sharpness'),

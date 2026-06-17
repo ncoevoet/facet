@@ -65,6 +65,35 @@ def test_select_models_gates_extended_on_config():
     assert "deqa" not in on   # disabled flag stays out
 
 
+def test_select_models_picks_qalign_variant():
+    p4 = _proc({"qalign": "4bit", "aesthetic_v25": False, "deqa": False})._select_models()
+    assert "qalign_4bit" in p4 and "qalign" not in p4 and "qalign_8bit" not in p4
+    p8 = _proc({"qalign": "8bit", "aesthetic_v25": False, "deqa": False})._select_models()
+    assert "qalign_8bit" in p8 and "qalign_4bit" not in p8
+    pf = _proc({"qalign": "full", "aesthetic_v25": False, "deqa": False})._select_models()
+    assert "qalign" in pf and "qalign_4bit" not in pf
+
+
+def test_get_extended_iqa_settings_normalizes_qalign(tmp_path):
+    import json
+    from config import ScoringConfig
+
+    cfg = tmp_path / "c.json"
+
+    def variant(v):
+        cfg.write_text(json.dumps({
+            "categories": [{"name": "default", "weights": {}}],
+            "iqa_extended": {"qalign": v},
+        }))
+        return ScoringConfig(str(cfg), validate=False).get_extended_iqa_settings()["qalign"]
+
+    assert variant(True) == "full"
+    assert variant("4bit") == "4bit"
+    assert variant("8bit") == "8bit"
+    assert variant("bogus") == "full"   # truthy unknown -> full precision
+    assert variant(False) is False
+
+
 def test_pass_pyiqa_writes_dedicated_extended_column():
     proc = ChunkedMultiPassProcessor.__new__(ChunkedMultiPassProcessor)
 
@@ -79,3 +108,17 @@ def test_pass_pyiqa_writes_dedicated_extended_column():
     # An extended model must NOT clobber the primary aesthetic/quality columns.
     assert "aesthetic" not in results["/p.jpg"]
     assert "quality_score" not in results["/p.jpg"]
+
+
+def test_photos_schema_has_extended_iqa_columns(tmp_path):
+    """The persistence path writes these columns, so the schema must define them
+    (guards against the save INSERT and the column being out of sync)."""
+    import sqlite3
+    from db.schema import init_database
+
+    db = str(tmp_path / "s.db")
+    init_database(db)
+    conn = sqlite3.connect(db)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(photos)")}
+    conn.close()
+    assert {"aesthetic_v25", "qalign_score", "deqa_score"} <= cols

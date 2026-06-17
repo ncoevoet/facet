@@ -36,6 +36,14 @@ insightface>=0.7.0
 # models/pyiqa_scorer.py PYIQA_MODELS for the registered variants.
 pyiqa>=0.1.11
 
+# Extended IQA tier (OPTIONAL, OFF by default — see docs/CONFIGURATION.md
+# "Extended IQA tier"). Enabled per-metric via scoring_config.json "iqa_extended".
+# Heavy + GPU-bound, so left commented to keep the default install / Docker image
+# lean. Uncomment (or `pip install .[iqa-extended]`) for the metrics you enable:
+#   aesthetic-predictor-v2-5   # iqa_extended.aesthetic_v25 (SigLIP aesthetic head, ~2GB)
+#   bitsandbytes>=0.43.0       # iqa_extended.qalign "4bit"/"8bit" quantisation
+# (Q-Align itself comes from pyiqa above; DeQA-Score downloads via transformers.)
+
 # Scientific Computing
 numpy>=1.24.0
 scipy>=1.10.0

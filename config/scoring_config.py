@@ -492,13 +492,22 @@ class ScoringConfig:
 
         These gate the heavy/experimental scorers that are NEVER a replacement
         for TOPIQ — they add supplementary columns only when explicitly enabled:
-        - qalign: Q-Align LLM-based IQA (heavy VRAM; pyiqa-backed)
-        - aesthetic_v25: Aesthetic Predictor V2.5 (light SigLIP head)
+        - qalign: Q-Align LLM-based IQA (pyiqa-backed). Accepts a bool (True =
+          full precision, 16GB+) or a quantisation variant string: '4bit'
+          (~6-8GB, the practical choice for a 16GB card), '8bit' (~12-14GB),
+          or 'full'. Returned normalised to False | 'full' | '8bit' | '4bit'.
+        - aesthetic_v25: Aesthetic Predictor V2.5 (light SigLIP head, ~2GB)
         - deqa: DeQA-Score VLM (very heavy; 16GB+ GPU to validate)
         """
         section = self.config.get('iqa_extended', {})
+        qalign_raw = section.get('qalign', False)
+        if isinstance(qalign_raw, str):
+            variant = qalign_raw.strip().lower()
+            qalign = variant if variant in ('full', '8bit', '4bit') else ('full' if variant else False)
+        else:
+            qalign = 'full' if qalign_raw else False
         return {
-            'qalign': bool(section.get('qalign', False)),
+            'qalign': qalign,
             'aesthetic_v25': bool(section.get('aesthetic_v25', False)),
             'deqa': bool(section.get('deqa', False)),
         }

@@ -21,6 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Python dependencies (torch/torchvision already in base image)
+# The optional extended-IQA tier (scoring_config.json "iqa_extended") is OFF by
+# default and intentionally NOT installed here to keep the image lean. To use it,
+# add `pip install --no-cache-dir aesthetic-predictor-v2-5 bitsandbytes` below
+# (see docs/CONFIGURATION.md "Extended IQA tier").
 COPY requirements.txt .
 RUN sed -i '/^torch>=/d; /^torchvision>=/d' requirements.txt \
     && pip install --no-cache-dir -r requirements.txt
