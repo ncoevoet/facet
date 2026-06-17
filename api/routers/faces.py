@@ -240,6 +240,25 @@ def api_unassign_person(
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
+def _mint_rating_comparisons(user_id):
+    """Best-effort: rebuild source='rating' comparison pairs after a label change.
+
+    Closes the label gap so star ratings / favorites / rejections immediately
+    become training signal for the weight optimizer and personal ranker
+    (Topic 1 step 7). sync_label_comparisons is idempotent (it deletes and
+    regenerates all source='rating' rows), so calling it per click is correct,
+    if currently un-incremental. Failures are logged but never raised — the
+    rating write has already succeeded and must not be rolled back.
+    """
+    try:
+        from optimization.label_pairs import sync_label_comparisons
+        from db import DEFAULT_DB_PATH
+        scoped = user_id if (user_id and is_multi_user_enabled()) else None
+        sync_label_comparisons(DEFAULT_DB_PATH, user_id=scoped)
+    except Exception:
+        logger.warning("Failed to sync rating-derived comparisons", exc_info=True)
+
+
 @router.post("/api/photo/set_rating")
 def api_set_rating(
     body: SetRatingRequest,
@@ -258,6 +277,7 @@ def api_set_rating(
                 conn.execute("UPDATE photos SET star_rating = ? WHERE path = ?", (body.rating, body.photo_path))
             conn.commit()
             _stats_cache.clear()
+            _mint_rating_comparisons(user.user_id)
             return {'success': True, 'rating': body.rating}
         except sqlite3.Error:
             logger.exception("Database error setting rating for photo %s", body.photo_path)
@@ -303,6 +323,7 @@ def api_toggle_favorite(
                     conn.execute("UPDATE photos SET is_favorite = 0 WHERE path = ?", (body.photo_path,))
             conn.commit()
             _stats_cache.clear()
+            _mint_rating_comparisons(user.user_id)
             return {'success': True, 'is_favorite': new_value == 1, 'is_rejected': False if new_value == 1 else None}
         except HTTPException:
             raise
@@ -350,6 +371,7 @@ def api_toggle_rejected(
                     conn.execute("UPDATE photos SET is_rejected = 0 WHERE path = ?", (body.photo_path,))
             conn.commit()
             _stats_cache.clear()
+            _mint_rating_comparisons(user.user_id)
             return {'success': True, 'is_rejected': new_value == 1, 'star_rating': 0 if new_value == 1 else None, 'is_favorite': False if new_value == 1 else None}
         except HTTPException:
             raise
