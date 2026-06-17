@@ -287,6 +287,25 @@ def _get_stats_cached(cache_key, compute_fn):
     return data
 
 
+async def _get_stats_cached_async(cache_key, compute_fn):
+    """Async sibling of :func:`_get_stats_cached`.
+
+    ``compute_fn`` is an ``async`` callable (it awaits an aiosqlite connection
+    for its DB reads). The cache dict, lock, TTL, and NaN/Inf sanitization are
+    shared with the sync path, so a key written by either surface is readable
+    by the other.
+    """
+    now = time.time()
+    with _stats_cache_lock:
+        cached = _stats_cache.get(cache_key)
+        if cached and now < cached['expires']:
+            return cached['data']
+    data = _sanitize_stats(await compute_fn())
+    with _stats_cache_lock:
+        _stats_cache[cache_key] = {'data': data, 'expires': now + VIEWER_CONFIG['cache_ttl_seconds']}
+    return data
+
+
 def invalidate_stats_cache():
     """Clear the in-memory stats cache under the lock.
 

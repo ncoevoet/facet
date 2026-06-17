@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
 from api.auth import CurrentUser, get_optional_user
-from api.database import get_db
+from api.database import get_async_db
 from api.db_helpers import get_visibility_clause, build_hide_clauses, get_photos_from_clause
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ def _normalize_path(path: str) -> str:
 
 
 @router.get("/api/folders")
-def api_folders(
+async def api_folders(
     prefix: str = Query('', description="Parent directory path, empty = root level"),
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
@@ -35,7 +35,7 @@ def api_folders(
     counts photos per directory, and finds the best-scored cover photo.
     """
     user_id = user.user_id if user else None
-    with get_db() as conn:
+    async with get_async_db() as conn:
         try:
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
@@ -59,7 +59,9 @@ def api_folders(
 
             # Fetch path + aggregate for matching photos
             query = f"SELECT path, COALESCE(aggregate, 0) as aggregate FROM {from_clause}{where_str}"
-            rows = conn.execute(query, sql_params).fetchall()
+            cur = await conn.execute(query, sql_params)
+            rows = await cur.fetchall()
+            await cur.close()
 
             # Group by immediate child directory
             prefix_len = len(norm_prefix)

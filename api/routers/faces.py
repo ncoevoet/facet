@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from api.auth import CurrentUser, require_edition, require_auth
 from api.config import is_multi_user_enabled, _stats_cache
-from api.database import get_db
+from api.database import get_async_db, get_db
 from api.db_helpers import update_person_face_count
 
 logger = logging.getLogger(__name__)
@@ -56,20 +56,22 @@ class BatchRatingRequest(BaseModel):
 
 
 @router.get("/api/person/{person_id}/faces")
-def api_person_faces(
+async def api_person_faces(
     person_id: int,
     user: CurrentUser = Depends(require_auth),
 ):
     """Get all faces belonging to a person."""
-    with get_db() as conn:
-        faces = conn.execute("""
+    async with get_async_db() as conn:
+        cur = await conn.execute("""
             SELECT f.id, f.photo_path, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2
             FROM faces f
             LEFT JOIN photos p ON f.photo_path = p.path
             WHERE f.person_id = ?
             ORDER BY p.aggregate DESC
             LIMIT 36
-        """, (person_id,)).fetchall()
+        """, (person_id,))
+        faces = await cur.fetchall()
+        await cur.close()
         return {'faces': [dict(f) for f in faces]}
 
 
@@ -106,20 +108,22 @@ def api_set_person_avatar(
 
 
 @router.get("/api/photo/faces")
-def api_photo_faces(
+async def api_photo_faces(
     path: str,
     user: CurrentUser = Depends(require_auth),
 ):
     """Get all faces in a photo with their current person assignment."""
-    with get_db() as conn:
-        faces = conn.execute("""
+    async with get_async_db() as conn:
+        cur = await conn.execute("""
             SELECT f.id, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2,
                    f.person_id, p.name as person_name
             FROM faces f
             LEFT JOIN persons p ON f.person_id = p.id
             WHERE f.photo_path = ?
             ORDER BY f.face_index
-        """, (path,)).fetchall()
+        """, (path,))
+        faces = await cur.fetchall()
+        await cur.close()
         return {'faces': [dict(f) for f in faces]}
 
 

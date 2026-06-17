@@ -5,9 +5,11 @@ that file for why dependency_overrides is the only pattern that works for
 FastAPI Depends() chains.
 """
 
-from contextlib import contextmanager
+import sqlite3
+from contextlib import asynccontextmanager, contextmanager
 from unittest import mock
 
+import aiosqlite
 import pytest
 
 
@@ -16,6 +18,59 @@ def _cm(conn):
     def _ctx():
         yield conn
     return _ctx()
+
+
+# --- Real temp-DB factory for the now-async GET endpoints -----------------
+# list_persons and api_persons_needs_naming are async (Topic 2 step 5), so
+# they reach the DB via ``async with get_async_db()``. A MagicMock is not
+# awaitable, so these tests use a real aiosqlite-backed temp sqlite DB.
+
+_PERSONS_SCHEMA = """
+    CREATE TABLE persons (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        representative_face_id INTEGER,
+        face_count INTEGER DEFAULT 0,
+        face_thumbnail BLOB,
+        auto_clustered INTEGER DEFAULT 0
+    );
+    CREATE TABLE faces (
+        id INTEGER PRIMARY KEY,
+        photo_path TEXT
+    );
+    CREATE TABLE photos (
+        path TEXT PRIMARY KEY,
+        eye_sharpness REAL,
+        face_quality REAL
+    );
+"""
+
+
+def _make_persons_db(path, persons=None, faces=None, photos=None):
+    conn = sqlite3.connect(path)
+    conn.executescript(_PERSONS_SCHEMA)
+    for tbl, rows in (("persons", persons), ("faces", faces), ("photos", photos)):
+        for r in (rows or []):
+            cols = list(r.keys())
+            placeholders = ", ".join("?" for _ in cols)
+            conn.execute(
+                f"INSERT INTO {tbl} ({', '.join(cols)}) VALUES ({placeholders})",
+                [r[c] for c in cols],
+            )
+    conn.commit()
+    conn.close()
+
+
+def _async_conn_factory(db_path):
+    @asynccontextmanager
+    async def factory():
+        c = await aiosqlite.connect(db_path)
+        c.row_factory = aiosqlite.Row
+        try:
+            yield c
+        finally:
+            await c.close()
+    return factory
 
 
 # Alias the shared fixture under the local name ``client`` so the existing
@@ -241,35 +296,30 @@ class TestDeleteBatch:
 
 
 class TestListPersons:
-    """Tests for GET /api/persons."""
+    """Tests for GET /api/persons (async, real temp DB)."""
 
-    def test_list_persons(self, client):
-        """Returns paginated person list."""
-        mock_conn = mock.MagicMock()
-        # COUNT query
-        mock_conn.execute.return_value.fetchone.return_value = (2,)
-        # Person rows
-        mock_conn.execute.return_value.fetchall.return_value = [
-            {
-                "id": 1,
-                "name": "Alice",
-                "representative_face_id": 10,
-                "face_count": 25,
-                "face_thumbnail": 1,
-                "rep_quality": 0.8,
-            },
-            {
-                "id": 2,
-                "name": None,
-                "representative_face_id": 20,
-                "face_count": 5,
-                "face_thumbnail": 0,
-                "rep_quality": 0.3,
-            },
-        ]
-
+    def test_list_persons(self, client, tmp_path):
+        """Returns paginated person list, default count_desc ordering."""
+        db = str(tmp_path / "persons.db")
+        _make_persons_db(
+            db,
+            persons=[
+                {"id": 1, "name": "Alice", "representative_face_id": 10,
+                 "face_count": 25, "auto_clustered": 0},
+                {"id": 2, "name": None, "representative_face_id": 20,
+                 "face_count": 5, "auto_clustered": 1},
+            ],
+            faces=[
+                {"id": 10, "photo_path": "/a.jpg"},
+                {"id": 20, "photo_path": "/b.jpg"},
+            ],
+            photos=[
+                {"path": "/a.jpg", "eye_sharpness": 8.0, "face_quality": 7.5},
+                {"path": "/b.jpg", "eye_sharpness": 3.0, "face_quality": 6.0},
+            ],
+        )
         with mock.patch(
-            "api.routers.persons.get_db", lambda: _cm(mock_conn)
+            "api.routers.persons.get_async_db", _async_conn_factory(db)
         ):
             resp = client.get("/api/persons", params={"page": 1, "per_page": 48})
 
@@ -278,47 +328,88 @@ class TestListPersons:
         assert body["total"] == 2
         assert body["sort"] == "count_desc"
         assert len(body["persons"]) == 2
+        # count_desc → Alice (25 faces) first
         assert body["persons"][0]["id"] == 1
         assert body["persons"][0]["name"] == "Alice"
+        assert body["persons"][0]["face_count"] == 25
 
-
-    def test_search_by_name(self, client):
-        """Searching with a text string filters by name LIKE."""
-        mock_conn = mock.MagicMock()
-        mock_conn.execute.return_value.fetchone.return_value = (1,)
-        mock_conn.execute.return_value.fetchall.return_value = []
-
+    def test_search_by_name(self, client, tmp_path):
+        """Searching with a text string filters by name LIKE (case-insensitive)."""
+        db = str(tmp_path / "persons.db")
+        _make_persons_db(
+            db,
+            persons=[
+                {"id": 1, "name": "Alice", "face_count": 25},
+                {"id": 2, "name": "Bob", "face_count": 5},
+                # Numeric-looking *name* — must NOT match a text search for "alice"
+                {"id": 42, "name": "Charlie", "face_count": 3},
+            ],
+        )
         with mock.patch(
-            "api.routers.persons.get_db", lambda: _cm(mock_conn)
+            "api.routers.persons.get_async_db", _async_conn_factory(db)
         ):
             resp = client.get("/api/persons", params={"search": "alice"})
 
         assert resp.status_code == 200
-        # The COUNT query should use name LIKE only (no ID match)
-        count_call = mock_conn.execute.call_args_list[0]
-        sql = count_call[0][0]
-        params = count_call[0][1]
-        assert "p.name LIKE ?" in sql
-        assert "p.id = ?" not in sql
-        assert params == ["%alice%"]
+        body = resp.json()
+        # Only Alice matches by name; ID is not consulted for a non-numeric term
+        assert body["total"] == 1
+        assert len(body["persons"]) == 1
+        assert body["persons"][0]["name"] == "Alice"
 
-    def test_search_by_id(self, client):
-        """Searching with a numeric string also matches person ID."""
-        mock_conn = mock.MagicMock()
-        mock_conn.execute.return_value.fetchone.return_value = (1,)
-        mock_conn.execute.return_value.fetchall.return_value = []
-
+    def test_search_by_id(self, client, tmp_path):
+        """Searching with a numeric string matches person ID OR name."""
+        db = str(tmp_path / "persons.db")
+        _make_persons_db(
+            db,
+            persons=[
+                {"id": 42, "name": "Alice", "face_count": 25},
+                # name contains "42" → matched via the name LIKE branch
+                {"id": 7, "name": "Agent 42", "face_count": 5},
+                {"id": 99, "name": "Bob", "face_count": 3},
+            ],
+        )
         with mock.patch(
-            "api.routers.persons.get_db", lambda: _cm(mock_conn)
+            "api.routers.persons.get_async_db", _async_conn_factory(db)
         ):
             resp = client.get("/api/persons", params={"search": "42"})
 
         assert resp.status_code == 200
-        # The COUNT query should use both name LIKE and ID match
-        count_call = mock_conn.execute.call_args_list[0]
-        sql = count_call[0][0]
-        params = count_call[0][1]
-        assert "p.name LIKE ?" in sql
-        assert "p.id = ?" in sql
-        # Implementation emits "p.id = ? OR p.name LIKE ?" → params [id, like]
-        assert params == [42, "%42%"]
+        body = resp.json()
+        # Matches id=42 (by id) and id=7 (by name LIKE '%42%'), not Bob
+        assert body["total"] == 2
+        returned_ids = {p["id"] for p in body["persons"]}
+        assert returned_ids == {42, 7}
+
+
+class TestNeedsNaming:
+    """Tests for GET /api/persons/needs_naming (async, real temp DB)."""
+
+    def test_needs_naming_filters(self, client, tmp_path):
+        """Returns only unnamed auto-clustered persons over the min_faces threshold."""
+        db = str(tmp_path / "persons.db")
+        _make_persons_db(
+            db,
+            persons=[
+                # Unnamed, auto-clustered, enough faces → included
+                {"id": 1, "name": None, "face_count": 10, "auto_clustered": 1},
+                {"id": 2, "name": None, "face_count": 6, "auto_clustered": 1},
+                # Named → excluded
+                {"id": 3, "name": "Alice", "face_count": 20, "auto_clustered": 1},
+                # Not auto-clustered → excluded
+                {"id": 4, "name": None, "face_count": 8, "auto_clustered": 0},
+                # Below threshold → excluded
+                {"id": 5, "name": None, "face_count": 2, "auto_clustered": 1},
+            ],
+        )
+        with mock.patch(
+            "api.routers.persons.get_async_db", _async_conn_factory(db)
+        ):
+            resp = client.get("/api/persons/needs_naming", params={"min_faces": 5})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["min_faces"] == 5
+        assert body["total"] == 2
+        # Ordered by face_count DESC → id 1 (10 faces) before id 2 (6 faces)
+        assert [p["id"] for p in body["persons"]] == [1, 2]
