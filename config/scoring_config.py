@@ -470,9 +470,21 @@ class ScoringConfig:
         })
 
     def get_duplicate_detection_settings(self):
-        """Get duplicate detection settings (similarity threshold)."""
+        """Get duplicate detection settings.
+
+        Two-stage near-dup keys (with safe defaults when absent):
+        - similarity_threshold_percent: strict pHash-only Hamming gate used when
+          an embedding is missing for either photo (backward-compatible path).
+        - prefilter_hamming: looser Hamming gate for the stage-1 candidate set
+          when both photos have embeddings (recall); coerced to be >= the strict
+          gate so two-stage is never stricter than pHash-only.
+        - embedding_cosine_threshold: stage-2 SigLIP/CLIP cosine gate (precision);
+          a loose-pHash candidate only merges if cosine >= this.
+        """
         return self.config.get('duplicate_detection', {
-            'similarity_threshold_percent': 90
+            'similarity_threshold_percent': 90,
+            'prefilter_hamming': 12,
+            'embedding_cosine_threshold': 0.90,
         })
 
     def get_face_clustering_settings(self):

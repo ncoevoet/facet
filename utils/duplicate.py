@@ -21,12 +21,93 @@ def _hex_to_uint64(hex_str):
     return int(hex_str, 16)
 
 
-def detect_duplicates(db_path, config_path=None):
-    """Detect duplicate photos using pHash Hamming distance.
+def _hamming_to_all(query_hash, hashes):
+    """Vectorized Hamming distance of one uint64 hash against an array of hashes."""
+    xor_result = np.bitwise_xor(query_hash, hashes)
+    distances = np.zeros(len(hashes), dtype=np.int32)
+    for byte_idx in range(8):
+        byte_vals = (xor_result >> np.uint64(byte_idx * 8)) & np.uint64(0xFF)
+        distances += _POPCOUNT_TABLE[byte_vals.astype(np.int32)]
+    return distances
 
-    Loads all photos with a pHash, computes pairwise Hamming distances,
-    groups matches transitively with Union-Find, and writes
+
+def _build_embedding_matrix(emb_blobs):
+    """Decode stored embeddings into an (n, dim) matrix + a per-row presence mask.
+
+    Rows lacking an embedding, or whose dimension differs from the dominant
+    dimension (mixed CLIP-768 / SigLIP-1152 databases), are marked absent so the
+    cosine gate cleanly degrades to the strict pHash-only path for them.
+    """
+    from collections import Counter
+    from utils.embedding import bytes_to_normalized_embedding
+
+    decoded = [bytes_to_normalized_embedding(b) for b in emb_blobs]
+    dims = [e.shape[0] for e in decoded if e is not None]
+    n = len(decoded)
+    has_emb = np.zeros(n, dtype=bool)
+    if not dims:
+        return None, has_emb
+    target_dim = Counter(dims).most_common(1)[0][0]
+    matrix = np.zeros((n, target_dim), dtype=np.float32)
+    for idx, e in enumerate(decoded):
+        if e is not None and e.shape[0] == target_dim:
+            matrix[idx] = e
+            has_emb[idx] = True
+    return matrix, has_emb
+
+
+def _two_stage_union(hashes, matrix, has_emb, max_distance, prefilter_hamming, cosine_threshold):
+    """Group photos with a two-stage near-dup gate, returning a UnionFind.
+
+    Stage 1 (recall): pHash Hamming candidates. When BOTH photos in a pair have
+    an embedding, the looser ``prefilter_hamming`` gate is used; otherwise the
+    strict ``max_distance`` pHash-only gate is used (backward-compatible).
+    Stage 2 (precision): an embedding-available candidate is only merged when the
+    SigLIP/CLIP cosine similarity is >= ``cosine_threshold``.
+
+    A pair where either photo lacks an embedding merges purely on the strict
+    pHash gate — so a DB with no embeddings produces identical groups to the
+    original pHash-only detector.
+    """
+    n = len(hashes)
+    uf = _UnionFind(n)
+    for i in range(n):
+        start_j = i + 1
+        if start_j >= n:
+            continue
+        remaining = hashes[start_j:]
+        distances = _hamming_to_all(hashes[i], remaining)
+
+        if matrix is not None and has_emb[i]:
+            both_emb = has_emb[start_j:]
+            # Per-pair Hamming gate: loose where both have embeddings, strict otherwise.
+            gate = np.where(both_emb, prefilter_hamming, max_distance)
+            cand = np.where(distances <= gate)[0]
+            for mi in cand:
+                j = start_j + int(mi)
+                if has_emb[j]:
+                    if float(np.dot(matrix[i], matrix[j])) >= cosine_threshold:
+                        uf.union(i, j)
+                else:
+                    uf.union(i, j)  # strict pHash already satisfied
+        else:
+            # Row i has no embedding -> strict pHash-only for every pair from i.
+            cand = np.where(distances <= max_distance)[0]
+            for mi in cand:
+                uf.union(i, start_j + int(mi))
+    return uf
+
+
+def detect_duplicates(db_path, config_path=None):
+    """Detect duplicate photos using a two-stage pHash + embedding gate.
+
+    Loads all photos with a pHash (and embedding where present), groups
+    transitively matching photos with Union-Find, and writes
     duplicate_group_id / is_duplicate_lead to the database.
+
+    Stage 1 finds loose pHash candidates; stage 2 confirms them with a tight
+    SigLIP/CLIP cosine gate. Photos missing an embedding fall back to the strict
+    pHash-only criterion, so behavior is unchanged when embeddings are absent.
 
     Args:
         db_path: Path to the SQLite database
@@ -38,18 +119,24 @@ def detect_duplicates(db_path, config_path=None):
     settings = config.get_duplicate_detection_settings()
     similarity_pct = settings.get('similarity_threshold_percent', 90)
 
-    # pHash is 64-bit, so max Hamming distance is 64
-    # similarity_threshold_percent=90 means <=6 bits different (floor(64 * 0.10))
+    # pHash is 64-bit, so max Hamming distance is 64.
+    # similarity_threshold_percent=90 means <=6 bits different (floor(64 * 0.10)).
     max_distance = int(64 * (1 - similarity_pct / 100))
-    logger.info("Duplicate detection: similarity >= %d%% (Hamming distance <= %d)",
-                similarity_pct, max_distance)
+    # Stage-1 loose gate (>= strict, so two-stage is never stricter than pHash-only).
+    prefilter_hamming = max(int(settings.get('prefilter_hamming', 12)), max_distance)
+    cosine_threshold = float(settings.get('embedding_cosine_threshold', 0.90))
+    logger.info(
+        "Duplicate detection: strict pHash <= %d (%.0f%%); two-stage prefilter Hamming <= %d "
+        "+ embedding cosine >= %.2f",
+        max_distance, similarity_pct, prefilter_hamming, cosine_threshold,
+    )
 
-    # Load all photos with pHash
+    # Load all photos with pHash (+ embedding for the cosine gate)
     with sqlite3.connect(db_path) as conn:
         apply_pragmas(conn)
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
-            "SELECT path, phash, aggregate FROM photos "
+            "SELECT path, phash, aggregate, clip_embedding FROM photos "
             "WHERE phash IS NOT NULL ORDER BY path"
         )
         rows = cursor.fetchall()
@@ -61,42 +148,13 @@ def detect_duplicates(db_path, config_path=None):
     paths = [r['path'] for r in rows]
     aggregates = [r['aggregate'] or 0.0 for r in rows]
     n = len(paths)
-    logger.info("Comparing %d photos...", n)
 
     # Convert hex hashes to uint64 numpy array for vectorized comparison
     hashes = np.array([_hex_to_uint64(r['phash']) for r in rows], dtype=np.uint64)
+    matrix, has_emb = _build_embedding_matrix([r['clip_embedding'] for r in rows])
+    logger.info("Comparing %d photos (%d with embeddings)...", n, int(has_emb.sum()))
 
-    # Pairwise comparison with Union-Find grouping
-    # Process in chunks to limit memory for XOR + popcount
-    uf = _UnionFind(n)
-    chunk_size = 1000
-
-    for i in range(0, n, chunk_size):
-        i_end = min(i + chunk_size, n)
-        chunk = hashes[i:i_end]  # shape: (chunk_size,)
-
-        # XOR each element in the chunk against all remaining elements
-        # Only compare i against j > i to avoid redundant pairs
-        for ci, abs_i in enumerate(range(i, i_end)):
-            # Compare against all elements after abs_i
-            start_j = abs_i + 1
-            if start_j >= n:
-                continue
-
-            remaining = hashes[start_j:]  # shape: (n - start_j,)
-            xor_result = np.bitwise_xor(chunk[ci], remaining)
-
-            # Popcount via Kernighan's method is slow for arrays;
-            # use lookup table approach: split into bytes and sum popcount
-            distances = np.zeros(len(remaining), dtype=np.int32)
-            for byte_idx in range(8):
-                byte_vals = (xor_result >> (byte_idx * 8)) & 0xFF
-                distances += _POPCOUNT_TABLE[byte_vals.astype(np.int32)]
-
-            # Find matches
-            match_indices = np.where(distances <= max_distance)[0]
-            for mi in match_indices:
-                uf.union(abs_i, start_j + mi)
+    uf = _two_stage_union(hashes, matrix, has_emb, max_distance, prefilter_hamming, cosine_threshold)
 
     # Collect groups
     groups = {}
