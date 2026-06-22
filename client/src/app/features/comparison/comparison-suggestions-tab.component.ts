@@ -1,5 +1,4 @@
 import { Component, inject, signal, computed, effect, output } from '@angular/core';
-import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -40,7 +39,6 @@ interface TopPhoto {
 @Component({
   selector: 'app-comparison-suggestions-tab',
   imports: [
-    MatCardModule,
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
@@ -50,11 +48,12 @@ interface TopPhoto {
     WeightLabelKeyPipe,
   ],
   template: `
-    <div class="pt-2 space-y-4">
-      @if (learnedWeights(); as lw) {
-        @if (lw.available && lw.suggest_changes && lw.suggested_weights) {
-          <mat-card>
-            <mat-card-content class="!pt-4 text-sm space-y-3">
+    <div class="pt-2 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Column 1: weight suggestions + actions -->
+      <div>
+        @if (learnedWeights(); as lw) {
+          @if (lw.available && lw.suggest_changes && lw.suggested_weights) {
+            <div class="text-sm space-y-3">
               <div class="text-gray-400">
                 {{ 'compare.weights.learned_from' | translate:{ count: lw.comparisons_used ?? 0 } }}
               </div>
@@ -64,20 +63,20 @@ interface TopPhoto {
                 <span class="text-gray-500">&rarr;</span>
                 <span class="font-mono text-[var(--facet-accent-text)]">{{ (lw.accuracy_after ?? 0) | fixed:0 }}%</span>
               </div>
-              <div class="text-xs max-w-md">
+              <div class="text-xs">
                 <div class="flex items-center gap-2 pb-1 mb-1 border-b border-[var(--mat-sys-outline-variant)] text-gray-500 uppercase text-[10px] font-semibold tracking-wide">
                   <span class="flex-1">{{ 'comparison.weight_property' | translate }}</span>
-                  <span class="w-14 text-right">{{ 'comparison.weight_current' | translate }}</span>
+                  <span class="w-12 text-right">{{ 'comparison.weight_current' | translate }}</span>
                   <span class="w-5 shrink-0"></span>
-                  <span class="w-14 text-right">{{ 'comparison.weight_suggested' | translate }}</span>
+                  <span class="w-12 text-right">{{ 'comparison.weight_suggested' | translate }}</span>
                 </div>
-                @for (key of currentWeightKeys(); track key) {
+                @for (row of weightRows(); track row.key) {
                   <div class="flex items-center gap-2 py-1 border-b border-[var(--mat-sys-outline-variant)]"
-                       [class.font-semibold]="(lw.suggested_weights[key] || 0) !== (lw.current_weights?.[key] || 0)">
-                    <span class="flex-1 truncate text-gray-400">{{ key | weightLabelKey | translate }}</span>
-                    <span class="font-mono w-14 text-right tabular-nums">{{ lw.current_weights?.[key] || 0 }}</span>
+                       [class.font-semibold]="row.changed">
+                    <span class="flex-1 truncate text-gray-400">{{ row.key | weightLabelKey | translate }}</span>
+                    <span class="font-mono w-12 text-right tabular-nums">{{ row.current }}</span>
                     <mat-icon class="!w-5 !h-5 !text-lg !leading-5 text-gray-500 shrink-0">arrow_forward</mat-icon>
-                    <span class="font-mono w-14 text-right tabular-nums text-[var(--facet-accent-text)]">{{ lw.suggested_weights[key] || 0 }}</span>
+                    <span class="font-mono w-12 text-right tabular-nums text-[var(--facet-accent-text)]">{{ row.suggested }}</span>
                   </div>
                 }
               </div>
@@ -104,41 +103,41 @@ interface TopPhoto {
               @if (applied() && !recomputed()) {
                 <p class="text-amber-400 text-xs">{{ 'comparison.recompute_needed' | translate }}</p>
               }
-            </mat-card-content>
-          </mat-card>
-        } @else if (lw.available) {
-          <p class="text-amber-400 text-sm">{{ 'compare.weights.already_good' | translate }}</p>
-        } @else {
-          <p class="text-sm text-gray-500">{{ lw.message }}</p>
+            </div>
+          } @else if (lw.available) {
+            <p class="text-amber-400 text-sm">{{ 'compare.weights.already_good' | translate }}</p>
+          } @else {
+            <p class="text-sm text-gray-500">{{ lw.message }}</p>
+          }
         }
-      }
+      </div>
 
-      <!-- Before / after top photos -->
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <div class="text-xs font-semibold uppercase opacity-60 mb-2">{{ 'comparison.top_before' | translate }}</div>
-          @for (p of topBefore(); track p.path; let i = $index) {
-            <div class="flex items-center gap-2 mb-1">
-              <span class="text-xs w-5 text-right text-gray-500">{{ i + 1 }}</span>
-              <img [src]="p.path | thumbnailUrl:96" class="w-12 h-12 rounded object-cover" [alt]="p.filename" loading="lazy" />
-              <span class="font-mono text-xs">{{ p.aggregate | fixed:1 }}</span>
+      <!-- Column 2: current top 10 (before) -->
+      <div>
+        <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ 'comparison.top_before' | translate }}</div>
+        @for (p of topBefore(); track p.path; let i = $index) {
+          <div class="flex items-center gap-3 mb-3">
+            <span class="text-sm w-5 text-right text-gray-500 shrink-0">{{ i + 1 }}</span>
+            <img [src]="p.path | thumbnailUrl:256" class="w-24 h-24 rounded object-cover shrink-0" [alt]="p.filename" loading="lazy" />
+            <span class="font-mono text-sm">{{ p.aggregate | fixed:1 }}</span>
+          </div>
+        }
+      </div>
+
+      <!-- Column 3: top 10 after recompute -->
+      <div>
+        <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ 'comparison.top_after' | translate }}</div>
+        @if (recomputed()) {
+          @for (p of topAfter(); track p.path; let i = $index) {
+            <div class="flex items-center gap-3 mb-3">
+              <span class="text-sm w-5 text-right text-gray-500 shrink-0">{{ i + 1 }}</span>
+              <img [src]="p.path | thumbnailUrl:256" class="w-24 h-24 rounded object-cover shrink-0" [alt]="p.filename" loading="lazy" />
+              <span class="font-mono text-sm text-[var(--facet-accent-text)]">{{ p.aggregate | fixed:1 }}</span>
             </div>
           }
-        </div>
-        <div>
-          <div class="text-xs font-semibold uppercase opacity-60 mb-2">{{ 'comparison.top_after' | translate }}</div>
-          @if (recomputed()) {
-            @for (p of topAfter(); track p.path; let i = $index) {
-              <div class="flex items-center gap-2 mb-1">
-                <span class="text-xs w-5 text-right text-gray-500">{{ i + 1 }}</span>
-                <img [src]="p.path | thumbnailUrl:96" class="w-12 h-12 rounded object-cover" [alt]="p.filename" loading="lazy" />
-                <span class="font-mono text-xs text-[var(--facet-accent-text)]">{{ p.aggregate | fixed:1 }}</span>
-              </div>
-            }
-          } @else {
-            <p class="text-xs text-gray-500">{{ 'comparison.top_after_hint' | translate }}</p>
-          }
-        </div>
+        } @else {
+          <p class="text-xs text-gray-500">{{ 'comparison.top_after_hint' | translate }}</p>
+        }
       </div>
     </div>
   `,
@@ -154,7 +153,7 @@ export class ComparisonSuggestionsTabComponent {
   readonly weightsApplied = output<Record<string, number>>();
 
   protected readonly learnedWeights = signal<LearnedWeightsResponse | null>(null);
-  private readonly categoryConfig = signal<CategoryWeights | null>(null);
+  protected readonly categoryConfig = signal<CategoryWeights | null>(null);
   protected readonly topBefore = signal<TopPhoto[]>([]);
   protected readonly topAfter = signal<TopPhoto[]>([]);
   protected readonly applied = signal(false);
@@ -162,9 +161,19 @@ export class ComparisonSuggestionsTabComponent {
   protected readonly saving = signal(false);
   protected readonly recomputing = signal(false);
 
-  protected readonly currentWeightKeys = computed(() =>
-    Object.keys(this.learnedWeights()?.current_weights ?? {}).filter(k => k.endsWith('_percent')),
-  );
+  /** Current vs suggested rows over the category's canonical percent weights. */
+  protected readonly weightRows = computed(() => {
+    const config = this.categoryConfig();
+    if (!config) return [];
+    const suggested = this.learnedWeights()?.suggested_weights ?? {};
+    return Object.keys(config.weights)
+      .filter(k => k.endsWith('_percent'))
+      .map(key => {
+        const current = config.weights[key] ?? 0;
+        const next = key in suggested ? suggested[key] : current;
+        return { key, current, suggested: next, changed: next !== current };
+      });
+  });
 
   constructor() {
     effect(() => {
@@ -206,7 +215,14 @@ export class ComparisonSuggestionsTabComponent {
     const config = this.categoryConfig();
     const category = this.compareFilters.selectedCategory();
     if (!lw?.suggested_weights || !config || !category) return;
-    const merged = { ...(lw.current_weights ?? {}), ...lw.suggested_weights };
+    // Base on the category's canonical weights so only valid keys are saved;
+    // learned_weights.current_weights may carry non-canonical keys the config
+    // validator would strip.
+    const suggested = lw.suggested_weights;
+    const merged: Record<string, number> = { ...config.weights };
+    for (const key of Object.keys(config.weights)) {
+      if (suggested[key] != null) merged[key] = suggested[key];
+    }
     this.saving.set(true);
     try {
       await firstValueFrom(this.api.post('/config/update_weights', {

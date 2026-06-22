@@ -45,14 +45,15 @@ describe('ComparisonSuggestionsTabComponent', () => {
     await flush();
   });
 
-  it('applySuggested persists the merged weights, emits, and marks applied', async () => {
+  it('persists canonical weights overlaid with suggestions, ignoring non-canonical keys', async () => {
     component['learnedWeights'].set({
       available: true,
       suggest_changes: true,
-      current_weights: { a_percent: 30, b_percent: 10 },
-      suggested_weights: { a_percent: 40 },
+      // a stray non-canonical key that must NOT be saved
+      current_weights: { a_percent: 30, b_percent: 10, stray_percent: 99 },
+      suggested_weights: { a_percent: 40, stray_percent: 99 },
     });
-    component['categoryConfig'].set({ weights: {}, modifiers: { bonus: 1 }, filters: { f: 2 } });
+    component['categoryConfig'].set({ weights: { a_percent: 30, b_percent: 10 }, modifiers: { bonus: 1 }, filters: { f: 2 } });
 
     let emitted: Record<string, number> | undefined;
     component.weightsApplied.subscribe((w) => (emitted = w));
@@ -81,8 +82,13 @@ describe('ComparisonSuggestionsTabComponent', () => {
     expect(component['topBefore']().length).toBeGreaterThan(0);
   });
 
-  it('only surfaces the percent weight keys', () => {
-    component['learnedWeights'].set({ available: true, current_weights: { a_percent: 30, bonus: 1, b_percent: 10 } });
-    expect(component['currentWeightKeys']()).toEqual(['a_percent', 'b_percent']);
+  it('builds rows over the canonical percent weights, overlaying suggestions', () => {
+    component['categoryConfig'].set({ weights: { a_percent: 30, bonus: 1, b_percent: 10 }, modifiers: {}, filters: {} });
+    component['learnedWeights'].set({ available: true, suggested_weights: { a_percent: 40 } });
+
+    const rows = component['weightRows']();
+    expect(rows.map(r => r.key)).toEqual(['a_percent', 'b_percent']);
+    expect(rows[0]).toEqual({ key: 'a_percent', current: 30, suggested: 40, changed: true });
+    expect(rows[1]).toEqual({ key: 'b_percent', current: 10, suggested: 10, changed: false });
   });
 });
