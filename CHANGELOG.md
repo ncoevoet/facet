@@ -4,6 +4,37 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] "Lustre" — 2026-06-22
+
+### Added
+- Culling workflow ("darkroom"): a dedicated `/culling` page that reviews burst and visually-similar groups together, with global sort (easiest, redundant, best, recent, needs-comparisons), a cooldown-based confirm/skip (cancellable within the window), per-photo cull reasons, a face/expression grid, and a strictness slider.
+- Weight Suggestions tab in the comparison view: learned-vs-current weights with a before/after top-10 preview and one-click apply, gated on comparison volume.
+- Editor export: write ratings, colour labels and tags to XMP sidecars (read by Lightroom and darktable) without modifying originals, plus a "basket" export that copies or symlinks selected photos and an album export.
+- Person cluster split and hide/ignore. Rejected merge suggestions are persisted so they don't reappear.
+- Embedding-space guard so faces detected by different recognition models are never merged into one person.
+- Search facets: text-in-image (OCR) search scope, colour (temperature + hue bucket), and quality-tier filters.
+- Personalization: a "Picked for you" sort backed by the extended-IQA tier, and background auto-retraining of the personal ranker from culling and rating signals.
+
+### Changed
+- Burst/similar culling derives comparison pairs from keep/reject decisions to feed weight tuning and the personal ranker.
+
+### Fixed
+- Multi-user data isolation: text-scope search now applies the per-user visibility filter to its results (previously an OCR/caption match could surface another user's photo metadata).
+- Culling confirmations are no longer dropped when the cooldown is interrupted by a filter change or navigation; the keep/reject decision is committed on teardown.
+- Auto-retrain keeps its accumulated comparison counter when a worker thread fails to start, instead of discarding it.
+- XMP export removes its temporary file if the write fails, rather than leaving a stray `.tmp` next to the photo.
+- Non-finite metric ranges from corrupt EXIF apertures no longer break filter options.
+- Batch person merge repaired; rejected merge suggestions persisted.
+
+### Performance
+- The colour filter facet is cached (300s) instead of scanning the whole `dominant_hue` column per request; culling-group pagination reuses one enrichment of the unreviewed set rather than re-scoring every group per page; the hot culling-confirm path reuses the request connection for its retrain counter.
+
+### Accessibility
+- Accessible names on the culling icon buttons (view-detail, help) and a non-colour indicator for rejected photos.
+
+### Documentation
+- Accuracy pass over the README and `docs/`: corrected stale model names, config defaults, category counts, schema columns, install steps and the Docker section; removed marketing-style prose.
+
 ## [1.1.0] "Prism" — 2026-06-17
 
 ### Added
