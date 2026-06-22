@@ -48,11 +48,11 @@ interface TopPhoto {
     WeightLabelKeyPipe,
   ],
   template: `
-    <div class="pt-2 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="pt-2 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
       <!-- Column 1: weight suggestions + actions -->
-      <div>
+      <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-4">
         @if (learnedWeights(); as lw) {
-          @if (lw.available && lw.suggest_changes && lw.suggested_weights) {
+          @if (lw.available && lw.suggested_weights) {
             <div class="text-sm space-y-3">
               <div class="text-gray-400">
                 {{ 'compare.weights.learned_from' | translate:{ count: lw.comparisons_used ?? 0 } }}
@@ -80,6 +80,9 @@ interface TopPhoto {
                   </div>
                 }
               </div>
+              @if (!lw.suggest_changes) {
+                <p class="text-gray-500 text-xs">{{ 'compare.weights.already_good' | translate }}</p>
+              }
               <div class="flex flex-wrap gap-2">
                 <button mat-flat-button [disabled]="applied() || saving() || !auth.isEdition()" (click)="applySuggested()">
                   @if (saving()) {
@@ -104,35 +107,33 @@ interface TopPhoto {
                 <p class="text-amber-400 text-xs">{{ 'comparison.recompute_needed' | translate }}</p>
               }
             </div>
-          } @else if (lw.available) {
-            <p class="text-amber-400 text-sm">{{ 'compare.weights.already_good' | translate }}</p>
           } @else {
-            <p class="text-sm text-gray-500">{{ lw.message }}</p>
+            <p class="text-sm text-gray-500">{{ 'comparison.suggestions_insufficient' | translate }}</p>
           }
         }
       </div>
 
       <!-- Column 2: current top 10 (before) -->
-      <div>
+      <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-4">
         <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ 'comparison.top_before' | translate }}</div>
         @for (p of topBefore(); track p.path; let i = $index) {
-          <div class="flex items-center gap-3 mb-3">
-            <span class="text-sm w-5 text-right text-gray-500 shrink-0">{{ i + 1 }}</span>
-            <img [src]="p.path | thumbnailUrl:256" class="w-24 h-24 rounded object-cover shrink-0" [alt]="p.filename" loading="lazy" />
-            <span class="font-mono text-sm">{{ p.aggregate | fixed:1 }}</span>
+          <div class="relative mb-3">
+            <img [src]="p.path | thumbnailUrl:512" class="w-full rounded object-cover" [alt]="p.filename" loading="lazy" />
+            <span class="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs">{{ i + 1 }}</span>
+            <span class="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">{{ p.aggregate | fixed:1 }}</span>
           </div>
         }
       </div>
 
       <!-- Column 3: top 10 after recompute -->
-      <div>
+      <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-4">
         <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ 'comparison.top_after' | translate }}</div>
         @if (recomputed()) {
           @for (p of topAfter(); track p.path; let i = $index) {
-            <div class="flex items-center gap-3 mb-3">
-              <span class="text-sm w-5 text-right text-gray-500 shrink-0">{{ i + 1 }}</span>
-              <img [src]="p.path | thumbnailUrl:256" class="w-24 h-24 rounded object-cover shrink-0" [alt]="p.filename" loading="lazy" />
-              <span class="font-mono text-sm text-[var(--facet-accent-text)]">{{ p.aggregate | fixed:1 }}</span>
+            <div class="relative mb-3">
+              <img [src]="p.path | thumbnailUrl:512" class="w-full rounded object-cover" [alt]="p.filename" loading="lazy" />
+              <span class="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs">{{ i + 1 }}</span>
+              <span class="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-[var(--facet-accent-text)] text-xs font-mono">{{ p.aggregate | fixed:1 }}</span>
             </div>
           }
         } @else {

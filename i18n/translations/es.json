@@ -1315,6 +1315,7 @@
     "apply_suggested": "Aplicar sugeridos",
     "suggestions_tab": "Sugerencias de pesos",
     "suggestions_locked_tooltip": "{count} comparaciones más para desbloquear las sugerencias de pesos",
+    "suggestions_insufficient": "Aún no hay suficientes comparaciones en esta categoría para sugerir pesos",
     "top_before": "Top 10 actual",
     "top_after": "Con los nuevos pesos",
     "top_after_hint": "Aplica y recalcula para ver la nueva clasificación",

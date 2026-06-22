@@ -1315,6 +1315,7 @@
     "apply_suggested": "Apply Suggested",
     "suggestions_tab": "Weight Suggestions",
     "suggestions_locked_tooltip": "{count} more comparisons needed to unlock weight suggestions",
+    "suggestions_insufficient": "Not enough comparisons in this category yet to suggest weights",
     "top_before": "Current top 10",
     "top_after": "After new weights",
     "top_after_hint": "Apply and recompute to see the new ranking",
