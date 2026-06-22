@@ -59,12 +59,14 @@ Chart.register(...registerables);
                 [disabled]="(weightsTab()?.hasChanges() ?? false) || !auth.isEdition() || (weightsTab()?.recalculating() ?? false)"
                 (click)="weightsTab()?.recalculateScores()"
                 [matTooltip]="'comparison.recalculate_tooltip' | translate">
-                @if (weightsTab()?.recalculating()) {
-                  <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
-                } @else {
-                  <mat-icon>calculate</mat-icon>
-                }
-                {{ 'comparison.recalculate' | translate }}
+                <span class="inline-flex items-center gap-1.5">
+                  @if (weightsTab()?.recalculating()) {
+                    <mat-spinner diameter="16" class="!w-4 !h-4" />
+                  } @else {
+                    <mat-icon class="!m-0">calculate</mat-icon>
+                  }
+                  {{ 'comparison.recalculate' | translate }}
+                </span>
               </button>
             } @else if (selectedTabIndex() === 2) {
               <!-- Weight Suggestions tab -->
@@ -72,24 +74,28 @@ Chart.register(...registerables);
                 <button mat-flat-button
                   [disabled]="(suggestionsTab()?.saving() ?? false) || !auth.isEdition()"
                   (click)="suggestionsTab()?.applySuggested()">
-                  @if (suggestionsTab()?.saving()) {
-                    <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
-                  } @else {
-                    <mat-icon>auto_fix_high</mat-icon>
-                  }
-                  {{ 'comparison.apply_suggested' | translate }}
+                  <span class="inline-flex items-center gap-1.5">
+                    @if (suggestionsTab()?.saving()) {
+                      <mat-spinner diameter="16" class="!w-4 !h-4" />
+                    } @else {
+                      <mat-icon class="!m-0">auto_fix_high</mat-icon>
+                    }
+                    {{ 'comparison.apply_suggested' | translate }}
+                  </span>
                 </button>
               }
               @if (suggestionsTab()?.needsRecompute()) {
                 <button mat-stroked-button
                   [disabled]="(suggestionsTab()?.recomputing() ?? false) || !auth.isEdition()"
                   (click)="suggestionsTab()?.recompute()">
-                  @if (suggestionsTab()?.recomputing()) {
-                    <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
-                  } @else {
-                    <mat-icon>calculate</mat-icon>
-                  }
-                  {{ 'comparison.recompute_category' | translate }}
+                  <span class="inline-flex items-center gap-1.5">
+                    @if (suggestionsTab()?.recomputing()) {
+                      <mat-spinner diameter="16" class="!w-4 !h-4" />
+                    } @else {
+                      <mat-icon class="!m-0">calculate</mat-icon>
+                    }
+                    {{ 'comparison.recompute_category' | translate }}
+                  </span>
                 </button>
               }
             }
