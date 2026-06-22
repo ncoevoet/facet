@@ -1,17 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="32" height="32" role="img" aria-label="Facet">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Facet">
   <title>Facet</title>
   <!-- Brilliant-cut diamond: table + crown + pavilion to the culet. Light upper-left. -->
   <g stroke="#7a2e00" stroke-width="0.5" stroke-linejoin="round">
+    <!-- crown -->
     <polygon points="22,16 42,16 43,27 21,27" fill="#ff9a47"/>
     <polygon points="22,16 21,27 10,27"        fill="#ffba79"/>
     <polygon points="42,16 54,27 43,27"        fill="#ff6f12"/>
+    <!-- pavilion (4 facets radiating to the culet) -->
     <polygon points="10,27 21,27 32,57" fill="#ff7d1f"/>
     <polygon points="21,27 32,27 32,57" fill="#ff8f37"/>
     <polygon points="32,27 43,27 32,57" fill="#e35a00"/>
     <polygon points="43,27 54,27 32,57" fill="#c95000"/>
+    <!-- girdle highlight -->
     <line x1="10" y1="27" x2="54" y2="27" stroke="#ffd6a8" stroke-width="0.7" opacity="0.7"/>
   </g>
-  <!-- Sun flare glinting off the crown's upper-left -->
+
+  <!-- Sun flare glinting off the crown's upper-left (stacked circles = soft glow) -->
   <g>
     <circle cx="25" cy="18" r="6.5" fill="#ffe4b0" opacity="0.16"/>
     <circle cx="25" cy="18" r="4.2" fill="#fff3da" opacity="0.30"/>
