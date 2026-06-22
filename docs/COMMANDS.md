@@ -39,15 +39,11 @@ lines (phase, current/total, ETA) which the viewer's scan API surfaces in the
 
 ### Processing Modes
 
-**Multi-Pass (Default):** Automatically detects VRAM and loads models sequentially.
-Each pass loads its model, processes all photos, then unloads to free VRAM.
-This allows using high-quality models even with limited VRAM.
+**Multi-pass (default):** detects VRAM and loads models sequentially. Each pass loads its model, processes all photos, then unloads to free VRAM, so high-quality models run even with limited VRAM.
 
-**Single-Pass (`--single-pass`):** Loads all models simultaneously.
-Faster but requires more VRAM.
+**Single-pass (`--single-pass`):** loads all models at once. Faster, needs more VRAM.
 
-**Specific Pass (`--pass NAME`):** Run only one specific pass on photos. Useful for
-updating specific metrics without full reprocessing. Available passes:
+**Specific pass (`--pass NAME`):** run one pass only, to update specific metrics without full reprocessing. Available passes:
 
 | Pass | Model | Output | VRAM |
 |------|-------|--------|------|
@@ -83,14 +79,16 @@ These commands update specific metrics without full photo reprocessing.
 | `python facet.py --recompute-tags` | Re-tag all photos using configured model |
 | `python facet.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recompute subject saliency metrics (BiRefNet_dynamic) |
-| `python facet.py --recompute-composition-cpu` | Recompute composition (rule-based, CPU — any profile) |
-| `python facet.py --recompute-composition-gpu` | `[GPU]` Rescan with SAMP-Net; uses Qwen2-VL on the `[24gb]` profile |
-| `python facet.py --recompute-iqa` | `[GPU]` `[8gb/16gb/24gb]` Recompute supplementary IQA metrics (TOPIQ IAA, NR-Face, LIQE) from thumbnails |
-| `python facet.py --upgrade-db` | Backfill all metric columns on an older DB by running recompute-iqa / saliency / composition-cpu / burst / blinks / average in sequence. Each step is idempotent. |
-| `python facet.py --recompute-blinks` | Recompute blink detection |
-| `python facet.py --recompute-eyes-expression` | Recompute eyes-open + expression scores from stored 106-pt landmarks (CPU, fast) |
+| `python facet.py --recompute-composition-cpu` | Recompute composition, rule-based (CPU, any profile) |
+| `python facet.py --recompute-composition-gpu` | `[GPU]` Recompute composition with SAMP-Net |
+| `python facet.py --recompute-iqa` | `[GPU]` `[8gb/16gb/24gb]` Recompute supplementary IQA metrics (TOPIQ IAA, NR-Face, LIQE) from stored thumbnails |
+| `python facet.py --recompute-ocr` | Extract in-image text into `ocr_text` from thumbnails (opt-in; no-op without an OCR engine; run `--rebuild-fts` after to index) |
+| `python facet.py --recompute-colors` | Extract dominant hue + warm/cool color temperature from thumbnails (CPU, fast) into `dominant_hue` / `color_temp` |
+| `python facet.py --upgrade-db` | Migrate schema and run the full backfill chain: extract-gps, detect-duplicates, recompute-iqa, saliency, composition-cpu, burst, blinks, average. Idempotent; skips heavy steps like captioning. |
+| `python facet.py --recompute-blinks` | Recompute blink detection from stored landmarks (CPU, fast) |
+| `python facet.py --recompute-eyes-expression` | Recompute eyes-open + expression scores from stored landmarks (CPU, fast) |
 | `python facet.py --recompute-burst` | Recompute burst detection groups |
-| `python facet.py --detect-duplicates` | Detect duplicate photos (two-stage pHash + embedding cosine) |
+| `python facet.py --detect-duplicates` | Detect duplicate photos via pHash |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Evaluate near-dup cosine thresholds (precision/recall table with labels, else candidate-cosine distribution) |
 | `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Generate AI captions for photos using VLM |
 | `python facet.py --translate-captions` | Translate English captions to configured target language (CPU, MarianMT) |
@@ -106,13 +104,11 @@ These commands update specific metrics without full photo reprocessing.
 
 ### Supplementary Quality Models
 
-Three additional PyIQA models provide specialized scoring beyond the primary TOPIQ aesthetic score:
+Three additional PyIQA models score beyond the primary TOPIQ aesthetic score. They share VRAM with TOPIQ and run as part of the default multi-pass pipeline.
 
-- **TOPIQ IAA** (`--pass quality-iaa`): Trained on the AVA dataset for artistic aesthetic merit. Measures artistic quality (composition, creativity, visual impact) separately from technical quality. Stored as `aesthetic_iaa`.
-- **TOPIQ NR-Face** (`--pass quality-face`): Purpose-built face quality assessment. More accurate than generic quality models for face regions. Stored as `face_quality_iqa`.
-- **LIQE** (`--pass quality-liqe`): Outputs both a quality score and a distortion type diagnosis (e.g., "motion blur", "overexposure", "noise"). Stored as `liqe_score`.
-
-These models share VRAM with the primary TOPIQ model and run as part of the default multi-pass pipeline.
+- **TOPIQ IAA** (`--pass quality-iaa`): AVA-trained artistic aesthetic merit, separate from technical quality. Stored as `aesthetic_iaa`.
+- **TOPIQ NR-Face** (`--pass quality-face`): face-region quality assessment. Stored as `face_quality_iqa`.
+- **LIQE** (`--pass quality-liqe`): quality score plus a distortion-type diagnosis (e.g. motion blur, overexposure, noise). Stored as `liqe_score`.
 
 ### Benchmarks & supplementary scores
 
@@ -123,12 +119,12 @@ These models share VRAM with the primary TOPIQ model and run as part of the defa
 
 ### Subject Saliency
 
-The `--pass saliency` and `--recompute-saliency` commands use BiRefNet-dynamic (`ZhengPeng7/BiRefNet_dynamic` from HuggingFace, via the `transformers` library) to generate a binary subject mask, then derive four metrics:
+`--pass saliency` and `--recompute-saliency` use BiRefNet-dynamic (`ZhengPeng7/BiRefNet_dynamic`, via `transformers`) to generate a binary subject mask, then derive four metrics:
 
-- **Subject Sharpness**: Laplacian variance on the subject mask region vs background. Detects whether the main subject is in focus.
-- **Subject Prominence**: Ratio of subject area to total frame area. High values indicate a dominant subject (e.g., macro photos).
-- **Subject Placement**: Rule-of-thirds scoring for the subject centroid position. Measures compositional placement.
-- **Background Separation**: Edge gradient difference between subject boundary and background. Measures bokeh quality.
+- **Subject Sharpness**: Laplacian variance on the subject region vs background — whether the subject is in focus.
+- **Subject Prominence**: subject area / frame area — high for a dominant subject (e.g. macro).
+- **Subject Placement**: rule-of-thirds score for the subject centroid.
+- **Background Separation**: edge-gradient difference between subject boundary and background — bokeh quality.
 
 Requires `transformers` (~2 GB VRAM).
 
@@ -136,12 +132,12 @@ Requires `transformers` (~2 GB VRAM).
 
 The tagging model is selected per VRAM profile:
 
-| Profile | Model | How It Works |
+| Profile | Model | How it works |
 |---------|-------|-------------|
-| `legacy` | CLIP similarity | Cosine similarity between image embedding and tag text embeddings — captures mood/atmosphere (dramatic, golden_hour, vintage). No extra model load. |
-| `8gb` | CLIP similarity | Same as legacy. Uses stored CLIP ViT-L-14 embeddings. |
-| `16gb` | Qwen3.5-2B | Native multimodal model with early vision fusion — best semantic scene understanding for size (landscape, architecture, reflection). |
-| `24gb` | Qwen3.5-4B | Larger native multimodal model — most capable for complex/ambiguous scenes with nuanced tags. |
+| `legacy` | CLIP similarity | Cosine similarity between image embedding and tag-text embeddings. No extra model load. |
+| `8gb` | CLIP similarity | Same as legacy, on stored CLIP ViT-L-14 embeddings. |
+| `16gb` | Qwen3.5-2B | Multimodal model for semantic scene tagging. |
+| `24gb` | Qwen3.5-4B | Larger multimodal model. |
 
 All taggers map output to the configured tag vocabulary. Use `--recompute-tags` to re-tag with the profile's default model, or `--recompute-tags-vlm` for VLM-based re-tagging.
 
@@ -154,7 +150,7 @@ Two embedding models available, selected per VRAM profile via `clip_config`:
 | `clip` | SigLIP 2 NaFlex SO400M | 1152 | 16gb, 24gb profiles |
 | `clip_legacy` | CLIP ViT-L-14 | 768 | legacy, 8gb profiles |
 
-Embeddings power: semantic tagging, duplicate detection, similar photo search, and CLIP+MLP aesthetic (legacy/8gb). Switching models requires re-embedding all photos (`--force` or `--pass embeddings`).
+Embeddings power semantic tagging, duplicate detection, similar-photo search, and CLIP+MLP aesthetic (legacy/8gb). Switching models requires re-embedding all photos (`--force`, `--pass embeddings`, or `--recompute-embeddings`).
 
 ## Face Recognition
 
@@ -174,14 +170,9 @@ Embeddings power: semantic tagging, duplicate detection, similar photo search, a
 
 | Command | Description |
 |---------|-------------|
-| `python facet.py --fix-thumbnail-rotation` | Fix rotation of existing thumbnails using EXIF data |
+| `python facet.py --fix-thumbnail-rotation` | Fix rotation of stored thumbnails using EXIF orientation |
 
-Fixes rotation of existing thumbnails in the database by reading EXIF orientation
-from original files and rotating the stored thumbnail bytes. This is useful for
-photos processed before EXIF handling was added to the codebase.
-
-This is a lightweight operation - it does not re-read full images, only the EXIF
-header from each file and the thumbnail from the database.
+Reads EXIF orientation from the original files and rotates the stored thumbnail bytes; for photos processed before EXIF handling existed. It reads only the EXIF header and the stored thumbnail, not the full images.
 
 ## Diagnostics
 
@@ -190,9 +181,9 @@ header from each file and the thumbnail from the database.
 | `python facet.py --doctor` | Run diagnostic checks (Python, GPU, dependencies, config, database) |
 | `python facet.py --doctor --simulate-gpu "RTX 5070 Ti" --simulate-vram 16` | Simulate GPU hardware for diagnostics |
 
-Prints a structured report covering: Python version, PyTorch/CUDA build, GPU detection and driver, VRAM profile recommendation, optional dependencies, config and database status. When PyTorch can't see the GPU but `nvidia-smi` can, shows the exact `pip install` command to fix it.
+Reports Python version, PyTorch/CUDA build, GPU detection and driver, VRAM profile recommendation, optional dependencies, and config/database status. When PyTorch can't see the GPU but `nvidia-smi` can, it prints the `pip install` command to fix the CUDA build.
 
-Use `--simulate-gpu NAME` and `--simulate-vram GB` to test how Facet would behave with different GPU hardware. Both flags require `--doctor`, and `--simulate-vram` requires `--simulate-gpu`.
+`--simulate-gpu NAME` and `--simulate-vram GB` test behavior with different hardware. Both require `--doctor`; `--simulate-vram` requires `--simulate-gpu`.
 
 ## Model Information
 
@@ -205,8 +196,10 @@ Use `--simulate-gpu NAME` and `--simulate-vram GB` to test how Facet would behav
 | Command | Description |
 |---------|-------------|
 | `python facet.py --comparison-stats` | Show pairwise comparison statistics |
-| `python facet.py --optimize-weights` | Optimize and save weights based on comparisons (all sources, reliability-weighted) |
+| `python facet.py --optimize-weights` | Optimize and save weights from comparisons (all sources, reliability-weighted); applied only if held-out k-fold accuracy beats current weights |
+| `python facet.py --optimize-weights --optimize-force` | Apply optimized weights even if the accuracy gate is not met |
 | `python facet.py --optimize-weights --optimize-sources vote,culling` | Restrict training data to specific comparison sources |
+| `python facet.py --optimize-weights --optimize-category portrait` | Train only on one category and write its v4 `categories[].weights` block |
 | `python facet.py --sync-label-comparisons` | Rebuild rating-derived pairs (source=rating) from star ratings/favorites/rejections |
 | `python facet.py --train-ranker` | Train the personal ranker over [embedding + scores] and write learned_scores (gated on held-out k-fold accuracy vs the aggregate baseline) |
 | `python facet.py --train-ranker --ranker-category portrait` | Train the ranker on one category only |
@@ -259,7 +252,7 @@ Checks: Score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python database.py --vacuum` | Reclaim space, defragment |
 | `python database.py --analyze` | Update query planner statistics |
 | `python database.py --optimize` | Run VACUUM and ANALYZE |
-| `python database.py --export-viewer-db` | Export/update lightweight database for NAS deployment (incremental if output exists) |
+| `python database.py --export-viewer-db` | Export lightweight viewer database (strips BLOBs, downsizes thumbnails; incremental if output exists) |
 | `python database.py --export-viewer-db --force-export` | Force full re-export, even if viewer DB already exists |
 | `python database.py --cleanup-orphaned-persons` | Remove persons with no associated faces |
 | `python database.py --cleanup-missing-photos` | Remove photos no longer on disk from the database (cascading deletes clean up tags, detected faces, etc.; also clears album memberships, the vector index, and invalidates stats cache) |

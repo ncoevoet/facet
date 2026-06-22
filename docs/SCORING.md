@@ -1,6 +1,6 @@
 # Scoring System
 
-Facet uses a category-based scoring system where photos are automatically classified and scored with specialized weights.
+Photos are classified into a category, then scored with that category's weights.
 
 ## How Scoring Works
 
@@ -12,27 +12,28 @@ Facet uses a category-based scoring system where photos are automatically classi
 
 ## Categories
 
-Facet includes 17 built-in categories evaluated in priority order:
+`scoring_config.json` defines 34 categories (33 named plus `default`), evaluated in ascending priority order until one matches. Lower priority wins. The full list lives in the `categories` array; the main ones:
 
 | Priority | Category | Detection Method |
 |----------|----------|------------------|
-| 5 | `art` | Tags: painting, statue, drawing, cartoon, anime |
-| 10 | `astro` | Shutter > 10s AND luminance < 0.15 |
+| 8 | `art` | Tags: painting, statue, drawing, cartoon, anime |
+| 10 | `astro` | Tags: aurora, astrophotography, stars, milky way |
 | 15 | `concert` | Tags: concert |
-| 25 | `street` | Tags: street AND has face |
-| 30 | `silhouette` | Has face AND is_silhouette |
-| 35 | `group_portrait` | Face ratio > 5% AND multiple faces |
-| 45 | `portrait` | Face ratio > 25%, not silhouette/group/mono |
-| 50 | `human_others` | Has face AND face ratio < 5% |
-| 55 | `macro` | Tags: macro, insect, butterfly, flower |
-| 60 | `aerial` | Tags: aerial |
-| 65 | `wildlife` | Tags: animal |
-| 70 | `food` | Tags: food |
-| 75 | `architecture` | Tags: architecture |
+| 35 | `group_portrait` | Face ratio ≥ 5% AND is_group_portrait |
+| 42 | `silhouette` | Has face AND is_silhouette |
+| 45 | `portrait` | Face ratio ≥ 5%, not silhouette/group/mono |
+| 46 | `portrait_bw` | Monochrome portrait (face ≥ 5%) |
+| 55 | `macro` | Tags: macro, insect, butterfly, dewdrop, ... |
+| 65 | `wildlife` | Tags: animal, bird, marine, reptile, primate |
 | 80 | `long_exposure` | Shutter 1-10 seconds |
 | 85 | `night` | Luminance < 0.15 |
-| 88 | `monochrome` | Saturation < 5% |
-| 100 | `others` | Tags: landscape, mountain, beach, etc. (fallback) |
+| 88 | `monochrome` | is_monochrome (saturation < 5%) |
+| 95 | `street` | Tags: street, urban_culture |
+| 96 | `human_others` | Has face AND face ratio < 5% |
+| 100 | `landscape` | Tags: landscape, mountain, beach, forest, ... |
+| 999 | `default` | Fallback (no filter) |
+
+Other tag-based categories include `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic`, and `weather`.
 
 ## Category Definition
 
@@ -43,25 +44,29 @@ Each category in `scoring_config.json` has these components:
   "name": "portrait",
   "priority": 45,
   "filters": {
-    "face_ratio_min": 0.25,
+    "face_ratio_min": 0.05,
     "has_face": true,
     "is_silhouette": false,
     "is_group_portrait": false,
     "is_monochrome": false
   },
   "weights": {
-    "aesthetic_percent": 61,
-    "face_quality_percent": 3,
-    "composition_percent": 7,
-    "dynamic_range_percent": 6,
-    "isolation_percent": 12,
-    "leading_lines_percent": 4,
-    "power_point_percent": 6,
-    "saturation_percent": 1
+    "aesthetic_percent": 32,
+    "eye_sharpness_percent": 16,
+    "face_quality_percent": 14,
+    "composition_percent": 12,
+    "liqe_percent": 8,
+    "exposure_percent": 4,
+    "tech_sharpness_percent": 4,
+    "color_percent": 4,
+    "contrast_percent": 4,
+    "aesthetic_iaa_percent": 2
   },
   "modifiers": {
-    "bonus": 0.5,
-    "_apply_blink_penalty": true
+    "bonus": 0.419,
+    "_apply_blink_penalty": true,
+    "noise_tolerance_multiplier": 0.006,
+    "_clipping_multiplier": 0.5
   },
   "tags": {}
 }
@@ -100,11 +105,12 @@ Each category in `scoring_config.json` has these components:
 
 ## Weight Keys
 
-All weights use `_percent` suffix and must sum to 100 per category.
+All weights use the `_percent` suffix. They are normalized by `get_weights()`, so totals need not equal exactly 100 — but keeping them at 100 keeps scores on the 0-10 scale.
 
 | Key | Metric | Source | Best For |
 |-----|--------|--------|----------|
 | `aesthetic_percent` | Visual appeal | TOPIQ or CLIP+MLP | All |
+| `quality_percent` | Legacy quality | Redistributed into `aesthetic` (no separate signal) | — |
 | `face_quality_percent` | Face clarity | InsightFace | Portraits |
 | `eye_sharpness_percent` | Eye sharpness | InsightFace landmarks | Portraits |
 | `tech_sharpness_percent` | Overall sharpness | Laplacian variance | Landscapes |
@@ -145,28 +151,28 @@ Adjust scoring behavior per category:
 
 ## Subject Saliency Dimensions
 
-Four scoring dimensions derived from AI subject segmentation (BiRefNet). These measure how well the main subject stands out in the frame:
+Four dimensions derived from BiRefNet subject segmentation:
 
 | Weight Key | Metric | Description |
 |-----------|--------|-------------|
-| `subject_sharpness_percent` | Subject sharpness | Compares focus quality between the subject region and the background. High values mean the subject is sharp while the background is soft. |
-| `subject_prominence_percent` | Subject prominence | Ratio of subject area to total frame area. High for macro and tightly-framed subjects, low for wide scenes. |
-| `subject_placement_percent` | Subject placement | Rule-of-thirds scoring for the subject's center of mass. Rewards subjects placed at power points rather than dead center. |
-| `bg_separation_percent` | Background separation | Edge gradient difference at the subject boundary. Measures bokeh quality — how cleanly the subject separates from the background. |
+| `subject_sharpness_percent` | Subject sharpness | Focus quality of the subject region vs the background. High = sharp subject, soft background. |
+| `subject_prominence_percent` | Subject prominence | Subject area as a fraction of the frame. High for macro and tightly-framed subjects, low for wide scenes. |
+| `subject_placement_percent` | Subject placement | Rule-of-thirds score for the subject's center of mass. |
+| `bg_separation_percent` | Background separation | Edge gradient difference at the subject boundary (bokeh quality). |
 
-Use `subject_sharpness_percent` and `bg_separation_percent` for portrait and wildlife categories where subject isolation matters. Use `subject_prominence_percent` for macro photography where the subject fills the frame.
+Use `subject_sharpness_percent` and `bg_separation_percent` for portrait/wildlife; `subject_prominence_percent` for macro.
 
 ## Supplementary IQA Dimensions
 
-Three additional quality models that complement the primary aesthetic score:
+Three additional quality models:
 
 | Weight Key | Model | Description |
 |-----------|-------|-------------|
-| `aesthetic_iaa_percent` | TOPIQ IAA | Trained on the AVA dataset to measure **artistic merit** — composition creativity, visual impact, emotional resonance. Differs from the primary aesthetic score which focuses on technical quality. Best for art, creative, and editorial categories. |
-| `face_quality_iqa_percent` | TOPIQ NR-Face | Purpose-built **face quality** assessment. More accurate than generic quality models for evaluating face regions specifically. Best for portrait categories where face clarity is critical. |
-| `liqe_percent` | LIQE | Outputs both a quality score and a **distortion diagnosis** (e.g., motion blur, overexposure, noise). Useful for understanding *why* a photo scores low, not just *that* it scores low. |
+| `aesthetic_iaa_percent` | TOPIQ IAA | AVA-trained aesthetic merit, distinct from the technical-quality aesthetic score. Best for art/creative categories. |
+| `face_quality_iqa_percent` | TOPIQ NR-Face | Face-region quality assessment. Best for portrait categories. |
+| `liqe_percent` | LIQE | Quality score plus a distortion diagnosis (motion blur, overexposure, noise). |
 
-These models run automatically as part of the default scoring pipeline and share VRAM with the primary TOPIQ model. Add their weight keys to any category where the specialized assessment is valuable.
+These models run as part of the default scoring pipeline and share VRAM with TOPIQ. Add their weight keys to any category where the assessment is useful.
 
 ### Supplementary signals (not in default aggregate)
 

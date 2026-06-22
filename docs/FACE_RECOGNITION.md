@@ -67,6 +67,8 @@ In the web viewer:
 - Access `/persons` for person management
 - Merge: Select source person, click target, confirm
 - Batch merge: Select multiple persons and merge them into a single target
+- Split: Move a subset of a person's faces into a new person (if the source ends up empty, it is deleted)
+- Hide: Flag a cluster `is_hidden` to exclude it from the list, filters, and merge suggestions (reversible)
 - Rename: Click person name to edit inline
 - Delete: Remove person cluster
 
@@ -144,11 +146,11 @@ For CPU clustering, choose the algorithm based on dataset size:
 | `prims_kdtree` | O(n²) | Small datasets |
 | `best` | Auto | Let HDBSCAN decide |
 
-**Performance note:** For large datasets, `boruvka_balltree` is critical. With 80K faces, it completes in 2-5 minutes vs hanging with exact algorithms.
+**Performance note:** For large datasets, use `boruvka_balltree`. With 80K faces it completes in 2-5 minutes, where exact algorithms can hang.
 
 ## GPU Clustering (cuML)
 
-For very large datasets (80K+ faces), GPU clustering via RAPIDS cuML provides significant speedup.
+For large datasets (80K+ faces), GPU clustering via RAPIDS cuML is faster than CPU.
 
 ### Installation
 
@@ -238,11 +240,12 @@ Both commands use parallel processing for speed.
 | `photo_path` | TEXT | Foreign key to photos |
 | `face_index` | INTEGER | Index within photo |
 | `embedding` | BLOB | 512-dim face embedding |
-| `bbox_x`, `bbox_y` | REAL | Bounding box position |
-| `bbox_w`, `bbox_h` | REAL | Bounding box size |
-| `person_id` | INTEGER | Foreign key to persons |
+| `bbox_x1`, `bbox_y1`, `bbox_x2`, `bbox_y2` | INTEGER | Bounding box corners |
 | `confidence` | REAL | Detection confidence |
+| `person_id` | INTEGER | Foreign key to persons |
 | `face_thumbnail` | BLOB | JPEG thumbnail |
+| `landmark_2d_106` | BLOB | 106-point landmarks (blink detection) |
+| `embedding_model` | TEXT | Recognition model tag (default `arcface_buffalo_l`) |
 
 ### persons Table
 
@@ -253,8 +256,9 @@ Both commands use parallel processing for speed.
 | `representative_face_id` | INTEGER | Best face for avatar |
 | `face_count` | INTEGER | Number of faces |
 | `centroid` | BLOB | Cluster centroid embedding |
-| `auto_clustered` | BOOLEAN | True if auto-generated |
+| `auto_clustered` | INTEGER | 1 if auto-generated |
 | `face_thumbnail` | BLOB | Person avatar thumbnail |
+| `is_hidden` | INTEGER | 1 = excluded from filters/suggestions |
 
 ## Incremental vs Force Modes
 
@@ -301,6 +305,8 @@ Access via header button or `/persons`:
 - **Grid View** - All recognized persons
 - **Merge** - Select source, click target, confirm
 - **Batch Merge** - Select multiple persons and merge into one target
+- **Split** - Move selected faces into a new person
+- **Hide** - Exclude a cluster from the list, filters, and merge suggestions
 - **Delete** - Remove person cluster
 - **Rename** - Click name to edit inline
 

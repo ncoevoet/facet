@@ -1,6 +1,6 @@
 # Facet
 
-**Your photos deserve more than a star rating.** Facet is a local photo analysis engine that scores every image across 9 dimensions — from aesthetic appeal to face sharpness — then lets you browse, cull, and organize through an interactive web gallery. No cloud, no subscriptions, no API keys. Your photos stay on your machine.
+Facet is a local photo-analysis and culling engine. It scores each image across 9 dimensions — from aesthetic quality to face sharpness — then lets you browse, cull, and organize through a web gallery. Everything runs on your machine; no cloud, accounts, or API keys.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Angular](https://img.shields.io/badge/Angular-21-dd0031)
@@ -14,29 +14,27 @@
 
 ## How It Works
 
-1. **Scan** — Point Facet at a folder of photos. AI models analyze each image for quality, composition, faces, and more. Supports JPG and 10 RAW formats (CR2, CR3, NEF, ARW, RAF, RW2, DNG, ORF, SRW, PEF).
+1. **Scan** — Point Facet at a folder of photos. Each image is analyzed for quality, composition, and faces. Supports JPG, HEIF/HEIC, and 10 RAW formats (CR2, CR3, NEF, ARW, RAF, RW2, DNG, ORF, SRW, PEF).
 2. **Browse** — Open the web gallery to explore your library with filters, search, and multiple view modes.
-3. **Cull** — Find your best shots instantly. Facet auto-detects bursts, flags blinks, groups similar photos, and highlights top picks.
+3. **Cull** — Facet detects bursts, flags blinks, groups similar photos, and surfaces top picks.
 
-Everything runs 100% locally. GPU is auto-detected and optional — Facet adapts to your hardware from CPU-only to 24 GB VRAM.
+GPU is auto-detected and optional. Facet runs CPU-only or with up to 24 GB VRAM.
 
 ## Features
 
 ### Score
 
-AI models analyze every photo across 9 scoring dimensions: aesthetic quality, composition, face quality, eye sharpness, technical sharpness, color, exposure, subject saliency, and dynamic range. Each photo is automatically categorized (portrait, landscape, macro, street, etc. — 17 categories) and scored with category-specific weights. A **Top Picks** filter surfaces your best photos across the library.
+Each photo is scored across 9 dimensions: aesthetic quality, composition, face quality, eye sharpness, technical sharpness, color, exposure, subject saliency, and dynamic range. Photos are categorized by content (portrait, landscape, macro, street, etc. — 30+ categories) and scored with category-specific weights. A **Top Picks** filter ranks the library by a combined score.
 
-Hover over any photo for a detailed tooltip with the full score breakdown and EXIF data.
+Hover over any photo for a tooltip with the score breakdown and EXIF data.
 
 <img src="docs/screenshots/hover-tooltip.jpg" alt="Hover tooltip with score breakdown" width="100%">
 
 ### Cull
 
-Dedicated tools to find your keepers fast:
-
 - **Burst detection** — groups rapid-fire shots and auto-selects the best one based on sharpness, quality, and blink detection
-- **Similarity groups** — finds visually similar photos across your entire library, regardless of when they were taken
-- **Blink detection** — flags closed-eye shots so you can hide or reject them in one click
+- **Similarity groups** — finds visually similar photos across the library, regardless of when they were taken
+- **Blink detection** — flags closed-eye shots to hide or reject in one click
 - **Duplicate detection** — identifies near-identical images via perceptual hashing
 
 <table><tr>
@@ -46,16 +44,14 @@ Dedicated tools to find your keepers fast:
 
 ### Browse
 
-Multiple ways to explore your library:
-
 - **Gallery modes** — mosaic (justified rows preserving aspect ratios) and grid (uniform cards with metadata overlay)
 - **Filters** — date range, content tag, composition pattern, camera, lens, person, quality level, star rating, and custom metric ranges
-- **Semantic search** — type a natural-language query like "sunset on the beach" or "child playing in snow" and find matching photos
+- **Semantic search** — type a natural-language query like "sunset on the beach" and find matching photos via embedding and text search
 - **Timeline** — chronological browser with year/month navigation and infinite scroll
-- **Map** — browse geotagged photos on an interactive map with marker clustering
-- **Capsules** — AI-curated themed slideshows: journeys with place names, golden collection, seasonal palettes, moments with a person, and more
+- **Map** — geotagged photos on an interactive map with marker clustering
+- **Capsules** — themed slideshows: journeys with place names, golden collection, seasonal palettes, photos of a person, and more
 - **Folders** — browse by directory structure with breadcrumb navigation and cover photos
-- **Memories** — "On This Day" retrospective showing photos from the same date in previous years
+- **Memories** — "On This Day": photos from the same date in previous years
 - **Slideshow** — full-screen mode with themed transitions, auto-chaining between capsules, and keyboard controls
 
 <table><tr>
@@ -67,8 +63,8 @@ Multiple ways to explore your library:
 
 **Workflow tips:**
 - For chronological review across a trip or year, open **`/timeline`** — sort by aggregate to walk a day's best shots, or page month-by-month.
-- The **`/capsules`** view auto-generates curated diaporamas (journeys, "Faces of", seasonal, golden) you can save as albums.
-- The gallery hides blinks, non-lead bursts, and duplicates by default. When the **"N photos hidden by current filters"** banner appears, click "Show all" to expand the view temporarily.
+- The **`/capsules`** view generates themed diaporamas (journeys, "Faces of", seasonal, golden) you can save as albums.
+- The gallery hides blinks, non-lead bursts, and duplicates by default. When the **"N photos hidden by current filters"** banner appears, click "Show all" to expand the view.
 
 ### Organize
 
@@ -88,13 +84,13 @@ Multiple ways to explore your library:
 
 ### Understand
 
-- **Statistics** — interactive dashboards: equipment usage, category breakdown, shooting timeline, and custom metric correlations
-- **AI critique** — detailed score breakdown showing each metric's contribution. VLM-powered natural-language assessment `[GPU]` `[16gb/24gb]`.
+- **Statistics** — dashboards for equipment usage, category breakdown, shooting timeline, and metric correlations
+- **AI critique** — score breakdown showing each metric's contribution; VLM natural-language assessment `[GPU]` `[16gb/24gb]`
 - **Weight tuning** — per-category weight editor with live score preview. A/B photo comparison learns from your choices and suggests optimized weights.
-- **Learning from your labels** — culling decisions, star ratings, favorites and rejections feed the weight optimizer as additional training signal (`--sync-label-comparisons`, `--mine-insights`)
+- **Learning from labels** — culling decisions, star ratings, favorites, and rejections feed the weight optimizer (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — save, restore, and compare weight configurations
 - **Histogram** — luminance histogram in the photo tooltip and detail view
-- **AI captions** `[GPU]` `[16gb/24gb]` `[Edition]` — natural-language photo descriptions, editable and translatable to 5 languages
+- **AI captions** `[GPU]` `[16gb/24gb]` `[Edition]` — text descriptions, editable and translatable to 5 languages
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Equipment statistics" width="100%"></td>
@@ -124,15 +120,15 @@ Multiple ways to explore your library:
 
 ### More
 
-- **Dark & light mode** with 10 accent color themes, respects system preference
+- **Dark & light mode** with 10 accent color themes; respects system preference
 - **Responsive** — adapts from mobile to desktop, with a touch-friendly bulk-actions sheet on small screens
 - **Installable PWA** — web app manifest + service worker: install to home screen, offline app shell, cached thumbnails
-- **Smooth at scale** — virtualized gallery keeps deep scrolling through 100k+ photos fast (a handful of DOM nodes regardless of library size)
-- **Resilient scans** — interrupted scans resume (`--resume`), failed files are tracked and retryable (`--retry-failed`), structured progress streams to the web UI
+- **Virtualized gallery** — renders a handful of DOM nodes regardless of library size, so scrolling stays fast at 100k+ photos
+- **Resumable scans** — interrupted scans resume (`--resume`), failed files are tracked and retryable (`--retry-failed`), progress streams to the web UI
 - **5 languages** — English, French, German, Spanish, Italian
-- **Multi-user** — per-user directories, ratings, and role-based access for family NAS setups
-- **Plugins & webhooks** — extend Facet with custom actions on scoring events
-- **Scan from web UI** — trigger photo scanning directly from the browser (superadmin role)
+- **Multi-user** — per-user directories, ratings, and role-based access
+- **Plugins & webhooks** — custom actions triggered on scoring events
+- **Scan from web UI** — trigger scans from the browser (superadmin role)
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="Mobile gallery" width="100%"></td>
@@ -178,7 +174,7 @@ docker compose up
 # Open http://localhost:5000
 ```
 
-This runs in CPU mode and works on any machine — no GPU required to browse and serve an existing library. Mount your photos directory in `docker-compose.yml`.
+This runs in CPU mode — no GPU required to browse and serve an existing library. Mount your photos directory in `docker-compose.yml`.
 
 **GPU acceleration** (optional) requires an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Enable it with the override file:
 

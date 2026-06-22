@@ -41,7 +41,7 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 
 ## Users
 
-Optional multi-user support for family NAS scenarios. When the `users` key is present (with at least one user), multi-user mode is enabled and the single-password auth is replaced with per-user login.
+Optional multi-user mode. When the `users` key is present (with at least one user), single-password auth is replaced with per-user login.
 
 ```json
 {
@@ -313,7 +313,7 @@ Controls how raw metrics are scaled to 0-10 scores.
 
 ## Models
 
-Controls which AI models are used based on VRAM.
+Selects which models are used per VRAM profile.
 
 ```json
 {
@@ -326,46 +326,43 @@ Controls which AI models are used based on VRAM.
         "clip_config": "clip_legacy",
         "composition_model": "samp-net",
         "tagging_model": "clip",
-        "description": "CPU-optimized: CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (8GB+ RAM)"
+        "supplementary_pyiqa": [],
+        "saliency_enabled": false,
+        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (8GB+ RAM)"
       },
       "8gb": {
         "aesthetic_model": "clip-mlp",
         "clip_config": "clip_legacy",
         "composition_model": "samp-net",
         "tagging_model": "clip",
+        "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
+        "saliency_enabled": false,
         "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (6-14GB VRAM)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
         "clip_config": "clip",
         "composition_model": "samp-net",
-        "tagging_model": "qwen3-vl-2b",
-        "description": "TOPIQ aesthetic + SigLIP 2 embeddings + SAMP-Net composition (~14GB VRAM)"
+        "tagging_model": "qwen3.5-2b",
+        "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
+        "saliency_enabled": true,
+        "description": "TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-2B tagging (~14GB VRAM)"
       },
       "24gb": {
         "aesthetic_model": "topiq",
         "clip_config": "clip",
         "composition_model": "qwen2-vl-2b",
-        "tagging_model": "qwen2.5-vl-7b",
-        "description": "TOPIQ aesthetic + SigLIP 2 embeddings + Qwen2-VL composition (~18GB VRAM)"
+        "tagging_model": "qwen3.5-4b",
+        "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
+        "saliency_enabled": true,
+        "description": "TOPIQ aesthetic + SigLIP 2 embeddings + Qwen3.5-4B tagging (~18GB VRAM)"
       }
     },
-    "qwen2_vl": {
-      "model_path": "Qwen/Qwen2-VL-2B-Instruct",
-      "torch_dtype": "bfloat16",
-      "max_new_tokens": 256
-    },
-    "qwen2_5_vl_7b": {
-      "model_path": "Qwen/Qwen2.5-VL-7B-Instruct",
-      "torch_dtype": "bfloat16",
-      "vlm_batch_size": 2
-    },
     "clip": {
-      "model_name": "ViT-SO400M-16-SigLIP2-384",
-      "pretrained": "webli",
+      "model_name": "google/siglip2-so400m-patch16-naflex",
+      "backend": "transformers",
       "embedding_dim": 1152,
-      "similarity_threshold_percent": 18,
-      "backend": "transformers"
+      "similarity_threshold_percent": 8
     },
     "clip_legacy": {
       "model_name": "ViT-L-14",
@@ -373,16 +370,34 @@ Controls which AI models are used based on VRAM.
       "embedding_dim": 768,
       "similarity_threshold_percent": 22
     },
+    "qwen2_vl": {
+      "model_path": "Qwen/Qwen2-VL-2B-Instruct",
+      "torch_dtype": "bfloat16",
+      "max_new_tokens": 256
+    },
+    "qwen3_5_2b": {
+      "model_path": "Qwen/Qwen3.5-2B",
+      "torch_dtype": "bfloat16",
+      "max_new_tokens": 100,
+      "vlm_batch_size": 4
+    },
+    "qwen3_5_4b": {
+      "model_path": "Qwen/Qwen3.5-4B",
+      "torch_dtype": "bfloat16",
+      "max_new_tokens": 100,
+      "vlm_batch_size": 2
+    },
     "florence_2_large": {
-      "model_path": "MiaoshouAI/Florence-2-large-PromptGen-v2.0",
-      "torch_dtype": "float16",
+      "model_path": "florence-community/Florence-2-large",
+      "torch_dtype": "float32",
       "vlm_batch_size": 4,
       "max_new_tokens": 256
     },
-    "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
     "saliency": {
-      "enabled": false,
-      "description": "BiRefNet_dynamic subject saliency detection (~2 GB VRAM)"
+      "model": "ZhengPeng7/BiRefNet_dynamic",
+      "resolution": 1024,
+      "mask_threshold": 0.3,
+      "min_subject_pixels": 50
     },
     "samp_net": {
       "model_path": "pretrained_models/samp_net.pth",
@@ -401,39 +416,33 @@ Controls which AI models are used based on VRAM.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `vram_profile` | `"auto"` | Active profile (`auto`, `legacy`, `8gb`, `16gb`, `24gb`) |
-| `keep_in_ram` | `"auto"` | Keep models in RAM between multi-pass chunks (`"auto"`, `"always"`, `"never"`). `auto` checks available RAM before caching. Reduces model load time on subsequent chunks. |
-| `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | HuggingFace model path |
-| `qwen2_vl.torch_dtype` | `"bfloat16"` | Precision |
-| `qwen2_vl.max_new_tokens` | `256` | Max generation tokens |
-| `qwen2_5_vl_7b.model_path` | `"Qwen/Qwen2.5-VL-7B-Instruct"` | HuggingFace model path for VLM tagging |
-| `qwen2_5_vl_7b.torch_dtype` | `"bfloat16"` | Precision |
-| `qwen2_5_vl_7b.vlm_batch_size` | `2` | Images per VLM inference batch |
-| `qwen3_vl_2b.model_path` | `"Qwen/Qwen3-VL-2B-Instruct"` | HuggingFace model path for Qwen3-VL tagging |
-| `qwen3_vl_2b.torch_dtype` | `"bfloat16"` | Precision |
-| `qwen3_vl_2b.max_new_tokens` | `100` | Max generation tokens |
-| `qwen3_vl_2b.vlm_batch_size` | `4` | Images per VLM inference batch |
-| `qwen3_5_2b.model_path` | `"Qwen/Qwen3.5-2B"` | HuggingFace model path for Qwen3.5 tagging (16gb default) |
-| `qwen3_5_2b.vlm_batch_size` | `4` | Images per VLM inference batch |
-| `qwen3_5_4b.model_path` | `"Qwen/Qwen3.5-4B"` | HuggingFace model path for Qwen3.5 tagging (24gb default) |
-| `qwen3_5_4b.vlm_batch_size` | `2` | Images per VLM inference batch |
-| `clip.model_name` | `"ViT-SO400M-16-SigLIP2-384"` | Embedding model (SigLIP 2 NaFlex for 16gb/24gb) |
-| `clip.pretrained` | `"webli"` | Pre-trained weights |
-| `clip.embedding_dim` | `1152` | Embedding dimensions (1152 for SigLIP 2, 768 for ViT-L-14) |
-| `clip.backend` | `"transformers"` | Backend library: `"transformers"` (SigLIP 2 NaFlex, native aspect ratio) or `"open_clip"` (legacy) |
-| `clip_legacy.model_name` | `"ViT-L-14"` | Legacy CLIP model (for legacy/8gb profiles) |
+| `keep_in_ram` | `"auto"` | Keep models in RAM between multi-pass chunks (`"auto"`, `"always"`, `"never"`). `auto` checks available RAM before caching. |
+| `profiles.*.supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | PyIQA models to run for this profile (empty on `legacy`) |
+| `profiles.*.saliency_enabled` | `true` (16gb/24gb) | Run BiRefNet subject saliency for this profile |
+| `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | SigLIP 2 NaFlex embedding model (16gb/24gb) |
+| `clip.backend` | `"transformers"` | `"transformers"` (SigLIP 2 NaFlex) or `"open_clip"` (legacy) |
+| `clip.embedding_dim` | `1152` | Embedding dimensions (1152 for SigLIP 2) |
+| `clip.similarity_threshold_percent` | `8` | Minimum CLIP cosine similarity for a tag match |
+| `clip_legacy.model_name` | `"ViT-L-14"` | Legacy CLIP model (legacy/8gb profiles) |
 | `clip_legacy.pretrained` | `"laion2b_s32b_b82k"` | Legacy pre-trained weights |
-| `florence_2_large.model_path` | `"MiaoshouAI/Florence-2-large-PromptGen-v2.0"` | Florence-2 PromptGen model for tagging |
+| `clip_legacy.embedding_dim` | `768` | Legacy embedding dimensions |
+| `clip_legacy.similarity_threshold_percent` | `22` | Tag-match threshold for legacy CLIP |
+| `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | HuggingFace path (24gb composition VLM) |
+| `qwen3_5_2b.model_path` | `"Qwen/Qwen3.5-2B"` | Tagging model for 16gb profile |
+| `qwen3_5_2b.vlm_batch_size` | `4` | Images per VLM inference batch |
+| `qwen3_5_4b.model_path` | `"Qwen/Qwen3.5-4B"` | Tagging model for 24gb profile |
+| `qwen3_5_4b.vlm_batch_size` | `2` | Images per VLM inference batch |
+| `florence_2_large.model_path` | `"florence-community/Florence-2-large"` | Florence-2 model (alternative tagger) |
 | `florence_2_large.vlm_batch_size` | `4` | Images per Florence-2 inference batch |
-| `supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | Additional PyIQA models to run |
-| `saliency.enabled` | `false` | Enable BiRefNet_dynamic subject saliency |
-| `samp_net.input_size` | `384` | Image size for inference |
+| `saliency.model` | `"ZhengPeng7/BiRefNet_dynamic"` | BiRefNet saliency model |
+| `saliency.resolution` | `1024` | Inference resolution |
+| `saliency.mask_threshold` | `0.3` | Sigmoid threshold for the binary subject mask |
+| `saliency.min_subject_pixels` | `50` | Minimum subject pixels to count a subject as detected |
+| `samp_net.input_size` | `384` | Composition model input size |
 
 ### VRAM Auto-Detection
 
-When `vram_profile` is set to `"auto"` (default), the system:
-1. Detects available GPU VRAM at startup
-2. Selects the best profile that fits
-3. Logs the selected profile
+When `vram_profile` is `"auto"` (default), the system detects available GPU VRAM at startup and selects the largest profile that fits:
 
 | Detected VRAM | Selected Profile |
 |---------------|------------------|
@@ -446,82 +455,34 @@ When `vram_profile` is set to `"auto"` (default), the system:
 
 ## Quality Assessment Models
 
-Controls which model assesses image quality/aesthetics. Uses the [pyiqa](https://github.com/chaofengc/IQA-PyTorch) library for state-of-the-art models.
+Selects the model that scores image quality/aesthetics, via the [pyiqa](https://github.com/chaofengc/IQA-PyTorch) library.
 
 ```json
 {
   "quality": {
-    "model": "auto"
+    "model": "auto",
+    "prefer_llm": false
   }
 }
 ```
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `model` | `"auto"` | Quality model: `auto`, `topiq`, `hyperiqa`, `dbcnn`, `musiq`, `clip-mlp` |
+| `model` | `"auto"` | Quality model: `auto`, `topiq`, `hyperiqa`, `dbcnn`, `musiq`, `clip-mlp`. `auto` uses `topiq`. |
+| `prefer_llm` | `false` | Prefer an LLM-based scorer when one is available |
 
 ### Available Quality Models
 
-| Model | SRCC | VRAM | Speed | Best For |
-|-------|------|------|-------|----------|
-| **topiq** | **0.93** | ~2GB | Fast | **Best accuracy, recommended default** |
-| **hyperiqa** | 0.90 | ~2GB | Fast | Efficient alternative to TOPIQ |
-| **dbcnn** | 0.90 | ~2GB | Fast | Dual-branch CNN, good accuracy |
-| **musiq** | 0.87 | ~2GB | Fast | Multi-scale, handles any resolution |
-| **clipiqa+** | 0.86 | ~4GB | Fast | CLIP with learned quality prompts |
-| **clip-mlp** | 0.76 | ~4GB | Fast | Legacy fallback |
+SRCC = Spearman Rank Correlation Coefficient on the KonIQ-10k benchmark (1.0 = perfect).
 
-**SRCC** = Spearman Rank Correlation Coefficient on KonIQ-10k benchmark. Higher is better (1.0 = perfect).
-
-### Model Comparison
-
-#### TOPIQ (Recommended)
-- **Architecture**: ResNet50 backbone with top-down attention
-- **Accuracy**: Best on KonIQ-10k benchmark (0.93 SRCC)
-- **VRAM**: ~2GB - runs on any modern GPU
-- **Speed**: ~10ms per image
-- **Strengths**: Excellent accuracy/efficiency ratio, focuses on semantically important distortions
-- **Weaknesses**: No text explanations
-
-#### HyperIQA
-- **Architecture**: Hyper-network predicting quality weights
-- **Accuracy**: 0.90 SRCC on KonIQ-10k
-- **VRAM**: ~2GB
-- **Speed**: ~8ms per image
-- **Strengths**: Very efficient, content-adaptive
-- **Weaknesses**: Slightly lower accuracy than TOPIQ
-
-#### DBCNN
-- **Architecture**: Dual-branch CNN (synthetic + authentic distortions)
-- **Accuracy**: 0.90 SRCC on KonIQ-10k
-- **VRAM**: ~2GB
-- **Speed**: ~10ms per image
-- **Strengths**: Good on both synthetic and real-world distortions
-- **Weaknesses**: Two-branch design slightly slower
-
-#### MUSIQ
-- **Architecture**: Multi-scale Transformer (Google)
-- **Accuracy**: 0.87 SRCC on KonIQ-10k
-- **VRAM**: ~2GB
-- **Speed**: ~15ms per image
-- **Strengths**: Handles any resolution without resizing, multi-scale analysis
-- **Weaknesses**: Slightly lower accuracy, transformer overhead
-
-#### CLIP-MLP (Legacy)
-- **Architecture**: CLIP ViT-L-14 + trained MLP head
-- **Accuracy**: ~0.76 SRCC
-- **VRAM**: ~4GB
-- **Speed**: ~5ms per image
-- **Strengths**: Fast, uses existing CLIP model
-- **Weaknesses**: Lower accuracy than specialized IQA models
-
-### Auto-Selection Logic
-
-When `model: "auto"`:
-
-```
-use topiq (best accuracy, fits any VRAM >= 2GB)
-```
+| Model | SRCC | VRAM | Notes |
+|-------|------|------|-------|
+| `topiq` | 0.93 | ~2GB | Default (`auto`); ResNet50 backbone with top-down attention |
+| `hyperiqa` | 0.90 | ~2GB | Hyper-network, content-adaptive |
+| `dbcnn` | 0.90 | ~2GB | Dual-branch CNN (synthetic + authentic distortions) |
+| `musiq` | 0.87 | ~2GB | Multi-scale transformer; handles any resolution |
+| `clipiqa+` | 0.86 | ~4GB | CLIP with learned quality prompts |
+| `clip-mlp` | 0.76 | ~4GB | Legacy CLIP ViT-L-14 + MLP head |
 
 ### Switching Quality Models
 
@@ -620,21 +581,17 @@ Unified processing settings for GPU batch processing and multi-pass mode.
 
 ### How Multi-Pass Works
 
-Instead of loading all models at once (~18GB VRAM), multi-pass:
+Instead of loading all models at once, multi-pass:
 
-1. Loads images in RAM chunks (default: 100 images)
-2. For each chunk, runs models sequentially:
-   - Load model → process chunk → unload model
-3. Combines results in final aggregation pass
+1. Loads images in RAM chunks (default `ram_chunk_size`: 32)
+2. For each chunk, runs models sequentially: load model → process chunk → unload model
+3. Combines results in a final aggregation pass
 
-**Benefits:**
-- Use high-quality models (Qwen2.5-VL) even with limited VRAM
-- Each image loaded only once per chunk
-- Automatic pass grouping optimizes for available VRAM
+Each image is loaded once per chunk, and passes are grouped to fit available VRAM, so the larger tagger/composition VLMs run even on limited VRAM.
 
 ### Auto-Tuning Behavior
 
-The system monitors resource usage and automatically adjusts:
+The system monitors resource usage and adjusts:
 
 | Metric | Action |
 |--------|--------|
@@ -648,12 +605,12 @@ The system monitors resource usage and automatically adjusts:
 
 When VRAM allows, multiple small models run together:
 
-| VRAM | Pass 1 | Pass 2 | Pass 3 |
-|------|--------|--------|--------|
-| 8GB | CLIP + SAMP-Net + InsightFace | TOPIQ | - |
-| 12GB | CLIP + SAMP-Net + InsightFace + TOPIQ | - | - |
-| 16GB | CLIP + SAMP-Net + InsightFace + TOPIQ | Qwen2.5-VL | - |
-| 24GB+ | All models together (single-pass) | - | - |
+| VRAM | Pass 1 | Pass 2 |
+|------|--------|--------|
+| 8GB | CLIP + SAMP-Net + InsightFace | TOPIQ |
+| 12GB | CLIP + SAMP-Net + InsightFace + TOPIQ | - |
+| 16GB | CLIP + SAMP-Net + InsightFace + TOPIQ | tagger VLM |
+| 24GB+ | All models together (single-pass) | - |
 
 ### CLI Options
 
@@ -938,12 +895,12 @@ General tagging settings. The tagging model is configured per-profile in `models
 
 Configured via `models.profiles.*.tagging_model`:
 
-| Model | VRAM | Speed | Tag Style | Pros | Cons |
-|-------|------|-------|-----------|------|------|
-| `clip` | 0 (reuses embeddings) | Instant (~5ms) | Mood/atmosphere (dramatic, golden_hour, vintage) | No extra model load; captures lighting and mood well | Less literal object detection |
-| `qwen3-vl-2b` | ~4GB | Moderate (~100ms) | Structured scenes (landscape, architecture, reflection) | Best semantic understanding for size; accurate scene classification | Requires transformers + extra VRAM |
-| `qwen2.5-vl-7b` | ~16GB | Slow (~200ms) | Detailed scenes with nuance | Most capable VLM; handles complex/ambiguous scenes | High VRAM; slower inference |
-| `florence-2` | ~2GB | Fast (~50ms) | Literal objects (sky, water, building) | Fast inference | Over-tags generic terms; caption-based matching is fragile; deprecated in favor of CLIP |
+| Model | VRAM | Tag Style | Notes |
+|-------|------|-----------|-------|
+| `clip` | 0 (reuses embeddings) | Mood/atmosphere (dramatic, golden_hour, vintage) | No extra model load; less literal object detection |
+| `qwen3.5-2b` | ~4GB | Structured scenes (landscape, architecture, reflection) | Requires transformers + extra VRAM |
+| `qwen3.5-4b` | ~8GB | Detailed scenes with nuance | Higher VRAM; slower inference |
+| `florence-2` | ~2GB | Literal objects (sky, water, building) | Over-tags generic terms; caption-based matching is fragile |
 
 ### Default Tagging Models per Profile
 
@@ -951,8 +908,8 @@ Configured via `models.profiles.*.tagging_model`:
 |---------|---------------|-----------------|
 | `legacy` | `clip` | CLIP ViT-L-14 (768-dim) |
 | `8gb` | `clip` | CLIP ViT-L-14 (768-dim) |
-| `16gb` | `qwen3-vl-2b` | SigLIP 2 NaFlex SO400M (1152-dim) |
-| `24gb` | `qwen2.5-vl-7b` | SigLIP 2 NaFlex SO400M (1152-dim) |
+| `16gb` | `qwen3.5-2b` | SigLIP 2 NaFlex SO400M (1152-dim) |
+| `24gb` | `qwen3.5-4b` | SigLIP 2 NaFlex SO400M (1152-dim) |
 
 ### Re-tagging Photos
 
@@ -1321,7 +1278,7 @@ Database performance settings.
 
 ## Storage
 
-Controls where thumbnails and embeddings are stored. By default, they are stored as BLOB columns in the SQLite database. Filesystem mode stores them as files on disk instead, which can reduce database size and simplify backups.
+Controls where thumbnails and embeddings are stored. Default is BLOB columns in the SQLite database; filesystem mode stores them as files on disk instead, which reduces database size.
 
 ```json
 {
@@ -1463,8 +1420,12 @@ Curated photo diaporamas (slideshows) grouped by theme. Capsules are auto-genera
     "golden": { "percentile": 99, "max_photos": 50 },
     "color_story": { "embedding_threshold": 0.75, "min_group_size": 8, "max_groups": 5 },
     "this_week_years_ago": { "min_photos_per_year": 3 },
+    "monthly": { "min_photos": 8 },
+    "yearly": { "min_photos": 20, "max_photos": 60 },
+    "camera": { "min_photos": 15 },
+    "tag_collection": { "min_photos": 15 },
     "seeded": {
-      "num_seeds": 20,
+      "num_seeds": 10,
       "min_photos": 8,
       "seed_lifetime_minutes": 1440,
       "time_window_days": 7,
@@ -1473,8 +1434,7 @@ Curated photo diaporamas (slideshows) grouped by theme. Capsules are auto-genera
     },
     "progress": { "min_improvement_pct": 5, "min_photos": 10, "period_months": 3 },
     "color_palette": { "min_photos": 8 },
-    "rare_pair": { "max_shared_photos": 5, "min_score": 7.0, "min_photos": 3 },
-    "favorites": { "min_photos": 5 }
+    "rare_pair": { "max_shared_photos": 5, "min_score": 7.0, "min_photos": 3 }
   }
 }
 ```
