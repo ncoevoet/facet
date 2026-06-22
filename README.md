@@ -165,6 +165,31 @@ Most of Facet runs anywhere (CPU, any profile). Some features need a GPU, a high
 
 > Face *clustering* runs on CPU by default (standalone `hdbscan`); `cuml`/`cupy` only add optional GPU acceleration — they are **not** required. The edition password and user roles are configured in `scoring_config.json`. See [Installation](docs/INSTALLATION.md) for optional packages and [Configuration](docs/CONFIGURATION.md) for auth.
 
+## Is Facet for you?
+
+Facet scores, ranks, and culls a local photo library and serves a gallery to browse it. It runs on your own hardware and keeps photos off the cloud.
+
+**A good fit if you:**
+
+- have a large local library and want to find your best shots and cull bursts and near-duplicates;
+- want quality, composition, and face scoring you can tune to your own taste (it learns from your A/B comparisons);
+- prefer self-hosted and private — no cloud upload, no account, no subscription;
+- already edit in Lightroom or darktable — Facet writes ratings, labels, and tags back as XMP sidecars.
+
+**Probably not for you if you want:**
+
+- a turnkey, mobile, cloud-backed Google Photos replacement with automatic phone backup;
+- RAW editing or develop — Facet scores and organizes, it does not edit;
+- a zero-setup desktop app — it needs Python, and the best models need a GPU.
+
+**How it relates to other tools**
+
+- Self-hosted libraries (Immich, PhotoPrism) focus on organizing, search, and backup. Facet adds quality scoring, ranking, and a culling workflow they don't, but it has no mobile app or built-in backup/sync.
+- AI culling apps (Aftershoot, Narrative, FilterPixel) are polished commercial cullers, often with editing built in. Facet is free, local, broader (gallery, search, faces), and its scoring is tunable — but it is a single-developer project without their support or RAW editing.
+- Editors and catalogs (Lightroom, darktable, digiKam) develop and manage photos. Facet complements them through XMP export rather than replacing them.
+
+The aesthetic score is model-based and approximate; expect to tune the weights to match your taste.
+
 ## Quick Start
 
 ### Docker (recommended)
