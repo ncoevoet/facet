@@ -98,18 +98,34 @@ class XmpRating:
         return rating, label
 
 
+def _contained_sidecar(image_path: str, suffix: str) -> str:
+    """Build a sidecar path for ``image_path`` and confirm it stays beside it.
+
+    The sidecar is only ever ``<basename><suffix>`` inside the image's own
+    resolved directory, so it cannot escape onto an unrelated path. Resolving
+    the parent with ``realpath`` and re-asserting that the rebuilt path is
+    confined to it makes the containment explicit (and recognised by static
+    path-injection analysis) rather than implicit in the string concatenation.
+    """
+    base_dir = os.path.realpath(os.path.dirname(image_path))
+    candidate = os.path.join(base_dir, os.path.basename(image_path) + suffix)
+    if candidate != base_dir and not candidate.startswith(base_dir + os.sep):
+        raise OSError(f"sidecar path escapes image directory: {image_path}")
+    return candidate
+
+
 def sidecar_path(image_path: str, *, overwrite: bool) -> str:
     """Resolve which sidecar file to write for ``image_path``.
 
     Returns ``<image>.xmp`` when it's safe (no existing sidecar, or the caller
     explicitly opted into overwriting). Otherwise returns the side-channel
     ``<image>.facet.xmp`` so an existing darktable-authored sidecar is left
-    untouched.
+    untouched. Both candidates are confined to the image's own directory.
     """
-    primary = image_path + ".xmp"
+    primary = _contained_sidecar(image_path, ".xmp")
     if overwrite or not os.path.exists(primary):
         return primary
-    return image_path + ".facet.xmp"
+    return _contained_sidecar(image_path, ".facet.xmp")
 
 
 def build_xmp(rating: XmpRating) -> str:

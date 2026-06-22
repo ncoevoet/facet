@@ -291,6 +291,28 @@ class TestAlbumExport:
 
         assert resp.status_code == 403
 
+    def test_copy_dest_confined_to_target(self, client, tmp_path):
+        """Copied files land inside (and only inside) the validated target_dir."""
+        p1, r1 = _make_photo(tmp_path, "a.jpg", star_rating=3)
+        db = str(tmp_path / "t.db")
+        _seed_db(db, [r1])
+        self._seed_album(db, 13, [p1])
+        target = str(tmp_path / "basket")
+
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post(
+                "/api/albums/13/export",
+                json={"mode": "copy", "target_dir": target},
+            )
+
+        assert resp.status_code == 200
+        dest = os.path.join(os.path.realpath(target), "a.jpg")
+        assert os.path.isfile(dest)
+        assert os.path.realpath(dest).startswith(os.path.realpath(target) + os.sep)
+
     def test_copy_requires_target_dir(self, client, tmp_path):
         db = str(tmp_path / "t.db")
         _seed_db(db, [])

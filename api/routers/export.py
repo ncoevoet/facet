@@ -96,6 +96,10 @@ def _resolve_filter_paths(conn, filters, user_id):
     where_clauses, sql_params = _build_gallery_where(filters or {}, conn, user_id=user_id)
     from_clause, from_params = get_photos_from_clause(user_id)
     where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    # Parameterized: from_clause is a fixed string and every where clause built by
+    # _build_gallery_where carries only ? placeholders (all user values bound in
+    # sql_params); no raw value or column name is ever interpolated. Same assembly
+    # as the main gallery list endpoint (gallery.py).
     rows = conn.execute(
         f"SELECT photos.path FROM {from_clause}{where_str}",
         from_params + sql_params,
@@ -192,6 +196,21 @@ def _validate_target_dir(target_dir):
     return real
 
 
+def _contained_dest(target_dir, filename):
+    """Join ``filename`` into ``target_dir`` and confirm it stays inside.
+
+    ``filename`` is always a bare ``os.path.basename`` so it cannot contain a
+    separator, but resolving with ``realpath`` and re-asserting containment
+    against the (already validated) ``target_dir`` root makes the boundary
+    explicit and rejects any residual escape (e.g. a symlinked target).
+    """
+    real_root = os.path.realpath(target_dir)
+    dest = os.path.realpath(os.path.join(real_root, filename))
+    if dest != real_root and not dest.startswith(real_root + os.sep):
+        raise HTTPException(status_code=400, detail="export destination escapes target_dir")
+    return dest
+
+
 def _copy_or_link_into(paths, target_dir, mode):
     """Copy or symlink each resolved photo into ``target_dir``.
 
@@ -222,14 +241,14 @@ def _copy_or_link_into(paths, target_dir, mode):
 
 
 def _unique_dest(target_dir, filename):
-    """Return a non-colliding destination path inside ``target_dir``."""
-    dest = os.path.join(target_dir, filename)
+    """Return a non-colliding destination path confined to ``target_dir``."""
+    dest = _contained_dest(target_dir, filename)
     if not os.path.exists(dest):
         return dest
     stem, ext = os.path.splitext(filename)
     i = 1
     while True:
-        candidate = os.path.join(target_dir, f"{stem}_{i}{ext}")
+        candidate = _contained_dest(target_dir, f"{stem}_{i}{ext}")
         if not os.path.exists(candidate):
             return candidate
         i += 1

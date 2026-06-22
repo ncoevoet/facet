@@ -112,6 +112,17 @@ class TestSidecarPath:
         (tmp_path / "photo.jpg.xmp").write_text("<darktable/>", encoding="utf-8")
         assert sidecar_path(str(img), overwrite=True) == str(img) + ".xmp"
 
+    def test_contained_beside_resolved_image(self, tmp_path):
+        # A traversal-laden but legitimate path still resolves to a sidecar
+        # confined to the image's own directory (basename + suffix only).
+        img = tmp_path / "sub" / "photo.jpg"
+        img.parent.mkdir()
+        img.write_bytes(b"x")
+        messy = str(tmp_path / "sub" / ".." / "sub" / "photo.jpg")
+        result = sidecar_path(messy, overwrite=True)
+        assert result == str(img) + ".xmp"
+        assert os.path.dirname(result) == os.path.realpath(str(img.parent))
+
 
 class TestWriteSidecar:
     def test_writes_primary(self, tmp_path):
