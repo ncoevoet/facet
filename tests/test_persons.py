@@ -32,7 +32,8 @@ _PERSONS_SCHEMA = """
         representative_face_id INTEGER,
         face_count INTEGER DEFAULT 0,
         face_thumbnail BLOB,
-        auto_clustered INTEGER DEFAULT 0
+        auto_clustered INTEGER DEFAULT 0,
+        is_hidden INTEGER DEFAULT 0
     );
     CREATE TABLE faces (
         id INTEGER PRIMARY KEY,
@@ -133,30 +134,27 @@ class TestMergePersons:
 
 
 class TestMergeBatch:
-    """Tests for POST /api/persons/merge_batch."""
+    """Tests for POST /api/persons/merge_batch (pair-list contract).
 
-    def test_merge_batch_empty_sources(self, client):
-        """Empty source_ids returns 400."""
+    The client sends arbitrary {source_id, target_id} pairs; the server
+    resolves transitive chains and may have several distinct targets.
+    """
+
+    def test_merge_batch_empty(self, client):
+        """Empty merges list returns 400."""
+        resp = client.post("/api/persons/merge_batch", json={"merges": []})
+        assert resp.status_code == 400
+
+    def test_merge_batch_only_self_pairs(self, client):
+        """Self-referential pairs resolve to nothing -> 400 (no DB touched)."""
         resp = client.post(
             "/api/persons/merge_batch",
-            json={"source_ids": [], "target_id": 1},
+            json={"merges": [{"source_id": 1, "target_id": 1}]},
         )
-
         assert resp.status_code == 400
-        assert "source_ids" in resp.json()["detail"].lower()
-
-    def test_merge_batch_target_in_sources(self, client):
-        """target_id present in source_ids returns 400."""
-        resp = client.post(
-            "/api/persons/merge_batch",
-            json={"source_ids": [1, 2, 3], "target_id": 2},
-        )
-
-        assert resp.status_code == 400
-        assert "target" in resp.json()["detail"].lower()
 
     def test_merge_batch_success(self, client):
-        """Batch merge moves faces from all sources into target."""
+        """Batch merge moves faces from all sources into the shared target."""
         mock_conn = mock.MagicMock()
         mock_conn.execute.return_value.fetchone.return_value = (12,)
 
@@ -165,22 +163,43 @@ class TestMergeBatch:
         ):
             resp = client.post(
                 "/api/persons/merge_batch",
-                json={"source_ids": [2, 3, 4], "target_id": 1},
+                json={"merges": [
+                    {"source_id": 2, "target_id": 1},
+                    {"source_id": 3, "target_id": 1},
+                    {"source_id": 4, "target_id": 1},
+                ]},
             )
 
         assert resp.status_code == 200
         body = resp.json()
         assert body["success"] is True
-        assert body["target_id"] == 1
+        assert body["targets"] == [1]
         assert body["merged_count"] == 3
-        assert body["new_count"] == 12
-
-        calls = [str(c) for c in mock_conn.execute.call_args_list]
-        # Faces moved
-        assert any("UPDATE faces SET person_id" in c for c in calls)
-        # Source persons deleted
-        assert any("DELETE FROM persons" in c for c in calls)
+        # The actual face-move / source-delete row effects are asserted against a
+        # real DB in test_persons_merge_batch.py; here we only verify the
+        # endpoint resolves the batch and commits once.
         mock_conn.commit.assert_called_once()
+
+    def test_merge_batch_resolves_chains(self, client):
+        """A chain (2->1, 1->4) folds both 1 and 2 into the final target 4."""
+        mock_conn = mock.MagicMock()
+        mock_conn.execute.return_value.fetchone.return_value = (7,)
+
+        with mock.patch(
+            "api.routers.persons.get_db", lambda: _cm(mock_conn)
+        ):
+            resp = client.post(
+                "/api/persons/merge_batch",
+                json={"merges": [
+                    {"source_id": 2, "target_id": 1},
+                    {"source_id": 1, "target_id": 4},
+                ]},
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["targets"] == [4]
+        assert body["merged_count"] == 2
 
 
 

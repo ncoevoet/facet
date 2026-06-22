@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import {
   MatDialogModule,
   MatDialog,
@@ -19,7 +20,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { PersonThumbnailUrlPipe, FaceThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { PersonCardComponent, Person } from '../../shared/components/person-card/person-card.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
@@ -28,6 +29,22 @@ import { PersonsFiltersService } from './persons-filters.service';
 interface PersonsResponse {
   persons: Person[];
   total: number;
+}
+
+interface PersonFace {
+  id: number;
+  photo_path: string;
+  face_index: number;
+}
+
+export interface PersonFacesDialogData {
+  personId: number;
+  personName: string | null;
+}
+
+export interface SplitPersonResult {
+  faceIds: number[];
+  name: string | null;
 }
 
 @Component({
@@ -106,6 +123,109 @@ export class NewPersonDialogComponent {
 }
 
 @Component({
+  selector: 'app-person-faces-dialog',
+  imports: [
+    FormsModule,
+    MatButtonModule,
+    MatDialogModule,
+    MatIconModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressSpinnerModule,
+    MatTooltipModule,
+    TranslatePipe,
+    FaceThumbnailUrlPipe,
+  ],
+  template: `
+    <h2 mat-dialog-title class="truncate" [matTooltip]="data.personName || ('persons.unnamed' | translate)">
+      {{ 'persons.split_dialog_title' | translate }}
+    </h2>
+    <mat-dialog-content class="!flex !flex-col gap-3 min-w-[320px] min-h-[160px]">
+      <p class="text-sm text-gray-400">{{ 'persons.split_dialog_desc' | translate }}</p>
+      @if (loading()) {
+        <div class="flex items-center justify-center py-8">
+          <mat-spinner diameter="32" />
+        </div>
+      } @else if (faces().length === 0) {
+        <p class="text-sm opacity-60 text-center py-8">{{ 'persons.no_faces' | translate }}</p>
+      } @else {
+        <div class="flex flex-wrap gap-2 justify-center">
+          @for (face of faces(); track face.id; let i = $index) {
+            <button
+              class="relative rounded-lg overflow-hidden border-2 transition-colors"
+              [class.border-blue-500]="selectedIds().has(face.id)"
+              [class.border-transparent]="!selectedIds().has(face.id)"
+              [attr.aria-pressed]="selectedIds().has(face.id)"
+              [attr.aria-label]="'persons.split_select_face' | translate:{ index: i + 1 }"
+              (click)="toggle(face.id)">
+              <img [src]="face.id | faceThumbnailUrl" alt="" class="w-24 h-24 object-cover" />
+              @if (selectedIds().has(face.id)) {
+                <span class="absolute top-1 right-1 bg-blue-500 text-white rounded-full flex items-center justify-center w-5 h-5">
+                  <mat-icon class="!text-sm !w-4 !h-4 leading-4">check</mat-icon>
+                </span>
+              }
+            </button>
+          }
+        </div>
+        <mat-form-field subscriptSizing="dynamic" class="w-full">
+          <mat-label>{{ 'persons.split_name_placeholder' | translate }}</mat-label>
+          <input matInput [(ngModel)]="name" />
+        </mat-form-field>
+      }
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button (click)="dialogRef.close(null)">{{ 'dialog.cancel' | translate }}</button>
+      <button mat-flat-button [disabled]="selectedIds().size === 0" (click)="confirm()">
+        <mat-icon>call_split</mat-icon>
+        {{ 'persons.split_action' | translate:{ count: selectedIds().size } }}
+      </button>
+    </mat-dialog-actions>
+  `,
+})
+export class PersonFacesDialogComponent implements OnInit {
+  private readonly api = inject(ApiService);
+  readonly data: PersonFacesDialogData = inject(MAT_DIALOG_DATA);
+  readonly dialogRef = inject(MatDialogRef<PersonFacesDialogComponent, SplitPersonResult>);
+
+  readonly loading = signal(true);
+  readonly faces = signal<PersonFace[]>([]);
+  readonly selectedIds = signal<Set<number>>(new Set());
+  name = '';
+
+  async ngOnInit(): Promise<void> {
+    try {
+      const res = await firstValueFrom(
+        this.api.get<{ faces: PersonFace[] }>(`/person/${this.data.personId}/faces`),
+      );
+      this.faces.set(res.faces ?? []);
+    } catch {
+      // leave empty — the dialog shows the empty state
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  toggle(faceId: number): void {
+    this.selectedIds.update((set) => {
+      const next = new Set(set);
+      if (next.has(faceId)) {
+        next.delete(faceId);
+      } else {
+        next.add(faceId);
+      }
+      return next;
+    });
+  }
+
+  confirm(): void {
+    const faceIds = [...this.selectedIds()];
+    if (faceIds.length === 0) return;
+    const trimmed = this.name.trim();
+    this.dialogRef.close({ faceIds, name: trimmed || null });
+  }
+}
+
+@Component({
   selector: 'app-manage-persons',
   imports: [
     RouterLink,
@@ -114,6 +234,7 @@ export class NewPersonDialogComponent {
     MatDialogModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
+    MatSlideToggleModule,
     MatTooltipModule,
     TranslatePipe,
     PersonCardComponent,
@@ -144,6 +265,9 @@ export class NewPersonDialogComponent {
             <mat-icon>auto_fix_high</mat-icon>
             {{ 'persons.merge_suggestions' | translate }}
           </a>
+          <mat-slide-toggle class="ml-auto" [checked]="showHidden()" (change)="toggleShowHidden($event.checked)">
+            {{ 'persons.show_hidden' | translate }}
+          </mat-slide-toggle>
         }
       </div>
 
@@ -196,6 +320,9 @@ export class NewPersonDialogComponent {
             (editSave)="onEditSave($event)"
             (editCancel)="cancelEdit()"
             (deleted)="onDelete($event)"
+            (hidden)="onHide($event)"
+            (unhidden)="onUnhide($event)"
+            (split)="onSplit($event)"
           />
         }
       </div>
@@ -254,6 +381,7 @@ export class ManagePersonsComponent implements OnInit {
   readonly selectedIds = signal<Set<number>>(new Set());
   readonly needsNaming = signal<Person[]>([]);
   readonly needsNamingExpanded = signal(true);
+  readonly showHidden = signal(false);
 
   private page = 1;
   private readonly perPage = 48;
@@ -354,6 +482,7 @@ export class ManagePersonsComponent implements OnInit {
           page: this.page,
           per_page: this.perPage,
           sort: sortParam,
+          include_hidden: this.showHidden(),
         }),
       );
 
@@ -459,6 +588,101 @@ export class ManagePersonsComponent implements OnInit {
   onDelete(id: number): void {
     const person = this.persons().find((p) => p.id === id);
     if (person) void this.deletePerson(person);
+  }
+
+  onHide(id: number): void {
+    void this.setHidden(id, true);
+  }
+
+  onUnhide(id: number): void {
+    void this.setHidden(id, false);
+  }
+
+  onSplit(id: number): void {
+    const person = this.persons().find((p) => p.id === id);
+    if (person) void this.splitPerson(person);
+  }
+
+  // --- Show hidden toggle ---
+
+  toggleShowHidden(checked: boolean): void {
+    this.showHidden.set(checked);
+    void this.loadPersons(true);
+  }
+
+  // --- Hide / Unhide ---
+
+  async setHidden(personId: number, hidden: boolean): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.api.post(`/persons/${personId}/${hidden ? 'hide' : 'unhide'}`),
+      );
+      if (hidden && !this.showHidden()) {
+        // Drop the person from the list when hidden persons are not shown.
+        this.persons.update((list) => list.filter((p) => p.id !== personId));
+        this.total.update((t) => t - 1);
+      } else {
+        this.persons.update((list) =>
+          list.map((p) => (p.id === personId ? { ...p, is_hidden: hidden } : p)),
+        );
+      }
+      this.snackBar.open(
+        this.i18n.t(hidden ? 'persons.hidden_done' : 'persons.unhidden_done'),
+        '',
+        { duration: 2000 },
+      );
+    } catch {
+      this.snackBar.open(this.i18n.t('persons.hide_error'), '', { duration: 3000 });
+    }
+  }
+
+  // --- Split ---
+
+  async splitPerson(person: Person): Promise<void> {
+    const ref = this.dialog.open(PersonFacesDialogComponent, {
+      data: { personId: person.id, personName: person.name } as PersonFacesDialogData,
+      width: '95vw',
+      maxWidth: '560px',
+    });
+
+    const result: SplitPersonResult | null = await firstValueFrom(ref.afterClosed());
+    if (!result || result.faceIds.length === 0) return;
+
+    try {
+      const res = await firstValueFrom(
+        this.api.post<{
+          success: boolean;
+          new_person_id: number;
+          name: string | null;
+          new_count: number;
+          source_count: number;
+        }>(`/persons/${person.id}/split`, {
+          face_ids: result.faceIds,
+          ...(result.name ? { name: result.name } : {}),
+        }),
+      );
+
+      const sourceEmptied = res.source_count <= 0;
+      this.persons.update((list) => {
+        const newPerson: Person = {
+          id: res.new_person_id,
+          name: res.name ?? result.name,
+          face_count: res.new_count,
+          face_thumbnail: false,
+        };
+        const next = list.flatMap((p) => {
+          if (p.id !== person.id) return [p];
+          // Source person: update its remaining count, or drop it if emptied.
+          return sourceEmptied ? [] : [{ ...p, face_count: res.source_count }];
+        });
+        return [newPerson, ...next];
+      });
+      // Net change: +1 new person, and -1 source if it was emptied.
+      this.total.update((t) => t + (sourceEmptied ? 0 : 1));
+      this.snackBar.open(this.i18n.t('persons.split_done'), '', { duration: 2000 });
+    } catch {
+      this.snackBar.open(this.i18n.t('persons.split_error'), '', { duration: 3000 });
+    }
   }
 
   // --- Selection ---

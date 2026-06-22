@@ -13,6 +13,7 @@ export interface Person {
   name: string | null;
   face_count: number;
   face_thumbnail: boolean;
+  is_hidden?: boolean;
 }
 
 @Component({
@@ -33,6 +34,7 @@ export interface Person {
       class="group !overflow-hidden cursor-pointer transition-shadow hover:shadow-lg"
       [class.!ring-2]="isSelected()"
       [class.!ring-blue-500]="isSelected()"
+      [class.opacity-50]="person().is_hidden"
       role="button"
       tabindex="0"
       [attr.aria-label]="person().name || ('persons.unnamed' | translate)"
@@ -42,6 +44,12 @@ export interface Person {
     >
       <!-- Avatar -->
       <div class="relative aspect-[4/3] bg-[var(--mat-sys-surface-container)] overflow-hidden">
+        @if (person().is_hidden) {
+          <span class="absolute top-1.5 left-1.5 z-10 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 text-white text-xs">
+            <mat-icon class="!text-sm !w-4 !h-4 leading-4">visibility_off</mat-icon>
+            {{ 'persons.hidden' | translate }}
+          </span>
+        }
         @if (person().face_thumbnail) {
           <img
             [src]="person().id | personThumbnailUrl"
@@ -112,6 +120,18 @@ export interface Person {
               <button mat-icon-button [matTooltip]="'persons.view_photos' | translate" (click)="viewPhotos.emit(person().id)">
                 <mat-icon class="opacity-60">photo_library</mat-icon>
               </button>
+              <button mat-icon-button [matTooltip]="'persons.split' | translate" [attr.aria-label]="'persons.split' | translate" (click)="split.emit(person().id)">
+                <mat-icon class="opacity-60">call_split</mat-icon>
+              </button>
+              @if (person().is_hidden) {
+                <button mat-icon-button [matTooltip]="'persons.unhide' | translate" [attr.aria-label]="'persons.unhide' | translate" (click)="unhidden.emit(person().id)">
+                  <mat-icon class="opacity-60">visibility</mat-icon>
+                </button>
+              } @else {
+                <button mat-icon-button [matTooltip]="'persons.hide' | translate" [attr.aria-label]="'persons.hide' | translate" (click)="hidden.emit(person().id)">
+                  <mat-icon class="opacity-60">visibility_off</mat-icon>
+                </button>
+              }
               <button mat-icon-button [matTooltip]="'persons.delete' | translate" (click)="deleted.emit(person().id)">
                 <mat-icon class="opacity-60">delete</mat-icon>
               </button>
@@ -136,6 +156,9 @@ export class PersonCardComponent {
   readonly editSave = output<{ id: number; name: string }>();
   readonly editCancel = output<void>();
   readonly deleted = output<number>();
+  readonly hidden = output<number>();
+  readonly unhidden = output<number>();
+  readonly split = output<number>();
 
   onSave(): void {
     const value = this.nameInput()?.nativeElement.value ?? '';

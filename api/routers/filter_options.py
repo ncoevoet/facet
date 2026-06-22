@@ -3,8 +3,10 @@ Filter options router — lazy-loaded dropdown options.
 
 """
 
+import json
 import logging
 import sqlite3
+import time
 from typing import Optional
 from fastapi import APIRouter, Depends
 
@@ -12,6 +14,7 @@ from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_async_db, get_db
 from api.db_helpers import is_photo_tags_available, get_visibility_clause
+from db import person_not_hidden_clause
 
 router = APIRouter(prefix="/api/filter_options", tags=["filter_options"])
 logger = logging.getLogger(__name__)
@@ -171,7 +174,7 @@ async def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depen
                 SELECT p.id, p.name, COUNT(DISTINCT f.photo_path) as photo_count
                 FROM persons p
                 JOIN faces f ON f.person_id = p.id
-                WHERE 1=1{vis_join}
+                WHERE {person_not_hidden_clause('p')}{vis_join}
                 GROUP BY p.id HAVING photo_count >= ?
                 ORDER BY photo_count DESC LIMIT ?
                 """,
@@ -281,6 +284,92 @@ async def focal_lengths(user: Optional[CurrentUser] = Depends(get_optional_user)
     return await _cached_filter_query('focal_lengths', 'focal_lengths', query)
 
 
+async def _store_color_cache(conn, temps, hue_buckets):
+    """Persist the colour facets into ``stats_cache`` (best-effort).
+
+    Lets repeated dropdown opens skip the full ``dominant_hue`` scan. Failures
+    (e.g. a missing table before init) are swallowed so a cache miss never
+    breaks the actual response.
+    """
+    now = time.time()
+    try:
+        await conn.execute(
+            "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+            ('color_temps', json.dumps(temps), now),
+        )
+        await conn.execute(
+            "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+            ('color_hue_buckets', json.dumps(hue_buckets), now),
+        )
+        await conn.commit()
+    except sqlite3.Error:
+        logger.debug("Failed to cache color facets", exc_info=True)
+
+
+@router.get("/colors")
+async def colors(user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Lazy-load colour facets: warm/cool/neutral temps and hue buckets with counts.
+
+    Returns ``{'temps': [(temp, count)], 'hue_buckets': [(bucket, count)]}``.
+    Both lists are empty until ``--recompute-colors`` has populated the
+    ``color_temp`` / ``dominant_hue`` columns.
+
+    Cached in ``stats_cache`` (300s TTL) like the sibling dropdowns so the full
+    column scan runs at most once per window; bypassed in multi-user mode where
+    the counts are visibility-scoped per user.
+    """
+    from api.routers.gallery import HUE_BUCKETS, bucket_for_hue
+    from db import get_cached_stat, DEFAULT_DB_PATH
+    vis, vp = _vis_where(user)
+    use_cache = not is_multi_user_enabled()
+
+    if use_cache:
+        temps_cached, temps_fresh = get_cached_stat(DEFAULT_DB_PATH, 'color_temps', max_age_seconds=300)
+        hues_cached, hues_fresh = get_cached_stat(DEFAULT_DB_PATH, 'color_hue_buckets', max_age_seconds=300)
+        if temps_fresh and hues_fresh and temps_cached is not None and hues_cached is not None:
+            return {'temps': temps_cached, 'hue_buckets': hues_cached, 'cached': True}
+
+    async def query(conn):
+        try:
+            temp_rows = await _fetch_all(
+                conn,
+                f"""
+                SELECT color_temp, COUNT(*) as cnt FROM photos
+                WHERE color_temp IS NOT NULL{vis}
+                GROUP BY color_temp ORDER BY cnt DESC
+                """,
+                vp,
+            )
+            temps = [(r[0], r[1]) for r in temp_rows]
+
+            # One grouped scan over hue ranges; bucket in Python to avoid a
+            # CASE-per-bucket SQL expression that the planner can't index.
+            hue_rows = await _fetch_all(
+                conn,
+                f"""
+                SELECT dominant_hue FROM photos
+                WHERE dominant_hue IS NOT NULL{vis}
+                """,
+                vp,
+            )
+            counts = {name: 0 for name in HUE_BUCKETS}
+            for (hue,) in hue_rows:
+                name = bucket_for_hue(hue)
+                if name is not None:
+                    counts[name] += 1
+            hue_buckets = [(name, counts[name]) for name in HUE_BUCKETS if counts[name]]
+            if use_cache:
+                await _store_color_cache(conn, temps, hue_buckets)
+            return {'temps': temps, 'hue_buckets': hue_buckets}
+        except sqlite3.Error:
+            logger.exception("Failed to query colors")
+            return {'temps': [], 'hue_buckets': []}
+
+    async with get_async_db() as conn:
+        data = await query(conn)
+    return {**data, 'cached': False}
+
+
 @router.get("/categories")
 async def categories(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load category options with counts."""
@@ -371,6 +460,12 @@ def _compute_metric_ranges():
         v_min, v_max = float(v_min), float(v_max)
         values = matrix[:, idx]
         values = values[np.isfinite(values)]
+        # A non-finite SQL MIN/MAX (e.g. inf from a bad EXIF aperture parse) would
+        # make np.histogram reject the range; fall back to the finite sample bounds.
+        if not np.isfinite(v_min):
+            v_min = float(values.min()) if values.size else 0.0
+        if not np.isfinite(v_max):
+            v_max = float(values.max()) if values.size else v_min
         if v_max <= v_min:
             buckets = [int(values.size)]
         else:

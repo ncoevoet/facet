@@ -9,6 +9,8 @@ Groups marked as burst_reviewed=1 are skipped so confirmed decisions persist.
 import logging
 import random
 import sqlite3
+import time
+from collections import Counter
 from itertools import groupby
 from typing import Literal, Optional
 
@@ -17,7 +19,10 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_db
-from api.db_helpers import get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause
+from api.db_helpers import (
+    get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
+    trigger_auto_retrain,
+)
 from api.similarity_groups import compute_similarity_groups
 from comparison.comparison_manager import record_culling_pairs
 from utils.date_utils import parse_date
@@ -104,6 +109,85 @@ def _compute_burst_score(photo):
     return score
 
 
+# Thresholds for deriving a plain-language cull reason from already-loaded
+# signals. Kept conservative so reasons only appear when clearly meaningful.
+_CULL_EYES_CLOSED_MAX = 4.0       # eyes_open_score (0-10) at/below this = closed
+_CULL_EXPRESSION_MIN = 4.0        # expression_score (0-10) below this = poor expression
+_CULL_SHARP_DELTA = 1.0           # tech_sharpness gap vs best before flagging "soft"
+_CULL_AESTHETIC_DELTA = 0.5       # aesthetic gap vs best before flagging "lower aesthetic"
+_CULL_AGGREGATE_DELTA = 0.3       # aggregate gap vs best before flagging "lower overall"
+
+
+def _compute_cull_reason(photo, best):
+    """Return a stable machine reason key for why ``photo`` ranks below ``best``.
+
+    Returns a dict ``{'key': <str>, 'value': <float|None>}`` translated client-side
+    via the i18n ``culling.reason.*`` keys. ``best`` is the group's auto-best photo
+    dict (same photo when called on the best one, yielding the 'best' key).
+
+    Derived only from fields already loaded for the group (no full critique call).
+    Ordering matches user priority: blink/eyes first, then sharpness, aesthetic,
+    overall. Falls back to 'lower_overall' when the photo simply scores lower.
+    """
+    if photo is best or (best is not None and photo.get('path') == best.get('path')):
+        return {'key': 'best', 'value': None}
+
+    has_face = (photo.get('face_count') or 0) > 0
+
+    # 1. Blink / eyes closed (face photos only) — highest-priority defect.
+    if photo.get('is_blink'):
+        return {'key': 'eyes_closed', 'value': None}
+    if has_face:
+        eyes = photo.get('eyes_open_score')
+        if eyes is not None and eyes <= _CULL_EYES_CLOSED_MAX:
+            return {'key': 'eyes_closed', 'value': None}
+
+    # 2. Softer than the best frame.
+    sharp = photo.get('tech_sharpness')
+    best_sharp = best.get('tech_sharpness') if best else None
+    if sharp is not None and best_sharp is not None and (best_sharp - sharp) >= _CULL_SHARP_DELTA:
+        return {'key': 'soft', 'value': None}
+
+    # 3. Poorer expression than the best frame (face photos only).
+    if has_face:
+        expr = photo.get('expression_score')
+        best_expr = best.get('expression_score') if best else None
+        if (expr is not None and best_expr is not None
+                and expr < _CULL_EXPRESSION_MIN and best_expr - expr >= 1.0):
+            return {'key': 'expression', 'value': None}
+
+    # 4. Lower aesthetic appeal.
+    aes = photo.get('aesthetic')
+    best_aes = best.get('aesthetic') if best else None
+    if aes is not None and best_aes is not None and (best_aes - aes) >= _CULL_AESTHETIC_DELTA:
+        return {'key': 'lower_aesthetic', 'value': None}
+
+    # 5. Catch-all: lower overall score.
+    agg = photo.get('aggregate')
+    best_agg = best.get('aggregate') if best else None
+    if agg is not None and best_agg is not None and (best_agg - agg) >= _CULL_AGGREGATE_DELTA:
+        return {'key': 'lower_overall', 'value': None}
+
+    return {'key': 'near_duplicate', 'value': None}
+
+
+def _dominant_category(photos, best_path):
+    """Representative content category for a group.
+
+    Burst/similar groups are near-duplicates, so the keeper (best_path) defines
+    the category; falls back to the most common category when the keeper has none.
+    Returns None when no photo carries a category.
+    """
+    by_path = {p.get('path'): p.get('category') for p in photos}
+    keeper = by_path.get(best_path)
+    if keeper:
+        return keeper
+    present = [p.get('category') for p in photos if p.get('category')]
+    if not present:
+        return None
+    return Counter(present).most_common(1)[0][0]
+
+
 def _format_group(photos, burst_group_id):
     """Format a burst group for the API response."""
     scored = []
@@ -117,6 +201,7 @@ def _format_group(photos, burst_group_id):
             'is_blink': p.get('is_blink') or 0,
             'eyes_open_score': p.get('eyes_open_score'),
             'expression_score': p.get('expression_score'),
+            'face_count': p.get('face_count') or 0,
             'is_burst_lead': p.get('is_burst_lead') or 0,
             'date_taken': p.get('date_taken'),
             'burst_score': round(_compute_burst_score(p), 2),
@@ -125,11 +210,16 @@ def _format_group(photos, burst_group_id):
     scored.sort(key=lambda x: x['burst_score'], reverse=True)
     best_path = scored[0]['path'] if scored else None
 
+    best = scored[0] if scored else None
+    for p in scored:
+        p['cull_reason'] = _compute_cull_reason(p, best)
+
     return {
         'burst_id': burst_group_id,
         'photos': scored,
         'best_path': best_path,
         'count': len(scored),
+        'category': _dominant_category(photos, best_path),
     }
 
 
@@ -232,7 +322,7 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
             all_photos = conn.execute(
                 f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
                            tech_sharpness, is_blink, is_burst_lead, burst_group_id,
-                           eyes_open_score, expression_score, face_count
+                           eyes_open_score, expression_score, face_count, category
                     FROM {from_clause}
                     WHERE burst_group_id IN ({placeholders}) AND {vis_sql}
                       AND {is_rejected_col} = 0
@@ -243,7 +333,7 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
             all_photos = conn.execute(
                 f"""SELECT path, filename, date_taken, aggregate, aesthetic,
                            tech_sharpness, is_blink, is_burst_lead, burst_group_id,
-                           eyes_open_score, expression_score, face_count
+                           eyes_open_score, expression_score, face_count, category
                     FROM photos
                     WHERE burst_group_id IN ({placeholders}) AND {vis_sql}
                     ORDER BY burst_group_id, date_taken""",
@@ -347,6 +437,9 @@ async def select_burst_photos(
             )
 
             conn.commit()
+            _invalidate_culling_groups_cache()
+            from db import DEFAULT_DB_PATH
+            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, len(keep_paths) * len(reject_paths), conn=conn)
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(group_paths - keep_set)}
 
         except HTTPException:
@@ -471,6 +564,9 @@ async def select_similar_photos(
             )
 
             conn.commit()
+            _invalidate_culling_groups_cache()
+            from db import DEFAULT_DB_PATH
+            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, len(keep_set) * len(reject_paths), conn=conn)
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
 
         except HTTPException:
@@ -504,6 +600,7 @@ def _enrich_burst_group(group):
         'photos': group['photos'],
         'best_path': group['best_path'],
         'count': group['count'],
+        'category': group.get('category'),
         'time_delta_seconds': time_delta_seconds,
     }
 
@@ -568,7 +665,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
         from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
         rows = conn.execute(
             f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
-                       tech_sharpness, is_blink, eyes_open_score, expression_score, face_count
+                       tech_sharpness, is_blink, eyes_open_score, expression_score, face_count, category
                 FROM {from_clause}
                 WHERE photos.path IN ({placeholders}) AND {vis_sql}
                   AND {is_rejected_col} = 0""",
@@ -577,7 +674,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
     else:
         rows = conn.execute(
             f"""SELECT path, filename, date_taken, aggregate, aesthetic,
-                       tech_sharpness, is_blink, eyes_open_score, expression_score, face_count
+                       tech_sharpness, is_blink, eyes_open_score, expression_score, face_count, category
                 FROM photos
                 WHERE path IN ({placeholders}) AND {vis_sql}""",
             unique_paths + vis_params,
@@ -595,10 +692,12 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
         # Sort by aggregate DESC and limit
         photos.sort(key=lambda x: x.get('aggregate') or 0, reverse=True)
         photos = photos[:max_per_group]
+        best = photos[0] if photos else None
         for pd in photos:
             pd['is_blink'] = pd.get('is_blink') or 0
             pd['is_burst_lead'] = 0
             pd['burst_score'] = round(_compute_burst_score(pd), 2)
+            pd['cull_reason'] = _compute_cull_reason(pd, best)
         result[idx] = photos
     return result
 
@@ -698,10 +797,66 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
             'photos': photo_list,
             'best_path': best_path,
             'count': group['count'],
+            'category': _dominant_category(photo_list, best_path),
             'similarity_percent': sim_pct,
         })
 
     return results
+
+
+_CULLING_SORTS = ('easiest', 'redundant', 'best', 'recent', 'needs_comparisons')
+
+# Memo of the fully-enriched + globally-sorted culling groups, keyed by the
+# request params that determine the set. Pagination over the same set then
+# reuses one enrichment instead of re-materializing + re-scoring every group on
+# every page. Invalidated on any confirm (the unreviewed set shrinks); the short
+# TTL is a backstop for changes the invalidation can't see (a fresh scan).
+_culling_groups_cache: dict = {}
+_CULLING_GROUPS_CACHE_TTL = 45.0
+_CULLING_GROUPS_CACHE_MAX = 16
+
+
+def _invalidate_culling_groups_cache():
+    """Drop the enriched culling-groups memo after a confirm changes the set."""
+    _culling_groups_cache.clear()
+
+
+def _category_comparison_needs(conn):
+    """Map category -> comparisons still needed before weight optimization unlocks.
+
+    Used by the `needs_comparisons` sort so groups in under-trained categories
+    surface first. Returns (needs_by_category, default_need) where default_need
+    is the full threshold for categories with no comparisons yet.
+    """
+    from api.config import get_comparison_mode_settings
+    threshold = get_comparison_mode_settings().get('min_comparisons_for_optimization', 30)
+    rows = conn.execute(
+        "SELECT category, COUNT(*) AS cnt FROM comparisons WHERE category IS NOT NULL GROUP BY category"
+    ).fetchall()
+    needs = {r['category']: max(0, threshold - r['cnt']) for r in rows}
+    return needs, threshold
+
+
+def _culling_sort_key(group, sort, cat_needs, default_need):
+    """Descending sort key for a culling group under the selected mode.
+
+    All modes sort largest-first. `easiest` ranks by the burst_score gap between
+    the best photo and the runner-up (a clear winner = a fast confirm).
+    """
+    photos = group.get('photos') or []
+    if sort == 'redundant':
+        return (group.get('count') or 0,)
+    if sort == 'best':
+        return (max((p.get('aggregate') or 0) for p in photos) if photos else 0,)
+    if sort == 'recent':
+        dates = [p.get('date_taken') for p in photos if p.get('date_taken')]
+        return (max(dates) if dates else '',)
+    if sort == 'needs_comparisons':
+        category = group.get('category') or ''
+        return (cat_needs.get(category, default_need), group.get('count') or 0)
+    scores = sorted((p.get('burst_score') or 0) for p in photos)
+    gap = scores[-1] - scores[-2] if len(scores) >= 2 else 0
+    return (gap,)
 
 
 @router.get("/api/culling-groups")
@@ -711,64 +866,66 @@ async def api_culling_groups(
     similarity_threshold: float = Query(0.85, ge=0.5, le=1.0),
     seed: int = Query(0),
     exclude_rejected: bool = Query(True),
+    sort: str = Query('easiest'),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return a unified list of burst + similar groups for culling.
 
-    Merges unreviewed burst groups and unreviewed similar groups into a single
-    paginated response. Burst groups come first (more urgent), then similar groups.
+    Merges unreviewed burst and similar groups, orders them globally by `sort`
+    (easiest | redundant | best | recent | needs_comparisons), then paginates.
     Each group includes a `type` field ("burst" or "similar") and a human-readable
     `reason` string.
     """
+    if sort not in _CULLING_SORTS:
+        sort = 'easiest'
     with get_db() as conn:
         try:
             user_id = user.user_id if user else None
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            # Count both types to compute total without fetching all data
-            burst_count = _count_unreviewed_burst_groups(conn, vis_sql, vis_params, exclude_rejected=exclude_rejected, user_id=user_id)
-            similar_count, similar_shuffled = _count_unreviewed_similar_groups(
-                conn, similarity_threshold, user_id, seed, exclude_rejected=exclude_rejected,
-            )
-
-            total_groups = burst_count + similar_count
-            total_pages, offset = paginate(total_groups, page, per_page)
-
-            # Determine which groups fall in this page (bursts first, then similar)
-            page_groups = []
-            remaining = per_page
-
-            if offset < burst_count:
-                # Page includes some burst groups
-                burst_page = (offset // per_page) + 1 if per_page else 1
-                burst_offset_in_page = offset % per_page if per_page else 0
-                burst_slice = _fetch_unreviewed_burst_groups(
+            # Enriching + globally sorting the whole unreviewed set is identical
+            # across pages, so memo it and let pagination reuse one enrichment
+            # instead of re-materializing + re-scoring every group per page.
+            cache_key = (round(similarity_threshold, 3), seed, sort, exclude_rejected, user_id)
+            cached = _culling_groups_cache.get(cache_key)
+            now = time.time()
+            if cached is not None and now - cached[0] < _CULLING_GROUPS_CACHE_TTL:
+                all_groups = cached[1]
+            else:
+                burst_groups = _fetch_unreviewed_burst_groups(
                     conn, vis_sql, vis_params,
-                    page=burst_page, per_page=per_page,
+                    page=None, per_page=None,
                     exclude_rejected=exclude_rejected, user_id=user_id,
                 )
-                # If the offset doesn't align with burst pagination, slice manually
-                if burst_offset_in_page > 0:
-                    burst_slice = burst_slice[burst_offset_in_page:]
-                page_groups.extend(burst_slice[:remaining])
-                remaining -= len(page_groups)
-
-            if remaining > 0 and similar_shuffled:
-                # Page includes some similar groups
-                similar_offset = max(0, offset - burst_count)
-                similar_slice = similar_shuffled[similar_offset:similar_offset + remaining]
-                similar_enriched = _fetch_unreviewed_similar_groups(
-                    conn, similarity_threshold, vis_sql, vis_params, seed, user_id,
-                    page_groups=similar_slice, offset=similar_offset,
-                    exclude_rejected=exclude_rejected,
+                _, similar_shuffled = _count_unreviewed_similar_groups(
+                    conn, similarity_threshold, user_id, seed, exclude_rejected=exclude_rejected,
                 )
-                # Offset similar group IDs by burst_count to avoid ID collisions
-                for g in similar_enriched:
-                    g['group_id'] += burst_count
-                page_groups.extend(similar_enriched)
+                similar_groups = []
+                if similar_shuffled:
+                    similar_groups = _fetch_unreviewed_similar_groups(
+                        conn, similarity_threshold, vis_sql, vis_params, seed, user_id,
+                        page_groups=similar_shuffled, offset=0,
+                        exclude_rejected=exclude_rejected,
+                    )
+                    # Keep similar IDs distinct from burst IDs; the type suffix the
+                    # client appends ('<id>_<type>') already disambiguates the rest.
+                    for g in similar_groups:
+                        g['group_id'] += len(burst_groups)
 
-            # Sort by photo count descending so largest groups appear first
-            page_groups.sort(key=lambda g: g['count'], reverse=True)
+                all_groups = burst_groups + similar_groups
+
+                cat_needs, default_need = ({}, 0)
+                if sort == 'needs_comparisons':
+                    cat_needs, default_need = _category_comparison_needs(conn)
+                all_groups.sort(key=lambda g: _culling_sort_key(g, sort, cat_needs, default_need), reverse=True)
+
+                if len(_culling_groups_cache) >= _CULLING_GROUPS_CACHE_MAX:
+                    _culling_groups_cache.clear()
+                _culling_groups_cache[cache_key] = (now, all_groups)
+
+            total_groups = len(all_groups)
+            total_pages, offset = paginate(total_groups, page, per_page)
+            page_groups = all_groups[offset:offset + per_page]
 
             return {
                 'groups': page_groups,

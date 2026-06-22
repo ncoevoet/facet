@@ -267,6 +267,12 @@ Configuration:
                         help='Backfill TOPIQ quality scores from stored thumbnails (requires GPU)')
     db_group.add_argument('--recompute-iqa', action='store_true',
                         help='Recompute supplementary IQA metrics (TOPIQ IAA, NR-Face, LIQE) from stored thumbnails')
+    db_group.add_argument('--recompute-ocr', action='store_true',
+                        help='Extract OCR text-in-image from stored thumbnails into ocr_text (opt-in; '
+                             'no-op if no OCR engine is installed). Run --rebuild-fts afterwards to index it.')
+    db_group.add_argument('--recompute-colors', action='store_true',
+                        help='Extract dominant hue + warm/cool colour temperature from stored thumbnails '
+                             '(CPU only, fast) into dominant_hue / color_temp')
     db_group.add_argument('--upgrade-db', action='store_true',
                         help='Migrate schema + run the full backfill chain '
                              '(extract-gps, detect-duplicates, recompute-iqa, '
@@ -869,6 +875,74 @@ Configuration:
         from processing.scorer import Facet
         facet = Facet(db_path=args.db, config_path=args.config, lightweight=True)
         facet.recompute_iqa_from_thumbnails()
+        exit()
+
+    # Shared scaffolding for the per-facet thumbnail recompute passes below
+    # (OCR, colour facet): decode each stored thumbnail once and UPDATE the
+    # columns the callback returns. ``compute(img)`` returns
+    # ``(updates: dict[column -> value], counted: bool)``; columns come from a
+    # literal dict at each call site (never user input). Returns (total, counted).
+    def _recompute_from_thumbnails(desc, compute):
+        import io
+        from PIL import Image
+        with get_connection(args.db) as conn:
+            rows = conn.execute(
+                "SELECT path, thumbnail FROM photos WHERE thumbnail IS NOT NULL"
+            ).fetchall()
+        counted = 0
+        with get_connection(args.db) as conn:
+            for row in tqdm(rows, desc=desc):
+                blob = row['thumbnail']
+                if not blob:
+                    continue
+                try:
+                    img = Image.open(io.BytesIO(blob)).convert('RGB')
+                except Exception:
+                    continue
+                updates, is_counted = compute(img)
+                set_sql = ", ".join(f"{col} = ?" for col in updates)
+                conn.execute(
+                    f"UPDATE photos SET {set_sql} WHERE path = ?",
+                    (*updates.values(), row['path']),
+                )
+                if is_counted:
+                    counted += 1
+            conn.commit()
+        return len(rows), counted
+
+    # Extract OCR text-in-image from stored thumbnails (opt-in, CPU; no-op if no engine)
+    if args.recompute_ocr:
+        from analyzers.ocr import extract_text, is_ocr_available
+
+        init_database(args.db)  # Ensure ocr_text column exists
+        if not is_ocr_available():
+            logger.warning(
+                "No OCR engine installed — --recompute-ocr is a no-op. "
+                "Install pytesseract (+tesseract binary), easyocr, or paddleocr."
+            )
+            exit()
+
+        def _ocr_update(img):
+            text = extract_text(img)
+            return {'ocr_text': text}, bool(text)
+
+        total, updated = _recompute_from_thumbnails("OCR", _ocr_update)
+        logger.info("OCR complete: %d/%d photos with detected text.", updated, total)
+        logger.info("Run 'python database.py --rebuild-fts' to index ocr_text for search.")
+        exit()
+
+    # Extract dominant hue + colour temperature from stored thumbnails (CPU, fast)
+    if args.recompute_colors:
+        from analyzers.color_facet import extract_color_facet
+
+        init_database(args.db)  # Ensure dominant_hue / color_temp columns exist
+
+        def _color_update(img):
+            hue, temp = extract_color_facet(img)
+            return {'dominant_hue': hue, 'color_temp': temp}, temp is not None
+
+        total, updated = _recompute_from_thumbnails("Color facet", _color_update)
+        logger.info("Color facet extraction complete: %d/%d photos updated.", updated, total)
         exit()
 
     # Recompute burst detection

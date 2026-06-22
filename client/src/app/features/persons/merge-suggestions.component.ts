@@ -248,8 +248,20 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
     }
   }
 
-  rejectSuggestion(suggestion: MergeSuggestion): void {
+  async rejectSuggestion(suggestion: MergeSuggestion): Promise<void> {
+    // Optimistically remove from the list, then persist the rejection so the
+    // analyzer stops re-proposing this pair on reload.
     this.removeSuggestion(suggestion);
+    try {
+      await firstValueFrom(
+        this.api.post('/persons/merge_suggestions/reject', {
+          person1_id: suggestion.person1.id,
+          person2_id: suggestion.person2.id,
+        }),
+      );
+    } catch {
+      this.snackBar.open(this.i18n.t('persons.merge_error'), '', { duration: 3000 });
+    }
   }
 
   async acceptAll(): Promise<void> {

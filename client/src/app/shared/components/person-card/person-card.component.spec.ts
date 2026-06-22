@@ -8,11 +8,12 @@ import { PersonCardComponent, Person } from './person-card.component';
   selector: 'test-host',
   standalone: true,
   imports: [PersonCardComponent],
-  template: `<app-person-card [person]="person()" [isEditing]="isEditing()" />`,
+  template: `<app-person-card [person]="person()" [isEditing]="isEditing()" [canEdit]="canEdit()" />`,
 })
 class TestHostComponent {
   person = signal<Person>({ id: 1, name: 'Alice', face_count: 5, face_thumbnail: true });
   isEditing = signal(false);
+  canEdit = signal(false);
 }
 
 describe('PersonCardComponent', () => {
@@ -78,5 +79,63 @@ describe('PersonCardComponent', () => {
 
     card.onSave();
     expect(emitted).toEqual([{ id: 1, name: '' }]);
+  });
+
+  // Click the action button whose mat-icon ligature matches `icon`. This drives
+  // the real (click)->emit template wiring rather than calling .emit() directly.
+  function clickActionButton(icon: string): void {
+    const buttons = Array.from(
+      fixture.nativeElement.querySelectorAll('button'),
+    ) as HTMLButtonElement[];
+    const btn = buttons.find(
+      b => b.querySelector('mat-icon')?.textContent?.trim() === icon,
+    );
+    expect(btn).toBeTruthy();
+    btn!.click();
+  }
+
+  it('emits split output when the split button is clicked', () => {
+    host.canEdit.set(true);
+    fixture.detectChanges();
+
+    const card = getCard();
+    const split: number[] = [];
+    card.split.subscribe(v => split.push(v));
+
+    clickActionButton('call_split');
+    expect(split).toEqual([1]);
+  });
+
+  it('emits hidden output when the hide button is clicked', () => {
+    host.canEdit.set(true);
+    fixture.detectChanges();
+
+    const card = getCard();
+    const hidden: number[] = [];
+    card.hidden.subscribe(v => hidden.push(v));
+
+    clickActionButton('visibility_off');
+    expect(hidden).toEqual([1]);
+  });
+
+  it('emits unhidden output when the unhide button is clicked for a hidden person', () => {
+    host.canEdit.set(true);
+    host.person.set({ id: 7, name: 'Bob', face_count: 2, face_thumbnail: false, is_hidden: true });
+    fixture.detectChanges();
+
+    const card = getCard();
+    const unhidden: number[] = [];
+    card.unhidden.subscribe(v => unhidden.push(v));
+
+    clickActionButton('visibility');
+    expect(unhidden).toEqual([7]);
+  });
+
+  it('renders the hidden chip when the person is hidden', () => {
+    host.canEdit.set(true);
+    host.person.set({ id: 7, name: 'Bob', face_count: 2, face_thumbnail: false, is_hidden: true });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('persons.hidden');
   });
 });

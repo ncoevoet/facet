@@ -133,6 +133,15 @@ export class App implements OnInit {
   protected readonly hasBurstGroups = signal(false);
   protected readonly hasMemories = signal(false);
   protected readonly hasGeoPhotos = signal(false);
+  // Number of comparisons the personal ranker was trained on (powers the
+  // "Picked for you" coverage badge). null until fetched / when unavailable.
+  protected readonly learnedCoverage = signal<number | null>(null);
+  // Coverage count to show in the badge: only when the "Picked for you" sort is
+  // active and we have a positive count (0/null -> no badge).
+  protected readonly pickedForYouCoverage = computed<number | null>(() => {
+    const count = this.learnedCoverage();
+    return this.store.filters().sort === 'learned_score' && count ? count : null;
+  });
 
   private url = toSignal(
     this.router.events.pipe(
@@ -190,6 +199,9 @@ export class App implements OnInit {
     { minKey: 'min_aesthetic_iaa', maxKey: 'max_aesthetic_iaa', labelKey: 'gallery.aesthetic_iaa_range' },
     { minKey: 'min_face_quality_iqa', maxKey: 'max_face_quality_iqa', labelKey: 'gallery.face_quality_iqa_range' },
     { minKey: 'min_liqe', maxKey: 'max_liqe', labelKey: 'gallery.liqe_range' },
+    { minKey: 'min_qalign', maxKey: 'max_qalign', labelKey: 'gallery.qalign_range' },
+    { minKey: 'min_aesthetic_v25', maxKey: 'max_aesthetic_v25', labelKey: 'gallery.aesthetic_v25_range' },
+    { minKey: 'min_deqa', maxKey: 'max_deqa', labelKey: 'gallery.deqa_range' },
     { minKey: 'min_subject_sharpness', maxKey: 'max_subject_sharpness', labelKey: 'gallery.subject_sharpness_range' },
     { minKey: 'min_subject_prominence', maxKey: 'max_subject_prominence', labelKey: 'gallery.subject_prominence_range' },
     { minKey: 'min_subject_placement', maxKey: 'max_subject_placement', labelKey: 'gallery.subject_placement_range' },
@@ -204,6 +216,7 @@ export class App implements OnInit {
   protected readonly activeFilterChips = computed<{ id: string; labelKey: string; value: string; clearKeys: string[]; personId?: number }[]>(() => {
     if (!this.isGalleryRoute()) return [];
     const f = this.store.filters();
+    this.i18n.translations();  // re-run on language change so translated chip values stay current
     const chips: { id: string; labelKey: string; value: string; clearKeys: string[]; personId?: number }[] = [];
 
     // Album filter
@@ -222,6 +235,9 @@ export class App implements OnInit {
     if (f.camera) chips.push({ id: 'camera', labelKey: 'gallery.camera', value: f.camera, clearKeys: ['camera'] });
     if (f.lens) chips.push({ id: 'lens', labelKey: 'gallery.lens', value: f.lens, clearKeys: ['lens'] });
     if (f.composition_pattern) chips.push({ id: 'composition_pattern', labelKey: 'gallery.composition_pattern', value: f.composition_pattern, clearKeys: ['composition_pattern'] });
+    if (f.quality_tier) chips.push({ id: 'quality_tier', labelKey: 'gallery.quality_tier', value: this.i18n.t('gallery.quality_tiers.' + f.quality_tier), clearKeys: ['quality_tier'] });
+    if (f.color_temp) chips.push({ id: 'color_temp', labelKey: 'gallery.color_temp', value: this.i18n.t('gallery.color_temps.' + f.color_temp), clearKeys: ['color_temp'] });
+    if (f.hue_bucket) chips.push({ id: 'hue_bucket', labelKey: 'gallery.hue', value: this.i18n.t('gallery.hue_buckets.' + f.hue_bucket), clearKeys: ['hue_bucket'] });
     if (f.path_prefix) {
       const folderName = f.path_prefix.replace(/\/$/, '').split('/').pop() || f.path_prefix;
       chips.push({ id: 'path_prefix', labelKey: 'folders.title', value: folderName, clearKeys: ['path_prefix'] });
@@ -352,6 +368,15 @@ export class App implements OnInit {
             this.api.get<{ total_groups: number }>('/burst-groups', { page: 1, per_page: 1 }),
           ).then(data => {
             this.hasBurstGroups.set(data.total_groups > 0);
+          }).catch(() => { /* Non-critical */ }),
+        );
+        // Coverage powers the "Picked for you" badge — how many comparisons the
+        // personal ranker was trained on. Reuses the existing coverage endpoint.
+        promises.push(
+          firstValueFrom(
+            this.api.get<{ total_comparisons: number }>('/comparison/coverage'),
+          ).then(data => {
+            this.learnedCoverage.set(data.total_comparisons ?? 0);
           }).catch(() => { /* Non-critical */ }),
         );
       }

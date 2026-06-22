@@ -183,6 +183,9 @@
     "aesthetic_iaa": "Estética IAA",
     "face_quality_iqa": "Calidad facial IQA",
     "liqe_score": "LIQE",
+    "qalign_score": "Q-Align",
+    "aesthetic_v25": "Estética V2.5",
+    "deqa_score": "DeQA",
     "saliency_section": "Saliencia del sujeto",
     "subject_sharpness": "Nitidez del sujeto",
     "subject_prominence": "Prominencia",
@@ -1016,6 +1019,9 @@
     "sort_date": "Fecha",
     "sort_composition": "Composición",
     "sort_face_quality": "Calidad facial",
+    "sort_picked_for_you": "Elegido para ti",
+    "picked_for_you_badge": "Aprendido de {count} comparaciones",
+    "picked_for_you_badge_tooltip": "Tu clasificador personal se ha entrenado con esta cantidad de tus decisiones de comparación, valoración y descarte.",
     "sort_desc": "Descendente",
     "sort_asc": "Ascendente",
     "filters": "Filtros",
@@ -1094,7 +1100,8 @@
       "no_filters_match": "Ningún filtro coincide",
       "advanced_metrics": "Métricas avanzadas",
       "refine": "Refinar",
-      "view": "Vista"
+      "view": "Vista",
+      "color_quality": "Color y calidad"
     },
     "semantic_search_info": "La búsqueda semántica carga los embeddings en la RAM en el primer uso. Esto puede tardar un momento para bibliotecas grandes.",
     "select_on_map": "Seleccionar en el mapa",
@@ -1121,6 +1128,9 @@
     "aesthetic_iaa_range": "Estética IAA",
     "face_quality_iqa_range": "Calidad facial IQA",
     "liqe_range": "Puntuación LIQE",
+    "qalign_range": "Puntuación Q-Align",
+    "aesthetic_v25_range": "Estética V2.5",
+    "deqa_range": "Puntuación DeQA",
     "subject_sharpness_range": "Nitidez del sujeto",
     "subject_prominence_range": "Prominencia del sujeto",
     "subject_placement_range": "Ubicación del sujeto",
@@ -1137,7 +1147,31 @@
     "saturation_range": "Saturación",
     "star_rating_range": "Valoración por estrellas",
     "gps_clear": "Borrar ubicación",
-    "loading_photos": "Cargando fotos…"
+    "loading_photos": "Cargando fotos…",
+    "quality_tier": "Nivel de calidad",
+    "quality_tiers": {
+      "excellent": "Excelente",
+      "good": "Bueno",
+      "fair": "Regular",
+      "poor": "Bajo"
+    },
+    "color_temp": "Temperatura de color",
+    "color_temps": {
+      "warm": "Cálida",
+      "cool": "Fría",
+      "neutral": "Neutra"
+    },
+    "hue": "Tono",
+    "hue_buckets": {
+      "red": "Rojo",
+      "orange": "Naranja",
+      "yellow": "Amarillo",
+      "green": "Verde",
+      "cyan": "Cian",
+      "blue": "Azul",
+      "purple": "Púrpura",
+      "magenta": "Magenta"
+    }
   },
   "composition_patterns": {
     "none": "Ninguno",
@@ -1279,6 +1313,17 @@
     "error_submitting": "Error al enviar la comparación",
     "snapshots_description": "Las instantáneas se guardan en el servidor y están asociadas a la categoría actual. Crea una instantánea antes de experimentar con los pesos, y restáurala para volver a un estado conocido. Las instantáneas persisten entre sesiones y dispositivos.",
     "apply_suggested": "Aplicar sugeridos",
+    "suggestions_tab": "Sugerencias de pesos",
+    "suggestions_locked_tooltip": "{count} comparaciones más para desbloquear las sugerencias de pesos",
+    "suggestions_insufficient": "Aún no hay suficientes comparaciones en esta categoría para sugerir pesos",
+    "top_before": "Top 10 actual",
+    "top_after": "Con los nuevos pesos",
+    "top_after_hint": "Aplica y recalcula para ver la nueva clasificación",
+    "recompute_category": "Recalcular esta categoría",
+    "recompute_needed": "Pesos aplicados pero las puntuaciones aún no se han recalculado — recalcula para actualizar las clasificaciones.",
+    "weight_property": "Propiedad",
+    "weight_current": "Actual",
+    "weight_suggested": "Sugerido",
     "no_data_yet": "Compara fotos para ver estadísticas",
     "error_loading_suggestions": "Error al cargar sugerencias",
     "save_tooltip": "Guardar la configuración de pesos actual en scoring_config.json",
@@ -1418,7 +1463,23 @@
     "share_link_error": "Este enlace para compartir no es válido.",
     "load_error": "No se pudo cargar la persona.",
     "created": "Persona creada",
-    "create_error": "No se pudo crear la persona"
+    "create_error": "No se pudo crear la persona",
+    "hidden": "Oculta",
+    "hide": "Ocultar",
+    "unhide": "Mostrar",
+    "show_hidden": "Mostrar ocultas",
+    "hidden_done": "Persona oculta",
+    "unhidden_done": "Persona mostrada",
+    "hide_error": "No se pudo actualizar la visibilidad de la persona",
+    "split": "Separar en una nueva persona",
+    "split_action": "Separar ({count})",
+    "split_dialog_title": "Separar en una nueva persona",
+    "split_dialog_desc": "Seleccione las caras que se moverán a una nueva persona.",
+    "split_name_placeholder": "Nombre de la nueva persona (opcional)",
+    "split_select_face": "Seleccionar rostro {index}",
+    "no_faces": "No se encontraron caras para esta persona",
+    "split_done": "Persona separada",
+    "split_error": "No se pudo separar la persona"
   },
   "person_selector": {
     "create_new": "Crear nueva persona"
@@ -1600,7 +1661,7 @@
     "burst_help": "Las fotos tomadas en ráfaga se agrupan juntas. Haz clic en las fotos para conservarlas (borde verde), las fotos no seleccionadas (borde rojo) se ocultarán. La mejor foto se selecciona automáticamente según la nitidez y la calidad.",
     "similar_help": "Las fotos visualmente similares de tu biblioteca se agrupan mediante embeddings de IA. Revisa cada grupo, conserva las mejores tomas y descarta los casi-duplicados. Ajusta el control deslizante del umbral para controlar cuán similares deben ser las fotos para formar un grupo.",
     "help": "Ayuda",
-    "help_text": "Revisa grupos de fotos similares o en ráfaga. Haz clic para seleccionar, doble clic para seleccionar exclusivamente. Los grupos confirmados ocultan las fotos rechazadas de la galería.",
+    "help_text": "Revisa grupos de fotos similares o en ráfaga. Haz clic en una foto para conservarla o descartarla; doble clic para conservar solo esa. Abre el Cuarto oscuro (revisión a pantalla completa) con el botón Cuarto oscuro o la tecla Intro. Usa Arriba/Abajo para elegir un grupo y Espacio para confirmarlo y pasar al siguiente. Saltar y Confirmar inician una cuenta atrás de 7 segundos que puedes Cancelar antes de que el grupo se cierre; confirmar oculta las fotos rechazadas de la galería.",
     "type_burst": "Ráfaga",
     "type_similar": "Similar",
     "confirm_all": "Confirmar todo",
@@ -1610,6 +1671,34 @@
     "load_more": "Cargar más",
     "view_detail": "Ver detalle",
     "cancel_pass": "Cancelar",
+    "cancel_restore": "Restaurar",
+    "darkroom": "Cuarto oscuro",
+    "all_categories": "Todas las categorías",
+    "filter_category": "Filtrar por categoría",
+    "sort": {
+      "label": "Ordenar",
+      "easiest": "Más fáciles primero",
+      "redundant": "Más redundantes",
+      "best": "Mejores primero",
+      "recent": "Más recientes",
+      "needs_comparisons": "Faltan comparaciones"
+    },
+    "weight_remaining": "{count} para ajustar pesos",
+    "weight_ready": "Ajuste de pesos listo",
+    "weight_remaining_tooltip": "Comparaciones que aún faltan en esta categoría antes de desbloquear el ajuste de pesos. Ajústalos en Comparación → Sugerencias de pesos.",
+    "weight_ready_tooltip": "Suficientes comparaciones recopiladas — abre Comparación → Sugerencias de pesos para revisar y aplicar los pesos optimizados de esta categoría.",
+    "strictness": "Rigor",
+    "strictness_tooltip": "Más alto conserva solo la mejor foto; más bajo conserva también los casi empates",
+    "face_grid_title": "Rostros de este grupo",
+    "reason": {
+      "best": "La mejor del grupo",
+      "eyes_closed": "Ojos cerrados",
+      "soft": "Ligeramente borrosa",
+      "expression": "Expresión más débil",
+      "lower_aesthetic": "Estética inferior",
+      "lower_overall": "Puntuación global inferior",
+      "near_duplicate": "Casi duplicada"
+    },
     "lightbox": {
       "navigate": "Navegar",
       "keep": "Mantener",
@@ -1617,6 +1706,17 @@
       "kept": "Mantenida",
       "rejected": "Rechazada",
       "undecided": "Sin decidir"
+    },
+    "shortcuts": {
+      "page_title": "Galería",
+      "darkroom_title": "Cuarto oscuro",
+      "select": "Seleccionar grupo",
+      "open": "Abrir a pantalla completa",
+      "navigate": "Foto anterior / siguiente",
+      "keep": "Conservar foto",
+      "reject": "Rechazar foto",
+      "confirm_next": "Confirmar y siguiente grupo",
+      "close": "Cerrar"
     }
   },
   "memories": {
@@ -1831,6 +1931,21 @@
   "download": {
     "type_original": "Original",
     "type_raw": "Archivo RAW"
+  },
+  "export": {
+    "action": "Exportar al editor",
+    "title": "Exportar al editor",
+    "description": "Escribe tus valoraciones, selecciones y etiquetas como archivos XMP que leen Lightroom, darktable y otros editores. Las imágenes originales nunca se modifican.",
+    "mode_sidecars": "Escribir archivos XMP",
+    "mode_copy": "Copiar la selección a una carpeta",
+    "mode_symlink": "Enlazar (symlink) la selección a una carpeta",
+    "overwrite": "Sobrescribir archivos .xmp existentes",
+    "overwrite_hint": "Desactivado por defecto: se conserva un .xmp creado por darktable y Facet escribe un .facet.xmp en su lugar.",
+    "target_dir": "Carpeta de destino",
+    "run": "Exportar",
+    "running": "Exportando…",
+    "done": "{count} foto(s) exportada(s)",
+    "failed": "Error al exportar"
   },
   "undo": {
     "action": "Deshacer",

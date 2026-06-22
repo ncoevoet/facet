@@ -212,6 +212,8 @@ export class GalleryStore {
   readonly tags = signal<FilterOption[]>([]);
   readonly persons = signal<PersonOption[]>([]);
   readonly patterns = signal<FilterOption[]>([]);
+  readonly colorTemps = signal<FilterOption[]>([]);
+  readonly hueBuckets = signal<FilterOption[]>([]);
   readonly metricRanges = signal<Record<string, MetricRange>>({});
 
   /** Reverse-geocoded place name for the active GPS filter. */
@@ -540,13 +542,15 @@ export class GalleryStore {
 
   /** Load all filter dropdown options in parallel */
   async loadFilterOptions(): Promise<void> {
-    const [camerasRes, lensesRes, tagsRes, personsRes, patternsRes, rangesRes] = await Promise.all([
+    const [camerasRes, lensesRes, tagsRes, personsRes, patternsRes, colorsRes, rangesRes] = await Promise.all([
       firstValueFrom(this.api.get<{cameras: [string, number][]}>('/filter_options/cameras')).catch(() => ({cameras: []})),
       firstValueFrom(this.api.get<{lenses: [string, number][]}>('/filter_options/lenses')).catch(() => ({lenses: []})),
       firstValueFrom(this.api.get<{tags: [string, number][]}>('/filter_options/tags')).catch(() => ({tags: []})),
       firstValueFrom(this.api.get<{persons: [number, string | null, number][]}>('/filter_options/persons',
         this.filters().person_id ? { ids: this.filters().person_id } : undefined)).catch(() => ({persons: []})),
       firstValueFrom(this.api.get<{patterns: [string, number][]}>('/filter_options/patterns')).catch(() => ({patterns: []})),
+      firstValueFrom(this.api.get<{temps: [string, number][]; hue_buckets: [string, number][]}>('/filter_options/colors'))
+        .catch(() => ({temps: [], hue_buckets: []})),
       firstValueFrom(this.api.get<{ranges: Record<string, MetricRange>}>('/filter_options/metric_ranges')).catch(() => ({ranges: {}})),
     ]);
     this.cameras.set((camerasRes.cameras ?? []).map(([value, count]: [string, number]) => ({value, count})));
@@ -557,6 +561,8 @@ export class GalleryStore {
         .map(([id, name, face_count]: [number, string | null, number]) => ({id, name, face_count})),
     );
     this.patterns.set((patternsRes.patterns ?? []).map(([value, count]: [string, number]) => ({value, count})));
+    this.colorTemps.set((colorsRes.temps ?? []).map(([value, count]: [string, number]) => ({value, count})));
+    this.hueBuckets.set((colorsRes.hue_buckets ?? []).map(([value, count]: [string, number]) => ({value, count})));
     this.metricRanges.set(rangesRes.ranges ?? {});
   }
 

@@ -1,9 +1,12 @@
 {
   "oracle": {
-    "lint": "venv/bin/ruff check api/ tests/ --select E,F,W --ignore E501 && cd client && npx ng lint",
-    "test": "venv/bin/python -m pytest -q && cd client && npm run test",
-    "build": "cd client && npx ng build",
-    "mandatory": ["lint", "test", "build"]
+    "lint": "ruff check api/ tests/ --select E,F,W --ignore E501",
+    "test": "conda/python.exe -m pytest --tb=short -q",
+    "typecheck": "cd client && CI=1 npm test",
+    "architecture": "conda/python.exe facet.py photos --dry-run --dry-run-count 5",
+    "build": "cd client && npx ng lint && npm run build",
+    "mandatory": ["lint", "test", "typecheck", "architecture", "build", "reviewall"]
   },
-  "budget": { "maxIterations": 20, "maxRepeatedFailures": 3 }
+  "reviewall": { "severityFloor": "important" },
+  "budget": { "maxIterations": 30, "maxRepeatedFailures": 3 }
 }

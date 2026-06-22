@@ -37,6 +37,40 @@ _FTS_TOKEN_CHARS = set(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
 
+# Hue-bucket name -> [start_deg, end_deg) half-open ranges over dominant_hue (0-360).
+# Eight perceptual buckets; 'red' wraps the 0/360 boundary so it is matched with OR.
+HUE_BUCKETS = {
+    'red': [(0.0, 15.0), (345.0, 360.0)],
+    'orange': [(15.0, 45.0)],
+    'yellow': [(45.0, 70.0)],
+    'green': [(70.0, 165.0)],
+    'cyan': [(165.0, 195.0)],
+    'blue': [(195.0, 255.0)],
+    'purple': [(255.0, 300.0)],
+    'magenta': [(300.0, 345.0)],
+}
+
+
+def bucket_for_hue(hue):
+    """Return the hue-bucket name containing ``hue`` (degrees), or ``None``.
+
+    Single source of truth for hue-bucket membership (half-open ranges
+    ``[lo, hi)``) shared by the gallery colour filter and the ``/colors`` facet
+    counts, so the two can never disagree on a boundary.
+    """
+    for name, ranges in HUE_BUCKETS.items():
+        if any(lo <= hue < hi for lo, hi in ranges):
+            return name
+    return None
+
+
+_VALID_COLOR_TEMPS = {'warm', 'cool', 'neutral'}
+
+# Quality tiers map a fraction of the aggregate (0-10) scale onto the configured
+# quality_thresholds (good/great/excellent/best). Bands are computed on the fly
+# in SQL, so no new column is needed.
+_QUALITY_TIER_KEYS = {'excellent', 'good', 'fair', 'poor'}
+
 
 def _fts5_query_from(term: str) -> Optional[str]:
     """Convert free-text user input into an FTS5 query string.
@@ -188,6 +222,58 @@ def _apply_text_filters(where_clauses, sql_params, params, conn):
         where_clauses.append("is_silhouette = 1")
 
 
+def _quality_tier_bounds(tier):
+    """Return (min, max) aggregate bounds for a quality tier, or None if invalid.
+
+    Tiers are derived from the configured ``quality_thresholds`` block
+    (good/great/excellent/best) on the 0-10 aggregate scale:
+      excellent: aggregate >= excellent
+      good:      great <= aggregate < excellent
+      fair:      good  <= aggregate < great
+      poor:      aggregate < good
+    A bound of None means "open" on that side.
+    """
+    if tier not in _QUALITY_TIER_KEYS:
+        return None
+    thresholds = VIEWER_CONFIG.get('quality_thresholds', {}) or {}
+    good = float(thresholds.get('good', 6))
+    great = float(thresholds.get('great', 7))
+    excellent = float(thresholds.get('excellent', 8))
+    if tier == 'excellent':
+        return (excellent, None)
+    if tier == 'good':
+        return (great, excellent)
+    if tier == 'fair':
+        return (good, great)
+    return (None, good)  # poor
+
+
+def _apply_color_quality_filters(where_clauses, sql_params, params):
+    """Apply colour-temperature, hue-bucket, and quality-tier filters."""
+    temp = params.get('color_temp')
+    if temp in _VALID_COLOR_TEMPS:
+        where_clauses.append("color_temp = ?")
+        sql_params.append(temp)
+
+    bucket = params.get('hue_bucket')
+    if bucket in HUE_BUCKETS:
+        ranges = HUE_BUCKETS[bucket]
+        sub = " OR ".join("(dominant_hue >= ? AND dominant_hue < ?)" for _ in ranges)
+        where_clauses.append(f"(dominant_hue IS NOT NULL AND ({sub}))")
+        for lo, hi in ranges:
+            sql_params.extend([lo, hi])
+
+    bounds = _quality_tier_bounds(params.get('quality_tier'))
+    if bounds is not None:
+        lo, hi = bounds
+        if lo is not None:
+            where_clauses.append("aggregate >= ?")
+            sql_params.append(lo)
+        if hi is not None:
+            where_clauses.append("aggregate < ?")
+            sql_params.append(hi)
+
+
 def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id):
     """Apply visibility, top picks, aggregate minimum, and hide blinks/bursts/duplicates."""
     if user_id:
@@ -265,6 +351,9 @@ SCORE_RANGE_COLUMNS = [
     ("aesthetic_iaa", "min_aesthetic_iaa", "max_aesthetic_iaa", True),
     ("face_quality_iqa", "min_face_quality_iqa", "max_face_quality_iqa", True),
     ("liqe_score", "min_liqe", "max_liqe", True),
+    ("qalign_score", "min_qalign", "max_qalign", True),
+    ("aesthetic_v25", "min_aesthetic_v25", "max_aesthetic_v25", True),
+    ("deqa_score", "min_deqa", "max_deqa", True),
     ("subject_sharpness", "min_subject_sharpness", "max_subject_sharpness", True),
     ("subject_prominence", "min_subject_prominence", "max_subject_prominence", True),
     ("subject_placement", "min_subject_placement", "max_subject_placement", True),
@@ -347,6 +436,7 @@ def _build_gallery_where(params, conn=None, user_id=None):
     _apply_preference_filters(where_clauses, sql_params, params, user_id)
     _apply_score_range_filters(where_clauses, sql_params, params)
     _apply_exif_range_filters(where_clauses, sql_params, params)
+    _apply_color_quality_filters(where_clauses, sql_params, params)
     _apply_date_album_geo_filters(where_clauses, sql_params, params)
     return where_clauses, sql_params
 

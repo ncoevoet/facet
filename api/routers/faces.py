@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, require_edition, require_auth
 from api.config import is_multi_user_enabled, _stats_cache
 from api.database import get_async_db, get_db
-from api.db_helpers import update_person_face_count
+from api.db_helpers import update_person_face_count, trigger_auto_retrain
 
 logger = logging.getLogger(__name__)
 
@@ -275,10 +275,15 @@ def _mint_rating_comparisons(user_id):
     signal for the weight optimizer and personal ranker (Topic 1 step 7) without a
     manual --sync-label-comparisons. Coalesces rapid clicks into one rebuild; the
     rating write has already succeeded and must never be rolled back by this.
+
+    Also feeds the per-user auto-retrain counter: a rating change is one new
+    comparison-worth of taste signal, so once enough accumulate the personal
+    ranker retrains itself in the background (non-blocking, held-out gated).
     """
     from db import DEFAULT_DB_PATH
     scope = user_id if (user_id and is_multi_user_enabled()) else None
     db_path = DEFAULT_DB_PATH
+    trigger_auto_retrain(db_path, user_id)
     if _RATING_SYNC_DEBOUNCE_S <= 0:
         _run_rating_sync(db_path, scope)
         return

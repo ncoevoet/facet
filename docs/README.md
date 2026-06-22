@@ -1,17 +1,17 @@
 # Facet
 
-AI-powered photo quality assessment system that analyzes images using CLIP, TOPIQ, SAMP-Net, InsightFace, and OpenCV to rate photos on aesthetics, face quality, technical sharpness, color harmony, exposure, and composition.
+Photo quality assessment that analyzes images using CLIP, TOPIQ, SAMP-Net, InsightFace, and OpenCV to rate photos on aesthetics, face quality, technical sharpness, color, exposure, and composition.
 
 ## Features
 
-- **Multi-Model Scoring** - TOPIQ (0.93 SRCC) or CLIP+MLP aesthetic assessment with configurable VRAM profiles
-- **Semantic Tagging** - Auto-generated tags using CLIP (landscape, portrait, sunset, etc.)
-- **Face Recognition** - Detection, quality scoring, blink detection, and person clustering via HDBSCAN
-- **Composition Analysis** - SAMP-Net neural network (14 patterns) or rule-based scoring
-- **Technical Analysis** - Sharpness, color harmony, exposure, dynamic range, noise, contrast
-- **Category System** - 17 content categories with specialized scoring weights
-- **Web Gallery** - FastAPI + Angular SPA with filtering, sorting, face recognition, and pairwise comparison
-- **Batch Processing** - ~4x faster GPU inference with auto-tuning and continuous streaming
+- **Multi-model scoring** - TOPIQ (0.93 SRCC) or CLIP+MLP aesthetic assessment, with configurable VRAM profiles
+- **Semantic tagging** - auto-generated tags using CLIP (landscape, portrait, sunset, etc.)
+- **Face recognition** - detection, quality scoring, blink detection, and person clustering via HDBSCAN
+- **Composition analysis** - SAMP-Net (14 patterns) or rule-based scoring
+- **Technical analysis** - sharpness, color, exposure, dynamic range, noise, contrast
+- **Category system** - 30+ content categories with category-specific scoring weights
+- **Web gallery** - FastAPI + Angular SPA with filtering, sorting, face recognition, and pairwise comparison
+- **Batch processing** - continuous-streaming GPU batching with auto-tuned batch sizes
 
 ## Quick Start
 

@@ -110,6 +110,7 @@ describe('ManagePersonsComponent', () => {
         page: 1,
         per_page: 48,
         sort: 'count_desc',
+        include_hidden: false,
       });
       expect(component.persons()).toEqual(mockPersonsResponse.persons);
       expect(component.total()).toBe(3);
@@ -139,6 +140,21 @@ describe('ManagePersonsComponent', () => {
         page: 1,
         per_page: 48,
         sort: 'count_desc',
+        include_hidden: false,
+      });
+    });
+
+    it('should request hidden persons when showHidden is on', async () => {
+      component.showHidden.set(true);
+
+      await component.loadPersons(true);
+
+      expect(mockApi.get).toHaveBeenCalledWith('/persons', {
+        search: '',
+        page: 1,
+        per_page: 48,
+        sort: 'count_desc',
+        include_hidden: true,
       });
     });
   });
@@ -245,6 +261,105 @@ describe('ManagePersonsComponent', () => {
       await component.openMergeDialog();
 
       expect(mockDialog.open).toHaveBeenCalled();
+    });
+  });
+
+  describe('toggleShowHidden', () => {
+    it('should set the signal and reload', () => {
+      const spy = vi.spyOn(component, 'loadPersons').mockResolvedValue();
+      component.toggleShowHidden(true);
+      expect(component.showHidden()).toBe(true);
+      expect(spy).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe('setHidden', () => {
+    it('should post hide and drop the person when hidden persons are not shown', async () => {
+      component.persons.set(mockPersonsResponse.persons);
+      component.total.set(3);
+
+      await component.setHidden(1, true);
+
+      expect(mockApi.post).toHaveBeenCalledWith('/persons/1/hide');
+      expect(component.persons().some((p) => p.id === 1)).toBe(false);
+      expect(component.total()).toBe(2);
+    });
+
+    it('should post hide and mark the person hidden when showHidden is on', async () => {
+      component.showHidden.set(true);
+      component.persons.set(mockPersonsResponse.persons);
+
+      await component.setHidden(1, true);
+
+      expect(mockApi.post).toHaveBeenCalledWith('/persons/1/hide');
+      expect(component.persons().find((p) => p.id === 1)?.is_hidden).toBe(true);
+      expect(component.persons().some((p) => p.id === 1)).toBe(true);
+    });
+
+    it('should post unhide and clear the hidden flag', async () => {
+      component.persons.set([
+        { id: 1, name: 'Alice', face_count: 10, face_thumbnail: true, is_hidden: true },
+      ]);
+
+      await component.setHidden(1, false);
+
+      expect(mockApi.post).toHaveBeenCalledWith('/persons/1/unhide');
+      expect(component.persons().find((p) => p.id === 1)?.is_hidden).toBe(false);
+    });
+  });
+
+  describe('splitPerson', () => {
+    it('should do nothing when the dialog is cancelled', async () => {
+      mockDialog.open.mockReturnValue({ afterClosed: () => of(null) });
+      const person = { id: 1, name: 'Alice', face_count: 10, face_thumbnail: true };
+
+      await component.splitPerson(person);
+
+      expect(mockApi.post).not.toHaveBeenCalled();
+    });
+
+    it('should post the selected face ids and prepend the new person', async () => {
+      component.persons.set([
+        { id: 1, name: 'Alice', face_count: 10, face_thumbnail: true },
+      ]);
+      component.total.set(1);
+      mockDialog.open.mockReturnValue({
+        afterClosed: () => of({ faceIds: [11, 12], name: 'Alice B' }),
+      });
+      mockApi.post.mockReturnValue(
+        of({ success: true, new_person_id: 99, new_count: 2, source_count: 8 }),
+      );
+
+      await component.splitPerson(component.persons()[0]);
+
+      expect(mockApi.post).toHaveBeenCalledWith('/persons/1/split', {
+        face_ids: [11, 12],
+        name: 'Alice B',
+      });
+      expect(component.persons()[0].id).toBe(99);
+      expect(component.persons()[0].face_count).toBe(2);
+      expect(component.persons().find((p) => p.id === 1)?.face_count).toBe(8);
+      expect(component.total()).toBe(2);
+    });
+
+    it('should drop the source person when it is emptied', async () => {
+      component.persons.set([
+        { id: 1, name: 'Alice', face_count: 2, face_thumbnail: true },
+      ]);
+      component.total.set(1);
+      mockDialog.open.mockReturnValue({
+        afterClosed: () => of({ faceIds: [11, 12], name: null }),
+      });
+      mockApi.post.mockReturnValue(
+        of({ success: true, new_person_id: 99, new_count: 2, source_count: 0 }),
+      );
+
+      await component.splitPerson(component.persons()[0]);
+
+      expect(mockApi.post).toHaveBeenCalledWith('/persons/1/split', { face_ids: [11, 12] });
+      expect(component.persons().some((p) => p.id === 1)).toBe(false);
+      expect(component.persons()[0].id).toBe(99);
+      expect(component.total()).toBe(1);
     });
   });
 });

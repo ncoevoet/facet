@@ -45,6 +45,7 @@ import {
 } from './gallery-rows.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
+import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 
 @Component({
@@ -343,6 +344,9 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
             </mat-menu>
           }
           <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ 'gallery.selection.copy_filenames' | translate }}</button>
+          @if (auth.isEdition()) {
+            <button mat-button class="!hidden lg:!inline-flex" (click)="openExportDialog()"><mat-icon>drive_file_move</mat-icon> {{ 'export.action' | translate }}</button>
+          }
           @if (auth.downloadProfiles().length) {
             <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
             <mat-menu #dlMenu="matMenu">
@@ -796,6 +800,16 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (!album) return;
     this.albumOptions.update(list => [album, ...list]);
     await this.addToAlbum(album.id);
+  }
+
+  openExportDialog(): void {
+    const albumId = this.route.snapshot.paramMap.get('albumId');
+    this.dialog.open(ExportEditorDialogComponent, {
+      width: '420px',
+      data: albumId
+        ? { albumId: +albumId }
+        : { paths: [...this.selectedPaths()] },
+    });
   }
 
   openCritique(photo: Photo): void {

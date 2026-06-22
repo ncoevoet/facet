@@ -3,13 +3,32 @@ Merge suggestions API router -- face merge group analysis.
 
 """
 
+import sqlite3
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, require_authenticated
 from api.config import VIEWER_CONFIG
+from api.database import get_db
 from db import DEFAULT_DB_PATH
 
 router = APIRouter(tags=["merge_suggestions"])
+
+
+def _load_rejected_pairs():
+    """Return the set of (a, b) person pairs (a < b) the user has dismissed.
+
+    Defensive: returns an empty set if the table is absent so suggestions are
+    simply unfiltered rather than erroring.
+    """
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT person_a_id, person_b_id FROM rejected_merge_suggestions"
+            ).fetchall()
+        return {(row[0], row[1]) for row in rows}
+    except sqlite3.Error:
+        return set()
 
 
 @router.get("/api/merge_suggestions")
@@ -47,5 +66,13 @@ def get_merge_suggestions(
                 },
                 "similarity": similarity,
             })
+
+    # Drop pairs the user has already dismissed so they stop reappearing.
+    rejected = _load_rejected_pairs()
+    if rejected:
+        suggestions = [
+            s for s in suggestions
+            if tuple(sorted((s["person1"]["id"], s["person2"]["id"]))) not in rejected
+        ]
 
     return {"suggestions": suggestions}

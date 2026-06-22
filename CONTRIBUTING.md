@@ -1,6 +1,6 @@
 # Contributing to Facet
 
-Facet is a multi-dimensional photo analysis engine with a Python/FastAPI backend and an Angular 21 frontend. This guide covers the essentials for getting started and making changes.
+Facet is a photo analysis engine with a Python/FastAPI backend and an Angular 21 frontend.
 
 ## Development Setup
 
@@ -19,7 +19,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 # Build the Angular frontend
 cd client
 npm install
-npx ng build
+npm run build
 cd ..
 
 # Run the web viewer (serves API + Angular SPA on port 5000)
@@ -37,7 +37,7 @@ python facet.py --doctor
 | Directory | Responsibility |
 |-----------|---------------|
 | `facet.py` | Main CLI entry point, `ModelManager` (VRAM-aware model loading), `BatchProcessor` (GPU batching) |
-| `api/` | FastAPI application. Routers live in `api/routers/` (15 route modules: gallery, faces, albums, search, critique, etc.). Pydantic types in `api/types.py` and `api/models/`. |
+| `api/` | FastAPI application. Routers live in `api/routers/` (gallery, faces, albums, search, critique, etc.). Pydantic types in `api/types.py` and `api/models/`. |
 | `config/` | `ScoringConfig` (weights/thresholds from `scoring_config.json`), `CategoryFilter` (rule evaluation), `PercentileNormalizer` |
 | `models/` | Vision model wrappers: TOPIQ, CLIP, SigLIP, VLM taggers (Qwen), SAMP-Net (composition), BiRefNet (saliency) |
 | `processing/` | Scoring pipeline: `batch_processor` (continuous GPU inference), `multi_pass` (pass orchestration), `scorer` (aggregate calculation) |
@@ -113,5 +113,4 @@ CI additionally runs an advisory `mypy api/` type-check; run it locally with
 
 - Branch from `master`.
 - Keep PRs focused on a single concern.
-- Include a test plan in the PR description.
-- Rebuild the Angular client (`cd client && npx ng build`) before submitting if you changed frontend code.
+- Rebuild the Angular client (`cd client && npm run build`) before submitting if you changed frontend code.

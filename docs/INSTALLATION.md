@@ -14,7 +14,7 @@ source venv/bin/activate         # macOS/Linux
 python facet.py --doctor # verify your setup
 ```
 
-The install script handles everything: Python venv, GPU/CUDA detection, PyTorch with the correct index URL, ONNX Runtime, all dependencies, transformers/accelerate, and Angular frontend build.
+`install.sh` creates the venv, detects GPU/CUDA, installs PyTorch with the matching index URL, the right ONNX Runtime variant, the rest of the dependencies, and builds the Angular frontend.
 
 **Options:**
 | Flag | Effect |
@@ -55,14 +55,10 @@ source venv/bin/activate
 # Install PyTorch first with the correct CUDA index URL
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 
-# Install base dependencies (all at once for proper dependency resolution)
+# Install dependencies (all at once for proper dependency resolution).
+# requirements.txt already includes transformers and accelerate, needed for
+# the SigLIP/BiRefNet/VLM models used by the 8gb+ profiles.
 pip install -r requirements.txt
-
-# Install transformers (needed for 8gb+ profiles: SigLIP, BiRefNet, VLM taggers)
-pip install transformers>=4.57.0 accelerate>=0.25.0
-
-# For 24gb profile, additionally:
-pip install qwen-vl-utils>=0.0.2
 ```
 
 > **Hitting dependency errors?** See [Troubleshooting Dependency Conflicts](#troubleshooting-dependency-conflicts) below.
@@ -115,7 +111,7 @@ When cuML is available, face clustering automatically uses GPU (configurable via
 ## Verify Installation
 
 ```bash
-python -c "import torch, cv2, fastapi, insightface, open_clip, numpy, scipy, sklearn, PIL, imagehash, rawpy, tqdm, exifread; print('All imports successful')"
+python -c "import torch, cv2, fastapi, insightface, open_clip, pyiqa, numpy, scipy, sklearn, PIL, imagehash, rawpy, tqdm, exifread; print('All imports successful')"
 ```
 
 ## Dependencies Summary
@@ -124,8 +120,9 @@ python -c "import torch, cv2, fastapi, insightface, open_clip, numpy, scipy, skl
 
 | Package | Purpose |
 |---------|---------|
-| `torch`, `torchvision` | Deep learning framework |
-| `open-clip-torch` | CLIP model for tagging and aesthetics |
+| `torch`, `torchvision` | Deep learning framework (installed separately, see above) |
+| `open-clip-torch` | CLIP embeddings/tagging (legacy/8gb profiles) |
+| `pyiqa` | TOPIQ and other quality/aesthetic models |
 | `opencv-python` | Image processing |
 | `pillow` | Image loading |
 | `imagehash` | Perceptual hashing for burst detection |
@@ -136,20 +133,16 @@ python -c "import torch, cv2, fastapi, insightface, open_clip, numpy, scipy, skl
 | `tqdm` | Progress bars |
 | `exifread` | EXIF metadata extraction |
 | `insightface` | Face detection and recognition |
+| `transformers`, `accelerate` | SigLIP/BiRefNet/VLM models (8gb+ profiles) |
 | `scipy` | Scientific computing |
-| `scikit-learn` | Machine learning utilities |
-| `hdbscan` | Face clustering algorithm |
+| `hdbscan` | Face clustering (pulls in scikit-learn) |
+| `reverse_geocoder` | Reverse geocoding for GPS |
 
-### Profile-Specific Packages
-
-| Profile | Additional Packages |
-|---------|---------------------|
-| `8gb`+ | `transformers>=4.57.0`, `accelerate>=0.25.0` |
-| `24gb` | `qwen-vl-utils>=0.0.2` |
+All of these are in `requirements.txt`; no profile needs extra base packages.
 
 ### Optional Packages
 
-Each unlocks a feature; without it Facet degrades gracefully (skips the feature or uses a fallback) rather than failing.
+Each unlocks a feature; without it the feature is skipped or a fallback is used.
 
 | Package | Unlocks / purpose | Without it |
 |---------|-------------------|-----------|
@@ -159,6 +152,7 @@ Each unlocks a feature; without it Facet degrades gracefully (skips the feature 
 | `rawpy` | RAW decode (CR2/CR3/NEF/ARW/…) | RAW files skipped (already in base `requirements.txt`) |
 | `cuml`, `cupy` | GPU-accelerated face clustering (conda + CUDA) | Clustering runs on CPU via `hdbscan` (default) |
 | `onnxruntime-gpu` | GPU-accelerated face detection | CPU `onnxruntime` (slower) |
+| `aesthetic-predictor-v2-5`, `bitsandbytes` | Extended IQA tier (`pip install -e .[iqa-extended]`; `iqa_extended` in `scoring_config.json`, off by default) | Extended IQA metrics unavailable |
 | `darktable-cli` (system) | RAW/darktable profile export from the viewer | Only original/embedded download offered |
 | `exiftool` (system) | Best EXIF/GPS extraction | Falls back to `exifread`, then PIL |
 
@@ -230,12 +224,13 @@ Models are cached in standard locations (`~/.cache/` or `~/.insightface/`).
 
 ## Angular Client (Optional)
 
+Only needed for development or custom builds; `install.sh` already builds it.
+
 ```bash
-# Only needed for development or custom builds
 cd client
 npm install
-npx ng build    # Production build → client/dist/
-npx ng serve    # Dev server on http://localhost:4200 (proxies API to :5000)
+npm run build    # Production build → client/dist/
+npm start        # Dev server on http://localhost:4200 (proxies API to :5000)
 ```
 
 > **`npm audit` warnings:** Angular pulls in a deep transitive dependency tree

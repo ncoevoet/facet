@@ -168,61 +168,88 @@ class DeQAScorer:
         result = float(normalized * 10.0)
         return max(0.0, min(10.0, result))
 
-    def _predict_mos(self, image: Image.Image) -> float:
+    def _predict_mos(self, image: Image.Image) -> Optional[float]:
         """Run the VLM and return a raw MOS in the model's ``score_range``.
 
         DeQA-Score exposes a quality-scoring head; we call it through the
         model's documented ``score`` API when present, falling back to a logits
         reduction. Heavy work is wrapped in ``torch.no_grad``.
+
+        Defensive by design: this model loads remote ``trust_remote_code`` code
+        whose forward / ``.score()`` signature varies across checkpoint
+        revisions. Any failure (wrong signature, unexpected output shape,
+        device mismatch, OOM) is caught and surfaced as ``None`` so the scan
+        leaves the column NULL for this image rather than crashing the batch.
+        Never raises.
+
+        Returns:
+            Raw MOS as a float, or ``None`` if prediction failed.
         """
         import torch
 
         if image.mode != "RGB":
             image = image.convert("RGB")
 
-        with torch.no_grad():
-            # Preferred path: DeQA-Score models expose a `.score()` helper that
-            # returns the MOS directly for a list of images.
-            if hasattr(self.model, "score"):
-                out = self.model.score([image], task_="quality", input_="image")
-                if isinstance(out, (list, tuple)):
-                    out = out[0]
-                if isinstance(out, torch.Tensor):
-                    return float(out.flatten()[0].item()) if out.numel() else 0.0
-                return float(out)
+        try:
+            with torch.no_grad():
+                # Preferred path: DeQA-Score models expose a `.score()` helper
+                # that returns the MOS directly for a list of images.
+                if hasattr(self.model, "score"):
+                    out = self.model.score([image], task_="quality", input_="image")
+                    if isinstance(out, (list, tuple)):
+                        out = out[0] if out else None
+                    if out is None:
+                        return None
+                    if isinstance(out, torch.Tensor):
+                        return float(out.flatten()[0].item()) if out.numel() else None
+                    return float(out)
 
-            # Fallback: processor + forward, reduce logits to a scalar.
-            inputs = self.processor(images=image, return_tensors="pt")
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            output = self.model(**inputs)
-            logits = output.logits if hasattr(output, "logits") else output
-            if isinstance(logits, (list, tuple)):
-                logits = logits[0]
-            return float(logits.flatten()[0].item())
+                # Fallback: processor + forward, reduce logits to a scalar.
+                inputs = self.processor(images=image, return_tensors="pt")
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
+                output = self.model(**inputs)
+                logits = output.logits if hasattr(output, "logits") else output
+                if isinstance(logits, (list, tuple)):
+                    logits = logits[0] if logits else None
+                if logits is None or not hasattr(logits, "flatten") or logits.numel() == 0:
+                    return None
+                return float(logits.flatten()[0].item())
+        except Exception as e:  # noqa: BLE001 — never crash the scan on a bad forward
+            logger.warning("DeQA-Score prediction failed: %s", e)
+            return None
 
-    def score_image(self, image: Image.Image) -> float:
-        """Score a single PIL image, normalized to 0-10."""
-        if not self._loaded:
-            self.load()
+    def score_image(self, image: Image.Image) -> Optional[float]:
+        """Score a single PIL image, normalized to 0-10.
 
-        raw = self._predict_mos(image)
-        return self._normalize_score(raw)
-
-    def score_batch(self, images: list[Image.Image]) -> list[float]:
-        """Score a list of PIL images, each normalized to 0-10.
-
-        DeQA-Score is a VLM with no meaningful tensor batching, so this simply
-        loops :meth:`score_image`. A per-image failure is logged and substituted
-        with a neutral 5.0 so one bad image never fails the whole batch.
+        Returns ``None`` if the underlying prediction failed (the column is
+        then left NULL); a successful prediction is normalized to 0-10.
         """
         if not self._loaded:
             self.load()
 
-        scores: list[float] = []
+        raw = self._predict_mos(image)
+        if raw is None:
+            return None
+        return self._normalize_score(raw)
+
+    def score_batch(self, images: list[Image.Image]) -> list[Optional[float]]:
+        """Score a list of PIL images, each normalized to 0-10.
+
+        DeQA-Score is a VLM with no meaningful tensor batching, so this simply
+        loops :meth:`score_image`. A per-image failure yields ``None`` (the
+        column is left NULL for that image) so one bad image never fails the
+        whole batch. ``score_image`` is already defensive and returns ``None``
+        on failure; the extra guard here also catches a load() failure raised
+        mid-batch.
+        """
+        if not self._loaded:
+            self.load()
+
+        scores: list[Optional[float]] = []
         for im in images:
             try:
                 scores.append(self.score_image(im))
             except Exception as e:  # noqa: BLE001 — defensive per-image fallback
                 logger.warning("DeQA-Score skipped an image: %s", e)
-                scores.append(5.0)
+                scores.append(None)
         return scores

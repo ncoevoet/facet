@@ -110,3 +110,75 @@ def test_deqa_load_raises_when_cannot_run(monkeypatch):
         scorer.load()
     # Failed gating must leave the scorer unloaded.
     assert scorer._loaded is False
+
+
+# --------------------------------------------------------------------------- #
+# Defensive _predict_mos / score_image (Part D hardening) — no weights, no GPU.
+# A fake model object stands in for the remote-code checkpoint; we only need it
+# to exercise the success path and each failure mode of _predict_mos.
+# --------------------------------------------------------------------------- #
+
+from PIL import Image  # noqa: E402
+
+
+def _ready_scorer(model):
+    """A DeQAScorer with a fake model wired in, marked loaded (no real load())."""
+    scorer = DeQAScorer(device="cpu")
+    scorer.model = model
+    scorer._loaded = True
+    return scorer
+
+
+class _ScoreModel:
+    """Fake model exposing the preferred `.score()` API."""
+
+    def __init__(self, ret):
+        self._ret = ret
+
+    def score(self, images, task_=None, input_=None):
+        if callable(self._ret):
+            return self._ret()
+        return self._ret
+
+
+def test_deqa_predict_mos_score_api_success():
+    # .score() returns a plain MOS list -> first element, normalized later.
+    scorer = _ready_scorer(_ScoreModel([4.0]))
+    raw = scorer._predict_mos(Image.new("RGB", (8, 8)))
+    assert raw == pytest.approx(4.0)
+    # score_image normalizes (1,5)->(0,10): 4.0 -> 7.5
+    assert scorer.score_image(Image.new("RGB", (8, 8))) == pytest.approx(7.5)
+
+
+def test_deqa_predict_mos_returns_none_on_exception():
+    # A model whose .score() raises must NOT crash — _predict_mos returns None.
+    def boom():
+        raise RuntimeError("forward signature changed in this revision")
+
+    scorer = _ready_scorer(_ScoreModel(boom))
+    assert scorer._predict_mos(Image.new("RGB", (8, 8))) is None
+    # score_image propagates the None (column left NULL), never raises.
+    assert scorer.score_image(Image.new("RGB", (8, 8))) is None
+
+
+def test_deqa_predict_mos_returns_none_on_empty_output():
+    # Empty list output -> None rather than an IndexError.
+    scorer = _ready_scorer(_ScoreModel([]))
+    assert scorer._predict_mos(Image.new("RGB", (8, 8))) is None
+
+
+def test_deqa_score_batch_substitutes_none_for_failures():
+    # One good, one failing image: batch returns [score, None], never raises.
+    calls = {"n": 0}
+
+    class _FlakyModel:
+        def score(self, images, task_=None, input_=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return [3.0]
+            raise RuntimeError("bad image")
+
+    scorer = _ready_scorer(_FlakyModel())
+    out = scorer.score_batch([Image.new("RGB", (8, 8)), Image.new("RGB", (8, 8))])
+    assert out[0] == pytest.approx(5.0)  # MOS 3.0 -> 0-10 midpoint
+    assert out[1] is None

@@ -21,6 +21,38 @@ from api.database import get_db_connection
 
 logger = logging.getLogger("facet.api.db_helpers")
 
+
+def trigger_auto_retrain(db_path, user_id, added=1, conn=None):
+    """Best-effort, non-blocking nudge to the personal-ranker auto-retrain.
+
+    A culling confirm or rating change derives ``added`` new comparison pairs;
+    once enough accumulate per user the personal ranker retrains in the
+    background. Owns the ``added <= 0`` guard and the multi-user scope
+    resolution so every caller (burst-culling confirm, similar-group confirm,
+    rating sync) stays consistent. Isolated so a missing optimization dep
+    (e.g. sklearn) or any failure never affects the write that already
+    committed.
+
+    Args:
+        db_path: Path to the SQLite DB.
+        user_id: Raw request user id; resolved to a per-user scope only when
+            multi-user mode is enabled, else pooled into the global ranker.
+        added: How many new comparisons this event contributed.
+        conn: An already-open SQLite connection from the request that just
+            committed; reused for the counter update so the hot culling-confirm
+            path doesn't open a second connection. ``None`` (rating sync, CLI)
+            opens a short-lived one.
+    """
+    if added <= 0:
+        return
+    try:
+        from optimization.auto_retrain import maybe_retrain
+        scope = user_id if (user_id and is_multi_user_enabled()) else None
+        maybe_retrain(db_path, scope, added=added, conn=conn)
+    except Exception:  # noqa: BLE001 — never let retrain bookkeeping break the request
+        logger.debug("Auto-retrain trigger skipped", exc_info=True)
+
+
 # --- DATE FORMATTING ---
 
 def to_exif_date(iso_date: str) -> str:
@@ -96,10 +128,12 @@ PHOTO_OPTIONAL_COLS = [
     'dynamic_range_stops', 'noise_sigma', 'contrast_score', 'tags',
     'composition_pattern', 'quality_score', 'topiq_score',
     'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
+    'qalign_score', 'aesthetic_v25', 'deqa_score',
     'subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation',
     'star_rating', 'is_favorite', 'is_rejected',
     'duplicate_group_id', 'is_duplicate_lead',
-    'caption', 'caption_translated', 'gps_latitude', 'gps_longitude'
+    'caption', 'caption_translated', 'gps_latitude', 'gps_longitude',
+    'dominant_hue', 'color_temp',
 ]
 
 

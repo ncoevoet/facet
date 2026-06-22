@@ -16,6 +16,15 @@ import logging
 
 logger = logging.getLogger("facet.face_cluster")
 
+# Embedding-space marker for the current recognition model (InsightFace
+# buffalo_l / ArcFace w600k_r50). Face embeddings from a different model live in
+# an incompatible vector space and must never be clustered together. Faces are
+# tagged via faces.embedding_model (schema default); clustering loads only this
+# active space. NOTE: when a recognition-model switch (e.g. AdaFace) is added,
+# resolve the active space from config here instead of hardcoding, and require a
+# full re-extraction (the spaces are not comparable). See docs/FACE_RECOGNITION.md.
+ACTIVE_EMBEDDING_MODEL = "arcface_buffalo_l"
+
 try:
     from tqdm import tqdm
 except ImportError:
@@ -105,7 +114,14 @@ class FaceClusterer:
         return self._cuml_available
 
     def load_embeddings(self):
-        """Load all face embeddings from database."""
+        """Load face embeddings for the ACTIVE recognition space only.
+
+        Faces are tagged with ``embedding_model`` (schema default). Embeddings
+        produced by a different recognition model live in an incompatible vector
+        space; clustering them together silently corrupts persons. We therefore
+        load only the active space (treating a NULL tag as the legacy ArcFace
+        space) and loudly warn if faces from other spaces are excluded.
+        """
         face_ids = []
         embeddings = []
 
@@ -113,7 +129,8 @@ class FaceClusterer:
             cursor = conn.execute("""
                 SELECT id, embedding FROM faces
                 WHERE embedding IS NOT NULL
-            """)
+                  AND (embedding_model = ? OR embedding_model IS NULL)
+            """, (ACTIVE_EMBEDDING_MODEL,))
 
             for row in cursor.fetchall():
                 face_id, embedding_bytes = row
@@ -123,6 +140,26 @@ class FaceClusterer:
                     if embedding is not None:
                         face_ids.append(face_id)
                         embeddings.append(embedding)
+
+            # Guard: warn if faces from a different (incompatible) embedding
+            # space exist — they were excluded to avoid mixing vector spaces.
+            other = conn.execute("""
+                SELECT embedding_model, COUNT(*) FROM faces
+                WHERE embedding IS NOT NULL
+                  AND embedding_model IS NOT NULL
+                  AND embedding_model != ?
+                GROUP BY embedding_model
+            """, (ACTIVE_EMBEDDING_MODEL,)).fetchall()
+            if other:
+                excluded = sum(count for _, count in other)
+                spaces = ", ".join(f"{model}({count})" for model, count in other)
+                logger.warning(
+                    "Excluded %d face(s) from non-active embedding space(s) [%s]; "
+                    "clustering only the active space '%s' to avoid mixing "
+                    "incompatible embeddings. Re-extract all faces after a "
+                    "recognition-model change.",
+                    excluded, spaces, ACTIVE_EMBEDDING_MODEL,
+                )
 
         return face_ids, np.array(embeddings) if embeddings else np.array([])
 

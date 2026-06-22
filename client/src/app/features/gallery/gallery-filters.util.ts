@@ -74,6 +74,12 @@ export interface GalleryFilters {
   max_face_quality_iqa: string;
   min_liqe: string;
   max_liqe: string;
+  min_qalign: string;
+  max_qalign: string;
+  min_aesthetic_v25: string;
+  max_aesthetic_v25: string;
+  min_deqa: string;
+  max_deqa: string;
   // Subject saliency
   min_subject_sharpness: string;
   max_subject_sharpness: string;
@@ -129,6 +135,11 @@ export interface GalleryFilters {
   favorites_only: boolean;
   is_monochrome: boolean;
   search: string;
+  // Color facet (opt-in extraction; always-on filter)
+  color_temp: string;   // warm | cool | neutral
+  hue_bucket: string;   // red | orange | yellow | green | cyan | blue | purple | magenta
+  // Quality tier (on the fly from aggregate thresholds)
+  quality_tier: string; // excellent | good | fair | poor
 }
 
 /** Subset of viewer config defaults the URL/sync codec compares against. */
@@ -155,6 +166,7 @@ export const SMART_ALBUM_EXCLUDE_KEYS = new Set([
 /** Common string-typed filter keys shared across URL sync, API params, and filter counting. */
 export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
   'type', 'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search',
+  'color_temp', 'hue_bucket', 'quality_tier',
   'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
   'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
   'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
@@ -167,6 +179,7 @@ export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
   'min_isolation', 'max_isolation',
   'min_aesthetic_iaa', 'max_aesthetic_iaa', 'min_face_quality_iqa', 'max_face_quality_iqa',
   'min_liqe', 'max_liqe',
+  'min_qalign', 'max_qalign', 'min_aesthetic_v25', 'max_aesthetic_v25', 'min_deqa', 'max_deqa',
   'min_subject_sharpness', 'max_subject_sharpness', 'min_subject_prominence', 'max_subject_prominence',
   'min_subject_placement', 'max_subject_placement', 'min_bg_separation', 'max_bg_separation',
   'min_face_count', 'max_face_count',
@@ -235,6 +248,12 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   max_face_quality_iqa: '',
   min_liqe: '',
   max_liqe: '',
+  min_qalign: '',
+  max_qalign: '',
+  min_aesthetic_v25: '',
+  max_aesthetic_v25: '',
+  min_deqa: '',
+  max_deqa: '',
   min_subject_sharpness: '',
   max_subject_sharpness: '',
   min_subject_prominence: '',
@@ -278,6 +297,9 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   favorites_only: false,
   is_monochrome: false,
   search: '',
+  color_temp: '',
+  hue_bucket: '',
+  quality_tier: '',
 };
 
 export type DisplayOptions = Pick<GalleryFilters,

@@ -364,17 +364,27 @@ async def _has_fts(conn):
         return False
 
 
-async def _fts_search(conn, query, limit):
+async def _fts_search(conn, query, limit, scope=None):
     """Run FTS5 search and return {path: normalized_score} dict (async).
 
     BM25 rank values are negative (lower = better match).
     Scores are normalized to 0..1 range relative to the best match.
+
+    When ``scope == 'text'`` the MATCH is restricted to the text-bearing
+    columns (OCR text + AI captions) using FTS5 column filters, so a query
+    only hits words found *in* the image or its caption — not filenames,
+    camera models, or tags.
     """
+    if scope == 'text':
+        # FTS5 column-filter syntax: {col1 col2} : query
+        match_expr = f"{{caption caption_translated ocr_text}} : ({query})"
+    else:
+        match_expr = query
     try:
         cur = await conn.execute(
             "SELECT path, rank FROM photos_fts WHERE photos_fts MATCH ? "
             "ORDER BY rank LIMIT ?",
-            (query, limit)
+            (match_expr, limit)
         )
         rows = await cur.fetchall()
         await cur.close()
@@ -406,6 +416,7 @@ async def api_search(
     q: str = Query(..., min_length=1, max_length=500),
     limit: int = Query(50, ge=1, le=200),
     threshold: float = Query(0.15, ge=0.0, le=1.0),
+    scope: str = Query('', description="'text' restricts to OCR/caption text only"),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Semantic text-to-image search using CLIP/SigLIP cosine similarity (async).
@@ -413,7 +424,12 @@ async def api_search(
     Text encoding (`_encode_text`) is a synchronous GPU/CPU call; we run it in
     a worker thread so it never blocks the event loop. All DB I/O uses
     aiosqlite via get_async_db().
+
+    ``scope='text'`` restricts results to FTS5 matches in the OCR/caption text
+    columns and skips the embedding search entirely, so the query behaves as a
+    literal "find words in the image / its caption" lookup.
     """
+    text_only = scope == 'text'
     if not VIEWER_CONFIG.get('features', {}).get('show_semantic_search', True):
         return {'photos': [], 'total': 0, 'query': q, 'error': 'Semantic search is disabled'}
 
@@ -431,28 +447,32 @@ async def api_search(
 
             # --- FTS5 text search ---
             if await _has_fts(conn):
-                fts_scores = await _fts_search(conn, q, limit)
+                fts_scores = await _fts_search(conn, q, limit, scope='text' if text_only else None)
 
-            # --- Embedding-based search ---
-            # Text encoding is GPU/CPU work — push to a worker thread so the
-            # event loop stays responsive during the typically 5-30ms encode.
-            text_emb = await asyncio.to_thread(_encode_text, q)
+            # --- Embedding-based search (skipped in text-only scope) ---
+            if not text_only:
+                # Text encoding is GPU/CPU work — push to a worker thread so the
+                # event loop stays responsive during the typically 5-30ms encode.
+                text_emb = await asyncio.to_thread(_encode_text, q)
 
-            if await _check_vec_available(conn):
-                embedding_scores = await _search_vec(conn, text_emb, limit, threshold, vis_sql, vis_params)
-            else:
-                global _search_vec_fallback_total
-                _search_vec_fallback_total += 1
-                embedding_scores = await _search_numpy(conn, text_emb, limit, threshold, vis_sql, vis_params, user_id)
+                if await _check_vec_available(conn):
+                    embedding_scores = await _search_vec(conn, text_emb, limit, threshold, vis_sql, vis_params)
+                else:
+                    global _search_vec_fallback_total
+                    _search_vec_fallback_total += 1
+                    embedding_scores = await _search_numpy(conn, text_emb, limit, threshold, vis_sql, vis_params, user_id)
 
             # --- Merge results ---
-            # Embedding weight 0.7, FTS weight 0.3
+            # Embedding weight 0.7, FTS weight 0.3 (text-only scope: FTS at full weight)
             all_paths = set(embedding_scores) | set(fts_scores)
             sim_by_path = {}
             for path in all_paths:
                 emb_score = embedding_scores.get(path, 0.0)
                 fts_score = fts_scores.get(path, 0.0)
-                sim_by_path[path] = emb_score * 0.7 + fts_score * 0.3
+                if text_only:
+                    sim_by_path[path] = fts_score
+                else:
+                    sim_by_path[path] = emb_score * 0.7 + fts_score * 0.3
 
             if not sim_by_path:
                 return {'photos': [], 'total': 0, 'query': q}
@@ -467,8 +487,8 @@ async def api_search(
             placeholders = ','.join(['?'] * len(matching_paths))
             cur = await conn.execute(
                 f"SELECT {', '.join(select_cols)} FROM {from_clause} "
-                f"WHERE photos.path IN ({placeholders})",
-                from_params + matching_paths
+                f"WHERE photos.path IN ({placeholders}) AND ({vis_sql})",
+                from_params + matching_paths + vis_params
             )
             rows = await cur.fetchall()
             await cur.close()

@@ -186,6 +186,9 @@
     "aesthetic_iaa": "Esthétique IAA",
     "face_quality_iqa": "Qualité visage IQA",
     "liqe_score": "LIQE",
+    "qalign_score": "Q-Align",
+    "aesthetic_v25": "Esthétique V2.5",
+    "deqa_score": "DeQA",
     "saliency_section": "Saillance du sujet",
     "subject_sharpness": "Netteté sujet",
     "subject_prominence": "Proéminence",
@@ -1016,6 +1019,9 @@
     "sort_date": "Date",
     "sort_composition": "Composition",
     "sort_face_quality": "Qualite visage",
+    "sort_picked_for_you": "Choisi pour vous",
+    "picked_for_you_badge": "Appris sur {count} comparaisons",
+    "picked_for_you_badge_tooltip": "Votre classeur personnel est entraine sur ce nombre de vos decisions de comparaison, de notation et de tri.",
     "sort_desc": "Decroissant",
     "sort_asc": "Croissant",
     "filters": "Filtres",
@@ -1094,7 +1100,8 @@
       "no_filters_match": "Aucun filtre ne correspond",
       "advanced_metrics": "Métriques avancées",
       "refine": "Affiner",
-      "view": "Affichage"
+      "view": "Affichage",
+      "color_quality": "Couleur et qualité"
     },
     "semantic_search_info": "La recherche sémantique charge les embeddings en mémoire au premier usage. Cela peut prendre un moment pour les grandes bibliothèques.",
     "select_on_map": "Sélectionner sur la carte",
@@ -1132,12 +1139,39 @@
     "aesthetic_iaa_range": "Esthétique IAA",
     "face_quality_iqa_range": "Qualité visage IQA",
     "liqe_range": "Score LIQE",
+    "qalign_range": "Score Q-Align",
+    "aesthetic_v25_range": "Esthétique V2.5",
+    "deqa_range": "Score DeQA",
     "subject_sharpness_range": "Netteté du sujet",
     "subject_prominence_range": "Proéminence du sujet",
     "subject_placement_range": "Placement du sujet",
     "bg_separation_range": "Séparation fond",
     "gps_clear": "Supprimer la position",
-    "loading_photos": "Chargement des photos…"
+    "loading_photos": "Chargement des photos…",
+    "quality_tier": "Niveau de qualité",
+    "quality_tiers": {
+      "excellent": "Excellent",
+      "good": "Bon",
+      "fair": "Moyen",
+      "poor": "Faible"
+    },
+    "color_temp": "Température de couleur",
+    "color_temps": {
+      "warm": "Chaude",
+      "cool": "Froide",
+      "neutral": "Neutre"
+    },
+    "hue": "Teinte",
+    "hue_buckets": {
+      "red": "Rouge",
+      "orange": "Orange",
+      "yellow": "Jaune",
+      "green": "Vert",
+      "cyan": "Cyan",
+      "blue": "Bleu",
+      "purple": "Violet",
+      "magenta": "Magenta"
+    }
   },
   "composition_patterns": {
     "none": "Aucun",
@@ -1279,6 +1313,17 @@
     "error_submitting": "Echec de la soumission de la comparaison",
     "snapshots_description": "Les instantanes sont sauvegardes cote serveur et lies a la categorie en cours. Creez un instantane avant d'experimenter, puis restaurez-le pour revenir a un etat connu. Les instantanes persistent entre les sessions et les appareils.",
     "apply_suggested": "Appliquer les suggestions",
+    "suggestions_tab": "Suggestions de poids",
+    "suggestions_locked_tooltip": "{count} comparaisons supplémentaires nécessaires pour débloquer les suggestions de poids",
+    "suggestions_insufficient": "Pas encore assez de comparaisons dans cette catégorie pour suggérer des poids",
+    "top_before": "Top 10 actuel",
+    "top_after": "Avec les nouveaux poids",
+    "top_after_hint": "Appliquez et recalculez pour voir le nouveau classement",
+    "recompute_category": "Recalculer cette catégorie",
+    "recompute_needed": "Poids appliqués mais scores pas encore recalculés — recalculez pour mettre à jour les classements.",
+    "weight_property": "Propriété",
+    "weight_current": "Actuel",
+    "weight_suggested": "Suggéré",
     "no_data_yet": "Comparez des photos pour voir les statistiques",
     "error_loading_suggestions": "Erreur de chargement des suggestions",
     "save_tooltip": "Sauvegarder la configuration actuelle des poids dans scoring_config.json",
@@ -1418,7 +1463,23 @@
     "share_link_error": "Ce lien de partage est invalide.",
     "load_error": "Impossible de charger la personne.",
     "created": "Personne créée",
-    "create_error": "Impossible de créer la personne"
+    "create_error": "Impossible de créer la personne",
+    "hidden": "Masqué",
+    "hide": "Masquer",
+    "unhide": "Afficher",
+    "show_hidden": "Afficher les masqués",
+    "hidden_done": "Personne masquée",
+    "unhidden_done": "Personne affichée",
+    "hide_error": "Échec de la mise à jour de la visibilité",
+    "split": "Séparer en une nouvelle personne",
+    "split_action": "Séparer ({count})",
+    "split_dialog_title": "Séparer en une nouvelle personne",
+    "split_dialog_desc": "Sélectionnez les visages à déplacer vers une nouvelle personne.",
+    "split_name_placeholder": "Nom de la nouvelle personne (facultatif)",
+    "split_select_face": "Sélectionner le visage {index}",
+    "no_faces": "Aucun visage trouvé pour cette personne",
+    "split_done": "Personne séparée",
+    "split_error": "Échec de la séparation de la personne"
   },
   "person_selector": {
     "create_new": "Créer une nouvelle personne"
@@ -1600,7 +1661,7 @@
     "burst_help": "Les photos prises en rafale sont regroupées ensemble. Cliquez sur les photos à conserver (bordure verte), les photos non sélectionnées (bordure rouge) seront masquées. La meilleure photo est automatiquement sélectionnée en fonction de la netteté et de la qualité.",
     "similar_help": "Les photos visuellement similaires de votre bibliothèque sont regroupées grâce aux embeddings IA. Examinez chaque groupe, conservez les meilleurs clichés et écartez les quasi-doublons. Ajustez le curseur de seuil pour contrôler le degré de similarité nécessaire pour former un groupe.",
     "help": "Aide",
-    "help_text": "Examinez les groupes de photos similaires ou en rafale. Cliquez pour sélectionner, double-cliquez pour sélectionner exclusivement. Les groupes confirmés masquent les photos rejetées de la galerie.",
+    "help_text": "Examinez les groupes de photos similaires ou en rafale. Cliquez sur une photo pour la garder ou la retirer ; double-cliquez pour ne garder qu'elle. Ouvrez la Chambre noire (revue en plein écran) avec le bouton Chambre noire ou la touche Entrée. Utilisez Haut/Bas pour choisir un groupe et Espace pour le confirmer et passer au suivant. Passer et Confirmer lancent un compte à rebours de 7 secondes que vous pouvez Annuler avant la fermeture du groupe ; la confirmation masque les photos rejetées de la galerie.",
     "type_burst": "Rafale",
     "type_similar": "Similaire",
     "confirm_all": "Tout confirmer",
@@ -1610,6 +1671,34 @@
     "load_more": "Charger plus",
     "view_detail": "Voir le détail",
     "cancel_pass": "Annuler",
+    "cancel_restore": "Restaurer",
+    "darkroom": "Chambre noire",
+    "all_categories": "Toutes les catégories",
+    "filter_category": "Filtrer par catégorie",
+    "sort": {
+      "label": "Trier",
+      "easiest": "Les plus simples",
+      "redundant": "Les plus redondants",
+      "best": "Les meilleures",
+      "recent": "Les plus récentes",
+      "needs_comparisons": "À comparer en priorité"
+    },
+    "weight_remaining": "{count} avant réglage des poids",
+    "weight_ready": "Réglage des poids prêt",
+    "weight_remaining_tooltip": "Comparaisons encore nécessaires dans cette catégorie avant de débloquer le réglage des poids. Réglez-les dans Comparaison → Suggestions de poids.",
+    "weight_ready_tooltip": "Assez de comparaisons collectées — ouvrez Comparaison → Suggestions de poids pour revoir et appliquer les poids optimisés de cette catégorie.",
+    "strictness": "Rigueur",
+    "strictness_tooltip": "Plus élevé ne garde que la meilleure photo ; plus bas garde aussi les quasi-égalités",
+    "face_grid_title": "Visages de ce groupe",
+    "reason": {
+      "best": "Meilleure du groupe",
+      "eyes_closed": "Yeux fermés",
+      "soft": "Légèrement floue",
+      "expression": "Expression moins bonne",
+      "lower_aesthetic": "Esthétique moindre",
+      "lower_overall": "Note globale moindre",
+      "near_duplicate": "Quasi-doublon"
+    },
     "lightbox": {
       "navigate": "Naviguer",
       "keep": "Garder",
@@ -1617,6 +1706,17 @@
       "kept": "Gardée",
       "rejected": "Rejetée",
       "undecided": "Indécise"
+    },
+    "shortcuts": {
+      "page_title": "Galerie",
+      "darkroom_title": "Chambre noire",
+      "select": "Sélectionner le groupe",
+      "open": "Ouvrir en plein écran",
+      "navigate": "Photo précédente / suivante",
+      "keep": "Garder la photo",
+      "reject": "Rejeter la photo",
+      "confirm_next": "Confirmer et groupe suivant",
+      "close": "Fermer"
     }
   },
   "memories": {
@@ -1831,6 +1931,21 @@
   "download": {
     "type_original": "Original",
     "type_raw": "Fichier RAW"
+  },
+  "export": {
+    "action": "Exporter vers l'éditeur",
+    "title": "Exporter vers l'éditeur",
+    "description": "Écrivez vos notes, sélections et mots-clés sous forme de fichiers annexes XMP lus par Lightroom, darktable et d'autres éditeurs. Les images originales ne sont jamais modifiées.",
+    "mode_sidecars": "Écrire des fichiers XMP",
+    "mode_copy": "Copier la sélection dans un dossier",
+    "mode_symlink": "Lier (symlink) la sélection dans un dossier",
+    "overwrite": "Écraser les fichiers .xmp existants",
+    "overwrite_hint": "Désactivé par défaut : un .xmp créé par darktable est conservé et Facet écrit plutôt un .facet.xmp.",
+    "target_dir": "Dossier cible",
+    "run": "Exporter",
+    "running": "Exportation…",
+    "done": "{count} photo(s) exportée(s)",
+    "failed": "Échec de l'exportation"
   },
   "undo": {
     "action": "Annuler",

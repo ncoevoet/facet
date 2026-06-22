@@ -6,8 +6,8 @@ FastAPI + Angular single-page application for browsing, filtering, and managing 
 
 - [Starting the Viewer](#starting-the-viewer) · [Authentication](#authentication) · [Filtering Options](#filtering-options) · [Sorting](#sorting) · [Gallery Features](#gallery-features)
 - [Person Management](#person-management) · [Scan Trigger (Superadmin)](#scan-trigger-superadmin) · [Semantic Search](#semantic-search) · [Albums](#albums)
-- [AI Critique](#ai-critique) · [AI Captioning](#ai-captioning) · [Memories ("On This Day")](#memories-on-this-day) · [Timeline View](#timeline-view) · [Map View](#map-view) · [Capsules](#capsules)
-- [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [AI Culling (Similar Groups)](#ai-culling-similar-groups) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
+- [AI Critique](#ai-critique) · [AI Captioning](#ai-captioning-gpu-16gb24gb-edition) · [Memories ("On This Day")](#memories-on-this-day) · [Timeline View](#timeline-view) · [Map View](#map-view) · [Capsules](#capsules)
+- [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [Editor Export](#editor-export) · [Culling](#culling) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
 - [EXIF Statistics](#exif-statistics) · [Keyboard Shortcuts](#keyboard-shortcuts-gallery) · [Undo](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
 - [Configuration](#configuration) · [Performance](#performance) · [API Endpoints](#api-endpoints) · [Troubleshooting](#troubleshooting)
 
@@ -142,7 +142,7 @@ python database.py --migrate-user-preferences --user alice
 | **Composition** | Composition score, power points, leading lines, isolation, composition pattern |
 | **Subject Saliency** | Subject sharpness, subject prominence, subject placement, background separation |
 | **Technical** | Sharpness, contrast, dynamic range, noise level |
-| **Color** | Color score, saturation, luminance, histogram spread |
+| **Color** | Color score, saturation, luminance, histogram spread; color temperature (warm/cool/neutral) and hue bucket (requires `--recompute-colors`) |
 | **Exposure** | Exposure score |
 | **User Ratings** | Star rating |
 | **Camera Settings** | ISO, aperture (f-stop range slider), focal length (range slider) |
@@ -157,13 +157,12 @@ Filter by SAMP-Net detected patterns:
 
 ## Sorting
 
-25+ sortable columns grouped by category:
+Sortable columns grouped by category (from `viewer.sort_options`):
 
 | Group | Columns |
 |-------|---------|
-| **General** | Aggregate Score, Aesthetic, TOPIQ Score, Date Taken, Star Rating, Favorites, Rejected |
-| **Extended Quality** | Aesthetic IAA, Face Quality IQA, LIQE Score |
-| **Face Metrics** | Face Quality, Eye Sharpness, Face Sharpness, Face Ratio, Face Confidence, Face Count |
+| **General** | Aggregate Score, Aesthetic, Quality Score, Date Taken, Star Rating, Aesthetic (IAA), LIQE Score |
+| **Face Metrics** | Face Quality, Face Quality (IQA), Eye Sharpness, Face Sharpness, Face Ratio, Face Count |
 | **Technical** | Tech Sharpness, Contrast, Noise Level |
 | **Color** | Color Score, Saturation |
 | **Exposure** | Exposure Score, Mean Luminance, Histogram Spread, Dynamic Range |
@@ -186,7 +185,9 @@ Filter by SAMP-Net detected patterns:
 - **Favorite** — Mark all selected as favorite (clears rejected)
 - **Reject** — Mark all selected as rejected (clears favorite and rating)
 - **Rate** — Set star rating (1–5) for all selected, or clear rating
+- **Add to album** — Add selected to an existing or new album
 - **Copy filenames** — Copy selected filenames to clipboard
+- **Export** — Write XMP sidecars (rating/favorite/reject) next to the selected files (see [Editor Export](#editor-export))
 - **Download** — Download selected photos
 - Clear selection with Escape or the Clear button
 
@@ -203,7 +204,7 @@ Bulk actions require edition mode. Double-click any photo to download it directl
 - **Infinite Scroll** - Photos load as you scroll
 - **Fast Scrolling (virtualized)** - Row-windowed rendering: only rows near the
   viewport are in the DOM, so deep scrolling through tens of thousands of photos
-  stays smooth. On by default; disable in the Display section of the filter
+  stays responsive. On by default; disable in the Display section of the filter
   sidebar if you hit layout issues (grid mode with details shown always uses
   full rendering since row heights aren't deterministic there). Persisted in
   localStorage (`facet_virtual_scroll`).
@@ -243,6 +244,8 @@ Access via header button or `/persons`:
 | **Merge** | Select source person, click target, confirm |
 | **Delete** | Click delete button on person card |
 | **Rename** | Click person name to edit inline |
+| **Split** | Open a person's faces, select a subset, split them into a new person |
+| **Hide** | Hide a cluster from the persons list, filters, and merge suggestions (reversible) |
 
 ## Scan Trigger (Superadmin)
 
@@ -263,6 +266,7 @@ Hybrid search combining CLIP/SigLIP embedding similarity (70%) with FTS5 BM25 te
 - Uses sqlite-vec for KNN vector search when installed, falls back to in-memory NumPy
 - FTS5 text search on AI captions/tags provides additional keyword matching (run `database.py --rebuild-fts` to enable)
 - Uses the same embedding model as the active VRAM profile (SigLIP 2 for 16gb/24gb, CLIP ViT-L-14 for legacy/8gb)
+- `scope=text` restricts the query to literal FTS5 matches in OCR/caption text and skips the embedding search
 - Controlled by `viewer.features.show_semantic_search` (default: `true`)
 
 ## Albums
@@ -316,15 +320,15 @@ Share albums with external users via tokenized links. No authentication required
 
 ## AI Critique
 
-Get a detailed breakdown of a photo's scores with strengths, weaknesses, and improvement suggestions.
+Breaks down a photo's scores into strengths, weaknesses, and suggestions.
 
 ### Rule-Based Critique
 
-Available on all VRAM profiles. Analyzes stored metrics (aesthetic, composition, sharpness, face quality, etc.) and generates a structured explanation of why the photo scored the way it did.
+Available on all VRAM profiles. Analyzes stored metrics (aesthetic, composition, sharpness, face quality, etc.) and generates a structured explanation of the score.
 
 ### VLM Critique `[GPU]` `[16gb/24gb]`
 
-Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) to provide a richer, context-aware critique. Requires 16gb or 24gb VRAM profile and `viewer.features.show_vlm_critique: true`.
+Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique. Requires 16gb or 24gb VRAM profile and `viewer.features.show_vlm_critique: true`.
 
 ### API
 
@@ -333,7 +337,7 @@ Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) to provide a richer, context-
 | `GET /api/critique?path=<photo_path>&mode=rule` | Rule-based score breakdown |
 | `GET /api/critique?path=<photo_path>&mode=vlm` | VLM-powered critique (requires GPU) |
 
-Controlled by `viewer.features.show_critique` (default: `true`) and `viewer.features.show_vlm_critique` (default: `false`).
+Controlled by `viewer.features.show_critique` (default: `true`) and `viewer.features.show_vlm_critique` (default: `true`).
 
 ## AI Captioning `[GPU]` `[16gb/24gb]` `[Edition]`
 
@@ -483,73 +487,87 @@ Filter photos by geographic location using an interactive map picker:
 
 Find person clusters that may be the same individual. Access via `/merge-suggestions` or from the Manage Persons page.
 
-- **Similarity threshold slider** — adjust how similar two persons must look to be suggested as a merge (lower = more suggestions, higher = more conservative)
-- **One-click merge** — review each suggestion and merge with a single click
-- **Batch merge** — select multiple suggestions and merge them all at once
+- **Similarity threshold slider** — how similar two persons must look to be suggested (lower = more suggestions, higher = fewer)
+- **Merge** — accept a suggestion to merge the two persons
+- **Batch merge** — select multiple suggestions and merge them at once
+- Dismissed suggestions are remembered and not proposed again
 - Also available via CLI: `python facet.py --suggest-person-merges`
 
-## AI Culling (Similar Groups)
+## Editor Export
 
-Find groups of visually similar photos across your library for culling. Unlike burst detection (which groups by time), similar groups use CLIP/SigLIP embedding similarity to find photos that look alike regardless of when they were taken.
+Write your ratings, favorites, and rejections to disk as XMP sidecars, so external editors (darktable, Lightroom) pick them up. Requires edition mode.
 
-Access via the similarity tab in the burst culling component.
+- **From the gallery** — select photos, then **Actions → Export** writes a sidecar next to each file.
+- **From an album** ("basket") — export the whole album as sidecars, or copy/symlink the files to a target directory.
 
 ### API
 
 | Endpoint | Description |
 |----------|-------------|
+| `POST /api/photo/export_xmp` | Write one XMP sidecar (`path`, optional `overwrite`) |
+| `POST /api/export/sidecars` | Write sidecars for explicit `paths` or a filter set |
+| `POST /api/albums/{id}/export` | Album export — `mode` = `sidecars`, `copy`, or `symlink` (the latter two need `target_dir`) |
+
+## Culling
+
+The culling page (`/culling`, edition mode) groups near-identical shots so you can keep the best of each and reject the rest. Two group sources:
+
+- **Burst** — photos shot close together in time (from burst detection).
+- **Similar** — photos that look alike regardless of when they were taken, grouped by CLIP/SigLIP embedding similarity. A threshold slider controls how strict the grouping is.
+
+For each group, pick the keeper(s); confirming rejects the rest. Confirms are deferred and can be undone (see [Undo](#undo)).
+
+### API
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/burst-groups` | Burst groups for culling |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Paginated groups of visually similar photos |
+| `GET /api/culling-groups` | Combined burst and similar groups |
+| `POST /api/culling-groups/confirm` | Confirm culling selections |
 
 ## Pairwise Comparison Mode
 
-Requires a non-empty `edition_password` in config (single-user) or `admin`/`superadmin` role (multi-user).
+Rank photos by judging them two at a time. The accumulated votes feed weight tuning. Access via the `/compare` route (Compare button in the header). Requires a non-empty `edition_password` (single-user) or `admin`/`superadmin` role (multi-user).
 
-### Access
+The page has four tabs:
 
-Click "Compare" button in gallery header.
+### A/B Compare tab
 
-### Interface
-
-- Side-by-side photo comparison
-- Selection strategies dropdown
-- Progress bar toward 50 comparisons
-- Real-time statistics (A wins, B wins, ties)
-- Category filter for focused comparison
-
-### Keyboard Shortcuts (Comparison)
-
-| Key | Action |
-|-----|--------|
-| `A` | Select left photo as winner |
-| `B` | Select right photo as winner |
-| `T` | Mark as tie |
-| `S` | Skip pair |
-| `Escape` | Close category override modal |
-
-### Selection Strategies
+Side-by-side photo pairs. Pick a winner, mark a tie, or skip. A progress bar tracks votes toward 50, with running A-wins/B-wins/tie counts. A category filter scopes the session, and a selection-strategy dropdown controls how pairs are chosen.
 
 | Strategy | Description |
 |----------|-------------|
-| `uncertainty` | Similar scores (most informative) |
-| `boundary` | 6-8 score range (ambiguous zone) |
-| `active` | Fewest comparisons (ensures coverage) |
+| `uncertainty` | Photos with similar scores (most informative) |
+| `boundary` | 6–8 score range (ambiguous zone) |
+| `active` | Photos with the fewest comparisons (ensures coverage) |
 | `random` | Random pairs (baseline) |
 
-### Weight Preview Panel
+**Keyboard shortcuts:**
 
-- Always visible below comparison
-- Sliders for each weight metric
-- Real-time score preview with delta
-- "Suggest Weights" learns from comparisons
-- "Reset" restores original weights
+| Key | Action |
+|-----|--------|
+| `A` | Left photo wins |
+| `B` | Right photo wins |
+| `T` | Tie |
+| `S` | Skip pair |
+| `Escape` | Close category override modal |
+
+### Weight Suggestions tab
+
+Shows the weights learned from comparisons against the current weights, side by side, with model accuracy before/after. The current top 10 photos and the predicted top 10 after recompute are previewed in adjacent columns. **Apply** writes the suggested weights; **Recompute** rescores the category to apply them (both require edition mode).
+
+### Weights tab
+
+Manual weight editor: a slider per metric for the selected category with a live score preview. **Save** writes to `scoring_config.json` (with a backup); **Recompute Scores** applies them; **Reset** reloads the stored weights.
+
+### Snapshots tab
+
+Save the current weights as a named snapshot and restore any earlier snapshot.
 
 ### Category Override
 
-1. Click edit button on photo's category badge
-2. Select target category
-3. Click "Analyze Filter Conflicts"
-4. Review why photo doesn't match
-5. Apply override to manually assign
+To reassign a photo's category from the comparison view: edit the category badge, select a target category, run "Analyze Filter Conflicts" to see which filters exclude it, then apply the override.
 
 ## EXIF Statistics
 
@@ -567,7 +585,7 @@ The Stats page (`/stats`) provides analytics across 5 tabs. Use the **category**
 
 ### Categories Tab
 
-Interactive dashboard with 4 sub-tabs:
+Four sub-tabs:
 
 | Sub-tab | Description |
 |---------|-------------|
@@ -583,7 +601,7 @@ Each chart has a toggleable `?` help button explaining how to read it. A global 
 Available in the Weights sub-tab when edition mode is active:
 
 1. Select a category from the dropdown
-2. Adjust the 12 weight sliders (should sum to 100%)
+2. Adjust the weight sliders (one per metric, should sum to 100%)
 3. Use "Normalize to 100" to auto-balance
 4. Expand the collapsible Modifiers section to adjust bonuses/penalties
 5. The **Score Distribution Preview** shows a live before/after histogram as you move sliders
@@ -735,7 +753,7 @@ Set `min_photos_for_person` higher to hide persons with few photos from the filt
 
 ### Large Databases (50k+ photos)
 
-Run these for optimal performance:
+Run these for better performance:
 
 ```bash
 python database.py --migrate-tags    # 10-50x faster tag queries
@@ -755,7 +773,7 @@ migrated by:
 2. Replace `with get_db() as conn:` with `async with get_async_db() as conn:`.
 3. `await` every `.execute()` and `.fetchone()` / `.fetchall()`.
 4. Keep write paths sync — aiosqlite serializes writes anyway, and the sync
-   path's connection pool is already battle-tested.
+   path's connection pool already handles them.
 
 The plan's hottest candidates are `/api/photos`, `/api/timeline`,
 `/api/search`. Migrate one at a time and benchmark before promoting.
@@ -784,6 +802,8 @@ Filter dropdowns load on-demand via API:
 - `/api/filter_options/categories`
 - `/api/filter_options/apertures`
 - `/api/filter_options/focal_lengths`
+- `/api/filter_options/colors`
+- `/api/filter_options/metric_ranges`
 
 ## API Endpoints
 
@@ -797,7 +817,7 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/photo` | Single photo details |
 | `GET /api/type_counts` | Photo counts per type |
 | `GET /api/similar_photos/{path}` | Similar photos (modes: `visual`, `color`, `person`) |
-| `GET /api/search?q=&limit=&threshold=` | Semantic text-to-image search |
+| `GET /api/search?q=&limit=&threshold=&scope=` | Semantic text-to-image search (`scope=text` = OCR/caption text only) |
 | `GET /api/critique?path=&mode=` | AI critique (rule-based or VLM) |
 | `GET /api/config` | Viewer configuration |
 
@@ -831,6 +851,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/filter_options/categories` | Categories with counts |
 | `GET /api/filter_options/apertures` | Distinct f-stop values with counts |
 | `GET /api/filter_options/focal_lengths` | Distinct focal lengths with counts |
+| `GET /api/filter_options/colors` | Color temperature and hue-bucket facets with counts |
+| `GET /api/filter_options/metric_ranges` | Observed min/max and histogram per numeric metric (for slider bounds) |
 
 ### Batch Operations
 
@@ -849,9 +871,13 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/persons/needs_naming?min_faces=N` | List unnamed auto-clustered persons with `face_count >= N` (default from `viewer.persons.needs_naming_min_faces`) |
 | `POST /api/persons/{id}/rename` | Rename a person |
 | `POST /api/persons/{id}/assign_faces` | Bulk-attach faces to a person; empty old-persons are auto-deleted (edition-gated). Body: `{face_ids}` |
+| `POST /api/persons/{id}/split` | Split a subset of a person's faces into a new person (edition-gated). Body: `{face_ids, name}` |
+| `POST /api/persons/{id}/hide` | Hide a person from the list, filters, and merge suggestions |
+| `POST /api/persons/{id}/unhide` | Unhide a previously hidden person |
 | `POST /api/persons/merge` | Merge two persons (JSON body) |
 | `POST /api/persons/merge/{source_id}/{target_id}` | Merge source person into target |
 | `POST /api/persons/merge_batch` | Merge multiple persons at once |
+| `POST /api/persons/merge_suggestions/reject` | Dismiss a merge suggestion so it is not proposed again |
 | `POST /api/persons/{id}/delete` | Delete a person |
 | `POST /api/persons/delete_batch` | Delete multiple persons at once |
 
@@ -1001,6 +1027,14 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 - `raw` — Serve the companion RAW file as-is (not available in shared albums).
 
 The `/api/download/options` endpoint detects companion RAW files automatically and returns available options including configured darktable profiles. The viewer uses this to populate a per-photo download menu.
+
+### Editor Export
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/photo/export_xmp` | Write one XMP sidecar (edition mode) |
+| `POST /api/export/sidecars` | Write sidecars for explicit paths or a filter set (edition mode) |
+| `POST /api/albums/{id}/export` | Album export as sidecars, copy, or symlink (edition mode) |
 
 ### Plugins
 

@@ -16,11 +16,11 @@ def _make_db(path: str, persons: list, faces: list):
     """Create a minimal test DB with persons, faces, and photos tables."""
     conn = sqlite3.connect(path)
     conn.executescript("""
-        CREATE TABLE persons (id INTEGER PRIMARY KEY, name TEXT);
+        CREATE TABLE persons (id INTEGER PRIMARY KEY, name TEXT, is_hidden INTEGER DEFAULT 0);
         CREATE TABLE faces (id INTEGER PRIMARY KEY, person_id INTEGER, photo_path TEXT);
         CREATE TABLE photos (path TEXT PRIMARY KEY);
     """)
-    conn.executemany("INSERT INTO persons VALUES (?, ?)", persons)
+    conn.executemany("INSERT INTO persons (id, name) VALUES (?, ?)", persons)
     conn.executemany("INSERT INTO faces VALUES (?, ?, ?)", faces)
     photos = {f[2] for f in faces}
     conn.executemany("INSERT INTO photos VALUES (?)", [(p,) for p in photos])
@@ -165,3 +165,46 @@ class TestPersonsEndpoint:
             _stop_patches(patches)
         assert resp.status_code == 200
         cache_mock.assert_not_called()
+
+
+class TestColorsEndpoint:
+    """Tests for /filter_options/colors (Part B color facet)."""
+
+    @staticmethod
+    def _make_color_db(path):
+        conn = sqlite3.connect(path)
+        conn.execute(
+            "CREATE TABLE photos (path TEXT PRIMARY KEY, dominant_hue REAL, color_temp TEXT)"
+        )
+        rows = [
+            ("/a.jpg", 10.0, "warm"),     # red bucket
+            ("/b.jpg", 40.0, "warm"),     # orange bucket
+            ("/c.jpg", 220.0, "cool"),    # blue bucket
+            ("/d.jpg", None, "neutral"),  # no hue
+        ]
+        conn.executemany("INSERT INTO photos VALUES (?, ?, ?)", rows)
+        conn.commit()
+        conn.close()
+
+    def test_colors_returns_temps_and_hue_buckets(self, tmp_path):
+        db_path = str(tmp_path / "colors.db")
+        self._make_color_db(db_path)
+        app, patches = _build_app_with(db_path, {
+            "dropdowns": {"min_photos_for_person": 1, "max_persons": 100}
+        })
+        try:
+            resp = TestClient(app).get("/api/filter_options/colors")
+        finally:
+            _stop_patches(patches)
+        assert resp.status_code == 200
+        body = resp.json()
+        temps = dict(body["temps"])
+        assert temps["warm"] == 2
+        assert temps["cool"] == 1
+        assert temps["neutral"] == 1
+        buckets = dict(body["hue_buckets"])
+        # Each non-empty bucket is present; the NULL-hue photo contributes none.
+        assert buckets.get("red") == 1
+        assert buckets.get("orange") == 1
+        assert buckets.get("blue") == 1
+        assert "green" not in buckets  # no green photos

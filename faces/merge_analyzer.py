@@ -1,7 +1,7 @@
 """Analyze person clusters to find potential merge candidates."""
 import logging
 import numpy as np
-from db import get_connection
+from db import get_connection, person_not_hidden_clause
 from utils.union_find import UnionFind
 
 logger = logging.getLogger("facet.face_merge")
@@ -15,12 +15,14 @@ def get_merge_groups(db_path, threshold=0.6):
       - persons: list of {id, name, face_count}
       - min_similarity, max_similarity, avg_similarity
     """
-    # Load all persons with centroids
+    # Load all persons with centroids. Hidden persons (is_hidden = 1) are
+    # excluded so they are never proposed for merging.
     with get_connection(db_path) as conn:
-        cursor = conn.execute("""
+        cursor = conn.execute(f"""
             SELECT id, name, face_count, centroid
             FROM persons
             WHERE centroid IS NOT NULL
+              AND {person_not_hidden_clause()}
             ORDER BY face_count DESC
         """)
         persons = []

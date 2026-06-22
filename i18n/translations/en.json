@@ -186,6 +186,9 @@
     "aesthetic_iaa": "Aesthetic IAA",
     "face_quality_iqa": "Face IQA",
     "liqe_score": "LIQE",
+    "qalign_score": "Q-Align",
+    "aesthetic_v25": "Aesthetic V2.5",
+    "deqa_score": "DeQA",
     "saliency_section": "Subject Saliency",
     "subject_sharpness": "Subject Sharpness",
     "subject_prominence": "Prominence",
@@ -1016,6 +1019,9 @@
     "sort_date": "Date",
     "sort_composition": "Composition",
     "sort_face_quality": "Face Quality",
+    "sort_picked_for_you": "Picked for you",
+    "picked_for_you_badge": "Learned from {count} comparisons",
+    "picked_for_you_badge_tooltip": "Your personal ranker is trained on this many of your comparison, rating, and culling decisions.",
     "sort_desc": "Descending",
     "sort_asc": "Ascending",
     "filters": "Filters",
@@ -1094,7 +1100,8 @@
       "no_filters_match": "No filters match",
       "advanced_metrics": "Advanced metrics",
       "refine": "Refine",
-      "view": "View"
+      "view": "View",
+      "color_quality": "Color & Quality"
     },
     "semantic_search_info": "Semantic search loads embeddings into RAM on first use. This may take a moment for large libraries.",
     "select_on_map": "Select on map",
@@ -1132,12 +1139,39 @@
     "aesthetic_iaa_range": "Aesthetic IAA",
     "face_quality_iqa_range": "Face Quality IQA",
     "liqe_range": "LIQE Score",
+    "qalign_range": "Q-Align Score",
+    "aesthetic_v25_range": "Aesthetic V2.5",
+    "deqa_range": "DeQA Score",
     "subject_sharpness_range": "Subject Sharpness",
     "subject_prominence_range": "Subject Prominence",
     "subject_placement_range": "Subject Placement",
     "bg_separation_range": "BG Separation",
     "gps_clear": "Clear location",
-    "loading_photos": "Loading photos…"
+    "loading_photos": "Loading photos…",
+    "quality_tier": "Quality Tier",
+    "quality_tiers": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor"
+    },
+    "color_temp": "Color Temperature",
+    "color_temps": {
+      "warm": "Warm",
+      "cool": "Cool",
+      "neutral": "Neutral"
+    },
+    "hue": "Hue",
+    "hue_buckets": {
+      "red": "Red",
+      "orange": "Orange",
+      "yellow": "Yellow",
+      "green": "Green",
+      "cyan": "Cyan",
+      "blue": "Blue",
+      "purple": "Purple",
+      "magenta": "Magenta"
+    }
   },
   "composition_patterns": {
     "none": "None",
@@ -1279,6 +1313,17 @@
     "error_submitting": "Failed to submit comparison",
     "snapshots_description": "Snapshots are saved server-side and scoped to the current category. Create a snapshot before experimenting with weights, then restore it to go back to a known-good state. Snapshots persist across sessions and devices.",
     "apply_suggested": "Apply Suggested",
+    "suggestions_tab": "Weight Suggestions",
+    "suggestions_locked_tooltip": "{count} more comparisons needed to unlock weight suggestions",
+    "suggestions_insufficient": "Not enough comparisons in this category yet to suggest weights",
+    "top_before": "Current top 10",
+    "top_after": "After new weights",
+    "top_after_hint": "Apply and recompute to see the new ranking",
+    "recompute_category": "Recompute this category",
+    "recompute_needed": "Weights applied but scores not recomputed yet — recompute to update the rankings.",
+    "weight_property": "Property",
+    "weight_current": "Current",
+    "weight_suggested": "Suggested",
     "no_data_yet": "Compare photos to see statistics",
     "error_loading_suggestions": "Error loading suggestions",
     "save_tooltip": "Save current weight configuration to scoring_config.json",
@@ -1416,7 +1461,23 @@
     "share_link_error": "This share link is invalid.",
     "load_error": "Failed to load person.",
     "created": "Person created",
-    "create_error": "Failed to create person"
+    "create_error": "Failed to create person",
+    "hidden": "Hidden",
+    "hide": "Hide",
+    "unhide": "Unhide",
+    "show_hidden": "Show hidden",
+    "hidden_done": "Person hidden",
+    "unhidden_done": "Person shown",
+    "hide_error": "Failed to update person visibility",
+    "split": "Split into new person",
+    "split_action": "Split ({count})",
+    "split_dialog_title": "Split into new person",
+    "split_dialog_desc": "Select the faces to move into a new person.",
+    "split_name_placeholder": "New person name (optional)",
+    "split_select_face": "Select face {index}",
+    "no_faces": "No faces found for this person",
+    "split_done": "Person split",
+    "split_error": "Failed to split person"
   },
   "person_selector": {
     "create_new": "Create new person"
@@ -1598,7 +1659,7 @@
     "burst_help": "Photos taken in rapid succession are grouped together. Click photos to keep them (green border), unselected photos (red border) will be hidden. The best photo is auto-selected based on sharpness and quality.",
     "similar_help": "Visually similar photos across your library are grouped using AI embeddings. Review each group, keep the best shots, and discard near-duplicates. Adjust the threshold slider to control how similar photos must be to form a group.",
     "help": "Help",
-    "help_text": "Review groups of similar or burst photos. Click to select, double-click to select exclusively. Confirmed groups hide rejected photos from the gallery.",
+    "help_text": "Review groups of similar or burst photos. Click a photo to keep or unkeep it; double-click to keep only that one. Open the Darkroom (fullscreen review) with the Darkroom button or the Enter key. Use Up/Down to pick a group and Space to confirm it and move to the next. Skip and Confirm start a 7-second cooldown you can Cancel before the group closes; confirming hides the rejected photos from the gallery.",
     "type_burst": "Burst",
     "type_similar": "Similar",
     "confirm_all": "Confirm All",
@@ -1608,6 +1669,34 @@
     "load_more": "Load more",
     "view_detail": "View detail",
     "cancel_pass": "Cancel",
+    "cancel_restore": "Restore",
+    "darkroom": "Darkroom",
+    "all_categories": "All categories",
+    "filter_category": "Filter by category",
+    "sort": {
+      "label": "Sort",
+      "easiest": "Easiest first",
+      "redundant": "Most redundant",
+      "best": "Best first",
+      "recent": "Most recent",
+      "needs_comparisons": "Needs comparisons"
+    },
+    "weight_remaining": "{count} to tune weights",
+    "weight_ready": "Weight tuning ready",
+    "weight_remaining_tooltip": "Comparisons still needed in this category before weight tuning unlocks. Tune weights in Comparison → Weight Suggestions.",
+    "weight_ready_tooltip": "Enough comparisons collected — open Comparison → Weight Suggestions to review and apply the optimized weights for this category.",
+    "strictness": "Strictness",
+    "strictness_tooltip": "Higher keeps only the single best photo; lower keeps near-ties too",
+    "face_grid_title": "Faces in this group",
+    "reason": {
+      "best": "Best of group",
+      "eyes_closed": "Eyes closed",
+      "soft": "Slightly soft",
+      "expression": "Weaker expression",
+      "lower_aesthetic": "Lower aesthetic",
+      "lower_overall": "Lower overall",
+      "near_duplicate": "Near-duplicate"
+    },
     "lightbox": {
       "navigate": "Navigate",
       "keep": "Keep",
@@ -1615,6 +1704,17 @@
       "kept": "Kept",
       "rejected": "Rejected",
       "undecided": "Undecided"
+    },
+    "shortcuts": {
+      "page_title": "Gallery",
+      "darkroom_title": "Darkroom",
+      "select": "Select group",
+      "open": "Open fullscreen",
+      "navigate": "Previous / next photo",
+      "keep": "Keep photo",
+      "reject": "Reject photo",
+      "confirm_next": "Confirm & next group",
+      "close": "Close"
     }
   },
   "memories": {
@@ -1829,6 +1929,21 @@
   "download": {
     "type_original": "Original",
     "type_raw": "RAW file"
+  },
+  "export": {
+    "action": "Export to editor",
+    "title": "Export to editor",
+    "description": "Write your ratings, picks and tags as XMP sidecars that Lightroom, darktable and other editors read. Original images are never modified.",
+    "mode_sidecars": "Write XMP sidecars",
+    "mode_copy": "Copy selects to a folder",
+    "mode_symlink": "Symlink selects to a folder",
+    "overwrite": "Overwrite existing .xmp sidecars",
+    "overwrite_hint": "Off by default: a darktable-authored .xmp is preserved and Facet writes a .facet.xmp instead.",
+    "target_dir": "Target folder",
+    "run": "Export",
+    "running": "Exporting…",
+    "done": "Exported {count} photo(s)",
+    "failed": "Export failed"
   },
   "undo": {
     "action": "Undo",

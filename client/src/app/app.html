@@ -286,8 +286,20 @@
               <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
               <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
             }
+            @if (auth.isEdition()) {
+              <mat-option value="learned_score">{{ 'gallery.sort_picked_for_you' | translate }}</mat-option>
+            }
           </mat-select>
         </mat-form-field>
+
+        <!-- "Picked for you" coverage badge — how many comparisons the personal ranker was trained on -->
+        @if (pickedForYouCoverage(); as coverageCount) {
+          <span class="!hidden lg:!inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 bg-[var(--mat-sys-tertiary-container)] text-[var(--mat-sys-on-tertiary-container)]"
+                [matTooltip]="'gallery.picked_for_you_badge_tooltip' | translate">
+            <mat-icon class="!text-sm !w-4 !h-4 !leading-4">auto_awesome</mat-icon>
+            {{ 'gallery.picked_for_you_badge' | translate:{ count: coverageCount } }}
+          </span>
+        }
 
         <!-- Tooltip-mode menu — first item in the gallery icon cluster -->
         <button
@@ -559,6 +571,9 @@
             <mat-option value="aggregate">{{ 'gallery.sort_aggregate' | translate }}</mat-option>
             <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
             <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
+          }
+          @if (auth.isEdition()) {
+            <mat-option value="learned_score">{{ 'gallery.sort_picked_for_you' | translate }}</mat-option>
           }
         </mat-select>
       </mat-form-field>

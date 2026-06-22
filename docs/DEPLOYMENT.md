@@ -1,17 +1,17 @@
 # Deployment Guide
 
-Deploy the Facet viewer on a remote server or NAS to browse your photo library from any device.
+Run the Facet viewer on a remote server or NAS.
 
 ## Overview
 
-Facet has two distinct workloads:
+Facet has two workloads:
 
 | Component | Hardware | Purpose |
 |-----------|----------|---------|
 | **Scoring** (`facet.py`) | GPU (6-24GB VRAM) or CPU (8GB+ RAM) | Analyze and score photos |
 | **Viewer** (`viewer.py`) | Any machine (low resources) | Serve the web gallery |
 
-Only the viewer needs to run on the server. Scoring is done on your workstation, then the database is synced.
+Only the viewer needs to run on the server. Score on a workstation, then sync the database.
 
 ## Path Mapping
 
@@ -45,25 +45,25 @@ Multiple mappings are supported (first match wins):
 ```
 
 **How it works:**
-- Database stores the original scan paths (e.g., `\\NAS\share\Photos\2024\IMG_001.jpg`)
-- Thumbnails are stored as BLOBs in the database (no disk access needed for browsing)
-- Path mapping only applies to **file downloads** (single and batch ZIP)
+- The database stores the original scan paths (e.g., `\\NAS\share\Photos\2024\IMG_001.jpg`)
+- Thumbnails are stored as BLOBs in the database, so browsing needs no disk access
+- Path mapping applies whenever the viewer opens an original file: downloads, full-resolution view, captioning, and critique
 - Both UNC paths (`\\server\share`) and drive letters (`Z:\`) are supported
 - The first matching prefix wins
 
 ## Building the Angular Client
 
-The viewer uses an Angular SPA that must be built before deployment. The FastAPI server serves the pre-built files from `client/dist/client/browser/`.
+The FastAPI server serves the pre-built SPA from `client/dist/client/browser/`. Build it before deployment:
 
 ```bash
 cd client && npm install && npx ng build && cd ..
 ```
 
-This requires Node.js 20+ at build time only. The built files in `client/dist/` are static assets — Node.js is not needed on the server at runtime.
+This needs Node.js 20+ at build time only. The built files are static assets — Node.js is not needed on the server at runtime.
 
 ## Synology NAS (DS420j / J-series)
 
-The J-series has an ARM CPU and 1GB RAM. No Docker support. The viewer runs directly with Python.
+The J-series has an ARM CPU and 1GB RAM and no Docker support. The viewer runs directly with Python.
 
 ### Prerequisites
 
@@ -95,12 +95,12 @@ On your scoring workstation, export a stripped-down database for NAS deployment:
 python database.py --export-viewer-db
 ```
 
-This creates `photo_scores_viewer.db` which:
-- Strips CLIP embeddings, histogram data, face embeddings (~445MB saved)
-- Downsizes thumbnails from 640px to 320px (~75% space saved per thumbnail)
+This creates `photo_scores_viewer.db`, which:
+- Strips CLIP embeddings, histogram data, and face embeddings
+- Downsizes thumbnails from 640px to 320px
 - Typically reduces a 14GB database to ~4-5GB
 
-**Subsequent exports are incremental.** If `photo_scores_viewer.db` already exists, only new and changed photos are synced — thumbnails for existing photos are preserved. Use `--force-export` to force a full rebuild:
+Exports are incremental: if `photo_scores_viewer.db` already exists, only new and changed photos are synced. Use `--force-export` for a full rebuild:
 
 ```bash
 python database.py --export-viewer-db --force-export
@@ -126,7 +126,7 @@ rsync -avz \
   admin@your-synology-ip:/volume1/facet/
 ```
 
-On the NAS, rename or symlink the exported database:
+The viewer opens `photo_scores_pro.db` by default (overridable with the `DB_PATH` env var). On the NAS, either set `DB_PATH=/volume1/facet/photo_scores_viewer.db` or symlink it:
 ```bash
 cd /volume1/facet
 ln -sf photo_scores_viewer.db photo_scores_pro.db
@@ -194,11 +194,21 @@ Pair with a Let's Encrypt certificate from DSM > Control Panel > Security > Cert
 
 ## Synology NAS (Plus / x86 series)
 
-Plus-series NAS supports Docker (Container Manager). This is the cleanest approach.
+Plus-series NAS supports Docker (Container Manager).
 
-### Dockerfile
+The repository ships a `Dockerfile`, `docker-compose.yml`, and `docker-compose.gpu.yml` at the root. The image bundles the full scoring + viewer stack on a CUDA PyTorch base, builds the Angular client, and exposes port 5000. The viewer runs in CPU mode by default; the GPU override is opt-in.
 
-> **Note:** This is a lightweight **viewer-only** Dockerfile (no CUDA/GPU support). It uses port 8000 for NAS deployments behind Synology's built-in reverse proxy. For GPU-accelerated scoring, use the main project `Dockerfile` at the repository root.
+```bash
+# Viewer only (CPU)
+docker compose up -d
+
+# With NVIDIA GPU for scoring (requires the NVIDIA Container Toolkit)
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+```
+
+`scoring_config.json` is mounted as a volume (not baked into the image), so edit it on the host and restart. The database path is set by `DB_PATH` (default `/app/data/photo_scores_pro.db`). Model caches persist under `./model-cache/` so they survive restarts.
+
+For a viewer-only NAS where the image must stay small (no CUDA), build a slim image instead. Note the CI guard requires every `COPY` source to be git-tracked, so the build context must include the listed files:
 
 ```dockerfile
 FROM python:3.11-slim
@@ -209,18 +219,16 @@ COPY api/ api/
 COPY client/dist/ client/dist/
 COPY db/ db/
 COPY i18n/ i18n/
-EXPOSE 8000
-CMD ["uvicorn", "api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+EXPOSE 5000
+CMD ["uvicorn", "api:create_app", "--factory", "--host", "0.0.0.0", "--port", "5000", "--workers", "4"]
 ```
-
-### Docker Compose
 
 ```yaml
 services:
   facet:
     build: .
     ports:
-      - "8000:8000"
+      - "5000:5000"
     volumes:
       - ./photo_scores_pro.db:/app/photo_scores_pro.db
       - /volume1/Photos:/volume1/Photos:ro  # Mount photos for downloads
@@ -236,10 +244,10 @@ pip install fastapi uvicorn pyjwt pillow
 uvicorn api:create_app --factory --host 0.0.0.0 --port 5000 --workers 4
 ```
 
-Or use the convenience wrapper:
+Or use the wrapper (defaults to 1 worker; pass `--workers N` for more):
 
 ```bash
-python viewer.py --production
+python viewer.py --production --workers 4
 ```
 
 ### Uvicorn + Nginx
@@ -315,7 +323,7 @@ Re-run the export and `rsync` after each scoring session to update the database 
 
 ## Multi-User Setup
 
-For family NAS scenarios where each member has private photo directories, add a `users` section to `scoring_config.json`. See [Configuration](CONFIGURATION.md#users) for the full reference.
+To give each user a private set of photo directories, add a `users` section to `scoring_config.json`. See [Configuration](CONFIGURATION.md#users) for the full reference.
 
 ### Quick start
 
@@ -375,15 +383,11 @@ To allow the superadmin to trigger photo scans from the viewer UI (only useful w
 
 ## Continuous Backups with Litestream
 
-Facet's SQLite database can grow to tens of gigabytes (the production `photo_scores_pro.db` is ~14 GB after scoring 20k+ photos). A single-disk failure costs weeks of GPU time. [Litestream](https://litestream.io/) streams the WAL to S3, B2, GCS, SFTP, or another local disk continuously, with point-in-time restore granularity of a few seconds.
+The SQLite database can grow to tens of gigabytes (`photo_scores_pro.db` reaches ~14 GB after scoring 20k+ photos), and a re-scan costs GPU time. [Litestream](https://litestream.io/) streams the WAL to S3, B2, GCS, SFTP, or another local disk continuously, with point-in-time restore down to a few seconds.
 
-This is **opt-in** — Facet does not bundle Litestream. Install it once on the host running the viewer / scoring; it then runs as a sidecar process and is transparent to the application.
+Facet does not bundle Litestream. Install it once on the host running the viewer/scoring; it runs as a sidecar process, transparent to the application.
 
-### Why it works well with Facet
-
-- WAL mode is already enabled (`db/connection.py:apply_pragmas`).
-- The new periodic checkpoint thread (default every 30 min, configurable via `performance.wal_checkpoint_minutes`) keeps the WAL bounded.
-- Reads remain unblocked while replication happens.
+Facet already uses WAL mode (`db/connection.py:apply_pragmas`), and the periodic checkpoint thread (default every 30 min, configurable via `performance.wal_checkpoint_minutes`) keeps the WAL bounded. Reads stay unblocked during replication.
 
 ### Minimal Litestream config
 
@@ -430,7 +434,7 @@ WantedBy=multi-user.target
 Practice this before you need it:
 
 ```bash
-sudo systemctl stop facet-viewer
+sudo systemctl stop facet
 sudo systemctl stop litestream
 litestream restore -o /tmp/restored.db s3://my-facet-backups/photo_scores_pro
 # verify
@@ -440,7 +444,7 @@ sudo mv /opt/facet/photo_scores_pro.db /opt/facet/photo_scores_pro.bad
 sudo mv /tmp/restored.db /opt/facet/photo_scores_pro.db
 sudo chown facet:facet /opt/facet/photo_scores_pro.db
 sudo systemctl start litestream
-sudo systemctl start facet-viewer
+sudo systemctl start facet
 ```
 
 ### Cost ballpark

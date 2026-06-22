@@ -67,6 +67,8 @@ In the web viewer:
 - Access `/persons` for person management
 - Merge: Select source person, click target, confirm
 - Batch merge: Select multiple persons and merge them into a single target
+- Split: Move a subset of a person's faces into a new person (if the source ends up empty, it is deleted)
+- Hide: Flag a cluster `is_hidden` to exclude it from the list, filters, and merge suggestions (reversible)
 - Rename: Click person name to edit inline
 - Delete: Remove person cluster
 
@@ -144,11 +146,11 @@ For CPU clustering, choose the algorithm based on dataset size:
 | `prims_kdtree` | O(n²) | Small datasets |
 | `best` | Auto | Let HDBSCAN decide |
 
-**Performance note:** For large datasets, `boruvka_balltree` is critical. With 80K faces, it completes in 2-5 minutes vs hanging with exact algorithms.
+**Performance note:** For large datasets, use `boruvka_balltree`. With 80K faces it completes in 2-5 minutes, where exact algorithms can hang.
 
 ## GPU Clustering (cuML)
 
-For very large datasets (80K+ faces), GPU clustering via RAPIDS cuML provides significant speedup.
+For large datasets (80K+ faces), GPU clustering via RAPIDS cuML is faster than CPU.
 
 ### Installation
 
@@ -238,11 +240,12 @@ Both commands use parallel processing for speed.
 | `photo_path` | TEXT | Foreign key to photos |
 | `face_index` | INTEGER | Index within photo |
 | `embedding` | BLOB | 512-dim face embedding |
-| `bbox_x`, `bbox_y` | REAL | Bounding box position |
-| `bbox_w`, `bbox_h` | REAL | Bounding box size |
-| `person_id` | INTEGER | Foreign key to persons |
+| `bbox_x1`, `bbox_y1`, `bbox_x2`, `bbox_y2` | INTEGER | Bounding box corners |
 | `confidence` | REAL | Detection confidence |
+| `person_id` | INTEGER | Foreign key to persons |
 | `face_thumbnail` | BLOB | JPEG thumbnail |
+| `landmark_2d_106` | BLOB | 106-point landmarks (blink detection) |
+| `embedding_model` | TEXT | Recognition model tag (default `arcface_buffalo_l`) |
 
 ### persons Table
 
@@ -253,8 +256,9 @@ Both commands use parallel processing for speed.
 | `representative_face_id` | INTEGER | Best face for avatar |
 | `face_count` | INTEGER | Number of faces |
 | `centroid` | BLOB | Cluster centroid embedding |
-| `auto_clustered` | BOOLEAN | True if auto-generated |
+| `auto_clustered` | INTEGER | 1 if auto-generated |
 | `face_thumbnail` | BLOB | Person avatar thumbnail |
+| `is_hidden` | INTEGER | 1 = excluded from filters/suggestions |
 
 ## Incremental vs Force Modes
 
@@ -301,6 +305,8 @@ Access via header button or `/persons`:
 - **Grid View** - All recognized persons
 - **Merge** - Select source, click target, confirm
 - **Batch Merge** - Select multiple persons and merge into one target
+- **Split** - Move selected faces into a new person
+- **Hide** - Exclude a cluster from the list, filters, and merge suggestions
 - **Delete** - Remove person cluster
 - **Rename** - Click name to edit inline
 
@@ -318,6 +324,42 @@ Access via `/merge-suggestions` or the "Merge Suggestions" button on the Manage 
 - Small face thumbnails (avatars) shown for recognized people
 - Configurable via `viewer.face_thumbnails.output_size_px`
 
+## Embedding-space marker (recognition-model safety)
+
+Every face row carries an `embedding_model` tag (column on `faces`, default
+`arcface_buffalo_l` — the current InsightFace `buffalo_l` / ArcFace `w600k_r50`
+recognition model). Embeddings produced by **different** recognition models live
+in **incompatible vector spaces** and must never be clustered together — doing so
+silently produces garbage persons with no error.
+
+`FaceClusterer.load_embeddings()` therefore loads only the **active** embedding
+space (`ACTIVE_EMBEDDING_MODEL` in `faces/clusterer.py`; a `NULL` tag is treated
+as the legacy ArcFace space) and logs a loud warning if faces from any other
+space are present and excluded. This is a forward-compatibility guard: it makes a
+future recognition-model swap safe by construction.
+
+### Swapping the recognition model (e.g. AdaFace) — deferred plan
+
+A quality upgrade such as **AdaFace** (quality-adaptive margin, better clustering
+of blurry/candid faces) is integrable as an opt-in 512-d backend (same storage
+path, same HDBSCAN), but is **not yet implemented** because it cannot be
+validated without real data. Doing it correctly requires:
+
+1. **Weights + backbone** — an AdaFace checkpoint (e.g. `adaface_ir101_webface12m`)
+   plus its IResNet backbone; a new model-cache download.
+2. **Aligned crops** — compute the embedding from a `norm_crop(img, face.kps, 112)`
+   aligned 112×112 crop at extraction time (the kps exist on the InsightFace
+   `face` object but aren't persisted, so AdaFace cannot be back-filled offline —
+   it must run during extraction). Verify BGR/normalization match the checkpoint.
+3. **Config switch** — add `face_detection.recognition_model: arcface|adaface`
+   and resolve `ACTIVE_EMBEDDING_MODEL` from it; tag new faces accordingly.
+4. **Full re-extraction + re-cluster** — `--extract-faces-gpu-force` then
+   `--cluster-faces-force`, because ArcFace and AdaFace embeddings are not
+   comparable. The embedding-space marker above prevents a half-migrated DB from
+   silently clustering the two spaces together (it warns and excludes instead).
+5. **Quality validation** — measure cluster quality against labelled identities;
+   "runs and emits 512-d vectors" does not prove the preprocessing is correct.
+
 ## Troubleshooting
 
 | Issue | Solution |
@@ -328,3 +370,4 @@ Access via `/merge-suggestions` or the "Merge Suggestions" button on the Manage 
 | GPU clustering fails | Check cuML installation, use `"never"` to force CPU |
 | Thumbnails missing | Run `--refill-face-thumbnails-incremental` |
 | Wrong blink detection | Adjust `blink_ear_threshold`, run `--recompute-blinks` |
+| "Excluded N faces from non-active embedding space" warning | A recognition-model change left mixed embeddings — run `--extract-faces-gpu-force` then `--cluster-faces-force` |

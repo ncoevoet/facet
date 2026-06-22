@@ -117,6 +117,13 @@ PHOTOS_COLUMNS = [
     ('caption', 'TEXT'),
     ('caption_translated', 'TEXT'),
 
+    # OCR text-in-image (opt-in --recompute-ocr; NULL until that pass runs)
+    ('ocr_text', 'TEXT'),
+
+    # Color facet (opt-in --recompute-colors; NULL until that pass runs)
+    ('dominant_hue', 'REAL'),       # 0-360 dominant hue, NULL for monochrome/unknown
+    ('color_temp', 'TEXT'),         # 'warm' | 'cool' | 'neutral'
+
     # GPS coordinates
     ('gps_latitude', 'REAL'),
     ('gps_longitude', 'REAL'),
@@ -138,6 +145,12 @@ FACES_COLUMNS = [
     ('person_id', 'INTEGER'),
     ('face_thumbnail', 'BLOB'),  # Pre-generated face crop from detection time
     ('landmark_2d_106', 'BLOB'),  # 106x2 float32 = 848 bytes for blink detection
+    # Embedding-space marker: which recognition model produced `embedding`.
+    # Embeddings from different models are NOT comparable, so clustering loads
+    # only the active space (see faces/clusterer.py) — a future model swap can't
+    # silently mix spaces. The constant default backfills existing rows (all
+    # ArcFace/buffalo_l) on migration and tags new inserts with no code change.
+    ('embedding_model', "TEXT DEFAULT 'arcface_buffalo_l'"),
 ]
 
 PERSONS_COLUMNS = [
@@ -148,7 +161,20 @@ PERSONS_COLUMNS = [
     ('centroid', 'BLOB'),
     ('auto_clustered', 'INTEGER DEFAULT 1'),
     ('face_thumbnail', 'BLOB'),
+    ('is_hidden', 'INTEGER DEFAULT 0'),
 ]
+
+
+def person_not_hidden_clause(alias=''):
+    """SQL predicate selecting persons that are not hidden (NULL = not hidden).
+
+    Single source of truth for the ``is_hidden`` visibility test shared by the
+    persons router, the filter-options router and the merge analyzer. Pass a
+    table alias (e.g. ``'p'``) to qualify the column.
+    """
+    col = f"{alias}.is_hidden" if alias else "is_hidden"
+    return f"({col} = 0 OR {col} IS NULL)"
+
 
 # Index definitions as (name, table, column_expression)
 INDEXES = [
@@ -228,6 +254,9 @@ INDEXES = [
     ('idx_iso', 'photos', 'iso'),
     ('idx_f_stop', 'photos', 'f_stop'),
     ('idx_focal_length', 'photos', 'focal_length'),
+    # Color facet filters (hue bucket + warm/cool/neutral classification)
+    ('idx_dominant_hue', 'photos', 'dominant_hue'),
+    ('idx_color_temp', 'photos', 'color_temp'),
 ]
 
 # Photo tags lookup table for fast exact-match queries (replaces LIKE '%tag%')
@@ -277,6 +306,14 @@ LEARNED_SCORES_COLUMNS = [
 LEARNED_SCORES_INDEXES = [
     ('idx_learned_scores_score', 'learned_scores', 'learned_score DESC'),
     ('idx_learned_scores_category', 'learned_scores', 'category'),
+]
+
+# Rejected merge suggestions — person-merge pairs the user dismissed, so the
+# merge analyzer stops re-proposing them. Stored canonically (person_a_id < person_b_id).
+REJECTED_MERGE_SUGGESTIONS_COLUMNS = [
+    ('person_a_id', 'INTEGER NOT NULL REFERENCES persons(id) ON DELETE CASCADE'),
+    ('person_b_id', 'INTEGER NOT NULL REFERENCES persons(id) ON DELETE CASCADE'),
+    ('rejected_at', "TEXT DEFAULT (datetime('now'))"),
 ]
 
 # Weight optimization history
@@ -435,6 +472,7 @@ PHOTOS_FTS_COLUMNS = [
     'camera_model',
     'lens_model',
     'category',
+    'ocr_text',
 ]
 
 PHOTOS_FTS_CREATE = """
@@ -447,6 +485,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS photos_fts USING fts5(
     camera_model,
     lens_model,
     category,
+    ocr_text,
     content='photos',
     content_rowid='rowid'
 )
@@ -566,6 +605,9 @@ def init_database(db_path='photo_scores_pro.db'):
         # Create persons table
         conn.execute(_build_create_table_sql('persons', PERSONS_COLUMNS))
 
+        # Migrate existing persons table - add any missing columns (e.g. is_hidden)
+        _migrate_add_missing_columns(conn, 'persons', PERSONS_COLUMNS)
+
         # Create photo_tags lookup table for fast tag queries
         conn.execute(_build_create_table_sql(
             'photo_tags',
@@ -584,6 +626,13 @@ def init_database(db_path='photo_scores_pro.db'):
         conn.execute(_build_create_table_sql(
             'learned_scores',
             LEARNED_SCORES_COLUMNS
+        ))
+
+        # Create rejected_merge_suggestions table (dismissed person-merge pairs)
+        conn.execute(_build_create_table_sql(
+            'rejected_merge_suggestions',
+            REJECTED_MERGE_SUGGESTIONS_COLUMNS,
+            constraints=['PRIMARY KEY (person_a_id, person_b_id)']
         ))
 
         # Create weight_optimization_runs table for tracking optimization history

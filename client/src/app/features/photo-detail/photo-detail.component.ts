@@ -249,6 +249,15 @@ import { createLeafletMap } from '../../shared/leaflet';
               @if (p.liqe_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.liqe_score' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.liqe_score | fixed:1 }}</span></div>
               }
+              @if (p.qalign_score !== undefined && p.qalign_score !== null) {
+                <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.qalign_score' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.qalign_score | fixed:1 }}</span></div>
+              }
+              @if (p.aesthetic_v25 !== undefined && p.aesthetic_v25 !== null) {
+                <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.aesthetic_v25' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.aesthetic_v25 | fixed:1 }}</span></div>
+              }
+              @if (p.deqa_score !== undefined && p.deqa_score !== null) {
+                <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ 'tooltip.deqa_score' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.deqa_score | fixed:1 }}</span></div>
+              }
             </div>
           </div>
 
