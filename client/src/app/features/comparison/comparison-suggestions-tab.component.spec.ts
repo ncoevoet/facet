@@ -9,14 +9,27 @@ import { I18nService } from '../../core/services/i18n.service';
 import { CompareFiltersService } from './compare-filters.service';
 import { ComparisonSuggestionsTabComponent } from './comparison-suggestions-tab.component';
 
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
 describe('ComparisonSuggestionsTabComponent', () => {
   let component: ComparisonSuggestionsTabComponent;
-  let mockApi: { get: Mock };
+  let mockApi: { get: Mock; post: Mock };
   const selectedCategory = signal<string | null>(null);
 
-  beforeEach(() => {
-    selectedCategory.set(null);
-    mockApi = { get: vi.fn(() => of({ available: true })) };
+  beforeEach(async () => {
+    selectedCategory.set('portrait');
+    mockApi = {
+      get: vi.fn((path: string) => {
+        if (path === '/photos') {
+          return of({ photos: [{ path: '/a.jpg', filename: 'a.jpg', aggregate: 9.2 }] });
+        }
+        if (path === '/comparison/category_weights') {
+          return of({ weights: {}, modifiers: { bonus: 1 }, filters: { f: 2 } });
+        }
+        return of({ available: true });
+      }),
+      post: vi.fn(() => of({ success: true })),
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -29,39 +42,47 @@ describe('ComparisonSuggestionsTabComponent', () => {
       ],
     });
     component = TestBed.inject(ComparisonSuggestionsTabComponent);
+    await flush();
   });
 
-  it('applyWeights emits current weights merged with the suggested ones', () => {
+  it('applySuggested persists the merged weights, emits, and marks applied', async () => {
     component['learnedWeights'].set({
       available: true,
       suggest_changes: true,
       current_weights: { a_percent: 30, b_percent: 10 },
       suggested_weights: { a_percent: 40 },
     });
+    component['categoryConfig'].set({ weights: {}, modifiers: { bonus: 1 }, filters: { f: 2 } });
 
     let emitted: Record<string, number> | undefined;
     component.weightsApplied.subscribe((w) => (emitted = w));
-    component['applyWeights']();
+    await component['applySuggested']();
 
+    expect(mockApi.post).toHaveBeenCalledWith('/config/update_weights', {
+      category: 'portrait',
+      weights: { a_percent: 40, b_percent: 10 },
+      modifiers: { bonus: 1 },
+      filters: { f: 2 },
+    });
     expect(emitted).toEqual({ a_percent: 40, b_percent: 10 });
+    expect(component['applied']()).toBe(true);
+    expect(component['recomputed']()).toBe(false);
   });
 
-  it('does not emit when there are no suggested weights', () => {
-    component['learnedWeights'].set({ available: true });
+  it('recompute calls the recompute endpoint and loads the after top photos', async () => {
+    await component['recompute']();
 
-    let emitted: Record<string, number> | null = null;
-    component.weightsApplied.subscribe((w) => (emitted = w));
-    component['applyWeights']();
+    expect(mockApi.post).toHaveBeenCalledWith('/stats/categories/recompute', { category: 'portrait' });
+    expect(component['recomputed']()).toBe(true);
+    expect(component['topAfter']().length).toBeGreaterThan(0);
+  });
 
-    expect(emitted).toBeNull();
+  it('loads the current top photos as the before column', () => {
+    expect(component['topBefore']().length).toBeGreaterThan(0);
   });
 
   it('only surfaces the percent weight keys', () => {
-    component['learnedWeights'].set({
-      available: true,
-      current_weights: { a_percent: 30, bonus: 1, b_percent: 10 },
-    });
-
+    component['learnedWeights'].set({ available: true, current_weights: { a_percent: 30, bonus: 1, b_percent: 10 } });
     expect(component['currentWeightKeys']()).toEqual(['a_percent', 'b_percent']);
   });
 });

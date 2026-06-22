@@ -68,15 +68,6 @@ Chart.register(...registerables);
 
       @if (compareFilters.selectedCategory()) {
         <mat-tab-group class="mb-6" [selectedIndex]="0" (selectedIndexChange)="onTabChange($event)">
-          <!-- Weights tab -->
-          <mat-tab>
-            <ng-template mat-tab-label>
-              <mat-icon class="mr-2">sliders</mat-icon>
-              {{ 'comparison.weights' | translate }}
-            </ng-template>
-            <app-comparison-weights-tab #weightsTabEl />
-          </mat-tab>
-
           <!-- Snapshots tab -->
           <mat-tab>
             <ng-template mat-tab-label>
@@ -105,6 +96,15 @@ Chart.register(...registerables);
               </span>
             </ng-template>
             <app-comparison-suggestions-tab (weightsApplied)="onWeightsApplied($event)" />
+          </mat-tab>
+
+          <!-- Weights tab -->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <mat-icon class="mr-2">sliders</mat-icon>
+              {{ 'comparison.weights' | translate }}
+            </ng-template>
+            <app-comparison-weights-tab #weightsTabEl />
           </mat-tab>
         </mat-tab-group>
       }
@@ -160,7 +160,7 @@ export class ComparisonComponent {
   }
 
   protected onTabChange(index: number): void {
-    if (index === 2 && !this.abTab()?.pairA() && !this.abTab()?.pairLoading()) {
+    if (index === 1 && !this.abTab()?.pairA() && !this.abTab()?.pairLoading()) {
       void this.abTab()?.loadNextPair();
     }
   }
