@@ -1,10 +1,12 @@
-import { Component, effect, inject, viewChild } from '@angular/core';
+import { Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { firstValueFrom } from 'rxjs';
 import { Chart, registerables } from 'chart.js';
+import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -13,6 +15,7 @@ import { CompareFiltersService } from './compare-filters.service';
 import { ComparisonWeightsTabComponent } from './comparison-weights-tab.component';
 import { ComparisonSnapshotsTabComponent } from './comparison-snapshots-tab.component';
 import { ComparisonAbTabComponent } from './comparison-ab-tab.component';
+import { ComparisonSuggestionsTabComponent } from './comparison-suggestions-tab.component';
 
 Chart.register(...registerables);
 
@@ -28,6 +31,7 @@ Chart.register(...registerables);
     ComparisonWeightsTabComponent,
     ComparisonSnapshotsTabComponent,
     ComparisonAbTabComponent,
+    ComparisonSuggestionsTabComponent,
   ],
   template: `
     <div class="p-4 md:p-6 max-w-screen-2xl mx-auto">
@@ -90,6 +94,18 @@ Chart.register(...registerables);
             </ng-template>
             <app-comparison-ab-tab #abTabEl (weightsApplied)="onWeightsApplied($event)" />
           </mat-tab>
+
+          <!-- Weight Suggestions tab (enabled once enough comparisons exist) -->
+          <mat-tab [disabled]="weightsLocked()">
+            <ng-template mat-tab-label>
+              <span [matTooltip]="weightsLocked() ? (('comparison.suggestions_locked_tooltip' | translate:{ count: weightsRemaining() })) : ''"
+                    class="inline-flex items-center">
+                <mat-icon class="mr-2">auto_fix_high</mat-icon>
+                {{ 'comparison.suggestions_tab' | translate }}
+              </span>
+            </ng-template>
+            <app-comparison-suggestions-tab (weightsApplied)="onWeightsApplied($event)" />
+          </mat-tab>
         </mat-tab-group>
       }
     </div>
@@ -97,6 +113,7 @@ Chart.register(...registerables);
 })
 export class ComparisonComponent {
   protected readonly auth = inject(AuthService);
+  private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);
   private readonly themeService = inject(ThemeService);
   protected readonly compareFilters = inject(CompareFiltersService);
@@ -105,6 +122,12 @@ export class ComparisonComponent {
   protected readonly snapshotsTab = viewChild<ComparisonSnapshotsTabComponent>('snapshotsTabEl');
   protected readonly abTab = viewChild<ComparisonAbTabComponent>('abTabEl');
 
+  /** Total comparisons (all sources) + threshold, to gate the Weight Suggestions tab. */
+  private readonly comparisonStats = signal<{ total_comparisons: number; min_comparisons_for_optimization?: number } | null>(null);
+  private readonly threshold = computed(() => this.comparisonStats()?.min_comparisons_for_optimization ?? 50);
+  protected readonly weightsRemaining = computed(() => Math.max(0, this.threshold() - (this.comparisonStats()?.total_comparisons ?? 0)));
+  protected readonly weightsLocked = computed(() => (this.comparisonStats()?.total_comparisons ?? 0) < this.threshold());
+
   constructor() {
     effect(() => {
       const dark = this.themeService.darkMode();
@@ -112,6 +135,16 @@ export class ComparisonComponent {
       Chart.defaults.borderColor = dark ? '#262626' : '#e5e5e5';
     });
     void this.loadCategories();
+    void this.loadComparisonStats();
+  }
+
+  private async loadComparisonStats(): Promise<void> {
+    try {
+      const stats = await firstValueFrom(
+        this.api.get<{ total_comparisons: number; min_comparisons_for_optimization?: number }>('/comparison/stats'),
+      );
+      this.comparisonStats.set(stats);
+    } catch { /* non-critical: the tab simply stays locked */ }
   }
 
   private async loadCategories(): Promise<void> {
