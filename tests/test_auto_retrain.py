@@ -206,6 +206,9 @@ def test_thread_start_failure_releases_slot(db_path, monkeypatch):
         assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25) is False
 
     assert ar._retrain_running is False
+    # The reset-to-0 must be rolled back since the worker never ran, so the
+    # accumulated comparisons are not silently discarded.
+    assert _counter(db_path, None) == 30
 
 
 def test_gated_result_logged_and_lock_released(db_path):

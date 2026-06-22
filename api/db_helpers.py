@@ -22,7 +22,7 @@ from api.database import get_db_connection
 logger = logging.getLogger("facet.api.db_helpers")
 
 
-def trigger_auto_retrain(db_path, user_id, added=1):
+def trigger_auto_retrain(db_path, user_id, added=1, conn=None):
     """Best-effort, non-blocking nudge to the personal-ranker auto-retrain.
 
     A culling confirm or rating change derives ``added`` new comparison pairs;
@@ -38,13 +38,17 @@ def trigger_auto_retrain(db_path, user_id, added=1):
         user_id: Raw request user id; resolved to a per-user scope only when
             multi-user mode is enabled, else pooled into the global ranker.
         added: How many new comparisons this event contributed.
+        conn: An already-open SQLite connection from the request that just
+            committed; reused for the counter update so the hot culling-confirm
+            path doesn't open a second connection. ``None`` (rating sync, CLI)
+            opens a short-lived one.
     """
     if added <= 0:
         return
     try:
         from optimization.auto_retrain import maybe_retrain
         scope = user_id if (user_id and is_multi_user_enabled()) else None
-        maybe_retrain(db_path, scope, added=added)
+        maybe_retrain(db_path, scope, added=added, conn=conn)
     except Exception:  # noqa: BLE001 — never let retrain bookkeeping break the request
         logger.debug("Auto-retrain trigger skipped", exc_info=True)
 

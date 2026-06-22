@@ -166,15 +166,25 @@ def regular_client():
     """TestClient with a non-edition authenticated user.
 
     ``require_edition`` is intentionally NOT overridden — endpoints that need
-    it will hit the real dependency and return 403, exercising the
-    access-denied path.
+    it hit the real dependency and return 403, exercising the access-denied
+    path. An ``edition_password`` is set for the fixture's lifetime so the
+    "no edition password configured ⇒ every authenticated user is edition"
+    single-user shortcut in ``CurrentUser.is_edition`` is disabled; otherwise
+    this ``edition_authenticated=False`` user would be granted edition access
+    and the negative test would never reach the 403 path.
     """
+    from api.auth import VIEWER_CONFIG
     user = CurrentUser(user_id="u1", role="user", display_name="User One")
+    prev_edition_password = VIEWER_CONFIG.get("edition_password", "")
+    VIEWER_CONFIG["edition_password"] = "test-edition-lock"
     app = create_app()
     app.dependency_overrides[require_authenticated] = lambda: user
     app.dependency_overrides[get_optional_user] = lambda: user
-    yield TestClient(app)
-    app.dependency_overrides.clear()
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
+        VIEWER_CONFIG["edition_password"] = prev_edition_password
 
 
 @pytest.fixture()

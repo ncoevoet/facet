@@ -50,6 +50,20 @@ HUE_BUCKETS = {
     'magenta': [(300.0, 345.0)],
 }
 
+
+def bucket_for_hue(hue):
+    """Return the hue-bucket name containing ``hue`` (degrees), or ``None``.
+
+    Single source of truth for hue-bucket membership (half-open ranges
+    ``[lo, hi)``) shared by the gallery colour filter and the ``/colors`` facet
+    counts, so the two can never disagree on a boundary.
+    """
+    for name, ranges in HUE_BUCKETS.items():
+        if any(lo <= hue < hi for lo, hi in ranges):
+            return name
+    return None
+
+
 _VALID_COLOR_TEMPS = {'warm', 'cool', 'neutral'}
 
 # Quality tiers map a fraction of the aggregate (0-10) scale onto the configured

@@ -487,8 +487,8 @@ async def api_search(
             placeholders = ','.join(['?'] * len(matching_paths))
             cur = await conn.execute(
                 f"SELECT {', '.join(select_cols)} FROM {from_clause} "
-                f"WHERE photos.path IN ({placeholders})",
-                from_params + matching_paths
+                f"WHERE photos.path IN ({placeholders}) AND ({vis_sql})",
+                from_params + matching_paths + vis_params
             )
             rows = await cur.fetchall()
             await cur.close()

@@ -14,6 +14,7 @@ from api.auth import CurrentUser, require_edition, require_authenticated
 from api.config import VIEWER_CONFIG, invalidate_stats_cache
 from api.database import get_async_db, get_db
 from api.db_helpers import reassign_faces_to_person
+from db import person_not_hidden_clause
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ async def list_persons(
     where_parts: list = []
     params: list = []
     if not include_hidden:
-        where_parts.append("(p.is_hidden = 0 OR p.is_hidden IS NULL)")
+        where_parts.append(person_not_hidden_clause('p'))
     if search.strip():
         term = search.strip()
         if term.isdigit():
@@ -522,6 +523,7 @@ def api_split_person(
             return {
                 "success": True,
                 "new_person_id": new_person_id,
+                "name": name,
                 "new_count": new_count,
                 "source_count": source_count,
             }

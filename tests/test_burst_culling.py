@@ -133,6 +133,13 @@ class TestComputeCullReason:
         photo = self._best(path='/x.jpg', tech_sharpness=7.0)
         assert _compute_cull_reason(photo, best)['key'] == 'soft'
 
+    def test_expression_when_poorer_expression(self):
+        # Face photo, equally sharp but a weaker expression than the best frame.
+        best = self._best(face_count=1, eyes_open_score=9.0, expression_score=5.0)
+        photo = self._best(path='/x.jpg', face_count=1, eyes_open_score=9.0,
+                           tech_sharpness=9.0, expression_score=3.0)
+        assert _compute_cull_reason(photo, best)['key'] == 'expression'
+
     def test_lower_aesthetic(self):
         best = self._best(aesthetic=9.0)
         photo = self._best(path='/x.jpg', aesthetic=8.0)

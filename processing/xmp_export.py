@@ -79,6 +79,24 @@ class XmpRating:
             tags=tags,
         )
 
+    def xmp_values(self) -> tuple[int, str]:
+        """Return the ``(xmp:Rating, xmp:Label)`` pair for this rating.
+
+        A rejected photo maps to ``RATING_REJECTED`` and the ``"Red"`` label;
+        otherwise the star rating is clamped to 0-5 and a favourite maps to the
+        ``"Yellow"`` label. Single source of truth shared by the sidecar
+        (``build_xmp``) and the optional exiftool-embedded JPEG
+        (``embed_into_jpeg``) so the two paths can never diverge.
+        """
+        rating = RATING_REJECTED if self.is_rejected else max(0, min(5, self.star_rating))
+        if self.is_rejected:
+            label = LABEL_REJECTED
+        elif self.is_favorite:
+            label = LABEL_FAVORITE
+        else:
+            label = ""
+        return rating, label
+
 
 def sidecar_path(image_path: str, *, overwrite: bool) -> str:
     """Resolve which sidecar file to write for ``image_path``.
@@ -96,13 +114,7 @@ def sidecar_path(image_path: str, *, overwrite: bool) -> str:
 
 def build_xmp(rating: XmpRating) -> str:
     """Render the XMP packet for ``rating`` as a UTF-8 XML string."""
-    xmp_rating = RATING_REJECTED if rating.is_rejected else max(0, min(5, rating.star_rating))
-
-    label = ""
-    if rating.is_rejected:
-        label = LABEL_REJECTED
-    elif rating.is_favorite:
-        label = LABEL_FAVORITE
+    xmp_rating, label = rating.xmp_values()
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -158,9 +170,17 @@ def write_sidecar(image_path: str, rating: XmpRating, *, overwrite: bool = False
     # Atomic-ish write: write to a temp file in the same dir then replace, so a
     # crash mid-write can't leave a half-written sidecar that an editor reads.
     tmp = target + ".tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        f.write(xml)
-    os.replace(tmp, target)
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(xml)
+        os.replace(tmp, target)
+    except OSError:
+        # Don't leave a half-written .tmp sidecar littering the photo tree.
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
     return {
         "ok": True,
         "sidecar": target,
@@ -204,8 +224,7 @@ def embed_into_jpeg(image_path: str, rating: XmpRating, *, timeout: int = 60) ->
     if not exe:
         raise RuntimeError("exiftool binary not available")
 
-    xmp_rating = RATING_REJECTED if rating.is_rejected else max(0, min(5, rating.star_rating))
-    label = LABEL_REJECTED if rating.is_rejected else (LABEL_FAVORITE if rating.is_favorite else "")
+    xmp_rating, label = rating.xmp_values()
 
     args = [exe, "-overwrite_original", f"-XMP:Rating={xmp_rating}"]
     if label:

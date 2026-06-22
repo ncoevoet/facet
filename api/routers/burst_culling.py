@@ -9,6 +9,7 @@ Groups marked as burst_reviewed=1 are skipped so confirmed decisions persist.
 import logging
 import random
 import sqlite3
+import time
 from collections import Counter
 from itertools import groupby
 from typing import Literal, Optional
@@ -436,8 +437,9 @@ async def select_burst_photos(
             )
 
             conn.commit()
+            _invalidate_culling_groups_cache()
             from db import DEFAULT_DB_PATH
-            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, len(keep_paths) * len(reject_paths))
+            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, len(keep_paths) * len(reject_paths), conn=conn)
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(group_paths - keep_set)}
 
         except HTTPException:
@@ -562,8 +564,9 @@ async def select_similar_photos(
             )
 
             conn.commit()
+            _invalidate_culling_groups_cache()
             from db import DEFAULT_DB_PATH
-            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, len(keep_set) * len(reject_paths))
+            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, len(keep_set) * len(reject_paths), conn=conn)
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
 
         except HTTPException:
@@ -803,6 +806,20 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
 
 _CULLING_SORTS = ('easiest', 'redundant', 'best', 'recent', 'needs_comparisons')
 
+# Memo of the fully-enriched + globally-sorted culling groups, keyed by the
+# request params that determine the set. Pagination over the same set then
+# reuses one enrichment instead of re-materializing + re-scoring every group on
+# every page. Invalidated on any confirm (the unreviewed set shrinks); the short
+# TTL is a backstop for changes the invalidation can't see (a fresh scan).
+_culling_groups_cache: dict = {}
+_CULLING_GROUPS_CACHE_TTL = 45.0
+_CULLING_GROUPS_CACHE_MAX = 16
+
+
+def _invalidate_culling_groups_cache():
+    """Drop the enriched culling-groups memo after a confirm changes the set."""
+    _culling_groups_cache.clear()
+
 
 def _category_comparison_needs(conn):
     """Map category -> comparisons still needed before weight optimization unlocks.
@@ -866,36 +883,45 @@ async def api_culling_groups(
             user_id = user.user_id if user else None
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            # Enrich all unreviewed groups, then order globally and slice the page,
-            # so the chosen sort spans the whole set (not just one page's worth).
-            # The dominant cost (similarity computation) is already paid by the
-            # count call below, so enriching all groups is a modest add-on.
-            burst_groups = _fetch_unreviewed_burst_groups(
-                conn, vis_sql, vis_params,
-                page=None, per_page=None,
-                exclude_rejected=exclude_rejected, user_id=user_id,
-            )
-            _, similar_shuffled = _count_unreviewed_similar_groups(
-                conn, similarity_threshold, user_id, seed, exclude_rejected=exclude_rejected,
-            )
-            similar_groups = []
-            if similar_shuffled:
-                similar_groups = _fetch_unreviewed_similar_groups(
-                    conn, similarity_threshold, vis_sql, vis_params, seed, user_id,
-                    page_groups=similar_shuffled, offset=0,
-                    exclude_rejected=exclude_rejected,
+            # Enriching + globally sorting the whole unreviewed set is identical
+            # across pages, so memo it and let pagination reuse one enrichment
+            # instead of re-materializing + re-scoring every group per page.
+            cache_key = (round(similarity_threshold, 3), seed, sort, exclude_rejected, user_id)
+            cached = _culling_groups_cache.get(cache_key)
+            now = time.time()
+            if cached is not None and now - cached[0] < _CULLING_GROUPS_CACHE_TTL:
+                all_groups = cached[1]
+            else:
+                burst_groups = _fetch_unreviewed_burst_groups(
+                    conn, vis_sql, vis_params,
+                    page=None, per_page=None,
+                    exclude_rejected=exclude_rejected, user_id=user_id,
                 )
-                # Keep similar IDs distinct from burst IDs; the type suffix the
-                # client appends ('<id>_<type>') already disambiguates the rest.
-                for g in similar_groups:
-                    g['group_id'] += len(burst_groups)
+                _, similar_shuffled = _count_unreviewed_similar_groups(
+                    conn, similarity_threshold, user_id, seed, exclude_rejected=exclude_rejected,
+                )
+                similar_groups = []
+                if similar_shuffled:
+                    similar_groups = _fetch_unreviewed_similar_groups(
+                        conn, similarity_threshold, vis_sql, vis_params, seed, user_id,
+                        page_groups=similar_shuffled, offset=0,
+                        exclude_rejected=exclude_rejected,
+                    )
+                    # Keep similar IDs distinct from burst IDs; the type suffix the
+                    # client appends ('<id>_<type>') already disambiguates the rest.
+                    for g in similar_groups:
+                        g['group_id'] += len(burst_groups)
 
-            all_groups = burst_groups + similar_groups
+                all_groups = burst_groups + similar_groups
 
-            cat_needs, default_need = ({}, 0)
-            if sort == 'needs_comparisons':
-                cat_needs, default_need = _category_comparison_needs(conn)
-            all_groups.sort(key=lambda g: _culling_sort_key(g, sort, cat_needs, default_need), reverse=True)
+                cat_needs, default_need = ({}, 0)
+                if sort == 'needs_comparisons':
+                    cat_needs, default_need = _category_comparison_needs(conn)
+                all_groups.sort(key=lambda g: _culling_sort_key(g, sort, cat_needs, default_need), reverse=True)
+
+                if len(_culling_groups_cache) >= _CULLING_GROUPS_CACHE_MAX:
+                    _culling_groups_cache.clear()
+                _culling_groups_cache[cache_key] = (now, all_groups)
 
             total_groups = len(all_groups)
             total_pages, offset = paginate(total_groups, page, per_page)

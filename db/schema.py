@@ -164,6 +164,18 @@ PERSONS_COLUMNS = [
     ('is_hidden', 'INTEGER DEFAULT 0'),
 ]
 
+
+def person_not_hidden_clause(alias=''):
+    """SQL predicate selecting persons that are not hidden (NULL = not hidden).
+
+    Single source of truth for the ``is_hidden`` visibility test shared by the
+    persons router, the filter-options router and the merge analyzer. Pass a
+    table alias (e.g. ``'p'``) to qualify the column.
+    """
+    col = f"{alias}.is_hidden" if alias else "is_hidden"
+    return f"({col} = 0 OR {col} IS NULL)"
+
+
 # Index definitions as (name, table, column_expression)
 INDEXES = [
     ('idx_date_taken', 'photos', 'date_taken'),

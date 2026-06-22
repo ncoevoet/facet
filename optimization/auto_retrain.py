@@ -118,7 +118,7 @@ def _run_retrain(db_path, scope):
             _retrain_running = False
 
 
-def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = RETRAIN_THRESHOLD):
+def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = RETRAIN_THRESHOLD, conn=None):
     """Record new comparisons for a scope and dispatch a retrain if warranted.
 
     Call this AFTER a culling confirm or rating change has committed. It:
@@ -134,6 +134,9 @@ def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = RETRAIN_THR
         user_id: Per-user scope (None / falsy -> global pooled ranker).
         added: How many new comparisons this event contributed.
         threshold: Override for ``RETRAIN_THRESHOLD`` (tests pass a small value).
+        conn: An already-open connection from the calling request to reuse for
+            the counter update (avoids a second connection on the hot culling
+            path). ``None`` opens a short-lived one and closes it.
 
     Returns:
         True if a retrain was dispatched, else False.
@@ -143,8 +146,10 @@ def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = RETRAIN_THR
 
     import sqlite3
     dispatch = False
+    own_conn = conn is None
     try:
-        conn = sqlite3.connect(db_path)
+        if own_conn:
+            conn = sqlite3.connect(db_path)
         try:
             # Read-modify-write the counter UNDER the lock so two concurrent
             # events can't both read the same value and lose an increment, and
@@ -158,38 +163,45 @@ def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = RETRAIN_THR
                 else:
                     _write_counter(conn, scope, pending)
             conn.commit()
+
+            if not dispatch:
+                return False
+
+            # Dispatch the worker while the connection is still open so a
+            # start failure can roll the consumed counter back to `pending`.
+            # Prune finished threads so the tracking list can't grow unbounded.
+            _active_threads[:] = [t for t in _active_threads if t.is_alive()]
+            t = threading.Thread(
+                target=_run_retrain, args=(db_path, scope), name=f"auto-retrain-{scope}", daemon=True,
+            )
+            try:
+                t.start()
+            except Exception:  # noqa: BLE001 — releasing the claimed slot is the point
+                # Thread failed to start (e.g. resource exhaustion). Release the
+                # slot so the next event can dispatch again, and restore the
+                # counter to `pending` — the reset to 0 above assumed a training
+                # run that never happened, so without this the accumulated
+                # comparisons would be silently discarded.
+                with _retrain_lock:
+                    _retrain_running = False
+                _write_counter(conn, scope, pending)
+                conn.commit()
+                logger.warning("Auto-retrain dispatch failed to start (scope=%s)", scope, exc_info=True)
+                return False
+            _active_threads.append(t)
+            return True
         finally:
-            conn.close()
+            if own_conn:
+                conn.close()
     except sqlite3.Error:
-        # The commit (or a read/write) failed AFTER we may have claimed the
-        # in-flight slot under the lock. Release it here, otherwise
-        # _retrain_running stays True for the whole process lifetime and
-        # auto-retrain silently never runs again (the worker that would clear
-        # it is never dispatched). "database is locked" is realistic because
-        # this runs right after a culling/rating write on another connection.
+        # A read/write/commit failed AFTER we may have claimed the in-flight
+        # slot under the lock. Release it here, otherwise _retrain_running stays
+        # True for the whole process lifetime and auto-retrain silently never
+        # runs again (the worker that would clear it is never dispatched).
+        # "database is locked" is realistic because this runs right after a
+        # culling/rating write on another connection.
         if dispatch:
             with _retrain_lock:
                 _retrain_running = False
         logger.warning("Auto-retrain counter update failed (scope=%s)", scope, exc_info=True)
         return False
-
-    if not dispatch:
-        return False
-
-    # Prune finished threads so the tracking list can't grow without bound.
-    _active_threads[:] = [t for t in _active_threads if t.is_alive()]
-    t = threading.Thread(
-        target=_run_retrain, args=(db_path, scope), name=f"auto-retrain-{scope}", daemon=True,
-    )
-    try:
-        t.start()
-    except Exception:  # noqa: BLE001 — releasing the claimed slot is the point
-        # Thread failed to start (e.g. resource exhaustion). We already claimed
-        # the slot and reset the counter, so release the slot so the next event
-        # can dispatch again instead of being blocked forever.
-        with _retrain_lock:
-            _retrain_running = False
-        logger.warning("Auto-retrain dispatch failed to start (scope=%s)", scope, exc_info=True)
-        return False
-    _active_threads.append(t)
-    return True

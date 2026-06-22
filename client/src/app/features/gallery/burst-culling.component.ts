@@ -90,7 +90,7 @@ interface ShortcutRow {
             </mat-slider>
             <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
           </div>
-          <select class="text-xs rounded-md px-2 py-1 bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)] border border-[var(--mat-sys-outline-variant)]"
+          <select [class]="filterSelectClass"
                   [value]="sortMode()"
                   (change)="onSortChange($any($event.target).value)"
                   [attr.aria-label]="'culling.sort.label' | translate">
@@ -99,7 +99,7 @@ interface ShortcutRow {
             }
           </select>
           @if (availableCategories().length > 0) {
-            <select class="text-xs rounded-md px-2 py-1 bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)] border border-[var(--mat-sys-outline-variant)]"
+            <select [class]="filterSelectClass"
                     [value]="categoryFilter()"
                     (change)="onCategoryFilterChange($any($event.target).value)"
                     [attr.aria-label]="'culling.filter_category' | translate">
@@ -110,7 +110,8 @@ interface ShortcutRow {
             </select>
           }
           <button mat-icon-button (click)="showHelp.set(!showHelp())" class="!w-8 !h-8 !p-0"
-                  [matTooltip]="'culling.help' | translate">
+                  [matTooltip]="'culling.help' | translate"
+                  [attr.aria-label]="'culling.help' | translate">
             <mat-icon class="!text-lg !w-5 !h-5 !leading-5 opacity-60">help_outline</mat-icon>
           </button>
         </div>
@@ -170,6 +171,7 @@ interface ShortcutRow {
                        role="button"
                        tabindex="0"
                        [attr.aria-label]="photo.filename"
+                       [attr.aria-pressed]="photo.path | isKept:selectionsMap():group.group_id"
                        (click)="toggleSelection(photo.path, group)"
                        (keydown.enter)="toggleSelection(photo.path, group); $event.stopPropagation()"
                        (keydown.space)="toggleSelection(photo.path, group); $event.stopPropagation(); $event.preventDefault()"
@@ -189,6 +191,10 @@ interface ShortcutRow {
                       <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center">
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">check</mat-icon>
                       </div>
+                    } @else if (photo.path | isDecided:selectionsMap():group.group_id) {
+                      <div class="absolute inset-0 inline-flex items-center justify-center bg-red-900/30 pointer-events-none">
+                        <mat-icon class="!text-3xl !w-9 !h-9 !leading-9 text-red-300">close</mat-icon>
+                      </div>
                     }
                     <div class="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-white text-xs font-medium">
                       {{ photo.aggregate | number:'1.1-1' }}
@@ -201,6 +207,7 @@ interface ShortcutRow {
                     @if (!(photo.path | isKept:selectionsMap():group.group_id)) {
                       <button class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 inline-flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity"
                               [matTooltip]="'culling.view_detail' | translate"
+                              [attr.aria-label]="'culling.view_detail' | translate"
                               (click)="openDetail($event, photo.path)">
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">info</mat-icon>
                       </button>
@@ -429,7 +436,7 @@ export class BurstCullingComponent implements OnDestroy {
   private readonly hiddenGroups = signal<Set<string>>(new Set());
 
   /** Active timers for passing groups (for cleanup) */
-  private readonly passTimers = new Map<string, { timeoutId: ReturnType<typeof setTimeout>; intervalId: ReturnType<typeof setInterval> }>();
+  private readonly passTimers = new Map<string, { timeoutId: ReturnType<typeof setTimeout>; intervalId: ReturnType<typeof setInterval>; onElapsed: () => void; commit: boolean }>();
 
   protected readonly currentPage = signal(1);
   protected readonly totalPages = signal(1);
@@ -479,6 +486,9 @@ export class BurstCullingComponent implements OnDestroy {
   /** Server-side ordering of culling groups; reloads from page 1 on change. */
   protected readonly sortMode = signal('easiest');
   protected readonly sortModes = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons'] as const;
+
+  /** Shared Tailwind class string for the toolbar's native <select> controls. */
+  protected readonly filterSelectClass = 'text-xs rounded-md px-2 py-1 bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)] border border-[var(--mat-sys-outline-variant)]';
 
   /** Content-category to cull ('' = all). Filters the visible group list client-side. */
   protected readonly categoryFilter = signal('');
@@ -931,7 +941,7 @@ export class BurstCullingComponent implements OnDestroy {
           this.snackBar.open(this.i18n.t('culling.error_confirming'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
         });
       this.addToSetSignal(this.hiddenGroups, key);
-    });
+    }, true);
   }
 
   private unconfirmGroup(key: string): void {
@@ -957,7 +967,7 @@ export class BurstCullingComponent implements OnDestroy {
    * timer that runs onElapsed (hide for skip; commit + hide for confirm). Cancel
    * via cancelPass before it fires fully reverts the action.
    */
-  private startCountdown(key: string, onElapsed: () => void): void {
+  private startCountdown(key: string, onElapsed: () => void, commit = false): void {
     this.clearPassTimer(key);
     this.updateMapSignal(this.passingGroups, key, this.passCountdownSeconds);
 
@@ -976,7 +986,7 @@ export class BurstCullingComponent implements OnDestroy {
       onElapsed();
     }, this.passCountdownSeconds * 1000);
 
-    this.passTimers.set(key, { timeoutId, intervalId });
+    this.passTimers.set(key, { timeoutId, intervalId, onElapsed, commit });
   }
 
   protected skipGroup(group: CullingGroup): void {
@@ -1001,13 +1011,21 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   private clearAllPassTimers(): void {
-    for (const { timeoutId, intervalId } of this.passTimers.values()) {
+    // A confirm defers its server commit into the cooldown timer; cancelling
+    // that timer on teardown/reload without running it would silently drop the
+    // user's keep/reject decision. So flush pending confirm commits here (skip
+    // timers only hide a group, nothing to persist). Explicit cancelPass goes
+    // through clearPassTimer and is unaffected — an abort still aborts.
+    const pendingCommits: (() => void)[] = [];
+    for (const { timeoutId, intervalId, onElapsed, commit } of this.passTimers.values()) {
       clearTimeout(timeoutId);
       clearInterval(intervalId);
+      if (commit) pendingCommits.push(onElapsed);
     }
     this.passTimers.clear();
     this.passingGroups.set(new Map());
     this.hiddenGroups.set(new Set());
+    for (const commit of pendingCommits) commit();
   }
 
   protected async confirmAllRemaining(): Promise<void> {

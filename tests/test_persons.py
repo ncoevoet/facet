@@ -175,12 +175,9 @@ class TestMergeBatch:
         assert body["success"] is True
         assert body["targets"] == [1]
         assert body["merged_count"] == 3
-
-        calls = [str(c) for c in mock_conn.execute.call_args_list]
-        # Faces moved
-        assert any("UPDATE faces SET person_id" in c for c in calls)
-        # Source persons deleted
-        assert any("DELETE FROM persons" in c for c in calls)
+        # The actual face-move / source-delete row effects are asserted against a
+        # real DB in test_persons_merge_batch.py; here we only verify the
+        # endpoint resolves the batch and commits once.
         mock_conn.commit.assert_called_once()
 
     def test_merge_batch_resolves_chains(self, client):

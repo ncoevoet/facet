@@ -16,6 +16,7 @@ from db.schema import (
     STATS_CACHE_COLUMNS,
     WEIGHT_CONFIG_SNAPSHOTS_COLUMNS, WEIGHT_CONFIG_SNAPSHOTS_INDEXES,
     INDEXES,
+    person_not_hidden_clause,
     _build_create_table_sql, _migrate_add_missing_columns,
 )
 from db.maintenance import vacuum_database, analyze_database, optimize_database, cleanup_orphaned_persons, export_viewer_db, cleanup_missing_photos

@@ -180,6 +180,13 @@ class TestRejectMergeSuggestion:
             fake_faces = mock.MagicMock()
             fake_faces.get_merge_groups = mock.MagicMock(return_value=fake_groups)
 
+            # Stub the whole ``faces`` module in sys.modules rather than patching
+            # ``faces.get_merge_groups`` directly: importing the real ``faces``
+            # package pulls in InsightFace/torch (FaceProcessor), which is heavy
+            # and GPU-dependent. This relies on the endpoint doing a *lazy*
+            # ``from faces import get_merge_groups`` at call time
+            # (api/routers/merge_suggestions.py) — if that import is ever hoisted
+            # to module top, swap this for patching the bound symbol there.
             with mock.patch.dict("sys.modules", {"faces": fake_faces}):
                 before = edition_client.get("/api/merge_suggestions")
                 assert before.status_code == 200

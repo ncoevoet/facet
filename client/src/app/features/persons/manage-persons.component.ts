@@ -653,6 +653,7 @@ export class ManagePersonsComponent implements OnInit {
         this.api.post<{
           success: boolean;
           new_person_id: number;
+          name: string | null;
           new_count: number;
           source_count: number;
         }>(`/persons/${person.id}/split`, {
@@ -665,7 +666,7 @@ export class ManagePersonsComponent implements OnInit {
       this.persons.update((list) => {
         const newPerson: Person = {
           id: res.new_person_id,
-          name: result.name,
+          name: res.name ?? result.name,
           face_count: res.new_count,
           face_thumbnail: false,
         };
