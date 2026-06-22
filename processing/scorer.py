@@ -247,6 +247,33 @@ def _apply_exif_rotation(img, orientation):
     return img
 
 
+_EXIF_NUMERIC_FIELDS = (
+    'iso', 'f_stop', 'focal_length', 'focal_length_35mm',
+    'gps_latitude', 'gps_longitude',
+)
+
+
+def _sanitize_exif_numeric(exif_data):
+    """Null out non-finite numeric EXIF fields before they reach the database.
+
+    A lens without electronic contacts reports FNumber as N/0, which parses to
+    inf; storing it poisons MIN/MAX aggregates (np.histogram rejects a non-finite
+    range). Guards the exifread/Pillow/subprocess parse paths; the persistent
+    ExifTool path is already guarded in exiftool_batch._safe_numeric.
+    """
+    for key in _EXIF_NUMERIC_FIELDS:
+        value = exif_data.get(key)
+        if value is None:
+            continue
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if not np.isfinite(number):
+            exif_data[key] = None
+    return exif_data
+
+
 def fix_thumbnail_rotation(db_path):
     """
     Fix thumbnail rotation by reading EXIF orientation from original files
@@ -1943,7 +1970,7 @@ class Facet:
             exif_data['gps_longitude'] = data.get('GPSLongitude')
 
             if exif_data['camera_model']:
-                return exif_data
+                return _sanitize_exif_numeric(exif_data)
         except Exception:
             pass
 
@@ -1984,7 +2011,7 @@ class Facet:
                 except (ValueError, IndexError, ZeroDivisionError):
                     pass
                 if exif_data['camera_model']:
-                    return exif_data
+                    return _sanitize_exif_numeric(exif_data)
         except Exception:
             pass
 
@@ -2017,7 +2044,7 @@ class Facet:
                         exif_data['focal_length_35mm'] = float(value)
         except Exception as e:
             logger.warning("EXIF extraction failed for %s: %s", image_path, e)
-        return exif_data
+        return _sanitize_exif_numeric(exif_data)
 
     def save_photo(self, res, pil_img):
         """Generates a thumbnail and saves the full result to SQLite."""

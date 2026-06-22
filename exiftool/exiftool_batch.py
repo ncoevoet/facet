@@ -8,6 +8,7 @@ Processes files in chunks of 50 to avoid command-line limits and enable timeout 
 import atexit
 import json
 import logging
+import math
 import subprocess
 from pathlib import Path
 
@@ -191,17 +192,25 @@ def parse_exif_data(raw_data):
         Dict with standardized EXIF fields
     """
     def _safe_numeric(val):
-        """Convert EXIF value to float, handling strings."""
+        """Convert EXIF value to float, handling strings and rejecting non-finite values.
+
+        A lens without electronic contacts (e.g. on a Canon EOS 600D) reports
+        FNumber as N/0, which ExifTool surfaces as 'inf'. Storing that poisons
+        downstream MIN/MAX aggregates (np.histogram rejects a non-finite range),
+        so non-finite parses are dropped to None here.
+        """
         if val is None:
             return None
         if isinstance(val, (int, float)):
-            return float(val)
-        if isinstance(val, str):
+            f = float(val)
+        elif isinstance(val, str):
             try:
-                return float(val)
+                f = float(val)
             except ValueError:
                 return None
-        return None
+        else:
+            return None
+        return f if math.isfinite(f) else None
 
     return {
         'date_taken': raw_data.get('DateTimeOriginal') or raw_data.get('CreateDate'),

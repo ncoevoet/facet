@@ -422,6 +422,12 @@ def _compute_metric_ranges():
         v_min, v_max = float(v_min), float(v_max)
         values = matrix[:, idx]
         values = values[np.isfinite(values)]
+        # A non-finite SQL MIN/MAX (e.g. inf from a bad EXIF aperture parse) would
+        # make np.histogram reject the range; fall back to the finite sample bounds.
+        if not np.isfinite(v_min):
+            v_min = float(values.min()) if values.size else 0.0
+        if not np.isfinite(v_max):
+            v_max = float(values.max()) if values.size else v_min
         if v_max <= v_min:
             buckets = [int(values.size)]
         else:
