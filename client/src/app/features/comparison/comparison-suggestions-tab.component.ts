@@ -5,7 +5,6 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
-import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
@@ -83,27 +82,7 @@ interface TopPhoto {
               @if (!lw.suggest_changes) {
                 <p class="text-gray-500 text-xs">{{ 'compare.weights.already_good' | translate }}</p>
               }
-              <div class="flex flex-wrap gap-2">
-                <button mat-flat-button [disabled]="applied() || saving() || !auth.isEdition()" (click)="applySuggested()">
-                  @if (saving()) {
-                    <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
-                  } @else {
-                    <mat-icon>auto_fix_high</mat-icon>
-                  }
-                  {{ 'comparison.apply_suggested' | translate }}
-                </button>
-                @if (applied() && !recomputed()) {
-                  <button mat-stroked-button [disabled]="recomputing() || !auth.isEdition()" (click)="recompute()">
-                    @if (recomputing()) {
-                      <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
-                    } @else {
-                      <mat-icon>calculate</mat-icon>
-                    }
-                    {{ 'comparison.recompute_category' | translate }}
-                  </button>
-                }
-              </div>
-              @if (applied() && !recomputed()) {
+              @if (needsRecompute()) {
                 <p class="text-amber-400 text-xs">{{ 'comparison.recompute_needed' | translate }}</p>
               }
             </div>
@@ -145,7 +124,6 @@ interface TopPhoto {
 })
 export class ComparisonSuggestionsTabComponent {
   private readonly api = inject(ApiService);
-  protected readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly compareFilters = inject(CompareFiltersService);
@@ -159,8 +137,18 @@ export class ComparisonSuggestionsTabComponent {
   protected readonly topAfter = signal<TopPhoto[]>([]);
   protected readonly applied = signal(false);
   protected readonly recomputed = signal(false);
-  protected readonly saving = signal(false);
-  protected readonly recomputing = signal(false);
+  /** Public so the parent can drive Apply/Recompute from the contextual top bar. */
+  readonly saving = signal(false);
+  readonly recomputing = signal(false);
+
+  /** A suggestion exists and has not been applied yet. */
+  readonly canApply = computed(() => {
+    const lw = this.learnedWeights();
+    return !!(lw?.available && lw.suggested_weights) && !this.applied();
+  });
+
+  /** Weights were applied but the category's scores have not been recomputed. */
+  readonly needsRecompute = computed(() => this.applied() && !this.recomputed());
 
   /** Current vs suggested rows over the category's canonical percent weights. */
   protected readonly weightRows = computed(() => {
@@ -211,7 +199,7 @@ export class ComparisonSuggestionsTabComponent {
     return data.photos ?? [];
   }
 
-  protected async applySuggested(): Promise<void> {
+  async applySuggested(): Promise<void> {
     const lw = this.learnedWeights();
     const config = this.categoryConfig();
     const category = this.compareFilters.selectedCategory();
@@ -239,7 +227,7 @@ export class ComparisonSuggestionsTabComponent {
     }
   }
 
-  protected async recompute(): Promise<void> {
+  async recompute(): Promise<void> {
     const category = this.compareFilters.selectedCategory();
     if (!category) return;
     this.recomputing.set(true);

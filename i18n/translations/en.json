@@ -1319,7 +1319,7 @@
     "top_before": "Current top 10",
     "top_after": "After new weights",
     "top_after_hint": "Apply and recompute to see the new ranking",
-    "recompute_category": "Recompute this category's photos based on new weights",
+    "recompute_category": "Recompute this category",
     "recompute_needed": "Weights applied but scores not recomputed yet — recompute to update the rankings.",
     "weight_property": "Property",
     "weight_current": "Current",

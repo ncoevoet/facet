@@ -1323,7 +1323,7 @@
     "top_before": "Aktuelle Top 10",
     "top_after": "Mit neuen Gewichten",
     "top_after_hint": "Anwenden und neu berechnen, um die neue Rangfolge zu sehen",
-    "recompute_category": "Fotos dieser Kategorie mit den neuen Gewichten neu berechnen",
+    "recompute_category": "Kategorie neu berechnen",
     "recompute_needed": "Gewichte angewendet, aber Werte noch nicht neu berechnet — neu berechnen, um die Rangfolge zu aktualisieren.",
     "weight_property": "Eigenschaft",
     "weight_current": "Aktuell",

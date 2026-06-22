@@ -35,36 +35,67 @@ Chart.register(...registerables);
   ],
   template: `
     <div class="p-4 md:p-6 max-w-screen-2xl mx-auto">
-      <!-- Top bar: Action buttons -->
-      <div class="flex flex-wrap items-center gap-3 mb-4 md:mb-6">
-        <div class="flex gap-2 ml-auto flex-wrap">
-          <button
-            mat-flat-button
-            [disabled]="!weightsTab()?.hasChanges() || !auth.isEdition() || (weightsTab()?.saving() ?? false) || (weightsTab()?.hasValidationErrors() ?? false)"
-            (click)="weightsTab()?.saveWeights()"
-            [matTooltip]="'comparison.save_tooltip' | translate">
-            <mat-icon>save</mat-icon>
-            {{ 'comparison.save' | translate }}
-          </button>
-          <button mat-stroked-button (click)="weightsTab()?.loadWeights(true)"
-            [matTooltip]="'comparison.reset_tooltip' | translate">
-            <mat-icon>refresh</mat-icon>
-            {{ 'comparison.reset' | translate }}
-          </button>
-          <button
-            mat-stroked-button
-            [disabled]="(weightsTab()?.hasChanges() ?? false) || !auth.isEdition() || (weightsTab()?.recalculating() ?? false)"
-            (click)="weightsTab()?.recalculateScores()"
-            [matTooltip]="'comparison.recalculate_tooltip' | translate">
-            @if (weightsTab()?.recalculating()) {
-              <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
-            } @else {
-              <mat-icon>calculate</mat-icon>
+      <!-- Top bar: actions contextual to the active tab -->
+      @if (showTopActions()) {
+        <div class="flex flex-wrap items-center gap-3 mb-4 md:mb-6">
+          <div class="flex gap-2 ml-auto flex-wrap">
+            @if (selectedTabIndex() === 3) {
+              <!-- Weights tab -->
+              <button
+                mat-flat-button
+                [disabled]="!weightsTab()?.hasChanges() || !auth.isEdition() || (weightsTab()?.saving() ?? false) || (weightsTab()?.hasValidationErrors() ?? false)"
+                (click)="weightsTab()?.saveWeights()"
+                [matTooltip]="'comparison.save_tooltip' | translate">
+                <mat-icon>save</mat-icon>
+                {{ 'comparison.save' | translate }}
+              </button>
+              <button mat-stroked-button (click)="weightsTab()?.loadWeights(true)"
+                [matTooltip]="'comparison.reset_tooltip' | translate">
+                <mat-icon>refresh</mat-icon>
+                {{ 'comparison.reset' | translate }}
+              </button>
+              <button
+                mat-stroked-button
+                [disabled]="(weightsTab()?.hasChanges() ?? false) || !auth.isEdition() || (weightsTab()?.recalculating() ?? false)"
+                (click)="weightsTab()?.recalculateScores()"
+                [matTooltip]="'comparison.recalculate_tooltip' | translate">
+                @if (weightsTab()?.recalculating()) {
+                  <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
+                } @else {
+                  <mat-icon>calculate</mat-icon>
+                }
+                {{ 'comparison.recalculate' | translate }}
+              </button>
+            } @else if (selectedTabIndex() === 2) {
+              <!-- Weight Suggestions tab -->
+              @if (suggestionsTab()?.canApply()) {
+                <button mat-flat-button
+                  [disabled]="(suggestionsTab()?.saving() ?? false) || !auth.isEdition()"
+                  (click)="suggestionsTab()?.applySuggested()">
+                  @if (suggestionsTab()?.saving()) {
+                    <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
+                  } @else {
+                    <mat-icon>auto_fix_high</mat-icon>
+                  }
+                  {{ 'comparison.apply_suggested' | translate }}
+                </button>
+              }
+              @if (suggestionsTab()?.needsRecompute()) {
+                <button mat-stroked-button
+                  [disabled]="(suggestionsTab()?.recomputing() ?? false) || !auth.isEdition()"
+                  (click)="suggestionsTab()?.recompute()">
+                  @if (suggestionsTab()?.recomputing()) {
+                    <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
+                  } @else {
+                    <mat-icon>calculate</mat-icon>
+                  }
+                  {{ 'comparison.recompute_category' | translate }}
+                </button>
+              }
             }
-            {{ 'comparison.recalculate' | translate }}
-          </button>
+          </div>
         </div>
-      </div>
+      }
 
       @if (compareFilters.selectedCategory()) {
         <mat-tab-group class="mb-6" [selectedIndex]="0" (selectedIndexChange)="onTabChange($event)">
@@ -95,7 +126,7 @@ Chart.register(...registerables);
                 {{ 'comparison.suggestions_tab' | translate }}
               </span>
             </ng-template>
-            <app-comparison-suggestions-tab (weightsApplied)="onWeightsApplied($event)" />
+            <app-comparison-suggestions-tab #suggestionsTabEl (weightsApplied)="onWeightsApplied($event)" />
           </mat-tab>
 
           <!-- Weights tab -->
@@ -121,12 +152,24 @@ export class ComparisonComponent {
   protected readonly weightsTab = viewChild<ComparisonWeightsTabComponent>('weightsTabEl');
   protected readonly snapshotsTab = viewChild<ComparisonSnapshotsTabComponent>('snapshotsTabEl');
   protected readonly abTab = viewChild<ComparisonAbTabComponent>('abTabEl');
+  protected readonly suggestionsTab = viewChild<ComparisonSuggestionsTabComponent>('suggestionsTabEl');
+
+  /** Active tab (0 Snapshots, 1 Compare, 2 Suggestions, 3 Weights) — drives the contextual top bar. */
+  protected readonly selectedTabIndex = signal(0);
 
   /** Total comparisons (all sources) + threshold, to gate the Weight Suggestions tab. */
   private readonly comparisonStats = signal<{ total_comparisons: number; min_comparisons_for_optimization?: number } | null>(null);
   private readonly threshold = computed(() => this.comparisonStats()?.min_comparisons_for_optimization ?? 50);
   protected readonly weightsRemaining = computed(() => Math.max(0, this.threshold() - (this.comparisonStats()?.total_comparisons ?? 0)));
   protected readonly weightsLocked = computed(() => (this.comparisonStats()?.total_comparisons ?? 0) < this.threshold());
+
+  /** Whether the contextual top bar has any action to show for the active tab. */
+  protected readonly showTopActions = computed(() => {
+    const i = this.selectedTabIndex();
+    if (i === 3) return true;
+    if (i === 2) return !!(this.suggestionsTab()?.canApply() || this.suggestionsTab()?.needsRecompute());
+    return false;
+  });
 
   constructor() {
     effect(() => {
@@ -160,6 +203,7 @@ export class ComparisonComponent {
   }
 
   protected onTabChange(index: number): void {
+    this.selectedTabIndex.set(index);
     if (index === 1 && !this.abTab()?.pairA() && !this.abTab()?.pairLoading()) {
       void this.abTab()?.loadNextPair();
     }

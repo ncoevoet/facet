@@ -1319,7 +1319,7 @@
     "top_before": "Top 10 attuale",
     "top_after": "Con i nuovi pesi",
     "top_after_hint": "Applica e ricalcola per vedere la nuova classifica",
-    "recompute_category": "Ricalcola le foto di questa categoria con i nuovi pesi",
+    "recompute_category": "Ricalcola questa categoria",
     "recompute_needed": "Pesi applicati ma punteggi non ancora ricalcolati — ricalcola per aggiornare le classifiche.",
     "weight_property": "Proprietà",
     "weight_current": "Attuale",
