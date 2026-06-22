@@ -142,6 +142,7 @@ class _ScoreModel:
 
 
 def test_deqa_predict_mos_score_api_success():
+    pytest.importorskip("torch")
     # .score() returns a plain MOS list -> first element, normalized later.
     scorer = _ready_scorer(_ScoreModel([4.0]))
     raw = scorer._predict_mos(Image.new("RGB", (8, 8)))
@@ -151,6 +152,7 @@ def test_deqa_predict_mos_score_api_success():
 
 
 def test_deqa_predict_mos_returns_none_on_exception():
+    pytest.importorskip("torch")
     # A model whose .score() raises must NOT crash — _predict_mos returns None.
     def boom():
         raise RuntimeError("forward signature changed in this revision")
@@ -162,12 +164,14 @@ def test_deqa_predict_mos_returns_none_on_exception():
 
 
 def test_deqa_predict_mos_returns_none_on_empty_output():
+    pytest.importorskip("torch")
     # Empty list output -> None rather than an IndexError.
     scorer = _ready_scorer(_ScoreModel([]))
     assert scorer._predict_mos(Image.new("RGB", (8, 8))) is None
 
 
 def test_deqa_score_batch_substitutes_none_for_failures():
+    pytest.importorskip("torch")
     # One good, one failing image: batch returns [score, None], never raises.
     calls = {"n": 0}
 
