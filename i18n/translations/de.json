@@ -1317,6 +1317,8 @@
     "error_submitting": "Vergleich konnte nicht übermittelt werden",
     "snapshots_description": "Schnappschüsse werden serverseitig gespeichert und sind auf die aktuelle Kategorie beschränkt. Erstellen Sie einen Schnappschuss, bevor Sie mit Gewichten experimentieren, und stellen Sie ihn wieder her, um zu einem bekannten Zustand zurückzukehren. Schnappschüsse bleiben über Sitzungen und Geräte hinweg erhalten.",
     "apply_suggested": "Vorgeschlagene anwenden",
+    "suggestions_tab": "Gewichtsvorschläge",
+    "suggestions_locked_tooltip": "{count} weitere Vergleiche nötig, um Gewichtsvorschläge freizuschalten",
     "no_data_yet": "Fotos vergleichen, um Statistiken anzuzeigen",
     "error_loading_suggestions": "Fehler beim Laden der Vorschläge",
     "save_tooltip": "Aktuelle Gewichtskonfiguration in scoring_config.json speichern",
@@ -1654,7 +1656,7 @@
     "burst_help": "Fotos, die in schneller Folge aufgenommen wurden, werden zusammengefasst. Klicken Sie auf Fotos, um sie zu behalten (grüner Rahmen). Nicht ausgewählte Fotos (roter Rahmen) werden ausgeblendet. Das beste Foto wird automatisch anhand von Schärfe und Qualität ausgewählt.",
     "similar_help": "Visuell ähnliche Fotos in Ihrer Bibliothek werden mithilfe von KI-Embeddings gruppiert. Überprüfen Sie jede Gruppe, behalten Sie die besten Aufnahmen und verwerfen Sie Fast-Duplikate. Passen Sie den Schwellenwert-Regler an, um zu steuern, wie ähnlich Fotos sein müssen, um eine Gruppe zu bilden.",
     "help": "Hilfe",
-    "help_text": "Überprüfen Sie Gruppen ähnlicher oder Serienfotos. Klicken zum Auswählen, Doppelklick zum exklusiven Auswählen. Bestätigte Gruppen verbergen abgelehnte Fotos aus der Galerie.",
+    "help_text": "Überprüfen Sie Gruppen ähnlicher oder Serienfotos. Klicken Sie auf ein Foto, um es zu behalten oder zu verwerfen; doppelklicken Sie, um nur dieses zu behalten. Öffnen Sie die Dunkelkammer (Vollbild-Durchsicht) mit der Schaltfläche Dunkelkammer oder der Eingabetaste. Mit Hoch/Runter wählen Sie eine Gruppe, mit der Leertaste bestätigen Sie sie und springen zur nächsten. Überspringen und Bestätigen starten einen 7-Sekunden-Countdown, den Sie vor dem Schließen der Gruppe abbrechen können; das Bestätigen blendet die abgelehnten Fotos in der Galerie aus.",
     "type_burst": "Serie",
     "type_similar": "Ähnlich",
     "confirm_all": "Alle bestätigen",
@@ -1664,6 +1666,22 @@
     "load_more": "Mehr laden",
     "view_detail": "Detail anzeigen",
     "cancel_pass": "Abbrechen",
+    "cancel_restore": "Wiederherstellen",
+    "darkroom": "Dunkelkammer",
+    "all_categories": "Alle Kategorien",
+    "filter_category": "Nach Kategorie filtern",
+    "sort": {
+      "label": "Sortieren",
+      "easiest": "Einfachste zuerst",
+      "redundant": "Redundanteste zuerst",
+      "best": "Beste zuerst",
+      "recent": "Neueste zuerst",
+      "needs_comparisons": "Vergleiche nötig"
+    },
+    "weight_remaining": "{count} bis zur Gewichtsabstimmung",
+    "weight_ready": "Gewichtsabstimmung bereit",
+    "weight_remaining_tooltip": "Noch benötigte Vergleiche in dieser Kategorie, bevor die Gewichtsabstimmung freigeschaltet wird. Stimmen Sie sie unter Vergleich → Gewichtsvorschläge ab.",
+    "weight_ready_tooltip": "Genügend Vergleiche gesammelt — öffnen Sie Vergleich → Gewichtsvorschläge, um die optimierten Gewichte dieser Kategorie zu prüfen und anzuwenden.",
     "strictness": "Strenge",
     "strictness_tooltip": "Höher behält nur das beste Foto; niedriger behält auch knappe Treffer",
     "face_grid_title": "Gesichter in dieser Gruppe",
@@ -1683,6 +1701,17 @@
       "kept": "Behalten",
       "rejected": "Verworfen",
       "undecided": "Unentschieden"
+    },
+    "shortcuts": {
+      "page_title": "Galerie",
+      "darkroom_title": "Dunkelkammer",
+      "select": "Gruppe auswählen",
+      "open": "Vollbild öffnen",
+      "navigate": "Vorheriges / nächstes Foto",
+      "keep": "Foto behalten",
+      "reject": "Foto ablehnen",
+      "confirm_next": "Bestätigen & nächste Gruppe",
+      "close": "Schließen"
     }
   },
   "memories": {

@@ -1313,6 +1313,8 @@
     "error_submitting": "Failed to submit comparison",
     "snapshots_description": "Snapshots are saved server-side and scoped to the current category. Create a snapshot before experimenting with weights, then restore it to go back to a known-good state. Snapshots persist across sessions and devices.",
     "apply_suggested": "Apply Suggested",
+    "suggestions_tab": "Weight Suggestions",
+    "suggestions_locked_tooltip": "{count} more comparisons needed to unlock weight suggestions",
     "no_data_yet": "Compare photos to see statistics",
     "error_loading_suggestions": "Error loading suggestions",
     "save_tooltip": "Save current weight configuration to scoring_config.json",
@@ -1648,7 +1650,7 @@
     "burst_help": "Photos taken in rapid succession are grouped together. Click photos to keep them (green border), unselected photos (red border) will be hidden. The best photo is auto-selected based on sharpness and quality.",
     "similar_help": "Visually similar photos across your library are grouped using AI embeddings. Review each group, keep the best shots, and discard near-duplicates. Adjust the threshold slider to control how similar photos must be to form a group.",
     "help": "Help",
-    "help_text": "Review groups of similar or burst photos. Click to select, double-click to select exclusively. Confirmed groups hide rejected photos from the gallery.",
+    "help_text": "Review groups of similar or burst photos. Click a photo to keep or unkeep it; double-click to keep only that one. Open the Darkroom (fullscreen review) with the Darkroom button or the Enter key. Use Up/Down to pick a group and Space to confirm it and move to the next. Skip and Confirm start a 7-second cooldown you can Cancel before the group closes; confirming hides the rejected photos from the gallery.",
     "type_burst": "Burst",
     "type_similar": "Similar",
     "confirm_all": "Confirm All",
@@ -1658,6 +1660,22 @@
     "load_more": "Load more",
     "view_detail": "View detail",
     "cancel_pass": "Cancel",
+    "cancel_restore": "Restore",
+    "darkroom": "Darkroom",
+    "all_categories": "All categories",
+    "filter_category": "Filter by category",
+    "sort": {
+      "label": "Sort",
+      "easiest": "Easiest first",
+      "redundant": "Most redundant",
+      "best": "Best first",
+      "recent": "Most recent",
+      "needs_comparisons": "Needs comparisons"
+    },
+    "weight_remaining": "{count} to tune weights",
+    "weight_ready": "Weight tuning ready",
+    "weight_remaining_tooltip": "Comparisons still needed in this category before weight tuning unlocks. Tune weights in Comparison → Weight Suggestions.",
+    "weight_ready_tooltip": "Enough comparisons collected — open Comparison → Weight Suggestions to review and apply the optimized weights for this category.",
     "strictness": "Strictness",
     "strictness_tooltip": "Higher keeps only the single best photo; lower keeps near-ties too",
     "face_grid_title": "Faces in this group",
@@ -1677,6 +1695,17 @@
       "kept": "Kept",
       "rejected": "Rejected",
       "undecided": "Undecided"
+    },
+    "shortcuts": {
+      "page_title": "Gallery",
+      "darkroom_title": "Darkroom",
+      "select": "Select group",
+      "open": "Open fullscreen",
+      "navigate": "Previous / next photo",
+      "keep": "Keep photo",
+      "reject": "Reject photo",
+      "confirm_next": "Confirm & next group",
+      "close": "Close"
     }
   },
   "memories": {

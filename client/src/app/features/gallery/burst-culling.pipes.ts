@@ -37,6 +37,7 @@ export interface CullingGroup {
   photos: CullingPhoto[];
   best_path: string;
   count: number;
+  category?: string | null;
 }
 
 @Pipe({ name: 'isKept' })
@@ -93,6 +94,30 @@ export class CullReasonPipe implements PipeTransform {
 export class FacesForPathPipe implements PipeTransform {
   transform(path: string, faceMap: Map<string, CullingFace[]>): CullingFace[] {
     return faceMap.get(path) ?? [];
+  }
+}
+
+/** Per-category comparison count + threshold, for the weight-tuning progress chip. */
+export interface WeightStats {
+  category_breakdown?: { category: string; count: number }[];
+  min_comparisons_for_optimization?: number;
+}
+
+/**
+ * Comparisons still needed in a category before weight optimization unlocks.
+ * Returns 0 (falsy) once the threshold is met, so the template's `@else` branch
+ * renders the "ready" state.
+ */
+@Pipe({ name: 'weightRemaining' })
+export class WeightRemainingPipe implements PipeTransform {
+  /** Mirrors scoring_config viewer.comparison_mode.min_comparisons_for_optimization. */
+  private static readonly DEFAULT_THRESHOLD = 50;
+
+  transform(category: string | null | undefined, stats: WeightStats | null): number {
+    if (!category || !stats) return 0;
+    const threshold = stats.min_comparisons_for_optimization ?? WeightRemainingPipe.DEFAULT_THRESHOLD;
+    const count = stats.category_breakdown?.find(c => c.category === category)?.count ?? 0;
+    return Math.max(0, threshold - count);
   }
 }
 

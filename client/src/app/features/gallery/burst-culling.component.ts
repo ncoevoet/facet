@@ -1,6 +1,6 @@
-import { Component, inject, signal, computed, OnDestroy, WritableSignal, HostListener } from '@angular/core';
+import { Component, inject, signal, computed, effect, viewChild, ElementRef, OnDestroy, WritableSignal, HostListener } from '@angular/core';
 import { Router } from '@angular/router';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgClass } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -12,12 +12,11 @@ import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, FaceThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { I18nService } from '../../core/services/i18n.service';
-import { UndoService } from '../../core/services/undo.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { firstValueFrom } from 'rxjs';
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
-  CullReasonPipe, FacesForPathPipe, IsEyesClosedPipe,
+  CullReasonPipe, FacesForPathPipe, IsEyesClosedPipe, WeightRemainingPipe,
   CullingGroup, CullingFace,
 } from './burst-culling.pipes';
 
@@ -29,10 +28,22 @@ interface CullingGroupsResponse {
   total_pages: number;
 }
 
+/** Minimal read-shape of GET /comparison/stats needed for the per-category weight-tuning chip. */
+interface ComparisonStatsLite {
+  category_breakdown?: { category: string; count: number }[];
+  min_comparisons_for_optimization?: number;
+}
+
+interface ShortcutRow {
+  keys: string[];
+  labelKey: string;
+}
+
 @Component({
   selector: 'app-burst-culling',
   imports: [
     DecimalPipe,
+    NgClass,
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
@@ -51,11 +62,12 @@ interface CullingGroupsResponse {
     CullReasonPipe,
     FacesForPathPipe,
     IsEyesClosedPipe,
+    WeightRemainingPipe,
     InfiniteScrollDirective,
   ],
   template: `
-    <div class="px-4 pt-2 pb-2 md:px-8 md:pt-3 md:pb-4 mx-auto w-full max-w-screen-xl">
-      <!-- Header -->
+    <div class="px-4 pt-2 md:px-8 md:pt-3 mx-auto w-full max-w-[96%] h-full flex flex-col">
+      <!-- Header (sticky: only the group list below scrolls) -->
       <div class="flex items-center gap-3 shrink-0 mb-3">
         <h2 class="text-lg font-semibold">{{ 'culling.title' | translate }}</h2>
         <div class="flex flex-wrap items-center gap-3 md:gap-4 ml-auto">
@@ -78,6 +90,25 @@ interface CullingGroupsResponse {
             </mat-slider>
             <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
           </div>
+          <select class="text-xs rounded-md px-2 py-1 bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)] border border-[var(--mat-sys-outline-variant)]"
+                  [value]="sortMode()"
+                  (change)="onSortChange($any($event.target).value)"
+                  [attr.aria-label]="'culling.sort.label' | translate">
+            @for (m of sortModes; track m) {
+              <option [value]="m">{{ 'culling.sort.' + m | translate }}</option>
+            }
+          </select>
+          @if (availableCategories().length > 0) {
+            <select class="text-xs rounded-md px-2 py-1 bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)] border border-[var(--mat-sys-outline-variant)]"
+                    [value]="categoryFilter()"
+                    (change)="onCategoryFilterChange($any($event.target).value)"
+                    [attr.aria-label]="'culling.filter_category' | translate">
+              <option value="">{{ 'culling.all_categories' | translate }}</option>
+              @for (c of availableCategories(); track c) {
+                <option [value]="c">{{ 'category_names.' + c | translate }}</option>
+              }
+            </select>
+          }
           <button mat-icon-button (click)="showHelp.set(!showHelp())" class="!w-8 !h-8 !p-0"
                   [matTooltip]="'culling.help' | translate">
             <mat-icon class="!text-lg !w-5 !h-5 !leading-5 opacity-60">help_outline</mat-icon>
@@ -86,11 +117,32 @@ interface CullingGroupsResponse {
       </div>
 
       @if (showHelp()) {
-        <p class="text-sm opacity-60 shrink-0 p-3 mb-3 rounded-lg bg-[var(--mat-sys-surface-container)]">
-          {{ 'culling.help_text' | translate }}
-        </p>
+        <div class="shrink-0 p-3 mb-3 rounded-lg bg-[var(--mat-sys-surface-container)] space-y-3">
+          <p class="text-sm opacity-70">{{ 'culling.help_text' | translate }}</p>
+          <div class="flex flex-wrap gap-x-10 gap-y-3">
+            @for (section of shortcutSections; track section.titleKey) {
+              <div>
+                <div class="text-xs font-semibold uppercase opacity-50 mb-1.5">{{ section.titleKey | translate }}</div>
+                <div class="space-y-1">
+                  @for (row of section.rows; track row.labelKey) {
+                    <div class="flex items-center gap-2 text-xs">
+                      <span class="flex gap-1">
+                        @for (k of row.keys; track k) {
+                          <kbd class="px-1.5 py-0.5 rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] text-xs font-mono">{{ k }}</kbd>
+                        }
+                      </span>
+                      <span class="opacity-80">{{ row.labelKey | translate }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
       }
 
+      <!-- Scrollable group list; the header above stays fixed -->
+      <div class="flex-1 min-h-0 overflow-y-auto -mx-4 px-4 md:-mx-8 md:px-8 pb-4" data-culling-scroll>
       <!-- Content -->
       @if (loading()) {
         <div class="flex justify-center items-center py-20">
@@ -101,11 +153,15 @@ interface CullingGroupsResponse {
       } @else {
         <div class="space-y-6 pb-4">
           @for (group of visibleGroups(); track group.group_id + '_' + group.type; let i = $index) {
-            <div class="rounded-xl border border-[var(--mat-sys-outline-variant)] overflow-hidden transition-opacity duration-300"
-                 [class.opacity-40]="(group | isConfirmed:confirmedGroups())"
-                 [class.pointer-events-none]="(group | isConfirmed:confirmedGroups())">
+            <div class="rounded-xl border-2 overflow-hidden transition-colors duration-300"
+                 [attr.data-gidx]="i"
+                 [ngClass]="i === selectedGroupIndex()
+                   ? 'border-[var(--mat-sys-primary)]'
+                   : 'border-[var(--mat-sys-outline-variant)]'">
               <!-- Photos -->
-              <div class="flex gap-2 md:gap-3 overflow-x-auto p-3 items-center">
+              <div class="flex gap-2 md:gap-3 overflow-x-auto p-3 items-center transition-opacity duration-300"
+                   [class.pointer-events-none]="(group | isConfirmed:confirmedGroups())"
+                   [class.opacity-40]="(group | isConfirmed:confirmedGroups())">
                 @for (photo of group.photos; track photo.path; let pIdx = $index) {
                   <div class="group/photo relative cursor-pointer rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 h-full max-w-[480px]"
                        [class.border-green-500]="photo.path | isKept:selectionsMap():group.group_id"
@@ -114,9 +170,9 @@ interface CullingGroupsResponse {
                        role="button"
                        tabindex="0"
                        [attr.aria-label]="photo.filename"
-                       (click)="openLightbox(group, pIdx)"
-                       (keydown.enter)="openLightbox(group, pIdx)"
-                       (keydown.space)="openLightbox(group, pIdx); $event.preventDefault()"
+                       (click)="toggleSelection(photo.path, group)"
+                       (keydown.enter)="toggleSelection(photo.path, group); $event.stopPropagation()"
+                       (keydown.space)="toggleSelection(photo.path, group); $event.stopPropagation(); $event.preventDefault()"
                        (dblclick)="selectExclusive(photo.path, group); $event.stopPropagation()">
                     <img [src]="photo.path | thumbnailUrl:640"
                          class="h-72 md:h-96 w-auto object-contain" [alt]="photo.filename" loading="lazy" />
@@ -156,6 +212,24 @@ interface CullingGroupsResponse {
               <!-- Group actions -->
               <div class="flex items-center gap-2 px-4 py-2 border-t border-[var(--mat-sys-outline-variant)]">
                 <span class="text-xs opacity-50">{{ group.count }} {{ 'culling.photos' | translate }}</span>
+                @if (group.category) {
+                  <span class="text-xs opacity-50">· {{ 'category_names.' + group.category | translate }}</span>
+                  @if (comparisonStats(); as stats) {
+                    @if ((group.category | weightRemaining:stats); as remaining) {
+                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] bg-[var(--mat-sys-surface-container-high)] opacity-70"
+                            [matTooltip]="'culling.weight_remaining_tooltip' | translate">
+                        <mat-icon class="inline-flex !text-sm !w-3.5 !h-3.5 !leading-[14px]">tune</mat-icon>
+                        {{ 'culling.weight_remaining' | translate:{ count: remaining } }}
+                      </span>
+                    } @else {
+                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] text-green-500"
+                            [matTooltip]="'culling.weight_ready_tooltip' | translate">
+                        <mat-icon class="inline-flex !text-sm !w-3.5 !h-3.5 !leading-[14px]">tune</mat-icon>
+                        {{ 'culling.weight_ready' | translate }}
+                      </span>
+                    }
+                  }
+                }
                 @if ((group | isConfirmed:confirmedGroups())) {
                   <span class="inline-flex items-center gap-1 text-xs text-green-500 font-medium">
                     <mat-icon class="inline-flex !text-sm !w-4 !h-4 !leading-4">check_circle</mat-icon>
@@ -164,19 +238,24 @@ interface CullingGroupsResponse {
                 }
                 <div class="flex gap-2 ml-auto">
                   @if (group | isPassing:passingGroups()) {
-                    <div class="relative overflow-hidden rounded-full">
-                      <button mat-stroked-button (click)="cancelPass(group)" class="!h-8 !text-sm relative z-10">
+                    <div class="relative overflow-hidden rounded-md">
+                      <button mat-stroked-button (click)="cancelPass(group)" class="!h-8 !text-sm !rounded-md relative z-10">
                         {{ 'culling.cancel_pass' | translate }} ({{ group | passCountdown:passingGroups() }}s)
                       </button>
                       <div class="absolute inset-0 bg-[var(--mat-sys-outline-variant)] opacity-30 origin-right transition-transform duration-1000 ease-linear"
-                           [style.transform]="'scaleX(' + ((group | passCountdown:passingGroups()) / 5) + ')'"></div>
+                           [style.transform]="'scaleX(' + ((group | passCountdown:passingGroups()) / passCountdownSeconds) + ')'"></div>
                     </div>
                   } @else {
-                    <button mat-stroked-button (click)="skipGroup(group)" class="!h-8 !text-sm">
+                    <button mat-stroked-button (click)="openLightbox(group, 0)"
+                            class="!h-8 !text-sm !rounded-md inline-flex items-center">
+                      <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 mr-1">fullscreen</mat-icon>
+                      {{ 'culling.darkroom' | translate }}
+                    </button>
+                    <button mat-stroked-button (click)="skipGroup(group)" class="!h-8 !text-sm !rounded-md">
                       {{ 'culling.skip' | translate }}
                     </button>
                     <button mat-flat-button (click)="confirmGroup(group)" [disabled]="confirming()"
-                            class="!h-8 !text-sm inline-flex items-center">
+                            class="!h-8 !text-sm !rounded-md inline-flex items-center">
                       <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 mr-1">check_circle</mat-icon>
                       {{ 'culling.confirm' | translate }}
                     </button>
@@ -186,20 +265,9 @@ interface CullingGroupsResponse {
             </div>
           }
 
-          <!-- Confirm All Remaining -->
-          @if (unconfirmedCount() > 0) {
-            <div class="flex justify-center py-4">
-              <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="confirming()"
-                      class="!px-6">
-                <mat-icon>done_all</mat-icon>
-                {{ 'culling.confirm_all' | translate }} ({{ unconfirmedCount() }})
-              </button>
-            </div>
-          }
-
           <!-- Infinite scroll sentinel -->
           @if (hasMore()) {
-            <div appInfiniteScroll (scrollReached)="onScrollReached()" class="flex justify-center py-6">
+            <div appInfiniteScroll scrollRoot="[data-culling-scroll]" (scrollReached)="onScrollReached()" class="flex justify-center py-6">
               @if (loadingMore()) {
                 <mat-spinner diameter="32" />
               }
@@ -207,27 +275,43 @@ interface CullingGroupsResponse {
           }
         </div>
       }
+      </div>
+
+      <!-- Sticky footer: Confirm All stays visible regardless of list scroll -->
+      @if (unconfirmedCount() > 0) {
+        <div class="shrink-0 flex justify-center py-3 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
+          <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="confirming()" class="!px-6 !rounded-md">
+            <mat-icon>done_all</mat-icon>
+            {{ 'culling.confirm_all' | translate }} ({{ unconfirmedCount() }})
+          </button>
+        </div>
+      }
     </div>
 
     <!-- Lightbox overlay -->
     @if (lightboxGroup(); as lbGroup) {
-      <div class="fixed inset-0 z-[100] bg-black/95 flex flex-col"
+      <div #lightboxDialog class="fixed inset-0 z-[100] bg-black/95 flex flex-col"
            role="dialog"
            aria-modal="true"
            tabindex="-1"
            (click)="closeLightbox()"
            (keydown.escape)="closeLightbox()">
         <!-- Header -->
-        <div class="flex items-center justify-between px-4 py-2 text-white text-sm">
-          <div class="opacity-70">
+        <div class="flex items-center justify-between gap-4 px-4 py-2.5 text-white text-sm">
+          <div class="opacity-70 shrink-0">
             {{ lightboxIndex() + 1 }} / {{ lbGroup.photos.length }}
           </div>
-          <div class="flex items-center gap-4 opacity-70 text-xs">
-            <span>← → {{ 'culling.lightbox.navigate' | translate }}</span>
-            <span>↑ {{ 'culling.lightbox.keep' | translate }}</span>
-            <span>↓ {{ 'culling.lightbox.reject' | translate }}</span>
-            <span>Space {{ 'culling.confirm' | translate }}</span>
-            <span>Esc {{ 'dialog.cancel' | translate }}</span>
+          <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-sm">
+            @for (row of darkroomShortcuts; track row.labelKey) {
+              <span class="inline-flex items-center gap-1.5">
+                <span class="flex gap-1">
+                  @for (k of row.keys; track k) {
+                    <kbd class="px-1.5 py-0.5 rounded border border-white/30 bg-white/10 text-xs font-mono leading-none">{{ k }}</kbd>
+                  }
+                </span>
+                <span class="opacity-80">{{ row.labelKey | translate }}</span>
+              </span>
+            }
           </div>
           <button mat-icon-button
                   [attr.aria-label]="'dialog.cancel' | translate"
@@ -307,14 +391,13 @@ interface CullingGroupsResponse {
       </div>
     }
   `,
-  host: { class: 'block' },
+  host: { class: 'block h-full' },
 })
 export class BurstCullingComponent implements OnDestroy {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
-  private readonly undoService = inject(UndoService);
 
   protected readonly showHelp = signal(false);
   protected readonly similarityThreshold = signal(85);
@@ -335,6 +418,9 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Set of confirmed group keys (group_id + '_' + type) */
   protected readonly confirmedGroups = signal<Set<string>>(new Set());
+
+  /** Seconds a skipped group stays cancellable before it is hidden. */
+  protected readonly passCountdownSeconds = 7;
 
   /** Map of group key -> remaining countdown seconds for groups being passed */
   protected readonly passingGroups = signal<Map<string, number>>(new Map());
@@ -360,6 +446,10 @@ export class BurstCullingComponent implements OnDestroy {
     return this.groups().find(g => this.groupKey(g) === key) ?? null;
   });
 
+  /** The fullscreen darkroom dialog element, focused on open so the photo tiles
+   *  behind the overlay stop receiving keystrokes (otherwise Space double-fires). */
+  private readonly lightboxDialog = viewChild<ElementRef<HTMLElement>>('lightboxDialog');
+
   /** photo path -> detected faces, loaded lazily when a lightbox group opens. */
   protected readonly faceMap = signal<Map<string, CullingFace[]>>(new Map());
 
@@ -371,10 +461,11 @@ export class BurstCullingComponent implements OnDestroy {
     return group.photos.some(p => (map.get(p.path)?.length ?? 0) > 0);
   });
 
-  /** Groups visible in the UI (excludes hidden groups that completed pass timeout) */
+  /** Groups visible in the UI (excludes hidden groups + honors the category filter). */
   protected readonly visibleGroups = computed(() => {
     const hidden = this.hiddenGroups();
-    return this.groups().filter(g => !hidden.has(this.groupKey(g)));
+    const cat = this.categoryFilter();
+    return this.groups().filter(g => !hidden.has(this.groupKey(g)) && (!cat || g.category === cat));
   });
 
   protected readonly unconfirmedCount = computed(() => {
@@ -382,8 +473,70 @@ export class BurstCullingComponent implements OnDestroy {
     return this.visibleGroups().filter(g => !confirmed.has(this.groupKey(g))).length;
   });
 
+  /** Index of the keyboard-selected group (page-level nav when the lightbox is closed). */
+  protected readonly selectedGroupIndex = signal(0);
+
+  /** Server-side ordering of culling groups; reloads from page 1 on change. */
+  protected readonly sortMode = signal('easiest');
+  protected readonly sortModes = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons'] as const;
+
+  /** Content-category to cull ('' = all). Filters the visible group list client-side. */
+  protected readonly categoryFilter = signal('');
+
+  /** Distinct categories among loaded groups, for the header filter select. */
+  protected readonly availableCategories = computed<string[]>(() => {
+    const set = new Set<string>();
+    for (const g of this.groups()) if (g.category) set.add(g.category);
+    return [...set].sort();
+  });
+
+  /** Per-category comparison counts + threshold, for the weight-tuning chip. */
+  protected readonly comparisonStats = signal<ComparisonStatsLite | null>(null);
+
+  protected readonly darkroomShortcuts: ShortcutRow[] = [
+    { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
+    { keys: ['↑'], labelKey: 'culling.shortcuts.keep' },
+    { keys: ['↓'], labelKey: 'culling.shortcuts.reject' },
+    { keys: ['Space'], labelKey: 'culling.shortcuts.confirm_next' },
+    { keys: ['Esc'], labelKey: 'culling.shortcuts.close' },
+  ];
+
+  protected readonly shortcutSections: { titleKey: string; rows: ShortcutRow[] }[] = [
+    {
+      titleKey: 'culling.shortcuts.page_title',
+      rows: [
+        { keys: ['↑', '↓'], labelKey: 'culling.shortcuts.select' },
+        { keys: ['Enter'], labelKey: 'culling.shortcuts.open' },
+        { keys: ['Space'], labelKey: 'culling.shortcuts.confirm_next' },
+      ],
+    },
+    { titleKey: 'culling.shortcuts.darkroom_title', rows: this.darkroomShortcuts },
+  ];
+
   constructor() {
     void this.loadGroups();
+    void this.refreshComparisonStats();
+    // Keep the keyboard selection in bounds as groups load / get hidden.
+    effect(() => {
+      const count = this.visibleGroups().length;
+      if (count === 0) return;
+      const clamped = Math.min(this.selectedGroupIndex(), count - 1);
+      if (clamped !== this.selectedGroupIndex()) this.selectedGroupIndex.set(clamped);
+    });
+    // Scroll the keyboard-selected group into view (mirrors gallery.focusCard).
+    effect(() => {
+      if (this.lightboxGroup()) return;
+      const idx = this.selectedGroupIndex();
+      queueMicrotask(() => {
+        document.querySelector(`[data-gidx="${idx}"]`)?.scrollIntoView({ block: 'nearest' });
+      });
+    });
+    // Move focus onto the darkroom dialog when it opens so the photo tiles behind
+    // it stop receiving keydowns (the tile's own Space handler would otherwise
+    // re-open its group and fight the confirm+advance).
+    effect(() => {
+      this.lightboxDialog()?.nativeElement.focus();
+    });
   }
 
   /** Update a signal holding a Map by cloning and setting a key. */
@@ -416,6 +569,7 @@ export class BurstCullingComponent implements OnDestroy {
       similarity_threshold: (this.similarityThreshold() / 100).toString(),
       seed: this.similarSeed,
       exclude_rejected: this.excludeRejected(),
+      sort: this.sortMode(),
     };
   }
 
@@ -488,6 +642,17 @@ export class BurstCullingComponent implements OnDestroy {
     this.resetForReload();
   }
 
+  protected onCategoryFilterChange(value: string): void {
+    this.categoryFilter.set(value);
+    this.selectedGroupIndex.set(0);
+  }
+
+  protected onSortChange(value: string): void {
+    this.sortMode.set(value);
+    this.selectedGroupIndex.set(0);
+    this.resetForReload();
+  }
+
   private resetForReload(): void {
     this.loadGenerationId++;
     this.currentPage.set(1);
@@ -557,10 +722,20 @@ export class BurstCullingComponent implements OnDestroy {
   protected openLightbox(group: CullingGroup, index: number): void {
     this.lightboxGroupId.set(this.groupKey(group));
     this.lightboxIndex.set(index);
+    const gi = this.visibleGroups().findIndex(g => this.groupKey(g) === this.groupKey(group));
+    if (gi >= 0) this.selectedGroupIndex.set(gi);
     void this.loadFacesForGroup(group);
   }
 
   protected closeLightbox(): void {
+    // Leave the page focused on the group just reviewed in the darkroom, so its
+    // keep/reject choices (already written to the shared selectionsMap) are the
+    // ones highlighted and scrolled into view on exit.
+    const group = this.lightboxGroup();
+    if (group) {
+      const gi = this.visibleGroups().findIndex(g => this.groupKey(g) === this.groupKey(group));
+      if (gi >= 0) this.selectedGroupIndex.set(gi);
+    }
     this.lightboxGroupId.set(null);
   }
 
@@ -624,28 +799,89 @@ export class BurstCullingComponent implements OnDestroy {
     this.selectionsMap.set(map);
   }
 
+  /** True when the event originates from a text/slider control we must not hijack. */
+  private isTypingContext(event: Event): boolean {
+    const target = event.target as HTMLElement | null;
+    if (!target) return false;
+    return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable;
+  }
+
   @HostListener('document:keydown.arrowup', ['$event'])
   protected onArrowUp(event: Event): void {
     const group = this.lightboxGroup();
-    if (!group) return;
+    if (group) {
+      event.preventDefault();
+      this.setCurrentLightboxPhotoKept(group, true);
+      return;
+    }
+    if (this.isTypingContext(event)) return;
     event.preventDefault();
-    this.setCurrentLightboxPhotoKept(group, true);
+    this.selectedGroupIndex.update(i => this.clampIndex(i - 1, this.visibleGroups().length));
   }
 
   @HostListener('document:keydown.arrowdown', ['$event'])
   protected onArrowDown(event: Event): void {
     const group = this.lightboxGroup();
+    if (group) {
+      event.preventDefault();
+      this.setCurrentLightboxPhotoKept(group, false);
+      return;
+    }
+    if (this.isTypingContext(event)) return;
+    event.preventDefault();
+    this.selectedGroupIndex.update(i => this.clampIndex(i + 1, this.visibleGroups().length));
+  }
+
+  @HostListener('document:keydown.enter', ['$event'])
+  protected onEnter(event: Event): void {
+    if (this.lightboxGroup()) return;
+    if (this.isTypingContext(event)) return;
+    const group = this.visibleGroups()[this.selectedGroupIndex()];
     if (!group) return;
     event.preventDefault();
-    this.setCurrentLightboxPhotoKept(group, false);
+    this.openLightbox(group, 0);
+  }
+
+  /** Next visible, not-yet-confirmed group after the given one (for darkroom auto-advance). */
+  private nextUnconfirmedGroupAfter(group: CullingGroup): CullingGroup | null {
+    const groups = this.visibleGroups();
+    const confirmed = this.confirmedGroups();
+    const startIdx = groups.findIndex(g => this.groupKey(g) === this.groupKey(group));
+    for (let i = startIdx + 1; i < groups.length; i++) {
+      if (!confirmed.has(this.groupKey(groups[i]))) return groups[i];
+    }
+    return null;
   }
 
   @HostListener('document:keydown.space', ['$event'])
   protected onSpace(event: Event): void {
     const group = this.lightboxGroup();
-    if (!group) return;
+    if (group) {
+      // Darkroom: confirm the open group and jump into the next one.
+      event.preventDefault();
+      const next = this.nextUnconfirmedGroupAfter(group);
+      this.confirmGroup(group);
+      if (next) {
+        this.openLightbox(next, 0);
+        this.lightboxDialog()?.nativeElement.focus();
+      } else {
+        this.closeLightbox();
+      }
+      return;
+    }
+    // List: confirm the selected group and move the selection to the next one.
+    if (this.isTypingContext(event)) return;
+    const selected = this.visibleGroups()[this.selectedGroupIndex()];
+    if (!selected) return;
     event.preventDefault();
-    void this.confirmGroup(group).then(() => this.closeLightbox());
+    const next = this.nextUnconfirmedGroupAfter(selected);
+    void this.confirmGroup(selected);
+    if (next) {
+      const gi = this.visibleGroups().findIndex(g => this.groupKey(g) === this.groupKey(next));
+      if (gi >= 0) this.selectedGroupIndex.set(gi);
+    } else {
+      this.selectedGroupIndex.update(i => this.clampIndex(i + 1, this.visibleGroups().length));
+    }
   }
 
   @HostListener('document:keydown.escape', ['$event'])
@@ -673,33 +909,28 @@ export class BurstCullingComponent implements OnDestroy {
     this.updateMapSignal(this.selectionsMap, group.group_id, new Set([path]));
   }
 
-  protected async confirmGroup(group: CullingGroup): Promise<void> {
+  protected confirmGroup(group: CullingGroup): void {
     const kept = this.selectionsMap().get(group.group_id);
     if (!kept || kept.size === 0) return;
 
-    // Deferred commit: the group disappears instantly and the API call only
-    // fires when the undo window elapses - culling confirms have no inverse
-    // endpoint, so this is the only way to offer undo
+    // Grey the group and start the cancellable cooldown; the commit + close only
+    // happen when it elapses, so Cancel within the window fully reverts it.
     const key = this.groupKey(group);
+    const keepPaths = [...kept];
     this.addToSetSignal(this.confirmedGroups, key);
-    this.undoService.register({
-      labelKey: 'culling.confirmed',
-      commit: async () => {
-        try {
-          await firstValueFrom(this.api.post('/culling-groups/confirm', {
-            group_id: group.group_id,
-            type: group.type,
-            paths: group.photos.map(p => p.path),
-            keep_paths: [...kept],
-          }));
-        } catch {
+    this.startCountdown(key, () => {
+      void firstValueFrom(this.api.post('/culling-groups/confirm', {
+        group_id: group.group_id,
+        type: group.type,
+        paths: group.photos.map(p => p.path),
+        keep_paths: keepPaths,
+      }))
+        .then(() => this.refreshComparisonStats())
+        .catch(() => {
           this.unconfirmGroup(key);
           this.snackBar.open(this.i18n.t('culling.error_confirming'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
-        }
-      },
-      undo: async () => {
-        this.unconfirmGroup(key);
-      },
+        });
+      this.addToSetSignal(this.hiddenGroups, key);
     });
   }
 
@@ -711,14 +942,24 @@ export class BurstCullingComponent implements OnDestroy {
     });
   }
 
-  protected skipGroup(group: CullingGroup): void {
-    const key = this.groupKey(group);
+  /** Fetch per-category comparison counts + threshold for the weight-tuning chip. */
+  private async refreshComparisonStats(): Promise<void> {
+    try {
+      const stats = await firstValueFrom(this.api.get<ComparisonStatsLite>('/comparison/stats'));
+      this.comparisonStats.set(stats);
+    } catch {
+      // Best-effort: the chip simply stays hidden if stats are unavailable.
+    }
+  }
 
-    // Clear any existing timer for this group before starting a new one
+  /**
+   * Shared 7s cooldown: a per-second countdown in passingGroups plus a one-shot
+   * timer that runs onElapsed (hide for skip; commit + hide for confirm). Cancel
+   * via cancelPass before it fires fully reverts the action.
+   */
+  private startCountdown(key: string, onElapsed: () => void): void {
     this.clearPassTimer(key);
-
-    // Start the 5-second countdown
-    this.updateMapSignal(this.passingGroups, key, 5);
+    this.updateMapSignal(this.passingGroups, key, this.passCountdownSeconds);
 
     const intervalId = setInterval(() => {
       this.passingGroups.update(m => {
@@ -732,16 +973,21 @@ export class BurstCullingComponent implements OnDestroy {
 
     const timeoutId = setTimeout(() => {
       this.clearPassTimer(key);
-      // Hide the group after timeout
-      this.addToSetSignal(this.hiddenGroups, key);
-    }, 5000);
+      onElapsed();
+    }, this.passCountdownSeconds * 1000);
 
     this.passTimers.set(key, { timeoutId, intervalId });
+  }
+
+  protected skipGroup(group: CullingGroup): void {
+    const key = this.groupKey(group);
+    this.startCountdown(key, () => this.addToSetSignal(this.hiddenGroups, key));
   }
 
   protected cancelPass(group: CullingGroup): void {
     const key = this.groupKey(group);
     this.clearPassTimer(key);
+    this.unconfirmGroup(key);
   }
 
   private clearPassTimer(key: string): void {

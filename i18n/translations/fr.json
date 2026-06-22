@@ -1313,6 +1313,8 @@
     "error_submitting": "Echec de la soumission de la comparaison",
     "snapshots_description": "Les instantanes sont sauvegardes cote serveur et lies a la categorie en cours. Creez un instantane avant d'experimenter, puis restaurez-le pour revenir a un etat connu. Les instantanes persistent entre les sessions et les appareils.",
     "apply_suggested": "Appliquer les suggestions",
+    "suggestions_tab": "Suggestions de poids",
+    "suggestions_locked_tooltip": "{count} comparaisons supplémentaires nécessaires pour débloquer les suggestions de poids",
     "no_data_yet": "Comparez des photos pour voir les statistiques",
     "error_loading_suggestions": "Erreur de chargement des suggestions",
     "save_tooltip": "Sauvegarder la configuration actuelle des poids dans scoring_config.json",
@@ -1650,7 +1652,7 @@
     "burst_help": "Les photos prises en rafale sont regroupées ensemble. Cliquez sur les photos à conserver (bordure verte), les photos non sélectionnées (bordure rouge) seront masquées. La meilleure photo est automatiquement sélectionnée en fonction de la netteté et de la qualité.",
     "similar_help": "Les photos visuellement similaires de votre bibliothèque sont regroupées grâce aux embeddings IA. Examinez chaque groupe, conservez les meilleurs clichés et écartez les quasi-doublons. Ajustez le curseur de seuil pour contrôler le degré de similarité nécessaire pour former un groupe.",
     "help": "Aide",
-    "help_text": "Examinez les groupes de photos similaires ou en rafale. Cliquez pour sélectionner, double-cliquez pour sélectionner exclusivement. Les groupes confirmés masquent les photos rejetées de la galerie.",
+    "help_text": "Examinez les groupes de photos similaires ou en rafale. Cliquez sur une photo pour la garder ou la retirer ; double-cliquez pour ne garder qu'elle. Ouvrez la Chambre noire (revue en plein écran) avec le bouton Chambre noire ou la touche Entrée. Utilisez Haut/Bas pour choisir un groupe et Espace pour le confirmer et passer au suivant. Passer et Confirmer lancent un compte à rebours de 7 secondes que vous pouvez Annuler avant la fermeture du groupe ; la confirmation masque les photos rejetées de la galerie.",
     "type_burst": "Rafale",
     "type_similar": "Similaire",
     "confirm_all": "Tout confirmer",
@@ -1660,6 +1662,22 @@
     "load_more": "Charger plus",
     "view_detail": "Voir le détail",
     "cancel_pass": "Annuler",
+    "cancel_restore": "Restaurer",
+    "darkroom": "Chambre noire",
+    "all_categories": "Toutes les catégories",
+    "filter_category": "Filtrer par catégorie",
+    "sort": {
+      "label": "Trier",
+      "easiest": "Les plus simples",
+      "redundant": "Les plus redondants",
+      "best": "Les meilleures",
+      "recent": "Les plus récentes",
+      "needs_comparisons": "À comparer en priorité"
+    },
+    "weight_remaining": "{count} avant réglage des poids",
+    "weight_ready": "Réglage des poids prêt",
+    "weight_remaining_tooltip": "Comparaisons encore nécessaires dans cette catégorie avant de débloquer le réglage des poids. Réglez-les dans Comparaison → Suggestions de poids.",
+    "weight_ready_tooltip": "Assez de comparaisons collectées — ouvrez Comparaison → Suggestions de poids pour revoir et appliquer les poids optimisés de cette catégorie.",
     "strictness": "Rigueur",
     "strictness_tooltip": "Plus élevé ne garde que la meilleure photo ; plus bas garde aussi les quasi-égalités",
     "face_grid_title": "Visages de ce groupe",
@@ -1679,6 +1697,17 @@
       "kept": "Gardée",
       "rejected": "Rejetée",
       "undecided": "Indécise"
+    },
+    "shortcuts": {
+      "page_title": "Galerie",
+      "darkroom_title": "Chambre noire",
+      "select": "Sélectionner le groupe",
+      "open": "Ouvrir en plein écran",
+      "navigate": "Photo précédente / suivante",
+      "keep": "Garder la photo",
+      "reject": "Rejeter la photo",
+      "confirm_next": "Confirmer et groupe suivant",
+      "close": "Fermer"
     }
   },
   "memories": {

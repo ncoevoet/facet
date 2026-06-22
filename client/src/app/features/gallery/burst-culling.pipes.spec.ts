@@ -1,6 +1,6 @@
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
-  FacesForPathPipe, IsEyesClosedPipe,
+  FacesForPathPipe, IsEyesClosedPipe, WeightRemainingPipe,
   CullingGroup, CullingPhoto, CullingFace,
 } from './burst-culling.pipes';
 
@@ -107,6 +107,34 @@ describe('FacesForPathPipe', () => {
 
   it('returns an empty array for an unknown path', () => {
     expect(pipe.transform('/missing.jpg', new Map())).toEqual([]);
+  });
+});
+
+describe('WeightRemainingPipe', () => {
+  const pipe = new WeightRemainingPipe();
+
+  it('returns remaining count against the configured threshold', () => {
+    const stats = { category_breakdown: [{ category: 'portrait', count: 12 }], min_comparisons_for_optimization: 50 };
+    expect(pipe.transform('portrait', stats)).toBe(38);
+  });
+
+  it('returns the full threshold when the category has no comparisons yet', () => {
+    const stats = { category_breakdown: [{ category: 'street', count: 3 }], min_comparisons_for_optimization: 20 };
+    expect(pipe.transform('portrait', stats)).toBe(20);
+  });
+
+  it('returns 0 (ready) once the threshold is met', () => {
+    const stats = { category_breakdown: [{ category: 'portrait', count: 60 }], min_comparisons_for_optimization: 50 };
+    expect(pipe.transform('portrait', stats)).toBe(0);
+  });
+
+  it('falls back to the default threshold of 50 when unset', () => {
+    expect(pipe.transform('portrait', { category_breakdown: [] })).toBe(50);
+  });
+
+  it('returns 0 when category or stats are missing', () => {
+    expect(pipe.transform(null, { min_comparisons_for_optimization: 50 })).toBe(0);
+    expect(pipe.transform('portrait', null)).toBe(0);
   });
 });
 

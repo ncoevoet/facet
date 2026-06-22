@@ -1313,6 +1313,8 @@
     "error_submitting": "Error al enviar la comparación",
     "snapshots_description": "Las instantáneas se guardan en el servidor y están asociadas a la categoría actual. Crea una instantánea antes de experimentar con los pesos, y restáurala para volver a un estado conocido. Las instantáneas persisten entre sesiones y dispositivos.",
     "apply_suggested": "Aplicar sugeridos",
+    "suggestions_tab": "Sugerencias de pesos",
+    "suggestions_locked_tooltip": "{count} comparaciones más para desbloquear las sugerencias de pesos",
     "no_data_yet": "Compara fotos para ver estadísticas",
     "error_loading_suggestions": "Error al cargar sugerencias",
     "save_tooltip": "Guardar la configuración de pesos actual en scoring_config.json",
@@ -1650,7 +1652,7 @@
     "burst_help": "Las fotos tomadas en ráfaga se agrupan juntas. Haz clic en las fotos para conservarlas (borde verde), las fotos no seleccionadas (borde rojo) se ocultarán. La mejor foto se selecciona automáticamente según la nitidez y la calidad.",
     "similar_help": "Las fotos visualmente similares de tu biblioteca se agrupan mediante embeddings de IA. Revisa cada grupo, conserva las mejores tomas y descarta los casi-duplicados. Ajusta el control deslizante del umbral para controlar cuán similares deben ser las fotos para formar un grupo.",
     "help": "Ayuda",
-    "help_text": "Revisa grupos de fotos similares o en ráfaga. Haz clic para seleccionar, doble clic para seleccionar exclusivamente. Los grupos confirmados ocultan las fotos rechazadas de la galería.",
+    "help_text": "Revisa grupos de fotos similares o en ráfaga. Haz clic en una foto para conservarla o descartarla; doble clic para conservar solo esa. Abre el Cuarto oscuro (revisión a pantalla completa) con el botón Cuarto oscuro o la tecla Intro. Usa Arriba/Abajo para elegir un grupo y Espacio para confirmarlo y pasar al siguiente. Saltar y Confirmar inician una cuenta atrás de 7 segundos que puedes Cancelar antes de que el grupo se cierre; confirmar oculta las fotos rechazadas de la galería.",
     "type_burst": "Ráfaga",
     "type_similar": "Similar",
     "confirm_all": "Confirmar todo",
@@ -1660,6 +1662,22 @@
     "load_more": "Cargar más",
     "view_detail": "Ver detalle",
     "cancel_pass": "Cancelar",
+    "cancel_restore": "Restaurar",
+    "darkroom": "Cuarto oscuro",
+    "all_categories": "Todas las categorías",
+    "filter_category": "Filtrar por categoría",
+    "sort": {
+      "label": "Ordenar",
+      "easiest": "Más fáciles primero",
+      "redundant": "Más redundantes",
+      "best": "Mejores primero",
+      "recent": "Más recientes",
+      "needs_comparisons": "Faltan comparaciones"
+    },
+    "weight_remaining": "{count} para ajustar pesos",
+    "weight_ready": "Ajuste de pesos listo",
+    "weight_remaining_tooltip": "Comparaciones que aún faltan en esta categoría antes de desbloquear el ajuste de pesos. Ajústalos en Comparación → Sugerencias de pesos.",
+    "weight_ready_tooltip": "Suficientes comparaciones recopiladas — abre Comparación → Sugerencias de pesos para revisar y aplicar los pesos optimizados de esta categoría.",
     "strictness": "Rigor",
     "strictness_tooltip": "Más alto conserva solo la mejor foto; más bajo conserva también los casi empates",
     "face_grid_title": "Rostros de este grupo",
@@ -1679,6 +1697,17 @@
       "kept": "Mantenida",
       "rejected": "Rechazada",
       "undecided": "Sin decidir"
+    },
+    "shortcuts": {
+      "page_title": "Galería",
+      "darkroom_title": "Cuarto oscuro",
+      "select": "Seleccionar grupo",
+      "open": "Abrir a pantalla completa",
+      "navigate": "Foto anterior / siguiente",
+      "keep": "Conservar foto",
+      "reject": "Rechazar foto",
+      "confirm_next": "Confirmar y siguiente grupo",
+      "close": "Cerrar"
     }
   },
   "memories": {

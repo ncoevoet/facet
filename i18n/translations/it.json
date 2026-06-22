@@ -1313,6 +1313,8 @@
     "error_submitting": "Impossibile inviare il confronto",
     "snapshots_description": "Le istantanee vengono salvate sul server e sono associate alla categoria corrente. Crea un'istantanea prima di sperimentare con i pesi, poi ripristinala per tornare a uno stato noto. Le istantanee persistono tra sessioni e dispositivi.",
     "apply_suggested": "Applica suggeriti",
+    "suggestions_tab": "Suggerimenti di pesi",
+    "suggestions_locked_tooltip": "{count} confronti in più per sbloccare i suggerimenti di pesi",
     "no_data_yet": "Confronta le foto per vedere le statistiche",
     "error_loading_suggestions": "Errore nel caricamento dei suggerimenti",
     "save_tooltip": "Salva la configurazione dei pesi corrente in scoring_config.json",
@@ -1650,7 +1652,7 @@
     "burst_help": "Le foto scattate in rapida successione vengono raggruppate insieme. Clicca sulle foto da tenere (bordo verde), le foto non selezionate (bordo rosso) verranno nascoste. La foto migliore viene selezionata automaticamente in base a nitidezza e qualità.",
     "similar_help": "Le foto visivamente simili nella tua libreria vengono raggruppate utilizzando embedding IA. Esamina ogni gruppo, tieni gli scatti migliori e scarta i quasi-duplicati. Regola il cursore della soglia per controllare quanto simili devono essere le foto per formare un gruppo.",
     "help": "Aiuto",
-    "help_text": "Esamina i gruppi di foto simili o a raffica. Clicca per selezionare, doppio clic per selezionare esclusivamente. I gruppi confermati nascondono le foto rifiutate dalla galleria.",
+    "help_text": "Esamina i gruppi di foto simili o a raffica. Clicca una foto per tenerla o scartarla; doppio clic per tenere solo quella. Apri la Camera oscura (revisione a schermo intero) con il pulsante Camera oscura o il tasto Invio. Usa Su/Giù per scegliere un gruppo e Spazio per confermarlo e passare al successivo. Salta e Conferma avviano un conto alla rovescia di 7 secondi che puoi Annullare prima che il gruppo si chiuda; la conferma nasconde le foto scartate dalla galleria.",
     "type_burst": "Raffica",
     "type_similar": "Simile",
     "confirm_all": "Conferma tutto",
@@ -1660,6 +1662,22 @@
     "load_more": "Carica altro",
     "view_detail": "Vedi dettaglio",
     "cancel_pass": "Annulla",
+    "cancel_restore": "Ripristina",
+    "darkroom": "Camera oscura",
+    "all_categories": "Tutte le categorie",
+    "filter_category": "Filtra per categoria",
+    "sort": {
+      "label": "Ordina",
+      "easiest": "Più facili prima",
+      "redundant": "Più ridondanti",
+      "best": "Migliori prima",
+      "recent": "Più recenti",
+      "needs_comparisons": "Confronti necessari"
+    },
+    "weight_remaining": "{count} per regolare i pesi",
+    "weight_ready": "Regolazione pesi pronta",
+    "weight_remaining_tooltip": "Confronti ancora necessari in questa categoria prima di sbloccare la regolazione dei pesi. Regolali in Confronto → Suggerimenti di pesi.",
+    "weight_ready_tooltip": "Confronti sufficienti raccolti — apri Confronto → Suggerimenti di pesi per rivedere e applicare i pesi ottimizzati di questa categoria.",
     "strictness": "Rigore",
     "strictness_tooltip": "Più alto conserva solo la foto migliore; più basso conserva anche i quasi pari",
     "face_grid_title": "Volti di questo gruppo",
@@ -1679,6 +1697,17 @@
       "kept": "Mantenuta",
       "rejected": "Rifiutata",
       "undecided": "Indecisa"
+    },
+    "shortcuts": {
+      "page_title": "Galleria",
+      "darkroom_title": "Camera oscura",
+      "select": "Seleziona gruppo",
+      "open": "Apri a schermo intero",
+      "navigate": "Foto precedente / successiva",
+      "keep": "Tieni foto",
+      "reject": "Scarta foto",
+      "confirm_next": "Conferma e gruppo successivo",
+      "close": "Chiudi"
     }
   },
   "memories": {

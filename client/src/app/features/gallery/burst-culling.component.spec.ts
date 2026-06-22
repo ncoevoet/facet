@@ -4,7 +4,6 @@ import { of, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { UndoService } from '../../core/services/undo.service';
 import { BurstCullingComponent } from './burst-culling.component';
 
 describe('BurstCullingComponent', () => {
@@ -12,7 +11,6 @@ describe('BurstCullingComponent', () => {
   let mockApi: { get: Mock; post: Mock };
   let mockSnackBar: { open: Mock };
   let mockI18n: { t: Mock };
-  let mockUndo: { register: Mock; flushPending: Mock };
 
   const mockCullingGroupsResponse = {
     groups: [
@@ -53,7 +51,6 @@ describe('BurstCullingComponent', () => {
     };
     mockSnackBar = { open: vi.fn() };
     mockI18n = { t: vi.fn((key: string) => key) };
-    mockUndo = { register: vi.fn(), flushPending: vi.fn(() => Promise.resolve()) };
 
     TestBed.configureTestingModule({
       providers: [
@@ -61,7 +58,6 @@ describe('BurstCullingComponent', () => {
         { provide: ApiService, useValue: mockApi },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: I18nService, useValue: mockI18n },
-        { provide: UndoService, useValue: mockUndo },
       ],
     });
     component = TestBed.inject(BurstCullingComponent);
@@ -210,30 +206,31 @@ describe('BurstCullingComponent', () => {
     });
   });
 
-  describe('confirmGroup (deferred commit via UndoService)', () => {
+  describe('confirmGroup (cooldown then commit + hide)', () => {
     beforeEach(async () => {
+      vi.useFakeTimers();
       await (component as any).loadGroups();
       mockApi.post.mockReturnValue(of({}));
     });
 
-    it('should hide the group instantly and register an undoable command', async () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('greys the group and starts the countdown without posting yet', () => {
       const group = component['groups']()[0];
-      await component['confirmGroup'](group);
+      component['confirmGroup'](group);
 
       expect(component['confirmedGroups']().has('1_burst')).toBe(true);
-      expect(mockUndo.register).toHaveBeenCalledWith(
-        expect.objectContaining({ labelKey: 'culling.confirmed' }),
-      );
-      // No API call until the undo window elapses
+      expect(component['passingGroups']().get('1_burst')).toBe(7);
       expect(mockApi.post).not.toHaveBeenCalled();
     });
 
-    it('commit posts the selected paths to the API', async () => {
+    it('commits the selected paths and hides the group after the cooldown', () => {
       const group = component['groups']()[0];
-      await component['confirmGroup'](group);
+      component['confirmGroup'](group);
 
-      const cmd = mockUndo.register.mock.calls[0][0];
-      await cmd.commit();
+      vi.advanceTimersByTime(7000);
 
       expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/confirm', {
         group_id: 1,
@@ -241,41 +238,116 @@ describe('BurstCullingComponent', () => {
         paths: ['/photo1.jpg', '/photo2.jpg', '/photo3.jpg'],
         keep_paths: ['/photo1.jpg'],
       });
-      expect(component['confirmedGroups']().has('1_burst')).toBe(true);
+      expect(component['visibleGroups']().find(g => g.group_id === 1)).toBeUndefined();
     });
 
-    it('undo re-shows the group without any API call', async () => {
-      const group = component['groups']()[0];
-      await component['confirmGroup'](group);
-
-      const cmd = mockUndo.register.mock.calls[0][0];
-      await cmd.undo();
-
-      expect(component['confirmedGroups']().has('1_burst')).toBe(false);
-      expect(mockApi.post).not.toHaveBeenCalled();
-    });
-
-    it('commit failure re-shows the group and notifies', async () => {
-      mockApi.post.mockReturnValue(throwError(() => new Error('Server error')));
-      const group = component['groups']()[0];
-      await component['confirmGroup'](group);
-
-      const cmd = mockUndo.register.mock.calls[0][0];
-      await cmd.commit();
-
-      expect(component['confirmedGroups']().has('1_burst')).toBe(false);
-      expect(mockSnackBar.open).toHaveBeenCalledWith('culling.error_confirming', '', expect.anything());
-    });
-
-    it('should not register a command if no photos are selected', async () => {
-      // Clear the auto-selection
+    it('does nothing when no photos are selected', () => {
       component['selectionsMap'].set(new Map());
       const group = component['groups']()[0];
 
-      await component['confirmGroup'](group);
+      component['confirmGroup'](group);
 
-      expect(mockUndo.register).not.toHaveBeenCalled();
+      expect(component['confirmedGroups']().has('1_burst')).toBe(false);
+      expect(component['passingGroups']().has('1_burst')).toBe(false);
+    });
+
+    it('cancelPass within the cooldown reverts the confirm without posting', () => {
+      const group = component['groups']()[0];
+      component['confirmGroup'](group);
+      component['cancelPass'](group);
+
+      vi.advanceTimersByTime(7000);
+
+      expect(component['confirmedGroups']().has('1_burst')).toBe(false);
+      expect(component['passingGroups']().has('1_burst')).toBe(false);
       expect(mockApi.post).not.toHaveBeenCalled();
+      expect(component['visibleGroups']().find(g => g.group_id === 1)).toBeDefined();
+    });
+  });
+
+  describe('onSpace (darkroom confirm + auto-advance)', () => {
+    beforeEach(async () => {
+      await (component as any).loadGroups();
+      mockApi.post.mockReturnValue(of({}));
+    });
+
+    it('confirms the open group and opens the next group fullscreen', async () => {
+      const [first, second] = component['groups']();
+      component['openLightbox'](first, 0);
+
+      component['onSpace'](new KeyboardEvent('keydown'));
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(component['confirmedGroups']().has('1_burst')).toBe(true);
+      expect(component['lightboxGroupId']()).toBe(component['groupKey'](second));
+    });
+
+    it('closes the lightbox after confirming the last group', async () => {
+      const second = component['groups']()[1];
+      component['openLightbox'](second, 0);
+
+      component['onSpace'](new KeyboardEvent('keydown'));
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(component['confirmedGroups']().has('2_similar')).toBe(true);
+      expect(component['lightboxGroupId']()).toBeNull();
+    });
+
+    it('list mode: Space confirms the selected group and advances the selection', () => {
+      // Lightbox closed, first group selected.
+      component['selectedGroupIndex'].set(0);
+      component['onSpace'](new KeyboardEvent('keydown'));
+
+      expect(component['confirmedGroups']().has('1_burst')).toBe(true);
+      expect(component['lightboxGroupId']()).toBeNull();
+      expect(component['selectedGroupIndex']()).toBe(1);
+    });
+  });
+
+  describe('category filter', () => {
+    beforeEach(async () => {
+      mockApi.get.mockReturnValue(of({
+        ...mockCullingGroupsResponse,
+        groups: [
+          { ...mockCullingGroupsResponse.groups[0], category: 'portrait' },
+          { ...mockCullingGroupsResponse.groups[1], category: 'landscape' },
+        ],
+      }));
+      await (component as any).loadGroups();
+    });
+
+    it('lists distinct categories from loaded groups', () => {
+      expect(component['availableCategories']()).toEqual(['landscape', 'portrait']);
+    });
+
+    it('shows only matching groups when a category is selected', () => {
+      component['onCategoryFilterChange']('portrait');
+      const visible = component['visibleGroups']();
+      expect(visible).toHaveLength(1);
+      expect(visible[0].group_id).toBe(1);
+    });
+
+    it('shows all groups when the filter is cleared', () => {
+      component['onCategoryFilterChange']('portrait');
+      component['onCategoryFilterChange']('');
+      expect(component['visibleGroups']()).toHaveLength(2);
+    });
+  });
+
+  describe('sort', () => {
+    it('defaults to easiest and passes the sort mode in request params', () => {
+      expect(component['sortMode']()).toBe('easiest');
+      expect(component['buildParams'](1)).toEqual(expect.objectContaining({ sort: 'easiest' }));
+    });
+
+    it('onSortChange updates the mode and reloads from page 1', () => {
+      const spy = vi.spyOn(component as any, 'loadGroups');
+      component['onSortChange']('recent');
+      expect(component['sortMode']()).toBe('recent');
+      expect(component['buildParams'](1)).toEqual(expect.objectContaining({ sort: 'recent' }));
+      expect(spy).toHaveBeenCalled();
     });
   });
 
@@ -289,12 +361,12 @@ describe('BurstCullingComponent', () => {
       vi.useRealTimers();
     });
 
-    it('should add group to passingGroups with countdown of 5', () => {
+    it('should add group to passingGroups with the configured countdown', () => {
       const group = component['groups']()[0];
       component['skipGroup'](group);
 
       expect(component['passingGroups']().has('1_burst')).toBe(true);
-      expect(component['passingGroups']().get('1_burst')).toBe(5);
+      expect(component['passingGroups']().get('1_burst')).toBe(7);
       expect(mockApi.post).not.toHaveBeenCalled();
     });
 
@@ -310,17 +382,17 @@ describe('BurstCullingComponent', () => {
       component['skipGroup'](group);
 
       vi.advanceTimersByTime(1000);
-      expect(component['passingGroups']().get('1_burst')).toBe(4);
+      expect(component['passingGroups']().get('1_burst')).toBe(6);
 
       vi.advanceTimersByTime(1000);
-      expect(component['passingGroups']().get('1_burst')).toBe(3);
+      expect(component['passingGroups']().get('1_burst')).toBe(5);
     });
 
-    it('should hide group after 5 seconds', () => {
+    it('should hide group after the countdown elapses', () => {
       const group = component['groups']()[0];
       component['skipGroup'](group);
 
-      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(7000);
 
       // Group should be hidden (removed from visible groups)
       expect(component['visibleGroups']().find(g => g.group_id === 1)).toBeUndefined();
@@ -332,7 +404,7 @@ describe('BurstCullingComponent', () => {
       const group = component['groups']()[0];
       component['skipGroup'](group);
 
-      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(7000);
 
       expect(component['passingGroups']().has('1_burst')).toBe(false);
     });
