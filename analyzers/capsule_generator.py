@@ -318,6 +318,7 @@ def generate_all_capsules(conn, config=None, user_id=None, date_from=None, date_
         "_generate_color_palette": "color_palette",
         "_generate_rare_pairs": "rare_pair",
         "_generate_favorites_by_period": "favorites",
+        "_generate_star_rating_capsules": "star_rating",
     }
 
     # Specialized generators (unique algorithms)
@@ -335,6 +336,7 @@ def generate_all_capsules(conn, config=None, user_id=None, date_from=None, date_
         _generate_color_palette,
         _generate_rare_pairs,
         _generate_favorites_by_period,
+        _generate_star_rating_capsules,
     ]
 
     disabled = set(capsule_config.get("disabled_generators", []))
@@ -1942,6 +1944,7 @@ _DIMENSIONS = {
         "title_tpl": "{value}",
         "title_key": "capsules.star_rating_title",
         "param_name": "stars",
+        "skip_single": True,  # Handled by _generate_star_rating_capsules (per-user aware)
         "value_map": {
             5: "\u2605\u2605\u2605\u2605\u2605",
             4: "\u2605\u2605\u2605\u2605",
@@ -1990,6 +1993,65 @@ _CROSS_DIMENSIONS = [
     ("category", "year"),
     ("category", "camera"),
 ]
+
+
+def _generate_star_rating_capsules(conn, capsule_config, min_aggregate, vis, user_id):
+    """Generate per-star-rating capsules, honoring per-user ratings.
+
+    The generic dimension loop reads the global ``photos.star_rating`` column,
+    which ignores each user's own ratings in multi-user mode. This dedicated
+    generator joins ``user_preferences`` when a user is active (mirroring
+    ``_generate_favorites_by_period``), and falls back to the global column in
+    single-user mode.
+    """
+    dim = _DIMENSIONS["star_rating"]
+    cfg = capsule_config.get("star_rating", {})
+    min_photos = cfg.get("min_photos", dim.get("min_photos", 10))
+    max_photos = capsule_config.get("max_photos_per_capsule", 40)
+    vis_sql, vis_params = vis
+
+    from api.config import is_multi_user_enabled
+    if user_id and is_multi_user_enabled():
+        join = "JOIN user_preferences up ON up.photo_path = photos.path AND up.user_id = ?"
+        rating_expr = "up.star_rating"
+        join_params = [user_id]
+    else:
+        join = ""
+        rating_expr = "photos.star_rating"
+        join_params = []
+
+    rows = conn.execute(
+        f"""SELECT {rating_expr} AS stars, path
+           FROM photos {join}
+           WHERE {rating_expr} IS NOT NULL AND {rating_expr} > 0
+             AND aggregate >= ? AND {vis_sql}
+           ORDER BY aggregate DESC""",
+        join_params + [min_aggregate] + vis_params,
+    ).fetchall()
+
+    value_map = dim.get("value_map", {})
+    groups = defaultdict(list)
+    for r in rows:
+        groups[r["stars"]].append(r["path"])
+
+    capsules = []
+    for stars, paths in groups.items():
+        paths = paths[:max_photos]
+        if len(paths) < min_photos:
+            continue
+        display = value_map.get(stars, str(stars))
+        full_id = f"star_rating_{_stable_id('star_rating', str(stars))}"
+        capsules.append({
+            "type": "star_rating", "id": full_id,
+            "title_key": dim["title_key"],
+            "title_params": {dim["param_name"]: display},
+            "title": display,
+            "subtitle": f"{len(paths)} photos",
+            "cover_photo_path": _pick_cover_photo(paths, full_id, capsule_config=capsule_config),
+            "photo_count": len(paths), "icon": dim["icon"],
+            "params": {"paths": paths},
+        })
+    return capsules
 
 
 def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_id):

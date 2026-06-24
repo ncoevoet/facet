@@ -14,10 +14,10 @@ photo), not a rating-edit time — Facet has no per-rating ``updated_at`` column
 rating changed inside Facet *after* the last scan therefore carries no newer
 timestamp, so an external sidecar that is newer than the scan (but older than the
 in-app edit) will still win and overwrite it. Run an import before re-rating in
-Facet if the external editor is the source of truth. Imports also write the
-global ``photos.*`` rating columns; in multi-user mode per-user
-``user_preferences`` ratings are read instead, so imported ratings are not
-surfaced to individual users (this is a single-user / admin CLI operation).
+Facet if the external editor is the source of truth. By default imports write
+the global ``photos.*`` rating columns; pass ``user_id`` (CLI ``--user``) in
+multi-user mode to read and write that user's ``user_preferences`` ratings
+instead. Keywords are always merged into the global ``photos.tags``.
 """
 
 from __future__ import annotations
@@ -144,20 +144,38 @@ def _merge_tags(existing: str, incoming: list[str]) -> str:
     return ", ".join(merged)
 
 
-def import_sidecars(conn, root: str | None = None) -> dict:
+def import_sidecars(conn, root: str | None = None, *, user_id: str | None = None) -> dict:
     """Import ``<image>.xmp`` sidecars into the ``photos`` table.
 
     ``root`` limits the import to photos whose path is, or is under, that path.
+    By default ratings are written to the global ``photos`` columns. When
+    ``user_id`` is given and multi-user mode is enabled, ratings are read from and
+    written to that user's ``user_preferences`` row instead (keywords are always
+    merged into the global ``photos.tags``, since tags are not per-user).
     Returns counts: ``updated`` / ``unchanged`` / ``missing`` (no sidecar) /
     ``skipped`` (unparseable sidecar).
     """
+    from api.config import is_multi_user_enabled
+    per_user = bool(user_id and is_multi_user_enabled())
+
     where, params = build_root_filter(root) if root else ("", [])
 
-    rows = conn.execute(
-        f"SELECT path, tags, star_rating, is_favorite, is_rejected, scanned_at "
-        f"FROM photos {where}",
-        params,
-    ).fetchall()
+    if per_user:
+        rows = conn.execute(
+            f"SELECT photos.path AS path, photos.tags AS tags, photos.scanned_at AS scanned_at, "
+            f"COALESCE(up.star_rating, 0) AS star_rating, "
+            f"COALESCE(up.is_favorite, 0) AS is_favorite, "
+            f"COALESCE(up.is_rejected, 0) AS is_rejected "
+            f"FROM photos LEFT JOIN user_preferences up "
+            f"ON up.photo_path = photos.path AND up.user_id = ? {where}",
+            [user_id] + params,
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            f"SELECT path, tags, star_rating, is_favorite, is_rejected, scanned_at "
+            f"FROM photos {where}",
+            params,
+        ).fetchall()
 
     updated = unchanged = missing = skipped = 0
     for row in rows:
@@ -189,11 +207,27 @@ def import_sidecars(conn, root: str | None = None) -> dict:
             unchanged += 1
             continue
 
-        conn.execute(
-            "UPDATE photos SET tags = ?, star_rating = ?, is_favorite = ?, "
-            "is_rejected = ? WHERE path = ?",
-            (new_tags, star, int(favorite), int(rejected), row["path"]),
-        )
+        if per_user:
+            if new_tags != (row["tags"] or ""):
+                conn.execute(
+                    "UPDATE photos SET tags = ? WHERE path = ?",
+                    (new_tags, row["path"]),
+                )
+            conn.execute(
+                "INSERT INTO user_preferences "
+                "(user_id, photo_path, star_rating, is_favorite, is_rejected) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(user_id, photo_path) DO UPDATE SET "
+                "star_rating = excluded.star_rating, is_favorite = excluded.is_favorite, "
+                "is_rejected = excluded.is_rejected",
+                (user_id, row["path"], star, int(favorite), int(rejected)),
+            )
+        else:
+            conn.execute(
+                "UPDATE photos SET tags = ?, star_rating = ?, is_favorite = ?, "
+                "is_rejected = ? WHERE path = ?",
+                (new_tags, star, int(favorite), int(rejected), row["path"]),
+            )
         updated += 1
 
     conn.commit()

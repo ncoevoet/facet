@@ -38,7 +38,6 @@ class ModelManager:
         'topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
         'topiq_iaa', 'topiq_nr_face', 'liqe',
         'saliency',
-        'florence_tagger',
     }
 
     # Minimum available RAM headroom (GB) required for auto caching
@@ -486,7 +485,6 @@ class ModelManager:
             'qwen3_5_tagger': lambda: self._load_vlm_tagger('qwen3_5_2b'),
             'qwen3_5_4b_tagger': lambda: self._load_vlm_tagger('qwen3_5_4b'),
             'saliency': self._load_saliency,
-            'florence_tagger': self._load_florence_tagger,
             'aesthetic_v25': self._load_aesthetic_v25,
             'deqa': self._load_deqa,
         }
@@ -597,25 +595,6 @@ class ModelManager:
 
         except Exception as e:
             logger.error("Failed to load RAM++ tagger: %s", e)
-            return None
-
-    def _load_florence_tagger(self):
-        """Load Florence-2 tagger for lightweight semantic tagging."""
-        if 'florence_tagger' in self.models:
-            return self.models['florence_tagger']
-
-        try:
-            from models.florence_tagger import FlorenceTagger
-
-            florence_config = self.model_settings.get('florence_2_large', {})
-            tagger = FlorenceTagger(florence_config, self.config)
-            tagger.load()
-
-            self.models['florence_tagger'] = tagger
-            return tagger
-
-        except Exception as e:
-            logger.error("Failed to load Florence-2 tagger: %s", e)
             return None
 
     def _load_pyiqa(self, model_name: str):
@@ -829,7 +808,6 @@ class ModelManager:
         'aesthetic_v25': 2,   # Aesthetic Predictor V2.5 (SigLIP head)
         'deqa': 16,           # DeQA-Score VLM (very heavy)
         'saliency': 2,        # BiRefNet saliency detection
-        'florence_tagger': 4,  # ~1.5GB weights + ~2GB inference
     }
 
     # RAM requirements for CPU-only execution (in GB)
@@ -849,7 +827,6 @@ class ModelManager:
         'liqe': 2.0,
         'saliency': 2.0,
         'qwen3_vl_tagger': 5.0,
-        'florence_tagger': 3.0,
     }
 
     def get_model_vram(self, model_name: str) -> int:

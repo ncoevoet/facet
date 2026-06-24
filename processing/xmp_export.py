@@ -556,20 +556,35 @@ def _cli_face_regions(conn, path: str, width, height) -> list[FaceRegion]:
 
 
 def export_sidecars(conn, root: str | None = None, *, embed_original: bool = False,
-                    timeout: int = 60) -> dict:
+                    timeout: int = 60, user_id: str | None = None) -> dict:
     """Write/merge ``<image>.xmp`` sidecars from the DB for all photos (or a subtree).
 
-    Operates on the global single-user rating columns (``photos.star_rating`` /
-    ``is_favorite`` / ``is_rejected``); per-user ratings are not consulted. With
-    ``embed_original`` it also embeds metadata into the original image files for
-    safe formats (proprietary RAW is never modified). Returns counts: ``written``
-    / ``embedded`` / ``missing`` (file gone from disk) / ``errors``.
+    By default operates on the global rating columns (``photos.star_rating`` /
+    ``is_favorite`` / ``is_rejected``). When ``user_id`` is given and multi-user
+    mode is enabled, the user's own ratings from ``user_preferences`` are exported
+    instead (joined and ``COALESCE``-d to 0). With ``embed_original`` it also
+    embeds metadata into the original image files for safe formats (proprietary
+    RAW is never modified). Returns counts: ``written`` / ``embedded`` /
+    ``missing`` (file gone from disk) / ``errors``.
     """
+    from api.config import is_multi_user_enabled
+    if user_id and is_multi_user_enabled():
+        join = "LEFT JOIN user_preferences up ON up.photo_path = photos.path AND up.user_id = ?"
+        star, fav, rej = (
+            "COALESCE(up.star_rating, 0) AS star_rating",
+            "COALESCE(up.is_favorite, 0) AS is_favorite",
+            "COALESCE(up.is_rejected, 0) AS is_rejected",
+        )
+        user_params = [user_id]
+    else:
+        join = ""
+        star, fav, rej = "star_rating", "is_favorite", "is_rejected"
+        user_params = []
     where, params = build_root_filter(root) if root else ("", [])
     rows = conn.execute(
-        "SELECT path, tags, caption, category, star_rating, is_favorite, "
-        f"is_rejected, image_width, image_height FROM photos {where}",
-        params,
+        f"SELECT photos.path AS path, tags, caption, category, {star}, {fav}, {rej}, "
+        f"image_width, image_height FROM photos {join} {where}",
+        user_params + params,
     ).fetchall()
     written = embedded = missing = errors = 0
     for row in rows:

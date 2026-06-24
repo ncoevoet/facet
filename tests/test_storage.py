@@ -144,6 +144,16 @@ class TestDatabaseStorage:
 
         assert result is None
 
+    def test_writes_raise_not_implemented(self):
+        """DB mode is read + migrate only; the scorer owns the write path."""
+        storage = DatabaseStorage("/fake.db")
+        with pytest.raises(NotImplementedError):
+            storage.store_thumbnail("/photo.jpg", b"data")
+        with pytest.raises(NotImplementedError):
+            storage.store_embedding("/photo.jpg", b"data")
+        with pytest.raises(NotImplementedError):
+            storage.delete("/photo.jpg")
+
 
 # ---------------------------------------------------------------------------
 # Factory function

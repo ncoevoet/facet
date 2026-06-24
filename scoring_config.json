@@ -2167,12 +2167,6 @@
       "max_new_tokens": 100,
       "vlm_batch_size": 2
     },
-    "florence_2_large": {
-      "model_path": "florence-community/Florence-2-large",
-      "torch_dtype": "float32",
-      "vlm_batch_size": 4,
-      "max_new_tokens": 256
-    },
     "saliency": {
       "model": "ZhengPeng7/BiRefNet_dynamic",
       "resolution": 1024,
@@ -2470,6 +2464,11 @@
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
     "path_mapping": {}
+  },
+  "iqa_extended": {
+    "qalign": false,
+    "aesthetic_v25": false,
+    "deqa": false
   },
   "plugins": {
     "enabled": false,

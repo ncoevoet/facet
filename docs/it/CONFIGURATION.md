@@ -389,12 +389,6 @@ Seleziona quali modelli vengono usati per ciascun profilo VRAM.
       "max_new_tokens": 100,
       "vlm_batch_size": 2
     },
-    "florence_2_large": {
-      "model_path": "florence-community/Florence-2-large",
-      "torch_dtype": "float32",
-      "vlm_batch_size": 4,
-      "max_new_tokens": 256
-    },
     "saliency": {
       "model": "ZhengPeng7/BiRefNet_dynamic",
       "resolution": 1024,
@@ -434,8 +428,6 @@ Seleziona quali modelli vengono usati per ciascun profilo VRAM.
 | `qwen3_5_2b.vlm_batch_size` | `4` | Immagini per batch di inferenza VLM |
 | `qwen3_5_4b.model_path` | `"Qwen/Qwen3.5-4B"` | Modello di tagging per il profilo 24gb |
 | `qwen3_5_4b.vlm_batch_size` | `2` | Immagini per batch di inferenza VLM |
-| `florence_2_large.model_path` | `"florence-community/Florence-2-large"` | Modello Florence-2 (tagger alternativo) |
-| `florence_2_large.vlm_batch_size` | `4` | Immagini per batch di inferenza Florence-2 |
 | `saliency.model` | `"ZhengPeng7/BiRefNet_dynamic"` | Modello di salienza BiRefNet |
 | `saliency.resolution` | `1024` | Risoluzione di inferenza |
 | `saliency.mask_threshold` | `0.3` | Soglia sigmoide per la maschera binaria del soggetto |
@@ -902,7 +894,6 @@ Configurati tramite `models.profiles.*.tagging_model`:
 | `clip` | 0 (riusa gli embedding) | Atmosfera/mood (dramatic, golden_hour, vintage) | Nessun caricamento di modello aggiuntivo; rilevamento di oggetti meno letterale |
 | `qwen3.5-2b` | ~4GB | Scene strutturate (landscape, architecture, reflection) | Richiede transformers + VRAM aggiuntiva |
 | `qwen3.5-4b` | ~8GB | Scene dettagliate con sfumature | VRAM maggiore; inferenza più lenta |
-| `florence-2` | ~2GB | Oggetti letterali (sky, water, building) | Eccessivo tagging di termini generici; la corrispondenza basata su didascalia è fragile |
 
 ### Modelli di tagging predefiniti per profilo
 

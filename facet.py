@@ -389,11 +389,14 @@ Configuration:
                              '(optional: limit to a path subtree; default: all photos)')
     export_group.add_argument('--export-sidecars', type=str, nargs='?', const='all', metavar='PATH',
                         help='Write/merge <image>.xmp sidecars from the DB ratings/labels/tags/caption '
-                             '(optional: limit to a path subtree; default: all photos). Operates on the '
-                             'global single-user rating columns')
+                             '(optional: limit to a path subtree; default: all photos). Defaults to the '
+                             'global rating columns; pass --user for per-user ratings in multi-user mode')
     export_group.add_argument('--embed-originals', action='store_true',
                         help='With --export-sidecars: also embed metadata into the original image files '
                              '(JPEG/HEIC/TIFF/PNG/DNG via exiftool); RAW originals are never modified')
+    export_group.add_argument('--user', type=str, default=None, metavar='USERNAME',
+                        help='With --import-sidecars/--export-sidecars in multi-user mode: read/write '
+                             "that user's ratings (user_preferences) instead of the global columns")
 
     # AI features
     ai_group = parser.add_argument_group('AI features')
@@ -1154,8 +1157,6 @@ Configuration:
         tag_model = config.get_model_for_task('tagging')
         if tag_model == 'qwen2.5-vl-7b':
             model_key = 'vlm_tagger'
-        elif tag_model == 'florence-2':
-            model_key = 'florence_tagger'
         else:
             model_key = 'qwen3_vl_tagger'
 
@@ -1382,7 +1383,7 @@ Configuration:
         from processing.xmp_import import import_sidecars
         root = None if args.import_sidecars == 'all' else args.import_sidecars
         with get_connection(args.db) as conn:
-            stats = import_sidecars(conn, root)
+            stats = import_sidecars(conn, root, user_id=args.user)
         logger.info(
             "Sidecar import: %d updated, %d unchanged, %d without sidecar, %d skipped",
             stats['updated'], stats['unchanged'], stats['missing'], stats['skipped'],
@@ -1394,7 +1395,7 @@ Configuration:
         from processing.xmp_export import export_sidecars
         root = None if args.export_sidecars == 'all' else args.export_sidecars
         with get_connection(args.db) as conn:
-            stats = export_sidecars(conn, root, embed_original=args.embed_originals)
+            stats = export_sidecars(conn, root, embed_original=args.embed_originals, user_id=args.user)
         logger.info(
             "Sidecar export: %d written, %d embedded, %d missing, %d errors",
             stats['written'], stats['embedded'], stats['missing'], stats['errors'],

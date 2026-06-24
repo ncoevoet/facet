@@ -37,15 +37,27 @@ class StorageBackend:
 
 
 class DatabaseStorage(StorageBackend):
-    """Store thumbnails and embeddings in SQLite BLOB columns (current default)."""
+    """Read-only/migrate view over thumbnails and embeddings in SQLite BLOB columns.
+
+    Database mode is the default, but writes do NOT flow through this backend: the
+    scorer writes ``photos.thumbnail`` / ``photos.clip_embedding`` directly in its
+    ``INSERT OR REPLACE`` path, and rows (and their BLOBs) are removed by cascade
+    when a photo is deleted. This class therefore only exposes the read side
+    (``get_thumbnail`` / ``get_embedding``) plus the migrate tool's source reads.
+    The write methods raise to keep that contract explicit rather than silently
+    swallowing data — use ``storage.migrate`` to move BLOBs to/from the filesystem.
+    """
+
+    _WRITE_UNSUPPORTED = (
+        "DatabaseStorage is read + migrate only; thumbnail/embedding writes are "
+        "performed directly by the scorer. Use storage.migrate to move BLOBs."
+    )
 
     def __init__(self, db_path: str):
         self.db_path = db_path
 
     def store_thumbnail(self, photo_path: str, data: bytes, size: int = 640) -> None:
-        # Thumbnails are stored in photos.thumbnail column
-        # This is handled by the existing scorer code — this is a no-op wrapper
-        pass
+        raise NotImplementedError(self._WRITE_UNSUPPORTED)
 
     def get_thumbnail(self, photo_path: str, size: int = 640) -> bytes | None:
         with get_connection(self.db_path) as conn:
@@ -55,7 +67,7 @@ class DatabaseStorage(StorageBackend):
             return row[0] if row and row[0] else None
 
     def store_embedding(self, photo_path: str, data: bytes) -> None:
-        pass  # Handled by existing scorer code
+        raise NotImplementedError(self._WRITE_UNSUPPORTED)
 
     def get_embedding(self, photo_path: str) -> bytes | None:
         with get_connection(self.db_path) as conn:
@@ -65,7 +77,7 @@ class DatabaseStorage(StorageBackend):
             return row[0] if row and row[0] else None
 
     def delete(self, photo_path: str) -> None:
-        pass  # Data deleted when row is deleted
+        raise NotImplementedError(self._WRITE_UNSUPPORTED)
 
 
 class FilesystemStorage(StorageBackend):
