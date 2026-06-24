@@ -1652,6 +1652,11 @@
     }
   },
   "culling": {
+    "compare": {
+      "single": "Vue unique",
+      "2up": "Comparer 2",
+      "4up": "Comparer 4"
+    },
     "title": "Sélection",
     "exclude_rejected": "Exclure les rejetées",
     "no_bursts": "Aucun groupe à examiner",

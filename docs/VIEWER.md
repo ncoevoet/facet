@@ -481,6 +481,8 @@ For each group, pick the keeper(s); confirming rejects the rest. Confirms are de
 
 In the burst/similar culling lightbox, each detected face carries its own badges — eyes open/closed, poor expression, and detection confidence — instead of a single photo-level blink flag. This makes group shots easier to cull: you can see at a glance which face has closed eyes or a weak expression. The badges are fetched for a whole group in one batch call (`POST /api/culling-group/faces`).
 
+**Synced compare (2-up / 4-up).** The lightbox header has Single / Compare 2 / Compare 4 buttons. In compare mode the panes share one pan/zoom transform, so scroll-wheel zoom or drag-pan on any pane moves them all to the identical crop — the way to pick the sharpest frame of a burst by actually peeping pixels. Double-click toggles fit ↔ zoom; past the fit scale each pane lazily swaps its 1920px thumbnail for the full-resolution `/image` source so the peek is crisp. No backend change — both image routes already exist. (Touch-pinch is not yet wired; use the wheel on desktop.)
+
 API: see the [API Endpoints](#api-endpoints) section below.
 
 ## Scenes View

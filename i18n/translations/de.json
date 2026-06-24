@@ -1656,6 +1656,11 @@
     }
   },
   "culling": {
+    "compare": {
+      "single": "Einzelansicht",
+      "2up": "2 vergleichen",
+      "4up": "4 vergleichen"
+    },
     "title": "Aussortierung",
     "exclude_rejected": "Abgelehnte ausschließen",
     "no_bursts": "Keine Gruppen zu prüfen",

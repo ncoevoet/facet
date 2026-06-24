@@ -10,10 +10,11 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { ThumbnailUrlPipe, FaceThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe, FaceThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { I18nService } from '../../core/services/i18n.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { isTypingContext } from '../../shared/utils/keyboard';
+import { SyncedZoomComponent, ZoomState, FIT_ZOOM } from './synced-zoom.component';
 import { firstValueFrom } from 'rxjs';
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
@@ -55,6 +56,8 @@ interface ShortcutRow {
     TranslatePipe,
     ThumbnailUrlPipe,
     FaceThumbnailUrlPipe,
+    ImageUrlPipe,
+    SyncedZoomComponent,
     IsKeptPipe,
     IsDecidedPipe,
     IsConfirmedPipe,
@@ -321,6 +324,21 @@ interface ShortcutRow {
               </span>
             }
           </div>
+          <div class="flex items-center gap-1 shrink-0" role="presentation"
+               (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+            <button mat-icon-button [class.!text-white]="compareMode() !== 'single'"
+                    [class.!text-[var(--mat-sys-primary)]]="compareMode() === 'single'"
+                    [matTooltip]="'culling.compare.single' | translate"
+                    (click)="setCompareMode('single')"><mat-icon>crop_original</mat-icon></button>
+            <button mat-icon-button [class.!text-white]="compareMode() !== '2up'"
+                    [class.!text-[var(--mat-sys-primary)]]="compareMode() === '2up'"
+                    [matTooltip]="'culling.compare.2up' | translate"
+                    (click)="setCompareMode('2up')"><mat-icon>splitscreen</mat-icon></button>
+            <button mat-icon-button [class.!text-white]="compareMode() !== '4up'"
+                    [class.!text-[var(--mat-sys-primary)]]="compareMode() === '4up'"
+                    [matTooltip]="'culling.compare.4up' | translate"
+                    (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
+          </div>
           <button mat-icon-button
                   [attr.aria-label]="'dialog.cancel' | translate"
                   (click)="closeLightbox(); $event.stopPropagation()" class="!text-white">
@@ -329,14 +347,31 @@ interface ShortcutRow {
         </div>
         <!-- Image -->
         @if (lbGroup.photos[lightboxIndex()]; as lbPhoto) {
-          <div class="flex-1 flex items-center justify-center overflow-hidden"
-               role="presentation"
-               (click)="$event.stopPropagation()"
-               (keydown)="$event.stopPropagation()">
-            <img [src]="lbPhoto.path | thumbnailUrl:1920"
-                 class="max-h-full max-w-full object-contain"
-                 [alt]="lbPhoto.filename" />
-          </div>
+          @if (compareMode() === 'single') {
+            <div class="flex-1 flex items-center justify-center overflow-hidden"
+                 role="presentation"
+                 (click)="$event.stopPropagation()"
+                 (keydown)="$event.stopPropagation()">
+              <img [src]="lbPhoto.path | thumbnailUrl:1920"
+                   class="max-h-full max-w-full object-contain"
+                   [alt]="lbPhoto.filename" />
+            </div>
+          } @else {
+            <div class="flex-1 grid grid-cols-2 gap-1 overflow-hidden p-1"
+                 [class.grid-rows-2]="compareMode() === '4up'"
+                 role="presentation"
+                 (click)="$event.stopPropagation()"
+                 (keydown)="$event.stopPropagation()">
+              @for (photo of compareFrames(); track photo.path) {
+                <app-synced-zoom class="w-full h-full min-h-0"
+                                 [src]="photo.path | thumbnailUrl:1920"
+                                 [fullResSrc]="photo.path | imageUrl"
+                                 [zoom]="zoom()"
+                                 (zoomChange)="zoom.set($event)"
+                                 [alt]="photo.filename" />
+              }
+            </div>
+          }
           <!-- Footer status -->
           <div class="px-4 py-3 text-center"
                role="presentation"
@@ -462,6 +497,25 @@ export class BurstCullingComponent implements OnDestroy {
     if (!key) return null;
     return this.groups().find(g => this.groupKey(g) === key) ?? null;
   });
+
+  /** Compare mode for the darkroom: single view, or a synced 2-up / 4-up grid. */
+  protected readonly compareMode = signal<'single' | '2up' | '4up'>('single');
+  /** Pan/zoom transform shared by every compare pane (synced peek). */
+  protected readonly zoom = signal<ZoomState>(FIT_ZOOM);
+
+  /** The frames shown in compare mode: N photos from the current index, clamped. */
+  protected readonly compareFrames = computed(() => {
+    const group = this.lightboxGroup();
+    if (!group) return [];
+    const count = this.compareMode() === '4up' ? 4 : 2;
+    const start = Math.min(this.lightboxIndex(), Math.max(0, group.photos.length - count));
+    return group.photos.slice(start, start + count);
+  });
+
+  protected setCompareMode(mode: 'single' | '2up' | '4up'): void {
+    this.compareMode.set(mode);
+    this.zoom.set(FIT_ZOOM);
+  }
 
   /** The fullscreen darkroom dialog element, focused on open so the photo tiles
    *  behind the overlay stop receiving keystrokes (otherwise Space double-fires). */

@@ -1650,6 +1650,11 @@
     }
   },
   "culling": {
+    "compare": {
+      "single": "Single view",
+      "2up": "Compare 2",
+      "4up": "Compare 4"
+    },
     "title": "Culling",
     "exclude_rejected": "Exclude rejected",
     "no_bursts": "No groups to review",
