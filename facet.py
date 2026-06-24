@@ -654,7 +654,7 @@ Configuration:
 
         threshold = args.merge_threshold
         port = int(os.environ.get('PORT', 5000))
-        url = f"http://localhost:{port}/suggest_merges?threshold={threshold}"
+        url = f"http://localhost:{port}/merge-suggestions?threshold={threshold}"
 
         def is_port_in_use(p):
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
