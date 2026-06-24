@@ -86,6 +86,7 @@ def _fetch_rating_rows(conn, paths, user_id):
     select = (
         "photos.path as path, photos.tags as tags, "
         "photos.caption as caption, photos.category as category, "
+        "photos.aggregate as aggregate, "
         f"{pref_cols['star_rating']} as star_rating, "
         f"{pref_cols['is_favorite']} as is_favorite, "
         f"{pref_cols['is_rejected']} as is_rejected"
@@ -154,7 +155,9 @@ def _rating_from(row, regions_map):
     Person names are derived from the regions (deduped, order-preserving) rather
     than a comma-joined SQL aggregate, so names containing commas round-trip.
     """
+    from api.config import get_xmp_export_config
     rating = XmpRating.from_row(row)
+    rating.apply_score_mapping(get_xmp_export_config())
     rating.regions = regions_map.get(row["path"], [])
     rating.person_names = person_names_from_regions(rating.regions)
     return rating

@@ -129,6 +129,26 @@ def person_names_from_regions(regions: list[FaceRegion]) -> list[str]:
     return [r.name for r in regions if not (r.name in seen or seen.add(r.name))]
 
 
+def score_to_stars(score: float | None, sr_cfg: dict | None) -> tuple[int, str]:
+    """Map a Facet aggregate score to ``(stars, label)`` via descending cut-points.
+
+    ``sr_cfg`` is the ``xmp_export.score_to_rating`` block. ``thresholds`` is a
+    descending list of cut-points; a score at/above the first maps to 5 stars,
+    the second to 4, and so on. A score below the lowest cut-point maps to 0
+    ("no opinion" — left unrated rather than stamped 1 star). Returns ``(0, "")``
+    when disabled or the score is missing. No colour label is emitted: colour
+    labels stay reserved for true favourite/reject so we don't fight darktable's
+    label semantics.
+    """
+    if not sr_cfg or not sr_cfg.get("enabled") or score is None:
+        return 0, ""
+    thresholds = sr_cfg.get("thresholds", [9.0, 8.0, 7.0, 5.5])
+    for i, cut in enumerate(thresholds):
+        if score >= cut:
+            return max(1, 5 - i), ""
+    return 0, ""
+
+
 @dataclass
 class XmpRating:
     """The Facet rating fields written into a sidecar."""
@@ -141,6 +161,7 @@ class XmpRating:
     category: str = ""
     person_names: list[str] = field(default_factory=list)
     regions: list[FaceRegion] = field(default_factory=list)
+    aggregate: float | None = None
 
     @classmethod
     def from_row(cls, row) -> "XmpRating":
@@ -149,9 +170,11 @@ class XmpRating:
         Accepts ``star_rating`` / ``is_favorite`` / ``is_rejected`` (effective,
         per-user-resolved values), ``tags`` (comma-separated string or list),
         ``caption``, ``category`` and ``person_names`` (comma-separated string
-        or list). Missing keys default to neutral values.
+        or list), plus the optional ``aggregate`` Facet quality score used by
+        the score-to-stars mapping. Missing keys default to neutral values.
         """
         data = dict(row) if not isinstance(row, dict) else row
+        agg = data.get("aggregate")
         return cls(
             star_rating=int(data.get("star_rating") or 0),
             is_favorite=bool(data.get("is_favorite") or 0),
@@ -160,7 +183,26 @@ class XmpRating:
             caption=(data.get("caption") or "").strip(),
             category=(data.get("category") or "").strip(),
             person_names=_as_list(data.get("person_names")),
+            aggregate=float(agg) if agg is not None else None,
         )
+
+    def apply_score_mapping(self, xmp_export_cfg: dict | None) -> "XmpRating":
+        """Derive ``star_rating`` from the aggregate score when unrated.
+
+        Any manual signal (rating, favourite, reject) always wins: with
+        ``only_when_unrated`` (default true) the mapping is skipped for a photo
+        the user has already touched. Returns self for chaining.
+        """
+        sr_cfg = (xmp_export_cfg or {}).get("score_to_rating", {})
+        if not sr_cfg.get("enabled"):
+            return self
+        if sr_cfg.get("only_when_unrated", True) and (
+                self.is_rejected or self.is_favorite or self.star_rating > 0):
+            return self
+        stars, _label = score_to_stars(self.aggregate, sr_cfg)
+        if stars > 0:
+            self.star_rating = stars
+        return self
 
     def all_keywords(self) -> list[str]:
         """Flat ``dc:subject`` keyword set: tags plus person names, deduped.
@@ -556,7 +598,8 @@ def _cli_face_regions(conn, path: str, width, height) -> list[FaceRegion]:
 
 
 def export_sidecars(conn, root: str | None = None, *, embed_original: bool = False,
-                    timeout: int = 60, user_id: str | None = None) -> dict:
+                    timeout: int = 60, user_id: str | None = None,
+                    xmp_export_cfg: dict | None = None, score_to_stars: bool = False) -> dict:
     """Write/merge ``<image>.xmp`` sidecars from the DB for all photos (or a subtree).
 
     By default operates on the global rating columns (``photos.star_rating`` /
@@ -583,9 +626,14 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
     where, params = build_root_filter(root) if root else ("", [])
     rows = conn.execute(
         f"SELECT photos.path AS path, tags, caption, category, {star}, {fav}, {rej}, "
-        f"image_width, image_height FROM photos {join} {where}",
+        f"aggregate, image_width, image_height FROM photos {join} {where}",
         user_params + params,
     ).fetchall()
+    cfg = dict(xmp_export_cfg or {})
+    if score_to_stars:
+        sr = dict(cfg.get("score_to_rating", {}))
+        sr["enabled"] = True
+        cfg["score_to_rating"] = sr
     written = embedded = missing = errors = 0
     for row in rows:
         path = row["path"]
@@ -593,6 +641,7 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
             missing += 1
             continue
         rating = XmpRating.from_row(row)
+        rating.apply_score_mapping(cfg)
         rating.regions = _cli_face_regions(conn, path, row["image_width"], row["image_height"])
         rating.person_names = person_names_from_regions(rating.regions)
         try:

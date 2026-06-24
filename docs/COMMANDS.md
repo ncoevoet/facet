@@ -77,6 +77,7 @@ lines (phase, current/total, ETA) which the viewer's scan API surfaces in the
 | `python facet.py --export-sidecars /path` | Export sidecars only for photos under a path subtree |
 | `python facet.py --export-sidecars --user alice` | Multi-user mode: export Alice's `user_preferences` ratings instead of the global columns (keywords stay global) |
 | `python facet.py --export-sidecars --embed-originals` | Also embed metadata **in-file** for JPEG/HEIC/TIFF/PNG/DNG (rewrites the originals) |
+| `python facet.py --export-sidecars --score-to-stars` | Derive `xmp:Rating` from the aggregate score for photos you have not manually rated (a manual rating/favorite/reject always wins) |
 
 > **Two-way metadata sync.** Facet writes ratings, color labels, keywords, captions and named-face regions to a standard `<image>.xmp` sidecar that the ecosystem reads (Lightroom, darktable, digiKam, immich, …); the original image is never modified unless you opt in with `--export-sidecars --embed-originals` (JPEG/HEIC/TIFF/PNG/DNG only — RAW is never touched). Embedding and safe keyword-union merging require **exiftool**; without it Facet falls back to a dependency-free pure-XML sidecar.
 >

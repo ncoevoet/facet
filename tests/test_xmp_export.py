@@ -19,10 +19,14 @@ from processing.xmp_export import (
     FaceRegion,
     XmpRating,
     build_xmp,
+    score_to_stars,
     sidecar_path,
     write_metadata,
     write_sidecar,
 )
+
+_SR_ON = {"score_to_rating": {"enabled": True, "thresholds": [9.0, 8.0, 7.0, 5.5],
+                              "only_when_unrated": True}}
 
 _NS = {
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
@@ -54,6 +58,56 @@ def _hierarchical(desc):
 def _description(desc):
     node = desc.find(".//dc:description/rdf:Alt/rdf:li", _NS)
     return node.text if node is not None else None
+
+
+class TestScoreToStars:
+    def test_high_score_maps_to_5(self):
+        assert score_to_stars(9.2, _SR_ON["score_to_rating"]) == (5, "")
+
+    def test_mid_score_maps_to_3(self):
+        assert score_to_stars(7.1, _SR_ON["score_to_rating"]) == (3, "")
+
+    def test_below_lowest_cut_is_no_opinion(self):
+        assert score_to_stars(4.0, _SR_ON["score_to_rating"]) == (0, "")
+
+    def test_disabled_returns_zero(self):
+        assert score_to_stars(9.9, {"enabled": False}) == (0, "")
+
+    def test_none_score_returns_zero(self):
+        assert score_to_stars(None, _SR_ON["score_to_rating"]) == (0, "")
+
+
+class TestApplyScoreMapping:
+    def test_unrated_photo_gets_derived_stars(self):
+        rating = XmpRating(aggregate=8.5)
+        rating.apply_score_mapping(_SR_ON)
+        assert rating.xmp_values() == (4, "")
+
+    def test_manual_star_rating_wins(self):
+        rating = XmpRating(star_rating=2, aggregate=9.0)
+        rating.apply_score_mapping(_SR_ON)
+        assert rating.xmp_values() == (2, "")
+
+    def test_favorite_wins_no_score_stars(self):
+        rating = XmpRating(is_favorite=True, aggregate=9.5)
+        rating.apply_score_mapping(_SR_ON)
+        assert rating.xmp_values() == (0, LABEL_FAVORITE)
+
+    def test_disabled_is_noop(self):
+        rating = XmpRating(aggregate=9.5)
+        rating.apply_score_mapping({"score_to_rating": {"enabled": False}})
+        assert rating.xmp_values() == (0, "")
+
+    def test_from_row_reads_aggregate(self):
+        rating = XmpRating.from_row({"aggregate": 8.5})
+        rating.apply_score_mapping(_SR_ON)
+        assert rating.star_rating == 4
+
+    def test_written_sidecar_has_score_rating(self):
+        rating = XmpRating(aggregate=8.5)
+        rating.apply_score_mapping(_SR_ON)
+        desc = _parse(build_xmp(rating))
+        assert desc.get(f"{{{_NS['xmp']}}}Rating") == "4"
 
 
 class TestBuildXmp:
@@ -392,7 +446,7 @@ class TestExportSidecarsCli:
         conn.executescript(
             "CREATE TABLE photos (path TEXT PRIMARY KEY, tags TEXT, caption TEXT, "
             "category TEXT, star_rating INTEGER, is_favorite INTEGER, is_rejected INTEGER, "
-            "image_width INTEGER, image_height INTEGER);"
+            "image_width INTEGER, image_height INTEGER, aggregate REAL);"
             "CREATE TABLE persons (id INTEGER PRIMARY KEY, name TEXT);"
             "CREATE TABLE faces (id INTEGER PRIMARY KEY, photo_path TEXT, person_id INTEGER, "
             "bbox_x1 INTEGER, bbox_y1 INTEGER, bbox_x2 INTEGER, bbox_y2 INTEGER);"
@@ -404,7 +458,7 @@ class TestExportSidecarsCli:
         img.write_bytes(b"x")
         conn = self._db(tmp_path)
         conn.execute(
-            "INSERT INTO photos VALUES (?, 'beach', '', '', 4, 0, 0, 0, 0)", (str(img),)
+            "INSERT INTO photos VALUES (?, 'beach', '', '', 4, 0, 0, 0, 0, NULL)", (str(img),)
         )
         stats = xe.export_sidecars(conn)
         assert stats["written"] == 1
@@ -414,7 +468,7 @@ class TestExportSidecarsCli:
     def test_missing_file_counted(self, tmp_path):
         conn = self._db(tmp_path)
         conn.execute(
-            "INSERT INTO photos VALUES (?, '', '', '', 0, 0, 0, 0, 0)",
+            "INSERT INTO photos VALUES (?, '', '', '', 0, 0, 0, 0, 0, NULL)",
             (str(tmp_path / "gone.jpg"),),
         )
         stats = xe.export_sidecars(conn)

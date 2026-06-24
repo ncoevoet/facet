@@ -400,6 +400,9 @@ Configuration:
     export_group.add_argument('--embed-originals', action='store_true',
                         help='With --export-sidecars: also embed metadata into the original image files '
                              '(JPEG/HEIC/TIFF/PNG/DNG via exiftool); RAW originals are never modified')
+    export_group.add_argument('--score-to-stars', action='store_true',
+                        help='With --export-sidecars: derive xmp:Rating from the aggregate score for '
+                             'photos the user has not manually rated (overrides xmp_export config for this run)')
     export_group.add_argument('--user', type=str, default=None, metavar='USERNAME',
                         help='With --import-sidecars/--export-sidecars in multi-user mode: read/write '
                              "that user's ratings (user_preferences) instead of the global columns")
@@ -1410,8 +1413,13 @@ Configuration:
     if args.export_sidecars:
         from processing.xmp_export import export_sidecars
         root = None if args.export_sidecars == 'all' else args.export_sidecars
+        _export_cfg = ScoringConfig(args.config or 'scoring_config.json', validate=False).config
         with get_connection(args.db) as conn:
-            stats = export_sidecars(conn, root, embed_original=args.embed_originals, user_id=args.user)
+            stats = export_sidecars(
+                conn, root, embed_original=args.embed_originals, user_id=args.user,
+                xmp_export_cfg=_export_cfg.get('xmp_export', {}),
+                score_to_stars=args.score_to_stars,
+            )
         logger.info(
             "Sidecar export: %d written, %d embedded, %d missing, %d errors",
             stats['written'], stats['embedded'], stats['missing'], stats['errors'],

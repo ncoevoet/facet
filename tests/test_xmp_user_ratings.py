@@ -44,7 +44,7 @@ def _import_db():
     conn.row_factory = sqlite3.Row
     conn.execute(
         "CREATE TABLE photos (path TEXT PRIMARY KEY, tags TEXT, star_rating INTEGER, "
-        "is_favorite INTEGER, is_rejected INTEGER, scanned_at TEXT)"
+        "is_favorite INTEGER, is_rejected INTEGER, scanned_at TEXT, aggregate REAL)"
     )
     conn.execute(
         "CREATE TABLE user_preferences (user_id TEXT, photo_path TEXT, star_rating INTEGER "
@@ -60,7 +60,7 @@ def _export_db():
     conn.execute(
         "CREATE TABLE photos (path TEXT PRIMARY KEY, tags TEXT, caption TEXT, category TEXT, "
         "star_rating INTEGER, is_favorite INTEGER, is_rejected INTEGER, "
-        "image_width INTEGER, image_height INTEGER)"
+        "image_width INTEGER, image_height INTEGER, aggregate REAL)"
     )
     conn.execute(
         "CREATE TABLE user_preferences (user_id TEXT, photo_path TEXT, star_rating INTEGER "
@@ -77,7 +77,7 @@ class TestImportPerUser:
         _write(tmp_path, "p.jpg.xmp", _attr_xmp(rating=5, label="Yellow", subjects=["auto", "Bob"]))
         conn = _import_db()
         conn.execute(
-            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?)", (img, "auto", 0, 0, 0, None)
+            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?)", (img, "auto", 0, 0, 0, None, None)
         )
 
         stats = import_sidecars(conn, user_id="alice")
@@ -102,7 +102,7 @@ class TestImportPerUser:
         img = str(tmp_path / "p.jpg")
         _write(tmp_path, "p.jpg.xmp", _attr_xmp(rating=4))
         conn = _import_db()
-        conn.execute("INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?)", (img, "", 0, 0, 0, None))
+        conn.execute("INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?)", (img, "", 0, 0, 0, None, None))
 
         import_sidecars(conn, user_id="alice")
 
@@ -118,8 +118,8 @@ class TestExportPerUser:
         img.write_bytes(b"x")  # file must exist for export to attempt a write
         conn = _export_db()
         conn.execute(
-            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (str(img), "", "", "", 0, 0, 0, 0, 0),  # global = unrated
+            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (str(img), "", "", "", 0, 0, 0, 0, 0, None),  # global = unrated
         )
         conn.execute(
             "INSERT INTO user_preferences VALUES (?, ?, ?, ?, ?)",
@@ -145,8 +145,8 @@ class TestExportPerUser:
         img.write_bytes(b"x")
         conn = _export_db()
         conn.execute(
-            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (str(img), "", "", "", 2, 0, 0, 0, 0),  # global rating = 2
+            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (str(img), "", "", "", 2, 0, 0, 0, 0, None),  # global rating = 2
         )
         captured = {}
 

@@ -2494,6 +2494,15 @@
   "maintenance": {
     "backup_retention": 3
   },
+  "xmp_export": {
+    "score_to_rating": {
+      "enabled": false,
+      "source": "aggregate",
+      "thresholds": [9.0, 8.0, 7.0, 5.5],
+      "favorite_min": 9.0,
+      "only_when_unrated": true
+    }
+  },
   "translation": {
     "target_language": "fr"
   },

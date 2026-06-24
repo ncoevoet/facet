@@ -152,6 +152,11 @@ def load_viewer_config(config=None):
 VIEWER_CONFIG = load_viewer_config(_FULL_CONFIG)
 
 
+def get_xmp_export_config():
+    """Return the ``xmp_export`` config block (score-to-stars mapping etc.)."""
+    return _FULL_CONFIG.get('xmp_export', {})
+
+
 # --- MULTI-USER SUPPORT ---
 
 def is_multi_user_enabled():
