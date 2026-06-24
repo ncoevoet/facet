@@ -67,7 +67,12 @@ export class ScanService implements OnDestroy {
     this.connected.set(true);
 
     source.onmessage = (event: MessageEvent) => {
-      const data: ScanStatus = JSON.parse(event.data);
+      let data: ScanStatus;
+      try {
+        data = JSON.parse(event.data) as ScanStatus;
+      } catch {
+        return;
+      }
       this.status.set(data);
       if (!data.running) {
         this.disconnect();

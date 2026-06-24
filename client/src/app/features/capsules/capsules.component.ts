@@ -291,7 +291,10 @@ export class CapsulesComponent implements OnDestroy {
 
     try {
       const res = await firstValueFrom(
-        this.api.get<{ photos: Photo[]; capsule: Capsule }>(`/capsules/${capsule.id}/photos`),
+        this.api.get<{ photos: Photo[]; capsule: Capsule }>(`/capsules/${capsule.id}/photos`, {
+          date_from: this.filters.dateFrom(),
+          date_to: this.filters.dateTo(),
+        }),
       );
       if (this.destroyed) return;
 
@@ -314,8 +317,14 @@ export class CapsulesComponent implements OnDestroy {
     if (this.savingAlbum()) return;
     this.savingAlbum.set(true);
     try {
+      const params = new URLSearchParams();
+      if (this.filters.dateFrom()) params.set('date_from', this.filters.dateFrom());
+      if (this.filters.dateTo()) params.set('date_to', this.filters.dateTo());
+      const qs = params.toString();
       await firstValueFrom(
-        this.api.post<{ album_id: number; name: string }>(`/capsules/${capsule.id}/save-album`),
+        this.api.post<{ album_id: number; name: string }>(
+          `/capsules/${capsule.id}/save-album${qs ? '?' + qs : ''}`,
+        ),
       );
       this.snackBar.open(
         this.i18n.t('capsules.saved_as_album'),

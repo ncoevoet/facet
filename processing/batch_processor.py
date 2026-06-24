@@ -237,18 +237,27 @@ class BatchProcessor:
         if not batch:
             return
 
-        # Fetch EXIF for this batch (prefetched in background when enabled)
-        paths = [item['path'] for item in batch]
-        batch_exif = self._get_batch_exif(paths)
+        # Batch-level setup and GPU inference. A failure here (e.g. CUDA OOM) must
+        # fail every item in the batch rather than escape and kill the GPU thread,
+        # which would leave the consumer loop waiting on results that never arrive.
+        try:
+            # Fetch EXIF for this batch (prefetched in background when enabled)
+            paths = [item['path'] for item in batch]
+            batch_exif = self._get_batch_exif(paths)
 
-        # Extract PIL images and pre-processed CLIP inputs
-        pil_images = [item['pil_img'] for item in batch]
-        clip_inputs = None
-        if batch[0].get('clip_input') is not None:
-            clip_inputs = torch.stack([item['clip_input'] for item in batch]).to(self.scorer.device)
+            # Extract PIL images and pre-processed CLIP inputs
+            pil_images = [item['pil_img'] for item in batch]
+            clip_inputs = None
+            if batch[0].get('clip_input') is not None:
+                clip_inputs = torch.stack([item['clip_input'] for item in batch]).to(self.scorer.device)
 
-        # Use shared batch method for aesthetic/quality scoring
-        aesthetic_results = self.scorer.get_aesthetic_and_quality_batch(pil_images, clip_inputs)
+            # Use shared batch method for aesthetic/quality scoring
+            aesthetic_results = self.scorer.get_aesthetic_and_quality_batch(pil_images, clip_inputs)
+        except Exception as e:
+            logger.exception("Batch inference failed for %d images", len(batch))
+            for item in batch:
+                self.result_queue.put({'path': item['path'], 'error': f'batch inference failed: {e}'})
+            return
 
         # Process each image with other analyzers
         for i, item in enumerate(batch):
@@ -498,6 +507,14 @@ class BatchProcessor:
                         if self.on_progress:
                             self.on_progress(processed, total)
                     except queue.Empty:
+                        # If the GPU thread died, no more results will arrive — abort
+                        # the wait instead of spinning forever.
+                        if not gpu_thread.is_alive():
+                            logger.error(
+                                "GPU thread exited before all results (%d/%d processed); aborting wait",
+                                processed, total,
+                            )
+                            break
                         continue
 
                 # Save any remaining items
@@ -643,6 +660,14 @@ class BatchProcessor:
                         if self.on_progress:
                             self.on_progress(processed, total_count)
                     except queue.Empty:
+                        # If the GPU thread died, no more results will arrive — abort
+                        # the wait instead of spinning forever.
+                        if not gpu_thread.is_alive():
+                            logger.error(
+                                "GPU thread exited before all results (%d/%d processed); aborting wait",
+                                processed, total_count,
+                            )
+                            break
                         continue
 
                 # Save any remaining items

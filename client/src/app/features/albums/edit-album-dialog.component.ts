@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -34,7 +34,7 @@ export interface EditAlbumDialogData {
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ 'ui.buttons.cancel' | translate }}</button>
-      <button mat-flat-button [disabled]="!name.trim()" (click)="save()">{{ 'ui.buttons.save' | translate }}</button>
+      <button mat-flat-button [disabled]="!name.trim() || saving()" (click)="save()">{{ saving() ? ('ui.buttons.saving' | translate) : ('ui.buttons.save' | translate) }}</button>
     </mat-dialog-actions>
   `,
 })
@@ -45,15 +45,21 @@ export class EditAlbumDialogComponent {
 
   protected name = this.data.album.name;
   protected description = this.data.album.description || '';
+  protected readonly saving = signal(false);
 
   protected async save(): Promise<void> {
-    if (!this.name.trim()) return;
-    const album = await firstValueFrom(
-      this.albumService.update(this.data.album.id, {
-        name: this.name.trim(),
-        description: this.description.trim(),
-      }),
-    );
-    this.dialogRef.close(album);
+    if (!this.name.trim() || this.saving()) return;
+    this.saving.set(true);
+    try {
+      const album = await firstValueFrom(
+        this.albumService.update(this.data.album.id, {
+          name: this.name.trim(),
+          description: this.description.trim(),
+        }),
+      );
+      this.dialogRef.close(album);
+    } catch {
+      this.saving.set(false);
+    }
   }
 }

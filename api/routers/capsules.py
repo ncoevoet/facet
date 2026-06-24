@@ -149,10 +149,14 @@ def get_capsules(
 async def get_capsule_photos(
     capsule_id: str,
     user: Optional[CurrentUser] = Depends(get_optional_user),
+    date_from: str = Query(""),
+    date_to: str = Query(""),
 ):
     """Return the curated photo list for a specific capsule (async)."""
     user_id = user.user_id if user else None
-    capsule = _resolve_capsule(capsule_id, user_id)
+    date_from = _validate_date(date_from)
+    date_to = _validate_date(date_to)
+    capsule = _resolve_capsule(capsule_id, user_id, date_from=date_from, date_to=date_to)
 
     paths = capsule["params"].get("paths", [])
     if not paths:
@@ -208,10 +212,14 @@ async def get_capsule_photos(
 def save_capsule_as_album(
     capsule_id: str,
     user: CurrentUser = Depends(require_edition),
+    date_from: str = Query(""),
+    date_to: str = Query(""),
 ):
     """Save a capsule as a new album."""
     user_id = user.user_id if user else None
-    capsule = _resolve_capsule(capsule_id, user_id)
+    date_from = _validate_date(date_from)
+    date_to = _validate_date(date_to)
+    capsule = _resolve_capsule(capsule_id, user_id, date_from=date_from, date_to=date_to)
 
     paths = capsule["params"].get("paths", [])
     if not paths:

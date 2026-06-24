@@ -21,7 +21,7 @@ from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_db
 from api.db_helpers import (
     get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
-    trigger_auto_retrain,
+    trigger_auto_retrain, set_photos_rejected,
 )
 from api.similarity_groups import compute_similarity_groups
 from comparison.comparison_manager import record_culling_pairs
@@ -431,9 +431,10 @@ async def select_burst_photos(
             if reject_paths:
                 placeholders = ','.join('?' * len(reject_paths))
                 conn.execute(
-                    f"UPDATE photos SET is_burst_lead = 0, is_rejected = 1, burst_reviewed = 1 WHERE path IN ({placeholders})",
+                    f"UPDATE photos SET is_burst_lead = 0, burst_reviewed = 1 WHERE path IN ({placeholders})",
                     reject_paths,
                 )
+                set_photos_rejected(conn, reject_paths, user_id)
 
             record_culling_pairs(
                 conn, keep_paths, reject_paths,
@@ -535,14 +536,9 @@ async def select_similar_photos(
                     detail=f'Paths not in similarity group: {list(invalid)[:3]}',
                 )
 
-            # Mark non-kept photos as rejected (batch UPDATE with visibility check)
+            # Mark non-kept photos as rejected (per-user in multi-user mode, visibility-checked)
             reject_paths = list(group_paths - keep_set)
-            if reject_paths:
-                placeholders = ','.join('?' * len(reject_paths))
-                conn.execute(
-                    f"UPDATE photos SET is_rejected = 1 WHERE path IN ({placeholders}) AND {vis_sql}",
-                    reject_paths + vis_params,
-                )
+            set_photos_rejected(conn, reject_paths, user_id)
 
             # Mark ALL photos in the group as similarity_reviewed. The column
             # is guaranteed present by the lifespan-time init_database() migration
@@ -885,14 +881,17 @@ async def api_culling_group_faces(
 
     from analyzers import FaceAnalyzer
 
+    user_id = user.user_id if user else None
+    vis_sql, vis_params = get_visibility_clause(user_id)
     faces_by_path: dict[str, list] = {p: [] for p in paths}
     placeholders = ",".join("?" * len(paths))
     with get_db() as conn:
         rows = conn.execute(
             f"SELECT photo_path, id, face_index, bbox_x1, bbox_y1, bbox_x2, bbox_y2, "
             f"confidence, landmark_2d_106 FROM faces WHERE photo_path IN ({placeholders}) "
+            f"AND photo_path IN (SELECT path FROM photos WHERE {vis_sql}) "
             f"ORDER BY photo_path, face_index",
-            paths,
+            paths + vis_params,
         ).fetchall()
 
     for row in rows:

@@ -1088,7 +1088,7 @@ async def api_similar_photos(
 
     except HTTPException:
         raise
-    except sqlite3.Error:
+    except (sqlite3.Error, ValueError, OverflowError):
         logger.exception("Failed to find similar photos")
         raise HTTPException(status_code=500, detail='Internal server error')
 

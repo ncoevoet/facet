@@ -1317,7 +1317,7 @@ def api_restore_weights(
         category = snapshot['category']
 
         # Load and update config
-        config_path = 'scoring_config.json'
+        config_path = str(_CONFIG_PATH)
 
         # Create backup first
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

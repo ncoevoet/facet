@@ -40,7 +40,7 @@ export class I18nService {
     let result = String(value);
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {
-        result = result.replace(`{${k}}`, String(v));
+        result = result.replaceAll(`{${k}}`, String(v));
       }
     }
     return result;

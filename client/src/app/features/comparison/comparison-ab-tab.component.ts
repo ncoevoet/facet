@@ -436,8 +436,10 @@ export class ComparisonAbTabComponent {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
-    const tag = (event.target as HTMLElement)?.tagName;
+    const target = event.target as HTMLElement;
+    const tag = target?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (target?.closest('mat-select, .cdk-overlay-container, [role="combobox"], [role="listbox"], [role="option"]')) return;
     if (!this.pairA() || !this.pairB() || this.pairSubmitting() || this.pairLoading()) return;
     switch (event.key) {
       case 'ArrowLeft': void this.submitComparison('a'); event.preventDefault(); break;

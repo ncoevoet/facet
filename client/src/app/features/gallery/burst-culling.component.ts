@@ -1043,7 +1043,7 @@ export class BurstCullingComponent implements OnDestroy {
     this.confirming.set(true);
     try {
       const confirmed = this.confirmedGroups();
-      const remaining = this.groups().filter(g => !confirmed.has(this.groupKey(g)));
+      const remaining = this.visibleGroups().filter(g => !confirmed.has(this.groupKey(g)));
       const toConfirm = remaining.filter(g => {
         const kept = this.selectionsMap().get(g.group_id);
         return kept && kept.size > 0;

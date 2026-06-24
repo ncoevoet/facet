@@ -155,8 +155,10 @@ def get_existing_columns(conn=None):
         cursor = conn.execute('PRAGMA table_info(photos)')
         result = {row[1] for row in cursor.fetchall()}
 
+    from api import config as _config_mod
     with _existing_columns_lock:
         _existing_columns_cache = result
+        _config_mod._existing_columns_cache = result
     return _existing_columns_cache
 
 
@@ -169,8 +171,10 @@ def invalidate_existing_columns_cache():
     miss newly-added columns until the API restarts.
     """
     global _existing_columns_cache
+    from api import config as _config_mod
     with _existing_columns_lock:
         _existing_columns_cache = None
+        _config_mod._existing_columns_cache = None
 
 
 def is_photo_tags_available(conn=None):
@@ -220,6 +224,7 @@ def is_photo_tags_available(conn=None):
 
     with _photo_tags_lock:
         _photo_tags_available = result
+        _config_mod._photo_tags_available = result
         _config_mod._photo_tags_checked_at = now
     return _photo_tags_available
 
@@ -580,6 +585,38 @@ def get_preference_columns(user_id=None):
         'is_favorite': 'photos.is_favorite',
         'is_rejected': 'photos.is_rejected',
     }
+
+
+def set_photos_rejected(conn, paths, user_id):
+    """Mark photos as rejected, honoring multi-user per-user preferences and visibility.
+
+    Resolves the caller's visible subset of ``paths`` first, then records the
+    rejection per-user in ``user_preferences`` (multi-user mode) or in the global
+    ``photos`` table (single-user). This keeps bulk culling/scene rejects consistent
+    with the per-user read path (``get_preference_columns``) and the single-photo
+    toggle in ``api/routers/faces.py``. Returns the number of photos affected.
+    """
+    if not paths:
+        return 0
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    placeholders = ','.join('?' * len(paths))
+    visible = [r[0] for r in conn.execute(
+        f"SELECT path FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
+        list(paths) + vis_params,
+    ).fetchall()]
+    if not visible:
+        return 0
+    if user_id and is_multi_user_enabled():
+        conn.executemany(
+            "INSERT INTO user_preferences (user_id, photo_path, is_rejected) "
+            "VALUES (?, ?, 1) "
+            "ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1",
+            [(user_id, p) for p in visible],
+        )
+    else:
+        ph = ','.join('?' * len(visible))
+        conn.execute(f"UPDATE photos SET is_rejected = 1 WHERE path IN ({ph})", visible)
+    return len(visible)
 
 
 def _jpeg_dimensions(blob):

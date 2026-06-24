@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["memories"])
 
+# date_taken is stored in EXIF format (YYYY:MM:DD HH:MM:SS); SQLite strftime only
+# parses ISO-8601 ('-' separators) and returns NULL on ':' dates, so every date
+# query must convert first. Mirrors analyzers/capsule_generator.py:_ISO_DATE.
+_ISO_DATE = "REPLACE(SUBSTR(date_taken,1,10),':','-') || SUBSTR(date_taken,11)"
+
 
 def _get_top_per_year():
     from api.config import VIEWER_CONFIG
@@ -58,8 +63,8 @@ async def check_memories(
 
             query = f"""
                 SELECT 1 FROM {from_clause}
-                WHERE strftime('%m-%d', date_taken) = ?
-                  AND strftime('%Y', date_taken) < ?
+                WHERE strftime('%m-%d', {_ISO_DATE}) = ?
+                  AND strftime('%Y', {_ISO_DATE}) < ?
                   AND date_taken IS NOT NULL
                   AND {vis_sql}
                 LIMIT 1
@@ -120,17 +125,17 @@ async def get_memories(
             query = f"""
                 SELECT * FROM (
                     SELECT {inner_cols},
-                        strftime('%Y', date_taken) AS _year,
+                        strftime('%Y', {_ISO_DATE}) AS _year,
                         ROW_NUMBER() OVER (
-                            PARTITION BY strftime('%Y', date_taken)
+                            PARTITION BY strftime('%Y', {_ISO_DATE})
                             ORDER BY aggregate DESC, path ASC
                         ) AS _rn,
                         COUNT(*) OVER (
-                            PARTITION BY strftime('%Y', date_taken)
+                            PARTITION BY strftime('%Y', {_ISO_DATE})
                         ) AS _year_total
                     FROM {from_clause}
-                    WHERE strftime('%m-%d', date_taken) = ?
-                      AND strftime('%Y', date_taken) < ?
+                    WHERE strftime('%m-%d', {_ISO_DATE}) = ?
+                      AND strftime('%Y', {_ISO_DATE}) < ?
                       AND date_taken IS NOT NULL
                       AND {vis_sql}
                 ) WHERE _rn <= ?

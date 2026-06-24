@@ -274,18 +274,16 @@ def metrics(request: Request):
         pass
 
     try:
-        from api.config import (
-            _photo_tags_available, _existing_columns_cache,
-            _count_cache, _stats_cache,
-        )
+        from api import config as _cfg
+        from api.config import _count_cache, _stats_cache
         gauge(
             "facet_photo_tags_available",
-            1 if _photo_tags_available is True else 0,
+            1 if _cfg._photo_tags_available is True else 0,
             "1 if photo_tags lookup table is populated; 0 means tag filters use slow LIKE scan",
         )
         gauge(
             "facet_existing_columns_cached",
-            1 if _existing_columns_cache is not None else 0,
+            1 if _cfg._existing_columns_cache is not None else 0,
             "1 if lifespan-warmed PRAGMA table_info cache is populated",
         )
         gauge(

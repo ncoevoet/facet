@@ -26,6 +26,7 @@ _SCHEMA = """
         bbox_x1 REAL, bbox_y1 REAL, bbox_x2 REAL, bbox_y2 REAL,
         confidence REAL, landmark_2d_106 BLOB
     );
+    CREATE TABLE photos (path TEXT PRIMARY KEY);
 """
 
 
@@ -46,6 +47,8 @@ def _db(faces):
             f"INSERT INTO faces ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)})",
             [f[c] for c in cols],
         )
+    for path in {f["photo_path"] for f in faces}:
+        conn.execute("INSERT OR IGNORE INTO photos (path) VALUES (?)", (path,))
     conn.commit()
     return conn
 
@@ -111,3 +114,22 @@ def test_empty_paths_returns_empty(client):
     resp = client.post("/api/culling-group/faces", json={"paths": []})
     assert resp.status_code == 200
     assert resp.json() == {"faces_by_path": {}}
+
+
+def test_path_not_visible_is_filtered(client):
+    """A path with face rows but absent from the visible photos set must not
+    leak face metadata — the visibility join drops it (regression for IDOR)."""
+    conn = _db(_faces())
+    conn.execute("DELETE FROM photos WHERE path = ?", ("/a.jpg",))
+    conn.commit()
+    with (
+        mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
+        mock.patch("analyzers.FaceAnalyzer.compute_eyes_open_score", lambda lm: 8.0),
+        mock.patch("analyzers.FaceAnalyzer.compute_expression_score", lambda lm: 6.0),
+    ):
+        resp = client.post("/api/culling-group/faces", json={"paths": ["/a.jpg", "/b.jpg"]})
+
+    assert resp.status_code == 200
+    body = resp.json()["faces_by_path"]
+    assert body["/a.jpg"] == []  # not visible -> no face metadata leaked
+    assert len(body["/b.jpg"]) == 1  # visible path still returned

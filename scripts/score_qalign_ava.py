@@ -105,7 +105,10 @@ def main() -> int:
     metric = pyiqa.create_metric(args.variant, device=device, as_loss=False)
     # pyiqa's qalign forward takes task_ as a per-call kwarg (forwarded via **kwargs
     # in inference_model.py). Setting it as an attribute on .net does nothing.
-    log.info("Model loaded. Allocated VRAM: %.1f GB", torch.cuda.memory_allocated(0) / (1024 ** 3))
+    if torch.cuda.is_available():
+        log.info("Model loaded. Allocated VRAM: %.1f GB", torch.cuda.memory_allocated(0) / (1024 ** 3))
+    else:
+        log.info("Model loaded (CPU).")
 
     t0 = time.monotonic()
     scored = 0

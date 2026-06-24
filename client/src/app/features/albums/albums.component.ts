@@ -163,6 +163,11 @@ export class AlbumsComponent {
         this.albums.update(prev => [...prev, ...res.albums]);
       }
       this.total.set(res.total);
+    } catch {
+      if (reset) {
+        this.albums.set([]);
+        this.total.set(0);
+      }
     } finally {
       this.loading.set(false);
     }

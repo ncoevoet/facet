@@ -630,22 +630,34 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const p = this.photo();
     if (!p) return;
     const newRating = p.star_rating === rating ? 0 : rating;
-    await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: path, rating: newRating }));
-    this.photo.set({ ...p, star_rating: newRating });
+    try {
+      await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: path, rating: newRating }));
+      this.photo.set({ ...p, star_rating: newRating });
+    } catch {
+      this.snackBar.open(this.i18n.t('errors.action_failed'), '', { duration: 3000 });
+    }
   }
 
   protected async toggleFavorite(path: string): Promise<void> {
     const p = this.photo();
     if (!p) return;
-    const res = await firstValueFrom(this.api.post<{ is_favorite: boolean; is_rejected: boolean | null }>('/photo/toggle_favorite', { photo_path: path }));
-    this.photo.set({ ...p, is_favorite: res.is_favorite, is_rejected: res.is_rejected === null ? p.is_rejected : res.is_rejected });
+    try {
+      const res = await firstValueFrom(this.api.post<{ is_favorite: boolean; is_rejected: boolean | null }>('/photo/toggle_favorite', { photo_path: path }));
+      this.photo.set({ ...p, is_favorite: res.is_favorite, is_rejected: res.is_rejected === null ? p.is_rejected : res.is_rejected });
+    } catch {
+      this.snackBar.open(this.i18n.t('errors.action_failed'), '', { duration: 3000 });
+    }
   }
 
   protected async toggleRejected(path: string): Promise<void> {
     const p = this.photo();
     if (!p) return;
-    const res = await firstValueFrom(this.api.post<{ is_rejected: boolean; is_favorite: boolean | null }>('/photo/toggle_rejected', { photo_path: path }));
-    this.photo.set({ ...p, is_rejected: res.is_rejected, is_favorite: res.is_favorite === null ? p.is_favorite : res.is_favorite });
+    try {
+      const res = await firstValueFrom(this.api.post<{ is_rejected: boolean; is_favorite: boolean | null }>('/photo/toggle_rejected', { photo_path: path }));
+      this.photo.set({ ...p, is_rejected: res.is_rejected, is_favorite: res.is_favorite === null ? p.is_favorite : res.is_favorite });
+    } catch {
+      this.snackBar.open(this.i18n.t('errors.action_failed'), '', { duration: 3000 });
+    }
   }
 
   protected async generateCaption(path: string): Promise<void> {

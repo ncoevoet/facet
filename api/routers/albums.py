@@ -121,12 +121,17 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
     select_cols = build_photo_select_columns(conn=None, user_id=user_id)
 
     if album_row['is_smart'] and album_row['smart_filter_json']:
-        # Smart album: use saved filters
+        # Smart album: evaluate the saved filter with the album OWNER's visibility,
+        # not the viewer's. A shared smart album must stay scoped to the owner's
+        # library regardless of who holds the share token, otherwise it leaks every
+        # DB photo matching the filter (including other users' photos).
+        owner_id = album_row['user_id']
+        select_cols = build_photo_select_columns(conn=None, user_id=owner_id)
         from api.routers.gallery import _build_gallery_where
         saved_filters = json.loads(album_row['smart_filter_json'])
         saved_filters = _normalize_smart_filters(saved_filters)
-        where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=user_id)
-        from_clause, from_params = get_photos_from_clause(user_id)
+        where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=owner_id)
+        from_clause, from_params = get_photos_from_clause(owner_id)
         all_params = from_params + sql_params
         where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 

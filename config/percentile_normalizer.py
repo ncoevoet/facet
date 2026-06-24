@@ -1565,6 +1565,7 @@ class PercentileNormalizer:
                 # Check if category column exists
                 cursor = conn.execute("PRAGMA table_info(photos)")
                 columns = [col[1] for col in cursor.fetchall()]
+                cat_scores = []
                 if 'category' in columns:
                     print_section("CATEGORY DETAILS (Face-Ratio Based)")
                     logger.info("  Categories determined by face_ratio, face_count, is_monochrome:")

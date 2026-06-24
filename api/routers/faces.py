@@ -142,6 +142,9 @@ def api_assign_face(
             if not face:
                 raise HTTPException(status_code=404, detail="Face not found")
 
+            if not conn.execute("SELECT 1 FROM persons WHERE id = ?", (body.person_id,)).fetchone():
+                raise HTTPException(status_code=404, detail="Target person not found")
+
             old_person_id = face['person_id']
             conn.execute("UPDATE faces SET person_id = ? WHERE id = ?", (body.person_id, face_id))
 

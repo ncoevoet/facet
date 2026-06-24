@@ -43,6 +43,16 @@ class ComparisonManager:
         if winner not in ('a', 'b', 'tie', 'skip'):
             raise ValueError(f"Invalid winner value: {winner}")
 
+        # Canonicalize pair order so swapped (A,B)/(B,A) submissions hit the same
+        # UNIQUE(photo_a_path, photo_b_path) row instead of storing contradictory
+        # duplicates (mirrors record_culling_pairs).
+        if photo_a_path > photo_b_path:
+            photo_a_path, photo_b_path = photo_b_path, photo_a_path
+            if winner == 'a':
+                winner = 'b'
+            elif winner == 'b':
+                winner = 'a'
+
         with get_connection(self.db_path, row_factory=False) as conn:
             try:
                 conn.execute("""

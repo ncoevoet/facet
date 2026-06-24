@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_db
-from api.db_helpers import get_visibility_clause, trigger_auto_retrain
+from api.db_helpers import get_visibility_clause, trigger_auto_retrain, set_photos_rejected
 from comparison.comparison_manager import record_culling_pairs
 from utils.date_utils import parse_date
 
@@ -163,7 +163,6 @@ async def confirm_scene(
     with get_db() as conn:
         try:
             user_id = user.user_id if user else None
-            vis_sql, vis_params = get_visibility_clause(user_id)
 
             group_paths = set(body.paths)
             keep_set = set(body.keep_paths)
@@ -172,12 +171,7 @@ async def confirm_scene(
                 raise HTTPException(status_code=400, detail=f'Paths not in scene: {list(invalid)[:3]}')
 
             reject_paths = list(group_paths - keep_set)
-            if reject_paths:
-                placeholders = ','.join('?' * len(reject_paths))
-                conn.execute(
-                    f"UPDATE photos SET is_rejected = 1 WHERE path IN ({placeholders}) AND {vis_sql}",
-                    reject_paths + vis_params,
-                )
+            set_photos_rejected(conn, reject_paths, user_id)
 
             conn.execute("DELETE FROM stats_cache WHERE key LIKE 'scenes_%'")
             record_culling_pairs(
