@@ -33,7 +33,12 @@ from api.db_helpers import (
     get_visibility_clause,
 )
 from api.path_validation import resolve_photo_disk_path
-from processing.xmp_export import FaceRegion, XmpRating, write_metadata
+from processing.xmp_export import (
+    FaceRegion,
+    XmpRating,
+    person_names_from_regions,
+    write_metadata,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -151,10 +156,7 @@ def _rating_from(row, regions_map):
     """
     rating = XmpRating.from_row(row)
     rating.regions = regions_map.get(row["path"], [])
-    seen = set()
-    rating.person_names = [
-        r.name for r in rating.regions if not (r.name in seen or seen.add(r.name))
-    ]
+    rating.person_names = person_names_from_regions(rating.regions)
     return rating
 
 
@@ -314,7 +316,13 @@ def api_export_xmp(
     body: ExportXmpRequest,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Write a single XMP sidecar next to a photo."""
+    """Write a single XMP sidecar next to a photo (the original is never touched).
+
+    ``overwrite`` only governs the dependency-free fallback writer used when
+    exiftool is absent (it diverts to ``.facet.xmp`` rather than clobbering a
+    darktable sidecar). When exiftool is present the sidecar is merged
+    non-destructively regardless, so ``overwrite`` has no effect on that path.
+    """
     if not body.path:
         raise HTTPException(status_code=400, detail="path required")
 

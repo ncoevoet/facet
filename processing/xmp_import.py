@@ -77,6 +77,20 @@ def _to_epoch(dt) -> float | None:
     return dt.timestamp()
 
 
+def _parse_xmp(path: str):
+    """Parse an XMP file, rejecting any ``DOCTYPE`` declaration.
+
+    A standard XMP packet never declares a DTD, so refusing one closes the
+    entity-expansion ("billion laughs") DoS class without adding a third-party
+    parser. Returns the root element.
+    """
+    with open(path, "rb") as handle:
+        data = handle.read()
+    if b"<!DOCTYPE" in data.upper():
+        raise ET.ParseError("DOCTYPE declarations are not allowed in XMP sidecars")
+    return ET.fromstring(data)
+
+
 def parse_sidecar(path: str):
     """Parse an XMP sidecar into a dict of Facet fields, or ``None`` on error.
 
@@ -84,7 +98,7 @@ def parse_sidecar(path: str):
     rejected, Yellow → favorite), ``dc:subject`` → tags, and ``xmp:MetadataDate``.
     """
     try:
-        root = ET.parse(path).getroot()
+        root = _parse_xmp(path)
     except (ET.ParseError, OSError):
         return None
 

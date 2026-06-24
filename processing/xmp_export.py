@@ -123,6 +123,12 @@ class FaceRegion:
         )
 
 
+def person_names_from_regions(regions: list[FaceRegion]) -> list[str]:
+    """Deduped, order-preserving person names from a list of face regions."""
+    seen: set[str] = set()
+    return [r.name for r in regions if not (r.name in seen or seen.add(r.name))]
+
+
 @dataclass
 class XmpRating:
     """The Facet rating fields written into a sidecar."""
@@ -573,10 +579,7 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
             continue
         rating = XmpRating.from_row(row)
         rating.regions = _cli_face_regions(conn, path, row["image_width"], row["image_height"])
-        seen: set[str] = set()
-        rating.person_names = [
-            r.name for r in rating.regions if not (r.name in seen or seen.add(r.name))
-        ]
+        rating.person_names = person_names_from_regions(rating.regions)
         try:
             result = write_metadata(path, rating, embed_original=embed_original, timeout=timeout)
             written += 1
