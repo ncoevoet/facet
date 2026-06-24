@@ -30,6 +30,7 @@ from db import (
     DEFAULT_DB_PATH,
     init_database,
     get_schema_info,
+    get_user_version,
     get_photo_tags_count,
     get_vec_count,
     get_stats_cache_info,
@@ -292,6 +293,13 @@ def main():
         refresh_stats_cache(args.db, verbose=True)
     elif args.info:
         info = get_schema_info()
+        try:
+            db_version = get_user_version(args.db)
+            status = "up to date" if db_version == info['schema_version'] else "NEEDS UPGRADE"
+            logger.info("Schema version: %d (code expects %d) — %s",
+                        db_version, info['schema_version'], status)
+        except Exception as ex:
+            logger.warning("Could not read schema version: %s", ex)
         logger.info("Photos table: %d columns", info['photos_columns'])
         logger.info("Faces table: %d columns", info['faces_columns'])
         logger.info("Persons table: %d columns", info['persons_columns'])

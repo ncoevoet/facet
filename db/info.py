@@ -2,13 +2,15 @@
 Database schema information for Facet.
 """
 
+import sqlite3
+
 from db.schema import (
     PHOTOS_COLUMNS, FACES_COLUMNS, PERSONS_COLUMNS,
     PHOTO_TAGS_COLUMNS, COMPARISONS_COLUMNS, LEARNED_SCORES_COLUMNS,
     WEIGHT_OPTIMIZATION_RUNS_COLUMNS, WEIGHT_CONFIG_SNAPSHOTS_COLUMNS,
     INDEXES, PHOTO_TAGS_INDEXES, COMPARISONS_INDEXES,
     LEARNED_SCORES_INDEXES, WEIGHT_OPTIMIZATION_RUNS_INDEXES,
-    WEIGHT_CONFIG_SNAPSHOTS_INDEXES,
+    WEIGHT_CONFIG_SNAPSHOTS_INDEXES, SCHEMA_VERSION,
 )
 
 
@@ -29,4 +31,11 @@ def get_schema_info():
         'weight_optimization_runs_columns': len(WEIGHT_OPTIMIZATION_RUNS_COLUMNS),
         'indexes': total_indexes,
         'column_names': [col[0] for col in PHOTOS_COLUMNS],
+        'schema_version': SCHEMA_VERSION,
     }
+
+
+def get_user_version(db_path):
+    """Return the PRAGMA user_version stamped in the DB file (0 if pre-ladder)."""
+    with sqlite3.connect(db_path) as conn:
+        return conn.execute("PRAGMA user_version").fetchone()[0]

@@ -26,4 +26,4 @@ from db.stats_cache import (
 from db.tags import migrate_tags_to_lookup, get_photo_tags_count
 from db.vec import populate_vec_table, sync_vec_row, sync_vec_batch, get_vec_count
 from db.fts import rebuild_fts, has_fts_table
-from db.info import get_schema_info
+from db.info import get_schema_info, get_user_version

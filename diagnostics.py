@@ -259,6 +259,18 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
         except Exception as e:
             _warn("Integrity", str(e))
 
+        try:
+            from db.info import get_user_version
+            from db.schema import SCHEMA_VERSION
+            db_version = get_user_version(db_path)
+            if db_version == SCHEMA_VERSION:
+                _ok("Schema version", str(db_version))
+            else:
+                _warn("Schema version",
+                      f"{db_version} (code expects {SCHEMA_VERSION}) — run database.py to upgrade")
+        except Exception as e:
+            _warn("Schema version", str(e))
+
         # --- Fast-path Availability ---
         check_fast_paths(db_path)
     else:

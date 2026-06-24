@@ -574,6 +574,44 @@ def _migrate_add_missing_columns(conn, table_name, columns):
                         logger.warning("  Could not add %s.%s: %s", table_name, col_name, e)
 
 
+# Schema version stamped into PRAGMA user_version. The additive column sweep
+# (_migrate_add_missing_columns) still bootstraps every DB to the current
+# column shape; this ladder exists ONLY for non-additive ops the sweep cannot
+# express — renames, type changes, data backfills, index/constraint drops.
+SCHEMA_VERSION = 1
+
+# Ordered ladder of non-additive migrations: (target_version, fn(conn)).
+# Each fn MUST be idempotent and SHOULD call db.maintenance.backup_database
+# before a destructive step. Empty today — the mechanism ships ahead of need.
+MIGRATIONS = []
+
+
+def _table_exists(conn, name):
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+    ).fetchone() is not None
+
+
+def _run_migration_ladder(conn, is_fresh):
+    """Bring an existing DB up the version ladder, or stamp a fresh one.
+
+    A fresh DB is built at the latest shape by CREATE TABLE, so it skips the
+    ladder and is stamped straight to SCHEMA_VERSION. An existing DB runs every
+    pending step from its stored user_version in order. The whole init runs in
+    one transaction (sqlite3 connection context), so a step that raises rolls
+    the upgrade back rather than leaving a half-applied schema.
+    """
+    current = conn.execute("PRAGMA user_version").fetchone()[0]
+    if not is_fresh and current < SCHEMA_VERSION:
+        for target, fn in sorted(MIGRATIONS, key=lambda m: m[0]):
+            if target > current:
+                logger.info("Running schema migration to v%d: %s",
+                            target, getattr(fn, '__name__', repr(fn)))
+                fn(conn)
+    if current != SCHEMA_VERSION:
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+
 def init_database(db_path='photo_scores_pro.db'):
     """
     Initialize the database schema (idempotent).
@@ -586,6 +624,10 @@ def init_database(db_path='photo_scores_pro.db'):
     """
     with sqlite3.connect(db_path) as conn:
         apply_pragmas(conn)
+
+        # Detect a brand-new DB before any CREATE runs, so the version ladder
+        # can stamp it to SCHEMA_VERSION instead of replaying historical steps.
+        is_fresh = not _table_exists(conn, 'photos')
 
         # Create photos table
         conn.execute(_build_create_table_sql('photos', PHOTOS_COLUMNS))
@@ -760,6 +802,9 @@ def init_database(db_path='photo_scores_pro.db'):
         conn.execute(PHOTOS_FTS_CREATE)
         for trigger_sql in PHOTOS_FTS_TRIGGERS:
             conn.execute(trigger_sql)
+
+        # Run the version ladder (no-op today) and stamp PRAGMA user_version.
+        _run_migration_ladder(conn, is_fresh)
 
         conn.commit()
 
