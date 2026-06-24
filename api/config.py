@@ -36,25 +36,35 @@ def _load_and_ensure_share_secret():
     if 'share_secret' not in config or not config['share_secret']:
         with _share_secret_lock:
             # Re-read after acquiring lock — another worker may have written the secret
+            parsed_ok = False
             try:
                 with open(_CONFIG_PATH) as f:
                     config = json.load(f)
+                parsed_ok = True
             except Exception:
-                logger.debug("Could not re-read %s after lock, using empty config", _CONFIG_PATH)
+                logger.warning(
+                    "Could not parse %s — using an ephemeral share_secret and NOT "
+                    "rewriting the file (refusing to clobber an unparseable config)",
+                    _CONFIG_PATH,
+                )
                 config = {}
             if 'share_secret' not in config or not config['share_secret']:
                 config['share_secret'] = secrets.token_hex(32)
-                shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
-                # Atomic write: write to temp file then rename
-                dir_name = os.path.dirname(_CONFIG_PATH)
-                fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
-                try:
-                    with os.fdopen(fd, 'w') as f:
-                        json.dump(config, f, indent=2)
-                    os.replace(tmp_path, _CONFIG_PATH)
-                except Exception:
-                    os.unlink(tmp_path)
-                    raise
+                # Only persist when the real config actually parsed. Writing a
+                # share_secret-only stub over a partial/corrupt file would
+                # destroy the whole config (and its .backup with it).
+                if parsed_ok:
+                    shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
+                    # Atomic write: write to temp file then rename
+                    dir_name = os.path.dirname(_CONFIG_PATH)
+                    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
+                    try:
+                        with os.fdopen(fd, 'w') as f:
+                            json.dump(config, f, indent=2)
+                        os.replace(tmp_path, _CONFIG_PATH)
+                    except Exception:
+                        os.unlink(tmp_path)
+                        raise
     return config, config['share_secret']
 
 
