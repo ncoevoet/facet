@@ -171,6 +171,12 @@ Columnas ordenables agrupadas por categoría (desde `viewer.sort_options`):
 | **Composición** | Puntuación de composición, Puntuación de puntos de fuerza, Líneas guía, Bonificación de aislamiento, Patrón de composición |
 | **Saliencia del sujeto** | Nitidez del sujeto, Prominencia del sujeto, Ubicación del sujeto, Separación del fondo |
 
+### Mi gusto
+
+Una opción de ordenación de primer nivel respaldada por el `learned_score` del clasificador personal (renombrada desde «Elegidas para ti»). Ordena las fotos según lo que el clasificador ha aprendido de tus comparaciones A/B, valoraciones y decisiones de selección. Una insignia de confianza junto a la ordenación muestra la cobertura aprendida (% de fotos con una puntuación aprendida) y la precisión del clasificador sobre un conjunto reservado, de modo que puedas juzgar cuánto fiarte del orden. Entrena o actualiza el clasificador con `python facet.py --train-ranker`.
+
+Controlada por `viewer.features.show_my_taste` (predeterminado: `true`). El estado del clasificador se expone a través de `GET /api/ranker/status`.
+
 ## Funciones de la galería
 
 ### Tarjetas de foto
@@ -520,6 +526,10 @@ La página de selección (`/culling`, modo edición) agrupa tomas casi idéntica
 
 Para cada grupo, elige la(s) que conservar; al confirmar se rechaza el resto. Las confirmaciones se difieren y pueden deshacerse (consulta [Deshacer](#deshacer)).
 
+### Insignias por rostro
+
+En la caja de luz de selección de ráfagas/similares, cada rostro detectado lleva sus propias insignias — ojos abiertos/cerrados, expresión deficiente y confianza de detección — en lugar de una única marca de parpadeo a nivel de foto. Esto facilita la selección en fotos de grupo: puedes ver de un vistazo qué rostro tiene los ojos cerrados o una expresión débil. Las insignias se obtienen para todo un grupo en una sola llamada por lotes (`POST /api/culling-group/faces`).
+
 ### API
 
 | Endpoint | Descripción |
@@ -528,6 +538,24 @@ Para cada grupo, elige la(s) que conservar; al confirmar se rechaza el resto. La
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Grupos paginados de fotos visualmente similares |
 | `GET /api/culling-groups` | Grupos combinados de ráfaga y similares |
 | `POST /api/culling-groups/confirm` | Confirmar las selecciones de selección |
+| `POST /api/culling-group/faces` | Insignias por rostro (ojos, expresión, confianza) para un grupo, en una sola llamada por lotes |
+
+## Vista de escenas
+
+Agrupa las fotos cabecera de ráfaga en «escenas» cronológicas para que puedas seleccionar toda una sesión en orden narrativo. Las fotos se dividen en escenas según los huecos en el tiempo de captura (una nueva escena comienza cuando transcurren más de `scenes.gap_hours` entre tomas consecutivas). Acceso a través de la ruta `/scenes` (icono de navegación «theaters»).
+
+- Cada escena muestra sus fotos cabecera en orden de captura
+- Toca las fotos para marcarlas para selección; al confirmar se rechazan y se alimenta el clasificador personal
+- Se omiten las escenas menores de `scenes.min_size`; se cargan como máximo `scenes.max_photos` fotos
+
+### API
+
+| Endpoint | Descripción |
+|----------|-------------|
+| `GET /api/scenes` | Escenas cronológicas de fotos cabecera de ráfaga |
+| `POST /api/scenes/confirm` | Confirmar las selecciones de selección de escenas (rechaza las fotos marcadas) |
+
+Controlada por `viewer.features.show_scenes` (predeterminado: `true`). Consulta [Configuración — Escenas](CONFIGURATION.md#escenas) para `gap_hours`, `min_size` y `max_photos`.
 
 ## Modo de comparación por pares
 
@@ -824,6 +852,7 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `GET /api/similar_photos/{path}` | Fotos similares (modos: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Búsqueda semántica de texto a imagen (`scope=text` = solo texto OCR/leyenda) |
 | `GET /api/critique?path=&mode=` | Crítica con IA (basada en reglas o VLM) |
+| `GET /api/ranker/status` | Estado del clasificador personal para la ordenación «Mi gusto» (% de cobertura aprendida, precisión sobre conjunto reservado) |
 | `GET /api/config` | Configuración de la galería |
 
 ### Autenticación
@@ -968,6 +997,9 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `POST /api/similar-groups/select` | Seleccionar las que conservar de un grupo de similares |
 | `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos combinados de ráfaga y similares. `exclude_rejected` (predeterminado `true`) oculta las fotos con `is_rejected=1`; los grupos con menos de 2 fotos restantes se descartan |
 | `POST /api/culling-groups/confirm` | Confirmar las selecciones de selección |
+| `POST /api/culling-group/faces` | Insignias por rostro (ojos abiertos/cerrados, expresión, confianza) para un grupo, en una sola llamada por lotes |
+| `GET /api/scenes` | Escenas cronológicas de fotos cabecera de ráfaga |
+| `POST /api/scenes/confirm` | Confirmar las selecciones de selección de escenas |
 
 ### Escaneo
 

@@ -35,6 +35,7 @@ Todos los ajustes están en `scoring_config.json`. Tras modificarlos, ejecuta `p
 - [Plugins](#plugins)
 - [Cápsulas](#cápsulas)
 - [Grupos de similitud](#grupos-de-similitud)
+- [Escenas](#escenas)
 - [Cronología](#cronología)
 - [Mapa](#mapa)
 - [Traducción](#traducción)
@@ -1147,7 +1148,9 @@ Activa o desactiva funciones opcionales para reducir el uso de memoria o simplif
       "show_memories": true,
       "show_captions": true,
       "show_timeline": true,
-      "show_map": true
+      "show_map": true,
+      "show_scenes": true,
+      "show_my_taste": true
     }
   }
 }
@@ -1170,6 +1173,8 @@ Activa o desactiva funciones opcionales para reducir el uso de memoria o simplif
 | `show_captions` | `true` | Mostrar las leyendas generadas por IA en las tarjetas de fotos |
 | `show_timeline` | `true` | Mostrar la vista de cronología para la navegación cronológica con navegación por fechas |
 | `show_map` | `false` | Mostrar la vista de mapa con ubicaciones de fotos basadas en GPS (requiere Leaflet; desactivado por defecto ya que las fotos pueden carecer de datos GPS) |
+| `show_scenes` | `true` | Mostrar la vista de escenas (`/scenes`) que agrupa las fotos cabecera de ráfaga en escenas cronológicas para la selección en orden narrativo |
+| `show_my_taste` | `true` | Mostrar la ordenación «Mi gusto» respaldada por la puntuación aprendida del clasificador personal, con una insignia de confianza de cobertura aprendida / precisión |
 
 **Optimización de memoria:** Poner `show_similar_button: false` evita que se cargue numpy, reduciendo la huella de memoria del visor. La función de fotos similares calcula la similitud coseno del embedding CLIP, que requiere numpy.
 
@@ -1525,6 +1530,26 @@ Ajustes para la función de selección de fotos similares con IA, que agrupa fot
 | `min_group_size` | `2` | Número mínimo de fotos necesario para formar un grupo de similitud |
 | `max_photos` | `10000` | Máximo de fotos a cargar para el cálculo de similitud (coste O(n²)). Auméntalo para bibliotecas más grandes a costa del tiempo de cálculo. |
 | `max_group_size` | `50` | Máximo de fotos por grupo de similitud. Los grupos más grandes se dividen para mantener la interfaz usable. |
+
+## Escenas
+
+Ajustes para la vista de escenas, que agrupa las fotos cabecera de ráfaga en escenas cronológicas (divididas por los huecos en el tiempo de captura) para la selección en orden narrativo:
+
+```json
+{
+  "scenes": {
+    "gap_hours": 4.0,
+    "min_size": 2,
+    "max_photos": 5000
+  }
+}
+```
+
+| Ajuste | Por defecto | Descripción |
+|---------|---------|-------------|
+| `gap_hours` | `4.0` | Una nueva escena comienza cuando transcurren más de estas horas entre fotos cabecera de ráfaga consecutivas |
+| `min_size` | `2` | Mínimo de fotos para que se muestre una escena |
+| `max_photos` | `5000` | Máximo de fotos cabecera de ráfaga cargadas para la agrupación en escenas |
 
 ## Cronología
 

@@ -36,6 +36,8 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 
 - **Serienbilderkennung** — gruppiert Schnellfeuer-Aufnahmen und wählt automatisch die beste anhand von Schärfe, Qualität und Blinzelerkennung aus
 - **Ähnlichkeitsgruppen** — findet visuell ähnliche Fotos in der gesamten Bibliothek, unabhängig vom Aufnahmezeitpunkt
+- **Szenen** — gruppiert eine Aufnahmesession anhand der zeitlichen Abstände in chronologische „Szenen“, sodass Sie in Erzählreihenfolge aussortieren; antippen zum Markieren, bestätigen zum Ablehnen
+- **Auswahl-Badges pro Gesicht** — der Auswahl-Viewer zeigt Badges pro Gesicht (Augen offen/geschlossen, Ausdruck, Erkennungssicherheit) statt einer einzigen fotoweiten Blinzelmarkierung
 - **Blinzelerkennung** — markiert Aufnahmen mit geschlossenen Augen, um sie mit einem Klick auszublenden oder abzulehnen
 - **Duplikaterkennung** — identifiziert nahezu identische Bilder über perzeptuelles Hashing
 
@@ -89,6 +91,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 - **Statistiken** — Dashboards für Ausrüstungsnutzung, Kategorieaufschlüsselung, Aufnahme-Zeitverlauf und Metrik-Korrelationen
 - **KI-Kritik** — Wertungsaufschlüsselung, die den Beitrag jeder Metrik zeigt; VLM-Bewertung in natürlicher Sprache `[GPU]` `[16gb/24gb]`
 - **Gewichtungsfeinabstimmung** — Editor für kategoriespezifische Gewichte mit Live-Wertungsvorschau. Der A/B-Fotovergleich lernt aus Ihren Entscheidungen und schlägt optimierte Gewichte vor.
+- **Sortierung „Mein Geschmack“** — sortieren Sie die Galerie nach der gelernten Wertung des persönlichen Rankers, mit einem Konfidenz-Badge, das die gelernte Abdeckung und die Holdout-Genauigkeit anzeigt
 - **Lernen aus Labels** — Auswahlentscheidungen, Sternebewertungen, Favoriten und Ablehnungen fließen in den Gewichtsoptimierer ein (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — Gewichtskonfigurationen speichern, wiederherstellen und vergleichen
 - **Histogramm** — Helligkeitshistogramm im Foto-Tooltip und in der Detailansicht

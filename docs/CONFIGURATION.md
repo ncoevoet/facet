@@ -35,6 +35,7 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Plugins](#plugins)
 - [Capsules](#capsules)
 - [Similarity Groups](#similarity-groups)
+- [Scenes](#scenes)
 - [Timeline](#timeline)
 - [Map](#map)
 - [Translation](#translation)
@@ -1147,7 +1148,9 @@ Toggle optional features to reduce memory usage or simplify the UI:
       "show_memories": true,
       "show_captions": true,
       "show_timeline": true,
-      "show_map": true
+      "show_map": true,
+      "show_scenes": true,
+      "show_my_taste": true
     }
   }
 }
@@ -1170,6 +1173,8 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_captions` | `true` | Show AI-generated captions on photo cards |
 | `show_timeline` | `true` | Show timeline view for chronological browsing with date navigation |
 | `show_map` | `false` | Show map view with GPS-based photo locations (requires Leaflet; off by default since photos may lack GPS data) |
+| `show_scenes` | `true` | Show the Scenes view (`/scenes`) that groups burst-lead photos into chronological scenes for story-order culling |
+| `show_my_taste` | `true` | Show the "My Taste" sort backed by the personal ranker's learned score, with a learned-coverage / accuracy confidence badge |
 
 **Memory optimization:** Setting `show_similar_button: false` prevents numpy from being loaded, reducing viewer memory footprint. The similar photos feature computes CLIP embedding cosine similarity which requires numpy.
 
@@ -1525,6 +1530,26 @@ Settings for the AI similar-photo culling feature, which groups visually similar
 | `min_group_size` | `2` | Minimum number of photos required to form a similarity group |
 | `max_photos` | `10000` | Maximum photos to load for similarity computation (O(n²) cost). Increase for larger libraries at the expense of computation time. |
 | `max_group_size` | `50` | Maximum photos per similarity group. Larger groups are split to keep the UI usable. |
+
+## Scenes
+
+Settings for the Scenes view, which groups burst-lead photos into chronological scenes (split by capture-time gaps) for story-order culling:
+
+```json
+{
+  "scenes": {
+    "gap_hours": 4.0,
+    "min_size": 2,
+    "max_photos": 5000
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `gap_hours` | `4.0` | A new scene starts when more than this many hours pass between consecutive burst-lead photos |
+| `min_size` | `2` | Minimum photos for a scene to be shown |
+| `max_photos` | `5000` | Maximum burst-lead photos loaded for scene grouping |
 
 ## Timeline
 

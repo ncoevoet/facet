@@ -35,6 +35,7 @@ Alle Einstellungen befinden sich in `scoring_config.json`. Führen Sie nach eine
 - [Plugins](#plugins)
 - [Kapseln](#kapseln)
 - [Ähnlichkeitsgruppen](#ähnlichkeitsgruppen)
+- [Szenen](#szenen)
 - [Zeitleiste](#zeitleiste)
 - [Karte](#karte)
 - [Übersetzung](#übersetzung)
@@ -1147,7 +1148,9 @@ Schalten Sie optionale Funktionen um, um die Speichernutzung zu reduzieren oder 
       "show_memories": true,
       "show_captions": true,
       "show_timeline": true,
-      "show_map": true
+      "show_map": true,
+      "show_scenes": true,
+      "show_my_taste": true
     }
   }
 }
@@ -1170,6 +1173,8 @@ Schalten Sie optionale Funktionen um, um die Speichernutzung zu reduzieren oder 
 | `show_captions` | `true` | KI-generierte Beschreibungen auf Fotokarten anzeigen |
 | `show_timeline` | `true` | Zeitleisten-Ansicht für chronologisches Durchsuchen mit Datumsnavigation anzeigen |
 | `show_map` | `false` | Kartenansicht mit GPS-basierten Fotostandorten anzeigen (erfordert Leaflet; standardmäßig aus, da Fotos GPS-Daten fehlen können) |
+| `show_scenes` | `true` | Szenen-Ansicht (`/scenes`) anzeigen, die Serienbild-Leitfotos zu chronologischen Szenen für die Auswahl in Erzählreihenfolge gruppiert |
+| `show_my_taste` | `true` | Sortierung „Mein Geschmack" anzeigen, gestützt auf den gelernten Wert des persönlichen Rankers, mit einem Konfidenzabzeichen für gelernte Abdeckung / Genauigkeit |
 
 **Speicheroptimierung:** Das Setzen von `show_similar_button: false` verhindert das Laden von numpy und verringert so den Speicherbedarf des Viewers. Die Funktion für ähnliche Fotos berechnet die Kosinusähnlichkeit der CLIP-Embeddings, was numpy erfordert.
 
@@ -1525,6 +1530,26 @@ Einstellungen für die KI-gestützte Auswahl ähnlicher Fotos, die visuell ähnl
 | `min_group_size` | `2` | Mindestanzahl Fotos, um eine Ähnlichkeitsgruppe zu bilden |
 | `max_photos` | `10000` | Maximale Fotos, die für die Ähnlichkeitsberechnung geladen werden (O(n²)-Kosten). Für größere Bibliotheken erhöhen, auf Kosten der Rechenzeit. |
 | `max_group_size` | `50` | Maximale Fotos pro Ähnlichkeitsgruppe. Größere Gruppen werden aufgeteilt, damit die UI nutzbar bleibt. |
+
+## Szenen
+
+Einstellungen für die Szenen-Ansicht, die Serienbild-Leitfotos zu chronologischen Szenen (unterteilt nach Lücken in der Aufnahmezeit) für die Auswahl in Erzählreihenfolge gruppiert:
+
+```json
+{
+  "scenes": {
+    "gap_hours": 4.0,
+    "min_size": 2,
+    "max_photos": 5000
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `gap_hours` | `4.0` | Eine neue Szene beginnt, wenn zwischen zwei aufeinanderfolgenden Serienbild-Leitfotos mehr als so viele Stunden vergehen |
+| `min_size` | `2` | Mindestanzahl Fotos, damit eine Szene angezeigt wird |
+| `max_photos` | `5000` | Maximale Serienbild-Leitfotos, die für die Szenengruppierung geladen werden |
 
 ## Zeitleiste
 

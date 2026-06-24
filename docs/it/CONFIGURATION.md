@@ -35,6 +35,7 @@ Tutte le impostazioni si trovano in `scoring_config.json`. Dopo averle modificat
 - [Plugin](#plugin)
 - [Capsule](#capsule)
 - [Gruppi di somiglianza](#gruppi-di-somiglianza)
+- [Scene](#scene)
 - [Cronologia](#cronologia)
 - [Mappa](#mappa)
 - [Traduzione](#traduzione)
@@ -1147,7 +1148,9 @@ Attiva/disattiva le funzionalità opzionali per ridurre l'uso della memoria o se
       "show_memories": true,
       "show_captions": true,
       "show_timeline": true,
-      "show_map": true
+      "show_map": true,
+      "show_scenes": true,
+      "show_my_taste": true
     }
   }
 }
@@ -1170,6 +1173,8 @@ Attiva/disattiva le funzionalità opzionali per ridurre l'uso della memoria o se
 | `show_captions` | `true` | Mostra le didascalie generate dall'AI sulle schede foto |
 | `show_timeline` | `true` | Mostra la vista Cronologia per la navigazione cronologica con navigazione per data |
 | `show_map` | `false` | Mostra la vista Mappa con le posizioni delle foto basate su GPS (richiede Leaflet; disabilitato per impostazione predefinita poiché le foto potrebbero non avere dati GPS) |
+| `show_scenes` | `true` | Mostra la vista Scene (`/scenes`) che raggruppa le foto guida delle raffiche in scene cronologiche per la selezione in ordine narrativo |
+| `show_my_taste` | `true` | Mostra l'ordinamento «I miei gusti» basato sul punteggio appreso del ranker personale, con un badge di confidenza di copertura appresa / accuratezza |
 
 **Ottimizzazione della memoria:** impostare `show_similar_button: false` impedisce il caricamento di numpy, riducendo l'impronta di memoria della galleria. La funzionalità di foto simili calcola la somiglianza coseno degli embedding CLIP, che richiede numpy.
 
@@ -1525,6 +1530,26 @@ Impostazioni per la funzionalità di selezione AI delle foto simili, che raggrup
 | `min_group_size` | `2` | Numero minimo di foto richiesto per formare un gruppo di somiglianza |
 | `max_photos` | `10000` | Numero massimo di foto da caricare per il calcolo della somiglianza (costo O(n²)). Aumentalo per librerie più grandi a scapito del tempo di calcolo. |
 | `max_group_size` | `50` | Numero massimo di foto per gruppo di somiglianza. I gruppi più grandi vengono suddivisi per mantenere l'interfaccia utilizzabile. |
+
+## Scene
+
+Impostazioni per la vista Scene, che raggruppa le foto guida delle raffiche in scene cronologiche (suddivise in base agli intervalli temporali di scatto) per la selezione in ordine narrativo:
+
+```json
+{
+  "scenes": {
+    "gap_hours": 4.0,
+    "min_size": 2,
+    "max_photos": 5000
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|---------|---------|-------------|
+| `gap_hours` | `4.0` | Una nuova scena inizia quando trascorrono più di questo numero di ore tra due foto guida delle raffiche consecutive |
+| `min_size` | `2` | Numero minimo di foto perché una scena venga mostrata |
+| `max_photos` | `5000` | Numero massimo di foto guida delle raffiche caricate per il raggruppamento in scene |
 
 ## Cronologia
 

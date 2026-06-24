@@ -171,6 +171,12 @@ Colonnes triables regroupées par catégorie (depuis `viewer.sort_options`) :
 | **Composition** | Score de composition, Score points forts, Lignes directrices, Bonus d'isolation, Motif de composition |
 | **Saillance du sujet** | Netteté du sujet, Proéminence du sujet, Placement du sujet, Séparation du fond |
 
+### Mon goût
+
+Une option de tri à part entière, basée sur le `learned_score` du classeur personnel (renommée depuis « Sélection pour vous »). Elle ordonne les photos selon ce que le classeur a appris de vos comparaisons A/B, de vos notes et de vos décisions de tri. Un badge de confiance à côté du tri indique la couverture apprise (% de photos disposant d'un score appris) et la précision du classeur sur des données de validation, pour juger à quel point se fier à l'ordre. Entraînez ou rafraîchissez le classeur avec `python facet.py --train-ranker`.
+
+Contrôlée par `viewer.features.show_my_taste` (par défaut : `true`). L'état du classeur est exposé via `GET /api/ranker/status`.
+
 ## Fonctionnalités de la galerie
 
 ### Cartes photo
@@ -521,6 +527,10 @@ La page de tri (`/culling`, mode édition) regroupe les clichés quasi identique
 
 Pour chaque groupe, choisissez la ou les photos à conserver ; la confirmation rejette le reste. Les confirmations sont différées et peuvent être annulées (voir [Annuler](#annuler)).
 
+### Badges par visage
+
+Dans la visionneuse de tri (rafale/similaire), chaque visage détecté porte ses propres badges — yeux ouverts/fermés, expression médiocre et confiance de détection — au lieu d'un seul indicateur de clignement au niveau de la photo. Le tri des photos de groupe en est facilité : on voit d'un coup d'œil quel visage a les yeux fermés ou une expression faible. Les badges sont récupérés pour tout un groupe en un seul appel par lot (`POST /api/culling-group/faces`).
+
 ### API
 
 | Point de terminaison | Description |
@@ -529,6 +539,24 @@ Pour chaque groupe, choisissez la ou les photos à conserver ; la confirmation 
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Groupes paginés de photos visuellement similaires |
 | `GET /api/culling-groups` | Groupes combinés de rafales et de similaires |
 | `POST /api/culling-groups/confirm` | Confirmer les sélections de tri |
+| `POST /api/culling-group/faces` | Badges par visage (yeux, expression, confiance) pour un groupe, en un seul lot |
+
+## Vue Scènes
+
+Regroupez les photos principales de rafale en « scènes » chronologiques afin de trier toute une séance dans l'ordre du récit. Les photos sont découpées en scènes selon les écarts entre prises de vue (une nouvelle scène commence dès que plus de `scenes.gap_hours` heures s'écoulent entre deux clichés consécutifs). Accès via la route `/scenes` (icône de navigation « theaters »).
+
+- Chaque scène affiche ses photos principales dans l'ordre de prise de vue
+- Touchez les photos pour les marquer en vue du tri ; la confirmation les rejette et alimente le classeur personnel
+- Les scènes plus petites que `scenes.min_size` sont omises ; au plus `scenes.max_photos` photos sont chargées
+
+### API
+
+| Point de terminaison | Description |
+|----------|-------------|
+| `GET /api/scenes` | Scènes chronologiques des photos principales de rafale |
+| `POST /api/scenes/confirm` | Confirmer les sélections de tri de scène (rejette les photos marquées) |
+
+Contrôlée par `viewer.features.show_scenes` (par défaut : `true`). Voir [Configuration — Scènes](CONFIGURATION.md#scènes) pour `gap_hours`, `min_size` et `max_photos`.
 
 ## Mode de comparaison par paires
 
@@ -827,6 +855,7 @@ La documentation interactive de l'API est disponible sur `/api/docs` (Swagger UI
 | `GET /api/similar_photos/{path}` | Photos similaires (modes : `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Recherche sémantique texte-vers-image (`scope=text` = texte OCR/légende uniquement) |
 | `GET /api/critique?path=&mode=` | Critique IA (basée sur des règles ou VLM) |
+| `GET /api/ranker/status` | État du classeur personnel pour le tri « Mon goût » (% de couverture apprise, précision sur validation) |
 | `GET /api/config` | Configuration de la galerie |
 
 ### Authentification
@@ -971,6 +1000,9 @@ La documentation interactive de l'API est disponible sur `/api/docs` (Swagger UI
 | `POST /api/similar-groups/select` | Sélectionner les photos à conserver dans un groupe similaire |
 | `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Groupes combinés de rafales et de similaires. `exclude_rejected` (par défaut `true`) masque les photos avec `is_rejected=1` ; les groupes avec moins de 2 photos restantes sont supprimés |
 | `POST /api/culling-groups/confirm` | Confirmer les sélections de tri |
+| `POST /api/culling-group/faces` | Badges par visage (yeux ouverts/fermés, expression, confiance) pour un groupe, en un seul lot |
+| `GET /api/scenes` | Scènes chronologiques des photos principales de rafale |
+| `POST /api/scenes/confirm` | Confirmer les sélections de tri de scène |
 
 ### Scan
 

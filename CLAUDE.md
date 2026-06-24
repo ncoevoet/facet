@@ -109,11 +109,13 @@ python facet.py --export-json output.json
 # Import external editor metadata (ratings/labels/tags) from XMP sidecars into the DB
 python facet.py --import-sidecars               # All photos (newest-wins, tag union)
 python facet.py --import-sidecars /path         # Limit to a path subtree
+python facet.py --import-sidecars --user alice  # Multi-user: write ratings to alice's user_preferences
 
 # Export DB ratings/labels/tags/caption to XMP sidecars (sidecar only by default)
 python facet.py --export-sidecars               # All photos (write/merge <image>.xmp)
 python facet.py --export-sidecars /path         # Limit to a path subtree
 python facet.py --export-sidecars --embed-originals  # Also embed in-file (JPEG/HEIC/TIFF/PNG/DNG); RAW never modified
+python facet.py --export-sidecars --user alice  # Multi-user: export alice's ratings from user_preferences
 
 # Face recognition commands
 python facet.py --extract-faces-gpu-incremental  # Extract faces for new photos only (requires GPU)
@@ -431,7 +433,11 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Capsules:** `GET /api/capsules?page=&per_page=&refresh=&date_from=&date_to=` — curated photo diaporamas grouped by theme. `GET /api/capsules/{id}/photos` — photos for a capsule. `POST /api/capsules/{id}/save-album` — save capsule as album. Angular route: `/capsules`. Capsule types: journey (GPS trips with reverse geocoding), faces_of, seasonal, golden, color_story, this_week, location, person_pair, seeded, progress, color_palette, rare_pair, favorites, plus dimension-based: year, month, week, camera, lens, tag, day_of_week, composition, focal_range, category, time_of_day, star_rating, and cross-dimensional combos. Slideshow supports themed transitions (crossfade, slide, zoom, kenburns) per capsule type. Cache TTL configurable via `capsules.freshness_hours` (default: 24).
 
-**Burst Culling:** `GET /api/burst-groups`, `POST /api/burst-groups/select`, `GET /api/culling-groups`, `POST /api/culling-groups/confirm` — burst and similar group culling workflow.
+**Burst Culling:** `GET /api/burst-groups`, `POST /api/burst-groups/select`, `GET /api/culling-groups`, `POST /api/culling-groups/confirm` — burst and similar group culling workflow. `POST /api/culling-group/faces` (body `{paths}`) returns per-face crops + metrics (`eyes_open_score`, `expression_score`, `confidence`, `is_blink`) for every photo in a group in one batch call, recomputed from stored 106-point landmarks — powers the per-face badges in the culling lightbox.
+
+**Scenes View:** `GET /api/scenes?page=&per_page=&gap_hours=` groups burst leads into chronological "scenes" by capture-time gaps (cache-only, 1h TTL in `stats_cache`); `POST /api/scenes/confirm` (body `{paths, keep_paths}`) rejects the non-kept photos and records `source='culling'` comparison rows with `group_type='scene'` (feeding the personal ranker). Gated by `viewer.features.show_scenes`. Angular route: `/scenes`.
+
+**Personal Ranker ("My Taste"):** `GET /api/ranker/status` returns the global pooled ranker's training status — `trained`, `comparison_count`, `coverage` (share of embedded photos with a `learned_score`), `cv_accuracy`, `baseline_accuracy`, `improvement_pp` — from the `stats_cache` snapshot written by `train_ranker`. Powers the "My Taste" sort confidence badge. Gated by `viewer.features.show_my_taste`.
 
 **Scan:** `POST /api/scan/start`, `GET /api/scan/status`, `GET /api/scan/stream?token=<jwt>` (SSE), `GET /api/scan/directories` — trigger and monitor scoring scans (superadmin only). The `/stream` endpoint uses Server-Sent Events for real-time progress with automatic fallback to polling. Status payloads include a structured `progress` field (`{phase, current, total, eta_seconds}`) parsed from the CLI's `@FACET_PROGRESS` lines.
 
@@ -439,7 +445,7 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Photo Actions:** `POST /api/photo/set_rating`, `POST /api/photo/toggle_favorite`, `POST /api/photo/toggle_rejected` — single-photo ratings (DB only, never touch files). Batch variants: `POST /api/photos/batch_favorite`, `POST /api/photos/batch_reject`, `POST /api/photos/batch_rating`.
 
-**Metadata Export:** `POST /api/photo/export_xmp` (single, sidecar only), `POST /api/export/sidecars` (bulk by paths/filters, sidecar only), `POST /api/photo/embed_metadata` (single, embeds into the original file for JPEG/HEIC/TIFF/PNG/DNG via exiftool — the gallery "Write metadata to file" action; RAW originals never modified). All edition-gated. `processing.xmp_export.write_metadata(..., embed_original=False)` is sidecar-only by default; embedding is opt-in (this endpoint and the `--export-sidecars --embed-originals` CLI). Keyword lists are read-merged (union), so external Lightroom/darktable keywords are preserved.
+**Metadata Export:** `POST /api/photo/export_xmp` (single, sidecar only), `POST /api/export/sidecars` (bulk by paths/filters, sidecar only), `POST /api/photo/embed_metadata` (single, embeds into the original file for JPEG/HEIC/TIFF/PNG/DNG via exiftool — the gallery "Write metadata to file" action; RAW originals never modified). All edition-gated. `processing.xmp_export.write_metadata(..., embed_original=False)` is sidecar-only by default; embedding is opt-in (this endpoint and the `--export-sidecars --embed-originals` CLI). Keyword lists are read-merged (union), so external Lightroom/darktable keywords are preserved. The CLI `--export-sidecars` / `--import-sidecars` default to the global rating columns; pass `--user <name>` in multi-user mode to read/write that user's `user_preferences` ratings instead (keywords stay global).
 
 **Comparison Mode:** Full pairwise comparison workflow — `GET /api/comparison/next_pair`, `POST /api/comparison/submit`, `GET /api/comparison/stats`, `GET /api/comparison/history`, `GET /api/comparison/coverage`, `GET /api/comparison/confidence`, plus weight management via `POST /api/config/update_weights`, `GET /api/config/weight_snapshots`, `POST /api/config/save_snapshot`, `POST /api/config/restore_weights`.
 
@@ -512,6 +518,8 @@ For quick reference, here are the actual defaults from the config file:
 | `viewer.features` | `show_timeline` | `true` |
 | `viewer.features` | `show_map` | `true` |
 | `viewer.features` | `show_capsules` | `true` |
+| `viewer.features` | `show_my_taste` | `true` |
+| `viewer.features` | `show_scenes` | `true` |
 | `viewer.features` | `show_similar_button` | `true` |
 | `viewer.features` | `show_merge_suggestions` | `true` |
 | `viewer.features` | `show_rating_controls` | `true` |
@@ -526,6 +534,9 @@ For quick reference, here are the actual defaults from the config file:
 | `similarity_groups` | `min_group_size` | `2` |
 | `similarity_groups` | `max_photos` | `10000` |
 | `similarity_groups` | `max_group_size` | `50` |
+| `scenes` | `gap_hours` | `4.0` |
+| `scenes` | `min_size` | `2` |
+| `scenes` | `max_photos` | `5000` |
 | `viewer.raw_processor` | `darktable.executable` | `"darktable-cli"` |
 | `viewer.raw_processor` | `darktable.profiles` | `[]` (array of `{name, hq, width, height, extra_args}`) |
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete reference.

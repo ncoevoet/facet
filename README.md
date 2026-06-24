@@ -36,6 +36,8 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 
 - **Burst detection** — groups rapid-fire shots and auto-selects the best one based on sharpness, quality, and blink detection
 - **Similarity groups** — finds visually similar photos across the library, regardless of when they were taken
+- **Scenes** — groups a shoot into chronological "scenes" by capture-time gaps, so you cull in story order; tap to mark and confirm to reject
+- **Per-face culling badges** — the culling lightbox shows per-face eyes open/closed, expression, and detection-confidence badges, not just a single photo-level blink flag
 - **Blink detection** — flags closed-eye shots to hide or reject in one click
 - **Duplicate detection** — identifies near-identical images via perceptual hashing
 
@@ -89,6 +91,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **Statistics** — dashboards for equipment usage, category breakdown, shooting timeline, and metric correlations
 - **AI critique** — score breakdown showing each metric's contribution; VLM natural-language assessment `[GPU]` `[16gb/24gb]`
 - **Weight tuning** — per-category weight editor with live score preview. A/B photo comparison learns from your choices and suggests optimized weights.
+- **My Taste sort** — sort the gallery by the personal ranker's learned score, with a confidence badge showing learned coverage and held-out accuracy
 - **Learning from labels** — culling decisions, star ratings, favorites, and rejections feed the weight optimizer (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — save, restore, and compare weight configurations
 - **Histogram** — luminance histogram in the photo tooltip and detail view

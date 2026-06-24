@@ -36,6 +36,8 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 
 - **Rilevamento raffiche** — raggruppa gli scatti in rapida successione e seleziona automaticamente il migliore in base a nitidezza, qualità e rilevamento degli occhi chiusi
 - **Gruppi di somiglianza** — trova le foto visivamente simili in tutta la libreria, indipendentemente da quando sono state scattate
+- **Scene** — raggruppa una sessione in "scene" cronologiche in base agli intervalli tra gli scatti, così da selezionare nell'ordine del racconto; tocca per contrassegnare e conferma per rifiutare
+- **Badge per volto nella selezione** — il visualizzatore di selezione mostra badge per ogni volto (occhi aperti/chiusi, espressione, confidenza di rilevamento) invece di un singolo contrassegno di occhi chiusi a livello di foto
 - **Rilevamento occhi chiusi** — segnala gli scatti con gli occhi chiusi da nascondere o rifiutare con un clic
 - **Rilevamento duplicati** — identifica le immagini quasi identiche tramite hashing percettivo
 
@@ -89,6 +91,7 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 - **Statistiche** — dashboard per l'utilizzo dell'attrezzatura, la suddivisione per categoria, la cronologia degli scatti e le correlazioni tra metriche
 - **Critica IA** — dettaglio del punteggio che mostra il contributo di ogni metrica; valutazione in linguaggio naturale VLM `[GPU]` `[16gb/24gb]`
 - **Regolazione dei pesi** — editor dei pesi per categoria con anteprima del punteggio in tempo reale. Il confronto A/B tra foto impara dalle tue scelte e suggerisce pesi ottimizzati.
+- **Ordinamento "I miei gusti"** — ordina la galleria in base al punteggio appreso dal ranker personale, con un badge di confidenza che mostra la copertura appresa e l'accuratezza su dati di validazione
 - **Apprendimento dalle etichette** — le decisioni di selezione, le valutazioni a stelle, i preferiti e i rifiuti alimentano l'ottimizzatore dei pesi (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshot** — salva, ripristina e confronta le configurazioni dei pesi
 - **Istogramma** — istogramma della luminanza nel tooltip della foto e nella vista di dettaglio

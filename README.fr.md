@@ -36,6 +36,8 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 
 - **Détection de rafales** — regroupe les prises de vue en rafale et sélectionne automatiquement la meilleure d'après la netteté, la qualité et la détection des clignements
 - **Groupes de similarité** — trouve les photos visuellement similaires dans toute la bibliothèque, quel que soit leur moment de prise de vue
+- **Scènes** — regroupe une séance en « scènes » chronologiques selon les écarts entre prises de vue, pour trier dans l'ordre du récit ; touchez pour marquer puis confirmez pour rejeter
+- **Badges par visage au tri** — la visionneuse de tri affiche des badges par visage (yeux ouverts/fermés, expression, confiance de détection) au lieu d'un seul indicateur de clignement au niveau de la photo
 - **Détection des clignements** — signale les prises aux yeux fermés pour les masquer ou les rejeter en un clic
 - **Détection des doublons** — identifie les images quasi identiques par hachage perceptuel
 
@@ -89,6 +91,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 - **Statistiques** — tableaux de bord sur l'utilisation du matériel, la répartition par catégorie, la chronologie de prise de vue et les corrélations entre métriques
 - **Critique IA** — détail du score montrant la contribution de chaque métrique ; évaluation en langage naturel par VLM `[GPU]` `[16gb/24gb]`
 - **Réglage des poids** — éditeur de poids par catégorie avec aperçu du score en direct. La comparaison A/B de photos apprend de vos choix et suggère des poids optimisés.
+- **Tri « Mon goût »** — triez la galerie selon le score appris du classeur personnel, avec un badge de confiance indiquant la couverture apprise et la précision sur données de validation
 - **Apprentissage à partir des étiquettes** — les décisions de tri, les notes (étoiles), les favoris et les rejets alimentent l'optimiseur de poids (`--sync-label-comparisons`, `--mine-insights`)
 - **Instantanés** — enregistrez, restaurez et comparez des configurations de poids
 - **Histogramme** — histogramme de luminance dans l'infobulle de la photo et la vue détaillée

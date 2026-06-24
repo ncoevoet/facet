@@ -36,6 +36,8 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 
 - **Detección de ráfagas** — agrupa las tomas en serie y selecciona automáticamente la mejor según la nitidez, la calidad y la detección de parpadeos
 - **Grupos de similitud** — encuentra fotos visualmente similares en toda la biblioteca, sin importar cuándo se tomaron
+- **Escenas** — agrupa una sesión en "escenas" cronológicas según los intervalos entre tomas, para seleccionar en orden narrativo; toca para marcar y confirma para rechazar
+- **Insignias por rostro en la selección** — el visor de selección muestra insignias por cada rostro (ojos abiertos/cerrados, expresión, confianza de detección) en lugar de una única marca de parpadeo a nivel de foto
 - **Detección de parpadeos** — marca las tomas con ojos cerrados para ocultarlas o rechazarlas con un solo clic
 - **Detección de duplicados** — identifica imágenes casi idénticas mediante hashing perceptual
 
@@ -89,6 +91,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 - **Estadísticas** — paneles de uso de equipo, desglose por categoría, cronología de disparos y correlaciones de métricas
 - **Crítica con IA** — desglose de la puntuación que muestra la contribución de cada métrica; evaluación en lenguaje natural por VLM `[GPU]` `[16gb/24gb]`
 - **Ajuste de pesos** — editor de pesos por categoría con vista previa de la puntuación en vivo. La comparación A/B de fotos aprende de tus elecciones y sugiere pesos optimizados.
+- **Orden "Mi gusto"** — ordena la galería según la puntuación aprendida del clasificador personal, con una insignia de confianza que muestra la cobertura aprendida y la precisión en datos de validación
 - **Aprendizaje a partir de etiquetas** — las decisiones de selección, las valoraciones por estrellas, los favoritos y los rechazos alimentan el optimizador de pesos (`--sync-label-comparisons`, `--mine-insights`)
 - **Instantáneas** — guarda, restaura y compara configuraciones de pesos
 - **Histograma** — histograma de luminancia en el tooltip de la foto y en la vista de detalle

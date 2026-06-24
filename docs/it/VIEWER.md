@@ -171,6 +171,12 @@ Colonne ordinabili raggruppate per categoria (da `viewer.sort_options`):
 | **Composizione** | Punteggio composizione, Punteggio punti di forza, Linee guida, Bonus isolamento, Modello compositivo |
 | **Salienza del soggetto** | Nitidezza soggetto, Prominenza soggetto, Posizionamento soggetto, Separazione sfondo |
 
+### I miei gusti
+
+Un'opzione di ordinamento di prima classe, basata sul `learned_score` del ranker personale (rinominata da «Scelte per te»). Ordina le foto in base a ciò che il ranker ha appreso dai tuoi confronti A/B, dalle valutazioni e dalle decisioni di selezione. Un badge di confidenza accanto all'ordinamento mostra la copertura appresa (% di foto con un punteggio appreso) e l'accuratezza del ranker su dati di validazione, così da poter giudicare quanto fidarsi dell'ordinamento. Addestra o aggiorna il ranker con `python facet.py --train-ranker`.
+
+Controllato da `viewer.features.show_my_taste` (predefinito: `true`). Lo stato del ranker è esposto tramite `GET /api/ranker/status`.
+
 ## Funzionalità della galleria
 
 ### Schede foto
@@ -520,6 +526,10 @@ La pagina di selezione (`/culling`, modalità di modifica) raggruppa gli scatti 
 
 Per ogni gruppo, scegli quale/quali conservare; la conferma scarta il resto. Le conferme sono differite e possono essere annullate (vedi [Annulla](#annulla)).
 
+### Badge per volto
+
+Nel lightbox di selezione delle raffiche/foto simili, ogni volto rilevato porta i propri badge — occhi aperti/chiusi, espressione scadente e confidenza di rilevamento — anziché un'unica indicazione di occhi chiusi a livello di foto. Questo rende più facile selezionare le foto di gruppo: puoi vedere a colpo d'occhio quale volto ha gli occhi chiusi o un'espressione debole. I badge vengono recuperati per un intero gruppo in un'unica chiamata batch (`POST /api/culling-group/faces`).
+
 ### API
 
 | Endpoint | Descrizione |
@@ -528,6 +538,24 @@ Per ogni gruppo, scegli quale/quali conservare; la conferma scarta il resto. Le 
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Gruppi impaginati di foto visivamente simili |
 | `GET /api/culling-groups` | Gruppi combinati di raffiche e foto simili |
 | `POST /api/culling-groups/confirm` | Conferma le selezioni della selezione |
+| `POST /api/culling-group/faces` | Badge per volto (occhi, espressione, confidenza) per un gruppo, in un'unica chiamata batch |
+
+## Vista Scene
+
+Raggruppa le foto guida delle raffiche in «scene» cronologiche, così da poter selezionare un intero servizio fotografico in ordine narrativo. Le foto vengono suddivise in scene in base agli intervalli temporali di scatto (una nuova scena inizia quando trascorrono più di `scenes.gap_hours` tra due scatti consecutivi). Accesso tramite la rotta `/scenes` (icona di navigazione «theaters»).
+
+- Ogni scena mostra le sue foto guida in ordine di scatto
+- Tocca le foto per segnarle per la selezione; la conferma le scarta e alimenta il ranker personale
+- Le scene più piccole di `scenes.min_size` vengono omesse; vengono caricate al massimo `scenes.max_photos` foto
+
+### API
+
+| Endpoint | Descrizione |
+|----------|-------------|
+| `GET /api/scenes` | Scene cronologiche delle foto guida delle raffiche |
+| `POST /api/scenes/confirm` | Conferma le selezioni di selezione delle scene (scarta le foto segnate) |
+
+Controllato da `viewer.features.show_scenes` (predefinito: `true`). Vedi [Configurazione — Scene](CONFIGURATION.md#scene) per `gap_hours`, `min_size` e `max_photos`.
 
 ## Modalità di confronto a coppie
 
@@ -821,6 +849,7 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | `GET /api/similar_photos/{path}` | Foto simili (modalità: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Ricerca semantica testo-immagine (`scope=text` = solo testo OCR/didascalia) |
 | `GET /api/critique?path=&mode=` | Critica IA (basata su regole o VLM) |
+| `GET /api/ranker/status` | Stato del ranker personale per l'ordinamento «I miei gusti» (% di copertura appresa, accuratezza su dati di validazione) |
 | `GET /api/config` | Configurazione della galleria |
 
 ### Autenticazione
@@ -965,6 +994,9 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | `POST /api/similar-groups/select` | Seleziona i preferiti da un gruppo di foto simili |
 | `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Gruppi combinati di raffiche e foto simili. `exclude_rejected` (predefinito `true`) nasconde le foto con `is_rejected=1`; i gruppi con meno di 2 foto rimanenti vengono eliminati |
 | `POST /api/culling-groups/confirm` | Conferma le selezioni della selezione |
+| `POST /api/culling-group/faces` | Badge per volto (occhi aperti/chiusi, espressione, confidenza) per un gruppo, in un'unica chiamata batch |
+| `GET /api/scenes` | Scene cronologiche delle foto guida delle raffiche |
+| `POST /api/scenes/confirm` | Conferma le selezioni di selezione delle scene |
 
 ### Scansione
 

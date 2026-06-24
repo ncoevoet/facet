@@ -171,6 +171,12 @@ Sortierbare Spalten nach Kategorie gruppiert (aus `viewer.sort_options`):
 | **Komposition** | Kompositionswert, Kraftpunktwert, Führungslinien, Freistellungsbonus, Kompositionsmuster |
 | **Motiverkennung** | Motivschärfe, Motivhervorhebung, Motivplatzierung, Hintergrundtrennung |
 
+### Mein Geschmack
+
+Eine vollwertige Sortieroption, gestützt auf den `learned_score` des persönlichen Rankers (umbenannt von „Für Sie ausgewählt"). Sie ordnet Fotos danach, was der Ranker aus Ihren A/B-Vergleichen, Bewertungen und Auswahlentscheidungen gelernt hat. Ein Konfidenzabzeichen neben der Sortierung zeigt die gelernte Abdeckung (% der Fotos mit gelerntem Wert) sowie die Halten-aus-Genauigkeit (Held-out-Genauigkeit) des Rankers an, sodass Sie einschätzen können, wie sehr Sie der Reihenfolge vertrauen können. Trainieren oder aktualisieren Sie den Ranker mit `python facet.py --train-ranker`.
+
+Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-Status wird über `GET /api/ranker/status` bereitgestellt.
+
 ## Galeriefunktionen
 
 ### Fotokarten
@@ -520,6 +526,10 @@ Die Auswahl-Seite (`/culling`, Bearbeitungsmodus) gruppiert nahezu identische Au
 
 Wählen Sie für jede Gruppe die Behaltefoto(s); das Bestätigen lehnt den Rest ab. Bestätigungen werden verzögert ausgeführt und können rückgängig gemacht werden (siehe [Rückgängig](#rückgängig)).
 
+### Abzeichen pro Gesicht
+
+In der Lightbox der Serienbild-/Ähnlichkeitsauswahl trägt jedes erkannte Gesicht seine eigenen Abzeichen — Augen offen/geschlossen, schwacher Ausdruck und Erkennungskonfidenz — statt einer einzigen Blinzel-Markierung auf Fotoebene. Das erleichtert die Auswahl bei Gruppenaufnahmen: Sie sehen auf einen Blick, welches Gesicht geschlossene Augen oder einen schwachen Ausdruck hat. Die Abzeichen werden für eine ganze Gruppe in einem einzigen Batch-Aufruf abgerufen (`POST /api/culling-group/faces`).
+
 ### API
 
 | Endpunkt | Beschreibung |
@@ -528,6 +538,24 @@ Wählen Sie für jede Gruppe die Behaltefoto(s); das Bestätigen lehnt den Rest 
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Paginierte Gruppen visuell ähnlicher Fotos |
 | `GET /api/culling-groups` | Kombinierte Serienbild- und Ähnlichkeitsgruppen |
 | `POST /api/culling-groups/confirm` | Auswahlentscheidungen bestätigen |
+| `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen, Ausdruck, Konfidenz) für eine Gruppe in einem Batch-Aufruf |
+
+## Szenen-Ansicht
+
+Gruppieren Sie Serienbild-Leitfotos zu chronologischen „Szenen", sodass Sie eine ganze Aufnahmesession in Erzählreihenfolge auswählen können. Fotos werden anhand von Lücken in der Aufnahmezeit in Szenen unterteilt (eine neue Szene beginnt, wenn zwischen zwei aufeinanderfolgenden Aufnahmen mehr als `scenes.gap_hours` vergehen). Zugriff über die Route `/scenes` (Navigations-Symbol „theaters").
+
+- Jede Szene zeigt ihre Leitfotos in Aufnahmereihenfolge
+- Tippen Sie Fotos an, um sie für die Auswahl zu markieren; das Bestätigen lehnt sie ab und speist den persönlichen Ranker
+- Szenen, die kleiner als `scenes.min_size` sind, werden weggelassen; es werden höchstens `scenes.max_photos` Fotos geladen
+
+### API
+
+| Endpunkt | Beschreibung |
+|----------|-------------|
+| `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos |
+| `POST /api/scenes/confirm` | Szenen-Auswahlentscheidungen bestätigen (markierte Fotos ablehnen) |
+
+Gesteuert über `viewer.features.show_scenes` (Standard: `true`). Siehe [Konfiguration — Szenen](CONFIGURATION.md#szenen) für `gap_hours`, `min_size` und `max_photos`.
 
 ## Paarweiser Vergleichsmodus
 
@@ -822,6 +850,7 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 | `GET /api/similar_photos/{path}` | Ähnliche Fotos (Modi: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantische Text-zu-Bild-Suche (`scope=text` = nur OCR-/Beschreibungstext) |
 | `GET /api/critique?path=&mode=` | KI-Kritik (regelbasiert oder VLM) |
+| `GET /api/ranker/status` | Status des persönlichen Rankers für die Sortierung „Mein Geschmack" (gelernte Abdeckung %, Held-out-Genauigkeit) |
 | `GET /api/config` | Galeriekonfiguration |
 
 ### Authentifizierung
@@ -966,6 +995,9 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 | `POST /api/similar-groups/select` | Behaltefotos aus einer Ähnlichkeitsgruppe auswählen |
 | `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Kombinierte Serienbild- und Ähnlichkeitsgruppen. `exclude_rejected` (Standard `true`) blendet Fotos mit `is_rejected=1` aus; Gruppen mit weniger als 2 verbleibenden Fotos werden verworfen |
 | `POST /api/culling-groups/confirm` | Auswahlentscheidungen bestätigen |
+| `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen offen/geschlossen, Ausdruck, Konfidenz) für eine Gruppe in einem Batch-Aufruf |
+| `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos |
+| `POST /api/scenes/confirm` | Szenen-Auswahlentscheidungen bestätigen |
 
 ### Scan
 

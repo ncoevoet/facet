@@ -35,6 +35,7 @@ Tous les réglages se trouvent dans `scoring_config.json`. Après modification, 
 - [Plugins](#plugins)
 - [Capsules](#capsules)
 - [Groupes de similarité](#groupes-de-similarité)
+- [Scènes](#scènes)
 - [Chronologie](#chronologie)
 - [Carte](#carte)
 - [Traduction](#traduction)
@@ -1147,7 +1148,9 @@ Activez ou désactivez les fonctionnalités facultatives pour réduire l'utilisa
       "show_memories": true,
       "show_captions": true,
       "show_timeline": true,
-      "show_map": true
+      "show_map": true,
+      "show_scenes": true,
+      "show_my_taste": true
     }
   }
 }
@@ -1169,6 +1172,8 @@ Activez ou désactivez les fonctionnalités facultatives pour réduire l'utilisa
 | `show_memories` | `true` | Afficher la boîte de dialogue Souvenirs « Ce jour-là » (photos prises à la même date les années précédentes) |
 | `show_captions` | `true` | Afficher les légendes générées par IA sur les cartes photo |
 | `show_timeline` | `true` | Afficher la vue chronologie pour un parcours chronologique avec navigation par date |
+| `show_scenes` | `true` | Afficher la vue Scènes (`/scenes`) qui regroupe les photos principales de rafale en scènes chronologiques pour un tri dans l'ordre du récit |
+| `show_my_taste` | `true` | Afficher le tri « Mon goût » basé sur le score appris du classeur personnel, avec un badge de confiance (couverture apprise / précision) |
 | `show_map` | `false` | Afficher la vue carte avec les emplacements de photos géolocalisées (nécessite Leaflet ; désactivé par défaut car les photos peuvent manquer de données GPS) |
 
 **Optimisation de la mémoire :** définir `show_similar_button: false` empêche le chargement de numpy, réduisant l'empreinte mémoire de la galerie. La fonctionnalité de photos similaires calcule la similarité cosinus des embeddings CLIP, ce qui nécessite numpy.
@@ -1525,6 +1530,26 @@ Réglages pour la fonctionnalité de tri IA des photos similaires, qui regroupe 
 | `min_group_size` | `2` | Nombre minimum de photos requis pour former un groupe de similarité |
 | `max_photos` | `10000` | Photos maximum à charger pour le calcul de similarité (coût O(n²)). Augmentez pour les bibliothèques plus grandes au détriment du temps de calcul. |
 | `max_group_size` | `50` | Photos maximum par groupe de similarité. Les groupes plus grands sont scindés pour garder l'interface utilisable. |
+
+## Scènes
+
+Réglages pour la vue Scènes, qui regroupe les photos principales de rafale en scènes chronologiques (découpées selon les écarts entre prises de vue) pour un tri dans l'ordre du récit :
+
+```json
+{
+  "scenes": {
+    "gap_hours": 4.0,
+    "min_size": 2,
+    "max_photos": 5000
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|--------|-------------|
+| `gap_hours` | `4.0` | Une nouvelle scène commence lorsque plus de ce nombre d'heures s'écoule entre deux photos principales de rafale consécutives |
+| `min_size` | `2` | Nombre minimum de photos pour qu'une scène soit affichée |
+| `max_photos` | `5000` | Nombre maximum de photos principales de rafale chargées pour le regroupement en scènes |
 
 ## Chronologie
 

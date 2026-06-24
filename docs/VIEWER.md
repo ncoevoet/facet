@@ -171,6 +171,12 @@ Sortable columns grouped by category (from `viewer.sort_options`):
 | **Composition** | Composition Score, Power Point Score, Leading Lines, Isolation Bonus, Composition Pattern |
 | **Subject Saliency** | Subject Sharpness, Subject Prominence, Subject Placement, Background Separation |
 
+### My Taste
+
+A first-class sort option backed by the personal ranker's `learned_score` (renamed from "Picked for you"). It orders photos by what the ranker has learned from your A/B comparisons, ratings, and culling decisions. A confidence badge next to the sort shows the learned coverage (% of photos with a learned score) and the ranker's held-out accuracy, so you can judge how much to trust the ordering. Train or refresh the ranker with `python facet.py --train-ranker`.
+
+Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status is exposed via `GET /api/ranker/status`.
+
 ## Gallery Features
 
 ### Photo Cards
@@ -519,6 +525,10 @@ The culling page (`/culling`, edition mode) groups near-identical shots so you c
 
 For each group, pick the keeper(s); confirming rejects the rest. Confirms are deferred and can be undone (see [Undo](#undo)).
 
+### Per-Face Badges
+
+In the burst/similar culling lightbox, each detected face carries its own badges — eyes open/closed, poor expression, and detection confidence — instead of a single photo-level blink flag. This makes group shots easier to cull: you can see at a glance which face has closed eyes or a weak expression. The badges are fetched for a whole group in one batch call (`POST /api/culling-group/faces`).
+
 ### API
 
 | Endpoint | Description |
@@ -527,6 +537,24 @@ For each group, pick the keeper(s); confirming rejects the rest. Confirms are de
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Paginated groups of visually similar photos |
 | `GET /api/culling-groups` | Combined burst and similar groups |
 | `POST /api/culling-groups/confirm` | Confirm culling selections |
+| `POST /api/culling-group/faces` | Per-face badges (eyes, expression, confidence) for a group, in one batch |
+
+## Scenes View
+
+Group burst-lead photos into chronological "scenes" so you can cull a whole shoot in story order. Photos are split into scenes by capture-time gaps (a new scene starts when more than `scenes.gap_hours` pass between consecutive shots). Access via the `/scenes` route (nav icon "theaters").
+
+- Each scene shows its lead photos in capture order
+- Tap photos to mark them for culling; confirming rejects them and feeds the personal ranker
+- Scenes smaller than `scenes.min_size` are omitted; at most `scenes.max_photos` photos are loaded
+
+### API
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/scenes` | Chronological scenes of burst-lead photos |
+| `POST /api/scenes/confirm` | Confirm scene culling selections (rejects marked photos) |
+
+Controlled by `viewer.features.show_scenes` (default: `true`). See [Configuration — Scenes](CONFIGURATION.md#scenes) for `gap_hours`, `min_size`, and `max_photos`.
 
 ## Pairwise Comparison Mode
 
@@ -821,6 +849,7 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/similar_photos/{path}` | Similar photos (modes: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantic text-to-image search (`scope=text` = OCR/caption text only) |
 | `GET /api/critique?path=&mode=` | AI critique (rule-based or VLM) |
+| `GET /api/ranker/status` | Personal-ranker status for the "My Taste" sort (learned coverage %, held-out accuracy) |
 | `GET /api/config` | Viewer configuration |
 
 ### Authentication
@@ -965,6 +994,9 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `POST /api/similar-groups/select` | Select keepers from a similar group |
 | `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Combined burst and similar groups. `exclude_rejected` (default `true`) hides photos with `is_rejected=1`; groups with fewer than 2 remaining photos are dropped |
 | `POST /api/culling-groups/confirm` | Confirm culling selections |
+| `POST /api/culling-group/faces` | Per-face badges (eyes open/closed, expression, confidence) for a group, in one batch |
+| `GET /api/scenes` | Chronological scenes of burst-lead photos |
+| `POST /api/scenes/confirm` | Confirm scene culling selections |
 
 ### Scan
 
