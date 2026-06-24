@@ -28,6 +28,7 @@
 | `python facet.py --retry-failed` | Re-process only the files that failed during the last scan run (`--retry-failed all` for failures across all runs) |
 | `python facet.py /path --force-since 2026-01-01` | Like `--force`, but only re-process photos last scanned before the date |
 | `python facet.py /path --watch` | Stay running and re-scan whenever new photos appear (requires `pip install watchdog`; `--watch-debounce N` tunes the quiet period, default 30s) |
+| `python facet.py /path --force-low-space` | Skip the pre-scan free-space guard (proceed even when the volume looks too small for the thumbnails/embeddings the scan will write) |
 
 ### Scan Bookkeeping
 

@@ -53,6 +53,7 @@ class DatabaseValidator:
             self._gather_stats(conn)
 
             # Run all validation checks
+            self._check_database_integrity(conn)
             self._check_score_ranges(conn)
             self._check_face_metric_consistency(conn)
             self._check_data_type_corruption(conn)
@@ -65,6 +66,23 @@ class DatabaseValidator:
             self._check_composition_pattern(conn)
 
         return self.results
+
+    def _check_database_integrity(self, conn: sqlite3.Connection):
+        """Run SQLite's structural quick_check for page-level corruption.
+
+        Unlike the logical-consistency checks, corruption is not fixable by an
+        UPDATE — it needs a rescan or a restore from backup — so this result is
+        left non-fixable and surfaces under UNFIXABLE ISSUES.
+        """
+        result = ValidationResult(
+            "database_integrity",
+            "SQLite structural integrity (PRAGMA quick_check)"
+        )
+        rows = conn.execute("PRAGMA quick_check").fetchall()
+        if not (len(rows) == 1 and rows[0][0] == "ok"):
+            for row in rows[:20]:
+                result.add_issue({'detail': str(row[0])}, str(row[0]))
+        self.results.append(result)
 
     def _gather_stats(self, conn: sqlite3.Connection):
         """Gather basic database statistics."""

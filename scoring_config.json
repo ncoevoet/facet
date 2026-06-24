@@ -1942,6 +1942,8 @@
     "gpu_batch_size": 16,
     "ram_chunk_size": 32,
     "num_workers": 4,
+    "bytes_per_photo_estimate": 256000,
+    "disk_safety_margin": 1.2,
     "auto_tuning": {
       "enabled": true,
       "monitor_interval_seconds": 5,

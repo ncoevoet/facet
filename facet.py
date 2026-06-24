@@ -36,7 +36,7 @@ if _script_dir not in sys.path:
 import json
 from pathlib import Path
 from datetime import datetime
-from db import DEFAULT_DB_PATH, init_database, get_connection
+from db import DEFAULT_DB_PATH, init_database, get_connection, check_disk_space
 
 try:
     from tqdm import tqdm
@@ -243,6 +243,9 @@ Configuration:
                              'directories (requires the optional watchdog package)')
     scan_group.add_argument('--watch-debounce', type=int, default=30, metavar='SECONDS',
                         help='Quiet period before a watch-mode scan fires (default: 30)')
+    scan_group.add_argument('--force-low-space', action='store_true',
+                        help='Proceed with a scan even when the volume looks too small for '
+                             'the thumbnails/embeddings it will write (overrides the guard)')
 
     # Database operations
     db_group = parser.add_argument_group('Database operations')
@@ -1665,6 +1668,23 @@ Configuration:
             logger.info("  Average aggregate: %.2f", avg_agg)
             logger.info("  Average aesthetic: %.2f", avg_aes)
         exit()
+
+    # Pre-scan free-space guard: refuse to start if the volume can't hold the
+    # thumbnails + embeddings this scan will write into the single-file DB.
+    _proc_cfg = scorer.config.config.get('processing', {})
+    bytes_per_photo = _proc_cfg.get('bytes_per_photo_estimate', 250 * 1024)
+    safety_margin = _proc_cfg.get('disk_safety_margin', 1.2)
+    _ok_space, _free, _required = check_disk_space(
+        scorer.db_path, len(todo_list) * bytes_per_photo, margin=safety_margin)
+    if not _ok_space and not args.force_low_space:
+        logger.error(
+            "Not enough free space for this scan: ~%.1f GB needed for %d photos, "
+            "only %.1f GB free on %s.",
+            _required / 1e9, len(todo_list), _free / 1e9,
+            os.path.dirname(os.path.abspath(scorer.db_path)) or '.',
+        )
+        logger.error("Free up space or re-run with --force-low-space to override.")
+        exit(1)
 
     # 2. Main Processing Loop
     from utils import configure_raw_decoding

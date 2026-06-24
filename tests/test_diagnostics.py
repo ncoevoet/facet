@@ -100,6 +100,7 @@ class TestRunDoctorWithDatabase:
         run_doctor(config_path=str(tmp_path / "no.json"), db_path=db_path)
         out = capsys.readouterr().out
         assert "[OK] Photos: 2" in out
+        assert "[OK] Integrity: ok" in out
 
     def test_corrupt_database(self, capsys, tmp_path):
         db_path = str(tmp_path / "corrupt.db")

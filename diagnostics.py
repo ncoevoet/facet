@@ -248,6 +248,17 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
         except Exception as e:
             _warn("Database query", str(e))
 
+        try:
+            with sqlite3.connect(db_path) as conn:
+                rows = conn.execute("PRAGMA quick_check").fetchall()
+            if len(rows) == 1 and rows[0][0] == "ok":
+                _ok("Integrity", "ok")
+            else:
+                detail = "; ".join(str(r[0]) for r in rows[:3])
+                _warn("Integrity", detail or "corruption detected")
+        except Exception as e:
+            _warn("Integrity", str(e))
+
         # --- Fast-path Availability ---
         check_fast_paths(db_path)
     else:
