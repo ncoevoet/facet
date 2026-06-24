@@ -109,6 +109,15 @@ class PairSelector:
         if len(candidates) < 2:
             return self._select_uncertainty(category, exclude_compared)
 
+        # A DB can hold mixed embedding dimensions (e.g. 768-dim CLIP and 1152-dim
+        # SigLIP after a profile switch). np.dot on a mismatched pair raises, so
+        # keep only the dominant dimension before any cosine math.
+        from collections import Counter
+        dominant_dim = Counter(c['emb'].shape[0] for c in candidates).most_common(1)[0][0]
+        candidates = [c for c in candidates if c['emb'].shape[0] == dominant_dim]
+        if len(candidates) < 2:
+            return self._select_uncertainty(category, exclude_compared)
+
         warm = sum(1 for c in candidates if c['learned'] is not None) >= 2
         n = len(candidates)
         target = min(500, n * (n - 1) // 2)

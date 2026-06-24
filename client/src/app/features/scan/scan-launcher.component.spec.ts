@@ -72,4 +72,23 @@ describe('ScanLauncherComponent', () => {
     mockScan.status.set({ ...idleStatus(), running: true, progress: { phase: 'scoring' } });
     expect(read<number | null>('progressValue')).toBeNull();
   });
+
+  it('does NOT auto-close on a stale prior-run success, only after this run runs', () => {
+    // A previous scan left the shared signal at completed/clean.
+    mockScan.status.set({ ...idleStatus(), running: false, exit_code: 0 });
+    TestBed.tick();
+    expect(dialogClose).not.toHaveBeenCalled();
+
+    // Start: started flips true while status is still the stale success.
+    (component as unknown as { started: { set(v: boolean): void } }).started.set(true);
+    TestBed.tick();
+    expect(dialogClose).not.toHaveBeenCalled();
+
+    // This run goes live, then finishes cleanly -> now it closes.
+    mockScan.status.set({ ...idleStatus(), running: true, exit_code: null });
+    TestBed.tick();
+    mockScan.status.set({ ...idleStatus(), running: false, exit_code: 0 });
+    TestBed.tick();
+    expect(dialogClose).toHaveBeenCalledWith(true);
+  });
 });

@@ -74,7 +74,9 @@ class CullApplyRequest(BaseModel):
     filters: Optional[dict] = None
     action: Literal["copy_keeps", "trash_rejects", "move_rejects"]
     target_dir: Optional[str] = None
-    include_companions: bool = True
+    # Off by default: rejecting a derived JPEG must not silently trash/move its
+    # untouched companion RAW or darktable .xmp. Opt in to keep a shot whole.
+    include_companions: bool = False
     dry_run: bool = True
 
 

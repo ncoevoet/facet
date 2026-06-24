@@ -100,6 +100,19 @@ class TestLearningValueSelector:
         assert pair is not None
         assert {pair['a'], pair['b']} == {'/a.jpg', '/b.jpg'}
 
+    def test_mixed_embedding_dimensions_do_not_crash(self, db):
+        # A DB can hold 768-dim (CLIP) and 1152-dim (SigLIP) embeddings at once;
+        # the learning selector must not raise on a cross-dim np.dot.
+        _seed(db, [
+            ('/clip1.jpg', 8.0, np.ones(768, dtype=np.float32)),
+            ('/clip2.jpg', 7.0, np.full(768, 0.5, dtype=np.float32)),
+            ('/siglip.jpg', 6.0, np.ones(1152, dtype=np.float32)),
+        ])
+        sel = PairSelector(db)
+        pair = sel.get_next_pair(strategy='learning', exclude_compared=False)
+        assert pair is not None
+        assert pair['a'] != pair['b']
+
     def test_warm_prefers_rank_disagreement(self, db):
         # {x,y} flips between aggregate and learned ordering (disagree); {p,q}
         # agrees on both. With equal embedding distances, the disagreement pair

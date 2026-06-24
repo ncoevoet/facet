@@ -19,12 +19,11 @@ from PIL import Image
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG
 from api.database import get_db
+from api.db_helpers import get_visibility_clause
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["saliency"])
-
-_EYES_CLOSED_MAX = 4.0
 
 
 def _require_overlay_enabled():
@@ -44,8 +43,12 @@ def api_saliency_overlay(
     profile that never ran the saliency pass).
     """
     _require_overlay_enabled()
+    vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
     with get_db() as conn:
-        row = conn.execute("SELECT thumbnail FROM photos WHERE path = ?", (path,)).fetchone()
+        row = conn.execute(
+            f"SELECT thumbnail FROM photos WHERE path = ? AND {vis_sql}",
+            [path] + vis_params,
+        ).fetchone()
     if not row or row["thumbnail"] is None:
         raise HTTPException(status_code=404, detail="No thumbnail for this photo")
 
@@ -74,9 +77,11 @@ def api_face_markers(
     Coordinates are normalised by the original image size so the client can
     scale them to whatever resolution it displays.
     """
+    vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
     with get_db() as conn:
         prow = conn.execute(
-            "SELECT image_width, image_height FROM photos WHERE path = ?", (path,)
+            f"SELECT image_width, image_height FROM photos WHERE path = ? AND {vis_sql}",
+            [path] + vis_params,
         ).fetchone()
         if not prow:
             raise HTTPException(status_code=404, detail="Unknown photo")
@@ -114,7 +119,7 @@ def api_face_markers(
             "bbox": bbox,
             "eyes": eye_points,
             "eyes_open_score": eyes_score,
-            "is_blink": eyes_score is not None and eyes_score <= _EYES_CLOSED_MAX,
+            "is_blink": eyes_score is not None and eyes_score <= FaceAnalyzer.EYES_CLOSED_MAX,
         })
 
     return {"faces": faces}

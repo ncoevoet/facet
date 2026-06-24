@@ -93,7 +93,7 @@ export class CullDialogComponent {
   protected readonly actions: CullAction[] = ['copy_keeps', 'move_rejects', 'trash_rejects'];
   protected readonly action = signal<CullAction>('copy_keeps');
   protected readonly targetDir = signal('');
-  protected readonly includeCompanions = signal(true);
+  protected readonly includeCompanions = signal(false);
   protected readonly preview = signal<{ affected: string[]; skipped: string[] } | null>(null);
   protected readonly busy = signal(false);
 

@@ -241,6 +241,10 @@ class FaceAnalyzer:
     LEFT_EYE_INDICES = [35, 39, 37, 38, 41, 40]
     RIGHT_EYE_INDICES = [89, 93, 91, 92, 95, 94]
 
+    # eyes_open_score (0-10) at or below this counts as closed (blink). Shared by
+    # the culling face badges and the saliency face-marker overlay.
+    EYES_CLOSED_MAX = 4.0
+
     @staticmethod
     def calculate_ear(landmarks, eye_indices):
         """Calculates Eye Aspect Ratio (EAR)."""

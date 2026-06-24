@@ -1042,6 +1042,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * Edition-only and gated on the rating-controls feature flag, mirroring the
    * card's own template guards. */
   private handleRatingKey(event: KeyboardEvent, photos: Photo[], index: number): void {
+    // Don't hijack modified combos (Ctrl/Cmd+1..5 switch browser tabs).
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (!this.auth.isEdition() || !this.store.config()?.features?.show_rating_controls) return;
     const photo = photos[index];
     if (!photo) return;

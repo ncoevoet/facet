@@ -75,6 +75,9 @@ export class ScanLauncherComponent implements OnInit {
 
   protected readonly status = this.scan.status;
   protected readonly connected = this.scan.connected;
+  // ScanService is a root singleton; its status can still hold a prior run's
+  // {running:false, exit_code:0}. Only auto-close once THIS run was seen live.
+  private sawRunning = false;
 
   protected readonly progressValue = computed(() => {
     const p = this.status().progress;
@@ -86,10 +89,14 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly outputTail = computed(() => this.status().output.slice(-20).join('\n'));
 
   constructor() {
-    // Close with success the moment a started scan finishes cleanly.
+    // Close with success once THIS run was observed running and then finished
+    // cleanly — guarding against a stale prior-run success in the shared signal.
     effect(() => {
       const s = this.status();
-      if (this.started() && !s.running && s.exit_code === 0) {
+      if (!this.started()) return;
+      if (s.running) {
+        this.sawRunning = true;
+      } else if (this.sawRunning && s.exit_code === 0) {
         this.dialogRef.close(true);
       }
     });
