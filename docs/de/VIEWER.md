@@ -121,7 +121,9 @@ python database.py --migrate-user-preferences --user alice
 
 ## Filteroptionen
 
+<details><summary>Filter-Seitenleiste — alle Abschnitte aufgeklappt (zum Anzeigen klicken)</summary>
 <p align="center"><img src="../screenshots/filter-sidebar-full.jpg" alt="Filter-Seitenleiste mit allen aufgeklappten Abschnitten" width="360"></p>
+</details>
 
 ### Primärfilter
 

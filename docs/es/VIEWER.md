@@ -121,7 +121,9 @@ python database.py --migrate-user-preferences --user alice
 
 ## Opciones de filtrado
 
+<details><summary>Barra lateral de filtros — todas las secciones desplegadas (haz clic para ver)</summary>
 <p align="center"><img src="../screenshots/filter-sidebar-full.jpg" alt="Barra lateral de filtros con todas las secciones desplegadas" width="360"></p>
+</details>
 
 ### Filtros principales
 

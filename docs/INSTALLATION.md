@@ -54,7 +54,9 @@ exiftool provides the best EXIF extraction for all formats. Without it, the app 
 python3 -m venv venv
 source venv/bin/activate
 
-# Install PyTorch first with the correct CUDA index URL
+# Install PyTorch first with the correct CUDA index URL.
+# cu128 targets CUDA 12.8+/13.x; for CUDA 11.8 use cu118, for CUDA 12.4 use cu124.
+# When unsure, pick the matching command at https://pytorch.org/get-started/locally/
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 
 # Install dependencies (all at once for proper dependency resolution).
@@ -139,6 +141,9 @@ python -c "import torch, cv2, fastapi, insightface, open_clip, pyiqa, numpy, sci
 | `scipy` | Scientific computing |
 | `hdbscan` | Face clustering (pulls in scikit-learn) |
 | `reverse_geocoder` | Reverse geocoding for GPS |
+| `psutil` | Batch-processing auto-tuning (system monitoring) |
+| `aiosqlite` | Async SQLite for FastAPI read endpoints |
+| `sqlite-vec` | On-disk KNN for semantic search & similarity (falls back to in-memory NumPy cache if missing) |
 
 All of these are in `requirements.txt`; no profile needs extra base packages.
 
@@ -148,8 +153,7 @@ Each unlocks a feature; without it the feature is skipped or a fallback is used.
 
 | Package | Unlocks / purpose | Without it |
 |---------|-------------------|-----------|
-| `sqlite-vec>=0.1.6` | On-disk KNN for semantic search & similarity | Falls back to in-memory NumPy embedding cache |
-| `watchdog` | Watch mode (`--watch` daemon re-scans new files) | `--watch` unavailable |
+| `watchdog` | Watch mode (`--watch` daemon re-scans new files) — **not in `requirements.txt`**; only pulled via `pip install .[watch]`, so direct `requirements.txt` users don't get `--watch` | `--watch` unavailable |
 | `pillow-heif` | HEIF/HEIC decode | HEIF/HEIC files skipped |
 | `rawpy` | RAW decode (CR2/CR3/NEF/ARW/…) | RAW files skipped (already in base `requirements.txt`) |
 | `cuml`, `cupy` | GPU-accelerated face clustering (conda + CUDA) | Clustering runs on CPU via `hdbscan` (default) |
@@ -157,6 +161,36 @@ Each unlocks a feature; without it the feature is skipped or a fallback is used.
 | `aesthetic-predictor-v2-5`, `bitsandbytes` | Extended IQA tier (`pip install -e .[iqa-extended]`; `iqa_extended` in `scoring_config.json`, off by default) | Extended IQA metrics unavailable |
 | `darktable-cli` (system) | RAW/darktable profile export from the viewer | Only original/embedded download offered |
 | `exiftool` (system) | Best EXIF/GPS extraction | Falls back to `exifread`, then PIL |
+
+## Feature requirements
+
+Most of Facet runs anywhere (CPU, any profile). Some features need a GPU, a higher **VRAM profile**, an optional package, or the viewer's **edition password** / **superadmin** role. Tags used throughout the docs:
+`[GPU]` · `[16gb/24gb]` (VRAM profile) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
+
+| Feature | GPU | Profile | Auth | Optional package |
+|---------|:---:|---------|:----:|------------------|
+| Scoring / scan (baseline) | optional | any (`legacy` = CPU) | — | — |
+| TOPIQ aesthetic | yes | `16gb`/`24gb` | — | — |
+| Supplementary IQA (TOPIQ IAA, NR-Face, LIQE) | yes | `8gb`/`16gb`/`24gb` | — | — |
+| SigLIP 2 embeddings | yes | `16gb`/`24gb` | — | — |
+| VLM tagging (Qwen3.5) | yes | `16gb`/`24gb` | — | — |
+| Composition pattern (SAMP-Net) | optional | any (`legacy` = CPU) | — | — |
+| Composition (Qwen2-VL) | yes | `24gb` | — | — |
+| Subject saliency (BiRefNet) | yes | `16gb`/`24gb` | — | — |
+| AI captions (generate / view) | yes | `16gb`/`24gb` | — | — |
+| AI captions (edit) | yes | `16gb`/`24gb` | edition | — |
+| VLM critique | yes | `16gb`/`24gb` | — | — |
+| Face detection / extraction (InsightFace) | recommended (CPU works, slow) | any | — | — |
+| Face clustering (HDBSCAN) | no (CPU) | any | — | `cuml`/`cupy` (optional GPU accel) |
+| Semantic search | no | any | — | `sqlite-vec` (falls back to NumPy) |
+| RAW / HEIF decode | no | any | — | `rawpy` / `pillow-heif` |
+| Watch mode (`--watch`) | no | any | — | `watchdog` |
+| GPS extract / darktable export | no | any | — | `exiftool` / `darktable-cli` |
+| Ratings, favorites, face & person edits, culling | no | any | edition | — |
+| Trigger scans from the web UI | no | any | superadmin | — |
+| Multi-user (per-user ratings & roles) | no | any | role-based | — |
+
+> Face *clustering* runs on CPU by default (standalone `hdbscan`); `cuml`/`cupy` only add optional GPU acceleration — they are **not** required. The edition password and user roles are configured in `scoring_config.json` — see [Configuration](CONFIGURATION.md) for auth.
 
 ## Troubleshooting Dependency Conflicts
 
@@ -170,13 +204,7 @@ Facet has many ML dependencies (`torch`, `open-clip-torch`, `insightface`, etc.)
 
 ### Solutions
 
-**1. Install everything at once** — gives pip the full dependency graph to solve:
-
-```bash
-pip install -r requirements.txt
-```
-
-Do **not** install packages individually (`pip install open-clip-torch && pip install insightface && ...`) — this prevents pip from resolving the full graph.
+**1. Install everything at once** — `pip install -r requirements.txt` gives pip the full dependency graph to solve. Don't install packages individually (`pip install open-clip-torch && pip install insightface && ...`); that prevents pip from resolving the full graph.
 
 **2. Use [uv](https://docs.astral.sh/uv/) instead of pip** — `uv` resolves the complete dependency graph upfront before installing anything, avoiding cascading conflicts:
 
@@ -191,15 +219,7 @@ uv pip install -r requirements.txt
 uv pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
 ```
 
-**3. Start fresh** — if your environment is already in a broken state:
-
-```bash
-deactivate
-rm -rf venv
-python3 -m venv venv && source venv/bin/activate
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-pip install -r requirements.txt
-```
+**3. Start fresh** — if your environment is already in a broken state, `deactivate`, `rm -rf venv`, and rebuild it by re-running the [Python Environment](#python-environment) steps above.
 
 ### GPU Detection Issues
 
@@ -217,8 +237,8 @@ python facet.py --doctor --simulate-gpu "RTX 5070 Ti" --simulate-vram 16
 
 ## First Run
 
-On first run, Facet automatically downloads:
-- CLIP model (ViT-L-14): ~1.7GB
+On first run, Facet automatically downloads the embedding model for your profile:
+- CLIP ViT-L-14 (legacy/8gb profiles): ~1.7GB — or SigLIP 2 NaFlex SO400M (16gb/24gb profiles), larger
 - InsightFace buffalo_l model: ~400MB
 - SAMP-Net weights (all profiles): ~50MB
 
@@ -246,11 +266,13 @@ npm start        # Dev server on http://localhost:4200 (proxies API to :5000)
 
 ### SAMP-Net Manual Download
 
-The automatic download for SAMP-Net weights may fail (the GitHub release URL is no longer available). If you see:
+SAMP-Net weights download automatically on first use from the project's model-weights release (`github.com/ncoevoet/facet/releases/download/model-weights-v1/samp_net.pth`). No manual step is normally required.
+
+If the automatic download fails (e.g. offline or network-restricted) you'll see:
 ```
 Failed to download SAMP-Net weights: HTTP Error 404: Not Found
 ```
 
-Download manually:
-1. Download from [Google Drive](https://drive.google.com/file/d/1sIcYr5cQGbxm--tCGaASmN0xtE_r-QUg/view)
+Then download manually:
+1. Download `samp_net.pth` from the [model-weights-v1 release](https://github.com/ncoevoet/facet/releases/download/model-weights-v1/samp_net.pth) (or, as a secondary fallback, [Google Drive](https://drive.google.com/file/d/1sIcYr5cQGbxm--tCGaASmN0xtE_r-QUg/view))
 2. Place the file at `pretrained_models/samp_net.pth`

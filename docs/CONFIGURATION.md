@@ -696,8 +696,8 @@ Detect duplicate photos globally using perceptual hash (pHash) comparison.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `similarity_threshold_percent` | `90` | Strict pHash gate (90% = Hamming distance <= 6 of 64 bits); used as the sole criterion when an embedding is missing for either photo |
-| `prefilter_hamming` | `12` | Stage-1 loose Hamming gate for the candidate set when both photos have embeddings (coerced to be >= the strict gate) |
-| `embedding_cosine_threshold` | `0.90` | Stage-2 SigLIP/CLIP cosine gate: a loose-pHash candidate only merges when cosine >= this |
+| `prefilter_hamming` | `12` | Optional override (absent from the shipped file). Stage-1 loose Hamming gate for the candidate set when both photos have embeddings (coerced to be >= the strict gate) |
+| `embedding_cosine_threshold` | `0.90` | Optional override (absent from the shipped file). Stage-2 SigLIP/CLIP cosine gate: a loose-pHash candidate only merges when cosine >= this |
 
 Detection is two-stage: loose pHash candidates (recall) confirmed by a tight embedding cosine gate (precision). Photos without an embedding fall back to the strict pHash-only criterion, so behavior is unchanged when embeddings are absent.
 
@@ -757,7 +757,7 @@ InsightFace face detection settings.
 | `min_face_size` | `20` | Minimum face size in pixels |
 | `blink_ear_threshold` | `0.28` | Eye Aspect Ratio for blink detection |
 | `min_faces_for_group` | `4` | Minimum faces to classify as group portrait (recomputed on `--recompute-average`) |
-| `enable_3d_landmarks` | `false` | Load InsightFace `landmark_3d_68` module for head-pose extraction (yaw/pitch/roll). Costs ~5MB extra ONNX weights. Currently informational; future profile/silhouette refinements will read this. |
+| `enable_3d_landmarks` | `false` | Optional override (absent from the shipped file; code default `false`). Load InsightFace `landmark_3d_68` module for head-pose extraction (yaw/pitch/roll). Costs ~5MB extra ONNX weights. Currently informational; future profile/silhouette refinements will read this. |
 
 ---
 
@@ -1062,6 +1062,8 @@ Web gallery display and behavior.
 }
 ```
 
+> **Note:** `sort_options` (elided as `{ ... }` above) maps DB columns to dropdown labels and is rarely edited.
+
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `default_category` | `""` | Default category filter |
@@ -1167,12 +1169,14 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_semantic_search` | `true` | Show semantic search bar (text-to-image search using CLIP/SigLIP embeddings) |
 | `show_albums` | `true` | Show albums feature (create, manage, and browse photo albums) |
 | `show_critique` | `true` | Show AI critique button on photo cards (rule-based score breakdown) |
-| `show_vlm_critique` | `false` | Enable VLM-powered critique mode (requires 16gb/24gb VRAM profile) |
+| `show_vlm_critique` | `true` | Enable VLM-powered critique mode (requires 16gb/24gb VRAM profile). Code falls back to `false` when the key is absent. |
 | `show_embed_metadata` | `true` | Show the per-thumbnail "Write metadata to file" action in edition mode (embeds ratings/keywords into the original image via exiftool) |
 | `show_memories` | `true` | Show "On This Day" memories dialog (photos taken on the same date in previous years) |
 | `show_captions` | `true` | Show AI-generated captions on photo cards |
 | `show_timeline` | `true` | Show timeline view for chronological browsing with date navigation |
-| `show_map` | `false` | Show map view with GPS-based photo locations (requires Leaflet; off by default since photos may lack GPS data) |
+| `show_map` | `true` | Show map view with GPS-based photo locations (requires Leaflet). Code falls back to `false` when the key is absent. |
+| `show_capsules` | `true` | Show the Capsules view (curated photo diaporamas grouped by theme) |
+| `show_folders` | `true` | Show folder-based browsing of the photo directory structure |
 | `show_scenes` | `true` | Show the Scenes view (`/scenes`) that groups burst-lead photos into chronological scenes for story-order culling |
 | `show_my_taste` | `true` | Show the "My Taste" sort backed by the personal ranker's learned score, with a learned-coverage / accuracy confidence badge |
 
@@ -1260,19 +1264,20 @@ Database performance settings.
 ```json
 {
   "performance": {
-    "mmap_size_mb": 12288,
-    "cache_size_mb": 64,
-    "wal_checkpoint_minutes": 30,
+    "mmap_size_mb": 2048,
+    "cache_size_mb": 128,
     "slow_request_ms": 1000
   }
 }
 ```
 
+> **Note:** `wal_checkpoint_minutes` is an optional override and is **not** present in the shipped `performance` block (which contains only `mmap_size_mb`, `cache_size_mb`, and `slow_request_ms`). Add it explicitly to change the default of `30`.
+
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `mmap_size_mb` | `12288` | SQLite memory-mapped I/O size |
-| `cache_size_mb` | `64` | SQLite cache size |
-| `wal_checkpoint_minutes` | `30` | Interval in minutes for the viewer's background `PRAGMA wal_checkpoint(TRUNCATE)`. Prevents WAL bloat on long-running deployments. Set to `0` to disable. |
+| `mmap_size_mb` | `2048` | SQLite memory-mapped I/O size |
+| `cache_size_mb` | `128` | SQLite cache size |
+| `wal_checkpoint_minutes` | `30` | Optional override (absent from the shipped file). Interval in minutes for the viewer's background `PRAGMA wal_checkpoint(TRUNCATE)`. Prevents WAL bloat on long-running deployments. Set to `0` to disable. |
 | `slow_request_ms` | `1000` | Viewer API requests slower than this many milliseconds are logged at WARNING with a `SLOW` marker. Set to `0` to disable. |
 
 ---

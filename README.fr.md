@@ -63,7 +63,9 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 <td><img src="docs/screenshots/semantic-search.jpg" alt="Résultats de la recherche sémantique" width="100%"></td>
 </tr></table>
 
+<details><summary>Barre latérale de filtres — toutes les sections développées (cliquer pour afficher)</summary>
 <p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Barre latérale de filtres avec toutes les options développées" width="380"></p>
+</details>
 
 **Conseils de flux de travail :**
 - Pour une revue chronologique d'un voyage ou d'une année, ouvrez **`/timeline`** — triez par agrégat pour parcourir les meilleures prises d'une journée, ou paginez mois par mois.

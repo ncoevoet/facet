@@ -106,8 +106,8 @@ pip install pre-commit
 pre-commit install
 ```
 
-CI additionally runs an advisory `mypy api/` type-check; run it locally with
-`mypy api/` (advisory — it is non-blocking in CI).
+CI additionally runs an advisory (non-blocking) `mypy api/` type-check; run it
+locally with `mypy api/`.
 
 ## Pull Requests
 

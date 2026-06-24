@@ -63,7 +63,9 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 <td><img src="docs/screenshots/semantic-search.jpg" alt="Ergebnisse der semantischen Suche" width="100%"></td>
 </tr></table>
 
+<details><summary>Filter-Seitenleiste — alle Abschnitte aufgeklappt (zum Anzeigen klicken)</summary>
 <p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Filter-Seitenleiste mit allen aufgeklappten Optionen" width="380"></p>
+</details>
 
 **Workflow-Tipps:**
 - Für eine chronologische Durchsicht über eine Reise oder ein Jahr öffnen Sie **`/timeline`** — sortieren Sie nach Gesamtwertung, um die besten Aufnahmen eines Tages durchzugehen, oder blättern Sie Monat für Monat.

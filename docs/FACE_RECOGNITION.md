@@ -52,27 +52,16 @@ python facet.py --suggest-person-merges
 python facet.py --suggest-person-merges --merge-threshold 0.7  # Stricter
 ```
 
-Opens browser to merge suggestions page.
+This opens the merge-suggestions page in the browser.
 
-### Step 4: Review Merge Suggestions
+### Step 4: Manage in the Viewer
 
-The web UI at `/merge-suggestions` shows pairs of person clusters that may be the same individual:
+The remaining work happens in the web viewer, following the pipeline **Extract → Cluster → Merge → Manage**:
 
-- Adjust the **similarity threshold slider** to control how conservative the suggestions are
-- Review each suggestion side-by-side with face thumbnails
-- **One-click merge** to combine two persons, or **batch merge** to process multiple suggestions at once
-- Also available via CLI: `python facet.py --suggest-person-merges --merge-threshold 0.7`
+- **Merge** duplicate clusters on the Merge Suggestions page.
+- **Manage** persons (merge, batch merge, split, hide, rename, delete) on the Manage Persons page.
 
-### Step 5: Manual Management
-
-In the web viewer:
-- Access `/persons` for person management
-- Merge: Select source person, click target, confirm
-- Batch merge: Select multiple persons and merge them into a single target
-- Split: Move a subset of a person's faces into a new person (if the source ends up empty, it is deleted)
-- Hide: Flag a cluster `is_hidden` to exclude it from the list, filters, and merge suggestions (reversible)
-- Rename: Click person name to edit inline
-- Delete: Remove person cluster
+See [Viewer Integration](#viewer-integration) for the full UI reference.
 
 ## Configuration
 
@@ -298,7 +287,7 @@ Both commands use parallel processing for speed.
 ### Person Gallery
 
 - Click person in dropdown to view all their photos
-- URL: `/person/<id>`
+- Clicking a person applies a `person_id` filter on the gallery (no dedicated per-person route)
 
 ### Manage Persons Page
 

@@ -63,7 +63,9 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 <td><img src="docs/screenshots/semantic-search.jpg" alt="Risultati della ricerca semantica" width="100%"></td>
 </tr></table>
 
+<details><summary>Barra laterale dei filtri — tutte le sezioni espanse (clicca per visualizzare)</summary>
 <p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Barra laterale dei filtri con tutte le opzioni espanse" width="380"></p>
+</details>
 
 **Suggerimenti per il flusso di lavoro:**
 - Per una revisione cronologica di un viaggio o di un anno, apri **`/timeline`** — ordina per aggregato per scorrere i migliori scatti di una giornata, oppure naviga mese per mese.

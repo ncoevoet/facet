@@ -86,7 +86,7 @@ ssh admin@your-synology-ip
 mkdir -p /volume1/facet
 
 # Install dependencies (viewer only)
-pip3 install fastapi uvicorn pyjwt pillow
+pip3 install fastapi uvicorn pyjwt pillow aiosqlite
 ```
 
 ### Export Lightweight Database
@@ -112,11 +112,7 @@ The "Find Similar" feature won't work on the exported database (CLIP embeddings 
 
 ### Sync Files
 
-On the scoring machine, build the Angular client first:
-
-```bash
-cd client && npm install && npx ng build && cd ..
-```
+On the scoring machine, build the Angular client first (see [Building the Angular Client](#building-the-angular-client)).
 
 Then sync the viewer and exported database to the NAS:
 
@@ -215,7 +211,7 @@ For a viewer-only NAS where the image must stay small (no CUDA), build a slim im
 ```dockerfile
 FROM python:3.11-slim
 WORKDIR /app
-RUN pip install fastapi uvicorn pyjwt pillow
+RUN pip install fastapi uvicorn pyjwt pillow aiosqlite
 COPY viewer.py config.py database.py tagger.py scoring_config.json ./
 COPY api/ api/
 COPY client/dist/ client/dist/
@@ -242,7 +238,7 @@ services:
 ### Uvicorn
 
 ```bash
-pip install fastapi uvicorn pyjwt pillow
+pip install fastapi uvicorn pyjwt pillow aiosqlite
 uvicorn api:create_app --factory --host 0.0.0.0 --port 5000 --workers 4
 ```
 

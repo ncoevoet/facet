@@ -290,7 +290,7 @@ The "Top Picks" filter in the viewer uses a custom weighted score computed on-th
 
 **Score computation:**
 - With significant face (face_ratio >= 20%): `aggregate * 0.30 + aesthetic * 0.28 + comp_score * 0.18 + face_quality * 0.24`
-- Without significant face: `aggregate * 0.30 + aesthetic * 0.426 + comp_score * 0.274` (face_quality weight redistributed proportionally)
+- Without significant face: `aggregate * 0.30 + aesthetic * 0.40 + comp_score * 0.30` (face_quality weight split evenly between aesthetic and composition)
 
 The `top_picks_score` is computed in SQL via `get_top_picks_score_sql()` in `api/top_picks.py`.
 
@@ -390,9 +390,8 @@ The cache is stored in the `stats_cache` table with a 5-minute TTL. Run `--stats
 **Configuration (in scoring_config.json):**
 ```json
 "performance": {
-  "mmap_size_mb": 12288,
-  "cache_size_mb": 64,
-  "wal_checkpoint_minutes": 30,
+  "mmap_size_mb": 2048,
+  "cache_size_mb": 128,
   "slow_request_ms": 1000
 }
 ```

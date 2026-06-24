@@ -174,7 +174,7 @@ Three additional quality models:
 | `face_quality_iqa_percent` | TOPIQ NR-Face | Face-region quality assessment. Best for portrait categories. |
 | `liqe_percent` | LIQE | Quality score plus a distortion diagnosis (motion blur, overexposure, noise). |
 
-These models run as part of the default scoring pipeline and share VRAM with TOPIQ. Add their weight keys to any category where the assessment is useful.
+These models run as part of the default scoring pipeline on all GPU profiles (8gb/16gb/24gb) and share VRAM with TOPIQ; the CPU legacy profile skips them. Add their weight keys to any category where the assessment is useful.
 
 ### Supplementary signals (not in default aggregate)
 
@@ -213,7 +213,7 @@ The viewer's "Top Picks" filter uses a custom weighted score:
 
 **Score computation:**
 - With face (face_ratio ≥ 20%): All four metrics contribute
-- Without face: `face_quality_percent` redistributed to `aesthetic` and `composition`
+- Without face: `face_quality_percent` redistributed evenly (half each) to `aesthetic` and `composition` (with default weights: aesthetic 0.40, composition 0.30)
 
 ## VRAM Profile Considerations
 
@@ -226,7 +226,7 @@ Default weights are optimized for **TOPIQ** (0.93 SRCC), the aesthetic model for
 | `8gb` | CLIP+MLP (0.76 SRCC) | CLIP ViT-L-14 | CLIP similarity | Default weights work well |
 | `legacy` | CLIP+MLP on CPU | CLIP ViT-L-14 | CLIP similarity | Default weights, slower |
 
-All profiles additionally run supplementary PyIQA models (TOPIQ IAA, TOPIQ NR-Face, LIQE) and optionally BiRefNet_dynamic for subject saliency.
+All GPU profiles (8gb/16gb/24gb) additionally run supplementary PyIQA models (TOPIQ IAA, TOPIQ NR-Face, LIQE) and optionally BiRefNet_dynamic for subject saliency; the CPU legacy profile skips them.
 
 Run `--compute-recommendations` after switching profiles to analyze score distributions.
 
@@ -289,7 +289,7 @@ Train weights by comparing photo pairs:
 ### Comparison Interface
 
 - Side-by-side photos
-- Keyboard: A (left wins), B (right wins), T (tie), S (skip)
+- Keyboard: ← (left wins), → (right wins), T (tie), S (skip). The on-screen buttons are still labelled **A** / **B** (the values submitted), but the keys are ArrowLeft/ArrowRight.
 - Progress bar shows comparisons toward 50 minimum
 
 ### Comparison Sources
@@ -360,10 +360,11 @@ python facet.py --recompute-average      # apply + persist percentile snapshot
 
 ### In-UI Weight Tuning
 
-1. Open Weight Preview panel during comparison
-2. Adjust sliders to see real-time score changes
-3. Click "Suggest Weights" for optimized values
-4. Manually update config
+During comparison, the Weight Preview panel lets you adjust sliders for
+real-time score changes and click "Suggest Weights" for optimized values.
+This is the same in-viewer slider workflow described in
+[Option A: Via Viewer](#option-a-via-viewer-recommended) above — see there
+for the full save/recompute flow.
 
 ## Adding Custom Categories
 

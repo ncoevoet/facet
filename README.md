@@ -63,7 +63,9 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 <td><img src="docs/screenshots/semantic-search.jpg" alt="Semantic search results" width="100%"></td>
 </tr></table>
 
+<details><summary>Full filter sidebar — every section expanded (click to view)</summary>
 <p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Filter sidebar with every option expanded" width="380"></p>
+</details>
 
 **Workflow tips:**
 - For chronological review across a trip or year, open **`/timeline`** — sort by aggregate to walk a day's best shots, or page month-by-month.
@@ -95,7 +97,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **Learning from labels** — culling decisions, star ratings, favorites, and rejections feed the weight optimizer (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — save, restore, and compare weight configurations
 - **Histogram** — luminance histogram in the photo tooltip and detail view
-- **AI captions** `[GPU]` `[16gb/24gb]` `[Edition]` — text descriptions, editable and translatable to 5 languages
+- **AI captions** `[GPU]` `[16gb/24gb]` — text descriptions, editable `[Edition]` and translatable to 5 languages (generation and viewing are open)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Equipment statistics" width="100%"></td>
@@ -141,34 +143,11 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 <td width="33%"><img src="docs/screenshots/gallery-mosaic.jpg" alt="Desktop mosaic" width="100%"></td>
 </tr></table>
 
-## Feature availability & requirements
+## What you need
 
-Most of Facet runs anywhere (CPU, any profile). Some features need a GPU, a higher **VRAM profile**, an optional package, or the viewer's **edition password** / **superadmin** role. Tags used throughout the docs:
-`[GPU]` · `[16gb/24gb]` (VRAM profile) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
+Most of Facet runs on **any machine (CPU)** — scoring, face detection, culling, the gallery, search, albums and metadata export all work without a GPU. A **GPU** (with the `16gb` or `24gb` profile) unlocks the strongest models: TOPIQ aesthetic scoring, SigLIP 2 embeddings, VLM tagging, AI captions and critique, and subject saliency. In the viewer, editing actions (ratings, faces, culling) need the **edition password**, and triggering scans needs the **superadmin** role.
 
-| Feature | GPU | Profile | Auth | Optional package |
-|---------|:---:|---------|:----:|------------------|
-| Scoring / scan (baseline) | optional | any (`legacy` = CPU) | — | — |
-| TOPIQ aesthetic | yes | `16gb`/`24gb` | — | — |
-| Supplementary IQA (TOPIQ IAA, NR-Face, LIQE) | yes | `8gb`/`16gb`/`24gb` | — | — |
-| SigLIP 2 embeddings | yes | `16gb`/`24gb` | — | — |
-| VLM tagging (Qwen3.5) | yes | `16gb`/`24gb` | — | — |
-| Composition pattern (SAMP-Net) | optional | any (`legacy` = CPU) | — | — |
-| Composition (Qwen2-VL) | yes | `24gb` | — | — |
-| Subject saliency (BiRefNet) | yes | `16gb`/`24gb` | — | — |
-| AI captions | yes | `16gb`/`24gb` | edition | — |
-| VLM critique | yes | `16gb`/`24gb` | — | — |
-| Face detection / extraction (InsightFace) | recommended (CPU works, slow) | any | — | — |
-| Face clustering (HDBSCAN) | no (CPU) | any | — | `cuml`/`cupy` (optional GPU accel) |
-| Semantic search | no | any | — | `sqlite-vec` (falls back to NumPy) |
-| RAW / HEIF decode | no | any | — | `rawpy` / `pillow-heif` |
-| Watch mode (`--watch`) | no | any | — | `watchdog` |
-| GPS extract / darktable export | no | any | — | `exiftool` / `darktable-cli` |
-| Ratings, favorites, face & person edits, culling | no | any | edition | — |
-| Trigger scans from the web UI | no | any | superadmin | — |
-| Multi-user (per-user ratings & roles) | no | any | role-based | — |
-
-> Face *clustering* runs on CPU by default (standalone `hdbscan`); `cuml`/`cupy` only add optional GPU acceleration — they are **not** required. The edition password and user roles are configured in `scoring_config.json`. See [Installation](docs/INSTALLATION.md) for optional packages and [Configuration](docs/CONFIGURATION.md) for auth.
+→ Full per-feature requirements (GPU, VRAM profile, optional packages, auth): **[Installation › Feature requirements](docs/INSTALLATION.md#feature-requirements)**.
 
 ## Is Facet for you?
 
@@ -191,7 +170,7 @@ Facet scores, ranks, and culls a local photo library and serves a gallery to bro
 
 - Self-hosted libraries (Immich, PhotoPrism) focus on organizing, search, and backup. Facet adds quality scoring, ranking, and a culling workflow they don't, but it has no mobile app or built-in backup/sync.
 - AI culling apps (Aftershoot, Narrative, FilterPixel) are polished commercial cullers, often with editing built in. Facet is free, local, broader (gallery, search, faces), and its scoring is tunable — but it is a single-developer project without their support or RAW editing.
-- Editors and catalogs (Lightroom, darktable, digiKam) develop and manage photos. Facet complements them through two-way XMP metadata sync (embedded + sidecar) rather than replacing them.
+- Editors and catalogs (Lightroom, darktable, digiKam) develop and manage photos. Facet complements them through the XMP metadata interop above rather than replacing them.
 
 The aesthetic score is model-based and approximate; expect to tune the weights to match your taste.
 

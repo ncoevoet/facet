@@ -40,6 +40,7 @@ python viewer.py
 | [Scoring](SCORING.md) | Categories, weights, tuning guide |
 | [Face Recognition](FACE_RECOGNITION.md) | Face workflow, clustering, person management |
 | [Viewer](VIEWER.md) | Web gallery features and usage |
+| [Deployment](DEPLOYMENT.md) | Production deployment (Synology NAS, Linux, Docker) |
 
 ## VRAM Profiles
 

@@ -121,7 +121,9 @@ python database.py --migrate-user-preferences --user alice
 
 ## Filtering Options
 
+<details><summary>Full filter sidebar — every section expanded (click to view)</summary>
 <p align="center"><img src="screenshots/filter-sidebar-full.jpg" alt="Filter sidebar with every section expanded" width="360"></p>
+</details>
 
 ### Primary Filters
 
@@ -257,7 +259,7 @@ Access via header button or `/persons`:
 
 ## Scan Trigger (Superadmin)
 
-When `viewer.features.show_scan_button` is `true` and the user has `superadmin` role, a Scan button appears in the gallery header.
+When `viewer.features.show_scan_button` is `true` and the user has `superadmin` role, a Scan button appears in the gallery header. Unlike the other `show_*` feature flags, `show_scan_button` is **not** present in the shipped `scoring_config.json`, so it defaults to **off** — you must add it explicitly to enable the button.
 
 - Select directories to scan from the modal
 - Scan runs as a background subprocess (`facet.py`)
@@ -293,18 +295,7 @@ Create albums and add photos from the gallery using multi-select. Albums support
 
 Save a combination of filters (camera, tag, person, date range, score thresholds, etc.) as a smart album. Smart albums dynamically update as new photos match the saved filter criteria. The filter combination is stored as JSON in `smart_filter_json`.
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/albums` | List all albums |
-| `POST /api/albums` | Create album |
-| `GET /api/albums/{id}` | Get album details |
-| `PUT /api/albums/{id}` | Update album (name, description, cover) |
-| `DELETE /api/albums/{id}` | Delete album |
-| `GET /api/albums/{id}/photos` | List photos in album (supports `page`, `per_page`, `sort`, `sort_direction`) |
-| `POST /api/albums/{id}/photos` | Add photos to album |
-| `DELETE /api/albums/{id}/photos` | Remove photos from album |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 Controlled by `viewer.features.show_albums` (default: `true`).
 
@@ -318,13 +309,7 @@ Share albums with external users via tokenized links. No authentication required
 | **Revoke** | Click "Unshare" to invalidate the share token |
 | **View** | Recipients open the link to browse the shared album at `/shared/album/:id` |
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/albums/{id}/share` | Generate share token for album |
-| `DELETE /api/albums/{id}/share` | Revoke share token |
-| `GET /api/shared/album/{id}?token=` | View shared album (no auth required) |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 ## AI Critique
 
@@ -338,12 +323,7 @@ Available on all VRAM profiles. Analyzes stored metrics (aesthetic, composition,
 
 Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique. Requires 16gb or 24gb VRAM profile and `viewer.features.show_vlm_critique: true`.
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/critique?path=<photo_path>&mode=rule` | Rule-based score breakdown |
-| `GET /api/critique?path=<photo_path>&mode=vlm` | VLM-powered critique (requires GPU) |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 Controlled by `viewer.features.show_critique` (default: `true`) and `viewer.features.show_vlm_critique` (default: `true`).
 
@@ -351,12 +331,7 @@ Controlled by `viewer.features.show_critique` (default: `true`) and `viewer.feat
 
 Get an AI-generated natural language caption for any photo. Captions are generated on first request and cached in the `caption` database column. Captions can be edited manually in edition mode via the photo detail page. (Caption *translation* runs on CPU — see below.)
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/caption?path=<photo_path>` | Get or generate caption for a photo |
-| `PUT /api/caption` | Update caption text (edition mode required) |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 Also available via CLI for bulk generation and translation:
 
@@ -373,11 +348,7 @@ Controlled by `viewer.features.show_captions` (default: `true`). Requires 16gb o
 
 Browse photos taken on the same calendar date in previous years. A memories dialog shows a year-by-year retrospective of matching photos.
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/memories?date=YYYY-MM-DD` | Get photos taken on this date in previous years |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 Controlled by `viewer.features.show_memories` (default: `true`).
 
@@ -391,12 +362,7 @@ Controlled by `viewer.features.show_memories` (default: `true`).
 
 Chronological photo browser with date-based navigation. Scroll through photos organized by date with a sidebar showing available years and months.
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/timeline?cursor=&limit=&direction=` | Paginated timeline photos with cursor-based navigation |
-| `GET /api/timeline/dates?year=&month=` | Available dates for year/month navigation |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 Access via the `/timeline` route. Controlled by `viewer.features.show_timeline` (default: `true`).
 
@@ -414,12 +380,7 @@ python facet.py --extract-gps    # Extract GPS lat/lng from EXIF into database
 
 GPS coordinates are also extracted automatically during scoring for new photos.
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/photos/map?bounds=&zoom=&limit=` | Photos within map bounds (clustered by zoom) |
-| `GET /api/photos/map/count` | Total count of geotagged photos |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 Access via the `/map` route. Controlled by `viewer.features.show_map` (default: `true`).
 
@@ -460,13 +421,7 @@ Location and journey capsules show place names (e.g., "Paris, France") instead o
 
 Install: `pip install reverse_geocoder`
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/capsules` | Paginated capsule list (cached) |
-| `GET /api/capsules/{id}/photos` | Photos for a specific capsule |
-| `POST /api/capsules/{id}/save-album` | Save capsule as album (edition mode) |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 ### Configuration
 
@@ -507,14 +462,9 @@ Write your ratings, favorites, and rejections to disk as XMP sidecars, so extern
 
 - **From the gallery** — select photos, then **Actions → Export** writes a sidecar next to each file.
 - **From an album** ("basket") — export the whole album as sidecars, or copy/symlink the files to a target directory.
+- **Write metadata to file** — the photo detail "Write metadata to file" action embeds the rating/keywords directly into the original file (JPEG/HEIC/TIFF/PNG/DNG via exiftool) in addition to writing the sidecar, so the whole photo ecosystem sees them. Proprietary RAW originals are never modified. Controlled by `viewer.features.show_embed_metadata` (default: `true`).
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/photo/export_xmp` | Write one XMP sidecar (`path`, optional `overwrite`) |
-| `POST /api/export/sidecars` | Write sidecars for explicit `paths` or a filter set |
-| `POST /api/albums/{id}/export` | Album export — `mode` = `sidecars`, `copy`, or `symlink` (the latter two need `target_dir`) |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 ## Culling
 
@@ -529,15 +479,7 @@ For each group, pick the keeper(s); confirming rejects the rest. Confirms are de
 
 In the burst/similar culling lightbox, each detected face carries its own badges — eyes open/closed, poor expression, and detection confidence — instead of a single photo-level blink flag. This makes group shots easier to cull: you can see at a glance which face has closed eyes or a weak expression. The badges are fetched for a whole group in one batch call (`POST /api/culling-group/faces`).
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/burst-groups` | Burst groups for culling |
-| `GET /api/similar-groups?threshold=&page=&per_page=` | Paginated groups of visually similar photos |
-| `GET /api/culling-groups` | Combined burst and similar groups |
-| `POST /api/culling-groups/confirm` | Confirm culling selections |
-| `POST /api/culling-group/faces` | Per-face badges (eyes, expression, confidence) for a group, in one batch |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 ## Scenes View
 
@@ -547,12 +489,7 @@ Group burst-lead photos into chronological "scenes" so you can cull a whole shoo
 - Tap photos to mark them for culling; confirming rejects them and feeds the personal ranker
 - Scenes smaller than `scenes.min_size` are omitted; at most `scenes.max_photos` photos are loaded
 
-### API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/scenes` | Chronological scenes of burst-lead photos |
-| `POST /api/scenes/confirm` | Confirm scene culling selections (rejects marked photos) |
+API: see the [API Endpoints](#api-endpoints) section below.
 
 Controlled by `viewer.features.show_scenes` (default: `true`). See [Configuration — Scenes](CONFIGURATION.md#scenes) for `gap_hours`, `min_size`, and `max_photos`.
 
@@ -943,6 +880,14 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Geotagged photos within bounds |
 | `GET /api/photos/map/count` | Count of geotagged photos |
 
+### Capsules
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/capsules` | Paginated capsule list (cached) |
+| `GET /api/capsules/{id}/photos` | Photos for a specific capsule |
+| `POST /api/capsules/{id}/save-album` | Save capsule as album (edition mode) |
+
 ### Statistics
 
 | Endpoint | Description |
@@ -1066,9 +1011,10 @@ The `/api/download/options` endpoint detects companion RAW files automatically a
 
 | Endpoint | Description |
 |----------|-------------|
-| `POST /api/photo/export_xmp` | Write one XMP sidecar (edition mode) |
-| `POST /api/export/sidecars` | Write sidecars for explicit paths or a filter set (edition mode) |
-| `POST /api/albums/{id}/export` | Album export as sidecars, copy, or symlink (edition mode) |
+| `POST /api/photo/export_xmp` | `[Edition]` Write one XMP sidecar |
+| `POST /api/export/sidecars` | `[Edition]` Write sidecars for explicit paths or a filter set |
+| `POST /api/photo/embed_metadata` | `[Edition]` Embed metadata into the original file (JPEG/HEIC/TIFF/PNG/DNG; RAW never modified) and write the sidecar |
+| `POST /api/albums/{id}/export` | `[Edition]` Album export as sidecars, copy, or symlink |
 
 ### Plugins
 

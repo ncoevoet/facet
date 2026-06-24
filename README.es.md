@@ -63,7 +63,9 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 <td><img src="docs/screenshots/semantic-search.jpg" alt="Resultados de búsqueda semántica" width="100%"></td>
 </tr></table>
 
+<details><summary>Barra lateral de filtros — todas las secciones desplegadas (haz clic para ver)</summary>
 <p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Barra lateral de filtros con todas las opciones desplegadas" width="380"></p>
+</details>
 
 **Consejos de flujo de trabajo:**
 - Para una revisión cronológica de un viaje o un año, abre **`/timeline`** — ordena por puntuación global para recorrer las mejores tomas de un día, o avanza mes a mes.

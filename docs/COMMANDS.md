@@ -77,13 +77,13 @@ lines (phase, current/total, ETA) which the viewer's scan API surfaces in the
 | `python facet.py --export-sidecars --user alice` | Multi-user mode: export Alice's `user_preferences` ratings instead of the global columns (keywords stay global) |
 | `python facet.py --export-sidecars --embed-originals` | Also embed metadata **in-file** for JPEG/HEIC/TIFF/PNG/DNG (rewrites the originals) |
 
-> **Two-way metadata sync.** Facet writes ratings, color labels, keywords, captions and named-face regions to a standard `<image>.xmp` sidecar that the whole ecosystem reads (Lightroom, darktable, digiKam, immich, …). **By default the original image is never modified** — only the sidecar is written/merged. To embed the metadata *in-file* for JPEG/HEIC/TIFF/PNG/DNG (so editors that ignore sidecars also see it), opt in explicitly: the viewer's per-thumbnail **"Write metadata to file"** action, or the CLI `--export-sidecars --embed-originals`. RAW originals are never modified. Embedding and safe sidecar merging require **exiftool** (existing/foreign keywords are read and merged into the union, never wiped); without it, Facet falls back to a dependency-free pure-XML sidecar. `--import-sidecars` is the reverse direction: it folds external edits back into Facet — ratings/labels apply *newest-wins* (by `xmp:MetadataDate`, else sidecar mtime, vs the photo's `scanned_at`), and keywords are merged (union), so Facet's auto-tags are never lost.
+> **Two-way metadata sync.** Facet writes ratings, color labels, keywords, captions and named-face regions to a standard `<image>.xmp` sidecar that the ecosystem reads (Lightroom, darktable, digiKam, immich, …); the original image is never modified unless you opt in with `--export-sidecars --embed-originals` (JPEG/HEIC/TIFF/PNG/DNG only — RAW is never touched). Embedding and safe keyword-union merging require **exiftool**; without it Facet falls back to a dependency-free pure-XML sidecar.
 >
-> **Caveats.** The photo-side timestamp for *newest-wins* is `scanned_at` (the last scan), not a per-rating edit time — so a sidecar newer than the last scan can override a rating you changed in Facet *after* that scan. Run `--import-sidecars` before re-rating in Facet if the external editor is the source of truth. By default the CLI `--import-sidecars` / `--export-sidecars` operate on the **global single-user** rating columns. In multi-user mode, pass `--user <name>` to read/write that user's `user_preferences` ratings instead (keywords remain global either way). If you use the `photo_tags` lookup table, run `python database.py --migrate-tags` after importing.
+> **Caveat.** `--import-sidecars` resolves ratings/labels *newest-wins* against the photo's `scanned_at` (last scan), not a per-rating edit time — so a sidecar newer than the last scan can override a rating you changed in Facet after it. Run `--import-sidecars` before re-rating if the external editor is the source of truth, and `python database.py --migrate-tags` after importing if you use the `photo_tags` lookup table.
 
 ## Recompute Operations
 
-These commands update specific metrics without full photo reprocessing.
+These commands update specific metrics, derive new data (AI captions, GPS, embeddings), or analyze the database — all without re-running the full scoring pipeline. Most reuse stored thumbnails/landmarks and are CPU-light, but the AI/extraction rows (e.g. `--generate-captions`) and recompute-from-image rows are GPU-heavy.
 
 | Command | Description |
 |---------|-------------|
@@ -221,6 +221,10 @@ Reports Python version, PyTorch/CUDA build, GPU detection and driver, VRAM profi
 | `python facet.py --eval-iqa-srcc` | Report Spearman SRCC of each IQA/aesthetic metric vs your star ratings (read-only) |
 | `python facet.py --mine-insights` | Data-mining report: label inventory, metric-label correlations, category distribution, percentile drift, comparison health |
 | `python facet.py --mine-insights report.json` | Same, also writes the full report as JSON |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt` | Calibrate per-category scoring weights against the [AVA dataset](https://github.com/imfing/ava_downloader) by maximising SRCC vs AVA mean opinion scores (read-only; prints proposed weights) |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt --categories landscape,portrait --apply` | Restrict to specific categories and write the optimized weights back to `scoring_config.json` |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt --method nelder-mead` | Choose the optimizer (`de` = differential evolution, default; `nelder-mead` = local simplex) |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt --ava-tags` | Also calibrate against AVA semantic tags (`--ava-tags-only` to use tags exclusively; `--apply-filters` to also tune category filter thresholds) |
 
 ## Configuration
 
