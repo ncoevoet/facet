@@ -1410,6 +1410,12 @@
   "scan": {
     "title": "Escanear fotos",
     "start_button": "Iniciar escaneo",
+    "close": "Cerrar",
+    "get_started": "Escanea fotos para empezar",
+    "loading_directories": "Cargando directorios…",
+    "no_directories": "No hay directorios de escaneo configurados.",
+    "pick_directory": "Elige un directorio para escanear:",
+    "eta": "Restante",
     "starting": "Iniciando...",
     "running": "En ejecución",
     "completed": "Completado",

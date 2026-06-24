@@ -1408,6 +1408,12 @@
   "scan": {
     "title": "Scan Photos",
     "start_button": "Start Scan",
+    "close": "Close",
+    "get_started": "Scan photos to get started",
+    "loading_directories": "Loading directories…",
+    "no_directories": "No scan directories configured.",
+    "pick_directory": "Pick a directory to scan:",
+    "eta": "ETA",
     "starting": "Starting...",
     "running": "Running",
     "completed": "Completed",

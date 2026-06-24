@@ -259,12 +259,12 @@ Access via header button or `/persons`:
 
 ## Scan Trigger (Superadmin)
 
-When `viewer.features.show_scan_button` is `true` and the user has `superadmin` role, a Scan button appears in the gallery header. Unlike the other `show_*` feature flags, `show_scan_button` is **not** present in the shipped `scoring_config.json`, so it defaults to **off** — you must add it explicitly to enable the button.
+When `viewer.features.show_scan_button` is `true` and the user has `superadmin` role, a **Scan photos to get started** button appears on the empty-gallery state. It ships set to **`false`** in `scoring_config.json` (superadmin opt-in). The button opens the scan launcher dialog (`ScanLauncherComponent`).
 
-- Select directories to scan from the modal
-- Scan runs as a background subprocess (`facet.py`)
-- Only one scan at a time (global lock)
-- Progress displayed in a terminal-style output area
+- Pick a directory from the launcher's list and start the scan in-app
+- The launcher streams live progress (SSE with automatic polling fallback) into a `mat-progress-bar` driven by the structured `progress` field, plus a tail of output lines, and refreshes the gallery when the scan finishes
+- Scan runs as a background subprocess (`facet.py`); only one scan at a time (global lock)
+- Directory choices come from `get_all_scan_directories()`, which unions each user's `directories`, shared directories, `path_mapping` targets, and the standalone `viewer.scan_directories` list — seed the latter (e.g. `/data/photos`) so single-user / Docker installs have a pickable target
 
 This is useful when the viewer runs on the same machine that has GPU access for scoring.
 

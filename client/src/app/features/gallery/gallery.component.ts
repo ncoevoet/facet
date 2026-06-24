@@ -263,6 +263,11 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
               <button mat-stroked-button (click)="store.resetFilters()">
                 {{ 'gallery.reset_filters' | translate }}
               </button>
+            } @else if (auth.isSuperadmin() && auth.hasFeature('show_scan_button')) {
+              <button mat-flat-button color="primary" (click)="openScanLauncher()">
+                <mat-icon>add_photo_alternate</mat-icon>
+                {{ 'scan.get_started' | translate }}
+              </button>
             }
           </div>
         }
@@ -804,6 +809,16 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (!album) return;
     this.albumOptions.update(list => [album, ...list]);
     await this.addToAlbum(album.id);
+  }
+
+  async openScanLauncher(): Promise<void> {
+    const { ScanLauncherComponent } = await import('../scan/scan-launcher.component');
+    const ref = this.dialog.open(ScanLauncherComponent, { width: '36rem' });
+    const completed = await firstValueFrom(ref.afterClosed());
+    if (completed) {
+      await this.store.loadTypeCounts();
+      await this.store.loadPhotos();
+    }
   }
 
   openExportDialog(): void {

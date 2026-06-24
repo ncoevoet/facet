@@ -1410,6 +1410,12 @@
   "scan": {
     "title": "Scansiona foto",
     "start_button": "Avvia scansione",
+    "close": "Chiudi",
+    "get_started": "Scansiona le foto per iniziare",
+    "loading_directories": "Caricamento delle cartelle…",
+    "no_directories": "Nessuna cartella di scansione configurata.",
+    "pick_directory": "Scegli una cartella da scansionare:",
+    "eta": "Stima",
     "starting": "Avvio...",
     "running": "In esecuzione",
     "completed": "Completata",

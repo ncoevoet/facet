@@ -2466,7 +2466,8 @@
       "show_capsules": true,
       "show_folders": true,
       "show_my_taste": true,
-      "show_scenes": true
+      "show_scenes": true,
+      "show_scan_button": false
     },
     "allowed_origins": [
       "http://localhost:4200",
@@ -2474,7 +2475,8 @@
     ],
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
-    "path_mapping": {}
+    "path_mapping": {},
+    "scan_directories": []
   },
   "iqa_extended": {
     "qalign": false,

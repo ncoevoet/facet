@@ -1410,6 +1410,12 @@
   "scan": {
     "title": "Scanner les photos",
     "start_button": "Lancer le scan",
+    "close": "Fermer",
+    "get_started": "Lancer un scan pour commencer",
+    "loading_directories": "Chargement des dossiers…",
+    "no_directories": "Aucun dossier de scan configuré.",
+    "pick_directory": "Choisissez un dossier à scanner :",
+    "eta": "Estimation",
     "starting": "Demarrage...",
     "running": "En cours",
     "completed": "Termine",

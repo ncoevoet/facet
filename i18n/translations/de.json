@@ -1414,6 +1414,12 @@
   "scan": {
     "title": "Fotos scannen",
     "start_button": "Scan starten",
+    "close": "Schließen",
+    "get_started": "Fotos scannen, um zu starten",
+    "loading_directories": "Verzeichnisse werden geladen…",
+    "no_directories": "Keine Scan-Verzeichnisse konfiguriert.",
+    "pick_directory": "Wählen Sie ein Verzeichnis zum Scannen:",
+    "eta": "Restzeit",
     "starting": "Wird gestartet...",
     "running": "Läuft",
     "completed": "Abgeschlossen",

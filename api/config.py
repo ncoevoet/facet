@@ -197,6 +197,9 @@ def get_all_scan_directories():
     # Include path_mapping target directories so mapped paths pass the allowlist
     for target in VIEWER_CONFIG.get('path_mapping', {}).values():
         dirs.add(target)
+    # Include standalone scan directories (single-user / Docker installs that
+    # have no per-user directories configured still get a pickable target)
+    dirs.update(VIEWER_CONFIG.get('scan_directories', []))
     return sorted(dirs)
 
 
