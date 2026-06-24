@@ -1992,6 +1992,9 @@
     "section_detail": "Fotoansicht",
     "section_comparison": "Vergleich",
     "section_global": "Global",
+    "rate": "Bewerten (1–5 Sterne)",
+    "reject": "Ablehnen",
+    "favorite": "Favorit umschalten",
     "comp_left_wins": "Linkes Foto gewinnt",
     "comp_right_wins": "Rechtes Foto gewinnt"
   },

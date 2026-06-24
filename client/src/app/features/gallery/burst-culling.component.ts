@@ -13,6 +13,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, FaceThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { I18nService } from '../../core/services/i18n.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
+import { isTypingContext } from '../../shared/utils/keyboard';
 import { firstValueFrom } from 'rxjs';
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
@@ -821,12 +822,6 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   /** True when the event originates from a text/slider control we must not hijack. */
-  private isTypingContext(event: Event): boolean {
-    const target = event.target as HTMLElement | null;
-    if (!target) return false;
-    return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable;
-  }
-
   @HostListener('document:keydown.arrowup', ['$event'])
   protected onArrowUp(event: Event): void {
     const group = this.lightboxGroup();
@@ -835,7 +830,7 @@ export class BurstCullingComponent implements OnDestroy {
       this.setCurrentLightboxPhotoKept(group, true);
       return;
     }
-    if (this.isTypingContext(event)) return;
+    if (isTypingContext(event)) return;
     event.preventDefault();
     this.selectedGroupIndex.update(i => this.clampIndex(i - 1, this.visibleGroups().length));
   }
@@ -848,7 +843,7 @@ export class BurstCullingComponent implements OnDestroy {
       this.setCurrentLightboxPhotoKept(group, false);
       return;
     }
-    if (this.isTypingContext(event)) return;
+    if (isTypingContext(event)) return;
     event.preventDefault();
     this.selectedGroupIndex.update(i => this.clampIndex(i + 1, this.visibleGroups().length));
   }
@@ -856,7 +851,7 @@ export class BurstCullingComponent implements OnDestroy {
   @HostListener('document:keydown.enter', ['$event'])
   protected onEnter(event: Event): void {
     if (this.lightboxGroup()) return;
-    if (this.isTypingContext(event)) return;
+    if (isTypingContext(event)) return;
     const group = this.visibleGroups()[this.selectedGroupIndex()];
     if (!group) return;
     event.preventDefault();
@@ -891,7 +886,7 @@ export class BurstCullingComponent implements OnDestroy {
       return;
     }
     // List: confirm the selected group and move the selection to the next one.
-    if (this.isTypingContext(event)) return;
+    if (isTypingContext(event)) return;
     const selected = this.visibleGroups()[this.selectedGroupIndex()];
     if (!selected) return;
     event.preventDefault();

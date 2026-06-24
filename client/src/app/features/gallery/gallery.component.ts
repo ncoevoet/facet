@@ -26,6 +26,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { GalleryStore, PhotoFlagSnapshot } from './gallery.store';
 import { Photo } from '../../shared/models/photo.model';
+import { isTypingContext } from '../../shared/utils/keyboard';
 import { UndoService } from '../../core/services/undo.service';
 import { AuthService } from '../../core/services/auth.service';
 import { useDesktopSignal } from '../../shared/utils/media-query';
@@ -979,6 +980,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   protected onGridKeydown(event: KeyboardEvent): void {
+    if (isTypingContext(event)) return;
     const photos = this.store.photos();
     if (!photos.length) return;
     const index = Math.max(0, this.activeIndex());
@@ -997,12 +999,44 @@ export class GalleryComponent implements OnInit, OnDestroy {
           this.clearSelection();
         }
         return;
-      default: return;
+      default:
+        this.handleRatingKey(event, photos, index);
+        return;
     }
 
     event.preventDefault();
     this.activeIndex.set(next);
     this.focusCard(next);
+  }
+
+  /** Rate-and-advance shortcuts on the focused card: 1-5 set stars, 0/X reject
+   * (both auto-advance), F toggles favorite (stays put — a tag-like toggle).
+   * Edition-only and gated on the rating-controls feature flag, mirroring the
+   * card's own template guards. */
+  private handleRatingKey(event: KeyboardEvent, photos: Photo[], index: number): void {
+    if (!this.auth.isEdition() || !this.store.config()?.features?.show_rating_controls) return;
+    const photo = photos[index];
+    if (!photo) return;
+
+    let advance = false;
+    if (event.key >= '1' && event.key <= '5') {
+      this.store.setRating(photo.path, Number(event.key));
+      advance = true;
+    } else if (event.key === '0' || event.key === 'x' || event.key === 'X') {
+      this.store.toggleRejected(photo.path);
+      advance = true;
+    } else if (event.key === 'f' || event.key === 'F') {
+      this.store.toggleFavorite(photo.path);
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    if (advance) {
+      const next = Math.min(photos.length - 1, index + 1);
+      this.activeIndex.set(next);
+      this.focusCard(next);
+    }
   }
 
   /** Focus a card by photo index; if windowed out of the DOM, scroll its row

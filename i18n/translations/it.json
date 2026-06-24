@@ -1988,6 +1988,9 @@
     "section_detail": "Vista foto",
     "section_comparison": "Confronto",
     "section_global": "Globale",
+    "rate": "Valuta (1–5 stelle)",
+    "reject": "Rifiuta",
+    "favorite": "Attiva/disattiva preferito",
     "comp_left_wins": "Vince la foto a sinistra",
     "comp_right_wins": "Vince la foto a destra"
   },

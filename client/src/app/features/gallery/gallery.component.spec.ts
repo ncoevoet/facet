@@ -45,6 +45,7 @@ describe('GalleryComponent', () => {
       initializing: signal(false),
       galleryMode: signal('mosaic'),
       cardWidth: signal(300),
+      virtualScroll: signal(false),
       setFilterDrawerOpen: vi.fn(),
       loadConfig: vi.fn(() => Promise.resolve()),
       loadFilterOptions: vi.fn(() => Promise.resolve()),
@@ -132,6 +133,64 @@ describe('GalleryComponent', () => {
       expect(pipe.transform(7, config)).toBe('bg-yellow-600 text-white');
       expect(pipe.transform(5, config)).toBe('bg-orange-600 text-white');
       expect(pipe.transform(4, config)).toBe('bg-red-600 text-white');
+    });
+  });
+
+  describe('keyboard rate-and-advance (onGridKeydown)', () => {
+    function keyEvent(key: string, target: Partial<HTMLElement> | null = null): KeyboardEvent {
+      const ev = new KeyboardEvent('keydown', { key });
+      Object.defineProperty(ev, 'target', { value: target, configurable: true });
+      return ev;
+    }
+
+    beforeEach(() => {
+      mockStore.photos.set([{ path: '/a.jpg' }, { path: '/b.jpg' }, { path: '/c.jpg' }]);
+      mockStore.config.set({ features: { show_rating_controls: true } });
+      (mockAuth as { isEdition: unknown }).isEdition = vi.fn(() => true);
+      (component as unknown as { activeIndex: { set(v: number): void } }).activeIndex.set(0);
+    });
+
+    function fire(ev: KeyboardEvent) {
+      (component as unknown as { onGridKeydown(e: KeyboardEvent): void }).onGridKeydown(ev);
+    }
+
+    function activeIndex(): number {
+      return (component as unknown as { activeIndex(): number }).activeIndex();
+    }
+
+    it('sets the star rating and advances on digit keys', () => {
+      fire(keyEvent('3'));
+      expect(mockStore.setRating).toHaveBeenCalledWith('/a.jpg', 3);
+      expect(activeIndex()).toBe(1);
+    });
+
+    it('rejects and advances on X', () => {
+      fire(keyEvent('x'));
+      expect(mockStore.toggleRejected).toHaveBeenCalledWith('/a.jpg');
+      expect(activeIndex()).toBe(1);
+    });
+
+    it('toggles favorite WITHOUT advancing on F', () => {
+      fire(keyEvent('f'));
+      expect(mockStore.toggleFavorite).toHaveBeenCalledWith('/a.jpg');
+      expect(activeIndex()).toBe(0);
+    });
+
+    it('ignores rating keys while typing in an input', () => {
+      fire(keyEvent('1', { tagName: 'INPUT' } as HTMLElement));
+      expect(mockStore.setRating).not.toHaveBeenCalled();
+    });
+
+    it('ignores rating keys for non-edition users', () => {
+      (mockAuth as { isEdition: unknown }).isEdition = vi.fn(() => false);
+      fire(keyEvent('1'));
+      expect(mockStore.setRating).not.toHaveBeenCalled();
+    });
+
+    it('ignores rating keys when the feature flag is off', () => {
+      mockStore.config.set({ features: { show_rating_controls: false } });
+      fire(keyEvent('1'));
+      expect(mockStore.setRating).not.toHaveBeenCalled();
     });
   });
 

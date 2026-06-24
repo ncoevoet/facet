@@ -1986,6 +1986,9 @@
     "section_detail": "Photo view",
     "section_comparison": "Comparison",
     "section_global": "Global",
+    "rate": "Rate (1–5 stars)",
+    "reject": "Reject",
+    "favorite": "Toggle favorite",
     "comp_left_wins": "Left photo wins",
     "comp_right_wins": "Right photo wins"
   },

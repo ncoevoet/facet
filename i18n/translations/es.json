@@ -1988,6 +1988,9 @@
     "section_detail": "Vista de foto",
     "section_comparison": "Comparación",
     "section_global": "Global",
+    "rate": "Puntuar (1–5 estrellas)",
+    "reject": "Rechazar",
+    "favorite": "Alternar favorito",
     "comp_left_wins": "Gana la foto izquierda",
     "comp_right_wins": "Gana la foto derecha"
   },
