@@ -355,6 +355,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
           <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ 'gallery.selection.copy_filenames' | translate }}</button>
           @if (auth.isEdition()) {
             <button mat-button class="!hidden lg:!inline-flex" (click)="openExportDialog()"><mat-icon>drive_file_move</mat-icon> {{ 'export.action' | translate }}</button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="openCullDialog()"><mat-icon>folder_move</mat-icon> {{ 'cull.action' | translate }}</button>
           }
           @if (auth.downloadProfiles().length) {
             <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
@@ -829,6 +830,18 @@ export class GalleryComponent implements OnInit, OnDestroy {
         ? { albumId: +albumId }
         : { paths: [...this.selectedPaths()] },
     });
+  }
+
+  async openCullDialog(): Promise<void> {
+    const paths = [...this.selectedPaths()];
+    if (!paths.length) return;
+    const { CullDialogComponent } = await import('./cull-dialog.component');
+    const ref = this.dialog.open(CullDialogComponent, { width: '32rem', data: { paths } });
+    const applied = await firstValueFrom(ref.afterClosed());
+    if (applied) {
+      this.clearSelection();
+      await this.store.loadPhotos();
+    }
   }
 
   openCritique(photo: Photo): void {

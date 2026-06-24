@@ -1985,6 +1985,23 @@
     "restored": "Aktion rückgängig gemacht",
     "restore_failed": "Rückgängig machen fehlgeschlagen"
   },
+  "cull": {
+    "action": "In Ordner aussortieren…",
+    "title": "In Ordner aussortieren",
+    "selected": "ausgewählt",
+    "copy_keeps": "Behaltene in Ordner kopieren",
+    "move_rejects": "Abgelehnte in Ordner verschieben",
+    "trash_rejects": "Abgelehnte in den Papierkorb",
+    "target_dir": "Zielordner",
+    "include_companions": "Zugehörige RAW / XMP einbeziehen",
+    "would_affect": "Dateien wären betroffen",
+    "skipped": "übersprungen (nicht auf Datenträger)",
+    "preview": "Vorschau",
+    "apply": "Anwenden",
+    "cancel": "Abbrechen",
+    "done": "Aussortierung angewendet",
+    "error": "Aussortierung fehlgeschlagen"
+  },
   "shortcuts": {
     "title": "Tastenkürzel",
     "navigate": "Zwischen Fotos wechseln",

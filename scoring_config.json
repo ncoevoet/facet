@@ -2476,7 +2476,10 @@
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
     "path_mapping": {},
-    "scan_directories": []
+    "scan_directories": [],
+    "cull": {
+      "allow_trash": false
+    }
   },
   "iqa_extended": {
     "qalign": false,

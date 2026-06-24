@@ -71,6 +71,10 @@ gpu-clustering = [
     "cuml",
     "cupy",
 ]
+cull = [
+    # OS-trash for the reject-to-trash cull action (viewer.cull.allow_trash).
+    "send2trash>=1.8.0",
+]
 iqa-extended = [
     # Optional extended-IQA tier (scoring_config.json "iqa_extended", OFF by default).
     # aesthetic_v25 needs the predictor package; qalign 4-/8-bit quantisation needs

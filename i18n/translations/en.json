@@ -1979,6 +1979,23 @@
     "restored": "Action undone",
     "restore_failed": "Could not undo"
   },
+  "cull": {
+    "action": "Cull to folder…",
+    "title": "Cull to folder",
+    "selected": "selected",
+    "copy_keeps": "Copy keeps to folder",
+    "move_rejects": "Move rejects to folder",
+    "trash_rejects": "Trash rejects (to OS trash)",
+    "target_dir": "Target folder",
+    "include_companions": "Include companion RAW / XMP",
+    "would_affect": "files would be affected",
+    "skipped": "skipped (not on disk)",
+    "preview": "Preview",
+    "apply": "Apply",
+    "cancel": "Cancel",
+    "done": "Cull applied",
+    "error": "Cull failed"
+  },
   "shortcuts": {
     "title": "Keyboard shortcuts",
     "navigate": "Move between photos",

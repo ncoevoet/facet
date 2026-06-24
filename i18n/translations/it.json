@@ -1981,6 +1981,23 @@
     "restored": "Azione annullata",
     "restore_failed": "Impossibile annullare"
   },
+  "cull": {
+    "action": "Scarta in cartella…",
+    "title": "Scarta in cartella",
+    "selected": "selezionati",
+    "copy_keeps": "Copia i mantenuti in una cartella",
+    "move_rejects": "Sposta gli scartati in una cartella",
+    "trash_rejects": "Cestina gli scartati",
+    "target_dir": "Cartella di destinazione",
+    "include_companions": "Includi RAW / XMP associati",
+    "would_affect": "file sarebbero interessati",
+    "skipped": "ignorati (non su disco)",
+    "preview": "Anteprima",
+    "apply": "Applica",
+    "cancel": "Annulla",
+    "done": "Scarto applicato",
+    "error": "Scarto non riuscito"
+  },
   "shortcuts": {
     "title": "Scorciatoie da tastiera",
     "navigate": "Spostarsi tra le foto",

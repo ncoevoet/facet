@@ -67,6 +67,10 @@ reverse_geocoder>=1.5.1
 # Config schema validation (scoring_config.json structural checks)
 jsonschema>=4.18.0
 
+# Cull-to-folder "trash rejects" action (optional; viewer.cull.allow_trash).
+# Recoverable OS-trash, never a permanent delete. Install via .[cull].
+# send2trash>=1.8.0
+
 # Vector search (sqlite-vec for CLIP/SigLIP embedding KNN queries)
 sqlite-vec>=0.1.6
 

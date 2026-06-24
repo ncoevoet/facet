@@ -1981,6 +1981,23 @@
     "restored": "Action annulée",
     "restore_failed": "Annulation impossible"
   },
+  "cull": {
+    "action": "Trier vers un dossier…",
+    "title": "Trier vers un dossier",
+    "selected": "sélectionné(s)",
+    "copy_keeps": "Copier les gardés vers un dossier",
+    "move_rejects": "Déplacer les rejetés vers un dossier",
+    "trash_rejects": "Mettre les rejetés à la corbeille",
+    "target_dir": "Dossier cible",
+    "include_companions": "Inclure le RAW / XMP associé",
+    "would_affect": "fichiers seraient affectés",
+    "skipped": "ignorés (absents du disque)",
+    "preview": "Aperçu",
+    "apply": "Appliquer",
+    "cancel": "Annuler",
+    "done": "Tri appliqué",
+    "error": "Échec du tri"
+  },
   "shortcuts": {
     "title": "Raccourcis clavier",
     "navigate": "Naviguer entre les photos",

@@ -1981,6 +1981,23 @@
     "restored": "Acción deshecha",
     "restore_failed": "No se pudo deshacer"
   },
+  "cull": {
+    "action": "Descartar a carpeta…",
+    "title": "Descartar a carpeta",
+    "selected": "seleccionados",
+    "copy_keeps": "Copiar los conservados a una carpeta",
+    "move_rejects": "Mover los descartados a una carpeta",
+    "trash_rejects": "Enviar descartados a la papelera",
+    "target_dir": "Carpeta de destino",
+    "include_companions": "Incluir RAW / XMP asociados",
+    "would_affect": "archivos se verían afectados",
+    "skipped": "omitidos (no en disco)",
+    "preview": "Vista previa",
+    "apply": "Aplicar",
+    "cancel": "Cancelar",
+    "done": "Descarte aplicado",
+    "error": "Error al descartar"
+  },
   "shortcuts": {
     "title": "Atajos de teclado",
     "navigate": "Moverse entre fotos",

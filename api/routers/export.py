@@ -33,6 +33,7 @@ from api.db_helpers import (
     get_visibility_clause,
 )
 from api.path_validation import resolve_photo_disk_path
+from api.raw_processing import find_companion_raw
 from processing.xmp_export import (
     FaceRegion,
     XmpRating,
@@ -66,6 +67,15 @@ class AlbumExportRequest(BaseModel):
     mode: Literal["sidecars", "copy", "symlink"] = "sidecars"
     target_dir: Optional[str] = None
     overwrite: bool = False
+
+
+class CullApplyRequest(BaseModel):
+    paths: Optional[list[str]] = Field(default=None, max_length=10000)
+    filters: Optional[dict] = None
+    action: Literal["copy_keeps", "trash_rejects", "move_rejects"]
+    target_dir: Optional[str] = None
+    include_companions: bool = True
+    dry_run: bool = True
 
 
 # --- Helpers ---
@@ -298,6 +308,57 @@ def _copy_or_link_into(paths, target_dir, mode):
     return copied, skipped, errors
 
 
+def _companion_files(disk_path):
+    """Sibling files that belong with a shot: its companion RAW and .xmp sidecar.
+
+    Keeps a "moved" shot whole rather than orphaning its RAW/metadata. Returns an
+    ordered, de-duplicated list of existing paths (never the primary itself).
+    """
+    out = []
+    raw = find_companion_raw(disk_path)
+    if raw and raw != disk_path:
+        out.append(raw)
+    for sidecar in (disk_path + ".xmp", os.path.splitext(disk_path)[0] + ".xmp"):
+        if os.path.exists(sidecar) and sidecar not in out:
+            out.append(sidecar)
+    return out
+
+
+def _resolve_cull_files(paths, include_companions):
+    """Resolve each db path to its on-disk files (+ companions), tracking skips.
+
+    Returns ``(items, skipped)`` where items is a list of ``(db_path, [files])``
+    and skipped is the db paths that did not resolve to a disk file.
+    """
+    items = []
+    skipped = []
+    for path in paths:
+        try:
+            real = resolve_photo_disk_path(path)
+        except HTTPException:
+            skipped.append(path)
+            continue
+        files = [real]
+        if include_companions:
+            files.extend(_companion_files(real))
+        items.append((path, files))
+    return items, skipped
+
+
+def _move_into(files, target_dir):
+    """Move each file into the (already validated) ``target_dir``; return counts."""
+    os.makedirs(target_dir, exist_ok=True)
+    moved = errors = 0
+    for src in files:
+        try:
+            shutil.move(src, _unique_dest(target_dir, os.path.basename(src)))
+            moved += 1
+        except OSError:
+            logger.exception("Failed to move %s into %s", src, target_dir)
+            errors += 1
+    return moved, errors
+
+
 def _unique_dest(target_dir, filename):
     """Return a non-colliding destination path confined to ``target_dir``."""
     dest = _contained_dest(target_dir, filename)
@@ -396,6 +457,85 @@ def api_export_sidecars(
         else:
             paths = _resolve_filter_paths(conn, body.filters, user_id)
         return _write_sidecars_for_paths(conn, paths, user_id, body.overwrite)
+
+
+@router.post("/api/cull/apply")
+def api_cull_apply(
+    body: CullApplyRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Physically act on a culling decision: copy keeps, or trash/move rejects.
+
+    Defaults to ``dry_run`` (no I/O — returns the resolved file lists for a
+    preview). Copy is purely additive; move/trash are destructive and require an
+    explicit ``dry_run=false``. All file writes go through the same validated
+    allow-list as album export, and trashing is OS-trash (recoverable) gated
+    behind ``viewer.cull.allow_trash`` — never a permanent delete.
+    """
+    if not body.paths and body.filters is None:
+        raise HTTPException(status_code=400, detail="Either paths or filters is required")
+
+    user_id = user.user_id
+    with get_db() as conn:
+        paths = body.paths if body.paths else _resolve_filter_paths(conn, body.filters, user_id)
+
+    items, skipped = _resolve_cull_files(paths, body.include_companions)
+    files = [f for _, fs in items for f in fs]
+
+    if body.action == "copy_keeps":
+        safe_target = _validate_target_dir_required(body.target_dir)
+        if body.dry_run:
+            return {"action": body.action, "dry_run": True, "would_copy": files,
+                    "skipped": skipped, "errors": []}
+        copied = errors = 0
+        os.makedirs(safe_target, exist_ok=True)
+        for src in files:
+            try:
+                shutil.copy2(src, _unique_dest(safe_target, os.path.basename(src)))
+                copied += 1
+            except OSError:
+                logger.exception("Failed to copy %s into %s", src, safe_target)
+                errors += 1
+        return {"action": body.action, "dry_run": False, "copied": copied,
+                "skipped": len(skipped), "errors": errors}
+
+    if body.action == "move_rejects":
+        safe_target = _validate_target_dir_required(body.target_dir)
+        if body.dry_run:
+            return {"action": body.action, "dry_run": True, "would_move": files,
+                    "skipped": skipped, "errors": []}
+        moved, errors = _move_into(files, safe_target)
+        return {"action": body.action, "dry_run": False, "moved": moved,
+                "skipped": len(skipped), "errors": errors}
+
+    # trash_rejects
+    if not (VIEWER_CONFIG.get("cull", {}) or {}).get("allow_trash", False):
+        raise HTTPException(status_code=403,
+                            detail="OS-trash is disabled — set viewer.cull.allow_trash to enable")
+    try:
+        import send2trash
+    except ImportError:
+        raise HTTPException(status_code=400, detail="send2trash is not installed")
+    if body.dry_run:
+        return {"action": body.action, "dry_run": True, "would_trash": files,
+                "skipped": skipped, "errors": []}
+    trashed = errors = 0
+    for src in files:
+        try:
+            send2trash.send2trash(src)
+            trashed += 1
+        except OSError:
+            logger.exception("Failed to trash %s", src)
+            errors += 1
+    return {"action": body.action, "dry_run": False, "trashed": trashed,
+            "skipped": len(skipped), "errors": errors}
+
+
+def _validate_target_dir_required(target_dir):
+    """Like _validate_target_dir but 400s on a missing target_dir first."""
+    if not target_dir:
+        raise HTTPException(status_code=400, detail="target_dir is required for this action")
+    return _validate_target_dir(target_dir)
 
 
 @router.post("/api/albums/{album_id}/export")
