@@ -5,7 +5,6 @@ packets, the rating/label mapping, tag union, and the newest-wins conflict
 policy. Pure stdlib XML — no exiftool needed.
 """
 
-import os
 import sqlite3
 
 from processing.xmp_import import _merge_tags, import_sidecars, parse_sidecar
