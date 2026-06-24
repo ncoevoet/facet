@@ -13,6 +13,7 @@ from processing.scan_state import (
     filter_paths_scanned_since,
     get_failed_paths,
     get_last_resumable_run,
+    scan_in_progress,
 )
 
 
@@ -82,6 +83,65 @@ class TestScanRunLifecycle:
     def test_no_resumable_run_returns_none(self, scan_db):
         ScanRun.start(scan_db, 'multi-pass', {}, 1).finish('completed')
         assert get_last_resumable_run(scan_db) is None
+
+
+class TestHardCrashResume:
+    def _insert_run(self, scan_db, status='running', finished=False,
+                    heartbeat_offset=None, started_offset=0):
+        conn = sqlite3.connect(scan_db)
+        cur = conn.execute(
+            "INSERT INTO scan_runs (status, mode, args_json, total_files) "
+            "VALUES (?, 'multi-pass', '{\"directories\": [\"/d\"]}', 5)",
+            (status,),
+        )
+        rid = cur.lastrowid
+        conn.execute(
+            f"UPDATE scan_runs SET started_at = datetime('now', '{int(started_offset)} seconds') "
+            "WHERE id = ?", (rid,))
+        if finished:
+            conn.execute("UPDATE scan_runs SET finished_at = datetime('now') WHERE id = ?", (rid,))
+        if heartbeat_offset is not None:
+            conn.execute(
+                f"UPDATE scan_runs SET heartbeat_at = datetime('now', '{int(heartbeat_offset)} seconds') "
+                "WHERE id = ?", (rid,))
+        conn.commit()
+        conn.close()
+        return rid
+
+    def test_stale_running_run_is_resumable(self, scan_db):
+        rid = self._insert_run(scan_db, status='running', heartbeat_offset=-300)
+        resumable = get_last_resumable_run(scan_db, stale_seconds=120)
+        assert resumable is not None
+        assert resumable['id'] == rid
+        assert resumable['status'] == 'running'
+
+    def test_fresh_running_run_not_resumable(self, scan_db):
+        self._insert_run(scan_db, status='running', heartbeat_offset=-1)
+        assert get_last_resumable_run(scan_db, stale_seconds=120) is None
+
+    def test_fresh_running_run_is_in_progress(self, scan_db):
+        self._insert_run(scan_db, status='running', heartbeat_offset=-1)
+        assert scan_in_progress(scan_db, stale_seconds=120) is True
+
+    def test_completed_run_not_in_progress(self, scan_db):
+        ScanRun.start(scan_db, 'multi-pass', {}, 1).finish('completed')
+        assert scan_in_progress(scan_db, stale_seconds=120) is False
+
+    def test_crashed_before_first_heartbeat_uses_started_at(self, scan_db):
+        rid = self._insert_run(scan_db, status='running', heartbeat_offset=None,
+                               started_offset=-300)
+        resumable = get_last_resumable_run(scan_db, stale_seconds=120)
+        assert resumable is not None and resumable['id'] == rid
+
+    def test_heartbeat_written_on_progress(self, scan_db):
+        run = ScanRun.start(scan_db, 'multi-pass', {}, 5)
+        run.update_progress(3)
+        run.finish('interrupted')
+        conn = sqlite3.connect(scan_db)
+        heartbeat = conn.execute(
+            "SELECT heartbeat_at FROM scan_runs WHERE id = ?", (run.run_id,)).fetchone()[0]
+        conn.close()
+        assert heartbeat is not None
 
 
 class TestFailedPaths:

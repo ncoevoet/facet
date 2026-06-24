@@ -1944,6 +1944,7 @@
     "num_workers": 4,
     "bytes_per_photo_estimate": 256000,
     "disk_safety_margin": 1.2,
+    "scan_stale_seconds": 120,
     "auto_tuning": {
       "enabled": true,
       "monitor_interval_seconds": 5,

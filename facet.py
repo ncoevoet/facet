@@ -1511,7 +1511,11 @@ Configuration:
             args.photo_paths = json.loads(resumed_run['args_json']).get('directories', [])
         except (json.JSONDecodeError, TypeError):
             args.photo_paths = []
-        logger.info("Resuming scan run #%d (%s)", resumed_run['id'], resumed_run['started_at'])
+        if resumed_run.get('status') == 'running':
+            logger.info("Resuming hard-crashed scan run #%d (last heartbeat %s)",
+                        resumed_run['id'], resumed_run.get('heartbeat_at') or resumed_run['started_at'])
+        else:
+            logger.info("Resuming scan run #%d (%s)", resumed_run['id'], resumed_run['started_at'])
     elif args.resume:
         from processing.scan_state import get_last_resumable_run
         resumed_run = get_last_resumable_run(args.db)
@@ -1688,13 +1692,25 @@ Configuration:
 
     # 2. Main Processing Loop
     from utils import configure_raw_decoding
-    from processing.scan_state import ScanRun
+    from processing.scan_state import ScanRun, scan_in_progress
     from processing.progress import emit_progress
     _proc = scorer.config.get_processing_settings()
     configure_raw_decoding(
         concurrency=_proc.get('raw_decode_concurrency', 0),
         timeout_seconds=_proc.get('raw_decode_timeout_seconds', 120),
     )
+
+    # Concurrency guard: a run with a fresh heartbeat looks genuinely live.
+    # Resuming on top of it would double-process, so refuse; a fresh scan only
+    # warns (ScanRun.start always inserts a new row, never adopting the live id).
+    stale_seconds = scorer.config.config.get('processing', {}).get('scan_stale_seconds', 120)
+    if scan_in_progress(args.db, stale_seconds):
+        if args.resume:
+            logger.error("A scan appears to be running (fresh heartbeat). Resume after it "
+                         "finishes, or wait %ds for its heartbeat to go stale.", stale_seconds)
+            exit(1)
+        logger.warning("A scan appears to be running concurrently; starting a separate run.")
+
     scan_mode = (f"pass:{args.single_pass_name}" if args.single_pass_name
                  else 'single-pass' if args.single_pass else 'multi-pass')
     scan_run = ScanRun.start(

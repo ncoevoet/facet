@@ -78,7 +78,8 @@ class ScanRun:
                         failures,
                     )
                 conn.execute(
-                    "UPDATE scan_runs SET processed_files = ?, failed_files = ? WHERE id = ?",
+                    "UPDATE scan_runs SET processed_files = ?, failed_files = ?, "
+                    "heartbeat_at = datetime('now') WHERE id = ?",
                     (processed, failed, self.run_id),
                 )
                 conn.commit()
@@ -100,15 +101,40 @@ class ScanRun:
         logger.info("Scan run #%d finished: %s", self.run_id, status)
 
 
-def get_last_resumable_run(db_path):
-    """Return the most recent interrupted/failed run as a dict, or None."""
+def get_last_resumable_run(db_path, stale_seconds=120):
+    """Return the most recent resumable run as a dict, or None.
+
+    Resumable = an interrupted/failed run (clean exit recorded a status), OR a
+    hard-crashed run still marked 'running' whose heartbeat has gone stale
+    (SIGKILL/OOM/power-loss never reach finish()). COALESCE falls back to
+    started_at for runs that died before their first heartbeat write.
+    """
     with get_connection(db_path) as conn:
         row = conn.execute(
-            "SELECT id, started_at, mode, args_json, total_files, processed_files "
+            "SELECT id, started_at, mode, args_json, total_files, processed_files, heartbeat_at, status "
             "FROM scan_runs WHERE status IN ('interrupted', 'failed') "
-            "ORDER BY id DESC LIMIT 1"
+            "OR (status = 'running' AND finished_at IS NULL "
+            "AND COALESCE(heartbeat_at, started_at) < datetime('now', ?)) "
+            "ORDER BY id DESC LIMIT 1",
+            (f'-{int(stale_seconds)} seconds',),
         ).fetchone()
         return dict(row) if row else None
+
+
+def scan_in_progress(db_path, stale_seconds=120):
+    """True if a scan_runs row looks live (running, fresh heartbeat).
+
+    Used as a concurrency guard before adopting/reclaiming a run, so --resume
+    never hijacks a genuinely concurrent scan.
+    """
+    with get_connection(db_path, row_factory=False) as conn:
+        row = conn.execute(
+            "SELECT id FROM scan_runs WHERE status = 'running' AND finished_at IS NULL "
+            "AND COALESCE(heartbeat_at, started_at) > datetime('now', ?) "
+            "ORDER BY id DESC LIMIT 1",
+            (f'-{int(stale_seconds)} seconds',),
+        ).fetchone()
+        return row is not None
 
 
 def get_failed_paths(db_path, scope='last'):

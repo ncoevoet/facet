@@ -344,6 +344,7 @@ SCAN_RUNS_COLUMNS = [
     ('total_files', 'INTEGER'),
     ('processed_files', 'INTEGER DEFAULT 0'),
     ('failed_files', 'INTEGER DEFAULT 0'),
+    ('heartbeat_at', 'TEXT'),  # last liveness write; lets --resume reclaim hard-crashed runs
 ]
 
 SCAN_FAILURES_COLUMNS = [
@@ -690,6 +691,7 @@ def init_database(db_path='photo_scores_pro.db'):
 
         # Create scan bookkeeping tables
         conn.execute(_build_create_table_sql('scan_runs', SCAN_RUNS_COLUMNS))
+        _migrate_add_missing_columns(conn, 'scan_runs', SCAN_RUNS_COLUMNS)
         conn.execute(_build_create_table_sql(
             'scan_failures', SCAN_FAILURES_COLUMNS,
             constraints=['PRIMARY KEY (scan_run_id, path)']

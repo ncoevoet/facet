@@ -24,7 +24,7 @@
 | `python facet.py /path --pass saliency` | Run BiRefNet subject saliency detection only |
 | `python facet.py /path --db custom.db` | Use custom database file |
 | `python facet.py /path --config my.json` | Use custom scoring config |
-| `python facet.py --resume` | Resume the last interrupted/failed scan (reuses its directories; with `--force`, skips files already re-scored since that run started) |
+| `python facet.py --resume` | Resume the last interrupted/failed scan — including one hard-crashed by SIGKILL/OOM/power-loss (a run still marked `running` whose heartbeat is older than `processing.scan_stale_seconds`, default 120). Reuses its directories; with `--force`, skips files already re-scored since that run started. Refuses if another scan looks genuinely live. |
 | `python facet.py --retry-failed` | Re-process only the files that failed during the last scan run (`--retry-failed all` for failures across all runs) |
 | `python facet.py /path --force-since 2026-01-01` | Like `--force`, but only re-process photos last scanned before the date |
 | `python facet.py /path --watch` | Stay running and re-scan whenever new photos appear (requires `pip install watchdog`; `--watch-debounce N` tunes the quiet period, default 30s) |
