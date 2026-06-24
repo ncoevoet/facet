@@ -19,7 +19,7 @@ from db.schema import (
     person_not_hidden_clause,
     _build_create_table_sql, _migrate_add_missing_columns,
 )
-from db.maintenance import vacuum_database, analyze_database, optimize_database, cleanup_orphaned_persons, export_viewer_db, cleanup_missing_photos
+from db.maintenance import vacuum_database, analyze_database, optimize_database, cleanup_orphaned_persons, export_viewer_db, cleanup_missing_photos, backup_database, check_disk_space
 from db.stats_cache import (
     refresh_stats_cache, get_cached_stat, get_stats_cache_info,
 )

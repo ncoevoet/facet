@@ -87,8 +87,9 @@ These commands update specific metrics, derive new data (AI captions, GPS, embed
 
 | Command | Description |
 |---------|-------------|
-| `python facet.py --recompute-average` | Recompute aggregate scores (creates backup) |
+| `python facet.py --recompute-average` | Recompute aggregate scores (writes a timestamped DB snapshot first) |
 | `python facet.py --recompute-category portrait` | Recompute scores for a single category only |
+| `python facet.py --recompute-average --no-backup` | Recompute without taking the pre-run DB snapshot |
 | `python facet.py --recompute-tags` | Re-tag all photos using configured model |
 | `python facet.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recompute subject saliency metrics (BiRefNet_dynamic) |

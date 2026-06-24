@@ -4,9 +4,12 @@ Database maintenance functions for Facet.
 VACUUM, ANALYZE, optimization, and viewer database export.
 """
 
+import glob
 import logging
 import os
+import shutil
 import sqlite3
+from datetime import datetime
 from io import BytesIO
 
 logger = logging.getLogger("facet.db_maintenance")
@@ -78,6 +81,88 @@ def optimize_database(db_path='photo_scores_pro.db', verbose=True):
 
     if verbose:
         logger.info("Database optimization complete.")
+
+
+def check_disk_space(target_path, needed_bytes, margin=1.2):
+    """Check whether the volume holding target_path has room for needed_bytes.
+
+    Args:
+        target_path: A file or directory on the volume to probe.
+        needed_bytes: Raw bytes the operation is expected to write.
+        margin: Safety multiplier applied to needed_bytes (default 1.2).
+
+    Returns:
+        Tuple of (ok, free_bytes, required_bytes).
+    """
+    probe_dir = target_path if os.path.isdir(target_path) else os.path.dirname(os.path.abspath(target_path)) or '.'
+    free = shutil.disk_usage(probe_dir).free
+    required = int(needed_bytes * margin)
+    return free >= required, free, required
+
+
+def _rotate_backups(db_path, base_dir, keep):
+    """Delete the oldest .backup-* snapshots, keeping the newest `keep`."""
+    db_name = os.path.basename(db_path)
+    pattern = os.path.join(base_dir, f"{db_name}.backup-*")
+    backups = sorted(glob.glob(pattern))
+    excess = backups[:-keep] if keep > 0 else backups
+    for old in excess:
+        try:
+            os.remove(old)
+        except OSError as ex:
+            logger.warning("Could not remove old backup %s: %s", old, ex)
+
+
+def backup_database(db_path='photo_scores_pro.db', keep=3, dest_dir=None, verbose=True):
+    """Write a timestamped, WAL-safe snapshot of the DB before a destructive op.
+
+    Uses sqlite3's online backup API, which handles the -wal/-shm sidecars
+    correctly (a naive file copy would not). Old snapshots are rotated, keeping
+    only the newest `keep`.
+
+    Args:
+        db_path: Path to the source SQLite database.
+        keep: Number of most-recent backups to retain (older ones deleted).
+        dest_dir: Directory for the backup; defaults to the DB's own directory so
+            the snapshot lands on the same volume the user already sized for the DB.
+        verbose: If True, log the backup path and size.
+
+    Returns:
+        The path of the backup file written.
+    """
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(f"Database not found: {db_path}")
+
+    source_size = os.path.getsize(db_path)
+    base_dir = dest_dir or os.path.dirname(os.path.abspath(db_path))
+    os.makedirs(base_dir, exist_ok=True)
+
+    ok, free, required = check_disk_space(base_dir, source_size)
+    if not ok:
+        raise RuntimeError(
+            f"Not enough free space to back up the database: need ~{required / 1e9:.1f} GB "
+            f"(DB is {source_size / 1e9:.1f} GB), only {free / 1e9:.1f} GB free on {base_dir}"
+        )
+
+    db_name = os.path.basename(db_path)
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    backup_path = os.path.join(base_dir, f"{db_name}.backup-{timestamp}")
+
+    src = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        dst = sqlite3.connect(backup_path)
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        src.close()
+
+    _rotate_backups(db_path, base_dir, keep)
+
+    if verbose:
+        logger.info("Backed up DB to %s (%.1f GB)", backup_path, os.path.getsize(backup_path) / 1e9)
+    return backup_path
 
 
 def cleanup_missing_photos(db_path='photo_scores_pro.db', dry_run=False, force=False, verbose=True):
