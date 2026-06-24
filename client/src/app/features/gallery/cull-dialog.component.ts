@@ -48,8 +48,8 @@ interface CullResponse {
       </div>
 
       @if (needsTarget()) {
-        <label class="block text-xs opacity-60 mb-1">{{ 'cull.target_dir' | translate }}</label>
-        <input type="text" [value]="targetDir()" (input)="onTargetInput($event)"
+        <label for="cullTargetDir" class="block text-xs opacity-60 mb-1">{{ 'cull.target_dir' | translate }}</label>
+        <input id="cullTargetDir" type="text" [value]="targetDir()" (input)="onTargetInput($event)"
                class="w-full text-sm font-mono rounded border border-[var(--mat-sys-outline-variant)] bg-transparent px-2 py-1.5 mb-3"
                placeholder="/path/to/folder" />
       }
