@@ -70,6 +70,10 @@ SSE-Stream bereitstellt.
 | `python facet.py --export-csv output.csv` | In eine bestimmte CSV-Datei exportieren |
 | `python facet.py --export-json` | Alle Wertungen in eine JSON mit Zeitstempel exportieren |
 | `python facet.py --export-json output.json` | In eine bestimmte JSON-Datei exportieren |
+| `python facet.py --import-sidecars` | Bewertungen/Labels/Tags aus `<image>.xmp`-Sidecars zurück in die DB importieren (alle Fotos) |
+| `python facet.py --import-sidecars /path` | Sidecars nur für Fotos unterhalb eines Pfad-Teilbaums importieren |
+
+> **Bidirektionale Metadaten-Synchronisation.** Der XMP-Export des Viewers bettet Bewertungen, Farblabels, Schlüsselwörter, Beschreibungen und benannte Gesichtsregionen **in die Datei** für JPEG/HEIC/TIFF/PNG/DNG ein (jeder Editor liest sie) **und** schreibt/fügt den `<image>.xmp`-Sidecar zusammen (darktable, und der einzige sichere Kanal für RAW – RAW-Originale werden nie verändert). Das Einbetten und das sichere Zusammenführen von Sidecars erfordern **exiftool**; ohne es greift Facet auf einen abhängigkeitsfreien reinen XML-Sidecar zurück. `--import-sidecars` ist die umgekehrte Richtung: Es fügt externe Änderungen zurück in Facet ein – Bewertungen/Labels gelten *neuestes-gewinnt* (nach `xmp:MetadataDate`, sonst Sidecar-mtime, gegenüber dem `scanned_at` des Fotos), und Schlüsselwörter werden zusammengeführt (Vereinigung), sodass Facets Auto-Tags nie verloren gehen. Wenn Sie die `photo_tags`-Lookup-Tabelle verwenden, führen Sie anschließend `python database.py --migrate-tags` aus.
 
 ## Neuberechnungsoperationen
 

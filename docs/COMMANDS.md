@@ -69,6 +69,10 @@ lines (phase, current/total, ETA) which the viewer's scan API surfaces in the
 | `python facet.py --export-csv output.csv` | Export to specific CSV file |
 | `python facet.py --export-json` | Export all scores to timestamped JSON |
 | `python facet.py --export-json output.json` | Export to specific JSON file |
+| `python facet.py --import-sidecars` | Import ratings/labels/tags from `<image>.xmp` sidecars back into the DB (all photos) |
+| `python facet.py --import-sidecars /path` | Import sidecars only for photos under a path subtree |
+
+> **Two-way metadata sync.** The viewer's XMP export embeds ratings, color labels, keywords, captions and named-face regions **in-file** for JPEG/HEIC/TIFF/PNG/DNG (every editor reads them) **and** writes/merges the `<image>.xmp` sidecar (darktable, and the only safe channel for RAW — RAW originals are never modified). Embedding and safe sidecar merging require **exiftool**; without it, Facet falls back to a dependency-free pure-XML sidecar. `--import-sidecars` is the reverse direction: it folds external edits back into Facet — ratings/labels apply *newest-wins* (by `xmp:MetadataDate`, else sidecar mtime, vs the photo's `scanned_at`), and keywords are merged (union), so Facet's auto-tags are never lost. If you use the `photo_tags` lookup table, run `python database.py --migrate-tags` afterwards.
 
 ## Recompute Operations
 

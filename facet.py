@@ -384,6 +384,9 @@ Configuration:
                         help='Export database to CSV file (optional: specify filename)')
     export_group.add_argument('--export-json', type=str, nargs='?', const='auto',
                         help='Export database to JSON file (optional: specify filename)')
+    export_group.add_argument('--import-sidecars', type=str, nargs='?', const='all', metavar='PATH',
+                        help='Import ratings/labels/tags from <image>.xmp sidecars back into the DB '
+                             '(optional: limit to a path subtree; default: all photos)')
 
     # AI features
     ai_group = parser.add_argument_group('AI features')
@@ -1365,6 +1368,18 @@ Configuration:
         if not args.recompute_category:
             process_bursts(scorer.db_path, scorer.config.config_path)
         logger.info("Recalculation done.")
+        exit()
+
+    # Import XMP sidecars back into the DB (lightweight - no GPU needed)
+    if args.import_sidecars:
+        from processing.xmp_import import import_sidecars
+        root = None if args.import_sidecars == 'all' else args.import_sidecars
+        with get_connection(args.db) as conn:
+            stats = import_sidecars(conn, root)
+        logger.info(
+            "Sidecar import: %d updated, %d unchanged, %d without sidecar, %d skipped",
+            stats['updated'], stats['unchanged'], stats['missing'], stats['skipped'],
+        )
         exit()
 
     # Export CSV mode (lightweight - no GPU needed)

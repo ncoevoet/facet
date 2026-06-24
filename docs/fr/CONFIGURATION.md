@@ -1095,7 +1095,9 @@ Affichage et comportement de la galerie web.
 | `darktable.profiles[].hq` | `true` | Passer `--hq true` pour un export de haute qualité |
 | `darktable.profiles[].width` | *(omis)* | Largeur de sortie maximale (omettre pour la pleine résolution) |
 | `darktable.profiles[].height` | *(omis)* | Hauteur de sortie maximale (omettre pour la pleine résolution) |
-| `darktable.profiles[].extra_args` | `[]` | Arguments CLI supplémentaires (ex : `["--style", "monochrome"]`) |
+| `darktable.profiles[].style` | *(omis)* | Nom du style darktable appliqué lors de l'export (`--style`) |
+| `darktable.profiles[].apply_custom_presets` | `true` | Si `false`, passe `--apply-custom-presets false` pour que seul le `style` explicite soit rendu (et non les préréglages appliqués automatiquement) |
+| `darktable.profiles[].extra_args` | `[]` | Arguments CLI supplémentaires (ex : `["--style-overwrite"]`) |
 | **display** | | |
 | `tags_per_photo` | `4` | Tags affichés sur les cartes |
 | `card_width_px` | `168` | Largeur de carte |

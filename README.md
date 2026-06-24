@@ -176,7 +176,7 @@ Facet scores, ranks, and culls a local photo library and serves a gallery to bro
 - have a large local library and want to find your best shots and cull bursts and near-duplicates;
 - want quality, composition, and face scoring you can tune to your own taste (it learns from your A/B comparisons);
 - prefer self-hosted and private — no cloud upload, no account, no subscription;
-- already edit in Lightroom or darktable — Facet writes ratings, labels, and tags back as XMP sidecars.
+- already edit in Lightroom, darktable, digiKam or immich — Facet writes ratings, labels, keywords, captions and named-face regions both embedded in-file (JPEG/HEIC/TIFF/PNG/DNG) and as `.xmp` sidecars, and can read external edits back with `--import-sidecars`.
 
 **Probably not for you if you want:**
 
@@ -188,7 +188,7 @@ Facet scores, ranks, and culls a local photo library and serves a gallery to bro
 
 - Self-hosted libraries (Immich, PhotoPrism) focus on organizing, search, and backup. Facet adds quality scoring, ranking, and a culling workflow they don't, but it has no mobile app or built-in backup/sync.
 - AI culling apps (Aftershoot, Narrative, FilterPixel) are polished commercial cullers, often with editing built in. Facet is free, local, broader (gallery, search, faces), and its scoring is tunable — but it is a single-developer project without their support or RAW editing.
-- Editors and catalogs (Lightroom, darktable, digiKam) develop and manage photos. Facet complements them through XMP export rather than replacing them.
+- Editors and catalogs (Lightroom, darktable, digiKam) develop and manage photos. Facet complements them through two-way XMP metadata sync (embedded + sidecar) rather than replacing them.
 
 The aesthetic score is model-based and approximate; expect to tune the weights to match your taste.
 

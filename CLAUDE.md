@@ -106,6 +106,10 @@ python facet.py --export-csv                    # Auto-named with timestamp
 python facet.py --export-csv output.csv         # Specific filename
 python facet.py --export-json output.json
 
+# Import external editor metadata (ratings/labels/tags) from XMP sidecars into the DB
+python facet.py --import-sidecars               # All photos (newest-wins, tag union)
+python facet.py --import-sidecars /path         # Limit to a path subtree
+
 # Face recognition commands
 python facet.py --extract-faces-gpu-incremental  # Extract faces for new photos only (requires GPU)
 python facet.py --extract-faces-gpu-force        # Re-extract all faces, deletes existing (requires GPU)

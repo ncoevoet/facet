@@ -69,6 +69,10 @@ visor expone en el campo `progress` de `/api/scan/status` y del flujo SSE.
 | `python facet.py --export-csv output.csv` | Exporta a un archivo CSV específico |
 | `python facet.py --export-json` | Exporta todas las puntuaciones a un JSON con marca de tiempo |
 | `python facet.py --export-json output.json` | Exporta a un archivo JSON específico |
+| `python facet.py --import-sidecars` | Importa valoraciones/etiquetas de color/etiquetas desde los sidecars `<image>.xmp` de vuelta a la BD (todas las fotos) |
+| `python facet.py --import-sidecars /path` | Importa los sidecars solo para las fotos bajo un subárbol de ruta |
+
+> **Sincronización bidireccional de metadatos.** La exportación XMP del visor incrusta valoraciones, etiquetas de color, palabras clave, leyendas y regiones de rostros con nombre **dentro del archivo** para JPEG/HEIC/TIFF/PNG/DNG (todos los editores las leen) **y** escribe/fusiona el sidecar `<image>.xmp` (darktable, y el único canal seguro para RAW: los originales RAW nunca se modifican). La incrustación y la fusión segura de sidecars requieren **exiftool**; sin él, Facet recurre a un sidecar XML puro sin dependencias. `--import-sidecars` es la dirección inversa: reincorpora a Facet las ediciones externas — las valoraciones/etiquetas de color se aplican según el criterio *gana el más reciente* (por `xmp:MetadataDate`, en su defecto el mtime del sidecar, frente al `scanned_at` de la foto), y las palabras clave se fusionan (unión), de modo que las etiquetas automáticas de Facet nunca se pierden. Si usas la tabla de búsqueda `photo_tags`, ejecuta `python database.py --migrate-tags` después.
 
 ## Operaciones de recálculo
 

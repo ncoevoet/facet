@@ -33,7 +33,7 @@ from api.db_helpers import (
     get_visibility_clause,
 )
 from api.path_validation import resolve_photo_disk_path
-from processing.xmp_export import XmpRating, write_sidecar
+from processing.xmp_export import FaceRegion, XmpRating, write_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,10 @@ def _fetch_rating_rows(conn, paths, user_id):
     vis_sql, vis_params = get_visibility_clause(user_id)
     select = (
         "photos.path as path, photos.tags as tags, "
+        "photos.caption as caption, photos.category as category, "
+        "(SELECT GROUP_CONCAT(DISTINCT p.name) FROM faces f "
+        "JOIN persons p ON f.person_id = p.id "
+        "WHERE f.photo_path = photos.path AND p.name IS NOT NULL) as person_names, "
         f"{pref_cols['star_rating']} as star_rating, "
         f"{pref_cols['is_favorite']} as is_favorite, "
         f"{pref_cols['is_rejected']} as is_rejected"
@@ -107,9 +111,48 @@ def _resolve_filter_paths(conn, filters, user_id):
     return [row["path"] for row in rows]
 
 
+def _fetch_regions_map(conn, paths):
+    """Map each path to its named-face regions (for MWG ``mwg-rs`` export).
+
+    Only faces assigned to a named person with a valid bbox and known image
+    dimensions are included. Returns ``{path: [FaceRegion, ...]}``.
+    """
+    if not paths:
+        return {}
+    placeholders = ",".join("?" * len(paths))
+    rows = conn.execute(
+        "SELECT f.photo_path AS path, pe.name AS name, "
+        "f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2, "
+        "ph.image_width AS w, ph.image_height AS h "
+        "FROM faces f "
+        "JOIN persons pe ON f.person_id = pe.id "
+        "JOIN photos ph ON ph.path = f.photo_path "
+        f"WHERE f.photo_path IN ({placeholders}) AND pe.name IS NOT NULL "
+        "AND f.bbox_x1 IS NOT NULL AND ph.image_width > 0 AND ph.image_height > 0",
+        list(paths),
+    ).fetchall()
+    regions: dict[str, list[FaceRegion]] = {}
+    for row in rows:
+        regions.setdefault(row["path"], []).append(
+            FaceRegion.from_bbox(
+                row["name"], row["bbox_x1"], row["bbox_y1"],
+                row["bbox_x2"], row["bbox_y2"], row["w"], row["h"],
+            )
+        )
+    return regions
+
+
+def _rating_from(row, regions_map):
+    """Build an ``XmpRating`` for a fetched row with its face regions attached."""
+    rating = XmpRating.from_row(row)
+    rating.regions = regions_map.get(row["path"], [])
+    return rating
+
+
 def _write_sidecars_for_paths(conn, paths, user_id, overwrite):
-    """Write sidecars for every visible path; return a counts dict."""
+    """Write metadata (embed + sidecar) for every visible path; return counts."""
     rating_rows = _fetch_rating_rows(conn, paths, user_id)
+    regions_map = _fetch_regions_map(conn, list(rating_rows.keys()))
     written = 0
     skipped = 0
     errors = 0
@@ -126,11 +169,11 @@ def _write_sidecars_for_paths(conn, paths, user_id, overwrite):
             skipped += 1
             continue
         try:
-            result = write_sidecar(real_disk, XmpRating.from_row(row), overwrite=overwrite)
+            result = write_metadata(real_disk, _rating_from(row, regions_map), overwrite=overwrite)
             written += 1
             sidecars.append(result["sidecar"])
-        except OSError:
-            logger.exception("Failed to write XMP sidecar for %s", path)
+        except (OSError, RuntimeError):
+            logger.exception("Failed to write metadata for %s", path)
             errors += 1
     return {
         "ok": True,
@@ -268,6 +311,7 @@ def api_export_xmp(
     user_id = user.user_id
     with get_db() as conn:
         rating_rows = _fetch_rating_rows(conn, [body.path], user_id)
+        regions_map = _fetch_regions_map(conn, list(rating_rows.keys()))
 
     row = rating_rows.get(body.path)
     if row is None:
@@ -275,10 +319,10 @@ def api_export_xmp(
 
     real_disk = resolve_photo_disk_path(body.path)
     try:
-        result = write_sidecar(real_disk, XmpRating.from_row(row), overwrite=body.overwrite)
-    except OSError:
-        logger.exception("Failed to write XMP sidecar for %s", body.path)
-        raise HTTPException(status_code=500, detail="Failed to write sidecar")
+        result = write_metadata(real_disk, _rating_from(row, regions_map), overwrite=body.overwrite)
+    except (OSError, RuntimeError):
+        logger.exception("Failed to write metadata for %s", body.path)
+        raise HTTPException(status_code=500, detail="Failed to write metadata")
     return result
 
 

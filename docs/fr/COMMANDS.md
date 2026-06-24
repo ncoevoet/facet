@@ -69,6 +69,10 @@ champ `progress` de `/api/scan/status` et du flux SSE.
 | `python facet.py --export-csv output.csv` | Exporte vers un fichier CSV spécifique |
 | `python facet.py --export-json` | Exporte tous les scores vers un JSON horodaté |
 | `python facet.py --export-json output.json` | Exporte vers un fichier JSON spécifique |
+| `python facet.py --import-sidecars` | Importe les notes/libellés/tags depuis les fichiers annexes `<image>.xmp` vers la base de données (toutes les photos) |
+| `python facet.py --import-sidecars /path` | Importe les fichiers annexes uniquement pour les photos sous une arborescence de chemin |
+
+> **Synchronisation des métadonnées dans les deux sens.** L'export XMP de la galerie intègre les notes, libellés de couleur, mots-clés, légendes et régions de visages nommés **dans le fichier** pour les JPEG/HEIC/TIFF/PNG/DNG (tous les éditeurs les lisent) **et** écrit/fusionne le fichier annexe `<image>.xmp` (darktable, et le seul canal sûr pour le RAW — les originaux RAW ne sont jamais modifiés). L'intégration et la fusion sûre des fichiers annexes nécessitent **exiftool** ; sans lui, Facet se rabat sur un fichier annexe en XML pur, sans dépendance. `--import-sidecars` est la direction inverse : il réintègre les modifications externes dans Facet — les notes/libellés s'appliquent selon le principe *le plus récent l'emporte* (d'après `xmp:MetadataDate`, sinon la date de modification du fichier annexe, comparée au `scanned_at` de la photo), et les mots-clés sont fusionnés (union), de sorte que les tags automatiques de Facet ne sont jamais perdus. Si vous utilisez la table de recherche `photo_tags`, exécutez `python database.py --migrate-tags` ensuite.
 
 ## Opérations de recalcul
 

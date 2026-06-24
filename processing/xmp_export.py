@@ -1,10 +1,16 @@
-"""Portable XMP sidecar writer for Facet ratings / picks.
+"""Portable XMP metadata writer for Facet ratings / picks.
 
-Writes a standard XMP packet next to an image as a ``.xmp`` sidecar so that
-Lightroom, Adobe Bridge, darktable, digiKam, etc. pick up Facet's ratings,
-flags and tags. The packet is generated as XML directly — there is **no
-dependency on the exiftool binary** (CI has none), so the sidecar path works
-with zero external dependencies.
+Two writers, picked by ``write_metadata`` per host capability:
+
+* **exiftool path (preferred).** Embeds metadata *in-file* for safe formats
+  (JPEG/HEIC/TIFF/PNG/DNG) so the whole ecosystem (Lightroom, digiKam, immich,
+  Apple / Synology / Google Photos) sees it, AND writes/merges the ``<img>.xmp``
+  sidecar — the only channel darktable reads after import and the only safe
+  channel for proprietary RAW (whose originals are never modified). exiftool
+  preserves every foreign node, including darktable's ``darktable:history``.
+* **pure-XML fallback (no exiftool).** ``build_xmp`` / ``write_sidecar`` generate
+  a standard XMP packet as XML directly — **no dependency on the exiftool
+  binary** (CI has none), so the sidecar path works with zero external deps.
 
 Field mapping (chosen to be read by Lightroom *and* darktable)
 --------------------------------------------------------------
@@ -23,12 +29,14 @@ Clobber safety
 --------------
 darktable *authors its own* ``<image>.xmp`` sidecar to store its edit history
 (``api/raw_processing.py`` feeds exactly this file to ``darktable-cli`` as the
-2nd positional argument). To avoid destroying a user's edit history we never
-overwrite an existing ``<image>.xmp`` unless the caller passes
-``overwrite=True``. When a sidecar already exists and ``overwrite`` is False we
-instead write to ``<image>.facet.xmp`` — a separate, clearly-namespaced file
-that editors ignore but which preserves the rating data and is never confused
-with darktable's own sidecar. The original image file is **never** modified.
+2nd positional argument). The exiftool path merges into that sidecar in place,
+preserving the ``darktable:*`` history/masks. The pure-XML fallback cannot merge
+safely, so when a sidecar already exists and ``overwrite`` is False it instead
+writes ``<image>.facet.xmp`` — a clearly-namespaced file editors ignore — and
+never modifies the original image.
+
+Note: with exiftool, ``write_metadata`` *does* modify the original file for the
+safe-embed formats (JPEG/HEIC/TIFF/PNG/DNG); proprietary RAW is never touched.
 """
 
 from __future__ import annotations
@@ -36,8 +44,36 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from xml.sax.saxutils import escape
+from xml.etree import ElementTree as ET
 
+
+# XMP namespaces. Registered so ElementTree emits the canonical prefixes that
+# Lightroom / darktable expect rather than ns0:, ns1: …
+NS_X = "adobe:ns:meta/"
+NS_RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+NS_XMP = "http://ns.adobe.com/xap/1.0/"
+NS_DC = "http://purl.org/dc/elements/1.1/"
+NS_LR = "http://ns.adobe.com/lightroom/1.0/"
+NS_XML = "http://www.w3.org/XML/1998/namespace"
+
+for _prefix, _uri in (
+    ("x", NS_X),
+    ("rdf", NS_RDF),
+    ("xmp", NS_XMP),
+    ("dc", NS_DC),
+    ("lr", NS_LR),
+):
+    ET.register_namespace(_prefix, _uri)
+
+# Roots of the ``lr:hierarchicalSubject`` paths (``Root|Leaf``). The ``|``
+# separator is the Lightroom / darktable convention for nested keywords.
+HIER_PEOPLE = "People"
+HIER_CATEGORY = "Category"
+
+# XMP packet wrapper. ElementTree serialises only the ``x:xmpmeta`` element; the
+# surrounding ``<?xpacket?>`` processing instructions are added by hand.
+_XPACKET_HEADER = '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>\n'
+_XPACKET_FOOTER = '\n<?xpacket end="w"?>\n'
 
 # Colour-label strings understood by Lightroom and darktable.
 LABEL_REJECTED = "Red"
@@ -45,6 +81,43 @@ LABEL_FAVORITE = "Yellow"
 
 # Adobe / darktable convention: a negative rating flags a rejected photo.
 RATING_REJECTED = -1
+
+
+def _as_list(raw) -> list[str]:
+    """Coerce a comma-separated string / list / None into a trimmed list."""
+    if isinstance(raw, str):
+        return [t.strip() for t in raw.split(",") if t.strip()]
+    if isinstance(raw, (list, tuple)):
+        return [str(t).strip() for t in raw if str(t).strip()]
+    return []
+
+
+@dataclass
+class FaceRegion:
+    """A named face region in MWG ``mwg-rs`` form (center-normalized area)."""
+
+    name: str
+    x: float
+    y: float
+    w: float
+    h: float
+    image_width: int
+    image_height: int
+
+    @classmethod
+    def from_bbox(cls, name, x1, y1, x2, y2, width, height) -> "FaceRegion":
+        """Build from a pixel bounding box. MWG areas are CENTER-normalized."""
+        width = int(width)
+        height = int(height)
+        return cls(
+            name=str(name),
+            x=((x1 + x2) / 2) / width,
+            y=((y1 + y2) / 2) / height,
+            w=abs(x2 - x1) / width,
+            h=abs(y2 - y1) / height,
+            image_width=width,
+            image_height=height,
+        )
 
 
 @dataclass
@@ -55,29 +128,45 @@ class XmpRating:
     is_favorite: bool = False
     is_rejected: bool = False
     tags: list[str] = field(default_factory=list)
+    caption: str = ""
+    category: str = ""
+    person_names: list[str] = field(default_factory=list)
+    regions: list[FaceRegion] = field(default_factory=list)
 
     @classmethod
     def from_row(cls, row) -> "XmpRating":
         """Build from a sqlite Row / dict of photo columns.
 
         Accepts ``star_rating`` / ``is_favorite`` / ``is_rejected`` (effective,
-        per-user-resolved values) and ``tags`` (comma-separated string or list).
-        Missing keys default to neutral values.
+        per-user-resolved values), ``tags`` (comma-separated string or list),
+        ``caption``, ``category`` and ``person_names`` (comma-separated string
+        or list). Missing keys default to neutral values.
         """
         data = dict(row) if not isinstance(row, dict) else row
-        raw_tags = data.get("tags")
-        if isinstance(raw_tags, str):
-            tags = [t.strip() for t in raw_tags.split(",") if t.strip()]
-        elif isinstance(raw_tags, (list, tuple)):
-            tags = [str(t).strip() for t in raw_tags if str(t).strip()]
-        else:
-            tags = []
         return cls(
             star_rating=int(data.get("star_rating") or 0),
             is_favorite=bool(data.get("is_favorite") or 0),
             is_rejected=bool(data.get("is_rejected") or 0),
-            tags=tags,
+            tags=_as_list(data.get("tags")),
+            caption=(data.get("caption") or "").strip(),
+            category=(data.get("category") or "").strip(),
+            person_names=_as_list(data.get("person_names")),
         )
+
+    def all_keywords(self) -> list[str]:
+        """Flat ``dc:subject`` keyword set: tags plus person names, deduped.
+
+        Single source of truth shared by the sidecar (``build_xmp``) and the
+        optional exiftool-embedded JPEG (``embed_into_jpeg``) so person names
+        always reach non-hierarchical editors via the standard keyword field.
+        """
+        seen: set[str] = set()
+        keywords: list[str] = []
+        for keyword in (*self.tags, *self.person_names):
+            if keyword and keyword not in seen:
+                seen.add(keyword)
+                keywords.append(keyword)
+        return keywords
 
     def xmp_values(self) -> tuple[int, str]:
         """Return the ``(xmp:Rating, xmp:Label)`` pair for this rating.
@@ -128,45 +217,74 @@ def sidecar_path(image_path: str, *, overwrite: bool) -> str:
     return _contained_sidecar(image_path, ".facet.xmp")
 
 
+def _rdf_bag(parent, tag: str, items: list[str]):
+    """Append ``<tag><rdf:Bag><rdf:li>…</rdf:Bag></tag>`` under ``parent``."""
+    node = ET.SubElement(parent, tag)
+    bag = ET.SubElement(node, f"{{{NS_RDF}}}Bag")
+    for item in items:
+        ET.SubElement(bag, f"{{{NS_RDF}}}li").text = item
+    return node
+
+
+def _hierarchical_paths(rating: XmpRating) -> list[str]:
+    """``lr:hierarchicalSubject`` paths: ``Category|<cat>`` then ``People|<name>``."""
+    paths = [f"{HIER_CATEGORY}|{rating.category}"] if rating.category else []
+    paths += [f"{HIER_PEOPLE}|{name}" for name in rating.person_names]
+    return paths
+
+
+def _apply_facet_nodes(desc, rating: XmpRating) -> None:
+    """Populate Facet's fields onto a fresh ``rdf:Description`` element.
+
+    Used only by the pure-Python fallback writer (``build_xmp``). The exiftool
+    path upserts into an existing sidecar / embeds in-file instead, so this never
+    has to merge with foreign nodes.
+    """
+    xmp_rating, label = rating.xmp_values()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    desc.set(f"{{{NS_XMP}}}Rating", str(xmp_rating))
+    if label:
+        desc.set(f"{{{NS_XMP}}}Label", label)
+    desc.set(f"{{{NS_XMP}}}MetadataDate", now)
+
+    keywords = rating.all_keywords()
+    if keywords:
+        _rdf_bag(desc, f"{{{NS_DC}}}subject", keywords)
+
+    if rating.caption:
+        node = ET.SubElement(desc, f"{{{NS_DC}}}description")
+        alt = ET.SubElement(node, f"{{{NS_RDF}}}Alt")
+        li = ET.SubElement(alt, f"{{{NS_RDF}}}li")
+        li.set(f"{{{NS_XML}}}lang", "x-default")
+        li.text = rating.caption
+
+    hierarchical = _hierarchical_paths(rating)
+    if hierarchical:
+        _rdf_bag(desc, f"{{{NS_LR}}}hierarchicalSubject", hierarchical)
+
+
+def _new_description():
+    """Build an empty ``x:xmpmeta`` tree; return ``(xmpmeta, rdf:Description)``."""
+    xmpmeta = ET.Element(f"{{{NS_X}}}xmpmeta")
+    xmpmeta.set(f"{{{NS_X}}}xmptk", "Facet")
+    rdf = ET.SubElement(xmpmeta, f"{{{NS_RDF}}}RDF")
+    desc = ET.SubElement(rdf, f"{{{NS_RDF}}}Description")
+    desc.set(f"{{{NS_RDF}}}about", "")
+    return xmpmeta, desc
+
+
+def _serialize(xmpmeta) -> str:
+    """Render an ``x:xmpmeta`` element as a wrapped, indented XMP packet."""
+    ET.indent(xmpmeta, space="  ")
+    body = ET.tostring(xmpmeta, encoding="unicode")
+    return _XPACKET_HEADER + body + _XPACKET_FOOTER
+
+
 def build_xmp(rating: XmpRating) -> str:
     """Render the XMP packet for ``rating`` as a UTF-8 XML string."""
-    xmp_rating, label = rating.xmp_values()
-
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    attrs = [f'xmp:Rating="{xmp_rating}"']
-    if label:
-        attrs.append(f'xmp:Label="{escape(label)}"')
-    attrs.append(f'xmp:MetadataDate="{now}"')
-    desc_attrs = "\n            ".join(attrs)
-
-    subject_block = ""
-    if rating.tags:
-        items = "\n          ".join(
-            f"<rdf:li>{escape(tag)}</rdf:li>" for tag in rating.tags
-        )
-        subject_block = (
-            "\n        <dc:subject>\n"
-            "          <rdf:Bag>\n"
-            f"          {items}\n"
-            "          </rdf:Bag>\n"
-            "        </dc:subject>"
-        )
-
-    return (
-        '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>\n'
-        '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Facet">\n'
-        '  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n'
-        '    <rdf:Description rdf:about=""\n'
-        '        xmlns:xmp="http://ns.adobe.com/xap/1.0/"\n'
-        '        xmlns:dc="http://purl.org/dc/elements/1.1/"\n'
-        '        xmlns:lr="http://ns.adobe.com/lightroom/1.0/"\n'
-        f"        {desc_attrs}>{subject_block}\n"
-        "    </rdf:Description>\n"
-        "  </rdf:RDF>\n"
-        "</x:xmpmeta>\n"
-        '<?xpacket end="w"?>\n'
-    )
+    xmpmeta, desc = _new_description()
+    _apply_facet_nodes(desc, rating)
+    return _serialize(xmpmeta)
 
 
 def write_sidecar(image_path: str, rating: XmpRating, *, overwrite: bool = False) -> dict:
@@ -205,7 +323,18 @@ def write_sidecar(image_path: str, rating: XmpRating, *, overwrite: bool = False
     }
 
 
-# --- Optional: embed into JPEG via the bundled exiftool (best-effort) ---
+# --- exiftool writer: embed in-file + write/merge the sidecar -----------------
+#
+# exiftool surgically updates only the named tags and preserves every other node
+# — crucially darktable's ``darktable:history`` / ``masks_history`` block. It is
+# therefore the safe channel both for embedding metadata into the image file (so
+# Lightroom / digiKam / immich / Apple / Synology Photos see it) and for merging
+# into an existing darktable-authored ``<img>.xmp`` sidecar. When exiftool is not
+# installed, ``write_metadata`` falls back to the dependency-free ``write_sidecar``.
+
+# Formats where embedding metadata in-file is safe and standard.
+SAFE_EMBED_EXTS = frozenset({"jpg", "jpeg", "heic", "heif", "tif", "tiff", "png", "dng"})
+
 
 def exiftool_available() -> bool:
     """Return True if an exiftool binary is reachable.
@@ -226,35 +355,99 @@ def _resolve_exiftool():
     return shutil.which("exiftool") or shutil.which("exiftool.exe")
 
 
-def embed_into_jpeg(image_path: str, rating: XmpRating, *, timeout: int = 60) -> dict:
-    """Embed rating metadata directly into a JPEG using exiftool (optional).
+def _region_args(regions: list[FaceRegion]) -> list[str]:
+    """exiftool args for MWG face regions. Clears the list first (idempotent)."""
+    if not regions:
+        return []
+    args = [
+        "-XMP-mwg-rs:RegionInfo=",
+        f"-XMP-mwg-rs:RegionAppliedToDimensionsW={regions[0].image_width}",
+        f"-XMP-mwg-rs:RegionAppliedToDimensionsH={regions[0].image_height}",
+        "-XMP-mwg-rs:RegionAppliedToDimensionsUnit=pixel",
+    ]
+    for r in regions:
+        args += [
+            f"-XMP-mwg-rs:RegionName={r.name}",
+            "-XMP-mwg-rs:RegionType=Face",
+            f"-XMP-mwg-rs:RegionAreaX={r.x:.6f}",
+            f"-XMP-mwg-rs:RegionAreaY={r.y:.6f}",
+            f"-XMP-mwg-rs:RegionAreaW={r.w:.6f}",
+            f"-XMP-mwg-rs:RegionAreaH={r.h:.6f}",
+            "-XMP-mwg-rs:RegionAreaUnit=normalized",
+        ]
+    return args
 
-    Gated on binary availability — raises ``RuntimeError`` if exiftool is not
-    present, so callers must check ``exiftool_available()`` first. Never touches
-    the file when the binary is missing. The sidecar path remains the
-    dependency-free default; this is purely an opt-in convenience.
+
+def _exiftool_tag_args(rating: XmpRating) -> list[str]:
+    """Build the exiftool ``-Tag=value`` args for ``rating`` (no exe, no target).
+
+    Facet is authoritative for the fields it manages: keyword/hierarchical/region
+    LISTS are cleared then rewritten so re-running never accumulates duplicates
+    (exiftool ``+=`` does not dedupe). Scalars (label, caption) are set only when
+    present, so an external value is not wiped when Facet has none.
+    """
+    xmp_rating, label = rating.xmp_values()
+    args = [f"-XMP:Rating={xmp_rating}"]
+    if label:
+        args.append(f"-XMP:Label={label}")
+    if rating.caption:
+        args.append(f"-XMP-dc:Description={rating.caption}")
+        args.append(f"-IPTC:Caption-Abstract={rating.caption}")
+    # Flat keywords (mirrored to IPTC for legacy tools): clear then replace.
+    args += ["-XMP-dc:Subject=", "-IPTC:Keywords="]
+    for keyword in rating.all_keywords():
+        args.append(f"-XMP-dc:Subject={keyword}")
+        args.append(f"-IPTC:Keywords={keyword}")
+    # Hierarchical keywords: clear then replace.
+    args.append("-XMP-lr:HierarchicalSubject=")
+    for path in _hierarchical_paths(rating):
+        args.append(f"-XMP-lr:HierarchicalSubject={path}")
+    args += _region_args(rating.regions)
+    return args
+
+
+def _run_exiftool(target: str, rating: XmpRating, *, timeout: int) -> None:
+    """Apply ``rating`` to ``target`` (an image file or a ``.xmp`` sidecar).
+
+    Creates the sidecar if it does not exist, merges into it if it does, and
+    preserves all foreign nodes. Raises ``RuntimeError`` on failure.
     """
     import subprocess
 
     exe = _resolve_exiftool()
     if not exe:
         raise RuntimeError("exiftool binary not available")
-
-    xmp_rating, label = rating.xmp_values()
-
-    args = [exe, "-overwrite_original", f"-XMP:Rating={xmp_rating}"]
-    if label:
-        args.append(f"-XMP:Label={label}")
-    # Clear then re-add subjects so repeated runs don't accumulate duplicates.
-    args.append("-XMP-dc:Subject=")
-    for tag in rating.tags:
-        args.append(f"-XMP-dc:Subject+={tag}")
-    args.append(image_path)
-
-    result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    args = [exe, "-q", "-m", "-overwrite_original", *_exiftool_tag_args(rating), target]
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as ex:
+        raise RuntimeError(f"exiftool timed out after {timeout}s on {target}") from ex
     if result.returncode != 0:
         raise RuntimeError(
             f"exiftool failed (exit {result.returncode}): "
             f"{(result.stderr or result.stdout)[:300]}"
         )
-    return {"ok": True, "embedded": image_path}
+
+
+def write_metadata(image_path: str, rating: XmpRating, *, overwrite: bool = False,
+                   timeout: int = 60) -> dict:
+    """Write Facet metadata for the whole photo ecosystem.
+
+    With exiftool present: embeds in-file for safe formats (JPEG/HEIC/TIFF/PNG/
+    DNG) AND writes/merges the ``<img>.xmp`` sidecar — the only channel darktable
+    reads after import, and the only safe channel for proprietary RAW (whose
+    originals are never modified). Without exiftool: falls back to the
+    dependency-free pure-XML ``write_sidecar`` (``overwrite`` then governs the
+    ``.facet.xmp`` no-clobber divert).
+    """
+    if not exiftool_available():
+        return write_sidecar(image_path, rating, overwrite=overwrite)
+
+    ext = os.path.splitext(image_path)[1].lower().lstrip(".")
+    embedded = None
+    if ext in SAFE_EMBED_EXTS:
+        _run_exiftool(image_path, rating, timeout=timeout)
+        embedded = image_path
+    sidecar = _contained_sidecar(image_path, ".xmp")
+    _run_exiftool(sidecar, rating, timeout=timeout)
+    return {"ok": True, "embedded": embedded, "sidecar": sidecar, "skipped": False}

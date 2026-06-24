@@ -186,6 +186,45 @@ def _darktable_path(path: str) -> str:
     return path.replace('\\', '/')
 
 
+def _build_darktable_cmd(resolved, dt_input, xmp_arg, dt_output, quality, profile):
+    """Assemble the darktable-cli argument list for a profile (pure, no I/O).
+
+    Positional args are ``<input> <xmp> <output>`` (``xmp`` may be ``''``); the
+    rest are profile flags: ``--hq``, ``--width``/``--height``, ``extra_args``,
+    an optional ``--style`` and ``--apply-custom-presets false``, then JPEG
+    quality via the core conf.
+    """
+    cmd: list[str] = [resolved, dt_input, xmp_arg, dt_output]
+
+    if profile.get('hq', True):
+        cmd.extend(['--hq', 'true'])
+
+    width = profile.get('width')
+    if width:
+        cmd.extend(['--width', str(int(width))])
+
+    height = profile.get('height')
+    if height:
+        cmd.extend(['--height', str(int(height))])
+
+    extra = profile.get('extra_args', [])
+    if extra and isinstance(extra, list):
+        cmd.extend(str(a) for a in extra)
+
+    # darktable style (applied on top of the photo's edit history).
+    style = profile.get('style')
+    if style:
+        cmd.extend(['--style', str(style)])
+
+    # Auto-apply the user's custom presets (darktable-cli default: true). Set
+    # false to render only the explicit style.
+    if profile.get('apply_custom_presets') is False:
+        cmd.extend(['--apply-custom-presets', 'false'])
+
+    cmd.extend(['--core', '--conf', f'plugins/imageio/format/jpeg/quality={quality}'])
+    return cmd
+
+
 def _convert_darktable(file_path: str, quality: int, dt_config: dict, profile: dict) -> bytes:
     """Convert via darktable-cli using profile-specific settings."""
     executable = dt_config.get('executable', 'darktable-cli')
@@ -205,35 +244,11 @@ def _convert_darktable(file_path: str, quality: int, dt_config: dict, profile: d
         dt_input = _darktable_path(file_path)
         dt_output = _darktable_path(tmp_output)
 
-        cmd: list[str] = [resolved, dt_input]
-
         # XMP sidecar: darktable-cli accepts it as 2nd positional arg
         xmp_path = file_path + '.xmp'
-        cmd.append(_darktable_path(xmp_path) if os.path.isfile(xmp_path) else '')
+        xmp_arg = _darktable_path(xmp_path) if os.path.isfile(xmp_path) else ''
 
-        cmd.append(dt_output)
-
-        # Profile-specific flags
-        if profile.get('hq', True):
-            cmd.extend(['--hq', 'true'])
-
-        width = profile.get('width')
-        if width:
-            cmd.extend(['--width', str(int(width))])
-
-        height = profile.get('height')
-        if height:
-            cmd.extend(['--height', str(int(height))])
-
-        extra = profile.get('extra_args', [])
-        if extra and isinstance(extra, list):
-            cmd.extend(str(a) for a in extra)
-
-        # JPEG quality via darktable core conf
-        cmd.extend([
-            '--core',
-            '--conf', f'plugins/imageio/format/jpeg/quality={quality}',
-        ])
+        cmd = _build_darktable_cmd(resolved, dt_input, xmp_arg, dt_output, quality, profile)
 
         result = subprocess.run(
             cmd,

@@ -30,6 +30,17 @@ def client(edition_client):
     return edition_client
 
 
+@pytest.fixture(autouse=True)
+def _no_exiftool(monkeypatch):
+    """Exercise the dependency-free pure-XML sidecar path deterministically.
+
+    These endpoint tests use placeholder image files and run in environments
+    without exiftool (like CI); the exiftool embed path is covered by mocked
+    unit tests in ``test_xmp_export.py``.
+    """
+    monkeypatch.setattr("processing.xmp_export.exiftool_available", lambda: False)
+
+
 def _seed_db(db_path, photos):
     """Create a minimal photos+albums DB and insert the given photo dicts."""
     conn = sqlite3.connect(db_path)
@@ -40,6 +51,9 @@ def _seed_db(db_path, photos):
             filename TEXT,
             aggregate REAL,
             category TEXT,
+            caption TEXT,
+            image_width INTEGER,
+            image_height INTEGER,
             star_rating INTEGER DEFAULT 0,
             is_favorite INTEGER DEFAULT 0,
             is_rejected INTEGER DEFAULT 0,
@@ -55,6 +69,17 @@ def _seed_db(db_path, photos):
             album_id INTEGER,
             photo_path TEXT,
             position INTEGER
+        );
+        CREATE TABLE persons (
+            id INTEGER PRIMARY KEY,
+            name TEXT
+        );
+        CREATE TABLE faces (
+            id INTEGER PRIMARY KEY,
+            photo_path TEXT,
+            person_id INTEGER,
+            bbox_x1 INTEGER, bbox_y1 INTEGER,
+            bbox_x2 INTEGER, bbox_y2 INTEGER
         );
         """
     )
