@@ -1548,6 +1548,8 @@
     "load_error": "Album konnte nicht geladen werden."
   },
   "critique": {
+    "overlay_show": "Überlagerung anzeigen",
+    "overlay_hide": "Überlagerung ausblenden",
     "title": "Warum diese Bewertung?",
     "category_reason": "Kategorie",
     "breakdown": "Bewertungsaufschlusselung",

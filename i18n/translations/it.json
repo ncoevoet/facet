@@ -1544,6 +1544,8 @@
     "load_error": "Impossibile caricare l'album."
   },
   "critique": {
+    "overlay_show": "Mostra sovrapposizione",
+    "overlay_hide": "Nascondi sovrapposizione",
     "title": "Perche questo punteggio?",
     "category_reason": "Categoria",
     "breakdown": "Dettaglio punteggio",

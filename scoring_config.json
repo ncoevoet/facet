@@ -2467,7 +2467,8 @@
       "show_folders": true,
       "show_my_taste": true,
       "show_scenes": true,
-      "show_scan_button": false
+      "show_scan_button": false,
+      "show_saliency_overlay": true
     },
     "allowed_origins": [
       "http://localhost:4200",

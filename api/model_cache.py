@@ -16,6 +16,32 @@ _vlm_lock = threading.Lock()
 _caption_translator = None
 _translator_lock = threading.Lock()
 
+_saliency_scorer = None
+_saliency_lock = threading.Lock()
+
+
+def get_or_load_saliency_scorer():
+    """Get or lazily load the BiRefNet saliency scorer singleton for the API.
+
+    Loaded once and reused across requests (the overlay endpoint runs it on the
+    stored 640px thumbnail, so per-request cost is trivial once the model is in).
+    """
+    global _saliency_scorer
+    if _saliency_scorer is not None:
+        return _saliency_scorer
+
+    with _saliency_lock:
+        if _saliency_scorer is not None:
+            return _saliency_scorer
+
+        from models.saliency_scorer import SaliencyScorer
+
+        scorer = SaliencyScorer()
+        scorer.load()
+        _saliency_scorer = scorer
+        logger.info("Saliency scorer loaded and cached for API use")
+        return _saliency_scorer
+
 
 def get_or_load_vlm_tagger(vlm_config, full_config):
     """Get or lazily load the VLM tagger singleton.

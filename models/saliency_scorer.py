@@ -148,6 +148,25 @@ class SaliencyScorer:
 
         return results
 
+    def get_saliency_soft(self, pil_img):
+        """Return the pre-threshold saliency map (float32 0..1) sized to the image.
+
+        Unlike get_saliency_mask (binarized), this exposes the soft sigmoid so the
+        viewer can render a smooth heatmap overlay.
+        """
+        if not self._loaded:
+            self.load()
+
+        orig_w, orig_h = pil_img.size
+        batch_tensor = torch.stack([self.transform(pil_img)]).to(
+            self.device, dtype=next(self.model.parameters()).dtype)
+        with torch.no_grad():
+            pred = self.model(batch_tensor)[-1].sigmoid()[0]
+        soft = pred.squeeze().cpu().numpy().astype(np.float32)
+        if soft.shape[0] != orig_h or soft.shape[1] != orig_w:
+            soft = cv2.resize(soft, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
+        return soft
+
     def score_image(self, pil_img, img_cv):
         """Compute all saliency-derived metrics for an image.
 

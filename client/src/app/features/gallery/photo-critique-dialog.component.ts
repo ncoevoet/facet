@@ -6,8 +6,17 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+
+interface FaceMarker {
+  bbox: number[] | null;
+  eyes: number[][];
+  eyes_open_score: number | null;
+  is_blink: boolean;
+}
 
 interface CritiqueBreakdown {
   metric: string;
@@ -133,7 +142,7 @@ export class MismatchReasonPipe implements PipeTransform {
   standalone: true,
   imports: [
     MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
-    DecimalPipe, PercentPipe, TranslatePipe, ContributionColorPipe, CategoryReasonPipe, MismatchReasonPipe,
+    DecimalPipe, PercentPipe, TranslatePipe, ThumbnailUrlPipe, ContributionColorPipe, CategoryReasonPipe, MismatchReasonPipe,
   ],
   template: `
     <h2 mat-dialog-title class="!flex items-center gap-2 truncate">
@@ -154,6 +163,31 @@ export class MismatchReasonPipe implements PipeTransform {
           <p class="text-sm">{{ e }}</p>
         </div>
       } @else if (critique(); as c) {
+        <!-- Visual "why this score" overlay -->
+        @if (overlaySupported()) {
+          <div class="relative mb-4 rounded-lg overflow-hidden bg-black/20">
+            <img [src]="data.photoPath | thumbnailUrl:1280" class="block w-full" alt="" />
+            @if (overlayOn()) {
+              <img [src]="overlayUrl()" class="absolute inset-0 w-full h-full opacity-60 mix-blend-multiply" alt="" />
+              <svg class="absolute inset-0 w-full h-full" viewBox="0 0 1 1" preserveAspectRatio="none">
+                @for (f of faceMarkers(); track $index) {
+                  @if (f.bbox; as b) {
+                    <rect [attr.x]="b[0]" [attr.y]="b[1]" [attr.width]="b[2] - b[0]" [attr.height]="b[3] - b[1]"
+                          fill="none" [attr.stroke]="f.is_blink ? '#fbbf24' : '#22c55e'" stroke-width="0.005" />
+                  }
+                  @for (e of f.eyes; track $index) {
+                    <circle [attr.cx]="e[0]" [attr.cy]="e[1]" r="0.006" [attr.fill]="f.is_blink ? '#fbbf24' : '#22c55e'" />
+                  }
+                }
+              </svg>
+            }
+            <button mat-stroked-button class="!absolute !top-2 !right-2 !bg-[var(--mat-sys-surface)]/80" (click)="toggleOverlay()">
+              <mat-icon>{{ overlayOn() ? 'visibility_off' : 'visibility' }}</mat-icon>
+              {{ (overlayOn() ? 'critique.overlay_hide' : 'critique.overlay_show') | translate }}
+            </button>
+          </div>
+        }
+
         <!-- Category reason -->
         <div class="text-sm mb-4 p-3 rounded-lg bg-[var(--mat-sys-surface-container)]">
           <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ 'critique.category_reason' | translate }}</div>
@@ -264,13 +298,35 @@ export class MismatchReasonPipe implements PipeTransform {
 })
 export class PhotoCritiqueDialogComponent implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
-  private readonly data = inject<{ photoPath: string; vlmAvailable: boolean }>(MAT_DIALOG_DATA);
+  protected readonly data = inject<{ photoPath: string; vlmAvailable: boolean }>(MAT_DIALOG_DATA);
 
   protected readonly loading = signal(true);
   protected readonly critique = signal<CritiqueResponse | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly showRejected = signal(false);
+  protected readonly overlayOn = signal(false);
+  protected readonly faceMarkers = signal<FaceMarker[]>([]);
+  protected readonly overlaySupported = computed(() => this.auth.hasFeature('show_saliency_overlay'));
+  protected readonly overlayUrl = computed(
+    () => `/api/saliency_overlay?path=${encodeURIComponent(this.data.photoPath)}`,
+  );
+
+  protected async toggleOverlay(): Promise<void> {
+    const next = !this.overlayOn();
+    this.overlayOn.set(next);
+    if (next && this.faceMarkers().length === 0) {
+      try {
+        const res = await firstValueFrom(
+          this.api.get<{ faces: FaceMarker[] }>('/photo/face_markers', { path: this.data.photoPath }),
+        );
+        this.faceMarkers.set(res.faces ?? []);
+      } catch {
+        // Face boxes are an optional embellishment; the heatmap still shows.
+      }
+    }
+  }
   protected readonly hasPenalties = computed(() => {
     const c = this.critique();
     return !!(c && Object.keys(c.penalties).length > 0);

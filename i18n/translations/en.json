@@ -1542,6 +1542,8 @@
     "load_error": "Failed to load album."
   },
   "critique": {
+    "overlay_show": "Show overlay",
+    "overlay_hide": "Hide overlay",
     "title": "Why This Score?",
     "category_reason": "Category",
     "breakdown": "Score Breakdown",

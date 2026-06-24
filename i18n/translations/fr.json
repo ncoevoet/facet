@@ -1544,6 +1544,8 @@
     "load_error": "Impossible de charger l'album."
   },
   "critique": {
+    "overlay_show": "Afficher la superposition",
+    "overlay_hide": "Masquer la superposition",
     "title": "Pourquoi ce score ?",
     "category_reason": "Categorie",
     "breakdown": "Detail du score",

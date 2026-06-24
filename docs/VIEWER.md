@@ -327,6 +327,8 @@ API: see the [API Endpoints](#api-endpoints) section below.
 
 Controlled by `viewer.features.show_critique` (default: `true`) and `viewer.features.show_vlm_critique` (default: `true`).
 
+**Visual "why this score" overlay.** When `viewer.features.show_saliency_overlay` is `true` (default), the critique dialog gains a **Show overlay** toggle: it draws the BiRefNet saliency map as a translucent heatmap over the photo (recomputed on demand from the stored thumbnail — `GET /api/saliency_overlay`), plus soft per-face boxes and eye markers reconstructed from stored landmarks (`GET /api/photo/face_markers`). Boxes are green when eyes are open, amber on a blink. The heatmap is illustrative (thumbnail-resolution), not pixel-exact; the toggle hides itself on profiles where no saliency mask is producible.
+
 ## AI Captioning `[GPU]` `[16gb/24gb]` `[Edition]`
 
 Get an AI-generated natural language caption for any photo. Captions are generated on first request and cached in the `caption` database column. Captions can be edited manually in edition mode via the photo detail page. (Caption *translation* runs on CPU — see below.)
