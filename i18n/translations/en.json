@@ -1000,6 +1000,7 @@
     "culling": "Culling",
     "memories": "Memories",
     "timeline": "Timeline",
+    "scenes": "Scenes",
     "folders": "Folders",
     "map": "Map",
     "capsules": "Capsules"
@@ -1024,9 +1025,9 @@
     "sort_date": "Date",
     "sort_composition": "Composition",
     "sort_face_quality": "Face Quality",
-    "sort_picked_for_you": "Picked for you",
-    "picked_for_you_badge": "Learned from {count} comparisons",
-    "picked_for_you_badge_tooltip": "Your personal ranker is trained on this many of your comparison, rating, and culling decisions.",
+    "sort_my_taste": "My Taste",
+    "my_taste_badge": "{coverage}% learned",
+    "my_taste_badge_tooltip": "Trained on {comparisons} comparisons · {accuracy}% held-out accuracy",
     "sort_desc": "Descending",
     "sort_asc": "Ascending",
     "filters": "Filters",
@@ -1693,6 +1694,7 @@
     "strictness": "Strictness",
     "strictness_tooltip": "Higher keeps only the single best photo; lower keeps near-ties too",
     "face_grid_title": "Faces in this group",
+    "face_badge_expression": "Expression",
     "reason": {
       "best": "Best of group",
       "eyes_closed": "Eyes closed",
@@ -1721,6 +1723,22 @@
       "confirm_next": "Confirm & next group",
       "close": "Close"
     }
+  },
+  "scenes": {
+    "title": "Scenes",
+    "subtitle": "Cull your shoot in story order",
+    "empty": "No scenes yet",
+    "photos": "photos",
+    "cull_action": "Cull ({count})",
+    "best": "BEST",
+    "load_more": "Load more",
+    "load_error": "Failed to load scenes",
+    "nothing_to_cull": "Tap photos to mark them for culling first",
+    "culled": "Culled {count} photo(s)",
+    "confirm_error": "Failed to cull scene"
+  },
+  "common": {
+    "dismiss": "Dismiss"
   },
   "memories": {
     "title": "On This Day",

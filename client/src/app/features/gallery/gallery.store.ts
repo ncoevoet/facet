@@ -113,6 +113,8 @@ export interface ViewerConfig {
     show_map: boolean;
     show_capsules: boolean;
     show_folders: boolean;
+    show_my_taste?: boolean;
+    show_scenes?: boolean;
   };
   quality_thresholds: {
     good: number;

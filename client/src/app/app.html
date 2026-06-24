@@ -24,6 +24,11 @@
               <mat-icon>view_timeline</mat-icon>
             </a>
           }
+          @if (store.config()?.features?.show_scenes) {
+            <a mat-icon-button class="lg:!hidden" routerLink="/scenes" routerLinkActive #rlScenesM="routerLinkActive" [style.color]="rlScenesM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.scenes' | translate" [attr.aria-label]="'nav.scenes' | translate">
+              <mat-icon>theaters</mat-icon>
+            </a>
+          }
           @if (store.config()?.features?.show_folders) {
             <a mat-icon-button class="lg:!hidden" routerLink="/folders" routerLinkActive #rlFoldersM="routerLinkActive" [style.color]="rlFoldersM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.folders' | translate" [attr.aria-label]="'nav.folders' | translate">
               <mat-icon>folder</mat-icon>
@@ -61,6 +66,11 @@
           @if (store.config()?.features?.show_timeline) {
             <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/timeline" routerLinkActive #rlTimeline="routerLinkActive" [style.color]="rlTimeline.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.timeline' | translate" [attr.aria-label]="'nav.timeline' | translate">
               <mat-icon>view_timeline</mat-icon>
+            </a>
+          }
+          @if (store.config()?.features?.show_scenes) {
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/scenes" routerLinkActive #rlScenes="routerLinkActive" [style.color]="rlScenes.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.scenes' | translate" [attr.aria-label]="'nav.scenes' | translate">
+              <mat-icon>theaters</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_folders) {
@@ -286,18 +296,18 @@
               <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
               <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
             }
-            @if (auth.isEdition()) {
-              <mat-option value="learned_score">{{ 'gallery.sort_picked_for_you' | translate }}</mat-option>
+            @if (store.config()?.features?.show_my_taste) {
+              <mat-option value="learned_score">{{ 'gallery.sort_my_taste' | translate }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
 
-        <!-- "Picked for you" coverage badge — how many comparisons the personal ranker was trained on -->
-        @if (pickedForYouCoverage(); as coverageCount) {
+        <!-- "My Taste" confidence badge — learned coverage + held-out accuracy of the personal ranker -->
+        @if (myTasteBadge(); as taste) {
           <span class="!hidden lg:!inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 bg-[var(--mat-sys-tertiary-container)] text-[var(--mat-sys-on-tertiary-container)]"
-                [matTooltip]="'gallery.picked_for_you_badge_tooltip' | translate">
+                [matTooltip]="'gallery.my_taste_badge_tooltip' | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—' }">
             <mat-icon class="!text-sm !w-4 !h-4 !leading-4">auto_awesome</mat-icon>
-            {{ 'gallery.picked_for_you_badge' | translate:{ count: coverageCount } }}
+            {{ 'gallery.my_taste_badge' | translate:{ coverage: taste.coveragePct } }}
           </span>
         }
 
@@ -543,7 +553,7 @@
   }
 
   <!-- Main content -->
-  <main class="flex-1 overflow-auto lg:pb-0" [class.pb-14]="isGalleryRoute() || isAlbumsRoute() || isPersonsRoute() || isMapRoute() || isCapsuleRoute() || isTimelineRoute()">
+  <main class="flex-1 overflow-auto lg:pb-0" [class.pb-14]="isGalleryRoute() || isAlbumsRoute() || isPersonsRoute() || isMapRoute() || isCapsuleRoute() || isTimelineRoute() || isScenesRoute()">
     <router-outlet />
   </main>
 
@@ -572,8 +582,8 @@
             <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
             <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
           }
-          @if (auth.isEdition()) {
-            <mat-option value="learned_score">{{ 'gallery.sort_picked_for_you' | translate }}</mat-option>
+          @if (store.config()?.features?.show_my_taste) {
+            <mat-option value="learned_score">{{ 'gallery.sort_my_taste' | translate }}</mat-option>
           }
         </mat-select>
       </mat-form-field>

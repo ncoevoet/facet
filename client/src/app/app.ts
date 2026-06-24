@@ -133,14 +133,21 @@ export class App implements OnInit {
   protected readonly hasBurstGroups = signal(false);
   protected readonly hasMemories = signal(false);
   protected readonly hasGeoPhotos = signal(false);
-  // Number of comparisons the personal ranker was trained on (powers the
-  // "Picked for you" coverage badge). null until fetched / when unavailable.
-  protected readonly learnedCoverage = signal<number | null>(null);
-  // Coverage count to show in the badge: only when the "Picked for you" sort is
-  // active and we have a positive count (0/null -> no badge).
-  protected readonly pickedForYouCoverage = computed<number | null>(() => {
-    const count = this.learnedCoverage();
-    return this.store.filters().sort === 'learned_score' && count ? count : null;
+  // Personal ranker ("My Taste") training status — powers the confidence badge
+  // shown when sorting by learned_score. null until fetched / when unavailable.
+  protected readonly rankerStatus = signal<{
+    trained: boolean; comparison_count: number; coverage: number; cv_accuracy: number | null;
+  } | null>(null);
+  // Badge view-model: only when the "My Taste" sort is active and the ranker has
+  // trained (else null -> no badge).
+  protected readonly myTasteBadge = computed(() => {
+    const s = this.rankerStatus();
+    if (this.store.filters().sort !== 'learned_score' || !s?.trained) return null;
+    return {
+      coveragePct: Math.round((s.coverage ?? 0) * 100),
+      accuracy: s.cv_accuracy != null ? Math.round(s.cv_accuracy) : null,
+      comparisons: s.comparison_count ?? 0,
+    };
   });
 
   private url = toSignal(
@@ -164,6 +171,7 @@ export class App implements OnInit {
   protected readonly isMapRoute = computed(() => this.url().split('?')[0] === '/map');
   protected readonly isCapsuleRoute = computed(() => this.url().split('?')[0] === '/capsules');
   protected readonly isTimelineRoute = computed(() => this.url().split('?')[0].startsWith('/timeline'));
+  protected readonly isScenesRoute = computed(() => this.url().split('?')[0] === '/scenes');
   protected readonly isSharedRoute = computed(() => this.url().split('?')[0].startsWith('/shared/'));
 
   protected readonly sortGroups = computed(() => {
@@ -370,16 +378,16 @@ export class App implements OnInit {
             this.hasBurstGroups.set(data.total_groups > 0);
           }).catch(() => { /* Non-critical */ }),
         );
-        // Coverage powers the "Picked for you" badge — how many comparisons the
-        // personal ranker was trained on. Reuses the existing coverage endpoint.
-        promises.push(
-          firstValueFrom(
-            this.api.get<{ total_comparisons: number }>('/comparison/coverage'),
-          ).then(data => {
-            this.learnedCoverage.set(data.total_comparisons ?? 0);
-          }).catch(() => { /* Non-critical */ }),
-        );
       }
+      // "My Taste" confidence badge: the personal-ranker training status. Fetched
+      // for everyone (the global pooled ranker is a shared sort, not edition-only).
+      promises.push(
+        firstValueFrom(
+          this.api.get<{ trained: boolean; comparison_count: number; coverage: number; cv_accuracy: number | null }>('/ranker/status'),
+        ).then(data => {
+          this.rankerStatus.set(data);
+        }).catch(() => { /* Non-critical */ }),
+      );
       promises.push(
         firstValueFrom(
           this.api.get<{ has_memories: boolean }>('/memories/check'),

@@ -1988,6 +1988,11 @@
     "max_photos": 10000,
     "max_group_size": 50
   },
+  "scenes": {
+    "gap_hours": 4.0,
+    "min_size": 2,
+    "max_photos": 5000
+  },
   "capsules": {
     "min_aggregate": 6.0,
     "max_photos_per_capsule": 40,
@@ -2455,7 +2460,9 @@
       "show_timeline": true,
       "show_map": true,
       "show_capsules": true,
-      "show_folders": true
+      "show_folders": true,
+      "show_my_taste": true,
+      "show_scenes": true
     },
     "allowed_origins": [
       "http://localhost:4200",

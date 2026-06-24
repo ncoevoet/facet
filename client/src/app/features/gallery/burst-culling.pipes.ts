@@ -23,10 +23,14 @@ export interface CullingPhoto {
   cull_reason?: CullReason;
 }
 
-/** A single detected face within a photo (from GET /api/photo/faces). */
+/** A single detected face within a photo (from POST /api/culling-group/faces). */
 export interface CullingFace {
   id: number;
   face_index: number;
+  confidence?: number | null;
+  eyes_open_score?: number | null;
+  expression_score?: number | null;
+  is_blink?: boolean;
 }
 
 /** A burst or similar group surfaced for culling. */
@@ -121,15 +125,14 @@ export class WeightRemainingPipe implements PipeTransform {
   }
 }
 
-/** True when a photo's faces should be flagged as eyes-closed/blink. */
-@Pipe({ name: 'isEyesClosed' })
-export class IsEyesClosedPipe implements PipeTransform {
-  /** Threshold mirrors the backend _CULL_EYES_CLOSED_MAX (eyes_open_score 0-10). */
-  private static readonly EYES_CLOSED_MAX = 4.0;
+/** True when a single face has a poor (wide-open) expression worth flagging. */
+@Pipe({ name: 'facePoorExpression' })
+export class FacePoorExpressionPipe implements PipeTransform {
+  /** Threshold mirrors the backend _CULL_EXPRESSION_MIN (expression_score 0-10). */
+  private static readonly EXPRESSION_MIN = 4.0;
 
-  transform(photo: CullingPhoto): boolean {
-    if (photo.is_blink) return true;
-    const eyes = photo.eyes_open_score;
-    return eyes != null && eyes <= IsEyesClosedPipe.EYES_CLOSED_MAX;
+  transform(face: CullingFace): boolean {
+    const expr = face.expression_score;
+    return expr != null && expr < FacePoorExpressionPipe.EXPRESSION_MIN;
   }
 }

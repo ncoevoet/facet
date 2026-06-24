@@ -1114,6 +1114,8 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         features.setdefault('show_critique', True)
         features.setdefault('show_vlm_critique', False)
         features.setdefault('show_folders', True)
+        features.setdefault('show_my_taste', True)
+        features.setdefault('show_scenes', True)
 
         # Check if albums table exists
         try:

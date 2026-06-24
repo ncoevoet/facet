@@ -18,7 +18,9 @@ Reuses ``WeightOptimizer._fetch_comparison_data`` for the metric vectors and
 exact 0-10 feature space the scorer produces, plus the embedding.
 """
 
+import json
 import logging
+import time
 from datetime import datetime, timezone
 
 import numpy as np
@@ -34,6 +36,41 @@ MIN_COMPARISONS = 30
 DEFAULT_MIN_IMPROVEMENT_PP = 2.0
 DEFAULT_C = 1.0          # inverse L2 strength for the rank-smoothing penalty
 DEFAULT_CV_FOLDS = 5
+
+# stats_cache key prefix for the latest per-scope train metrics, read by the
+# /api/ranker/status endpoint to surface a "My Taste" confidence indicator.
+_METRICS_KEY_PREFIX = "ranker_metrics"
+
+
+def ranker_metrics_key(user_id=None, category=None) -> str:
+    """stats_cache key for a scope's last-train metrics ('global'/'all' default)."""
+    return f"{_METRICS_KEY_PREFIX}:{user_id or 'global'}:{category or 'all'}"
+
+
+def _persist_ranker_metrics(db_path, category, user_id, result):
+    """Persist the latest train metrics to stats_cache for the status endpoint.
+
+    Best-effort: never let a metrics-cache failure break training.
+    """
+    payload = {
+        'trained': True,
+        'gated': bool(result.get('gated')),
+        'written': int(result.get('written') or 0),
+        'comparison_count': int(result.get('n_pairs') or 0),
+        'cv_accuracy': result.get('cv_accuracy'),
+        'baseline_accuracy': result.get('baseline_accuracy'),
+        'improvement_pp': result.get('improvement_pp'),
+        'updated_at': datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        with get_connection(db_path) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+                (ranker_metrics_key(user_id, category), json.dumps(payload), time.time()),
+            )
+            conn.commit()
+    except Exception:
+        logger.debug("Failed to persist ranker metrics", exc_info=True)
 
 
 def _load_embeddings_and_aggregate(conn, paths):
@@ -228,6 +265,7 @@ def train_ranker(db_path=DEFAULT_DB_PATH, category=None, user_id=None,
             "(+%.1f pp < %.1f pp threshold). Use force=True to write anyway.",
             cv_acc, baseline, improvement, min_improvement_pp,
         )
+        _persist_ranker_metrics(db_path, category, user_id, result)
         return result
 
     if not write:
@@ -238,6 +276,7 @@ def train_ranker(db_path=DEFAULT_DB_PATH, category=None, user_id=None,
                                     optimizer, category, user_id, data['n_pairs'])
     result['gated'] = False
     result['written'] = written
+    _persist_ranker_metrics(db_path, category, user_id, result)
     logger.info("Ranker written: %d learned_scores (held-out %.1f%% vs baseline %.1f%%, +%.1f pp)",
                 written, cv_acc, baseline, improvement)
     return result

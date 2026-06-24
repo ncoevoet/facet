@@ -63,6 +63,10 @@ class CullingConfirmBody(BaseModel):
     keep_paths: list[str]
 
 
+class CullingFacesBody(BaseModel):
+    paths: list[str]
+
+
 # --- Helpers ---
 
 def _get_burst_weights():
@@ -857,6 +861,62 @@ def _culling_sort_key(group, sort, cat_needs, default_need):
     scores = sorted((p.get('burst_score') or 0) for p in photos)
     gap = scores[-1] - scores[-2] if len(scores) >= 2 else 0
     return (gap,)
+
+
+@router.post("/api/culling-group/faces")
+async def api_culling_group_faces(
+    body: CullingFacesBody,
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Per-face metrics for every photo in a culling group, in one batch call.
+
+    Returns ``{faces_by_path: {path: [{id, face_index, bbox_*, confidence,
+    eyes_open_score, expression_score, is_blink}]}}``. Eyes-open and expression
+    are recomputed on the fly from each face's stored 106-point landmarks (no
+    model load); ``is_blink`` thresholds the eyes-open score at the same cutoff
+    used for cull reasons. Replaces the per-photo ``/api/photo/faces`` fan-out so
+    the culling lightbox can show true per-face badges.
+    """
+    paths = [p for p in (body.paths or []) if p]
+    if not paths:
+        return {'faces_by_path': {}}
+
+    import numpy as np
+
+    from analyzers import FaceAnalyzer
+
+    faces_by_path: dict[str, list] = {p: [] for p in paths}
+    placeholders = ",".join("?" * len(paths))
+    with get_db() as conn:
+        rows = conn.execute(
+            f"SELECT photo_path, id, face_index, bbox_x1, bbox_y1, bbox_x2, bbox_y2, "
+            f"confidence, landmark_2d_106 FROM faces WHERE photo_path IN ({placeholders}) "
+            f"ORDER BY photo_path, face_index",
+            paths,
+        ).fetchall()
+
+    for row in rows:
+        eyes = expr = None
+        blob = row['landmark_2d_106']
+        if blob is not None:
+            try:
+                landmarks = np.frombuffer(blob, dtype=np.float32).reshape(106, 2)
+                eyes = FaceAnalyzer.compute_eyes_open_score(landmarks)
+                expr = FaceAnalyzer.compute_expression_score(landmarks)
+            except (ValueError, TypeError):
+                pass
+        faces_by_path[row['photo_path']].append({
+            'id': row['id'],
+            'face_index': row['face_index'],
+            'bbox_x1': row['bbox_x1'], 'bbox_y1': row['bbox_y1'],
+            'bbox_x2': row['bbox_x2'], 'bbox_y2': row['bbox_y2'],
+            'confidence': row['confidence'],
+            'eyes_open_score': eyes,
+            'expression_score': expr,
+            'is_blink': eyes is not None and eyes <= _CULL_EYES_CLOSED_MAX,
+        })
+
+    return {'faces_by_path': faces_by_path}
 
 
 @router.get("/api/culling-groups")

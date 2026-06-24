@@ -1000,6 +1000,7 @@
     "culling": "Selezione",
     "memories": "Ricordi",
     "timeline": "Cronologia",
+    "scenes": "Scene",
     "folders": "Cartelle",
     "map": "Mappa",
     "capsules": "Capsule"
@@ -1024,9 +1025,9 @@
     "sort_date": "Data",
     "sort_composition": "Composizione",
     "sort_face_quality": "Qualita volto",
-    "sort_picked_for_you": "Scelto per te",
-    "picked_for_you_badge": "Appreso da {count} confronti",
-    "picked_for_you_badge_tooltip": "Il tuo classificatore personale è addestrato su questo numero di tue decisioni di confronto, valutazione e selezione.",
+    "sort_my_taste": "I miei gusti",
+    "my_taste_badge": "{coverage}% appreso",
+    "my_taste_badge_tooltip": "Addestrato su {comparisons} confronti · {accuracy}% di accuratezza",
     "sort_desc": "Decrescente",
     "sort_asc": "Crescente",
     "filters": "Filtri",
@@ -1695,6 +1696,7 @@
     "strictness": "Rigore",
     "strictness_tooltip": "Più alto conserva solo la foto migliore; più basso conserva anche i quasi pari",
     "face_grid_title": "Volti di questo gruppo",
+    "face_badge_expression": "Espressione",
     "reason": {
       "best": "La migliore del gruppo",
       "eyes_closed": "Occhi chiusi",
@@ -1723,6 +1725,22 @@
       "confirm_next": "Conferma e gruppo successivo",
       "close": "Chiudi"
     }
+  },
+  "scenes": {
+    "title": "Scene",
+    "subtitle": "Seleziona il tuo servizio in ordine narrativo",
+    "empty": "Nessuna scena",
+    "photos": "foto",
+    "cull_action": "Scarta ({count})",
+    "best": "MIGLIORE",
+    "load_more": "Carica altro",
+    "load_error": "Caricamento delle scene non riuscito",
+    "nothing_to_cull": "Tocca prima le foto da scartare",
+    "culled": "{count} foto scartate",
+    "confirm_error": "Scarto della scena non riuscito"
+  },
+  "common": {
+    "dismiss": "Chiudi"
   },
   "memories": {
     "title": "In questo giorno",

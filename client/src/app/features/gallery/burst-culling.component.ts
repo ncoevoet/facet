@@ -16,7 +16,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
 import { firstValueFrom } from 'rxjs';
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
-  CullReasonPipe, FacesForPathPipe, IsEyesClosedPipe, WeightRemainingPipe,
+  CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, WeightRemainingPipe,
   CullingGroup, CullingFace,
 } from './burst-culling.pipes';
 
@@ -61,7 +61,7 @@ interface ShortcutRow {
     PassCountdownPipe,
     CullReasonPipe,
     FacesForPathPipe,
-    IsEyesClosedPipe,
+    FacePoorExpressionPipe,
     WeightRemainingPipe,
     InfiniteScrollDirective,
   ],
@@ -373,12 +373,21 @@ interface ShortcutRow {
                         <div class="relative">
                           <img [src]="face.id | faceThumbnailUrl"
                                class="w-16 h-16 rounded object-cover border-2 border-white/20"
-                               [class.border-green-500]="photo.path === lbGroup.best_path"
-                               [class.border-red-500]="(photo | isEyesClosed)"
+                               [class.border-green-500]="photo.path === lbGroup.best_path && !face.is_blink"
+                               [class.border-red-500]="face.is_blink"
                                [alt]="photo.filename" loading="lazy" />
-                          @if (photo | isEyesClosed) {
+                          @if (face.confidence !== null && face.confidence !== undefined) {
+                            <div class="absolute top-0 right-0 bg-black/60 text-white/80 text-[9px] leading-none px-1 py-0.5 rounded-bl">
+                              {{ face.confidence | number:'1.0-2' }}
+                            </div>
+                          }
+                          @if (face.is_blink) {
                             <div class="absolute bottom-0 inset-x-0 bg-yellow-600/90 text-white text-[10px] leading-tight text-center font-bold py-0.5">
                               {{ 'ui.badges.blink' | translate }}
+                            </div>
+                          } @else if (face | facePoorExpression) {
+                            <div class="absolute bottom-0 inset-x-0 bg-orange-600/80 text-white text-[10px] leading-tight text-center font-bold py-0.5">
+                              {{ 'culling.face_badge_expression' | translate }}
                             </div>
                           }
                         </div>
@@ -750,32 +759,34 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   /**
-   * Lazily fetch detected faces for each photo in the focused group via the
-   * existing per-photo faces endpoint, so the lightbox can tile face crops.
-   * Results are cached in faceMap; already-loaded paths are skipped.
+   * Lazily fetch detected faces for the focused group in a single batch call,
+   * enriched with per-face eyes-open/expression/confidence/is_blink so the
+   * lightbox can tile face crops with per-face badges. Results are cached in
+   * faceMap; already-loaded paths are skipped.
    */
   private async loadFacesForGroup(group: CullingGroup): Promise<void> {
     const missing = group.photos.filter(p => !this.faceMap().has(p.path));
     if (missing.length === 0) return;
-    await Promise.all(missing.map(async photo => {
-      try {
-        const data = await firstValueFrom(
-          this.api.get<{ faces: CullingFace[] }>('/photo/faces', { path: photo.path }),
-        );
-        this.faceMap.update(m => {
-          const next = new Map(m);
-          next.set(photo.path, data.faces ?? []);
-          return next;
-        });
-      } catch {
-        // Best-effort: record an empty result so we don't refetch on every open.
-        this.faceMap.update(m => {
-          const next = new Map(m);
-          next.set(photo.path, []);
-          return next;
-        });
-      }
-    }));
+    try {
+      const data = await firstValueFrom(
+        this.api.post<{ faces_by_path: Record<string, CullingFace[]> }>(
+          '/culling-group/faces', { paths: missing.map(p => p.path) },
+        ),
+      );
+      const byPath = data.faces_by_path ?? {};
+      this.faceMap.update(m => {
+        const next = new Map(m);
+        for (const photo of missing) next.set(photo.path, byPath[photo.path] ?? []);
+        return next;
+      });
+    } catch {
+      // Best-effort: record empty results so we don't refetch on every open.
+      this.faceMap.update(m => {
+        const next = new Map(m);
+        for (const photo of missing) next.set(photo.path, []);
+        return next;
+      });
+    }
   }
 
   private clampIndex(value: number, max: number): number {

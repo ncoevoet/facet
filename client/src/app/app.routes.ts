@@ -38,6 +38,12 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'scenes',
+    loadComponent: () =>
+      import('./features/scenes/scenes.component').then(m => m.ScenesComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: 'stats',
     loadComponent: () =>
       import('./features/stats/stats.component').then(m => m.StatsComponent),

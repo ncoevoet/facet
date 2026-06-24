@@ -1000,6 +1000,7 @@
     "culling": "Selección",
     "memories": "Recuerdos",
     "timeline": "Línea de tiempo",
+    "scenes": "Escenas",
     "folders": "Carpetas",
     "map": "Mapa",
     "capsules": "Cápsulas"
@@ -1024,9 +1025,9 @@
     "sort_date": "Fecha",
     "sort_composition": "Composición",
     "sort_face_quality": "Calidad facial",
-    "sort_picked_for_you": "Elegido para ti",
-    "picked_for_you_badge": "Aprendido de {count} comparaciones",
-    "picked_for_you_badge_tooltip": "Tu clasificador personal se ha entrenado con esta cantidad de tus decisiones de comparación, valoración y descarte.",
+    "sort_my_taste": "Mis gustos",
+    "my_taste_badge": "{coverage}% aprendido",
+    "my_taste_badge_tooltip": "Entrenado con {comparisons} comparaciones · {accuracy}% de precisión",
     "sort_desc": "Descendente",
     "sort_asc": "Ascendente",
     "filters": "Filtros",
@@ -1695,6 +1696,7 @@
     "strictness": "Rigor",
     "strictness_tooltip": "Más alto conserva solo la mejor foto; más bajo conserva también los casi empates",
     "face_grid_title": "Rostros de este grupo",
+    "face_badge_expression": "Expresión",
     "reason": {
       "best": "La mejor del grupo",
       "eyes_closed": "Ojos cerrados",
@@ -1723,6 +1725,22 @@
       "confirm_next": "Confirmar y siguiente grupo",
       "close": "Cerrar"
     }
+  },
+  "scenes": {
+    "title": "Escenas",
+    "subtitle": "Depura tu sesión en orden narrativo",
+    "empty": "Aún no hay escenas",
+    "photos": "fotos",
+    "cull_action": "Depurar ({count})",
+    "best": "MEJOR",
+    "load_more": "Cargar más",
+    "load_error": "Error al cargar las escenas",
+    "nothing_to_cull": "Toca primero las fotos para descartarlas",
+    "culled": "{count} foto(s) descartada(s)",
+    "confirm_error": "Error al depurar la escena"
+  },
+  "common": {
+    "dismiss": "Cerrar"
   },
   "memories": {
     "title": "En este día",
