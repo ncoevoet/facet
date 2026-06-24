@@ -148,15 +148,20 @@ class RestoreWeightsBody(BaseModel):
 
 @router.get("/api/comparison/next_pair")
 def api_comparison_next_pair(
-    strategy: str = Query('uncertainty'),
+    strategy: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     user: CurrentUser = Depends(require_edition),
 ):
     """Get the next pair of photos for comparison."""
     from comparison import PairSelector
+    from api.config import VIEWER_CONFIG
 
-    selector = PairSelector(DEFAULT_DB_PATH)
-    pair = selector.get_next_pair(strategy=strategy, category=category)
+    cmp_cfg = VIEWER_CONFIG.get('comparison_mode', {})
+    resolved = strategy or cmp_cfg.get('pair_selection_strategy', 'learning')
+    pool_size = cmp_cfg.get('candidate_pool_size', 200)
+
+    selector = PairSelector(DEFAULT_DB_PATH, candidate_pool_size=pool_size)
+    pair = selector.get_next_pair(strategy=resolved, category=category)
 
     if not pair:
         return {'error': 'No more pairs available for comparison'}

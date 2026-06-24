@@ -2245,7 +2245,8 @@
     "edition_password": "",
     "comparison_mode": {
       "min_comparisons_for_optimization": 50,
-      "pair_selection_strategy": "uncertainty",
+      "pair_selection_strategy": "learning",
+      "candidate_pool_size": 200,
       "show_current_scores": true
     },
     "sort_options": {
