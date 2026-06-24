@@ -4,6 +4,22 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] "Brilliance" — 2026-06-24
+
+### Added
+- Scenes View (`/scenes`): groups burst-lead photos into chronological "scenes" by capture-time gaps so you cull a shoot in story order. Tap photos to mark them, then confirm to reject the rest — the decision feeds the personal ranker. Cache-only (no schema), configurable via `scenes.gap_hours` / `min_size` / `max_photos`, gated by `viewer.features.show_scenes`.
+- "My Taste" sort: the personal-ranker `learned_score` sort is now a first-class, feature-flagged option (`viewer.features.show_my_taste`) with a confidence badge showing learned coverage and held-out accuracy, backed by a new `GET /api/ranker/status`. Renamed from "Picked for you".
+- Per-face culling badges: the burst/similar culling lightbox now shows per-face eyes-open/closed, poor-expression and detection-confidence badges (instead of a single photo-level blink flag), fetched in one batch call (`POST /api/culling-group/faces`) and recomputed from stored landmarks.
+- CLI `--user` flag on `--export-sidecars` / `--import-sidecars`: in multi-user mode reads/writes that user's `user_preferences` ratings instead of the global columns (keywords stay global).
+- Default-OFF `iqa_extended` block in `scoring_config.json`, so the optional extended-IQA tier matches its documentation.
+
+### Changed
+- Capsule "Star Rating" diaporamas honour per-user ratings in multi-user mode (previously read the global column only).
+- `DatabaseStorage` write methods are now explicit no-ops that raise, with the backend documented as read + migrate only (DB-mode writes flow through the scorer).
+
+### Removed
+- Deprecated Florence-2 tagger and all its references (no VRAM profile used it).
+
 ## [1.2.0] "Lustre" — 2026-06-22
 
 ### Added
