@@ -1,5 +1,7 @@
 # Configuration Reference
 
+> 🌐 **English** · [Français](fr/CONFIGURATION.md) · [Deutsch](de/CONFIGURATION.md) · [Italiano](it/CONFIGURATION.md) · [Español](es/CONFIGURATION.md)
+
 All settings are in `scoring_config.json`. After modifying, run `python facet.py --recompute-average` to update scores (no GPU needed).
 
 ## Table of Contents

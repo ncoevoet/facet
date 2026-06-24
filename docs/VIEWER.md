@@ -1,5 +1,7 @@
 # Web Viewer
 
+> 🌐 **English** · [Français](fr/VIEWER.md) · [Deutsch](de/VIEWER.md) · [Italiano](it/VIEWER.md) · [Español](es/VIEWER.md)
+
 FastAPI + Angular single-page application for browsing, filtering, and managing photos.
 
 ## Contents

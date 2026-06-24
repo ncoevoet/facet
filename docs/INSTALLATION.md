@@ -1,5 +1,7 @@
 # Installation
 
+> 🌐 **English** · [Français](fr/INSTALLATION.md) · [Deutsch](de/INSTALLATION.md) · [Italiano](it/INSTALLATION.md) · [Español](es/INSTALLATION.md)
+
 ## Quick Start
 
 ```bash
