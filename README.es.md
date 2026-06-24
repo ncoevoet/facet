@@ -97,7 +97,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 - **Aprendizaje a partir de etiquetas** — las decisiones de selección, las valoraciones por estrellas, los favoritos y los rechazos alimentan el optimizador de pesos (`--sync-label-comparisons`, `--mine-insights`)
 - **Instantáneas** — guarda, restaura y compara configuraciones de pesos
 - **Histograma** — histograma de luminancia en el tooltip de la foto y en la vista de detalle
-- **Leyendas con IA** `[GPU]` `[16gb/24gb]` `[Edition]` — descripciones de texto, editables y traducibles a 5 idiomas
+- **Leyendas con IA** `[GPU]` `[16gb/24gb]` — descripciones de texto, editables `[Edition]` y traducibles a 5 idiomas (la generación y la visualización están abiertas)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Estadísticas de equipo" width="100%"></td>
@@ -143,34 +143,11 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 <td width="33%"><img src="docs/screenshots/gallery-mosaic.jpg" alt="Mosaico en escritorio" width="100%"></td>
 </tr></table>
 
-## Disponibilidad y requisitos de las funciones
+## Qué necesitas
 
-La mayor parte de Facet funciona en cualquier entorno (CPU, cualquier perfil). Algunas funciones necesitan una GPU, un **perfil de VRAM** superior, un paquete opcional o la **contraseña de edición** / el rol de **superadministrador** del visor. Etiquetas usadas a lo largo de la documentación:
-`[GPU]` · `[16gb/24gb]` (perfil de VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
+La mayor parte de Facet se ejecuta en **cualquier equipo (CPU)** — la puntuación, la detección de rostros, la selección, la galería, la búsqueda, los álbumes y la exportación de metadatos funcionan todos sin una GPU. Una **GPU** (con el perfil `16gb` o `24gb`) desbloquea los modelos más potentes: puntuación estética TOPIQ, embeddings SigLIP 2, etiquetado VLM, leyendas y crítica con IA, y saliencia del sujeto. En el visor, las acciones de edición (valoraciones, rostros, selección) necesitan la **contraseña de edición**, y el inicio de escaneos necesita el rol de **superadministrador**.
 
-| Función | GPU | Perfil | Autenticación | Paquete opcional |
-|---------|:---:|---------|:----:|------------------|
-| Puntuación / escaneo (base) | opcional | cualquiera (`legacy` = CPU) | — | — |
-| Estética TOPIQ | sí | `16gb`/`24gb` | — | — |
-| IQA suplementario (TOPIQ IAA, NR-Face, LIQE) | sí | `8gb`/`16gb`/`24gb` | — | — |
-| Embeddings SigLIP 2 | sí | `16gb`/`24gb` | — | — |
-| Etiquetado VLM (Qwen3.5) | sí | `16gb`/`24gb` | — | — |
-| Patrón de composición (SAMP-Net) | opcional | cualquiera (`legacy` = CPU) | — | — |
-| Composición (Qwen2-VL) | sí | `24gb` | — | — |
-| Saliencia del sujeto (BiRefNet) | sí | `16gb`/`24gb` | — | — |
-| Leyendas con IA | sí | `16gb`/`24gb` | edición | — |
-| Crítica VLM | sí | `16gb`/`24gb` | — | — |
-| Detección / extracción de rostros (InsightFace) | recomendada (la CPU funciona, pero es lenta) | cualquiera | — | — |
-| Agrupación de rostros (HDBSCAN) | no (CPU) | cualquiera | — | `cuml`/`cupy` (aceleración GPU opcional) |
-| Búsqueda semántica | no | cualquiera | — | `sqlite-vec` (recurre a NumPy) |
-| Decodificación RAW / HEIF | no | cualquiera | — | `rawpy` / `pillow-heif` |
-| Modo de vigilancia (`--watch`) | no | cualquiera | — | `watchdog` |
-| Extracción de GPS / exportación a darktable | no | cualquiera | — | `exiftool` / `darktable-cli` |
-| Valoraciones, favoritos, edición de rostros y personas, selección | no | cualquiera | edición | — |
-| Iniciar escaneos desde la interfaz web | no | cualquiera | superadministrador | — |
-| Multiusuario (valoraciones y roles por usuario) | no | cualquiera | basada en roles | — |
-
-> La *agrupación* de rostros se ejecuta en CPU por defecto (`hdbscan` independiente); `cuml`/`cupy` solo añaden aceleración GPU opcional —**no** son obligatorios. La contraseña de edición y los roles de usuario se configuran en `scoring_config.json`. Consulta [Instalación](docs/es/INSTALLATION.md) para los paquetes opcionales y [Configuración](docs/es/CONFIGURATION.md) para la autenticación.
+→ Requisitos completos por función (GPU, perfil de VRAM, paquetes opcionales, autenticación): **[Instalación › Requisitos por función](docs/es/INSTALLATION.md#requisitos-por-función)**.
 
 ## ¿Es Facet para ti?
 
@@ -181,7 +158,7 @@ Facet puntúa, clasifica y selecciona una biblioteca de fotos local y sirve una 
 - tienes una biblioteca local grande y quieres encontrar tus mejores tomas y descartar ráfagas y casi duplicados;
 - quieres una puntuación de calidad, composición y rostros que puedas ajustar a tu propio gusto (aprende de tus comparaciones A/B);
 - prefieres lo autoalojado y privado: sin subida a la nube, sin cuenta, sin suscripción;
-- ya editas en Lightroom o darktable: Facet escribe las valoraciones, etiquetas de color y etiquetas de vuelta como sidecars XMP.
+- ya editas en Lightroom, darktable, digiKam o immich: Facet escribe las valoraciones, etiquetas de color, palabras clave, leyendas y regiones de rostros nombrados en sidecars `.xmp` (los originales quedan intactos por defecto) y, opcionalmente, puede incrustarlas en el archivo para JPEG/HEIC/TIFF/PNG/DNG (la acción «Escribir metadatos en el archivo» de la galería o `--export-sidecars --embed-originals`), y vuelve a leer las ediciones externas con `--import-sidecars`.
 
 **Probablemente no sea para ti si quieres:**
 
@@ -193,7 +170,7 @@ Facet puntúa, clasifica y selecciona una biblioteca de fotos local y sirve una 
 
 - Las bibliotecas autoalojadas (Immich, PhotoPrism) se centran en organizar, buscar y respaldar. Facet añade puntuación de calidad, clasificación y un flujo de trabajo de selección que ellas no tienen, pero carece de aplicación móvil o de copia de seguridad/sincronización integrada.
 - Las aplicaciones de selección con IA (Aftershoot, Narrative, FilterPixel) son seleccionadores comerciales pulidos, a menudo con edición integrada. Facet es gratuito, local, más amplio (galería, búsqueda, rostros) y su puntuación es ajustable, pero es un proyecto de un solo desarrollador sin su soporte ni edición RAW.
-- Los editores y catálogos (Lightroom, darktable, digiKam) revelan y gestionan fotos. Facet los complementa mediante la exportación XMP en lugar de reemplazarlos.
+- Los editores y catálogos (Lightroom, darktable, digiKam) revelan y gestionan fotos. Facet los complementa mediante la interoperabilidad de metadatos XMP descrita arriba en lugar de reemplazarlos.
 
 La puntuación estética se basa en modelos y es aproximada; cuenta con ajustar los pesos para adaptarlos a tu gusto.
 

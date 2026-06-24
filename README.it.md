@@ -143,34 +143,11 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 <td width="33%"><img src="docs/screenshots/gallery-mosaic.jpg" alt="Mosaico desktop" width="100%"></td>
 </tr></table>
 
-## Disponibilità delle funzionalità e requisiti
+## Cosa ti serve
 
-La maggior parte di Facet funziona ovunque (CPU, qualsiasi profilo). Alcune funzionalità richiedono una GPU, un **profilo VRAM** superiore, un pacchetto opzionale, oppure la **password di modifica** del viewer o il ruolo **superadmin**. Tag utilizzati in tutta la documentazione:
-`[GPU]` · `[16gb/24gb]` (profilo VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
+La maggior parte di Facet funziona su **qualsiasi macchina (CPU)** — punteggio, rilevamento dei volti, selezione, galleria, ricerca, album ed esportazione dei metadati funzionano tutti senza una GPU. Una **GPU** (con il profilo `16gb` o `24gb`) sblocca i modelli più potenti: punteggio estetico TOPIQ, embedding SigLIP 2, tagging VLM, didascalie e critica IA, e salienza del soggetto. Nel viewer, le azioni di modifica (valutazioni, volti, selezione) richiedono la **password di modifica**, e l'avvio delle scansioni richiede il ruolo **superadmin**.
 
-| Funzionalità | GPU | Profilo | Autenticazione | Pacchetto opzionale |
-|---------|:---:|---------|:----:|------------------|
-| Punteggio / scansione (base) | opzionale | qualsiasi (`legacy` = CPU) | — | — |
-| Estetica TOPIQ | sì | `16gb`/`24gb` | — | — |
-| IQA supplementare (TOPIQ IAA, NR-Face, LIQE) | sì | `8gb`/`16gb`/`24gb` | — | — |
-| Embedding SigLIP 2 | sì | `16gb`/`24gb` | — | — |
-| Tagging VLM (Qwen3.5) | sì | `16gb`/`24gb` | — | — |
-| Modello compositivo (SAMP-Net) | opzionale | qualsiasi (`legacy` = CPU) | — | — |
-| Composizione (Qwen2-VL) | sì | `24gb` | — | — |
-| Salienza del soggetto (BiRefNet) | sì | `16gb`/`24gb` | — | — |
-| Didascalie IA | sì | `16gb`/`24gb` | edition | — |
-| Critica VLM | sì | `16gb`/`24gb` | — | — |
-| Rilevamento / estrazione volti (InsightFace) | consigliata (la CPU funziona, ma lentamente) | qualsiasi | — | — |
-| Clustering dei volti (HDBSCAN) | no (CPU) | qualsiasi | — | `cuml`/`cupy` (accelerazione GPU opzionale) |
-| Ricerca semantica | no | qualsiasi | — | `sqlite-vec` (ripiega su NumPy) |
-| Decodifica RAW / HEIF | no | qualsiasi | — | `rawpy` / `pillow-heif` |
-| Modalità watch (`--watch`) | no | qualsiasi | — | `watchdog` |
-| Estrazione GPS / esportazione darktable | no | qualsiasi | — | `exiftool` / `darktable-cli` |
-| Valutazioni, preferiti, modifiche a volti e persone, selezione | no | qualsiasi | edition | — |
-| Avvio delle scansioni dall'interfaccia web | no | qualsiasi | superadmin | — |
-| Multi-utente (valutazioni e ruoli per utente) | no | qualsiasi | basata sui ruoli | — |
-
-> Il *clustering* dei volti viene eseguito su CPU per impostazione predefinita (`hdbscan` standalone); `cuml`/`cupy` aggiungono solo un'accelerazione GPU opzionale — **non** sono obbligatori. La password di modifica e i ruoli utente sono configurati in `scoring_config.json`. Vedi [Installazione](docs/it/INSTALLATION.md) per i pacchetti opzionali e [Configurazione](docs/it/CONFIGURATION.md) per l'autenticazione.
+→ Requisiti completi per ciascuna funzionalità (GPU, profilo VRAM, pacchetti opzionali, autenticazione): **[Installazione › Requisiti delle funzionalità](docs/it/INSTALLATION.md#requisiti-delle-funzionalità)**.
 
 ## Facet fa per te?
 
@@ -181,7 +158,7 @@ Facet assegna punteggi, classifica e seleziona una libreria fotografica locale e
 - hai una grande libreria locale e vuoi trovare i tuoi scatti migliori e selezionare raffiche e quasi-duplicati;
 - vuoi un punteggio di qualità, composizione e volti che puoi regolare secondo i tuoi gusti (impara dai tuoi confronti A/B);
 - preferisci l'auto-hosting e la privacy — nessun caricamento sul cloud, nessun account, nessun abbonamento;
-- già modifichi in Lightroom o darktable — Facet riscrive valutazioni, etichette e tag come sidecar XMP.
+- già modifichi in Lightroom, darktable, digiKam o immich — Facet scrive valutazioni, etichette, parole chiave, didascalie e regioni di volti nominati nei sidecar `.xmp` (originali intatti per impostazione predefinita) e può facoltativamente incorporarli nei file per JPEG/HEIC/TIFF/PNG/DNG (azione "Scrivi metadati su file" della galleria o `--export-sidecars --embed-originals`), e rilegge le modifiche esterne con `--import-sidecars`.
 
 **Probabilmente non fa per te se vuoi:**
 
@@ -193,7 +170,7 @@ Facet assegna punteggi, classifica e seleziona una libreria fotografica locale e
 
 - Le librerie self-hosted (Immich, PhotoPrism) si concentrano su organizzazione, ricerca e backup. Facet aggiunge il punteggio di qualità, la classificazione e un flusso di lavoro di selezione che esse non offrono, ma non ha app mobile né backup/sincronizzazione integrati.
 - Le app di selezione IA (Aftershoot, Narrative, FilterPixel) sono selezionatori commerciali raffinati, spesso con la modifica integrata. Facet è gratuito, locale, più ampio (galleria, ricerca, volti) e il suo punteggio è regolabile — ma è un progetto di un singolo sviluppatore senza il loro supporto né la modifica RAW.
-- Gli editor e i cataloghi (Lightroom, darktable, digiKam) sviluppano e gestiscono le foto. Facet li completa tramite l'esportazione XMP anziché sostituirli.
+- Gli editor e i cataloghi (Lightroom, darktable, digiKam) sviluppano e gestiscono le foto. Facet li completa tramite l'interoperabilità dei metadati XMP descritta sopra anziché sostituirli.
 
 Il punteggio estetico è basato su modelli ed è approssimativo; aspettati di dover regolare i pesi per adattarli ai tuoi gusti.
 

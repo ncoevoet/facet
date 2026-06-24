@@ -143,34 +143,11 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 <td width="33%"><img src="docs/screenshots/gallery-mosaic.jpg" alt="Desktop-Mosaik" width="100%"></td>
 </tr></table>
 
-## Verfügbarkeit der Funktionen & Anforderungen
+## Was Sie benötigen
 
-Der Großteil von Facet läuft überall (CPU, jedes Profil). Einige Funktionen benötigen eine GPU, ein höheres **VRAM-Profil**, ein optionales Paket oder das **Bearbeitungspasswort** / die **Superadmin**-Rolle des Viewers. In der gesamten Dokumentation verwendete Kennzeichnungen:
-`[GPU]` · `[16gb/24gb]` (VRAM-Profil) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
+Der Großteil von Facet läuft auf **jedem Rechner (CPU)** — Bewertung, Gesichtserkennung, Auswahl, die Galerie, Suche, Alben und Metadaten-Export funktionieren alle ohne GPU. Eine **GPU** (mit dem `16gb`- oder `24gb`-Profil) schaltet die leistungsstärksten Modelle frei: TOPIQ-Ästhetikbewertung, SigLIP-2-Embeddings, VLM-Tagging, KI-Beschreibungen und -Kritik sowie Motiverkennung. Im Viewer benötigen Bearbeitungsaktionen (Bewertungen, Gesichter, Auswahl) das **Bearbeitungspasswort**, und das Auslösen von Scans erfordert die **Superadmin**-Rolle.
 
-| Funktion | GPU | Profil | Auth | Optionales Paket |
-|---------|:---:|---------|:----:|------------------|
-| Bewertung / Scan (Grundfunktion) | optional | beliebig (`legacy` = CPU) | — | — |
-| TOPIQ-Ästhetik | ja | `16gb`/`24gb` | — | — |
-| Ergänzende IQA (TOPIQ IAA, NR-Face, LIQE) | ja | `8gb`/`16gb`/`24gb` | — | — |
-| SigLIP-2-Embeddings | ja | `16gb`/`24gb` | — | — |
-| VLM-Tagging (Qwen3.5) | ja | `16gb`/`24gb` | — | — |
-| Kompositionsmuster (SAMP-Net) | optional | beliebig (`legacy` = CPU) | — | — |
-| Komposition (Qwen2-VL) | ja | `24gb` | — | — |
-| Motiverkennung (BiRefNet) | ja | `16gb`/`24gb` | — | — |
-| KI-Beschreibungen | ja | `16gb`/`24gb` | edition | — |
-| VLM-Kritik | ja | `16gb`/`24gb` | — | — |
-| Gesichtserkennung / -extraktion (InsightFace) | empfohlen (CPU funktioniert, langsam) | beliebig | — | — |
-| Gesichtsclustering (HDBSCAN) | nein (CPU) | beliebig | — | `cuml`/`cupy` (optionale GPU-Beschleunigung) |
-| Semantische Suche | nein | beliebig | — | `sqlite-vec` (greift auf NumPy zurück) |
-| RAW-/HEIF-Decodierung | nein | beliebig | — | `rawpy` / `pillow-heif` |
-| Überwachungsmodus (`--watch`) | nein | beliebig | — | `watchdog` |
-| GPS-Extraktion / Darktable-Export | nein | beliebig | — | `exiftool` / `darktable-cli` |
-| Bewertungen, Favoriten, Gesichts- & Personenbearbeitungen, Auswahl | nein | beliebig | edition | — |
-| Scans über die Web-Oberfläche auslösen | nein | beliebig | superadmin | — |
-| Mehrbenutzerbetrieb (benutzerspezifische Bewertungen & Rollen) | nein | beliebig | rollenbasiert | — |
-
-> Das Gesichts-*Clustering* läuft standardmäßig über die CPU (eigenständiges `hdbscan`); `cuml`/`cupy` fügen nur optionale GPU-Beschleunigung hinzu — sie sind **nicht** erforderlich. Das Bearbeitungspasswort und die Benutzerrollen werden in `scoring_config.json` konfiguriert. Siehe [Installation](docs/de/INSTALLATION.md) für optionale Pakete und [Konfiguration](docs/de/CONFIGURATION.md) für die Authentifizierung.
+→ Vollständige Anforderungen pro Funktion (GPU, VRAM-Profil, optionale Pakete, Auth): **[Installation › Funktionsanforderungen](docs/de/INSTALLATION.md#funktionsanforderungen)**.
 
 ## Ist Facet das Richtige für Sie?
 
@@ -181,7 +158,7 @@ Facet bewertet, ordnet und sortiert eine lokale Fotobibliothek und stellt eine G
 - eine große lokale Bibliothek haben und Ihre besten Aufnahmen finden sowie Serienbilder und Beinahe-Duplikate aussortieren möchten;
 - eine Bewertung von Qualität, Komposition und Gesichtern wünschen, die Sie auf Ihren eigenen Geschmack abstimmen können (sie lernt aus Ihren A/B-Vergleichen);
 - selbstgehostet und privat bevorzugen — kein Cloud-Upload, kein Konto, kein Abonnement;
-- bereits in Lightroom oder darktable bearbeiten — Facet schreibt Bewertungen, Labels und Tags als XMP-Sidecars zurück.
+- bereits in Lightroom, darktable, digiKam oder immich bearbeiten — Facet schreibt Bewertungen, Labels, Stichwörter, Beschreibungen und benannte Gesichtsregionen in `.xmp`-Sidecars (Originale standardmäßig unangetastet) und kann sie optional in JPEG/HEIC/TIFF/PNG/DNG einbetten (die Galerie-Aktion „Metadaten in Datei schreiben" oder `--export-sidecars --embed-originals`) und liest externe Bearbeitungen mit `--import-sidecars` wieder ein.
 
 **Wahrscheinlich nichts für Sie, wenn Sie wünschen:**
 
@@ -193,7 +170,7 @@ Facet bewertet, ordnet und sortiert eine lokale Fotobibliothek und stellt eine G
 
 - Selbstgehostete Bibliotheken (Immich, PhotoPrism) konzentrieren sich auf Organisieren, Suche und Backup. Facet ergänzt sie um Qualitätsbewertung, Ranking und einen Auswahl-Workflow, den sie nicht bieten, hat aber keine mobile App und kein integriertes Backup/Sync.
 - KI-Auswahl-Apps (Aftershoot, Narrative, FilterPixel) sind ausgefeilte kommerzielle Auswahltools, oft mit integrierter Bearbeitung. Facet ist kostenlos, lokal, umfassender (Galerie, Suche, Gesichter) und seine Bewertung ist anpassbar — aber es ist ein Einzelentwicklerprojekt ohne deren Support oder RAW-Bearbeitung.
-- Editoren und Kataloge (Lightroom, darktable, digiKam) entwickeln und verwalten Fotos. Facet ergänzt sie über den XMP-Export, anstatt sie zu ersetzen.
+- Editoren und Kataloge (Lightroom, darktable, digiKam) entwickeln und verwalten Fotos. Facet ergänzt sie über die oben beschriebene XMP-Metadaten-Interoperabilität, anstatt sie zu ersetzen.
 
 Die Ästhetikwertung ist modellbasiert und ungefähr; rechnen Sie damit, die Gewichte an Ihren Geschmack anzupassen.
 

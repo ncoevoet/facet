@@ -54,7 +54,9 @@ exiftool ofrece la mejor extracción de EXIF para todos los formatos. Sin él, l
 python3 -m venv venv
 source venv/bin/activate
 
-# Instala primero PyTorch con la URL de índice de CUDA correcta
+# Instala primero PyTorch con la URL de índice de CUDA correcta.
+# cu128 está pensado para CUDA 12.8+/13.x; para CUDA 11.8 usa cu118, para CUDA 12.4 usa cu124.
+# En caso de duda, elige el comando correspondiente en https://pytorch.org/get-started/locally/
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 
 # Instalar las dependencias (todas a la vez para una resolución de dependencias correcta).
@@ -139,6 +141,9 @@ python -c "import torch, cv2, fastapi, insightface, open_clip, pyiqa, numpy, sci
 | `scipy` | Computación científica |
 | `hdbscan` | Agrupación de rostros (incluye scikit-learn) |
 | `reverse_geocoder` | Geocodificación inversa para GPS |
+| `psutil` | Autoajuste del procesamiento por lotes (supervisión del sistema) |
+| `aiosqlite` | SQLite asíncrono para los endpoints de lectura de FastAPI |
+| `sqlite-vec` | KNN en disco para búsqueda semántica y similitud (recurre a la caché en memoria con NumPy si falta) |
 
 Todos estos están en `requirements.txt`; ningún perfil necesita paquetes base adicionales.
 
@@ -148,8 +153,7 @@ Cada uno desbloquea una función; sin él, la función se omite o se utiliza una
 
 | Paquete | Desbloquea / propósito | Sin él |
 |---------|-------------------|-----------|
-| `sqlite-vec>=0.1.6` | KNN en disco para búsqueda semántica y similitud | Recurre a la caché de embeddings en memoria con NumPy |
-| `watchdog` | Modo de vigilancia (el demonio `--watch` reescanea archivos nuevos) | `--watch` no disponible |
+| `watchdog` | Modo de vigilancia (el demonio `--watch` reescanea archivos nuevos) — **no está en `requirements.txt`**; solo se instala mediante `pip install .[watch]`, por lo que quienes usen directamente `requirements.txt` no obtienen `--watch` | `--watch` no disponible |
 | `pillow-heif` | Decodificación HEIF/HEIC | Los archivos HEIF/HEIC se omiten |
 | `rawpy` | Decodificación RAW (CR2/CR3/NEF/ARW/…) | Los archivos RAW se omiten (ya incluido en `requirements.txt` base) |
 | `cuml`, `cupy` | Agrupación de rostros acelerada por GPU (conda + CUDA) | La agrupación se ejecuta en CPU mediante `hdbscan` (predeterminado) |
@@ -157,6 +161,36 @@ Cada uno desbloquea una función; sin él, la función se omite o se utiliza una
 | `aesthetic-predictor-v2-5`, `bitsandbytes` | Nivel de IQA extendido (`pip install -e .[iqa-extended]`; `iqa_extended` en `scoring_config.json`, desactivado de forma predeterminada) | Métricas de IQA extendido no disponibles |
 | `darktable-cli` (sistema) | Exportación de perfiles RAW/darktable desde el visor | Solo se ofrece descarga original/incrustada |
 | `exiftool` (sistema) | Mejor extracción de EXIF/GPS | Recurre a `exifread` y luego a PIL |
+
+## Requisitos por función
+
+La mayor parte de Facet funciona en cualquier entorno (CPU, cualquier perfil). Algunas funciones necesitan una GPU, un **perfil de VRAM** superior, un paquete opcional o la **contraseña de edición** / el rol de **superadministrador** del visor. Etiquetas usadas a lo largo de la documentación:
+`[GPU]` · `[16gb/24gb]` (perfil de VRAM) · `[Edition]` · `[Superadmin]` · `[Optional: pkg]`.
+
+| Función | GPU | Perfil | Autenticación | Paquete opcional |
+|---------|:---:|---------|:----:|------------------|
+| Puntuación / escaneo (base) | opcional | cualquiera (`legacy` = CPU) | — | — |
+| Estética TOPIQ | sí | `16gb`/`24gb` | — | — |
+| IQA suplementario (TOPIQ IAA, NR-Face, LIQE) | sí | `8gb`/`16gb`/`24gb` | — | — |
+| Embeddings SigLIP 2 | sí | `16gb`/`24gb` | — | — |
+| Etiquetado VLM (Qwen3.5) | sí | `16gb`/`24gb` | — | — |
+| Patrón de composición (SAMP-Net) | opcional | cualquiera (`legacy` = CPU) | — | — |
+| Composición (Qwen2-VL) | sí | `24gb` | — | — |
+| Saliencia del sujeto (BiRefNet) | sí | `16gb`/`24gb` | — | — |
+| Leyendas con IA (generar / ver) | sí | `16gb`/`24gb` | — | — |
+| Leyendas con IA (editar) | sí | `16gb`/`24gb` | edición | — |
+| Crítica VLM | sí | `16gb`/`24gb` | — | — |
+| Detección / extracción de rostros (InsightFace) | recomendada (la CPU funciona, pero es lenta) | cualquiera | — | — |
+| Agrupación de rostros (HDBSCAN) | no (CPU) | cualquiera | — | `cuml`/`cupy` (aceleración GPU opcional) |
+| Búsqueda semántica | no | cualquiera | — | `sqlite-vec` (recurre a NumPy) |
+| Decodificación RAW / HEIF | no | cualquiera | — | `rawpy` / `pillow-heif` |
+| Modo de vigilancia (`--watch`) | no | cualquiera | — | `watchdog` |
+| Extracción de GPS / exportación a darktable | no | cualquiera | — | `exiftool` / `darktable-cli` |
+| Valoraciones, favoritos, edición de rostros y personas, selección | no | cualquiera | edición | — |
+| Iniciar escaneos desde la interfaz web | no | cualquiera | superadministrador | — |
+| Multiusuario (valoraciones y roles por usuario) | no | cualquiera | basada en roles | — |
+
+> La *agrupación* de rostros se ejecuta en CPU por defecto (`hdbscan` independiente); `cuml`/`cupy` solo añaden aceleración GPU opcional —**no** son obligatorios. La contraseña de edición y los roles de usuario se configuran en `scoring_config.json` —consulta [Configuración](CONFIGURATION.md) para la autenticación.
 
 ## Resolución de conflictos de dependencias
 
@@ -191,15 +225,7 @@ uv pip install -r requirements.txt
 uv pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
 ```
 
-**3. Empieza de cero** — si tu entorno ya está en un estado dañado:
-
-```bash
-deactivate
-rm -rf venv
-python3 -m venv venv && source venv/bin/activate
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-pip install -r requirements.txt
-```
+**3. Empieza de cero** — si tu entorno ya está en un estado dañado, ejecuta `deactivate`, `rm -rf venv` y vuelve a crearlo repitiendo los pasos de [Entorno de Python](#entorno-de-python) anteriores.
 
 ### Problemas de detección de la GPU
 
@@ -217,8 +243,8 @@ python facet.py --doctor --simulate-gpu "RTX 5070 Ti" --simulate-vram 16
 
 ## Primera ejecución
 
-En la primera ejecución, Facet descarga automáticamente:
-- Modelo CLIP (ViT-L-14): ~1,7 GB
+En la primera ejecución, Facet descarga automáticamente el modelo de embeddings de tu perfil:
+- CLIP ViT-L-14 (perfiles legacy/8gb): ~1,7 GB — o SigLIP 2 NaFlex SO400M (perfiles 16gb/24gb), mayor
 - Modelo buffalo_l de InsightFace: ~400 MB
 - Pesos de SAMP-Net (todos los perfiles): ~50 MB
 
@@ -248,11 +274,13 @@ npm start        # Servidor de desarrollo en http://localhost:4200 (redirige la 
 
 ### Descarga manual de SAMP-Net
 
-La descarga automática de los pesos de SAMP-Net puede fallar (la URL de la versión de GitHub ya no está disponible). Si ves:
+Los pesos de SAMP-Net se descargan automáticamente en el primer uso desde la versión de pesos de modelos del proyecto (`github.com/ncoevoet/facet/releases/download/model-weights-v1/samp_net.pth`). Normalmente no se requiere ningún paso manual.
+
+Si la descarga automática falla (p. ej. sin conexión o con la red restringida), verás:
 ```
 Failed to download SAMP-Net weights: HTTP Error 404: Not Found
 ```
 
-Descárgalos manualmente:
-1. Descárgalo desde [Google Drive](https://drive.google.com/file/d/1sIcYr5cQGbxm--tCGaASmN0xtE_r-QUg/view)
+Entonces descárgalos manualmente:
+1. Descarga `samp_net.pth` desde la [versión model-weights-v1](https://github.com/ncoevoet/facet/releases/download/model-weights-v1/samp_net.pth) (o, como alternativa secundaria, desde [Google Drive](https://drive.google.com/file/d/1sIcYr5cQGbxm--tCGaASmN0xtE_r-QUg/view))
 2. Coloca el archivo en `pretrained_models/samp_net.pth`
