@@ -355,3 +355,65 @@ class TestAlbumExport:
     def test_regular_client_forbidden(self, regular_client):
         resp = regular_client.post("/api/albums/1/export", json={"mode": "sidecars"})
         assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# POST /api/photo/embed_metadata
+# ---------------------------------------------------------------------------
+
+class TestEmbedMetadata:
+    def test_returns_sidecar_and_embedded_key(self, client, tmp_path):
+        path, row = _make_photo(tmp_path, "a.jpg", star_rating=4, tags="x")
+        db = str(tmp_path / "t.db")
+        _seed_db(db, [row])
+        with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
+            resp = client.post("/api/photo/embed_metadata", json={"path": path})
+        assert resp.status_code == 200
+        body = resp.json()
+        # 'embedded' is always present (None under the no-exiftool fallback).
+        assert "embedded" in body
+        assert body["sidecar"] == path + ".xmp"
+        assert os.path.isfile(body["sidecar"])
+
+    def test_unknown_path_404(self, client, tmp_path):
+        db = str(tmp_path / "t.db")
+        _seed_db(db, [])
+        with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
+            resp = client.post("/api/photo/embed_metadata", json={"path": "/nope.jpg"})
+        assert resp.status_code == 404
+
+    def test_regular_client_forbidden(self, regular_client):
+        resp = regular_client.post("/api/photo/embed_metadata", json={"path": "/x.jpg"})
+        assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Finding 6: person_names derived from regions (comma-safe)
+# ---------------------------------------------------------------------------
+
+class TestPersonNamesFromRegions:
+    def _seed_face(self, db, photo_path, person_name):
+        conn = sqlite3.connect(db)
+        conn.execute("INSERT INTO persons (id, name) VALUES (1, ?)", (person_name,))
+        conn.execute(
+            "INSERT INTO faces (photo_path, person_id, bbox_x1, bbox_y1, bbox_x2, bbox_y2) "
+            "VALUES (?, 1, 100, 100, 200, 200)",
+            (photo_path,),
+        )
+        conn.commit()
+        conn.close()
+
+    def test_comma_person_name_not_split(self, client, tmp_path):
+        path, row = _make_photo(
+            tmp_path, "a.jpg", star_rating=3, image_width=1000, image_height=1000
+        )
+        db = str(tmp_path / "t.db")
+        _seed_db(db, [row])
+        self._seed_face(db, path, "Smith, John")
+        with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
+            resp = client.post("/api/photo/export_xmp", json={"path": path})
+        assert resp.status_code == 200
+        desc = _read_sidecar_desc(resp.json()["sidecar"])
+        subjects = [li.text for li in desc.findall(".//dc:subject/rdf:Bag/rdf:li", _NS)]
+        # The comma-bearing name is one keyword, not split into "Smith" + "John".
+        assert "Smith, John" in subjects

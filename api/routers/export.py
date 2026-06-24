@@ -47,6 +47,10 @@ class ExportXmpRequest(BaseModel):
     overwrite: bool = False
 
 
+class EmbedMetadataRequest(BaseModel):
+    path: str
+
+
 class ExportSidecarsRequest(BaseModel):
     paths: Optional[list[str]] = Field(default=None, max_length=10000)
     filters: Optional[dict] = None
@@ -77,9 +81,6 @@ def _fetch_rating_rows(conn, paths, user_id):
     select = (
         "photos.path as path, photos.tags as tags, "
         "photos.caption as caption, photos.category as category, "
-        "(SELECT GROUP_CONCAT(DISTINCT p.name) FROM faces f "
-        "JOIN persons p ON f.person_id = p.id "
-        "WHERE f.photo_path = photos.path AND p.name IS NOT NULL) as person_names, "
         f"{pref_cols['star_rating']} as star_rating, "
         f"{pref_cols['is_favorite']} as is_favorite, "
         f"{pref_cols['is_rejected']} as is_rejected"
@@ -143,9 +144,17 @@ def _fetch_regions_map(conn, paths):
 
 
 def _rating_from(row, regions_map):
-    """Build an ``XmpRating`` for a fetched row with its face regions attached."""
+    """Build an ``XmpRating`` for a fetched row with its face regions attached.
+
+    Person names are derived from the regions (deduped, order-preserving) rather
+    than a comma-joined SQL aggregate, so names containing commas round-trip.
+    """
     rating = XmpRating.from_row(row)
     rating.regions = regions_map.get(row["path"], [])
+    seen = set()
+    rating.person_names = [
+        r.name for r in rating.regions if not (r.name in seen or seen.add(r.name))
+    ]
     return rating
 
 
@@ -169,7 +178,8 @@ def _write_sidecars_for_paths(conn, paths, user_id, overwrite):
             skipped += 1
             continue
         try:
-            result = write_metadata(real_disk, _rating_from(row, regions_map), overwrite=overwrite)
+            result = write_metadata(real_disk, _rating_from(row, regions_map),
+                                    overwrite=overwrite, embed_original=False)
             written += 1
             sidecars.append(result["sidecar"])
         except (OSError, RuntimeError):
@@ -319,10 +329,43 @@ def api_export_xmp(
 
     real_disk = resolve_photo_disk_path(body.path)
     try:
-        result = write_metadata(real_disk, _rating_from(row, regions_map), overwrite=body.overwrite)
+        result = write_metadata(real_disk, _rating_from(row, regions_map),
+                                overwrite=body.overwrite, embed_original=False)
     except (OSError, RuntimeError):
         logger.exception("Failed to write metadata for %s", body.path)
         raise HTTPException(status_code=500, detail="Failed to write metadata")
+    return result
+
+
+@router.post("/api/photo/embed_metadata")
+def api_embed_metadata(
+    body: EmbedMetadataRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Embed Facet metadata into the original photo file (and write the sidecar).
+
+    Unlike ``/api/photo/export_xmp`` (sidecar-only), this rewrites the original
+    image in-place for safe formats (JPEG/HEIC/TIFF/PNG/DNG) so the whole photo
+    ecosystem sees the rating/keywords. Proprietary RAW is never modified.
+    """
+    if not body.path:
+        raise HTTPException(status_code=400, detail="path required")
+
+    user_id = user.user_id
+    with get_db() as conn:
+        rating_rows = _fetch_rating_rows(conn, [body.path], user_id)
+        regions_map = _fetch_regions_map(conn, list(rating_rows.keys()))
+
+    row = rating_rows.get(body.path)
+    if row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    real_disk = resolve_photo_disk_path(body.path)
+    try:
+        result = write_metadata(real_disk, _rating_from(row, regions_map), embed_original=True)
+    except (OSError, RuntimeError):
+        logger.exception("Failed to embed metadata for %s", body.path)
+        raise HTTPException(status_code=500, detail="Failed to embed metadata")
     return result
 
 

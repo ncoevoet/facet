@@ -1174,6 +1174,7 @@ Activez ou désactivez les fonctionnalités facultatives pour réduire l'utilisa
 | `show_albums` | `true` | Afficher la fonctionnalité d'albums (créer, gérer et parcourir des albums de photos) |
 | `show_critique` | `true` | Afficher le bouton de critique IA sur les cartes photo (ventilation du score basée sur des règles) |
 | `show_vlm_critique` | `false` | Activer le mode de critique alimenté par VLM (nécessite un profil VRAM 16gb/24gb) |
+| `show_embed_metadata` | `true` | Affiche l'action « Écrire les métadonnées dans le fichier » par vignette en mode édition (intègre notes/mots-clés dans l'image originale via exiftool) |
 | `show_memories` | `true` | Afficher la boîte de dialogue Souvenirs « Ce jour-là » (photos prises à la même date les années précédentes) |
 | `show_captions` | `true` | Afficher les légendes générées par IA sur les cartes photo |
 | `show_timeline` | `true` | Afficher la vue chronologie pour un parcours chronologique avec navigation par date |

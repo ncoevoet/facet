@@ -2,12 +2,14 @@
 
 Two writers, picked by ``write_metadata`` per host capability:
 
-* **exiftool path (preferred).** Embeds metadata *in-file* for safe formats
+* **exiftool path (preferred).** Writes/merges the ``<img>.xmp`` sidecar — the
+  only channel darktable reads after import and the only safe channel for
+  proprietary RAW (whose originals are never modified). When the caller passes
+  ``embed_original=True`` it ALSO embeds metadata *in-file* for safe formats
   (JPEG/HEIC/TIFF/PNG/DNG) so the whole ecosystem (Lightroom, digiKam, immich,
-  Apple / Synology / Google Photos) sees it, AND writes/merges the ``<img>.xmp``
-  sidecar — the only channel darktable reads after import and the only safe
-  channel for proprietary RAW (whose originals are never modified). exiftool
-  preserves every foreign node, including darktable's ``darktable:history``.
+  Apple / Synology / Google Photos) sees it. exiftool preserves every foreign
+  node (darktable's ``darktable:history`` and any external keywords, which are
+  read and unioned with Facet's rather than wiped).
 * **pure-XML fallback (no exiftool).** ``build_xmp`` / ``write_sidecar`` generate
   a standard XMP packet as XML directly — **no dependency on the exiftool
   binary** (CI has none), so the sidecar path works with zero external deps.
@@ -35,8 +37,9 @@ safely, so when a sidecar already exists and ``overwrite`` is False it instead
 writes ``<image>.facet.xmp`` — a clearly-namespaced file editors ignore — and
 never modifies the original image.
 
-Note: with exiftool, ``write_metadata`` *does* modify the original file for the
-safe-embed formats (JPEG/HEIC/TIFF/PNG/DNG); proprietary RAW is never touched.
+Note: ``write_metadata`` only modifies the original file when the caller passes
+``embed_original=True`` (safe-embed formats JPEG/HEIC/TIFF/PNG/DNG); the default
+is sidecar-only, and proprietary RAW is never touched regardless.
 """
 
 from __future__ import annotations
@@ -157,8 +160,8 @@ class XmpRating:
         """Flat ``dc:subject`` keyword set: tags plus person names, deduped.
 
         Single source of truth shared by the sidecar (``build_xmp``) and the
-        optional exiftool-embedded JPEG (``embed_into_jpeg``) so person names
-        always reach non-hierarchical editors via the standard keyword field.
+        exiftool writer (``write_metadata``) so person names always reach
+        non-hierarchical editors via the standard keyword field.
         """
         seen: set[str] = set()
         keywords: list[str] = []
@@ -174,8 +177,8 @@ class XmpRating:
         A rejected photo maps to ``RATING_REJECTED`` and the ``"Red"`` label;
         otherwise the star rating is clamped to 0-5 and a favourite maps to the
         ``"Yellow"`` label. Single source of truth shared by the sidecar
-        (``build_xmp``) and the optional exiftool-embedded JPEG
-        (``embed_into_jpeg``) so the two paths can never diverge.
+        (``build_xmp``) and the exiftool writer (``write_metadata``) so the two
+        paths can never diverge.
         """
         rating = RATING_REJECTED if self.is_rejected else max(0, min(5, self.star_rating))
         if self.is_rejected:
@@ -378,13 +381,27 @@ def _region_args(regions: list[FaceRegion]) -> list[str]:
     return args
 
 
-def _exiftool_tag_args(rating: XmpRating) -> list[str]:
+def _union(*lists: list[str]) -> list[str]:
+    """Order-preserving union of several keyword lists (first occurrence wins)."""
+    seen: set[str] = set()
+    merged: list[str] = []
+    for item in (item for sub in lists for item in sub):
+        if item and item not in seen:
+            seen.add(item)
+            merged.append(item)
+    return merged
+
+
+def _exiftool_tag_args(rating: XmpRating, existing_flat: list[str],
+                       existing_hier: list[str]) -> list[str]:
     """Build the exiftool ``-Tag=value`` args for ``rating`` (no exe, no target).
 
-    Facet is authoritative for the fields it manages: keyword/hierarchical/region
-    LISTS are cleared then rewritten so re-running never accumulates duplicates
-    (exiftool ``+=`` does not dedupe). Scalars (label, caption) are set only when
-    present, so an external value is not wiped when Facet has none.
+    Keyword and hierarchical LISTS are cleared then rewritten as the UNION of the
+    target's existing keywords and Facet's own — foreign keywords authored by
+    Lightroom / darktable / etc. are preserved, never wiped, and re-running never
+    accumulates duplicates. Face regions stay clear-then-replace (Facet owns face
+    detection). Scalars (label, caption) are set only when present, so an external
+    value is not wiped when Facet has none.
     """
     xmp_rating, label = rating.xmp_values()
     args = [f"-XMP:Rating={xmp_rating}"]
@@ -393,31 +410,75 @@ def _exiftool_tag_args(rating: XmpRating) -> list[str]:
     if rating.caption:
         args.append(f"-XMP-dc:Description={rating.caption}")
         args.append(f"-IPTC:Caption-Abstract={rating.caption}")
-    # Flat keywords (mirrored to IPTC for legacy tools): clear then replace.
+    # Flat keywords (mirrored to IPTC for legacy tools): clear then replace with
+    # the union of existing and Facet's keywords.
     args += ["-XMP-dc:Subject=", "-IPTC:Keywords="]
-    for keyword in rating.all_keywords():
+    for keyword in _union(existing_flat, rating.all_keywords()):
         args.append(f"-XMP-dc:Subject={keyword}")
         args.append(f"-IPTC:Keywords={keyword}")
-    # Hierarchical keywords: clear then replace.
+    # Hierarchical keywords: clear then replace with the union.
     args.append("-XMP-lr:HierarchicalSubject=")
-    for path in _hierarchical_paths(rating):
+    for path in _union(existing_hier, _hierarchical_paths(rating)):
         args.append(f"-XMP-lr:HierarchicalSubject={path}")
     args += _region_args(rating.regions)
     return args
+
+
+def _listify(value) -> list[str]:
+    """Normalise an exiftool JSON field (str / list / None) into a list of str."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v) for v in value if str(v)]
+    return [str(value)] if str(value) else []
+
+
+def _read_existing_keywords(target: str, exe: str, *, timeout: int) -> tuple[list[str], list[str]]:
+    """Read ``target``'s existing keywords so a write can union rather than wipe.
+
+    Returns ``(flat, hierarchical)`` where ``flat`` merges ``dc:Subject`` and
+    ``IPTC:Keywords``. Any failure (target not yet created, parse error, non-zero
+    exit) yields ``([], [])`` so the caller falls back to Facet's own keywords.
+    """
+    import json
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            [exe, "-q", "-m", "-json", "-XMP-dc:Subject", "-IPTC:Keywords",
+             "-XMP-lr:HierarchicalSubject", target],
+            capture_output=True, text=True, timeout=timeout,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return [], []
+    if result.returncode != 0 or not result.stdout.strip():
+        return [], []
+    try:
+        records = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return [], []
+    if not records:
+        return [], []
+    record = records[0]
+    flat = _union(_listify(record.get("Subject")), _listify(record.get("Keywords")))
+    return flat, _listify(record.get("HierarchicalSubject"))
 
 
 def _run_exiftool(target: str, rating: XmpRating, *, timeout: int) -> None:
     """Apply ``rating`` to ``target`` (an image file or a ``.xmp`` sidecar).
 
     Creates the sidecar if it does not exist, merges into it if it does, and
-    preserves all foreign nodes. Raises ``RuntimeError`` on failure.
+    preserves all foreign nodes — including external keywords, which are read
+    first and unioned with Facet's own. Raises ``RuntimeError`` on failure.
     """
     import subprocess
 
     exe = _resolve_exiftool()
     if not exe:
         raise RuntimeError("exiftool binary not available")
-    args = [exe, "-q", "-m", "-overwrite_original", *_exiftool_tag_args(rating), target]
+    existing_flat, existing_hier = _read_existing_keywords(target, exe, timeout=timeout)
+    tag_args = _exiftool_tag_args(rating, existing_flat, existing_hier)
+    args = [exe, "-q", "-m", "-overwrite_original", *tag_args, target]
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as ex:
@@ -430,24 +491,97 @@ def _run_exiftool(target: str, rating: XmpRating, *, timeout: int) -> None:
 
 
 def write_metadata(image_path: str, rating: XmpRating, *, overwrite: bool = False,
-                   timeout: int = 60) -> dict:
+                   embed_original: bool = False, timeout: int = 60) -> dict:
     """Write Facet metadata for the whole photo ecosystem.
 
-    With exiftool present: embeds in-file for safe formats (JPEG/HEIC/TIFF/PNG/
-    DNG) AND writes/merges the ``<img>.xmp`` sidecar — the only channel darktable
-    reads after import, and the only safe channel for proprietary RAW (whose
-    originals are never modified). Without exiftool: falls back to the
-    dependency-free pure-XML ``write_sidecar`` (``overwrite`` then governs the
-    ``.facet.xmp`` no-clobber divert).
+    With exiftool present: writes/merges the ``<img>.xmp`` sidecar — the only
+    channel darktable reads after import, and the only safe channel for
+    proprietary RAW (whose originals are never modified). When ``embed_original``
+    is True it ALSO embeds in-file for safe formats (JPEG/HEIC/TIFF/PNG/DNG) so
+    the whole ecosystem (Lightroom / digiKam / immich / Apple / Synology Photos)
+    sees it. ``embed_original`` defaults to False, so the original file is never
+    modified unless the caller explicitly opts in. Without exiftool: falls back to
+    the dependency-free pure-XML ``write_sidecar`` (``overwrite`` then governs the
+    ``.facet.xmp`` no-clobber divert); the original is never touched.
     """
     if not exiftool_available():
-        return write_sidecar(image_path, rating, overwrite=overwrite)
+        result = write_sidecar(image_path, rating, overwrite=overwrite)
+        result["embedded"] = None
+        return result
 
     ext = os.path.splitext(image_path)[1].lower().lstrip(".")
     embedded = None
-    if ext in SAFE_EMBED_EXTS:
+    if embed_original and ext in SAFE_EMBED_EXTS:
         _run_exiftool(image_path, rating, timeout=timeout)
         embedded = image_path
     sidecar = _contained_sidecar(image_path, ".xmp")
     _run_exiftool(sidecar, rating, timeout=timeout)
     return {"ok": True, "embedded": embedded, "sidecar": sidecar, "skipped": False}
+
+
+def build_root_filter(root: str) -> tuple[str, list]:
+    """Build a ``(where, params)`` pair selecting photos at or under ``root``.
+
+    LIKE wildcards (``%`` ``_`` ``\\``) in the resolved root are escaped so a
+    literal wildcard in a directory name matches literally, not as a pattern.
+    Shared by the sidecar import and export so both filter identically.
+    """
+    abs_root = os.path.abspath(root)
+    prefix = os.path.join(abs_root, "")
+    like_prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return "WHERE path = ? OR path LIKE ? ESCAPE '\\'", [abs_root, like_prefix + "%"]
+
+
+def _cli_face_regions(conn, path: str, width, height) -> list[FaceRegion]:
+    """Named face regions for one photo (CLI export; single-user, no visibility)."""
+    if not width or not height or int(width) <= 0 or int(height) <= 0:
+        return []
+    rows = conn.execute(
+        "SELECT pe.name AS name, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2 "
+        "FROM faces f JOIN persons pe ON f.person_id = pe.id "
+        "WHERE f.photo_path = ? AND pe.name IS NOT NULL AND f.bbox_x1 IS NOT NULL",
+        (path,),
+    ).fetchall()
+    return [
+        FaceRegion.from_bbox(r["name"], r["bbox_x1"], r["bbox_y1"],
+                             r["bbox_x2"], r["bbox_y2"], width, height)
+        for r in rows
+    ]
+
+
+def export_sidecars(conn, root: str | None = None, *, embed_original: bool = False,
+                    timeout: int = 60) -> dict:
+    """Write/merge ``<image>.xmp`` sidecars from the DB for all photos (or a subtree).
+
+    Operates on the global single-user rating columns (``photos.star_rating`` /
+    ``is_favorite`` / ``is_rejected``); per-user ratings are not consulted. With
+    ``embed_original`` it also embeds metadata into the original image files for
+    safe formats (proprietary RAW is never modified). Returns counts: ``written``
+    / ``embedded`` / ``missing`` (file gone from disk) / ``errors``.
+    """
+    where, params = build_root_filter(root) if root else ("", [])
+    rows = conn.execute(
+        "SELECT path, tags, caption, category, star_rating, is_favorite, "
+        f"is_rejected, image_width, image_height FROM photos {where}",
+        params,
+    ).fetchall()
+    written = embedded = missing = errors = 0
+    for row in rows:
+        path = row["path"]
+        if not os.path.exists(path):
+            missing += 1
+            continue
+        rating = XmpRating.from_row(row)
+        rating.regions = _cli_face_regions(conn, path, row["image_width"], row["image_height"])
+        seen: set[str] = set()
+        rating.person_names = [
+            r.name for r in rating.regions if not (r.name in seen or seen.add(r.name))
+        ]
+        try:
+            result = write_metadata(path, rating, embed_original=embed_original, timeout=timeout)
+            written += 1
+            if result.get("embedded"):
+                embedded += 1
+        except (OSError, RuntimeError):
+            errors += 1
+    return {"written": written, "embedded": embedded, "missing": missing, "errors": errors}

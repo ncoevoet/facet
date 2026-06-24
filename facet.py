@@ -387,6 +387,13 @@ Configuration:
     export_group.add_argument('--import-sidecars', type=str, nargs='?', const='all', metavar='PATH',
                         help='Import ratings/labels/tags from <image>.xmp sidecars back into the DB '
                              '(optional: limit to a path subtree; default: all photos)')
+    export_group.add_argument('--export-sidecars', type=str, nargs='?', const='all', metavar='PATH',
+                        help='Write/merge <image>.xmp sidecars from the DB ratings/labels/tags/caption '
+                             '(optional: limit to a path subtree; default: all photos). Operates on the '
+                             'global single-user rating columns')
+    export_group.add_argument('--embed-originals', action='store_true',
+                        help='With --export-sidecars: also embed metadata into the original image files '
+                             '(JPEG/HEIC/TIFF/PNG/DNG via exiftool); RAW originals are never modified')
 
     # AI features
     ai_group = parser.add_argument_group('AI features')
@@ -1379,6 +1386,18 @@ Configuration:
         logger.info(
             "Sidecar import: %d updated, %d unchanged, %d without sidecar, %d skipped",
             stats['updated'], stats['unchanged'], stats['missing'], stats['skipped'],
+        )
+        exit()
+
+    # Export XMP sidecars from the DB (lightweight - no GPU needed)
+    if args.export_sidecars:
+        from processing.xmp_export import export_sidecars
+        root = None if args.export_sidecars == 'all' else args.export_sidecars
+        with get_connection(args.db) as conn:
+            stats = export_sidecars(conn, root, embed_original=args.embed_originals)
+        logger.info(
+            "Sidecar export: %d written, %d embedded, %d missing, %d errors",
+            stats['written'], stats['embedded'], stats['missing'], stats['errors'],
         )
         exit()
 

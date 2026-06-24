@@ -1174,6 +1174,7 @@ Attiva/disattiva le funzionalità opzionali per ridurre l'uso della memoria o se
 | `show_albums` | `true` | Mostra la funzionalità Album (crea, gestisci e sfoglia album di foto) |
 | `show_critique` | `true` | Mostra il pulsante di critica AI sulle schede foto (analisi del punteggio basata su regole) |
 | `show_vlm_critique` | `false` | Abilita la modalità di critica con tecnologia VLM (richiede profilo VRAM 16gb/24gb) |
+| `show_embed_metadata` | `true` | Mostra l'azione «Scrivi i metadati nel file» per miniatura in modalità modifica (incorpora valutazioni/parole chiave nell'immagine originale tramite exiftool) |
 | `show_memories` | `true` | Mostra la finestra di dialogo dei Ricordi "Questo giorno" (foto scattate nella stessa data in anni precedenti) |
 | `show_captions` | `true` | Mostra le didascalie generate dall'AI sulle schede foto |
 | `show_timeline` | `true` | Mostra la vista Cronologia per la navigazione cronologica con navigazione per data |

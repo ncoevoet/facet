@@ -132,6 +132,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
                       (personRemoveClicked)="removePerson($event.photo, $event.personId)"
                       (openSimilarClicked)="openSimilar($event.photo, $event.mode)"
                       (openCritiqueClicked)="openCritique($event)"
+                      (embedMetadataClicked)="embedMetadata($event)"
                       (openAddPersonClicked)="openAddPerson($event)"
                       (favoriteToggled)="store.toggleFavorite($event)"
                       (rejectedToggled)="store.toggleRejected($event)"
@@ -174,6 +175,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
                   (personRemoveClicked)="removePerson($event.photo, $event.personId)"
                   (openSimilarClicked)="openSimilar($event.photo, $event.mode)"
                   (openCritiqueClicked)="openCritique($event)"
+                  (embedMetadataClicked)="embedMetadata($event)"
                   (openAddPersonClicked)="openAddPerson($event)"
                   (favoriteToggled)="store.toggleFavorite($event)"
                   (rejectedToggled)="store.toggleRejected($event)"
@@ -215,6 +217,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
                       (personRemoveClicked)="removePerson($event.photo, $event.personId)"
                       (openSimilarClicked)="openSimilar($event.photo, $event.mode)"
                       (openCritiqueClicked)="openCritique($event)"
+                      (embedMetadataClicked)="embedMetadata($event)"
                       (openAddPersonClicked)="openAddPerson($event)"
                       (favoriteToggled)="store.toggleFavorite($event)"
                       (rejectedToggled)="store.toggleRejected($event)"
@@ -814,6 +817,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   openCritique(photo: Photo): void {
     this.photoActions.openCritique(photo);
+  }
+
+  embedMetadata(photo: Photo): void {
+    this.photoActions.embedMetadata(photo);
   }
 
   showTooltip(event: MouseEvent, photo: Photo): void {

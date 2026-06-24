@@ -8,6 +8,16 @@ Conflict policy (two-way sync): ratings / labels apply **newest-wins** by
 ``xmp:MetadataDate`` (falling back to the sidecar file mtime) versus the photo's
 ``scanned_at``; when the photo has no ``scanned_at``, the sidecar wins. Keywords
 are always **merged** (union, deduped) so Facet's own auto-tags are never lost.
+
+Caveat: the photo-side timestamp is ``scanned_at`` (when Facet last scored the
+photo), not a rating-edit time — Facet has no per-rating ``updated_at`` column. A
+rating changed inside Facet *after* the last scan therefore carries no newer
+timestamp, so an external sidecar that is newer than the scan (but older than the
+in-app edit) will still win and overwrite it. Run an import before re-rating in
+Facet if the external editor is the source of truth. Imports also write the
+global ``photos.*`` rating columns; in multi-user mode per-user
+``user_preferences`` ratings are read instead, so imported ratings are not
+surfaced to individual users (this is a single-user / admin CLI operation).
 """
 
 from __future__ import annotations
@@ -22,6 +32,7 @@ from processing.xmp_export import (
     NS_DC,
     NS_RDF,
     NS_XMP,
+    build_root_filter,
 )
 
 
@@ -126,12 +137,7 @@ def import_sidecars(conn, root: str | None = None) -> dict:
     Returns counts: ``updated`` / ``unchanged`` / ``missing`` (no sidecar) /
     ``skipped`` (unparseable sidecar).
     """
-    where = ""
-    params: list = []
-    if root:
-        abs_root = os.path.abspath(root)
-        where = "WHERE path = ? OR path LIKE ?"
-        params = [abs_root, os.path.join(abs_root, "") + "%"]
+    where, params = build_root_filter(root) if root else ("", [])
 
     rows = conn.execute(
         f"SELECT path, tags, star_rating, is_favorite, is_rejected, scanned_at "

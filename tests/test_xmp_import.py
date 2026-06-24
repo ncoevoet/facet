@@ -175,3 +175,21 @@ class TestImportSidecars:
         import_sidecars(conn, root=str(sub))
         assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (inside,)).fetchone()[0] == 4
         assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (outside,)).fetchone()[0] == 0
+
+    def test_root_filter_escapes_like_wildcards(self, tmp_path):
+        # A '_' in the root dir name must be literal — a sibling 'aXb' must not
+        # leak in via the LIKE wildcard (Finding 5).
+        target = tmp_path / "a_b"
+        sibling = tmp_path / "aXb"
+        target.mkdir()
+        sibling.mkdir()
+        wanted = str(target / "in.jpg")
+        leak = str(sibling / "out.jpg")
+        _write(target, "in.jpg.xmp", _attr_xmp(rating=4))
+        _write(sibling, "out.jpg.xmp", _attr_xmp(rating=4))
+        conn = _make_db()
+        for p in (wanted, leak):
+            conn.execute("INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?)", (p, "", 0, 0, 0, None))
+        import_sidecars(conn, root=str(target))
+        assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (wanted,)).fetchone()[0] == 4
+        assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (leak,)).fetchone()[0] == 0

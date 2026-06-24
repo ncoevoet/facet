@@ -110,6 +110,11 @@ python facet.py --export-json output.json
 python facet.py --import-sidecars               # All photos (newest-wins, tag union)
 python facet.py --import-sidecars /path         # Limit to a path subtree
 
+# Export DB ratings/labels/tags/caption to XMP sidecars (sidecar only by default)
+python facet.py --export-sidecars               # All photos (write/merge <image>.xmp)
+python facet.py --export-sidecars /path         # Limit to a path subtree
+python facet.py --export-sidecars --embed-originals  # Also embed in-file (JPEG/HEIC/TIFF/PNG/DNG); RAW never modified
+
 # Face recognition commands
 python facet.py --extract-faces-gpu-incremental  # Extract faces for new photos only (requires GPU)
 python facet.py --extract-faces-gpu-force        # Re-extract all faces, deletes existing (requires GPU)
@@ -432,7 +437,9 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Face Management:** `GET /api/person/{id}/faces`, `POST /api/person/{id}/avatar`, `GET /api/photo/faces`, `POST /api/face/{id}/assign`, `POST /api/photo/assign_all_faces`, `POST /api/photo/unassign_person` — face-to-person assignment and avatar management.
 
-**Photo Actions:** `POST /api/photo/set_rating`, `POST /api/photo/toggle_favorite`, `POST /api/photo/toggle_rejected` — single-photo ratings. Batch variants: `POST /api/photos/batch_favorite`, `POST /api/photos/batch_reject`, `POST /api/photos/batch_rating`.
+**Photo Actions:** `POST /api/photo/set_rating`, `POST /api/photo/toggle_favorite`, `POST /api/photo/toggle_rejected` — single-photo ratings (DB only, never touch files). Batch variants: `POST /api/photos/batch_favorite`, `POST /api/photos/batch_reject`, `POST /api/photos/batch_rating`.
+
+**Metadata Export:** `POST /api/photo/export_xmp` (single, sidecar only), `POST /api/export/sidecars` (bulk by paths/filters, sidecar only), `POST /api/photo/embed_metadata` (single, embeds into the original file for JPEG/HEIC/TIFF/PNG/DNG via exiftool — the gallery "Write metadata to file" action; RAW originals never modified). All edition-gated. `processing.xmp_export.write_metadata(..., embed_original=False)` is sidecar-only by default; embedding is opt-in (this endpoint and the `--export-sidecars --embed-originals` CLI). Keyword lists are read-merged (union), so external Lightroom/darktable keywords are preserved.
 
 **Comparison Mode:** Full pairwise comparison workflow — `GET /api/comparison/next_pair`, `POST /api/comparison/submit`, `GET /api/comparison/stats`, `GET /api/comparison/history`, `GET /api/comparison/coverage`, `GET /api/comparison/confidence`, plus weight management via `POST /api/config/update_weights`, `GET /api/config/weight_snapshots`, `POST /api/config/save_snapshot`, `POST /api/config/restore_weights`.
 
@@ -499,6 +506,7 @@ For quick reference, here are the actual defaults from the config file:
 | `viewer.features` | `show_albums` | `true` |
 | `viewer.features` | `show_critique` | `true` |
 | `viewer.features` | `show_vlm_critique` | `true` |
+| `viewer.features` | `show_embed_metadata` | `true` |
 | `viewer.features` | `show_memories` | `true` |
 | `viewer.features` | `show_captions` | `true` |
 | `viewer.features` | `show_timeline` | `true` |

@@ -1174,6 +1174,7 @@ Schalten Sie optionale Funktionen um, um die Speichernutzung zu reduzieren oder 
 | `show_albums` | `true` | Alben-Funktion anzeigen (Fotoalben erstellen, verwalten und durchsuchen) |
 | `show_critique` | `true` | KI-Kritik-Schaltfläche auf Fotokarten anzeigen (regelbasierte Wertungsaufschlüsselung) |
 | `show_vlm_critique` | `false` | VLM-gestützten Kritikmodus aktivieren (erfordert 16gb/24gb-VRAM-Profil) |
+| `show_embed_metadata` | `true` | Zeigt die Aktion „Metadaten in Datei schreiben" pro Miniaturbild im Bearbeitungsmodus (bettet Bewertungen/Schlüsselwörter via exiftool in das Originalbild ein) |
 | `show_memories` | `true` | Dialog „An diesem Tag“ anzeigen (Fotos, die am selben Datum in früheren Jahren aufgenommen wurden) |
 | `show_captions` | `true` | KI-generierte Beschreibungen auf Fotokarten anzeigen |
 | `show_timeline` | `true` | Zeitleisten-Ansicht für chronologisches Durchsuchen mit Datumsnavigation anzeigen |

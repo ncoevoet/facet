@@ -1174,6 +1174,7 @@ Activa o desactiva funciones opcionales para reducir el uso de memoria o simplif
 | `show_albums` | `true` | Mostrar la función de álbumes (crear, gestionar y explorar álbumes de fotos) |
 | `show_critique` | `true` | Mostrar el botón de crítica con IA en las tarjetas de fotos (desglose de puntuación basado en reglas) |
 | `show_vlm_critique` | `false` | Activar el modo de crítica impulsada por VLM (requiere perfil de VRAM 16gb/24gb) |
+| `show_embed_metadata` | `true` | Muestra la acción «Escribir metadatos en el archivo» por miniatura en modo edición (incrusta valoraciones/palabras clave en la imagen original mediante exiftool) |
 | `show_memories` | `true` | Mostrar el diálogo de recuerdos "En este día" (fotos tomadas en la misma fecha de años anteriores) |
 | `show_captions` | `true` | Mostrar las leyendas generadas por IA en las tarjetas de fotos |
 | `show_timeline` | `true` | Mostrar la vista de cronología para la navegación cronológica con navegación por fechas |

@@ -1174,6 +1174,7 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_albums` | `true` | Show albums feature (create, manage, and browse photo albums) |
 | `show_critique` | `true` | Show AI critique button on photo cards (rule-based score breakdown) |
 | `show_vlm_critique` | `false` | Enable VLM-powered critique mode (requires 16gb/24gb VRAM profile) |
+| `show_embed_metadata` | `true` | Show the per-thumbnail "Write metadata to file" action in edition mode (embeds ratings/keywords into the original image via exiftool) |
 | `show_memories` | `true` | Show "On This Day" memories dialog (photos taken on the same date in previous years) |
 | `show_captions` | `true` | Show AI-generated captions on photo cards |
 | `show_timeline` | `true` | Show timeline view for chronological browsing with date navigation |

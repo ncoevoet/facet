@@ -198,6 +198,9 @@
     "persons": "Persone",
     "histogram": "Istogramma"
   },
+  "photoCard": {
+    "embed_to_file": "Scrivi i metadati nel file"
+  },
   "notifications": {
     "copied": "Copiato!",
     "copied_count": "{count} nome file copiato",
@@ -209,6 +212,8 @@
     "error_merging": "Errore nell'unione delle persone",
     "error_deleting": "Errore nell'eliminazione della persona",
     "faces_assigned": "Volti assegnati",
+    "metadata_embedded": "Metadati scritti nel file originale",
+    "metadata_embed_failed": "Impossibile scrivere i metadati nel file",
     "connection_error": "Errore di connessione",
     "downloading_count": "Scaricamento di {count} foto...",
     "downloading_count_plural": "Scaricamento di {count} foto...",

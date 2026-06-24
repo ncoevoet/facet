@@ -18,6 +18,7 @@ interface AppConfig {
     show_rating_controls?: boolean;
     show_rating_badge?: boolean;
     show_critique?: boolean;
+    show_embed_metadata?: boolean;
   };
 }
 
@@ -123,6 +124,15 @@ interface AppConfig {
                 [matTooltip]="'critique.title' | translate"
                 (click)="openCritiqueClicked.emit(photo()); $event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
+              </button>
+            }
+            @if (isEditionMode() && config()?.features?.show_embed_metadata) {
+              <button
+                class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
+                [matTooltip]="'photoCard.embed_to_file' | translate"
+                [attr.aria-label]="'photoCard.embed_to_file' | translate"
+                (click)="embedMetadataClicked.emit(photo()); $event.stopPropagation()">
+                <mat-icon class="!text-base !w-4 !h-4 !leading-4">save</mat-icon>
               </button>
             }
             @if (isEditionMode() && photo().unassigned_faces > 0) {
@@ -334,6 +344,7 @@ export class PhotoCardComponent {
   readonly personRemoveClicked = output<{ photo: Photo; personId: number }>();
   readonly openSimilarClicked = output<{ photo: Photo; mode: 'visual' | 'color' | 'person' }>();
   readonly openCritiqueClicked = output<Photo>();
+  readonly embedMetadataClicked = output<Photo>();
   readonly openAddPersonClicked = output<Photo>();
   readonly favoriteToggled = output<string>();
   readonly rejectedToggled = output<string>();

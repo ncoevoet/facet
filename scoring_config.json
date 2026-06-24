@@ -2455,6 +2455,7 @@
       "show_albums": true,
       "show_critique": true,
       "show_vlm_critique": true,
+      "show_embed_metadata": true,
       "show_memories": true,
       "show_captions": true,
       "show_timeline": true,

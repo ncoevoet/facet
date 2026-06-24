@@ -176,7 +176,7 @@ Facet scores, ranks, and culls a local photo library and serves a gallery to bro
 - have a large local library and want to find your best shots and cull bursts and near-duplicates;
 - want quality, composition, and face scoring you can tune to your own taste (it learns from your A/B comparisons);
 - prefer self-hosted and private — no cloud upload, no account, no subscription;
-- already edit in Lightroom, darktable, digiKam or immich — Facet writes ratings, labels, keywords, captions and named-face regions both embedded in-file (JPEG/HEIC/TIFF/PNG/DNG) and as `.xmp` sidecars, and can read external edits back with `--import-sidecars`.
+- already edit in Lightroom, darktable, digiKam or immich — Facet writes ratings, labels, keywords, captions and named-face regions to `.xmp` sidecars (originals untouched by default) and can optionally embed them in-file for JPEG/HEIC/TIFF/PNG/DNG (the gallery "Write metadata to file" action or `--export-sidecars --embed-originals`), and reads external edits back with `--import-sidecars`.
 
 **Probably not for you if you want:**
 

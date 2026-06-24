@@ -31,6 +31,11 @@ export class ExportService {
     return this.api.post('/photo/export_xmp', { path, overwrite });
   }
 
+  /** Embed metadata into the original photo file (and write the sidecar). */
+  embedMetadata(path: string): Observable<{ ok: boolean; embedded: string | null; sidecar: string }> {
+    return this.api.post('/photo/embed_metadata', { path });
+  }
+
   /** Write XMP sidecars for many photos by explicit paths. */
   exportSidecars(paths: string[], overwrite = false): Observable<SidecarExportResult> {
     return this.api.post('/export/sidecars', { paths, overwrite });

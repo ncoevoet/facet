@@ -3,6 +3,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Photo } from '../../shared/models/photo.model';
 import { GalleryStore } from '../../features/gallery/gallery.store';
+import { ExportService } from './export.service';
 import { I18nService } from './i18n.service';
 
 @Injectable({ providedIn: 'root' })
@@ -10,7 +11,15 @@ export class PhotoActionsService {
   private readonly dialog = inject(MatDialog);
   private readonly store = inject(GalleryStore);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly exportService = inject(ExportService);
   private readonly i18n = inject(I18nService);
+
+  embedMetadata(photo: Photo): void {
+    this.exportService.embedMetadata(photo.path).subscribe({
+      next: () => this.snackBar.open(this.i18n.t('notifications.metadata_embedded'), '', { duration: 2000 }),
+      error: () => this.snackBar.open(this.i18n.t('notifications.metadata_embed_failed'), '', { duration: 3000 }),
+    });
+  }
 
   openCritique(photo: Photo): void {
     import('../../features/gallery/photo-critique-dialog.component').then(m => {

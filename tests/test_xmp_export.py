@@ -6,7 +6,10 @@ plus the no-clobber / overwrite behaviour around an existing darktable sidecar.
 """
 
 import os
+import subprocess
 from xml.etree import ElementTree as ET
+
+import pytest
 
 from processing import xmp_export as xe
 from processing.xmp_export import (
@@ -242,17 +245,17 @@ class TestFaceRegion:
 
 class TestExiftoolArgs:
     def test_rating_and_favorite_label(self):
-        args = xe._exiftool_tag_args(XmpRating(star_rating=4, is_favorite=True))
+        args = xe._exiftool_tag_args(XmpRating(star_rating=4, is_favorite=True), [], [])
         assert "-XMP:Rating=4" in args
         assert "-XMP:Label=Yellow" in args
 
     def test_rejected_rating(self):
-        args = xe._exiftool_tag_args(XmpRating(star_rating=5, is_rejected=True))
+        args = xe._exiftool_tag_args(XmpRating(star_rating=5, is_rejected=True), [], [])
         assert f"-XMP:Rating={RATING_REJECTED}" in args
         assert "-XMP:Label=Red" in args
 
     def test_keywords_clear_before_replace_no_append(self):
-        args = xe._exiftool_tag_args(XmpRating(tags=["beach"], person_names=["Alice"]))
+        args = xe._exiftool_tag_args(XmpRating(tags=["beach"], person_names=["Alice"]), [], [])
         # The clear must precede the values (idempotent replace, not append).
         assert args.index("-XMP-dc:Subject=") < args.index("-XMP-dc:Subject=beach")
         assert "-XMP-dc:Subject=Alice" in args
@@ -261,22 +264,22 @@ class TestExiftoolArgs:
         assert not any("+=" in a for a in args)
 
     def test_hierarchical(self):
-        args = xe._exiftool_tag_args(XmpRating(category="portrait", person_names=["Alice"]))
+        args = xe._exiftool_tag_args(XmpRating(category="portrait", person_names=["Alice"]), [], [])
         assert "-XMP-lr:HierarchicalSubject=Category|portrait" in args
         assert "-XMP-lr:HierarchicalSubject=People|Alice" in args
 
     def test_caption_present(self):
-        args = xe._exiftool_tag_args(XmpRating(caption="a quiet bay"))
+        args = xe._exiftool_tag_args(XmpRating(caption="a quiet bay"), [], [])
         assert "-XMP-dc:Description=a quiet bay" in args
         assert "-IPTC:Caption-Abstract=a quiet bay" in args
 
     def test_no_caption_no_description_arg(self):
-        args = xe._exiftool_tag_args(XmpRating(star_rating=1))
+        args = xe._exiftool_tag_args(XmpRating(star_rating=1), [], [])
         assert not any(a.startswith("-XMP-dc:Description") for a in args)
 
     def test_regions_args_and_math(self):
         reg = FaceRegion.from_bbox("Alice", 0, 0, 100, 100, 1000, 1000)
-        args = xe._exiftool_tag_args(XmpRating(regions=[reg]))
+        args = xe._exiftool_tag_args(XmpRating(regions=[reg]), [], [])
         assert "-XMP-mwg-rs:RegionInfo=" in args  # clear list first
         assert "-XMP-mwg-rs:RegionName=Alice" in args
         assert "-XMP-mwg-rs:RegionType=Face" in args
@@ -285,12 +288,22 @@ class TestExiftoolArgs:
         assert "-XMP-mwg-rs:RegionAreaW=0.100000" in args
 
     def test_no_regions_no_region_args(self):
-        args = xe._exiftool_tag_args(XmpRating(star_rating=1))
+        args = xe._exiftool_tag_args(XmpRating(star_rating=1), [], [])
         assert not any("mwg-rs" in a for a in args)
+
+    def test_existing_keywords_unioned_existing_first(self):
+        args = xe._exiftool_tag_args(
+            XmpRating(tags=["beach"]), ["Vacation", "beach"], ["Trip|2024"]
+        )
+        prefix = "-XMP-dc:Subject="
+        subjects = [a[len(prefix):] for a in args if a.startswith(prefix) and a != prefix]
+        # Foreign keyword preserved, Facet's added, no duplicate of "beach".
+        assert subjects == ["Vacation", "beach"]
+        assert "-XMP-lr:HierarchicalSubject=Trip|2024" in args
 
 
 class TestWriteMetadata:
-    def test_safe_format_embeds_and_writes_sidecar(self, monkeypatch, tmp_path):
+    def test_safe_format_default_sidecar_only_no_embed(self, monkeypatch, tmp_path):
         calls = []
         monkeypatch.setattr(xe, "exiftool_available", lambda: True)
         monkeypatch.setattr(xe, "_run_exiftool",
@@ -298,19 +311,31 @@ class TestWriteMetadata:
         img = tmp_path / "p.jpg"
         img.write_bytes(b"x")
         result = write_metadata(str(img), XmpRating(star_rating=3))
+        # Default does NOT touch the original — sidecar only.
+        assert result["embedded"] is None
+        assert calls == [str(img) + ".xmp"]
+
+    def test_safe_format_embeds_when_opted_in(self, monkeypatch, tmp_path):
+        calls = []
+        monkeypatch.setattr(xe, "exiftool_available", lambda: True)
+        monkeypatch.setattr(xe, "_run_exiftool",
+                            lambda target, rating, *, timeout: calls.append(target))
+        img = tmp_path / "p.jpg"
+        img.write_bytes(b"x")
+        result = write_metadata(str(img), XmpRating(star_rating=3), embed_original=True)
         assert result["embedded"] == str(img)
         assert result["sidecar"] == str(img) + ".xmp"
         # Embed first, then sidecar.
         assert calls == [str(img), str(img) + ".xmp"]
 
-    def test_raw_format_sidecar_only(self, monkeypatch, tmp_path):
+    def test_raw_format_never_embeds_even_when_opted_in(self, monkeypatch, tmp_path):
         calls = []
         monkeypatch.setattr(xe, "exiftool_available", lambda: True)
         monkeypatch.setattr(xe, "_run_exiftool",
                             lambda target, rating, *, timeout: calls.append(target))
         img = tmp_path / "p.nef"
         img.write_bytes(b"x")
-        result = write_metadata(str(img), XmpRating(star_rating=3))
+        result = write_metadata(str(img), XmpRating(star_rating=3), embed_original=True)
         assert result["embedded"] is None
         assert calls == [str(img) + ".xmp"]  # RAW original never embedded
 
@@ -322,3 +347,76 @@ class TestWriteMetadata:
         assert result["sidecar"] == str(img) + ".xmp"
         desc = _parse((tmp_path / "p.jpg.xmp").read_text(encoding="utf-8"))
         assert desc.get(f"{{{_NS['xmp']}}}Rating") == "5"
+
+
+_EXIFTOOL = xe._resolve_exiftool()
+
+
+@pytest.mark.skipif(not _EXIFTOOL, reason="exiftool not installed")
+class TestKeywordMergeIntegration:
+    """Real exiftool: external keywords must survive a Facet write (Finding 1)."""
+
+    def _make_jpeg(self, path):
+        from PIL import Image
+        Image.new("RGB", (8, 8), "blue").save(str(path), "JPEG")
+
+    def test_external_keyword_survives_embed(self, tmp_path):
+        img = tmp_path / "p.jpg"
+        self._make_jpeg(img)
+        subprocess.run(
+            [_EXIFTOOL, "-q", "-m", "-overwrite_original", "-XMP-dc:Subject=Vacation", str(img)],
+            check=True,
+        )
+        write_metadata(str(img), XmpRating(star_rating=4, tags=["beach"]), embed_original=True)
+        flat, _ = xe._read_existing_keywords(str(img), _EXIFTOOL, timeout=30)
+        assert "Vacation" in flat  # foreign keyword preserved, not wiped
+        assert "beach" in flat     # Facet keyword added
+
+    def test_default_does_not_modify_original(self, tmp_path):
+        img = tmp_path / "p.jpg"
+        self._make_jpeg(img)
+        before = img.read_bytes()
+        result = write_metadata(str(img), XmpRating(star_rating=4, tags=["beach"]))
+        assert result["embedded"] is None
+        assert img.read_bytes() == before          # original untouched
+        assert os.path.exists(str(img) + ".xmp")    # sidecar still written
+
+
+class TestExportSidecarsCli:
+    """The --export-sidecars CLI entry point (processing.xmp_export.export_sidecars)."""
+
+    def _db(self, tmp_path):
+        import sqlite3
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.executescript(
+            "CREATE TABLE photos (path TEXT PRIMARY KEY, tags TEXT, caption TEXT, "
+            "category TEXT, star_rating INTEGER, is_favorite INTEGER, is_rejected INTEGER, "
+            "image_width INTEGER, image_height INTEGER);"
+            "CREATE TABLE persons (id INTEGER PRIMARY KEY, name TEXT);"
+            "CREATE TABLE faces (id INTEGER PRIMARY KEY, photo_path TEXT, person_id INTEGER, "
+            "bbox_x1 INTEGER, bbox_y1 INTEGER, bbox_x2 INTEGER, bbox_y2 INTEGER);"
+        )
+        return conn
+
+    def test_writes_sidecar_only_by_default(self, tmp_path):
+        img = tmp_path / "p.jpg"
+        img.write_bytes(b"x")
+        conn = self._db(tmp_path)
+        conn.execute(
+            "INSERT INTO photos VALUES (?, 'beach', '', '', 4, 0, 0, 0, 0)", (str(img),)
+        )
+        stats = xe.export_sidecars(conn)
+        assert stats["written"] == 1
+        assert stats["embedded"] == 0           # no embed without opt-in
+        assert os.path.exists(str(img) + ".xmp")
+
+    def test_missing_file_counted(self, tmp_path):
+        conn = self._db(tmp_path)
+        conn.execute(
+            "INSERT INTO photos VALUES (?, '', '', '', 0, 0, 0, 0, 0)",
+            (str(tmp_path / "gone.jpg"),),
+        )
+        stats = xe.export_sidecars(conn)
+        assert stats["missing"] == 1
+        assert stats["written"] == 0
