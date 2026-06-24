@@ -64,6 +64,8 @@ class ScoringConfig:
         self.config = self._load_config()
         self.version_hash = self._compute_version_hash()
         if validate:
+            for schema_error in self.validate_schema():
+                logger.warning("Config schema error: %s", schema_error)
             self.validate_weights(verbose=True)
 
     def _load_config(self):
@@ -845,10 +847,37 @@ class ScoringConfig:
 
         return self.config.get('viewer', {}).get('default_category', 'default')
 
+    def validate_schema(self):
+        """Validate config structure against config/scoring_config.schema.json.
+
+        Returns a list of human-readable errors, each prefixed with the failing
+        JSON path. Empty when valid — or when jsonschema is not installed, since
+        the structural check is optional and soft-fails rather than blocking a
+        load.
+        """
+        try:
+            import jsonschema
+        except ImportError:
+            return []
+        schema_path = os.path.join(os.path.dirname(__file__), 'scoring_config.schema.json')
+        try:
+            with open(schema_path) as f:
+                schema = json.load(f)
+        except (OSError, ValueError) as ex:
+            logger.warning("Could not load config schema: %s", ex)
+            return []
+        validator = jsonschema.Draft202012Validator(schema)
+        errors = []
+        for err in sorted(validator.iter_errors(self.config), key=lambda e: list(e.path)):
+            path = "/".join(str(p) for p in err.path) or "(root)"
+            errors.append(f"{path}: {err.message}")
+        return errors
+
     def validate_categories(self, verbose=True):
         """Validate all category configurations.
 
         Checks:
+        - Structural schema (config/scoring_config.schema.json)
         - Weights sum to 100%
         - Priority is set and unique
         - Filters use valid keys
@@ -859,7 +888,7 @@ class ScoringConfig:
         Returns:
             Tuple of (is_valid: bool, issues: list of error strings)
         """
-        issues = []
+        issues = [f"schema: {e}" for e in self.validate_schema()]
         priorities_seen = {}
 
         for cat in self.get_categories():

@@ -64,6 +64,9 @@ psutil>=5.9.0
 # Reverse Geocoding (offline, local GeoNames dataset ~30MB)
 reverse_geocoder>=1.5.1
 
+# Config schema validation (scoring_config.json structural checks)
+jsonschema>=4.18.0
+
 # Vector search (sqlite-vec for CLIP/SigLIP embedding KNN queries)
 sqlite-vec>=0.1.6
 

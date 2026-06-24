@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Facet scoring_config.json",
+  "description": "Structural validation for the v4.0 category-centric scoring config. Top level stays open (additionalProperties true) so new sections don't break old validators; known sections are type-checked and each category is validated strictly to catch typos and wrong types.",
+  "type": "object",
+  "required": ["categories"],
+  "properties": {
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "priority"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "priority": { "type": "number" },
+          "filters": { "type": "object" },
+          "modifiers": { "type": "object" },
+          "tags": { "type": "object" },
+          "weights": {
+            "type": "object",
+            "additionalProperties": { "type": "number" }
+          }
+        }
+      }
+    },
+    "viewer": { "type": "object" },
+    "processing": { "type": "object" },
+    "scoring": { "type": "object" },
+    "thresholds": { "type": "object" },
+    "normalization": { "type": "object" },
+    "burst_detection": { "type": "object" },
+    "duplicate_detection": { "type": "object" },
+    "face_detection": { "type": "object" },
+    "face_clustering": { "type": "object" },
+    "capsules": { "type": "object" },
+    "performance": { "type": "object" },
+    "maintenance": { "type": "object" },
+    "xmp_export": { "type": "object" }
+  }
+}

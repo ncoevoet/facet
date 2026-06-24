@@ -235,6 +235,16 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
     if os.path.exists(config_path):
         size_kb = os.path.getsize(config_path) / 1024
         _ok("Config", f"{config_path} ({size_kb:.1f} KB)")
+        try:
+            from config.scoring_config import ScoringConfig
+            schema_errors = ScoringConfig(config_path, validate=False).validate_schema()
+            if not schema_errors:
+                _ok("Config schema", "valid")
+            else:
+                for err in schema_errors[:5]:
+                    _warn("Config schema", err)
+        except Exception as e:
+            _warn("Config schema", str(e))
     else:
         _warn("Config", f"{config_path} not found")
 

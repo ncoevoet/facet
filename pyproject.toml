@@ -55,6 +55,7 @@ dependencies = [
     "exifread>=3.0.0",
     "psutil>=5.9.0",
     "reverse_geocoder>=1.5.1",
+    "jsonschema>=4.18.0",
 ]
 
 [project.optional-dependencies]
