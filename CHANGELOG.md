@@ -4,6 +4,29 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.3.1] "Polish" — 2026-06-24
+
+### Security
+- `POST /api/culling-group/faces` now applies the viewer's visibility filter, so it no longer returns per-face metadata for arbitrary caller-supplied photo paths (IDOR).
+- Shared smart albums evaluate their saved filter against the album owner's visibility instead of the viewer's, so a share token can no longer surface photos from other users' libraries.
+
+### Fixed
+- Memories "On This Day" returned nothing for every user: `strftime` ran on the raw EXIF-format `date_taken` (`YYYY:MM:DD`), which SQLite cannot parse, so `/api/memories` and `/api/memories/check` were silently dead. The date is now converted to ISO first, matching the timeline and capsule queries.
+- Burst, similar-group and scene culling wrote rejections to the global `photos.is_rejected` column in multi-user mode — hiding photos for every user while the acting user's own per-user view never reflected the change. Rejections now route through `user_preferences` (visibility-checked) via a shared helper.
+- A batch-level GPU inference failure (e.g. CUDA OOM) escaped the per-item handler, killed the scoring thread, and left the scan waiting forever on results that never arrived. Batch failures now fail their own items and the consumer loop aborts when the GPU thread dies.
+- The `/metrics` `photo_tags_available` and `existing_columns_cached` gauges always reported 0; they now read the live cache values through `api.config`.
+- i18n interpolation only replaced the first occurrence of a repeated `{placeholder}`; it now replaces all of them.
+- Edit-album save, photo-detail rating/favorite/reject actions, album-list load, and the scan SSE stream now handle errors instead of leaving an unhandled rejection or a silent blank UI on failure. The face DB-writer thread surfaces write errors instead of reporting success.
+- Submitting a pairwise comparison canonicalizes the photo pair, so swapped (A,B)/(B,A) votes no longer store contradictory duplicate rows that bias weight optimization.
+- The capsule slideshow and "save as album" honour the active date filter instead of returning the wrong photos or a 404.
+- Reassigning a face to a non-existent person is rejected instead of silently orphaning the face.
+- Similar-photos search returns a controlled error on a corrupt embedding/phash blob instead of an unhandled 500.
+- Weight-snapshot restore writes to the configured absolute config path regardless of the working directory.
+- Database statistics `--verbose` no longer raises `UnboundLocalError` on a database without the `category` column.
+- A/B comparison keyboard shortcuts no longer fire while the strategy dropdown is focused, preventing bogus votes.
+- "Confirm All" in burst culling confirms only the groups visible under the active category filter, not hidden ones.
+- The Q-Align AVA benchmark script runs on CPU-only hosts instead of crashing on a CUDA call.
+
 ## [1.3.0] "Brilliance" — 2026-06-24
 
 ### Added
