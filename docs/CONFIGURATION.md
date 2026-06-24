@@ -981,7 +981,8 @@ Web gallery display and behavior.
     "edition_password": "",
     "comparison_mode": {
       "min_comparisons_for_optimization": 50,
-      "pair_selection_strategy": "uncertainty",
+      "pair_selection_strategy": "learning",
+      "candidate_pool_size": 200,
       "show_current_scores": true
     },
     "sort_options": { ... },
@@ -1070,7 +1071,8 @@ Web gallery display and behavior.
 | `edition_password` | `""` | Password to unlock edition mode (empty = disabled) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Minimum for optimization |
-| `pair_selection_strategy` | `"uncertainty"` | Default strategy |
+| `pair_selection_strategy` | `"learning"` | Pair strategy: `learning` (embedding-diversity cold-start + rank-disagreement once trained), `uncertainty`, `boundary`, `active`, `random` |
+| `candidate_pool_size` | `200` | Random candidate pool the `learning` strategy samples pairs within |
 | `show_current_scores` | `true` | Show scores during comparison |
 | **pagination** | | |
 | `default_per_page` | `64` | Photos per page |
