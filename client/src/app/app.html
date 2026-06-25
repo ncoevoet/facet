@@ -283,6 +283,9 @@
         <mat-form-field class="!hidden lg:!inline-flex w-48" subscriptSizing="dynamic">
           <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
+            @if (store.config()?.features?.show_my_taste) {
+              <mat-option value="learned_score">{{ 'gallery.sort_my_taste' | translate }}</mat-option>
+            }
             @if (sortGroups(); as groups) {
               @for (group of groups; track group[0]) {
                 <mat-optgroup [label]="('sort_groups.' + (group[0] | sortGroupKey)) | translate">
@@ -295,9 +298,6 @@
               <mat-option value="aggregate">{{ 'gallery.sort_aggregate' | translate }}</mat-option>
               <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
               <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
-            }
-            @if (store.config()?.features?.show_my_taste) {
-              <mat-option value="learned_score">{{ 'gallery.sort_my_taste' | translate }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
@@ -569,6 +569,9 @@
       <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
         <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
         <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
+          @if (store.config()?.features?.show_my_taste) {
+            <mat-option value="learned_score">{{ 'gallery.sort_my_taste' | translate }}</mat-option>
+          }
           @if (sortGroups(); as groups) {
             @for (group of groups; track group[0]) {
               <mat-optgroup [label]="('sort_groups.' + (group[0] | sortGroupKey)) | translate">
@@ -581,9 +584,6 @@
             <mat-option value="aggregate">{{ 'gallery.sort_aggregate' | translate }}</mat-option>
             <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
             <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
-          }
-          @if (store.config()?.features?.show_my_taste) {
-            <mat-option value="learned_score">{{ 'gallery.sort_my_taste' | translate }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
