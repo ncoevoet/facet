@@ -2003,6 +2003,7 @@
     "include_companions": "Zugehörige RAW / XMP einbeziehen",
     "would_affect": "Dateien wären betroffen",
     "skipped": "übersprungen (nicht auf Datenträger)",
+    "excluded_by_state": "ausgeschlossen (außerhalb des Bereichs dieser Aktion)",
     "preview": "Vorschau",
     "apply": "Anwenden",
     "cancel": "Abbrechen",

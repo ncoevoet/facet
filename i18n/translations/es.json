@@ -1999,6 +1999,7 @@
     "include_companions": "Incluir RAW / XMP asociados",
     "would_affect": "archivos se verían afectados",
     "skipped": "omitidos (no en disco)",
+    "excluded_by_state": "excluidos (fuera del alcance de esta acción)",
     "preview": "Vista previa",
     "apply": "Aplicar",
     "cancel": "Cancelar",

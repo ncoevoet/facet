@@ -17,6 +17,7 @@ interface CullResponse {
   would_move?: string[];
   would_trash?: string[];
   skipped?: string[];
+  excluded_by_state?: number;
   copied?: number;
   moved?: number;
   trashed?: number;
@@ -62,6 +63,9 @@ interface CullResponse {
       @if (preview(); as p) {
         <div class="mt-3 p-2 rounded bg-[var(--mat-sys-surface-container)] text-sm">
           <p>{{ p.affected.length }} {{ 'cull.would_affect' | translate }}</p>
+          @if (p.excluded) {
+            <p class="opacity-60">{{ p.excluded }} {{ 'cull.excluded_by_state' | translate }}</p>
+          }
           @if (p.skipped.length) {
             <p class="opacity-60">{{ p.skipped.length }} {{ 'cull.skipped' | translate }}</p>
           }
@@ -94,7 +98,7 @@ export class CullDialogComponent {
   protected readonly action = signal<CullAction>('copy_keeps');
   protected readonly targetDir = signal('');
   protected readonly includeCompanions = signal(false);
-  protected readonly preview = signal<{ affected: string[]; skipped: string[] } | null>(null);
+  protected readonly preview = signal<{ affected: string[]; skipped: string[]; excluded: number } | null>(null);
   protected readonly busy = signal(false);
 
   protected readonly needsTarget = computed(() => this.action() !== 'trash_rejects');
@@ -127,7 +131,7 @@ export class CullDialogComponent {
     try {
       const res = await firstValueFrom(this.api.post<CullResponse>('/cull/apply', this.body(true)));
       const affected = res.would_copy ?? res.would_move ?? res.would_trash ?? [];
-      this.preview.set({ affected, skipped: res.skipped ?? [] });
+      this.preview.set({ affected, skipped: res.skipped ?? [], excluded: res.excluded_by_state ?? 0 });
     } catch {
       this.snackBar.open(this.i18n.t('cull.error'), '', { duration: 3000 });
     } finally {

@@ -2,9 +2,11 @@
 
 Data-safety is the whole point: copy is additive and dry-run by default;
 move/trash are destructive and pass through the same validated allow-list;
-trashing is OS-trash gated behind viewer.cull.allow_trash. A real temp DB backs
-get_db; real files under tmp_path let resolve_photo_disk_path resolve to disk
-(no scan dirs in tests -> file-exists check only).
+trashing is OS-trash gated behind viewer.cull.allow_trash; and the op is bounded
+server-side to the action's actual reject state (copy=keeps, move/trash=rejects)
+so a buggy client can never act outside the user's reject set. A real temp DB
+backs get_db; real files under tmp_path let resolve_photo_disk_path resolve to
+disk (no scan dirs in tests -> file-exists check only).
 """
 
 import os
@@ -34,10 +36,18 @@ def _db_cm(db_path):
     return _cm
 
 
-def _empty_db(tmp_path):
+def _db(tmp_path, photos):
+    """photos: list of (path, is_rejected). Creates a photos table + rows."""
     db = str(tmp_path / "t.db")
     conn = sqlite3.connect(db)
-    conn.execute("CREATE TABLE photos (path TEXT PRIMARY KEY, filename TEXT)")
+    conn.execute(
+        "CREATE TABLE photos (path TEXT PRIMARY KEY, filename TEXT, is_rejected INTEGER DEFAULT 0)"
+    )
+    for path, rejected in photos:
+        conn.execute(
+            "INSERT INTO photos (path, filename, is_rejected) VALUES (?, ?, ?)",
+            (path, path.split("/")[-1], rejected),
+        )
     conn.commit()
     conn.close()
     return db
@@ -52,7 +62,7 @@ def _make_file(tmp_path, name, content=b"DATA"):
 class TestCullApply:
     def test_copy_keeps_dry_run_writes_nothing(self, client, tmp_path):
         path = _make_file(tmp_path, "a.jpg")
-        db = _empty_db(tmp_path)
+        db = _db(tmp_path, [(path, 0)])
         target = str(tmp_path / "keepers")
         with (
             mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
@@ -66,11 +76,12 @@ class TestCullApply:
         body = resp.json()
         assert body["dry_run"] is True
         assert body["would_copy"] == [path]
+        assert body["excluded_by_state"] == 0
         assert not os.path.exists(target)
 
     def test_copy_keeps_real_copies_and_keeps_original(self, client, tmp_path):
         path = _make_file(tmp_path, "a.jpg")
-        db = _empty_db(tmp_path)
+        db = _db(tmp_path, [(path, 0)])
         target = str(tmp_path / "keepers")
         with (
             mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
@@ -89,7 +100,7 @@ class TestCullApply:
         path = _make_file(tmp_path, "a.jpg")
         raw = _make_file(tmp_path, "a.cr2")
         sidecar = _make_file(tmp_path, "a.jpg.xmp")
-        db = _empty_db(tmp_path)
+        db = _db(tmp_path, [(path, 0)])
         with (
             mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
             mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
@@ -102,9 +113,41 @@ class TestCullApply:
         would = set(resp.json()["would_copy"])
         assert {path, raw, sidecar} <= would
 
+    def test_copy_keeps_excludes_rejected_photos(self, client, tmp_path):
+        keep = _make_file(tmp_path, "keep.jpg")
+        reject = _make_file(tmp_path, "reject.jpg")
+        db = _db(tmp_path, [(keep, 0), (reject, 1)])
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [keep, reject], "action": "copy_keeps", "target_dir": str(tmp_path / "k"),
+                "dry_run": True, "include_companions": False,
+            })
+        body = resp.json()
+        assert body["would_copy"] == [keep]  # the rejected one is excluded
+        assert body["excluded_by_state"] == 1
+
+    def test_move_only_acts_on_rejected_photos(self, client, tmp_path):
+        keep = _make_file(tmp_path, "keep.jpg")
+        reject = _make_file(tmp_path, "reject.jpg")
+        db = _db(tmp_path, [(keep, 0), (reject, 1)])
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [keep, reject], "action": "move_rejects",
+                "target_dir": str(tmp_path / "out"), "dry_run": True,
+            })
+        body = resp.json()
+        assert body["would_move"] == [reject]  # the kept one is never moved
+        assert body["excluded_by_state"] == 1
+
     def test_move_outside_allowlist_403(self, client, tmp_path):
         path = _make_file(tmp_path, "a.jpg")
-        db = _empty_db(tmp_path)
+        db = _db(tmp_path, [(path, 1)])
         allowed = str(tmp_path / "allowed")
         evil = str(tmp_path / "evil")
         with (
@@ -120,7 +163,7 @@ class TestCullApply:
 
     def test_move_requires_target_dir(self, client, tmp_path):
         path = _make_file(tmp_path, "a.jpg")
-        db = _empty_db(tmp_path)
+        db = _db(tmp_path, [(path, 1)])
         with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
             resp = client.post("/api/cull/apply", json={
                 "paths": [path], "action": "move_rejects", "dry_run": True,
@@ -129,7 +172,7 @@ class TestCullApply:
 
     def test_trash_disabled_by_default_403(self, client, tmp_path):
         path = _make_file(tmp_path, "a.jpg")
-        db = _empty_db(tmp_path)
+        db = _db(tmp_path, [(path, 1)])
         with (
             mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
             mock.patch(f"{_EXPORT_MODULE}.VIEWER_CONFIG", {"cull": {"allow_trash": False}}),
@@ -142,7 +185,7 @@ class TestCullApply:
 
     def test_trash_without_send2trash_400(self, client, tmp_path):
         path = _make_file(tmp_path, "a.jpg")
-        db = _empty_db(tmp_path)
+        db = _db(tmp_path, [(path, 1)])
         with (
             mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
             mock.patch(f"{_EXPORT_MODULE}.VIEWER_CONFIG", {"cull": {"allow_trash": True}}),
@@ -155,7 +198,7 @@ class TestCullApply:
         assert os.path.isfile(path)
 
     def test_requires_paths_or_filters(self, client, tmp_path):
-        db = _empty_db(tmp_path)
+        db = _db(tmp_path, [])
         with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
             resp = client.post("/api/cull/apply", json={"action": "copy_keeps"})
         assert resp.status_code == 400

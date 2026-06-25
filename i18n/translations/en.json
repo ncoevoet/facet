@@ -1997,6 +1997,7 @@
     "include_companions": "Include companion RAW / XMP",
     "would_affect": "files would be affected",
     "skipped": "skipped (not on disk)",
+    "excluded_by_state": "excluded (not in this action’s scope)",
     "preview": "Preview",
     "apply": "Apply",
     "cancel": "Cancel",

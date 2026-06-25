@@ -347,6 +347,26 @@ def _resolve_cull_files(paths, include_companions):
     return items, skipped
 
 
+def _reject_state_map(conn, paths, user_id):
+    """Map each visible, in-DB path to its per-user ``is_rejected`` bool.
+
+    Used to bound a destructive cull to the user's actual reject set: paths not
+    visible / not in the DB are simply absent from the map.
+    """
+    if not paths:
+        return {}
+    pref_cols = get_preference_columns(user_id)
+    from_clause, from_params = get_photos_from_clause(user_id)
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    placeholders = ",".join("?" * len(paths))
+    rows = conn.execute(
+        f"SELECT photos.path AS path, {pref_cols['is_rejected']} AS is_rejected "
+        f"FROM {from_clause} WHERE photos.path IN ({placeholders}) AND {vis_sql}",
+        from_params + list(paths) + vis_params,
+    ).fetchall()
+    return {r["path"]: bool(r["is_rejected"]) for r in rows}
+
+
 def _move_into(files, target_dir):
     """Move each file into the (already validated) ``target_dir``; return counts."""
     os.makedirs(target_dir, exist_ok=True)
@@ -470,25 +490,36 @@ def api_cull_apply(
 
     Defaults to ``dry_run`` (no I/O — returns the resolved file lists for a
     preview). Copy is purely additive; move/trash are destructive and require an
-    explicit ``dry_run=false``. All file writes go through the same validated
-    allow-list as album export, and trashing is OS-trash (recoverable) gated
-    behind ``viewer.cull.allow_trash`` — never a permanent delete.
+    explicit ``dry_run=false``. The op is bounded server-side to the action's
+    actual set: ``copy_keeps`` acts only on non-rejected photos, ``move_rejects``
+    /``trash_rejects`` only on rejected ones (per-user ``is_rejected``), so a
+    buggy client can never move/trash a photo the user has not rejected — the
+    excess is reported as ``excluded_by_state``. All file writes go through the
+    same validated allow-list as album export, and trashing is OS-trash
+    (recoverable) gated behind ``viewer.cull.allow_trash`` — never a permanent
+    delete.
     """
     if not body.paths and body.filters is None:
         raise HTTPException(status_code=400, detail="Either paths or filters is required")
 
     user_id = user.user_id
+    # Bound the action to its semantic reject-state: keeps are non-rejected,
+    # rejects are rejected. Photos in the selection that don't match are skipped.
+    want_rejected = body.action != "copy_keeps"
     with get_db() as conn:
         paths = body.paths if body.paths else _resolve_filter_paths(conn, body.filters, user_id)
+        state = _reject_state_map(conn, paths, user_id)
+    matching = [p for p in paths if state.get(p) == want_rejected]
+    excluded_by_state = sum(1 for p in paths if p in state and state[p] != want_rejected)
 
-    items, skipped = _resolve_cull_files(paths, body.include_companions)
+    items, skipped = _resolve_cull_files(matching, body.include_companions)
     files = [f for _, fs in items for f in fs]
 
     if body.action == "copy_keeps":
         safe_target = _validate_target_dir_required(body.target_dir)
         if body.dry_run:
             return {"action": body.action, "dry_run": True, "would_copy": files,
-                    "skipped": skipped, "errors": []}
+                    "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": []}
         copied = errors = 0
         os.makedirs(safe_target, exist_ok=True)
         for src in files:
@@ -499,16 +530,16 @@ def api_cull_apply(
                 logger.exception("Failed to copy %s into %s", src, safe_target)
                 errors += 1
         return {"action": body.action, "dry_run": False, "copied": copied,
-                "skipped": len(skipped), "errors": errors}
+                "skipped": len(skipped), "excluded_by_state": excluded_by_state, "errors": errors}
 
     if body.action == "move_rejects":
         safe_target = _validate_target_dir_required(body.target_dir)
         if body.dry_run:
             return {"action": body.action, "dry_run": True, "would_move": files,
-                    "skipped": skipped, "errors": []}
+                    "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": []}
         moved, errors = _move_into(files, safe_target)
         return {"action": body.action, "dry_run": False, "moved": moved,
-                "skipped": len(skipped), "errors": errors}
+                "skipped": len(skipped), "excluded_by_state": excluded_by_state, "errors": errors}
 
     # trash_rejects
     if not (VIEWER_CONFIG.get("cull", {}) or {}).get("allow_trash", False):
@@ -520,7 +551,7 @@ def api_cull_apply(
         raise HTTPException(status_code=400, detail="send2trash is not installed")
     if body.dry_run:
         return {"action": body.action, "dry_run": True, "would_trash": files,
-                "skipped": skipped, "errors": []}
+                "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": []}
     trashed = errors = 0
     for src in files:
         try:
@@ -530,7 +561,7 @@ def api_cull_apply(
             logger.exception("Failed to trash %s", src)
             errors += 1
     return {"action": body.action, "dry_run": False, "trashed": trashed,
-            "skipped": len(skipped), "errors": errors}
+            "skipped": len(skipped), "excluded_by_state": excluded_by_state, "errors": errors}
 
 
 def _validate_target_dir_required(target_dir):
