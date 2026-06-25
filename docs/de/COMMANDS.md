@@ -217,6 +217,7 @@ Meldet Python-Version, PyTorch/CUDA-Build, GPU-Erkennung und -Treiber, VRAM-Prof
 | `python facet.py --optimize-weights --optimize-force` | Optimierte Gewichte anwenden, auch wenn die Genauigkeitsschwelle nicht erreicht wird |
 | `python facet.py --optimize-weights --optimize-sources vote,culling` | Trainingsdaten auf bestimmte Vergleichsquellen beschränken |
 | `python facet.py --optimize-weights --optimize-category portrait` | Nur auf einer Kategorie trainieren und deren v4-`categories[].weights`-Block schreiben |
+| `python facet.py --auto-tune-categories` | **Nur Superadmin** (im Mehrbenutzermodus `--user` angeben): meldet die Bereitschaft der Vergleichs-Labels pro Kategorie für das automatische Abstimmen der gemeinsamen globalen Gewichte. Stub — meldet nur die Bereitschaft; die automatische Anwendungsschleife ist bis zum Vorliegen von Labels zurückgestellt |
 | `python facet.py --sync-label-comparisons` | Aus Bewertungen abgeleitete Paare (source=rating) aus Sternebewertungen/Favoriten/Ablehnungen neu aufbauen |
 | `python facet.py --train-ranker` | Den persönlichen Ranker über [Embedding + Wertungen] trainieren und learned_scores schreiben (abhängig von der Held-out-k-Fold-Genauigkeit gegenüber der Aggregate-Baseline) |
 | `python facet.py --train-ranker --ranker-category portrait` | Den Ranker nur auf einer Kategorie trainieren |

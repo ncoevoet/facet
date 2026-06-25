@@ -216,6 +216,7 @@ Rapporte la version de Python, la build PyTorch/CUDA, la détection du GPU et le
 | `python facet.py --optimize-weights --optimize-force` | Applique les poids optimisés même si le seuil de précision n'est pas atteint |
 | `python facet.py --optimize-weights --optimize-sources vote,culling` | Restreint les données d'entraînement à des sources de comparaison spécifiques |
 | `python facet.py --optimize-weights --optimize-category portrait` | Entraîne sur une seule catégorie et écrit son bloc v4 `categories[].weights` |
+| `python facet.py --auto-tune-categories` | **Superadmin uniquement** (passez `--user` en mode multi-utilisateur) : signale la disponibilité des étiquettes de comparaison par catégorie pour l'auto-ajustement des poids globaux partagés. Ébauche — signale uniquement la disponibilité ; la boucle d'application automatique est différée en attendant les étiquettes |
 | `python facet.py --sync-label-comparisons` | Reconstruit les paires dérivées des notes (source=rating) depuis les notes en étoiles/favoris/rejets |
 | `python facet.py --train-ranker` | Entraîne le classeur personnel sur [embedding + scores] et écrit learned_scores (conditionné à la précision en validation croisée k-fold vs la base de référence agrégée) |
 | `python facet.py --train-ranker --ranker-category portrait` | Entraîne le classeur sur une seule catégorie |

@@ -216,6 +216,7 @@ Reports Python version, PyTorch/CUDA build, GPU detection and driver, VRAM profi
 | `python facet.py --optimize-weights --optimize-force` | Apply optimized weights even if the accuracy gate is not met |
 | `python facet.py --optimize-weights --optimize-sources vote,culling` | Restrict training data to specific comparison sources |
 | `python facet.py --optimize-weights --optimize-category portrait` | Train only on one category and write its v4 `categories[].weights` block |
+| `python facet.py --auto-tune-categories` | **Superadmin only** (pass `--user` in multi-user mode): report per-category comparison-label readiness for auto-tuning the shared global weights. Stub — reports readiness only; the auto-apply loop is deferred pending labels |
 | `python facet.py --sync-label-comparisons` | Rebuild rating-derived pairs (source=rating) from star ratings/favorites/rejections |
 | `python facet.py --train-ranker` | Train the personal ranker over [embedding + scores] and write learned_scores (gated on held-out k-fold accuracy vs the aggregate baseline) |
 | `python facet.py --train-ranker --ranker-category portrait` | Train the ranker on one category only |

@@ -58,6 +58,22 @@ from utils.image_loading import RAW_EXTENSIONS, HEIF_EXTENSIONS
 # ============================================
 # EXECUTION
 # ============================================
+def _autotune_superadmin_allowed(config, username):
+    """Whether the operator may run --auto-tune-categories.
+
+    Auto-tuning mutates the SHARED global scoring weights from every user's
+    pooled comparisons, so in multi-user mode it requires a superadmin operator
+    (identified by --user). Single-user mode is always allowed — the local
+    operator is the admin.
+    """
+    users = config.get('users', {})
+    multi_user = any(k != 'shared_directories' for k in users)
+    if not multi_user:
+        return True
+    urec = users.get(username) if username else None
+    return isinstance(urec, dict) and urec.get('role') == 'superadmin'
+
+
 def _print_scan_summary(db_path, todo_list, raw_paired_skipped):
     """Print a table of what landed in the DB from this scan.
 
@@ -360,6 +376,10 @@ Configuration:
                              '(applied only if held-out k-fold accuracy beats current weights)')
     weight_group.add_argument('--optimize-force', action='store_true',
                         help='Apply optimized weights even if the held-out accuracy gate is not met')
+    weight_group.add_argument('--auto-tune-categories', action='store_true',
+                        help='Superadmin only (pass --user in multi-user mode): report per-category '
+                             'comparison-label readiness for auto-tuning the SHARED global weights. '
+                             'Stub — reports readiness only; the auto-apply loop is deferred pending labels')
     weight_group.add_argument('--train-ranker', action='store_true',
                         help='Train the personal ranker over [embedding + scores] and write '
                              'learned_scores (gated on held-out k-fold accuracy vs the aggregate '
@@ -482,6 +502,46 @@ Configuration:
             category=args.optimize_category,
             force=args.optimize_force,
         )
+        exit()
+
+    # Auto-tune category weights (superadmin-only stub; readiness report).
+    # Mutating the shared global weights from pooled comparisons is an
+    # instance-wide operation, so in multi-user mode it requires a superadmin
+    # operator. The auto-apply loop is deferred pending sufficient labels — this
+    # reports per-category readiness and applies nothing.
+    if args.auto_tune_categories:
+        config_path = args.config or 'scoring_config.json'
+        cfg = ScoringConfig(config_path, validate=False)
+        if not _autotune_superadmin_allowed(cfg.config, args.user):
+            logger.error(
+                "--auto-tune-categories is superadmin-only: pass --user <name> for a superadmin "
+                "(it retunes the SHARED global weights from every user's comparisons)")
+            exit(1)
+        min_labels = cfg.get_comparison_mode_settings().get('min_comparisons_for_optimization', 50)
+        init_database(args.db)
+        with get_connection(args.db or DEFAULT_DB_PATH, row_factory=False) as conn:
+            rows = conn.execute(
+                "SELECT category, COUNT(*) FROM comparisons "
+                "WHERE winner IN ('a', 'b', 'tie') GROUP BY category"
+            ).fetchall()
+        counts = {}
+        for cat, n in rows:
+            key = cat or 'others'
+            counts[key] = counts.get(key, 0) + n
+        logger.info("Auto-tune readiness (min %d comparison labels/category to optimize):", min_labels)
+        ready = []
+        for cat in cfg.get_all_category_names():
+            n = counts.get(cat, 0)
+            if n >= min_labels:
+                ready.append(cat)
+            logger.info("  %-18s %4d/%d  %s", cat, n, min_labels,
+                        "READY" if n >= min_labels else f"needs {min_labels - n} more")
+        logger.info("")
+        logger.info("Auto-tuning is DEFERRED: this superadmin-gated command reports readiness only and "
+                    "does not modify scoring_config.json.")
+        if ready:
+            logger.info("Ready categories can be optimized now via: "
+                        "--optimize-weights --optimize-category <name>")
         exit()
 
     # Train the personal ranker -> learned_scores (lightweight - no GPU needed)
