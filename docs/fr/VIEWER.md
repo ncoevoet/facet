@@ -261,12 +261,12 @@ Accès via le bouton d'en-tête ou `/persons` :
 
 ## Déclenchement de scan (Superadmin)
 
-Lorsque `viewer.features.show_scan_button` vaut `true` et que l'utilisateur a le rôle `superadmin`, un bouton Scan apparaît dans l'en-tête de la galerie.
+Lorsque `viewer.features.show_scan_button` vaut `true` et que l'utilisateur a le rôle `superadmin`, un bouton **Scanner des photos pour commencer** apparaît sur l'état de galerie vide. Il est livré réglé sur **`false`** dans `scoring_config.json` (activation à la discrétion du superadmin). Le bouton ouvre la boîte de dialogue de lancement du scan (`ScanLauncherComponent`).
 
-- Sélectionnez les répertoires à scanner depuis la fenêtre modale
-- Le scan s'exécute comme un sous-processus en arrière-plan (`facet.py`)
-- Un seul scan à la fois (verrou global)
-- La progression est affichée dans une zone de sortie de type terminal
+- Choisissez un répertoire dans la liste du lanceur et démarrez le scan dans l'application
+- Le lanceur diffuse la progression en direct (SSE avec repli automatique sur le polling) dans une `mat-progress-bar` pilotée par le champ structuré `progress`, plus un aperçu des lignes de sortie, et actualise la galerie une fois le scan terminé
+- Le scan s'exécute comme un sous-processus en arrière-plan (`facet.py`) ; un seul scan à la fois (verrou global)
+- Les choix de répertoires proviennent de `get_all_scan_directories()`, qui réunit les `directories` de chaque utilisateur, les répertoires partagés, les cibles de `path_mapping` et la liste autonome `viewer.scan_directories` — initialisez cette dernière (par exemple `/data/photos`) afin que les installations mono-utilisateur / Docker disposent d'une cible sélectionnable
 
 Ceci est utile lorsque la galerie s'exécute sur la même machine disposant d'un accès GPU pour le scoring.
 
@@ -350,6 +350,8 @@ Utilise le VLM configuré (Qwen3.5-2B ou Qwen3.5-4B) pour une critique tenant co
 | `GET /api/critique?path=<photo_path>&mode=vlm` | Critique propulsée par VLM (nécessite un GPU) |
 
 Contrôlé par `viewer.features.show_critique` (par défaut : `true`) et `viewer.features.show_vlm_critique` (par défaut : `true`).
+
+**Surcouche visuelle « pourquoi ce score ».** Lorsque `viewer.features.show_saliency_overlay` vaut `true` (par défaut), la boîte de dialogue de critique gagne un bouton **Afficher la surcouche** : il dessine la carte de saillance BiRefNet sous forme de carte thermique translucide par-dessus la photo (recalculée à la demande à partir de la miniature stockée — `GET /api/saliency_overlay`), plus des boîtes par visage atténuées et des marqueurs d'yeux reconstruits à partir des landmarks stockés (`GET /api/photo/face_markers`). Les boîtes sont vertes quand les yeux sont ouverts, ambre en cas de clignement. La carte thermique est illustrative (à la résolution de la miniature), non exacte au pixel près ; le bouton se masque de lui-même sur les profils où aucun masque de saillance n'est productible.
 
 ## Légendage IA `[GPU]` `[16gb/24gb]` `[Edition]`
 
@@ -532,6 +534,8 @@ Pour chaque groupe, choisissez la ou les photos à conserver ; la confirmation 
 ### Badges par visage
 
 Dans la visionneuse de tri (rafale/similaire), chaque visage détecté porte ses propres badges — yeux ouverts/fermés, expression médiocre et confiance de détection — au lieu d'un seul indicateur de clignement au niveau de la photo. Le tri des photos de groupe en est facilité : on voit d'un coup d'œil quel visage a les yeux fermés ou une expression faible. Les badges sont récupérés pour tout un groupe en un seul appel par lot (`POST /api/culling-group/faces`).
+
+**Comparaison synchronisée (2 vues / 4 vues).** L'en-tête de la visionneuse comporte les boutons Vue unique / Comparer 2 / Comparer 4. En mode comparaison, les volets partagent une seule transformation de panoramique/zoom : le zoom à la molette ou le panoramique par glissement sur n'importe quel volet les déplace tous vers le cadrage identique — la façon de choisir le cliché le plus net d'une rafale en inspectant réellement les pixels. Le double-clic bascule entre ajuster ↔ zoomer ; au-delà de l'échelle d'ajustement, chaque volet remplace paresseusement sa miniature 1920px par la source `/image` en pleine résolution afin que l'inspection soit nette. Aucun changement côté backend — les deux routes d'image existent déjà. (Le pincement tactile n'est pas encore câblé ; utilisez la molette sur ordinateur de bureau.)
 
 ### API
 

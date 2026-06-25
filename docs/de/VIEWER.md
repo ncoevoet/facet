@@ -260,12 +260,12 @@ Zugriff über die Header-Schaltfläche oder `/persons`:
 
 ## Scan auslösen (Superadmin)
 
-Wenn `viewer.features.show_scan_button` auf `true` steht und der Benutzer die Rolle `superadmin` hat, erscheint eine Scan-Schaltfläche im Galerie-Header.
+Wenn `viewer.features.show_scan_button` auf `true` steht und der Benutzer die Rolle `superadmin` hat, erscheint im leeren Galerie-Zustand eine Schaltfläche **Fotos scannen, um loszulegen**. Sie wird in `scoring_config.json` auf **`false`** ausgeliefert (Superadmin-Opt-in). Die Schaltfläche öffnet den Scan-Starter-Dialog (`ScanLauncherComponent`).
 
-- Zu scannende Verzeichnisse im Modal auswählen
-- Der Scan läuft als Hintergrund-Unterprozess (`facet.py`)
-- Nur ein Scan gleichzeitig (globale Sperre)
-- Fortschritt wird in einem terminalartigen Ausgabebereich angezeigt
+- Ein Verzeichnis aus der Liste des Starters auswählen und den Scan direkt in der App starten
+- Der Starter überträgt den Fortschritt live (SSE mit automatischem Polling-Rückgriff) in einen `mat-progress-bar`, der vom strukturierten `progress`-Feld gesteuert wird, plus einen Auszug der Ausgabezeilen, und aktualisiert die Galerie, sobald der Scan abgeschlossen ist
+- Der Scan läuft als Hintergrund-Unterprozess (`facet.py`); nur ein Scan gleichzeitig (globale Sperre)
+- Die Verzeichnisauswahl stammt aus `get_all_scan_directories()`, das die `directories` jedes Benutzers, freigegebene Verzeichnisse, `path_mapping`-Ziele und die eigenständige `viewer.scan_directories`-Liste vereint — befüllen Sie letztere (z. B. `/data/photos`), damit Einzelbenutzer-/Docker-Installationen ein auswählbares Ziel haben
 
 Dies ist nützlich, wenn die Galerie auf derselben Maschine läuft, die GPU-Zugriff für die Bewertung hat.
 
@@ -349,6 +349,8 @@ Verwendet das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbe
 | `GET /api/critique?path=<photo_path>&mode=vlm` | VLM-gestützte Kritik (erfordert GPU) |
 
 Gesteuert über `viewer.features.show_critique` (Standard: `true`) und `viewer.features.show_vlm_critique` (Standard: `true`).
+
+**Visuelles „Warum diese Wertung"-Overlay.** Wenn `viewer.features.show_saliency_overlay` auf `true` steht (Standard), erhält der Kritik-Dialog einen **Overlay anzeigen**-Umschalter: Er zeichnet die BiRefNet-Saliency-Karte als durchscheinende Heatmap über das Foto (bei Bedarf aus dem gespeicherten Vorschaubild neu berechnet — `GET /api/saliency_overlay`), plus weiche Boxen pro Gesicht und Augenmarkierungen, die aus gespeicherten Landmarken rekonstruiert werden (`GET /api/photo/face_markers`). Boxen sind grün, wenn die Augen offen sind, und bernsteinfarben bei einem Blinzeln. Die Heatmap ist illustrativ (Vorschaubild-Auflösung), nicht pixelgenau; der Umschalter blendet sich auf Profilen aus, bei denen keine Saliency-Maske erzeugt werden kann.
 
 ## KI-Bildbeschreibung `[GPU]` `[16gb/24gb]` `[Edition]`
 
@@ -531,6 +533,8 @@ Wählen Sie für jede Gruppe die Behaltefoto(s); das Bestätigen lehnt den Rest 
 ### Abzeichen pro Gesicht
 
 In der Lightbox der Serienbild-/Ähnlichkeitsauswahl trägt jedes erkannte Gesicht seine eigenen Abzeichen — Augen offen/geschlossen, schwacher Ausdruck und Erkennungskonfidenz — statt einer einzigen Blinzel-Markierung auf Fotoebene. Das erleichtert die Auswahl bei Gruppenaufnahmen: Sie sehen auf einen Blick, welches Gesicht geschlossene Augen oder einen schwachen Ausdruck hat. Die Abzeichen werden für eine ganze Gruppe in einem einzigen Batch-Aufruf abgerufen (`POST /api/culling-group/faces`).
+
+**Synchronisierter Vergleich (2-fach / 4-fach).** Der Lightbox-Header hat die Schaltflächen Einzeln / Vergleich 2 / Vergleich 4. Im Vergleichsmodus teilen sich die Bereiche eine gemeinsame Schwenk-/Zoom-Transformation, sodass Mausrad-Zoom oder Ziehen-Schwenken in einem beliebigen Bereich alle auf denselben Bildausschnitt bewegt — die Art, das schärfste Bild einer Serie zu wählen, indem man tatsächlich die Pixel begutachtet. Doppelklick schaltet zwischen Einpassen ↔ Zoom um; jenseits der Einpassen-Skalierung tauscht jeder Bereich faul sein 1920px-Vorschaubild gegen die vollauflösende `/image`-Quelle, damit der Blick gestochen scharf ist. Keine Backend-Änderung — beide Bildrouten existieren bereits. (Touch-Pinch ist noch nicht verdrahtet; verwenden Sie am Desktop das Mausrad.)
 
 ### API
 

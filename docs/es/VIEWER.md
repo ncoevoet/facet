@@ -260,12 +260,12 @@ Acceso mediante el botón de la cabecera o `/persons`:
 
 ## Disparador de escaneo (superadmin)
 
-Cuando `viewer.features.show_scan_button` es `true` y el usuario tiene el rol `superadmin`, aparece un botón de escaneo en la cabecera de la galería.
+Cuando `viewer.features.show_scan_button` es `true` y el usuario tiene el rol `superadmin`, aparece un botón **Escanear fotos para empezar** en el estado de galería vacía. Se entrega establecido en **`false`** en `scoring_config.json` (opción de activación para superadmin). El botón abre el diálogo del lanzador de escaneo (`ScanLauncherComponent`).
 
-- Selecciona los directorios a escanear en el modal
-- El escaneo se ejecuta como un subproceso en segundo plano (`facet.py`)
-- Solo un escaneo a la vez (bloqueo global)
-- El progreso se muestra en un área de salida de estilo terminal
+- Elige un directorio de la lista del lanzador e inicia el escaneo dentro de la aplicación
+- El lanzador transmite el progreso en vivo (SSE con sondeo de reserva automático) a una `mat-progress-bar` impulsada por el campo estructurado `progress`, además de una cola de líneas de salida, y actualiza la galería cuando el escaneo termina
+- El escaneo se ejecuta como un subproceso en segundo plano (`facet.py`); solo un escaneo a la vez (bloqueo global)
+- Las opciones de directorio provienen de `get_all_scan_directories()`, que une los `directories` de cada usuario, los directorios compartidos, los destinos de `path_mapping` y la lista independiente `viewer.scan_directories` — inicializa esta última (p. ej. `/data/photos`) para que las instalaciones de un solo usuario / Docker tengan un destino seleccionable
 
 Esto resulta útil cuando la galería se ejecuta en la misma máquina que tiene acceso a la GPU para la puntuación.
 
@@ -349,6 +349,8 @@ Usa el VLM configurado (Qwen3.5-2B o Qwen3.5-4B) para una crítica que tiene en 
 | `GET /api/critique?path=<photo_path>&mode=vlm` | Crítica con tecnología VLM (requiere GPU) |
 
 Controlada por `viewer.features.show_critique` (predeterminado: `true`) y `viewer.features.show_vlm_critique` (predeterminado: `true`).
+
+**Superposición visual de "por qué esta puntuación".** Cuando `viewer.features.show_saliency_overlay` es `true` (predeterminado), el diálogo de crítica gana un interruptor **Mostrar superposición**: dibuja el mapa de saliencia de BiRefNet como un mapa de calor translúcido sobre la foto (recalculado bajo demanda a partir de la miniatura almacenada — `GET /api/saliency_overlay`), además de cuadros suaves por rostro y marcadores de ojos reconstruidos a partir de los puntos de referencia almacenados (`GET /api/photo/face_markers`). Los cuadros son verdes cuando los ojos están abiertos y ámbar ante un parpadeo. El mapa de calor es ilustrativo (resolución de miniatura), no exacto a nivel de píxel; el interruptor se oculta a sí mismo en los perfiles donde no se puede producir ninguna máscara de saliencia.
 
 ## Generación de leyendas con IA `[GPU]` `[16gb/24gb]` `[Edition]`
 
@@ -531,6 +533,8 @@ Para cada grupo, elige la(s) que conservar; al confirmar se rechaza el resto. La
 ### Insignias por rostro
 
 En la caja de luz de selección de ráfagas/similares, cada rostro detectado lleva sus propias insignias — ojos abiertos/cerrados, expresión deficiente y confianza de detección — en lugar de una única marca de parpadeo a nivel de foto. Esto facilita la selección en fotos de grupo: puedes ver de un vistazo qué rostro tiene los ojos cerrados o una expresión débil. Las insignias se obtienen para todo un grupo en una sola llamada por lotes (`POST /api/culling-group/faces`).
+
+**Comparación sincronizada (2-up / 4-up).** La cabecera de la caja de luz tiene botones Único / Comparar 2 / Comparar 4. En modo de comparación, los paneles comparten una única transformación de panorámica/zoom, de modo que el zoom con la rueda de desplazamiento o el arrastre en cualquier panel los mueve todos al recorte idéntico — la manera de elegir el fotograma más nítido de una ráfaga examinando realmente los píxeles. El doble clic alterna entre ajustar ↔ ampliar; superada la escala de ajuste, cada panel sustituye de forma diferida su miniatura de 1920px por la fuente `/image` a resolución completa para que el examen sea nítido. Sin cambios en el backend — ambas rutas de imagen ya existen. (El pellizco táctil aún no está conectado; usa la rueda en el escritorio.)
 
 ### API
 

@@ -981,7 +981,8 @@ Anzeige und Verhalten der Web-Galerie.
     "edition_password": "",
     "comparison_mode": {
       "min_comparisons_for_optimization": 50,
-      "pair_selection_strategy": "uncertainty",
+      "pair_selection_strategy": "learning",
+      "candidate_pool_size": 200,
       "show_current_scores": true
     },
     "sort_options": { ... },
@@ -1068,7 +1069,8 @@ Anzeige und Verhalten der Web-Galerie.
 | `edition_password` | `""` | Passwort zum Entsperren des Bearbeitungsmodus (leer = deaktiviert) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Minimum für die Optimierung |
-| `pair_selection_strategy` | `"uncertainty"` | Standardstrategie |
+| `pair_selection_strategy` | `"learning"` | Paar-Strategie: `learning` (Embedding-Diversität für den Cold-Start + Rang-Uneinigkeit, sobald trainiert), `uncertainty`, `boundary`, `active`, `random` |
+| `candidate_pool_size` | `200` | Zufälliger Kandidaten-Pool, innerhalb dessen die Strategie `learning` Paare auswählt |
 | `show_current_scores` | `true` | Wertungen während des Vergleichs anzeigen |
 | **pagination** | | |
 | `default_per_page` | `64` | Fotos pro Seite |

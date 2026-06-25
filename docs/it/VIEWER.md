@@ -260,12 +260,12 @@ Accessibile tramite il pulsante nell'intestazione o `/persons`:
 
 ## Avvio scansione (Superadmin)
 
-Quando `viewer.features.show_scan_button` è `true` e l'utente ha il ruolo `superadmin`, nell'intestazione della galleria compare un pulsante Scansione.
+Quando `viewer.features.show_scan_button` è `true` e l'utente ha il ruolo `superadmin`, nello stato di galleria vuota compare un pulsante **Scansiona le foto per iniziare**. Viene fornito impostato su **`false`** in `scoring_config.json` (opt-in per il superadmin). Il pulsante apre la finestra di avvio della scansione (`ScanLauncherComponent`).
 
-- Seleziona le directory da scansionare dalla finestra modale
-- La scansione viene eseguita come sottoprocesso in background (`facet.py`)
-- Una sola scansione alla volta (blocco globale)
-- L'avanzamento viene mostrato in un'area di output in stile terminale
+- Scegli una directory dall'elenco del launcher e avvia la scansione direttamente nell'app
+- Il launcher trasmette l'avanzamento in tempo reale (SSE con fallback automatico al polling) in una `mat-progress-bar` pilotata dal campo strutturato `progress`, oltre a una coda di righe di output, e aggiorna la galleria al termine della scansione
+- La scansione viene eseguita come sottoprocesso in background (`facet.py`); una sola scansione alla volta (blocco globale)
+- Le scelte di directory provengono da `get_all_scan_directories()`, che unisce le `directories` di ciascun utente, le directory condivise, le destinazioni di `path_mapping` e l'elenco autonomo `viewer.scan_directories` — popola quest'ultimo (ad es. `/data/photos`) affinché le installazioni a utente singolo / Docker abbiano una destinazione selezionabile
 
 Questo è utile quando la galleria viene eseguita sulla stessa macchina che ha accesso alla GPU per la valutazione.
 
@@ -349,6 +349,8 @@ Usa il VLM configurato (Qwen3.5-2B o Qwen3.5-4B) per una critica consapevole del
 | `GET /api/critique?path=<photo_path>&mode=vlm` | Critica basata su VLM (richiede GPU) |
 
 Controllato da `viewer.features.show_critique` (predefinito: `true`) e `viewer.features.show_vlm_critique` (predefinito: `true`).
+
+**Overlay visivo "perché questo punteggio".** Quando `viewer.features.show_saliency_overlay` è `true` (predefinito), la finestra di critica acquisisce un interruttore **Mostra overlay**: disegna la mappa di salienza BiRefNet come heatmap traslucida sopra la foto (ricalcolata su richiesta dalla miniatura memorizzata — `GET /api/saliency_overlay`), oltre a riquadri soft per volto e marcatori degli occhi ricostruiti dai landmark memorizzati (`GET /api/photo/face_markers`). I riquadri sono verdi quando gli occhi sono aperti, ambra in caso di occhi chiusi. La heatmap è illustrativa (risoluzione della miniatura), non esatta a livello di pixel; l'interruttore si nasconde sui profili in cui non è producibile alcuna maschera di salienza.
 
 ## Didascalie IA `[GPU]` `[16gb/24gb]` `[Edition]`
 
@@ -531,6 +533,8 @@ Per ogni gruppo, scegli quale/quali conservare; la conferma scarta il resto. Le 
 ### Badge per volto
 
 Nel lightbox di selezione delle raffiche/foto simili, ogni volto rilevato porta i propri badge — occhi aperti/chiusi, espressione scadente e confidenza di rilevamento — anziché un'unica indicazione di occhi chiusi a livello di foto. Questo rende più facile selezionare le foto di gruppo: puoi vedere a colpo d'occhio quale volto ha gli occhi chiusi o un'espressione debole. I badge vengono recuperati per un intero gruppo in un'unica chiamata batch (`POST /api/culling-group/faces`).
+
+**Confronto sincronizzato (2-up / 4-up).** L'intestazione del lightbox ha i pulsanti Singolo / Confronta 2 / Confronta 4. In modalità di confronto i riquadri condividono un'unica trasformazione di pan/zoom, così lo zoom con la rotellina o il trascinamento su un riquadro qualsiasi sposta tutti gli altri sullo stesso identico ritaglio — il modo per scegliere il fotogramma più nitido di una raffica esaminando davvero i pixel. Il doppio clic alterna adatta ↔ zoom; oltre la scala di adattamento ogni riquadro sostituisce in modo lazy la sua miniatura da 1920px con la sorgente `/image` a piena risoluzione, così l'ingrandimento resta nitido. Nessuna modifica al backend — entrambe le rotte dell'immagine esistono già. (Il pinch tattile non è ancora collegato; sul desktop usa la rotellina.)
 
 ### API
 

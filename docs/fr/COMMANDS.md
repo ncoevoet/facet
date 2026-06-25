@@ -24,10 +24,11 @@
 | `python facet.py /path --pass saliency` | Exécute uniquement la détection de la saillance du sujet BiRefNet |
 | `python facet.py /path --db custom.db` | Utilise un fichier de base de données personnalisé |
 | `python facet.py /path --config my.json` | Utilise une configuration de scoring personnalisée |
-| `python facet.py --resume` | Reprend la dernière analyse interrompue/échouée (réutilise ses répertoires ; avec `--force`, ignore les fichiers déjà re-scorés depuis le démarrage de cette analyse) |
+| `python facet.py --resume` | Reprend la dernière analyse interrompue/échouée — y compris une analyse brutalement stoppée par SIGKILL/OOM/coupure de courant (une exécution toujours marquée `running` dont le battement de cœur est plus ancien que `processing.scan_stale_seconds`, par défaut 120). Réutilise ses répertoires ; avec `--force`, ignore les fichiers déjà re-scorés depuis le démarrage de cette analyse. Refuse si une autre analyse semble réellement active. |
 | `python facet.py --retry-failed` | Retraite uniquement les fichiers qui ont échoué lors de la dernière analyse (`--retry-failed all` pour les échecs de toutes les analyses) |
 | `python facet.py /path --force-since 2026-01-01` | Comme `--force`, mais retraite uniquement les photos analysées pour la dernière fois avant la date |
 | `python facet.py /path --watch` | Reste en exécution et réanalyse dès que de nouvelles photos apparaissent (nécessite `pip install watchdog` ; `--watch-debounce N` règle la période de calme, par défaut 30 s) |
+| `python facet.py /path --force-low-space` | Ignore le garde-fou d'espace libre pré-analyse (continue même lorsque le volume semble trop petit pour les miniatures/embeddings que l'analyse va écrire) |
 
 ### Suivi des analyses
 
@@ -76,6 +77,7 @@ champ `progress` de `/api/scan/status` et du flux SSE.
 | `python facet.py --export-sidecars /path` | Exporte les fichiers annexes uniquement pour les photos sous une arborescence de chemin |
 | `python facet.py --export-sidecars --user alice` | Mode multi-utilisateur : exporte les notes des `user_preferences` d'Alice au lieu des colonnes globales (les mots-clés restent globaux) |
 | `python facet.py --export-sidecars --embed-originals` | Intègre aussi les métadonnées **dans le fichier** pour les JPEG/HEIC/TIFF/PNG/DNG (réécrit les originaux) |
+| `python facet.py --export-sidecars --score-to-stars` | Dérive `xmp:Rating` du score agrégé pour les photos que vous n'avez pas notées manuellement (une note/un favori/un rejet manuel l'emporte toujours) |
 
 > **Synchronisation des métadonnées dans les deux sens.** Facet écrit les notes, libellés de couleur, mots-clés, légendes et régions de visages nommés dans un fichier annexe `<image>.xmp` standard que tout l'écosystème lit (Lightroom, darktable, digiKam, immich, …). **Par défaut, l'image originale n'est jamais modifiée** — seul le fichier annexe est écrit/fusionné. Pour intégrer les métadonnées *dans le fichier* pour les JPEG/HEIC/TIFF/PNG/DNG (afin que les éditeurs qui ignorent les fichiers annexes les voient aussi), activez-le explicitement : l'action **« Écrire les métadonnées dans le fichier »** par vignette dans la galerie, ou la commande `--export-sidecars --embed-originals`. Les originaux RAW ne sont jamais modifiés. L'intégration et la fusion sûre des fichiers annexes nécessitent **exiftool** (les mots-clés existants/externes sont lus et fusionnés dans l'union, jamais effacés) ; sans lui, Facet se rabat sur un fichier annexe en XML pur, sans dépendance. `--import-sidecars` est la direction inverse : il réintègre les modifications externes dans Facet — les notes/libellés s'appliquent selon le principe *le plus récent l'emporte* (d'après `xmp:MetadataDate`, sinon la date de modification du fichier annexe, comparée au `scanned_at` de la photo), et les mots-clés sont fusionnés (union), de sorte que les tags automatiques de Facet ne sont jamais perdus.
 >
@@ -87,8 +89,9 @@ Ces commandes mettent à jour des métriques précises sans retraitement complet
 
 | Commande | Description |
 |---------|-------------|
-| `python facet.py --recompute-average` | Recalcule les scores agrégés (crée une sauvegarde) |
+| `python facet.py --recompute-average` | Recalcule les scores agrégés (écrit d'abord un instantané horodaté de la base de données) |
 | `python facet.py --recompute-category portrait` | Recalcule les scores d'une seule catégorie |
+| `python facet.py --recompute-average --no-backup` | Recalcule sans prendre l'instantané pré-exécution de la base de données |
 | `python facet.py --recompute-tags` | Réétiquette toutes les photos avec le modèle configuré |
 | `python facet.py --recompute-tags-vlm` | Réétiquette toutes les photos avec l'étiqueteur VLM |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recalcule les métriques de saillance du sujet (BiRefNet_dynamic) |

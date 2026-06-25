@@ -981,7 +981,8 @@ Visualización y comportamiento de la galería web.
     "edition_password": "",
     "comparison_mode": {
       "min_comparisons_for_optimization": 50,
-      "pair_selection_strategy": "uncertainty",
+      "pair_selection_strategy": "learning",
+      "candidate_pool_size": 200,
       "show_current_scores": true
     },
     "sort_options": { ... },
@@ -1068,7 +1069,8 @@ Visualización y comportamiento de la galería web.
 | `edition_password` | `""` | Contraseña para desbloquear el modo edición (vacío = desactivado) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Mínimo para la optimización |
-| `pair_selection_strategy` | `"uncertainty"` | Estrategia por defecto |
+| `pair_selection_strategy` | `"learning"` | Estrategia de emparejamiento: `learning` (arranque en frío por diversidad de embeddings + desacuerdo de rango una vez entrenado), `uncertainty`, `boundary`, `active`, `random` |
+| `candidate_pool_size` | `200` | Conjunto aleatorio de candidatos dentro del cual la estrategia `learning` muestrea los pares |
 | `show_current_scores` | `true` | Mostrar las puntuaciones durante la comparación |
 | **pagination** | | |
 | `default_per_page` | `64` | Fotos por página |

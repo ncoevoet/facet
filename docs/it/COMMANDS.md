@@ -24,10 +24,11 @@
 | `python facet.py /path --pass saliency` | Esegue solo il rilevamento della salienza del soggetto BiRefNet |
 | `python facet.py /path --db custom.db` | Usa un file di database personalizzato |
 | `python facet.py /path --config my.json` | Usa una configurazione di punteggio personalizzata |
-| `python facet.py --resume` | Riprende l'ultima scansione interrotta/fallita (riutilizza le sue directory; con `--force`, salta i file già rivalutati dall'inizio di quella esecuzione) |
+| `python facet.py --resume` | Riprende l'ultima scansione interrotta/fallita — inclusa una terminata bruscamente da SIGKILL/OOM/perdita di alimentazione (un'esecuzione ancora contrassegnata come `running` il cui heartbeat è più vecchio di `processing.scan_stale_seconds`, predefinito 120). Riutilizza le sue directory; con `--force`, salta i file già rivalutati dall'inizio di quella esecuzione. Rifiuta se un'altra scansione sembra davvero attiva. |
 | `python facet.py --retry-failed` | Rielabora solo i file falliti durante l'ultima esecuzione di scansione (`--retry-failed all` per i fallimenti di tutte le esecuzioni) |
 | `python facet.py /path --force-since 2026-01-01` | Come `--force`, ma rielabora solo le foto scansionate l'ultima volta prima della data |
 | `python facet.py /path --watch` | Rimane in esecuzione e riscansiona ogni volta che compaiono nuove foto (richiede `pip install watchdog`; `--watch-debounce N` regola il periodo di inattività, predefinito 30s) |
+| `python facet.py /path --force-low-space` | Salta il controllo dello spazio libero pre-scansione (procede anche quando il volume sembra troppo piccolo per le miniature/embedding che la scansione scriverà) |
 
 ### Registrazione delle scansioni
 
@@ -76,6 +77,7 @@ campo `progress` di `/api/scan/status` e nel flusso SSE.
 | `python facet.py --export-sidecars /path` | Esporta i sidecar solo per le foto sotto un sottoalbero di percorso |
 | `python facet.py --export-sidecars --user alice` | Modalità multiutente: esporta le valutazioni di `user_preferences` di Alice anziché le colonne globali (le parole chiave restano globali) |
 | `python facet.py --export-sidecars --embed-originals` | Incorpora anche i metadati **nel file** per JPEG/HEIC/TIFF/PNG/DNG (riscrive gli originali) |
+| `python facet.py --export-sidecars --score-to-stars` | Deriva `xmp:Rating` dal punteggio aggregato per le foto che non hai valutato manualmente (una valutazione/preferito/scarto manuale ha sempre la precedenza) |
 
 > **Sincronizzazione bidirezionale dei metadati.** Facet scrive valutazioni, etichette colore, parole chiave, didascalie e regioni di volti nominati in un sidecar `<image>.xmp` standard che tutto l'ecosistema legge (Lightroom, darktable, digiKam, immich, …). **Per impostazione predefinita l'immagine originale non viene mai modificata**: viene scritto/unito solo il sidecar. Per incorporare i metadati *nel file* per JPEG/HEIC/TIFF/PNG/DNG (così che li vedano anche gli editor che ignorano i sidecar), attivalo esplicitamente: l'azione **«Scrivi i metadati nel file»** per miniatura nel visualizzatore, oppure il comando `--export-sidecars --embed-originals`. Gli originali RAW non vengono mai modificati. L'incorporamento e l'unione sicura dei sidecar richiedono **exiftool** (le parole chiave esistenti/esterne vengono lette e fuse nell'unione, mai cancellate); in sua assenza, Facet ricade su un sidecar XML puro senza dipendenze. `--import-sidecars` è la direzione inversa: ripiega le modifiche esterne in Facet — valutazioni/etichette vengono applicate con la regola *vince la più recente* (in base a `xmp:MetadataDate`, altrimenti l'mtime del sidecar, rispetto allo `scanned_at` della foto), e le parole chiave vengono unite (unione), così che i tag automatici di Facet non vadano mai persi.
 >
@@ -87,8 +89,9 @@ Questi comandi aggiornano metriche specifiche senza una rielaborazione completa 
 
 | Comando | Descrizione |
 |---------|-------------|
-| `python facet.py --recompute-average` | Ricalcola i punteggi aggregati (crea un backup) |
+| `python facet.py --recompute-average` | Ricalcola i punteggi aggregati (scrive prima uno snapshot del DB con data e ora) |
 | `python facet.py --recompute-category portrait` | Ricalcola i punteggi solo per una singola categoria |
+| `python facet.py --recompute-average --no-backup` | Ricalcola senza creare lo snapshot del DB pre-esecuzione |
 | `python facet.py --recompute-tags` | Riassegna i tag a tutte le foto usando il modello configurato |
 | `python facet.py --recompute-tags-vlm` | Riassegna i tag a tutte le foto usando il tagger VLM |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Ricalcola le metriche di salienza del soggetto (BiRefNet_dynamic) |
