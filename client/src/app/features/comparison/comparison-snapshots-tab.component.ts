@@ -37,6 +37,16 @@ interface Snapshot {
   template: `
     <p class="text-sm text-gray-400 mt-4 mb-4">{{ 'comparison.snapshots_description' | translate }}</p>
 
+    @if (scoresStale()) {
+      <div class="flex items-center justify-between gap-3 mb-4 p-3 rounded border border-amber-500/40 bg-amber-500/10 text-amber-200">
+        <span class="text-sm">{{ 'comparison.scores_stale' | translate }}</span>
+        <button mat-flat-button color="primary" [disabled]="recomputing() || !auth.isEdition()" (click)="recalculate()">
+          <mat-icon>refresh</mat-icon>
+          {{ (recomputing() ? 'comparison.recalculating' : 'comparison.recalculate') | translate }}
+        </button>
+      </div>
+    }
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <!-- Save new snapshot -->
       <mat-card>
@@ -62,7 +72,7 @@ interface Snapshot {
         </mat-card-header>
         <mat-card-content class="!pt-4">
           @if (snapshots().length > 0) {
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-2 max-h-96 overflow-y-auto" (scroll)="onSnapshotsScroll($event)">
               @for (snap of snapshots(); track snap.id) {
                 <div class="flex items-center justify-between gap-2 p-2 rounded bg-neutral-800/50">
                   <div class="min-w-0">
@@ -76,6 +86,9 @@ interface Snapshot {
                     </button>
                   </div>
                 </div>
+              }
+              @if (loadingSnapshots()) {
+                <p class="text-gray-500 text-xs text-center py-2">{{ 'common.loading' | translate }}</p>
               }
             </div>
           } @else {
@@ -95,6 +108,11 @@ export class ComparisonSnapshotsTabComponent {
 
   snapshots = signal<Snapshot[]>([]);
   snapshotName = signal('');
+  scoresStale = signal<string | null>(null);
+  recomputing = signal(false);
+  hasMoreSnapshots = signal(true);
+  loadingSnapshots = signal(false);
+  private readonly SNAPSHOT_PAGE = 20;
 
   /** Emitted after a snapshot is successfully restored — parent reloads weights */
   readonly restored = output<void>();
@@ -107,14 +125,35 @@ export class ComparisonSnapshotsTabComponent {
   }
 
   async loadSnapshots(): Promise<void> {
+    this.snapshots.set([]);
+    this.hasMoreSnapshots.set(true);
+    await this.loadMoreSnapshots();
+  }
+
+  async loadMoreSnapshots(): Promise<void> {
+    if (this.loadingSnapshots() || !this.hasMoreSnapshots()) return;
+    this.loadingSnapshots.set(true);
     const cat = this.compareFilters.selectedCategory();
+    const params: Record<string, string | number> = { offset: this.snapshots().length, limit: this.SNAPSHOT_PAGE };
+    if (cat) params['category'] = cat;
     try {
       const res = await firstValueFrom(
-        this.api.get<{ snapshots: Snapshot[] }>('/config/weight_snapshots', cat ? { category: cat } : {}),
+        this.api.get<{ snapshots: Snapshot[]; has_more: boolean }>('/config/weight_snapshots', params),
       );
-      this.snapshots.set(res.snapshots ?? []);
+      this.snapshots.update(cur => [...cur, ...(res.snapshots ?? [])]);
+      this.hasMoreSnapshots.set(!!res.has_more);
     } catch {
+      this.hasMoreSnapshots.set(false);
       this.snackBar.open(this.i18n.t('comparison.error_loading_snapshots'), '', { duration: 4000 });
+    } finally {
+      this.loadingSnapshots.set(false);
+    }
+  }
+
+  onSnapshotsScroll(event: Event): void {
+    const el = event.target as HTMLElement;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 48) {
+      void this.loadMoreSnapshots();
     }
   }
 
@@ -136,11 +175,30 @@ export class ComparisonSnapshotsTabComponent {
 
   async restoreSnapshot(id: number): Promise<void> {
     try {
-      await firstValueFrom(this.api.post('/config/restore_weights', { snapshot_id: id }));
+      const res = await firstValueFrom(
+        this.api.post<{ category: string }>('/config/restore_weights', { snapshot_id: id }),
+      );
       this.snackBar.open(this.i18n.t('comparison.snapshot_restored'), '', { duration: 3000 });
+      this.scoresStale.set(res?.category ?? this.compareFilters.selectedCategory());
       this.restored.emit();
+      await this.loadSnapshots();
     } catch {
       this.snackBar.open(this.i18n.t('comparison.error_restoring_snapshot'), '', { duration: 4000 });
+    }
+  }
+
+  async recalculate(): Promise<void> {
+    const category = this.scoresStale();
+    if (!category) return;
+    this.recomputing.set(true);
+    try {
+      await firstValueFrom(this.api.post('/stats/categories/recompute', { category }));
+      this.scoresStale.set(null);
+      this.snackBar.open(this.i18n.t('comparison.scores_recalculated'), '', { duration: 3000 });
+    } catch {
+      this.snackBar.open(this.i18n.t('comparison.error_recalculating'), '', { duration: 4000 });
+    } finally {
+      this.recomputing.set(false);
     }
   }
 

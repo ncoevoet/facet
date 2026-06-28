@@ -1232,25 +1232,20 @@ def api_comparison_confidence(
 @router.get("/api/config/weight_snapshots")
 def api_weight_snapshots(
     category: Optional[str] = Query(None),
-    limit: int = Query(20),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
-    """List weight configuration snapshots."""
+    """List weight configuration snapshots (paginated for infinite scroll)."""
     try:
         with get_db() as conn:
-            if category:
-                cursor = conn.execute("""
-                    SELECT * FROM weight_config_snapshots
-                    WHERE category = ?
-                    ORDER BY timestamp DESC
-                    LIMIT ?
-                """, (category, limit))
-            else:
-                cursor = conn.execute("""
-                    SELECT * FROM weight_config_snapshots
-                    ORDER BY timestamp DESC
-                    LIMIT ?
-                """, (limit,))
+            where = "WHERE category = ?" if category else ""
+            params = ([category] if category else []) + [limit + 1, offset]
+            cursor = conn.execute(
+                f"SELECT * FROM weight_config_snapshots {where} "
+                "ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                params,
+            )
 
             snapshots = []
             for row in cursor:
@@ -1263,7 +1258,9 @@ def api_weight_snapshots(
                         snapshot['weights'] = {}
                 snapshots.append(snapshot)
 
-            return {'snapshots': snapshots}
+            # Fetched limit+1 to detect whether another page exists.
+            has_more = len(snapshots) > limit
+            return {'snapshots': snapshots[:limit], 'has_more': has_more}
     except Exception:
         logger.exception("Failed to list weight snapshots")
         raise HTTPException(status_code=500, detail='Internal server error')

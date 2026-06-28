@@ -215,6 +215,23 @@ class TestStatsCategoryUpdate:
         assert len(_loose_backups(env["cfg"])) == 1
 
 
+class TestListPagination:
+    ENDPOINT = "/api/config/weight_snapshots"
+
+    def test_has_more_and_offset(self, env):
+        for i in range(3):
+            record_weight_snapshot("portrait", {"aesthetic_percent": i}, created_by="manual", db=env["db"])
+        client = _edition_client()
+        with mock.patch(f"{_CMP_MODULE}.get_db", _real_db_cm(env["db"])):
+            r1 = client.get(self.ENDPOINT, params={"limit": 2, "offset": 0})
+            r2 = client.get(self.ENDPOINT, params={"limit": 2, "offset": 2})
+        assert r1.status_code == 200, r1.text
+        assert len(r1.json()["snapshots"]) == 2
+        assert r1.json()["has_more"] is True
+        assert len(r2.json()["snapshots"]) == 1
+        assert r2.json()["has_more"] is False
+
+
 class TestCli:
     def test_recompute_takes_no_db_backup(self, tmp_path):
         db = str(tmp_path / "rc.db")
