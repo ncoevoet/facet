@@ -9,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 @Component({
   selector: 'app-login',
@@ -33,12 +34,12 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
         <mat-card-content class="mt-4">
           @if (auth.isMultiUser()) {
             <mat-form-field class="w-full">
-              <mat-label>{{ 'auth.username' | translate }}</mat-label>
+              <mat-label>{{ I18N.auth.username | translate }}</mat-label>
               <input matInput [(ngModel)]="username" (keyup.enter)="login()" />
             </mat-form-field>
           }
           <mat-form-field class="w-full">
-            <mat-label>{{ 'auth.password' | translate }}</mat-label>
+            <mat-label>{{ I18N.auth.password | translate }}</mat-label>
             <input matInput type="password" [(ngModel)]="password" (keyup.enter)="login()" />
           </mat-form-field>
           @if (error()) {
@@ -47,7 +48,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
         </mat-card-content>
         <mat-card-actions class="!px-4 !pb-4">
           <button mat-flat-button class="w-full" [disabled]="loading()" (click)="login()">
-            {{ 'auth.login' | translate }}
+            {{ I18N.auth.login | translate }}
           </button>
         </mat-card-actions>
       </mat-card>
@@ -55,6 +56,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
   `,
 })
 export class LoginComponent {
+  protected readonly I18N = I18N;
   private router = inject(Router);
   auth = inject(AuthService);
   private i18n = inject(I18nService);
@@ -76,10 +78,10 @@ export class LoginComponent {
       if (success) {
         this.router.navigate(['/']);
       } else {
-        this.error.set(this.i18n.t('auth.invalid_credentials'));
+        this.error.set(this.i18n.t(I18N.auth.invalid_credentials));
       }
     } catch {
-      this.error.set(this.i18n.t('auth.error'));
+      this.error.set(this.i18n.t(I18N.auth.error));
     } finally {
       this.loading.set(false);
     }

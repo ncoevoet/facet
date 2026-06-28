@@ -48,6 +48,7 @@ import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
 import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
+import { I18N } from '../../core/i18n/keys';
 
 @Component({
   selector: 'app-gallery',
@@ -84,10 +85,10 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
           <div class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex items-center gap-3 text-sm">
             <mat-icon class="opacity-70 !text-base !w-5 !h-5">visibility_off</mat-icon>
             <span class="flex-1">
-              {{ 'gallery.hidden_banner.message' | translate:{ n: store.hiddenSummary().total } }}
+              {{ I18N.gallery.hidden_banner.message | translate:{ n: store.hiddenSummary().total } }}
             </span>
             <button mat-button class="!min-w-0" (click)="showAllHidden()">
-              {{ 'gallery.hidden_banner.show_all' | translate }}
+              {{ I18N.gallery.hidden_banner.show_all | translate }}
             </button>
           </div>
         }
@@ -101,7 +102,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
               id="gallery-rows-host"
               role="grid"
               tabindex="0"
-              [attr.aria-label]="'gallery.photo_grid' | translate"
+              [attr.aria-label]="I18N.gallery.photo_grid | translate"
               [attr.aria-rowcount]="rowsModel().length"
               class="flex flex-col p-2 md:p-4 outline-none"
               (keydown)="onGridKeydown($event)"
@@ -149,7 +150,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
             <div
               role="grid"
               tabindex="0"
-              [attr.aria-label]="'gallery.photo_grid' | translate"
+              [attr.aria-label]="I18N.gallery.photo_grid | translate"
               class="grid grid-cols-1 gap-2 p-2 md:p-4 gallery-grid outline-none"
               [style.--gallery-cols]="'repeat(auto-fill, minmax(' + cardWidth() + 'px, 1fr))'"
               (keydown)="onGridKeydown($event)"
@@ -189,7 +190,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
             <div
               role="grid"
               tabindex="0"
-              [attr.aria-label]="'gallery.photo_grid' | translate"
+              [attr.aria-label]="I18N.gallery.photo_grid | translate"
               class="flex flex-col gap-2 p-2 md:p-4 outline-none"
               (keydown)="onGridKeydown($event)"
             >
@@ -234,7 +235,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
 
         <!-- Loading skeletons -->
         @if (store.loading()) {
-          <div role="status" [attr.aria-label]="'gallery.loading_photos' | translate" aria-busy="true">
+          <div role="status" [attr.aria-label]="I18N.gallery.loading_photos | translate" aria-busy="true">
             @if (!store.photos().length) {
               <div
                 class="grid grid-cols-1 gap-2 p-2 md:p-4 gallery-grid"
@@ -258,15 +259,15 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
         @if (!store.loading() && store.photos().length === 0 && store.total() === 0) {
           <div class="flex flex-col items-center justify-center gap-4 p-16 opacity-60">
             <mat-icon class="!text-6xl !w-16 !h-16">photo_library</mat-icon>
-            <p class="text-lg">{{ 'gallery.no_photos' | translate }}</p>
+            <p class="text-lg">{{ I18N.gallery.no_photos | translate }}</p>
             @if (store.activeFilterCount()) {
               <button mat-stroked-button (click)="store.resetFilters()">
-                {{ 'gallery.reset_filters' | translate }}
+                {{ I18N.gallery.reset_filters | translate }}
               </button>
             } @else if (auth.isSuperadmin() && auth.hasFeature('show_scan_button')) {
               <button mat-flat-button color="primary" (click)="openScanLauncher()">
                 <mat-icon>add_photo_alternate</mat-icon>
-                {{ 'scan.get_started' | translate }}
+                {{ I18N.scan.get_started | translate }}
               </button>
             }
           </div>
@@ -282,8 +283,8 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
       <button
         mat-mini-fab
         class="!fixed right-4 lg:right-6 bottom-[60px] lg:bottom-6 z-40"
-        [matTooltip]="'gallery.scroll_to_top' | translate"
-        [attr.aria-label]="'gallery.scroll_to_top' | translate"
+        [matTooltip]="I18N.gallery.scroll_to_top | translate"
+        [attr.aria-label]="I18N.gallery.scroll_to_top | translate"
         (click)="scrollToTop()"
       >
         <mat-icon>arrow_upward</mat-icon>
@@ -312,23 +313,23 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
     <!-- Selection action bar -->
     @if (selectionCount()) {
       <div class="fixed bottom-[45px] lg:bottom-0 left-0 right-0 z-50 flex items-center justify-center gap-1 lg:gap-3 px-2 lg:px-6 py-1 lg:py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
-        <span class="text-sm font-medium shrink-0">{{ 'gallery.selection.count' | translate:{ count: selectionCount() } }}</span>
+        <span class="text-sm font-medium shrink-0">{{ I18N.gallery.selection.count | translate:{ count: selectionCount() } }}</span>
         <div class="flex items-center gap-0 lg:gap-2">
-          <button mat-icon-button class="lg:!hidden" (click)="clearSelection()" [matTooltip]="'gallery.selection.clear' | translate"><mat-icon>close</mat-icon></button>
-          <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ 'gallery.selection.clear' | translate }}</button>
+          <button mat-icon-button class="lg:!hidden" (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon></button>
+          <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ I18N.gallery.selection.clear | translate }}</button>
           @if (!allLoadedSelected()) {
-            <button mat-icon-button class="lg:!hidden" (click)="selectAll()" [matTooltip]="'gallery.selection.select_all' | translate"><mat-icon>select_all</mat-icon></button>
-            <button mat-button class="!hidden lg:!inline-flex" (click)="selectAll()"><mat-icon>select_all</mat-icon> {{ 'gallery.selection.select_all' | translate }}</button>
+            <button mat-icon-button class="lg:!hidden" (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon></button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="selectAll()"><mat-icon>select_all</mat-icon> {{ I18N.gallery.selection.select_all | translate }}</button>
           }
           <!-- Mobile: single Actions trigger opening a touch-friendly bottom sheet -->
           <button mat-flat-button class="lg:!hidden" (click)="openActionsSheet()" [disabled]="downloading()">
             @if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
-            {{ 'gallery.selection.actions' | translate }}
+            {{ I18N.gallery.selection.actions | translate }}
           </button>
           @if (auth.isEdition()) {
-            <button mat-button class="!hidden lg:!inline-flex" (click)="batchFavorite()"><mat-icon>favorite</mat-icon> {{ 'gallery.selection.favorite' | translate }}</button>
-            <button mat-button class="!hidden lg:!inline-flex" (click)="batchReject()"><mat-icon>thumb_down</mat-icon> {{ 'gallery.selection.reject' | translate }}</button>
-            <button mat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="rateMenu"><mat-icon>star</mat-icon> {{ 'gallery.selection.rate' | translate }}</button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="batchFavorite()"><mat-icon>favorite</mat-icon> {{ I18N.gallery.selection.favorite | translate }}</button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="batchReject()"><mat-icon>thumb_down</mat-icon> {{ I18N.gallery.selection.reject | translate }}</button>
+            <button mat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="rateMenu"><mat-icon>star</mat-icon> {{ I18N.gallery.selection.rate | translate }}</button>
             <mat-menu #rateMenu="matMenu">
               @for (star of [1, 2, 3, 4, 5]; track star) {
                 <button mat-menu-item (click)="batchRate(star)">
@@ -336,38 +337,38 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
                 </button>
               }
               <button mat-menu-item (click)="batchRate(0)">
-                {{ 'gallery.selection.clear' | translate }}
+                {{ I18N.gallery.selection.clear | translate }}
               </button>
             </mat-menu>
           }
           @if (auth.isEdition() && store.config()?.features?.show_albums) {
-            <button mat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="albumMenu"><mat-icon>photo_library</mat-icon> {{ 'albums.add_photos' | translate }}</button>
+            <button mat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="albumMenu"><mat-icon>photo_library</mat-icon> {{ I18N.albums.add_photos | translate }}</button>
             <mat-menu #albumMenu="matMenu">
               @for (album of albumOptions(); track album.id) {
                 <button mat-menu-item (click)="addToAlbum(album.id)">{{ album.name }}</button>
               }
               <button mat-menu-item (click)="createAlbumAndAdd()">
                 <mat-icon>add</mat-icon>
-                {{ 'albums.create' | translate }}
+                {{ I18N.albums.create | translate }}
               </button>
             </mat-menu>
           }
-          <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ 'gallery.selection.copy_filenames' | translate }}</button>
+          <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ I18N.gallery.selection.copy_filenames | translate }}</button>
           @if (auth.isEdition()) {
-            <button mat-button class="!hidden lg:!inline-flex" (click)="openExportDialog()"><mat-icon>drive_file_move</mat-icon> {{ 'export.action' | translate }}</button>
-            <button mat-button class="!hidden lg:!inline-flex" (click)="openCullDialog()"><mat-icon>folder_move</mat-icon> {{ 'cull.action' | translate }}</button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="openExportDialog()"><mat-icon>drive_file_move</mat-icon> {{ I18N.export.action | translate }}</button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="openCullDialog()"><mat-icon>folder_move</mat-icon> {{ I18N.cull.action | translate }}</button>
           }
           @if (auth.downloadProfiles().length) {
-            <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
+            <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
             <mat-menu #dlMenu="matMenu">
-              <button mat-menu-item (click)="downloadSelected()"><mat-icon>image</mat-icon> {{ 'download.type_original' | translate }}</button>
+              <button mat-menu-item (click)="downloadSelected()"><mat-icon>image</mat-icon> {{ I18N.download.type_original | translate }}</button>
               @for (profile of auth.downloadProfiles(); track profile) {
                 <button mat-menu-item (click)="downloadSelected('darktable', profile)"><mat-icon>photo_filter</mat-icon> {{ profile }}</button>
               }
-              <button mat-menu-item (click)="downloadSelected('raw')"><mat-icon>raw_on</mat-icon> {{ 'download.type_raw' | translate }}</button>
+              <button mat-menu-item (click)="downloadSelected('raw')"><mat-icon>raw_on</mat-icon> {{ I18N.download.type_raw | translate }}</button>
             </mat-menu>
           } @else {
-            <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
+            <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
           }
         </div>
       </div>
@@ -379,6 +380,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
   },
 })
 export class GalleryComponent implements OnInit, OnDestroy {
+  protected readonly I18N = I18N;
   protected readonly store = inject(GalleryStore);
   protected readonly auth = inject(AuthService);
   private readonly snackBar = inject(MatSnackBar);
@@ -708,7 +710,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       .map(p => p.split(/[\\/]/).pop() ?? p)
       .join('\n');
     navigator.clipboard.writeText(filenames).then(() => {
-      this.snackBar.open(this.i18n.t('gallery.selection.copied'), '', { duration: 2000 });
+      this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
     });
   }
 
@@ -800,7 +802,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const paths = [...this.selectedPaths()];
     if (!paths.length) return;
     await firstValueFrom(this.albumService.addPhotos(albumId, paths));
-    this.snackBar.open(this.i18n.t('albums.photos_added'), '', { duration: 2000 });
+    this.snackBar.open(this.i18n.t(I18N.albums.photos_added), '', { duration: 2000 });
     this.clearSelection();
   }
 
@@ -945,8 +947,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   async removePerson(photo: Photo, personId: number): Promise<void> {
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
-        title: this.i18n.t('manage_persons.remove_person_title'),
-        message: this.i18n.t('manage_persons.confirm_remove_person'),
+        title: this.i18n.t(I18N.manage_persons.remove_person_title),
+        message: this.i18n.t(I18N.manage_persons.confirm_remove_person),
       },
     });
     const confirmed = await firstValueFrom(ref.afterClosed());

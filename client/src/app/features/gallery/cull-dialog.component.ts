@@ -9,6 +9,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 type CullAction = 'copy_keeps' | 'trash_rejects' | 'move_rejects';
 
@@ -34,9 +35,9 @@ interface CullResponse {
   imports: [MatDialogModule, MatButtonModule, MatIconModule, MatCheckboxModule,
             MatProgressSpinnerModule, TranslatePipe],
   template: `
-    <h2 mat-dialog-title>{{ 'cull.title' | translate }}</h2>
+    <h2 mat-dialog-title>{{ I18N.cull.title | translate }}</h2>
     <mat-dialog-content class="!pt-2 min-w-[22rem] max-w-[32rem]">
-      <p class="text-sm opacity-70 mb-3">{{ count }} {{ 'cull.selected' | translate }}</p>
+      <p class="text-sm opacity-70 mb-3">{{ count }} {{ I18N.cull.selected | translate }}</p>
 
       <div class="flex flex-col gap-1 mb-3">
         @for (a of actions; track a) {
@@ -49,7 +50,7 @@ interface CullResponse {
       </div>
 
       @if (needsTarget()) {
-        <label for="cullTargetDir" class="block text-xs opacity-60 mb-1">{{ 'cull.target_dir' | translate }}</label>
+        <label for="cullTargetDir" class="block text-xs opacity-60 mb-1">{{ I18N.cull.target_dir | translate }}</label>
         <input id="cullTargetDir" type="text" [value]="targetDir()" (input)="onTargetInput($event)"
                class="w-full text-sm font-mono rounded border border-[var(--mat-sys-outline-variant)] bg-transparent px-2 py-1.5 mb-3"
                placeholder="/path/to/folder" />
@@ -57,37 +58,38 @@ interface CullResponse {
 
       <mat-checkbox [checked]="includeCompanions()" (change)="includeCompanions.set($event.checked)"
                     class="text-sm">
-        {{ 'cull.include_companions' | translate }}
+        {{ I18N.cull.include_companions | translate }}
       </mat-checkbox>
 
       @if (preview(); as p) {
         <div class="mt-3 p-2 rounded bg-[var(--mat-sys-surface-container)] text-sm">
-          <p>{{ p.affected.length }} {{ 'cull.would_affect' | translate }}</p>
+          <p>{{ p.affected.length }} {{ I18N.cull.would_affect | translate }}</p>
           @if (p.excluded) {
-            <p class="opacity-60">{{ p.excluded }} {{ 'cull.excluded_by_state' | translate }}</p>
+            <p class="opacity-60">{{ p.excluded }} {{ I18N.cull.excluded_by_state | translate }}</p>
           }
           @if (p.skipped.length) {
-            <p class="opacity-60">{{ p.skipped.length }} {{ 'cull.skipped' | translate }}</p>
+            <p class="opacity-60">{{ p.skipped.length }} {{ I18N.cull.skipped | translate }}</p>
           }
         </div>
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ 'cull.cancel' | translate }}</button>
+      <button mat-button mat-dialog-close>{{ I18N.cull.cancel | translate }}</button>
       <button mat-stroked-button [disabled]="busy() || (needsTarget() && !targetDir())"
               (click)="runPreview()">
         @if (busy()) { <mat-spinner diameter="16" class="!inline-block !align-middle !mr-1" /> }
-        {{ 'cull.preview' | translate }}
+        {{ I18N.cull.preview | translate }}
       </button>
       <button mat-flat-button color="primary"
               [disabled]="busy() || !preview() || (needsTarget() && !targetDir())"
               (click)="apply()">
-        {{ 'cull.apply' | translate }}
+        {{ I18N.cull.apply | translate }}
       </button>
     </mat-dialog-actions>
   `,
 })
 export class CullDialogComponent {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
@@ -133,7 +135,7 @@ export class CullDialogComponent {
       const affected = res.would_copy ?? res.would_move ?? res.would_trash ?? [];
       this.preview.set({ affected, skipped: res.skipped ?? [], excluded: res.excluded_by_state ?? 0 });
     } catch {
-      this.snackBar.open(this.i18n.t('cull.error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.cull.error), '', { duration: 3000 });
     } finally {
       this.busy.set(false);
     }
@@ -143,10 +145,10 @@ export class CullDialogComponent {
     this.busy.set(true);
     try {
       await firstValueFrom(this.api.post<CullResponse>('/cull/apply', this.body(false)));
-      this.snackBar.open(this.i18n.t('cull.done'), '', { duration: 2500 });
+      this.snackBar.open(this.i18n.t(I18N.cull.done), '', { duration: 2500 });
       this.dialogRef.close(true);
     } catch {
-      this.snackBar.open(this.i18n.t('cull.error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.cull.error), '', { duration: 3000 });
     } finally {
       this.busy.set(false);
     }

@@ -25,6 +25,7 @@ import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { SaveSmartAlbumDialogComponent } from '../albums/save-smart-album-dialog.component';
+import { I18N } from '../../core/i18n/keys';
 
 export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   // Quality
@@ -156,12 +157,12 @@ function saveSectionStates(states: Record<string, boolean>): void {
 <div data-scroll class="flex-1 min-h-0 overflow-y-auto px-2 pb-4">
 
       <div class="sticky top-0 z-20 -mx-2 px-2 pt-3 pb-2 bg-[var(--mat-sys-surface)] flex items-center gap-2">
-        <span class="text-sm font-medium opacity-80">{{ 'gallery.filters' | translate }}</span>
+        <span class="text-sm font-medium opacity-80">{{ I18N.gallery.filters | translate }}</span>
         @if (store.activeFilterCount()) {
           <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ store.activeFilterCount() }}</span>
           <button mat-button class="!ml-auto !min-w-0 !px-2 !text-xs" (click)="store.resetFilters()">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">close</mat-icon>
-            {{ 'gallery.reset_filters' | translate }}
+            {{ I18N.gallery.reset_filters | translate }}
           </button>
         }
       </div>
@@ -169,8 +170,8 @@ function saveSectionStates(states: Record<string, boolean>): void {
       <!-- Find a filter -->
       <mat-form-field subscriptSizing="dynamic" class="w-full !mb-1">
         <mat-icon matPrefix class="mr-1 opacity-60">manage_search</mat-icon>
-        <input matInput [placeholder]="'gallery.sidebar.find_filter' | translate"
-               [attr.aria-label]="'gallery.sidebar.find_filter' | translate"
+        <input matInput [placeholder]="I18N.gallery.sidebar.find_filter | translate"
+               [attr.aria-label]="I18N.gallery.sidebar.find_filter | translate"
                [value]="filterQuery()" (input)="filterQuery.set($any($event.target).value)" />
         @if (filterQuery()) {
           <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="filterQuery.set('')">
@@ -181,7 +182,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
 
       @if (filterQuery().trim()) {
         @if (noFilterMatches()) {
-          <p class="text-xs opacity-50 px-2 py-3">{{ 'gallery.sidebar.no_filters_match' | translate }}</p>
+          <p class="text-xs opacity-50 px-2 py-3">{{ I18N.gallery.sidebar.no_filters_match | translate }}</p>
         }
         @for (group of searchResultGroups(); track group.sectionKey) {
           <div class="px-1 pt-2 pb-1">
@@ -205,24 +206,24 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <mat-expansion-panel-header>
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">image_search</mat-icon>
-              {{ 'gallery.sidebar.semantic_search' | translate }}
+              {{ I18N.gallery.sidebar.semantic_search | translate }}
             </mat-panel-title>
           </mat-expansion-panel-header>
           <div class="flex flex-col gap-2 pb-2">
             <mat-form-field subscriptSizing="dynamic" class="w-full">
-              <mat-label>{{ 'gallery.semantic_search' | translate }}</mat-label>
+              <mat-label>{{ I18N.gallery.semantic_search | translate }}</mat-label>
               <mat-icon matPrefix class="mr-1 opacity-60">image_search</mat-icon>
               <input matInput
                 [value]="store.filters().semanticQuery"
                 (input)="onSemanticSearch($event)"
-                [placeholder]="'gallery.semantic_search_placeholder' | translate" />
+                [placeholder]="I18N.gallery.semantic_search_placeholder | translate" />
               @if (store.filters().semanticQuery) {
                 <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('semanticQuery', '')">
                   <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
                 </button>
               }
             </mat-form-field>
-            <p class="text-xs opacity-50 px-1">{{ 'gallery.semantic_search_info' | translate }}</p>
+            <p class="text-xs opacity-50 px-1">{{ I18N.gallery.semantic_search_info | translate }}</p>
           </div>
         </mat-expansion-panel>
       }
@@ -231,17 +232,17 @@ function saveSectionStates(states: Record<string, boolean>): void {
       @if (store.currentAlbum()?.is_smart && auth.isEdition()) {
         <div class="flex items-start gap-2 rounded-lg bg-[var(--mat-sys-tertiary-container)] text-[var(--mat-sys-on-tertiary-container)] text-xs px-3 py-2 mb-2">
           <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0 mt-0.5">info</mat-icon>
-          <span>{{ 'gallery.sidebar.smart_album_filter_notice' | translate }}</span>
+          <span>{{ I18N.gallery.sidebar.smart_album_filter_notice | translate }}</span>
         </div>
       }
 
       <!-- Search (visible below 2xl, hidden on 2xl+ where header search is shown) -->
       <div class="2xl:!hidden mt-4 mb-1">
         <mat-form-field subscriptSizing="dynamic" class="w-full">
-          <mat-label>{{ 'ui.filters.search' | translate }}</mat-label>
+          <mat-label>{{ I18N.ui.filters.search | translate }}</mat-label>
           <mat-icon matPrefix class="mr-1 opacity-60">search</mat-icon>
           <input matInput
-            [placeholder]="'gallery.search_placeholder' | translate"
+            [placeholder]="I18N.gallery.search_placeholder | translate"
             [value]="store.filters().search"
             (keyup.enter)="onSidebarSearchChange($event)"
             (blur)="onSidebarSearchChange($event)" />
@@ -262,7 +263,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <mat-expansion-panel-header>
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">people</mat-icon>
-              {{ 'gallery.sidebar.persons' | translate }}
+              {{ I18N.gallery.sidebar.persons | translate }}
               @if (sectionActiveCounts()['persons']) {
                 <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['persons'] }}</span>
               }
@@ -271,12 +272,12 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <div class="flex flex-col gap-2 pb-2">
             <mat-form-field subscriptSizing="dynamic" class="w-full">
               @if (!selectedPersons().length) {
-                <mat-label>{{ 'gallery.person' | translate }}</mat-label>
+                <mat-label>{{ I18N.gallery.person | translate }}</mat-label>
               }
               <input matInput #sidebarPersonInput
                      [matAutocomplete]="sidebarPersonAuto"
                      [value]="sidebarPersonQuery()"
-                     [placeholder]="selectedPersons().length ? ('gallery.person_add' | translate) : ''"
+                     [placeholder]="selectedPersons().length ? (I18N.gallery.person_add | translate) : ''"
                      (input)="sidebarPersonQuery.set($any($event.target).value)"
                      (focus)="sidebarPersonQuery.set('')" />
               <mat-autocomplete #sidebarPersonAuto="matAutocomplete"
@@ -285,8 +286,8 @@ function saveSectionStates(states: Record<string, boolean>): void {
                 @for (p of filteredPersons(); track p.id) {
                   <mat-option [value]="p.id">
                     <div class="flex items-center gap-2">
-                      <img [src]="p.id | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" [alt]="p.name || ('gallery.unknown_person' | translate)" loading="lazy" />
-                      <span class="text-sm">{{ p.name || ('gallery.unknown_person' | translate) }} ({{ p.face_count }})</span>
+                      <img [src]="p.id | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" [alt]="p.name || (I18N.gallery.unknown_person | translate)" loading="lazy" />
+                      <span class="text-sm">{{ p.name || (I18N.gallery.unknown_person | translate) }} ({{ p.face_count }})</span>
                     </div>
                   </mat-option>
                 }
@@ -295,8 +296,8 @@ function saveSectionStates(states: Record<string, boolean>): void {
             @if (selectedPersons().length) {
               <div class="flex flex-wrap gap-1.5">
                 @for (p of selectedPersons(); track p.id) {
-                  <button class="relative shrink-0 group/person" [matTooltip]="p.name || ('gallery.unknown_person' | translate)" (click)="removePersonChip(p.id)">
-                    <img [src]="p.id | personThumbnailUrl" class="w-9 h-9 rounded-full object-cover" [alt]="p.name || ('gallery.unknown_person' | translate)" />
+                  <button class="relative shrink-0 group/person" [matTooltip]="p.name || (I18N.gallery.unknown_person | translate)" (click)="removePersonChip(p.id)">
+                    <img [src]="p.id | personThumbnailUrl" class="w-9 h-9 rounded-full object-cover" [alt]="p.name || (I18N.gallery.unknown_person | translate)" />
                     <div class="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover/person:opacity-100 transition-opacity">
                       <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-white">close</mat-icon>
                     </div>
@@ -316,7 +317,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
         <mat-expansion-panel-header>
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">calendar_today</mat-icon>
-            {{ 'gallery.sidebar.date' | translate }}
+            {{ I18N.gallery.sidebar.date | translate }}
             @if (sectionActiveCounts()['date']) {
               <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['date'] }}</span>
             }
@@ -324,13 +325,13 @@ function saveSectionStates(states: Record<string, boolean>): void {
         </mat-expansion-panel-header>
         <div class="flex flex-col gap-2 pb-2">
           <mat-form-field subscriptSizing="dynamic" class="w-full">
-            <mat-label>{{ 'gallery.date_from' | translate }}</mat-label>
+            <mat-label>{{ I18N.gallery.date_from | translate }}</mat-label>
             <input matInput [matDatepicker]="fromDp" [value]="store.filters().date_from" (dateChange)="onDateChange('date_from', $event)" />
             <mat-datepicker-toggle matIconSuffix [for]="fromDp" />
             <mat-datepicker #fromDp />
           </mat-form-field>
           <mat-form-field subscriptSizing="dynamic" class="w-full">
-            <mat-label>{{ 'gallery.date_to' | translate }}</mat-label>
+            <mat-label>{{ I18N.gallery.date_to | translate }}</mat-label>
             <input matInput [matDatepicker]="toDp" [value]="store.filters().date_to" (dateChange)="onDateChange('date_to', $event)" />
             <mat-datepicker-toggle matIconSuffix [for]="toDp" />
             <mat-datepicker #toDp />
@@ -347,7 +348,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <mat-expansion-panel-header>
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">label</mat-icon>
-              {{ 'gallery.sidebar.content' | translate }}
+              {{ I18N.gallery.sidebar.content | translate }}
               @if (sectionActiveCounts()['content']) {
                 <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['content'] }}</span>
               }
@@ -356,9 +357,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <div class="flex flex-col gap-2 pb-2">
             @if (store.types().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full lg:!hidden">
-                <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
+                <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
                 <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().type" (selectionChange)="store.updateFilter('type', $event.value)">
-                  <mat-option value="">{{ 'gallery.all_photos' | translate }}</mat-option>
+                  <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
                   @for (t of store.types(); track t.id) {
                     <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
                   }
@@ -367,9 +368,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
             }
             @if (store.tags().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ 'gallery.tag' | translate }}</mat-label>
+                <mat-label>{{ I18N.gallery.tag | translate }}</mat-label>
                 <mat-select [value]="store.filters().tag" (selectionChange)="store.updateFilter('tag', $event.value)">
-                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                   @for (t of store.tags(); track t.value) {
                     <mat-option [value]="t.value">{{ t.value }} ({{ t.count }})</mat-option>
                   }
@@ -378,9 +379,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
             }
             @if (store.patterns().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ 'gallery.composition_pattern' | translate }}</mat-label>
+                <mat-label>{{ I18N.gallery.composition_pattern | translate }}</mat-label>
                 <mat-select [value]="store.filters().composition_pattern" (selectionChange)="store.updateFilter('composition_pattern', $event.value)">
-                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                   @for (p of store.patterns(); track p.value) {
                     <mat-option [value]="p.value">{{ ('composition_patterns.' + p.value) | translate }} ({{ p.count }})</mat-option>
                   }
@@ -400,7 +401,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <mat-expansion-panel-header>
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">palette</mat-icon>
-              {{ 'gallery.sidebar.color_quality' | translate }}
+              {{ I18N.gallery.sidebar.color_quality | translate }}
               @if (colorQualityActiveCount()) {
                 <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ colorQualityActiveCount() }}</span>
               }
@@ -409,9 +410,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <div class="flex flex-col gap-2 pb-2">
             <!-- Quality tier -->
             <mat-form-field subscriptSizing="dynamic" class="w-full">
-              <mat-label>{{ 'gallery.quality_tier' | translate }}</mat-label>
+              <mat-label>{{ I18N.gallery.quality_tier | translate }}</mat-label>
               <mat-select [value]="store.filters().quality_tier" (selectionChange)="store.updateFilter('quality_tier', $event.value)">
-                <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                 @for (t of qualityTiers; track t) {
                   <mat-option [value]="t">{{ ('gallery.quality_tiers.' + t) | translate }}</mat-option>
                 }
@@ -420,9 +421,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
             <!-- Color temperature -->
             @if (store.colorTemps().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ 'gallery.color_temp' | translate }}</mat-label>
+                <mat-label>{{ I18N.gallery.color_temp | translate }}</mat-label>
                 <mat-select [value]="store.filters().color_temp" (selectionChange)="store.updateFilter('color_temp', $event.value)">
-                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                   @for (c of store.colorTemps(); track c.value) {
                     <mat-option [value]="c.value">{{ ('gallery.color_temps.' + c.value) | translate }} ({{ c.count }})</mat-option>
                   }
@@ -431,7 +432,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
             }
             <!-- Hue buckets as colour chips -->
             @if (store.hueBuckets().length) {
-              <span class="text-xs opacity-60 px-1">{{ 'gallery.hue' | translate }}</span>
+              <span class="text-xs opacity-60 px-1">{{ I18N.gallery.hue | translate }}</span>
               <div class="flex flex-wrap gap-1.5">
                 @for (h of store.hueBuckets(); track h.value) {
                   <button type="button"
@@ -459,7 +460,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <mat-expansion-panel-header>
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">photo_camera</mat-icon>
-              {{ 'gallery.sidebar.equipment' | translate }}
+              {{ I18N.gallery.sidebar.equipment | translate }}
               @if (sectionActiveCounts()['equipment']) {
                 <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['equipment'] }}</span>
               }
@@ -468,9 +469,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <div class="flex flex-col gap-2 pb-2">
             @if (store.cameras().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ 'gallery.camera' | translate }}</mat-label>
+                <mat-label>{{ I18N.gallery.camera | translate }}</mat-label>
                 <mat-select [value]="store.filters().camera" (selectionChange)="store.updateFilter('camera', $event.value)">
-                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                   @for (c of store.cameras(); track c.value) {
                     <mat-option [value]="c.value">{{ c.value }} ({{ c.count }})</mat-option>
                   }
@@ -479,9 +480,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
             }
             @if (store.lenses().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ 'gallery.lens' | translate }}</mat-label>
+                <mat-label>{{ I18N.gallery.lens | translate }}</mat-label>
                 <mat-select [value]="store.filters().lens" (selectionChange)="store.updateFilter('lens', $event.value)">
-                  <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                   @for (l of store.lenses(); track l.value) {
                     <mat-option [value]="l.value">{{ l.value }} ({{ l.count }})</mat-option>
                   }
@@ -500,7 +501,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
         <mat-expansion-panel-header>
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">filter_alt</mat-icon>
-            {{ 'gallery.sidebar.refine' | translate }}
+            {{ I18N.gallery.sidebar.refine | translate }}
             @if (sectionActiveCounts()['refine']) {
               <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['refine'] }}</span>
             }
@@ -510,27 +511,27 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <mat-checkbox
             [checked]="store.filters().hide_blinks"
             (change)="store.updateFilter('hide_blinks', $event.checked)"
-          >{{ 'gallery.hide_blinks' | translate }}</mat-checkbox>
+          >{{ I18N.gallery.hide_blinks | translate }}</mat-checkbox>
           <mat-checkbox
             [checked]="store.filters().hide_bursts"
             (change)="store.updateFilter('hide_bursts', $event.checked)"
-          >{{ 'gallery.hide_bursts' | translate }}</mat-checkbox>
+          >{{ I18N.gallery.hide_bursts | translate }}</mat-checkbox>
           <mat-checkbox
             [checked]="store.filters().hide_duplicates"
             (change)="store.updateFilter('hide_duplicates', $event.checked)"
-          >{{ 'gallery.hide_duplicates' | translate }}</mat-checkbox>
+          >{{ I18N.gallery.hide_duplicates | translate }}</mat-checkbox>
           <mat-checkbox
             [checked]="store.filters().hide_rejected"
             (change)="store.updateFilter('hide_rejected', $event.checked)"
-          >{{ 'gallery.hide_rejected' | translate }}</mat-checkbox>
+          >{{ I18N.gallery.hide_rejected | translate }}</mat-checkbox>
           <mat-checkbox
             [checked]="store.filters().favorites_only"
             (change)="store.updateFilter('favorites_only', $event.checked)"
-          >{{ 'gallery.favorites_only' | translate }}</mat-checkbox>
+          >{{ I18N.gallery.favorites_only | translate }}</mat-checkbox>
           <mat-checkbox
             [checked]="store.filters().is_monochrome"
             (change)="store.updateFilter('is_monochrome', $event.checked)"
-          >{{ 'gallery.monochrome_only' | translate }}</mat-checkbox>
+          >{{ I18N.gallery.monochrome_only | translate }}</mat-checkbox>
         </div>
       </mat-expansion-panel>
 
@@ -542,7 +543,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
         <mat-expansion-panel-header>
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">display_settings</mat-icon>
-            {{ 'gallery.sidebar.view' | translate }}
+            {{ I18N.gallery.sidebar.view | translate }}
           </mat-panel-title>
         </mat-expansion-panel-header>
         <div class="flex flex-col gap-2 pb-2">
@@ -550,24 +551,24 @@ function saveSectionStates(states: Record<string, boolean>): void {
             <mat-checkbox
               [checked]="store.filters().hide_details"
               (change)="store.updateFilter('hide_details', $event.checked)"
-            >{{ 'gallery.hide_details' | translate }}</mat-checkbox>
+            >{{ I18N.gallery.hide_details | translate }}</mat-checkbox>
           }
           <mat-checkbox
             [checked]="store.virtualScroll()"
             (change)="store.setVirtualScroll($event.checked)"
-          >{{ 'gallery.sidebar.virtual_scroll' | translate }}</mat-checkbox>
+          >{{ I18N.gallery.sidebar.virtual_scroll | translate }}</mat-checkbox>
           <div class="hidden md:flex items-center gap-2 mt-2">
-            <span class="text-sm opacity-70 shrink-0">{{ 'gallery.layout_mode' | translate }}</span>
+            <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.layout_mode | translate }}</span>
             <div class="flex gap-1 ml-auto">
               <button mat-icon-button class="!w-8 !h-8 !p-0 inline-flex items-center justify-center"
                 [class.!bg-[var(--mat-sys-primary-container)]]="store.galleryMode() === 'grid'"
-                [matTooltip]="'gallery.layout_grid' | translate"
+                [matTooltip]="I18N.gallery.layout_grid | translate"
                 (click)="store.setGalleryMode('grid')">
                 <mat-icon class="!text-lg !w-5 !h-5 !leading-5">grid_view</mat-icon>
               </button>
               <button mat-icon-button class="!w-8 !h-8 !p-0 inline-flex items-center justify-center"
                 [class.!bg-[var(--mat-sys-primary-container)]]="store.galleryMode() === 'mosaic'"
-                [matTooltip]="'gallery.layout_mosaic' | translate"
+                [matTooltip]="I18N.gallery.layout_mosaic | translate"
                 (click)="store.setGalleryMode('mosaic')">
                 <mat-icon class="!text-lg !w-5 !h-5 !leading-5">auto_awesome_mosaic</mat-icon>
               </button>
@@ -575,9 +576,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
           </div>
           @if (sliderConfig(); as sc) {
             <div class="hidden md:flex items-center gap-2 mt-2">
-              <span class="text-sm opacity-70 shrink-0">{{ 'gallery.thumbnail_size' | translate }}</span>
+              <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
               <mat-slider [min]="sc.min_px" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
-                <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="'gallery.thumbnail_size' | translate" />
+                <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
               </mat-slider>
               <span class="text-xs opacity-60 w-10 text-right">{{ store.cardWidth() }}px</span>
             </div>
@@ -595,14 +596,14 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <mat-expansion-panel-header>
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">photo_album</mat-icon>
-              {{ 'albums.title' | translate }}
+              {{ I18N.albums.title | translate }}
             </mat-panel-title>
           </mat-expansion-panel-header>
           <div class="flex flex-col gap-2 pb-2">
             <mat-form-field subscriptSizing="dynamic" class="w-full">
-              <mat-label>{{ 'albums.title' | translate }}</mat-label>
+              <mat-label>{{ I18N.albums.title | translate }}</mat-label>
               <mat-select [value]="store.filters().album_id" (selectionChange)="store.updateFilter('album_id', $event.value)">
-                <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                 @for (a of albums(); track a.id) {
                   <mat-option [value]="'' + a.id">{{ a.name }} ({{ a.photo_count }})</mat-option>
                 }
@@ -621,7 +622,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
           <mat-expansion-panel-header>
             <mat-panel-title class="flex items-center gap-2">
               <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">place</mat-icon>
-              {{ 'gallery.sidebar.location' | translate }}
+              {{ I18N.gallery.sidebar.location | translate }}
               @if (store.filters().gps_lat) {
                 <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">1</span>
               }
@@ -639,12 +640,12 @@ function saveSectionStates(states: Record<string, boolean>): void {
               </div>
               <button mat-stroked-button class="w-full" (click)="clearGpsFilter()">
                 <mat-icon>close</mat-icon>
-                {{ 'gallery.gps_clear' | translate }}
+                {{ I18N.gallery.gps_clear | translate }}
               </button>
             }
             <button mat-stroked-button class="w-full" (click)="openGpsFilterMap()">
               <mat-icon>map</mat-icon>
-              {{ 'gallery.select_on_map' | translate }}
+              {{ I18N.gallery.select_on_map | translate }}
             </button>
           </div>
         </mat-expansion-panel>
@@ -664,7 +665,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
         <mat-expansion-panel-header>
           <mat-panel-title class="flex items-center gap-2">
             <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">tune</mat-icon>
-            {{ 'gallery.sidebar.advanced_metrics' | translate }}
+            {{ I18N.gallery.sidebar.advanced_metrics | translate }}
             @if (advancedActiveCount()) {
               <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ advancedActiveCount() }}</span>
             }
@@ -727,7 +728,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
               @if ($any(store.filters())[def.minKey] || $any(store.filters())[def.maxKey]) {
                 {{ store.filters() | filterDisplay:def }}
               } @else {
-                {{ 'gallery.sidebar.any' | translate }}
+                {{ I18N.gallery.sidebar.any | translate }}
               }
             </span>
           </div>
@@ -740,13 +741,14 @@ function saveSectionStates(states: Record<string, boolean>): void {
       <div class="shrink-0 px-2 py-2 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
         <button mat-stroked-button class="w-full" (click)="saveAsSmartAlbum()">
           <mat-icon>bookmark_add</mat-icon>
-          {{ 'albums.save_smart' | translate }}
+          {{ I18N.albums.save_smart | translate }}
         </button>
       </div>
     }
   `,
 })
 export class GalleryFilterSidebarComponent {
+  protected readonly I18N = I18N;
   readonly store = inject(GalleryStore);
   readonly auth = inject(AuthService);
   private dialog = inject(MatDialog);

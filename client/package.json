@@ -7,7 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "gen:i18n": "node scripts/gen-i18n-keys.mjs"
   },
   "prettier": {
     "printWidth": 100,

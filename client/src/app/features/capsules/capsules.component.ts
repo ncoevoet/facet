@@ -14,6 +14,7 @@ import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { Photo } from '../../shared/models/photo.model';
 import { SlideshowComponent } from '../gallery/slideshow.component';
+import { I18N } from '../../core/i18n/keys';
 
 interface Capsule {
   type: string;
@@ -54,14 +55,14 @@ interface CapsulesResponse {
     @if (loading() && capsules().length === 0) {
       <div class="flex flex-col items-center justify-center py-16 gap-3">
         <mat-spinner diameter="48" />
-        <p class="text-sm opacity-60">{{ 'capsules.loading' | translate }}</p>
+        <p class="text-sm opacity-60">{{ I18N.capsules.loading | translate }}</p>
       </div>
     }
 
     @if (capsules().length === 0 && !loading()) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">auto_stories</mat-icon>
-        <p>{{ 'capsules.empty' | translate }}</p>
+        <p>{{ I18N.capsules.empty | translate }}</p>
       </div>
     }
 
@@ -104,7 +105,7 @@ interface CapsulesResponse {
               <button
                 mat-icon-button
                 class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                [matTooltip]="'capsules.save_as_album' | translate"
+                [matTooltip]="I18N.capsules.save_as_album | translate"
                 [disabled]="savingAlbum()"
                 (click)="saveAsAlbumFromCard($event, capsule)"
               >
@@ -146,7 +147,7 @@ interface CapsulesResponse {
           @if (nextCapsulePreview(); as next) {
             <mat-icon class="!text-5xl !w-12 !h-12 mb-4 opacity-60">{{ next.icon }}</mat-icon>
             <h2 class="text-2xl font-light mb-2">{{ next.title_key | translate:next.title_params }}</h2>
-            <p class="text-sm opacity-60">{{ 'capsules.photos_count' | translate:{ count: next.photo_count } }}</p>
+            <p class="text-sm opacity-60">{{ I18N.capsules.photos_count | translate:{ count: next.photo_count } }}</p>
           }
         </div>
       </div>
@@ -154,6 +155,7 @@ interface CapsulesResponse {
   `,
 })
 export class CapsulesComponent implements OnDestroy {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   protected readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
@@ -306,7 +308,7 @@ export class CapsulesComponent implements OnDestroy {
       this.slideshowPhotos.set(shuffled);
     } catch {
       this.slideshowActive.set(false);
-      this.snackBar.open(this.i18n.t('capsules.load_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.capsules.load_error), '', { duration: 3000 });
     } finally {
       this.slideshowLoading.set(false);
     }
@@ -327,12 +329,12 @@ export class CapsulesComponent implements OnDestroy {
         ),
       );
       this.snackBar.open(
-        this.i18n.t('capsules.saved_as_album'),
+        this.i18n.t(I18N.capsules.saved_as_album),
         '', { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' },
       );
     } catch {
       this.snackBar.open(
-        this.i18n.t('capsules.save_album_error'), '', { duration: 3000 },
+        this.i18n.t(I18N.capsules.save_album_error), '', { duration: 3000 },
       );
     } finally {
       this.savingAlbum.set(false);

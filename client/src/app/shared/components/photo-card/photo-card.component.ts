@@ -10,6 +10,7 @@ import { FixedPipe } from '../../pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { ScoreClassPipe, SortScorePipe } from '../../pipes/score.pipes';
 import { SortPersonsPipe } from '../../pipes/sort-persons.pipe';
+import { I18N } from '../../../core/i18n/keys';
 
 interface AppConfig {
   quality_thresholds?: { excellent: number; great: number; good: number };
@@ -86,7 +87,7 @@ interface AppConfig {
         <!-- Persistent rejected badge (shape + desaturation, not color alone) -->
         @if (isEditionMode() && photo().is_rejected) {
           <div class="absolute bottom-1.5 left-3 z-20 pointer-events-none flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 transition-opacity md:group-hover/img:opacity-0"
-               [attr.aria-label]="'rating.rejected_badge' | translate">
+               [attr.aria-label]="I18N.rating.rejected_badge | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md" aria-hidden="true">thumb_down</mat-icon>
           </div>
         }
@@ -99,29 +100,29 @@ interface AppConfig {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
                 [matMenuTriggerFor]="similarMenu"
-                [matTooltip]="'similar.find_similar' | translate"
+                [matTooltip]="I18N.similar.find_similar | translate"
                 (click)="$event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">image_search</mat-icon>
               </button>
               <mat-menu #similarMenu="matMenu">
                 <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'visual'})">
                   <mat-icon>image_search</mat-icon>
-                  {{ 'similar.mode_visual' | translate }}
+                  {{ I18N.similar.mode_visual | translate }}
                 </button>
                 <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'color'})">
                   <mat-icon>palette</mat-icon>
-                  {{ 'similar.mode_color' | translate }}
+                  {{ I18N.similar.mode_color | translate }}
                 </button>
                 <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'person'})">
                   <mat-icon>person_search</mat-icon>
-                  {{ 'similar.mode_person' | translate }}
+                  {{ I18N.similar.mode_person | translate }}
                 </button>
               </mat-menu>
             }
             @if (config()?.features?.show_critique) {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
-                [matTooltip]="'critique.title' | translate"
+                [matTooltip]="I18N.critique.title | translate"
                 (click)="openCritiqueClicked.emit(photo()); $event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
               </button>
@@ -129,8 +130,8 @@ interface AppConfig {
             @if (isEditionMode() && config()?.features?.show_embed_metadata) {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
-                [matTooltip]="'photoCard.embed_to_file' | translate"
-                [attr.aria-label]="'photoCard.embed_to_file' | translate"
+                [matTooltip]="I18N.photoCard.embed_to_file | translate"
+                [attr.aria-label]="I18N.photoCard.embed_to_file | translate"
                 (click)="embedMetadataClicked.emit(photo()); $event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">save</mat-icon>
               </button>
@@ -138,7 +139,7 @@ interface AppConfig {
             @if (isEditionMode() && photo().unassigned_faces > 0) {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
-                [matTooltip]="'manage_persons.assign_face' | translate"
+                [matTooltip]="I18N.manage_persons.assign_face | translate"
                 (click)="openAddPersonClicked.emit(photo()); $event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">person_add</mat-icon>
               </button>
@@ -152,7 +153,7 @@ interface AppConfig {
               @if (config()?.features?.show_rating_controls) {
                 <button
                   class="relative w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-yellow-400"
-                  [matTooltip]="'rating.set_rating' | translate"
+                  [matTooltip]="I18N.rating.set_rating | translate"
                   (click)="cycleStarRating(); $event.stopPropagation()"
                   (dblclick)="$event.stopPropagation()">
                   <mat-icon class="!text-lg !w-[18px] !h-[18px] !leading-[18px]">{{ photo().star_rating ? 'star' : 'star_border' }}</mat-icon>
@@ -207,15 +208,15 @@ interface AppConfig {
             <span class="font-medium text-neutral-200 truncate">{{ photo().filename }}</span>
             <span class="ml-auto flex items-center gap-1 shrink-0">
               @if (photo().is_best_of_burst) {
-                <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ 'ui.badges.best' | translate }}</span>
+                <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ I18N.ui.badges.best | translate }}</span>
               }
               @if (currentSort() !== 'aggregate') {
-                <span class="text-neutral-400 font-medium" [matTooltip]="'gallery.aggregate_score' | translate">{{ photo().aggregate | fixed:1 }}</span>
+                <span class="text-neutral-400 font-medium" [matTooltip]="I18N.gallery.aggregate_score | translate">{{ photo().aggregate | fixed:1 }}</span>
               }
               <span
                 class="px-1 py-0.5 rounded text-xs font-bold"
                 [class]="(photo() | sortScore:currentSort()) | scoreClass:config()"
-                [matTooltip]="(currentSort() === 'aggregate' ? ('gallery.aggregate_score' | translate) : ('gallery.sort_score' | translate) + ' (' + currentSort() + ')')"
+                [matTooltip]="(currentSort() === 'aggregate' ? (I18N.gallery.aggregate_score | translate) : (I18N.gallery.sort_score | translate) + ' (' + currentSort() + ')')"
               >{{ (photo() | sortScore:currentSort()) | fixed:1 }}</span>
             </span>
           </div>
@@ -249,7 +250,7 @@ interface AppConfig {
                 @if (isEditionMode() && personFilterId() === '' + person.id) {
                   <button
                     class="w-8 h-8 rounded-full bg-red-900/60 inline-flex items-center justify-center hover:bg-red-800 transition-colors"
-                    [matTooltip]="('ui.buttons.remove' | translate) + ': ' + person.name"
+                    [matTooltip]="(I18N.ui.buttons.remove | translate) + ': ' + person.name"
                     (click)="personRemoveClicked.emit({photo: photo(), personId: person.id}); $event.stopPropagation()">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-red-300">close</mat-icon>
                   </button>
@@ -273,6 +274,7 @@ interface AppConfig {
   `,
 })
 export class PhotoCardComponent {
+  protected readonly I18N = I18N;
   // Data
   readonly photo = input.required<Photo>();
   readonly config = input<AppConfig | null>(null);

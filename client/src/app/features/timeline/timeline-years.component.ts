@@ -7,6 +7,7 @@ import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
+import { I18N } from '../../core/i18n/keys';
 
 interface YearSummary {
   year: string;
@@ -28,7 +29,7 @@ interface YearSummary {
     @if (!loading() && years().length === 0) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">calendar_today</mat-icon>
-        <p>{{ 'timeline.empty' | translate }}</p>
+        <p>{{ I18N.timeline.empty | translate }}</p>
       </div>
     }
 
@@ -50,7 +51,7 @@ interface YearSummary {
           }
           <div class="p-3">
             <div class="text-xl font-bold">{{ y.year }}</div>
-            <div class="text-sm opacity-60">{{ y.count | number }} {{ 'timeline.photos_count' | translate }}</div>
+            <div class="text-sm opacity-60">{{ y.count | number }} {{ I18N.timeline.photos_count | translate }}</div>
           </div>
         </button>
       }
@@ -58,6 +59,7 @@ interface YearSummary {
   `,
 })
 export class TimelineYearsComponent {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly filters = inject(TimelineFiltersService);
 

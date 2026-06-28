@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { ScanService, ScanDirectory } from '../../core/services/scan.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 /**
  * Superadmin-only dialog to pick a configured directory and launch + watch a
@@ -17,15 +18,15 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule, TranslatePipe],
   template: `
-    <h2 mat-dialog-title>{{ 'scan.title' | translate }}</h2>
+    <h2 mat-dialog-title>{{ I18N.scan.title | translate }}</h2>
     <mat-dialog-content class="!pt-2 min-w-[22rem] max-w-[34rem]">
       @if (!started()) {
         @if (loadingDirs()) {
-          <p class="opacity-60 text-sm py-4">{{ 'scan.loading_directories' | translate }}</p>
+          <p class="opacity-60 text-sm py-4">{{ I18N.scan.loading_directories | translate }}</p>
         } @else if (directories().length === 0) {
-          <p class="opacity-60 text-sm py-4">{{ 'scan.no_directories' | translate }}</p>
+          <p class="opacity-60 text-sm py-4">{{ I18N.scan.no_directories | translate }}</p>
         } @else {
-          <p class="text-sm opacity-70 mb-2">{{ 'scan.pick_directory' | translate }}</p>
+          <p class="text-sm opacity-70 mb-2">{{ I18N.scan.pick_directory | translate }}</p>
           <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
             @for (dir of directories(); track dir.path) {
               <label class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-[var(--mat-sys-surface-container-high)]">
@@ -44,7 +45,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
           </mat-icon>
           <span class="opacity-80">{{ phaseLabel() }}</span>
           @if (eta() !== null) {
-            <span class="opacity-50 ml-auto">{{ 'scan.eta' | translate }} {{ eta() }}s</span>
+            <span class="opacity-50 ml-auto">{{ I18N.scan.eta | translate }} {{ eta() }}s</span>
           }
         </div>
         <mat-progress-bar [mode]="progressValue() === null ? 'indeterminate' : 'determinate'"
@@ -53,18 +54,19 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ 'scan.close' | translate }}</button>
+      <button mat-button mat-dialog-close>{{ I18N.scan.close | translate }}</button>
       @if (!started()) {
         <button mat-flat-button color="primary"
                 [disabled]="!selectedDir()"
                 (click)="start()">
-          {{ 'scan.start_button' | translate }}
+          {{ I18N.scan.start_button | translate }}
         </button>
       }
     </mat-dialog-actions>
   `,
 })
 export class ScanLauncherComponent implements OnInit {
+  protected readonly I18N = I18N;
   private readonly scan = inject(ScanService);
   private readonly dialogRef = inject(MatDialogRef<ScanLauncherComponent>);
 

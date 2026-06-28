@@ -17,6 +17,7 @@ import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CompareFiltersService } from './compare-filters.service';
 import { WeightLabelKeyPipe } from './comparison.pipes';
+import { I18N } from '../../core/i18n/keys';
 
 interface PairResponse {
   a?: string;
@@ -72,7 +73,7 @@ interface LearnedWeightsResponse {
       <!-- Strategy selector + keyboard hints -->
       <div class="flex flex-wrap items-center gap-3 mb-4">
         <mat-form-field class="w-56" subscriptSizing="dynamic">
-          <mat-label>{{ 'compare.strategy' | translate }}</mat-label>
+          <mat-label>{{ I18N.compare.strategy | translate }}</mat-label>
           <mat-select [value]="strategy()" (selectionChange)="onStrategyChange($event.value)">
             @for (s of strategies; track s) {
               <mat-option [value]="s">{{ ('compare.strategies.' + s) | translate }}</mat-option>
@@ -80,15 +81,15 @@ interface LearnedWeightsResponse {
           </mat-select>
         </mat-form-field>
         <button mat-icon-button (click)="showStrategyHelp.set(!showStrategyHelp())"
-          [matTooltip]="'compare.tooltips.strategy_info' | translate">
+          [matTooltip]="I18N.compare.tooltips.strategy_info | translate">
           <mat-icon>help_outline</mat-icon>
         </button>
         <span class="ml-auto text-xs text-gray-500 hidden md:inline">
-          {{ 'compare.keyboard.hint' | translate }}
-          <kbd class="px-1 rounded bg-neutral-700 text-gray-300">&#8592;</kbd> {{ 'compare.keyboard.left_wins' | translate }} ·
-          <kbd class="px-1 rounded bg-neutral-700 text-gray-300">&#8594;</kbd> {{ 'compare.keyboard.right_wins' | translate }} ·
-          <kbd class="px-1 rounded bg-neutral-700 text-gray-300">T</kbd> {{ 'compare.keyboard.equal' | translate }} ·
-          <kbd class="px-1 rounded bg-neutral-700 text-gray-300">S</kbd> {{ 'compare.keyboard.skip' | translate }}
+          {{ I18N.compare.keyboard.hint | translate }}
+          <kbd class="px-1 rounded bg-neutral-700 text-gray-300">&#8592;</kbd> {{ I18N.compare.keyboard.left_wins | translate }} ·
+          <kbd class="px-1 rounded bg-neutral-700 text-gray-300">&#8594;</kbd> {{ I18N.compare.keyboard.right_wins | translate }} ·
+          <kbd class="px-1 rounded bg-neutral-700 text-gray-300">T</kbd> {{ I18N.compare.keyboard.equal | translate }} ·
+          <kbd class="px-1 rounded bg-neutral-700 text-gray-300">S</kbd> {{ I18N.compare.keyboard.skip | translate }}
         </span>
       </div>
 
@@ -118,10 +119,10 @@ interface LearnedWeightsResponse {
             }
             @if (!pairA() && !pairLoading()) {
               <div class="flex flex-col items-center py-8 gap-4">
-                <p class="text-sm text-gray-400">{{ 'comparison.compare_description' | translate }}</p>
+                <p class="text-sm text-gray-400">{{ I18N.comparison.compare_description | translate }}</p>
                 <button mat-flat-button (click)="loadNextPair()">
                   <mat-icon>play_arrow</mat-icon>
-                  {{ 'comparison.start_comparing' | translate }}
+                  {{ I18N.comparison.start_comparing | translate }}
                 </button>
               </div>
             } @else if (pairLoading()) {
@@ -154,21 +155,21 @@ interface LearnedWeightsResponse {
               <div class="flex justify-center gap-3">
                 <button mat-stroked-button [disabled]="pairSubmitting()" (click)="submitComparison('tie')">
                   <mat-icon>drag_handle</mat-icon>
-                  {{ 'comparison.tie' | translate }}
+                  {{ I18N.comparison.tie | translate }}
                 </button>
                 <button mat-stroked-button [disabled]="pairSubmitting()" (click)="skipPair()">
                   <mat-icon>skip_next</mat-icon>
-                  {{ 'comparison.skip' | translate }}
+                  {{ I18N.comparison.skip | translate }}
                 </button>
                 @if (comparisonCount() > 0) {
                   <span class="flex items-center text-sm text-gray-400 ml-2">
-                    {{ comparisonCount() }} {{ 'comparison.comparisons_completed' | translate }}
+                    {{ comparisonCount() }} {{ I18N.comparison.comparisons_completed | translate }}
                   </span>
                 }
               </div>
             } @else {
               <div class="text-center py-8 text-gray-400">
-                {{ 'comparison.no_more_pairs' | translate }}
+                {{ I18N.comparison.no_more_pairs | translate }}
               </div>
             }
           </mat-card-content>
@@ -179,22 +180,22 @@ interface LearnedWeightsResponse {
           <!-- Stats -->
           <mat-card>
             <mat-card-header>
-              <mat-card-title class="!text-sm">{{ 'compare.stats.title' | translate }}</mat-card-title>
+              <mat-card-title class="!text-sm">{{ I18N.compare.stats.title | translate }}</mat-card-title>
             </mat-card-header>
             <mat-card-content class="!pt-2">
               @if (comparisonStats(); as stats) {
                 <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-                  <span class="text-gray-400">{{ 'compare.stats.total_comparisons' | translate }}</span>
+                  <span class="text-gray-400">{{ I18N.compare.stats.total_comparisons | translate }}</span>
                   <span class="text-right font-mono">{{ stats.total_comparisons }}</span>
-                  <span class="text-gray-400">{{ 'compare.stats.a_wins' | translate }}</span>
+                  <span class="text-gray-400">{{ I18N.compare.stats.a_wins | translate }}</span>
                   <span class="text-right font-mono">{{ stats.winner_breakdown['a'] || 0 }}</span>
-                  <span class="text-gray-400">{{ 'compare.stats.b_wins' | translate }}</span>
+                  <span class="text-gray-400">{{ I18N.compare.stats.b_wins | translate }}</span>
                   <span class="text-right font-mono">{{ stats.winner_breakdown['b'] || 0 }}</span>
-                  <span class="text-gray-400">{{ 'compare.stats.ties_label' | translate }}</span>
+                  <span class="text-gray-400">{{ I18N.compare.stats.ties_label | translate }}</span>
                   <span class="text-right font-mono">{{ stats.winner_breakdown['tie'] || 0 }}</span>
                 </div>
               } @else {
-                <p class="text-xs text-gray-500">{{ 'comparison.no_data_yet' | translate }}</p>
+                <p class="text-xs text-gray-500">{{ I18N.comparison.no_data_yet | translate }}</p>
               }
             </mat-card-content>
           </mat-card>
@@ -202,7 +203,7 @@ interface LearnedWeightsResponse {
           <!-- Weight Suggestions -->
           <mat-card>
             <mat-card-header>
-              <mat-card-title class="!text-sm">{{ 'compare.actions.suggest_weights' | translate }}</mat-card-title>
+              <mat-card-title class="!text-sm">{{ I18N.compare.actions.suggest_weights | translate }}</mat-card-title>
             </mat-card-header>
             <mat-card-content class="!pt-2">
               <button mat-stroked-button class="w-full mb-3" [disabled]="suggestDisabled()"
@@ -212,26 +213,26 @@ interface LearnedWeightsResponse {
                 } @else {
                   <mat-icon>auto_fix_high</mat-icon>
                 }
-                {{ 'compare.actions.suggest_weights' | translate }}
+                {{ I18N.compare.actions.suggest_weights | translate }}
               </button>
               @if (learnedWeights(); as lw) {
                 @if (lw.available) {
                   <div class="text-xs space-y-2">
                     <div class="text-gray-400">
-                      {{ 'compare.weights.learned_from' | translate:{ count: lw.comparisons_used ?? 0 } }}
+                      {{ I18N.compare.weights.learned_from | translate:{ count: lw.comparisons_used ?? 0 } }}
                       @if (lw.ties_included) {
-                        ({{ 'compare.weights.incl_ties' | translate:{ count: lw.ties_included } }})
+                        ({{ I18N.compare.weights.incl_ties | translate:{ count: lw.ties_included } }})
                       }
                     </div>
                     <div class="flex items-center gap-2">
-                      <span class="text-gray-400">{{ 'compare.weights.prediction_accuracy' | translate }}:</span>
+                      <span class="text-gray-400">{{ I18N.compare.weights.prediction_accuracy | translate }}:</span>
                       <span class="font-mono">{{ (lw.accuracy_before ?? 0) | fixed:0 }}%</span>
                       <span class="text-gray-500">&rarr;</span>
                       <span class="font-mono text-[var(--facet-accent-text)]">{{ (lw.accuracy_after ?? 0) | fixed:0 }}%</span>
                     </div>
                     @if (lw.mispredicted_count) {
                       <div class="text-gray-500">
-                        {{ 'compare.weights.mispredicted' | translate:{ count: lw.mispredicted_count } }}
+                        {{ I18N.compare.weights.mispredicted | translate:{ count: lw.mispredicted_count } }}
                       </div>
                     }
                     @if (lw.suggest_changes && lw.suggested_weights) {
@@ -247,10 +248,10 @@ interface LearnedWeightsResponse {
                       </div>
                       <button mat-flat-button class="w-full" [disabled]="!auth.isEdition()" (click)="applyWeights()">
                         <mat-icon>auto_fix_high</mat-icon>
-                        {{ 'comparison.apply_suggested' | translate }}
+                        {{ I18N.comparison.apply_suggested | translate }}
                       </button>
                     } @else {
-                      <p class="text-amber-400">{{ 'compare.weights.already_good' | translate }}</p>
+                      <p class="text-amber-400">{{ I18N.compare.weights.already_good | translate }}</p>
                     }
                   </div>
                 } @else {
@@ -265,6 +266,7 @@ interface LearnedWeightsResponse {
   `,
 })
 export class ComparisonAbTabComponent {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
@@ -321,9 +323,9 @@ export class ComparisonAbTabComponent {
     if (!stats) return '';
     const min = stats.min_comparisons_for_optimization ?? 30;
     if (stats.total_comparisons < min) {
-      return this.i18n.t('compare.tooltips.suggest_weights_disabled', { count: stats.total_comparisons, min });
+      return this.i18n.t(I18N.compare.tooltips.suggest_weights_disabled, { count: stats.total_comparisons, min });
     }
-    return this.i18n.t('compare.tooltips.suggest_weights');
+    return this.i18n.t(I18N.compare.tooltips.suggest_weights);
   });
 
   protected onStrategyChange(value: string): void {
@@ -354,10 +356,10 @@ export class ComparisonAbTabComponent {
       } else {
         this.pairA.set(null);
         this.pairB.set(null);
-        this.pairError.set(this.i18n.t('comparison.no_more_pairs'));
+        this.pairError.set(this.i18n.t(I18N.comparison.no_more_pairs));
       }
     } catch {
-      this.pairError.set(this.i18n.t('comparison.error_loading_pair'));
+      this.pairError.set(this.i18n.t(I18N.comparison.error_loading_pair));
     } finally {
       this.pairLoading.set(false);
     }
@@ -378,7 +380,7 @@ export class ComparisonAbTabComponent {
       void this.loadComparisonStats();
       await this.loadNextPair();
     } catch {
-      this.pairError.set(this.i18n.t('comparison.error_submitting'));
+      this.pairError.set(this.i18n.t(I18N.comparison.error_submitting));
     } finally {
       this.pairSubmitting.set(false);
     }
@@ -398,7 +400,7 @@ export class ComparisonAbTabComponent {
       void this.loadComparisonStats();
       await this.loadNextPair();
     } catch {
-      this.pairError.set(this.i18n.t('comparison.error_submitting'));
+      this.pairError.set(this.i18n.t(I18N.comparison.error_submitting));
     } finally {
       this.pairSubmitting.set(false);
     }
@@ -421,7 +423,7 @@ export class ComparisonAbTabComponent {
       );
       this.learnedWeights.set(data);
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_loading_suggestions'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_loading_suggestions), '', { duration: 4000 });
     } finally {
       this.learnedWeightsLoading.set(false);
     }
@@ -432,7 +434,7 @@ export class ComparisonAbTabComponent {
     if (!lw?.suggested_weights) return;
     const merged = { ...(lw.current_weights ?? {}), ...lw.suggested_weights };
     this.weightsApplied.emit(merged);
-    this.snackBar.open(this.i18n.t('comparison.optimized'), '', { duration: 3000 });
+    this.snackBar.open(this.i18n.t(I18N.comparison.optimized), '', { duration: 3000 });
   }
 
   protected onKeydown(event: KeyboardEvent): void {

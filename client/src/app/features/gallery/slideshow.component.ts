@@ -21,6 +21,7 @@ import { GalleryStore } from './gallery.store';
 import { Photo } from '../../shared/models/photo.model';
 import { ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 interface Slide {
   photos: Photo[];
@@ -71,7 +72,7 @@ interface Slide {
             / {{ c.total }}
           </span>
         }
-        <button mat-icon-button (click)="close()" [matTooltip]="'slideshow.close' | translate">
+        <button mat-icon-button (click)="close()" [matTooltip]="I18N.slideshow.close | translate">
           <mat-icon class="!text-white">close</mat-icon>
         </button>
       </div>
@@ -135,7 +136,7 @@ interface Slide {
           [class.opacity-0]="!controlsVisible()"
           [class.pointer-events-none]="!controlsVisible()"
           (click)="prev()"
-          [matTooltip]="'slideshow.prev' | translate"
+          [matTooltip]="I18N.slideshow.prev | translate"
         >
           <mat-icon class="!text-white">chevron_left</mat-icon>
         </button>
@@ -147,7 +148,7 @@ interface Slide {
           [class.opacity-0]="!controlsVisible()"
           [class.pointer-events-none]="!controlsVisible()"
           (click)="next()"
-          [matTooltip]="'slideshow.next' | translate"
+          [matTooltip]="I18N.slideshow.next | translate"
         >
           <mat-icon class="!text-white">chevron_right</mat-icon>
         </button>
@@ -175,8 +176,8 @@ interface Slide {
           >
             <mat-icon class="!text-white">{{ isPlaying() ? 'pause' : 'play_arrow' }}</mat-icon>
           </button>
-          <mat-slider min="1" max="15" step="1" class="flex-1" [matTooltip]="'slideshow.duration_label' | translate">
-            <input matSliderThumb [value]="duration()" (valueChange)="onDurationChange($event)" [attr.aria-label]="'slideshow.duration_label' | translate" />
+          <mat-slider min="1" max="15" step="1" class="flex-1" [matTooltip]="I18N.slideshow.duration_label | translate">
+            <input matSliderThumb [value]="duration()" (valueChange)="onDurationChange($event)" [attr.aria-label]="I18N.slideshow.duration_label | translate" />
           </mat-slider>
           <span class="text-white text-xs opacity-70 shrink-0 w-8 text-right">{{ duration() }}s</span>
           @if (currentSlide(); as slide) {
@@ -187,7 +188,7 @@ interface Slide {
           <button
             mat-icon-button
             (click)="toggleFullscreen()"
-            [matTooltip]="'slideshow.fullscreen' | translate"
+            [matTooltip]="I18N.slideshow.fullscreen | translate"
           >
             <mat-icon class="!text-white">{{ isFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
           </button>
@@ -198,6 +199,7 @@ interface Slide {
   `,
 })
 export class SlideshowComponent implements OnDestroy {
+  protected readonly I18N = I18N;
   private store = inject(GalleryStore);
 
   readonly photos = input<Photo[]>([]);

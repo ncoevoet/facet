@@ -13,6 +13,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ChartHeightPipe } from './chart-height.pipe';
 import { downloadCsv } from '../../shared/utils/csv';
+import { I18N } from '../../core/i18n/keys';
 
 export interface GearItem {
   name: string;
@@ -72,8 +73,8 @@ const GEAR_METRIC_OPTIONS = [
           </mat-select>
         </mat-form-field>
         <button mat-icon-button class="shrink-0" [disabled]="items().length === 0"
-          [matTooltip]="'stats.export_csv' | translate"
-          [attr.aria-label]="'stats.export_csv' | translate" (click)="exportCsv()">
+          [matTooltip]="I18N.stats.export_csv | translate"
+          [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportCsv()">
           <mat-icon>download</mat-icon>
         </button>
       </mat-card-header>
@@ -90,6 +91,7 @@ const GEAR_METRIC_OPTIONS = [
   `,
 })
 export class GearChartCardComponent {
+  protected readonly I18N = I18N;
   private readonly destroyRef = inject(DestroyRef);
   private readonly themeService = inject(ThemeService);
   private chart: Chart | null = null;

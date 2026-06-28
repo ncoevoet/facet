@@ -6,6 +6,7 @@ import { MatSliderModule } from '@angular/material/slider';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
+import { I18N } from '../../core/i18n/keys';
 
 export interface GpsFilterData {
   lat?: number;
@@ -22,24 +23,25 @@ export interface GpsFilterData {
     :host ::ng-deep .leaflet-container { height: 100%; width: 100%; }
   `],
   template: `
-    <h2 mat-dialog-title>{{ 'gallery.select_on_map' | translate }}</h2>
+    <h2 mat-dialog-title>{{ I18N.gallery.select_on_map | translate }}</h2>
     <mat-dialog-content class="!p-0">
       <div #mapContainer class="w-full" style="height:350px"></div>
       <div class="flex items-center gap-3 px-4 py-3">
-        <span class="text-sm opacity-70 shrink-0">{{ 'gallery.gps_radius' | translate }}:</span>
+        <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.gps_radius | translate }}:</span>
         <mat-slider class="flex-1" [min]="1" [max]="100" [step]="1">
-          <input matSliderThumb [value]="radiusKm()" (valueChange)="onRadiusChange($event)" [attr.aria-label]="'gallery.gps_radius' | translate" />
+          <input matSliderThumb [value]="radiusKm()" (valueChange)="onRadiusChange($event)" [attr.aria-label]="I18N.gallery.gps_radius | translate" />
         </mat-slider>
         <span class="text-sm font-medium w-12 text-right">{{ radiusKm() }} km</span>
       </div>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ 'ui.buttons.cancel' | translate }}</button>
-      <button mat-flat-button [disabled]="!selectedLat()" (click)="confirm()">{{ 'ui.buttons.apply' | translate }}</button>
+      <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
+      <button mat-flat-button [disabled]="!selectedLat()" (click)="confirm()">{{ I18N.ui.buttons.apply | translate }}</button>
     </mat-dialog-actions>
   `,
 })
 export class GpsFilterMapDialogComponent implements OnInit {
+  protected readonly I18N = I18N;
   private readonly dialogRef = inject(MatDialogRef<GpsFilterMapDialogComponent>);
   private readonly destroyRef = inject(DestroyRef);
   readonly data: GpsFilterData = inject(MAT_DIALOG_DATA) ?? {};

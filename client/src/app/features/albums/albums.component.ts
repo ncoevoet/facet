@@ -17,6 +17,7 @@ import { EditAlbumDialogComponent } from './edit-album-dialog.component';
 import { AlbumsFiltersService } from './albums-filters.service';
 import { ShareDialogComponent, ShareDialogData } from '../../shared/components/share-dialog/share-dialog.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
+import { I18N } from '../../core/i18n/keys';
 
 @Component({
   selector: 'app-albums',
@@ -33,13 +34,13 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
         <div class="flex gap-2">
           <!-- Small screen: icon-only buttons -->
           <button mat-icon-button class="sm:!hidden" (click)="openCreateDialog()"
-                  [matTooltip]="'albums.create' | translate">
+                  [matTooltip]="I18N.albums.create | translate">
             <mat-icon>add</mat-icon>
           </button>
           <!-- Larger screens: full buttons with labels -->
           <button mat-flat-button class="!hidden sm:!inline-flex" (click)="openCreateDialog()">
             <mat-icon>add</mat-icon>
-            {{ 'albums.create' | translate }}
+            {{ I18N.albums.create | translate }}
           </button>
         </div>
       }
@@ -54,7 +55,7 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
     @if (albums().length === 0 && !loading()) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">photo_library</mat-icon>
-        <p>{{ 'albums.empty' | translate }}</p>
+        <p>{{ I18N.albums.empty | translate }}</p>
       </div>
     }
 
@@ -88,17 +89,17 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
             @if (auth.isEdition()) {
               <div class="flex items-center shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <button mat-icon-button
-                        [matTooltip]="'albums.edit' | translate"
+                        [matTooltip]="I18N.albums.edit | translate"
                         (click)="editAlbum($event, album)">
                   <mat-icon class="opacity-60">edit</mat-icon>
                 </button>
                 <button mat-icon-button
-                        [matTooltip]="'albums.share' | translate"
+                        [matTooltip]="I18N.albums.share | translate"
                         (click)="shareAlbum($event, album)">
                   <mat-icon class="opacity-60">{{ album.is_shared ? 'link' : 'share' }}</mat-icon>
                 </button>
                 <button mat-icon-button
-                        [matTooltip]="'albums.delete' | translate"
+                        [matTooltip]="I18N.albums.delete | translate"
                         (click)="deleteAlbum($event, album)">
                   <mat-icon class="opacity-60">delete</mat-icon>
                 </button>
@@ -118,6 +119,7 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
   `,
 })
 export class AlbumsComponent {
+  protected readonly I18N = I18N;
   private readonly albumService = inject(AlbumService);
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
@@ -203,8 +205,8 @@ export class AlbumsComponent {
     event.stopPropagation();
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
-        title: this.i18n.t('albums.confirm_delete_title'),
-        message: this.i18n.t('albums.confirm_delete_message', { name: album.name }),
+        title: this.i18n.t(I18N.albums.confirm_delete_title),
+        message: this.i18n.t(I18N.albums.confirm_delete_message, { name: album.name }),
       },
     });
     const confirmed = await firstValueFrom(ref.afterClosed());

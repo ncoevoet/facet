@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { TranslatePipe } from '../../pipes/translate.pipe';
+import { I18N } from '../../../core/i18n/keys';
 
 interface ShortcutRow {
   keys: string[];
@@ -19,7 +20,7 @@ interface ShortcutSection {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatDialogModule, MatButtonModule, TranslatePipe],
   template: `
-    <h2 mat-dialog-title>{{ 'shortcuts.title' | translate }}</h2>
+    <h2 mat-dialog-title>{{ I18N.shortcuts.title | translate }}</h2>
     <mat-dialog-content>
       <div class="flex flex-col gap-4 min-w-[320px]">
         @for (section of sections; track section.titleKey) {
@@ -42,11 +43,12 @@ interface ShortcutSection {
       </div>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ 'shortcuts.close' | translate }}</button>
+      <button mat-button mat-dialog-close>{{ I18N.shortcuts.close | translate }}</button>
     </mat-dialog-actions>
   `,
 })
 export class ShortcutsDialogComponent {
+  protected readonly I18N = I18N;
   protected readonly sections: ShortcutSection[] = [
     {
       titleKey: 'shortcuts.section_gallery',

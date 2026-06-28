@@ -6,101 +6,101 @@
       <!-- Nav links -->
       @if (auth.isAuthenticated()) {
         <nav class="flex items-center gap-0 lg:gap-1">
-          <a mat-icon-button class="lg:!hidden" routerLink="/" routerLinkActive #rlGalleryM="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGalleryM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.gallery_tooltip' | translate" [attr.aria-label]="'nav.gallery_tooltip' | translate" (dblclick)="resetAllFilters()">
+          <a mat-icon-button class="lg:!hidden" routerLink="/" routerLinkActive #rlGalleryM="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGalleryM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
             <mat-icon>diamond</mat-icon>
           </a>
           @if (store.config()?.features?.show_albums) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/albums" routerLinkActive #rlAlbumsM="routerLinkActive" [style.color]="rlAlbumsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.albums' | translate" [attr.aria-label]="'nav.albums' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/albums" routerLinkActive #rlAlbumsM="routerLinkActive" [style.color]="rlAlbumsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.albums | translate" [attr.aria-label]="I18N.nav.albums | translate">
               <mat-icon>photo_album</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_capsules) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/capsules" routerLinkActive #rlCapsulesM="routerLinkActive" [style.color]="rlCapsulesM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.capsules' | translate" [attr.aria-label]="'nav.capsules' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/capsules" routerLinkActive #rlCapsulesM="routerLinkActive" [style.color]="rlCapsulesM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.capsules | translate" [attr.aria-label]="I18N.nav.capsules | translate">
               <mat-icon>auto_stories</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_timeline) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/timeline" routerLinkActive #rlTimelineM="routerLinkActive" [style.color]="rlTimelineM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.timeline' | translate" [attr.aria-label]="'nav.timeline' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/timeline" routerLinkActive #rlTimelineM="routerLinkActive" [style.color]="rlTimelineM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.timeline | translate" [attr.aria-label]="I18N.nav.timeline | translate">
               <mat-icon>view_timeline</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_scenes) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/scenes" routerLinkActive #rlScenesM="routerLinkActive" [style.color]="rlScenesM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.scenes' | translate" [attr.aria-label]="'nav.scenes' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/scenes" routerLinkActive #rlScenesM="routerLinkActive" [style.color]="rlScenesM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.scenes | translate" [attr.aria-label]="I18N.nav.scenes | translate">
               <mat-icon>theaters</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_folders) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/folders" routerLinkActive #rlFoldersM="routerLinkActive" [style.color]="rlFoldersM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.folders' | translate" [attr.aria-label]="'nav.folders' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/folders" routerLinkActive #rlFoldersM="routerLinkActive" [style.color]="rlFoldersM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.folders | translate" [attr.aria-label]="I18N.nav.folders | translate">
               <mat-icon>folder</mat-icon>
             </a>
           }
-          <a mat-icon-button class="lg:!hidden" routerLink="/persons" routerLinkActive #rlPersonsM="routerLinkActive" [style.color]="rlPersonsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.persons' | translate" [attr.aria-label]="'nav.persons' | translate">
+          <a mat-icon-button class="lg:!hidden" routerLink="/persons" routerLinkActive #rlPersonsM="routerLinkActive" [style.color]="rlPersonsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.persons | translate" [attr.aria-label]="I18N.nav.persons | translate">
             <mat-icon>people</mat-icon>
           </a>
           @if (store.config()?.features?.show_map && hasGeoPhotos()) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/map" routerLinkActive #rlMapM="routerLinkActive" [style.color]="rlMapM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.map' | translate" [attr.aria-label]="'nav.map' | translate">
+            <a mat-icon-button class="lg:!hidden" routerLink="/map" routerLinkActive #rlMapM="routerLinkActive" [style.color]="rlMapM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.map | translate" [attr.aria-label]="I18N.nav.map | translate">
               <mat-icon>map</mat-icon>
             </a>
           }
-          <a mat-icon-button class="lg:!hidden" routerLink="/stats" routerLinkActive #rlStatsM="routerLinkActive" [style.color]="rlStatsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate" [attr.aria-label]="'nav.stats' | translate">
+          <a mat-icon-button class="lg:!hidden" routerLink="/stats" routerLinkActive #rlStatsM="routerLinkActive" [style.color]="rlStatsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.stats | translate" [attr.aria-label]="I18N.nav.stats | translate">
             <mat-icon>bar_chart</mat-icon>
           </a>
           @if (store.config()?.features?.show_memories && hasMemories()) {
-            <button mat-icon-button class="lg:!hidden" (click)="openMemoriesDialog()" [matTooltip]="'nav.memories' | translate" [attr.aria-label]="'nav.memories' | translate">
+            <button mat-icon-button class="lg:!hidden" (click)="openMemoriesDialog()" [matTooltip]="I18N.nav.memories | translate" [attr.aria-label]="I18N.nav.memories | translate">
               <mat-icon>auto_awesome</mat-icon>
             </button>
           }
-          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/" routerLinkActive #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.gallery_tooltip' | translate" [attr.aria-label]="'nav.gallery_tooltip' | translate" (dblclick)="resetAllFilters()">
+          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/" routerLinkActive #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
             <mat-icon>diamond</mat-icon>
           </a>
           @if (store.config()?.features?.show_albums) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/albums" routerLinkActive #rlAlbums="routerLinkActive" [style.color]="rlAlbums.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.albums' | translate" [attr.aria-label]="'nav.albums' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/albums" routerLinkActive #rlAlbums="routerLinkActive" [style.color]="rlAlbums.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.albums | translate" [attr.aria-label]="I18N.nav.albums | translate">
               <mat-icon>photo_album</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_capsules) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/capsules" routerLinkActive #rlCapsules="routerLinkActive" [style.color]="rlCapsules.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.capsules' | translate" [attr.aria-label]="'nav.capsules' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/capsules" routerLinkActive #rlCapsules="routerLinkActive" [style.color]="rlCapsules.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.capsules | translate" [attr.aria-label]="I18N.nav.capsules | translate">
               <mat-icon>auto_stories</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_timeline) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/timeline" routerLinkActive #rlTimeline="routerLinkActive" [style.color]="rlTimeline.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.timeline' | translate" [attr.aria-label]="'nav.timeline' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/timeline" routerLinkActive #rlTimeline="routerLinkActive" [style.color]="rlTimeline.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.timeline | translate" [attr.aria-label]="I18N.nav.timeline | translate">
               <mat-icon>view_timeline</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_scenes) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/scenes" routerLinkActive #rlScenes="routerLinkActive" [style.color]="rlScenes.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.scenes' | translate" [attr.aria-label]="'nav.scenes' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/scenes" routerLinkActive #rlScenes="routerLinkActive" [style.color]="rlScenes.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.scenes | translate" [attr.aria-label]="I18N.nav.scenes | translate">
               <mat-icon>theaters</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_folders) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/folders" routerLinkActive #rlFolders="routerLinkActive" [style.color]="rlFolders.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.folders' | translate" [attr.aria-label]="'nav.folders' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/folders" routerLinkActive #rlFolders="routerLinkActive" [style.color]="rlFolders.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.folders | translate" [attr.aria-label]="I18N.nav.folders | translate">
               <mat-icon>folder</mat-icon>
             </a>
           }
-          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/persons" routerLinkActive #rlPersons="routerLinkActive" [style.color]="rlPersons.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.persons' | translate" [attr.aria-label]="'nav.persons' | translate">
+          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/persons" routerLinkActive #rlPersons="routerLinkActive" [style.color]="rlPersons.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.persons | translate" [attr.aria-label]="I18N.nav.persons | translate">
             <mat-icon>people</mat-icon>
           </a>
           @if (store.config()?.features?.show_map && hasGeoPhotos()) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/map" routerLinkActive #rlMap="routerLinkActive" [style.color]="rlMap.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.map' | translate" [attr.aria-label]="'nav.map' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/map" routerLinkActive #rlMap="routerLinkActive" [style.color]="rlMap.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.map | translate" [attr.aria-label]="I18N.nav.map | translate">
               <mat-icon>map</mat-icon>
             </a>
           }
-          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/stats" routerLinkActive #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.stats' | translate" [attr.aria-label]="'nav.stats' | translate">
+          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/stats" routerLinkActive #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.stats | translate" [attr.aria-label]="I18N.nav.stats | translate">
             <mat-icon>bar_chart</mat-icon>
           </a>
           @if (auth.isEdition()) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/culling" routerLinkActive #rlCulling="routerLinkActive" [style.color]="rlCulling.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.culling' | translate" [attr.aria-label]="'nav.culling' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/culling" routerLinkActive #rlCulling="routerLinkActive" [style.color]="rlCulling.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.culling | translate" [attr.aria-label]="I18N.nav.culling | translate">
               <mat-icon>burst_mode</mat-icon>
             </a>
           }
           @if (auth.isEdition()) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/compare" routerLinkActive #rlCompare="routerLinkActive" [style.color]="rlCompare.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="'nav.compare' | translate" [attr.aria-label]="'nav.compare' | translate">
+            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/compare" routerLinkActive #rlCompare="routerLinkActive" [style.color]="rlCompare.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.compare | translate" [attr.aria-label]="I18N.nav.compare | translate">
               <mat-icon>compare</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_memories && hasMemories()) {
-            <button mat-icon-button class="!hidden lg:!inline-flex" (click)="openMemoriesDialog()" [matTooltip]="'nav.memories' | translate" [attr.aria-label]="'nav.memories' | translate">
+            <button mat-icon-button class="!hidden lg:!inline-flex" (click)="openMemoriesDialog()" [matTooltip]="I18N.nav.memories | translate" [attr.aria-label]="I18N.nav.memories | translate">
               <mat-icon>auto_awesome</mat-icon>
             </button>
           }
@@ -110,9 +110,9 @@
       <!-- Gallery type & sort (visible only on gallery route, lg+ to avoid toolbar cramping) -->
       @if (auth.isAuthenticated() && isGalleryRoute()) {
         <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
-          <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
+          <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
-            <mat-option value="">{{ 'gallery.all_photos' | translate }}</mat-option>
+            <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
             @for (t of store.types(); track t.id) {
               <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
             }
@@ -123,7 +123,7 @@
         <mat-form-field class="!hidden 2xl:!inline-flex flex-1 min-w-32 max-w-xs" subscriptSizing="dynamic">
           <input
             matInput
-            [placeholder]="'gallery.search_placeholder' | translate"
+            [placeholder]="I18N.gallery.search_placeholder | translate"
             [value]="store.filters().search"
             (keyup.enter)="onSearchChange($event)"
             (blur)="onSearchChange($event)"
@@ -142,7 +142,7 @@
       <!-- Compare category selector (visible only on compare route, lg+) -->
       @if (auth.isAuthenticated() && isCompareRoute()) {
         <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
-          <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
+          <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="compareFilters.selectedCategory()" (selectionChange)="onCompareCategoryChange($event.value)">
             @for (t of store.types(); track t.id) {
               <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
@@ -154,9 +154,9 @@
       <!-- Stats filters (visible only on stats route, lg+) -->
       @if (auth.isAuthenticated() && isStatsRoute()) {
         <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
-          <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
+          <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="statsFilters.filterCategory()" (selectionChange)="onStatsCategoryChange($event.value)">
-            <mat-option value="">{{ 'gallery.all_photos' | translate }}</mat-option>
+            <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
             @for (t of store.types(); track t.id) {
               <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
             }
@@ -172,24 +172,24 @@
       <!-- Albums filters (visible only on albums route, lg+) -->
       @if (auth.isAuthenticated() && isAlbumsRoute()) {
         <mat-form-field class="!hidden lg:!inline-flex w-52" subscriptSizing="dynamic">
-          <mat-label>{{ 'albums.search' | translate }}</mat-label>
+          <mat-label>{{ I18N.albums.search | translate }}</mat-label>
           <input matInput [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" />
           <mat-icon matPrefix class="opacity-60">search</mat-icon>
         </mat-form-field>
         <mat-form-field class="!hidden lg:!inline-flex w-36" subscriptSizing="dynamic">
-          <mat-label>{{ 'albums.filter_type' | translate }}</mat-label>
+          <mat-label>{{ I18N.albums.filter_type | translate }}</mat-label>
           <mat-select [value]="albumsFilters.typeFilter()" (selectionChange)="albumsFilters.typeFilter.set($event.value)">
-            <mat-option value="">{{ 'albums.type_all' | translate }}</mat-option>
-            <mat-option value="manual">{{ 'albums.type_manual' | translate }}</mat-option>
-            <mat-option value="smart">{{ 'albums.type_smart' | translate }}</mat-option>
+            <mat-option value="">{{ I18N.albums.type_all | translate }}</mat-option>
+            <mat-option value="manual">{{ I18N.albums.type_manual | translate }}</mat-option>
+            <mat-option value="smart">{{ I18N.albums.type_smart | translate }}</mat-option>
           </mat-select>
         </mat-form-field>
         <mat-form-field class="!hidden lg:!inline-flex w-40" subscriptSizing="dynamic">
-          <mat-label>{{ 'albums.sort_by' | translate }}</mat-label>
+          <mat-label>{{ I18N.albums.sort_by | translate }}</mat-label>
           <mat-select [value]="albumsFilters.sort()" (selectionChange)="albumsFilters.sort.set($event.value)">
-            <mat-option value="updated_at">{{ 'albums.sort_recent' | translate }}</mat-option>
-            <mat-option value="name">{{ 'albums.sort_name' | translate }}</mat-option>
-            <mat-option value="photo_count">{{ 'albums.sort_photos' | translate }}</mat-option>
+            <mat-option value="updated_at">{{ I18N.albums.sort_recent | translate }}</mat-option>
+            <mat-option value="name">{{ I18N.albums.sort_name | translate }}</mat-option>
+            <mat-option value="photo_count">{{ I18N.albums.sort_photos | translate }}</mat-option>
           </mat-select>
         </mat-form-field>
       }
@@ -218,7 +218,7 @@
           fromLabel="capsules.date_from" toLabel="capsules.date_to"
           fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
           (fromChange)="capsuleFilters.dateFrom.set($event)" (toChange)="capsuleFilters.dateTo.set($event)" />
-        <button class="!hidden lg:!inline-flex" mat-icon-button [disabled]="capsuleFilters.refreshing()" [matTooltip]="'capsules.regenerate' | translate" [attr.aria-label]="'capsules.regenerate' | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
+        <button class="!hidden lg:!inline-flex" mat-icon-button [disabled]="capsuleFilters.refreshing()" [matTooltip]="I18N.capsules.regenerate | translate" [attr.aria-label]="I18N.capsules.regenerate | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
           <mat-icon>refresh</mat-icon>
         </button>
       }
@@ -226,7 +226,7 @@
       <!-- Persons search & sort (visible only on persons route, lg+) -->
       @if (auth.isAuthenticated() && isPersonsRoute()) {
         <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
-          <mat-label>{{ 'persons.search_placeholder' | translate }}</mat-label>
+          <mat-label>{{ I18N.persons.search_placeholder | translate }}</mat-label>
           <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" />
           <mat-icon matPrefix class="opacity-60">search</mat-icon>
           @if (personsFilters.search()) {
@@ -236,17 +236,17 @@
           }
         </mat-form-field>
         <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
-          <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
+          <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
           <mat-select [value]="personsFilters.sort()" (selectionChange)="onPersonsSortChange($event.value)">
-            <mat-option value="count">{{ 'persons.sort_count' | translate }}</mat-option>
-            <mat-option value="name">{{ 'persons.sort_name' | translate }}</mat-option>
+            <mat-option value="count">{{ I18N.persons.sort_count | translate }}</mat-option>
+            <mat-option value="name">{{ I18N.persons.sort_name | translate }}</mat-option>
           </mat-select>
         </mat-form-field>
         <button
           class="!hidden lg:!inline-flex"
           mat-icon-button
           (click)="togglePersonsSortDirection()"
-          [matTooltip]="personsFilters.sortDirection() === 'desc' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)"
+          [matTooltip]="personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
         >
           <mat-icon>{{ personsFilters.sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
         </button>
@@ -257,19 +257,19 @@
       <!-- Stats overview (right side, lg+ only) -->
       @if (auth.isAuthenticated() && isStatsRoute() && statsFilters.overview(); as ov) {
         <span class="!hidden lg:!inline-flex items-center gap-3 text-sm opacity-80">
-          <span class="inline-flex items-center gap-1" [matTooltip]="'stats.total_photos' | translate">
+          <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.total_photos | translate">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-blue-400">photo_library</mat-icon>
             {{ ov.total_photos | number }}
           </span>
-          <span class="inline-flex items-center gap-1" [matTooltip]="'stats.total_persons' | translate">
+          <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.total_persons | translate">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-purple-400">people</mat-icon>
             {{ ov.total_persons | number }}
           </span>
-          <span class="inline-flex items-center gap-1" [matTooltip]="'stats.avg_score' | translate">
+          <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.avg_score | translate">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-amber-400">star</mat-icon>
             {{ ov.avg_score | number:'1.1-1' }}
           </span>
-          <span class="inline-flex items-center gap-1" [matTooltip]="'stats.total_faces' | translate">
+          <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.total_faces | translate">
             <mat-icon class="!text-xl !w-5 !h-5 !leading-5">face</mat-icon>
             {{ ov.total_faces | number }}
           </span>
@@ -278,13 +278,13 @@
 
       <!-- Gallery: photo count + active filters + filter toggle (right side, lg+ only) -->
       @if (auth.isAuthenticated() && isGalleryRoute()) {
-        <span class="!hidden lg:!inline text-sm opacity-70">{{ 'gallery.photo_count' | translate:{ count: store.total() } }}</span>
+        <span class="!hidden lg:!inline text-sm opacity-70">{{ I18N.gallery.photo_count | translate:{ count: store.total() } }}</span>
 
         <mat-form-field class="!hidden lg:!inline-flex w-48" subscriptSizing="dynamic">
-          <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
+          <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
             @if (store.config()?.features?.show_my_taste) {
-              <mat-option value="learned_score">{{ 'gallery.sort_my_taste' | translate }}</mat-option>
+              <mat-option value="learned_score">{{ I18N.gallery.sort_my_taste | translate }}</mat-option>
             }
             @if (sortGroups(); as groups) {
               @for (group of groups; track group[0]) {
@@ -295,9 +295,9 @@
                 </mat-optgroup>
               }
             } @else {
-              <mat-option value="aggregate">{{ 'gallery.sort_aggregate' | translate }}</mat-option>
-              <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
-              <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
+              <mat-option value="aggregate">{{ I18N.gallery.sort_aggregate | translate }}</mat-option>
+              <mat-option value="aesthetic">{{ I18N.gallery.sort_aesthetic | translate }}</mat-option>
+              <mat-option value="date_taken">{{ I18N.gallery.sort_date | translate }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
@@ -305,9 +305,9 @@
         <!-- "My Taste" confidence badge — learned coverage + held-out accuracy of the personal ranker -->
         @if (myTasteBadge(); as taste) {
           <span class="!hidden lg:!inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 bg-[var(--mat-sys-tertiary-container)] text-[var(--mat-sys-on-tertiary-container)]"
-                [matTooltip]="'gallery.my_taste_badge_tooltip' | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—' }">
+                [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—' }">
             <mat-icon class="!text-sm !w-4 !h-4 !leading-4">auto_awesome</mat-icon>
-            {{ 'gallery.my_taste_badge' | translate:{ coverage: taste.coveragePct } }}
+            {{ I18N.gallery.my_taste_badge | translate:{ coverage: taste.coveragePct } }}
           </span>
         }
 
@@ -316,8 +316,8 @@
           class="!hidden lg:!inline-flex"
           mat-icon-button
           [matMenuTriggerFor]="tooltipModeMenu"
-          [matTooltip]="'gallery.tooltip_mode.label' | translate"
-          [attr.aria-label]="'gallery.tooltip_mode.label' | translate"
+          [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
+          [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate"
         >
           <mat-icon>{{
             store.filters().tooltip_mode === 'click' ? 'touch_app'
@@ -330,7 +330,7 @@
           class="!hidden lg:!inline-flex"
           mat-icon-button
           (click)="toggleSortDirection()"
-          [matTooltip]="store.filters().sort_direction === 'DESC' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)"
+          [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
         >
           <mat-icon>{{
             store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward'
@@ -341,7 +341,7 @@
           class="!hidden lg:!inline-flex"
           mat-icon-button
           (click)="store.slideshowActive.set(!store.slideshowActive())"
-          [matTooltip]="'slideshow.start' | translate"
+          [matTooltip]="I18N.slideshow.start | translate"
         >
           <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
         </button>
@@ -353,7 +353,7 @@
           [matBadge]="store.activeFilterCount() || null"
           matBadgeColor="primary"
           matBadgeSize="small"
-          [matTooltip]="'gallery.filters' | translate"
+          [matTooltip]="I18N.gallery.filters | translate"
         >
           <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">tune</mat-icon>
         </button>
@@ -361,22 +361,22 @@
         <mat-menu #tooltipModeMenu="matMenu">
           <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'hover')">
             <mat-icon>chat_bubble_outline</mat-icon>
-            {{ 'gallery.tooltip_mode.hover' | translate }}
+            {{ I18N.gallery.tooltip_mode.hover | translate }}
           </button>
           <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'click')">
             <mat-icon>touch_app</mat-icon>
-            {{ 'gallery.tooltip_mode.click' | translate }}
+            {{ I18N.gallery.tooltip_mode.click | translate }}
           </button>
           <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
             <mat-icon>visibility_off</mat-icon>
-            {{ 'gallery.tooltip_mode.off' | translate }}
+            {{ I18N.gallery.tooltip_mode.off | translate }}
           </button>
         </mat-menu>
       }
 
       <!-- User menu (authenticated: account + language + edition + logout) -->
       @if (auth.isAuthenticated()) {
-        <button mat-icon-button [matMenuTriggerFor]="userMenu" [matTooltip]="auth.status()?.display_name || (auth.isEdition() ? ('edition.lock_title' | translate) : '')">
+        <button mat-icon-button [matMenuTriggerFor]="userMenu" [matTooltip]="auth.status()?.display_name || (auth.isEdition() ? (I18N.edition.lock_title | translate) : '')">
           <mat-icon [class.!text-amber-400]="auth.isEdition()">{{ auth.isEdition() ? 'admin_panel_settings' : 'account_circle' }}</mat-icon>
         </button>
         <mat-menu #userMenu="matMenu">
@@ -385,29 +385,29 @@
           }
           @if (!auth.isMultiUser() && auth.status()?.edition_enabled) {
             @if (auth.isEdition()) {
-              <button mat-menu-item (click)="lockEdition()" [matTooltip]="'edition.lock_title' | translate">
+              <button mat-menu-item (click)="lockEdition()" [matTooltip]="I18N.edition.lock_title | translate">
                 <mat-icon class="!text-amber-400">lock_open</mat-icon>
-                {{ 'edition.label' | translate }}
+                {{ I18N.edition.label | translate }}
               </button>
               <a mat-menu-item class="lg:!hidden" routerLink="/culling">
                 <mat-icon>burst_mode</mat-icon>
-                {{ 'nav.culling' | translate }}
+                {{ I18N.nav.culling | translate }}
               </a>
               <a mat-menu-item class="lg:!hidden" routerLink="/compare">
                 <mat-icon>compare</mat-icon>
-                {{ 'nav.compare' | translate }}
+                {{ I18N.nav.compare | translate }}
               </a>
             } @else {
-              <button mat-menu-item (click)="showEditionDialog()" [matTooltip]="'edition.unlock_title' | translate">
+              <button mat-menu-item (click)="showEditionDialog()" [matTooltip]="I18N.edition.unlock_title | translate">
                 <mat-icon>lock</mat-icon>
-                {{ 'edition.label' | translate }}
+                {{ I18N.edition.label | translate }}
               </button>
             }
             <mat-divider />
           }
           <button mat-menu-item [matMenuTriggerFor]="langMenu">
             <mat-icon>language</mat-icon>
-            {{ 'ui.switch_language' | translate }}
+            {{ I18N.ui.switch_language | translate }}
           </button>
           <button mat-menu-item (click)="themeService.toggleDarkMode()">
             <mat-icon>{{ themeService.darkMode() ? 'light_mode' : 'dark_mode' }}</mat-icon>
@@ -415,12 +415,12 @@
           </button>
           <button mat-menu-item [matMenuTriggerFor]="themeMenu">
             <mat-icon>palette</mat-icon>
-            {{ 'ui.theme' | translate }}
+            {{ I18N.ui.theme | translate }}
           </button>
           <mat-divider />
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>
-            {{ 'auth.logout' | translate }}
+            {{ I18N.auth.logout | translate }}
           </button>
         </mat-menu>
         <mat-menu #langMenu="matMenu">
@@ -442,7 +442,7 @@
 
       <!-- Language menu (not authenticated) -->
       @if (!auth.isAuthenticated()) {
-        <button mat-icon-button [matMenuTriggerFor]="langMenuAnon" [attr.aria-label]="'ui.switch_language' | translate">
+        <button mat-icon-button [matMenuTriggerFor]="langMenuAnon" [attr.aria-label]="I18N.ui.switch_language | translate">
           <mat-icon>language</mat-icon>
         </button>
         <mat-menu #langMenuAnon="matMenu">
@@ -457,7 +457,7 @@
           <mat-icon>{{ themeService.darkMode() ? 'light_mode' : 'dark_mode' }}</mat-icon>
         </button>
         <!-- Theme menu (not authenticated) -->
-        <button mat-icon-button [matMenuTriggerFor]="themeMenuAnon" [attr.aria-label]="'ui.theme' | translate">
+        <button mat-icon-button [matMenuTriggerFor]="themeMenuAnon" [attr.aria-label]="I18N.ui.theme | translate">
           <mat-icon>palette</mat-icon>
         </button>
         <mat-menu #themeMenuAnon="matMenu">
@@ -546,7 +546,7 @@
       }
       @if (activeFilterChips().length > 1) {
         <button class="text-xs opacity-60 hover:opacity-100 transition-opacity ml-auto shrink-0" (click)="store.resetFilters()">
-          {{ 'gallery.reset_filters' | translate }}
+          {{ I18N.gallery.reset_filters | translate }}
         </button>
       }
     </div>
@@ -561,16 +561,16 @@
   @if (auth.isAuthenticated() && isGalleryRoute()) {
     <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
       <!-- Search toggle -->
-      <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="mobileSearchOpen.set(!mobileSearchOpen())" [matTooltip]="'ui.filters.search' | translate">
+      <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="mobileSearchOpen.set(!mobileSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
         <mat-icon>search</mat-icon>
       </button>
 
       <!-- Sort selector with label -->
       <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
-        <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
+        <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
         <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
           @if (store.config()?.features?.show_my_taste) {
-            <mat-option value="learned_score">{{ 'gallery.sort_my_taste' | translate }}</mat-option>
+            <mat-option value="learned_score">{{ I18N.gallery.sort_my_taste | translate }}</mat-option>
           }
           @if (sortGroups(); as groups) {
             @for (group of groups; track group[0]) {
@@ -581,9 +581,9 @@
               </mat-optgroup>
             }
           } @else {
-            <mat-option value="aggregate">{{ 'gallery.sort_aggregate' | translate }}</mat-option>
-            <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
-            <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
+            <mat-option value="aggregate">{{ I18N.gallery.sort_aggregate | translate }}</mat-option>
+            <mat-option value="aesthetic">{{ I18N.gallery.sort_aesthetic | translate }}</mat-option>
+            <mat-option value="date_taken">{{ I18N.gallery.sort_date | translate }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
@@ -591,8 +591,8 @@
       <!-- Tooltip-mode menu (mobile, first in icon cluster) -->
       <button mat-icon-button class="!w-10 !h-10 shrink-0"
               [matMenuTriggerFor]="tooltipModeMenuMobile"
-              [matTooltip]="'gallery.tooltip_mode.label' | translate"
-              [attr.aria-label]="'gallery.tooltip_mode.label' | translate">
+              [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
+              [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate">
         <mat-icon>{{
           store.filters().tooltip_mode === 'click' ? 'touch_app'
           : store.filters().tooltip_mode === 'off' ? 'visibility_off'
@@ -602,26 +602,26 @@
       <mat-menu #tooltipModeMenuMobile="matMenu">
         <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'hover')">
           <mat-icon>chat_bubble_outline</mat-icon>
-          {{ 'gallery.tooltip_mode.hover' | translate }}
+          {{ I18N.gallery.tooltip_mode.hover | translate }}
         </button>
         <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'click')">
           <mat-icon>touch_app</mat-icon>
-          {{ 'gallery.tooltip_mode.click' | translate }}
+          {{ I18N.gallery.tooltip_mode.click | translate }}
         </button>
         <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
           <mat-icon>visibility_off</mat-icon>
-          {{ 'gallery.tooltip_mode.off' | translate }}
+          {{ I18N.gallery.tooltip_mode.off | translate }}
         </button>
       </mat-menu>
 
       <!-- Sort direction toggle -->
       <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="toggleSortDirection()"
-        [matTooltip]="store.filters().sort_direction === 'DESC' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)">
+        [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)">
         <mat-icon>{{ store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
       </button>
 
       <!-- Slideshow toggle -->
-      <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="store.slideshowActive.set(!store.slideshowActive())" [matTooltip]="'slideshow.start' | translate">
+      <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="store.slideshowActive.set(!store.slideshowActive())" [matTooltip]="I18N.slideshow.start | translate">
         <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
       </button>
 
@@ -629,7 +629,7 @@
       <button
         mat-icon-button class="!w-10 !h-10 shrink-0"
         (click)="store.setFilterDrawerOpen(!store.filterDrawerOpen())"
-        [matTooltip]="'ui.buttons.filters' | translate"
+        [matTooltip]="I18N.ui.buttons.filters | translate"
         [matBadge]="store.activeFilterCount() || null"
         matBadgeColor="primary"
         matBadgeSize="small"
@@ -647,7 +647,7 @@
                [value]="store.filters().search"
                (keyup.enter)="onSearchChange($event); mobileSearchOpen.set(false)"
                (blur)="onSearchChange($event)"
-               [placeholder]="'gallery.search_placeholder' | translate"
+               [placeholder]="I18N.gallery.search_placeholder | translate"
                />
         <mat-icon matPrefix class="opacity-60">search</mat-icon>
         <button matSuffix mat-icon-button (click)="clearSearch(); mobileSearchOpen.set(false)">
@@ -660,35 +660,35 @@
   <!-- Mobile albums bottom bar -->
   @if (auth.isAuthenticated() && isAlbumsRoute()) {
     <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-0 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobileAlbumTypeMenu" [matTooltip]="'albums.filter_type' | translate">
+      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobileAlbumTypeMenu" [matTooltip]="I18N.albums.filter_type | translate">
         <mat-icon>filter_list</mat-icon>
       </button>
       <mat-menu #mobileAlbumTypeMenu="matMenu">
         <button mat-menu-item (click)="albumsFilters.typeFilter.set('')">
-          <span [class.font-bold]="!albumsFilters.typeFilter()">{{ 'albums.type_all' | translate }}</span>
+          <span [class.font-bold]="!albumsFilters.typeFilter()">{{ I18N.albums.type_all | translate }}</span>
         </button>
         <button mat-menu-item (click)="albumsFilters.typeFilter.set('manual')">
-          <span [class.font-bold]="albumsFilters.typeFilter() === 'manual'">{{ 'albums.type_manual' | translate }}</span>
+          <span [class.font-bold]="albumsFilters.typeFilter() === 'manual'">{{ I18N.albums.type_manual | translate }}</span>
         </button>
         <button mat-menu-item (click)="albumsFilters.typeFilter.set('smart')">
-          <span [class.font-bold]="albumsFilters.typeFilter() === 'smart'">{{ 'albums.type_smart' | translate }}</span>
+          <span [class.font-bold]="albumsFilters.typeFilter() === 'smart'">{{ I18N.albums.type_smart | translate }}</span>
         </button>
       </mat-menu>
-      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobileAlbumSortMenu" [matTooltip]="'albums.sort_by' | translate">
+      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobileAlbumSortMenu" [matTooltip]="I18N.albums.sort_by | translate">
         <mat-icon>sort</mat-icon>
       </button>
       <mat-menu #mobileAlbumSortMenu="matMenu">
         <button mat-menu-item (click)="albumsFilters.sort.set('updated_at')">
-          <span [class.font-bold]="albumsFilters.sort() === 'updated_at'">{{ 'albums.sort_recent' | translate }}</span>
+          <span [class.font-bold]="albumsFilters.sort() === 'updated_at'">{{ I18N.albums.sort_recent | translate }}</span>
         </button>
         <button mat-menu-item (click)="albumsFilters.sort.set('name')">
-          <span [class.font-bold]="albumsFilters.sort() === 'name'">{{ 'albums.sort_name' | translate }}</span>
+          <span [class.font-bold]="albumsFilters.sort() === 'name'">{{ I18N.albums.sort_name | translate }}</span>
         </button>
         <button mat-menu-item (click)="albumsFilters.sort.set('photo_count')">
-          <span [class.font-bold]="albumsFilters.sort() === 'photo_count'">{{ 'albums.sort_photos' | translate }}</span>
+          <span [class.font-bold]="albumsFilters.sort() === 'photo_count'">{{ I18N.albums.sort_photos | translate }}</span>
         </button>
       </mat-menu>
-      <button mat-icon-button class="!w-10 !h-10" (click)="mobileAlbumsSearchOpen.set(!mobileAlbumsSearchOpen())" [matTooltip]="'ui.filters.search' | translate">
+      <button mat-icon-button class="!w-10 !h-10" (click)="mobileAlbumsSearchOpen.set(!mobileAlbumsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
         <mat-icon>search</mat-icon>
       </button>
     </div>
@@ -698,7 +698,7 @@
   @if (auth.isAuthenticated() && isAlbumsRoute() && mobileAlbumsSearchOpen()) {
     <div class="lg:hidden fixed bottom-[45px] left-0 right-0 z-50 px-4 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)]">
       <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
-        <input matInput [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" [placeholder]="'albums.search' | translate" />
+        <input matInput [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" [placeholder]="I18N.albums.search | translate" />
         <mat-icon matPrefix class="opacity-60">search</mat-icon>
         <button matSuffix mat-icon-button (click)="albumsFilters.search.set(''); mobileAlbumsSearchOpen.set(false)">
           <mat-icon>close</mat-icon>
@@ -710,23 +710,23 @@
   <!-- Mobile persons bottom bar -->
   @if (auth.isAuthenticated() && isPersonsRoute()) {
     <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-0 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobilePersonsSortMenu" [matTooltip]="'gallery.sort' | translate">
+      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobilePersonsSortMenu" [matTooltip]="I18N.gallery.sort | translate">
         <mat-icon>sort</mat-icon>
       </button>
       <mat-menu #mobilePersonsSortMenu="matMenu">
         <button mat-menu-item (click)="onPersonsSortChange('count')">
-          <span [class.font-bold]="personsFilters.sort() === 'count'">{{ 'persons.sort_count' | translate }}</span>
+          <span [class.font-bold]="personsFilters.sort() === 'count'">{{ I18N.persons.sort_count | translate }}</span>
         </button>
         <button mat-menu-item (click)="onPersonsSortChange('name')">
-          <span [class.font-bold]="personsFilters.sort() === 'name'">{{ 'persons.sort_name' | translate }}</span>
+          <span [class.font-bold]="personsFilters.sort() === 'name'">{{ I18N.persons.sort_name | translate }}</span>
         </button>
         <mat-divider />
         <button mat-menu-item (click)="togglePersonsSortDirection()">
           <mat-icon>{{ personsFilters.sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-          {{ personsFilters.sortDirection() === 'desc' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate) }}
+          {{ personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate) }}
         </button>
       </mat-menu>
-      <button mat-icon-button class="!w-10 !h-10" (click)="mobilePersonsSearchOpen.set(!mobilePersonsSearchOpen())" [matTooltip]="'ui.filters.search' | translate">
+      <button mat-icon-button class="!w-10 !h-10" (click)="mobilePersonsSearchOpen.set(!mobilePersonsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
         <mat-icon>search</mat-icon>
       </button>
     </div>
@@ -736,7 +736,7 @@
   @if (auth.isAuthenticated() && isPersonsRoute() && mobilePersonsSearchOpen()) {
     <div class="lg:hidden fixed bottom-[45px] left-0 right-0 z-50 px-4 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)]">
       <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
-        <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" [placeholder]="'persons.search_placeholder' | translate" />
+        <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" [placeholder]="I18N.persons.search_placeholder | translate" />
         <mat-icon matPrefix class="opacity-60">search</mat-icon>
         <button matSuffix mat-icon-button (click)="personsFilters.search.set(''); mobilePersonsSearchOpen.set(false)">
           <mat-icon>close</mat-icon>
@@ -763,7 +763,7 @@
         fromLabel="capsules.date_from" toLabel="capsules.date_to"
         fromClass="flex-1 min-w-0"
         (fromChange)="capsuleFilters.dateFrom.set($event)" (toChange)="capsuleFilters.dateTo.set($event)" />
-      <button mat-icon-button class="!w-10 !h-10 shrink-0" [matTooltip]="'capsules.regenerate' | translate" [attr.aria-label]="'capsules.regenerate' | translate"
+      <button mat-icon-button class="!w-10 !h-10 shrink-0" [matTooltip]="I18N.capsules.regenerate | translate" [attr.aria-label]="I18N.capsules.regenerate | translate"
         (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
         <mat-icon>refresh</mat-icon>
       </button>

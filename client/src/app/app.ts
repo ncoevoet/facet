@@ -37,6 +37,7 @@ import { SortGroupKeyPipe } from './shared/pipes/sort-group-key.pipe';
 import { PersonThumbnailUrlPipe, ThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
 import { MemoriesDialogComponent } from './features/gallery/memories-dialog.component';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
+import { I18N } from './core/i18n/keys';
 
 /** Inline dialog for edition password prompt. */
 @Component({
@@ -45,25 +46,26 @@ import { DateRangeFilterComponent } from './shared/components/date-range-filter/
   template: `
     <h2 mat-dialog-title class="flex items-center gap-2 truncate">
       <mat-icon>lock_open</mat-icon>
-      {{ 'edition.unlock_title' | translate }}
+      {{ I18N.edition.unlock_title | translate }}
     </h2>
     <mat-dialog-content>
-      <p class="text-sm opacity-70 mb-3">{{ 'edition.unlock_description' | translate }}</p>
+      <p class="text-sm opacity-70 mb-3">{{ I18N.edition.unlock_description | translate }}</p>
       <mat-form-field class="w-full">
-        <mat-label>{{ 'edition.password_placeholder' | translate }}</mat-label>
+        <mat-label>{{ I18N.edition.password_placeholder | translate }}</mat-label>
         <input matInput type="password" [(ngModel)]="password" (keyup.enter)="submit()" />
       </mat-form-field>
       @if (error()) {
-        <p class="text-red-400 text-sm">{{ 'edition.invalid_password' | translate }}</p>
+        <p class="text-red-400 text-sm">{{ I18N.edition.invalid_password | translate }}</p>
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ 'dialog.cancel' | translate }}</button>
-      <button mat-flat-button [disabled]="!password" (click)="submit()">{{ 'edition.unlock_button' | translate }}</button>
+      <button mat-button mat-dialog-close>{{ I18N.dialog.cancel | translate }}</button>
+      <button mat-flat-button [disabled]="!password" (click)="submit()">{{ I18N.edition.unlock_button | translate }}</button>
     </mat-dialog-actions>
   `,
 })
 export class EditionDialogComponent {
+  protected readonly I18N = I18N;
   private dialogRef = inject(MatDialogRef<EditionDialogComponent>);
   private auth = inject(AuthService);
   protected password = '';
@@ -113,6 +115,7 @@ export class EditionDialogComponent {
   },
 })
 export class App implements OnInit {
+  protected readonly I18N = I18N;
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly api = inject(ApiService);
@@ -356,7 +359,7 @@ export class App implements OnInit {
       .pipe(filter((e): e is VersionReadyEvent => e.type === 'VERSION_READY'))
       .subscribe(() => {
         const ref = this.snackBar.open(
-          this.i18n.t('pwa.update_available'), this.i18n.t('pwa.reload'),
+          this.i18n.t(I18N.pwa.update_available), this.i18n.t(I18N.pwa.reload),
         );
         ref.onAction().subscribe(() => location.reload());
       });

@@ -10,6 +10,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 interface FaceMarker {
   bbox: number[] | null;
@@ -86,21 +87,21 @@ export class CategoryReasonPipe implements PipeTransform {
 
   transform(reason: CategoryReason): string {
     if (reason.reason_key === 'default') {
-      return this.i18n.t('critique.reason.default');
+      return this.i18n.t(I18N.critique.reason.default);
     }
     if (reason.details.length === 0) {
-      return this.i18n.t('critique.reason.matched_generic');
+      return this.i18n.t(I18N.critique.reason.matched_generic);
     }
     const details = reason.details.map(d => {
       if (d.key === 'tags') {
-        return this.i18n.t('critique.reason.tags', { tags: d.tags!.join(', ') });
+        return this.i18n.t(I18N.critique.reason.tags, { tags: d.tags!.join(', ') });
       }
       return this.i18n.t(`critique.reason.${d.key}`, {
         value: d.value ?? '',
         threshold: d.threshold ?? '',
       });
     });
-    return `${this.i18n.t('critique.reason.classified_as', { category: reason.category })}: ${details.join('; ')}`;
+    return `${this.i18n.t(I18N.critique.reason.classified_as, { category: reason.category })}: ${details.join('; ')}`;
   }
 }
 
@@ -114,10 +115,10 @@ export class MismatchReasonPipe implements PipeTransform {
     if (key === 'required_tags') {
       const tags = (mismatch.required as string[] || []).slice(0, 3).join(', ');
       const suffix = (mismatch.required as string[] || []).length > 3 ? ', …' : '';
-      return this.i18n.t('critique.reason.mismatch.required_tags', { tags: tags + suffix });
+      return this.i18n.t(I18N.critique.reason.mismatch.required_tags, { tags: tags + suffix });
     }
     if (key === 'excluded_tags') {
-      return this.i18n.t('critique.reason.mismatch.excluded_tags', { tags: (mismatch.actual as string[]).join(', ') });
+      return this.i18n.t(I18N.critique.reason.mismatch.excluded_tags, { tags: (mismatch.actual as string[]).join(', ') });
     }
 
     // Boolean filters — pick the right key based on required value
@@ -128,7 +129,7 @@ export class MismatchReasonPipe implements PipeTransform {
 
     // Numeric filters
     if (mismatch.actual === null || mismatch.actual === undefined) {
-      return this.i18n.t('critique.reason.mismatch.no_value');
+      return this.i18n.t(I18N.critique.reason.mismatch.no_value);
     }
     return this.i18n.t(`critique.reason.mismatch.${key}`, {
       required: String(mismatch.required ?? ''),
@@ -147,7 +148,7 @@ export class MismatchReasonPipe implements PipeTransform {
   template: `
     <h2 mat-dialog-title class="!flex items-center gap-2 truncate">
       <mat-icon>analytics</mat-icon>
-      <span class="flex-1">{{ 'critique.title' | translate }}</span>
+      <span class="flex-1">{{ I18N.critique.title | translate }}</span>
       <button mat-icon-button mat-dialog-close class="shrink-0 !-mt-1 !-mr-2">
         <mat-icon>close</mat-icon>
       </button>
@@ -190,13 +191,13 @@ export class MismatchReasonPipe implements PipeTransform {
 
         <!-- Category reason -->
         <div class="text-sm mb-4 p-3 rounded-lg bg-[var(--mat-sys-surface-container)]">
-          <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ 'critique.category_reason' | translate }}</div>
+          <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ I18N.critique.category_reason | translate }}</div>
           <div>{{ c.category_reason | categoryReason }}</div>
           @if (c.category_reason.rejected?.length) {
             <button class="mt-2 text-xs opacity-50 hover:opacity-80 flex items-center gap-1 cursor-pointer"
                     (click)="showRejected.set(!showRejected())">
               <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ showRejected() ? 'expand_less' : 'expand_more' }}</mat-icon>
-              {{ 'critique.reason.rejected_header' | translate:{ count: '' + c.category_reason.rejected!.length } }}
+              {{ I18N.critique.reason.rejected_header | translate:{ count: '' + c.category_reason.rejected!.length } }}
             </button>
             @if (showRejected()) {
               <ul class="mt-1 space-y-0.5 text-xs">
@@ -213,7 +214,7 @@ export class MismatchReasonPipe implements PipeTransform {
         </div>
 
         <!-- Score breakdown table -->
-        <div class="text-xs uppercase tracking-wider opacity-50 mb-2">{{ 'critique.breakdown' | translate }}</div>
+        <div class="text-xs uppercase tracking-wider opacity-50 mb-2">{{ I18N.critique.breakdown | translate }}</div>
         <table class="w-full text-sm mb-4">
           <tbody>
             @for (item of c.breakdown; track item.metric_key) {
@@ -232,7 +233,7 @@ export class MismatchReasonPipe implements PipeTransform {
           <div class="grid grid-cols-2 gap-4 mb-3">
             <div>
               @if (c.strengths.length) {
-                <div class="text-xs uppercase tracking-wider text-green-400 mb-1">{{ 'critique.strengths' | translate }}</div>
+                <div class="text-xs uppercase tracking-wider text-green-400 mb-1">{{ I18N.critique.strengths | translate }}</div>
                 <ul class="text-sm space-y-0.5">
                   @for (s of c.strengths; track s.metric_key) {
                     <li class="flex items-center gap-1.5">
@@ -245,7 +246,7 @@ export class MismatchReasonPipe implements PipeTransform {
             </div>
             <div>
               @if (c.weaknesses.length) {
-                <div class="text-xs uppercase tracking-wider text-red-400 mb-1">{{ 'critique.weaknesses' | translate }}</div>
+                <div class="text-xs uppercase tracking-wider text-red-400 mb-1">{{ I18N.critique.weaknesses | translate }}</div>
                 <ul class="text-sm space-y-0.5">
                   @for (w of c.weaknesses; track w.metric_key) {
                     <li class="flex items-center gap-1.5">
@@ -262,7 +263,7 @@ export class MismatchReasonPipe implements PipeTransform {
         <!-- Suggestions -->
         @if (c.suggestions.length) {
           <div class="mb-3">
-            <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ 'critique.suggestions' | translate }}</div>
+            <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ I18N.critique.suggestions | translate }}</div>
             <ul class="text-sm space-y-0.5">
               @for (tip of c.suggestions; track tip) {
                 <li class="flex items-center gap-1.5">
@@ -277,7 +278,7 @@ export class MismatchReasonPipe implements PipeTransform {
         <!-- VLM Critique -->
         @if (c.vlm_critique) {
           <div class="mt-4 p-3 rounded-lg bg-[var(--mat-sys-surface-container)]">
-            <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ 'critique.vlm_title' | translate }}</div>
+            <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ I18N.critique.vlm_title | translate }}</div>
             <p class="text-sm">{{ c.vlm_critique }}</p>
           </div>
         }
@@ -285,11 +286,11 @@ export class MismatchReasonPipe implements PipeTransform {
         <!-- Penalties -->
         @if (hasPenalties()) {
           <div class="mt-3 text-xs opacity-60">
-            <span class="uppercase tracking-wider">{{ 'critique.penalties' | translate }}:</span>
-            @if (c.penalties['blink']) { <span class="ml-2 text-red-400">{{ 'critique.penalty.blink' | translate }}</span> }
-            @if (c.penalties['noise']) { <span class="ml-2">{{ 'critique.penalty.noise' | translate:{ value: '' + c.penalties['noise'] } }}</span> }
-            @if (c.penalties['highlight_clipping']) { <span class="ml-2">{{ 'critique.penalty.highlight_clipping' | translate:{ value: '' + c.penalties['highlight_clipping'] } }}</span> }
-            @if (c.penalties['shadow_clipping']) { <span class="ml-2">{{ 'critique.penalty.shadow_clipping' | translate:{ value: '' + c.penalties['shadow_clipping'] } }}</span> }
+            <span class="uppercase tracking-wider">{{ I18N.critique.penalties | translate }}:</span>
+            @if (c.penalties['blink']) { <span class="ml-2 text-red-400">{{ I18N.critique.penalty.blink | translate }}</span> }
+            @if (c.penalties['noise']) { <span class="ml-2">{{ I18N.critique.penalty.noise | translate:{ value: '' + c.penalties['noise'] } }}</span> }
+            @if (c.penalties['highlight_clipping']) { <span class="ml-2">{{ I18N.critique.penalty.highlight_clipping | translate:{ value: '' + c.penalties['highlight_clipping'] } }}</span> }
+            @if (c.penalties['shadow_clipping']) { <span class="ml-2">{{ I18N.critique.penalty.shadow_clipping | translate:{ value: '' + c.penalties['shadow_clipping'] } }}</span> }
           </div>
         }
       }
@@ -297,6 +298,7 @@ export class MismatchReasonPipe implements PipeTransform {
   `,
 })
 export class PhotoCritiqueDialogComponent implements OnInit {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
@@ -340,7 +342,7 @@ export class PhotoCritiqueDialogComponent implements OnInit {
       );
       this.critique.set(res);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : this.i18n.t('critique.error_fallback');
+      const message = err instanceof Error ? err.message : this.i18n.t(I18N.critique.error_fallback);
       this.error.set(message);
     } finally {
       this.loading.set(false);

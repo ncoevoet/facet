@@ -25,6 +25,7 @@ import { PersonCardComponent, Person } from '../../shared/components/person-card
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { PersonsFiltersService } from './persons-filters.service';
+import { I18N } from '../../core/i18n/keys';
 
 interface PersonsResponse {
   persons: Person[];
@@ -51,9 +52,9 @@ export interface SplitPersonResult {
   selector: 'app-merge-target-dialog',
   imports: [MatButtonModule, MatDialogModule, MatIconModule, MatTooltipModule, TranslatePipe, PersonThumbnailUrlPipe],
   template: `
-    <h2 mat-dialog-title class="truncate" [matTooltip]="'persons.select_merge_target' | translate">{{ 'persons.select_merge_target' | translate }}</h2>
+    <h2 mat-dialog-title class="truncate" [matTooltip]="I18N.persons.select_merge_target | translate">{{ I18N.persons.select_merge_target | translate }}</h2>
     <mat-dialog-content>
-      <p class="text-sm text-gray-400 mb-4">{{ 'persons.select_merge_target_desc' | translate }}</p>
+      <p class="text-sm text-gray-400 mb-4">{{ I18N.persons.select_merge_target_desc | translate }}</p>
       <div class="grid grid-cols-3 gap-3">
         @for (person of data.persons; track person.id) {
           <button
@@ -64,27 +65,28 @@ export interface SplitPersonResult {
             [class.hover:bg-[var(--mat-sys-surface-container-high)]]="selectedTarget !== person.id"
             (click)="selectedTarget = person.id">
             @if (person.face_thumbnail) {
-              <img [src]="person.id | personThumbnailUrl" class="w-16 h-16 rounded-full object-cover" [alt]="person.name || ('persons.unnamed' | translate)" />
+              <img [src]="person.id | personThumbnailUrl" class="w-16 h-16 rounded-full object-cover" [alt]="person.name || (I18N.persons.unnamed | translate)" />
             } @else {
               <div class="w-16 h-16 rounded-full bg-[var(--mat-sys-surface-container-high)] flex items-center justify-center">
                 <mat-icon class="opacity-40">person</mat-icon>
               </div>
             }
-            <span class="text-sm truncate w-full text-center">{{ person.name || ('persons.unnamed' | translate) }}</span>
-            <span class="text-xs opacity-60">{{ 'persons.face_count' | translate:{ count: person.face_count } }}</span>
+            <span class="text-sm truncate w-full text-center">{{ person.name || (I18N.persons.unnamed | translate) }}</span>
+            <span class="text-xs opacity-60">{{ I18N.persons.face_count | translate:{ count: person.face_count } }}</span>
           </button>
         }
       </div>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button (click)="dialogRef.close(null)">{{ 'dialog.cancel' | translate }}</button>
+      <button mat-button (click)="dialogRef.close(null)">{{ I18N.dialog.cancel | translate }}</button>
       <button mat-flat-button [disabled]="!selectedTarget" (click)="dialogRef.close(selectedTarget)">
-        {{ 'persons.merge_action' | translate }}
+        {{ I18N.persons.merge_action | translate }}
       </button>
     </mat-dialog-actions>
   `,
 })
 export class MergeTargetDialogComponent {
+  protected readonly I18N = I18N;
   data: { persons: Person[] } = inject(MAT_DIALOG_DATA);
   dialogRef = inject(MatDialogRef<MergeTargetDialogComponent>);
   selectedTarget: number | null = null;
@@ -94,10 +96,10 @@ export class MergeTargetDialogComponent {
   selector: 'app-new-person-dialog',
   imports: [FormsModule, MatButtonModule, MatDialogModule, MatFormFieldModule, MatInputModule, TranslatePipe],
   template: `
-    <h2 mat-dialog-title>{{ 'manage_persons.new_person_dialog.title' | translate }}</h2>
+    <h2 mat-dialog-title>{{ I18N.manage_persons.new_person_dialog.title | translate }}</h2>
     <mat-dialog-content class="!flex !flex-col gap-3 min-w-[320px]">
       <mat-form-field subscriptSizing="dynamic" class="w-full">
-        <mat-label>{{ 'manage_persons.new_person_dialog.name_placeholder' | translate }}</mat-label>
+        <mat-label>{{ I18N.manage_persons.new_person_dialog.name_placeholder | translate }}</mat-label>
         <input matInput
                [(ngModel)]="name"
                (keydown.enter)="confirm()"
@@ -105,14 +107,15 @@ export class MergeTargetDialogComponent {
       </mat-form-field>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button (click)="dialogRef.close(null)">{{ 'dialog.cancel' | translate }}</button>
+      <button mat-button (click)="dialogRef.close(null)">{{ I18N.dialog.cancel | translate }}</button>
       <button mat-flat-button [disabled]="!name.trim()" (click)="confirm()">
-        {{ 'manage_persons.new_person_dialog.save' | translate }}
+        {{ I18N.manage_persons.new_person_dialog.save | translate }}
       </button>
     </mat-dialog-actions>
   `,
 })
 export class NewPersonDialogComponent {
+  protected readonly I18N = I18N;
   dialogRef = inject(MatDialogRef<NewPersonDialogComponent>);
   name = '';
 
@@ -137,17 +140,17 @@ export class NewPersonDialogComponent {
     FaceThumbnailUrlPipe,
   ],
   template: `
-    <h2 mat-dialog-title class="truncate" [matTooltip]="data.personName || ('persons.unnamed' | translate)">
-      {{ 'persons.split_dialog_title' | translate }}
+    <h2 mat-dialog-title class="truncate" [matTooltip]="data.personName || (I18N.persons.unnamed | translate)">
+      {{ I18N.persons.split_dialog_title | translate }}
     </h2>
     <mat-dialog-content class="!flex !flex-col gap-3 min-w-[320px] min-h-[160px]">
-      <p class="text-sm text-gray-400">{{ 'persons.split_dialog_desc' | translate }}</p>
+      <p class="text-sm text-gray-400">{{ I18N.persons.split_dialog_desc | translate }}</p>
       @if (loading()) {
         <div class="flex items-center justify-center py-8">
           <mat-spinner diameter="32" />
         </div>
       } @else if (faces().length === 0) {
-        <p class="text-sm opacity-60 text-center py-8">{{ 'persons.no_faces' | translate }}</p>
+        <p class="text-sm opacity-60 text-center py-8">{{ I18N.persons.no_faces | translate }}</p>
       } @else {
         <div class="flex flex-wrap gap-2 justify-center">
           @for (face of faces(); track face.id; let i = $index) {
@@ -156,7 +159,7 @@ export class NewPersonDialogComponent {
               [class.border-blue-500]="selectedIds().has(face.id)"
               [class.border-transparent]="!selectedIds().has(face.id)"
               [attr.aria-pressed]="selectedIds().has(face.id)"
-              [attr.aria-label]="'persons.split_select_face' | translate:{ index: i + 1 }"
+              [attr.aria-label]="I18N.persons.split_select_face | translate:{ index: i + 1 }"
               (click)="toggle(face.id)">
               <img [src]="face.id | faceThumbnailUrl" alt="" class="w-24 h-24 object-cover" />
               @if (selectedIds().has(face.id)) {
@@ -168,21 +171,22 @@ export class NewPersonDialogComponent {
           }
         </div>
         <mat-form-field subscriptSizing="dynamic" class="w-full">
-          <mat-label>{{ 'persons.split_name_placeholder' | translate }}</mat-label>
+          <mat-label>{{ I18N.persons.split_name_placeholder | translate }}</mat-label>
           <input matInput [(ngModel)]="name" />
         </mat-form-field>
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button (click)="dialogRef.close(null)">{{ 'dialog.cancel' | translate }}</button>
+      <button mat-button (click)="dialogRef.close(null)">{{ I18N.dialog.cancel | translate }}</button>
       <button mat-flat-button [disabled]="selectedIds().size === 0" (click)="confirm()">
         <mat-icon>call_split</mat-icon>
-        {{ 'persons.split_action' | translate:{ count: selectedIds().size } }}
+        {{ I18N.persons.split_action | translate:{ count: selectedIds().size } }}
       </button>
     </mat-dialog-actions>
   `,
 })
 export class PersonFacesDialogComponent implements OnInit {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   readonly data: PersonFacesDialogData = inject(MAT_DIALOG_DATA);
   readonly dialogRef = inject(MatDialogRef<PersonFacesDialogComponent, SplitPersonResult>);
@@ -247,26 +251,26 @@ export class PersonFacesDialogComponent implements OnInit {
         @if (auth.isEdition()) {
           <!-- Small screen: icon-only buttons -->
           <button mat-icon-button class="sm:!hidden" (click)="openNewPersonDialog()"
-                  [matTooltip]="'manage_persons.new_person' | translate"
-                  [attr.aria-label]="'manage_persons.new_person' | translate">
+                  [matTooltip]="I18N.manage_persons.new_person | translate"
+                  [attr.aria-label]="I18N.manage_persons.new_person | translate">
             <mat-icon>person_add</mat-icon>
           </button>
           <a mat-icon-button class="sm:!hidden" routerLink="/merge-suggestions"
-             [matTooltip]="'persons.merge_suggestions' | translate"
-             [attr.aria-label]="'persons.merge_suggestions' | translate">
+             [matTooltip]="I18N.persons.merge_suggestions | translate"
+             [attr.aria-label]="I18N.persons.merge_suggestions | translate">
             <mat-icon>auto_fix_high</mat-icon>
           </a>
           <!-- Larger screens: full buttons with labels -->
           <button mat-flat-button class="!hidden sm:!inline-flex" (click)="openNewPersonDialog()">
             <mat-icon>person_add</mat-icon>
-            {{ 'manage_persons.new_person' | translate }}
+            {{ I18N.manage_persons.new_person | translate }}
           </button>
           <a mat-flat-button class="!hidden sm:!inline-flex" routerLink="/merge-suggestions">
             <mat-icon>auto_fix_high</mat-icon>
-            {{ 'persons.merge_suggestions' | translate }}
+            {{ I18N.persons.merge_suggestions | translate }}
           </a>
           <mat-slide-toggle class="ml-auto" [checked]="showHidden()" (change)="toggleShowHidden($event.checked)">
-            {{ 'persons.show_hidden' | translate }}
+            {{ I18N.persons.show_hidden | translate }}
           </mat-slide-toggle>
         }
       </div>
@@ -286,8 +290,8 @@ export class PersonFacesDialogComponent implements OnInit {
             (click)="needsNamingExpanded.set(!needsNamingExpanded())"
           >
             <mat-icon class="opacity-60">{{ needsNamingExpanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
-            <span class="font-medium">{{ 'manage_persons.needs_naming' | translate }} ({{ needsNaming().length }})</span>
-            <span class="text-xs opacity-60 ml-2">{{ 'manage_persons.needs_naming_help' | translate }}</span>
+            <span class="font-medium">{{ I18N.manage_persons.needs_naming | translate }} ({{ needsNaming().length }})</span>
+            <span class="text-xs opacity-60 ml-2">{{ I18N.manage_persons.needs_naming_help | translate }}</span>
           </button>
           @if (needsNamingExpanded()) {
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
@@ -331,7 +335,7 @@ export class PersonFacesDialogComponent implements OnInit {
       @if (!loading() && persons().length === 0) {
         <div class="text-center py-16 opacity-50">
           <mat-icon class="!text-5xl !w-12 !h-12 mb-4">people</mat-icon>
-          <p>{{ 'persons.no_persons' | translate }}</p>
+          <p>{{ I18N.persons.no_persons | translate }}</p>
         </div>
       }
 
@@ -346,19 +350,19 @@ export class PersonFacesDialogComponent implements OnInit {
     <!-- Selection action bar (sticky bottom) -->
     @if (auth.isEdition() && selectedIds().size > 0) {
       <div class="fixed bottom-[45px] lg:bottom-0 left-0 right-0 z-50 flex flex-col lg:flex-row items-center justify-center gap-2 lg:gap-3 px-4 lg:px-6 py-2 lg:py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
-        <span class="text-sm font-medium">{{ 'gallery.selection.count' | translate:{ count: selectedIds().size } }}</span>
+        <span class="text-sm font-medium">{{ I18N.gallery.selection.count | translate:{ count: selectedIds().size } }}</span>
         <div class="flex items-center gap-2">
           <button mat-button (click)="clearSelection()">
             <mat-icon>close</mat-icon>
-            {{ 'persons.clear_selection' | translate }}
+            {{ I18N.persons.clear_selection | translate }}
           </button>
           <button mat-flat-button [disabled]="selectedIds().size < 2" (click)="openMergeDialog()">
             <mat-icon>merge</mat-icon>
-            {{ 'persons.merge_action' | translate }}
+            {{ I18N.persons.merge_action | translate }}
           </button>
           <button mat-stroked-button color="warn" (click)="batchDelete()">
             <mat-icon>delete</mat-icon>
-            {{ 'persons.delete_selected' | translate:{ count: selectedIds().size } }}
+            {{ I18N.persons.delete_selected | translate:{ count: selectedIds().size } }}
           </button>
         </div>
       </div>
@@ -366,6 +370,7 @@ export class PersonFacesDialogComponent implements OnInit {
   `,
 })
 export class ManagePersonsComponent implements OnInit {
+  protected readonly I18N = I18N;
   readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
@@ -426,9 +431,9 @@ export class ManagePersonsComponent implements OnInit {
       this.needsNaming.update(list => list.filter(p => p.id !== id));
       // Mirror the new name into the main grid if the same person is rendered there.
       this.persons.update(list => list.map(p => p.id === id ? { ...p, name: trimmed } : p));
-      this.snackBar.open(this.i18n.t('persons.renamed'), '', { duration: 2000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.renamed), '', { duration: 2000 });
     } catch {
-      this.snackBar.open(this.i18n.t('persons.rename_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.rename_error), '', { duration: 3000 });
     }
   }
 
@@ -459,9 +464,9 @@ export class ManagePersonsComponent implements OnInit {
       this.persons.update(list => [newPerson, ...list]);
       this.total.update(t => t + 1);
       this.editingId.set(created.id);
-      this.snackBar.open(this.i18n.t('persons.created'), '', { duration: 2000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.created), '', { duration: 2000 });
     } catch {
-      this.snackBar.open(this.i18n.t('persons.create_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.create_error), '', { duration: 3000 });
     }
   }
 
@@ -493,7 +498,7 @@ export class ManagePersonsComponent implements OnInit {
       }
       this.total.set(res.total);
     } catch {
-      this.snackBar.open(this.i18n.t('persons.error_loading'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.error_loading), '', { duration: 3000 });
     } finally {
       this.loading.set(false);
     }
@@ -528,9 +533,9 @@ export class ManagePersonsComponent implements OnInit {
       this.persons.update((list) =>
         list.map((p) => (p.id === person.id ? { ...p, name: trimmed } : p)),
       );
-      this.snackBar.open(this.i18n.t('persons.renamed'), '', { duration: 2000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.renamed), '', { duration: 2000 });
     } catch {
-      this.snackBar.open(this.i18n.t('persons.rename_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.rename_error), '', { duration: 3000 });
     } finally {
       this.editingId.set(null);
     }
@@ -541,9 +546,9 @@ export class ManagePersonsComponent implements OnInit {
   async deletePerson(person: Person): Promise<void> {
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
-        title: this.i18n.t('persons.confirm_delete_title'),
-        message: this.i18n.t('persons.confirm_delete_message', {
-          name: person.name || this.i18n.t('persons.unnamed'),
+        title: this.i18n.t(I18N.persons.confirm_delete_title),
+        message: this.i18n.t(I18N.persons.confirm_delete_message, {
+          name: person.name || this.i18n.t(I18N.persons.unnamed),
         }),
       },
     });
@@ -560,9 +565,9 @@ export class ManagePersonsComponent implements OnInit {
         next.delete(person.id);
         return next;
       });
-      this.snackBar.open(this.i18n.t('persons.deleted'), '', { duration: 2000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.deleted), '', { duration: 2000 });
     } catch {
-      this.snackBar.open(this.i18n.t('persons.delete_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.delete_error), '', { duration: 3000 });
     }
   }
 
@@ -632,7 +637,7 @@ export class ManagePersonsComponent implements OnInit {
         { duration: 2000 },
       );
     } catch {
-      this.snackBar.open(this.i18n.t('persons.hide_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.hide_error), '', { duration: 3000 });
     }
   }
 
@@ -679,9 +684,9 @@ export class ManagePersonsComponent implements OnInit {
       });
       // Net change: +1 new person, and -1 source if it was emptied.
       this.total.update((t) => t + (sourceEmptied ? 0 : 1));
-      this.snackBar.open(this.i18n.t('persons.split_done'), '', { duration: 2000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.split_done), '', { duration: 2000 });
     } catch {
-      this.snackBar.open(this.i18n.t('persons.split_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.split_error), '', { duration: 3000 });
     }
   }
 
@@ -711,8 +716,8 @@ export class ManagePersonsComponent implements OnInit {
 
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
-        title: this.i18n.t('persons.confirm_batch_delete_title'),
-        message: this.i18n.t('persons.confirm_batch_delete_message', { count: ids.length }),
+        title: this.i18n.t(I18N.persons.confirm_batch_delete_title),
+        message: this.i18n.t(I18N.persons.confirm_batch_delete_message, { count: ids.length }),
       },
     });
 
@@ -724,11 +729,11 @@ export class ManagePersonsComponent implements OnInit {
       this.persons.update((list) => list.filter((p) => !ids.includes(p.id)));
       this.total.update((t) => t - ids.length);
       this.selectedIds.set(new Set());
-      this.snackBar.open(this.i18n.t('persons.batch_deleted', { count: ids.length }), '', {
+      this.snackBar.open(this.i18n.t(I18N.persons.batch_deleted, { count: ids.length }), '', {
         duration: 2000,
       });
     } catch {
-      this.snackBar.open(this.i18n.t('persons.delete_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.delete_error), '', { duration: 3000 });
     }
   }
 
@@ -774,9 +779,9 @@ export class ManagePersonsComponent implements OnInit {
       );
       this.total.update((t) => t - sourceIds.length);
       this.selectedIds.set(new Set());
-      this.snackBar.open(this.i18n.t('persons.merged'), '', { duration: 2000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.merged), '', { duration: 2000 });
     } catch {
-      this.snackBar.open(this.i18n.t('persons.merge_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.merge_error), '', { duration: 3000 });
     }
   }
 }

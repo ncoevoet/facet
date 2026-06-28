@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 export interface EditAlbumDialogData {
   album: Album;
@@ -21,24 +22,25 @@ export interface EditAlbumDialogData {
     MatButtonModule, MatTooltipModule, TranslatePipe,
   ],
   template: `
-    <h2 mat-dialog-title class="truncate" [matTooltip]="'albums.edit' | translate">{{ 'albums.edit' | translate }}</h2>
+    <h2 mat-dialog-title class="truncate" [matTooltip]="I18N.albums.edit | translate">{{ I18N.albums.edit | translate }}</h2>
     <mat-dialog-content>
       <mat-form-field class="w-full">
-        <mat-label>{{ 'albums.name' | translate }}</mat-label>
+        <mat-label>{{ I18N.albums.name | translate }}</mat-label>
         <input matInput [(ngModel)]="name" maxlength="100" (keydown.enter)="save()" />
       </mat-form-field>
       <mat-form-field class="w-full">
-        <mat-label>{{ 'albums.description_label' | translate }}</mat-label>
+        <mat-label>{{ I18N.albums.description_label | translate }}</mat-label>
         <textarea matInput [(ngModel)]="description" maxlength="500" rows="2"></textarea>
       </mat-form-field>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ 'ui.buttons.cancel' | translate }}</button>
-      <button mat-flat-button [disabled]="!name.trim() || saving()" (click)="save()">{{ saving() ? ('ui.buttons.saving' | translate) : ('ui.buttons.save' | translate) }}</button>
+      <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
+      <button mat-flat-button [disabled]="!name.trim() || saving()" (click)="save()">{{ saving() ? (I18N.ui.buttons.saving | translate) : (I18N.ui.buttons.save | translate) }}</button>
     </mat-dialog-actions>
   `,
 })
 export class EditAlbumDialogComponent {
+  protected readonly I18N = I18N;
   private readonly albumService = inject(AlbumService);
   private readonly dialogRef = inject(MatDialogRef<EditAlbumDialogComponent>);
   private readonly data = inject<EditAlbumDialogData>(MAT_DIALOG_DATA);

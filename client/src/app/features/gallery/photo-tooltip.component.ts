@@ -8,6 +8,11 @@ import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../shared/pipes/thu
 import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
 import { HistogramComponent } from '../../shared/components/histogram/histogram.component';
 
+// Intentionally keeps literal i18n keys instead of the shared I18N constants: this
+// spec renders right after a Leaflet map spec, and the Angular Vitest builder shares
+// one module registry per worker -- the map spec's module mock resets it and nulls
+// this component's I18N import binding. Excluded in client/scripts/migrate-i18n.mjs.
+
 /** Replace underscores with spaces for display (e.g. "rule_of_thirds" → "Rule Of Thirds"). */
 @Pipe({ name: 'categoryLabel', standalone: true, pure: true })
 export class CategoryLabelPipe implements PipeTransform {

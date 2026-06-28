@@ -23,6 +23,7 @@ import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CompareFiltersService } from './compare-filters.service';
 import { WeightIconPipe, WeightLabelKeyPipe, FilterValueFormatPipe, ModifierValueFormatPipe } from './comparison.pipes';
+import { I18N } from '../../core/i18n/keys';
 
 interface CategoryWeights {
   weights: Record<string, number>;
@@ -102,19 +103,19 @@ class SignalErrorMatcher {
       <mat-card>
         <mat-card-header class="!flex !items-start">
           <div class="flex-1">
-            <mat-card-title>{{ 'comparison.weight_sliders' | translate }}</mat-card-title>
+            <mat-card-title>{{ I18N.comparison.weight_sliders | translate }}</mat-card-title>
             <mat-card-subtitle>
-              {{ 'comparison.total' | translate }}: {{ weightTotal() }}%
+              {{ I18N.comparison.total | translate }}: {{ weightTotal() }}%
               @if (weightTotal() !== 100) {
                 <span class="text-amber-400">
-                  ({{ 'comparison.should_be_100' | translate }})
+                  ({{ I18N.comparison.should_be_100 | translate }})
                 </span>
               }
             </mat-card-subtitle>
           </div>
           @if (weightTotal() !== 100) {
             <button mat-icon-button class="!w-8 !h-8 shrink-0" (click)="normalizeWeights()"
-              [matTooltip]="'stats.categories.weights.normalize' | translate">
+              [matTooltip]="I18N.stats.categories.weights.normalize | translate">
               <mat-icon>balance</mat-icon>
             </button>
           }
@@ -146,8 +147,8 @@ class SignalErrorMatcher {
       <!-- Right: Weight Impact chart -->
       <mat-card>
         <mat-card-header>
-          <mat-card-title>{{ 'stats.weight_impact.title' | translate }}</mat-card-title>
-          <mat-card-subtitle>{{ 'stats.weight_impact.description' | translate }}</mat-card-subtitle>
+          <mat-card-title>{{ I18N.stats.weight_impact.title | translate }}</mat-card-title>
+          <mat-card-subtitle>{{ I18N.stats.weight_impact.description | translate }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content class="!pt-4">
           @if (weightImpactLoading()) {
@@ -157,7 +158,7 @@ class SignalErrorMatcher {
               <canvas #weightImpactCanvas></canvas>
             </div>
           } @else {
-            <p class="text-sm text-gray-400">{{ 'stats.weight_impact.empty' | translate }}</p>
+            <p class="text-sm text-gray-400">{{ I18N.stats.weight_impact.empty | translate }}</p>
           }
         </mat-card-content>
       </mat-card>
@@ -167,12 +168,12 @@ class SignalErrorMatcher {
     <mat-card class="mt-6">
       <mat-card-header>
         <mat-card-title class="flex items-center gap-2">
-          {{ 'comparison.preview' | translate }}
+          {{ I18N.comparison.preview | translate }}
           @if (previewLoading()) {
             <mat-spinner diameter="18" class="inline-flex !w-[18px] !h-[18px]" />
           }
         </mat-card-title>
-        <mat-card-subtitle>{{ 'comparison.top_n_photos' | translate:{ count: previewCount } }}</mat-card-subtitle>
+        <mat-card-subtitle>{{ I18N.comparison.top_n_photos | translate:{ count: previewCount } }}</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content class="!pt-4">
         @if (previewPhotos().length > 0) {
@@ -188,7 +189,7 @@ class SignalErrorMatcher {
             }
           </div>
         } @else if (!previewLoading()) {
-          <p class="text-gray-500 text-sm">{{ 'comparison.no_preview' | translate }}</p>
+          <p class="text-gray-500 text-sm">{{ I18N.comparison.no_preview | translate }}</p>
         }
       </mat-card-content>
     </mat-card>
@@ -198,62 +199,62 @@ class SignalErrorMatcher {
       <!-- Modifiers -->
       <mat-card>
         <mat-card-header>
-          <mat-card-title>{{ 'comparison.modifiers' | translate }}</mat-card-title>
-          <mat-card-subtitle>{{ 'comparison.modifiers_description' | translate }}</mat-card-subtitle>
+          <mat-card-title>{{ I18N.comparison.modifiers | translate }}</mat-card-title>
+          <mat-card-subtitle>{{ I18N.comparison.modifiers_description | translate }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content class="!pt-4">
           <div class="flex flex-col gap-4">
             <div>
               <div class="flex items-center gap-3">
                 <mat-icon class="text-gray-400 shrink-0">add_circle</mat-icon>
-                <span class="w-40 shrink-0 text-sm">{{ 'comparison.modifier.bonus' | translate }}</span>
+                <span class="w-40 shrink-0 text-sm">{{ I18N.comparison.modifier.bonus | translate }}</span>
                 <mat-slider class="grow" [min]="-5" [max]="5" [step]="0.1" [discrete]="true" [displayWith]="displayBonus">
-                  <input matSliderThumb [value]="getModifierNum('bonus') ?? 0" (valueChange)="setModifierNum('bonus', $event)" [attr.aria-label]="'comparison.modifier.bonus' | translate" />
+                  <input matSliderThumb [value]="getModifierNum('bonus') ?? 0" (valueChange)="setModifierNum('bonus', $event)" [attr.aria-label]="I18N.comparison.modifier.bonus | translate" />
                 </mat-slider>
                 <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('bonus') | modifierValueFormat:'bonus' }}</span>
               </div>
-              <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ 'comparison.modifier.bonus_hint' | translate }}</p>
+              <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ I18N.comparison.modifier.bonus_hint | translate }}</p>
             </div>
             <div>
               <div class="flex items-center gap-3">
                 <mat-icon class="text-gray-400 shrink-0">grain</mat-icon>
-                <span class="w-40 shrink-0 text-sm">{{ 'comparison.modifier.noise_tolerance' | translate }}</span>
+                <span class="w-40 shrink-0 text-sm">{{ I18N.comparison.modifier.noise_tolerance | translate }}</span>
                 <mat-slider class="grow" [min]="0" [max]="200" [step]="5" [discrete]="true" [displayWith]="displayPercent">
-                  <input matSliderThumb [value]="(getModifierNum('noise_tolerance_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('noise_tolerance_multiplier', $event / 100)" [attr.aria-label]="'comparison.modifier.noise_tolerance' | translate" />
+                  <input matSliderThumb [value]="(getModifierNum('noise_tolerance_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('noise_tolerance_multiplier', $event / 100)" [attr.aria-label]="I18N.comparison.modifier.noise_tolerance | translate" />
                 </mat-slider>
                 <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('noise_tolerance_multiplier') | modifierValueFormat:'noise_tolerance_multiplier' }}</span>
               </div>
-              <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ 'comparison.modifier.noise_tolerance_hint' | translate }}</p>
+              <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ I18N.comparison.modifier.noise_tolerance_hint | translate }}</p>
             </div>
             <div>
               <div class="flex items-center gap-3">
                 <mat-icon class="text-gray-400 shrink-0">highlight</mat-icon>
-                <span class="w-40 shrink-0 text-sm">{{ 'comparison.modifier.clipping_multiplier' | translate }}</span>
+                <span class="w-40 shrink-0 text-sm">{{ I18N.comparison.modifier.clipping_multiplier | translate }}</span>
                 <mat-slider class="grow" [min]="0" [max]="500" [step]="10" [discrete]="true" [displayWith]="displayPercent">
-                  <input matSliderThumb [value]="(getModifierNum('_clipping_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('_clipping_multiplier', $event / 100)" [attr.aria-label]="'comparison.modifier.clipping_multiplier' | translate" />
+                  <input matSliderThumb [value]="(getModifierNum('_clipping_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('_clipping_multiplier', $event / 100)" [attr.aria-label]="I18N.comparison.modifier.clipping_multiplier | translate" />
                 </mat-slider>
                 <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('_clipping_multiplier') | modifierValueFormat:'_clipping_multiplier' }}</span>
               </div>
-              <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ 'comparison.modifier.clipping_multiplier_hint' | translate }}</p>
+              <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ I18N.comparison.modifier.clipping_multiplier_hint | translate }}</p>
             </div>
             <mat-divider />
             <div class="flex flex-col gap-0.5">
               <mat-checkbox [checked]="!!modifiers()['_skip_clipping_penalty']" (change)="setModifierBool('_skip_clipping_penalty', $event.checked)">
-                {{ 'comparison.modifier.skip_clipping_penalty' | translate }}
+                {{ I18N.comparison.modifier.skip_clipping_penalty | translate }}
               </mat-checkbox>
-              <p class="text-xs text-gray-500 ml-8">{{ 'comparison.modifier.skip_clipping_penalty_hint' | translate }}</p>
+              <p class="text-xs text-gray-500 ml-8">{{ I18N.comparison.modifier.skip_clipping_penalty_hint | translate }}</p>
             </div>
             <div class="flex flex-col gap-0.5">
               <mat-checkbox [checked]="!!modifiers()['_skip_oversaturation_penalty']" (change)="setModifierBool('_skip_oversaturation_penalty', $event.checked)">
-                {{ 'comparison.modifier.skip_oversaturation_penalty' | translate }}
+                {{ I18N.comparison.modifier.skip_oversaturation_penalty | translate }}
               </mat-checkbox>
-              <p class="text-xs text-gray-500 ml-8">{{ 'comparison.modifier.skip_oversaturation_penalty_hint' | translate }}</p>
+              <p class="text-xs text-gray-500 ml-8">{{ I18N.comparison.modifier.skip_oversaturation_penalty_hint | translate }}</p>
             </div>
             <div class="flex flex-col gap-0.5">
               <mat-checkbox [checked]="!!modifiers()['_apply_blink_penalty']" (change)="setModifierBool('_apply_blink_penalty', $event.checked)">
-                {{ 'comparison.modifier.apply_blink_penalty' | translate }}
+                {{ I18N.comparison.modifier.apply_blink_penalty | translate }}
               </mat-checkbox>
-              <p class="text-xs text-gray-500 ml-8">{{ 'comparison.modifier.apply_blink_penalty_hint' | translate }}</p>
+              <p class="text-xs text-gray-500 ml-8">{{ I18N.comparison.modifier.apply_blink_penalty_hint | translate }}</p>
             </div>
           </div>
         </mat-card-content>
@@ -262,39 +263,39 @@ class SignalErrorMatcher {
       <!-- Filters -->
       <mat-card>
         <mat-card-header>
-          <mat-card-title>{{ 'comparison.filters' | translate }}</mat-card-title>
-          <mat-card-subtitle>{{ 'comparison.filters_description' | translate }}</mat-card-subtitle>
+          <mat-card-title>{{ I18N.comparison.filters | translate }}</mat-card-title>
+          <mat-card-subtitle>{{ I18N.comparison.filters_description | translate }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content class="!pt-4">
           <div class="flex flex-col gap-4">
             <mat-form-field>
-              <mat-label>{{ 'comparison.filter.required_tags' | translate }}</mat-label>
-              <input matInput type="text" [placeholder]="'comparison.filter.tags_placeholder' | translate"
+              <mat-label>{{ I18N.comparison.filter.required_tags | translate }}</mat-label>
+              <input matInput type="text" [placeholder]="I18N.comparison.filter.tags_placeholder | translate"
                 [ngModel]="getFilterTags('required_tags')" (ngModelChange)="setFilterTags('required_tags', $event)" />
-              <mat-hint>{{ 'comparison.filter.required_tags_hint' | translate }}</mat-hint>
+              <mat-hint>{{ I18N.comparison.filter.required_tags_hint | translate }}</mat-hint>
             </mat-form-field>
             <mat-form-field>
-              <mat-label>{{ 'comparison.filter.excluded_tags' | translate }}</mat-label>
-              <input matInput type="text" [placeholder]="'comparison.filter.tags_placeholder' | translate"
+              <mat-label>{{ I18N.comparison.filter.excluded_tags | translate }}</mat-label>
+              <input matInput type="text" [placeholder]="I18N.comparison.filter.tags_placeholder | translate"
                 [ngModel]="getFilterTags('excluded_tags')" (ngModelChange)="setFilterTags('excluded_tags', $event)" />
-              <mat-hint>{{ 'comparison.filter.excluded_tags_hint' | translate }}</mat-hint>
+              <mat-hint>{{ I18N.comparison.filter.excluded_tags_hint | translate }}</mat-hint>
             </mat-form-field>
             <mat-form-field>
-              <mat-label>{{ 'comparison.filter.tag_match_mode' | translate }}</mat-label>
+              <mat-label>{{ I18N.comparison.filter.tag_match_mode | translate }}</mat-label>
               <mat-select [value]="filters()['tag_match_mode'] ?? 'any'" (selectionChange)="setFilter('tag_match_mode', $event.value)">
-                <mat-option value="any">{{ 'comparison.filter.tag_match_any' | translate }}</mat-option>
-                <mat-option value="all">{{ 'comparison.filter.tag_match_all' | translate }}</mat-option>
+                <mat-option value="any">{{ I18N.comparison.filter.tag_match_any | translate }}</mat-option>
+                <mat-option value="all">{{ I18N.comparison.filter.tag_match_all | translate }}</mat-option>
               </mat-select>
-              <mat-hint>{{ 'comparison.filter.tag_match_mode_hint' | translate }}</mat-hint>
+              <mat-hint>{{ I18N.comparison.filter.tag_match_mode_hint | translate }}</mat-hint>
             </mat-form-field>
             <mat-divider />
             @for (boolKey of booleanFilterKeys; track boolKey) {
               <mat-form-field>
                 <mat-label>{{ ('comparison.filter.' + boolKey) | translate }}</mat-label>
                 <mat-select [value]="getFilterBoolValue(boolKey)" (selectionChange)="setFilterBool(boolKey, $event.value)">
-                  <mat-option value="">{{ 'comparison.filter.any' | translate }}</mat-option>
-                  <mat-option value="true">{{ 'comparison.filter.boolean_true' | translate }}</mat-option>
-                  <mat-option value="false">{{ 'comparison.filter.boolean_false' | translate }}</mat-option>
+                  <mat-option value="">{{ I18N.comparison.filter.any | translate }}</mat-option>
+                  <mat-option value="true">{{ I18N.comparison.filter.boolean_true | translate }}</mat-option>
+                  <mat-option value="false">{{ I18N.comparison.filter.boolean_false | translate }}</mat-option>
                 </mat-select>
                 <mat-hint>{{ ('comparison.filter.' + boolKey + '_hint') | translate }}</mat-hint>
               </mat-form-field>
@@ -305,7 +306,7 @@ class SignalErrorMatcher {
                 <div class="text-sm text-gray-400 mb-1">{{ range.labelKey | translate }}</div>
                 <div class="flex gap-2">
                   <mat-form-field class="flex-1" subscriptSizing="dynamic">
-                    <mat-label>{{ 'comparison.filter.min' | translate }}</mat-label>
+                    <mat-label>{{ I18N.comparison.filter.min | translate }}</mat-label>
                     <input matInput type="number" [step]="range.step" [placeholder]="range.placeholder[0]"
                       [errorStateMatcher]="filterMatchers[range.minKey]"
                       [ngModel]="getFilterNum(range.minKey)" (ngModelChange)="setFilterNum(range.minKey, $event)" />
@@ -315,7 +316,7 @@ class SignalErrorMatcher {
                     }
                   </mat-form-field>
                   <mat-form-field class="flex-1" subscriptSizing="dynamic">
-                    <mat-label>{{ 'comparison.filter.max' | translate }}</mat-label>
+                    <mat-label>{{ I18N.comparison.filter.max | translate }}</mat-label>
                     <input matInput type="number" [step]="range.step" [placeholder]="range.placeholder[1]"
                       [errorStateMatcher]="filterMatchers[range.maxKey]"
                       [ngModel]="getFilterNum(range.maxKey)" (ngModelChange)="setFilterNum(range.maxKey, $event)" />
@@ -335,6 +336,7 @@ class SignalErrorMatcher {
   `,
 })
 export class ComparisonWeightsTabComponent {
+  protected readonly I18N = I18N;
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private snackBar = inject(MatSnackBar);
@@ -500,10 +502,10 @@ export class ComparisonWeightsTabComponent {
       this.filters.set({ ...(data.filters ?? {}) });
       this.savedFilters.set({ ...(data.filters ?? {}) });
       if (notify) {
-        this.snackBar.open(this.i18n.t('comparison.weights_reset'), '', { duration: 3000 });
+        this.snackBar.open(this.i18n.t(I18N.comparison.weights_reset), '', { duration: 3000 });
       }
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_loading_weights'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_loading_weights), '', { duration: 4000 });
     } finally {
       this.loading.set(false);
     }
@@ -532,7 +534,7 @@ export class ComparisonWeightsTabComponent {
       );
       this.previewPhotos.set(data.photos ?? []);
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_loading_preview'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_loading_preview), '', { duration: 4000 });
     } finally {
       this.previewLoading.set(false);
     }
@@ -652,9 +654,9 @@ export class ComparisonWeightsTabComponent {
       this.savedWeights.set({ ...this.weights() });
       this.savedModifiers.set({ ...this.modifiers() });
       this.savedFilters.set({ ...this.filters() });
-      this.snackBar.open(this.i18n.t('comparison.weights_saved'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.weights_saved), '', { duration: 3000 });
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_saving_weights'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_saving_weights), '', { duration: 4000 });
     } finally {
       this.saving.set(false);
     }
@@ -668,11 +670,11 @@ export class ComparisonWeightsTabComponent {
       const result = await firstValueFrom(
         this.api.post<{ success: boolean; message?: string }>('/stats/categories/recompute', { category: cat }),
       );
-      this.snackBar.open(result.message ?? this.i18n.t('comparison.recalculated'), '', { duration: 5000 });
+      this.snackBar.open(result.message ?? this.i18n.t(I18N.comparison.recalculated), '', { duration: 5000 });
       void this.loadPreview();
       void this.loadWeightImpact();
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_recalculating'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_recalculating), '', { duration: 4000 });
     } finally {
       this.recalculating.set(false);
     }
@@ -700,8 +702,8 @@ export class ComparisonWeightsTabComponent {
       data: {
         labels,
         datasets: [
-          { label: this.i18n.t('stats.weight_impact.configured'), data: weightValues, backgroundColor: '#3b82f6cc', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 3 },
-          { label: this.i18n.t('stats.weight_impact.actual_impact'), data: corrValues, backgroundColor: this.themeService.accentColor() + 'cc', borderColor: this.themeService.accentColor(), borderWidth: 1, borderRadius: 3 },
+          { label: this.i18n.t(I18N.stats.weight_impact.configured), data: weightValues, backgroundColor: '#3b82f6cc', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 3 },
+          { label: this.i18n.t(I18N.stats.weight_impact.actual_impact), data: corrValues, backgroundColor: this.themeService.accentColor() + 'cc', borderColor: this.themeService.accentColor(), borderWidth: 1, borderRadius: 3 },
         ],
       },
       options: {

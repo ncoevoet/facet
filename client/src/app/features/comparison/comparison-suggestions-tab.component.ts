@@ -11,6 +11,7 @@ import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CompareFiltersService } from './compare-filters.service';
 import { WeightLabelKeyPipe } from './comparison.pipes';
+import { I18N } from '../../core/i18n/keys';
 
 interface LearnedWeightsResponse {
   available: boolean;
@@ -54,20 +55,20 @@ interface TopPhoto {
           @if (lw.available && lw.suggested_weights) {
             <div class="text-sm space-y-3">
               <div class="text-gray-400">
-                {{ 'compare.weights.learned_from' | translate:{ count: lw.comparisons_used ?? 0 } }}
+                {{ I18N.compare.weights.learned_from | translate:{ count: lw.comparisons_used ?? 0 } }}
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-gray-400">{{ 'compare.weights.prediction_accuracy' | translate }}:</span>
+                <span class="text-gray-400">{{ I18N.compare.weights.prediction_accuracy | translate }}:</span>
                 <span class="font-mono">{{ (lw.accuracy_before ?? 0) | fixed:0 }}%</span>
                 <span class="text-gray-500">&rarr;</span>
                 <span class="font-mono text-[var(--facet-accent-text)]">{{ (lw.accuracy_after ?? 0) | fixed:0 }}%</span>
               </div>
               <div class="text-xs">
                 <div class="flex items-center gap-2 pb-1 mb-1 border-b border-[var(--mat-sys-outline-variant)] text-gray-500 uppercase text-[10px] font-semibold tracking-wide">
-                  <span class="flex-1">{{ 'comparison.weight_property' | translate }}</span>
-                  <span class="w-12 text-right">{{ 'comparison.weight_current' | translate }}</span>
+                  <span class="flex-1">{{ I18N.comparison.weight_property | translate }}</span>
+                  <span class="w-12 text-right">{{ I18N.comparison.weight_current | translate }}</span>
                   <span class="w-5 shrink-0"></span>
-                  <span class="w-12 text-right">{{ 'comparison.weight_suggested' | translate }}</span>
+                  <span class="w-12 text-right">{{ I18N.comparison.weight_suggested | translate }}</span>
                 </div>
                 @for (row of weightRows(); track row.key) {
                   <div class="flex items-center gap-2 py-1 border-b border-[var(--mat-sys-outline-variant)]"
@@ -80,21 +81,21 @@ interface TopPhoto {
                 }
               </div>
               @if (!lw.suggest_changes) {
-                <p class="text-gray-500 text-xs">{{ 'compare.weights.already_good' | translate }}</p>
+                <p class="text-gray-500 text-xs">{{ I18N.compare.weights.already_good | translate }}</p>
               }
               @if (needsRecompute()) {
-                <p class="text-amber-400 text-xs">{{ 'comparison.recompute_needed' | translate }}</p>
+                <p class="text-amber-400 text-xs">{{ I18N.comparison.recompute_needed | translate }}</p>
               }
             </div>
           } @else {
-            <p class="text-sm text-gray-500">{{ 'comparison.suggestions_insufficient' | translate }}</p>
+            <p class="text-sm text-gray-500">{{ I18N.comparison.suggestions_insufficient | translate }}</p>
           }
         }
       </div>
 
       <!-- Column 2: current top 10 (before) -->
       <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-4">
-        <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ 'comparison.top_before' | translate }}</div>
+        <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ I18N.comparison.top_before | translate }}</div>
         @for (p of topBefore(); track p.path; let i = $index) {
           <div class="relative mb-3">
             <img [src]="p.path | thumbnailUrl:512" class="w-full rounded object-cover" [alt]="p.filename" loading="lazy" />
@@ -106,7 +107,7 @@ interface TopPhoto {
 
       <!-- Column 3: top 10 after recompute -->
       <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-4">
-        <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ 'comparison.top_after' | translate }}</div>
+        <div class="text-xs font-semibold uppercase opacity-60 mb-3">{{ I18N.comparison.top_after | translate }}</div>
         @if (recomputed()) {
           @for (p of topAfter(); track p.path; let i = $index) {
             <div class="relative mb-3">
@@ -116,13 +117,14 @@ interface TopPhoto {
             </div>
           }
         } @else {
-          <p class="text-xs text-gray-500">{{ 'comparison.top_after_hint' | translate }}</p>
+          <p class="text-xs text-gray-500">{{ I18N.comparison.top_after_hint | translate }}</p>
         }
       </div>
     </div>
   `,
 })
 export class ComparisonSuggestionsTabComponent {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
@@ -185,7 +187,7 @@ export class ComparisonSuggestionsTabComponent {
       this.categoryConfig.set(config);
       this.topBefore.set(top);
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_loading_suggestions'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_loading_suggestions), '', { duration: 4000 });
     }
   }
 
@@ -219,9 +221,9 @@ export class ComparisonSuggestionsTabComponent {
       }));
       this.weightsApplied.emit(merged);
       this.applied.set(true);
-      this.snackBar.open(this.i18n.t('comparison.weights_saved'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.weights_saved), '', { duration: 3000 });
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_saving_weights'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_saving_weights), '', { duration: 4000 });
     } finally {
       this.saving.set(false);
     }
@@ -237,9 +239,9 @@ export class ComparisonSuggestionsTabComponent {
       );
       this.topAfter.set(await this.fetchTopPhotos(category));
       this.recomputed.set(true);
-      this.snackBar.open(result.message ?? this.i18n.t('comparison.recalculated'), '', { duration: 5000 });
+      this.snackBar.open(result.message ?? this.i18n.t(I18N.comparison.recalculated), '', { duration: 5000 });
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_recalculating'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_recalculating), '', { duration: 4000 });
     } finally {
       this.recomputing.set(false);
     }

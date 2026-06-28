@@ -8,6 +8,7 @@ import { firstValueFrom } from 'rxjs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../../core/services/api.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
+import { I18N } from '../../../core/i18n/keys';
 
 export interface ShareDialogData {
   entityType: 'album' | 'person';
@@ -49,7 +50,7 @@ export interface ShareDialogData {
           </p>
         }
       } @else if (loading()) {
-        <p class="text-sm opacity-70">{{ 'ui.labels.loading' | translate }}</p>
+        <p class="text-sm opacity-70">{{ I18N.ui.labels.loading | translate }}</p>
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
@@ -60,14 +61,14 @@ export interface ShareDialogData {
             {{ revokeKey | translate }}
           </button>
         } @else {
-          <button mat-button mat-dialog-close>{{ 'ui.buttons.cancel' | translate }}</button>
+          <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
         }
         <button mat-flat-button (click)="copyLink()">
           <mat-icon>content_copy</mat-icon>
           {{ copyKey | translate }}
         </button>
       } @else {
-        <button mat-button mat-dialog-close>{{ 'ui.buttons.cancel' | translate }}</button>
+        <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
         <button mat-flat-button (click)="generateLink()" [disabled]="loading()">
           <mat-icon>share</mat-icon>
           {{ generateKey | translate }}
@@ -77,6 +78,7 @@ export interface ShareDialogData {
   `,
 })
 export class ShareDialogComponent implements OnInit {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly dialogRef = inject(MatDialogRef<ShareDialogComponent>);
   protected data = inject<ShareDialogData>(MAT_DIALOG_DATA);

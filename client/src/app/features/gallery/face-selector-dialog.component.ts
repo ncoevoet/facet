@@ -8,6 +8,7 @@ import { ApiService } from '../../core/services/api.service';
 import { FaceThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 interface PhotoFace {
   id: number;
@@ -28,7 +29,7 @@ interface PhotoFace {
     TranslatePipe,
   ],
   template: `
-    <h2 mat-dialog-title class="truncate" [matTooltip]="'manage_persons.select_face' | translate">{{ 'manage_persons.select_face' | translate }}</h2>
+    <h2 mat-dialog-title class="truncate" [matTooltip]="I18N.manage_persons.select_face | translate">{{ I18N.manage_persons.select_face | translate }}</h2>
     <mat-dialog-content class="!flex !flex-col gap-3 min-w-[320px] min-h-[120px]">
       @if (loading()) {
         <div class="flex items-center justify-center gap-3 py-8">
@@ -49,11 +50,12 @@ interface PhotoFace {
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button (click)="dialogRef.close(null)">{{ 'dialog.cancel' | translate }}</button>
+      <button mat-button (click)="dialogRef.close(null)">{{ I18N.dialog.cancel | translate }}</button>
     </mat-dialog-actions>
   `,
 })
 export class FaceSelectorDialogComponent implements OnInit {
+  protected readonly I18N = I18N;
   private api = inject(ApiService);
   readonly data: { photoPath: string } = inject(MAT_DIALOG_DATA);
   readonly dialogRef = inject(MatDialogRef<FaceSelectorDialogComponent>);

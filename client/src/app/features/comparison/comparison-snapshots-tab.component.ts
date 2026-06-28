@@ -13,6 +13,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { CompareFiltersService } from './compare-filters.service';
+import { I18N } from '../../core/i18n/keys';
 
 interface Snapshot {
   id: number;
@@ -35,11 +36,11 @@ interface Snapshot {
     TranslatePipe,
   ],
   template: `
-    <p class="text-sm text-gray-400 mt-4 mb-4">{{ 'comparison.snapshots_description' | translate }}</p>
+    <p class="text-sm text-gray-400 mt-4 mb-4">{{ I18N.comparison.snapshots_description | translate }}</p>
 
     @if (scoresStale()) {
       <div class="flex items-center justify-between gap-3 mb-4 p-3 rounded border border-amber-500/40 bg-amber-500/10 text-amber-200">
-        <span class="text-sm">{{ 'comparison.scores_stale' | translate }}</span>
+        <span class="text-sm">{{ I18N.comparison.scores_stale | translate }}</span>
         <button mat-flat-button color="primary" [disabled]="recomputing() || !auth.isEdition()" (click)="recalculate()">
           <mat-icon>refresh</mat-icon>
           {{ (recomputing() ? 'comparison.recalculating' : 'comparison.recalculate') | translate }}
@@ -51,16 +52,16 @@ interface Snapshot {
       <!-- Save new snapshot -->
       <mat-card>
         <mat-card-header>
-          <mat-card-title class="!text-lg">{{ 'comparison.save_snapshot' | translate }}</mat-card-title>
+          <mat-card-title class="!text-lg">{{ I18N.comparison.save_snapshot | translate }}</mat-card-title>
         </mat-card-header>
         <mat-card-content class="!pt-4">
           <mat-form-field class="w-full">
-            <mat-label>{{ 'comparison.snapshot_name' | translate }}</mat-label>
+            <mat-label>{{ I18N.comparison.snapshot_name | translate }}</mat-label>
             <input matInput [ngModel]="snapshotName()" (ngModelChange)="snapshotName.set($event)" (keyup.enter)="saveSnapshot()" />
           </mat-form-field>
           <button mat-flat-button [disabled]="!snapshotName().trim() || !auth.isEdition()" (click)="saveSnapshot()">
             <mat-icon>save</mat-icon>
-            {{ 'comparison.save' | translate }}
+            {{ I18N.comparison.save | translate }}
           </button>
         </mat-card-content>
       </mat-card>
@@ -68,7 +69,7 @@ interface Snapshot {
       <!-- Snapshot list -->
       <mat-card>
         <mat-card-header>
-          <mat-card-title class="!text-lg">{{ 'comparison.saved_snapshots' | translate }}</mat-card-title>
+          <mat-card-title class="!text-lg">{{ I18N.comparison.saved_snapshots | translate }}</mat-card-title>
         </mat-card-header>
         <mat-card-content class="!pt-4">
           @if (snapshots().length > 0) {
@@ -81,18 +82,18 @@ interface Snapshot {
                   </div>
                   <div class="flex gap-1 shrink-0">
                     <button mat-icon-button [disabled]="!auth.isEdition()" (click)="restoreSnapshot(snap.id)"
-                      [attr.aria-label]="'comparison.restore' | translate">
+                      [attr.aria-label]="I18N.comparison.restore | translate">
                       <mat-icon>restore</mat-icon>
                     </button>
                   </div>
                 </div>
               }
               @if (loadingSnapshots()) {
-                <p class="text-gray-500 text-xs text-center py-2">{{ 'common.loading' | translate }}</p>
+                <p class="text-gray-500 text-xs text-center py-2">{{ I18N.ui.labels.loading | translate }}</p>
               }
             </div>
           } @else {
-            <p class="text-gray-500 text-sm">{{ 'comparison.no_snapshots' | translate }}</p>
+            <p class="text-gray-500 text-sm">{{ I18N.comparison.no_snapshots | translate }}</p>
           }
         </mat-card-content>
       </mat-card>
@@ -100,6 +101,7 @@ interface Snapshot {
   `,
 })
 export class ComparisonSnapshotsTabComponent {
+  protected readonly I18N = I18N;
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private snackBar = inject(MatSnackBar);
@@ -144,7 +146,7 @@ export class ComparisonSnapshotsTabComponent {
       this.hasMoreSnapshots.set(!!res.has_more);
     } catch {
       this.hasMoreSnapshots.set(false);
-      this.snackBar.open(this.i18n.t('comparison.error_loading_snapshots'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_loading_snapshots), '', { duration: 4000 });
     } finally {
       this.loadingSnapshots.set(false);
     }
@@ -166,10 +168,10 @@ export class ComparisonSnapshotsTabComponent {
         description: name,
       }));
       this.snapshotName.set('');
-      this.snackBar.open(this.i18n.t('comparison.snapshot_saved'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.snapshot_saved), '', { duration: 3000 });
       await this.loadSnapshots();
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_saving_snapshot'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_saving_snapshot), '', { duration: 4000 });
     }
   }
 
@@ -178,12 +180,12 @@ export class ComparisonSnapshotsTabComponent {
       const res = await firstValueFrom(
         this.api.post<{ category: string }>('/config/restore_weights', { snapshot_id: id }),
       );
-      this.snackBar.open(this.i18n.t('comparison.snapshot_restored'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.snapshot_restored), '', { duration: 3000 });
       this.scoresStale.set(res?.category ?? this.compareFilters.selectedCategory());
       this.restored.emit();
       await this.loadSnapshots();
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_restoring_snapshot'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_restoring_snapshot), '', { duration: 4000 });
     }
   }
 
@@ -194,9 +196,9 @@ export class ComparisonSnapshotsTabComponent {
     try {
       await firstValueFrom(this.api.post('/stats/categories/recompute', { category }));
       this.scoresStale.set(null);
-      this.snackBar.open(this.i18n.t('comparison.scores_recalculated'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.scores_recalculated), '', { duration: 3000 });
     } catch {
-      this.snackBar.open(this.i18n.t('comparison.error_recalculating'), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_recalculating), '', { duration: 4000 });
     } finally {
       this.recomputing.set(false);
     }

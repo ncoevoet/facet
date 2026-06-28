@@ -16,6 +16,7 @@ import { ComparisonWeightsTabComponent } from './comparison-weights-tab.componen
 import { ComparisonSnapshotsTabComponent } from './comparison-snapshots-tab.component';
 import { ComparisonAbTabComponent } from './comparison-ab-tab.component';
 import { ComparisonSuggestionsTabComponent } from './comparison-suggestions-tab.component';
+import { I18N } from '../../core/i18n/keys';
 
 Chart.register(...registerables);
 
@@ -45,27 +46,27 @@ Chart.register(...registerables);
                 mat-flat-button
                 [disabled]="!weightsTab()?.hasChanges() || !auth.isEdition() || (weightsTab()?.saving() ?? false) || (weightsTab()?.hasValidationErrors() ?? false)"
                 (click)="weightsTab()?.saveWeights()"
-                [matTooltip]="'comparison.save_tooltip' | translate">
+                [matTooltip]="I18N.comparison.save_tooltip | translate">
                 <mat-icon>save</mat-icon>
-                {{ 'comparison.save' | translate }}
+                {{ I18N.comparison.save | translate }}
               </button>
               <button mat-stroked-button (click)="weightsTab()?.loadWeights(true)"
-                [matTooltip]="'comparison.reset_tooltip' | translate">
+                [matTooltip]="I18N.comparison.reset_tooltip | translate">
                 <mat-icon>refresh</mat-icon>
-                {{ 'comparison.reset' | translate }}
+                {{ I18N.comparison.reset | translate }}
               </button>
               <button
                 mat-stroked-button
                 [disabled]="(weightsTab()?.hasChanges() ?? false) || !auth.isEdition() || (weightsTab()?.recalculating() ?? false)"
                 (click)="weightsTab()?.recalculateScores()"
-                [matTooltip]="'comparison.recalculate_tooltip' | translate">
+                [matTooltip]="I18N.comparison.recalculate_tooltip | translate">
                 <span class="inline-flex items-center gap-1.5">
                   @if (weightsTab()?.recalculating()) {
                     <mat-spinner diameter="16" class="!w-4 !h-4" />
                   } @else {
                     <mat-icon class="!m-0">calculate</mat-icon>
                   }
-                  {{ 'comparison.recalculate' | translate }}
+                  {{ I18N.comparison.recalculate | translate }}
                 </span>
               </button>
             } @else if (selectedTabIndex() === 2) {
@@ -80,7 +81,7 @@ Chart.register(...registerables);
                     } @else {
                       <mat-icon class="!m-0">auto_fix_high</mat-icon>
                     }
-                    {{ 'comparison.apply_suggested' | translate }}
+                    {{ I18N.comparison.apply_suggested | translate }}
                   </span>
                 </button>
               }
@@ -94,7 +95,7 @@ Chart.register(...registerables);
                     } @else {
                       <mat-icon class="!m-0">calculate</mat-icon>
                     }
-                    {{ 'comparison.recompute_category' | translate }}
+                    {{ I18N.comparison.recompute_category | translate }}
                   </span>
                 </button>
               }
@@ -109,7 +110,7 @@ Chart.register(...registerables);
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="mr-2">bookmark</mat-icon>
-              {{ 'comparison.snapshots' | translate }}
+              {{ I18N.comparison.snapshots | translate }}
             </ng-template>
             <app-comparison-snapshots-tab #snapshotsTabEl (restored)="weightsTab()?.loadWeights()" />
           </mat-tab>
@@ -118,7 +119,7 @@ Chart.register(...registerables);
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="mr-2">compare</mat-icon>
-              {{ 'comparison.compare_tab' | translate }}
+              {{ I18N.comparison.compare_tab | translate }}
             </ng-template>
             <app-comparison-ab-tab #abTabEl (weightsApplied)="onWeightsApplied($event)" />
           </mat-tab>
@@ -126,10 +127,10 @@ Chart.register(...registerables);
           <!-- Weight Suggestions tab (enabled once enough comparisons exist) -->
           <mat-tab [disabled]="weightsLocked()">
             <ng-template mat-tab-label>
-              <span [matTooltip]="weightsLocked() ? (('comparison.suggestions_locked_tooltip' | translate:{ count: weightsRemaining() })) : ''"
+              <span [matTooltip]="weightsLocked() ? ((I18N.comparison.suggestions_locked_tooltip | translate:{ count: weightsRemaining() })) : ''"
                     class="inline-flex items-center">
                 <mat-icon class="mr-2">auto_fix_high</mat-icon>
-                {{ 'comparison.suggestions_tab' | translate }}
+                {{ I18N.comparison.suggestions_tab | translate }}
               </span>
             </ng-template>
             <app-comparison-suggestions-tab #suggestionsTabEl (weightsApplied)="onWeightsApplied($event)" />
@@ -139,7 +140,7 @@ Chart.register(...registerables);
           <mat-tab>
             <ng-template mat-tab-label>
               <mat-icon class="mr-2">sliders</mat-icon>
-              {{ 'comparison.weights' | translate }}
+              {{ I18N.comparison.weights | translate }}
             </ng-template>
             <app-comparison-weights-tab #weightsTabEl />
           </mat-tab>
@@ -149,6 +150,7 @@ Chart.register(...registerables);
   `,
 })
 export class ComparisonComponent {
+  protected readonly I18N = I18N;
   protected readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);

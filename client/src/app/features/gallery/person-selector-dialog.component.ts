@@ -9,6 +9,7 @@ import { PersonOption } from './gallery.store';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 @Component({
   selector: 'app-person-selector-dialog',
@@ -24,28 +25,28 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
     TranslatePipe,
   ],
   template: `
-    <h2 mat-dialog-title class="truncate" [matTooltip]="'manage_persons.assign_face' | translate">{{ 'manage_persons.assign_face' | translate }}</h2>
+    <h2 mat-dialog-title class="truncate" [matTooltip]="I18N.manage_persons.assign_face | translate">{{ I18N.manage_persons.assign_face | translate }}</h2>
     <mat-dialog-content class="!flex !flex-col gap-3 min-w-[320px]">
       @if (creating()) {
         <mat-form-field subscriptSizing="dynamic" class="w-full">
-          <mat-label>{{ 'manage_persons.new_person_dialog.name_placeholder' | translate }}</mat-label>
+          <mat-label>{{ I18N.manage_persons.new_person_dialog.name_placeholder | translate }}</mat-label>
           <input matInput
                  [(ngModel)]="newName"
                  (keydown.enter)="confirmCreate()"
                  cdkFocusInitial />
         </mat-form-field>
         <div class="flex gap-2 justify-end">
-          <button mat-button (click)="cancelCreate()">{{ 'dialog.cancel' | translate }}</button>
+          <button mat-button (click)="cancelCreate()">{{ I18N.dialog.cancel | translate }}</button>
           <button mat-flat-button [disabled]="!newName.trim()" (click)="confirmCreate()">
-            {{ 'manage_persons.new_person_dialog.save' | translate }}
+            {{ I18N.manage_persons.new_person_dialog.save | translate }}
           </button>
         </div>
       } @else {
         <mat-form-field subscriptSizing="dynamic" class="w-full">
-          <mat-label>{{ 'manage_persons.search_persons' | translate }}</mat-label>
+          <mat-label>{{ I18N.manage_persons.search_persons | translate }}</mat-label>
           <mat-icon matPrefix>search</mat-icon>
           <input matInput
-                 [placeholder]="'manage_persons.search_persons' | translate"
+                 [placeholder]="I18N.manage_persons.search_persons | translate"
                  [(ngModel)]="searchQuery"
                  (input)="filter()" />
         </mat-form-field>
@@ -59,7 +60,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
               <mat-icon>person_add</mat-icon>
             </div>
             <div class="flex flex-col min-w-0">
-              <span class="text-base font-medium">{{ 'person_selector.create_new' | translate }}</span>
+              <span class="text-base font-medium">{{ I18N.person_selector.create_new | translate }}</span>
             </div>
           </button>
 
@@ -73,7 +74,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
                    class="w-14 h-14 rounded-full object-cover border border-neutral-700" />
               <div class="flex flex-col min-w-0">
                 <span class="text-base font-medium truncate">{{ person.name }}</span>
-                <span class="text-xs text-neutral-500">{{ 'gallery.photo_count' | translate:{ count: person.face_count } }}</span>
+                <span class="text-xs text-neutral-500">{{ I18N.gallery.photo_count | translate:{ count: person.face_count } }}</span>
               </div>
             </button>
           }
@@ -81,11 +82,12 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button (click)="dialogRef.close(null)">{{ 'dialog.cancel' | translate }}</button>
+      <button mat-button (click)="dialogRef.close(null)">{{ I18N.dialog.cancel | translate }}</button>
     </mat-dialog-actions>
   `,
 })
 export class PersonSelectorDialogComponent {
+  protected readonly I18N = I18N;
   readonly data: PersonOption[] = inject(MAT_DIALOG_DATA);
   readonly dialogRef = inject(MatDialogRef<PersonSelectorDialogComponent>);
 

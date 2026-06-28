@@ -10,6 +10,7 @@ import { TimelineYearsComponent } from './timeline-years.component';
 import { TimelineMonthsComponent } from './timeline-months.component';
 import { TimelineDaysComponent } from './timeline-days.component';
 import { TimelineDatePipe } from './timeline-date.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 @Component({
   selector: 'app-timeline',
@@ -29,18 +30,18 @@ import { TimelineDatePipe } from './timeline-date.pipe';
     <nav class="flex items-center gap-1 px-4 pt-4 pb-2 text-sm flex-wrap">
       @switch (level()) {
         @case ('years') {
-          <span class="font-medium">{{ 'timeline.years_title' | translate }}</span>
+          <span class="font-medium">{{ I18N.timeline.years_title | translate }}</span>
         }
         @case ('months') {
           <button mat-button class="!min-w-0 !px-2" (click)="goToYears()">
-            {{ 'timeline.all_years' | translate }}
+            {{ I18N.timeline.all_years | translate }}
           </button>
           <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
           <span class="px-2 font-medium">{{ year() }}</span>
         }
         @case ('days') {
           <button mat-button class="!min-w-0 !px-2" (click)="goToYears()">
-            {{ 'timeline.all_years' | translate }}
+            {{ I18N.timeline.all_years | translate }}
           </button>
           <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
           <button mat-button class="!min-w-0 !px-2" (click)="goToMonths()">
@@ -73,6 +74,7 @@ import { TimelineDatePipe } from './timeline-date.pipe';
   `,
 })
 export class TimelineComponent {
+  protected readonly I18N = I18N;
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   protected readonly filters = inject(TimelineFiltersService);

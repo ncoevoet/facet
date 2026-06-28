@@ -5,6 +5,7 @@ import { Photo } from '../../shared/models/photo.model';
 import { GalleryStore } from '../../features/gallery/gallery.store';
 import { ExportService } from './export.service';
 import { I18nService } from './i18n.service';
+import { I18N } from '../i18n/keys';
 
 @Injectable({ providedIn: 'root' })
 export class PhotoActionsService {
@@ -16,8 +17,8 @@ export class PhotoActionsService {
 
   embedMetadata(photo: Photo): void {
     this.exportService.embedMetadata(photo.path).subscribe({
-      next: () => this.snackBar.open(this.i18n.t('notifications.metadata_embedded'), '', { duration: 2000 }),
-      error: () => this.snackBar.open(this.i18n.t('notifications.metadata_embed_failed'), '', { duration: 3000 }),
+      next: () => this.snackBar.open(this.i18n.t(I18N.notifications.metadata_embedded), '', { duration: 2000 }),
+      error: () => this.snackBar.open(this.i18n.t(I18N.notifications.metadata_embed_failed), '', { duration: 3000 }),
     });
   }
 
@@ -53,14 +54,14 @@ export class PhotoActionsService {
             if (result.kind === 'create') {
               const created = await this.store.createPerson(result.name, [face.id], photo.path);
               if (created) {
-                this.snackBar.open(this.i18n.t('notifications.faces_assigned'), '', { duration: 2000 });
+                this.snackBar.open(this.i18n.t(I18N.notifications.faces_assigned), '', { duration: 2000 });
                 onAssigned?.();
               } else {
-                this.snackBar.open(this.i18n.t('persons.create_error'), '', { duration: 3000 });
+                this.snackBar.open(this.i18n.t(I18N.persons.create_error), '', { duration: 3000 });
               }
             } else if (result.kind === 'select') {
               await this.store.assignFace(face.id, result.person.id, photo.path, result.person.name);
-              this.snackBar.open(this.i18n.t('notifications.faces_assigned'), '', { duration: 2000 });
+              this.snackBar.open(this.i18n.t(I18N.notifications.faces_assigned), '', { duration: 2000 });
               onAssigned?.();
             }
           });

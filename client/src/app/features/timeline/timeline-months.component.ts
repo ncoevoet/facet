@@ -8,6 +8,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineDatePipe } from './timeline-date.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
+import { I18N } from '../../core/i18n/keys';
 
 interface MonthSummary {
   month: string;
@@ -29,7 +30,7 @@ interface MonthSummary {
     @if (!loading() && months().length === 0) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">calendar_today</mat-icon>
-        <p>{{ 'timeline.no_photos_month' | translate }}</p>
+        <p>{{ I18N.timeline.no_photos_month | translate }}</p>
       </div>
     }
 
@@ -51,7 +52,7 @@ interface MonthSummary {
           }
           <div class="p-3">
             <div class="text-lg font-semibold">{{ m.month | timelineDate }}</div>
-            <div class="text-sm opacity-60">{{ m.count | number }} {{ 'timeline.photos_count' | translate }}</div>
+            <div class="text-sm opacity-60">{{ m.count | number }} {{ I18N.timeline.photos_count | translate }}</div>
           </div>
         </button>
       }
@@ -59,6 +60,7 @@ interface MonthSummary {
   `,
 })
 export class TimelineMonthsComponent {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly filters = inject(TimelineFiltersService);
 

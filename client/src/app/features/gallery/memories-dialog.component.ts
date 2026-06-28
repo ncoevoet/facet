@@ -9,6 +9,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 interface MemoryPhoto {
   path: string;
@@ -40,7 +41,7 @@ interface MemoriesResponse {
   template: `
     <h2 mat-dialog-title class="!flex items-center gap-2 truncate">
       <mat-icon>auto_awesome</mat-icon>
-      <span class="flex-1">{{ 'memories.title' | translate }}</span>
+      <span class="flex-1">{{ I18N.memories.title | translate }}</span>
       <button mat-icon-button mat-dialog-close class="shrink-0 !-mt-1 !-mr-2">
         <mat-icon>close</mat-icon>
       </button>
@@ -53,7 +54,7 @@ interface MemoriesResponse {
       } @else if (years().length === 0) {
         <div class="flex flex-col items-center gap-2 py-8 opacity-60">
           <mat-icon class="!text-4xl !w-10 !h-10">photo_library</mat-icon>
-          <p class="text-sm">{{ 'memories.no_memories' | translate }}</p>
+          <p class="text-sm">{{ I18N.memories.no_memories | translate }}</p>
         </div>
       } @else {
         @for (yearGroup of years(); track yearGroup.year) {
@@ -61,7 +62,7 @@ interface MemoriesResponse {
             <div class="flex items-center gap-2 mb-2">
               <span class="text-lg font-semibold">{{ yearGroup.year }}</span>
               <span class="text-xs opacity-50">
-                {{ yearGroup.total_count }} {{ 'memories.photos_count' | translate }}
+                {{ yearGroup.total_count }} {{ I18N.memories.photos_count | translate }}
               </span>
             </div>
             <div class="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
@@ -89,6 +90,7 @@ interface MemoriesResponse {
   `,
 })
 export class MemoriesDialogComponent implements OnInit {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly dialogRef = inject(MatDialogRef<MemoriesDialogComponent>);

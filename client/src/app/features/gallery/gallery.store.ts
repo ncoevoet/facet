@@ -7,6 +7,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { Photo } from '../../shared/models/photo.model';
+import { I18N } from '../../core/i18n/keys';
 import {
   type GalleryFilters, type GalleryMode, type TooltipMode, type DisplayOptions,
   DEFAULT_FILTERS, SMART_ALBUM_EXCLUDE_KEYS, DISPLAY_OPTION_KEYS,
@@ -617,7 +618,7 @@ export class GalleryStore {
   }
 
   private notifyActionFailed(): void {
-    this.snackBar.open(this.i18n.t('errors.action_failed'), '', { duration: 3000 });
+    this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
   }
 
   /** Set star rating for a photo (0 = clear). Optimistic with revert on error. */

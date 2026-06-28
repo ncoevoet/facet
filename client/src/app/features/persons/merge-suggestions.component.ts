@@ -16,6 +16,7 @@ import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { MergeTargetDialogComponent } from './manage-persons.component';
 import { Person } from '../../shared/components/person-card/person-card.component';
+import { I18N } from '../../core/i18n/keys';
 
 interface SuggestionPerson {
   id: number;
@@ -57,21 +58,21 @@ interface MergeSuggestionsResponse {
         <a mat-icon-button routerLink="/persons">
           <mat-icon>arrow_back</mat-icon>
         </a>
-        <h1 class="text-2xl font-medium">{{ 'persons.merge_suggestions_title' | translate }}</h1>
+        <h1 class="text-2xl font-medium">{{ I18N.persons.merge_suggestions_title | translate }}</h1>
         <div class="flex-1"></div>
         @if (suggestions().length > 0) {
           <button mat-flat-button [disabled]="merging()" (click)="acceptAll()">
             <mat-icon>done_all</mat-icon>
-            {{ 'persons.accept_all' | translate:{ count: suggestions().length } }}
+            {{ I18N.persons.accept_all | translate:{ count: suggestions().length } }}
           </button>
         }
       </div>
 
       <!-- Threshold control -->
       <div class="flex items-center gap-3 mb-6">
-        <span class="text-sm text-gray-400 shrink-0">{{ 'persons.similarity_threshold' | translate }}</span>
+        <span class="text-sm text-gray-400 shrink-0">{{ I18N.persons.similarity_threshold | translate }}</span>
         <mat-slider [min]="0.3" [max]="0.9" [step]="0.05" [discrete]="true" class="flex-1 max-w-xs">
-          <input matSliderThumb [value]="threshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="'persons.similarity_threshold' | translate" />
+          <input matSliderThumb [value]="threshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.persons.similarity_threshold | translate" />
         </mat-slider>
         <span class="text-sm font-mono w-12">{{ threshold() * 100 | fixed:0 }}%</span>
       </div>
@@ -93,14 +94,14 @@ interface MergeSuggestionsResponse {
                 <img
                   [src]="suggestion.person1.id | personThumbnailUrl"
                   class="w-16 h-16 rounded-full object-cover shrink-0"
-                  [alt]="suggestion.person1.name || ('persons.unnamed' | translate)"
+                  [alt]="suggestion.person1.name || (I18N.persons.unnamed | translate)"
                 />
                 <div class="min-w-0">
                   <p class="font-medium truncate">
-                    {{ suggestion.person1.name || ('persons.unnamed' | translate) }}
+                    {{ suggestion.person1.name || (I18N.persons.unnamed | translate) }}
                   </p>
                   <p class="text-sm opacity-60">
-                    {{ 'persons.face_count' | translate:{ count: suggestion.person1.face_count } }}
+                    {{ I18N.persons.face_count | translate:{ count: suggestion.person1.face_count } }}
                   </p>
                 </div>
               </div>
@@ -125,14 +126,14 @@ interface MergeSuggestionsResponse {
                 <img
                   [src]="suggestion.person2.id | personThumbnailUrl"
                   class="w-16 h-16 rounded-full object-cover shrink-0"
-                  [alt]="suggestion.person2.name || ('persons.unnamed' | translate)"
+                  [alt]="suggestion.person2.name || (I18N.persons.unnamed | translate)"
                 />
                 <div class="min-w-0">
                   <p class="font-medium truncate">
-                    {{ suggestion.person2.name || ('persons.unnamed' | translate) }}
+                    {{ suggestion.person2.name || (I18N.persons.unnamed | translate) }}
                   </p>
                   <p class="text-sm opacity-60">
-                    {{ 'persons.face_count' | translate:{ count: suggestion.person2.face_count } }}
+                    {{ I18N.persons.face_count | translate:{ count: suggestion.person2.face_count } }}
                   </p>
                 </div>
               </div>
@@ -145,7 +146,7 @@ interface MergeSuggestionsResponse {
                   (click)="acceptSuggestion(suggestion)"
                 >
                   <mat-icon>merge</mat-icon>
-                  {{ 'persons.accept' | translate }}
+                  {{ I18N.persons.accept | translate }}
                 </button>
                 <button
                   mat-icon-button
@@ -164,13 +165,14 @@ interface MergeSuggestionsResponse {
       @if (!loading() && suggestions().length === 0) {
         <div class="text-center py-16 opacity-50">
           <mat-icon class="!text-5xl !w-12 !h-12 mb-4">check_circle</mat-icon>
-          <p>{{ 'persons.no_suggestions' | translate }}</p>
+          <p>{{ I18N.persons.no_suggestions | translate }}</p>
         </div>
       }
     </div>
   `,
 })
 export class MergeSuggestionsComponent implements OnInit, OnDestroy {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private dialog = inject(MatDialog);
@@ -209,7 +211,7 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
       );
       this.suggestions.set(res.suggestions);
     } catch {
-      this.snackBar.open(this.i18n.t('persons.error_loading'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.error_loading), '', { duration: 3000 });
     } finally {
       this.loading.set(false);
     }
@@ -240,9 +242,9 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
       );
 
       this.removeSuggestion(suggestion);
-      this.snackBar.open(this.i18n.t('persons.merged'), '', { duration: 2000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.merged), '', { duration: 2000 });
     } catch {
-      this.snackBar.open(this.i18n.t('persons.merge_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.merge_error), '', { duration: 3000 });
     } finally {
       this.merging.set(false);
     }
@@ -260,7 +262,7 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
         }),
       );
     } catch {
-      this.snackBar.open(this.i18n.t('persons.merge_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.merge_error), '', { duration: 3000 });
     }
   }
 
@@ -279,9 +281,9 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
 
       const count = this.suggestions().length;
       this.suggestions.set([]);
-      this.snackBar.open(this.i18n.t('persons.batch_merged', { count }), '', { duration: 2000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.batch_merged, { count }), '', { duration: 2000 });
     } catch {
-      this.snackBar.open(this.i18n.t('persons.merge_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.persons.merge_error), '', { duration: 3000 });
     } finally {
       this.merging.set(false);
     }

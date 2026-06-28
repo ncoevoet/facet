@@ -3,6 +3,7 @@ import { MAT_BOTTOM_SHEET_DATA, MatBottomSheetRef } from '@angular/material/bott
 import { MatIconModule } from '@angular/material/icon';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { Album } from '../../core/services/album.service';
+import { I18N } from '../../core/i18n/keys';
 
 export type SheetAction =
   | { kind: 'favorite' }
@@ -29,29 +30,29 @@ export interface GalleryActionsSheetData {
   template: `
     <div class="flex flex-col pb-2">
       <div class="px-4 py-3 text-sm font-medium border-b border-[var(--mat-sys-outline-variant)]">
-        {{ 'gallery.selection.count' | translate:{ count: data.count } }}
+        {{ I18N.gallery.selection.count | translate:{ count: data.count } }}
       </div>
 
       @if (data.isEdition) {
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'favorite' })">
           <mat-icon aria-hidden="true">favorite</mat-icon>
-          {{ 'gallery.selection.favorite' | translate }}
+          {{ I18N.gallery.selection.favorite | translate }}
         </button>
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'reject' })">
           <mat-icon aria-hidden="true">thumb_down</mat-icon>
-          {{ 'gallery.selection.reject' | translate }}
+          {{ I18N.gallery.selection.reject | translate }}
         </button>
         <div class="flex items-center gap-1 px-4 py-2">
           <mat-icon class="mr-2 opacity-70" aria-hidden="true">star</mat-icon>
           @for (star of [1, 2, 3, 4, 5]; track star) {
             <button
               class="w-9 h-9 rounded-full text-yellow-400 text-sm font-semibold hover:bg-white/10"
-              [attr.aria-label]="('gallery.selection.rate' | translate) + ' ' + star"
+              [attr.aria-label]="(I18N.gallery.selection.rate | translate) + ' ' + star"
               (click)="pick({ kind: 'rate', rating: star })"
             >{{ star }}★</button>
           }
           <button class="w-9 h-9 rounded-full text-sm hover:bg-white/10"
-                  [attr.aria-label]="'gallery.selection.clear' | translate"
+                  [attr.aria-label]="I18N.gallery.selection.clear | translate"
                   (click)="pick({ kind: 'rate', rating: 0 })">0</button>
         </div>
         @if (data.showAlbums) {
@@ -63,18 +64,18 @@ export interface GalleryActionsSheetData {
           }
           <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'create-album' })">
             <mat-icon aria-hidden="true">add</mat-icon>
-            {{ 'albums.create' | translate }}
+            {{ I18N.albums.create | translate }}
           </button>
         }
       }
 
       <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'copy' })">
         <mat-icon aria-hidden="true">content_copy</mat-icon>
-        {{ 'gallery.selection.copy_filenames' | translate }}
+        {{ I18N.gallery.selection.copy_filenames | translate }}
       </button>
       <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'download', type: 'original' })">
         <mat-icon aria-hidden="true">download</mat-icon>
-        {{ 'download.type_original' | translate }}
+        {{ I18N.download.type_original | translate }}
       </button>
       @for (profile of data.downloadProfiles; track profile) {
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'download', type: 'darktable', profile })">
@@ -85,7 +86,7 @@ export interface GalleryActionsSheetData {
       @if (data.downloadProfiles.length) {
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'download', type: 'raw' })">
           <mat-icon aria-hidden="true">raw_on</mat-icon>
-          {{ 'download.type_raw' | translate }}
+          {{ I18N.download.type_raw | translate }}
         </button>
       }
     </div>
@@ -93,6 +94,7 @@ export interface GalleryActionsSheetData {
   host: { class: 'block' },
 })
 export class GalleryActionsSheetComponent {
+  protected readonly I18N = I18N;
   protected readonly data = inject<GalleryActionsSheetData>(MAT_BOTTOM_SHEET_DATA);
   private readonly sheetRef = inject(MatBottomSheetRef<GalleryActionsSheetComponent>);
 

@@ -35,6 +35,7 @@ import {
 import { PhotoCardComponent } from '../photo-card/photo-card.component';
 import { SlideshowComponent } from '../../../features/gallery/slideshow.component';
 import { InfiniteScrollDirective } from '../../directives/infinite-scroll.directive';
+import { I18N } from '../../../core/i18n/keys';
 
 interface SortOption {
   column: string;
@@ -118,11 +119,11 @@ interface SharedFilters {
             @if (description()) {
               <p class="text-sm opacity-70 mt-1">{{ description() }}</p>
             }
-            <p class="text-xs opacity-50 mt-1">{{ 'albums.photos_count' | translate:{ count: total() } }}</p>
+            <p class="text-xs opacity-50 mt-1">{{ I18N.albums.photos_count | translate:{ count: total() } }}</p>
           </div>
           <div class="flex items-center gap-1 md:gap-2 flex-1 min-w-0">
             <mat-form-field class="flex-1 min-w-0 md:max-w-xs" subscriptSizing="dynamic">
-              <mat-label>{{ 'gallery.sort' | translate }}</mat-label>
+              <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
               <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="sortBy()" (selectionChange)="onSortChange($event.value)">
                 @if (sortGroups(); as groups) {
                   @for (group of groups; track group[0]) {
@@ -133,21 +134,21 @@ interface SharedFilters {
                     </mat-optgroup>
                   }
                 } @else {
-                  <mat-option value="aggregate">{{ 'gallery.sort_aggregate' | translate }}</mat-option>
-                  <mat-option value="aesthetic">{{ 'gallery.sort_aesthetic' | translate }}</mat-option>
-                  <mat-option value="date_taken">{{ 'gallery.sort_date' | translate }}</mat-option>
+                  <mat-option value="aggregate">{{ I18N.gallery.sort_aggregate | translate }}</mat-option>
+                  <mat-option value="aesthetic">{{ I18N.gallery.sort_aesthetic | translate }}</mat-option>
+                  <mat-option value="date_taken">{{ I18N.gallery.sort_date | translate }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
-            <button mat-icon-button (click)="toggleSortDirection()" [matTooltip]="sortDirection() === 'desc' ? ('gallery.sort_desc' | translate) : ('gallery.sort_asc' | translate)">
+            <button mat-icon-button (click)="toggleSortDirection()" [matTooltip]="sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)">
               <mat-icon>{{ sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
             </button>
             @if (isManualAlbum()) {
-              <button mat-icon-button (click)="filterDrawer.toggle()" [matTooltip]="'gallery.filters' | translate">
+              <button mat-icon-button (click)="filterDrawer.toggle()" [matTooltip]="I18N.gallery.filters | translate">
                 <mat-icon [style.color]="filterDrawer.opened || activeFilterCount() ? 'var(--mat-sys-primary)' : ''">tune</mat-icon>
               </button>
             }
-            <button mat-icon-button class="shrink-0 ml-auto" (click)="slideshowActive.set(true)" [matTooltip]="'slideshow.start' | translate">
+            <button mat-icon-button class="shrink-0 ml-auto" (click)="slideshowActive.set(true)" [matTooltip]="I18N.slideshow.start | translate">
               <mat-icon>slideshow</mat-icon>
             </button>
           </div>
@@ -163,7 +164,7 @@ interface SharedFilters {
                 <mat-expansion-panel-header>
                   <mat-panel-title class="flex items-center gap-2">
                     <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">photo_camera</mat-icon>
-                    {{ 'gallery.sidebar.equipment' | translate }}
+                    {{ I18N.gallery.sidebar.equipment | translate }}
                     @if (filters().camera || filters().lens) {
                       <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ (filters().camera ? 1 : 0) + (filters().lens ? 1 : 0) }}</span>
                     }
@@ -172,9 +173,9 @@ interface SharedFilters {
                 <div class="flex flex-col gap-2 pb-2">
                   @if (filterOptions()?.cameras?.length) {
                     <mat-form-field subscriptSizing="dynamic" class="w-full">
-                      <mat-label>{{ 'gallery.camera' | translate }}</mat-label>
+                      <mat-label>{{ I18N.gallery.camera | translate }}</mat-label>
                       <mat-select [value]="filters().camera" (selectionChange)="updateFilter('camera', $event.value)">
-                        <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                        <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                         @for (c of filterOptions()!.cameras; track c.value) {
                           <mat-option [value]="c.value">{{ c.value }} ({{ c.count }})</mat-option>
                         }
@@ -183,9 +184,9 @@ interface SharedFilters {
                   }
                   @if (filterOptions()?.lenses?.length) {
                     <mat-form-field subscriptSizing="dynamic" class="w-full">
-                      <mat-label>{{ 'gallery.lens' | translate }}</mat-label>
+                      <mat-label>{{ I18N.gallery.lens | translate }}</mat-label>
                       <mat-select [value]="filters().lens" (selectionChange)="updateFilter('lens', $event.value)">
-                        <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                        <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                         @for (l of filterOptions()!.lenses; track l.value) {
                           <mat-option [value]="l.value">{{ l.value }} ({{ l.count }})</mat-option>
                         }
@@ -202,7 +203,7 @@ interface SharedFilters {
                 <mat-expansion-panel-header>
                   <mat-panel-title class="flex items-center gap-2">
                     <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">label</mat-icon>
-                    {{ 'gallery.sidebar.content' | translate }}
+                    {{ I18N.gallery.sidebar.content | translate }}
                     @if (contentFilterCount()) {
                       <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ contentFilterCount() }}</span>
                     }
@@ -211,9 +212,9 @@ interface SharedFilters {
                 <div class="flex flex-col gap-2 pb-2">
                   @if (filterOptions()?.tags?.length) {
                     <mat-form-field subscriptSizing="dynamic" class="w-full">
-                      <mat-label>{{ 'gallery.tag' | translate }}</mat-label>
+                      <mat-label>{{ I18N.gallery.tag | translate }}</mat-label>
                       <mat-select [value]="filters().tag" (selectionChange)="updateFilter('tag', $event.value)">
-                        <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                        <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                         @for (t of filterOptions()!.tags; track t.value) {
                           <mat-option [value]="t.value">{{ t.value }} ({{ t.count }})</mat-option>
                         }
@@ -222,9 +223,9 @@ interface SharedFilters {
                   }
                   @if (filterOptions()?.patterns?.length) {
                     <mat-form-field subscriptSizing="dynamic" class="w-full">
-                      <mat-label>{{ 'gallery.composition_pattern' | translate }}</mat-label>
+                      <mat-label>{{ I18N.gallery.composition_pattern | translate }}</mat-label>
                       <mat-select [value]="filters().composition_pattern" (selectionChange)="updateFilter('composition_pattern', $event.value)">
-                        <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                        <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                         @for (p of filterOptions()!.patterns; track p.value) {
                           <mat-option [value]="p.value">{{ ('composition_patterns.' + p.value) | translate }} ({{ p.count }})</mat-option>
                         }
@@ -233,9 +234,9 @@ interface SharedFilters {
                   }
                   @if (filterOptions()?.categories?.length) {
                     <mat-form-field subscriptSizing="dynamic" class="w-full">
-                      <mat-label>{{ 'ui.filters.type' | translate }}</mat-label>
+                      <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
                       <mat-select [value]="filters().category" (selectionChange)="updateFilter('category', $event.value)">
-                        <mat-option value="">{{ 'gallery.all' | translate }}</mat-option>
+                        <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
                         @for (cat of filterOptions()!.categories; track cat.value) {
                           <mat-option [value]="cat.value">{{ 'category_names.' + cat.value | translate }} ({{ cat.count }})</mat-option>
                         }
@@ -251,7 +252,7 @@ interface SharedFilters {
               <mat-expansion-panel-header>
                 <mat-panel-title class="flex items-center gap-2">
                   <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">calendar_today</mat-icon>
-                  {{ 'gallery.sidebar.date' | translate }}
+                  {{ I18N.gallery.sidebar.date | translate }}
                   @if (filters().date_from || filters().date_to) {
                     <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ (filters().date_from ? 1 : 0) + (filters().date_to ? 1 : 0) }}</span>
                   }
@@ -259,13 +260,13 @@ interface SharedFilters {
               </mat-expansion-panel-header>
               <div class="flex flex-col gap-2 pb-2">
                 <mat-form-field subscriptSizing="dynamic" class="w-full">
-                  <mat-label>{{ 'gallery.date_from' | translate }}</mat-label>
+                  <mat-label>{{ I18N.gallery.date_from | translate }}</mat-label>
                   <input matInput [matDatepicker]="fromDp" [value]="filters().date_from" (dateChange)="onDateChange('date_from', $event)" />
                   <mat-datepicker-toggle matIconSuffix [for]="fromDp" />
                   <mat-datepicker #fromDp />
                 </mat-form-field>
                 <mat-form-field subscriptSizing="dynamic" class="w-full">
-                  <mat-label>{{ 'gallery.date_to' | translate }}</mat-label>
+                  <mat-label>{{ I18N.gallery.date_to | translate }}</mat-label>
                   <input matInput [matDatepicker]="toDp" [value]="filters().date_to" (dateChange)="onDateChange('date_to', $event)" />
                   <mat-datepicker-toggle matIconSuffix [for]="toDp" />
                   <mat-datepicker #toDp />
@@ -278,7 +279,7 @@ interface SharedFilters {
               <mat-expansion-panel-header>
                 <mat-panel-title class="flex items-center gap-2">
                   <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">display_settings</mat-icon>
-                  {{ 'gallery.sidebar.display' | translate }}
+                  {{ I18N.gallery.sidebar.display | translate }}
                   @if (displayFilterCount()) {
                     <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ displayFilterCount() }}</span>
                   }
@@ -288,19 +289,19 @@ interface SharedFilters {
                 <mat-checkbox
                   [checked]="filters().hide_blinks"
                   (change)="updateFilter('hide_blinks', $event.checked)"
-                >{{ 'gallery.hide_blinks' | translate }}</mat-checkbox>
+                >{{ I18N.gallery.hide_blinks | translate }}</mat-checkbox>
                 <mat-checkbox
                   [checked]="filters().hide_bursts"
                   (change)="updateFilter('hide_bursts', $event.checked)"
-                >{{ 'gallery.hide_bursts' | translate }}</mat-checkbox>
+                >{{ I18N.gallery.hide_bursts | translate }}</mat-checkbox>
                 <mat-checkbox
                   [checked]="filters().hide_duplicates"
                   (change)="updateFilter('hide_duplicates', $event.checked)"
-                >{{ 'gallery.hide_duplicates' | translate }}</mat-checkbox>
+                >{{ I18N.gallery.hide_duplicates | translate }}</mat-checkbox>
                 <mat-checkbox
                   [checked]="filters().is_monochrome"
                   (change)="updateFilter('is_monochrome', $event.checked)"
-                >{{ 'gallery.monochrome_only' | translate }}</mat-checkbox>
+                >{{ I18N.gallery.monochrome_only | translate }}</mat-checkbox>
               </div>
             </mat-expansion-panel>
 
@@ -344,7 +345,7 @@ interface SharedFilters {
               <div class="py-3 px-1">
                 <button mat-stroked-button class="w-full" (click)="resetFilters()">
                   <mat-icon>close</mat-icon>
-                  {{ 'gallery.reset_filters' | translate }}
+                  {{ I18N.gallery.reset_filters | translate }}
                 </button>
               </div>
             }
@@ -396,24 +397,24 @@ interface SharedFilters {
       <!-- Selection action bar -->
       @if (selectionCount()) {
         <div class="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 lg:gap-3 px-2 lg:px-6 py-1 lg:py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
-          <span class="text-sm font-medium shrink-0">{{ 'gallery.selection.count' | translate:{ count: selectionCount() } }}</span>
+          <span class="text-sm font-medium shrink-0">{{ I18N.gallery.selection.count | translate:{ count: selectionCount() } }}</span>
           <div class="flex items-center gap-0 lg:gap-2 ml-auto">
-            <button mat-icon-button class="lg:!hidden" (click)="clearSelection()" [matTooltip]="'gallery.selection.clear' | translate"><mat-icon>close</mat-icon></button>
-            <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ 'gallery.selection.clear' | translate }}</button>
-            <button mat-icon-button class="lg:!hidden" (click)="copyPaths()" [matTooltip]="'gallery.selection.copy_filenames' | translate"><mat-icon>content_copy</mat-icon></button>
-            <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ 'gallery.selection.copy_filenames' | translate }}</button>
+            <button mat-icon-button class="lg:!hidden" (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon></button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ I18N.gallery.selection.clear | translate }}</button>
+            <button mat-icon-button class="lg:!hidden" (click)="copyPaths()" [matTooltip]="I18N.gallery.selection.copy_filenames | translate"><mat-icon>content_copy</mat-icon></button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ I18N.gallery.selection.copy_filenames | translate }}</button>
             @if (auth.downloadProfiles().length) {
-              <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()" [matTooltip]="'gallery.selection.download' | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
-              <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
+              <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.download | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
+              <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
               <mat-menu #dlMenu="matMenu">
-                <button mat-menu-item (click)="downloadSelected()"><mat-icon>image</mat-icon> {{ 'download.type_original' | translate }}</button>
+                <button mat-menu-item (click)="downloadSelected()"><mat-icon>image</mat-icon> {{ I18N.download.type_original | translate }}</button>
                 @for (profile of auth.downloadProfiles(); track profile) {
                   <button mat-menu-item (click)="downloadSelected('darktable', profile)"><mat-icon>photo_filter</mat-icon> {{ profile }}</button>
                 }
               </mat-menu>
             } @else {
-              <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="'gallery.selection.download' | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
-              <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? ('photo_detail.downloading' | translate) : ('gallery.selection.download' | translate) }}</button>
+              <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.download | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
+              <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
             }
           </div>
         </div>
@@ -440,6 +441,7 @@ interface SharedFilters {
   `,
 })
 export class SharedViewComponent implements OnInit {
+  protected readonly I18N = I18N;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
@@ -610,7 +612,7 @@ export class SharedViewComponent implements OnInit {
     this.token = this.route.snapshot.queryParamMap.get('token') ?? '';
 
     if (!this.entityId || !this.token) {
-      this.error.set(this.i18n.t('albums.invalid_share_link'));
+      this.error.set(this.i18n.t(I18N.albums.invalid_share_link));
       this.loading.set(false);
       return;
     }
@@ -716,7 +718,7 @@ export class SharedViewComponent implements OnInit {
       .map(p => p.split(/[\\/]/).pop() ?? p)
       .join('\n');
     navigator.clipboard.writeText(filenames).then(() => {
-      this.snackBar.open(this.i18n.t('gallery.selection.copied'), '', { duration: 2000 });
+      this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
     });
   }
 
@@ -761,9 +763,9 @@ export class SharedViewComponent implements OnInit {
       await this.loadAlbumPage(page, append);
     } catch (e: unknown) {
       if (e instanceof HttpErrorResponse && (e.status === 403 || e.status === 401)) {
-        this.error.set(this.i18n.t('albums.share_link_revoked'));
+        this.error.set(this.i18n.t(I18N.albums.share_link_revoked));
       } else {
-        this.error.set(this.i18n.t('albums.load_error'));
+        this.error.set(this.i18n.t(I18N.albums.load_error));
       }
     } finally {
       this.loading.set(false);

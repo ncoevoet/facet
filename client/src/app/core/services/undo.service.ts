@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { I18nService } from './i18n.service';
+import { I18N } from '../i18n/keys';
 
 export interface UndoableCommand {
   /** i18n key for the snackbar message. */
@@ -47,7 +48,7 @@ export class UndoService {
 
     const ref = this.snackBar.open(
       this.i18n.t(cmd.labelKey, cmd.labelParams),
-      this.i18n.t('undo.action'),
+      this.i18n.t(I18N.undo.action),
       { duration: 7000 },
     );
 
@@ -56,15 +57,15 @@ export class UndoService {
       undone = true;
       if (this.pendingCommit === cmd.commit) this.pendingCommit = null;
       cmd.undo()
-        .then(() => this.snackBar.open(this.i18n.t('undo.restored'), '', { duration: 2000 }))
-        .catch(() => this.snackBar.open(this.i18n.t('undo.restore_failed'), '', { duration: 3000 }));
+        .then(() => this.snackBar.open(this.i18n.t(I18N.undo.restored), '', { duration: 2000 }))
+        .catch(() => this.snackBar.open(this.i18n.t(I18N.undo.restore_failed), '', { duration: 3000 }));
     });
 
     ref.afterDismissed().subscribe(() => {
       if (!undone && cmd.commit && this.pendingCommit === cmd.commit) {
         this.pendingCommit = null;
         void cmd.commit().catch(() => {
-          this.snackBar.open(this.i18n.t('errors.action_failed'), '', { duration: 3000 });
+          this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
         });
       }
     });

@@ -22,6 +22,7 @@ import { ChartHeightPipe } from './chart-height.pipe';
 import { StatsTimelineTabComponent } from './stats-timeline-tab.component';
 import { StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
 import { downloadCsv } from '../../shared/utils/csv';
+import { I18N } from '../../core/i18n/keys';
 
 Chart.register(...registerables);
 Chart.defaults.color = '#a3a3a3';
@@ -100,8 +101,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <!-- Gear tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="sm:mr-2" [matTooltip]="'stats.gear' | translate">camera_alt</mat-icon>
-              <span class="hidden sm:inline">{{ 'stats.gear' | translate }}</span>
+              <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.gear | translate">camera_alt</mat-icon>
+              <span class="hidden sm:inline">{{ I18N.stats.gear | translate }}</span>
             </ng-template>
             <div class="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 mt-4">
               <app-gear-chart-card titleKey="stats.cameras" [items]="cameras()" [loading]="gearLoading()" [color]="themeService.accentColor()" />
@@ -115,17 +116,17 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <!-- Categories tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="sm:mr-2" [matTooltip]="'stats.categories.tab' | translate">category</mat-icon>
-              <span class="hidden sm:inline">{{ 'stats.categories.tab' | translate }}</span>
+              <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.categories.tab | translate">category</mat-icon>
+              <span class="hidden sm:inline">{{ I18N.stats.categories.tab | translate }}</span>
             </ng-template>
             <div class="mt-4 flex flex-col gap-4">
               <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
                 @if (categoryMetricData().length > 0) {
                   <mat-card>
                     <mat-card-header class="!flex !items-center !justify-between !gap-4">
-                      <mat-card-title>{{ 'stats.category_metric_title' | translate }}</mat-card-title>
+                      <mat-card-title>{{ I18N.stats.category_metric_title | translate }}</mat-card-title>
                       <mat-form-field class="flex-1 min-w-0 !-mt-2" subscriptSizing="dynamic">
-                        <mat-label>{{ 'stats.category_metric_title' | translate }}</mat-label>
+                        <mat-label>{{ I18N.stats.category_metric_title | translate }}</mat-label>
                         <mat-select [ngModel]="categoryMetric()" (ngModelChange)="categoryMetric.set($event)">
                           @for (opt of categoryMetricOptions; track opt.key) {
                             <mat-option [value]="opt.key">{{ 'stats.category_metrics.' + opt.key | translate }}</mat-option>
@@ -144,7 +145,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                 @if (categoryScoreProfile().length > 0) {
                   <mat-card>
                     <mat-card-header>
-                      <mat-card-title>{{ 'stats.categories_score_profile' | translate }}</mat-card-title>
+                      <mat-card-title>{{ I18N.stats.categories_score_profile | translate }}</mat-card-title>
                     </mat-card-header>
                     <mat-card-content class="!pt-4">
                       @if (categoriesLoading()) {
@@ -160,10 +161,10 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
 
                 <mat-card class="lg:col-span-2 2xl:col-span-1">
                   <mat-card-header class="!flex !items-center !justify-between">
-                    <mat-card-title>{{ 'stats.score_histogram' | translate }}</mat-card-title>
+                    <mat-card-title>{{ I18N.stats.score_histogram | translate }}</mat-card-title>
                     <button mat-icon-button class="shrink-0" [disabled]="scoreBins().length === 0"
-                      [matTooltip]="'stats.export_csv' | translate"
-                      [attr.aria-label]="'stats.export_csv' | translate" (click)="exportScoreBinsCsv()">
+                      [matTooltip]="I18N.stats.export_csv | translate"
+                      [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportScoreBinsCsv()">
                       <mat-icon>download</mat-icon>
                     </button>
                   </mat-card-header>
@@ -183,31 +184,31 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
               @if (categoryScoreProfile().length > 0) {
                 <mat-card>
                   <mat-card-header class="!flex !items-center !justify-between">
-                    <mat-card-title>{{ 'stats.categories_gear_profile' | translate }}</mat-card-title>
+                    <mat-card-title>{{ I18N.stats.categories_gear_profile | translate }}</mat-card-title>
                     <div class="flex items-center shrink-0">
                       <button mat-icon-button [disabled]="categoryStats().length === 0"
-                        [matTooltip]="'stats.export_csv' | translate"
-                        [attr.aria-label]="'stats.export_csv' | translate" (click)="exportCategoriesCsv()">
+                        [matTooltip]="I18N.stats.export_csv | translate"
+                        [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportCategoriesCsv()">
                         <mat-icon>download</mat-icon>
                       </button>
                       <button mat-icon-button (click)="showGearProfileHelp.set(!showGearProfileHelp())"
-                        [matTooltip]="'stats.gear_profile_help.tooltip' | translate">
+                        [matTooltip]="I18N.stats.gear_profile_help.tooltip | translate">
                         <mat-icon>help_outline</mat-icon>
                       </button>
                     </div>
                   </mat-card-header>
                   @if (showGearProfileHelp()) {
                     <div class="mx-4 mb-2 text-sm text-gray-400">
-                      {{ 'stats.gear_profile_help.description' | translate }}
+                      {{ I18N.stats.gear_profile_help.description | translate }}
                     </div>
                   }
                   <mat-card-content class="!pt-4 overflow-x-auto">
                     <table class="w-full text-sm">
                       <thead>
                         <tr class="text-gray-400 text-left border-b border-neutral-700">
-                          <th class="pb-2 pr-4">{{ 'stats.categories.tab' | translate }}</th>
-                          <th class="pb-2 pr-4">{{ 'stats.cameras' | translate }}</th>
-                          <th class="pb-2 pr-4">{{ 'stats.lenses' | translate }}</th>
+                          <th class="pb-2 pr-4">{{ I18N.stats.categories.tab | translate }}</th>
+                          <th class="pb-2 pr-4">{{ I18N.stats.cameras | translate }}</th>
+                          <th class="pb-2 pr-4">{{ I18N.stats.lenses | translate }}</th>
                           <th class="pb-2 pr-4">ISO</th>
                           <th class="pb-2 pr-4">f/</th>
                           <th class="pb-2">mm</th>
@@ -235,8 +236,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <!-- Timeline tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="sm:mr-2" [matTooltip]="'stats.timeline' | translate">timeline</mat-icon>
-              <span class="hidden sm:inline">{{ 'stats.timeline' | translate }}</span>
+              <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.timeline | translate">timeline</mat-icon>
+              <span class="hidden sm:inline">{{ I18N.stats.timeline | translate }}</span>
             </ng-template>
             <app-stats-timeline-tab />
           </mat-tab>
@@ -244,8 +245,8 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <!-- Correlations tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="sm:mr-2" [matTooltip]="'stats.tabs.correlations' | translate">insights</mat-icon>
-              <span class="hidden sm:inline">{{ 'stats.tabs.correlations' | translate }}</span>
+              <mat-icon class="sm:mr-2" [matTooltip]="I18N.stats.tabs.correlations | translate">insights</mat-icon>
+              <span class="hidden sm:inline">{{ I18N.stats.tabs.correlations | translate }}</span>
             </ng-template>
             <app-stats-correlations-tab />
           </mat-tab>
@@ -254,6 +255,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
   `,
 })
 export class StatsComponent {
+  protected readonly I18N = I18N;
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);
@@ -358,14 +360,14 @@ export class StatsComponent {
       const accent = this.themeService.accentColor();
       const labels = cats.map(c => this.translateCategory(c.category));
       this.buildGroupedHorizontalBar('categoryScoreProfile', this.categoryScoreProfileCanvas(), labels, [
-        { label: this.i18n.t('stats.axes.aggregate'),    data: cats.map(c => c.avg_score),        color: COLORS[3] },
-        { label: this.i18n.t('stats.axes.aesthetic'),    data: cats.map(c => c.avg_aesthetic),    color: accent },
-        { label: this.i18n.t('stats.axes.composition'),  data: cats.map(c => c.avg_composition),  color: COLORS[1] },
-        { label: this.i18n.t('stats.axes.sharpness'),    data: cats.map(c => c.avg_sharpness),    color: COLORS[2] },
-        { label: this.i18n.t('stats.axes.color'),        data: cats.map(c => c.avg_color),        color: COLORS[5] },
-        { label: this.i18n.t('stats.axes.exposure'),     data: cats.map(c => c.avg_exposure),     color: COLORS[4] },
-        { label: this.i18n.t('stats.axes.face_quality'), data: cats.map(c => c.avg_face_quality), color: COLORS[6] },
-        { label: this.i18n.t('stats.axes.contrast'),     data: cats.map(c => c.avg_contrast),     color: COLORS[7] },
+        { label: this.i18n.t(I18N.stats.axes.aggregate),    data: cats.map(c => c.avg_score),        color: COLORS[3] },
+        { label: this.i18n.t(I18N.stats.axes.aesthetic),    data: cats.map(c => c.avg_aesthetic),    color: accent },
+        { label: this.i18n.t(I18N.stats.axes.composition),  data: cats.map(c => c.avg_composition),  color: COLORS[1] },
+        { label: this.i18n.t(I18N.stats.axes.sharpness),    data: cats.map(c => c.avg_sharpness),    color: COLORS[2] },
+        { label: this.i18n.t(I18N.stats.axes.color),        data: cats.map(c => c.avg_color),        color: COLORS[5] },
+        { label: this.i18n.t(I18N.stats.axes.exposure),     data: cats.map(c => c.avg_exposure),     color: COLORS[4] },
+        { label: this.i18n.t(I18N.stats.axes.face_quality), data: cats.map(c => c.avg_face_quality), color: COLORS[6] },
+        { label: this.i18n.t(I18N.stats.axes.contrast),     data: cats.map(c => c.avg_contrast),     color: COLORS[7] },
       ]);
     });
     effect(() => {

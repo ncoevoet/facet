@@ -9,6 +9,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 interface FolderItem {
   name: string;
@@ -46,7 +47,7 @@ interface FoldersResponse {
       <nav class="flex items-center gap-1 text-sm mb-3 flex-wrap">
         <button mat-button class="!min-w-0 !px-2" (click)="navigateTo('')">
           <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">home</mat-icon>
-          {{ 'folders.root' | translate }}
+          {{ I18N.folders.root | translate }}
         </button>
         @for (crumb of breadcrumbs(); track crumb.path) {
           <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-40">chevron_right</mat-icon>
@@ -64,7 +65,7 @@ interface FoldersResponse {
     @if (!loading() && folders().length === 0) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">folder_off</mat-icon>
-        <p>{{ 'folders.empty' | translate }}</p>
+        <p>{{ I18N.folders.empty | translate }}</p>
       </div>
     }
 
@@ -87,7 +88,7 @@ interface FoldersResponse {
           }
           <div class="p-3">
             <div class="font-medium text-sm truncate">{{ folder.name }}</div>
-            <div class="text-xs opacity-60">{{ folder.photo_count | number }} {{ 'folders.photos_count' | translate }}</div>
+            <div class="text-xs opacity-60">{{ folder.photo_count | number }} {{ I18N.folders.photos_count | translate }}</div>
           </div>
         </button>
       }
@@ -95,6 +96,7 @@ interface FoldersResponse {
   `,
 })
 export class FoldersComponent implements OnInit {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);

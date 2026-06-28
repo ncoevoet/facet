@@ -15,6 +15,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
 import { CorrelationApiResponse, buildCorrelationCsvRecords } from './stats-correlations-csv';
+import { I18N } from '../../core/i18n/keys';
 
 const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 
@@ -36,10 +37,10 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
     <div class="mt-4 flex flex-col gap-4">
       <mat-card>
         <mat-card-header class="!flex !items-center !justify-between">
-          <mat-card-title>{{ 'stats.metric_correlations' | translate }}</mat-card-title>
+          <mat-card-title>{{ I18N.stats.metric_correlations | translate }}</mat-card-title>
           <button mat-icon-button class="shrink-0" [disabled]="!corrData()"
-            [matTooltip]="'stats.export_csv' | translate"
-            [attr.aria-label]="'stats.export_csv' | translate" (click)="exportCsv()">
+            [matTooltip]="I18N.stats.export_csv | translate"
+            [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportCsv()">
             <mat-icon>download</mat-icon>
           </button>
         </mat-card-header>
@@ -47,7 +48,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <!-- Controls: row 1 — X Axis + Group By -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <mat-form-field subscriptSizing="dynamic">
-              <mat-label>{{ 'stats.correlations.x_axis' | translate }}</mat-label>
+              <mat-label>{{ I18N.stats.correlations.x_axis | translate }}</mat-label>
               <mat-select [ngModel]="corrXAxis()" (ngModelChange)="corrXAxis.set($event)">
                 @for (dim of corrDimensions; track dim.key) {
                   <mat-option [value]="dim.key">{{ 'stats.correlations.dimensions.' + dim.key | translate }}</mat-option>
@@ -55,9 +56,9 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
               </mat-select>
             </mat-form-field>
             <mat-form-field subscriptSizing="dynamic">
-              <mat-label>{{ 'stats.correlations.group_by' | translate }}</mat-label>
+              <mat-label>{{ I18N.stats.correlations.group_by | translate }}</mat-label>
               <mat-select [ngModel]="corrGroupBy()" (ngModelChange)="corrGroupBy.set($event)">
-                <mat-option value="">{{ 'stats.correlations.none' | translate }}</mat-option>
+                <mat-option value="">{{ I18N.stats.correlations.none | translate }}</mat-option>
                 @for (dim of corrDimensions; track dim.key) {
                   <mat-option [value]="dim.key">{{ 'stats.correlations.dimensions.' + dim.key | translate }}</mat-option>
                 }
@@ -67,7 +68,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
           <!-- Controls: row 2 — Metrics + Chart Type + button -->
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-end gap-3 mb-4">
             <mat-form-field subscriptSizing="dynamic">
-              <mat-label>{{ 'stats.correlations.y_metrics' | translate }}</mat-label>
+              <mat-label>{{ I18N.stats.correlations.y_metrics | translate }}</mat-label>
               <mat-select multiple [ngModel]="corrYMetrics()" (ngModelChange)="corrYMetrics.set($event)">
                 @for (m of corrMetricOptions; track m.key) {
                   <mat-option [value]="m.key">{{ 'stats.correlations.metrics.' + m.key | translate }}</mat-option>
@@ -75,7 +76,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
               </mat-select>
             </mat-form-field>
             <mat-form-field subscriptSizing="dynamic">
-              <mat-label>{{ 'stats.correlations.chart_type' | translate }}</mat-label>
+              <mat-label>{{ I18N.stats.correlations.chart_type | translate }}</mat-label>
               <mat-select [ngModel]="corrChartType()" (ngModelChange)="corrChartType.set($event)">
                 @for (ct of corrChartTypes; track ct.key) {
                   <mat-option [value]="ct.key">{{ 'stats.correlations.chart_types.' + ct.key | translate }}</mat-option>
@@ -85,12 +86,12 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
             <div class="flex items-end">
               <button mat-stroked-button class="w-full" [disabled]="correlationLoading() || corrYMetrics().length === 0" (click)="loadCorrelation()">
                 <mat-icon>refresh</mat-icon>
-                {{ 'stats.load_correlations' | translate }}
+                {{ I18N.stats.load_correlations | translate }}
               </button>
             </div>
           </div>
           @if (corrYMetrics().length === 0) {
-            <div class="text-sm text-gray-400 mb-4">{{ 'stats.correlations.select_metric' | translate }}</div>
+            <div class="text-sm text-gray-400 mb-4">{{ I18N.stats.correlations.select_metric | translate }}</div>
           }
           @if (correlationLoading()) {
             <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
@@ -99,7 +100,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
               <canvas #correlationsCanvas></canvas>
             </div>
             @if (corrBucketCount() > 0) {
-              <div class="text-xs text-gray-500 mt-2">{{ corrBucketCount() }} {{ 'stats.correlations.buckets' | translate }}</div>
+              <div class="text-xs text-gray-500 mt-2">{{ corrBucketCount() }} {{ I18N.stats.correlations.buckets | translate }}</div>
             }
           }
         </mat-card-content>
@@ -108,6 +109,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
   `,
 })
 export class StatsCorrelationsTabComponent {
+  protected readonly I18N = I18N;
   private api = inject(ApiService);
   private destroyRef = inject(DestroyRef);
   private statsFilters = inject(StatsFiltersService);

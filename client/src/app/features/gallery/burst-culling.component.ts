@@ -16,6 +16,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
 import { isTypingContext } from '../../shared/utils/keyboard';
 import { SyncedZoomComponent, ZoomState, FIT_ZOOM } from './synced-zoom.component';
 import { firstValueFrom } from 'rxjs';
+import { I18N } from '../../core/i18n/keys';
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, WeightRemainingPipe,
@@ -73,31 +74,31 @@ interface ShortcutRow {
     <div class="px-4 pt-2 md:px-8 md:pt-3 mx-auto w-full max-w-[96%] h-full flex flex-col">
       <!-- Header (sticky: only the group list below scrolls) -->
       <div class="flex items-center gap-3 shrink-0 mb-3">
-        <h2 class="text-lg font-semibold">{{ 'culling.title' | translate }}</h2>
+        <h2 class="text-lg font-semibold">{{ I18N.culling.title | translate }}</h2>
         <div class="flex flex-wrap items-center gap-3 md:gap-4 ml-auto">
           <mat-checkbox [checked]="excludeRejected()" (change)="onExcludeRejectedChange($event.checked)"
-                        [aria-label]="'culling.exclude_rejected' | translate"
+                        [aria-label]="I18N.culling.exclude_rejected | translate"
                         class="text-xs opacity-80">
-            {{ 'culling.exclude_rejected' | translate }}
+            {{ I18N.culling.exclude_rejected | translate }}
           </mat-checkbox>
           <div class="flex items-center gap-2">
-            <span class="text-xs opacity-60">{{ 'culling.threshold' | translate }}</span>
+            <span class="text-xs opacity-60">{{ I18N.culling.threshold | translate }}</span>
             <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
-              <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="'culling.threshold' | translate" />
+              <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.culling.threshold | translate" />
             </mat-slider>
             <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
           </div>
-          <div class="flex items-center gap-2" [matTooltip]="'culling.strictness_tooltip' | translate">
-            <span class="text-xs opacity-60">{{ 'culling.strictness' | translate }}</span>
+          <div class="flex items-center gap-2" [matTooltip]="I18N.culling.strictness_tooltip | translate">
+            <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
             <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="10" [discrete]="true">
-              <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="'culling.strictness' | translate" />
+              <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="I18N.culling.strictness | translate" />
             </mat-slider>
             <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
           </div>
           <select [class]="filterSelectClass"
                   [value]="sortMode()"
                   (change)="onSortChange($any($event.target).value)"
-                  [attr.aria-label]="'culling.sort.label' | translate">
+                  [attr.aria-label]="I18N.culling.sort.label | translate">
             @for (m of sortModes; track m) {
               <option [value]="m">{{ 'culling.sort.' + m | translate }}</option>
             }
@@ -106,16 +107,16 @@ interface ShortcutRow {
             <select [class]="filterSelectClass"
                     [value]="categoryFilter()"
                     (change)="onCategoryFilterChange($any($event.target).value)"
-                    [attr.aria-label]="'culling.filter_category' | translate">
-              <option value="">{{ 'culling.all_categories' | translate }}</option>
+                    [attr.aria-label]="I18N.culling.filter_category | translate">
+              <option value="">{{ I18N.culling.all_categories | translate }}</option>
               @for (c of availableCategories(); track c) {
                 <option [value]="c">{{ 'category_names.' + c | translate }}</option>
               }
             </select>
           }
           <button mat-icon-button (click)="showHelp.set(!showHelp())" class="!w-8 !h-8 !p-0"
-                  [matTooltip]="'culling.help' | translate"
-                  [attr.aria-label]="'culling.help' | translate">
+                  [matTooltip]="I18N.culling.help | translate"
+                  [attr.aria-label]="I18N.culling.help | translate">
             <mat-icon class="!text-lg !w-5 !h-5 !leading-5 opacity-60">help_outline</mat-icon>
           </button>
         </div>
@@ -123,7 +124,7 @@ interface ShortcutRow {
 
       @if (showHelp()) {
         <div class="shrink-0 p-3 mb-3 rounded-lg bg-[var(--mat-sys-surface-container)] space-y-3">
-          <p class="text-sm opacity-70">{{ 'culling.help_text' | translate }}</p>
+          <p class="text-sm opacity-70">{{ I18N.culling.help_text | translate }}</p>
           <div class="flex flex-wrap gap-x-10 gap-y-3">
             @for (section of shortcutSections; track section.titleKey) {
               <div>
@@ -154,7 +155,7 @@ interface ShortcutRow {
           <mat-spinner diameter="40" />
         </div>
       } @else if (visibleGroups().length === 0) {
-        <p class="text-center py-20 opacity-60">{{ 'culling.no_bursts' | translate }}</p>
+        <p class="text-center py-20 opacity-60">{{ I18N.culling.no_bursts | translate }}</p>
       } @else {
         <div class="space-y-6 pb-4">
           @for (group of visibleGroups(); track group.group_id + '_' + group.type; let i = $index) {
@@ -184,7 +185,7 @@ interface ShortcutRow {
                          class="h-72 md:h-96 w-auto object-contain" [alt]="photo.filename" loading="lazy" />
                     @if (photo.path === group.best_path) {
                       <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-600 text-white text-xs font-bold">
-                        {{ 'culling.auto_best' | translate }}
+                        {{ I18N.culling.auto_best | translate }}
                       </div>
                     } @else if (photo.cull_reason; as reason) {
                       <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-xs font-medium max-w-[160px] truncate">
@@ -205,13 +206,13 @@ interface ShortcutRow {
                     </div>
                     @if (photo.is_blink) {
                       <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-yellow-600 text-white text-xs font-bold">
-                        {{ 'ui.badges.blink' | translate }}
+                        {{ I18N.ui.badges.blink | translate }}
                       </div>
                     }
                     @if (!(photo.path | isKept:selectionsMap():group.group_id)) {
                       <button class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 inline-flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity"
-                              [matTooltip]="'culling.view_detail' | translate"
-                              [attr.aria-label]="'culling.view_detail' | translate"
+                              [matTooltip]="I18N.culling.view_detail | translate"
+                              [attr.aria-label]="I18N.culling.view_detail | translate"
                               (click)="openDetail($event, photo.path)">
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">info</mat-icon>
                       </button>
@@ -222,21 +223,21 @@ interface ShortcutRow {
 
               <!-- Group actions -->
               <div class="flex items-center gap-2 px-4 py-2 border-t border-[var(--mat-sys-outline-variant)]">
-                <span class="text-xs opacity-50">{{ group.count }} {{ 'culling.photos' | translate }}</span>
+                <span class="text-xs opacity-50">{{ group.count }} {{ I18N.culling.photos | translate }}</span>
                 @if (group.category) {
                   <span class="text-xs opacity-50">· {{ 'category_names.' + group.category | translate }}</span>
                   @if (comparisonStats(); as stats) {
                     @if ((group.category | weightRemaining:stats); as remaining) {
                       <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] bg-[var(--mat-sys-surface-container-high)] opacity-70"
-                            [matTooltip]="'culling.weight_remaining_tooltip' | translate">
+                            [matTooltip]="I18N.culling.weight_remaining_tooltip | translate">
                         <mat-icon class="inline-flex !text-sm !w-3.5 !h-3.5 !leading-[14px]">tune</mat-icon>
-                        {{ 'culling.weight_remaining' | translate:{ count: remaining } }}
+                        {{ I18N.culling.weight_remaining | translate:{ count: remaining } }}
                       </span>
                     } @else {
                       <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] text-green-500"
-                            [matTooltip]="'culling.weight_ready_tooltip' | translate">
+                            [matTooltip]="I18N.culling.weight_ready_tooltip | translate">
                         <mat-icon class="inline-flex !text-sm !w-3.5 !h-3.5 !leading-[14px]">tune</mat-icon>
-                        {{ 'culling.weight_ready' | translate }}
+                        {{ I18N.culling.weight_ready | translate }}
                       </span>
                     }
                   }
@@ -244,14 +245,14 @@ interface ShortcutRow {
                 @if ((group | isConfirmed:confirmedGroups())) {
                   <span class="inline-flex items-center gap-1 text-xs text-green-500 font-medium">
                     <mat-icon class="inline-flex !text-sm !w-4 !h-4 !leading-4">check_circle</mat-icon>
-                    {{ 'culling.confirmed_badge' | translate }}
+                    {{ I18N.culling.confirmed_badge | translate }}
                   </span>
                 }
                 <div class="flex gap-2 ml-auto">
                   @if (group | isPassing:passingGroups()) {
                     <div class="relative overflow-hidden rounded-md">
                       <button mat-stroked-button (click)="cancelPass(group)" class="!h-8 !text-sm !rounded-md relative z-10">
-                        {{ 'culling.cancel_pass' | translate }} ({{ group | passCountdown:passingGroups() }}s)
+                        {{ I18N.culling.cancel_pass | translate }} ({{ group | passCountdown:passingGroups() }}s)
                       </button>
                       <div class="absolute inset-0 bg-[var(--mat-sys-outline-variant)] opacity-30 origin-right transition-transform duration-1000 ease-linear"
                            [style.transform]="'scaleX(' + ((group | passCountdown:passingGroups()) / passCountdownSeconds) + ')'"></div>
@@ -260,15 +261,15 @@ interface ShortcutRow {
                     <button mat-stroked-button (click)="openLightbox(group, 0)"
                             class="!h-8 !text-sm !rounded-md inline-flex items-center">
                       <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 mr-1">fullscreen</mat-icon>
-                      {{ 'culling.darkroom' | translate }}
+                      {{ I18N.culling.darkroom | translate }}
                     </button>
                     <button mat-stroked-button (click)="skipGroup(group)" class="!h-8 !text-sm !rounded-md">
-                      {{ 'culling.skip' | translate }}
+                      {{ I18N.culling.skip | translate }}
                     </button>
                     <button mat-flat-button (click)="confirmGroup(group)" [disabled]="confirming()"
                             class="!h-8 !text-sm !rounded-md inline-flex items-center">
                       <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 mr-1">check_circle</mat-icon>
-                      {{ 'culling.confirm' | translate }}
+                      {{ I18N.culling.confirm | translate }}
                     </button>
                   }
                 </div>
@@ -293,7 +294,7 @@ interface ShortcutRow {
         <div class="shrink-0 flex justify-center py-3 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
           <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="confirming()" class="!px-6 !rounded-md">
             <mat-icon>done_all</mat-icon>
-            {{ 'culling.confirm_all' | translate }} ({{ unconfirmedCount() }})
+            {{ I18N.culling.confirm_all | translate }} ({{ unconfirmedCount() }})
           </button>
         </div>
       }
@@ -328,19 +329,19 @@ interface ShortcutRow {
                (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
             <button mat-icon-button [class.!text-white]="compareMode() !== 'single'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === 'single'"
-                    [matTooltip]="'culling.compare.single' | translate"
+                    [matTooltip]="I18N.culling.compare.single | translate"
                     (click)="setCompareMode('single')"><mat-icon>crop_original</mat-icon></button>
             <button mat-icon-button [class.!text-white]="compareMode() !== '2up'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === '2up'"
-                    [matTooltip]="'culling.compare.2up' | translate"
+                    [matTooltip]="I18N.culling.compare['2up'] | translate"
                     (click)="setCompareMode('2up')"><mat-icon>splitscreen</mat-icon></button>
             <button mat-icon-button [class.!text-white]="compareMode() !== '4up'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === '4up'"
-                    [matTooltip]="'culling.compare.4up' | translate"
+                    [matTooltip]="I18N.culling.compare['4up'] | translate"
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
           </div>
           <button mat-icon-button
-                  [attr.aria-label]="'dialog.cancel' | translate"
+                  [attr.aria-label]="I18N.dialog.cancel | translate"
                   (click)="closeLightbox(); $event.stopPropagation()" class="!text-white">
             <mat-icon>close</mat-icon>
           </button>
@@ -380,15 +381,15 @@ interface ShortcutRow {
             @if (lbPhoto.path | isKept:selectionsMap():lbGroup.group_id) {
               <span class="inline-flex items-center gap-1 text-green-400 text-sm">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">check</mat-icon>
-                {{ 'culling.lightbox.kept' | translate }}
+                {{ I18N.culling.lightbox.kept | translate }}
               </span>
             } @else if (lbPhoto.path | isDecided:selectionsMap():lbGroup.group_id) {
               <span class="inline-flex items-center gap-1 text-red-400 text-sm">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">close</mat-icon>
-                {{ 'culling.lightbox.rejected' | translate }}
+                {{ I18N.culling.lightbox.rejected | translate }}
               </span>
             } @else {
-              <span class="text-white/40 text-sm">{{ 'culling.lightbox.undecided' | translate }}</span>
+              <span class="text-white/40 text-sm">{{ I18N.culling.lightbox.undecided | translate }}</span>
             }
           </div>
         }
@@ -399,7 +400,7 @@ interface ShortcutRow {
                role="presentation"
                (click)="$event.stopPropagation()"
                (keydown)="$event.stopPropagation()">
-            <div class="text-white/50 text-xs mb-2">{{ 'culling.face_grid_title' | translate }}</div>
+            <div class="text-white/50 text-xs mb-2">{{ I18N.culling.face_grid_title | translate }}</div>
             <div class="flex gap-3 items-start">
               @for (photo of lbGroup.photos; track photo.path) {
                 @if ((photo.path | facesForPath:faceMap()).length > 0) {
@@ -419,18 +420,18 @@ interface ShortcutRow {
                           }
                           @if (face.is_blink) {
                             <div class="absolute bottom-0 inset-x-0 bg-yellow-600/90 text-white text-[10px] leading-tight text-center font-bold py-0.5">
-                              {{ 'ui.badges.blink' | translate }}
+                              {{ I18N.ui.badges.blink | translate }}
                             </div>
                           } @else if (face | facePoorExpression) {
                             <div class="absolute bottom-0 inset-x-0 bg-orange-600/80 text-white text-[10px] leading-tight text-center font-bold py-0.5">
-                              {{ 'culling.face_badge_expression' | translate }}
+                              {{ I18N.culling.face_badge_expression | translate }}
                             </div>
                           }
                         </div>
                       }
                     </div>
                     @if (photo.path === lbGroup.best_path) {
-                      <span class="text-green-400 text-[10px] font-bold">{{ 'culling.auto_best' | translate }}</span>
+                      <span class="text-green-400 text-[10px] font-bold">{{ I18N.culling.auto_best | translate }}</span>
                     } @else if (photo.cull_reason; as reason) {
                       <span class="text-white/60 text-[10px] max-w-[80px] truncate">{{ reason | cullReason }}</span>
                     }
@@ -446,6 +447,7 @@ interface ShortcutRow {
   host: { class: 'block h-full' },
 })
 export class BurstCullingComponent implements OnDestroy {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
@@ -752,7 +754,7 @@ export class BurstCullingComponent implements OnDestroy {
       this.selectionsMap.set(this.autoSelectBest(data.groups));
     } catch {
       if (gen !== this.loadGenerationId) return;
-      this.snackBar.open(this.i18n.t('culling.error_loading'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+      this.snackBar.open(this.i18n.t(I18N.culling.error_loading), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
       if (gen === this.loadGenerationId) this.loading.set(false);
     }
@@ -774,7 +776,7 @@ export class BurstCullingComponent implements OnDestroy {
       this.selectionsMap.set(this.autoSelectBest(data.groups, this.selectionsMap()));
     } catch {
       if (gen !== this.loadGenerationId) return;
-      this.snackBar.open(this.i18n.t('culling.error_loading'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+      this.snackBar.open(this.i18n.t(I18N.culling.error_loading), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
       if (gen === this.loadGenerationId) this.loadingMore.set(false);
     }
@@ -998,7 +1000,7 @@ export class BurstCullingComponent implements OnDestroy {
         .then(() => this.refreshComparisonStats())
         .catch(() => {
           this.unconfirmGroup(key);
-          this.snackBar.open(this.i18n.t('culling.error_confirming'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+          this.snackBar.open(this.i18n.t(I18N.culling.error_confirming), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
         });
       this.addToSetSignal(this.hiddenGroups, key);
     }, true);
@@ -1118,9 +1120,9 @@ export class BurstCullingComponent implements OnDestroy {
         for (const g of remaining) next.add(this.groupKey(g));
         return next;
       });
-      this.snackBar.open(this.i18n.t('culling.confirmed'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+      this.snackBar.open(this.i18n.t(I18N.culling.confirmed), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } catch {
-      this.snackBar.open(this.i18n.t('culling.error_auto_select'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+      this.snackBar.open(this.i18n.t(I18N.culling.error_auto_select), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
       this.confirming.set(false);
     }

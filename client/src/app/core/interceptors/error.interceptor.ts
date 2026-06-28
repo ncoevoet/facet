@@ -4,6 +4,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { I18nService } from '../services/i18n.service';
+import { I18N } from '../i18n/keys';
 
 const CLIENT_ERRORS_URL = '/api/client-errors';
 
@@ -32,11 +33,11 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       if (error.status === 401 && !isAuthUrl(req.url)) {
         auth.logout();
       } else if (error.status === 429) {
-        snackBar.open(i18n.t('errors.rate_limited'), '', { duration: 5000 });
+        snackBar.open(i18n.t(I18N.errors.rate_limited), '', { duration: 5000 });
       } else if (error.status === 403 && !isAuthUrl(req.url)) {
-        snackBar.open(i18n.t('errors.access_denied'), '', { duration: 3000 });
+        snackBar.open(i18n.t(I18N.errors.access_denied), '', { duration: 3000 });
       } else if (error.status >= 500) {
-        snackBar.open(i18n.t('errors.server_error'), '', { duration: 3000 });
+        snackBar.open(i18n.t(I18N.errors.server_error), '', { duration: 3000 });
         if (!isCrashReportUrl(req.url)) {
           let msg = `${req.method} ${req.url} -> ${error.status}`;
           const body = error.error as Record<string, unknown> | null;

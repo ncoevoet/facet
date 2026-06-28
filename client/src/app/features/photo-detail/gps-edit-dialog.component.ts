@@ -11,6 +11,7 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 export interface GpsEditDialogData {
   path: string;
@@ -38,20 +39,21 @@ export interface GpsEditDialogData {
         @if (selectedLat() !== null) {
           {{ selectedLat()! | fixed:6 }}, {{ selectedLng()! | fixed:6 }}
         } @else {
-          {{ 'photo_detail.gps_click_to_place' | translate }}
+          {{ I18N.photo_detail.gps_click_to_place | translate }}
         }
       </div>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       @if (selectedLat() !== null) {
-        <button mat-button (click)="clearLocation()" class="!mr-auto">{{ 'photo_detail.gps_clear' | translate }}</button>
+        <button mat-button (click)="clearLocation()" class="!mr-auto">{{ I18N.photo_detail.gps_clear | translate }}</button>
       }
-      <button mat-button mat-dialog-close>{{ 'ui.buttons.cancel' | translate }}</button>
-      <button mat-flat-button (click)="save()" [disabled]="saving()">{{ 'ui.buttons.save' | translate }}</button>
+      <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
+      <button mat-flat-button (click)="save()" [disabled]="saving()">{{ I18N.ui.buttons.save | translate }}</button>
     </mat-dialog-actions>
   `,
 })
 export class GpsEditDialogComponent {
+  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly dialogRef = inject(MatDialogRef<GpsEditDialogComponent>);
   private readonly destroyRef = inject(DestroyRef);
@@ -124,7 +126,7 @@ export class GpsEditDialogComponent {
         gps_longitude: this.selectedLng(),
       });
     } catch {
-      this.snackBar.open(this.i18n.t('notifications.connection_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.notifications.connection_error), '', { duration: 3000 });
     } finally {
       this.saving.set(false);
     }

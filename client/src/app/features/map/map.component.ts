@@ -11,6 +11,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { MapFiltersService } from './map-filters.service';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
+import { I18N } from '../../core/i18n/keys';
 
 interface MapCluster {
   lat: number;
@@ -201,7 +202,7 @@ export class MapComponent implements OnInit, OnDestroy {
 
           if (cluster.representative_path) {
             const thumbUrl = this.escapeHtml(this.api.thumbnailUrl(cluster.representative_path, 160));
-            const countLabel = this.escapeHtml(this.i18n.t('map.cluster_photos', { count: cluster.count }));
+            const countLabel = this.escapeHtml(this.i18n.t(I18N.map.cluster_photos, { count: cluster.count }));
             marker.bindPopup(
               `<div style="text-align:center">` +
               `<img src="${thumbUrl}" alt="${countLabel}" style="max-width:150px;border-radius:6px;display:block;margin:0 auto" />` +
@@ -221,7 +222,7 @@ export class MapComponent implements OnInit, OnDestroy {
 
           const thumbUrl = this.escapeHtml(this.api.thumbnailUrl(photo.path, 160));
           const score = photo.aggregate != null ? photo.aggregate.toFixed(1) : '--';
-          const scoreLabel = this.escapeHtml(this.i18n.t('map.score', { score }));
+          const scoreLabel = this.escapeHtml(this.i18n.t(I18N.map.score, { score }));
           marker.bindPopup(
             `<div style="text-align:center;cursor:pointer" data-photo-path="${this.escapeHtml(photo.path)}">` +
             `<img src="${thumbUrl}" alt="${this.escapeHtml(photo.filename)}" style="max-width:150px;border-radius:6px;display:block;margin:0 auto" />` +

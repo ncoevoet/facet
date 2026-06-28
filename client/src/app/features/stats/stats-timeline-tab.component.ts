@@ -12,6 +12,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
+import { I18N } from '../../core/i18n/keys';
 
 /** Pipe to compute heatmap circle color from count:max. */
 @Pipe({ name: 'heatmapColor', standalone: true })
@@ -56,10 +57,10 @@ interface TimelineEntry {
     <div class="mt-4 flex flex-col gap-4">
       <mat-card>
         <mat-card-header class="!flex !items-center !justify-between">
-          <mat-card-title>{{ 'stats.photos_over_time' | translate }}</mat-card-title>
+          <mat-card-title>{{ I18N.stats.photos_over_time | translate }}</mat-card-title>
           <button mat-icon-button class="shrink-0" [disabled]="timeline().length === 0"
-            [matTooltip]="'stats.export_csv' | translate"
-            [attr.aria-label]="'stats.export_csv' | translate" (click)="exportCsv()">
+            [matTooltip]="I18N.stats.export_csv | translate"
+            [attr.aria-label]="I18N.stats.export_csv | translate" (click)="exportCsv()">
             <mat-icon>download</mat-icon>
           </button>
         </mat-card-header>
@@ -77,7 +78,7 @@ interface TimelineEntry {
       @if (yearlyData().length > 0) {
         <mat-card>
           <mat-card-header>
-            <mat-card-title>{{ 'stats.photos_per_year' | translate }}</mat-card-title>
+            <mat-card-title>{{ I18N.stats.photos_per_year | translate }}</mat-card-title>
           </mat-card-header>
           <mat-card-content class="!pt-4">
             <div class="h-48 md:h-64">
@@ -91,7 +92,7 @@ interface TimelineEntry {
         @if (dayOfWeekData().length > 0) {
           <mat-card>
             <mat-card-header>
-              <mat-card-title>{{ 'stats.charts.day_of_week' | translate }}</mat-card-title>
+              <mat-card-title>{{ I18N.stats.charts.day_of_week | translate }}</mat-card-title>
             </mat-card-header>
             <mat-card-content class="!pt-4">
               <div class="h-64">
@@ -103,7 +104,7 @@ interface TimelineEntry {
         @if (hourOfDayData().length > 0) {
           <mat-card>
             <mat-card-header>
-              <mat-card-title>{{ 'stats.charts.hour_of_day' | translate }}</mat-card-title>
+              <mat-card-title>{{ I18N.stats.charts.hour_of_day | translate }}</mat-card-title>
             </mat-card-header>
             <mat-card-content class="!pt-4">
               <div class="h-64">
@@ -117,7 +118,7 @@ interface TimelineEntry {
       @if (heatmapRows().length > 0) {
         <mat-card>
           <mat-card-header>
-            <mat-card-title>{{ 'stats.charts.hours_heatmap' | translate }}</mat-card-title>
+            <mat-card-title>{{ I18N.stats.charts.hours_heatmap | translate }}</mat-card-title>
           </mat-card-header>
           <mat-card-content class="!pt-4">
             <div class="overflow-x-auto">
@@ -136,7 +137,7 @@ interface TimelineEntry {
                       <td class="p-1 text-gray-300 font-medium">{{ row.day }}</td>
                       @for (count of row.cells; track $index) {
                         <td class="p-0 text-center align-middle"
-                          [title]="'stats.heatmap_tooltip' | translate:{day: row.day, hour: $index, count: count}">
+                          [title]="I18N.stats.heatmap_tooltip | translate:{day: row.day, hour: $index, count: count}">
                           <div class="inline-block rounded-full"
                             [style.width.px]="count | heatmapSize:heatmapMax()"
                             [style.height.px]="count | heatmapSize:heatmapMax()"
@@ -156,6 +157,7 @@ interface TimelineEntry {
   `,
 })
 export class StatsTimelineTabComponent {
+  protected readonly I18N = I18N;
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);

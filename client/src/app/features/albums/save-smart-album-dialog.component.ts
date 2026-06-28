@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { AlbumService } from '../../core/services/album.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { I18N } from '../../core/i18n/keys';
 
 @Component({
   selector: 'app-save-smart-album-dialog',
@@ -17,22 +18,23 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
     MatButtonModule, MatTooltipModule, TranslatePipe,
   ],
   template: `
-    <h2 mat-dialog-title class="truncate" [matTooltip]="'albums.save_smart' | translate">{{ 'albums.save_smart' | translate }}</h2>
+    <h2 mat-dialog-title class="truncate" [matTooltip]="I18N.albums.save_smart | translate">{{ I18N.albums.save_smart | translate }}</h2>
     <mat-dialog-content>
       <mat-form-field class="w-full">
-        <mat-label>{{ 'albums.name' | translate }}</mat-label>
+        <mat-label>{{ I18N.albums.name | translate }}</mat-label>
         <input matInput [(ngModel)]="name" (keydown.enter)="save()" />
       </mat-form-field>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ 'ui.buttons.cancel' | translate }}</button>
+      <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
       <button mat-flat-button [disabled]="!name.trim() || saving()" (click)="save()">
-        {{ saving() ? ('ui.buttons.saving' | translate) : ('albums.save_smart' | translate) }}
+        {{ saving() ? (I18N.ui.buttons.saving | translate) : (I18N.albums.save_smart | translate) }}
       </button>
     </mat-dialog-actions>
   `,
 })
 export class SaveSmartAlbumDialogComponent {
+  protected readonly I18N = I18N;
   private albumService = inject(AlbumService);
   private dialogRef = inject(MatDialogRef<SaveSmartAlbumDialogComponent>);
   private data = inject<{ filterJson: string }>(MAT_DIALOG_DATA);
