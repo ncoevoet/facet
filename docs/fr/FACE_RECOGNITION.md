@@ -1,6 +1,6 @@
 # Reconnaissance faciale
 
-> 🌐 [English](../FACE_RECOGNITION.md) · **Français** · [Deutsch](../de/FACE_RECOGNITION.md) · [Italiano](../it/FACE_RECOGNITION.md) · [Español](../es/FACE_RECOGNITION.md)
+> 🌐 [English](../FACE_RECOGNITION.md) · **Français** · [Deutsch](../de/FACE_RECOGNITION.md) · [Italiano](../it/FACE_RECOGNITION.md) · [Español](../es/FACE_RECOGNITION.md) · [Português](../pt/FACE_RECOGNITION.md)
 
 Facet utilise InsightFace pour la détection des visages et HDBSCAN pour regrouper les visages en personnes.
 

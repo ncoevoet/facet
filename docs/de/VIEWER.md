@@ -1,6 +1,6 @@
 # Web-Galerie
 
-> 🌐 [English](../VIEWER.md) · [Français](../fr/VIEWER.md) · **Deutsch** · [Italiano](../it/VIEWER.md) · [Español](../es/VIEWER.md)
+> 🌐 [English](../VIEWER.md) · [Français](../fr/VIEWER.md) · **Deutsch** · [Italiano](../it/VIEWER.md) · [Español](../es/VIEWER.md) · [Português](../pt/VIEWER.md)
 
 FastAPI + Angular Single-Page-Application zum Durchsuchen, Filtern und Verwalten von Fotos.
 

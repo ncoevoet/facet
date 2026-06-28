@@ -1,6 +1,6 @@
 # Guida al deployment
 
-> 🌐 [English](../DEPLOYMENT.md) · [Français](../fr/DEPLOYMENT.md) · [Deutsch](../de/DEPLOYMENT.md) · **Italiano** · [Español](../es/DEPLOYMENT.md)
+> 🌐 [English](../DEPLOYMENT.md) · [Français](../fr/DEPLOYMENT.md) · [Deutsch](../de/DEPLOYMENT.md) · **Italiano** · [Español](../es/DEPLOYMENT.md) · [Português](../pt/DEPLOYMENT.md)
 
 Esegui il viewer di Facet su un server remoto o un NAS.
 

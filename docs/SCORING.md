@@ -1,6 +1,6 @@
 # Scoring System
 
-> 🌐 **English** · [Français](fr/SCORING.md) · [Deutsch](de/SCORING.md) · [Italiano](it/SCORING.md) · [Español](es/SCORING.md)
+> 🌐 **English** · [Français](fr/SCORING.md) · [Deutsch](de/SCORING.md) · [Italiano](it/SCORING.md) · [Español](es/SCORING.md) · [Português](pt/SCORING.md)
 
 Photos are classified into a category, then scored with that category's weights.
 

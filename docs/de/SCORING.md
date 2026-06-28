@@ -1,6 +1,6 @@
 # Bewertungssystem
 
-> 🌐 [English](../SCORING.md) · [Français](../fr/SCORING.md) · **Deutsch** · [Italiano](../it/SCORING.md) · [Español](../es/SCORING.md)
+> 🌐 [English](../SCORING.md) · [Français](../fr/SCORING.md) · **Deutsch** · [Italiano](../it/SCORING.md) · [Español](../es/SCORING.md) · [Português](../pt/SCORING.md)
 
 Fotos werden zunächst einer Kategorie zugeordnet und anschließend mit den Gewichten dieser Kategorie bewertet.
 

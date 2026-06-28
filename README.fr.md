@@ -1,6 +1,6 @@
 # Facet
 
-> 🌐 [English](README.md) · **Français** · [Deutsch](README.de.md) · [Italiano](README.it.md) · [Español](README.es.md)
+> 🌐 [English](README.md) · **Français** · [Deutsch](README.de.md) · [Italiano](README.it.md) · [Español](README.es.md) · [Português](README.pt.md)
 
 Facet est un moteur local d'analyse et de tri de photos. Il évalue chaque image selon 9 dimensions — de la qualité esthétique à la netteté des visages — puis vous permet de parcourir, trier et organiser votre bibliothèque via une galerie web. Tout fonctionne sur votre machine ; aucun cloud, compte ou clé d'API.
 

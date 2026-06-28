@@ -1,6 +1,6 @@
 # Facet
 
-> 🌐 [English](README.md) · [Français](README.fr.md) · **Deutsch** · [Italiano](README.it.md) · [Español](README.es.md)
+> 🌐 [English](README.md) · [Français](README.fr.md) · **Deutsch** · [Italiano](README.it.md) · [Español](README.es.md) · [Português](README.pt.md)
 
 Facet ist eine lokale Engine zur Fotoanalyse und Bildauswahl. Sie bewertet jedes Bild anhand von 9 Dimensionen — von der ästhetischen Qualität bis zur Gesichtsschärfe — und ermöglicht anschließend das Durchstöbern, Aussortieren und Organisieren über eine Web-Galerie. Alles läuft auf Ihrem Rechner; keine Cloud, keine Konten, keine API-Schlüssel.
 

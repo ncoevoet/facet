@@ -437,7 +437,7 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Burst Culling:** `GET /api/burst-groups`, `POST /api/burst-groups/select`, `GET /api/culling-groups`, `POST /api/culling-groups/confirm` — burst and similar group culling workflow. `POST /api/culling-group/faces` (body `{paths}`) returns per-face crops + metrics (`eyes_open_score`, `expression_score`, `confidence`, `is_blink`) for every photo in a group in one batch call, recomputed from stored 106-point landmarks — powers the per-face badges in the culling lightbox.
 
-**Scenes View:** `GET /api/scenes?page=&per_page=&gap_hours=` groups burst leads into chronological "scenes" by capture-time gaps (cache-only, 1h TTL in `stats_cache`); `POST /api/scenes/confirm` (body `{paths, keep_paths}`) rejects the non-kept photos and records `source='culling'` comparison rows with `group_type='scene'` (feeding the personal ranker). Gated by `viewer.features.show_scenes`. Angular route: `/scenes`.
+**Scenes View:** `GET /api/scenes?page=&per_page=&album_id=&date_from=&date_to=` groups burst leads into chronological "scenes" by an adaptive capture-time gap (`scenes.gap_minutes` floor, widened by `adaptive_k × median`), sub-splitting any run over `scenes.max_scene_size` (cache-only, 1h TTL in `stats_cache`); optional `album_id`/`date_from`/`date_to` scope it. `POST /api/scenes/confirm` (body `{paths, keep_paths}`) rejects the non-kept photos and records `source='culling'` comparison rows with `group_type='scene'` (feeding the personal ranker). The per-scene **Cull this scene** button opens the culling darkroom scoped to that scene via `/culling?album=&from=&to=&scene=`. Gated by `viewer.features.show_scenes`. Angular route: `/scenes`.
 
 **Personal Ranker ("My Taste"):** `GET /api/ranker/status` returns the global pooled ranker's training status — `trained`, `comparison_count`, `coverage` (share of embedded photos with a `learned_score`), `cv_accuracy`, `baseline_accuracy`, `improvement_pp` — from the `stats_cache` snapshot written by `train_ranker`. Powers the "My Taste" sort confidence badge. Gated by `viewer.features.show_my_taste`.
 
@@ -538,7 +538,10 @@ For quick reference, here are the actual defaults from the config file:
 | `similarity_groups` | `min_group_size` | `2` |
 | `similarity_groups` | `max_photos` | `10000` |
 | `similarity_groups` | `max_group_size` | `50` |
-| `scenes` | `gap_hours` | `4.0` |
+| `scenes` | `gap_minutes` | `20.0` |
+| `scenes` | `max_scene_size` | `60` |
+| `scenes` | `adaptive` | `true` |
+| `scenes` | `adaptive_k` | `6.0` |
 | `scenes` | `min_size` | `2` |
 | `scenes` | `max_photos` | `5000` |
 | `viewer.raw_processor` | `darktable.executable` | `"darktable-cli"` |

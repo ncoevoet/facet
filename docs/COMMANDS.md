@@ -1,6 +1,6 @@
 # Commands Reference
 
-> 🌐 **English** · [Français](fr/COMMANDS.md) · [Deutsch](de/COMMANDS.md) · [Italiano](it/COMMANDS.md) · [Español](es/COMMANDS.md)
+> 🌐 **English** · [Français](fr/COMMANDS.md) · [Deutsch](de/COMMANDS.md) · [Italiano](it/COMMANDS.md) · [Español](es/COMMANDS.md) · [Português](pt/COMMANDS.md)
 
 [Scanning](#scanning) · [Preview & Export](#preview--export) · [Recompute Operations](#recompute-operations) · [Face Recognition](#face-recognition) · [Thumbnail Management](#thumbnail-management) · [Diagnostics](#diagnostics) · [Model Information](#model-information) · [Weight Optimization](#weight-optimization-pairwise-comparison) · [Configuration](#configuration) · [Tagging](#tagging) · [Database Validation](#database-validation) · [Database Maintenance](#database-maintenance) · [Web Viewer](#web-viewer) · [Common Workflows](#common-workflows)
 

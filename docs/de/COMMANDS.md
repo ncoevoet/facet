@@ -1,6 +1,6 @@
 # Befehlsreferenz
 
-> 🌐 [English](../COMMANDS.md) · [Français](../fr/COMMANDS.md) · **Deutsch** · [Italiano](../it/COMMANDS.md) · [Español](../es/COMMANDS.md)
+> 🌐 [English](../COMMANDS.md) · [Français](../fr/COMMANDS.md) · **Deutsch** · [Italiano](../it/COMMANDS.md) · [Español](../es/COMMANDS.md) · [Português](../pt/COMMANDS.md)
 
 [Scannen](#scannen) · [Vorschau & Export](#vorschau--export) · [Neuberechnungsoperationen](#neuberechnungsoperationen) · [Gesichtserkennung](#gesichtserkennung) · [Vorschaubild-Verwaltung](#vorschaubild-verwaltung) · [Diagnose](#diagnose) · [Modellinformationen](#modellinformationen) · [Gewichtsoptimierung](#gewichtsoptimierung-paarweiser-vergleich) · [Konfiguration](#konfiguration) · [Verschlagwortung](#verschlagwortung) · [Datenbankvalidierung](#datenbankvalidierung) · [Datenbankwartung](#datenbankwartung) · [Web-Viewer](#web-viewer) · [Häufige Arbeitsabläufe](#häufige-arbeitsabläufe)
 

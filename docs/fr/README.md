@@ -1,6 +1,6 @@
 # Facet
 
-> 🌐 [English](../README.md) · **Français** · [Deutsch](../de/README.md) · [Italiano](../it/README.md) · [Español](../es/README.md)
+> 🌐 [English](../README.md) · **Français** · [Deutsch](../de/README.md) · [Italiano](../it/README.md) · [Español](../es/README.md) · [Português](../pt/README.md)
 
 Évaluation de la qualité des photos qui analyse les images à l'aide de CLIP, TOPIQ, SAMP-Net, InsightFace et OpenCV pour noter les photos sur l'esthétique, la qualité des visages, la netteté technique, la couleur, l'exposition et la composition.
 

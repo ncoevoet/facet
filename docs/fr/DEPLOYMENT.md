@@ -1,6 +1,6 @@
 # Guide de déploiement
 
-> 🌐 [English](../DEPLOYMENT.md) · **Français** · [Deutsch](../de/DEPLOYMENT.md) · [Italiano](../it/DEPLOYMENT.md) · [Español](../es/DEPLOYMENT.md)
+> 🌐 [English](../DEPLOYMENT.md) · **Français** · [Deutsch](../de/DEPLOYMENT.md) · [Italiano](../it/DEPLOYMENT.md) · [Español](../es/DEPLOYMENT.md) · [Português](../pt/DEPLOYMENT.md)
 
 Exécutez la galerie web Facet sur un serveur distant ou un NAS.
 

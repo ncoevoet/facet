@@ -1,6 +1,6 @@
 # Sistema di punteggio
 
-> 🌐 [English](../SCORING.md) · [Français](../fr/SCORING.md) · [Deutsch](../de/SCORING.md) · **Italiano** · [Español](../es/SCORING.md)
+> 🌐 [English](../SCORING.md) · [Français](../fr/SCORING.md) · [Deutsch](../de/SCORING.md) · **Italiano** · [Español](../es/SCORING.md) · [Português](../pt/SCORING.md)
 
 Le foto vengono classificate in una categoria e poi valutate con i pesi di quella categoria.
 

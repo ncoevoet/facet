@@ -1,6 +1,6 @@
 # Configuration Reference
 
-> 🌐 **English** · [Français](fr/CONFIGURATION.md) · [Deutsch](de/CONFIGURATION.md) · [Italiano](it/CONFIGURATION.md) · [Español](es/CONFIGURATION.md)
+> 🌐 **English** · [Français](fr/CONFIGURATION.md) · [Deutsch](de/CONFIGURATION.md) · [Italiano](it/CONFIGURATION.md) · [Español](es/CONFIGURATION.md) · [Português](pt/CONFIGURATION.md)
 
 All settings are in `scoring_config.json`. After modifying, run `python facet.py --recompute-average` to update scores (no GPU needed).
 
@@ -1545,18 +1545,24 @@ Settings for the Scenes view, which groups burst-lead photos into chronological 
 ```json
 {
   "scenes": {
-    "gap_hours": 4.0,
+    "gap_minutes": 20.0,
     "min_size": 2,
-    "max_photos": 5000
+    "max_photos": 5000,
+    "max_scene_size": 60,
+    "adaptive": true,
+    "adaptive_k": 6.0
   }
 }
 ```
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `gap_hours` | `4.0` | A new scene starts when more than this many hours pass between consecutive burst-lead photos |
+| `gap_minutes` | `20.0` | A new scene starts when more than this many minutes pass between consecutive burst-lead photos (the floor when `adaptive` is on) |
 | `min_size` | `2` | Minimum photos for a scene to be shown |
 | `max_photos` | `5000` | Maximum burst-lead photos loaded for scene grouping |
+| `max_scene_size` | `60` | A scene larger than this is recursively sub-split at its largest internal gaps, so a continuously-shot event never collapses into one giant scene |
+| `adaptive` | `true` | When on, the effective gap widens to `adaptive_k × median` of the shoot's consecutive gaps (tightens for rapid shooting, loosens for sparse holidays) |
+| `adaptive_k` | `6.0` | Multiplier applied to the median gap when `adaptive` is on |
 
 ## Timeline
 

@@ -1,6 +1,6 @@
 # Référence de configuration
 
-> 🌐 [English](../CONFIGURATION.md) · **Français** · [Deutsch](../de/CONFIGURATION.md) · [Italiano](../it/CONFIGURATION.md) · [Español](../es/CONFIGURATION.md)
+> 🌐 [English](../CONFIGURATION.md) · **Français** · [Deutsch](../de/CONFIGURATION.md) · [Italiano](../it/CONFIGURATION.md) · [Español](../es/CONFIGURATION.md) · [Português](../pt/CONFIGURATION.md)
 
 Tous les réglages se trouvent dans `scoring_config.json`. Après modification, lancez `python facet.py --recompute-average` pour mettre à jour les scores (aucun GPU requis).
 

@@ -1,6 +1,6 @@
 # Installation
 
-> 🌐 [English](../INSTALLATION.md) · **Français** · [Deutsch](../de/INSTALLATION.md) · [Italiano](../it/INSTALLATION.md) · [Español](../es/INSTALLATION.md)
+> 🌐 [English](../INSTALLATION.md) · **Français** · [Deutsch](../de/INSTALLATION.md) · [Italiano](../it/INSTALLATION.md) · [Español](../es/INSTALLATION.md) · [Português](../pt/INSTALLATION.md)
 
 ## Démarrage rapide
 

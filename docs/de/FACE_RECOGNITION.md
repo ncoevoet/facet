@@ -1,6 +1,6 @@
 # Gesichtserkennung
 
-> 🌐 [English](../FACE_RECOGNITION.md) · [Français](../fr/FACE_RECOGNITION.md) · **Deutsch** · [Italiano](../it/FACE_RECOGNITION.md) · [Español](../es/FACE_RECOGNITION.md)
+> 🌐 [English](../FACE_RECOGNITION.md) · [Français](../fr/FACE_RECOGNITION.md) · **Deutsch** · [Italiano](../it/FACE_RECOGNITION.md) · [Español](../es/FACE_RECOGNITION.md) · [Português](../pt/FACE_RECOGNITION.md)
 
 Facet verwendet InsightFace zur Gesichtserkennung und HDBSCAN, um Gesichter zu Personen zu clustern.
 

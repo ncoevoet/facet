@@ -1,6 +1,6 @@
 # Web Viewer
 
-> 🌐 **English** · [Français](fr/VIEWER.md) · [Deutsch](de/VIEWER.md) · [Italiano](it/VIEWER.md) · [Español](es/VIEWER.md)
+> 🌐 **English** · [Français](fr/VIEWER.md) · [Deutsch](de/VIEWER.md) · [Italiano](it/VIEWER.md) · [Español](es/VIEWER.md) · [Português](pt/VIEWER.md)
 
 FastAPI + Angular single-page application for browsing, filtering, and managing photos.
 
@@ -487,7 +487,7 @@ API: see the [API Endpoints](#api-endpoints) section below.
 
 ## Scenes View
 
-Group burst-lead photos into chronological "scenes" so you can cull a whole shoot in story order. Photos are split into scenes by capture-time gaps (a new scene starts when more than `scenes.gap_hours` pass between consecutive shots). Access via the `/scenes` route (nav icon "theaters").
+Group burst-lead photos into chronological "scenes" so you can cull a whole shoot in story order. Photos are split into scenes by capture-time gaps (a new scene starts when more than `scenes.gap_minutes` pass between consecutive shots, adaptively widened on sparse shoots), and any over-long run is sub-split so a continuously-shot event never collapses into one giant scene. Each scene has a primary **Cull this scene** button that opens the full culling darkroom scoped to just that scene (burst detection, blink flags, quality scores, face close-ups, loupe), plus a **Quick reject** strip. Access via the `/scenes` route (nav icon "theaters"); also reachable per-album from the Albums grid.
 
 - Each scene shows its lead photos in capture order
 - Tap photos to mark them for culling; confirming rejects them and feeds the personal ranker
@@ -495,7 +495,7 @@ Group burst-lead photos into chronological "scenes" so you can cull a whole shoo
 
 API: see the [API Endpoints](#api-endpoints) section below.
 
-Controlled by `viewer.features.show_scenes` (default: `true`). See [Configuration — Scenes](CONFIGURATION.md#scenes) for `gap_hours`, `min_size`, and `max_photos`.
+Controlled by `viewer.features.show_scenes` (default: `true`). See [Configuration — Scenes](CONFIGURATION.md#scenes) for `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive`, and `adaptive_k`.
 
 ## Pairwise Comparison Mode
 

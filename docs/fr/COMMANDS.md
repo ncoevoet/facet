@@ -1,6 +1,6 @@
 # Référence des commandes
 
-> 🌐 [English](../COMMANDS.md) · **Français** · [Deutsch](../de/COMMANDS.md) · [Italiano](../it/COMMANDS.md) · [Español](../es/COMMANDS.md)
+> 🌐 [English](../COMMANDS.md) · **Français** · [Deutsch](../de/COMMANDS.md) · [Italiano](../it/COMMANDS.md) · [Español](../es/COMMANDS.md) · [Português](../pt/COMMANDS.md)
 
 [Analyse](#analyse) · [Aperçu et export](#aperçu-et-export) · [Opérations de recalcul](#opérations-de-recalcul) · [Reconnaissance faciale](#reconnaissance-faciale) · [Gestion des miniatures](#gestion-des-miniatures) · [Diagnostics](#diagnostics) · [Informations sur les modèles](#informations-sur-les-modèles) · [Optimisation des poids](#optimisation-des-poids-comparaison-par-paires) · [Configuration](#configuration) · [Étiquetage](#étiquetage) · [Validation de la base de données](#validation-de-la-base-de-données) · [Maintenance de la base de données](#maintenance-de-la-base-de-données) · [Galerie web](#galerie-web) · [Flux de travail courants](#flux-de-travail-courants)
 

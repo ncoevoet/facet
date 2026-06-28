@@ -1,6 +1,6 @@
 # Galerie web
 
-> 🌐 [English](../VIEWER.md) · **Français** · [Deutsch](../de/VIEWER.md) · [Italiano](../it/VIEWER.md) · [Español](../es/VIEWER.md)
+> 🌐 [English](../VIEWER.md) · **Français** · [Deutsch](../de/VIEWER.md) · [Italiano](../it/VIEWER.md) · [Español](../es/VIEWER.md) · [Português](../pt/VIEWER.md)
 
 Application monopage FastAPI + Angular pour parcourir, filtrer et gérer les photos.
 
