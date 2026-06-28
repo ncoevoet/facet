@@ -89,9 +89,8 @@ Estos comandos actualizan métricas específicas sin reprocesar las fotos por co
 
 | Comando | Descripción |
 |---------|-------------|
-| `python facet.py --recompute-average` | Recalcula las puntuaciones globales (escribe primero una instantánea de la BD con marca de tiempo) |
+| `python facet.py --recompute-average` | Recalcula las puntuaciones globales a partir de los embeddings almacenados (re-derivable; sin instantánea de la BD — para revertir, restaura una instantánea de pesos y recalcula) |
 | `python facet.py --recompute-category portrait` | Recalcula las puntuaciones de una sola categoría |
-| `python facet.py --recompute-average --no-backup` | Recalcula sin tomar la instantánea previa de la BD |
 | `python facet.py --recompute-tags` | Vuelve a etiquetar todas las fotos con el modelo configurado |
 | `python facet.py --recompute-tags-vlm` | Vuelve a etiquetar todas las fotos con el etiquetador VLM |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recalcula las métricas de saliencia del sujeto (BiRefNet_dynamic) |
@@ -269,6 +268,7 @@ Comprueba: rangos de puntuación, métricas faciales, corrupción de BLOB, tama�
 | `python database.py --vacuum` | Recupera espacio y desfragmenta |
 | `python database.py --analyze` | Actualiza las estadísticas del planificador de consultas |
 | `python database.py --optimize` | Ejecuta VACUUM y ANALYZE |
+| `python database.py --backup` | Escribe una instantánea de la BD con marca de tiempo y segura para WAL (rota hasta `--keep N`, 3 por defecto) |
 | `python database.py --export-viewer-db` | Exporta una base de datos ligera para el visor (elimina los BLOB, reduce las miniaturas; incremental si la salida ya existe) |
 | `python database.py --export-viewer-db --force-export` | Fuerza una reexportación completa, incluso si la base de datos del visor ya existe |
 | `python database.py --cleanup-orphaned-persons` | Elimina las personas sin rostros asociados |

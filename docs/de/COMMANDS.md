@@ -90,9 +90,8 @@ Diese Befehle aktualisieren bestimmte Metriken ohne vollständige Neuverarbeitun
 
 | Befehl | Beschreibung |
 |---------|-------------|
-| `python facet.py --recompute-average` | Gesamtwertungen neu berechnen (schreibt zuvor einen DB-Snapshot mit Zeitstempel) |
+| `python facet.py --recompute-average` | Gesamtwertungen aus gespeicherten Embeddings neu berechnen (re-ableitbar; kein DB-Snapshot — zum Zurücksetzen einen Gewichte-Snapshot wiederherstellen und neu berechnen) |
 | `python facet.py --recompute-category portrait` | Wertungen nur für eine einzelne Kategorie neu berechnen |
-| `python facet.py --recompute-average --no-backup` | Neu berechnen, ohne zuvor den DB-Snapshot zu erstellen |
 | `python facet.py --recompute-tags` | Alle Fotos mit dem konfigurierten Modell neu verschlagworten |
 | `python facet.py --recompute-tags-vlm` | Alle Fotos mit dem VLM-Tagger neu verschlagworten |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Motiverkennungsmetriken neu berechnen (BiRefNet_dynamic) |
@@ -270,6 +269,7 @@ Prüfungen: Wertungsbereiche, Gesichtsmetriken, BLOB-Beschädigung, Embedding-Gr
 | `python database.py --vacuum` | Speicherplatz freigeben, defragmentieren |
 | `python database.py --analyze` | Statistiken des Query-Planers aktualisieren |
 | `python database.py --optimize` | VACUUM und ANALYZE ausführen |
+| `python database.py --backup` | Einen zeitgestempelten, WAL-sicheren DB-Snapshot schreiben (rotiert auf `--keep N`, Standard 3) |
 | `python database.py --export-viewer-db` | Leichtgewichtige Viewer-Datenbank exportieren (entfernt BLOBs, verkleinert Vorschaubilder; inkrementell, falls Ausgabe existiert) |
 | `python database.py --export-viewer-db --force-export` | Vollständigen Re-Export erzwingen, auch wenn die Viewer-DB bereits existiert |
 | `python database.py --cleanup-orphaned-persons` | Personen ohne zugeordnete Gesichter entfernen |

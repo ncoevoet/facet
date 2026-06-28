@@ -269,9 +269,6 @@ Configuration:
                         help='Update scores based on current config (uses stored embeddings)')
     db_group.add_argument('--recompute-category', type=str, metavar='CATEGORY',
                         help='Recompute aggregate scores for a single category only')
-    db_group.add_argument('--no-backup', action='store_true',
-                        help='Skip the automatic timestamped DB snapshot taken before '
-                             '--recompute-average / --recompute-category')
     db_group.add_argument('--detect-duplicates', action='store_true',
                         help='Detect duplicate photos using pHash comparison')
     db_group.add_argument('--sweep-dedup-thresholds', nargs='?', const='', metavar='LABELS_JSON',
@@ -1418,16 +1415,6 @@ Configuration:
     # Recompute average scores (lightweight - no GPU needed)
     if args.recompute_average or args.recompute_category:
         scorer = Facet(db_path=args.db, config_path=args.config, lightweight=True)
-        if not args.no_backup:
-            import sqlite3
-            from db import backup_database
-            keep = scorer.config.config.get('maintenance', {}).get('backup_retention', 3)
-            try:
-                backup_database(scorer.db_path, keep=keep)
-            except (OSError, RuntimeError, sqlite3.Error) as ex:
-                logger.error("DB backup failed before recompute: %s", ex)
-                logger.error("Aborting. Re-run with --no-backup to skip the snapshot.")
-                exit(1)
         normalizer = None
         norm_settings = scorer.config.get_normalization_settings()
         if norm_settings.get('method') == 'percentile':

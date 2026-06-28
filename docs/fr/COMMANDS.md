@@ -89,9 +89,8 @@ Ces commandes mettent à jour des métriques précises sans retraitement complet
 
 | Commande | Description |
 |---------|-------------|
-| `python facet.py --recompute-average` | Recalcule les scores agrégés (écrit d'abord un instantané horodaté de la base de données) |
+| `python facet.py --recompute-average` | Recalcule les scores agrégés à partir des embeddings stockés (re-dérivable ; aucun instantané de la base de données — pour annuler, restaurez un instantané de poids puis recalculez) |
 | `python facet.py --recompute-category portrait` | Recalcule les scores d'une seule catégorie |
-| `python facet.py --recompute-average --no-backup` | Recalcule sans prendre l'instantané pré-exécution de la base de données |
 | `python facet.py --recompute-tags` | Réétiquette toutes les photos avec le modèle configuré |
 | `python facet.py --recompute-tags-vlm` | Réétiquette toutes les photos avec l'étiqueteur VLM |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recalcule les métriques de saillance du sujet (BiRefNet_dynamic) |
@@ -269,6 +268,7 @@ Vérifie : plages de scores, métriques de visage, corruption de BLOB, tailles 
 | `python database.py --vacuum` | Récupère l'espace, défragmente |
 | `python database.py --analyze` | Met à jour les statistiques du planificateur de requêtes |
 | `python database.py --optimize` | Exécute VACUUM et ANALYZE |
+| `python database.py --backup` | Écrit un instantané de la base de données horodaté et compatible WAL (rotation jusqu'à `--keep N`, par défaut 3) |
 | `python database.py --export-viewer-db` | Exporte une base de données de galerie allégée (supprime les BLOB, réduit les miniatures ; incrémentale si la sortie existe) |
 | `python database.py --export-viewer-db --force-export` | Force une réexportation complète, même si la base de la galerie existe déjà |
 | `python database.py --cleanup-orphaned-persons` | Supprime les personnes sans visage associé |

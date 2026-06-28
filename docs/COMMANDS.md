@@ -89,9 +89,8 @@ These commands update specific metrics, derive new data (AI captions, GPS, embed
 
 | Command | Description |
 |---------|-------------|
-| `python facet.py --recompute-average` | Recompute aggregate scores (writes a timestamped DB snapshot first) |
+| `python facet.py --recompute-average` | Recompute aggregate scores from stored embeddings (re-derivable; no DB snapshot — roll back by restoring a weight snapshot and recomputing) |
 | `python facet.py --recompute-category portrait` | Recompute scores for a single category only |
-| `python facet.py --recompute-average --no-backup` | Recompute without taking the pre-run DB snapshot |
 | `python facet.py --recompute-tags` | Re-tag all photos using configured model |
 | `python facet.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recompute subject saliency metrics (BiRefNet_dynamic) |
@@ -273,6 +272,7 @@ Checks: Score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python database.py --vacuum` | Reclaim space, defragment |
 | `python database.py --analyze` | Update query planner statistics |
 | `python database.py --optimize` | Run VACUUM and ANALYZE |
+| `python database.py --backup` | Write a timestamped, WAL-safe DB snapshot (rotates to `--keep N`, default 3) |
 | `python database.py --export-viewer-db` | Export lightweight viewer database (strips BLOBs, downsizes thumbnails; incremental if output exists) |
 | `python database.py --export-viewer-db --force-export` | Force full re-export, even if viewer DB already exists |
 | `python database.py --cleanup-orphaned-persons` | Remove persons with no associated faces |

@@ -12,6 +12,7 @@ Usage:
     python database.py --vacuum
     python database.py --analyze
     python database.py --optimize
+    python database.py --backup      # Timestamped WAL-safe DB snapshot
     python database.py --add-user USERNAME --role ROLE [--display-name NAME]
     python database.py --migrate-user-preferences --user USERNAME
     python database.py --migrate-storage-fs   # Migrate BLOBs to filesystem
@@ -44,6 +45,7 @@ from db import (
     cleanup_orphaned_persons,
     export_viewer_db,
     cleanup_missing_photos,
+    backup_database,
 )
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'scoring_config.json')
@@ -272,6 +274,18 @@ def main():
         action='store_true',
         help='Migrate thumbnails and embeddings from filesystem back to database'
     )
+    parser.add_argument(
+        '--backup',
+        action='store_true',
+        help='Write a timestamped, WAL-safe snapshot of the database (rotates to --keep copies)'
+    )
+    parser.add_argument(
+        '--keep',
+        type=int,
+        default=3,
+        metavar='N',
+        help='Number of database backups to retain with --backup (default: 3)'
+    )
 
     args = parser.parse_args()
 
@@ -336,6 +350,8 @@ def main():
         vacuum_database(args.db, verbose=True)
     elif args.analyze:
         analyze_database(args.db, verbose=True)
+    elif args.backup:
+        backup_database(args.db, keep=args.keep)
     elif args.cleanup_orphaned_persons:
         cleanup_orphaned_persons(args.db, verbose=True)
     elif args.cleanup_missing_photos:

@@ -132,50 +132,6 @@ def _load_samp_net_module():
         SAMPNetScorer = _SAMPNetScorer
 
 
-def backup_database(db_path, max_backups=3):
-    """Create a timestamped backup of the database before destructive operations.
-
-    Args:
-        db_path: Path to the database file
-        max_backups: Maximum number of backup files to keep (default: 3)
-
-    Returns:
-        Path to the backup file, or None if backup failed
-    """
-    import shutil
-    import glob
-
-    if not os.path.exists(db_path):
-        logger.warning("Database %s does not exist, skipping backup", db_path)
-        return None
-
-    # Create backup filename with timestamp
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    db_dir = os.path.dirname(db_path) or '.'
-    db_name = os.path.basename(db_path)
-    backup_name = f"{db_name}.backup.{timestamp}"
-    backup_path = os.path.join(db_dir, backup_name)
-
-    try:
-        shutil.copy2(db_path, backup_path)
-        logger.info("Database backup created: %s", backup_path)
-
-        # Clean up old backups, keep only max_backups most recent
-        pattern = os.path.join(db_dir, f"{db_name}.backup.*")
-        existing_backups = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
-        for old_backup in existing_backups[max_backups:]:
-            try:
-                os.remove(old_backup)
-                logger.info("Removed old backup: %s", old_backup)
-            except OSError as e:
-                logger.warning("Could not remove old backup %s: %s", old_backup, e)
-
-        return backup_path
-    except Exception as e:
-        logger.warning("Failed to create database backup: %s", e)
-        return None
-
-
 # EXIF orientation to PIL transpose mapping
 # See: https://exiftool.org/TagNames/EXIF.html#Orientation
 EXIF_ROTATIONS = {
