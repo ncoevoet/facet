@@ -23,11 +23,22 @@ from api.config import (
     _get_stats_cached_async, _stats_cache,
     _CONFIG_PATH, reload_config,
 )
-from api.database import get_async_db
+from api.database import get_async_db, get_db
 from api.db_helpers import get_visibility_clause, to_exif_date, to_iso_date
+from db import record_weight_snapshot
 
 router = APIRouter(tags=["stats"])
 logger = logging.getLogger(__name__)
+
+
+def _record_weights_snapshot(category, weights, created_by):
+    """Best-effort weights snapshot before a config write; never blocks the write."""
+    try:
+        with get_db() as conn:
+            record_weight_snapshot(category, weights, created_by=created_by, db=conn)
+            conn.commit()
+    except Exception:
+        logger.warning("Could not record weight snapshot for %s", category, exc_info=True)
 
 # Pre-built SQL fragments keyed by metric name (server-origin constants, not user strings)
 _METRIC_SQL: dict[str, str] = {m: f'ROUND(AVG({m}), 3)' for m in CORRELATION_Y_METRICS}
@@ -1067,24 +1078,24 @@ def api_stats_categories_update(
     with open(_CONFIG_PATH) as f:
         config = json.load(f)
 
-    # Create backup
-    backup_path = f"{_CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    shutil.copy2(_CONFIG_PATH, backup_path)
-
-    # Find and update category
-    categories = config.get('categories', [])
-    found = False
-    for cat in categories:
-        if cat.get('name') == body.category:
-            if body.weights is not None:
-                cat['weights'] = body.weights
-            if body.modifiers is not None:
-                cat['modifiers'] = body.modifiers
-            found = True
-            break
-
-    if not found:
+    target = next((c for c in config.get('categories', []) if c.get('name') == body.category), None)
+    if target is None:
         raise HTTPException(status_code=404, detail=f'Category "{body.category}" not found')
+
+    # Snapshot the current weights before overwriting (restorable from the viewer)
+    _record_weights_snapshot(body.category, dict(target.get('weights', {})), 'auto:cat_edit')
+
+    # A loose full-config backup is only needed when non-weight config (modifiers)
+    # changes -- the snapshot table is weights-only.
+    backup_path = None
+    if body.modifiers is not None:
+        backup_path = f"{_CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        shutil.copy2(_CONFIG_PATH, backup_path)
+
+    if body.weights is not None:
+        target['weights'] = body.weights
+    if body.modifiers is not None:
+        target['modifiers'] = body.modifiers
 
     # Write back
     with open(_CONFIG_PATH, 'w') as f:

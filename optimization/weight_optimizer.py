@@ -25,8 +25,6 @@ CLI::
 
 import json
 import logging
-import shutil
-from datetime import datetime
 from typing import Dict, List, Optional
 import numpy as np
 from scipy.optimize import minimize
@@ -757,26 +755,18 @@ class WeightOptimizer:
         new_weights: Dict[str, float],
         category: str,
         backup: bool = True
-    ) -> str:
+    ) -> Optional[int]:
         """
         Apply optimized weights to scoring_config.json.
 
         Args:
             new_weights: Dict of component -> weight (0.0 to 1.0)
             category: Category to update
-            backup: Create backup before modifying
+            backup: Record a pre-apply weight snapshot before modifying
 
         Returns:
-            Path to backup file (if created)
+            The snapshot id when backup=True (else None)
         """
-        if backup:
-            # Create timestamped backup
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_path = f"{self.config_path}.backup.{timestamp}"
-            shutil.copy2(self.config_path, backup_path)
-        else:
-            backup_path = None
-
         # Load current config
         with open(self.config_path) as f:
             config = json.load(f)
@@ -797,6 +787,19 @@ class WeightOptimizer:
             if category not in config['weights']:
                 config['weights'][category] = {}
             cat_weights = config['weights'][category]
+
+        # Snapshot the current weights before overwriting (restorable from the viewer)
+        snapshot_id = None
+        if backup:
+            try:
+                from db import record_weight_snapshot
+                snapshot_id = record_weight_snapshot(
+                    category, dict(cat_weights),
+                    created_by='auto:optimizer', db=self.db_path,
+                )
+                logger.info("Recorded pre-apply weight snapshot (id=%s)", snapshot_id)
+            except Exception:
+                logger.warning("Could not record pre-apply weight snapshot", exc_info=True)
 
         # Components are config metric keys - write '<key>_percent' directly
         for component, weight in new_weights.items():
@@ -834,7 +837,7 @@ class WeightOptimizer:
         with open(self.config_path, 'w') as f:
             json.dump(config, f, indent=2)
 
-        return backup_path
+        return snapshot_id
 
     def get_optimization_history(self, limit: int = 10) -> List[Dict]:
         """Get recent optimization runs."""
@@ -994,12 +997,10 @@ def run_weight_optimization(
         logger.warning("Forcing apply despite held-out gain %+.1f pp below threshold.", held_out_improvement)
 
     logger.info("Applying weights to config...")
-    backup_path = optimizer.apply_optimized_weights(
+    optimizer.apply_optimized_weights(
         result['new_weights'],
         category=category or 'others',
     )
-    if backup_path:
-        logger.info("  Backup created: %s", backup_path)
     logger.info("  Config updated: %s", config_path)
     logger.info("Run 'python facet.py --recompute-average' to apply new weights to scores.")
 

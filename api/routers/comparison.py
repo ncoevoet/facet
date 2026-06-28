@@ -28,12 +28,22 @@ from api.config import (
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
 from api.db_helpers import get_visibility_clause
-from db import DEFAULT_DB_PATH
+from db import DEFAULT_DB_PATH, record_weight_snapshot
 from utils.image_loading import RAW_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["comparison"])
+
+
+def _record_snapshot_safely(category, weights, created_by):
+    """Best-effort weights snapshot before a config write; never blocks the write."""
+    try:
+        with get_db() as conn:
+            record_weight_snapshot(category, weights, created_by=created_by, db=conn)
+            conn.commit()
+    except Exception:
+        logger.warning("Could not record weight snapshot for %s", category, exc_info=True)
 
 # Mapping from optimizer DB column names to config weight names (used by learned_weights and confidence)
 METRIC_NAME_MAPPING = {
@@ -410,26 +420,27 @@ async def api_update_weights(
         with open(config_path, 'r') as f:
             config = json.load(f)
 
-        # Create backup
-        backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        shutil.copy2(config_path, backup_path)
-
-        # Update weights in v4 config format (categories is a list)
-        categories = config.get('categories', [])
-        found = False
-        for cat in categories:
-            if cat.get('name') == body.category:
-                if 'weights' not in cat:
-                    cat['weights'] = {}
-                cat['weights'].update(body.weights)
-                if body.modifiers is not None:
-                    cat['modifiers'] = body.modifiers
-                if body.filters is not None:
-                    cat['filters'] = body.filters
-                found = True
-                break
-        if not found:
+        target = next((c for c in config.get('categories', []) if c.get('name') == body.category), None)
+        if target is None:
             raise HTTPException(status_code=404, detail=f'Category "{body.category}" not found in config')
+
+        # Snapshot the current weights before overwriting (restorable from the viewer)
+        _record_snapshot_safely(body.category, dict(target.get('weights', {})), 'auto:edit')
+
+        # A loose full-config backup is only needed when non-weight config
+        # (modifiers/filters) changes -- the snapshot table is weights-only.
+        backup_path = None
+        if body.modifiers is not None or body.filters is not None:
+            backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            shutil.copy2(config_path, backup_path)
+
+        if 'weights' not in target:
+            target['weights'] = {}
+        target['weights'].update(body.weights)
+        if body.modifiers is not None:
+            target['modifiers'] = body.modifiers
+        if body.filters is not None:
+            target['filters'] = body.filters
 
         # Save updated config
         with open(config_path, 'w') as f:
@@ -1272,22 +1283,16 @@ def api_save_weight_snapshot(
         weights = config.get_weights(body.category)
 
         with get_db() as conn:
-            cursor = conn.execute("""
-                INSERT INTO weight_config_snapshots
-                (category, weights, description, accuracy_before, accuracy_after,
-                 comparisons_used, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                body.category,
-                json.dumps(weights),
-                body.description,
-                body.accuracy_before,
-                body.accuracy_after,
-                body.comparisons_used,
-                body.created_by,
-            ))
+            snapshot_id = record_weight_snapshot(
+                body.category, weights,
+                created_by=body.created_by,
+                description=body.description,
+                accuracy_before=body.accuracy_before,
+                accuracy_after=body.accuracy_after,
+                comparisons_used=body.comparisons_used,
+                db=conn,
+            )
             conn.commit()
-            snapshot_id = cursor.lastrowid
 
         return {'success': True, 'snapshot_id': snapshot_id}
     except Exception:
@@ -1323,26 +1328,17 @@ def api_restore_weights(
 
         # Load and update config
         config_path = str(_CONFIG_PATH)
-
-        # Create backup first
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_path = f"{config_path}.backup.{timestamp}"
-        shutil.copy2(config_path, backup_path)
-
         with open(config_path) as f:
             config = json.load(f)
 
-        # Update weights in v4 config format
-        categories = config.get('categories', [])
-        found = False
-        for cat in categories:
-            if cat.get('name') == category:
-                cat['weights'] = weights
-                found = True
-                break
-
-        if not found:
+        target = next((c for c in config.get('categories', []) if c.get('name') == category), None)
+        if target is None:
             raise HTTPException(status_code=404, detail=f'Category "{category}" not found in config')
+
+        # Snapshot the current weights before overwriting, so a restore can be undone
+        _record_snapshot_safely(category, dict(target.get('weights', {})), 'auto:pre_restore')
+
+        target['weights'] = weights
 
         with open(config_path, 'w') as f:
             json.dump(config, f, indent=2)
@@ -1354,7 +1350,6 @@ def api_restore_weights(
             'success': True,
             'restored_weights': weights,
             'category': category,
-            'backup_path': backup_path,
         }
     except HTTPException:
         raise

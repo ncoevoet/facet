@@ -1183,22 +1183,13 @@ def log_run_to_db(db_path: str, info: dict, col_to_weight: dict, current_config_
 
 def snapshot_config_to_db(db_path: str, category: str, weights_dict: dict, srcc_before: float) -> None:
     """Save current config weights to weight_config_snapshots before overwriting."""
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute("""
-            INSERT INTO weight_config_snapshots
-              (category, weights, description, accuracy_before, created_by)
-            VALUES (?, ?, ?, ?, ?)
-        """, (
-            category,
-            json.dumps(weights_dict),
-            f"Pre-calibration snapshot (SRCC={srcc_before:.4f})",
-            srcc_before,
-            'calibrate.py',
-        ))
-        conn.commit()
-    finally:
-        conn.close()
+    from db import record_weight_snapshot
+    record_weight_snapshot(
+        category, weights_dict,
+        created_by='calibrate.py', db=db_path,
+        description=f"Pre-calibration snapshot (SRCC={srcc_before:.4f})",
+        accuracy_before=srcc_before,
+    )
 
 
 def apply_weights_to_config(
