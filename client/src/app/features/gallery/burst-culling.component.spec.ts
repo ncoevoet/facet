@@ -2,6 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { BurstCullingComponent } from './burst-culling.component';
@@ -58,6 +59,7 @@ describe('BurstCullingComponent', () => {
         { provide: ApiService, useValue: mockApi },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: I18nService, useValue: mockI18n },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
     });
     component = TestBed.inject(BurstCullingComponent);

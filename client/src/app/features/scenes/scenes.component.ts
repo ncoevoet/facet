@@ -1,14 +1,19 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, HostListener } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { NgClass } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSliderModule } from '@angular/material/slider';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { LoupeDirective } from '../../shared/directives/loupe.directive';
+import { isTypingContext } from '../../shared/utils/keyboard';
 import { SceneRejectedPipe, SceneRejectCountPipe, SceneDatePipe } from './scenes.pipes';
 import { I18N } from '../../core/i18n/keys';
 
@@ -44,15 +49,35 @@ interface ScenesResponse {
     MatIconModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    MatSliderModule,
+    MatTooltipModule,
     TranslatePipe,
     ThumbnailUrlPipe,
+    ImageUrlPipe,
+    LoupeDirective,
     SceneRejectedPipe,
     SceneRejectCountPipe,
     SceneDatePipe,
   ],
   template: `
     <div class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%]">
-      <h2 class="text-lg font-semibold mb-1">{{ I18N.scenes.title | translate }}</h2>
+      <div class="flex items-center gap-3 mb-1">
+        <h2 class="text-lg font-semibold">{{ I18N.scenes.title | translate }}</h2>
+        <div class="flex items-center gap-2 ml-auto">
+          <button mat-stroked-button (click)="loupeActive.set(!loupeActive())"
+                  [class.!border-[var(--mat-sys-primary)]]="loupeActive()"
+                  [matTooltip]="I18N.scenes.loupe_hint | translate">
+            <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
+            {{ I18N.scenes.loupe | translate }}
+          </button>
+          @if (loupeActive()) {
+            <mat-slider class="!w-28 !min-w-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
+              <input matSliderThumb [value]="loupeZoom()" (valueChange)="loupeZoom.set($event)"
+                     [attr.aria-label]="I18N.scenes.loupe | translate" />
+            </mat-slider>
+          }
+        </div>
+      </div>
       <p class="text-sm text-white/50 mb-4">{{ I18N.scenes.subtitle | translate }}</p>
 
       @if (loading() && scenes().length === 0) {
@@ -67,7 +92,11 @@ interface ScenesResponse {
               <span class="text-sm text-white/80">{{ scene.start | sceneDate }}</span>
               <span class="text-xs text-white/40">· {{ scene.count }} {{ I18N.scenes.photos | translate }}</span>
               <button mat-flat-button color="primary" class="!ml-auto"
-                      (click)="confirm(scene)">
+                      (click)="cullScene(scene)">
+                <mat-icon>movie_filter</mat-icon>
+                {{ I18N.scenes.cull_this_scene | translate }}
+              </button>
+              <button mat-stroked-button (click)="confirm(scene)">
                 <mat-icon>auto_delete</mat-icon>
                 {{ I18N.scenes.cull_action | translate:{ count: (rejected() | sceneRejectCount:scene.scene_id) } }}
               </button>
@@ -77,8 +106,11 @@ interface ScenesResponse {
                 <button type="button" class="relative flex-shrink-0"
                         (click)="toggleReject(scene.scene_id, photo.path)"
                         [attr.aria-pressed]="rejected() | sceneRejected:scene.scene_id:photo.path">
-                  <img [src]="photo.path | thumbnailUrl:240"
-                       class="w-28 h-28 object-cover rounded border-2"
+                  <img [src]="photo.path | thumbnailUrl:320"
+                       [appLoupe]="photo.path | imageUrl"
+                       [loupeActive]="loupeActive()"
+                       [loupeZoom]="loupeZoom()"
+                       class="w-36 h-36 md:w-40 md:h-40 object-cover rounded border-2"
                        [ngClass]="(rejected() | sceneRejected:scene.scene_id:photo.path)
                          ? 'border-red-500 opacity-40'
                          : (photo.path === scene.best_path ? 'border-green-500' : 'border-white/20')"
@@ -108,6 +140,9 @@ export class ScenesComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly snack = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly sceneDate = new SceneDatePipe();
 
   protected readonly scenes = signal<Scene[]>([]);
   protected readonly loading = signal(true);
@@ -115,19 +150,35 @@ export class ScenesComponent implements OnInit {
   protected readonly hasMore = signal(false);
   // Per-scene set of paths marked for rejection (everything else is kept).
   protected readonly rejected = signal<Map<number, Set<string>>>(new Map());
+  // Optional album scope from /scenes?album=ID.
+  protected readonly albumId = signal<string | null>(null);
+  // Hover-loupe (Photo-Mechanic-style Z key) state for the contact strip.
+  protected readonly loupeActive = signal(false);
+  protected readonly loupeZoom = signal(3);
 
   private page = 1;
   private readonly perPage = 20;
 
   async ngOnInit(): Promise<void> {
+    this.albumId.set(this.route.snapshot.queryParamMap.get('album'));
     await this.load();
+  }
+
+  @HostListener('document:keydown.z', ['$event'])
+  protected onZoomToggle(event: Event): void {
+    if (isTypingContext(event)) return;
+    event.preventDefault();
+    this.loupeActive.set(!this.loupeActive());
   }
 
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
+      const params: Record<string, string | number> = { page: this.page, per_page: this.perPage };
+      const album = this.albumId();
+      if (album) params['album_id'] = album;
       const data = await firstValueFrom(
-        this.api.get<ScenesResponse>('/scenes', { page: this.page, per_page: this.perPage }),
+        this.api.get<ScenesResponse>('/scenes', params),
       );
       this.scenes.update(s => [...s, ...data.scenes]);
       this.total.set(data.total);
@@ -143,6 +194,18 @@ export class ScenesComponent implements OnInit {
     if (!this.hasMore() || this.loading()) return;
     this.page++;
     await this.load();
+  }
+
+  /** Open the rich culling darkroom scoped to just this scene's capture window. */
+  protected cullScene(scene: Scene): void {
+    void this.router.navigate(['/culling'], {
+      queryParams: {
+        album: this.albumId() ?? undefined,
+        from: scene.start ?? undefined,
+        to: scene.end ?? undefined,
+        scene: this.sceneDate.transform(scene.start),
+      },
+    });
   }
 
   protected toggleReject(sceneId: number, path: string): void {

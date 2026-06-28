@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, effect, viewChild, ElementRef, OnDestroy, WritableSignal, HostListener } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { DecimalPipe, NgClass } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -114,6 +114,14 @@ interface ShortcutRow {
               }
             </select>
           }
+          @if (rankerComparisons() !== null) {
+            <span class="text-xs opacity-70 flex items-center gap-1"
+                  [matTooltip]="I18N.culling.my_taste_tooltip | translate">
+              <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-[var(--mat-sys-primary)]">auto_awesome</mat-icon>
+              {{ (rankerTrained() ? I18N.culling.my_taste_trained : I18N.culling.my_taste_learning)
+                 | translate:{ count: (rankerComparisons() ?? 0) } }}
+            </span>
+          }
           <button mat-icon-button (click)="showHelp.set(!showHelp())" class="!w-8 !h-8 !p-0"
                   [matTooltip]="I18N.culling.help | translate"
                   [attr.aria-label]="I18N.culling.help | translate">
@@ -121,6 +129,17 @@ interface ShortcutRow {
           </button>
         </div>
       </div>
+
+      @if (scoped()) {
+        <div class="flex items-center gap-2 shrink-0 mb-2 text-sm">
+          <mat-icon class="!text-base text-[var(--mat-sys-primary)]">movie_filter</mat-icon>
+          <span class="opacity-80">{{ I18N.culling.scene_scope | translate:{ scene: scopeScene() || '' } }}</span>
+          <button mat-stroked-button class="!ml-1 !min-w-0" (click)="exitScope()">
+            <mat-icon class="!text-base">close</mat-icon>
+            {{ I18N.culling.exit_scene | translate }}
+          </button>
+        </div>
+      }
 
       @if (showHelp()) {
         <div class="shrink-0 p-3 mb-3 rounded-lg bg-[var(--mat-sys-surface-container)] space-y-3">
@@ -155,7 +174,7 @@ interface ShortcutRow {
           <mat-spinner diameter="40" />
         </div>
       } @else if (visibleGroups().length === 0) {
-        <p class="text-center py-20 opacity-60">{{ I18N.culling.no_bursts | translate }}</p>
+        <p class="text-center py-20 opacity-60">{{ (scoped() ? I18N.culling.scene_complete : I18N.culling.no_bursts) | translate }}</p>
       } @else {
         <div class="space-y-6 pb-4">
           @for (group of visibleGroups(); track group.group_id + '_' + group.type; let i = $index) {
@@ -349,14 +368,15 @@ interface ShortcutRow {
         <!-- Image -->
         @if (lbGroup.photos[lightboxIndex()]; as lbPhoto) {
           @if (compareMode() === 'single') {
-            <div class="flex-1 flex items-center justify-center overflow-hidden"
-                 role="presentation"
-                 (click)="$event.stopPropagation()"
-                 (keydown)="$event.stopPropagation()">
-              <img [src]="lbPhoto.path | thumbnailUrl:1920"
-                   class="max-h-full max-w-full object-contain"
-                   [alt]="lbPhoto.filename" />
-            </div>
+            <app-synced-zoom class="flex-1 min-h-0"
+                             role="presentation"
+                             (click)="$event.stopPropagation()"
+                             (keydown)="$event.stopPropagation()"
+                             [src]="lbPhoto.path | thumbnailUrl:1920"
+                             [fullResSrc]="lbPhoto.path | imageUrl"
+                             [zoom]="zoom()"
+                             (zoomChange)="zoom.set($event)"
+                             [alt]="lbPhoto.filename" />
           } @else {
             <div class="flex-1 grid grid-cols-2 gap-1 overflow-hidden p-1"
                  [class.grid-rows-2]="compareMode() === '4up'"
@@ -450,8 +470,21 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+
+  // Optional scope from "Cull this scene" / album entry points (query params).
+  protected readonly scopeAlbum = signal<string | null>(null);
+  protected readonly scopeFrom = signal<string | null>(null);
+  protected readonly scopeTo = signal<string | null>(null);
+  protected readonly scopeScene = signal<string | null>(null);
+  protected readonly scoped = computed(
+    () => !!(this.scopeAlbum() || this.scopeFrom() || this.scopeTo()),
+  );
+  // Personal-ranker status, surfaced as the "this cull trains My Taste" chip.
+  protected readonly rankerComparisons = signal<number | null>(null);
+  protected readonly rankerTrained = signal(false);
 
   protected readonly showHelp = signal(false);
   protected readonly similarityThreshold = signal(85);
@@ -573,6 +606,7 @@ export class BurstCullingComponent implements OnDestroy {
     { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
     { keys: ['↑'], labelKey: 'culling.shortcuts.keep' },
     { keys: ['↓'], labelKey: 'culling.shortcuts.reject' },
+    { keys: ['Z'], labelKey: 'culling.shortcuts.zoom' },
     { keys: ['Space'], labelKey: 'culling.shortcuts.confirm_next' },
     { keys: ['Esc'], labelKey: 'culling.shortcuts.close' },
   ];
@@ -590,8 +624,14 @@ export class BurstCullingComponent implements OnDestroy {
   ];
 
   constructor() {
+    const qp = this.route.snapshot.queryParamMap;
+    this.scopeAlbum.set(qp.get('album'));
+    this.scopeFrom.set(qp.get('from'));
+    this.scopeTo.set(qp.get('to'));
+    this.scopeScene.set(qp.get('scene'));
     void this.loadGroups();
     void this.refreshComparisonStats();
+    void this.refreshRankerStatus();
     // Keep the keyboard selection in bounds as groups load / get hidden.
     effect(() => {
       const count = this.visibleGroups().length;
@@ -639,7 +679,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   private buildParams(page: number): Record<string, string | number | boolean> {
-    return {
+    const params: Record<string, string | number | boolean> = {
       page,
       per_page: 20,
       similarity_threshold: (this.similarityThreshold() / 100).toString(),
@@ -647,6 +687,36 @@ export class BurstCullingComponent implements OnDestroy {
       exclude_rejected: this.excludeRejected(),
       sort: this.sortMode(),
     };
+    const album = this.scopeAlbum();
+    const from = this.scopeFrom();
+    const to = this.scopeTo();
+    if (album) params['album_id'] = album;
+    if (from) params['date_from'] = from;
+    if (to) params['date_to'] = to;
+    return params;
+  }
+
+  /** Clear the scene/album scope and return to the full unreviewed feed. */
+  protected exitScope(): void {
+    this.scopeAlbum.set(null);
+    this.scopeFrom.set(null);
+    this.scopeTo.set(null);
+    this.scopeScene.set(null);
+    void this.router.navigate(['/culling']);
+    void this.loadGroups();
+  }
+
+  /** Fetch personal-ranker status for the "trains My Taste" chip (best-effort). */
+  private async refreshRankerStatus(): Promise<void> {
+    try {
+      const s = await firstValueFrom(
+        this.api.get<{ trained: boolean; comparison_count: number }>('/ranker/status'),
+      );
+      this.rankerTrained.set(!!s.trained);
+      this.rankerComparisons.set(s.comparison_count ?? null);
+    } catch {
+      // The chip is a nice-to-have; ignore status failures.
+    }
   }
 
   private autoSelectBest(groups: CullingGroup[], base?: Map<number, Set<string>>): Map<number, Set<string>> {
@@ -857,6 +927,7 @@ export class BurstCullingComponent implements OnDestroy {
     if (!group) return;
     event.preventDefault();
     this.lightboxIndex.update(i => this.clampIndex(i - 1, group.photos.length));
+    this.zoom.set(FIT_ZOOM);
   }
 
   @HostListener('document:keydown.arrowright', ['$event'])
@@ -865,6 +936,15 @@ export class BurstCullingComponent implements OnDestroy {
     if (!group) return;
     event.preventDefault();
     this.lightboxIndex.update(i => this.clampIndex(i + 1, group.photos.length));
+    this.zoom.set(FIT_ZOOM);
+  }
+
+  /** Photo-Mechanic-style loupe toggle: fit ↔ 2× (further zoom via wheel/+/-). */
+  @HostListener('document:keydown.z', ['$event'])
+  protected onZoomToggle(event: Event): void {
+    if (!this.lightboxGroup() || isTypingContext(event)) return;
+    event.preventDefault();
+    this.zoom.set(this.zoom().scale > 1 ? FIT_ZOOM : { scale: 2, tx: 0, ty: 0 });
   }
 
   private setCurrentLightboxPhotoKept(group: CullingGroup, keep: boolean): void {
@@ -997,7 +1077,7 @@ export class BurstCullingComponent implements OnDestroy {
         paths: group.photos.map(p => p.path),
         keep_paths: keepPaths,
       }))
-        .then(() => this.refreshComparisonStats())
+        .then(() => { void this.refreshComparisonStats(); void this.refreshRankerStatus(); })
         .catch(() => {
           this.unconfirmGroup(key);
           this.snackBar.open(this.i18n.t(I18N.culling.error_confirming), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });

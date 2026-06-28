@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, effect, untracked } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
@@ -89,6 +89,16 @@ import { I18N } from '../../core/i18n/keys';
             @if (auth.isEdition()) {
               <div class="flex items-center shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <button mat-icon-button
+                        [matTooltip]="I18N.albums.scenes | translate"
+                        (click)="openScoped($event, '/scenes', album)">
+                  <mat-icon class="opacity-60">movie_filter</mat-icon>
+                </button>
+                <button mat-icon-button
+                        [matTooltip]="I18N.albums.cull | translate"
+                        (click)="openScoped($event, '/culling', album)">
+                  <mat-icon class="opacity-60">auto_delete</mat-icon>
+                </button>
+                <button mat-icon-button
                         [matTooltip]="I18N.albums.edit | translate"
                         (click)="editAlbum($event, album)">
                   <mat-icon class="opacity-60">edit</mat-icon>
@@ -125,6 +135,7 @@ export class AlbumsComponent {
   private readonly i18n = inject(I18nService);
   protected readonly auth = inject(AuthService);
   private readonly albumsFilters = inject(AlbumsFiltersService);
+  private readonly router = inject(Router);
 
   protected readonly albums = signal<Album[]>([]);
   protected readonly total = signal(0);
@@ -186,6 +197,13 @@ export class AlbumsComponent {
     const ref = this.dialog.open(CreateAlbumDialogComponent, { width: '400px' });
     const album = await firstValueFrom(ref.afterClosed());
     if (album) this.loadAlbums(true);
+  }
+
+  /** Open scenes/culling scoped to this album (card is an anchor — stop its nav). */
+  protected openScoped(event: Event, path: string, album: Album): void {
+    event.preventDefault();
+    event.stopPropagation();
+    void this.router.navigate([path], { queryParams: { album: album.id } });
   }
 
   protected async editAlbum(event: Event, album: Album): Promise<void> {
