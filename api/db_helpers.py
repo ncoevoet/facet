@@ -102,6 +102,44 @@ def build_date_range_clauses(date_from, date_to):
     return clauses, params
 
 
+def album_filter_clause(album_id, table_alias='photos'):
+    """WHERE fragment restricting photos to an album's membership.
+
+    Returns ``(sql, params)``. An empty/invalid ``album_id`` yields
+    ``('1=1', [])`` so the fragment is always safe to AND into a query.
+    Shared by the gallery, scenes and culling endpoints so album scoping is
+    defined in exactly one place.
+    """
+    if album_id in (None, '', 0, '0'):
+        return '1=1', []
+    try:
+        aid = int(album_id)
+    except (ValueError, TypeError):
+        return '1=1', []
+    return (
+        f"{table_alias}.path IN (SELECT photo_path FROM album_photos WHERE album_id = ?)",
+        [aid],
+    )
+
+
+def time_window_clauses(date_from=None, date_to=None, column='date_taken'):
+    """WHERE clauses bounding ``date_taken`` to an EXIF capture-time window.
+
+    Used to scope scenes/culling to a single scene's ``[start, end]`` window.
+    ``date_from``/``date_to`` are raw EXIF date strings
+    (``YYYY:MM:DD HH:MM:SS``) which sort lexicographically against
+    ``date_taken``. Returns ``(clauses, params)``.
+    """
+    clauses, params = [], []
+    if date_from:
+        clauses.append(f"{column} >= ?")
+        params.append(date_from)
+    if date_to:
+        clauses.append(f"{column} <= ?")
+        params.append(date_to)
+    return clauses, params
+
+
 def build_hide_clauses(hide_blinks: str, hide_bursts: str, hide_duplicates: str) -> list[str]:
     """Convert hide-toggle string params ('1'/'true') to SQL WHERE fragments."""
     clauses = []

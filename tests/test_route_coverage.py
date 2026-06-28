@@ -40,6 +40,7 @@ PUBLIC_ROUTES = [
     '/api/i18n/de',
     '/api/i18n/es',
     '/api/i18n/it',
+    '/api/i18n/pt',
 ]
 
 # Routes that need *some* form of authenticated user but no edition rights.
@@ -76,6 +77,7 @@ AUTH_ROUTES = [
     '/api/burst-groups',
     '/api/culling-groups',
     '/api/similar-groups',
+    '/api/scenes',
     '/api/comparison/stats',
     '/api/comparison/coverage',
     '/api/comparison/confidence',
@@ -95,6 +97,8 @@ PARAMETERISED_ROUTES = [
     ('/api/similar_photos//nonexistent.jpg', {}),
     ('/api/photos/map', {'bounds': '-90,-180,90,180', 'limit': 5}),
     ('/api/filter_options/location_name', {'lat': 48.85, 'lng': 2.35}),
+    ('/api/scenes', {'album_id': 1, 'date_from': '2024:06:15 00:00:00', 'date_to': '2024:06:15 23:59:59'}),
+    ('/api/culling-groups', {'album_id': 1, 'date_from': '2024:06:15 00:00:00', 'date_to': '2024:06:15 23:59:59'}),
 ]
 
 # Routes that require superadmin (scan).

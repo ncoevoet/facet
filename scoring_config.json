@@ -1992,9 +1992,12 @@
     "max_group_size": 50
   },
   "scenes": {
-    "gap_hours": 4.0,
+    "gap_minutes": 20.0,
     "min_size": 2,
-    "max_photos": 5000
+    "max_photos": 5000,
+    "max_scene_size": 60,
+    "adaptive": true,
+    "adaptive_k": 6.0
   },
   "capsules": {
     "min_aggregate": 6.0,

@@ -360,3 +360,84 @@ class TestSelectSimilarInvalidatesCache:
             for s in executed_sql
         ), f"cache invalidation DELETE missing from: {executed_sql}"
 
+
+# ---------------------------------------------------------------------------
+# Album + capture-time-window scope on burst group selection (real SQLite)
+# ---------------------------------------------------------------------------
+
+class TestQueryBurstGroupsScope:
+    _SCHEMA = """
+        CREATE TABLE photos (
+            path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
+            aesthetic REAL, tech_sharpness REAL, is_blink INTEGER, is_burst_lead INTEGER,
+            burst_group_id INTEGER, burst_reviewed INTEGER, eyes_open_score REAL,
+            expression_score REAL, face_count INTEGER, category TEXT
+        );
+        CREATE TABLE album_photos (
+            id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT
+        );
+    """
+
+    # g1: two frames inside the window; g2: outside; g3: two frames inside +
+    # a tail frame 3s AFTER the window end (boundary burst).
+    _PHOTOS = [
+        ("/g1a.jpg", "2024:06:15 10:00:00", 1),
+        ("/g1b.jpg", "2024:06:15 10:00:01", 1),
+        ("/g2a.jpg", "2024:06:15 12:00:00", 2),
+        ("/g2b.jpg", "2024:06:15 12:00:01", 2),
+        ("/g3a.jpg", "2024:06:15 10:29:58", 3),
+        ("/g3b.jpg", "2024:06:15 10:29:59", 3),
+        ("/g3c.jpg", "2024:06:15 10:30:03", 3),
+    ]
+
+    def _db(self):
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(self._SCHEMA)
+        conn.executemany(
+            "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "
+            "tech_sharpness, is_blink, is_burst_lead, burst_group_id, burst_reviewed, "
+            "eyes_open_score, expression_score, face_count, category) "
+            "VALUES (?, ?, ?, 7.0, 7.0, 7.0, 0, 0, ?, 0, 8.0, 8.0, 0, NULL)",
+            [(p, p.lstrip('/'), dt, gid) for p, dt, gid in self._PHOTOS],
+        )
+        conn.executemany(
+            "INSERT INTO album_photos (album_id, photo_path) VALUES (1, ?)",
+            [("/g1a.jpg",), ("/g1b.jpg",)],
+        )
+        conn.commit()
+        return conn
+
+    def test_window_scopes_selection(self):
+        from api.routers.burst_culling import _query_burst_groups
+        conn = self._db()
+        groups, total, _ = _query_burst_groups(
+            conn, "1=1", [], exclude_rejected=False,
+            date_from="2024:06:15 10:00:00", date_to="2024:06:15 10:30:00",
+        )
+        gids = {g["burst_id"] for g in groups}
+        assert gids == {1, 3}  # g2 (12:00) excluded by window
+        assert total == 2
+
+    def test_boundary_burst_member_fetch_ignores_window(self):
+        """A burst selected by the window returns ALL its frames, including the
+        tail frame captured after the window end (member fetch is album-only)."""
+        from api.routers.burst_culling import _query_burst_groups
+        conn = self._db()
+        groups, _, _ = _query_burst_groups(
+            conn, "1=1", [], exclude_rejected=False,
+            date_from="2024:06:15 10:00:00", date_to="2024:06:15 10:30:00",
+        )
+        g3 = next(g for g in groups if g["burst_id"] == 3)
+        assert g3["count"] == 3  # 10:30:03 tail frame NOT clipped by the window
+
+    def test_album_scopes_selection(self):
+        from api.routers.burst_culling import _query_burst_groups
+        conn = self._db()
+        groups, total, _ = _query_burst_groups(
+            conn, "1=1", [], exclude_rejected=False, album_id=1,
+        )
+        assert {g["burst_id"] for g in groups} == {1}
+        assert total == 1
+

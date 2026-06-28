@@ -21,7 +21,7 @@ from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_db
 from api.db_helpers import (
     get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
-    trigger_auto_retrain, set_photos_rejected,
+    trigger_auto_retrain, set_photos_rejected, album_filter_clause, time_window_clauses,
 )
 from api.similarity_groups import compute_similarity_groups
 from comparison.comparison_manager import record_culling_pairs
@@ -229,93 +229,57 @@ def _format_group(photos, burst_group_id):
 
 # --- Shared burst query logic ---
 
-def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exclude_rejected=False, user_id=None):
+def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exclude_rejected=False,
+                        user_id=None, album_id=None, date_from=None, date_to=None):
     """Query unreviewed burst groups and their photos.
 
     If page/per_page are given, returns (groups, total_groups, total_pages) with
     pagination applied.  Otherwise returns (groups, total_groups, 1) for all groups.
     Each group is a dict from ``_format_group`` keyed by burst_group_id.
+
+    ``album_id``/``date_from``/``date_to`` scope which groups qualify (the
+    selection queries). The capture-time window is intentionally NOT applied to
+    the member fetch, so a burst whose lead sits at a scene boundary still
+    returns all of its tail frames; only album membership scopes the members.
     """
+    album_sql, album_params = album_filter_clause(album_id)
+    window_clauses, window_params = time_window_clauses(date_from, date_to)
+    sel_sql = f" AND {album_sql}" + "".join(f" AND {c}" for c in window_clauses)
+    sel_params = album_params + window_params
+    member_sql = f" AND {album_sql}"
+    member_params = album_params
+
     if exclude_rejected:
         from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
+        sel_where = (f"burst_group_id IS NOT NULL AND burst_reviewed = 0 "
+                     f"AND {vis_sql} AND {is_rejected_col} = 0{sel_sql}")
+        sel_base_params = from_params + vis_params + sel_params
         count_row = conn.execute(
-            f"""SELECT COUNT(*) as cnt FROM (
-                    SELECT burst_group_id
-                    FROM {from_clause}
-                    WHERE burst_group_id IS NOT NULL
-                      AND burst_reviewed = 0
-                      AND {vis_sql}
-                      AND {is_rejected_col} = 0
-                    GROUP BY burst_group_id
-                    HAVING COUNT(*) >= 2
-                )""",
-            from_params + vis_params,
+            f"SELECT COUNT(*) as cnt FROM (SELECT burst_group_id FROM {from_clause} "
+            f"WHERE {sel_where} GROUP BY burst_group_id HAVING COUNT(*) >= 2)",
+            sel_base_params,
         ).fetchone()
         total_groups = count_row['cnt'] if count_row else 0
-
-        if page is not None and per_page is not None:
-            total_pages, offset = paginate(total_groups, page, per_page)
-            group_ids = conn.execute(
-                f"""SELECT burst_group_id
-                    FROM {from_clause}
-                    WHERE burst_group_id IS NOT NULL
-                      AND burst_reviewed = 0
-                      AND {vis_sql}
-                      AND {is_rejected_col} = 0
-                    GROUP BY burst_group_id
-                    HAVING COUNT(*) >= 2
-                    ORDER BY burst_group_id
-                    LIMIT ? OFFSET ?""",
-                from_params + vis_params + [per_page, offset],
-            ).fetchall()
-        else:
-            total_pages = 1
-            group_ids = conn.execute(
-                f"""SELECT burst_group_id
-                    FROM {from_clause}
-                    WHERE burst_group_id IS NOT NULL
-                      AND burst_reviewed = 0
-                      AND {vis_sql}
-                      AND {is_rejected_col} = 0
-                    GROUP BY burst_group_id
-                    HAVING COUNT(*) >= 2
-                    ORDER BY burst_group_id""",
-                from_params + vis_params,
-            ).fetchall()
+        order_sql = (f"SELECT burst_group_id FROM {from_clause} WHERE {sel_where} "
+                     f"GROUP BY burst_group_id HAVING COUNT(*) >= 2 ORDER BY burst_group_id")
     else:
+        sel_where = f"burst_group_id IS NOT NULL AND burst_reviewed = 0 AND {vis_sql}{sel_sql}"
+        sel_base_params = vis_params + sel_params
         count_row = conn.execute(
-            f"""SELECT COUNT(DISTINCT burst_group_id) as cnt
-                FROM photos
-                WHERE burst_group_id IS NOT NULL
-                  AND burst_reviewed = 0
-                  AND {vis_sql}""",
-            vis_params,
+            f"SELECT COUNT(DISTINCT burst_group_id) as cnt FROM photos WHERE {sel_where}",
+            sel_base_params,
         ).fetchone()
         total_groups = count_row['cnt'] if count_row else 0
+        order_sql = (f"SELECT DISTINCT burst_group_id FROM photos WHERE {sel_where} "
+                     f"ORDER BY burst_group_id")
 
-        if page is not None and per_page is not None:
-            total_pages, offset = paginate(total_groups, page, per_page)
-            group_ids = conn.execute(
-                f"""SELECT DISTINCT burst_group_id
-                    FROM photos
-                    WHERE burst_group_id IS NOT NULL
-                      AND burst_reviewed = 0
-                      AND {vis_sql}
-                    ORDER BY burst_group_id
-                    LIMIT ? OFFSET ?""",
-                vis_params + [per_page, offset],
-            ).fetchall()
-        else:
-            total_pages = 1
-            group_ids = conn.execute(
-                f"""SELECT DISTINCT burst_group_id
-                    FROM photos
-                    WHERE burst_group_id IS NOT NULL
-                      AND burst_reviewed = 0
-                      AND {vis_sql}
-                    ORDER BY burst_group_id""",
-                vis_params,
-            ).fetchall()
+    if page is not None and per_page is not None:
+        total_pages, offset = paginate(total_groups, page, per_page)
+        group_ids = conn.execute(order_sql + " LIMIT ? OFFSET ?",
+                                 sel_base_params + [per_page, offset]).fetchall()
+    else:
+        total_pages = 1
+        group_ids = conn.execute(order_sql, sel_base_params).fetchall()
 
     gid_list = [row['burst_group_id'] for row in group_ids]
     formatted = []
@@ -329,9 +293,9 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
                            eyes_open_score, expression_score, face_count, category
                     FROM {from_clause}
                     WHERE burst_group_id IN ({placeholders}) AND {vis_sql}
-                      AND {is_rejected_col} = 0
+                      AND {is_rejected_col} = 0{member_sql}
                     ORDER BY burst_group_id, date_taken""",
-                from_params + gid_list + vis_params,
+                from_params + gid_list + vis_params + member_params,
             ).fetchall()
         else:
             all_photos = conn.execute(
@@ -339,9 +303,9 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
                            tech_sharpness, is_blink, is_burst_lead, burst_group_id,
                            eyes_open_score, expression_score, face_count, category
                     FROM photos
-                    WHERE burst_group_id IN ({placeholders}) AND {vis_sql}
+                    WHERE burst_group_id IN ({placeholders}) AND {vis_sql}{member_sql}
                     ORDER BY burst_group_id, date_taken""",
-                gid_list + vis_params,
+                gid_list + vis_params + member_params,
             ).fetchall()
 
         for gid, group_photos in groupby(all_photos, key=lambda p: p['burst_group_id']):
@@ -635,12 +599,17 @@ def _count_unreviewed_burst_groups(conn, vis_sql, vis_params, exclude_rejected=F
         return row['cnt'] if row else 0
 
 
-def _fetch_unreviewed_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exclude_rejected=False, user_id=None):
+def _fetch_unreviewed_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exclude_rejected=False,
+                                   user_id=None, album_id=None, date_from=None, date_to=None):
     """Fetch unreviewed burst groups with enriched data for unified culling.
 
     When page/per_page are given, only fetches that page's worth of groups.
     """
-    groups, _, _ = _query_burst_groups(conn, vis_sql, vis_params, page=page, per_page=per_page, exclude_rejected=exclude_rejected, user_id=user_id)
+    groups, _, _ = _query_burst_groups(
+        conn, vis_sql, vis_params, page=page, per_page=per_page,
+        exclude_rejected=exclude_rejected, user_id=user_id,
+        album_id=album_id, date_from=date_from, date_to=date_to,
+    )
     return [_enrich_burst_group(g) for g in groups]
 
 
@@ -737,12 +706,16 @@ def _filter_similar_groups(conn, all_groups, user_id):
     return filtered
 
 
-def _count_unreviewed_similar_groups(conn, threshold, user_id, seed, exclude_rejected=False):
+def _count_unreviewed_similar_groups(conn, threshold, user_id, seed, exclude_rejected=False,
+                                     album_id=None, date_from=None, date_to=None):
     """Return (count, shuffled_groups) for unreviewed similar groups.
 
     The shuffled groups list is lightweight (paths only, no photo data).
     """
-    all_groups = compute_similarity_groups(conn, threshold=threshold, user_id=user_id)
+    all_groups = compute_similarity_groups(
+        conn, threshold=threshold, user_id=user_id,
+        album_id=album_id, date_from=date_from, date_to=date_to,
+    )
     if exclude_rejected:
         all_groups = _filter_similar_groups(conn, all_groups, user_id)
     if not all_groups:
@@ -753,7 +726,8 @@ def _count_unreviewed_similar_groups(conn, threshold, user_id, seed, exclude_rej
 
 
 def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed, user_id,
-                                     page_groups=None, offset=0, exclude_rejected=False):
+                                     page_groups=None, offset=0, exclude_rejected=False,
+                                     album_id=None, date_from=None, date_to=None):
     """Fetch similar groups with photo data for a page slice.
 
     Args:
@@ -761,7 +735,10 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
         offset: The global offset of the first group in page_groups (for group_id assignment).
     """
     if page_groups is None:
-        all_groups = compute_similarity_groups(conn, threshold=threshold, user_id=user_id)
+        all_groups = compute_similarity_groups(
+            conn, threshold=threshold, user_id=user_id,
+            album_id=album_id, date_from=date_from, date_to=date_to,
+        )
         if exclude_rejected:
             all_groups = _filter_similar_groups(conn, all_groups, user_id)
         if not all_groups:
@@ -926,6 +903,9 @@ async def api_culling_groups(
     seed: int = Query(0),
     exclude_rejected: bool = Query(True),
     sort: str = Query('easiest'),
+    album_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return a unified list of burst + similar groups for culling.
@@ -933,7 +913,8 @@ async def api_culling_groups(
     Merges unreviewed burst and similar groups, orders them globally by `sort`
     (easiest | redundant | best | recent | needs_comparisons), then paginates.
     Each group includes a `type` field ("burst" or "similar") and a human-readable
-    `reason` string.
+    `reason` string. Optionally scoped to an album and/or an EXIF capture-time
+    window (used by "Cull this scene").
     """
     if sort not in _CULLING_SORTS:
         sort = 'easiest'
@@ -945,7 +926,8 @@ async def api_culling_groups(
             # Enriching + globally sorting the whole unreviewed set is identical
             # across pages, so memo it and let pagination reuse one enrichment
             # instead of re-materializing + re-scoring every group per page.
-            cache_key = (round(similarity_threshold, 3), seed, sort, exclude_rejected, user_id)
+            cache_key = (round(similarity_threshold, 3), seed, sort, exclude_rejected, user_id,
+                         album_id, date_from, date_to)
             cached = _culling_groups_cache.get(cache_key)
             now = time.time()
             if cached is not None and now - cached[0] < _CULLING_GROUPS_CACHE_TTL:
@@ -955,9 +937,11 @@ async def api_culling_groups(
                     conn, vis_sql, vis_params,
                     page=None, per_page=None,
                     exclude_rejected=exclude_rejected, user_id=user_id,
+                    album_id=album_id, date_from=date_from, date_to=date_to,
                 )
                 _, similar_shuffled = _count_unreviewed_similar_groups(
                     conn, similarity_threshold, user_id, seed, exclude_rejected=exclude_rejected,
+                    album_id=album_id, date_from=date_from, date_to=date_to,
                 )
                 similar_groups = []
                 if similar_shuffled:
@@ -965,6 +949,7 @@ async def api_culling_groups(
                         conn, similarity_threshold, vis_sql, vis_params, seed, user_id,
                         page_groups=similar_shuffled, offset=0,
                         exclude_rejected=exclude_rejected,
+                        album_id=album_id, date_from=date_from, date_to=date_to,
                     )
                     # Keep similar IDs distinct from burst IDs; the type suffix the
                     # client appends ('<id>_<type>') already disambiguates the rest.

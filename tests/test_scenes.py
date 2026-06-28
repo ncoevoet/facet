@@ -21,6 +21,9 @@ _SCHEMA = """
         path TEXT PRIMARY KEY, filename TEXT, aggregate REAL, date_taken TEXT,
         is_burst_lead INTEGER, is_rejected INTEGER, category TEXT
     );
+    CREATE TABLE album_photos (
+        id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT
+    );
     CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
     CREATE TABLE comparisons (
         id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
@@ -72,6 +75,64 @@ def test_compute_scenes_splits_on_time_gap():
     assert len(scenes) == 2
     assert scenes[0]["count"] == 3 and scenes[0]["best_path"] == "/a2.jpg"  # 8.0 wins
     assert scenes[1]["count"] == 2 and scenes[1]["best_path"] == "/b1.jpg"  # 9.0 wins
+
+
+def _seconds_apart_db(n, step_seconds=30):
+    """n photos captured step_seconds apart on one continuous day (no big gap)."""
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.executescript(_SCHEMA)
+    rows = []
+    base_min, base_sec = 0, 0
+    for i in range(n):
+        total = i * step_seconds
+        hh = 10 + total // 3600
+        mm = (total % 3600) // 60
+        ss = total % 60
+        rows.append((f"/c{i}.jpg", f"c{i}.jpg", 5.0 + (i % 5),
+                     f"2024:06:15 {hh:02d}:{mm:02d}:{ss:02d}", 1, 0, None))
+    conn.executemany("INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
+    conn.commit()
+    return conn
+
+
+def test_adaptive_grouping_bounds_scene_size():
+    """A 200-frame continuous run with no inter-scene gap must sub-split into
+    several bounded scenes — not collapse into one 200-photo blob, and not
+    shatter into singletons that min_size drops."""
+    conn = _seconds_apart_db(200, step_seconds=30)
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        scenes = compute_scenes(conn, user_id=None)
+    assert len(scenes) >= 4
+    assert all(s["count"] <= 60 for s in scenes)  # max_scene_size cap
+    assert sum(s["count"] for s in scenes) == 200  # no photo dropped
+
+
+def test_album_scopes_scenes():
+    conn = _db()
+    conn.executemany(
+        "INSERT INTO album_photos (album_id, photo_path) VALUES (1, ?)",
+        [("/a1.jpg",), ("/a2.jpg",), ("/a3.jpg",)],
+    )
+    conn.commit()
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        scenes = compute_scenes(conn, user_id=None, album_id=1)
+    # Only scene "a" (its 3 frames are in album 1); scene "b" excluded.
+    assert len(scenes) == 1
+    assert scenes[0]["count"] == 3
+
+
+def test_time_window_scopes_scenes():
+    conn = _db()
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        scenes = compute_scenes(
+            conn, user_id=None,
+            date_from="2024:06:16 00:00:00", date_to="2024:06:16 23:59:59",
+        )
+    # Only the 2024-06-16 frames (scene "b").
+    assert len(scenes) == 1
+    assert scenes[0]["count"] == 2
+    assert scenes[0]["best_path"] == "/b1.jpg"
 
 
 def test_get_scenes_paginates(client):

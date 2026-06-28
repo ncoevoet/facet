@@ -30,7 +30,8 @@ def _get_similarity_config():
         return {'default_threshold': 0.85, 'min_group_size': 2, 'max_photos': 10000, 'max_group_size': 50}
 
 
-def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=None):
+def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=None,
+                              album_id=None, date_from=None, date_to=None):
     """
     Compute groups of visually similar photos using stored CLIP/SigLIP embeddings.
 
@@ -43,11 +44,14 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
                    Defaults to scoring_config similarity_groups.default_threshold.
         min_size: Minimum group size. Defaults to scoring_config similarity_groups.min_group_size.
         user_id: Optional user ID for visibility filtering in multi-user mode.
+        album_id: Optional album to scope candidate photos to.
+        date_from/date_to: Optional EXIF capture-time window to scope candidates
+                   (used by "Cull this scene").
 
     Returns:
         List of groups, each: { paths: [...], best_path: str, count: int }
     """
-    from api.db_helpers import get_visibility_clause
+    from api.db_helpers import get_visibility_clause, album_filter_clause, time_window_clauses
 
     sg_config = _get_similarity_config()
     if threshold is None:
@@ -63,9 +67,11 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
 
     try:
         vis_sql, vis_params = get_visibility_clause(user_id)
+        album_sql, album_params = album_filter_clause(album_id)
+        window_clauses, window_params = time_window_clauses(date_from, date_to)
 
         # Check cache first
-        cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_10k"
+        cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_10k"
         cached = conn.execute(
             "SELECT value, updated_at FROM stats_cache WHERE key = ?",
             (cache_key,)
@@ -80,15 +86,19 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         # Exclude burst non-leads to avoid overlap with burst culling. The
         # similarity_reviewed column is guaranteed present by the lifespan
         # init_database() migration (api/__init__.py:lifespan).
+        where = [
+            "clip_embedding IS NOT NULL",
+            "(is_burst_lead = 1 OR is_burst_lead IS NULL)",
+            "(similarity_reviewed IS NULL OR similarity_reviewed = 0)",
+            vis_sql,
+            album_sql,
+        ] + window_clauses
         rows = conn.execute(
             f"""SELECT path, clip_embedding, aggregate FROM photos
-               WHERE clip_embedding IS NOT NULL
-                 AND (is_burst_lead = 1 OR is_burst_lead IS NULL)
-                 AND (similarity_reviewed IS NULL OR similarity_reviewed = 0)
-                 AND {vis_sql}
+               WHERE {' AND '.join(where)}
                ORDER BY date_taken DESC
                LIMIT ?""",
-            vis_params + [max_photos]
+            vis_params + album_params + window_params + [max_photos]
         ).fetchall()
 
         if len(rows) < 2:

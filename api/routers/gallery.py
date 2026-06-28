@@ -20,7 +20,7 @@ from api.db_helpers import (
     get_art_tags_from_config, build_hide_clauses,
     split_photo_tags, attach_person_data_async, sanitize_float_values,
     get_visibility_clause, get_photos_from_clause, get_preference_columns,
-    build_photo_select_columns,
+    build_photo_select_columns, album_filter_clause,
     format_date, to_exif_date, paginate,
 )
 from api.top_picks import get_top_picks_score_sql, get_top_picks_threshold
@@ -396,15 +396,10 @@ def _apply_date_album_geo_filters(where_clauses, sql_params, params):
         except (ValueError, AttributeError):
             pass
 
-    if params.get('album_id'):
-        try:
-            album_id = int(params['album_id'])
-            where_clauses.append(
-                "photos.path IN (SELECT photo_path FROM album_photos WHERE album_id = ?)"
-            )
-            sql_params.append(album_id)
-        except ValueError:
-            pass
+    album_sql, album_params = album_filter_clause(params.get('album_id'))
+    if album_params:
+        where_clauses.append(album_sql)
+        sql_params.extend(album_params)
 
     if params.get('gps_lat') and params.get('gps_lng') and params.get('gps_radius_km'):
         try:
