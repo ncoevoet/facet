@@ -2,16 +2,42 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
+export interface LanguageInfo {
+  code: string;
+  name: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class I18nService {
   private http = inject(HttpClient);
 
   private readonly COOKIE_KEY = 'facet_lang';
   private readonly _translations = signal<Record<string, unknown>>({});
+  private readonly _languages = signal<LanguageInfo[]>([]);
 
   readonly translations = this._translations.asReadonly();
+  /** Supported languages (code + native name), fetched from /api/i18n/languages. */
+  readonly languages = this._languages.asReadonly();
   readonly locale = signal<string>(this.detectLocale());
   readonly isLoaded = computed(() => Object.keys(this._translations()).length > 0);
+
+  /** Fetch the supported-language list (data-driven switcher). */
+  async loadLanguages(): Promise<void> {
+    try {
+      const data = await firstValueFrom(
+        this.http.get<{ languages: LanguageInfo[]; default: string }>('/api/i18n/languages'),
+      );
+      const langs = data?.languages ?? [];
+      this._languages.set(langs);
+      // Drop an unsupported auto-detected locale (e.g. browser 'ja' with no bundle).
+      const codes = langs.map(l => l.code);
+      if (codes.length && !codes.includes(this.locale())) {
+        this.locale.set(data?.default ?? 'en');
+      }
+    } catch {
+      // Switcher will simply have no entries; English content still loads.
+    }
+  }
 
   /** Load translations for current locale */
   async load(): Promise<void> {
@@ -54,15 +80,14 @@ export class I18nService {
   }
 
   private detectLocale(): string {
-    // Check cookie
+    // Cookie is written only by setLocale (always a supported code), so trust it.
     const match = document.cookie.match(new RegExp(`${this.COOKIE_KEY}=([^;]+)`));
-    if (match && ['en', 'fr', 'de', 'it', 'es'].includes(match[1])) return match[1];
+    if (match) return match[1];
 
-    // Check browser language
+    // Browser language as a candidate; loadLanguages() resets it to the default
+    // if no bundle exists for it.
     const browserLang = navigator.language?.split('-')[0];
-    if (browserLang && ['en', 'fr', 'de', 'it', 'es'].includes(browserLang)) return browserLang;
-
-    return 'en';
+    return browserLang || 'en';
   }
 
   private getNestedValue(obj: Record<string, unknown>, keyPath: string): unknown {

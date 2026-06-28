@@ -22,9 +22,19 @@ except ImportError:
     request = None
     g = None
 
-# Supported languages
-SUPPORTED_LANGUAGES = ['en', 'fr', 'de', 'it', 'es']
+# Supported languages — single source of truth (code -> native name).
+# Add a language here and drop its translations/<code>.json bundle; the API
+# endpoint and the Angular switcher both derive their list from this.
+LANGUAGES = [
+    {'code': 'en', 'name': 'English'},
+    {'code': 'fr', 'name': 'Français'},
+    {'code': 'de', 'name': 'Deutsch'},
+    {'code': 'it', 'name': 'Italiano'},
+    {'code': 'es', 'name': 'Español'},
+    {'code': 'pt', 'name': 'Português'},
+]
 DEFAULT_LANGUAGE = 'en'
+SUPPORTED_LANGUAGES = [lang['code'] for lang in LANGUAGES]
 
 # Module directory
 _MODULE_DIR = os.path.dirname(os.path.abspath(__file__))

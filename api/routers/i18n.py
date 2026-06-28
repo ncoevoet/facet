@@ -8,10 +8,11 @@ import json
 import os
 from fastapi import APIRouter, HTTPException
 
+from i18n import LANGUAGES, SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE
+
 router = APIRouter(tags=["i18n"])
 
 _TRANSLATIONS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'i18n', 'translations')
-SUPPORTED_LANGUAGES = ['en', 'fr', 'de', 'it', 'es']
 
 _translations_cache: dict[str, tuple[float, dict]] = {}
 
@@ -44,8 +45,8 @@ def _load_translations(lang: str) -> dict:
 
 @router.get("/api/i18n/languages")
 def get_languages():
-    """List supported languages."""
-    return {'languages': SUPPORTED_LANGUAGES, 'default': 'en'}
+    """List supported languages as ``[{code, name}]`` plus the default code."""
+    return {'languages': LANGUAGES, 'default': DEFAULT_LANGUAGE}
 
 
 @router.get("/api/i18n/{lang}")

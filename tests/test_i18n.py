@@ -20,13 +20,22 @@ class TestGetLanguages:
         assert resp.status_code == 200
         body = resp.json()
         assert "languages" in body
+        assert body.get("default") == "en"
         langs = body["languages"]
         assert isinstance(langs, list)
         assert len(langs) > 0
-        # Each entry should be a language code string
-        for code in langs:
-            assert isinstance(code, str)
-            assert len(code) == 2
+        # Each entry is a {code, name} object (data-driven switcher).
+        for entry in langs:
+            assert isinstance(entry, dict)
+            assert isinstance(entry["code"], str) and len(entry["code"]) == 2
+            assert isinstance(entry["name"], str) and entry["name"]
+        codes = {entry["code"] for entry in langs}
+        assert {"en", "pt"} <= codes  # Portuguese now supported
+
+    def test_get_portuguese_bundle(self, client):
+        resp = client.get("/api/i18n/pt")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), dict) and len(resp.json()) > 0
 
 
 class TestGetTranslations:

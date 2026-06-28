@@ -223,7 +223,7 @@ describe('I18nService', () => {
       newHttp.verify();
     });
 
-    it('should fall back to en for unsupported cookie values', () => {
+    it('resets an unsupported locale to the default after loadLanguages()', async () => {
       document.cookie = 'facet_lang=ja;path=/';
 
       TestBed.resetTestingModule();
@@ -233,10 +233,35 @@ describe('I18nService', () => {
       const newService = TestBed.inject(I18nService);
       const newHttp = TestBed.inject(HttpTestingController);
 
-      // 'ja' is not in the supported list, should fall back to browser or 'en'
-      expect(['en', 'fr', 'de', 'it', 'es']).toContain(newService.locale());
+      // detectLocale trusts the cookie synchronously (it is only ever written
+      // by setLocale with a supported code)...
+      expect(newService.locale()).toBe('ja');
+
+      // ...and loadLanguages() drops it once it learns 'ja' has no bundle.
+      const p = newService.loadLanguages();
+      const req = newHttp.expectOne('/api/i18n/languages');
+      req.flush({
+        languages: [{ code: 'en', name: 'English' }, { code: 'pt', name: 'Português' }],
+        default: 'en',
+      });
+      await p;
+      expect(newService.locale()).toBe('en');
 
       newHttp.verify();
+    });
+  });
+
+  describe('loadLanguages()', () => {
+    it('populates the languages signal with {code, name} entries', async () => {
+      const p = service.loadLanguages();
+      const req = httpTesting.expectOne('/api/i18n/languages');
+      expect(req.request.method).toBe('GET');
+      req.flush({
+        languages: [{ code: 'en', name: 'English' }, { code: 'pt', name: 'Português' }],
+        default: 'en',
+      });
+      await p;
+      expect(service.languages().map(l => l.code)).toEqual(['en', 'pt']);
     });
   });
 });

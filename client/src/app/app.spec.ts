@@ -34,7 +34,7 @@ function createApp(routerUrl = '/') {
       { provide: Router, useValue: mockRouter },
       { provide: GalleryStore, useValue: mockStore },
       { provide: AuthService, useValue: { isAuthenticated: vi.fn(() => true), checkStatus: vi.fn(() => Promise.resolve()) } },
-      { provide: I18nService, useValue: { load: vi.fn(() => Promise.resolve()), t: vi.fn((k: string) => k), translations: signal({}) } },
+      { provide: I18nService, useValue: { load: vi.fn(() => Promise.resolve()), loadLanguages: vi.fn(() => Promise.resolve()), languages: signal([]), t: vi.fn((k: string) => k), translations: signal({}) } },
       { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
       { provide: CompareFiltersService, useValue: { selectedCategory: compareCategorySig } },
       { provide: MatDialog, useValue: { open: vi.fn() } },

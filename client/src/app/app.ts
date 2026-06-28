@@ -120,7 +120,7 @@ export class App implements OnInit {
   private readonly dialog = inject(MatDialog);
   private readonly api = inject(ApiService);
   protected readonly auth = inject(AuthService);
-  private readonly i18n = inject(I18nService);
+  protected readonly i18n = inject(I18nService);
   protected readonly themeService = inject(ThemeService);
   protected readonly store = inject(GalleryStore);
   protected readonly statsFilters = inject(StatsFiltersService);
@@ -367,6 +367,7 @@ export class App implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.setupUpdateNotifications();
+    await this.i18n.loadLanguages();
     await this.i18n.load();
     this.store.loadTypeCounts();
     this.store.loadConfig();
