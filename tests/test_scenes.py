@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from unittest import mock
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -24,6 +25,7 @@ _SCHEMA = """
     CREATE TABLE album_photos (
         id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT
     );
+    CREATE TABLE albums (id INTEGER PRIMARY KEY, user_id TEXT);
     CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
     CREATE TABLE comparisons (
         id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
@@ -114,6 +116,7 @@ def test_album_scopes_scenes():
         "INSERT INTO album_photos (album_id, photo_path) VALUES (1, ?)",
         [("/a1.jpg",), ("/a2.jpg",), ("/a3.jpg",)],
     )
+    conn.execute("INSERT INTO albums (id, user_id) VALUES (1, NULL)")
     conn.commit()
     with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
         scenes = compute_scenes(conn, user_id=None, album_id=1)
@@ -131,6 +134,7 @@ def test_album_scoped_scenes_ignore_cap(monkeypatch):
         "INSERT INTO album_photos (album_id, photo_path) VALUES (1, ?)",
         [(f"/c{i}.jpg",) for i in range(20)],
     )
+    conn.execute("INSERT INTO albums (id, user_id) VALUES (1, NULL)")
     conn.commit()
     monkeypatch.setattr("api.routers.scenes._scene_config", lambda: {
         'gap_minutes': 20.0, 'min_size': 2, 'max_photos': 6, 'max_scene_size': 60,
@@ -142,6 +146,24 @@ def test_album_scoped_scenes_ignore_cap(monkeypatch):
         album = compute_scenes(conn, user_id=None, album_id=1)
     assert sum(s["count"] for s in whole) == 6      # capped at max_photos
     assert sum(s["count"] for s in album) == 20     # full album, cap ignored
+
+
+def test_album_scope_denies_non_owner():
+    conn = _db()
+    conn.execute("INSERT INTO albums (id, user_id) VALUES (2, 'userB')")
+    conn.commit()
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        with pytest.raises(HTTPException) as ei:
+            compute_scenes(conn, user_id="userA", album_id=2)
+    assert ei.value.status_code == 403
+
+
+def test_album_scope_missing_album_404():
+    conn = _db()
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        with pytest.raises(HTTPException) as ei:
+            compute_scenes(conn, user_id=None, album_id=999)
+    assert ei.value.status_code == 404
 
 
 def test_scenes_summary_omits_photos(client):
@@ -193,13 +215,20 @@ def _moment_db(photos):
     return conn
 
 
-def test_scene_named_by_dominant_moment():
+def test_scene_named_by_dominant_moment(monkeypatch):
     photos = [
         (f"/v{i}.jpg", f"v{i}.jpg", 7.0, f"2024:06:15 10:0{i}:00", 1, 0, None,
          "vows" if i != 2 else "first_kiss", 0.8)
         for i in range(5)
     ]
     conn = _moment_db(photos)
+    # Pin the shipped defaults (split_on_moment_change off) like the sibling tests,
+    # so a future config flip can't split the run and break this assertion.
+    monkeypatch.setattr("api.routers.scenes._scene_config", lambda: {
+        'gap_minutes': 20.0, 'min_size': 2, 'max_photos': 5000, 'max_scene_size': 60,
+        'adaptive': True, 'adaptive_k': 6.0,
+        'split_on_moment_change': False, 'moment_split_min_run': 4,
+    })
     with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
         scenes = compute_scenes(conn, user_id=None)
     assert len(scenes) == 1

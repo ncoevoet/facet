@@ -839,9 +839,14 @@ class WeightOptimizer:
         # never leave a truncated scoring_config.json (the per-category weight
         # snapshot above cannot reconstruct the file's other sections).
         tmp_path = f"{self.config_path}.tmp"
-        with open(tmp_path, 'w') as f:
-            json.dump(config, f, indent=2)
-        os.replace(tmp_path, self.config_path)
+        try:
+            with open(tmp_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            os.replace(tmp_path, self.config_path)
+        except BaseException:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise
 
         return snapshot_id
 

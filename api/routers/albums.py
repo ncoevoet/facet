@@ -263,12 +263,12 @@ async def _get_album_filter_options(conn, album_id):
 _COVER_CACHE_TTL = 86400  # 24h — a smart album cover is just a thumbnail; staleness is fine
 
 
-def _get_first_photo_path(conn, album_row, user_id=None):
+def _get_first_photo_path(conn, album_row):
     """Get the first photo path for an album (for cover display)."""
     if album_row['cover_photo_path']:
         return album_row['cover_photo_path']
     if album_row['is_smart'] and album_row['smart_filter_json']:
-        return _smart_album_cover(conn, album_row, user_id)
+        return _smart_album_cover(conn, album_row)
     # Manual album: get first photo from album_photos
     row = conn.execute(
         "SELECT photo_path FROM album_photos WHERE album_id = ? ORDER BY position ASC LIMIT 1",
@@ -277,30 +277,34 @@ def _get_first_photo_path(conn, album_row, user_id=None):
     return row['photo_path'] if row else None
 
 
-def _cover_cache_key(album_row, user_id):
-    """stats_cache key for a smart album's cover (id + filter/user hash)."""
-    digest = hashlib.md5(f"{album_row['smart_filter_json']}|{user_id}".encode()).hexdigest()[:12]
+def _cover_cache_key(album_row):
+    """stats_cache key for a smart album's cover (id + filter/owner hash)."""
+    digest = hashlib.md5(
+        f"{album_row['smart_filter_json']}|{album_row['user_id']}".encode()).hexdigest()[:12]
     return f"album_cover_{album_row['id']}_{digest}"
 
 
-def _smart_album_cover(conn, album_row, user_id=None):
+def _smart_album_cover(conn, album_row):
     """Resolve a smart album's cover, caching the result in stats_cache.
 
     Picking a smart album's cover means running its full gallery filter + sort
     over the whole library — cheap once, but the albums list does it for every
-    smart album on every page load. Cache the chosen path keyed by the album id
-    plus a hash of its filter (and user), so a filter edit recomputes while an
-    unchanged album is a single key lookup for ``_COVER_CACHE_TTL``. This turns
-    the list from N full-library sorts into N key reads. ``--refresh-stats``
-    pre-warms these (see ``warm_smart_album_covers``).
+    smart album on every page load. The cover is picked with the album OWNER's
+    visibility (matching how ``_fetch_album_photos`` evaluates the album body),
+    so it is stable across viewers and the ``--refresh-stats`` pre-warm actually
+    hits. Cache the chosen path keyed by the album id plus a hash of its filter
+    and owner, so a filter edit recomputes while an unchanged album is a single
+    key lookup for ``_COVER_CACHE_TTL`` — turning the list from N full-library
+    sorts into N key reads (see ``warm_smart_album_covers``).
     """
-    cache_key = _cover_cache_key(album_row, user_id)
+    owner_id = album_row['user_id']
+    cache_key = _cover_cache_key(album_row)
     cached = conn.execute(
         "SELECT value, updated_at FROM stats_cache WHERE key = ?", (cache_key,)
     ).fetchone()
     if cached and (time.time() - cached['updated_at']) < _COVER_CACHE_TTL:
         return cached['value'] or None
-    path = _compute_smart_album_cover(conn, album_row, user_id)
+    path = _compute_smart_album_cover(conn, album_row, owner_id)
     conn.execute(
         "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
         (cache_key, path or '', time.time()),
@@ -324,10 +328,10 @@ def warm_smart_album_covers(db_path):
             "AND (cover_photo_path IS NULL OR cover_photo_path = '')"
         ).fetchall()
         for row in rows:
-            path = _compute_smart_album_cover(conn, row, None)
+            path = _compute_smart_album_cover(conn, row, row['user_id'])
             conn.execute(
                 "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
-                (_cover_cache_key(row, None), path or '', time.time()),
+                (_cover_cache_key(row), path or '', time.time()),
             )
         conn.commit()
         return len(rows)
@@ -428,7 +432,7 @@ def list_albums(
         for row in rows:
             album = _album_to_dict(row)
             album['photo_count'] = count_map.get(row['id'], 0)
-            album['first_photo_path'] = _get_first_photo_path(conn, row, user_id)
+            album['first_photo_path'] = _get_first_photo_path(conn, row)
             albums.append(album)
         return {
             'albums': albums,

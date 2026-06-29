@@ -180,6 +180,9 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
     cfg = _scene_config()
     vis_sql, vis_params = get_visibility_clause(user_id)
     album_sql, album_params = album_filter_clause(album_id)
+    if album_params:
+        from api.routers.albums import _check_album_access
+        _check_album_access(conn, album_params[0], user_id)
     window_clauses, window_params = time_window_clauses(date_from, date_to)
 
     has_moment = _photos_has_moment(conn)
@@ -211,6 +214,9 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
     where_sql = ' AND '.join(where)
     base_params = vis_params + album_params + window_params
     if album_scoped:
+        # No LIMIT: a manual album is user-curated, so its membership is itself
+        # the bound — scoping to an album is the explicit way to get the full set
+        # (the whole-library branch below is the one that caps + warns).
         rows = conn.execute(
             f"""SELECT {select_cols}
                FROM photos
@@ -346,6 +352,22 @@ async def confirm_scene(
             invalid = keep_set - group_paths
             if invalid:
                 raise HTTPException(status_code=400, detail=f'Paths not in scene: {list(invalid)[:3]}')
+
+            # Bound the action to photos the caller can actually see: a client must
+            # not reject (or train the ranker on) arbitrary library paths it never
+            # had in its scene. In single-user mode the clause is a no-op.
+            if group_paths:
+                vis_sql, vis_params = get_visibility_clause(user_id)
+                placeholders = ','.join('?' * len(group_paths))
+                all_paths = list(group_paths)
+                visible = {
+                    row[0] for row in conn.execute(
+                        f"SELECT path FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
+                        all_paths + vis_params,
+                    ).fetchall()
+                }
+                group_paths &= visible
+                keep_set &= visible
 
             reject_paths = list(group_paths - keep_set)
             set_photos_rejected(conn, reject_paths, user_id)

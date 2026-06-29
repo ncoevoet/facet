@@ -553,6 +553,10 @@ async def api_photos(
     try:
         async with get_async_db() as conn:
             user_id = user.user_id if user else None
+            _, album_params = album_filter_clause(params.get('album_id'))
+            if album_params:
+                from api.routers.albums import _check_album_access_async
+                await _check_album_access_async(conn, album_params[0], user_id)
             from_clause, from_params = get_photos_from_clause(user_id)
             where_clauses, sql_params = _build_gallery_where(params, conn, user_id=user_id)
             all_params = from_params + sql_params
