@@ -255,13 +255,29 @@ def person_thumbnail(
     return Response(content="Person thumbnail not found", status_code=404)
 
 
+def _stored_thumbnail_response(path, request):
+    """Serve the stored thumbnail as a stand-in for an unavailable original."""
+    with get_db() as conn:
+        row = conn.execute("SELECT thumbnail FROM photos WHERE path = ?", (path,)).fetchone()
+    if row and row['thumbnail']:
+        return _cached_image_response(row['thumbnail'], request)
+    return Response(content="Not found", status_code=404)
+
+
 @router.get("/image")
 def image(
     request: Request,
     path: str = Query(...),
+    fallback: str = Query(""),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
-    """Serve full-size image file."""
+    """Serve full-size image file (RAW/HEIF converted to JPEG for the browser).
+
+    With ``fallback=thumbnail`` the stored thumbnail is returned instead of a
+    404/500 when the original is unavailable (e.g. an offline volume) or fails to
+    convert. The loupe in Scenes/Culling uses this so it degrades to the embedded
+    thumbnail rather than going blank.
+    """
     if not _check_path_visibility(path, user):
         return Response(content="Not found", status_code=404)
 
@@ -271,9 +287,13 @@ def image(
     if not row:
         return Response(content="Not found", status_code=404)
 
+    want_fallback = fallback == "thumbnail"
+
     try:
         real_disk = resolve_photo_disk_path(row['path'])
     except HTTPException:
+        if want_fallback:
+            return _stored_thumbnail_response(path, request)
         return Response(content="Not found", status_code=404)
 
     # Convert RAW files to JPEG for browser display (cached to avoid repeated conversion)
@@ -285,6 +305,8 @@ def image(
             return _cached_image_response(jpeg_bytes, request)
         except (OSError, ValueError):
             logger.exception("Failed to convert RAW file: %s", real_disk)
+            if want_fallback:
+                return _stored_thumbnail_response(path, request)
             return Response(content="Failed to convert RAW file", status_code=500)
 
     # Convert HEIF/HEIC to JPEG for browser compatibility (Firefox lacks native support)
@@ -296,6 +318,8 @@ def image(
             return _cached_image_response(jpeg_bytes, request)
         except (OSError, ValueError):
             logger.exception("Failed to convert HEIF file: %s", real_disk)
+            if want_fallback:
+                return _stored_thumbnail_response(path, request)
             return Response(content="Failed to convert HEIF file", status_code=500)
 
     return FileResponse(real_disk)
