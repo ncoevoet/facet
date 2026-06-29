@@ -302,6 +302,7 @@ export class PersonFacesDialogComponent implements OnInit {
                   [canEdit]="true"
                   (editSave)="onNeedsNamingSave($event)"
                   (editCancel)="onNeedsNamingCancel()"
+                  (selected)="onViewPhotos($event)"
                   (viewPhotos)="onViewPhotos($event)"
                 />
               }

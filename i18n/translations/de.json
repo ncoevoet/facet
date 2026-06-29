@@ -495,7 +495,8 @@
     "face_confidence": "Gesichtserkennung",
     "is_favorite": "Favoriten",
     "is_rejected": "Abgelehnt",
-    "topiq_score": "TOPIQ-Wert"
+    "topiq_score": "TOPIQ-Wert",
+    "narrative_moment_confidence": "Moment-Konfidenz"
   },
   "photo_types": {
     "all": "Alle Fotos",
@@ -1005,7 +1006,6 @@
     "culling": "Auswahl",
     "memories": "Erinnerungen",
     "timeline": "Zeitleiste",
-    "scenes": "Szenen",
     "folders": "Ordner",
     "map": "Karte",
     "capsules": "Kapseln"
@@ -1112,7 +1112,8 @@
       "advanced_metrics": "Erweiterte Metriken",
       "refine": "Verfeinern",
       "view": "Ansicht",
-      "color_quality": "Farbe & Qualität"
+      "color_quality": "Farbe & Qualität",
+      "moments": "Momente"
     },
     "semantic_search_info": "Die semantische Suche lädt beim ersten Gebrauch Embeddings in den RAM. Bei großen Bibliotheken kann dies einen Moment dauern.",
     "select_on_map": "Auf Karte auswählen",
@@ -1182,7 +1183,8 @@
       "blue": "Blau",
       "purple": "Violett",
       "magenta": "Magenta"
-    }
+    },
+    "moment_confidence_range": "Moment-Konfidenz"
   },
   "composition_patterns": {
     "none": "Keines",
@@ -1306,7 +1308,7 @@
     "scores_recalculated": "Wertungen neu berechnet",
     "recalculate": "Neu berechnen",
     "recalculating": "Wird neu berechnet…",
-    "error_recalculating": "Fehler beim Neuberechnen der Wertungen",
+    "error_recalculating": "Fehler bei der Neuberechnung der Wertungen",
     "snapshot_deleted": "Schnappschuss gelöscht",
     "error_loading_categories": "Fehler beim Laden der Kategorien",
     "error_loading_weights": "Fehler beim Laden der Gewichte",
@@ -1345,10 +1347,8 @@
     "save_tooltip": "Aktuelle Gewichtskonfiguration in scoring_config.json speichern",
     "optimize_tooltip": "Optimale Gewichte basierend auf Ihren paarweisen Vergleichen vorschlagen",
     "reset_tooltip": "Gewichte aus Konfigurationsdatei neu laden, ungespeicherte Änderungen verwerfen",
-    "recalculate": "Neu berechnen",
     "recalculate_tooltip": "Gesamtwertungen für diese Kategorie mit gespeicherten Gewichten neu berechnen",
     "recalculated": "Wertungen neu berechnet",
-    "error_recalculating": "Fehler bei der Neuberechnung der Wertungen",
     "modifiers": "Modifikatoren",
     "modifiers_description": "Wertungsanpassungen nach der gewichteten Summe",
     "modifier": {
@@ -1720,7 +1720,8 @@
       "redundant": "Redundanteste zuerst",
       "best": "Beste zuerst",
       "recent": "Neueste zuerst",
-      "needs_comparisons": "Vergleiche nötig"
+      "needs_comparisons": "Vergleiche nötig",
+      "tooltip": "Gruppen sortieren (einfachste zuerst, redundanteste, beste…)"
     },
     "weight_remaining": "{count} bis zur Gewichtsabstimmung",
     "weight_ready": "Gewichtsabstimmung bereit",
@@ -1768,7 +1769,16 @@
       "confirm_next": "Bestätigen & nächste Gruppe",
       "zoom": "Zoom / Lupe",
       "close": "Schließen"
-    }
+    },
+    "group_by": {
+      "label": "Gruppieren nach",
+      "all": "Alle",
+      "bursts": "Serien",
+      "similar": "Ähnliche",
+      "scenes": "Szenen",
+      "tooltip": "Wählen, welche Art von Gruppen geprüft werden soll"
+    },
+    "darkroom_tooltip": "Vollbild-Dunkelkammer öffnen, um Bilder zu vergleichen und auszuwählen"
   },
   "scenes": {
     "title": "Szenen",
@@ -1780,19 +1790,16 @@
     "whole_library": "Gesamte Bibliothek",
     "loupe": "Lupe",
     "loupe_hint": "Lupe umschalten (Z) – Foto überfahren zum Vergrößern",
-    "cull_action": "Sichten ({count})",
     "best": "BESTE",
     "load_more": "Mehr laden",
-    "load_error": "Szenen konnten nicht geladen werden",
-    "nothing_to_cull": "Tippen Sie zuerst Fotos zum Aussortieren an",
-    "culled": "{count} Foto(s) aussortiert",
-    "confirm_error": "Szene konnte nicht sortiert werden"
+    "load_error": "Szenen konnten nicht geladen werden"
   },
   "common": {
     "dismiss": "Schließen"
   },
   "memories": {
     "title": "An diesem Tag",
+    "tooltip": "An diesem Tag — Fotos von diesem Datum aus früheren Jahren",
     "empty": "Keine Erinnerungen für diesen Tag",
     "years_ago": "Vor {count} Jahr",
     "years_ago_plural": "Vor {count} Jahren",
@@ -1841,6 +1848,7 @@
   },
   "capsules": {
     "title": "Kapseln",
+    "intro": "Kuratierte Fotogeschichten — automatisch erstellte Diashows nach Thema, Ort, Personen und Zeit. Klicken Sie auf eine Kapsel, um sie abzuspielen.",
     "empty": "Noch keine Kapseln verfügbar. Fügen Sie weiter Fotos hinzu!",
     "loading": "Kapseln werden generiert...",
     "journey_title": "Reise — {date}",
@@ -2064,5 +2072,8 @@
   "pwa": {
     "update_available": "Eine neue Version ist verfügbar",
     "reload": "Neu laden"
+  },
+  "moments": {
+    "uncertain": "unsicher"
   }
 }

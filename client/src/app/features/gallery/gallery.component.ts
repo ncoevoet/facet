@@ -93,8 +93,9 @@ import { I18N } from '../../core/i18n/keys';
           </div>
         }
 
-        <!-- Album-scoped actions (album detail view) -->
-        @if (auth.isEdition() && store.currentAlbum(); as album) {
+        <!-- Album-scoped actions (album detail view). The scenes browse is open to
+             all authenticated users; culling stays edition-only. -->
+        @if (store.currentAlbum(); as album) {
           @if (!album.is_smart) {
             <div class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex items-center gap-3 text-sm">
               <mat-icon class="opacity-70 !text-base !w-5 !h-5">photo_library</mat-icon>
@@ -103,10 +104,12 @@ import { I18N } from '../../core/i18n/keys';
                       (click)="openAlbumScoped('/scenes', album.id)">
                 <mat-icon>movie_filter</mat-icon> {{ I18N.albums.scenes | translate }}
               </button>
-              <button mat-button class="!min-w-0" [matTooltip]="I18N.albums.cull | translate"
-                      (click)="openAlbumScoped('/culling', album.id)">
-                <mat-icon>auto_delete</mat-icon> {{ I18N.albums.cull | translate }}
-              </button>
+              @if (auth.isEdition()) {
+                <button mat-button class="!min-w-0" [matTooltip]="I18N.albums.cull | translate"
+                        (click)="openAlbumScoped('/culling', album.id)">
+                  <mat-icon>auto_delete</mat-icon> {{ I18N.albums.cull | translate }}
+                </button>
+              }
             </div>
           }
         }

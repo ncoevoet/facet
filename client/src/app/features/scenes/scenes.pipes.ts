@@ -1,21 +1,5 @@
 import { Pipe, PipeTransform } from '@angular/core';
 
-/** True when a photo is marked for rejection within a scene. */
-@Pipe({ name: 'sceneRejected' })
-export class SceneRejectedPipe implements PipeTransform {
-  transform(rejectedMap: Map<number, Set<string>>, sceneId: number, path: string): boolean {
-    return rejectedMap.get(sceneId)?.has(path) ?? false;
-  }
-}
-
-/** Number of photos marked for rejection in a scene (for the cull-button label). */
-@Pipe({ name: 'sceneRejectCount' })
-export class SceneRejectCountPipe implements PipeTransform {
-  transform(rejectedMap: Map<number, Set<string>>, sceneId: number): number {
-    return rejectedMap.get(sceneId)?.size ?? 0;
-  }
-}
-
 /** Format an EXIF "YYYY:MM:DD HH:MM:SS" timestamp as "DD/MM/YYYY HH:MM". */
 @Pipe({ name: 'sceneDate' })
 export class SceneDatePipe implements PipeTransform {
@@ -34,5 +18,20 @@ export class MomentLabelPipe implements PipeTransform {
   transform(value: string | null | undefined): string {
     if (!value || value === 'other') return '';
     return value.split('_').map(w => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(' ');
+  }
+}
+
+/**
+ * True when a moment label is below the confidence threshold and should be
+ * shown dimmed + "(uncertain)". The F21 forward-backward posterior is a true
+ * [0,1] confidence (``other`` frames sit at the neutral 0.5 but never carry a
+ * label), so a single threshold separates confident from ambiguous frames. A
+ * threshold of 0 (the default) never dims anything.
+ */
+@Pipe({ name: 'momentUncertain' })
+export class MomentUncertainPipe implements PipeTransform {
+  transform(confidence: number | null | undefined, threshold: number | null | undefined): boolean {
+    if (confidence == null || !threshold || threshold <= 0) return false;
+    return confidence < threshold;
   }
 }

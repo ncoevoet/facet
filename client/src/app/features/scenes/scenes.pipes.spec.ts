@@ -1,35 +1,4 @@
-import { SceneRejectedPipe, SceneRejectCountPipe, SceneDatePipe } from './scenes.pipes';
-
-describe('SceneRejectedPipe', () => {
-  const pipe = new SceneRejectedPipe();
-
-  it('returns true when the path is rejected in that scene', () => {
-    const map = new Map<number, Set<string>>([[1, new Set(['/a.jpg'])]]);
-    expect(pipe.transform(map, 1, '/a.jpg')).toBe(true);
-  });
-
-  it('returns false when the path is not rejected', () => {
-    const map = new Map<number, Set<string>>([[1, new Set(['/a.jpg'])]]);
-    expect(pipe.transform(map, 1, '/b.jpg')).toBe(false);
-  });
-
-  it('returns false when the scene has no entry', () => {
-    expect(pipe.transform(new Map(), 9, '/a.jpg')).toBe(false);
-  });
-});
-
-describe('SceneRejectCountPipe', () => {
-  const pipe = new SceneRejectCountPipe();
-
-  it('counts rejected paths in a scene', () => {
-    const map = new Map<number, Set<string>>([[1, new Set(['/a.jpg', '/b.jpg'])]]);
-    expect(pipe.transform(map, 1)).toBe(2);
-  });
-
-  it('returns 0 for an unknown scene', () => {
-    expect(pipe.transform(new Map(), 5)).toBe(0);
-  });
-});
+import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from './scenes.pipes';
 
 describe('SceneDatePipe', () => {
   const pipe = new SceneDatePipe();
@@ -48,5 +17,43 @@ describe('SceneDatePipe', () => {
 
   it('passes through an unparseable value', () => {
     expect(pipe.transform('not-a-date')).toBe('not-a-date');
+  });
+});
+
+describe('MomentLabelPipe', () => {
+  const pipe = new MomentLabelPipe();
+
+  it('prettifies a moment key', () => {
+    expect(pipe.transform('first_dance')).toBe('First Dance');
+  });
+
+  it('hides the "other" gate outcome', () => {
+    expect(pipe.transform('other')).toBe('');
+  });
+
+  it('returns empty for null/empty', () => {
+    expect(pipe.transform(null)).toBe('');
+    expect(pipe.transform('')).toBe('');
+  });
+});
+
+describe('MomentUncertainPipe', () => {
+  const pipe = new MomentUncertainPipe();
+
+  it('is uncertain when confidence is below the threshold', () => {
+    expect(pipe.transform(0.4, 0.6)).toBe(true);
+  });
+
+  it('is confident at or above the threshold', () => {
+    expect(pipe.transform(0.8, 0.6)).toBe(false);
+  });
+
+  it('never dims when threshold is 0 or missing', () => {
+    expect(pipe.transform(0.1, 0)).toBe(false);
+    expect(pipe.transform(0.1, null)).toBe(false);
+  });
+
+  it('never dims when confidence is null', () => {
+    expect(pipe.transform(null, 0.6)).toBe(false);
   });
 });

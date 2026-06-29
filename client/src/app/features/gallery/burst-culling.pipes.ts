@@ -33,15 +33,20 @@ export interface CullingFace {
   is_blink?: boolean;
 }
 
-/** A burst or similar group surfaced for culling. */
+/** A burst, similar, or scene group surfaced for culling. */
 export interface CullingGroup {
   group_id: number;
-  type: 'burst' | 'similar';
+  type: 'burst' | 'similar' | 'scene';
   reason: string;
   photos: CullingPhoto[];
   best_path: string;
   count: number;
   category?: string | null;
+  /** Scene-only: capture-time window + dominant narrative moment (group_by=scene). */
+  start?: string | null;
+  end?: string | null;
+  moment?: string | null;
+  moment_confidence?: number | null;
 }
 
 @Pipe({ name: 'isKept' })

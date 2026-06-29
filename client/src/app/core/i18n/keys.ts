@@ -496,6 +496,7 @@ export const I18N = {
     face_confidence: "sort_options.face_confidence",
     is_favorite: "sort_options.is_favorite",
     is_rejected: "sort_options.is_rejected",
+    narrative_moment_confidence: "sort_options.narrative_moment_confidence",
   },
   photo_types: {
     all: "photo_types.all",
@@ -1005,7 +1006,6 @@ export const I18N = {
     culling: "nav.culling",
     memories: "nav.memories",
     timeline: "nav.timeline",
-    scenes: "nav.scenes",
     folders: "nav.folders",
     map: "nav.map",
     capsules: "nav.capsules",
@@ -1113,6 +1113,7 @@ export const I18N = {
       refine: "gallery.sidebar.refine",
       view: "gallery.sidebar.view",
       color_quality: "gallery.sidebar.color_quality",
+      moments: "gallery.sidebar.moments",
     },
     semantic_search_info: "gallery.semantic_search_info",
     select_on_map: "gallery.select_on_map",
@@ -1183,6 +1184,7 @@ export const I18N = {
       purple: "gallery.hue_buckets.purple",
       magenta: "gallery.hue_buckets.magenta",
     },
+    moment_confidence_range: "gallery.moment_confidence_range",
   },
   composition_patterns: {
     none: "composition_patterns.none",
@@ -1717,6 +1719,7 @@ export const I18N = {
       best: "culling.sort.best",
       recent: "culling.sort.recent",
       needs_comparisons: "culling.sort.needs_comparisons",
+      tooltip: "culling.sort.tooltip",
     },
     weight_remaining: "culling.weight_remaining",
     weight_ready: "culling.weight_ready",
@@ -1765,6 +1768,15 @@ export const I18N = {
       zoom: "culling.shortcuts.zoom",
       close: "culling.shortcuts.close",
     },
+    group_by: {
+      label: "culling.group_by.label",
+      all: "culling.group_by.all",
+      bursts: "culling.group_by.bursts",
+      similar: "culling.group_by.similar",
+      scenes: "culling.group_by.scenes",
+      tooltip: "culling.group_by.tooltip",
+    },
+    darkroom_tooltip: "culling.darkroom_tooltip",
   },
   scenes: {
     title: "scenes.title",
@@ -1776,19 +1788,16 @@ export const I18N = {
     whole_library: "scenes.whole_library",
     loupe: "scenes.loupe",
     loupe_hint: "scenes.loupe_hint",
-    cull_action: "scenes.cull_action",
     best: "scenes.best",
     load_more: "scenes.load_more",
     load_error: "scenes.load_error",
-    nothing_to_cull: "scenes.nothing_to_cull",
-    culled: "scenes.culled",
-    confirm_error: "scenes.confirm_error",
   },
   common: {
     dismiss: "common.dismiss",
   },
   memories: {
     title: "memories.title",
+    tooltip: "memories.tooltip",
     empty: "memories.empty",
     years_ago: "memories.years_ago",
     years_ago_plural: "memories.years_ago_plural",
@@ -1837,6 +1846,7 @@ export const I18N = {
   },
   capsules: {
     title: "capsules.title",
+    intro: "capsules.intro",
     empty: "capsules.empty",
     loading: "capsules.loading",
     journey_title: "capsules.journey_title",
@@ -2060,5 +2070,8 @@ export const I18N = {
   pwa: {
     update_available: "pwa.update_available",
     reload: "pwa.reload",
+  },
+  moments: {
+    uncertain: "moments.uncertain",
   },
 } as const;

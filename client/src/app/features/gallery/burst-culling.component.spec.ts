@@ -5,6 +5,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { GalleryStore } from './gallery.store';
 import { BurstCullingComponent } from './burst-culling.component';
 
 describe('BurstCullingComponent', () => {
@@ -46,6 +47,7 @@ describe('BurstCullingComponent', () => {
   };
 
   beforeEach(() => {
+    localStorage.clear();
     mockApi = {
       get: vi.fn(() => of(mockCullingGroupsResponse)),
       post: vi.fn(() => of({})),
@@ -59,6 +61,7 @@ describe('BurstCullingComponent', () => {
         { provide: ApiService, useValue: mockApi },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: I18nService, useValue: mockI18n },
+        { provide: GalleryStore, useValue: { config: () => null } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
     });
@@ -350,6 +353,38 @@ describe('BurstCullingComponent', () => {
       expect(component['sortMode']()).toBe('recent');
       expect(component['buildParams'](1)).toEqual(expect.objectContaining({ sort: 'recent' }));
       expect(spy).toHaveBeenCalled();
+    });
+
+    it('persists the sort choice to localStorage', () => {
+      component['onSortChange']('best');
+      expect(localStorage.getItem('facet_culling_sort')).toBe('best');
+    });
+  });
+
+  describe('group_by granularity', () => {
+    it('defaults to "all" and passes group_by in request params', () => {
+      expect(component['groupBy']()).toBe('all');
+      expect(component['buildParams'](1)).toEqual(expect.objectContaining({ group_by: 'all' }));
+    });
+
+    it('onGroupByChange updates the granularity, persists it, and reloads from page 1', () => {
+      const spy = vi.spyOn(component as any, 'loadGroups');
+      component['onGroupByChange']('scene');
+      expect(component['groupBy']()).toBe('scene');
+      expect(component['buildParams'](1)).toEqual(expect.objectContaining({ group_by: 'scene' }));
+      expect(localStorage.getItem('facet_culling_group_by')).toBe('scene');
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('ignores a no-op change to the same granularity', () => {
+      const spy = vi.spyOn(component as any, 'loadGroups');
+      component['onGroupByChange']('all');
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('persists the category filter to localStorage', () => {
+      component['onCategoryFilterChange']('portrait');
+      expect(localStorage.getItem('facet_culling_category')).toBe('portrait');
     });
   });
 

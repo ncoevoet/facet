@@ -6,6 +6,7 @@ import { ShutterSpeedPipe } from '../../shared/pipes/shutter-speed.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
+import { MomentLabelPipe } from '../scenes/scenes.pipes';
 import { HistogramComponent } from '../../shared/components/histogram/histogram.component';
 
 // Intentionally keeps literal i18n keys instead of the shared I18N constants: this
@@ -25,7 +26,7 @@ export class CategoryLabelPipe implements PipeTransform {
 
 @Component({
   selector: 'app-photo-tooltip',
-  imports: [FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe, CategoryLabelPipe, IsLensNamePipe, HistogramComponent],
+  imports: [FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe, CategoryLabelPipe, IsLensNamePipe, MomentLabelPipe, HistogramComponent],
   template: `
     @if (photo(); as p) {
       <div
@@ -81,6 +82,16 @@ export class CategoryLabelPipe implements PipeTransform {
             <!-- Caption (after score) -->
             @if (p.caption_translated || p.caption) {
               <div class="text-xs italic text-[var(--facet-tooltip-text-muted)] mb-1.5 line-clamp-2 max-w-[300px]">{{ p.caption_translated || p.caption }}</div>
+            }
+
+            <!-- Narrative moment (with confidence) -->
+            @if (p.narrative_moment | momentLabel; as ml) {
+              <div class="text-xs mb-1.5 flex items-center gap-1.5">
+                <span class="text-[var(--mat-sys-primary)] font-medium">✦ {{ ml }}</span>
+                @if (p.narrative_moment_confidence !== null && p.narrative_moment_confidence !== undefined) {
+                  <span class="text-[var(--facet-tooltip-text-muted)]">{{ p.narrative_moment_confidence * 100 | fixed:0 }}%</span>
+                }
+              </div>
             }
 
             <!-- Scoring sections: 2-col grid for landscape, stacked for portrait -->

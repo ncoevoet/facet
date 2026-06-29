@@ -56,6 +56,8 @@ export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   { id: 'subject_prominence_range', labelKey: 'gallery.subject_prominence_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_prominence', maxKey: 'max_subject_prominence', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'subject_placement_range', labelKey: 'gallery.subject_placement_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_placement', maxKey: 'max_subject_placement', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'bg_separation_range', labelKey: 'gallery.bg_separation_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_bg_separation', maxKey: 'max_bg_separation', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+
+  { id: 'moment_confidence_range', labelKey: 'gallery.moment_confidence_range', sectionKey: 'gallery.sidebar.moments', minKey: 'min_moment_confidence', maxKey: 'max_moment_confidence', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
   // Technical
   { id: 'sharpness_range', labelKey: 'gallery.sharpness_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_sharpness', maxKey: 'max_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'exposure_range', labelKey: 'gallery.exposure_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_exposure', maxKey: 'max_exposure', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
@@ -84,6 +86,7 @@ export const ADVANCED_SECTION_ORDER = [
   'gallery.sidebar.face',
   'gallery.sidebar.composition',
   'gallery.sidebar.saliency',
+  'gallery.sidebar.moments',
   'gallery.sidebar.technical',
   'gallery.sidebar.exposure_range',
 ];
@@ -106,6 +109,7 @@ export const SECTION_ICONS: Record<string, string> = {
   'gallery.sidebar.face': 'face',
   'gallery.sidebar.composition': 'grid_3x3',
   'gallery.sidebar.saliency': 'center_focus_strong',
+  'gallery.sidebar.moments': 'auto_awesome',
   'gallery.sidebar.technical': 'tune',
   'gallery.sidebar.exposure_range': 'exposure',
   'gallery.sidebar.ratings': 'grade',

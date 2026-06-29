@@ -491,7 +491,8 @@
     "face_confidence": "Confidenza volto",
     "is_favorite": "Preferiti",
     "is_rejected": "Rifiutate",
-    "topiq_score": "Punteggio TOPIQ"
+    "topiq_score": "Punteggio TOPIQ",
+    "narrative_moment_confidence": "Confidenza del momento"
   },
   "photo_types": {
     "all": "Tutte le foto",
@@ -1001,7 +1002,6 @@
     "culling": "Selezione",
     "memories": "Ricordi",
     "timeline": "Cronologia",
-    "scenes": "Scene",
     "folders": "Cartelle",
     "map": "Mappa",
     "capsules": "Capsule"
@@ -1108,7 +1108,8 @@
       "advanced_metrics": "Metriche avanzate",
       "refine": "Affina",
       "view": "Visualizzazione",
-      "color_quality": "Colore e qualità"
+      "color_quality": "Colore e qualità",
+      "moments": "Momenti"
     },
     "semantic_search_info": "La ricerca semantica carica gli embedding nella RAM al primo utilizzo. Potrebbe richiedere un momento per le librerie di grandi dimensioni.",
     "select_on_map": "Seleziona sulla mappa",
@@ -1178,7 +1179,8 @@
       "blue": "Blu",
       "purple": "Viola",
       "magenta": "Magenta"
-    }
+    },
+    "moment_confidence_range": "Confidenza del momento"
   },
   "composition_patterns": {
     "none": "Nessuno",
@@ -1302,7 +1304,7 @@
     "scores_recalculated": "Punteggi ricalcolati",
     "recalculate": "Ricalcola",
     "recalculating": "Ricalcolo in corso…",
-    "error_recalculating": "Errore durante il ricalcolo dei punteggi",
+    "error_recalculating": "Errore nel ricalcolo dei punteggi",
     "snapshot_deleted": "Istantanea eliminata",
     "error_loading_categories": "Errore nel caricamento delle categorie",
     "error_loading_weights": "Errore nel caricamento dei pesi",
@@ -1341,10 +1343,8 @@
     "save_tooltip": "Salva la configurazione dei pesi corrente in scoring_config.json",
     "optimize_tooltip": "Suggerisci pesi ottimali basati sui tuoi confronti a coppie",
     "reset_tooltip": "Ricarica i pesi dal file di configurazione, scartando le modifiche non salvate",
-    "recalculate": "Ricalcola",
     "recalculate_tooltip": "Ricalcola i punteggi aggregati per questa categoria usando i pesi salvati",
     "recalculated": "Punteggi ricalcolati",
-    "error_recalculating": "Errore nel ricalcolo dei punteggi",
     "modifiers": "Modificatori",
     "modifiers_description": "Aggiustamenti di punteggio applicati dopo la somma ponderata",
     "modifier": {
@@ -1716,7 +1716,8 @@
       "redundant": "Più ridondanti",
       "best": "Migliori prima",
       "recent": "Più recenti",
-      "needs_comparisons": "Confronti necessari"
+      "needs_comparisons": "Confronti necessari",
+      "tooltip": "Ordina i gruppi (i più facili prima, i più ridondanti…)"
     },
     "weight_remaining": "{count} per regolare i pesi",
     "weight_ready": "Regolazione pesi pronta",
@@ -1764,7 +1765,16 @@
       "confirm_next": "Conferma e gruppo successivo",
       "zoom": "Zoom / lente",
       "close": "Chiudi"
-    }
+    },
+    "group_by": {
+      "label": "Raggruppa per",
+      "all": "Tutto",
+      "bursts": "Raffiche",
+      "similar": "Simili",
+      "scenes": "Scene",
+      "tooltip": "Scegli quale tipo di gruppi rivedere"
+    },
+    "darkroom_tooltip": "Apri la camera oscura a schermo intero per confrontare e scegliere"
   },
   "scenes": {
     "title": "Scene",
@@ -1776,19 +1786,16 @@
     "whole_library": "Tutta la libreria",
     "loupe": "Lente",
     "loupe_hint": "Attiva la lente (Z) — passa sopra una foto per ingrandirla",
-    "cull_action": "Scarta ({count})",
     "best": "MIGLIORE",
     "load_more": "Carica altro",
-    "load_error": "Caricamento delle scene non riuscito",
-    "nothing_to_cull": "Tocca prima le foto da scartare",
-    "culled": "{count} foto scartate",
-    "confirm_error": "Scarto della scena non riuscito"
+    "load_error": "Caricamento delle scene non riuscito"
   },
   "common": {
     "dismiss": "Chiudi"
   },
   "memories": {
     "title": "In questo giorno",
+    "tooltip": "In questo giorno — rivivi le foto scattate in questa data negli anni precedenti",
     "empty": "Nessun ricordo per questo giorno",
     "years_ago": "{count} anno fa",
     "years_ago_plural": "{count} anni fa",
@@ -1837,6 +1844,7 @@
   },
   "capsules": {
     "title": "Capsule",
+    "intro": "Storie fotografiche curate — diaporami generati automaticamente per tema, luogo, persone ed epoca. Clicca su una capsula per riprodurla.",
     "empty": "Nessuna capsula disponibile. Continua ad aggiungere foto!",
     "loading": "Generazione capsule...",
     "journey_title": "Viaggio — {date}",
@@ -2060,5 +2068,8 @@
   "pwa": {
     "update_available": "È disponibile una nuova versione",
     "reload": "Ricarica"
+  },
+  "moments": {
+    "uncertain": "incerto"
   }
 }

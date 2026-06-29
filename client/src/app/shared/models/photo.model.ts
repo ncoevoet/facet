@@ -53,6 +53,8 @@ export interface Photo {
   leading_lines_score: number | null;
   // Classification
   category: string | null;
+  narrative_moment?: string | null;
+  narrative_moment_confidence?: number | null;
   tags: string | null;
   tags_list: string[];
   is_monochrome: boolean | null;

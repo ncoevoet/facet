@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, OnInit } from '@angular/core';
+import { Component, inject, computed, signal, effect, untracked, OnInit } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
@@ -35,7 +35,8 @@ import { CapsuleFiltersService } from './features/capsules/capsule-filters.servi
 import { TranslatePipe } from './shared/pipes/translate.pipe';
 import { SortGroupKeyPipe } from './shared/pipes/sort-group-key.pipe';
 import { PersonThumbnailUrlPipe, ThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
-import { MemoriesDialogComponent } from './features/gallery/memories-dialog.component';
+import { SlideshowComponent } from './features/gallery/slideshow.component';
+import { Photo } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
 import { I18N } from './core/i18n/keys';
 
@@ -107,6 +108,7 @@ export class EditionDialogComponent {
     ThumbnailUrlPipe,
     MatSliderModule,
     DateRangeFilterComponent,
+    SlideshowComponent,
   ],
   templateUrl: './app.html',
   host: {
@@ -136,6 +138,11 @@ export class App implements OnInit {
   protected readonly hasBurstGroups = signal(false);
   protected readonly hasMemories = signal(false);
   protected readonly hasGeoPhotos = signal(false);
+
+  // "On This Day" diaporama (fullscreen slideshow over the shell).
+  protected readonly memoriesActive = signal(false);
+  protected readonly memoriesPhotos = signal<Photo[]>([]);
+  protected readonly memoriesLoading = signal(false);
   // Personal ranker ("My Taste") training status — powers the confidence badge
   // shown when sorting by learned_score. null until fetched / when unavailable.
   protected readonly rankerStatus = signal<{
@@ -174,7 +181,6 @@ export class App implements OnInit {
   protected readonly isMapRoute = computed(() => this.url().split('?')[0] === '/map');
   protected readonly isCapsuleRoute = computed(() => this.url().split('?')[0] === '/capsules');
   protected readonly isTimelineRoute = computed(() => this.url().split('?')[0].startsWith('/timeline'));
-  protected readonly isScenesRoute = computed(() => this.url().split('?')[0] === '/scenes');
   protected readonly isSharedRoute = computed(() => this.url().split('?')[0].startsWith('/shared/'));
 
   protected readonly sortGroups = computed(() => {
@@ -217,6 +223,7 @@ export class App implements OnInit {
     { minKey: 'min_subject_prominence', maxKey: 'max_subject_prominence', labelKey: 'gallery.subject_prominence_range' },
     { minKey: 'min_subject_placement', maxKey: 'max_subject_placement', labelKey: 'gallery.subject_placement_range' },
     { minKey: 'min_bg_separation', maxKey: 'max_bg_separation', labelKey: 'gallery.bg_separation_range' },
+    { minKey: 'min_moment_confidence', maxKey: 'max_moment_confidence', labelKey: 'gallery.moment_confidence_range' },
     { minKey: 'min_star_rating', maxKey: 'max_star_rating', labelKey: 'gallery.star_rating_range' },
     { minKey: 'min_iso', maxKey: 'max_iso', labelKey: 'gallery.iso_range' },
     { minKey: 'min_aperture', maxKey: 'max_aperture', labelKey: 'gallery.aperture_range' },
@@ -365,6 +372,28 @@ export class App implements OnInit {
       });
   }
 
+  /** Auth identity fingerprint, to refresh config only on real transitions. */
+  private lastAuthKey: string | null = null;
+
+  constructor() {
+    // When the signed-in identity or its rights change (login, edition grant or
+    // drop), re-fetch the viewer config so config-derived nav/features reflect the
+    // new rights immediately — refreshConfig() leaves the user's filters intact.
+    effect(() => {
+      const s = this.auth.status();
+      const key = s ? `${s.authenticated}|${s.edition_authenticated}|${s.user_role ?? ''}` : '';
+      untracked(() => {
+        if (this.lastAuthKey !== null && key !== this.lastAuthKey) {
+          void this.store.refreshConfig();
+          // Edition-only indicators loaded once at startup must refresh when
+          // edition is gained mid-session (otherwise they'd need an app reload).
+          if (s?.edition_authenticated) this.refreshBurstGroupsIndicator();
+        }
+        this.lastAuthKey = key;
+      });
+    });
+  }
+
   async ngOnInit(): Promise<void> {
     this.setupUpdateNotifications();
     await this.i18n.loadLanguages();
@@ -375,13 +404,7 @@ export class App implements OnInit {
       await this.auth.checkStatus();
       const promises: Promise<void>[] = [];
       if (this.auth.isEdition()) {
-        promises.push(
-          firstValueFrom(
-            this.api.get<{ total_groups: number }>('/burst-groups', { page: 1, per_page: 1 }),
-          ).then(data => {
-            this.hasBurstGroups.set(data.total_groups > 0);
-          }).catch(() => { /* Non-critical */ }),
-        );
+        this.refreshBurstGroupsIndicator();
       }
       // "My Taste" confidence badge: the personal-ranker training status. Fetched
       // for everyone (the global pooled ranker is a shared sort, not edition-only).
@@ -465,8 +488,41 @@ export class App implements OnInit {
     }
   }
 
-  protected openMemoriesDialog(): void {
-    this.dialog.open(MemoriesDialogComponent, { width: '95vw', maxWidth: '700px' });
+  /** "On This Day" diaporama: fetch this date's photos from past years, shuffle
+   *  them, and play them as a fullscreen slideshow (replaces the old grid modal). */
+  protected async playMemories(): Promise<void> {
+    if (this.memoriesActive()) return;
+    this.memoriesLoading.set(true);
+    this.memoriesActive.set(true);
+    this.memoriesPhotos.set([]);
+    try {
+      const res = await firstValueFrom(
+        this.api.get<{ years: { photos: Photo[] }[] }>('/memories'),
+      );
+      const photos = (res.years ?? []).flatMap(y => y.photos ?? []);
+      for (let i = photos.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [photos[i], photos[j]] = [photos[j], photos[i]];
+      }
+      this.memoriesPhotos.set(photos);
+    } catch {
+      this.memoriesActive.set(false);
+    } finally {
+      this.memoriesLoading.set(false);
+    }
+  }
+
+  protected closeMemories(): void {
+    this.memoriesActive.set(false);
+    this.memoriesPhotos.set([]);
+  }
+
+  /** Refresh the edition-only burst-groups nav indicator (best-effort). */
+  private refreshBurstGroupsIndicator(): void {
+    void firstValueFrom(
+      this.api.get<{ total_groups: number }>('/burst-groups', { page: 1, per_page: 1 }),
+    ).then(data => this.hasBurstGroups.set(data.total_groups > 0))
+      .catch(() => { /* Non-critical */ });
   }
 
   protected onPersonsSortChange(sort: string): void {

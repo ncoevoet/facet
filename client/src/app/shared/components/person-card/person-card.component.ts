@@ -45,12 +45,6 @@ export interface Person {
     >
       <!-- Avatar -->
       <div class="relative aspect-[4/3] bg-[var(--mat-sys-surface-container)] overflow-hidden">
-        @if (person().is_hidden) {
-          <span class="absolute top-1.5 left-1.5 z-10 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 text-white text-xs">
-            <mat-icon class="!text-sm !w-4 !h-4 leading-4">visibility_off</mat-icon>
-            {{ I18N.persons.hidden | translate }}
-          </span>
-        }
         @if (person().face_thumbnail) {
           <img
             [src]="person().id | personThumbnailUrl"
@@ -63,6 +57,17 @@ export interface Person {
             <mat-icon class="!text-5xl !w-12 !h-12 opacity-30">person</mat-icon>
           </div>
         }
+        <!-- Name overlay (top-left over a darkened gradient, gallery-card style) -->
+        <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+          <span class="text-white text-xs font-medium truncate">{{ person().name || (I18N.persons.unnamed | translate) }}</span>
+          @if (person().is_hidden) {
+            <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-white/80 shrink-0" [matTooltip]="I18N.persons.hidden | translate">visibility_off</mat-icon>
+          }
+        </div>
+        <!-- Photo/face count badge (top-right) -->
+        <span class="absolute top-1.5 right-1.5 z-10 px-2 py-0.5 rounded-full bg-black/60 text-white text-xs font-semibold leading-none">
+          {{ person().face_count }}
+        </span>
       </div>
 
       <mat-card-content class="!px-3 !pt-2 !pb-2">
@@ -99,14 +104,8 @@ export interface Person {
                   <mat-icon class="!text-base">close</mat-icon>
                 </button>
               </div>
-            } @else {
-              <p class="text-sm font-medium truncate">
-                {{ person().name || (I18N.persons.unnamed | translate) }}
-              </p>
             }
-            <p class="text-xs opacity-60 mt-0.5">
-              {{ I18N.persons.face_count | translate:{ count: person().face_count } }}
-            </p>
+            <!-- Name + count now render as overlays on the avatar (top-left / top-right). -->
           </div>
           <!-- Actions (inline, right side) -->
           @if (canEdit() && !isEditing()) {

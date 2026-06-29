@@ -11,12 +11,14 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AlbumService, Album } from '../../core/services/album.service';
+import { AuthService } from '../../core/services/auth.service';
+import { GalleryStore } from '../gallery/gallery.store';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { isTypingContext } from '../../shared/utils/keyboard';
-import { SceneRejectedPipe, SceneRejectCountPipe, SceneDatePipe, MomentLabelPipe } from './scenes.pipes';
+import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from './scenes.pipes';
 import { I18N } from '../../core/i18n/keys';
 
 interface ScenePhoto {
@@ -60,10 +62,9 @@ interface ScenesResponse {
     ThumbnailUrlPipe,
     ImageUrlPipe,
     LoupeDirective,
-    SceneRejectedPipe,
-    SceneRejectCountPipe,
     SceneDatePipe,
     MomentLabelPipe,
+    MomentUncertainPipe,
   ],
   template: `
     <div class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%]">
@@ -109,42 +110,33 @@ interface ScenesResponse {
               <span class="text-sm text-white/80">{{ scene.start | sceneDate }}</span>
               <span class="text-xs text-white/40">· {{ scene.count }} {{ I18N.scenes.photos | translate }}</span>
               @if (scene.moment | momentLabel; as momentLabel) {
-                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]">
-                  <mat-icon class="!text-sm !w-4 !h-4 !leading-4">auto_awesome</mat-icon>{{ momentLabel }}
+                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]"
+                      [class.!opacity-50]="scene.moment_confidence | momentUncertain:momentConfidenceMin()">
+                  <mat-icon class="!text-sm !w-4 !h-4 !leading-4">auto_awesome</mat-icon>{{ momentLabel }}@if (scene.moment_confidence | momentUncertain:momentConfidenceMin()) { <span class="opacity-80">({{ I18N.moments.uncertain | translate }})</span> }
                 </span>
               }
-              <button mat-flat-button color="primary" class="!ml-auto"
-                      (click)="cullScene(scene)">
-                <mat-icon>movie_filter</mat-icon>
-                {{ I18N.scenes.cull_this_scene | translate }}
-              </button>
-              <button mat-stroked-button (click)="confirm(scene)">
-                <mat-icon>auto_delete</mat-icon>
-                {{ I18N.scenes.cull_action | translate:{ count: (rejected() | sceneRejectCount:scene.scene_id) } }}
-              </button>
+              @if (auth.isEdition()) {
+                <button mat-flat-button color="primary" class="!ml-auto"
+                        (click)="cullScene(scene)">
+                  <mat-icon>movie_filter</mat-icon>
+                  {{ I18N.scenes.cull_this_scene | translate }}
+                </button>
+              }
             </div>
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               @for (photo of scene.photos; track photo.path) {
-                <button type="button" class="group relative w-full aspect-[4/3] rounded-xl overflow-hidden border-2"
-                        (click)="toggleReject(scene.scene_id, photo.path)"
-                        [attr.aria-pressed]="rejected() | sceneRejected:scene.scene_id:photo.path"
-                        [ngClass]="(rejected() | sceneRejected:scene.scene_id:photo.path)
-                          ? 'border-red-500'
-                          : (photo.path === scene.best_path ? 'border-green-500' : 'border-white/20')">
+                <div class="group relative w-full aspect-[4/3] rounded-xl overflow-hidden border-2"
+                     [ngClass]="photo.path === scene.best_path ? 'border-green-500' : 'border-white/20'">
                   <img [src]="photo.path | thumbnailUrl:320"
                        [appLoupe]="photo.path | imageUrl:true"
                        [loupeActive]="loupeActive()"
                        [loupeZoom]="loupeZoom()"
                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                       [class.opacity-40]="rejected() | sceneRejected:scene.scene_id:photo.path"
                        [alt]="photo.filename" loading="lazy" />
                   @if (photo.path === scene.best_path) {
                     <span class="absolute top-1 left-1 bg-green-600/90 text-white text-[10px] px-1 rounded">{{ I18N.scenes.best | translate }}</span>
                   }
-                  @if (rejected() | sceneRejected:scene.scene_id:photo.path) {
-                    <mat-icon class="absolute inset-0 m-auto !text-3xl text-red-400">close</mat-icon>
-                  }
-                </button>
+                </div>
               }
             </div>
           </div>
@@ -166,14 +158,14 @@ export class ScenesComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly albumService = inject(AlbumService);
+  protected readonly auth = inject(AuthService);
+  private readonly store = inject(GalleryStore);
   private readonly sceneDate = new SceneDatePipe();
 
   protected readonly scenes = signal<Scene[]>([]);
   protected readonly loading = signal(true);
   protected readonly total = signal(0);
   protected readonly hasMore = signal(false);
-  // Per-scene set of paths marked for rejection (everything else is kept).
-  protected readonly rejected = signal<Map<number, Set<string>>>(new Map());
   // Optional album scope from /scenes?album=ID.
   protected readonly albumId = signal<string | null>(null);
   // Non-smart albums for the header scope picker.
@@ -183,6 +175,10 @@ export class ScenesComponent implements OnInit {
   // Hover-loupe (Photo-Mechanic-style Z key) state for the contact strip.
   protected readonly loupeActive = signal(false);
   protected readonly loupeZoom = signal(3);
+  /** Min posterior below which a moment label is shown dimmed + "(uncertain)". */
+  protected readonly momentConfidenceMin = computed(
+    () => this.store.config()?.moment_confidence_min ?? 0,
+  );
 
   private page = 1;
   private readonly perPage = 20;
@@ -211,7 +207,6 @@ export class ScenesComponent implements OnInit {
     void this.router.navigate(['/scenes'], { queryParams: { album: id ?? null } });
     this.page = 1;
     this.scenes.set([]);
-    this.rejected.set(new Map());
     await this.load();
   }
 
@@ -250,69 +245,17 @@ export class ScenesComponent implements OnInit {
     await this.load();
   }
 
-  /** Open the rich culling darkroom scoped to just this scene's capture window. */
+  /** Open the rich culling darkroom scoped to just this scene's capture window
+   *  (edition only — the button is gated on auth.isEdition()). */
   protected cullScene(scene: Scene): void {
     void this.router.navigate(['/culling'], {
       queryParams: {
+        group_by: 'scene',
         album: this.albumId() ?? undefined,
         from: scene.start ?? undefined,
         to: scene.end ?? undefined,
         scene: this.sceneDate.transform(scene.start),
       },
     });
-  }
-
-  protected toggleReject(sceneId: number, path: string): void {
-    this.rejected.update(m => {
-      const next = new Map(m);
-      const set = new Set(next.get(sceneId) ?? []);
-      if (set.has(path)) set.delete(path); else set.add(path);
-      next.set(sceneId, set);
-      return next;
-    });
-  }
-
-  protected async confirm(scene: Scene): Promise<void> {
-    const rej = this.rejected().get(scene.scene_id) ?? new Set<string>();
-    if (rej.size === 0) {
-      this.snack.open(this.i18n.t(I18N.scenes.nothing_to_cull), undefined, { duration: 2000 });
-      return;
-    }
-    const allPaths = scene.photos.map(p => p.path);
-    const keep = allPaths.filter(p => !rej.has(p));
-    // Block loadMore for the confirm window so a click during the POST can't
-    // append a page computed against the soon-to-be-stale server cache.
-    this.loading.set(true);
-    try {
-      await firstValueFrom(
-        this.api.post('/scenes/confirm', { paths: allPaths, keep_paths: keep }),
-      );
-      this.snack.open(this.i18n.t(I18N.scenes.culled, { count: rej.size }), undefined, { duration: 2000 });
-      // Update only this scene in place: drop its rejected photos (a fully
-      // emptied scene disappears) instead of reloading and re-numbering the
-      // whole list. Scene ids stay stable for the session.
-      this.scenes.update(list => list
-        .map(s => s.scene_id === scene.scene_id ? this.pruneScene(s, rej) : s)
-        .filter(s => s.photos.length > 0));
-      this.rejected.update(m => {
-        const next = new Map(m);
-        next.delete(scene.scene_id);
-        return next;
-      });
-    } catch {
-      this.snack.open(this.i18n.t(I18N.scenes.confirm_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
-    } finally {
-      this.loading.set(false);
-    }
-  }
-
-  /** Remove rejected photos from a scene, re-picking the best if it was culled. */
-  private pruneScene(scene: Scene, rejected: Set<string>): Scene {
-    const photos = scene.photos.filter(p => !rejected.has(p.path));
-    const best = photos.some(p => p.path === scene.best_path)
-      ? scene.best_path
-      : photos.reduce((b, p) => (p.aggregate ?? -1) > (b.aggregate ?? -1) ? p : b,
-          photos[0])?.path ?? scene.best_path;
-    return { ...scene, photos, count: photos.length, best_path: best };
   }
 }

@@ -491,7 +491,8 @@
     "bg_separation": "Separation fond",
     "face_confidence": "Confiance visage",
     "is_favorite": "Favoris",
-    "is_rejected": "Rejetees"
+    "is_rejected": "Rejetees",
+    "narrative_moment_confidence": "Confiance du moment"
   },
   "photo_types": {
     "all": "Toutes les photos",
@@ -1001,7 +1002,6 @@
     "culling": "Tri",
     "memories": "Souvenirs",
     "timeline": "Chronologie",
-    "scenes": "Scènes",
     "folders": "Dossiers",
     "map": "Carte",
     "capsules": "Capsules"
@@ -1108,7 +1108,8 @@
       "advanced_metrics": "Métriques avancées",
       "refine": "Affiner",
       "view": "Affichage",
-      "color_quality": "Couleur et qualité"
+      "color_quality": "Couleur et qualité",
+      "moments": "Moments"
     },
     "semantic_search_info": "La recherche sémantique charge les embeddings en mémoire au premier usage. Cela peut prendre un moment pour les grandes bibliothèques.",
     "select_on_map": "Sélectionner sur la carte",
@@ -1178,7 +1179,8 @@
       "blue": "Bleu",
       "purple": "Violet",
       "magenta": "Magenta"
-    }
+    },
+    "moment_confidence_range": "Confiance du moment"
   },
   "composition_patterns": {
     "none": "Aucun",
@@ -1341,10 +1343,8 @@
     "save_tooltip": "Sauvegarder la configuration actuelle des poids dans scoring_config.json",
     "optimize_tooltip": "Suggerer des poids optimaux bases sur vos comparaisons par paires",
     "reset_tooltip": "Recharger les poids depuis le fichier de config, en annulant les modifications non sauvegardees",
-    "recalculate": "Recalculer",
     "recalculate_tooltip": "Recalculer les scores agreges pour cette categorie avec les poids sauvegardes",
     "recalculated": "Scores recalcules",
-    "error_recalculating": "Erreur lors du recalcul des scores",
     "modifiers": "Modificateurs",
     "modifiers_description": "Ajustements de score appliqués après la somme pondérée",
     "modifier": {
@@ -1716,7 +1716,8 @@
       "redundant": "Les plus redondants",
       "best": "Les meilleures",
       "recent": "Les plus récentes",
-      "needs_comparisons": "À comparer en priorité"
+      "needs_comparisons": "À comparer en priorité",
+      "tooltip": "Trier les groupes (les plus faciles d'abord, les plus redondants…)"
     },
     "weight_remaining": "{count} avant réglage des poids",
     "weight_ready": "Réglage des poids prêt",
@@ -1764,7 +1765,16 @@
       "confirm_next": "Confirmer et groupe suivant",
       "zoom": "Zoom / loupe",
       "close": "Fermer"
-    }
+    },
+    "group_by": {
+      "label": "Grouper par",
+      "all": "Tout",
+      "bursts": "Rafales",
+      "similar": "Similaires",
+      "scenes": "Scènes",
+      "tooltip": "Choisissez le type de groupes à passer en revue"
+    },
+    "darkroom_tooltip": "Ouvrir le studio plein écran pour comparer les images et choisir"
   },
   "scenes": {
     "title": "Scènes",
@@ -1776,19 +1786,16 @@
     "whole_library": "Toute la bibliothèque",
     "loupe": "Loupe",
     "loupe_hint": "Activer la loupe (Z) — survolez une photo pour l'agrandir",
-    "cull_action": "Trier ({count})",
     "best": "MEILLEUR",
     "load_more": "Charger plus",
-    "load_error": "Échec du chargement des scènes",
-    "nothing_to_cull": "Touchez d'abord des photos pour les marquer",
-    "culled": "{count} photo(s) triée(s)",
-    "confirm_error": "Échec du tri de la scène"
+    "load_error": "Échec du chargement des scènes"
   },
   "common": {
     "dismiss": "Fermer"
   },
   "memories": {
     "title": "Ce jour-là",
+    "tooltip": "Ce jour-là — revivez les photos prises à cette date les années précédentes",
     "empty": "Aucun souvenir pour ce jour",
     "years_ago": "Il y a {count} an",
     "years_ago_plural": "Il y a {count} ans",
@@ -1837,6 +1844,7 @@
   },
   "capsules": {
     "title": "Capsules",
+    "intro": "Des histoires photo composées pour vous — des diaporamas générés automatiquement par thème, lieu, personnes et époque. Cliquez sur une capsule pour la lire.",
     "empty": "Aucune capsule disponible. Continuez à ajouter des photos !",
     "loading": "Génération des capsules...",
     "journey_title": "Voyage — {date}",
@@ -2060,5 +2068,8 @@
   "pwa": {
     "update_available": "Une nouvelle version est disponible",
     "reload": "Recharger"
+  },
+  "moments": {
+    "uncertain": "incertain"
   }
 }

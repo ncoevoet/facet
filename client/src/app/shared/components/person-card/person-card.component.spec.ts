@@ -131,11 +131,13 @@ describe('PersonCardComponent', () => {
     expect(unhidden).toEqual([7]);
   });
 
-  it('renders the hidden chip when the person is hidden', () => {
+  it('renders the hidden indicator icon when the person is hidden', () => {
     host.canEdit.set(true);
     host.person.set({ id: 7, name: 'Bob', face_count: 2, face_thumbnail: false, is_hidden: true });
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('persons.hidden');
+    // The hidden state now shows a visibility_off icon in the name overlay (the
+    // unhide action button uses the 'visibility' icon, so this is unambiguous).
+    expect(fixture.nativeElement.textContent).toContain('visibility_off');
   });
 });

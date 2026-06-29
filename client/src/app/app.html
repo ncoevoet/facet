@@ -24,11 +24,6 @@
               <mat-icon>view_timeline</mat-icon>
             </a>
           }
-          @if (store.config()?.features?.show_scenes) {
-            <a mat-icon-button class="lg:!hidden" routerLink="/scenes" routerLinkActive #rlScenesM="routerLinkActive" [style.color]="rlScenesM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.scenes | translate" [attr.aria-label]="I18N.nav.scenes | translate">
-              <mat-icon>theaters</mat-icon>
-            </a>
-          }
           @if (store.config()?.features?.show_folders) {
             <a mat-icon-button class="lg:!hidden" routerLink="/folders" routerLinkActive #rlFoldersM="routerLinkActive" [style.color]="rlFoldersM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.folders | translate" [attr.aria-label]="I18N.nav.folders | translate">
               <mat-icon>folder</mat-icon>
@@ -46,7 +41,7 @@
             <mat-icon>bar_chart</mat-icon>
           </a>
           @if (store.config()?.features?.show_memories && hasMemories()) {
-            <button mat-icon-button class="lg:!hidden" (click)="openMemoriesDialog()" [matTooltip]="I18N.nav.memories | translate" [attr.aria-label]="I18N.nav.memories | translate">
+            <button mat-icon-button class="lg:!hidden" (click)="playMemories()" [matTooltip]="I18N.memories.tooltip | translate" [attr.aria-label]="I18N.nav.memories | translate">
               <mat-icon>auto_awesome</mat-icon>
             </button>
           }
@@ -66,11 +61,6 @@
           @if (store.config()?.features?.show_timeline) {
             <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/timeline" routerLinkActive #rlTimeline="routerLinkActive" [style.color]="rlTimeline.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.timeline | translate" [attr.aria-label]="I18N.nav.timeline | translate">
               <mat-icon>view_timeline</mat-icon>
-            </a>
-          }
-          @if (store.config()?.features?.show_scenes) {
-            <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/scenes" routerLinkActive #rlScenes="routerLinkActive" [style.color]="rlScenes.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.scenes | translate" [attr.aria-label]="I18N.nav.scenes | translate">
-              <mat-icon>theaters</mat-icon>
             </a>
           }
           @if (store.config()?.features?.show_folders) {
@@ -100,7 +90,7 @@
             </a>
           }
           @if (store.config()?.features?.show_memories && hasMemories()) {
-            <button mat-icon-button class="!hidden lg:!inline-flex" (click)="openMemoriesDialog()" [matTooltip]="I18N.nav.memories | translate" [attr.aria-label]="I18N.nav.memories | translate">
+            <button mat-icon-button class="!hidden lg:!inline-flex" (click)="playMemories()" [matTooltip]="I18N.memories.tooltip | translate" [attr.aria-label]="I18N.nav.memories | translate">
               <mat-icon>auto_awesome</mat-icon>
             </button>
           }
@@ -549,7 +539,7 @@
   }
 
   <!-- Main content -->
-  <main class="flex-1 overflow-auto lg:pb-0" [class.pb-14]="isGalleryRoute() || isAlbumsRoute() || isPersonsRoute() || isMapRoute() || isCapsuleRoute() || isTimelineRoute() || isScenesRoute()">
+  <main class="flex-1 overflow-auto lg:pb-0" [class.pb-14]="isGalleryRoute() || isAlbumsRoute() || isPersonsRoute() || isMapRoute() || isCapsuleRoute() || isTimelineRoute()">
     <router-outlet />
   </main>
 
@@ -774,5 +764,15 @@
         fromClass="flex-1 min-w-0"
         (fromChange)="timelineFilters.dateFrom.set($event)" (toChange)="timelineFilters.dateTo.set($event)" />
     </div>
+  }
+
+  <!-- "On This Day" diaporama (randomized slideshow of past-year photos) -->
+  @if (memoriesActive()) {
+    <app-slideshow
+      [photos]="memoriesPhotos()"
+      [hasMore]="false"
+      [loading]="memoriesLoading()"
+      [transitionType]="'kenburns'"
+      (closed)="closeMemories()" />
   }
 </div>

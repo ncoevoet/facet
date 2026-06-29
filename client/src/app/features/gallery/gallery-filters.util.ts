@@ -89,6 +89,9 @@ export interface GalleryFilters {
   max_subject_placement: string;
   min_bg_separation: string;
   max_bg_separation: string;
+  // Narrative moment confidence
+  min_moment_confidence: string;
+  max_moment_confidence: string;
   // Technical
   min_saturation: string;
   max_saturation: string;
@@ -182,6 +185,7 @@ export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
   'min_qalign', 'max_qalign', 'min_aesthetic_v25', 'max_aesthetic_v25', 'min_deqa', 'max_deqa',
   'min_subject_sharpness', 'max_subject_sharpness', 'min_subject_prominence', 'max_subject_prominence',
   'min_subject_placement', 'max_subject_placement', 'min_bg_separation', 'max_bg_separation',
+  'min_moment_confidence', 'max_moment_confidence',
   'min_face_count', 'max_face_count',
   'min_eye_sharpness', 'max_eye_sharpness', 'min_face_sharpness', 'max_face_sharpness',
   'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',
@@ -262,6 +266,8 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   max_subject_placement: '',
   min_bg_separation: '',
   max_bg_separation: '',
+  min_moment_confidence: '',
+  max_moment_confidence: '',
   min_saturation: '',
   max_saturation: '',
   min_luminance: '',

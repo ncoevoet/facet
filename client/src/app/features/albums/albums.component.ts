@@ -86,13 +86,13 @@ import { I18N } from '../../core/i18n/keys';
                 <div class="text-xs opacity-60 truncate">{{ album.description }}</div>
               }
             </div>
-            @if (auth.isEdition()) {
-              <div class="flex items-center shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                <button mat-icon-button
-                        [matTooltip]="I18N.albums.scenes | translate"
-                        (click)="openScoped($event, '/scenes', album)">
-                  <mat-icon class="opacity-60">movie_filter</mat-icon>
-                </button>
+            <div class="flex items-center shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+              <button mat-icon-button
+                      [matTooltip]="I18N.albums.scenes | translate"
+                      (click)="openScoped($event, '/scenes', album)">
+                <mat-icon class="opacity-60">movie_filter</mat-icon>
+              </button>
+              @if (auth.isEdition()) {
                 <button mat-icon-button
                         [matTooltip]="I18N.albums.cull | translate"
                         (click)="openScoped($event, '/culling', album)">
@@ -113,8 +113,8 @@ import { I18N } from '../../core/i18n/keys';
                         (click)="deleteAlbum($event, album)">
                   <mat-icon class="opacity-60">delete</mat-icon>
                 </button>
-              </div>
-            }
+              }
+            </div>
           </div>
         </a>
       }

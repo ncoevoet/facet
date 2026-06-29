@@ -123,6 +123,8 @@ export interface ViewerConfig {
     excellent: number;
     best: number;
   };
+  /** Min narrative-moment posterior below which a moment label is shown dimmed + "(uncertain)". 0 = never dim. */
+  moment_confidence_min?: number;
   [key: string]: unknown;
 }
 
@@ -267,6 +269,18 @@ export class GalleryStore {
         }, 500);
       });
     });
+  }
+
+  /** Re-fetch viewer config (features + edition/identity flags) WITHOUT re-applying
+   *  filter defaults — used after an auth identity change (login, edition grant or
+   *  drop) so config-derived UI reflects the new rights without clobbering the
+   *  user's active filters. */
+  async refreshConfig(): Promise<void> {
+    try {
+      this.config.set(await firstValueFrom(this.api.get<ViewerConfig>('/config')));
+    } catch {
+      // Keep the existing config on failure.
+    }
   }
 
   /** Load viewer config and apply defaults */

@@ -491,7 +491,8 @@
     "bg_separation": "Separação do fundo",
     "face_confidence": "Confiança do rosto",
     "is_favorite": "Favoritos",
-    "is_rejected": "Rejeitados"
+    "is_rejected": "Rejeitados",
+    "narrative_moment_confidence": "Confiança do momento"
   },
   "photo_types": {
     "all": "Todas as fotos",
@@ -1001,7 +1002,6 @@
     "culling": "Seleção",
     "memories": "Memórias",
     "timeline": "Linha do Tempo",
-    "scenes": "Cenas",
     "folders": "Pastas",
     "map": "Mapa",
     "capsules": "Cápsulas"
@@ -1108,7 +1108,8 @@
       "advanced_metrics": "Métricas avançadas",
       "refine": "Refinar",
       "view": "Exibir",
-      "color_quality": "Cor e qualidade"
+      "color_quality": "Cor e qualidade",
+      "moments": "Momentos"
     },
     "semantic_search_info": "A busca semântica carrega os embeddings na RAM no primeiro uso. Isso pode levar um momento para bibliotecas grandes.",
     "select_on_map": "Selecionar no mapa",
@@ -1178,7 +1179,8 @@
       "blue": "Azul",
       "purple": "Roxo",
       "magenta": "Magenta"
-    }
+    },
+    "moment_confidence_range": "Confiança do momento"
   },
   "composition_patterns": {
     "none": "Nenhum",
@@ -1712,7 +1714,8 @@
       "redundant": "Mais redundantes",
       "best": "Melhores primeiro",
       "recent": "Mais recentes",
-      "needs_comparisons": "Precisa de comparações"
+      "needs_comparisons": "Precisa de comparações",
+      "tooltip": "Ordenar os grupos (os mais fáceis primeiro, os mais redundantes…)"
     },
     "weight_remaining": "{count} para ajustar os pesos",
     "weight_ready": "Ajuste de pesos pronto",
@@ -1760,7 +1763,16 @@
       "confirm_next": "Confirmar e próximo grupo",
       "zoom": "Zoom / lupa",
       "close": "Fechar"
-    }
+    },
+    "group_by": {
+      "label": "Agrupar por",
+      "all": "Tudo",
+      "bursts": "Rajadas",
+      "similar": "Semelhantes",
+      "scenes": "Cenas",
+      "tooltip": "Escolha que tipo de grupos rever"
+    },
+    "darkroom_tooltip": "Abrir o quarto escuro em ecrã inteiro para comparar e escolher"
   },
   "scenes": {
     "title": "Cenas",
@@ -1772,19 +1784,16 @@
     "whole_library": "Toda a biblioteca",
     "loupe": "Lupa",
     "loupe_hint": "Alterne a lupa (Z) — passe o cursor sobre uma foto para ampliá-la",
-    "cull_action": "Selecionar ({count})",
     "best": "MELHOR",
     "load_more": "Carregar mais",
-    "load_error": "Falha ao carregar as cenas",
-    "nothing_to_cull": "Toque nas fotos para marcá-las para a seleção primeiro",
-    "culled": "{count} foto(s) selecionada(s)",
-    "confirm_error": "Falha ao fazer a seleção da cena"
+    "load_error": "Falha ao carregar as cenas"
   },
   "common": {
     "dismiss": "Dispensar"
   },
   "memories": {
     "title": "Neste dia",
+    "tooltip": "Neste dia — reviva as fotos tiradas nesta data em anos anteriores",
     "empty": "Nenhuma memória para este dia",
     "years_ago": "Há {count} ano",
     "years_ago_plural": "Há {count} anos",
@@ -1833,6 +1842,7 @@
   },
   "capsules": {
     "title": "Cápsulas",
+    "intro": "Histórias fotográficas selecionadas — diaporamas gerados automaticamente por tema, lugar, pessoas e época. Clique numa cápsula para a reproduzir.",
     "empty": "Nenhuma cápsula disponível ainda. Continue adicionando fotos!",
     "loading": "Gerando cápsulas...",
     "journey_title": "Viagem — {date}",
@@ -2056,5 +2066,8 @@
   "pwa": {
     "update_available": "Uma nova versão está disponível",
     "reload": "Recarregar"
+  },
+  "moments": {
+    "uncertain": "incerto"
   }
 }

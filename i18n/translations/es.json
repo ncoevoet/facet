@@ -491,7 +491,8 @@
     "face_confidence": "Confianza facial",
     "is_favorite": "Favoritos",
     "is_rejected": "Rechazadas",
-    "topiq_score": "Puntuación TOPIQ"
+    "topiq_score": "Puntuación TOPIQ",
+    "narrative_moment_confidence": "Confianza del momento"
   },
   "photo_types": {
     "all": "Todas las fotos",
@@ -1001,7 +1002,6 @@
     "culling": "Selección",
     "memories": "Recuerdos",
     "timeline": "Línea de tiempo",
-    "scenes": "Escenas",
     "folders": "Carpetas",
     "map": "Mapa",
     "capsules": "Cápsulas"
@@ -1108,7 +1108,8 @@
       "advanced_metrics": "Métricas avanzadas",
       "refine": "Refinar",
       "view": "Vista",
-      "color_quality": "Color y calidad"
+      "color_quality": "Color y calidad",
+      "moments": "Momentos"
     },
     "semantic_search_info": "La búsqueda semántica carga los embeddings en la RAM en el primer uso. Esto puede tardar un momento para bibliotecas grandes.",
     "select_on_map": "Seleccionar en el mapa",
@@ -1178,7 +1179,8 @@
       "blue": "Azul",
       "purple": "Púrpura",
       "magenta": "Magenta"
-    }
+    },
+    "moment_confidence_range": "Confianza del momento"
   },
   "composition_patterns": {
     "none": "Ninguno",
@@ -1302,7 +1304,7 @@
     "scores_recalculated": "Puntuaciones recalculadas",
     "recalculate": "Recalcular",
     "recalculating": "Recalculando…",
-    "error_recalculating": "Error al recalcular las puntuaciones",
+    "error_recalculating": "Error al recalcular las puntuaciónes",
     "snapshot_deleted": "Instantánea eliminada",
     "error_loading_categories": "Error al cargar categorías",
     "error_loading_weights": "Error al cargar pesos",
@@ -1341,10 +1343,8 @@
     "save_tooltip": "Guardar la configuración de pesos actual en scoring_config.json",
     "optimize_tooltip": "Sugerir pesos óptimos basados en tus comparaciones por pares",
     "reset_tooltip": "Recargar pesos desde el archivo de configuración, descartando cambios no guardados",
-    "recalculate": "Recalcular",
     "recalculate_tooltip": "Recalcular puntuaciónes globales para esta categoría usando los pesos guardados",
     "recalculated": "Puntuaciones recalculadas",
-    "error_recalculating": "Error al recalcular las puntuaciónes",
     "modifiers": "Modificadores",
     "modifiers_description": "Ajustes de puntuación aplicados después de la suma ponderada",
     "modifier": {
@@ -1716,7 +1716,8 @@
       "redundant": "Más redundantes",
       "best": "Mejores primero",
       "recent": "Más recientes",
-      "needs_comparisons": "Faltan comparaciones"
+      "needs_comparisons": "Faltan comparaciones",
+      "tooltip": "Ordenar los grupos (los más fáciles primero, los más redundantes…)"
     },
     "weight_remaining": "{count} para ajustar pesos",
     "weight_ready": "Ajuste de pesos listo",
@@ -1764,7 +1765,16 @@
       "confirm_next": "Confirmar y siguiente grupo",
       "zoom": "Zoom / lupa",
       "close": "Cerrar"
-    }
+    },
+    "group_by": {
+      "label": "Agrupar por",
+      "all": "Todo",
+      "bursts": "Ráfagas",
+      "similar": "Similares",
+      "scenes": "Escenas",
+      "tooltip": "Elige qué tipo de grupos revisar"
+    },
+    "darkroom_tooltip": "Abrir el cuarto oscuro a pantalla completa para comparar y elegir"
   },
   "scenes": {
     "title": "Escenas",
@@ -1776,19 +1786,16 @@
     "whole_library": "Toda la biblioteca",
     "loupe": "Lupa",
     "loupe_hint": "Activar la lupa (Z) — pasa el cursor sobre una foto para ampliarla",
-    "cull_action": "Depurar ({count})",
     "best": "MEJOR",
     "load_more": "Cargar más",
-    "load_error": "Error al cargar las escenas",
-    "nothing_to_cull": "Toca primero las fotos para descartarlas",
-    "culled": "{count} foto(s) descartada(s)",
-    "confirm_error": "Error al depurar la escena"
+    "load_error": "Error al cargar las escenas"
   },
   "common": {
     "dismiss": "Cerrar"
   },
   "memories": {
     "title": "En este día",
+    "tooltip": "En este día — revive las fotos de esta fecha de años anteriores",
     "empty": "Sin recuerdos para este día",
     "years_ago": "Hace {count} año",
     "years_ago_plural": "Hace {count} años",
@@ -1837,6 +1844,7 @@
   },
   "capsules": {
     "title": "Cápsulas",
+    "intro": "Historias fotográficas seleccionadas — diaporamas generados automáticamente por tema, lugar, personas y época. Haz clic en una cápsula para reproducirla.",
     "empty": "No hay cápsulas disponibles. ¡Sigue añadiendo fotos!",
     "loading": "Generando cápsulas...",
     "journey_title": "Viaje — {date}",
@@ -2060,5 +2068,8 @@
   "pwa": {
     "update_available": "Hay una nueva versión disponible",
     "reload": "Recargar"
+  },
+  "moments": {
+    "uncertain": "incierto"
   }
 }

@@ -52,6 +52,11 @@ interface CapsulesResponse {
     SlideshowComponent,
   ],
   template: `
+    <div class="mb-4">
+      <h2 class="text-lg font-semibold">{{ I18N.capsules.title | translate }}</h2>
+      <p class="text-sm opacity-60 w-full">{{ I18N.capsules.intro | translate }}</p>
+    </div>
+
     @if (loading() && capsules().length === 0) {
       <div class="flex flex-col items-center justify-center py-16 gap-3">
         <mat-spinner diameter="48" />
