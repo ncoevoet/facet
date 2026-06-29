@@ -4,10 +4,14 @@ Uses synthetic, well-separated embedding clusters with distinctive captions, so
 no model is loaded. Requires hdbscan + scikit-learn (both project deps).
 """
 
+import json
+import sqlite3
+
 import numpy as np
 import pytest
 
-from models.moment_discovery import discover_moments, _slugify
+from models.moment_discovery import discover_moments, run_discovery, _slugify
+from utils.embedding import embedding_to_bytes
 
 pytest.importorskip("hdbscan")
 pytest.importorskip("sklearn")
@@ -80,3 +84,48 @@ def test_names_are_unique_slugs():
     names = [c['name'] for c in discover_moments(embeddings, captions, min_cluster_size=8)]
     assert len(names) == len(set(names))
     assert all(n == _slugify(n, n) for n in names)
+
+
+def test_run_discovery_writes_side_file_and_never_the_live_config(tmp_path):
+    embeddings, captions = _synthetic()
+    db = str(tmp_path / "disc.db")
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE photos (path TEXT PRIMARY KEY, caption TEXT, caption_embedding BLOB)"
+    )
+    conn.executemany(
+        "INSERT INTO photos (path, caption, caption_embedding) VALUES (?, ?, ?)",
+        [(f"/p{i}.jpg", captions[i], embedding_to_bytes(embeddings[i]))
+         for i in range(len(captions))],
+    )
+    conn.commit()
+    conn.close()
+
+    out = str(tmp_path / "scoring_config.discovered.json")
+    result = run_discovery(db, None, min_cluster_size=8, output_path=out)
+
+    assert result['clusters'] == 3
+    assert result['analyzed'] == len(captions)
+    assert result['output'] == out
+
+    # The proposal is written under event_types.discovered (the adoptable shape),
+    # and nothing else — it is a review artifact, not the live config.
+    with open(out) as f:
+        proposal = json.load(f)
+    assert set(proposal) == {'narrative_moments'}
+    discovered = proposal['narrative_moments']['event_types']['discovered']
+    assert len(discovered) == 3
+    assert all(isinstance(prompts, list) and prompts for prompts in discovered.values())
+
+
+def test_run_discovery_skips_when_no_caption_embeddings(tmp_path):
+    db = str(tmp_path / "empty.db")
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE photos (path TEXT PRIMARY KEY, caption TEXT, caption_embedding BLOB)"
+    )
+    conn.commit()
+    conn.close()
+    assert run_discovery(db, None, output_path=str(tmp_path / "out.json")) == {
+        'skipped': 'no_caption_embeddings'
+    }

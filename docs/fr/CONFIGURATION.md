@@ -1605,7 +1605,9 @@ Le signal repose sur la **sémantique de la légende** : la légende IA de chaq
 | `pooling` | `"max"` | Score par moment = le meilleur cosinus de prompt unique (max-pool), plus discriminant que la moyenne |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | En dessous de ce cosinus top-1, une photo est `other`. Indexé par **signal** (`caption` vs `image`) puis par backend — les cosinus de légende sont ~2,4× plus élevés |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Écart cosinus minimal top-1/top-2 ; en dessous, l'image est `other` |
-| `priors.enabled` / `priors.weight` | `true` / `0.04` | Coups de pouce L1 visage/étiquette qui ne départagent que les quasi-égalités (actifs pour le vocabulaire `wedding`) |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | Coups de pouce L1 visage/étiquette qui ne départagent que les quasi-égalités ; `weight` plafonne chaque ajustement à l'échelle cosinus |
+| `priors.caption_tag_scale` | `0.25` | Atténue les règles `tag` sur le signal caption (le L0 encode déjà la légende) ; les règles structurelles gardent tout leur poids |
+| `priors.rules` / `priors.event_types.<et>.rules` | (jeu général) | Règles déclaratives `{kind, when, boost}` indépendantes du vocabulaire ; un `boost` ciblant un moment absent du vocabulaire actif est ignoré. Les règles par `event_type` remplacent la liste globale. Référence complète des prédicats : doc anglaise |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Lissage de chronologie L2 (Viterbi) : à forte tendance auto-boucle sans progression vers l'avant (le vocabulaire agnostique n'a pas d'ordre canonique), appliqué légèrement (`weight=0` = pas de lissage) |
 | `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | L3 optionnel : reclasser les images à faible marge avec le VLM Qwen (16gb/24gb uniquement) |
 | `event_types` | `general` + `wedding` | `{moment: [synonymes de prompt]}` par type d'événement ; définissez `default_event_type` pour changer de genre ou ajouter le vôtre |

@@ -1605,7 +1605,9 @@ Il segnale è **semantico sulla didascalia**: la didascalia AI di ogni foto vien
 | `pooling` | `"max"` | Punteggio per momento = il singolo miglior coseno di prompt (max-pool), più discriminante della media |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Sotto questo coseno top-1 una foto è `other`. Indicizzato per **segnale** (`caption` vs `image`) poi per backend — i coseni di caption sono ~2,4× più alti |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Divario coseno top-1/top-2 minimo; al di sotto il fotogramma è `other` |
-| `priors.enabled` / `priors.weight` | `true` / `0.04` | Spinte L1 su volti/tag che rompono solo i quasi-pareggi (attive per il vocabolario `wedding`) |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | Spinte L1 su volti/tag che rompono solo i quasi-pareggi; `weight` limita ogni spinta alla scala del coseno |
+| `priors.caption_tag_scale` | `0.25` | Riduce le regole `tag` sul segnale caption (L0 codifica già la didascalia); le regole strutturali mantengono il peso pieno |
+| `priors.rules` / `priors.event_types.<et>.rules` | (set generale) | Regole dichiarative `{kind, when, boost}` indipendenti dal vocabolario; un `boost` verso un momento assente dal vocabolario attivo viene ignorato. Le regole per `event_type` sostituiscono l'elenco globale. Riferimento completo dei predicati: doc inglese |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Levigatura L2 della timeline (Viterbi): orientata alla permanenza senza progressione in avanti (il vocabolario agnostico non ha un ordine canonico), applicata in modo leggero (`weight=0` = nessuna levigatura) |
 | `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | L3 facoltativo: ri-classifica i fotogrammi a margine ridotto con il VLM Qwen (solo 16gb/24gb) |
 | `event_types` | `general` + `wedding` | Per ogni tipo di evento `{moment: [sinonimi di prompt]}`; imposta `default_event_type` per cambiare genere o aggiungere il tuo |

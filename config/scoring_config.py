@@ -793,8 +793,8 @@ class ScoringConfig:
         return nm
 
     def get_active_event_type(self):
-        """Return the configured default event type (e.g. 'wedding')."""
-        return self.get_narrative_moments_config().get('default_event_type', 'wedding')
+        """Return the configured default event type (e.g. 'general')."""
+        return self.get_narrative_moments_config().get('default_event_type', 'general')
 
     def get_narrative_moment_vocabulary(self, event_type=None):
         """Return ``{moment: [prompt synonyms]}`` for the active/given event type.
@@ -804,7 +804,7 @@ class ScoringConfig:
         """
         nm = self.get_narrative_moments_config()
         event_types = nm.get('event_types', {})
-        et = event_type or nm.get('default_event_type', 'wedding')
+        et = event_type or nm.get('default_event_type', 'general')
         vocab = event_types.get(et, {})
         return vocab if isinstance(vocab, dict) else {}
 
@@ -814,6 +814,28 @@ class ScoringConfig:
         transitions = dict(nm.get('transitions', {}))
         transitions['order'] = list(self.get_narrative_moment_vocabulary(event_type).keys())
         return transitions
+
+    def get_moment_priors(self, event_type=None):
+        """Return the L1 prior settings + resolved rule list for an event type.
+
+        Per-event-type ``priors.event_types.<et>.rules`` overrides the global
+        ``priors.rules`` when present, so the shared list stays vocabulary-clean
+        while a custom vocab (e.g. ``wedding``) can ship its own boosts. Each
+        rule is ``{kind, when, boost}`` (see ``MomentClassifier._prior_logits``).
+        """
+        nm = self.get_narrative_moments_config()
+        priors = nm.get('priors', {}) or {}
+        et = event_type or nm.get('default_event_type', 'general')
+        per_et = (priors.get('event_types', {}) or {}).get(et, {})
+        rules = per_et.get('rules')
+        if rules is None:
+            rules = priors.get('rules', [])
+        return {
+            'enabled': bool(priors.get('enabled', True)),
+            'weight': float(priors.get('weight', 0.04)),
+            'caption_tag_scale': float(priors.get('caption_tag_scale', 0.25)),
+            'rules': rules if isinstance(rules, list) else [],
+        }
 
     def get_moment_thresholds(self, signal):
         """Return the per-backend ``other``-gate thresholds for a moment signal.

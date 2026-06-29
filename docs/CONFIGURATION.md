@@ -1589,7 +1589,14 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
         "transformers": { "min_confidence": 0.10, "min_margin": 0.01 }
       }
     },
-    "priors": { "enabled": true, "weight": 0.04 },
+    "priors": {
+      "enabled": true, "weight": 0.04, "caption_tag_scale": 0.25,
+      "rules": [
+        { "kind": "structural", "when": { "is_group_portrait": true, "face_count_min": 4 }, "boost": { "group_gathering": 1.0 } },
+        { "kind": "tag", "when": { "tags_any": ["beach", "ocean", "sand"] }, "boost": { "beach": 0.8 } }
+      ],
+      "event_types": { "wedding": { "rules": [ { "kind": "tag", "when": { "tags_any": ["cake"] }, "boost": { "cake_cutting": 1.0 } } ] } }
+    },
     "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
     "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
     "event_types": { "general": { "beach": ["people at a sandy beach by the sea", "..."], "...": [] }, "wedding": { "vows": ["the couple exchanging vows at the altar", "..."] } }
@@ -1605,7 +1612,10 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 | `pooling` | `"max"` | Per-moment score = the single best prompt cosine (max-pool), more discriminative than averaging |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Below this top-1 cosine a photo is `other`. Keyed by **signal** (`caption` vs `image`) then backend — caption cosines run ~2.4× higher |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Minimum top-1/top-2 cosine gap; below it the frame is `other` |
-| `priors.enabled` / `priors.weight` | `true` / `0.04` | L1 face/tag nudges that only break near-ties (active for the `wedding` vocab) |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | L1 face/tag nudges that only break near-ties; `weight` caps each boost at cosine scale |
+| `priors.caption_tag_scale` | `0.25` | Scales **tag** rules down on the caption signal (L0 already encodes the caption); structural rules keep full weight on both signals |
+| `priors.rules` | (general set) | Declarative `{kind, when, boost}` list, vocabulary-agnostic. `kind`: `structural` (face geometry) or `tag`. `when` predicates (all ANDed): `is_group_portrait`, `face_count_min`/`face_count_max`, `face_ratio_min`/`face_ratio_max`, `tags_any`, `tags_all`. `boost`: `{moment: amount}` — a moment absent from the active vocabulary is silently skipped, so one rule set degrades gracefully across vocabs |
+| `priors.event_types.<et>.rules` | `wedding` override | Per-event-type rules that **replace** the global `rules` when that vocabulary is active, keeping the shared list vocabulary-clean |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | L2 timeline smoothing (Viterbi): stay-heavy with no forward progression (the agnostic vocab has no canonical order), applied lightly (`weight=0` = no smoothing) |
 | `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | Optional L3: re-classify low-margin frames with the Qwen VLM (16gb/24gb only) |
 | `event_types` | `general` + `wedding` | Per-event-type `{moment: [prompt synonyms]}`; set `default_event_type` to switch genre or add your own |

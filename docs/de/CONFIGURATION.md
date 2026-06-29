@@ -1605,7 +1605,9 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
 | `pooling` | `"max"` | Score pro Moment = der einzelne beste Prompt-Kosinus (max-pool), trennschärfer als Mittelung |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Liegt der Top-1-Kosinus darunter, wird ein Foto als `other` gelabelt. Aufgeschlüsselt nach **Signal** (`caption` vs. `image`), dann nach Backend — caption-Kosinuswerte fallen ~2,4× höher aus |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Minimaler Kosinusabstand zwischen Top-1 und Top-2; darunter ist der Frame `other` |
-| `priors.enabled` / `priors.weight` | `true` / `0.04` | L1-Anstöße aus Gesicht/Tag, die nur knappe Gleichstände auflösen (aktiv für das `wedding`-Vokabular) |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | L1-Anstöße aus Gesicht/Tag, die nur knappe Gleichstände auflösen; `weight` begrenzt jeden Boost auf Kosinus-Skala |
+| `priors.caption_tag_scale` | `0.25` | Dämpft `tag`-Regeln beim Caption-Signal (L0 kodiert die Bildunterschrift bereits); strukturelle Regeln behalten ihr volles Gewicht |
+| `priors.rules` / `priors.event_types.<et>.rules` | (allgemeines Set) | Deklarative `{kind, when, boost}`-Regeln, vokabularunabhängig; ein `boost` auf ein im aktiven Vokabular fehlendes Moment wird stillschweigend übersprungen. Pro-`event_type`-Regeln ersetzen die globale Liste. Vollständige Prädikat-Referenz: englische Doku |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | L2-Timeline-Glättung (Viterbi): bleibe-lastig ohne Vorwärtsprogression (das agnostische Vokabular hat keine kanonische Reihenfolge), nur leicht angewendet (`weight=0` = keine Glättung) |
 | `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | Optionales L3: Frames mit geringem Abstand mit dem Qwen-VLM neu klassifizieren (nur 16gb/24gb) |
 | `event_types` | `general` + `wedding` | Pro Ereignistyp `{moment: [Prompt-Synonyme]}`; setzen Sie `default_event_type`, um das Genre zu wechseln, oder fügen Sie Ihr eigenes hinzu |

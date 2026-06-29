@@ -133,7 +133,7 @@ PHOTOS_COLUMNS = [
 
     # Narrative moment (opt-in --detect-moments; NULL until that pass runs)
     ('narrative_moment', 'TEXT'),              # e.g. 'celebration', 'beach', 'other'
-    ('narrative_moment_confidence', 'REAL'),   # 0-1 top-1 confidence after smoothing
+    ('narrative_moment_confidence', 'REAL'),   # confidence in the assigned label: forward-backward posterior (0-1) for a moment, neutral 0.5 for 'other'
     ('caption_embedding', 'BLOB'),             # text embedding of the caption (semantic moment signal)
 ]
 

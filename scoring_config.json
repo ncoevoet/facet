@@ -2016,7 +2016,33 @@
         "transformers": { "min_confidence": 0.10, "min_margin": 0.01 }
       }
     },
-    "priors": { "enabled": true, "weight": 0.04 },
+    "priors": {
+      "enabled": true,
+      "weight": 0.04,
+      "caption_tag_scale": 0.25,
+      "rules": [
+        { "kind": "structural", "when": { "is_group_portrait": true, "face_count_min": 4 }, "boost": { "group_gathering": 1.0, "celebration": 0.4 } },
+        { "kind": "structural", "when": { "face_count_min": 1, "face_count_max": 2, "face_ratio_min": 0.15 }, "boost": { "portrait": 1.0 } },
+        { "kind": "tag", "when": { "tags_any": ["beach", "ocean", "sea", "sand", "seaside", "coast"] }, "boost": { "beach": 0.8 } },
+        { "kind": "tag", "when": { "tags_any": ["concert", "stage", "band", "festival", "gig"] }, "boost": { "concert": 0.8 } },
+        { "kind": "tag", "when": { "tags_any": ["wildlife", "animal", "bird", "deer", "elephant", "safari"] }, "boost": { "nature_wildlife": 0.8 } },
+        { "kind": "tag", "when": { "tags_any": ["skyline", "skyscraper", "downtown", "cityscape", "buildings"] }, "boost": { "cityscape": 0.8 } },
+        { "kind": "tag", "when": { "tags_any": ["child", "kid", "toddler", "baby", "children"] }, "boost": { "children": 0.8 } },
+        { "kind": "tag", "when": { "tags_any": ["dog", "cat", "puppy", "kitten", "pet"] }, "boost": { "pets": 0.8 } },
+        { "kind": "tag", "when": { "tags_any": ["snow", "ski", "snowboard", "winter", "snowy"] }, "boost": { "snow_winter": 0.8 } },
+        { "kind": "tag", "when": { "tags_any": ["mountain", "alpine", "peak", "summit", "hiking"] }, "boost": { "mountains": 0.8 } },
+        { "kind": "tag", "when": { "tags_any": ["stadium", "match", "race", "athlete", "sport"] }, "boost": { "sports": 0.8 } }
+      ],
+      "event_types": {
+        "wedding": {
+          "rules": [
+            { "kind": "structural", "when": { "is_group_portrait": true, "face_count_min": 4 }, "boost": { "family_formals": 1.0 } },
+            { "kind": "structural", "when": { "face_count_min": 1, "face_count_max": 2, "face_ratio_min": 0.15 }, "boost": { "couple_portraits": 0.5, "first_kiss": 0.5, "first_dance": 0.5 } },
+            { "kind": "tag", "when": { "tags_any": ["cake"] }, "boost": { "cake_cutting": 1.0 } }
+          ]
+        }
+      }
+    },
     "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
     "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
     "event_types": {

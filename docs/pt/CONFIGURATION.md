@@ -1605,7 +1605,9 @@ O sinal é **semântico de legenda** (caption-semantic): a legenda por IA de cad
 | `pooling` | `"max"` | Pontuação por momento = o melhor cosseno de prompt individual (max-pool), mais discriminativo que a média |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Abaixo deste cosseno top-1, uma foto é `other`. Indexado por **sinal** (`caption` vs `image`) e depois por backend — os cossenos de legenda ficam ~2,4× mais altos |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Diferença mínima de cosseno entre top-1/top-2; abaixo dela o quadro vira `other` |
-| `priors.enabled` / `priors.weight` | `true` / `0.04` | Ajustes L1 de face/tag que só desempatam quase-empates (ativos para o vocabulário `wedding`) |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | Ajustes L1 de face/tag que só desempatam quase-empates; `weight` limita cada ajuste à escala do cosseno |
+| `priors.caption_tag_scale` | `0.25` | Reduz as regras `tag` no sinal caption (o L0 já codifica a legenda); as regras estruturais mantêm o peso total |
+| `priors.rules` / `priors.event_types.<et>.rules` | (conjunto geral) | Regras declarativas `{kind, when, boost}` independentes do vocabulário; um `boost` para um momento ausente do vocabulário ativo é ignorado. As regras por `event_type` substituem a lista global. Referência completa dos predicados: doc em inglês |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Suavização L2 da linha do tempo (Viterbi): pesada em auto-laço, sem progressão adiante (o vocabulário agnóstico não tem ordem canônica), aplicada de forma leve (`weight=0` = sem suavização) |
 | `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | L3 opcional: reclassifica quadros de baixa margem com o VLM Qwen (apenas 16gb/24gb) |
 | `event_types` | `general` + `wedding` | `{momento: [sinônimos de prompt]}` por tipo de evento; defina `default_event_type` para trocar de gênero ou adicionar o seu próprio |

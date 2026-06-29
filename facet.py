@@ -156,6 +156,13 @@ def _log_scan_db_destination(db_path: str):
         )
 
 
+def _commit_in_chunks(conn, sql, rows, size=500):
+    """Run ``conn.executemany(sql, ...)`` over ``rows`` in committed batches."""
+    for k in range(0, len(rows), size):
+        conn.executemany(sql, rows[k:k + size])
+        conn.commit()
+
+
 def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
                          dry_run=False, verbose_count=0, limit=None):
     """Label photos with their narrative moment (zero-shot CLIP + L2 smoothing).
@@ -231,16 +238,14 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
                 persist.append((blob, r['path']))
         if not dry_run:
             with get_connection(db_path) as conn:
-                for k in range(0, len(persist), 500):
-                    conn.executemany(
-                        "UPDATE photos SET caption_embedding = ? WHERE path = ?",
-                        persist[k:k + 500])
-                    conn.commit()
+                _commit_in_chunks(
+                    conn, "UPDATE photos SET caption_embedding = ? WHERE path = ?",
+                    persist)
 
     # L0 + L1: per-frame probability vectors and the no-smoothing label. Each
     # photo is scored on its caption embedding (signal='caption') when present,
     # else its image embedding (signal='image') — each signal has its own gate.
-    prob_vectors, raw_labels, raw_confs, timestamps, paths = [], [], [], [], []
+    prob_vectors, raw_labels, timestamps, paths = [], [], [], []
     verbose_left = verbose_count
     for row in tqdm(rows, desc="Moments (score)"):
         photo_data = {
@@ -252,11 +257,10 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
             emb_bytes, signal = cap_emb, 'caption'
         else:
             emb_bytes, signal = row['clip_embedding'], 'image'
-        _, probs = classifier.probabilities(emb_bytes, photo_data)
-        raw_label, raw_conf = classifier.classify(emb_bytes, photo_data, signal=signal)
+        _, probs = classifier.probabilities(emb_bytes, photo_data, signal=signal)
+        raw_label, _ = classifier.classify(emb_bytes, photo_data, signal=signal)
         prob_vectors.append(probs)
         raw_labels.append(raw_label)
-        raw_confs.append(raw_conf)
         timestamps.append(parse_date(row['date_taken']))
         paths.append(row['path'])
         if verbose_left > 0:
@@ -270,16 +274,19 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
     # L2: temporal smoothing along the timeline.
     smoothed = moment_smoothing.smooth(prob_vectors, timestamps, transitions)
     moments = classifier.moments
+    OTHER_CONFIDENCE = 0.5
     updates = []
     for i, (j, conf) in enumerate(smoothed):
         if j is None or raw_labels[i] is None:
             continue
         # The per-frame 'other' gate (low confidence/margin) overrides; an
-        # otherwise-confident frame takes the smoothed moment. For a gated
-        # 'other' frame, store its own gate confidence — the smoothed emission
-        # prob belongs to some non-other state j and is meaningless for 'other'.
+        # otherwise-confident frame takes the smoothed moment with its
+        # forward-backward posterior. 'other' is a gate outcome, not a moment
+        # state, so it has no posterior — store a neutral 0.5 to keep the column
+        # on one 0-1 scale (the smoothed posterior of some non-other state j is
+        # meaningless for 'other').
         if raw_labels[i] == OTHER:
-            label, frame_conf = OTHER, raw_confs[i]
+            label, frame_conf = OTHER, OTHER_CONFIDENCE
         else:
             label, frame_conf = moments[j], conf
         updates.append((label, round(float(frame_conf), 4) if frame_conf is not None else None, paths[i]))
@@ -292,11 +299,10 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
         return {'labeled': 0, 'would_label': len(updates), 'spread': spread}
 
     with get_connection(db_path) as conn:
-        for k in range(0, len(updates), 500):
-            conn.executemany(
-                "UPDATE photos SET narrative_moment = ?, narrative_moment_confidence = ? "
-                "WHERE path = ?", updates[k:k + 500])
-            conn.commit()
+        _commit_in_chunks(
+            conn,
+            "UPDATE photos SET narrative_moment = ?, narrative_moment_confidence = ? "
+            "WHERE path = ?", updates)
     return {'labeled': len(updates), 'spread': spread}
 
 

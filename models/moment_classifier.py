@@ -11,15 +11,14 @@ only break near-ties. The per-frame probability vectors this produces feed the
 temporal-smoothing layer (``models/moment_smoothing.py``).
 """
 
+import json
+
 import numpy as np
 
 from models.tagger import encode_text_prompts
 from utils import bytes_to_embedding
 
 OTHER = 'other'
-
-# Couple-centric moments favoured when the frame is one or two large faces.
-_COUPLE_MOMENTS = ('couple_portraits', 'first_kiss', 'first_dance')
 
 
 class MomentClassifier:
@@ -31,7 +30,11 @@ class MomentClassifier:
         self.embedding_dim = embedding_dim
 
         nm = config.get_narrative_moments_config()
-        self.priors_cfg = nm.get('priors', {}) or {}
+        priors = config.get_moment_priors()
+        self.priors_enabled = priors['enabled']
+        self.prior_weight = priors['weight']
+        self.caption_tag_scale = priors['caption_tag_scale']
+        self.prior_rules = priors['rules']
         # Per-signal other-gate thresholds: caption cosines run ~2.4x higher
         # than image cosines, so each signal has its own confidence/margin.
         self.thresholds = {}
@@ -108,20 +111,21 @@ class MomentClassifier:
             return None
         return {m: float(s) for m, s in zip(self.moments, sims)}
 
-    def probabilities(self, embedding_bytes, photo_data=None):
+    def probabilities(self, embedding_bytes, photo_data=None, signal='image'):
         """Calibrated probability vector over moments (L0 softmax + L1 priors).
 
         Returns ``(moments, probs)`` or ``(None, None)``. ``probs`` is aligned to
-        ``self.moments`` and consumed by the temporal-smoothing layer.
+        ``self.moments`` and consumed by the temporal-smoothing layer. ``signal``
+        only affects priors (tag rules are down-weighted on the caption signal).
         """
         sims = self.score_vector(embedding_bytes)
         if sims is None:
             return None, None
         adjusted = sims.copy()
-        if self.priors_cfg.get('enabled', True):
+        if self.priors_enabled:
             # Nudge at the cosine scale (before the softmax temperature) so a
             # small prior only flips genuine near-ties, never a confident lead.
-            adjusted = adjusted + self._prior_logits(photo_data)
+            adjusted = adjusted + self._prior_logits(photo_data, signal)
         logits = adjusted / self.temperature
         logits = logits - logits.max()
         probs = np.exp(logits)
@@ -146,32 +150,80 @@ class MomentClassifier:
         if top1 < min_confidence or (top1 - top2) < min_margin:
             return OTHER, top1
         label = self.moments[order[0]]
-        if photo_data is not None and self.priors_cfg.get('enabled', True):
-            _, probs = self.probabilities(embedding_bytes, photo_data)
+        if photo_data is not None and self.priors_enabled:
+            _, probs = self.probabilities(embedding_bytes, photo_data, signal=signal)
             if probs is not None:
                 label = self.moments[int(np.argmax(probs))]
         return label, top1
 
-    def _prior_logits(self, photo_data):
-        """Small additive nudges from signals Facet already has (L1)."""
+    def _prior_logits(self, photo_data, signal='image'):
+        """Config-driven additive nudges from signals Facet already has (L1).
+
+        Each rule is ``{kind, when, boost}``: when ALL ``when`` predicates hold,
+        every ``boost`` entry is added to its moment. A boost targeting a moment
+        absent from the active vocabulary is silently skipped, so one rule set
+        degrades gracefully across vocabularies. Tag rules (``kind: 'tag'``) are
+        scaled by ``caption_tag_scale`` on the caption signal, where L0 already
+        encodes the caption's semantics; structural (face-geometry) rules — which
+        the caption embedding does not capture — keep full weight on both signals.
+        """
         bonus = np.zeros(len(self.moments), dtype=np.float32)
-        if not photo_data:
+        if not photo_data or not self.prior_rules:
             return bonus
-        weight = float(self.priors_cfg.get('weight', 0.04))
+        tags = self._tag_tokens(photo_data.get('tags'))
+        for rule in self.prior_rules:
+            if not isinstance(rule, dict) or not self._match(rule.get('when', {}), photo_data, tags):
+                continue
+            scale = (self.caption_tag_scale
+                     if signal == 'caption' and rule.get('kind') == 'tag' else 1.0)
+            for moment, amount in (rule.get('boost') or {}).items():
+                i = self._index.get(moment)
+                if i is not None:
+                    bonus[i] += float(amount) * scale
+        return bonus * self.prior_weight
 
-        def add(moment, amount):
-            i = self._index.get(moment)
-            if i is not None:
-                bonus[i] += amount
-
+    def _match(self, when, photo_data, tags):
+        """True when every predicate in ``when`` holds (empty ``when`` never fires)."""
+        if not when:
+            return False
         face_count = photo_data.get('face_count') or 0
         face_ratio = photo_data.get('face_ratio') or 0.0
-        if photo_data.get('is_group_portrait') and face_count >= 4:
-            add('family_formals', 1.0)
-        if face_count in (1, 2) and face_ratio >= 0.15:
-            for moment in _COUPLE_MOMENTS:
-                add(moment, 0.5)
-        tags = (photo_data.get('tags') or '').lower()
-        if 'cake' in tags:
-            add('cake_cutting', 1.0)
-        return bonus * weight
+        for key, expected in when.items():
+            if key == 'is_group_portrait':
+                if bool(photo_data.get('is_group_portrait')) != bool(expected):
+                    return False
+            elif key == 'face_count_min':
+                if face_count < expected:
+                    return False
+            elif key == 'face_count_max':
+                if face_count > expected:
+                    return False
+            elif key == 'face_ratio_min':
+                if face_ratio < expected:
+                    return False
+            elif key == 'face_ratio_max':
+                if face_ratio > expected:
+                    return False
+            elif key == 'tags_any':
+                if not (tags & {str(t).lower() for t in expected}):
+                    return False
+            elif key == 'tags_all':
+                if not ({str(t).lower() for t in expected} <= tags):
+                    return False
+        return True
+
+    @staticmethod
+    def _tag_tokens(tags):
+        """Exact-match lowercase token set from the photo's tags (JSON list or csv)."""
+        if not tags:
+            return set()
+        if isinstance(tags, str):
+            stripped = tags.strip()
+            if stripped.startswith('['):
+                try:
+                    tags = json.loads(stripped)
+                except (ValueError, TypeError):
+                    tags = stripped.split(',')
+            else:
+                tags = stripped.split(',')
+        return {str(t).strip().lower() for t in tags if str(t).strip()}

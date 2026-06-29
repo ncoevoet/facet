@@ -9,6 +9,29 @@ similarity to predefined tag vocabulary.
 from utils import bytes_to_embedding
 
 
+_tokenizer_cache = {}
+
+
+def _get_tokenizer(backend, model_name):
+    """Return a cached tokenizer for ``(backend, model_name)``.
+
+    ``from_pretrained``/``get_tokenizer`` are expensive and stateless, so a
+    process-level cache avoids re-instantiating once per moment prompt and once
+    per caption-backfill chunk.
+    """
+    key = (backend, model_name)
+    tokenizer = _tokenizer_cache.get(key)
+    if tokenizer is None:
+        if backend == 'transformers':
+            from transformers import AutoTokenizer
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+        else:
+            import open_clip
+            tokenizer = open_clip.get_tokenizer(model_name or 'ViT-L-14')
+        _tokenizer_cache[key] = tokenizer
+    return tokenizer
+
+
 def encode_text_prompts(model, model_name, backend, device, texts):
     """Return L2-normalized text embeddings for ``texts`` in the image space.
 
@@ -18,9 +41,8 @@ def encode_text_prompts(model, model_name, backend, device, texts):
     """
     import torch
 
+    tokenizer = _get_tokenizer(backend, model_name)
     if backend == 'transformers':
-        from transformers import AutoTokenizer
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
         inputs = tokenizer(
             texts, padding="max_length", max_length=64, truncation=True,
             return_tensors="pt",
@@ -30,8 +52,6 @@ def encode_text_prompts(model, model_name, backend, device, texts):
             if not isinstance(text_features, torch.Tensor):
                 text_features = text_features.pooler_output
     else:
-        import open_clip
-        tokenizer = open_clip.get_tokenizer(model_name or 'ViT-L-14')
         text_tokens = tokenizer(texts).to(device)
         with torch.no_grad():
             text_features = model.encode_text(text_tokens)

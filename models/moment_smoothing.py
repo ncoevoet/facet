@@ -9,6 +9,7 @@ surrounding run. It is a pure function — no model, no I/O.
 """
 
 import numpy as np
+from scipy.special import logsumexp
 
 _EPS = 1e-9
 _DEFAULT_SEGMENT_GAP_SECONDS = 6 * 3600
@@ -35,6 +36,31 @@ def _segment_ranges(timestamps, gap_seconds):
             start = i
     ranges.append((start, len(timestamps)))
     return ranges
+
+
+def _forward_backward(log_emit, log_trans):
+    """Per-frame log-posterior log P(state=j | all observations in the segment).
+
+    Soft-assignment counterpart of the Viterbi MAP path: γ_t(j) integrates the
+    emission with the full past (α) and future (β) context, so a per-frame
+    ambiguous state flanked by a confident run scores HIGH for the run's state.
+    The transition kernel is the same ``T**weight`` Viterbi uses (so γ is a
+    tempered posterior, not a coherent-HMM one), and it reduces to the
+    normalized per-frame emission at ``weight=0``.
+    """
+    n, m = log_emit.shape
+    if n == 0:
+        return log_emit
+    log_alpha = np.empty((n, m))
+    log_alpha[0] = log_emit[0]
+    for t in range(1, n):
+        log_alpha[t] = log_emit[t] + logsumexp(log_alpha[t - 1][:, None] + log_trans, axis=0)
+    log_beta = np.zeros((n, m))
+    for t in range(n - 2, -1, -1):
+        log_beta[t] = logsumexp(log_trans + (log_emit[t + 1] + log_beta[t + 1]), axis=1)
+    log_gamma = log_alpha + log_beta
+    log_gamma -= logsumexp(log_gamma, axis=1, keepdims=True)
+    return log_gamma
 
 
 def _viterbi(log_emit, log_trans):
@@ -71,7 +97,11 @@ def smooth(prob_vectors, timestamps, transitions, segment_gap_seconds=_DEFAULT_S
 
     Returns:
         list parallel to the input: ``(moment_index, confidence)`` for usable
-        frames, ``(None, None)`` otherwise.
+        frames, ``(None, None)`` otherwise. ``moment_index`` is the Viterbi MAP
+        state; ``confidence`` is its forward-backward posterior γ (temporally
+        aware, on a single 0-1 scale), NOT the raw per-frame emission — so a
+        frame the smoother rescued reports the run's confidence, not the
+        context-blind model's doubt.
     """
     n = len(prob_vectors)
     out = [(None, None)] * n
@@ -90,8 +120,10 @@ def smooth(prob_vectors, timestamps, transitions, segment_gap_seconds=_DEFAULT_S
         if not idxs:
             continue
         emit = np.stack([np.asarray(prob_vectors[i], dtype=np.float64) for i in idxs])
-        path = _viterbi(np.log(emit + _EPS), log_trans)
+        log_emit = np.log(emit + _EPS)
+        path = _viterbi(log_emit, log_trans)
+        log_gamma = _forward_backward(log_emit, log_trans)
         for local, global_i in enumerate(idxs):
             j = path[local]
-            out[global_i] = (j, float(emit[local, j]))
+            out[global_i] = (j, float(np.exp(log_gamma[local, j])))
     return out

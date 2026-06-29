@@ -17,7 +17,7 @@ _PROMPT_MOMENT_IDX = [0, 1, 2]
 
 def _classifier(min_confidence=0.3, min_margin=0.05, priors_enabled=True, weight=0.04,
                 moments=_MOMENTS, prompts=_PROMPTS, prompt_moment_idx=_PROMPT_MOMENT_IDX,
-                signal_thresholds=None, pooling='max'):
+                signal_thresholds=None, pooling='max', prior_rules=None, caption_tag_scale=0.25):
     clf = object.__new__(MomentClassifier)
     clf.moments = list(moments)
     clf._index = {m: i for i, m in enumerate(moments)}
@@ -31,7 +31,10 @@ def _classifier(min_confidence=0.3, min_margin=0.05, priors_enabled=True, weight
         'caption': (min_confidence, min_margin),
         'image': (min_confidence, min_margin),
     }
-    clf.priors_cfg = {'enabled': priors_enabled, 'weight': weight}
+    clf.priors_enabled = priors_enabled
+    clf.prior_weight = weight
+    clf.caption_tag_scale = caption_tag_scale
+    clf.prior_rules = prior_rules or []
     return clf
 
 
@@ -110,15 +113,40 @@ def test_caption_embedding_roundtrip():
 
 
 def test_group_portrait_prior_breaks_near_tie():
-    clf = _classifier(min_margin=0.0)
+    # A config-driven structural rule boosts family_formals on group portraits.
+    rules = [{'kind': 'structural', 'when': {'is_group_portrait': True, 'face_count_min': 4},
+              'boost': {'family_formals': 1.0}}]
     emb = _emb([0.70, 0.72, 0, 0])  # first_dance has the slightly higher cosine
     photo = {'face_count': 5, 'is_group_portrait': 1}
 
-    clf.priors_cfg = {'enabled': False, 'weight': 0.04}
-    assert clf.classify(emb, photo)[0] == 'first_dance'
+    off = _classifier(min_margin=0.0, priors_enabled=False, prior_rules=rules)
+    assert off.classify(emb, photo)[0] == 'first_dance'
 
-    clf.priors_cfg = {'enabled': True, 'weight': 0.04}
-    assert clf.classify(emb, photo)[0] == 'family_formals'
+    on = _classifier(min_margin=0.0, priors_enabled=True, prior_rules=rules)
+    assert on.classify(emb, photo)[0] == 'family_formals'
+
+
+def test_caption_signal_downweights_tag_prior():
+    # A tag prior strong enough to flip a near-tie on the image signal is scaled
+    # by caption_tag_scale on the caption signal (where L0 already encodes the
+    # caption), so it no longer flips the label there. Structural rules are exempt.
+    rules = [{'kind': 'tag', 'when': {'tags_any': ['party']}, 'boost': {'vows': 1.0}}]
+    emb = _emb([0.72, 0, 0.70, 0])     # family_formals leads vows by ~0.02 cosine
+    photo = {'tags': 'party'}
+    clf = _classifier(min_margin=0.0, prior_rules=rules, caption_tag_scale=0.25)
+    assert clf.classify(emb, photo, signal='image')[0] == 'vows'             # full-weight prior flips
+    assert clf.classify(emb, photo, signal='caption')[0] == 'family_formals'  # scaled prior does not
+
+
+def test_prior_boost_for_absent_moment_is_ignored():
+    # A boost targeting a moment outside the active vocabulary is silently
+    # skipped (graceful degradation), so the same rules work for any vocab.
+    rules = [{'kind': 'structural', 'when': {'is_group_portrait': True, 'face_count_min': 4},
+              'boost': {'cake_cutting': 5.0}}]
+    emb = _emb([0.70, 0.72, 0, 0])
+    photo = {'face_count': 5, 'is_group_portrait': 1}
+    clf = _classifier(min_margin=0.0, prior_rules=rules)
+    assert clf.classify(emb, photo)[0] == 'first_dance'
 
 
 def test_probabilities_sum_to_one():

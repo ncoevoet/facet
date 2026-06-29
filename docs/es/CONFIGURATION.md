@@ -1605,7 +1605,9 @@ La señal es **semántica de leyenda**: la leyenda de IA de cada foto se codific
 | `pooling` | `"max"` | Puntuación por momento = el mejor coseno de un único prompt (max-pool), más discriminativo que promediar |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Por debajo de este coseno top-1, una foto se etiqueta como `other`. Indexado por **señal** (`caption` frente a `image`) y luego por backend — los cosenos de leyenda son ~2,4× más altos |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Brecha coseno top-1/top-2 mínima; por debajo de ella el fotograma es `other` |
-| `priors.enabled` / `priors.weight` | `true` / `0.04` | Empujones L1 de rostro/etiqueta que solo deshacen casi-empates (activos para el vocabulario `wedding`) |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | Empujones L1 de rostro/etiqueta que solo deshacen casi-empates; `weight` limita cada ajuste a la escala del coseno |
+| `priors.caption_tag_scale` | `0.25` | Reduce las reglas `tag` en la señal caption (L0 ya codifica el pie de foto); las reglas estructurales conservan todo su peso |
+| `priors.rules` / `priors.event_types.<et>.rules` | (conjunto general) | Reglas declarativas `{kind, when, boost}` independientes del vocabulario; un `boost` hacia un momento ausente del vocabulario activo se omite. Las reglas por `event_type` reemplazan la lista global. Referencia completa de predicados: doc en inglés |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Suavizado L2 de la línea de tiempo (Viterbi): sesgo fuerte a permanecer sin progresión hacia delante (el vocabulario agnóstico no tiene un orden canónico), aplicado de forma ligera (`weight=0` = sin suavizado) |
 | `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | L3 opcional: reclasificar los fotogramas de bajo margen con el VLM Qwen (solo 16gb/24gb) |
 | `event_types` | `general` + `wedding` | `{moment: [sinónimos de prompt]}` por tipo de evento; establece `default_event_type` para cambiar de género o añadir el tuyo propio |
