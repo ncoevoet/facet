@@ -1592,6 +1592,7 @@ Configuration:
         exit()
 
     if args.discover_moments:
+        init_database(args.db)  # ensure caption_embedding column exists (graceful skip if empty)
         from models.moment_discovery import run_discovery
         result = run_discovery(args.db, ScoringConfig(args.config, validate=False),
                                min_cluster_size=args.discover_min_cluster_size)
@@ -1605,9 +1606,10 @@ Configuration:
                         c['name'], c['size'], ", ".join(c['keywords']) or "-",
                         " | ".join(c['sample']))
         if result.get('output'):
-            logger.info("Wrote proposed vocabulary to %s — review it, then set "
-                        "narrative_moments.default_event_type to 'discovered' and run "
-                        "--recompute-moments to adopt.", result['output'])
+            logger.info("Wrote proposed vocabulary to %s — review it, then merge its "
+                        "'discovered' block into narrative_moments.event_types in %s, set "
+                        "default_event_type to 'discovered', and run --recompute-moments to adopt.",
+                        result['output'], args.config)
         exit()
 
     # Recompute average scores (lightweight - no GPU needed)

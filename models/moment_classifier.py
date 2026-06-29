@@ -44,6 +44,7 @@ class MomentClassifier:
         # open_clip cosines (~0.15-0.30) are far lower than SigLIP's, so use a
         # tighter softmax temperature there to keep the probability vector usable.
         self.temperature = 0.05 if backend == 'transformers' else 0.02
+        self.pooling = nm.get('pooling', 'max')
 
         template = nm.get('prompt_template', 'a photo of {desc}')
         vocab = config.get_narrative_moment_vocabulary()
@@ -68,10 +69,12 @@ class MomentClassifier:
         self.prompt_moment_idx = np.asarray(prompt_moment_idx, dtype=np.int64)
 
     def score_vector(self, embedding_bytes):
-        """Per-moment **max-pooled** cosine of the embedding vs the prompt matrix.
+        """Per-moment pooled cosine of the embedding vs the prompt matrix.
 
-        Signal-agnostic: works for a caption text embedding or an image
-        embedding (both live in the shared CLIP space). Returns an ndarray
+        Pools the per-prompt cosines back to a moment with ``self.pooling``
+        (``max`` — the single best prompt, the default and more discriminative —
+        or ``mean``). Signal-agnostic: works for a caption text embedding or an
+        image embedding (both live in the shared CLIP space). Returns an ndarray
         aligned to ``self.moments``, or None when the embedding is missing,
         zero, or of a different dimension than the prompts (mixed CLIP-768 /
         SigLIP-1152 DB).
@@ -88,6 +91,12 @@ class MomentClassifier:
         if norm == 0:
             return None
         per_prompt = self.prompt_matrix @ (emb / norm)        # (P,)
+        if self.pooling == 'mean':
+            sims = np.zeros(len(self.moments), dtype=np.float32)
+            counts = np.zeros(len(self.moments), dtype=np.float32)
+            np.add.at(sims, self.prompt_moment_idx, per_prompt)
+            np.add.at(counts, self.prompt_moment_idx, 1.0)
+            return np.divide(sims, counts, out=np.full_like(sims, -1.0), where=counts > 0)
         sims = np.full(len(self.moments), -1.0, dtype=np.float32)
         np.maximum.at(sims, self.prompt_moment_idx, per_prompt)
         return sims

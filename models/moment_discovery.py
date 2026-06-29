@@ -31,10 +31,14 @@ def _keywords_per_cluster(docs, top_n):
     try:
         from sklearn.feature_extraction.text import TfidfVectorizer
     except ImportError:
+        logger.warning("scikit-learn not installed; discovered moments fall back to generic names")
         return [[] for _ in docs]
     if not docs:
         return []
-    vec = TfidfVectorizer(stop_words='english', ngram_range=(1, 2), min_df=1, max_df=0.8)
+    # With a single document every term has 100% document-frequency, so a <1.0
+    # max_df would prune them all; relax the contrast filter in that case.
+    max_df = 1.0 if len(docs) <= 1 else 0.8
+    vec = TfidfVectorizer(stop_words='english', ngram_range=(1, 2), min_df=1, max_df=max_df)
     try:
         matrix = vec.fit_transform(docs)
     except ValueError:

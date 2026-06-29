@@ -17,7 +17,7 @@ _PROMPT_MOMENT_IDX = [0, 1, 2]
 
 def _classifier(min_confidence=0.3, min_margin=0.05, priors_enabled=True, weight=0.04,
                 moments=_MOMENTS, prompts=_PROMPTS, prompt_moment_idx=_PROMPT_MOMENT_IDX,
-                signal_thresholds=None):
+                signal_thresholds=None, pooling='max'):
     clf = object.__new__(MomentClassifier)
     clf.moments = list(moments)
     clf._index = {m: i for i, m in enumerate(moments)}
@@ -26,6 +26,7 @@ def _classifier(min_confidence=0.3, min_margin=0.05, priors_enabled=True, weight
     clf.embedding_dim = clf.prompt_matrix.shape[1]
     clf.backend = 'transformers'
     clf.temperature = 0.05
+    clf.pooling = pooling
     clf.thresholds = signal_thresholds or {
         'caption': (min_confidence, min_margin),
         'image': (min_confidence, min_margin),
@@ -74,6 +75,18 @@ def test_max_pool_per_moment():
     clf = _classifier(moments=moments, prompts=prompts, prompt_moment_idx=idx)
     scores = clf.scores(_emb([0, 1, 0, 0]))
     assert abs(scores['m0'] - 1.0) < 1e-6
+    assert abs(scores['m1'] - 0.0) < 1e-6
+
+
+def test_mean_pool_per_moment():
+    # 'm0' has two prompts on orthogonal axes; mean-pool averages their cosines
+    # (here (1.0 + 0.0)/2 = 0.5), unlike max-pool which would report 1.0.
+    moments = ['m0', 'm1']
+    prompts = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]]
+    idx = [0, 0, 1]
+    clf = _classifier(moments=moments, prompts=prompts, prompt_moment_idx=idx, pooling='mean')
+    scores = clf.scores(_emb([0, 1, 0, 0]))
+    assert abs(scores['m0'] - 0.5) < 1e-6
     assert abs(scores['m1'] - 0.0) < 1e-6
 
 
