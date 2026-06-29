@@ -57,7 +57,64 @@ def _scene_config():
         'max_scene_size': int(sc.get('max_scene_size', _DEFAULT_MAX_SCENE_SIZE)),
         'adaptive': bool(sc.get('adaptive', _DEFAULT_ADAPTIVE)),
         'adaptive_k': float(sc.get('adaptive_k', _DEFAULT_ADAPTIVE_K)),
+        'split_on_moment_change': bool(sc.get('split_on_moment_change', False)),
+        'moment_split_min_run': int(sc.get('moment_split_min_run', 4)),
     }
+
+
+def _photos_has_moment(conn):
+    """True when the photos table carries the narrative_moment column.
+
+    Guards the optional moment naming/splitting so scenes still work on a DB that
+    predates ``--detect-moments`` (the column is added by init_database, but test
+    fixtures and un-migrated DBs may lack it).
+    """
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(photos)").fetchall()}
+    return 'narrative_moment' in cols
+
+
+def _dominant_moment(rows):
+    """Confidence-weighted dominant moment label across a scene's rows."""
+    weights = {}
+    for r in rows:
+        moment = r['narrative_moment']
+        if not moment:
+            continue
+        conf = r['narrative_moment_confidence']
+        weights[moment] = weights.get(moment, 0.0) + (conf if conf is not None else 0.5)
+    if not weights:
+        return None, None
+    best = max(weights, key=weights.get)
+    total = sum(weights.values())
+    return best, (round(weights[best] / total, 3) if total else None)
+
+
+def _split_on_moment(run, min_run):
+    """Sub-split a time-run where the dominant moment changes and holds.
+
+    A boundary is placed where the moment differs from the previous frame, the
+    new moment persists for at least ``min_run`` frames, and the current segment
+    already holds at least ``min_run`` frames (hysteresis against single-frame
+    flips). ``run`` is a list of ``(row, datetime)`` tuples.
+    """
+    if min_run < 1 or len(run) < 2 * min_run:
+        return [run]
+    labels = [r['narrative_moment'] for r, _ in run]
+    boundaries = [0]
+    i = 1
+    while i < len(run):
+        cur = labels[i]
+        if cur is not None and cur != labels[i - 1]:
+            persist = 1
+            while i + persist < len(run) and labels[i + persist] == cur:
+                persist += 1
+            if persist >= min_run and (i - boundaries[-1]) >= min_run:
+                boundaries.append(i)
+                i += persist
+                continue
+        i += 1
+    boundaries.append(len(run))
+    return [run[boundaries[k]:boundaries[k + 1]] for k in range(len(boundaries) - 1)]
 
 
 def _effective_gap_seconds(items, cfg):
@@ -125,9 +182,11 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
     album_sql, album_params = album_filter_clause(album_id)
     window_clauses, window_params = time_window_clauses(date_from, date_to)
 
+    has_moment = _photos_has_moment(conn)
     cache_key = (
         f"scenes_{cfg['gap_minutes']}_{cfg['min_size']}_{cfg['max_scene_size']}"
-        f"_{cfg['adaptive']}_{cfg['adaptive_k']}_{album_id}_{date_from}_{date_to}_{user_id}"
+        f"_{cfg['adaptive']}_{cfg['adaptive_k']}_{cfg['split_on_moment_change']}"
+        f"_{cfg['moment_split_min_run']}_{album_id}_{date_from}_{date_to}_{user_id}"
     )
     cached = conn.execute(
         "SELECT value, updated_at FROM stats_cache WHERE key = ?", (cache_key,)
@@ -138,6 +197,9 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
         except (json.JSONDecodeError, TypeError):
             pass
 
+    select_cols = "path, filename, aggregate, date_taken"
+    if has_moment:
+        select_cols += ", narrative_moment, narrative_moment_confidence"
     where = [
         "date_taken IS NOT NULL",
         "(is_burst_lead = 1 OR is_burst_lead IS NULL)",
@@ -146,7 +208,7 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
         album_sql,
     ] + window_clauses
     rows = conn.execute(
-        f"""SELECT path, filename, aggregate, date_taken
+        f"""SELECT {select_cols}
            FROM photos
            WHERE {' AND '.join(where)}
            ORDER BY date_taken ASC
@@ -171,25 +233,33 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
     if current:
         runs.append(current)
 
+    split_on_moment = has_moment and cfg['split_on_moment_change']
     scenes = []
     for run in runs:
-        for chunk in _split_oversized(run, cfg['max_scene_size']):
-            if len(chunk) < cfg['min_size']:
-                continue
-            chunk_rows = [r for r, _ in chunk]
-            best = max(chunk_rows, key=lambda p: p['aggregate'] if p['aggregate'] is not None else -1.0)
-            scenes.append({
-                'scene_id': len(scenes),
-                'start': chunk_rows[0]['date_taken'],
-                'end': chunk_rows[-1]['date_taken'],
-                'count': len(chunk_rows),
-                'best_path': best['path'],
-                'photos': [
-                    {'path': p['path'], 'filename': p['filename'], 'aggregate': p['aggregate'],
-                     'date_taken': p['date_taken']}
-                    for p in chunk_rows
-                ],
-            })
+        moment_runs = (
+            _split_on_moment(run, cfg['moment_split_min_run']) if split_on_moment else [run]
+        )
+        for sub in moment_runs:
+            for chunk in _split_oversized(sub, cfg['max_scene_size']):
+                if len(chunk) < cfg['min_size']:
+                    continue
+                chunk_rows = [r for r, _ in chunk]
+                best = max(chunk_rows, key=lambda p: p['aggregate'] if p['aggregate'] is not None else -1.0)
+                scene = {
+                    'scene_id': len(scenes),
+                    'start': chunk_rows[0]['date_taken'],
+                    'end': chunk_rows[-1]['date_taken'],
+                    'count': len(chunk_rows),
+                    'best_path': best['path'],
+                    'photos': [
+                        {'path': p['path'], 'filename': p['filename'], 'aggregate': p['aggregate'],
+                         'date_taken': p['date_taken']}
+                        for p in chunk_rows
+                    ],
+                }
+                if has_moment:
+                    scene['moment'], scene['moment_confidence'] = _dominant_moment(chunk_rows)
+                scenes.append(scene)
 
     conn.execute(
         "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",

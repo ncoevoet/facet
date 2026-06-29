@@ -33,6 +33,8 @@ class Photo(BaseModel):
     isolation_bonus: Optional[float] = None
     aggregate: Optional[float] = None
     category: Optional[str] = None
+    narrative_moment: Optional[str] = None
+    narrative_moment_confidence: Optional[float] = None
     tags: Optional[str] = None
     tags_list: list[str] = []
     composition_pattern: Optional[str] = None
@@ -153,6 +155,7 @@ class GalleryParams(BaseModel):
     # Content flags
     is_monochrome: str = ''
     category: str = ''
+    narrative_moment: str = ''
     # Color facet (opt-in extraction, always-on filter)
     color_temp: str = ''        # warm | cool | neutral
     hue_bucket: str = ''        # red | orange | yellow | green | cyan | blue | purple | magenta

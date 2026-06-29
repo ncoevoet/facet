@@ -135,6 +135,62 @@ def test_time_window_scopes_scenes():
     assert scenes[0]["best_path"] == "/b1.jpg"
 
 
+_MOMENT_SCHEMA = """
+    CREATE TABLE photos (
+        path TEXT PRIMARY KEY, filename TEXT, aggregate REAL, date_taken TEXT,
+        is_burst_lead INTEGER, is_rejected INTEGER, category TEXT,
+        narrative_moment TEXT, narrative_moment_confidence REAL
+    );
+    CREATE TABLE album_photos (id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT);
+    CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
+"""
+
+
+def _moment_db(photos):
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.executescript(_MOMENT_SCHEMA)
+    conn.executemany(
+        "INSERT INTO photos (path, filename, aggregate, date_taken, is_burst_lead, "
+        "is_rejected, category, narrative_moment, narrative_moment_confidence) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", photos)
+    conn.commit()
+    return conn
+
+
+def test_scene_named_by_dominant_moment():
+    photos = [
+        (f"/v{i}.jpg", f"v{i}.jpg", 7.0, f"2024:06:15 10:0{i}:00", 1, 0, None,
+         "vows" if i != 2 else "first_kiss", 0.8)
+        for i in range(5)
+    ]
+    conn = _moment_db(photos)
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        scenes = compute_scenes(conn, user_id=None)
+    assert len(scenes) == 1
+    assert scenes[0]["moment"] == "vows"          # weighted mode over the 5 frames
+    assert scenes[0]["moment_confidence"] is not None
+
+
+def test_split_on_moment_change(monkeypatch):
+    # One continuous time-run: first 5 frames 'vows', next 5 'first_dance'.
+    photos = [
+        (f"/m{i}.jpg", f"m{i}.jpg", 7.0, f"2024:06:15 10:{i:02d}:00", 1, 0, None,
+         "vows" if i < 5 else "first_dance", 0.8)
+        for i in range(10)
+    ]
+    conn = _moment_db(photos)
+    monkeypatch.setattr("api.routers.scenes._scene_config", lambda: {
+        'gap_minutes': 20.0, 'min_size': 2, 'max_photos': 5000, 'max_scene_size': 60,
+        'adaptive': True, 'adaptive_k': 6.0,
+        'split_on_moment_change': True, 'moment_split_min_run': 4,
+    })
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        scenes = compute_scenes(conn, user_id=None)
+    assert len(scenes) == 2                        # split on the moment change
+    assert {s["moment"] for s in scenes} == {"vows", "first_dance"}
+
+
 def test_get_scenes_paginates(client):
     conn = _db()
     with (

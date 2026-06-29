@@ -156,6 +156,106 @@ def _log_scan_db_destination(db_path: str):
         )
 
 
+def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
+                         dry_run=False, verbose_count=0):
+    """Label photos with their narrative moment (zero-shot CLIP + L2 smoothing).
+
+    Cheap: the embedding model's text tower is encoded once, then each photo is a
+    dot product over its already-stored embedding — no image decode, no per-image
+    model pass — so it runs in seconds and is safe to chain at the end of a scan.
+    Reuses ``model_manager`` (and its RAM-cached CLIP) when given; otherwise loads
+    its own. Returns a summary dict.
+    """
+    from collections import Counter
+    from models.model_manager import ModelManager
+    from models.moment_classifier import MomentClassifier, OTHER
+    from models import moment_smoothing
+    from utils.date_utils import parse_date
+
+    if not config.get_narrative_moments_config().get('enabled', False):
+        return {'skipped': 'disabled'}
+
+    owns_manager = model_manager is None
+    if owns_manager:
+        config.check_vram_profile_compatibility(verbose=True)
+        model_manager = ModelManager(config)
+    clip = model_manager.load_model_only('clip')
+    if not clip:
+        if owns_manager:
+            model_manager.unload_all()
+        return {'skipped': 'no_model'}
+
+    classifier = MomentClassifier(
+        clip_model=clip['model'], device=model_manager.device, config=config,
+        model_name=clip['model_name'], backend=clip['backend'],
+        embedding_dim=clip['embedding_dim'],
+    )
+    transitions = config.get_moment_transitions()
+
+    where = "clip_embedding IS NOT NULL"
+    if only_missing:
+        where += " AND narrative_moment IS NULL"
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT path, clip_embedding, face_count, face_ratio, is_group_portrait, "
+            f"tags, date_taken FROM photos WHERE {where} ORDER BY date_taken ASC"
+        ).fetchall()
+
+    if not rows:
+        if owns_manager:
+            model_manager.unload_all()
+        return {'labeled': 0, 'spread': {}}
+
+    # L0 + L1: per-frame probability vectors and the no-smoothing label.
+    prob_vectors, raw_labels, timestamps, paths = [], [], [], []
+    verbose_left = verbose_count
+    for row in tqdm(rows, desc="Moments (score)"):
+        photo_data = {
+            'face_count': row['face_count'], 'face_ratio': row['face_ratio'],
+            'is_group_portrait': row['is_group_portrait'], 'tags': row['tags'],
+        }
+        _, probs = classifier.probabilities(row['clip_embedding'], photo_data)
+        raw_label, _ = classifier.classify(row['clip_embedding'], photo_data)
+        prob_vectors.append(probs)
+        raw_labels.append(raw_label)
+        timestamps.append(parse_date(row['date_taken']))
+        paths.append(row['path'])
+        if verbose_left > 0:
+            scores = classifier.scores(row['clip_embedding'])
+            if scores:
+                top3 = sorted(scores.items(), key=lambda kv: -kv[1])[:3]
+                logger.info("  %s -> %s", row['path'],
+                            ", ".join(f"{m}={v:.3f}" for m, v in top3))
+                verbose_left -= 1
+
+    # L2: temporal smoothing along the timeline.
+    smoothed = moment_smoothing.smooth(prob_vectors, timestamps, transitions)
+    moments = classifier.moments
+    updates = []
+    for i, (j, conf) in enumerate(smoothed):
+        if j is None or raw_labels[i] is None:
+            continue
+        # The per-frame 'other' gate (low confidence/margin) overrides; an
+        # otherwise-confident frame takes the smoothed moment.
+        label = OTHER if raw_labels[i] == OTHER else moments[j]
+        updates.append((label, round(float(conf), 4) if conf is not None else None, paths[i]))
+
+    spread = dict(Counter(u[0] for u in updates).most_common())
+    if owns_manager:
+        model_manager.unload_all()
+
+    if dry_run:
+        return {'labeled': 0, 'would_label': len(updates), 'spread': spread}
+
+    with get_connection(db_path) as conn:
+        for k in range(0, len(updates), 500):
+            conn.executemany(
+                "UPDATE photos SET narrative_moment = ?, narrative_moment_confidence = ? "
+                "WHERE path = ?", updates[k:k + 500])
+            conn.commit()
+    return {'labeled': len(updates), 'spread': spread}
+
+
 def main():
     import argparse
 
@@ -280,6 +380,10 @@ Configuration:
                         help='Re-tag all photos using configured tagging model')
     db_group.add_argument('--recompute-tags-vlm', action='store_true',
                         help='Re-tag all photos using VLM model (loads images from disk, defaults to qwen3-vl-2b)')
+    db_group.add_argument('--detect-moments', action='store_true',
+                        help='Label each photo with its narrative moment (zero-shot CLIP + temporal smoothing); skips already-labeled photos')
+    db_group.add_argument('--recompute-moments', action='store_true',
+                        help='Re-label narrative moments for the whole library (re-smooths the full timeline)')
     db_group.add_argument('--backfill-focal-35mm', action='store_true',
                         help='Backfill focal_length_35mm from EXIF for photos missing it')
     db_group.add_argument('--score-topiq', action='store_true',
@@ -1412,6 +1516,33 @@ Configuration:
 
         exit()
 
+    if args.detect_moments or args.recompute_moments:
+        config = ScoringConfig(args.config)
+        if not config.get_narrative_moments_config().get('enabled', False):
+            logger.error("narrative_moments is disabled in scoring_config.json; nothing to do.")
+            exit(0)
+        logger.info("Detecting narrative moments (event type: %s)",
+                    config.get_active_event_type())
+        # --recompute-moments re-smooths the whole library; --detect-moments only
+        # labels photos that have no moment yet.
+        result = run_moment_detection(
+            args.db, config,
+            only_missing=args.detect_moments and not args.recompute_moments,
+            dry_run=args.dry_run,
+            verbose_count=args.dry_run_count if args.verbose else 0,
+        )
+        if result.get('skipped'):
+            logger.error("Moment detection skipped: %s", result['skipped'])
+            exit(1)
+        spread = ", ".join(f"{m}={n}" for m, n in result.get('spread', {}).items())
+        logger.info("Moment spread: %s", spread or "(none)")
+        if args.dry_run:
+            logger.info("Dry-run: %d photos would be labeled (no writes).",
+                        result.get('would_label', 0))
+        else:
+            logger.info("Labeled %d photos with narrative moments", result.get('labeled', 0))
+        exit()
+
     # Recompute average scores (lightweight - no GPU needed)
     if args.recompute_average or args.recompute_category:
         scorer = Facet(db_path=args.db, config_path=args.config, lightweight=True)
@@ -1931,6 +2062,21 @@ Configuration:
         logger.info("Tagged %d photos with missing tags.", tagged)
     elif tagged == 0:
         logger.info("No new tags assigned (all photos already tagged, or none cleared the similarity threshold).")
+
+    # 7. Narrative moments — cheap (cosine over the embeddings just computed),
+    # so label newly-scanned photos automatically. Reuses the scorer's
+    # RAM-cached embedding model; no-ops when narrative_moments is disabled.
+    if scorer.config.get_narrative_moments_config().get('enabled', False):
+        emit_progress('moments', force=True)
+        try:
+            result = run_moment_detection(
+                scorer.db_path, scorer.config,
+                model_manager=getattr(scorer, 'model_manager', None), only_missing=True,
+            )
+            if result.get('labeled'):
+                logger.info("Labeled %d new photos with narrative moments.", result['labeled'])
+        except Exception:
+            logger.warning("Narrative-moment detection failed (non-fatal)", exc_info=True)
 
     _print_scan_summary(scorer.db_path, todo_list, raw_paired_skipped)
 

@@ -172,6 +172,7 @@ PHOTO_OPTIONAL_COLS = [
     'duplicate_group_id', 'is_duplicate_lead',
     'caption', 'caption_translated', 'gps_latitude', 'gps_longitude',
     'dominant_hue', 'color_temp',
+    'narrative_moment', 'narrative_moment_confidence',
 ]
 
 

@@ -394,6 +394,30 @@ async def categories(user: Optional[CurrentUser] = Depends(get_optional_user)):
     return await _cached_filter_query('categories', 'categories', query)
 
 
+@router.get("/narrative_moments")
+async def narrative_moments(user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Lazy-load narrative-moment options with counts."""
+    vis, vp = _vis_where(user)
+
+    async def query(conn):
+        try:
+            rows = await _fetch_all(
+                conn,
+                f"""
+                SELECT narrative_moment, COUNT(*) as cnt FROM photos
+                WHERE narrative_moment IS NOT NULL{vis}
+                GROUP BY narrative_moment ORDER BY cnt DESC
+                """,
+                vp,
+            )
+            return [(r[0], r[1]) for r in rows]
+        except sqlite3.Error:
+            logger.exception("Failed to query narrative_moments")
+            return []
+
+    return await _cached_filter_query('narrative_moments', 'narrative_moments', query)
+
+
 @router.get("/location_name")
 def location_name(lat: float, lng: float):
     """Reverse geocode coordinates to a place name, using location_names cache.

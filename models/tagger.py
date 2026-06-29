@@ -9,6 +9,35 @@ similarity to predefined tag vocabulary.
 from utils import bytes_to_embedding
 
 
+def encode_text_prompts(model, model_name, backend, device, texts):
+    """Return L2-normalized text embeddings for ``texts`` in the image space.
+
+    Shared by the tagger and the narrative-moment classifier so the SigLIP
+    ``max_length=64`` padding rule (dynamic padding collapses similarities to
+    noise) lives in exactly one place.
+    """
+    import torch
+
+    if backend == 'transformers':
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        inputs = tokenizer(
+            texts, padding="max_length", max_length=64, truncation=True,
+            return_tensors="pt",
+        ).to(device)
+        with torch.no_grad():
+            text_features = model.get_text_features(**inputs)
+            if not isinstance(text_features, torch.Tensor):
+                text_features = text_features.pooler_output
+    else:
+        import open_clip
+        tokenizer = open_clip.get_tokenizer(model_name or 'ViT-L-14')
+        text_tokens = tokenizer(texts).to(device)
+        with torch.no_grad():
+            text_features = model.encode_text(text_tokens)
+    return text_features / text_features.norm(dim=-1, keepdim=True)
+
+
 class CLIPTagger:
     """
     Generates semantic tags for images using stored CLIP/SigLIP embeddings.
@@ -74,36 +103,13 @@ class CLIPTagger:
 
     def _precompute_text_open_clip(self, all_texts):
         """Precompute text embeddings using open_clip."""
-        import torch
-        import open_clip
-
-        tokenizer = open_clip.get_tokenizer(self.model_name or 'ViT-L-14')
-        text_tokens = tokenizer(all_texts).to(self.device)
-
-        with torch.no_grad():
-            text_features = self.model.encode_text(text_tokens)
-            self.text_embeddings = text_features / text_features.norm(dim=-1, keepdim=True)
+        self.text_embeddings = encode_text_prompts(
+            self.model, self.model_name, 'open_clip', self.device, all_texts)
 
     def _precompute_text_transformers(self, all_texts):
         """Precompute text embeddings using transformers AutoProcessor."""
-        import torch
-        from transformers import AutoTokenizer
-
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        # SigLIP/SigLIP2 are trained with a fixed 64-token context and max_length
-        # padding. Dynamic padding (padding=True) shifts the text embeddings out of
-        # the image-text space, collapsing all tag similarities to noise (~0.03-0.05
-        # cosine) so nothing clears the threshold. Pad to the trained length instead.
-        inputs = tokenizer(
-            all_texts, padding="max_length", max_length=64, truncation=True,
-            return_tensors="pt",
-        ).to(self.device)
-
-        with torch.no_grad():
-            text_features = self.model.get_text_features(**inputs)
-            if not isinstance(text_features, torch.Tensor):
-                text_features = text_features.pooler_output
-            self.text_embeddings = text_features / text_features.norm(dim=-1, keepdim=True)
+        self.text_embeddings = encode_text_prompts(
+            self.model, self.model_name, 'transformers', self.device, all_texts)
 
     def get_tags_from_embedding(self, clip_embedding_bytes, threshold=0.25, max_tags=5):
         """

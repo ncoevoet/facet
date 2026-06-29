@@ -1997,7 +1997,42 @@
     "max_photos": 5000,
     "max_scene_size": 60,
     "adaptive": true,
-    "adaptive_k": 6.0
+    "adaptive_k": 6.0,
+    "split_on_moment_change": false,
+    "moment_split_min_run": 4
+  },
+  "narrative_moments": {
+    "enabled": true,
+    "prompt_template": "a photo of {desc}",
+    "default_event_type": "wedding",
+    "pooling": "mean",
+    "thresholds": {
+      "open_clip": { "min_confidence": 0.20, "min_margin": 0.015 },
+      "transformers": { "min_confidence": 0.10, "min_margin": 0.010 }
+    },
+    "priors": { "enabled": true, "weight": 0.04 },
+    "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
+    "transitions": { "stay_prob": 0.6, "forward_bias": 0.3, "weight": 0.5 },
+    "event_types": {
+      "wedding": {
+        "getting_ready_bride": ["a bride getting ready", "bridal hair and makeup preparation", "bridesmaids helping the bride into her wedding dress", "bride putting on jewelry before the wedding"],
+        "getting_ready_groom": ["a groom getting ready", "groom putting on his suit and tie", "groomsmen helping the groom with his boutonniere", "men dressing for a wedding"],
+        "ceremony_entrance": ["the wedding processional down the aisle", "bride walking down the aisle with her father", "guests seated as the wedding ceremony begins", "flower girl entering the ceremony"],
+        "vows": ["the couple exchanging vows at the altar", "bride and groom holding hands during the ceremony", "an officiant leading a wedding ceremony"],
+        "ring_exchange": ["exchanging wedding rings", "placing a wedding ring on the finger", "close-up of wedding rings during the ceremony"],
+        "first_kiss": ["the first kiss as a married couple at the altar", "bride and groom kissing during the ceremony"],
+        "recessional": ["newlyweds walking back up the aisle", "wedding recessional with guests cheering and throwing confetti"],
+        "family_formals": ["a formal group portrait of the wedding family", "a large group of relatives posed for a wedding photo", "the wedding party group portrait"],
+        "couple_portraits": ["a romantic portrait of the bride and groom alone", "newlyweds posing together outdoors", "a wedding couple portrait session"],
+        "cocktail_hour": ["guests mingling with drinks at a cocktail hour", "people chatting and holding champagne at a wedding reception"],
+        "reception_details": ["decorated wedding reception tables", "wedding centerpieces and place settings", "the wedding cake on display", "venue and floral decor close-ups"],
+        "dinner_toasts": ["a guest giving a speech at the wedding reception", "the best man toast with a microphone", "a seated wedding dinner with guests listening to a toast"],
+        "cake_cutting": ["the couple cutting the wedding cake together", "bride and groom slicing the cake"],
+        "first_dance": ["the bride and groom sharing their first dance", "newlyweds dancing alone on the dance floor"],
+        "party_dancing": ["guests dancing at a wedding party", "a crowded dance floor with colorful lights at a reception"],
+        "send_off": ["the wedding send-off with sparklers", "newlyweds leaving as guests wave goodbye", "the couple departing in a getaway car"]
+      }
+    }
   },
   "capsules": {
     "min_aggregate": 6.0,

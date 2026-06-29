@@ -54,6 +54,7 @@ AUTH_ROUTES = [
     '/api/filter_options/apertures',
     '/api/filter_options/focal_lengths',
     '/api/filter_options/categories',
+    '/api/filter_options/narrative_moments',
     '/api/filter_options/persons',
     '/api/filter_options/patterns',
     '/api/stats/overview',

@@ -14,7 +14,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { isTypingContext } from '../../shared/utils/keyboard';
-import { SceneRejectedPipe, SceneRejectCountPipe, SceneDatePipe } from './scenes.pipes';
+import { SceneRejectedPipe, SceneRejectCountPipe, SceneDatePipe, MomentLabelPipe } from './scenes.pipes';
 import { I18N } from '../../core/i18n/keys';
 
 interface ScenePhoto {
@@ -31,6 +31,8 @@ interface Scene {
   count: number;
   best_path: string;
   photos: ScenePhoto[];
+  moment?: string | null;
+  moment_confidence?: number | null;
 }
 
 interface ScenesResponse {
@@ -58,6 +60,7 @@ interface ScenesResponse {
     SceneRejectedPipe,
     SceneRejectCountPipe,
     SceneDatePipe,
+    MomentLabelPipe,
   ],
   template: `
     <div class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%]">
@@ -91,6 +94,11 @@ interface ScenesResponse {
               <mat-icon class="!text-base text-white/60">schedule</mat-icon>
               <span class="text-sm text-white/80">{{ scene.start | sceneDate }}</span>
               <span class="text-xs text-white/40">· {{ scene.count }} {{ I18N.scenes.photos | translate }}</span>
+              @if (scene.moment | momentLabel; as momentLabel) {
+                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]">
+                  <mat-icon class="!text-sm !w-4 !h-4 !leading-4">auto_awesome</mat-icon>{{ momentLabel }}
+                </span>
+              }
               <button mat-flat-button color="primary" class="!ml-auto"
                       (click)="cullScene(scene)">
                 <mat-icon>movie_filter</mat-icon>

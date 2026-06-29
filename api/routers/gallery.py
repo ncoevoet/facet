@@ -218,6 +218,10 @@ def _apply_text_filters(where_clauses, sql_params, params, conn):
         where_clauses.append("category = ?")
         sql_params.append(params['category'])
 
+    if params.get('narrative_moment'):
+        where_clauses.append("narrative_moment = ?")
+        sql_params.append(params['narrative_moment'])
+
     if params.get('is_silhouette') == '1':
         where_clauses.append("is_silhouette = 1")
 

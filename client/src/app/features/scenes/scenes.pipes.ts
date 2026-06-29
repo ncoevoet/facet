@@ -27,3 +27,12 @@ export class SceneDatePipe implements PipeTransform {
     return `${d}/${mo}/${y} ${h}:${min}`;
   }
 }
+
+/** Prettify a narrative-moment key ("first_dance") into a label ("First Dance"). */
+@Pipe({ name: 'momentLabel' })
+export class MomentLabelPipe implements PipeTransform {
+  transform(value: string | null | undefined): string {
+    if (!value || value === 'other') return '';
+    return value.split('_').map(w => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(' ');
+  }
+}

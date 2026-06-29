@@ -785,6 +785,36 @@ class ScoringConfig:
         """Get set of tags that indicate artwork."""
         return set(self.get_category_tags('art'))
 
+    def get_narrative_moments_config(self):
+        """Return the narrative_moments config block (empty/disabled if absent)."""
+        nm = self.config.get('narrative_moments', {})
+        if not isinstance(nm, dict):
+            return {'enabled': False}
+        return nm
+
+    def get_active_event_type(self):
+        """Return the configured default event type (e.g. 'wedding')."""
+        return self.get_narrative_moments_config().get('default_event_type', 'wedding')
+
+    def get_narrative_moment_vocabulary(self, event_type=None):
+        """Return ``{moment: [prompt synonyms]}`` for the active/given event type.
+
+        The narrative-moment analog of ``get_tag_vocabulary()``. Insertion order
+        of the moments is the canonical chronological order used by L2 smoothing.
+        """
+        nm = self.get_narrative_moments_config()
+        event_types = nm.get('event_types', {})
+        et = event_type or nm.get('default_event_type', 'wedding')
+        vocab = event_types.get(et, {})
+        return vocab if isinstance(vocab, dict) else {}
+
+    def get_moment_transitions(self, event_type=None):
+        """Return the L2 transition params plus the canonical moment order."""
+        nm = self.get_narrative_moments_config()
+        transitions = dict(nm.get('transitions', {}))
+        transitions['order'] = list(self.get_narrative_moment_vocabulary(event_type).keys())
+        return transitions
+
     def get_category_tags(self, category):
         """Get trigger tags for a category.
 

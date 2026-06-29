@@ -130,6 +130,10 @@ PHOTOS_COLUMNS = [
 
     # Scan bookkeeping (ISO timestamp of last successful scoring)
     ('scanned_at', 'TEXT'),
+
+    # Narrative moment (opt-in --detect-moments; NULL until that pass runs)
+    ('narrative_moment', 'TEXT'),              # e.g. 'vows', 'first_dance', 'other'
+    ('narrative_moment_confidence', 'REAL'),   # 0-1 top-1 confidence after smoothing
 ]
 
 FACES_COLUMNS = [
@@ -198,6 +202,7 @@ INDEXES = [
     ('idx_filename', 'photos', 'filename'),
     ('idx_category', 'photos', 'category'),
     ('idx_category_aggregate', 'photos', 'category, aggregate DESC'),
+    ('idx_narrative_moment', 'photos', 'narrative_moment'),
     # Additional composite indexes for viewer sorting performance
     ('idx_aesthetic_aggregate', 'photos', 'aesthetic DESC, aggregate DESC'),
     ('idx_face_quality_sort', 'photos', 'face_quality DESC, eye_sharpness DESC'),
