@@ -3,14 +3,18 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { DecimalPipe, NgClass } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { ApiService } from '../../core/services/api.service';
+import { AlbumService, Album } from '../../core/services/album.service';
+import { SceneDatePipe, MomentLabelPipe } from '../scenes/scenes.pipes';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, FaceThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { I18nService } from '../../core/services/i18n.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { isTypingContext } from '../../shared/utils/keyboard';
@@ -31,6 +35,15 @@ interface CullingGroupsResponse {
   total_pages: number;
 }
 
+/** Lightweight scene shape for the album→scene scope cascade (GET /scenes?summary=true). */
+interface SceneSummary {
+  scene_id: number;
+  start: string | null;
+  end: string | null;
+  count: number;
+  moment?: string | null;
+}
+
 /** Minimal read-shape of GET /comparison/stats needed for the per-category weight-tuning chip. */
 interface ComparisonStatsLite {
   category_breakdown?: { category: string; count: number }[];
@@ -49,12 +62,16 @@ interface ShortcutRow {
     NgClass,
     MatIconModule,
     MatButtonModule,
+    MatMenuModule,
     MatTooltipModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
     MatSliderModule,
     MatCheckboxModule,
     TranslatePipe,
+    SceneDatePipe,
+    MomentLabelPipe,
+    LoupeDirective,
     ThumbnailUrlPipe,
     FaceThumbnailUrlPipe,
     ImageUrlPipe,
@@ -76,6 +93,35 @@ interface ShortcutRow {
       <div class="flex items-center gap-3 shrink-0 mb-3">
         <h2 class="text-lg font-semibold">{{ I18N.culling.title | translate }}</h2>
         <div class="flex flex-wrap items-center gap-3 md:gap-4 ml-auto">
+          <button mat-stroked-button [matMenuTriggerFor]="scopeMenu"
+                  [matTooltip]="I18N.culling.scope | translate" class="!text-xs">
+            <mat-icon class="!text-base">filter_alt</mat-icon>
+            {{ scopeLabel() ?? (I18N.culling.scope_whole_library | translate) }}
+          </button>
+          <mat-menu #scopeMenu="matMenu">
+            <button mat-menu-item (click)="scopeWholeLibrary()">
+              {{ I18N.culling.scope_whole_library | translate }}
+            </button>
+            @for (a of albums(); track a.id) {
+              <button mat-menu-item [matMenuTriggerFor]="sceneMenu" (menuOpened)="loadAlbumScenes(a)">
+                {{ a.name }}
+              </button>
+            }
+          </mat-menu>
+          <mat-menu #sceneMenu="matMenu">
+            <button mat-menu-item (click)="scopeAlbumWhole()">
+              {{ I18N.culling.scope_whole_album | translate }}
+            </button>
+            @if (loadingScenes()) {
+              <div class="flex justify-center px-4 py-2"><mat-spinner diameter="18" /></div>
+            } @else {
+              @for (s of expandedScenes(); track s.scene_id) {
+                <button mat-menu-item (click)="scopeAlbumScene(s)">
+                  {{ s.start | sceneDate }} · {{ s.count }}@if (s.moment | momentLabel; as ml) { · {{ ml }}}
+                </button>
+              }
+            }
+          </mat-menu>
           <mat-checkbox [checked]="excludeRejected()" (change)="onExcludeRejectedChange($event.checked)"
                         [aria-label]="I18N.culling.exclude_rejected | translate"
                         class="text-xs opacity-80">
@@ -122,6 +168,18 @@ interface ShortcutRow {
                  | translate:{ count: (rankerComparisons() ?? 0) } }}
             </span>
           }
+          <button mat-stroked-button (click)="loupeActive.set(!loupeActive())"
+                  [class.!border-[var(--mat-sys-primary)]]="loupeActive()"
+                  [matTooltip]="I18N.culling.loupe_hint | translate">
+            <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
+            {{ I18N.culling.loupe | translate }}
+          </button>
+          @if (loupeActive()) {
+            <mat-slider class="!w-28 !min-w-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
+              <input matSliderThumb [value]="loupeZoom()" (valueChange)="loupeZoom.set($event)"
+                     [attr.aria-label]="I18N.culling.loupe | translate" />
+            </mat-slider>
+          }
           <button mat-icon-button (click)="showHelp.set(!showHelp())" class="!w-8 !h-8 !p-0"
                   [matTooltip]="I18N.culling.help | translate"
                   [attr.aria-label]="I18N.culling.help | translate">
@@ -133,7 +191,7 @@ interface ShortcutRow {
       @if (scoped()) {
         <div class="flex items-center gap-2 shrink-0 mb-2 text-sm">
           <mat-icon class="!text-base text-[var(--mat-sys-primary)]">movie_filter</mat-icon>
-          <span class="opacity-80">{{ I18N.culling.scene_scope | translate:{ scene: scopeScene() || '' } }}</span>
+          <span class="opacity-80">{{ scopeLabel() }}</span>
           <button mat-stroked-button class="!ml-1 !min-w-0" (click)="exitScope()">
             <mat-icon class="!text-base">close</mat-icon>
             {{ I18N.culling.exit_scene | translate }}
@@ -201,6 +259,9 @@ interface ShortcutRow {
                        (keydown.space)="toggleSelection(photo.path, group); $event.stopPropagation(); $event.preventDefault()"
                        (dblclick)="selectExclusive(photo.path, group); $event.stopPropagation()">
                     <img [src]="photo.path | thumbnailUrl:640"
+                         [appLoupe]="photo.path | imageUrl:true"
+                         [loupeActive]="loupeActive()"
+                         [loupeZoom]="loupeZoom()"
                          class="h-72 md:h-96 w-auto object-contain" [alt]="photo.filename" loading="lazy" />
                     @if (photo.path === group.best_path) {
                       <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-600 text-white text-xs font-bold">
@@ -483,6 +544,8 @@ export class BurstCullingComponent implements OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+  private readonly albumService = inject(AlbumService);
+  private readonly sceneDate = new SceneDatePipe();
 
   // Optional scope from "Cull this scene" / album entry points (query params).
   protected readonly scopeAlbum = signal<string | null>(null);
@@ -492,11 +555,32 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly scoped = computed(
     () => !!(this.scopeAlbum() || this.scopeFrom() || this.scopeTo()),
   );
+  // Non-smart albums + lazily-loaded scenes powering the scope cascade menu.
+  protected readonly albums = signal<Album[]>([]);
+  protected readonly expandedAlbumId = signal<number | null>(null);
+  protected readonly expandedScenes = signal<SceneSummary[]>([]);
+  protected readonly loadingScenes = signal(false);
+  // Album name for the current scope, resolved from the loaded album list
+  // (works for both menu selection and a deep-linked ?album=ID).
+  protected readonly scopeAlbumName = computed(() => {
+    const id = this.scopeAlbum();
+    return id ? this.albums().find(a => a.id.toString() === id)?.name ?? null : null;
+  });
+  // Human label for the scope button / banner (null = whole library).
+  protected readonly scopeLabel = computed(() => {
+    const album = this.scopeAlbumName();
+    const scene = this.scopeScene();
+    if (album && scene) return `${album} · ${scene}`;
+    return album ?? scene ?? null;
+  });
   // Personal-ranker status, surfaced as the "this cull trains My Taste" chip.
   protected readonly rankerComparisons = signal<number | null>(null);
   protected readonly rankerTrained = signal(false);
 
   protected readonly showHelp = signal(false);
+  // Photo-Mechanic-style hover loupe over the group tiles (Z toggles; zoom slider).
+  protected readonly loupeActive = signal(false);
+  protected readonly loupeZoom = signal(3);
   protected readonly similarityThreshold = signal(85);
   /** Auto-keep strictness (0-100): higher keeps fewer photos below the best. */
   protected readonly strictness = signal(100);
@@ -640,6 +724,7 @@ export class BurstCullingComponent implements OnDestroy {
     this.scopeTo.set(qp.get('to'));
     this.scopeScene.set(qp.get('scene'));
     void this.loadGroups();
+    void this.loadAlbums();
     void this.refreshComparisonStats();
     void this.refreshRankerStatus();
     // Keep the keyboard selection in bounds as groups load / get hidden.
@@ -714,6 +799,62 @@ export class BurstCullingComponent implements OnDestroy {
     this.scopeScene.set(null);
     void this.router.navigate(['/culling']);
     void this.loadGroups();
+  }
+
+  /** Non-smart albums for the scope cascade's first level (best-effort). */
+  private async loadAlbums(): Promise<void> {
+    try {
+      const res = await firstValueFrom(this.albumService.list());
+      this.albums.set(res.albums.filter(a => !a.is_smart));
+    } catch {
+      // Scope menu keeps the "Whole library" entry only.
+    }
+  }
+
+  /** Lazily load an album's scenes when its submenu opens (summary = no photos[]). */
+  protected async loadAlbumScenes(album: Album): Promise<void> {
+    if (this.expandedAlbumId() === album.id) return;
+    this.expandedAlbumId.set(album.id);
+    this.expandedScenes.set([]);
+    this.loadingScenes.set(true);
+    try {
+      const data = await firstValueFrom(this.api.get<{ scenes: SceneSummary[] }>(
+        '/scenes', { album_id: album.id, summary: true, per_page: 100 },
+      ));
+      if (this.expandedAlbumId() === album.id) this.expandedScenes.set(data.scenes);
+    } catch {
+      // Submenu still offers "Whole album".
+    } finally {
+      if (this.expandedAlbumId() === album.id) this.loadingScenes.set(false);
+    }
+  }
+
+  private applyScope(album: string | null, from: string | null, to: string | null, scene: string | null): void {
+    this.scopeAlbum.set(album);
+    this.scopeFrom.set(from);
+    this.scopeTo.set(to);
+    this.scopeScene.set(scene);
+    void this.router.navigate(['/culling'], {
+      queryParams: { album: album ?? null, from: from ?? null, to: to ?? null, scene: scene ?? null },
+    });
+    this.selectedGroupIndex.set(0);
+    this.resetForReload();
+  }
+
+  protected scopeWholeLibrary(): void {
+    this.applyScope(null, null, null, null);
+  }
+
+  protected scopeAlbumWhole(): void {
+    const id = this.expandedAlbumId();
+    if (id === null) return;
+    this.applyScope(id.toString(), null, null, null);
+  }
+
+  protected scopeAlbumScene(scene: SceneSummary): void {
+    const id = this.expandedAlbumId();
+    if (id === null) return;
+    this.applyScope(id.toString(), scene.start, scene.end, this.sceneDate.transform(scene.start));
   }
 
   /** Fetch personal-ranker status for the "trains My Taste" chip (best-effort). */
@@ -950,10 +1091,14 @@ export class BurstCullingComponent implements OnDestroy {
     this.zoom.set(FIT_ZOOM);
   }
 
-  /** Photo-Mechanic-style loupe toggle: fit ↔ 2× (further zoom via wheel/+/-). */
+  /** Z toggles the darkroom zoom (fit ↔ 2×) when open, else the grid hover loupe. */
   @HostListener('document:keydown.z', ['$event'])
   protected onZoomToggle(event: Event): void {
-    if (!this.lightboxGroup() || isTypingContext(event)) return;
+    if (isTypingContext(event)) return;
+    if (!this.lightboxGroup()) {
+      this.loupeActive.set(!this.loupeActive());
+      return;
+    }
     event.preventDefault();
     this.zoom.set(this.zoom().scale > 1 ? FIT_ZOOM : { scale: 2, tx: 0, ty: 0 });
   }

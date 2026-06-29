@@ -122,6 +122,41 @@ def test_album_scopes_scenes():
     assert scenes[0]["count"] == 3
 
 
+def test_album_scoped_scenes_ignore_cap(monkeypatch):
+    """Whole-library grouping is capped at max_photos, but an album-scoped
+    request grinds the full album (no LIMIT) so a big album never silently
+    loses photos past the cap."""
+    conn = _seconds_apart_db(20, step_seconds=30)
+    conn.executemany(
+        "INSERT INTO album_photos (album_id, photo_path) VALUES (1, ?)",
+        [(f"/c{i}.jpg",) for i in range(20)],
+    )
+    conn.commit()
+    monkeypatch.setattr("api.routers.scenes._scene_config", lambda: {
+        'gap_minutes': 20.0, 'min_size': 2, 'max_photos': 6, 'max_scene_size': 60,
+        'adaptive': True, 'adaptive_k': 6.0,
+        'split_on_moment_change': False, 'moment_split_min_run': 4,
+    })
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        whole = compute_scenes(conn, user_id=None)
+        album = compute_scenes(conn, user_id=None, album_id=1)
+    assert sum(s["count"] for s in whole) == 6      # capped at max_photos
+    assert sum(s["count"] for s in album) == 20     # full album, cap ignored
+
+
+def test_scenes_summary_omits_photos(client):
+    conn = _db()
+    with (
+        mock.patch("api.routers.scenes.get_db", lambda: _cm(conn)),
+        mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])),
+    ):
+        full = client.get("/api/scenes", params={"per_page": 10}).json()
+        summ = client.get("/api/scenes", params={"per_page": 10, "summary": "true"}).json()
+    assert full["scenes"] and all("photos" in s for s in full["scenes"])
+    assert summ["scenes"] and all("photos" not in s for s in summ["scenes"])
+    assert all({"scene_id", "start", "end", "count"} <= set(s) for s in summ["scenes"])
+
+
 def test_time_window_scopes_scenes():
     conn = _db()
     with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):

@@ -1,14 +1,16 @@
-import { Component, inject, signal, OnInit, HostListener } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, HostListener } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NgClass } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { AlbumService, Album } from '../../core/services/album.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -50,6 +52,7 @@ interface ScenesResponse {
     NgClass,
     MatIconModule,
     MatButtonModule,
+    MatMenuModule,
     MatProgressSpinnerModule,
     MatSliderModule,
     MatTooltipModule,
@@ -67,6 +70,17 @@ interface ScenesResponse {
       <div class="flex items-center gap-3 mb-1">
         <h2 class="text-lg font-semibold">{{ I18N.scenes.title | translate }}</h2>
         <div class="flex items-center gap-2 ml-auto">
+          <button mat-stroked-button [matMenuTriggerFor]="albumMenu"
+                  [matTooltip]="I18N.scenes.album | translate">
+            <mat-icon>photo_library</mat-icon>
+            {{ currentAlbumName() ?? (I18N.scenes.whole_library | translate) }}
+          </button>
+          <mat-menu #albumMenu="matMenu">
+            <button mat-menu-item (click)="selectAlbum(null)">{{ I18N.scenes.whole_library | translate }}</button>
+            @for (a of albums(); track a.id) {
+              <button mat-menu-item (click)="selectAlbum(a.id.toString())">{{ a.name }}</button>
+            }
+          </mat-menu>
           <button mat-stroked-button (click)="loupeActive.set(!loupeActive())"
                   [class.!border-[var(--mat-sys-primary)]]="loupeActive()"
                   [matTooltip]="I18N.scenes.loupe_hint | translate">
@@ -109,19 +123,20 @@ interface ScenesResponse {
                 {{ I18N.scenes.cull_action | translate:{ count: (rejected() | sceneRejectCount:scene.scene_id) } }}
               </button>
             </div>
-            <div class="flex gap-2 overflow-x-auto pb-1">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               @for (photo of scene.photos; track photo.path) {
-                <button type="button" class="relative flex-shrink-0"
+                <button type="button" class="group relative w-full aspect-[4/3] rounded-xl overflow-hidden border-2"
                         (click)="toggleReject(scene.scene_id, photo.path)"
-                        [attr.aria-pressed]="rejected() | sceneRejected:scene.scene_id:photo.path">
+                        [attr.aria-pressed]="rejected() | sceneRejected:scene.scene_id:photo.path"
+                        [ngClass]="(rejected() | sceneRejected:scene.scene_id:photo.path)
+                          ? 'border-red-500'
+                          : (photo.path === scene.best_path ? 'border-green-500' : 'border-white/20')">
                   <img [src]="photo.path | thumbnailUrl:320"
-                       [appLoupe]="photo.path | imageUrl"
+                       [appLoupe]="photo.path | imageUrl:true"
                        [loupeActive]="loupeActive()"
                        [loupeZoom]="loupeZoom()"
-                       class="w-36 h-36 md:w-40 md:h-40 object-cover rounded border-2"
-                       [ngClass]="(rejected() | sceneRejected:scene.scene_id:photo.path)
-                         ? 'border-red-500 opacity-40'
-                         : (photo.path === scene.best_path ? 'border-green-500' : 'border-white/20')"
+                       class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                       [class.opacity-40]="rejected() | sceneRejected:scene.scene_id:photo.path"
                        [alt]="photo.filename" loading="lazy" />
                   @if (photo.path === scene.best_path) {
                     <span class="absolute top-1 left-1 bg-green-600/90 text-white text-[10px] px-1 rounded">{{ I18N.scenes.best | translate }}</span>
@@ -150,6 +165,7 @@ export class ScenesComponent implements OnInit {
   private readonly i18n = inject(I18nService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly albumService = inject(AlbumService);
   private readonly sceneDate = new SceneDatePipe();
 
   protected readonly scenes = signal<Scene[]>([]);
@@ -160,15 +176,45 @@ export class ScenesComponent implements OnInit {
   protected readonly rejected = signal<Map<number, Set<string>>>(new Map());
   // Optional album scope from /scenes?album=ID.
   protected readonly albumId = signal<string | null>(null);
+  // Non-smart albums for the header scope picker.
+  protected readonly albums = signal<Album[]>([]);
+  protected readonly currentAlbumName = computed(() => {
+    const id = this.albumId();
+    return id ? this.albums().find(a => a.id.toString() === id)?.name ?? null : null;
+  });
   // Hover-loupe (Photo-Mechanic-style Z key) state for the contact strip.
   protected readonly loupeActive = signal(false);
   protected readonly loupeZoom = signal(3);
 
   private page = 1;
   private readonly perPage = 20;
+  // Bumped on every load() so a slow in-flight request can't append its scenes
+  // after the scope changed (fast album switching / ngOnInit race).
+  private loadGeneration = 0;
 
   async ngOnInit(): Promise<void> {
     this.albumId.set(this.route.snapshot.queryParamMap.get('album'));
+    void this.loadAlbums();
+    await this.load();
+  }
+
+  private async loadAlbums(): Promise<void> {
+    try {
+      const res = await firstValueFrom(this.albumService.list());
+      this.albums.set(res.albums.filter(a => !a.is_smart));
+    } catch {
+      // Picker stays at "Whole library" if albums fail to load.
+    }
+  }
+
+  /** Re-scope the scenes feed to an album (or the whole library when null). */
+  protected async selectAlbum(id: string | null): Promise<void> {
+    if (id === this.albumId()) return;
+    this.albumId.set(id);
+    void this.router.navigate(['/scenes'], { queryParams: { album: id ?? null } });
+    this.page = 1;
+    this.scenes.set([]);
+    this.rejected.set(new Map());
     await this.load();
   }
 
@@ -180,6 +226,7 @@ export class ScenesComponent implements OnInit {
   }
 
   private async load(): Promise<void> {
+    const gen = ++this.loadGeneration;
     this.loading.set(true);
     try {
       const params: Record<string, string | number> = { page: this.page, per_page: this.perPage };
@@ -188,13 +235,15 @@ export class ScenesComponent implements OnInit {
       const data = await firstValueFrom(
         this.api.get<ScenesResponse>('/scenes', params),
       );
+      if (gen !== this.loadGeneration) return;
       this.scenes.update(s => [...s, ...data.scenes]);
       this.total.set(data.total);
       this.hasMore.set(this.page < data.total_pages);
     } catch {
+      if (gen !== this.loadGeneration) return;
       this.snack.open(this.i18n.t(I18N.scenes.load_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
     } finally {
-      this.loading.set(false);
+      if (gen === this.loadGeneration) this.loading.set(false);
     }
   }
 
@@ -234,23 +283,39 @@ export class ScenesComponent implements OnInit {
     }
     const allPaths = scene.photos.map(p => p.path);
     const keep = allPaths.filter(p => !rej.has(p));
-    // Block loadMore for the whole confirm window (the POST + reload), so a
-    // click during the network call can't append a soon-to-be-discarded page.
+    // Block loadMore for the confirm window so a click during the POST can't
+    // append a page computed against the soon-to-be-stale server cache.
     this.loading.set(true);
     try {
       await firstValueFrom(
         this.api.post('/scenes/confirm', { paths: allPaths, keep_paths: keep }),
       );
       this.snack.open(this.i18n.t(I18N.scenes.culled, { count: rej.size }), undefined, { duration: 2000 });
-      // Culling invalidates the server scene cache; reload from the top so
-      // scene ids stay consistent with the recomputed list.
-      this.page = 1;
-      this.scenes.set([]);
-      this.rejected.set(new Map());
-      await this.load();
+      // Update only this scene in place: drop its rejected photos (a fully
+      // emptied scene disappears) instead of reloading and re-numbering the
+      // whole list. Scene ids stay stable for the session.
+      this.scenes.update(list => list
+        .map(s => s.scene_id === scene.scene_id ? this.pruneScene(s, rej) : s)
+        .filter(s => s.photos.length > 0));
+      this.rejected.update(m => {
+        const next = new Map(m);
+        next.delete(scene.scene_id);
+        return next;
+      });
     } catch {
       this.snack.open(this.i18n.t(I18N.scenes.confirm_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
+    } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Remove rejected photos from a scene, re-picking the best if it was culled. */
+  private pruneScene(scene: Scene, rejected: Set<string>): Scene {
+    const photos = scene.photos.filter(p => !rejected.has(p.path));
+    const best = photos.some(p => p.path === scene.best_path)
+      ? scene.best_path
+      : photos.reduce((b, p) => (p.aggregate ?? -1) > (b.aggregate ?? -1) ? p : b,
+          photos[0])?.path ?? scene.best_path;
+    return { ...scene, photos, count: photos.length, best_path: best };
   }
 }

@@ -185,7 +185,7 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
     has_moment = _photos_has_moment(conn)
     cache_key = (
         f"scenes_{cfg['gap_minutes']}_{cfg['min_size']}_{cfg['max_scene_size']}"
-        f"_{cfg['adaptive']}_{cfg['adaptive_k']}_{cfg['split_on_moment_change']}"
+        f"_{cfg['max_photos']}_{cfg['adaptive']}_{cfg['adaptive_k']}_{cfg['split_on_moment_change']}"
         f"_{cfg['moment_split_min_run']}_{album_id}_{date_from}_{date_to}_{user_id}"
     )
     cached = conn.execute(
@@ -197,6 +197,7 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
         except (json.JSONDecodeError, TypeError):
             pass
 
+    album_scoped = bool(album_params)
     select_cols = "path, filename, aggregate, date_taken"
     if has_moment:
         select_cols += ", narrative_moment, narrative_moment_confidence"
@@ -207,14 +208,35 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
         vis_sql,
         album_sql,
     ] + window_clauses
-    rows = conn.execute(
-        f"""SELECT {select_cols}
-           FROM photos
-           WHERE {' AND '.join(where)}
-           ORDER BY date_taken ASC
-           LIMIT ?""",
-        vis_params + album_params + window_params + [cfg['max_photos']],
-    ).fetchall()
+    where_sql = ' AND '.join(where)
+    base_params = vis_params + album_params + window_params
+    if album_scoped:
+        rows = conn.execute(
+            f"""SELECT {select_cols}
+               FROM photos
+               WHERE {where_sql}
+               ORDER BY date_taken ASC""",
+            base_params,
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            f"""SELECT {select_cols}
+               FROM photos
+               WHERE {where_sql}
+               ORDER BY date_taken ASC
+               LIMIT ?""",
+            base_params + [cfg['max_photos']],
+        ).fetchall()
+        if len(rows) >= cfg['max_photos']:
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM photos WHERE {where_sql}", base_params,
+            ).fetchone()[0]
+            if total > cfg['max_photos']:
+                logger.warning(
+                    "Scenes truncated to %d of %d photos (whole-library); "
+                    "scope to an album for the full set.",
+                    cfg['max_photos'], total,
+                )
 
     items = [(row, parse_date(row['date_taken'])) for row in rows]
     gap_seconds = _effective_gap_seconds(items, cfg)
@@ -276,9 +298,15 @@ async def api_scenes(
     album_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    summary: bool = Query(False),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
-    """Paginated chronological scenes for culling in story order."""
+    """Paginated chronological scenes for culling in story order.
+
+    With ``summary=true`` each scene omits its ``photos`` list — used by the
+    culling scope cascade's per-album scene menu, which only needs the scene
+    label/window, not every member photo.
+    """
     user_id = user.user_id if user else None
     with get_db() as conn:
         scenes = compute_scenes(
@@ -286,8 +314,11 @@ async def api_scenes(
         )
     total = len(scenes)
     start = max(0, (page - 1) * per_page)
+    page_scenes = scenes[start:start + per_page]
+    if summary:
+        page_scenes = [{k: v for k, v in s.items() if k != 'photos'} for s in page_scenes]
     return {
-        'scenes': scenes[start:start + per_page],
+        'scenes': page_scenes,
         'total': total,
         'page': page,
         'per_page': per_page,

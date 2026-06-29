@@ -19,7 +19,7 @@ export class LoupeDirective implements OnDestroy {
   /** Magnification factor relative to the tile's displayed size. */
   readonly loupeZoom = input(3);
 
-  private static readonly SIZE = 220;
+  private static readonly SIZE = 300;
   private lens: HTMLDivElement | null = null;
   private readonly onMove = (e: MouseEvent): void => this.move(e);
   private readonly onLeave = (): void => this.hide();
