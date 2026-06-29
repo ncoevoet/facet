@@ -1,5 +1,6 @@
 """Tests for the learning-value pair selection strategy (comparison/pair_selector.py)."""
 
+import random
 import sqlite3
 
 import numpy as np
@@ -128,6 +129,7 @@ class TestLearningValueSelector:
             learned={'/x.jpg': 6.0, '/y.jpg': 9.0, '/p.jpg': 9.0, '/q.jpg': 6.0},
         )
         sel = PairSelector(db)
+        random.seed(0)  # PairSelector samples via the global random module; pin it so this probabilistic assertion can't flake
         disagree_hits = agree_hits = 0
         for _ in range(120):
             pair = sel.get_next_pair(strategy='learning', exclude_compared=False)

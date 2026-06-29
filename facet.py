@@ -240,7 +240,7 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
     # L0 + L1: per-frame probability vectors and the no-smoothing label. Each
     # photo is scored on its caption embedding (signal='caption') when present,
     # else its image embedding (signal='image') — each signal has its own gate.
-    prob_vectors, raw_labels, timestamps, paths = [], [], [], []
+    prob_vectors, raw_labels, raw_confs, timestamps, paths = [], [], [], [], []
     verbose_left = verbose_count
     for row in tqdm(rows, desc="Moments (score)"):
         photo_data = {
@@ -253,9 +253,10 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
         else:
             emb_bytes, signal = row['clip_embedding'], 'image'
         _, probs = classifier.probabilities(emb_bytes, photo_data)
-        raw_label, _ = classifier.classify(emb_bytes, photo_data, signal=signal)
+        raw_label, raw_conf = classifier.classify(emb_bytes, photo_data, signal=signal)
         prob_vectors.append(probs)
         raw_labels.append(raw_label)
+        raw_confs.append(raw_conf)
         timestamps.append(parse_date(row['date_taken']))
         paths.append(row['path'])
         if verbose_left > 0:
@@ -274,9 +275,14 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
         if j is None or raw_labels[i] is None:
             continue
         # The per-frame 'other' gate (low confidence/margin) overrides; an
-        # otherwise-confident frame takes the smoothed moment.
-        label = OTHER if raw_labels[i] == OTHER else moments[j]
-        updates.append((label, round(float(conf), 4) if conf is not None else None, paths[i]))
+        # otherwise-confident frame takes the smoothed moment. For a gated
+        # 'other' frame, store its own gate confidence — the smoothed emission
+        # prob belongs to some non-other state j and is meaningless for 'other'.
+        if raw_labels[i] == OTHER:
+            label, frame_conf = OTHER, raw_confs[i]
+        else:
+            label, frame_conf = moments[j], conf
+        updates.append((label, round(float(frame_conf), 4) if frame_conf is not None else None, paths[i]))
 
     spread = dict(Counter(u[0] for u in updates).most_common())
     if owns_manager:

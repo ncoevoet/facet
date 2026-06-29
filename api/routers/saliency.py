@@ -9,6 +9,7 @@ landmarks — no model needed.
 
 import io
 import logging
+from functools import lru_cache
 from typing import Optional
 
 import cv2
@@ -29,6 +30,26 @@ router = APIRouter(tags=["saliency"])
 def _require_overlay_enabled():
     if not VIEWER_CONFIG.get("features", {}).get("show_saliency_overlay", True):
         raise HTTPException(status_code=404, detail="Saliency overlay is disabled")
+
+
+@lru_cache(maxsize=64)
+def _render_overlay(thumbnail: bytes) -> bytes:
+    """Render the heatmap PNG for a thumbnail, cached so repeated requests for
+    the same photo don't re-run BiRefNet on the GPU. Keyed by the raw thumbnail
+    bytes, so a re-scanned thumbnail naturally produces a fresh cache entry.
+    """
+    pil = Image.open(io.BytesIO(thumbnail)).convert("RGB")
+    from api.model_cache import get_or_load_saliency_scorer
+
+    scorer = get_or_load_saliency_scorer()
+    soft = scorer.get_saliency_soft(pil)  # HxW float 0..1
+    heat = (np.clip(soft, 0.0, 1.0) * 255).astype(np.uint8)
+    colored = cv2.applyColorMap(heat, cv2.COLORMAP_JET)  # BGR
+    bgra = np.dstack([colored, heat])  # alpha = saliency -> background transparent
+    ok, buf = cv2.imencode(".png", bgra)
+    if not ok:
+        raise ValueError("Failed to encode heatmap")
+    return buf.tobytes()
 
 
 @router.get("/api/saliency_overlay")
@@ -52,18 +73,11 @@ def api_saliency_overlay(
     if not row or row["thumbnail"] is None:
         raise HTTPException(status_code=404, detail="No thumbnail for this photo")
 
-    pil = Image.open(io.BytesIO(row["thumbnail"])).convert("RGB")
-    from api.model_cache import get_or_load_saliency_scorer
-
-    scorer = get_or_load_saliency_scorer()
-    soft = scorer.get_saliency_soft(pil)  # HxW float 0..1
-    heat = (np.clip(soft, 0.0, 1.0) * 255).astype(np.uint8)
-    colored = cv2.applyColorMap(heat, cv2.COLORMAP_JET)  # BGR
-    bgra = np.dstack([colored, heat])  # alpha = saliency -> background transparent
-    ok, buf = cv2.imencode(".png", bgra)
-    if not ok:
+    try:
+        png = _render_overlay(row["thumbnail"])
+    except ValueError:
         raise HTTPException(status_code=500, detail="Failed to encode heatmap")
-    return Response(content=buf.tobytes(), media_type="image/png",
+    return Response(content=png, media_type="image/png",
                     headers={"Cache-Control": "private, max-age=300"})
 
 

@@ -68,6 +68,9 @@ def discover_moments(embeddings, captions, min_cluster_size=30, top_keywords=2, 
     """
     import hdbscan
 
+    # HDBSCAN requires min_cluster_size >= 2; clamp so a stray
+    # --discover-min-cluster-size 1 degrades gracefully instead of crashing.
+    min_cluster_size = max(2, int(min_cluster_size))
     embeddings, captions = filter_uniform_embeddings(embeddings, captions)
     if len(embeddings) < min_cluster_size:
         return []
@@ -75,7 +78,7 @@ def discover_moments(embeddings, captions, min_cluster_size=30, top_keywords=2, 
     captions = list(captions)
 
     labels = hdbscan.HDBSCAN(
-        min_cluster_size=int(min_cluster_size), metric='euclidean',
+        min_cluster_size=min_cluster_size, metric='euclidean',
     ).fit_predict(matrix)
 
     docs, cluster_idx = [], []

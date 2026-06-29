@@ -25,6 +25,7 @@ CLI::
 
 import json
 import logging
+import os
 from typing import Dict, List, Optional
 import numpy as np
 from scipy.optimize import minimize
@@ -833,9 +834,14 @@ class WeightOptimizer:
             cat_weights[largest_key] = round(cat_weights[largest_key] + adjustment, 1)
             logger.info("Adjusted %s by %+.1f%% to ensure 100%% total", largest_key, adjustment)
 
-        # Save updated config
-        with open(self.config_path, 'w') as f:
+        # Save updated config atomically: write a sibling temp file then
+        # os.replace() it onto config_path, so an interrupted/failed write can
+        # never leave a truncated scoring_config.json (the per-category weight
+        # snapshot above cannot reconstruct the file's other sections).
+        tmp_path = f"{self.config_path}.tmp"
+        with open(tmp_path, 'w') as f:
             json.dump(config, f, indent=2)
+        os.replace(tmp_path, self.config_path)
 
         return snapshot_id
 

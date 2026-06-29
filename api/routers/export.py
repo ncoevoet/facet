@@ -530,7 +530,7 @@ def api_cull_apply(
                 logger.exception("Failed to copy %s into %s", src, safe_target)
                 errors += 1
         return {"action": body.action, "dry_run": False, "copied": copied,
-                "skipped": len(skipped), "excluded_by_state": excluded_by_state, "errors": errors}
+                "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": errors}
 
     if body.action == "move_rejects":
         safe_target = _validate_target_dir_required(body.target_dir)
@@ -539,7 +539,7 @@ def api_cull_apply(
                     "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": []}
         moved, errors = _move_into(files, safe_target)
         return {"action": body.action, "dry_run": False, "moved": moved,
-                "skipped": len(skipped), "excluded_by_state": excluded_by_state, "errors": errors}
+                "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": errors}
 
     # trash_rejects
     if not (VIEWER_CONFIG.get("cull", {}) or {}).get("allow_trash", False):
@@ -561,7 +561,7 @@ def api_cull_apply(
             logger.exception("Failed to trash %s", src)
             errors += 1
     return {"action": body.action, "dry_run": False, "trashed": trashed,
-            "skipped": len(skipped), "excluded_by_state": excluded_by_state, "errors": errors}
+            "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": errors}
 
 
 def _validate_target_dir_required(target_dir):

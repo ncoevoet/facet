@@ -39,7 +39,8 @@ class ScanRun:
         """Insert a new running scan_runs row and return its ScanRun."""
         with get_connection(db_path, row_factory=False) as conn:
             cursor = conn.execute(
-                "INSERT INTO scan_runs (mode, args_json, total_files) VALUES (?, ?, ?)",
+                "INSERT INTO scan_runs (mode, args_json, total_files, heartbeat_at) "
+                "VALUES (?, ?, ?, datetime('now'))",
                 (mode, json.dumps(args_dict), total_files),
             )
             conn.commit()

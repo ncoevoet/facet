@@ -153,6 +153,13 @@ def backup_database(db_path='photo_scores_pro.db', keep=3, dest_dir=None, verbos
         dst = sqlite3.connect(backup_path)
         try:
             src.backup(dst)
+        except BaseException:
+            # A partial backup looks like a valid snapshot to a user restoring
+            # one — remove it so a failed copy never leaves a misleading file.
+            dst.close()
+            if os.path.exists(backup_path):
+                os.remove(backup_path)
+            raise
         finally:
             dst.close()
     finally:

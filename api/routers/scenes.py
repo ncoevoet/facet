@@ -54,7 +54,7 @@ def _scene_config():
         'gap_minutes': float(sc.get('gap_minutes', _DEFAULT_GAP_MINUTES)),
         'min_size': int(sc.get('min_size', _DEFAULT_MIN_SIZE)),
         'max_photos': int(sc.get('max_photos', _DEFAULT_MAX_PHOTOS)),
-        'max_scene_size': int(sc.get('max_scene_size', _DEFAULT_MAX_SCENE_SIZE)),
+        'max_scene_size': max(1, int(sc.get('max_scene_size', _DEFAULT_MAX_SCENE_SIZE))),
         'adaptive': bool(sc.get('adaptive', _DEFAULT_ADAPTIVE)),
         'adaptive_k': float(sc.get('adaptive_k', _DEFAULT_ADAPTIVE_K)),
         'split_on_moment_change': bool(sc.get('split_on_moment_change', False)),
