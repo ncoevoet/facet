@@ -2004,16 +2004,44 @@
   "narrative_moments": {
     "enabled": true,
     "prompt_template": "a photo of {desc}",
-    "default_event_type": "wedding",
-    "pooling": "mean",
+    "default_event_type": "general",
+    "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.20, "min_margin": 0.015 },
-      "transformers": { "min_confidence": 0.10, "min_margin": 0.010 }
+      "caption": {
+        "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
+        "transformers": { "min_confidence": 0.12, "min_margin": 0.01 }
+      },
+      "image": {
+        "open_clip": { "min_confidence": 0.20, "min_margin": 0.01 },
+        "transformers": { "min_confidence": 0.10, "min_margin": 0.01 }
+      }
     },
     "priors": { "enabled": true, "weight": 0.04 },
     "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
-    "transitions": { "stay_prob": 0.6, "forward_bias": 0.3, "weight": 0.5 },
+    "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
     "event_types": {
+      "general": {
+        "celebration": ["people celebrating at a party", "a festive celebration with balloons and decorations", "blowing out candles on a birthday cake", "friends toasting drinks at a party"],
+        "dining": ["people eating a meal at a restaurant", "a table full of food and drinks", "friends sharing dinner around a table", "a plate of food at a cafe"],
+        "beach": ["people at a sandy beach by the sea", "a beach with ocean waves and sunshine", "sunbathing on the seaside", "playing in the sand at the beach"],
+        "water_activity": ["people swimming in a pool or lake", "kayaking and boating on the water", "surfing or paddleboarding on the sea", "splashing in the water"],
+        "mountains": ["a hiker on a mountain trail", "a scenic mountain landscape with peaks", "standing on a mountain summit", "alpine scenery with rugged mountains"],
+        "nature_wildlife": ["a wild animal in nature", "birds in their natural habitat", "wildlife such as deer or elephants", "a close-up of an animal in the wild"],
+        "cityscape": ["a city skyline with tall buildings", "an urban street scene downtown", "city lights at night", "a busy city square"],
+        "travel_landmark": ["a famous travel landmark or monument", "tourists visiting a historic site", "a well-known tourist attraction", "sightseeing at a monument"],
+        "concert": ["a live music concert with a crowd", "a band performing on stage", "a singer at a concert with stage lights", "a music festival crowd"],
+        "sports": ["people playing a team sport", "an athlete competing in a sporting event", "a sports match on a field or court", "running a race or marathon"],
+        "group_gathering": ["a group of people gathered together", "friends posing together for a photo", "a large family gathered for a group photo", "a social gathering of people"],
+        "portrait": ["a portrait of a single person", "a close-up headshot of a person", "a person posing for a photo", "an individual portrait"],
+        "children": ["children playing together", "a young child or toddler", "kids having fun outdoors", "a baby being held"],
+        "pets": ["a pet dog or cat", "a person with their pet", "a domestic animal at home", "a cute puppy or kitten"],
+        "nightlife": ["people at a bar or nightclub", "a night out with friends and drinks", "a lively nightlife scene with lights", "dancing at a club"],
+        "ceremony": ["a formal ceremony or ritual", "a wedding or graduation ceremony", "people attending a solemn ceremony", "an official ceremony with an audience"],
+        "scenic_landscape": ["a scenic landscape view of nature", "a sunset or sunrise over the horizon", "a peaceful countryside vista", "a panoramic view of the outdoors"],
+        "snow_winter": ["a snowy winter scene", "people in the snow with winter clothing", "skiing or snowboarding in the mountains", "a landscape covered in snow"],
+        "home_indoor": ["people relaxing indoors at home", "a cozy indoor home scene", "family time in the living room", "an indoor room interior"],
+        "road_vehicle": ["a car or vehicle on the road", "a road trip with a vehicle", "a motorcycle or bicycle on a street", "a vehicle parked outdoors"]
+      },
       "wedding": {
         "getting_ready_bride": ["a bride getting ready", "bridal hair and makeup preparation", "bridesmaids helping the bride into her wedding dress", "bride putting on jewelry before the wedding"],
         "getting_ready_groom": ["a groom getting ready", "groom putting on his suit and tie", "groomsmen helping the groom with his boutonniere", "men dressing for a wedding"],

@@ -815,6 +815,17 @@ class ScoringConfig:
         transitions['order'] = list(self.get_narrative_moment_vocabulary(event_type).keys())
         return transitions
 
+    def get_moment_thresholds(self, signal):
+        """Return the per-backend ``other``-gate thresholds for a moment signal.
+
+        ``signal`` is ``'caption'`` (matched against the stored caption text
+        embedding) or ``'image'`` (the stored image embedding). Caption cosines
+        run ~2.4x higher than image cosines, so each signal carries its own
+        ``{backend: {min_confidence, min_margin}}`` set.
+        """
+        thresholds = self.get_narrative_moments_config().get('thresholds', {})
+        return thresholds.get(signal, {})
+
     def get_category_tags(self, category):
         """Get trigger tags for a category.
 

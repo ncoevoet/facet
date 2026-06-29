@@ -157,20 +157,25 @@ def _log_scan_db_destination(db_path: str):
 
 
 def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
-                         dry_run=False, verbose_count=0):
+                         dry_run=False, verbose_count=0, limit=None):
     """Label photos with their narrative moment (zero-shot CLIP + L2 smoothing).
 
-    Cheap: the embedding model's text tower is encoded once, then each photo is a
-    dot product over its already-stored embedding — no image decode, no per-image
-    model pass — so it runs in seconds and is safe to chain at the end of a scan.
-    Reuses ``model_manager`` (and its RAM-cached CLIP) when given; otherwise loads
-    its own. Returns a summary dict.
+    Caption-semantic: each photo is scored on its stored caption-text embedding
+    when a caption exists (the cleaner signal), else its stored image embedding.
+    Caption embeddings are encoded once (a text-tower pass per new caption) and
+    stored in ``caption_embedding``; the per-photo cosine afterwards is free — no
+    image decode, no per-image model pass. A scan adds few captions so this stays
+    cheap incrementally; the one-time full backfill is a manual ``--detect-moments``
+    (GPU recommended on large libraries). Reuses ``model_manager`` (and its
+    RAM-cached CLIP) when given; otherwise loads its own. Returns a summary dict.
     """
     from collections import Counter
     from models.model_manager import ModelManager
     from models.moment_classifier import MomentClassifier, OTHER
+    from models.tagger import encode_text_prompts
     from models import moment_smoothing
     from utils.date_utils import parse_date
+    from utils.embedding import embedding_to_bytes
 
     if not config.get_narrative_moments_config().get('enabled', False):
         return {'skipped': 'disabled'}
@@ -195,10 +200,12 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
     where = "clip_embedding IS NOT NULL"
     if only_missing:
         where += " AND narrative_moment IS NULL"
+    limit_sql = f" LIMIT {int(limit)}" if limit else ""
     with get_connection(db_path) as conn:
         rows = conn.execute(
-            f"SELECT path, clip_embedding, face_count, face_ratio, is_group_portrait, "
-            f"tags, date_taken FROM photos WHERE {where} ORDER BY date_taken ASC"
+            f"SELECT path, clip_embedding, caption, caption_embedding, face_count, "
+            f"face_ratio, is_group_portrait, tags, date_taken FROM photos "
+            f"WHERE {where} ORDER BY date_taken ASC{limit_sql}"
         ).fetchall()
 
     if not rows:
@@ -206,7 +213,33 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
             model_manager.unload_all()
         return {'labeled': 0, 'spread': {}}
 
-    # L0 + L1: per-frame probability vectors and the no-smoothing label.
+    # Backfill: encode each missing caption's text once and store it. dry_run
+    # scores in-memory but persists nothing (preview only).
+    to_encode = [r for r in rows if r['caption'] and r['caption_embedding'] is None]
+    fresh_emb = {}
+    if to_encode:
+        persist = []
+        for k in tqdm(range(0, len(to_encode), 256), desc="Moments (caption embed)"):
+            chunk = to_encode[k:k + 256]
+            feats = encode_text_prompts(
+                clip['model'], clip['model_name'], clip['backend'],
+                model_manager.device, [r['caption'] for r in chunk])
+            feats = feats.detach().cpu().numpy()
+            for r, vec in zip(chunk, feats):
+                blob = embedding_to_bytes(vec)
+                fresh_emb[r['path']] = blob
+                persist.append((blob, r['path']))
+        if not dry_run:
+            with get_connection(db_path) as conn:
+                for k in range(0, len(persist), 500):
+                    conn.executemany(
+                        "UPDATE photos SET caption_embedding = ? WHERE path = ?",
+                        persist[k:k + 500])
+                    conn.commit()
+
+    # L0 + L1: per-frame probability vectors and the no-smoothing label. Each
+    # photo is scored on its caption embedding (signal='caption') when present,
+    # else its image embedding (signal='image') — each signal has its own gate.
     prob_vectors, raw_labels, timestamps, paths = [], [], [], []
     verbose_left = verbose_count
     for row in tqdm(rows, desc="Moments (score)"):
@@ -214,17 +247,22 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
             'face_count': row['face_count'], 'face_ratio': row['face_ratio'],
             'is_group_portrait': row['is_group_portrait'], 'tags': row['tags'],
         }
-        _, probs = classifier.probabilities(row['clip_embedding'], photo_data)
-        raw_label, _ = classifier.classify(row['clip_embedding'], photo_data)
+        cap_emb = fresh_emb.get(row['path'], row['caption_embedding'])
+        if cap_emb is not None:
+            emb_bytes, signal = cap_emb, 'caption'
+        else:
+            emb_bytes, signal = row['clip_embedding'], 'image'
+        _, probs = classifier.probabilities(emb_bytes, photo_data)
+        raw_label, _ = classifier.classify(emb_bytes, photo_data, signal=signal)
         prob_vectors.append(probs)
         raw_labels.append(raw_label)
         timestamps.append(parse_date(row['date_taken']))
         paths.append(row['path'])
         if verbose_left > 0:
-            scores = classifier.scores(row['clip_embedding'])
+            scores = classifier.scores(emb_bytes)
             if scores:
                 top3 = sorted(scores.items(), key=lambda kv: -kv[1])[:3]
-                logger.info("  %s -> %s", row['path'],
+                logger.info("  [%s] %s -> %s", signal, row['path'],
                             ", ".join(f"{m}={v:.3f}" for m, v in top3))
                 verbose_left -= 1
 
@@ -384,6 +422,8 @@ Configuration:
                         help='Label each photo with its narrative moment (zero-shot CLIP + temporal smoothing); skips already-labeled photos')
     db_group.add_argument('--recompute-moments', action='store_true',
                         help='Re-label narrative moments for the whole library (re-smooths the full timeline)')
+    db_group.add_argument('--limit', type=int, default=None, metavar='N',
+                        help='Cap --detect-moments / --recompute-moments to the first N photos (verification / incremental)')
     db_group.add_argument('--backfill-focal-35mm', action='store_true',
                         help='Backfill focal_length_35mm from EXIF for photos missing it')
     db_group.add_argument('--score-topiq', action='store_true',
@@ -1517,6 +1557,7 @@ Configuration:
         exit()
 
     if args.detect_moments or args.recompute_moments:
+        init_database(args.db)  # ensure narrative_moment columns exist
         config = ScoringConfig(args.config)
         if not config.get_narrative_moments_config().get('enabled', False):
             logger.error("narrative_moments is disabled in scoring_config.json; nothing to do.")
@@ -1530,6 +1571,7 @@ Configuration:
             only_missing=args.detect_moments and not args.recompute_moments,
             dry_run=args.dry_run,
             verbose_count=args.dry_run_count if args.verbose else 0,
+            limit=args.limit,
         )
         if result.get('skipped'):
             logger.error("Moment detection skipped: %s", result['skipped'])

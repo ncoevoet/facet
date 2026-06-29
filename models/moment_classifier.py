@@ -1,10 +1,14 @@
 """Zero-shot narrative-moment classifier (L0 core + L1 priors).
 
-Classifies a photo into an event "moment" (e.g. ``vows``, ``first_dance``) by
-cosine similarity of its stored CLIP/SigLIP embedding against mean-pooled
-text-prompt vectors, one per moment. The core is pure zero-shot; small
-face/tag priors only break near-ties. The per-frame probability vectors this
-produces feed the temporal-smoothing layer (``models/moment_smoothing.py``).
+Classifies a photo into a scene/activity "moment" (e.g. ``celebration``,
+``beach``) by cosine similarity of a stored embedding against per-moment text
+prompts, **max-pooled** per moment (the tagger's proven approach — more
+discriminative than a single mean vector). The scored vector is signal-agnostic:
+it is the stored caption-text embedding when a caption exists (the cleaner
+signal) and the stored image embedding otherwise; each signal carries its own
+``other``-gate thresholds. The core is pure zero-shot; small face/tag priors
+only break near-ties. The per-frame probability vectors this produces feed the
+temporal-smoothing layer (``models/moment_smoothing.py``).
 """
 
 import numpy as np
@@ -28,9 +32,15 @@ class MomentClassifier:
 
         nm = config.get_narrative_moments_config()
         self.priors_cfg = nm.get('priors', {}) or {}
-        thresholds = (nm.get('thresholds', {}) or {}).get(backend, {})
-        self.min_confidence = float(thresholds.get('min_confidence', 0.15))
-        self.min_margin = float(thresholds.get('min_margin', 0.01))
+        # Per-signal other-gate thresholds: caption cosines run ~2.4x higher
+        # than image cosines, so each signal has its own confidence/margin.
+        self.thresholds = {}
+        for signal in ('caption', 'image'):
+            t = (config.get_moment_thresholds(signal) or {}).get(backend, {})
+            self.thresholds[signal] = (
+                float(t.get('min_confidence', 0.15)),
+                float(t.get('min_margin', 0.01)),
+            )
         # open_clip cosines (~0.15-0.30) are far lower than SigLIP's, so use a
         # tighter softmax temperature there to keep the probability vector usable.
         self.temperature = 0.05 if backend == 'transformers' else 0.02
@@ -40,39 +50,51 @@ class MomentClassifier:
         self.moments = list(vocab.keys())
         self._index = {m: i for i, m in enumerate(self.moments)}
 
-        vectors = []
-        for moment in self.moments:
+        # One row per prompt (not per moment): scoring max-pools the per-prompt
+        # cosines back to a moment via ``prompt_moment_idx``.
+        vectors, prompt_moment_idx = [], []
+        for mi, moment in enumerate(self.moments):
             prompts = [template.format(desc=d) for d in vocab[moment]]
+            if not prompts:
+                continue
             emb = encode_text_prompts(clip_model, model_name, backend, device, prompts)
-            pooled = emb.mean(dim=0)
-            pooled = pooled / pooled.norm()
-            vectors.append(pooled.detach().cpu().numpy().astype(np.float32))
-        self.moment_matrix = (
+            emb = emb.detach().cpu().numpy().astype(np.float32)
+            for row in emb:
+                vectors.append(row)
+                prompt_moment_idx.append(mi)
+        self.prompt_matrix = (
             np.stack(vectors) if vectors else np.zeros((0, embedding_dim), np.float32)
         )
+        self.prompt_moment_idx = np.asarray(prompt_moment_idx, dtype=np.int64)
 
-    def _cosine(self, embedding_bytes):
-        """Cosine of the photo embedding vs each moment vector, or None.
+    def score_vector(self, embedding_bytes):
+        """Per-moment **max-pooled** cosine of the embedding vs the prompt matrix.
 
-        Returns None when the embedding is missing, zero, or of a different
-        dimension than the moment vectors (mixed CLIP-768 / SigLIP-1152 DB).
+        Signal-agnostic: works for a caption text embedding or an image
+        embedding (both live in the shared CLIP space). Returns an ndarray
+        aligned to ``self.moments``, or None when the embedding is missing,
+        zero, or of a different dimension than the prompts (mixed CLIP-768 /
+        SigLIP-1152 DB).
         """
-        if self.moment_matrix.shape[0] == 0 or embedding_bytes is None:
+        if self.prompt_matrix.shape[0] == 0 or embedding_bytes is None:
             return None
         emb = bytes_to_embedding(embedding_bytes)
         if emb is None:
             return None
         emb = np.asarray(emb, dtype=np.float32)
-        if emb.shape[0] != self.moment_matrix.shape[1]:
+        if emb.shape[0] != self.prompt_matrix.shape[1]:
             return None
         norm = np.linalg.norm(emb)
         if norm == 0:
             return None
-        return self.moment_matrix @ (emb / norm)
+        per_prompt = self.prompt_matrix @ (emb / norm)        # (P,)
+        sims = np.full(len(self.moments), -1.0, dtype=np.float32)
+        np.maximum.at(sims, self.prompt_moment_idx, per_prompt)
+        return sims
 
     def scores(self, embedding_bytes):
-        """Raw cosine per moment as a dict (debug / dry-run); None if unusable."""
-        sims = self._cosine(embedding_bytes)
+        """Raw max-pooled cosine per moment as a dict (debug / dry-run)."""
+        sims = self.score_vector(embedding_bytes)
         if sims is None:
             return None
         return {m: float(s) for m, s in zip(self.moments, sims)}
@@ -83,7 +105,7 @@ class MomentClassifier:
         Returns ``(moments, probs)`` or ``(None, None)``. ``probs`` is aligned to
         ``self.moments`` and consumed by the temporal-smoothing layer.
         """
-        sims = self._cosine(embedding_bytes)
+        sims = self.score_vector(embedding_bytes)
         if sims is None:
             return None, None
         adjusted = sims.copy()
@@ -97,20 +119,22 @@ class MomentClassifier:
         probs = probs / probs.sum()
         return self.moments, probs
 
-    def classify(self, embedding_bytes, photo_data=None):
+    def classify(self, embedding_bytes, photo_data=None, signal='image'):
         """Single label + confidence (the no-smoothing path).
 
         Returns ``(label, confidence)`` where label is ``'other'`` when the top
-        cosine is below ``min_confidence`` or the top-1/top-2 margin is below
-        ``min_margin``. L1 priors only nudge the chosen label, never the gate.
+        cosine is below ``signal``'s ``min_confidence`` or the top-1/top-2 margin
+        is below its ``min_margin``. L1 priors only nudge the chosen label,
+        never the gate.
         """
-        sims = self._cosine(embedding_bytes)
+        sims = self.score_vector(embedding_bytes)
         if sims is None:
             return None, None
+        min_confidence, min_margin = self.thresholds.get(signal, self.thresholds['image'])
         order = np.argsort(sims)[::-1]
         top1 = float(sims[order[0]])
         top2 = float(sims[order[1]]) if len(order) > 1 else -1.0
-        if top1 < self.min_confidence or (top1 - top2) < self.min_margin:
+        if top1 < min_confidence or (top1 - top2) < min_margin:
             return OTHER, top1
         label = self.moments[order[0]]
         if photo_data is not None and self.priors_cfg.get('enabled', True):
