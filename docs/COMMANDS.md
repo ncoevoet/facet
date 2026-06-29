@@ -95,6 +95,7 @@ These commands update specific metrics, derive new data (AI captions, GPS, embed
 | `python facet.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
 | `python facet.py --detect-moments` | Label new photos with their narrative moment (caption-semantic, zero-shot + temporal smoothing; auto-runs at the end of every scan). Encodes each new caption once into `caption_embedding`, then cosine over stored vectors — the first full backfill over an existing library is GPU-recommended; add `--limit N` to verify on a sample |
 | `python facet.py --recompute-moments` | Re-label narrative moments for the whole library (re-smooths the full timeline). Add `--dry-run --verbose` to preview the top-3 moments per photo without writing |
+| `python facet.py --discover-moments` | Propose a library-specific moment vocabulary by clustering the stored caption embeddings (HDBSCAN) and naming each cluster from its captions. Writes `scoring_config.discovered.json` for review — never rewrites the active config. Run `--detect-moments` first to populate `caption_embedding`; tune granularity with `--discover-min-cluster-size N` |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recompute subject saliency metrics (BiRefNet_dynamic) |
 | `python facet.py --recompute-composition-cpu` | Recompute composition, rule-based (CPU, any profile) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Recompute composition with SAMP-Net |

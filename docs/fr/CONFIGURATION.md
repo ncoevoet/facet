@@ -1612,6 +1612,8 @@ Le signal repose sur la **sémantique de la légende** : la légende IA de chaq
 
 > **Coût du remplissage rétroactif des légendes.** Les embeddings de légende sont calculés une seule fois et stockés, si bien que le cosinus par photo est ensuite gratuit. Une analyse n'encode que sa poignée de nouvelles légendes (peu coûteux, incrémental), mais la première passe complète sur une bibliothèque existante encode chaque légende — une passe avant de la tour textuelle par légende, rapide sur GPU et ~quelques heures sur CPU. Exécutez `python facet.py --detect-moments` une fois (GPU recommandé) pour ce remplissage ; ajoutez `--limit N` pour vérifier d'abord sur un échantillon.
 
+**Découvrir un vocabulaire propre à la bibliothèque.** L'ensemble `general` est une valeur par défaut raisonnable, mais vous pouvez proposer un vocabulaire adapté à *votre* bibliothèque avec `python facet.py --discover-moments` : il regroupe les vecteurs `caption_embedding` stockés (HDBSCAN), nomme chaque grappe à partir de ses légendes (un mot-clé plus les légendes les plus proches du centroïde comme prompts prêts à l'emploi), et écrit le résultat sous forme d'un bloc `event_types.discovered` dans `scoring_config.discovered.json`. Examinez-le, copiez `discovered` dans `event_types` ci-dessus, réglez `default_event_type` sur `discovered`, et exécutez `--recompute-moments` pour l'adopter — la découverte propose, elle ne réécrit jamais la configuration active. `--discover-min-cluster-size N` contrôle la granularité (plus petit = plus de moments, plus fins).
+
 ## Frise chronologique
 
 Réglages pour la vue chronologique :

@@ -1612,6 +1612,8 @@ Il segnale è **semantico sulla didascalia**: la didascalia AI di ogni foto vien
 
 > **Costo del backfill delle didascalie.** Gli embedding delle didascalie vengono calcolati una sola volta e memorizzati, quindi il coseno per foto è poi gratuito. Una scansione codifica solo la sua manciata di nuove didascalie (economico, incrementale), ma il primo passaggio completo su una libreria esistente codifica ogni didascalia — un passaggio in avanti dell'encoder testuale per didascalia, veloce su GPU e ~ore su CPU. Esegui `python facet.py --detect-moments` una volta (GPU consigliata) per quel backfill; aggiungi `--limit N` per verificare prima su un campione.
 
+**Scoprire un vocabolario specifico per la libreria.** L'insieme `general` è un'impostazione predefinita sensata, ma puoi proporre un vocabolario adattato alla *tua* libreria con `python facet.py --discover-moments`: raggruppa i vettori `caption_embedding` memorizzati (HDBSCAN), nomina ogni cluster a partire dalle sue didascalie (una parola chiave più le didascalie più vicine al centroide come prompt già pronti) e scrive il risultato come blocco `event_types.discovered` in `scoring_config.discovered.json`. Rivedilo, copia `discovered` in `event_types` sopra, imposta `default_event_type` su `discovered` ed esegui `--recompute-moments` per adottarlo — la scoperta propone, non riscrive mai la configurazione attiva. `--discover-min-cluster-size N` controlla la granularità (più piccolo = momenti più numerosi e fini).
+
 ## Timeline
 
 Impostazioni per la vista timeline cronologica:

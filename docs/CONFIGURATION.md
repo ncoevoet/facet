@@ -1612,6 +1612,8 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 
 > **Caption backfill cost.** Caption embeddings are computed once and stored, so the per-photo cosine is free afterwards. A scan encodes only its handful of new captions (cheap, incremental), but the first full pass over an existing library encodes every caption — one text-tower forward pass per caption, fast on GPU and ~hours on CPU. Run `python facet.py --detect-moments` once (GPU recommended) for that backfill; add `--limit N` to verify on a sample first.
 
+**Discovering a library-specific vocabulary.** The `general` set is a sensible default, but you can propose a vocabulary fitted to *your* library with `python facet.py --discover-moments`: it clusters the stored `caption_embedding` vectors (HDBSCAN), names each cluster from its captions (a keyword plus the captions nearest the centroid as ready-made prompts), and writes the result as an `event_types.discovered` block to `scoring_config.discovered.json`. Review it, copy `discovered` into `event_types` above, set `default_event_type` to `discovered`, and run `--recompute-moments` to adopt — discovery proposes, it never rewrites the active config. `--discover-min-cluster-size N` controls granularity (smaller = more, finer moments).
+
 ## Timeline
 
 Settings for the chronological timeline view:

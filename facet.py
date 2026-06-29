@@ -424,6 +424,12 @@ Configuration:
                         help='Re-label narrative moments for the whole library (re-smooths the full timeline)')
     db_group.add_argument('--limit', type=int, default=None, metavar='N',
                         help='Cap --detect-moments / --recompute-moments to the first N photos (verification / incremental)')
+    db_group.add_argument('--discover-moments', action='store_true',
+                        help='Propose a library-specific moment vocabulary by clustering the stored '
+                             'caption embeddings (writes scoring_config.discovered.json for review; '
+                             'never rewrites the active config). Run --detect-moments first to populate caption_embedding.')
+    db_group.add_argument('--discover-min-cluster-size', type=int, default=30, metavar='N',
+                        help='HDBSCAN granularity for --discover-moments (smaller = more, finer moments; default 30)')
     db_group.add_argument('--backfill-focal-35mm', action='store_true',
                         help='Backfill focal_length_35mm from EXIF for photos missing it')
     db_group.add_argument('--score-topiq', action='store_true',
@@ -1583,6 +1589,25 @@ Configuration:
                         result.get('would_label', 0))
         else:
             logger.info("Labeled %d photos with narrative moments", result.get('labeled', 0))
+        exit()
+
+    if args.discover_moments:
+        from models.moment_discovery import run_discovery
+        result = run_discovery(args.db, ScoringConfig(args.config, validate=False),
+                               min_cluster_size=args.discover_min_cluster_size)
+        if result.get('skipped') == 'no_caption_embeddings':
+            logger.error("No caption embeddings found; run --detect-moments first to populate them.")
+            exit(1)
+        logger.info("Analyzed %d captions, found %d candidate moments",
+                    result.get('analyzed', 0), result.get('clusters', 0))
+        for c in result.get('summary', []):
+            logger.info("  %-22s (%d photos) kw=%s e.g. %s",
+                        c['name'], c['size'], ", ".join(c['keywords']) or "-",
+                        " | ".join(c['sample']))
+        if result.get('output'):
+            logger.info("Wrote proposed vocabulary to %s — review it, then set "
+                        "narrative_moments.default_event_type to 'discovered' and run "
+                        "--recompute-moments to adopt.", result['output'])
         exit()
 
     # Recompute average scores (lightweight - no GPU needed)

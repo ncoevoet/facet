@@ -1612,6 +1612,8 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
 
 > **Kosten des Caption-Backfills.** Bildunterschrift-Embeddings werden einmal berechnet und gespeichert, sodass der Kosinus pro Foto danach kostenlos ist. Ein Scan kodiert nur seine wenigen neuen Bildunterschriften (günstig, inkrementell), aber der erste vollständige Durchlauf über eine bestehende Bibliothek kodiert jede Bildunterschrift — ein Text-Tower-Vorwärtsdurchlauf pro Bildunterschrift, schnell auf GPU und ~Stunden auf CPU. Führen Sie `python facet.py --detect-moments` einmal aus (GPU empfohlen) für diesen Backfill; fügen Sie `--limit N` hinzu, um es zuerst an einer Stichprobe zu prüfen.
 
+**Ein bibliotheksspezifisches Vokabular entdecken.** Das `general`-Set ist ein sinnvoller Standard, aber Sie können mit `python facet.py --discover-moments` ein auf *Ihre* Bibliothek zugeschnittenes Vokabular vorschlagen: Es clustert die gespeicherten `caption_embedding`-Vektoren (HDBSCAN), benennt jedes Cluster anhand seiner Bildunterschriften (ein Schlüsselwort plus die dem Zentroid am nächsten liegenden Bildunterschriften als gebrauchsfertige Prompts) und schreibt das Ergebnis als `event_types.discovered`-Block in `scoring_config.discovered.json`. Überprüfen Sie es, kopieren Sie `discovered` in `event_types` oben, setzen Sie `default_event_type` auf `discovered` und führen Sie `--recompute-moments` aus, um es zu übernehmen — die Entdeckung schlägt vor, sie überschreibt niemals die aktive Konfiguration. `--discover-min-cluster-size N` steuert die Granularität (kleiner = mehr, feinere Momente).
+
 ## Timeline
 
 Einstellungen für die chronologische Timeline-Ansicht:

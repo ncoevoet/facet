@@ -1612,6 +1612,8 @@ O sinal é **semântico de legenda** (caption-semantic): a legenda por IA de cad
 
 > **Custo do backfill de legendas.** Os embeddings de legenda são computados uma vez e armazenados, então o cosseno por foto é gratuito depois disso. Um escaneamento codifica apenas seu punhado de novas legendas (barato, incremental), mas a primeira passagem completa sobre uma biblioteca existente codifica cada legenda — uma passagem direta pela torre de texto por legenda, rápida na GPU e ~horas na CPU. Execute `python facet.py --detect-moments` uma vez (GPU recomendada) para esse backfill; adicione `--limit N` para verificar primeiro em uma amostra.
 
+**Descobrindo um vocabulário específico da biblioteca.** O conjunto `general` é um padrão sensato, mas você pode propor um vocabulário ajustado à *sua* biblioteca com `python facet.py --discover-moments`: ele agrupa os vetores `caption_embedding` armazenados (HDBSCAN), nomeia cada cluster a partir de suas legendas (uma palavra-chave mais as legendas mais próximas do centroide como prompts prontos) e grava o resultado como um bloco `event_types.discovered` em `scoring_config.discovered.json`. Revise-o, copie `discovered` para `event_types` acima, defina `default_event_type` como `discovered` e execute `--recompute-moments` para adotá-lo — a descoberta propõe, ela nunca reescreve a configuração ativa. `--discover-min-cluster-size N` controla a granularidade (menor = mais momentos, mais finos).
+
 ## Timeline
 
 Configurações da visualização cronológica em linha do tempo:
