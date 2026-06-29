@@ -271,6 +271,7 @@
     }
   },
   "compare": {
+    "help": "Entraînez les poids de scoring en comparant des paires de photos. Choisissez la meilleure photo pour apprendre vos goûts au système ; les onglets poids et instantanés vous permettent d'examiner et d'appliquer ce qui a été appris.",
     "title": "Comparer les photos",
     "header": "Comparer",
     "comparisons": "comparaisons",
@@ -592,6 +593,7 @@
     "person_fallback": "Personne {id}"
   },
   "stats": {
+    "help": "Aperçus sur votre bibliothèque : distributions des scores, utilisation des appareils et objectifs, corrélations entre les dimensions de scoring et tendances dans le temps.",
     "title": "Statistiques EXIF",
     "tabs": {
       "gear": "Equipement",
@@ -1015,6 +1017,7 @@
     "error": "Echec de la connexion"
   },
   "gallery": {
+    "help": "Parcourez et filtrez votre bibliothèque. Triez par score, date ou par vos goûts personnels ; utilisez les filtres de la barre latérale (personnes, mots-clés, appareil, catégorie, plage de score, moments) et la recherche pour trouver des photos.",
     "hidden_banner": {
       "message": "{n} photos masquées par les filtres actuels",
       "show_all": "Tout afficher"
@@ -1437,6 +1440,7 @@
     "idle": "Inactif"
   },
   "persons": {
+    "help": "Personnes détectées par la reconnaissance faciale. Nommez les groupes sans nom, fusionnez les doublons, définissez un avatar ou masquez une personne. Cliquez sur une personne pour voir ses photos.",
     "manage_title": "Gestion des personnes",
     "merge_suggestions": "Suggestions de fusion",
     "merge_suggestions_title": "Suggestions de fusion",
@@ -1468,6 +1472,9 @@
     "merged": "Personnes fusionnees",
     "merge_error": "Echec de la fusion",
     "accept_all": "Tout accepter ({count})",
+    "merge_into_this": "Cliquez pour fusionner la paire dans cette personne",
+    "similarity_match_hint": "Correspondance par similarité faciale — plus le score est élevé, plus il est probable qu'il s'agisse de la même personne",
+    "confirm_merge_all_message": "Fusionner les {count} paires suggérées ? Cette action est irréversible.",
     "accept": "Fusionner",
     "no_suggestions": "Aucune suggestion de fusion",
     "batch_merged": "{count} suggestions fusionnees",
@@ -1523,6 +1530,7 @@
     "fullscreen": "Plein ecran"
   },
   "albums": {
+    "help": "Regroupez des photos dans des albums. Les albums manuels contiennent un ensemble fixe ; les albums intelligents rassemblent automatiquement les photos correspondant à un filtre enregistré. Ouvrez un album pour le consulter, le trier ou le partager.",
     "title": "Albums",
     "create": "Nouvel Album",
     "empty": "Pas encore d'albums. Creez-en un pour organiser vos photos.",
@@ -1532,6 +1540,7 @@
     "photos_added": "Photos ajoutees a l'album",
     "save_smart": "Enregistrer comme album intelligent",
     "smart_album": "Album intelligent",
+    "smart_tooltip": "Album intelligent — rassemble automatiquement les photos correspondant à un filtre enregistré",
     "confirm_delete_title": "Supprimer l'album",
     "confirm_delete_message": "Supprimer l'album \"{name}\" ? Les photos ne seront pas supprimees.",
     "share": "Partager",
@@ -1696,7 +1705,7 @@
     "burst_help": "Les photos prises en rafale sont regroupées ensemble. Cliquez sur les photos à conserver (bordure verte), les photos non sélectionnées (bordure rouge) seront masquées. La meilleure photo est automatiquement sélectionnée en fonction de la netteté et de la qualité.",
     "similar_help": "Les photos visuellement similaires de votre bibliothèque sont regroupées grâce aux embeddings IA. Examinez chaque groupe, conservez les meilleurs clichés et écartez les quasi-doublons. Ajustez le curseur de seuil pour contrôler le degré de similarité nécessaire pour former un groupe.",
     "help": "Aide",
-    "help_text": "Examinez les groupes de photos similaires ou en rafale. Cliquez sur une photo pour la garder ou la retirer ; double-cliquez pour ne garder qu'elle. Ouvrez la Chambre noire (revue en plein écran) avec le bouton Chambre noire ou la touche Entrée. Utilisez Haut/Bas pour choisir un groupe et Espace pour le confirmer et passer au suivant. Passer et Confirmer lancent un compte à rebours de 7 secondes que vous pouvez Annuler avant la fermeture du groupe ; la confirmation masque les photos rejetées de la galerie.",
+    "help_text": "Triez rapidement les prises quasi identiques. Choisissez une granularité — Rafales, Similaires, Scènes ou Tout fusionné — et un ordre de tri ; la Rigueur règle l’agressivité de la sélection automatique pour ne garder que la meilleure image, et en mode Similaires le curseur Similarité ajuste le degré de ressemblance requis pour regrouper. Cliquez sur une photo pour la garder ou la retirer, double-cliquez pour ne garder qu’elle, ou activez la Loupe (Z) pour scruter les pixels. Ouvrez la Chambre noire (Entrée) pour une revue plein écran avec Comparer 2 ou 4. Utilisez Haut/Bas pour choisir un groupe et Espace pour le confirmer et passer au suivant ; Passer et Confirmer lancent un compte à rebours de 7 secondes que vous pouvez Annuler avant la fermeture du groupe, et la confirmation masque les photos rejetées de la galerie. Limitez le flux à un album ou une scène, activez Exclure les rejetées, et notez que chaque décision de tri entraîne votre classement personnel « Mes goûts ». Consultez les raccourcis ci-dessous pour toutes les touches.",
     "type_burst": "Rafale",
     "type_similar": "Similaire",
     "confirm_all": "Tout confirmer",
@@ -1809,6 +1818,7 @@
     "unavailable": "La génération de légende nécessite un modèle VLM (16 Go+ VRAM)"
   },
   "timeline": {
+    "help": "Parcourez votre bibliothèque de façon chronologique. Naviguez des années aux mois puis aux jours ; choisissez une période pour voir les photos prises à ce moment-là.",
     "title": "Chronologie",
     "empty": "Aucune photo avec des dates trouvée.",
     "years_title": "Années",
@@ -1818,6 +1828,7 @@
     "photos_count": "photos"
   },
   "folders": {
+    "help": "Parcourez les photos selon leur arborescence de dossiers sur le disque. Ouvrez un dossier pour voir les photos qu'il contient.",
     "title": "Dossiers",
     "empty": "Aucun dossier trouvé.",
     "root": "Racine",
@@ -1969,6 +1980,7 @@
     "regenerate": "Régénérer les capsules"
   },
   "map": {
+    "help": "Photos géolocalisées sur une carte. Déplacez-vous et zoomez pour explorer où vos photos ont été prises ; le filtre de plage de dates limite ce qui est affiché.",
     "title": "Carte",
     "no_gps": "Aucune photo avec données GPS trouvée",
     "photos_count": "{count} photos avec localisation",

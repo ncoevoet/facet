@@ -8,4 +8,5 @@ export class AlbumsFiltersService {
   readonly search = signal('');
   readonly sort = signal<AlbumSortField>('updated_at');
   readonly typeFilter = signal<AlbumTypeFilter>('');
+  readonly createRequested = signal(0);
 }

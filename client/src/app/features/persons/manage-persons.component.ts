@@ -1,9 +1,8 @@
-import { Component, inject, signal, computed, OnInit, effect, untracked } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, effect, untracked, DestroyRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import {
   MatDialogModule,
   MatDialog,
@@ -19,6 +18,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { PageHelpService } from '../../core/services/page-help.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PersonThumbnailUrlPipe, FaceThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { PersonCardComponent, Person } from '../../shared/components/person-card/person-card.component';
@@ -232,13 +232,11 @@ export class PersonFacesDialogComponent implements OnInit {
 @Component({
   selector: 'app-manage-persons',
   imports: [
-    RouterLink,
     MatButtonModule,
     MatIconModule,
     MatDialogModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    MatSlideToggleModule,
     MatTooltipModule,
     TranslatePipe,
     PersonCardComponent,
@@ -246,35 +244,6 @@ export class PersonFacesDialogComponent implements OnInit {
   ],
   template: `
     <div class="px-4 pt-4 pb-4">
-      <!-- Header -->
-      <div class="flex flex-wrap items-center justify-start gap-4 mb-3">
-        @if (auth.isEdition()) {
-          <!-- Small screen: icon-only buttons -->
-          <button mat-icon-button class="sm:!hidden" (click)="openNewPersonDialog()"
-                  [matTooltip]="I18N.manage_persons.new_person | translate"
-                  [attr.aria-label]="I18N.manage_persons.new_person | translate">
-            <mat-icon>person_add</mat-icon>
-          </button>
-          <a mat-icon-button class="sm:!hidden" routerLink="/merge-suggestions"
-             [matTooltip]="I18N.persons.merge_suggestions | translate"
-             [attr.aria-label]="I18N.persons.merge_suggestions | translate">
-            <mat-icon>auto_fix_high</mat-icon>
-          </a>
-          <!-- Larger screens: full buttons with labels -->
-          <button mat-flat-button class="!hidden sm:!inline-flex" (click)="openNewPersonDialog()">
-            <mat-icon>person_add</mat-icon>
-            {{ I18N.manage_persons.new_person | translate }}
-          </button>
-          <a mat-flat-button class="!hidden sm:!inline-flex" routerLink="/merge-suggestions">
-            <mat-icon>auto_fix_high</mat-icon>
-            {{ I18N.persons.merge_suggestions | translate }}
-          </a>
-          <mat-slide-toggle class="ml-auto" [checked]="showHidden()" (change)="toggleShowHidden($event.checked)">
-            {{ I18N.persons.show_hidden | translate }}
-          </mat-slide-toggle>
-        }
-      </div>
-
       <!-- Loading -->
       @if (loading() && persons().length === 0) {
         <div class="flex justify-center py-16">
@@ -290,8 +259,7 @@ export class PersonFacesDialogComponent implements OnInit {
             (click)="needsNamingExpanded.set(!needsNamingExpanded())"
           >
             <mat-icon class="opacity-60">{{ needsNamingExpanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
-            <span class="font-medium">{{ I18N.manage_persons.needs_naming | translate }} ({{ needsNaming().length }})</span>
-            <span class="text-xs opacity-60 ml-2">{{ I18N.manage_persons.needs_naming_help | translate }}</span>
+            <span class="font-medium flex-1" [matTooltip]="I18N.manage_persons.needs_naming_help | translate">{{ I18N.manage_persons.needs_naming | translate }} ({{ needsNaming().length }})</span>
           </button>
           @if (needsNamingExpanded()) {
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
@@ -302,7 +270,6 @@ export class PersonFacesDialogComponent implements OnInit {
                   [canEdit]="true"
                   (editSave)="onNeedsNamingSave($event)"
                   (editCancel)="onNeedsNamingCancel()"
-                  (selected)="onViewPhotos($event)"
                   (viewPhotos)="onViewPhotos($event)"
                 />
               }
@@ -375,6 +342,7 @@ export class ManagePersonsComponent implements OnInit {
   readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
+  private readonly pageHelp = inject(PageHelpService);
   private readonly router = inject(Router);
   private readonly personsFilters = inject(PersonsFiltersService);
   private dialog = inject(MatDialog);
@@ -387,7 +355,6 @@ export class ManagePersonsComponent implements OnInit {
   readonly selectedIds = signal<Set<number>>(new Set());
   readonly needsNaming = signal<Person[]>([]);
   readonly needsNamingExpanded = signal(true);
-  readonly showHidden = signal(false);
 
   private page = 1;
   private readonly perPage = 48;
@@ -396,17 +363,27 @@ export class ManagePersonsComponent implements OnInit {
   readonly hasMore = computed(() => this.persons().length < this.total());
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => this.pageHelp.setDescription(null));
     effect(() => {
       this.personsFilters.sort();
       this.personsFilters.sortDirection();
       this.personsFilters.search();
+      this.personsFilters.showHidden();
       if (this.initialized) {
         untracked(() => this.loadPersons(true));
+      }
+    });
+    // Open the new-person dialog when the shell's add button increments the counter
+    const initialCreate = this.personsFilters.createRequested();
+    effect(() => {
+      if (this.personsFilters.createRequested() !== initialCreate) {
+        untracked(() => this.openNewPersonDialog());
       }
     });
   }
 
   async ngOnInit(): Promise<void> {
+    this.pageHelp.setDescription(I18N.persons.help);
     this.initialized = true;
     await Promise.all([this.loadPersons(true), this.loadNeedsNaming()]);
   }
@@ -488,7 +465,7 @@ export class ManagePersonsComponent implements OnInit {
           page: this.page,
           per_page: this.perPage,
           sort: sortParam,
-          include_hidden: this.showHidden(),
+          include_hidden: this.personsFilters.showHidden(),
         }),
       );
 
@@ -609,13 +586,6 @@ export class ManagePersonsComponent implements OnInit {
     if (person) void this.splitPerson(person);
   }
 
-  // --- Show hidden toggle ---
-
-  toggleShowHidden(checked: boolean): void {
-    this.showHidden.set(checked);
-    void this.loadPersons(true);
-  }
-
   // --- Hide / Unhide ---
 
   async setHidden(personId: number, hidden: boolean): Promise<void> {
@@ -623,7 +593,7 @@ export class ManagePersonsComponent implements OnInit {
       await firstValueFrom(
         this.api.post(`/persons/${personId}/${hidden ? 'hide' : 'unhide'}`),
       );
-      if (hidden && !this.showHidden()) {
+      if (hidden && !this.personsFilters.showHidden()) {
         // Drop the person from the list when hidden persons are not shown.
         this.persons.update((list) => list.filter((p) => p.id !== personId));
         this.total.update((t) => t - 1);

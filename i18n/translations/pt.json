@@ -271,6 +271,7 @@
     }
   },
   "compare": {
+    "help": "Treine os pesos de pontuação comparando pares de fotos. Escolha a melhor foto para ensinar o seu gosto ao sistema; as abas de pesos e snapshots permitem revisar e aplicar o que foi aprendido.",
     "title": "Comparar Fotos",
     "header": "Comparar",
     "comparisons": "comparações",
@@ -592,6 +593,7 @@
     "person_fallback": "Pessoa {id}"
   },
   "stats": {
+    "help": "Informações sobre a sua biblioteca: distribuições de pontuação, uso de câmeras e lentes, correlações entre as dimensões de pontuação e tendências ao longo do tempo.",
     "title": "Estatísticas EXIF",
     "tabs": {
       "gear": "Equipamento",
@@ -1015,6 +1017,7 @@
     "error": "Falha no login"
   },
   "gallery": {
+    "help": "Navegue e filtre a sua biblioteca. Ordene por pontuação, data ou pelo seu gosto pessoal; use os filtros da barra lateral (pessoas, tags, câmera, categoria, faixa de pontuação, momentos) e a busca para encontrar fotos.",
     "hidden_banner": {
       "message": "{n} fotos ocultadas pelos filtros atuais",
       "show_all": "Mostrar todas"
@@ -1435,6 +1438,7 @@
     "idle": "Ocioso"
   },
   "persons": {
+    "help": "Pessoas detectadas pelo reconhecimento facial. Nomeie os grupos sem nome, mescle duplicatas, defina um avatar ou oculte uma pessoa. Clique em uma pessoa para ver as suas fotos.",
     "manage_title": "Gerenciar pessoas",
     "merge_suggestions": "Sugestões de mesclagem",
     "merge_suggestions_title": "Sugestões de mesclagem",
@@ -1466,6 +1470,9 @@
     "merged": "Pessoas mescladas",
     "merge_error": "Falha ao mesclar pessoas",
     "accept_all": "Aceitar tudo ({count})",
+    "merge_into_this": "Clique para fundir o par nesta pessoa",
+    "similarity_match_hint": "Correspondência por semelhança facial — quanto maior, mais provável ser a mesma pessoa",
+    "confirm_merge_all_message": "Fundir todos os {count} pares sugeridos? Esta ação é irreversível.",
     "accept": "Mesclar",
     "no_suggestions": "Nenhuma sugestão de mesclagem encontrada",
     "batch_merged": "{count} sugestões mescladas",
@@ -1521,6 +1528,7 @@
     "fullscreen": "Tela cheia"
   },
   "albums": {
+    "help": "Agrupe fotos em álbuns. Os álbuns manuais contêm um conjunto fixo; os álbuns inteligentes reúnem automaticamente as fotos correspondentes a um filtro salvo. Abra um álbum para visualizá-lo, selecioná-lo ou compartilhá-lo.",
     "title": "Álbuns",
     "create": "Novo álbum",
     "empty": "Nenhum álbum ainda. Crie um para organizar suas fotos.",
@@ -1530,6 +1538,7 @@
     "photos_added": "Fotos adicionadas ao álbum",
     "save_smart": "Salvar como álbum inteligente",
     "smart_album": "Álbum inteligente",
+    "smart_tooltip": "Álbum inteligente — reúne automaticamente as fotos correspondentes a um filtro salvo",
     "confirm_delete_title": "Excluir álbum",
     "confirm_delete_message": "Excluir o álbum \"{name}\"? As fotos não serão removidas.",
     "share": "Compartilhar",
@@ -1694,7 +1703,7 @@
     "burst_help": "Fotos tiradas em sucessão rápida são agrupadas. Clique nas fotos para mantê-las (borda verde); as fotos não selecionadas (borda vermelha) serão ocultadas. A melhor foto é selecionada automaticamente com base na nitidez e na qualidade.",
     "similar_help": "Fotos visualmente semelhantes em toda a sua biblioteca são agrupadas usando embeddings de AI. Revise cada grupo, mantenha as melhores fotos e descarte as quase duplicadas. Ajuste o controle deslizante do limite para definir o quão semelhantes as fotos precisam ser para formar um grupo.",
     "help": "Ajuda",
-    "help_text": "Revise grupos de fotos semelhantes ou em rajada. Clique em uma foto para mantê-la ou desfazer; clique duas vezes para manter apenas aquela. Abra a Câmara Escura (revisão em tela cheia) com o botão Câmara Escura ou a tecla Enter. Use Cima/Baixo para escolher um grupo e Espaço para confirmá-lo e ir para o próximo. Pular e Confirmar iniciam um intervalo de 7 segundos que você pode Cancelar antes de o grupo fechar; ao confirmar, as fotos rejeitadas são ocultadas da galeria.",
+    "help_text": "Faça a triagem rápida de fotos quase idênticas. Escolha uma granularidade — Rajadas, Semelhantes, Cenas ou Tudo combinado — e uma ordenação; o Rigor define com que agressividade a seleção automática mantém apenas o melhor quadro, e no modo Semelhantes o controle de Semelhança ajusta o quanto as fotos precisam se parecer para agrupar. Clique em uma foto para mantê-la ou desfazer, clique duas vezes para manter apenas aquela, ou ative a Lupa (Z) para examinar os pixels. Abra a Câmara Escura (Enter) para a revisão em tela cheia com Comparar 2 ou 4. Use Cima/Baixo para escolher um grupo e Espaço para confirmá-lo e seguir; Pular e Confirmar iniciam um intervalo de 7 segundos que você pode Cancelar antes de o grupo fechar, e ao confirmar as fotos rejeitadas são ocultadas da galeria. Limite o feed a um álbum ou cena, ative Excluir rejeitadas e note que cada decisão de triagem treina sua classificação pessoal “Meu Gosto”. Consulte os atalhos abaixo para todas as teclas.",
     "type_burst": "Rajada",
     "type_similar": "Semelhante",
     "confirm_all": "Confirmar tudo",
@@ -1807,6 +1816,7 @@
     "unavailable": "A geração de legendas requer um modelo VLM (16GB+ de VRAM)"
   },
   "timeline": {
+    "help": "Navegue pela sua biblioteca em ordem cronológica. Vá dos anos aos meses e aos dias; escolha um período para ver as fotos tiradas então.",
     "title": "Linha do tempo",
     "empty": "Nenhuma foto com datas encontrada.",
     "years_title": "Anos",
@@ -1816,6 +1826,7 @@
     "photos_count": "fotos"
   },
   "folders": {
+    "help": "Navegue pelas fotos pela sua estrutura de pastas no disco. Abra uma pasta para ver as fotos que ela contém.",
     "title": "Pastas",
     "empty": "Nenhuma pasta encontrada.",
     "root": "Raiz",
@@ -1967,6 +1978,7 @@
     "regenerate": "Regenerar cápsulas"
   },
   "map": {
+    "help": "Fotos geolocalizadas em um mapa. Arraste e dê zoom para explorar onde as suas fotos foram tiradas; o filtro de intervalo de datas limita o que é exibido.",
     "title": "Mapa",
     "no_gps": "Nenhuma foto com dados de GPS encontrada",
     "photos_count": "{count} fotos com localização",

@@ -65,7 +65,9 @@ export interface Person {
           }
         </div>
         <!-- Photo/face count badge (top-right) -->
-        <span class="absolute top-1.5 right-1.5 z-10 px-2 py-0.5 rounded-full bg-black/60 text-white text-xs font-semibold leading-none">
+        <span class="absolute top-1.5 right-1.5 z-10 px-2 py-0.5 rounded-full bg-black/60 text-white text-xs font-semibold leading-none"
+              [matTooltip]="I18N.persons.face_count | translate:{ count: person().face_count }"
+              [attr.aria-label]="I18N.persons.face_count | translate:{ count: person().face_count }">
           {{ person().face_count }}
         </span>
       </div>
@@ -109,7 +111,7 @@ export interface Person {
           </div>
           <!-- Actions (inline, right side) -->
           @if (canEdit() && !isEditing()) {
-            <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            <div class="flex items-center shrink-0"
                  role="presentation"
                  tabindex="-1"
                  (click)="$event.stopPropagation()"

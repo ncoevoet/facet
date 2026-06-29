@@ -17,7 +17,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
-import { isTypingContext } from '../../shared/utils/keyboard';
+import { createLoupeState } from '../../shared/utils/loupe-state';
 import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from './scenes.pipes';
 import { I18N } from '../../core/i18n/keys';
 
@@ -173,8 +173,9 @@ export class ScenesComponent implements OnInit {
   protected readonly currentAlbumName = computed(() =>
     AlbumService.nameById(this.albums(), this.albumId()));
   // Hover-loupe (Photo-Mechanic-style Z key) state for the contact strip.
-  protected readonly loupeActive = signal(false);
-  protected readonly loupeZoom = signal(3);
+  private readonly loupe = createLoupeState();
+  protected readonly loupeActive = this.loupe.loupeActive;
+  protected readonly loupeZoom = this.loupe.loupeZoom;
   /** Min posterior below which a moment label is shown dimmed + "(uncertain)". */
   protected readonly momentConfidenceMin = computed(
     () => this.store.config()?.moment_confidence_min ?? 0,
@@ -212,9 +213,7 @@ export class ScenesComponent implements OnInit {
 
   @HostListener('document:keydown.z', ['$event'])
   protected onZoomToggle(event: Event): void {
-    if (isTypingContext(event)) return;
-    event.preventDefault();
-    this.loupeActive.set(!this.loupeActive());
+    this.loupe.toggle(event);
   }
 
   private async load(): Promise<void> {

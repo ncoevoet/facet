@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, signal, viewChild } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -9,6 +9,7 @@ import { Chart, registerables } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { PageHelpService } from '../../core/services/page-help.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { CompareFiltersService } from './compare-filters.service';
@@ -40,36 +41,7 @@ Chart.register(...registerables);
       @if (showTopActions()) {
         <div class="flex flex-wrap items-center gap-3 mb-4 md:mb-6">
           <div class="flex gap-2 ml-auto flex-wrap">
-            @if (selectedTabIndex() === 3) {
-              <!-- Weights tab -->
-              <button
-                mat-flat-button
-                [disabled]="!weightsTab()?.hasChanges() || !auth.isEdition() || (weightsTab()?.saving() ?? false) || (weightsTab()?.hasValidationErrors() ?? false)"
-                (click)="weightsTab()?.saveWeights()"
-                [matTooltip]="I18N.comparison.save_tooltip | translate">
-                <mat-icon>save</mat-icon>
-                {{ I18N.comparison.save | translate }}
-              </button>
-              <button mat-stroked-button (click)="weightsTab()?.loadWeights(true)"
-                [matTooltip]="I18N.comparison.reset_tooltip | translate">
-                <mat-icon>refresh</mat-icon>
-                {{ I18N.comparison.reset | translate }}
-              </button>
-              <button
-                mat-stroked-button
-                [disabled]="(weightsTab()?.hasChanges() ?? false) || !auth.isEdition() || (weightsTab()?.recalculating() ?? false)"
-                (click)="weightsTab()?.recalculateScores()"
-                [matTooltip]="I18N.comparison.recalculate_tooltip | translate">
-                <span class="inline-flex items-center gap-1.5">
-                  @if (weightsTab()?.recalculating()) {
-                    <mat-spinner diameter="16" class="!w-4 !h-4" />
-                  } @else {
-                    <mat-icon class="!m-0">calculate</mat-icon>
-                  }
-                  {{ I18N.comparison.recalculate | translate }}
-                </span>
-              </button>
-            } @else if (selectedTabIndex() === 2) {
+            @if (selectedTabIndex() === 2) {
               <!-- Weight Suggestions tab -->
               @if (suggestionsTab()?.canApply()) {
                 <button mat-flat-button
@@ -139,7 +111,7 @@ Chart.register(...registerables);
           <!-- Weights tab -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <mat-icon class="mr-2">sliders</mat-icon>
+              <mat-icon class="mr-2">tune</mat-icon>
               {{ I18N.comparison.weights | translate }}
             </ng-template>
             <app-comparison-weights-tab #weightsTabEl />
@@ -156,6 +128,7 @@ export class ComparisonComponent {
   private readonly store = inject(GalleryStore);
   private readonly themeService = inject(ThemeService);
   protected readonly compareFilters = inject(CompareFiltersService);
+  private readonly pageHelp = inject(PageHelpService);
 
   protected readonly weightsTab = viewChild<ComparisonWeightsTabComponent>('weightsTabEl');
   protected readonly snapshotsTab = viewChild<ComparisonSnapshotsTabComponent>('snapshotsTabEl');
@@ -174,12 +147,13 @@ export class ComparisonComponent {
   /** Whether the contextual top bar has any action to show for the active tab. */
   protected readonly showTopActions = computed(() => {
     const i = this.selectedTabIndex();
-    if (i === 3) return true;
     if (i === 2) return !!(this.suggestionsTab()?.canApply() || this.suggestionsTab()?.needsRecompute());
     return false;
   });
 
   constructor() {
+    this.pageHelp.setDescription(I18N.compare.help);
+    inject(DestroyRef).onDestroy(() => this.pageHelp.setDescription(null));
     effect(() => {
       const dark = this.themeService.darkMode();
       Chart.defaults.color = dark ? '#a3a3a3' : '#525252';

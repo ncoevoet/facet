@@ -40,6 +40,14 @@
           <a mat-icon-button class="lg:!hidden" routerLink="/stats" routerLinkActive #rlStatsM="routerLinkActive" [style.color]="rlStatsM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.stats | translate" [attr.aria-label]="I18N.nav.stats | translate">
             <mat-icon>bar_chart</mat-icon>
           </a>
+          @if (auth.isEdition()) {
+            <a mat-icon-button class="lg:!hidden" routerLink="/culling" routerLinkActive #rlCullingM="routerLinkActive" [style.color]="rlCullingM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.culling | translate" [attr.aria-label]="I18N.nav.culling | translate">
+              <mat-icon>burst_mode</mat-icon>
+            </a>
+            <a mat-icon-button class="lg:!hidden" routerLink="/compare" routerLinkActive #rlCompareM="routerLinkActive" [style.color]="rlCompareM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.compare | translate" [attr.aria-label]="I18N.nav.compare | translate">
+              <mat-icon>compare</mat-icon>
+            </a>
+          }
           @if (store.config()?.features?.show_memories && hasMemories()) {
             <button mat-icon-button class="lg:!hidden" (click)="playMemories()" [matTooltip]="I18N.memories.tooltip | translate" [attr.aria-label]="I18N.nav.memories | translate">
               <mat-icon>auto_awesome</mat-icon>
@@ -95,6 +103,11 @@
             </button>
           }
         </nav>
+      }
+
+      <!-- Separator between the nav cluster and the per-route header controls -->
+      @if (auth.isAuthenticated() && hasHeaderControls()) {
+        <div class="hidden lg:block w-px h-6 bg-[var(--mat-sys-outline-variant)] mx-1 shrink-0"></div>
       }
 
       <!-- Gallery type & sort (visible only on gallery route, lg+ to avoid toolbar cramping) -->
@@ -182,6 +195,11 @@
             <mat-option value="photo_count">{{ I18N.albums.sort_photos | translate }}</mat-option>
           </mat-select>
         </mat-form-field>
+        @if (auth.isEdition()) {
+          <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="I18N.albums.create | translate" [attr.aria-label]="I18N.albums.create | translate" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
+            <mat-icon>add</mat-icon>
+          </button>
+        }
       }
 
       <!-- Timeline date filters (visible only on timeline route, lg+) -->
@@ -240,6 +258,25 @@
         >
           <mat-icon>{{ personsFilters.sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
         </button>
+        @if (auth.isEdition()) {
+          <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="I18N.manage_persons.new_person | translate" [attr.aria-label]="I18N.manage_persons.new_person | translate" (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
+            <mat-icon>person_add</mat-icon>
+          </button>
+          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/merge-suggestions" [matTooltip]="I18N.persons.merge_suggestions | translate" [attr.aria-label]="I18N.persons.merge_suggestions | translate">
+            <mat-icon>auto_fix_high</mat-icon>
+          </a>
+          <button
+            class="!hidden lg:!inline-flex"
+            mat-icon-button
+            [class.!text-[var(--mat-sys-primary)]]="personsFilters.showHidden()"
+            [attr.aria-pressed]="personsFilters.showHidden()"
+            [matTooltip]="I18N.persons.show_hidden | translate"
+            [attr.aria-label]="I18N.persons.show_hidden | translate"
+            (click)="personsFilters.showHidden.set(!personsFilters.showHidden())"
+          >
+            <mat-icon>{{ personsFilters.showHidden() ? 'visibility' : 'visibility_off' }}</mat-icon>
+          </button>
+        }
       }
 
       <div class="flex-1"></div>
@@ -364,9 +401,21 @@
         </mat-menu>
       }
 
+      <!-- Global per-page help toggle (present on all routes) -->
+      <button
+        mat-icon-button
+        (click)="pageHelp.toggle()"
+        [class.!text-[var(--mat-sys-primary)]]="pageHelp.open()"
+        [attr.aria-pressed]="pageHelp.open()"
+        [matTooltip]="I18N.culling.help | translate"
+        [attr.aria-label]="I18N.culling.help | translate"
+      >
+        <mat-icon>{{ pageHelp.open() ? 'help' : 'help_outline' }}</mat-icon>
+      </button>
+
       <!-- User menu (authenticated: account + language + edition + logout) -->
       @if (auth.isAuthenticated()) {
-        <button mat-icon-button [matMenuTriggerFor]="userMenu" [matTooltip]="auth.status()?.display_name || (auth.isEdition() ? (I18N.edition.lock_title | translate) : '')">
+        <button mat-icon-button [matMenuTriggerFor]="userMenu" [matTooltip]="auth.status()?.display_name || (auth.isEdition() && auth.editionPasswordRequired() ? (I18N.edition.lock_title | translate) : '')">
           <mat-icon [class.!text-amber-400]="auth.isEdition()">{{ auth.isEdition() ? 'admin_panel_settings' : 'account_circle' }}</mat-icon>
         </button>
         <mat-menu #userMenu="matMenu">
@@ -375,23 +424,19 @@
           }
           @if (!auth.isMultiUser() && auth.status()?.edition_enabled) {
             @if (auth.isEdition()) {
-              <button mat-menu-item (click)="lockEdition()" [matTooltip]="I18N.edition.lock_title | translate">
-                <mat-icon class="!text-amber-400">lock_open</mat-icon>
-                {{ I18N.edition.label | translate }}
-              </button>
-              <a mat-menu-item class="lg:!hidden" routerLink="/culling">
-                <mat-icon>burst_mode</mat-icon>
-                {{ I18N.nav.culling | translate }}
-              </a>
-              <a mat-menu-item class="lg:!hidden" routerLink="/compare">
-                <mat-icon>compare</mat-icon>
-                {{ I18N.nav.compare | translate }}
-              </a>
+              @if (auth.editionPasswordRequired()) {
+                <button mat-menu-item (click)="lockEdition()" [matTooltip]="I18N.edition.lock_title | translate">
+                  <mat-icon class="!text-amber-400">lock_open</mat-icon>
+                  {{ I18N.edition.label | translate }}
+                </button>
+              }
             } @else {
-              <button mat-menu-item (click)="showEditionDialog()" [matTooltip]="I18N.edition.unlock_title | translate">
-                <mat-icon>lock</mat-icon>
-                {{ I18N.edition.label | translate }}
-              </button>
+              @if (auth.editionPasswordRequired()) {
+                <button mat-menu-item (click)="showEditionDialog()" [matTooltip]="I18N.edition.unlock_title | translate">
+                  <mat-icon>lock</mat-icon>
+                  {{ I18N.edition.label | translate }}
+                </button>
+              }
             }
             <mat-divider />
           }
@@ -407,11 +452,13 @@
             <mat-icon>palette</mat-icon>
             {{ I18N.ui.theme | translate }}
           </button>
-          <mat-divider />
-          <button mat-menu-item (click)="logout()">
-            <mat-icon>logout</mat-icon>
-            {{ I18N.auth.logout | translate }}
-          </button>
+          @if (auth.isMultiUser() || auth.loginPasswordRequired()) {
+            <mat-divider />
+            <button mat-menu-item (click)="logout()">
+              <mat-icon>logout</mat-icon>
+              {{ I18N.auth.logout | translate }}
+            </button>
+          }
         </mat-menu>
         <mat-menu #langMenu="matMenu">
           @for (lang of i18n.languages(); track lang.code) {
@@ -458,6 +505,11 @@
 
     </div>
   </mat-toolbar>
+  }
+
+  <!-- Global per-page help panel (shows the current page's description) -->
+  @if (pageHelp.open() && pageHelp.descriptionKey(); as key) {
+    <div class="mx-4 mt-3 p-3 rounded-lg bg-[var(--mat-sys-surface-container)] text-sm opacity-80">{{ key | translate }}</div>
   }
 
   <!-- Mobile search bar is rendered as a fixed bar above the gallery bottom bar -->
@@ -677,6 +729,11 @@
       <button mat-icon-button class="!w-10 !h-10" (click)="mobileAlbumsSearchOpen.set(!mobileAlbumsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
         <mat-icon>search</mat-icon>
       </button>
+      @if (auth.isEdition()) {
+        <button mat-icon-button class="!w-10 !h-10 ml-auto" [matTooltip]="I18N.albums.create | translate" [attr.aria-label]="I18N.albums.create | translate" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
+          <mat-icon>add</mat-icon>
+        </button>
+      }
     </div>
   }
 
@@ -715,6 +772,28 @@
       <button mat-icon-button class="!w-10 !h-10" (click)="mobilePersonsSearchOpen.set(!mobilePersonsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
         <mat-icon>search</mat-icon>
       </button>
+      @if (auth.isEdition()) {
+        <button
+          mat-icon-button class="!w-10 !h-10"
+          [class.!text-[var(--mat-sys-primary)]]="personsFilters.showHidden()"
+          [attr.aria-pressed]="personsFilters.showHidden()"
+          [matTooltip]="I18N.persons.show_hidden | translate"
+          [attr.aria-label]="I18N.persons.show_hidden | translate"
+          (click)="personsFilters.showHidden.set(!personsFilters.showHidden())">
+          <mat-icon>{{ personsFilters.showHidden() ? 'visibility' : 'visibility_off' }}</mat-icon>
+        </button>
+        <button mat-icon-button class="!w-10 !h-10 ml-auto"
+          [matTooltip]="I18N.manage_persons.new_person | translate"
+          [attr.aria-label]="I18N.manage_persons.new_person | translate"
+          (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
+          <mat-icon>person_add</mat-icon>
+        </button>
+        <a mat-icon-button class="!w-10 !h-10" routerLink="/merge-suggestions"
+          [matTooltip]="I18N.persons.merge_suggestions | translate"
+          [attr.aria-label]="I18N.persons.merge_suggestions | translate">
+          <mat-icon>auto_fix_high</mat-icon>
+        </a>
+      }
     </div>
   }
 

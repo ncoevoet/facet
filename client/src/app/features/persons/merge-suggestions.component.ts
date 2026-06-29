@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
@@ -14,8 +15,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
-import { MergeTargetDialogComponent } from './manage-persons.component';
-import { Person } from '../../shared/components/person-card/person-card.component';
+import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { I18N } from '../../core/i18n/keys';
 
 interface SuggestionPerson {
@@ -45,6 +45,7 @@ interface MergeSuggestionsResponse {
     MatCardModule,
     MatSliderModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     MatDialogModule,
     MatSnackBarModule,
     TranslatePipe,
@@ -52,29 +53,38 @@ interface MergeSuggestionsResponse {
     FixedPipe,
   ],
   template: `
-    <div class="p-4 md:p-6 max-w-screen-xl mx-auto">
+    <div class="p-4 md:p-6 pb-20 max-w-screen-xl mx-auto">
       <!-- Header -->
-      <div class="flex flex-wrap items-center gap-4 mb-6">
-        <a mat-icon-button routerLink="/persons">
+      <div class="flex items-center gap-3 mb-6">
+        <a
+          mat-icon-button
+          routerLink="/persons"
+          [matTooltip]="I18N.photo_detail.back | translate"
+        >
           <mat-icon>arrow_back</mat-icon>
         </a>
         <h1 class="text-2xl font-medium">{{ I18N.persons.merge_suggestions_title | translate }}</h1>
+      </div>
+
+      <!-- Bottom action bar: threshold slider + accept all -->
+      <div class="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-2 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+        <span class="text-sm opacity-70 shrink-0">{{ I18N.persons.similarity_threshold | translate }}</span>
+        <mat-slider [min]="0.3" [max]="0.9" [step]="0.05" [discrete]="true" class="w-40">
+          <input
+            matSliderThumb
+            [value]="threshold()"
+            (valueChange)="onThresholdChange($event)"
+            [attr.aria-label]="I18N.persons.similarity_threshold | translate"
+          />
+        </mat-slider>
+        <span class="text-sm font-mono w-12">{{ threshold() * 100 | fixed:0 }}%</span>
         <div class="flex-1"></div>
         @if (suggestions().length > 0) {
-          <button mat-flat-button [disabled]="merging()" (click)="acceptAll()">
+          <button mat-flat-button [disabled]="merging()" (click)="confirmAcceptAll()">
             <mat-icon>done_all</mat-icon>
             {{ I18N.persons.accept_all | translate:{ count: suggestions().length } }}
           </button>
         }
-      </div>
-
-      <!-- Threshold control -->
-      <div class="flex items-center gap-3 mb-6">
-        <span class="text-sm text-gray-400 shrink-0">{{ I18N.persons.similarity_threshold | translate }}</span>
-        <mat-slider [min]="0.3" [max]="0.9" [step]="0.05" [discrete]="true" class="flex-1 max-w-xs">
-          <input matSliderThumb [value]="threshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.persons.similarity_threshold | translate" />
-        </mat-slider>
-        <span class="text-sm font-mono w-12">{{ threshold() * 100 | fixed:0 }}%</span>
       </div>
 
       <!-- Loading -->
@@ -84,82 +94,85 @@ interface MergeSuggestionsResponse {
         </div>
       }
 
-      <!-- Suggestions list -->
-      <div class="flex flex-col gap-4">
-        @for (suggestion of suggestions(); track suggestion.person1.id + '-' + suggestion.person2.id) {
-          <mat-card class="!p-0">
-            <div class="flex flex-col sm:flex-row items-stretch">
-              <!-- Person 1 -->
-              <div class="flex-1 flex items-center gap-3 p-4">
-                <img
-                  [src]="suggestion.person1.id | personThumbnailUrl"
-                  class="w-16 h-16 rounded-full object-cover shrink-0"
-                  [alt]="suggestion.person1.name || (I18N.persons.unnamed | translate)"
-                />
-                <div class="min-w-0">
-                  <p class="font-medium truncate">
+      <!-- Suggestions grid -->
+      @if (!loading()) {
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          @for (suggestion of suggestions(); track suggestion.person1.id + '-' + suggestion.person2.id) {
+            <mat-card class="!p-4 flex flex-col gap-4">
+              <div class="flex items-start justify-between gap-2">
+                <!-- Person 1 (click merges the pair into this person) -->
+                <button
+                  type="button"
+                  class="flex-1 min-w-0 flex flex-col items-center gap-2 p-0 bg-transparent border-0 cursor-pointer group disabled:cursor-default"
+                  [disabled]="merging()"
+                  [matTooltip]="I18N.persons.merge_into_this | translate"
+                  (click)="mergeInto(suggestion, suggestion.person1)"
+                >
+                  <div class="relative w-full aspect-[4/3] rounded-xl bg-[var(--mat-sys-surface-container)] overflow-hidden">
+                    <img
+                      [src]="suggestion.person1.id | personThumbnailUrl"
+                      class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      [alt]="suggestion.person1.name || (I18N.persons.unnamed | translate)"
+                    />
+                  </div>
+                  <p class="font-medium text-sm text-center truncate w-full">
                     {{ suggestion.person1.name || (I18N.persons.unnamed | translate) }}
                   </p>
-                  <p class="text-sm opacity-60">
+                  <p class="text-xs opacity-60">
                     {{ I18N.persons.face_count | translate:{ count: suggestion.person1.face_count } }}
                   </p>
-                </div>
-              </div>
+                </button>
 
-              <!-- Similarity badge -->
-              <div class="flex items-center justify-center px-4 py-2 sm:py-4">
+                <!-- Similarity badge -->
                 <div
-                  class="flex flex-col items-center gap-1 px-4 py-2 rounded-full"
+                  class="shrink-0 self-center flex items-center justify-center w-12 h-12 rounded-full text-sm font-bold"
+                  [matTooltip]="I18N.persons.similarity_match_hint | translate"
                   [class.bg-green-900]="suggestion.similarity >= 0.8"
                   [class.bg-yellow-900]="suggestion.similarity >= 0.6 && suggestion.similarity < 0.8"
                   [class.bg-orange-900]="suggestion.similarity < 0.6"
                 >
-                  <mat-icon class="!text-lg">compare_arrows</mat-icon>
-                  <span class="text-sm font-bold">
-                    {{ suggestion.similarity * 100 | fixed:0 }}%
-                  </span>
+                  {{ suggestion.similarity * 100 | fixed:0 }}%
                 </div>
-              </div>
 
-              <!-- Person 2 -->
-              <div class="flex-1 flex items-center gap-3 p-4">
-                <img
-                  [src]="suggestion.person2.id | personThumbnailUrl"
-                  class="w-16 h-16 rounded-full object-cover shrink-0"
-                  [alt]="suggestion.person2.name || (I18N.persons.unnamed | translate)"
-                />
-                <div class="min-w-0">
-                  <p class="font-medium truncate">
+                <!-- Person 2 (click merges the pair into this person) -->
+                <button
+                  type="button"
+                  class="flex-1 min-w-0 flex flex-col items-center gap-2 p-0 bg-transparent border-0 cursor-pointer group disabled:cursor-default"
+                  [disabled]="merging()"
+                  [matTooltip]="I18N.persons.merge_into_this | translate"
+                  (click)="mergeInto(suggestion, suggestion.person2)"
+                >
+                  <div class="relative w-full aspect-[4/3] rounded-xl bg-[var(--mat-sys-surface-container)] overflow-hidden">
+                    <img
+                      [src]="suggestion.person2.id | personThumbnailUrl"
+                      class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      [alt]="suggestion.person2.name || (I18N.persons.unnamed | translate)"
+                    />
+                  </div>
+                  <p class="font-medium text-sm text-center truncate w-full">
                     {{ suggestion.person2.name || (I18N.persons.unnamed | translate) }}
                   </p>
-                  <p class="text-sm opacity-60">
+                  <p class="text-xs opacity-60">
                     {{ I18N.persons.face_count | translate:{ count: suggestion.person2.face_count } }}
                   </p>
-                </div>
+                </button>
               </div>
 
-              <!-- Actions -->
-              <div class="flex items-center gap-2 p-4 sm:border-l sm:border-white/10">
-                <button
-                  mat-flat-button
-                  [disabled]="merging()"
-                  (click)="acceptSuggestion(suggestion)"
-                >
-                  <mat-icon>merge</mat-icon>
-                  {{ I18N.persons.accept | translate }}
-                </button>
+              <!-- Dismiss -->
+              <div class="flex items-center justify-center pt-2 border-t border-white/10">
                 <button
                   mat-icon-button
                   [disabled]="merging()"
+                  [matTooltip]="I18N.common.dismiss | translate"
                   (click)="rejectSuggestion(suggestion)"
                 >
                   <mat-icon>close</mat-icon>
                 </button>
               </div>
-            </div>
-          </mat-card>
-        }
-      </div>
+            </mat-card>
+          }
+        </div>
+      }
 
       <!-- Empty state -->
       @if (!loading() && suggestions().length === 0) {
@@ -217,28 +230,16 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
     }
   }
 
-  async acceptSuggestion(suggestion: MergeSuggestion): Promise<void> {
-    const persons: Person[] = [
-      { ...suggestion.person1, face_thumbnail: true },
-      { ...suggestion.person2, face_thumbnail: true },
-    ];
-
-    const ref = this.dialog.open(MergeTargetDialogComponent, {
-      data: { persons },
-      width: '400px',
-    });
-
-    const targetId: number | null = await firstValueFrom(ref.afterClosed());
-    if (!targetId) return;
-
+  async mergeInto(suggestion: MergeSuggestion, target: SuggestionPerson): Promise<void> {
+    if (this.merging()) return;
     this.merging.set(true);
     try {
-      const sourceId = targetId === suggestion.person1.id
+      const sourceId = target.id === suggestion.person1.id
         ? suggestion.person2.id
         : suggestion.person1.id;
 
       await firstValueFrom(
-        this.api.post('/persons/merge', { source_id: sourceId, target_id: targetId }),
+        this.api.post('/persons/merge', { source_id: sourceId, target_id: target.id }),
       );
 
       this.removeSuggestion(suggestion);
@@ -264,6 +265,23 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
     } catch {
       this.snackBar.open(this.i18n.t(I18N.persons.merge_error), '', { duration: 3000 });
     }
+  }
+
+  async confirmAcceptAll(): Promise<void> {
+    const count = this.suggestions().length;
+    if (count === 0) return;
+
+    const ref = this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: this.i18n.t(I18N.persons.confirm_merge_title),
+        message: this.i18n.t(I18N.persons.confirm_merge_all_message, { count }),
+      },
+    });
+
+    const confirmed = await firstValueFrom(ref.afterClosed());
+    if (!confirmed) return;
+
+    await this.acceptAll();
   }
 
   async acceptAll(): Promise<void> {

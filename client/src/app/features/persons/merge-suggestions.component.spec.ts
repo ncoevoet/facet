@@ -99,23 +99,12 @@ describe('MergeSuggestionsComponent', () => {
     });
   });
 
-  describe('acceptSuggestion', () => {
-    it('should open merge target dialog', async () => {
+  describe('mergeInto', () => {
+    it('should merge person2 into person1 when person1 is clicked', async () => {
       const suggestion = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
       component.suggestions.set([suggestion]);
 
-      await component.acceptSuggestion(suggestion);
-
-      expect(mockDialog.open).toHaveBeenCalled();
-    });
-
-    it('should merge when dialog returns a target id', async () => {
-      // Dialog picks person1 (id=1) as target -> source=2
-      mockDialog.open.mockReturnValue({ afterClosed: () => of(1) });
-      const suggestion = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
-      component.suggestions.set([suggestion]);
-
-      await component.acceptSuggestion(suggestion);
+      await component.mergeInto(suggestion, suggestion.person1);
 
       expect(mockApi.post).toHaveBeenCalledWith('/persons/merge', {
         source_id: 2,
@@ -123,67 +112,86 @@ describe('MergeSuggestionsComponent', () => {
       });
     });
 
-    it('should not merge if dialog is dismissed', async () => {
-      mockDialog.open.mockReturnValue({ afterClosed: () => of(null) });
+    it('should merge person1 into person2 when person2 is clicked', async () => {
       const suggestion = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
       component.suggestions.set([suggestion]);
 
-      await component.acceptSuggestion(suggestion);
+      await component.mergeInto(suggestion, suggestion.person2);
 
-      expect(mockApi.post).not.toHaveBeenCalled();
+      expect(mockApi.post).toHaveBeenCalledWith('/persons/merge', {
+        source_id: 1,
+        target_id: 2,
+      });
     });
 
     it('should remove suggestion from list after successful merge', async () => {
-      mockDialog.open.mockReturnValue({ afterClosed: () => of(1) });
       const s1 = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
       const s2 = makeSuggestion(3, 'Carol', 8, 4, 'Dave', 3);
       component.suggestions.set([s1, s2]);
 
-      await component.acceptSuggestion(s1);
+      await component.mergeInto(s1, s1.person1);
 
       expect(component.suggestions()).toEqual([s2]);
     });
 
     it('should show success snackbar after merge', async () => {
-      mockDialog.open.mockReturnValue({ afterClosed: () => of(1) });
       const suggestion = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
       component.suggestions.set([suggestion]);
 
-      await component.acceptSuggestion(suggestion);
+      await component.mergeInto(suggestion, suggestion.person1);
 
       expect(mockSnackBar.open).toHaveBeenCalledWith('persons.merged', '', { duration: 2000 });
     });
 
     it('should show error snackbar on API failure', async () => {
-      mockDialog.open.mockReturnValue({ afterClosed: () => of(1) });
       mockApi.post.mockReturnValue(throwError(() => new Error('Network error')));
       const suggestion = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
       component.suggestions.set([suggestion]);
 
-      await component.acceptSuggestion(suggestion);
+      await component.mergeInto(suggestion, suggestion.person1);
 
       expect(mockSnackBar.open).toHaveBeenCalledWith('persons.merge_error', '', { duration: 3000 });
     });
 
     it('should set merging to false after completion', async () => {
-      mockDialog.open.mockReturnValue({ afterClosed: () => of(1) });
       const suggestion = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
       component.suggestions.set([suggestion]);
 
-      await component.acceptSuggestion(suggestion);
+      await component.mergeInto(suggestion, suggestion.person1);
 
       expect(component.merging()).toBe(false);
     });
 
     it('should set merging to false after error', async () => {
-      mockDialog.open.mockReturnValue({ afterClosed: () => of(1) });
       mockApi.post.mockReturnValue(throwError(() => new Error('fail')));
       const suggestion = makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5);
       component.suggestions.set([suggestion]);
 
-      await component.acceptSuggestion(suggestion);
+      await component.mergeInto(suggestion, suggestion.person1);
 
       expect(component.merging()).toBe(false);
+    });
+  });
+
+  describe('confirmAcceptAll', () => {
+    it('should run the batch merge when confirmed', async () => {
+      mockDialog.open.mockReturnValue({ afterClosed: () => of(true) });
+      component.suggestions.set([makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5)]);
+
+      await component.confirmAcceptAll();
+
+      expect(mockApi.post).toHaveBeenCalledWith('/persons/merge_batch', {
+        merges: [{ source_id: 2, target_id: 1 }],
+      });
+    });
+
+    it('should not merge when the confirmation is dismissed', async () => {
+      mockDialog.open.mockReturnValue({ afterClosed: () => of(null) });
+      component.suggestions.set([makeSuggestion(1, 'Alice', 10, 2, 'Bob', 5)]);
+
+      await component.confirmAcceptAll();
+
+      expect(mockApi.post).not.toHaveBeenCalled();
     });
   });
 

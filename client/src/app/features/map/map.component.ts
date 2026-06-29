@@ -8,6 +8,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { PageHelpService } from '../../core/services/page-help.service';
 import { MapFiltersService } from './map-filters.service';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
@@ -75,6 +76,7 @@ export class MapComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
   private readonly mapFilters = inject(MapFiltersService);
+  private readonly pageHelp = inject(PageHelpService);
   private readonly mapContainer = viewChild.required<ElementRef<HTMLDivElement>>('mapContainer');
 
   /** Escape HTML special characters to prevent XSS in Leaflet popups. */
@@ -110,6 +112,7 @@ export class MapComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    this.pageHelp.setDescription(I18N.map.help);
     // Defer map init to next tick so the container has dimensions
     this.initTimeout = setTimeout(() => {
       this.initTimeout = null;
@@ -118,6 +121,7 @@ export class MapComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.pageHelp.setDescription(null);
     if (this.initTimeout !== null) {
       clearTimeout(this.initTimeout);
     }

@@ -49,6 +49,7 @@ import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.compon
 import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { I18N } from '../../core/i18n/keys';
+import { PageHelpService } from '../../core/services/page-help.service';
 
 @Component({
   selector: 'app-gallery',
@@ -285,7 +286,7 @@ import { I18N } from '../../core/i18n/keys';
               <button mat-stroked-button (click)="store.resetFilters()">
                 {{ I18N.gallery.reset_filters | translate }}
               </button>
-            } @else if (auth.isSuperadmin() && auth.hasFeature('show_scan_button')) {
+            } @else if (canShowScanButton()) {
               <button mat-flat-button color="primary" (click)="openScanLauncher()">
                 <mat-icon>add_photo_alternate</mat-icon>
                 {{ I18N.scan.get_started | translate }}
@@ -404,6 +405,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly I18N = I18N;
   protected readonly store = inject(GalleryStore);
   protected readonly auth = inject(AuthService);
+  protected readonly canShowScanButton = computed(
+    () => this.auth.isSuperadmin() && this.auth.hasFeature('show_scan_button'),
+  );
   private readonly snackBar = inject(MatSnackBar);
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly i18n = inject(I18nService);
@@ -414,6 +418,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
+  private readonly pageHelp = inject(PageHelpService);
 
   // Album options for "Add to album" menu
   protected readonly albumOptions = signal<Album[]>([]);
@@ -620,6 +625,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
+    this.pageHelp.setDescription(I18N.gallery.help);
     if (this.tryRestoreView()) return;
     // Reset album state to avoid stale singleton data; loadConfig() resets filters from scratch
     this.store.currentAlbum.set(null);
@@ -655,6 +661,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.pageHelp.setDescription(null);
     this.saveViewSnapshot();
     this.resizeObserver?.disconnect();
     this.desktop.cleanup();

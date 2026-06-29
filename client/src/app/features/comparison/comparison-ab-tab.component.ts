@@ -255,7 +255,7 @@ interface LearnedWeightsResponse {
                     }
                   </div>
                 } @else {
-                  <p class="text-xs text-gray-500">{{ lw.message }}</p>
+                  <p class="text-xs text-gray-500">{{ I18N.compare.tooltips.suggest_weights_disabled | translate:{ count: (comparisonStats()?.total_comparisons ?? 0), min: (comparisonStats()?.min_comparisons_for_optimization ?? 30) } }}</p>
                 }
               }
             </mat-card-content>

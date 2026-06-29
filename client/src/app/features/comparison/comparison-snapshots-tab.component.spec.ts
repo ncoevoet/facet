@@ -116,7 +116,8 @@ describe('ComparisonSnapshotsTabComponent', () => {
       expect(mockApi.post).toHaveBeenCalledWith('/config/restore_weights', { snapshot_id: 42 });
       expect(emitSpy).toHaveBeenCalled();
       expect(mockSnackBar.open).toHaveBeenCalledWith('comparison.snapshot_restored', '', { duration: 3000 });
-      expect(component.scoresStale()).toBe('portrait');
+      expect(component.scoresStale()).toBe(true);
+      expect(component.staleCategory()).toBe('portrait');
     });
 
     it('should show error snackbar on failure', async () => {
@@ -130,18 +131,19 @@ describe('ComparisonSnapshotsTabComponent', () => {
 
   describe('recalculate', () => {
     it('should recompute the stale category and clear the flag', async () => {
-      component.scoresStale.set('portrait');
+      component.scoresStale.set(true);
+      component.staleCategory.set('portrait');
       mockApi.post.mockReturnValue(of({ success: true }));
 
       await component.recalculate();
 
       expect(mockApi.post).toHaveBeenCalledWith('/stats/categories/recompute', { category: 'portrait' });
-      expect(component.scoresStale()).toBeNull();
+      expect(component.scoresStale()).toBe(false);
       expect(component.recomputing()).toBe(false);
     });
 
     it('should do nothing when no category is stale', async () => {
-      component.scoresStale.set(null);
+      component.scoresStale.set(false);
 
       await component.recalculate();
 
@@ -149,12 +151,13 @@ describe('ComparisonSnapshotsTabComponent', () => {
     });
 
     it('should keep the stale flag on error', async () => {
-      component.scoresStale.set('portrait');
+      component.scoresStale.set(true);
+      component.staleCategory.set('portrait');
       mockApi.post.mockReturnValue(throwError(() => new Error('fail')));
 
       await component.recalculate();
 
-      expect(component.scoresStale()).toBe('portrait');
+      expect(component.scoresStale()).toBe(true);
       expect(mockSnackBar.open).toHaveBeenCalledWith('comparison.error_recalculating', '', { duration: 4000 });
     });
   });

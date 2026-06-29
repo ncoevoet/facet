@@ -275,6 +275,7 @@
     }
   },
   "compare": {
+    "help": "Trainieren Sie die Bewertungsgewichte durch den Vergleich von Fotopaaren. Wählen Sie das bessere Foto, um dem System Ihren Geschmack beizubringen; in den Registerkarten Gewichte und Schnappschüsse können Sie das Gelernte überprüfen und anwenden.",
     "title": "Fotos vergleichen",
     "header": "Vergleich",
     "comparisons": "Vergleiche",
@@ -596,6 +597,7 @@
     "person_fallback": "Person {id}"
   },
   "stats": {
+    "help": "Einblicke in Ihre Bibliothek: Bewertungsverteilungen, Kamera- und Objektivnutzung, Korrelationen zwischen den Bewertungsdimensionen und Trends im Zeitverlauf.",
     "title": "EXIF-Statistiken",
     "tabs": {
       "gear": "Ausrüstung",
@@ -1019,6 +1021,7 @@
     "error": "Anmeldung fehlgeschlagen"
   },
   "gallery": {
+    "help": "Durchsuchen und filtern Sie Ihre Bibliothek. Sortieren Sie nach Bewertung, Datum oder Ihrem persönlichen Geschmack; nutzen Sie die Filter in der Seitenleiste (Personen, Schlagwörter, Kamera, Kategorie, Wertungsbereich, Momente) und die Suche, um Fotos zu finden.",
     "hidden_banner": {
       "message": "{n} Fotos durch aktuelle Filter ausgeblendet",
       "show_all": "Alle anzeigen"
@@ -1441,6 +1444,7 @@
     "idle": "Bereit"
   },
   "persons": {
+    "help": "Von der Gesichtserkennung erkannte Personen. Benennen Sie unbenannte Cluster, führen Sie Duplikate zusammen, legen Sie einen Avatar fest oder blenden Sie eine Person aus. Klicken Sie auf eine Person, um ihre Fotos zu sehen.",
     "manage_title": "Personen verwalten",
     "merge_suggestions": "Zusammenführungsvorschläge",
     "merge_suggestions_title": "Zusammenführungsvorschläge",
@@ -1472,6 +1476,9 @@
     "merged": "Personen zusammengeführt",
     "merge_error": "Zusammenführung fehlgeschlagen",
     "accept_all": "Alle übernehmen ({count})",
+    "merge_into_this": "Klicken, um das Paar in diese Person zusammenzuführen",
+    "similarity_match_hint": "Übereinstimmung der Gesichtsähnlichkeit — höher bedeutet wahrscheinlicher dieselbe Person",
+    "confirm_merge_all_message": "Alle {count} vorgeschlagenen Paare zusammenführen? Dies kann nicht rückgängig gemacht werden.",
     "accept": "Zusammenführen",
     "no_suggestions": "Keine Zusammenführungsvorschläge gefunden",
     "batch_merged": "{count} Vorschläge zusammengeführt",
@@ -1527,6 +1534,7 @@
     "fullscreen": "Vollbild"
   },
   "albums": {
+    "help": "Fassen Sie Fotos in Alben zusammen. Manuelle Alben enthalten eine feste Auswahl; intelligente Alben sammeln automatisch Fotos, die einem gespeicherten Filter entsprechen. Öffnen Sie ein Album, um es anzusehen, zu sichten oder zu teilen.",
     "title": "Alben",
     "create": "Neues Album",
     "empty": "Noch keine Alben. Erstellen Sie eines, um Ihre Fotos zu organisieren.",
@@ -1536,6 +1544,7 @@
     "photos_added": "Fotos zum Album hinzugefugt",
     "save_smart": "Als intelligentes Album speichern",
     "smart_album": "Intelligentes Album",
+    "smart_tooltip": "Intelligentes Album — sammelt automatisch Fotos, die einem gespeicherten Filter entsprechen",
     "confirm_delete_title": "Album loschen",
     "confirm_delete_message": "Album \"{name}\" loschen? Fotos werden nicht entfernt.",
     "share": "Teilen",
@@ -1700,7 +1709,7 @@
     "burst_help": "Fotos, die in schneller Folge aufgenommen wurden, werden zusammengefasst. Klicken Sie auf Fotos, um sie zu behalten (grüner Rahmen). Nicht ausgewählte Fotos (roter Rahmen) werden ausgeblendet. Das beste Foto wird automatisch anhand von Schärfe und Qualität ausgewählt.",
     "similar_help": "Visuell ähnliche Fotos in Ihrer Bibliothek werden mithilfe von KI-Embeddings gruppiert. Überprüfen Sie jede Gruppe, behalten Sie die besten Aufnahmen und verwerfen Sie Fast-Duplikate. Passen Sie den Schwellenwert-Regler an, um zu steuern, wie ähnlich Fotos sein müssen, um eine Gruppe zu bilden.",
     "help": "Hilfe",
-    "help_text": "Überprüfen Sie Gruppen ähnlicher oder Serienfotos. Klicken Sie auf ein Foto, um es zu behalten oder zu verwerfen; doppelklicken Sie, um nur dieses zu behalten. Öffnen Sie die Dunkelkammer (Vollbild-Durchsicht) mit der Schaltfläche Dunkelkammer oder der Eingabetaste. Mit Hoch/Runter wählen Sie eine Gruppe, mit der Leertaste bestätigen Sie sie und springen zur nächsten. Überspringen und Bestätigen starten einen 7-Sekunden-Countdown, den Sie vor dem Schließen der Gruppe abbrechen können; das Bestätigen blendet die abgelehnten Fotos in der Galerie aus.",
+    "help_text": "Sichten Sie nahezu identische Aufnahmen schnell. Wählen Sie eine Granularität — Serien, Ähnliche, Szenen oder alle zusammengeführt — und eine Sortierung; die Strenge legt fest, wie aggressiv die automatische Auswahl nur das beste Bild behält, und im Modus Ähnliche stellt der Regler Ähnlichkeit ein, wie ähnlich Fotos zum Gruppieren sein müssen. Klicken Sie auf ein Foto, um es zu behalten oder zu verwerfen, doppelklicken Sie, um nur dieses zu behalten, oder schalten Sie die Lupe (Z) ein, um Pixel zu prüfen. Öffnen Sie die Dunkelkammer (Eingabetaste) für die Vollbild-Durchsicht mit 2- oder 4-fach-Vergleich. Mit Hoch/Runter wählen Sie eine Gruppe, mit der Leertaste bestätigen Sie sie und springen weiter; Überspringen und Bestätigen starten einen 7-Sekunden-Countdown, den Sie vor dem Schließen der Gruppe abbrechen können, und das Bestätigen blendet die abgelehnten Fotos in der Galerie aus. Beschränken Sie den Feed auf ein Album oder eine Szene, schalten Sie Abgelehnte ausschließen um, und beachten Sie, dass jede Sichtungsentscheidung Ihr persönliches Ranking „Mein Geschmack“ trainiert. Alle Tasten finden Sie in der Kürzelliste unten.",
     "type_burst": "Serie",
     "type_similar": "Ähnlich",
     "confirm_all": "Alle bestätigen",
@@ -1813,6 +1822,7 @@
     "unavailable": "Beschriftungsgenerierung erfordert ein VLM-Modell (16 GB+ VRAM)"
   },
   "timeline": {
+    "help": "Durchsuchen Sie Ihre Bibliothek chronologisch. Navigieren Sie von Jahren über Monate bis zu Tagen; wählen Sie einen Zeitraum, um die damals aufgenommenen Fotos zu sehen.",
     "title": "Zeitstrahl",
     "empty": "Keine Fotos mit Datumsangaben gefunden.",
     "years_title": "Jahre",
@@ -1822,6 +1832,7 @@
     "photos_count": "Fotos"
   },
   "folders": {
+    "help": "Durchsuchen Sie Fotos anhand ihrer Ordnerstruktur auf der Festplatte. Öffnen Sie einen Ordner, um die darin enthaltenen Fotos zu sehen.",
     "title": "Ordner",
     "empty": "Keine Ordner gefunden.",
     "root": "Stammverzeichnis",
@@ -1973,6 +1984,7 @@
     "regenerate": "Kapseln neu generieren"
   },
   "map": {
+    "help": "Geotaggte Fotos auf einer Karte. Verschieben und zoomen Sie, um zu erkunden, wo Ihre Fotos aufgenommen wurden; der Zeitraum-Filter schränkt die Anzeige ein.",
     "title": "Karte",
     "no_gps": "Keine Fotos mit GPS-Daten gefunden",
     "photos_count": "{count} Fotos mit Standort",

@@ -23,6 +23,11 @@ import { I18N } from '../../core/i18n/keys';
       @if (!started()) {
         @if (loadingDirs()) {
           <p class="opacity-60 text-sm py-4">{{ I18N.scan.loading_directories | translate }}</p>
+        } @else if (dirLoadError()) {
+          <div class="flex items-center gap-2 text-red-400 text-sm py-4">
+            <mat-icon class="!text-base !w-4 !h-4">error_outline</mat-icon>
+            <span>{{ I18N.notifications.connection_error | translate }}</span>
+          </div>
         } @else if (directories().length === 0) {
           <p class="opacity-60 text-sm py-4">{{ I18N.scan.no_directories | translate }}</p>
         } @else {
@@ -73,6 +78,7 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly directories = signal<ScanDirectory[]>([]);
   protected readonly selectedDir = signal<string | null>(null);
   protected readonly loadingDirs = signal(true);
+  protected readonly dirLoadError = signal(false);
   protected readonly started = signal(false);
 
   protected readonly status = this.scan.status;
@@ -111,6 +117,8 @@ export class ScanLauncherComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     try {
       this.directories.set(await this.scan.loadDirectories());
+    } catch {
+      this.dirLoadError.set(true);
     } finally {
       this.loadingDirs.set(false);
     }

@@ -141,3 +141,32 @@ export class FacePoorExpressionPipe implements PipeTransform {
     return expr != null && expr < FacePoorExpressionPipe.EXPRESSION_MIN;
   }
 }
+
+/** Map a culling granularity / group kind to its Material icon. */
+@Pipe({ name: 'cullGroupIcon' })
+export class CullGroupIconPipe implements PipeTransform {
+  private static readonly ICONS: Record<string, string> = {
+    all: 'dashboard',
+    burst: 'burst_mode',
+    similar: 'filter_none',
+    scene: 'movie_filter',
+  };
+
+  transform(kind: string): string {
+    return CullGroupIconPipe.ICONS[kind] ?? 'dashboard';
+  }
+}
+
+/** Map a culling group kind to its localized name key (for tooltips / labels). */
+@Pipe({ name: 'cullGroupLabel' })
+export class CullGroupLabelPipe implements PipeTransform {
+  private static readonly KEYS: Record<string, string> = {
+    burst: 'culling.group_by.bursts',
+    similar: 'culling.group_by.similar',
+    scene: 'culling.group_by.scenes',
+  };
+
+  transform(kind: string): string {
+    return CullGroupLabelPipe.KEYS[kind] ?? '';
+  }
+}

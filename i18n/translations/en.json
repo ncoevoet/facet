@@ -271,6 +271,7 @@
     }
   },
   "compare": {
+    "help": "Train the scoring weights by comparing photo pairs. Pick the better shot to teach the system your taste; the weights and snapshots tabs let you review and apply what was learned.",
     "title": "Compare Photos",
     "header": "Compare",
     "comparisons": "comparisons",
@@ -592,6 +593,7 @@
     "person_fallback": "Person {id}"
   },
   "stats": {
+    "help": "Insights about your library: score distributions, camera and lens usage, correlations between scoring dimensions, and trends over time.",
     "title": "EXIF Statistics",
     "tabs": {
       "gear": "Equipment",
@@ -1015,6 +1017,7 @@
     "error": "Login failed"
   },
   "gallery": {
+    "help": "Browse and filter your library. Sort by score, date or your personal taste; use the sidebar filters (people, tags, camera, category, score range, moments) and the search to find photos.",
     "hidden_banner": {
       "message": "{n} photos hidden by current filters",
       "show_all": "Show all"
@@ -1435,6 +1438,7 @@
     "idle": "Idle"
   },
   "persons": {
+    "help": "People detected by face recognition. Name unnamed clusters, merge duplicates, set an avatar, or hide a person. Click a person to see their photos.",
     "manage_title": "Manage Persons",
     "merge_suggestions": "Merge Suggestions",
     "merge_suggestions_title": "Merge Suggestions",
@@ -1466,6 +1470,9 @@
     "merged": "Persons merged",
     "merge_error": "Failed to merge persons",
     "accept_all": "Accept All ({count})",
+    "merge_into_this": "Click to merge the pair into this person",
+    "similarity_match_hint": "Face-similarity match — higher means more likely the same person",
+    "confirm_merge_all_message": "Merge all {count} suggested pairs? This cannot be undone.",
     "accept": "Merge",
     "no_suggestions": "No merge suggestions found",
     "batch_merged": "Merged {count} suggestions",
@@ -1521,6 +1528,7 @@
     "fullscreen": "Fullscreen"
   },
   "albums": {
+    "help": "Group photos into albums. Manual albums hold a fixed set; smart albums auto-collect photos matching a saved filter. Open an album to view, cull or share it.",
     "title": "Albums",
     "create": "New Album",
     "empty": "No albums yet. Create one to organize your photos.",
@@ -1530,6 +1538,7 @@
     "photos_added": "Photos added to album",
     "save_smart": "Save as Smart Album",
     "smart_album": "Smart Album",
+    "smart_tooltip": "Smart album — automatically gathers photos matching a saved filter",
     "confirm_delete_title": "Delete Album",
     "confirm_delete_message": "Delete album \"{name}\"? Photos will not be removed.",
     "share": "Share",
@@ -1694,7 +1703,7 @@
     "burst_help": "Photos taken in rapid succession are grouped together. Click photos to keep them (green border), unselected photos (red border) will be hidden. The best photo is auto-selected based on sharpness and quality.",
     "similar_help": "Visually similar photos across your library are grouped using AI embeddings. Review each group, keep the best shots, and discard near-duplicates. Adjust the threshold slider to control how similar photos must be to form a group.",
     "help": "Help",
-    "help_text": "Review groups of similar or burst photos. Click a photo to keep or unkeep it; double-click to keep only that one. Open the Darkroom (fullscreen review) with the Darkroom button or the Enter key. Use Up/Down to pick a group and Space to confirm it and move to the next. Skip and Confirm start a 7-second cooldown you can Cancel before the group closes; confirming hides the rejected photos from the gallery.",
+    "help_text": "Cull near-duplicate shots fast. Pick a granularity — Bursts, Similar, Scenes, or All merged — and a sort order; Strictness sets how aggressively the auto-selection keeps only the best frame, and in Similar mode the Similarity slider tunes how alike photos must be to group. Click a photo to keep or unkeep it, double-click to keep only that one, or turn on the Loupe (Z) to pixel-peep. Open the Darkroom (Enter) for full-screen review with 2-up/4-up Compare. Use Up/Down to pick a group and Space to confirm it and move on; Skip and Confirm start a 7-second cooldown you can Cancel before the group closes, and confirming hides the rejected photos from the gallery. Scope the feed to an album or scene, toggle Exclude rejected, and note that every cull decision trains your personal \"My Taste\" ranking. See the shortcuts below for all keys.",
     "type_burst": "Burst",
     "type_similar": "Similar",
     "confirm_all": "Confirm All",
@@ -1807,6 +1816,7 @@
     "unavailable": "Caption generation requires a VLM model (16GB+ VRAM)"
   },
   "timeline": {
+    "help": "Browse your library chronologically. Drill from years to months to days; pick a period to see the photos taken then.",
     "title": "Timeline",
     "empty": "No photos with dates found.",
     "years_title": "Years",
@@ -1816,6 +1826,7 @@
     "photos_count": "photos"
   },
   "folders": {
+    "help": "Browse photos by their on-disk folder structure. Open a folder to see the photos it contains.",
     "title": "Folders",
     "empty": "No folders found.",
     "root": "Root",
@@ -1967,6 +1978,7 @@
     "regenerate": "Regenerate capsules"
   },
   "map": {
+    "help": "Geotagged photos on a map. Pan and zoom to explore where your photos were taken; the date range filter scopes what is shown.",
     "title": "Map",
     "no_gps": "No photos with GPS data found",
     "photos_count": "{count} photos with location",

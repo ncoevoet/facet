@@ -7,6 +7,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { PageHelpService } from '../../core/services/page-help.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { I18N } from '../../core/i18n/keys';
@@ -80,14 +81,19 @@ interface FoldersResponse {
                    [alt]="folder.name"
                    loading="lazy"
                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+                <span class="text-white text-xs font-medium truncate">{{ folder.name }}</span>
+              </div>
             </div>
           } @else {
-            <div class="w-full aspect-[4/3] flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
+            <div class="relative w-full aspect-[4/3] flex items-center justify-center overflow-hidden bg-[var(--mat-sys-surface-container-high)]">
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">folder</mat-icon>
+              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+                <span class="text-white text-xs font-medium truncate">{{ folder.name }}</span>
+              </div>
             </div>
           }
           <div class="p-3">
-            <div class="font-medium text-sm truncate">{{ folder.name }}</div>
             <div class="text-xs opacity-60">{{ folder.photo_count | number }} {{ I18N.folders.photos_count | translate }}</div>
           </div>
         </button>
@@ -101,6 +107,7 @@ export class FoldersComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly pageHelp = inject(PageHelpService);
 
   protected readonly folders = signal<FolderItem[]>([]);
   protected readonly loading = signal(false);
@@ -121,6 +128,8 @@ export class FoldersComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.pageHelp.setDescription(I18N.folders.help);
+    this.destroyRef.onDestroy(() => this.pageHelp.setDescription(null));
     this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       this.currentPrefix.set(params['prefix'] || '');
       this.loadFolders();

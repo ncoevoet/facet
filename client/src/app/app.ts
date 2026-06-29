@@ -24,6 +24,7 @@ import { ApiService } from './core/services/api.service';
 import { AuthService } from './core/services/auth.service';
 import { I18nService } from './core/services/i18n.service';
 import { ThemeService } from './core/services/theme.service';
+import { PageHelpService } from './core/services/page-help.service';
 import { GalleryStore, GalleryFilters } from './features/gallery/gallery.store';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { TimelineFiltersService } from './features/timeline/timeline-filters.service';
@@ -124,6 +125,7 @@ export class App implements OnInit {
   protected readonly auth = inject(AuthService);
   protected readonly i18n = inject(I18nService);
   protected readonly themeService = inject(ThemeService);
+  protected readonly pageHelp = inject(PageHelpService);
   protected readonly store = inject(GalleryStore);
   protected readonly statsFilters = inject(StatsFiltersService);
   protected readonly timelineFilters = inject(TimelineFiltersService);
@@ -182,6 +184,14 @@ export class App implements OnInit {
   protected readonly isCapsuleRoute = computed(() => this.url().split('?')[0] === '/capsules');
   protected readonly isTimelineRoute = computed(() => this.url().split('?')[0].startsWith('/timeline'));
   protected readonly isSharedRoute = computed(() => this.url().split('?')[0].startsWith('/shared/'));
+
+  /** True on routes that render their own per-route header controls, so the
+   *  header separator only shows when both the nav and those controls are present. */
+  protected readonly hasHeaderControls = computed(() =>
+    this.isGalleryRoute() || this.isCompareRoute() || this.isStatsRoute()
+    || this.isAlbumsRoute() || this.isTimelineRoute() || this.isMapRoute()
+    || this.isCapsuleRoute() || this.isPersonsRoute(),
+  );
 
   protected readonly sortGroups = computed(() => {
     const grouped = this.store.config()?.sort_options_grouped;
@@ -476,6 +486,10 @@ export class App implements OnInit {
   }
 
   protected showEditionDialog(): void {
+    if (!this.auth.editionPasswordRequired()) {
+      this.auth.grantEditionLocal();
+      return;
+    }
     this.dialog.open(EditionDialogComponent, { width: '95vw', maxWidth: '360px' });
   }
 

@@ -271,6 +271,7 @@
     }
   },
   "compare": {
+    "help": "Entrena los pesos de puntuación comparando pares de fotos. Elige la mejor foto para enseñar tu gusto al sistema; las pestañas de pesos e instantáneas te permiten revisar y aplicar lo aprendido.",
     "title": "Comparar fotos",
     "header": "Comparar",
     "comparisons": "comparaciones",
@@ -592,6 +593,7 @@
     "person_fallback": "Persona {id}"
   },
   "stats": {
+    "help": "Información sobre tu biblioteca: distribuciones de puntuación, uso de cámaras y objetivos, correlaciones entre las dimensiones de puntuación y tendencias a lo largo del tiempo.",
     "title": "Estadísticas EXIF",
     "tabs": {
       "gear": "Equipo",
@@ -1015,6 +1017,7 @@
     "error": "Error de inicio de sesión"
   },
   "gallery": {
+    "help": "Explora y filtra tu biblioteca. Ordena por puntuación, fecha o tu gusto personal; usa los filtros de la barra lateral (personas, etiquetas, cámara, categoría, rango de puntuación, momentos) y la búsqueda para encontrar fotos.",
     "hidden_banner": {
       "message": "{n} fotos ocultas por los filtros actuales",
       "show_all": "Mostrar todas"
@@ -1437,6 +1440,7 @@
     "idle": "Inactivo"
   },
   "persons": {
+    "help": "Personas detectadas por el reconocimiento facial. Asigna nombre a los grupos sin nombre, fusiona duplicados, establece un avatar u oculta una persona. Haz clic en una persona para ver sus fotos.",
     "manage_title": "Gestionar personas",
     "merge_suggestions": "Sugerencias de fusión",
     "merge_suggestions_title": "Sugerencias de fusión",
@@ -1468,6 +1472,9 @@
     "merged": "Personas fusionadas",
     "merge_error": "Error al fusionar personas",
     "accept_all": "Aceptar todo ({count})",
+    "merge_into_this": "Haz clic para fusionar el par en esta persona",
+    "similarity_match_hint": "Coincidencia por similitud facial — cuanto más alto, más probable que sea la misma persona",
+    "confirm_merge_all_message": "¿Fusionar los {count} pares sugeridos? Esta acción es irreversible.",
     "accept": "Fusionar",
     "no_suggestions": "No se encontraron sugerencias de fusión",
     "batch_merged": "{count} sugerencias fusionadas",
@@ -1523,6 +1530,7 @@
     "fullscreen": "Pantalla completa"
   },
   "albums": {
+    "help": "Agrupa fotos en álbumes. Los álbumes manuales contienen un conjunto fijo; los álbumes inteligentes reúnen automáticamente las fotos que coinciden con un filtro guardado. Abre un álbum para verlo, depurarlo o compartirlo.",
     "title": "Albumes",
     "create": "Nuevo Album",
     "empty": "Aun no hay albumes. Crea uno para organizar tus fotos.",
@@ -1532,6 +1540,7 @@
     "photos_added": "Fotos anadidas al album",
     "save_smart": "Guardar como album inteligente",
     "smart_album": "Album inteligente",
+    "smart_tooltip": "Álbum inteligente — reúne automáticamente las fotos que coinciden con un filtro guardado",
     "confirm_delete_title": "Eliminar album",
     "confirm_delete_message": "Eliminar album \"{name}\"? Las fotos no se eliminaran.",
     "share": "Compartir",
@@ -1696,7 +1705,7 @@
     "burst_help": "Las fotos tomadas en ráfaga se agrupan juntas. Haz clic en las fotos para conservarlas (borde verde), las fotos no seleccionadas (borde rojo) se ocultarán. La mejor foto se selecciona automáticamente según la nitidez y la calidad.",
     "similar_help": "Las fotos visualmente similares de tu biblioteca se agrupan mediante embeddings de IA. Revisa cada grupo, conserva las mejores tomas y descarta los casi-duplicados. Ajusta el control deslizante del umbral para controlar cuán similares deben ser las fotos para formar un grupo.",
     "help": "Ayuda",
-    "help_text": "Revisa grupos de fotos similares o en ráfaga. Haz clic en una foto para conservarla o descartarla; doble clic para conservar solo esa. Abre el Cuarto oscuro (revisión a pantalla completa) con el botón Cuarto oscuro o la tecla Intro. Usa Arriba/Abajo para elegir un grupo y Espacio para confirmarlo y pasar al siguiente. Saltar y Confirmar inician una cuenta atrás de 7 segundos que puedes Cancelar antes de que el grupo se cierre; confirmar oculta las fotos rechazadas de la galería.",
+    "help_text": "Descarta rápido las tomas casi idénticas. Elige una granularidad — Ráfagas, Similares, Escenas o Todo combinado — y un orden; el Rigor define con qué agresividad la selección automática conserva solo el mejor fotograma, y en modo Similares el control de Similitud ajusta cuánto deben parecerse las fotos para agruparse. Haz clic en una foto para conservarla o descartarla, doble clic para conservar solo esa, o activa la Lupa (Z) para examinar los píxeles. Abre el Cuarto oscuro (Intro) para la revisión a pantalla completa con Comparar 2 o 4. Usa Arriba/Abajo para elegir un grupo y Espacio para confirmarlo y avanzar; Saltar y Confirmar inician una cuenta atrás de 7 segundos que puedes Cancelar antes de que el grupo se cierre, y al confirmar se ocultan las fotos rechazadas de la galería. Limita el feed a un álbum o una escena, activa Excluir rechazadas y ten en cuenta que cada decisión de descarte entrena tu clasificación personal «Mi gusto». Consulta los atajos de abajo para todas las teclas.",
     "type_burst": "Ráfaga",
     "type_similar": "Similar",
     "confirm_all": "Confirmar todo",
@@ -1809,6 +1818,7 @@
     "unavailable": "La generación de descripciones requiere un modelo VLM (16 GB+ VRAM)"
   },
   "timeline": {
+    "help": "Explora tu biblioteca cronológicamente. Navega de los años a los meses y a los días; elige un período para ver las fotos tomadas entonces.",
     "title": "Cronología",
     "empty": "No se encontraron fotos con fechas.",
     "years_title": "Años",
@@ -1818,6 +1828,7 @@
     "photos_count": "fotos"
   },
   "folders": {
+    "help": "Explora las fotos según su estructura de carpetas en el disco. Abre una carpeta para ver las fotos que contiene.",
     "title": "Carpetas",
     "empty": "No se encontraron carpetas.",
     "root": "Raíz",
@@ -1969,6 +1980,7 @@
     "regenerate": "Regenerar cápsulas"
   },
   "map": {
+    "help": "Fotos geolocalizadas en un mapa. Desplázate y haz zoom para explorar dónde se tomaron tus fotos; el filtro de rango de fechas limita lo que se muestra.",
     "title": "Mapa",
     "no_gps": "No se encontraron fotos con datos GPS",
     "photos_count": "{count} fotos con ubicación",

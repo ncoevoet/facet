@@ -1,4 +1,4 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, DestroyRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
@@ -11,6 +11,7 @@ import { TimelineMonthsComponent } from './timeline-months.component';
 import { TimelineDaysComponent } from './timeline-days.component';
 import { TimelineDatePipe } from './timeline-date.pipe';
 import { I18N } from '../../core/i18n/keys';
+import { PageHelpService } from '../../core/services/page-help.service';
 
 @Component({
   selector: 'app-timeline',
@@ -27,11 +28,9 @@ import { I18N } from '../../core/i18n/keys';
   host: { class: 'block h-full overflow-auto' },
   template: `
     <!-- Breadcrumb navigation -->
+    @if (level() !== 'years') {
     <nav class="flex items-center gap-1 px-4 pt-4 pb-2 text-sm flex-wrap">
       @switch (level()) {
-        @case ('years') {
-          <span class="font-medium">{{ I18N.timeline.years_title | translate }}</span>
-        }
         @case ('months') {
           <button mat-button class="!min-w-0 !px-2" (click)="goToYears()">
             {{ I18N.timeline.all_years | translate }}
@@ -52,8 +51,9 @@ import { I18N } from '../../core/i18n/keys';
         }
       }
     </nav>
+    }
 
-    <div class="px-4 pb-4">
+    <div class="px-4 pb-4" [class.pt-4]="level() === 'years'">
       @switch (level()) {
         @case ('years') {
           <app-timeline-years (yearSelected)="onYearSelected($event)" />
@@ -78,6 +78,12 @@ export class TimelineComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   protected readonly filters = inject(TimelineFiltersService);
+  private readonly pageHelp = inject(PageHelpService);
+
+  constructor() {
+    this.pageHelp.setDescription(I18N.timeline.help);
+    inject(DestroyRef).onDestroy(() => this.pageHelp.setDescription(null));
+  }
 
   private readonly routeParams = toSignal(this.route.paramMap.pipe(
     map(p => ({ year: p.get('year') ?? '', month: p.get('month') ?? '' })),

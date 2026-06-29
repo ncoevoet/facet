@@ -13,6 +13,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { CompareFiltersService } from './compare-filters.service';
+import { CategoryRecomputeService } from './category-recompute.service';
 import { I18N } from '../../core/i18n/keys';
 
 interface Snapshot {
@@ -85,6 +86,10 @@ interface Snapshot {
                       [attr.aria-label]="I18N.comparison.restore | translate">
                       <mat-icon>restore</mat-icon>
                     </button>
+                    <button mat-icon-button [disabled]="!auth.isEdition()" (click)="deleteSnapshot(snap.id)"
+                      [attr.aria-label]="I18N.comparison.delete | translate">
+                      <mat-icon>delete</mat-icon>
+                    </button>
                   </div>
                 </div>
               }
@@ -107,10 +112,12 @@ export class ComparisonSnapshotsTabComponent {
   private snackBar = inject(MatSnackBar);
   readonly auth = inject(AuthService);
   private compareFilters = inject(CompareFiltersService);
+  private recomputeService = inject(CategoryRecomputeService);
 
   snapshots = signal<Snapshot[]>([]);
   snapshotName = signal('');
-  scoresStale = signal<string | null>(null);
+  scoresStale = signal<boolean>(false);
+  staleCategory = signal<string>('');
   recomputing = signal(false);
   hasMoreSnapshots = signal(true);
   loadingSnapshots = signal(false);
@@ -181,7 +188,8 @@ export class ComparisonSnapshotsTabComponent {
         this.api.post<{ category: string }>('/config/restore_weights', { snapshot_id: id }),
       );
       this.snackBar.open(this.i18n.t(I18N.comparison.snapshot_restored), '', { duration: 3000 });
-      this.scoresStale.set(res?.category ?? this.compareFilters.selectedCategory());
+      this.scoresStale.set(true);
+      this.staleCategory.set(res?.category ?? this.compareFilters.selectedCategory());
       this.restored.emit();
       await this.loadSnapshots();
     } catch {
@@ -189,16 +197,25 @@ export class ComparisonSnapshotsTabComponent {
     }
   }
 
+  async deleteSnapshot(id: number): Promise<void> {
+    try {
+      await firstValueFrom(this.api.delete(`/config/weight_snapshots/${id}`));
+      this.snapshots.update(cur => cur.filter(s => s.id !== id));
+      this.snackBar.open(this.i18n.t(I18N.comparison.snapshot_deleted), '', { duration: 3000 });
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.comparison.error_deleting_snapshot), '', { duration: 4000 });
+    }
+  }
+
   async recalculate(): Promise<void> {
-    const category = this.scoresStale();
-    if (!category) return;
+    if (!this.scoresStale()) return;
     this.recomputing.set(true);
     try {
-      await firstValueFrom(this.api.post('/stats/categories/recompute', { category }));
-      this.scoresStale.set(null);
-      this.snackBar.open(this.i18n.t(I18N.comparison.scores_recalculated), '', { duration: 3000 });
-    } catch {
-      this.snackBar.open(this.i18n.t(I18N.comparison.error_recalculating), '', { duration: 4000 });
+      const result = await this.recomputeService.recomputeCategory(this.staleCategory());
+      if (result) {
+        this.scoresStale.set(false);
+        this.snackBar.open(this.i18n.t(I18N.comparison.scores_recalculated), '', { duration: 3000 });
+      }
     } finally {
       this.recomputing.set(false);
     }

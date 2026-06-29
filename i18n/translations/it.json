@@ -271,6 +271,7 @@
     }
   },
   "compare": {
+    "help": "Allena i pesi di punteggio confrontando coppie di foto. Scegli la foto migliore per insegnare i tuoi gusti al sistema; le schede pesi e istantanee ti permettono di rivedere e applicare ciò che è stato appreso.",
     "title": "Confronta foto",
     "header": "Confronta",
     "comparisons": "confronti",
@@ -592,6 +593,7 @@
     "person_fallback": "Persona {id}"
   },
   "stats": {
+    "help": "Approfondimenti sulla tua libreria: distribuzioni dei punteggi, utilizzo di fotocamere e obiettivi, correlazioni tra le dimensioni di punteggio e tendenze nel tempo.",
     "title": "Statistiche EXIF",
     "tabs": {
       "gear": "Attrezzatura",
@@ -1015,6 +1017,7 @@
     "error": "Accesso non riuscito"
   },
   "gallery": {
+    "help": "Sfoglia e filtra la tua libreria. Ordina per punteggio, data o per i tuoi gusti personali; usa i filtri della barra laterale (persone, tag, fotocamera, categoria, intervallo di punteggio, momenti) e la ricerca per trovare le foto.",
     "hidden_banner": {
       "message": "{n} foto nascoste dai filtri attivi",
       "show_all": "Mostra tutte"
@@ -1437,6 +1440,7 @@
     "idle": "Inattivo"
   },
   "persons": {
+    "help": "Persone rilevate dal riconoscimento facciale. Assegna un nome ai gruppi senza nome, unisci i duplicati, imposta un avatar o nascondi una persona. Clicca su una persona per vedere le sue foto.",
     "manage_title": "Gestisci persone",
     "merge_suggestions": "Suggerimenti di unione",
     "merge_suggestions_title": "Suggerimenti di unione",
@@ -1468,6 +1472,9 @@
     "merged": "Persone unite",
     "merge_error": "Unione delle persone non riuscita",
     "accept_all": "Accetta tutti ({count})",
+    "merge_into_this": "Clicca per unire la coppia in questa persona",
+    "similarity_match_hint": "Corrispondenza per somiglianza facciale — più alto significa più probabilmente la stessa persona",
+    "confirm_merge_all_message": "Unire tutte le {count} coppie suggerite? L'azione è irreversibile.",
     "accept": "Unisci",
     "no_suggestions": "Nessun suggerimento di unione trovato",
     "batch_merged": "{count} suggerimenti uniti",
@@ -1523,6 +1530,7 @@
     "fullscreen": "Schermo intero"
   },
   "albums": {
+    "help": "Raggruppa le foto in album. Gli album manuali contengono un insieme fisso; gli album intelligenti raccolgono automaticamente le foto corrispondenti a un filtro salvato. Apri un album per visualizzarlo, selezionarlo o condividerlo.",
     "title": "Album",
     "create": "Nuovo Album",
     "empty": "Nessun album. Creane uno per organizzare le tue foto.",
@@ -1532,6 +1540,7 @@
     "photos_added": "Foto aggiunte all'album",
     "save_smart": "Salva come album intelligente",
     "smart_album": "Album intelligente",
+    "smart_tooltip": "Album intelligente — raccoglie automaticamente le foto corrispondenti a un filtro salvato",
     "confirm_delete_title": "Elimina album",
     "confirm_delete_message": "Eliminare l'album \"{name}\"? Le foto non verranno rimosse.",
     "share": "Condividi",
@@ -1696,7 +1705,7 @@
     "burst_help": "Le foto scattate in rapida successione vengono raggruppate insieme. Clicca sulle foto da tenere (bordo verde), le foto non selezionate (bordo rosso) verranno nascoste. La foto migliore viene selezionata automaticamente in base a nitidezza e qualità.",
     "similar_help": "Le foto visivamente simili nella tua libreria vengono raggruppate utilizzando embedding IA. Esamina ogni gruppo, tieni gli scatti migliori e scarta i quasi-duplicati. Regola il cursore della soglia per controllare quanto simili devono essere le foto per formare un gruppo.",
     "help": "Aiuto",
-    "help_text": "Esamina i gruppi di foto simili o a raffica. Clicca una foto per tenerla o scartarla; doppio clic per tenere solo quella. Apri la Camera oscura (revisione a schermo intero) con il pulsante Camera oscura o il tasto Invio. Usa Su/Giù per scegliere un gruppo e Spazio per confermarlo e passare al successivo. Salta e Conferma avviano un conto alla rovescia di 7 secondi che puoi Annullare prima che il gruppo si chiuda; la conferma nasconde le foto scartate dalla galleria.",
+    "help_text": "Scarta in fretta gli scatti quasi identici. Scegli una granularità — Raffiche, Simili, Scene o Tutto unito — e un ordinamento; il Rigore regola con quanta aggressività la selezione automatica tiene solo il fotogramma migliore, e in modalità Simili il cursore Similarità regola quanto devono assomigliarsi le foto per raggrupparsi. Clicca una foto per tenerla o scartarla, fai doppio clic per tenere solo quella, oppure attiva la Lente (Z) per esaminare i pixel. Apri la Camera oscura (Invio) per la revisione a schermo intero con Confronta 2 o 4. Usa Su/Giù per scegliere un gruppo e Spazio per confermarlo e proseguire; Salta e Conferma avviano un conto alla rovescia di 7 secondi che puoi Annullare prima che il gruppo si chiuda, e la conferma nasconde le foto scartate dalla galleria. Limita il flusso a un album o una scena, attiva Escludi rifiutate e ricorda che ogni decisione di scarto allena la tua classifica personale «I miei gusti». Consulta le scorciatoie qui sotto per tutti i tasti.",
     "type_burst": "Raffica",
     "type_similar": "Simile",
     "confirm_all": "Conferma tutto",
@@ -1809,6 +1818,7 @@
     "unavailable": "La generazione di didascalie richiede un modello VLM (16 GB+ VRAM)"
   },
   "timeline": {
+    "help": "Sfoglia la tua libreria in ordine cronologico. Naviga dagli anni ai mesi ai giorni; scegli un periodo per vedere le foto scattate allora.",
     "title": "Cronologia",
     "empty": "Nessuna foto con date trovata.",
     "years_title": "Anni",
@@ -1818,6 +1828,7 @@
     "photos_count": "foto"
   },
   "folders": {
+    "help": "Sfoglia le foto in base alla loro struttura di cartelle su disco. Apri una cartella per vedere le foto che contiene.",
     "title": "Cartelle",
     "empty": "Nessuna cartella trovata.",
     "root": "Radice",
@@ -1969,6 +1980,7 @@
     "regenerate": "Rigenera capsule"
   },
   "map": {
+    "help": "Foto geolocalizzate su una mappa. Sposta e ingrandisci per esplorare dove sono state scattate le tue foto; il filtro intervallo date limita ciò che viene mostrato.",
     "title": "Mappa",
     "no_gps": "Nessuna foto con dati GPS trovata",
     "photos_count": "{count} foto con posizione",

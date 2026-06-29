@@ -43,14 +43,19 @@ interface YearSummary {
               <img [src]="y.hero_photo_path | thumbnailUrl:320"
                    [alt]="y.year"
                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+                <span class="text-white text-xs font-medium truncate">{{ y.year }}</span>
+              </div>
             </div>
           } @else {
-            <div class="w-full aspect-[4/3] flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
+            <div class="relative w-full aspect-[4/3] overflow-hidden flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">calendar_today</mat-icon>
+              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+                <span class="text-white text-xs font-medium truncate">{{ y.year }}</span>
+              </div>
             </div>
           }
           <div class="p-3">
-            <div class="text-xl font-bold">{{ y.year }}</div>
             <div class="text-sm opacity-60">{{ y.count | number }} {{ I18N.timeline.photos_count | translate }}</div>
           </div>
         </button>

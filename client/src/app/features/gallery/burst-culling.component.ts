@@ -8,7 +8,6 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSliderModule } from '@angular/material/slider';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { ApiService } from '../../core/services/api.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { GalleryStore } from './gallery.store';
@@ -17,14 +16,18 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, FaceThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { I18nService } from '../../core/services/i18n.service';
+import { PageHelpService } from '../../core/services/page-help.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { isTypingContext } from '../../shared/utils/keyboard';
+import { createLoupeState } from '../../shared/utils/loupe-state';
 import { SyncedZoomComponent, ZoomState, FIT_ZOOM } from './synced-zoom.component';
+import { CompareFiltersService } from '../comparison/compare-filters.service';
 import { firstValueFrom } from 'rxjs';
 import { I18N } from '../../core/i18n/keys';
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, WeightRemainingPipe,
+  CullGroupIconPipe, CullGroupLabelPipe,
   CullingGroup, CullingFace,
 } from './burst-culling.pipes';
 
@@ -88,7 +91,6 @@ interface ShortcutRow {
     MatProgressSpinnerModule,
     MatSnackBarModule,
     MatSliderModule,
-    MatCheckboxModule,
     TranslatePipe,
     SceneDatePipe,
     MomentLabelPipe,
@@ -107,13 +109,21 @@ interface ShortcutRow {
     FacesForPathPipe,
     FacePoorExpressionPipe,
     WeightRemainingPipe,
+    CullGroupIconPipe,
+    CullGroupLabelPipe,
     InfiniteScrollDirective,
   ],
   template: `
-    <div class="px-4 pt-2 md:px-8 md:pt-3 mx-auto w-full max-w-[96%] h-full flex flex-col">
+    <div class="px-2 pt-2 md:px-8 md:pt-3 mx-auto w-full lg:max-w-[96%] h-full flex flex-col">
       <!-- Header (sticky: only the group list below scrolls) -->
       <div class="flex items-center gap-3 shrink-0 mb-3">
-        <h2 class="text-lg font-semibold">{{ I18N.culling.title | translate }}</h2>
+        @if (scoped()) {
+          <button mat-icon-button (click)="exitScope()"
+                  [matTooltip]="I18N.culling.exit_scene | translate"
+                  [attr.aria-label]="I18N.culling.exit_scene | translate">
+            <mat-icon>arrow_back</mat-icon>
+          </button>
+        }
         <!-- On small screens the toolbar detaches into a horizontally-scrollable
              bottom bar (same DOM, repositioned via max-lg:* — no duplication). -->
         <div class="flex items-center gap-3 md:gap-4 ml-auto lg:flex-wrap
@@ -123,62 +133,112 @@ interface ShortcutRow {
                     max-lg:shadow-lg safe-area-pb">
           <!-- Controls ordered by impact: granularity → sort → category →
                thresholds → exclude → scope → status/loupe/help. -->
-          <select [class]="filterSelectClass"
-                  [value]="groupBy()"
-                  (change)="onGroupByChange($any($event.target).value)"
-                  [matTooltip]="I18N.culling.group_by.tooltip | translate"
+          <button mat-icon-button [matMenuTriggerFor]="cullGroupByMenu"
+                  [class.!text-[var(--mat-sys-primary)]]="groupBy() !== 'all'"
+                  [matTooltip]="I18N.culling.group_by.label | translate"
                   [attr.aria-label]="I18N.culling.group_by.label | translate">
-            <option value="all">{{ I18N.culling.group_by.all | translate }}</option>
-            <option value="burst">{{ I18N.culling.group_by.bursts | translate }}</option>
-            <option value="similar">{{ I18N.culling.group_by.similar | translate }}</option>
+            <mat-icon>{{ groupBy() | cullGroupIcon }}</mat-icon>
+          </button>
+          <mat-menu #cullGroupByMenu="matMenu">
+            <button mat-menu-item (click)="onGroupByChange('all')">
+              <span [class.font-bold]="groupBy() === 'all'">{{ I18N.culling.group_by.all | translate }}</span>
+            </button>
+            <button mat-menu-item (click)="onGroupByChange('burst')">
+              <span [class.font-bold]="groupBy() === 'burst'">{{ I18N.culling.group_by.bursts | translate }}</span>
+            </button>
+            <button mat-menu-item (click)="onGroupByChange('similar')">
+              <span [class.font-bold]="groupBy() === 'similar'">{{ I18N.culling.group_by.similar | translate }}</span>
+            </button>
             @if (store.config()?.features?.show_scenes || groupBy() === 'scene') {
-              <option value="scene">{{ I18N.culling.group_by.scenes | translate }}</option>
+              <button mat-menu-item (click)="onGroupByChange('scene')">
+                <span [class.font-bold]="groupBy() === 'scene'">{{ I18N.culling.group_by.scenes | translate }}</span>
+              </button>
             }
-          </select>
+          </mat-menu>
           @if (groupBy() !== 'scene') {
-            <select [class]="filterSelectClass"
-                    [value]="sortMode()"
-                    (change)="onSortChange($any($event.target).value)"
-                    [matTooltip]="I18N.culling.sort.tooltip | translate"
+            <button mat-icon-button [matMenuTriggerFor]="cullSortMenu"
+                    [class.!text-[var(--mat-sys-primary)]]="sortMode() !== 'easiest'"
+                    [matTooltip]="I18N.culling.sort.label | translate"
                     [attr.aria-label]="I18N.culling.sort.label | translate">
+              <mat-icon>sort</mat-icon>
+            </button>
+            <mat-menu #cullSortMenu="matMenu">
               @for (m of sortModes; track m) {
-                <option [value]="m">{{ 'culling.sort.' + m | translate }}</option>
+                <button mat-menu-item (click)="onSortChange(m)">
+                  <span [class.font-bold]="sortMode() === m">{{ 'culling.sort.' + m | translate }}</span>
+                </button>
               }
-            </select>
+            </mat-menu>
           }
           @if (categoryOptions().length > 0) {
-            <select [class]="filterSelectClass"
-                    [value]="categoryFilter()"
-                    (change)="onCategoryFilterChange($any($event.target).value)"
+            <button mat-icon-button [matMenuTriggerFor]="cullCategoryMenu"
+                    [class.!text-[var(--mat-sys-primary)]]="categoryFilter() !== ''"
                     [matTooltip]="I18N.culling.filter_category | translate"
                     [attr.aria-label]="I18N.culling.filter_category | translate">
-              <option value="">{{ I18N.culling.all_categories | translate }}</option>
+              <mat-icon>category</mat-icon>
+            </button>
+            <mat-menu #cullCategoryMenu="matMenu">
+              <button mat-menu-item (click)="onCategoryFilterChange('')">
+                <span [class.font-bold]="categoryFilter() === ''">{{ I18N.culling.all_categories | translate }}</span>
+              </button>
               @for (c of categoryOptions(); track c) {
-                <option [value]="c">{{ 'category_names.' + c | translate }}</option>
+                <button mat-menu-item (click)="onCategoryFilterChange(c)">
+                  <span [class.font-bold]="categoryFilter() === c">{{ 'category_names.' + c | translate }}</span>
+                </button>
               }
-            </select>
+            </mat-menu>
           }
           @if (groupBy() === 'similar' || groupBy() === 'all') {
-            <div class="flex items-center gap-2">
+            <div class="hidden lg:flex items-center gap-2">
               <span class="text-xs opacity-60">{{ I18N.culling.threshold | translate }}</span>
               <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
                 <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.culling.threshold | translate" />
               </mat-slider>
               <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
             </div>
+            <button mat-icon-button class="lg:hidden" [matMenuTriggerFor]="thresholdMenu"
+                    [matTooltip]="I18N.culling.threshold | translate"
+                    [attr.aria-label]="I18N.culling.threshold | translate">
+              <mat-icon>compare</mat-icon>
+            </button>
+            <mat-menu #thresholdMenu="matMenu">
+              <div class="flex items-center gap-2 px-4 py-3" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                <span class="text-xs opacity-60">{{ I18N.culling.threshold | translate }}</span>
+                <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
+                  <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.culling.threshold | translate" />
+                </mat-slider>
+                <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
+              </div>
+            </mat-menu>
           }
-          <div class="flex items-center gap-2" [matTooltip]="I18N.culling.strictness_tooltip | translate">
+          <div class="hidden lg:flex items-center gap-2" [matTooltip]="I18N.culling.strictness_tooltip | translate">
             <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
             <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="10" [discrete]="true">
               <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="I18N.culling.strictness | translate" />
             </mat-slider>
             <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
           </div>
-          <mat-checkbox [checked]="excludeRejected()" (change)="onExcludeRejectedChange($event.checked)"
-                        [aria-label]="I18N.culling.exclude_rejected | translate"
-                        class="text-xs opacity-80">
-            {{ I18N.culling.exclude_rejected | translate }}
-          </mat-checkbox>
+          <button mat-icon-button class="lg:hidden" [matMenuTriggerFor]="strictnessMenu"
+                  [matTooltip]="I18N.culling.strictness | translate"
+                  [attr.aria-label]="I18N.culling.strictness | translate">
+            <mat-icon>tune</mat-icon>
+          </button>
+          <mat-menu #strictnessMenu="matMenu">
+            <div class="flex items-center gap-2 px-4 py-3" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+              <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
+              <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="10" [discrete]="true">
+                <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="I18N.culling.strictness | translate" />
+              </mat-slider>
+              <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
+            </div>
+          </mat-menu>
+          <button mat-icon-button (click)="onExcludeRejectedChange(!excludeRejected())"
+                  [class.!text-[var(--mat-sys-primary)]]="excludeRejected()"
+                  [attr.aria-pressed]="excludeRejected()"
+                  [matTooltip]="I18N.culling.exclude_rejected | translate"
+                  [attr.aria-label]="I18N.culling.exclude_rejected | translate">
+            <mat-icon>{{ excludeRejected() ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
           @if (albums().length > 0) {
             <button mat-stroked-button [matMenuTriggerFor]="scopeMenu"
                     [matTooltip]="I18N.culling.scope | translate" class="!text-xs">
@@ -210,19 +270,12 @@ interface ShortcutRow {
               }
             }
           </mat-menu>
-          @if (rankerComparisons() !== null) {
-            <span class="text-xs opacity-70 flex items-center gap-1 max-lg:!hidden"
-                  [matTooltip]="I18N.culling.my_taste_tooltip | translate">
-              <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-[var(--mat-sys-primary)]">auto_awesome</mat-icon>
-              {{ (rankerTrained() ? I18N.culling.my_taste_trained : I18N.culling.my_taste_learning)
-                 | translate:{ count: (rankerComparisons() ?? 0) } }}
-            </span>
-          }
-          <button mat-stroked-button (click)="loupeActive.set(!loupeActive())"
-                  [class.!border-[var(--mat-sys-primary)]]="loupeActive()"
-                  [matTooltip]="I18N.culling.loupe_hint | translate">
+          <button mat-icon-button (click)="loupeActive.set(!loupeActive())"
+                  [class.!text-[var(--mat-sys-primary)]]="loupeActive()"
+                  [attr.aria-pressed]="loupeActive()"
+                  [matTooltip]="I18N.culling.loupe_hint | translate"
+                  [attr.aria-label]="I18N.culling.loupe | translate">
             <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
-            {{ I18N.culling.loupe | translate }}
           </button>
           @if (loupeActive()) {
             <mat-slider class="!w-28 !min-w-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
@@ -230,11 +283,6 @@ interface ShortcutRow {
                      [attr.aria-label]="I18N.culling.loupe | translate" />
             </mat-slider>
           }
-          <button mat-icon-button (click)="showHelp.set(!showHelp())" class="!w-8 !h-8 !p-0"
-                  [matTooltip]="I18N.culling.help | translate"
-                  [attr.aria-label]="I18N.culling.help | translate">
-            <mat-icon class="!text-lg !w-5 !h-5 !leading-5 opacity-60">help_outline</mat-icon>
-          </button>
         </div>
       </div>
 
@@ -249,9 +297,17 @@ interface ShortcutRow {
         </div>
       }
 
-      @if (showHelp()) {
+      @if (pageHelp.open()) {
         <div class="shrink-0 p-3 mb-3 rounded-lg bg-[var(--mat-sys-surface-container)] space-y-3">
-          <p class="text-sm opacity-70">{{ I18N.culling.help_text | translate }}</p>
+          <p class="text-sm opacity-80">{{ I18N.culling.help_text | translate }}</p>
+          @if (rankerComparisons() !== null) {
+            <span class="text-xs opacity-70 flex items-center gap-1"
+                  [matTooltip]="I18N.culling.my_taste_tooltip | translate">
+              <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-[var(--mat-sys-primary)]">auto_awesome</mat-icon>
+              {{ (rankerTrained() ? I18N.culling.my_taste_trained : I18N.culling.my_taste_learning)
+                 | translate:{ count: (rankerComparisons() ?? 0) } }}
+            </span>
+          }
           <div class="flex flex-wrap gap-x-10 gap-y-3">
             @for (section of shortcutSections; track section.titleKey) {
               <div>
@@ -284,13 +340,13 @@ interface ShortcutRow {
       } @else if (visibleGroups().length === 0) {
         <p class="text-center py-20 opacity-60">{{ (scoped() ? I18N.culling.scene_complete : I18N.culling.no_bursts) | translate }}</p>
       } @else {
-        <div class="space-y-6 pb-4">
+        <div class="space-y-3 pb-4">
           @for (group of visibleGroups(); track group.group_id + '_' + group.type; let i = $index) {
             <div class="rounded-xl border-2 overflow-hidden transition-colors duration-300"
                  [attr.data-gidx]="i"
                  [ngClass]="i === selectedGroupIndex()
-                   ? 'border-[var(--mat-sys-primary)]'
-                   : 'border-[var(--mat-sys-outline-variant)]'">
+                   ? 'bg-[var(--mat-sys-surface-container-high)] border-[var(--mat-sys-surface-container-high)]'
+                   : 'bg-[var(--mat-sys-surface-container)] border-[var(--mat-sys-surface-container)]'">
               @if (group.start) {
                 <div class="flex items-center gap-2 px-4 pt-2 text-xs">
                   <mat-icon class="!text-base text-[var(--mat-sys-primary)]">schedule</mat-icon>
@@ -304,7 +360,7 @@ interface ShortcutRow {
                 </div>
               }
               <!-- Photos -->
-              <div class="flex gap-2 md:gap-3 overflow-x-auto p-3 items-center transition-opacity duration-300"
+              <div class="flex gap-2 md:gap-3 overflow-x-auto px-2 py-3 items-center transition-opacity duration-300 [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--mat-sys-outline-variant)] [&::-webkit-scrollbar-track]:bg-transparent"
                    [class.pointer-events-none]="(group | isConfirmed:confirmedGroups())"
                    [class.opacity-40]="(group | isConfirmed:confirmedGroups())">
                 @for (photo of group.photos; track photo.path; let pIdx = $index) {
@@ -364,25 +420,30 @@ interface ShortcutRow {
               </div>
 
               <!-- Group actions -->
-              <div class="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 py-2 border-t border-[var(--mat-sys-outline-variant)]">
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-2 px-2 py-2 border-t border-[var(--mat-sys-outline-variant)]">
+                <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 opacity-60"
+                          [matTooltip]="group.type | cullGroupLabel | translate"
+                          [attr.aria-label]="group.type | cullGroupLabel | translate">{{ group.type | cullGroupIcon }}</mat-icon>
                 <span class="text-xs opacity-50">{{ group.count }} {{ I18N.culling.photos | translate }}</span>
-                @if (group.category) {
-                  <span class="text-xs opacity-50">· {{ 'category_names.' + group.category | translate }}</span>
+                @if (group.category; as category) {
                   @if (comparisonStats(); as stats) {
-                    @if ((group.category | weightRemaining:stats); as remaining) {
-                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] bg-[var(--mat-sys-surface-container-high)] opacity-70"
-                            [matTooltip]="I18N.culling.weight_remaining_tooltip | translate">
-                        <mat-icon class="inline-flex !text-sm !w-3.5 !h-3.5 !leading-[14px]">tune</mat-icon>
-                        {{ I18N.culling.weight_remaining | translate:{ count: remaining } }}
-                      </span>
+                    @if ((category | weightRemaining:stats); as remaining) {
+                      <button class="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
+                              (click)="tuneCategory(category)"
+                              [matTooltip]="I18N.culling.weight_remaining | translate:{ count: remaining }"
+                              [attr.aria-label]="I18N.culling.weight_remaining | translate:{ count: remaining }">
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-60">tune</mat-icon>
+                      </button>
                     } @else {
-                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] text-green-500"
-                            [matTooltip]="I18N.culling.weight_ready_tooltip | translate">
-                        <mat-icon class="inline-flex !text-sm !w-3.5 !h-3.5 !leading-[14px]">tune</mat-icon>
-                        {{ I18N.culling.weight_ready | translate }}
-                      </span>
+                      <button class="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
+                              (click)="tuneCategory(category)"
+                              [matTooltip]="I18N.culling.weight_ready | translate"
+                              [attr.aria-label]="I18N.culling.weight_ready | translate">
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-green-500">tune</mat-icon>
+                      </button>
                     }
                   }
+                  <span class="text-xs opacity-50">{{ 'category_names.' + category | translate }}</span>
                 }
                 @if ((group | isConfirmed:confirmedGroups())) {
                   <span class="inline-flex items-center gap-1 text-xs text-green-500 font-medium">
@@ -401,21 +462,20 @@ interface ShortcutRow {
                            [style.transform]="'scaleX(' + ((group | passCountdown:passingGroups()) / passCountdownSeconds) + ')'"></div>
                     </div>
                   } @else {
-                    <button mat-stroked-button (click)="openLightbox(group, 0)"
-                            class="!h-8 !text-sm !rounded-md inline-flex items-center"
-                            [matTooltip]="I18N.culling.darkroom_tooltip | translate">
-                      <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 mr-1">fullscreen</mat-icon>
-                      {{ I18N.culling.darkroom | translate }}
+                    <button mat-icon-button (click)="openLightbox(group, 0)"
+                            [matTooltip]="I18N.culling.darkroom_tooltip | translate"
+                            [attr.aria-label]="I18N.culling.darkroom | translate">
+                      <mat-icon>fullscreen</mat-icon>
                     </button>
-                    <button mat-stroked-button (click)="skipGroup(group)" class="!h-8 !text-sm !rounded-md"
-                            [matTooltip]="I18N.culling.skip_tooltip | translate">
-                      {{ I18N.culling.skip | translate }}
+                    <button mat-icon-button (click)="skipGroup(group)"
+                            [matTooltip]="I18N.culling.skip_tooltip | translate"
+                            [attr.aria-label]="I18N.culling.skip | translate">
+                      <mat-icon>skip_next</mat-icon>
                     </button>
-                    <button mat-flat-button (click)="confirmGroup(group)" [disabled]="confirming()"
-                            class="!h-8 !text-sm !rounded-md inline-flex items-center"
-                            [matTooltip]="I18N.culling.confirm_tooltip | translate">
-                      <mat-icon class="inline-flex !text-base !w-4 !h-4 !leading-4 mr-1">check_circle</mat-icon>
-                      {{ I18N.culling.confirm | translate }}
+                    <button mat-icon-button (click)="confirmGroup(group)" [disabled]="confirming()"
+                            [matTooltip]="I18N.culling.confirm_tooltip | translate"
+                            [attr.aria-label]="I18N.culling.confirm | translate">
+                      <mat-icon>check_circle</mat-icon>
                     </button>
                   }
                 </div>
@@ -559,7 +619,7 @@ interface ShortcutRow {
                (keydown)="$event.stopPropagation()">
             <div class="text-white/50 text-xs mb-2">{{ I18N.culling.face_grid_title | translate }}</div>
             <div class="flex gap-3 items-start">
-              @for (photo of lbGroup.photos; track photo.path) {
+              @for (photo of lbGroup.photos; track photo.path; let pIdx = $index) {
                 @if ((photo.path | facesForPath:faceMap()).length > 0) {
                   <div class="flex flex-col items-center gap-1 flex-shrink-0">
                     <div class="flex gap-1">
@@ -584,6 +644,7 @@ interface ShortcutRow {
                               {{ I18N.culling.face_badge_expression | translate }}
                             </div>
                           }
+                          <div class="absolute bottom-1 right-1 px-1 py-0.5 rounded bg-black/70 text-white text-[10px] leading-none">{{ pIdx + 1 }}</div>
                         </div>
                       }
                     </div>
@@ -610,7 +671,9 @@ export class BurstCullingComponent implements OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+  protected readonly pageHelp = inject(PageHelpService);
   private readonly albumService = inject(AlbumService);
+  private readonly compareFilters = inject(CompareFiltersService);
   protected readonly store = inject(GalleryStore);
   private readonly sceneDate = new SceneDatePipe();
 
@@ -650,10 +713,10 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly rankerComparisons = signal<number | null>(null);
   protected readonly rankerTrained = signal(false);
 
-  protected readonly showHelp = signal(false);
   // Photo-Mechanic-style hover loupe over the group tiles (Z toggles; zoom slider).
-  protected readonly loupeActive = signal(false);
-  protected readonly loupeZoom = signal(3);
+  private readonly loupe = createLoupeState();
+  protected readonly loupeActive = this.loupe.loupeActive;
+  protected readonly loupeZoom = this.loupe.loupeZoom;
   protected readonly similarityThreshold = signal(85);
   /** Auto-keep strictness (0-100): higher keeps fewer photos below the best. */
   protected readonly strictness = signal(100);
@@ -753,9 +816,6 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly sortMode = signal(readStoredSort());
   protected readonly sortModes = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons'] as const;
 
-  /** Shared Tailwind class string for the toolbar's native <select> controls. */
-  protected readonly filterSelectClass = 'text-xs rounded-md px-2 py-1 bg-[var(--mat-sys-surface-container)] text-[var(--mat-sys-on-surface)] border border-[var(--mat-sys-outline-variant)]';
-
   /** Content-category to cull ('' = all). Filters the visible group list client-side. Persisted. */
   protected readonly categoryFilter = signal(localStorage.getItem(CULL_CATEGORY_KEY) ?? '');
 
@@ -802,6 +862,7 @@ export class BurstCullingComponent implements OnDestroy {
   ];
 
   constructor() {
+    this.pageHelp.setDescription(null);
     const qp = this.route.snapshot.queryParamMap;
     this.scopeAlbum.set(qp.get('album'));
     this.scopeFrom.set(qp.get('from'));
@@ -852,6 +913,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.pageHelp.setDescription(null);
     this.clearAllPassTimers();
   }
 
@@ -1110,6 +1172,12 @@ export class BurstCullingComponent implements OnDestroy {
   protected openDetail(event: Event, path: string): void {
     event.stopPropagation();
     this.router.navigate(['/photo'], { queryParams: { path } });
+  }
+
+  /** Open Comparison scoped to a group's category so its weights can be tuned. */
+  protected tuneCategory(category: string): void {
+    this.compareFilters.selectedCategory.set(category);
+    void this.router.navigate(['/compare']);
   }
 
   // --- Lightbox handlers ---

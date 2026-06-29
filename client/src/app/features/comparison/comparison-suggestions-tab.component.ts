@@ -2,6 +2,8 @@ import { Component, inject, signal, computed, effect, output } from '@angular/co
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
@@ -10,6 +12,8 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CompareFiltersService } from './compare-filters.service';
+import { CategoryRecomputeService } from './category-recompute.service';
+import { GalleryStore } from '../gallery/gallery.store';
 import { WeightLabelKeyPipe } from './comparison.pipes';
 import { I18N } from '../../core/i18n/keys';
 
@@ -42,13 +46,15 @@ interface TopPhoto {
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    MatFormFieldModule,
+    MatSelectModule,
     TranslatePipe,
     FixedPipe,
     ThumbnailUrlPipe,
     WeightLabelKeyPipe,
   ],
   template: `
-    <div class="pt-2 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+    <div class="pt-2 pb-20 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
       <!-- Column 1: weight suggestions + actions -->
       <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-4">
         @if (learnedWeights(); as lw) {
@@ -121,6 +127,17 @@ interface TopPhoto {
         }
       </div>
     </div>
+
+    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 px-3 py-2 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+      <mat-form-field class="flex-1" subscriptSizing="dynamic">
+        <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
+        <mat-select [value]="compareFilters.selectedCategory()" (selectionChange)="compareFilters.selectedCategory.set($event.value)">
+          @for (t of store.types(); track t.id) {
+            <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
   `,
 })
 export class ComparisonSuggestionsTabComponent {
@@ -128,7 +145,9 @@ export class ComparisonSuggestionsTabComponent {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
-  private readonly compareFilters = inject(CompareFiltersService);
+  protected readonly compareFilters = inject(CompareFiltersService);
+  protected readonly store = inject(GalleryStore);
+  private readonly recomputeService = inject(CategoryRecomputeService);
 
   /** Emitted when the user applies the optimized weights — parent syncs the weights tab. */
   readonly weightsApplied = output<Record<string, number>>();
@@ -234,14 +253,12 @@ export class ComparisonSuggestionsTabComponent {
     if (!category) return;
     this.recomputing.set(true);
     try {
-      const result = await firstValueFrom(
-        this.api.post<{ success: boolean; message?: string }>('/stats/categories/recompute', { category }),
-      );
-      this.topAfter.set(await this.fetchTopPhotos(category));
-      this.recomputed.set(true);
-      this.snackBar.open(result.message ?? this.i18n.t(I18N.comparison.recalculated), '', { duration: 5000 });
-    } catch {
-      this.snackBar.open(this.i18n.t(I18N.comparison.error_recalculating), '', { duration: 4000 });
+      const result = await this.recomputeService.recomputeCategory(category);
+      if (result) {
+        this.topAfter.set(await this.fetchTopPhotos(category));
+        this.recomputed.set(true);
+        this.snackBar.open(result.message ?? this.i18n.t(I18N.comparison.recalculated), '', { duration: 5000 });
+      }
     } finally {
       this.recomputing.set(false);
     }

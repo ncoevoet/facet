@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, untracked } from '@angular/core';
+import { Component, inject, signal, computed, effect, untracked, DestroyRef } from '@angular/core';
 import { RouterLink, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -18,6 +18,7 @@ import { AlbumsFiltersService } from './albums-filters.service';
 import { ShareDialogComponent, ShareDialogData } from '../../shared/components/share-dialog/share-dialog.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { I18N } from '../../core/i18n/keys';
+import { PageHelpService } from '../../core/services/page-help.service';
 
 @Component({
   selector: 'app-albums',
@@ -29,23 +30,6 @@ import { I18N } from '../../core/i18n/keys';
     TranslatePipe, ThumbnailUrlPipe, InfiniteScrollDirective,
   ],
   template: `
-    <div class="flex items-center justify-start mb-3">
-      @if (auth.isEdition()) {
-        <div class="flex gap-2">
-          <!-- Small screen: icon-only buttons -->
-          <button mat-icon-button class="sm:!hidden" (click)="openCreateDialog()"
-                  [matTooltip]="I18N.albums.create | translate">
-            <mat-icon>add</mat-icon>
-          </button>
-          <!-- Larger screens: full buttons with labels -->
-          <button mat-flat-button class="!hidden sm:!inline-flex" (click)="openCreateDialog()">
-            <mat-icon>add</mat-icon>
-            {{ I18N.albums.create | translate }}
-          </button>
-        </div>
-      }
-    </div>
-
     @if (loading() && albums().length === 0) {
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" />
@@ -68,30 +52,42 @@ import { I18N } from '../../core/i18n/keys';
               <img [src]="album.first_photo_path | thumbnailUrl:320"
                    [alt]="album.name"
                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+                <span class="text-white text-xs font-medium truncate">{{ album.name }}</span>
+                @if (album.is_smart) {
+                  <mat-icon class="!text-xs !w-3 !h-3 !leading-3 text-white/80 shrink-0 pointer-events-auto"
+                            [matTooltip]="I18N.albums.smart_tooltip | translate"
+                            [attr.aria-label]="I18N.albums.smart_tooltip | translate">auto_awesome</mat-icon>
+                }
+              </div>
             </div>
           } @else {
-            <div class="w-full aspect-[4/3] flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
+            <div class="relative w-full aspect-[4/3] flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">photo_library</mat-icon>
+              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+                <span class="text-white text-xs font-medium truncate">{{ album.name }}</span>
+                @if (album.is_smart) {
+                  <mat-icon class="!text-xs !w-3 !h-3 !leading-3 text-white/80 shrink-0 pointer-events-auto"
+                            [matTooltip]="I18N.albums.smart_tooltip | translate"
+                            [attr.aria-label]="I18N.albums.smart_tooltip | translate">auto_awesome</mat-icon>
+                }
+              </div>
             </div>
           }
           <div class="p-3 flex items-start gap-1">
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm truncate inline-flex items-center gap-1">
-                {{ album.name }}
-                @if (album.is_smart) {
-                  <mat-icon class="!text-xs !w-3 !h-3 !leading-3">auto_awesome</mat-icon>
-                }
-              </div>
               @if (album.description) {
                 <div class="text-xs opacity-60 truncate">{{ album.description }}</div>
               }
             </div>
-            <div class="flex items-center shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-              <button mat-icon-button
-                      [matTooltip]="I18N.albums.scenes | translate"
-                      (click)="openScoped($event, '/scenes', album)">
-                <mat-icon class="opacity-60">movie_filter</mat-icon>
-              </button>
+            <div class="flex items-center shrink-0">
+              @if (!album.is_smart) {
+                <button mat-icon-button
+                        [matTooltip]="I18N.albums.scenes | translate"
+                        (click)="openScoped($event, '/scenes', album)">
+                  <mat-icon class="opacity-60">movie_filter</mat-icon>
+                </button>
+              }
               @if (auth.isEdition()) {
                 <button mat-icon-button
                         [matTooltip]="I18N.albums.cull | translate"
@@ -136,6 +132,7 @@ export class AlbumsComponent {
   protected readonly auth = inject(AuthService);
   private readonly albumsFilters = inject(AlbumsFiltersService);
   private readonly router = inject(Router);
+  private readonly pageHelp = inject(PageHelpService);
 
   protected readonly albums = signal<Album[]>([]);
   protected readonly total = signal(0);
@@ -146,12 +143,21 @@ export class AlbumsComponent {
   protected readonly hasMore = computed(() => this.albums().length < this.total());
 
   constructor() {
+    this.pageHelp.setDescription(I18N.albums.help);
+    inject(DestroyRef).onDestroy(() => this.pageHelp.setDescription(null));
     // Reload when filters change
     effect(() => {
       this.albumsFilters.typeFilter();
       this.albumsFilters.sort();
       this.albumsFilters.search();
       untracked(() => this.loadAlbums(true));
+    });
+    // Open the create dialog when the shell's add button increments the counter
+    const initialCreate = this.albumsFilters.createRequested();
+    effect(() => {
+      if (this.albumsFilters.createRequested() !== initialCreate) {
+        untracked(() => this.openCreateDialog());
+      }
     });
   }
 

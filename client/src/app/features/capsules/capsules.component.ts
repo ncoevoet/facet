@@ -8,6 +8,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { PageHelpService } from '../../core/services/page-help.service';
 import { CapsuleFiltersService } from './capsule-filters.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -52,11 +53,6 @@ interface CapsulesResponse {
     SlideshowComponent,
   ],
   template: `
-    <div class="mb-4">
-      <h2 class="text-lg font-semibold">{{ I18N.capsules.title | translate }}</h2>
-      <p class="text-sm opacity-60 w-full">{{ I18N.capsules.intro | translate }}</p>
-    </div>
-
     @if (loading() && capsules().length === 0) {
       <div class="flex flex-col items-center justify-center py-16 gap-3">
         <mat-spinner diameter="48" />
@@ -87,29 +83,34 @@ interface CapsulesResponse {
               <img [src]="capsule.cover_photo_path | thumbnailUrl:320"
                    [alt]="capsule.title"
                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+                <span class="text-white text-xs font-medium truncate">{{ capsule.title_key | translate:capsule.title_params }}</span>
+              </div>
               <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
               <div class="absolute bottom-2 right-2">
                 <mat-icon class="!text-white opacity-0 group-hover:opacity-80 transition-opacity">play_circle</mat-icon>
               </div>
             </div>
           } @else {
-            <div class="w-full aspect-[4/3] flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
+            <div class="relative w-full aspect-[4/3] flex items-center justify-center overflow-hidden bg-[var(--mat-sys-surface-container-high)]">
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">{{ capsule.icon }}</mat-icon>
+              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+                <span class="text-white text-xs font-medium truncate">{{ capsule.title_key | translate:capsule.title_params }}</span>
+              </div>
             </div>
           }
-          <div class="p-3 flex items-start gap-1">
+          <div class="p-3 flex items-center gap-1">
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm truncate">{{ capsule.title_key | translate:capsule.title_params }}</div>
-              <div class="flex items-center gap-1 text-xs opacity-60">
-                <mat-icon class="!text-xs !w-3 !h-3 !leading-3 inline-flex"
+              <div class="flex items-center gap-1.5 text-sm opacity-70">
+                <mat-icon class="!text-xl !w-6 !h-6 !leading-6 inline-flex"
                           [matTooltip]="'capsules.type_' + capsule.type | translate">{{ capsule.icon }}</mat-icon>
-                <span>{{ capsule.photo_count }}</span>
+                <span class="font-medium">{{ capsule.photo_count }}</span>
               </div>
             </div>
             @if (auth.isEdition()) {
               <button
                 mat-icon-button
-                class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                class="shrink-0"
                 [matTooltip]="I18N.capsules.save_as_album | translate"
                 [disabled]="savingAlbum()"
                 (click)="saveAsAlbumFromCard($event, capsule)"
@@ -166,6 +167,7 @@ export class CapsulesComponent implements OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly filters = inject(CapsuleFiltersService);
+  private readonly pageHelp = inject(PageHelpService);
 
   protected readonly capsules = signal<Capsule[]>([]);
   protected readonly loading = signal(false);
@@ -212,6 +214,7 @@ export class CapsulesComponent implements OnDestroy {
   private destroyed = false;
 
   constructor() {
+    this.pageHelp.setDescription(I18N.capsules.intro);
     afterNextRender(() => {
       this.loadCapsules();
     });
@@ -228,6 +231,7 @@ export class CapsulesComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.pageHelp.setDescription(null);
     this.destroyed = true;
     this.slideshowActive.set(false);
     this.clearTransitionTimer();

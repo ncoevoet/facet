@@ -8,6 +8,8 @@ export interface AuthStatus {
   multi_user: boolean;
   edition_enabled: boolean;
   edition_authenticated: boolean;
+  edition_password_required: boolean;
+  login_password_required: boolean;
   user_id: string | null;
   user_role: string | null;
   display_name: string | null;
@@ -32,6 +34,8 @@ export class AuthService {
   readonly status = signal<AuthStatus | null>(null);
   readonly isAuthenticated = computed(() => this.status()?.authenticated ?? false);
   readonly isEdition = computed(() => this.status()?.edition_authenticated ?? false);
+  readonly editionPasswordRequired = computed(() => this.status()?.edition_password_required ?? false);
+  readonly loginPasswordRequired = computed(() => this.status()?.login_password_required ?? false);
   readonly isSuperadmin = computed(() => this.status()?.user_role === 'superadmin');
   readonly isMultiUser = computed(() => this.status()?.multi_user ?? false);
   readonly features = computed(() => this.status()?.features ?? {});
@@ -115,6 +119,11 @@ export class AuthService {
       // Network error — keep existing token rather than destroying the session
     }
     this.status.update(s => s ? { ...s, edition_authenticated: false } : s);
+  }
+
+  /** Re-enter edition mode locally when no password is required (server already grants it). */
+  grantEditionLocal(): void {
+    this.status.update(s => s ? { ...s, edition_authenticated: true } : s);
   }
 
   /** Check if a feature is enabled */

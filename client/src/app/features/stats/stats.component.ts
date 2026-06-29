@@ -16,6 +16,7 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThemeService } from '../../core/services/theme.service';
+import { PageHelpService } from '../../core/services/page-help.service';
 import { StatsFiltersService, StatsOverviewData } from './stats-filters.service';
 import { GearChartCardComponent, GearItem } from './gear-chart-card.component';
 import { ChartHeightPipe } from './chart-height.pipe';
@@ -263,6 +264,7 @@ export class StatsComponent {
   private router = inject(Router);
   readonly statsFilters = inject(StatsFiltersService);
   readonly themeService = inject(ThemeService);
+  private readonly pageHelp = inject(PageHelpService);
   private charts = new Map<string, Chart>();
   private chartRefs = new Map<string, ElementRef<HTMLCanvasElement>>();
 
@@ -310,6 +312,8 @@ export class StatsComponent {
   protected readonly topCameras = signal<TopCamera[]>([]);
 
   constructor() {
+    this.pageHelp.setDescription(I18N.stats.help);
+
     // Initialize filters from URL
     const params = this.route.snapshot.queryParams;
     if (params['category']) this.statsFilters.filterCategory.set(params['category']);
@@ -342,6 +346,7 @@ export class StatsComponent {
       this.charts.forEach(chart => chart.destroy());
       this.charts.clear();
       this.statsFilters.overview.set(null);
+      this.pageHelp.setDescription(null);
     });
 
     // Chart effects — canvas refs must be tracked so charts render on tab switch

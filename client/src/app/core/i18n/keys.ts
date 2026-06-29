@@ -275,6 +275,7 @@ export const I18N = {
     },
   },
   compare: {
+    help: "compare.help",
     title: "compare.title",
     header: "compare.header",
     comparisons: "compare.comparisons",
@@ -596,6 +597,7 @@ export const I18N = {
     person_fallback: "merge_suggestions.person_fallback",
   },
   stats: {
+    help: "stats.help",
     title: "stats.title",
     tabs: {
       gear: "stats.tabs.gear",
@@ -1019,6 +1021,7 @@ export const I18N = {
     error: "auth.error",
   },
   gallery: {
+    help: "gallery.help",
     hidden_banner: {
       message: "gallery.hidden_banner.message",
       show_all: "gallery.hidden_banner.show_all",
@@ -1439,6 +1442,7 @@ export const I18N = {
     idle: "scan.idle",
   },
   persons: {
+    help: "persons.help",
     manage_title: "persons.manage_title",
     merge_suggestions: "persons.merge_suggestions",
     merge_suggestions_title: "persons.merge_suggestions_title",
@@ -1470,6 +1474,9 @@ export const I18N = {
     merged: "persons.merged",
     merge_error: "persons.merge_error",
     accept_all: "persons.accept_all",
+    merge_into_this: "persons.merge_into_this",
+    similarity_match_hint: "persons.similarity_match_hint",
+    confirm_merge_all_message: "persons.confirm_merge_all_message",
     accept: "persons.accept",
     no_suggestions: "persons.no_suggestions",
     batch_merged: "persons.batch_merged",
@@ -1525,6 +1532,7 @@ export const I18N = {
     fullscreen: "slideshow.fullscreen",
   },
   albums: {
+    help: "albums.help",
     title: "albums.title",
     create: "albums.create",
     empty: "albums.empty",
@@ -1534,6 +1542,7 @@ export const I18N = {
     photos_added: "albums.photos_added",
     save_smart: "albums.save_smart",
     smart_album: "albums.smart_album",
+    smart_tooltip: "albums.smart_tooltip",
     confirm_delete_title: "albums.confirm_delete_title",
     confirm_delete_message: "albums.confirm_delete_message",
     share: "albums.share",
@@ -1811,6 +1820,7 @@ export const I18N = {
     unavailable: "caption.unavailable",
   },
   timeline: {
+    help: "timeline.help",
     title: "timeline.title",
     empty: "timeline.empty",
     years_title: "timeline.years_title",
@@ -1820,6 +1830,7 @@ export const I18N = {
     photos_count: "timeline.photos_count",
   },
   folders: {
+    help: "folders.help",
     title: "folders.title",
     empty: "folders.empty",
     root: "folders.root",
@@ -1971,6 +1982,7 @@ export const I18N = {
     regenerate: "capsules.regenerate",
   },
   map: {
+    help: "map.help",
     title: "map.title",
     no_gps: "map.no_gps",
     photos_count: "map.photos_count",

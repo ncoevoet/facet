@@ -1,5 +1,6 @@
 import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef } from '@angular/core';
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatSliderModule } from '@angular/material/slider';
@@ -16,12 +17,14 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom, debounceTime, skip, filter } from 'rxjs';
 import { Chart } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CompareFiltersService } from './compare-filters.service';
+import { CategoryRecomputeService } from './category-recompute.service';
 import { WeightIconPipe, WeightLabelKeyPipe, FilterValueFormatPipe, ModifierValueFormatPipe } from './comparison.pipes';
 import { I18N } from '../../core/i18n/keys';
 
@@ -77,6 +80,7 @@ class SignalErrorMatcher {
   selector: 'app-comparison-weights-tab',
   standalone: true,
   imports: [
+    NgTemplateOutlet,
     FormsModule,
     MatCardModule,
     MatSliderModule,
@@ -98,6 +102,37 @@ class SignalErrorMatcher {
     ModifierValueFormatPipe,
   ],
   template: `
+    <ng-template #weightsActions>
+      <button mat-icon-button
+        [disabled]="!hasChanges() || !auth.isEdition() || saving() || hasValidationErrors()"
+        (click)="saveWeights()"
+        [matTooltip]="I18N.comparison.save | translate"
+        [attr.aria-label]="I18N.comparison.save | translate">
+        <mat-icon>save</mat-icon>
+      </button>
+      <button mat-icon-button
+        (click)="loadWeights(true)"
+        [matTooltip]="I18N.comparison.reset | translate"
+        [attr.aria-label]="I18N.comparison.reset | translate">
+        <mat-icon>refresh</mat-icon>
+      </button>
+      <button mat-icon-button
+        [disabled]="hasChanges() || !auth.isEdition() || recalculating()"
+        (click)="recalculateScores()"
+        [matTooltip]="I18N.comparison.recalculate | translate"
+        [attr.aria-label]="I18N.comparison.recalculate | translate">
+        @if (recalculating()) {
+          <mat-spinner diameter="20" />
+        } @else {
+          <mat-icon>calculate</mat-icon>
+        }
+      </button>
+    </ng-template>
+
+    <div class="!hidden lg:!flex items-center justify-end gap-1 mb-2">
+      <ng-container *ngTemplateOutlet="weightsActions" />
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
       <!-- Left: Weight sliders -->
       <mat-card>
@@ -195,7 +230,7 @@ class SignalErrorMatcher {
     </mat-card>
 
     <!-- Modifiers & Filters -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 pb-20 lg:pb-0">
       <!-- Modifiers -->
       <mat-card>
         <mat-card-header>
@@ -333,16 +368,22 @@ class SignalErrorMatcher {
         </mat-card-content>
       </mat-card>
     </div>
+
+    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
+      <ng-container *ngTemplateOutlet="weightsActions" />
+    </div>
   `,
 })
 export class ComparisonWeightsTabComponent {
   protected readonly I18N = I18N;
+  protected readonly auth = inject(AuthService);
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private snackBar = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
   private themeService = inject(ThemeService);
   readonly compareFilters = inject(CompareFiltersService);
+  private recomputeService = inject(CategoryRecomputeService);
 
   readonly previewCount = 6;
   private charts = new Map<string, Chart>();
@@ -667,14 +708,12 @@ export class ComparisonWeightsTabComponent {
     if (!cat) return;
     this.recalculating.set(true);
     try {
-      const result = await firstValueFrom(
-        this.api.post<{ success: boolean; message?: string }>('/stats/categories/recompute', { category: cat }),
-      );
-      this.snackBar.open(result.message ?? this.i18n.t(I18N.comparison.recalculated), '', { duration: 5000 });
-      void this.loadPreview();
-      void this.loadWeightImpact();
-    } catch {
-      this.snackBar.open(this.i18n.t(I18N.comparison.error_recalculating), '', { duration: 4000 });
+      const result = await this.recomputeService.recomputeCategory(cat);
+      if (result) {
+        this.snackBar.open(result.message ?? this.i18n.t(I18N.comparison.recalculated), '', { duration: 5000 });
+        void this.loadPreview();
+        void this.loadWeightImpact();
+      }
     } finally {
       this.recalculating.set(false);
     }
