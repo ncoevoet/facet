@@ -43,7 +43,7 @@ import { I18N } from '../../core/i18n/keys';
           <mat-icon class="!text-base !w-4 !h-4" [class.text-green-500]="connected()">
             {{ connected() ? 'cloud_done' : 'sync' }}
           </mat-icon>
-          <span class="opacity-80">{{ phaseLabel() }}</span>
+          <span class="opacity-80">{{ phaseLabel() | translate }}</span>
           @if (eta() !== null) {
             <span class="opacity-50 ml-auto">{{ I18N.scan.eta | translate }} {{ eta() }}s</span>
           }
@@ -86,7 +86,7 @@ export class ScanLauncherComponent implements OnInit {
     if (!p || !p.total) return null;
     return Math.round(((p.current ?? 0) / p.total) * 100);
   });
-  protected readonly phaseLabel = computed(() => this.status().progress?.phase ?? 'scan.running');
+  protected readonly phaseLabel = computed(() => this.status().progress?.phase ?? I18N.scan.running);
   protected readonly eta = computed(() => this.status().progress?.eta_seconds ?? null);
   protected readonly outputTail = computed(() => this.status().output.slice(-20).join('\n'));
 

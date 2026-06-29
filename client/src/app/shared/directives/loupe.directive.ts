@@ -1,4 +1,4 @@
-import { Directive, ElementRef, inject, input, OnDestroy } from '@angular/core';
+import { Directive, ElementRef, effect, inject, input, OnDestroy } from '@angular/core';
 
 /**
  * Photo-Mechanic-style hover loupe for contact-sheet tiles. While active, a
@@ -28,6 +28,11 @@ export class LoupeDirective implements OnDestroy {
     const el = this.host.nativeElement;
     el.addEventListener('mousemove', this.onMove);
     el.addEventListener('mouseleave', this.onLeave);
+    // Hide immediately when loupe mode is switched off, even if the cursor is
+    // stationary (move() only reacts on the next mousemove/mouseleave).
+    effect(() => {
+      if (!this.loupeActive()) this.hide();
+    });
   }
 
   private ensureLens(): HTMLDivElement {

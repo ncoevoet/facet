@@ -384,12 +384,22 @@ interface ShortcutRow {
                  (click)="$event.stopPropagation()"
                  (keydown)="$event.stopPropagation()">
               @for (photo of compareFrames(); track photo.path) {
-                <app-synced-zoom class="w-full h-full min-h-0"
-                                 [src]="photo.path | thumbnailUrl:1920"
-                                 [fullResSrc]="photo.path | imageUrl"
-                                 [zoom]="zoom()"
-                                 (zoomChange)="zoom.set($event)"
-                                 [alt]="photo.filename" />
+                <div class="relative w-full h-full min-h-0 rounded overflow-hidden"
+                     [class.ring-2]="photo.path === lbPhoto.path"
+                     [class.ring-inset]="photo.path === lbPhoto.path"
+                     [class.ring-amber-400]="photo.path === lbPhoto.path">
+                  <app-synced-zoom class="w-full h-full min-h-0"
+                                   [src]="photo.path | thumbnailUrl:1920"
+                                   [fullResSrc]="photo.path | imageUrl"
+                                   [zoom]="zoom()"
+                                   (zoomChange)="zoom.set($event)"
+                                   [alt]="photo.filename" />
+                  @if (photo.path | isKept:selectionsMap():lbGroup.group_id) {
+                    <mat-icon class="absolute top-1 left-1 !text-base !w-5 !h-5 !leading-5 rounded-full bg-black/60 text-green-400">check</mat-icon>
+                  } @else if (photo.path | isDecided:selectionsMap():lbGroup.group_id) {
+                    <mat-icon class="absolute top-1 left-1 !text-base !w-5 !h-5 !leading-5 rounded-full bg-black/60 text-red-400">close</mat-icon>
+                  }
+                </div>
               }
             </div>
           }
@@ -866,6 +876,7 @@ export class BurstCullingComponent implements OnDestroy {
   // --- Lightbox handlers ---
 
   protected openLightbox(group: CullingGroup, index: number): void {
+    this.zoom.set(FIT_ZOOM);  // never inherit a prior session's zoom/pan
     this.lightboxGroupId.set(this.groupKey(group));
     this.lightboxIndex.set(index);
     const gi = this.visibleGroups().findIndex(g => this.groupKey(g) === this.groupKey(group));

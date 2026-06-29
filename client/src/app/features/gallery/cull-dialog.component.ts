@@ -104,9 +104,7 @@ export class CullDialogComponent {
   protected readonly busy = signal(false);
 
   protected readonly needsTarget = computed(() => this.action() !== 'trash_rejects');
-  protected get count(): number {
-    return this.data.paths.length;
-  }
+  protected readonly count = this.data.paths.length;
 
   protected setAction(a: CullAction): void {
     this.action.set(a);
