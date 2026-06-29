@@ -134,15 +134,15 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
         except Exception:
             pass
 
-        if not os.environ.get('TORCH_COMPILE_DISABLE'):
-            c_compiler = (
-                shutil.which(os.environ.get('CC') or 'cc')
-                or shutil.which('gcc')
-                or shutil.which('g++')
-            )
-            if not c_compiler:
-                _warn("torch.compile", "no C compiler (gcc/g++) found — will run eager CUDA inference")
-                logger.warning("    This is expected and fine in minimal Docker images; torch.compile is auto-disabled.")
+        from utils.device import torch_compile_status
+        compile_enabled, compile_reason = torch_compile_status()
+        if compile_enabled:
+            _ok("torch.compile", "enabled (C compiler available)")
+        elif os.environ.get('TORCH_COMPILE_DISABLE'):
+            _info("torch.compile", "disabled — TORCH_COMPILE_DISABLE is set; eager CUDA inference")
+        else:
+            _warn("torch.compile", f"disabled — {compile_reason}; eager CUDA inference")
+            logger.warning("    This is expected and fine in minimal Docker images; torch.compile is auto-disabled.")
 
     elif torch is not None:
         _section("GPU Troubleshooting")

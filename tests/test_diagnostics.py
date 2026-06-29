@@ -137,6 +137,57 @@ class TestRunDoctorConfigFile:
         assert "KB" in out
 
 
+def _make_cuda_torch():
+    """torch stand-in whose CUDA is available, to drive run_doctor's GPU branch."""
+    mock_torch = _make_mock_torch_module()
+    mock_torch.__version__ = "2.6.0+cu126"
+    mock_torch.version = types.SimpleNamespace(cuda="12.6")
+    mock_torch.backends = types.SimpleNamespace(
+        cudnn=types.SimpleNamespace(version=lambda: 90100)
+    )
+    mock_torch.cuda = types.SimpleNamespace(
+        is_available=lambda: True,
+        get_device_name=lambda idx: "NVIDIA GeForce RTX 3090",
+        get_device_properties=lambda idx: types.SimpleNamespace(
+            total_memory=24 * 1024**3, major=8, minor=6,
+        ),
+    )
+    return mock_torch
+
+
+class TestDoctorTorchCompileStatus:
+    """--doctor reports torch.compile status on a CUDA host (issue #15)."""
+
+    def _run_with_compiler(self, capsys, tmp_path, compiler, env):
+        smi_result = types.SimpleNamespace(returncode=0, stdout="565.77\n")
+        with mock.patch.dict("sys.modules", {"torch": _make_cuda_torch()}), \
+             mock.patch("diagnostics.subprocess.run", return_value=smi_result), \
+             mock.patch("utils.device.detect_c_compiler", return_value=compiler), \
+             mock.patch.dict("os.environ", env, clear=False):
+            run_doctor(
+                config_path=str(tmp_path / "no.json"),
+                db_path=str(tmp_path / "no.db"),
+            )
+        return capsys.readouterr().out
+
+    def test_enabled_when_compiler_present(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.delenv("TORCH_COMPILE_DISABLE", raising=False)
+        out = self._run_with_compiler(capsys, tmp_path, "/usr/bin/cc", {})
+        assert "[OK] torch.compile: enabled" in out
+
+    def test_disabled_when_no_compiler(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.delenv("TORCH_COMPILE_DISABLE", raising=False)
+        out = self._run_with_compiler(capsys, tmp_path, None, {})
+        assert "[!!] torch.compile: disabled" in out
+        assert "no C compiler" in out
+
+    def test_disabled_when_env_set(self, capsys, tmp_path):
+        out = self._run_with_compiler(
+            capsys, tmp_path, "/usr/bin/cc", {"TORCH_COMPILE_DISABLE": "1"})
+        assert "torch.compile: disabled" in out
+        assert "TORCH_COMPILE_DISABLE" in out
+
+
 class TestGpuTroubleshooting:
     """Test GPU troubleshooting branch when torch exists but CUDA unavailable."""
 

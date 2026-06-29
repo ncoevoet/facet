@@ -163,6 +163,35 @@ def _commit_in_chunks(conn, sql, rows, size=500):
         conn.commit()
 
 
+def _report_dry_run(results, sample_count):
+    """Print the dry-run results table and return the process exit code.
+
+    Returns 0 when at least one sample scored, 1 when every sample failed
+    (issue #15: a dry run where all sampled photos fail must not exit 0 and
+    look like success). Partial success (>=1 scored) still exits 0.
+    """
+    if results:
+        logger.info("=" * 80)
+        logger.info("%-40s %-15s %6s %6s %6s %6s", "Filename", "Category", "Aes", "Comp", "Face", "Aggr")
+        logger.info("%s %s %s %s %s %s", "-" * 40, "-" * 15, "-" * 6, "-" * 6, "-" * 6, "-" * 6)
+        for r in results:
+            logger.info("%-40s %-15s %6.2f %6.2f %6.2f %6.2f",
+                        r['filename'][:39], r['category'][:14],
+                        r['aesthetic'], r['comp_score'],
+                        r['face_quality'], r['aggregate'])
+        logger.info("=" * 80)
+        avg_agg = sum(r['aggregate'] for r in results) / len(results)
+        avg_aes = sum(r['aesthetic'] for r in results) / len(results)
+        logger.info("Summary: %d photos scored", len(results))
+        logger.info("  Average aggregate: %.2f", avg_agg)
+        logger.info("  Average aesthetic: %.2f", avg_aes)
+        return 0
+    logger.error("=" * 80)
+    logger.error("DRY RUN FAILED: all %d sample photos failed to score (0 succeeded).", sample_count)
+    logger.error("=" * 80)
+    return 1
+
+
 def _top2_margin(probs):
     """Top-1/top-2 gap of an L0+L1 probability vector (None when not scorable)."""
     if probs is None or len(probs) < 2:
@@ -2032,30 +2061,8 @@ Configuration:
             except Exception as e:
                 logger.error("ERROR: %s", e)
 
-        # Print results table
-        if results:
-            logger.info("=" * 80)
-            logger.info("%-40s %-15s %6s %6s %6s %6s", "Filename", "Category", "Aes", "Comp", "Face", "Aggr")
-            logger.info("%s %s %s %s %s %s", "-" * 40, "-" * 15, "-" * 6, "-" * 6, "-" * 6, "-" * 6)
-            for r in results:
-                logger.info("%-40s %-15s %6.2f %6.2f %6.2f %6.2f",
-                            r['filename'][:39], r['category'][:14],
-                            r['aesthetic'], r['comp_score'],
-                            r['face_quality'], r['aggregate'])
-            logger.info("=" * 80)
-
-            # Summary stats
-            avg_agg = sum(r['aggregate'] for r in results) / len(results)
-            avg_aes = sum(r['aesthetic'] for r in results) / len(results)
-            logger.info("Summary: %d photos scored", len(results))
-            logger.info("  Average aggregate: %.2f", avg_agg)
-            logger.info("  Average aesthetic: %.2f", avg_aes)
-            exit()
-
-        logger.error("=" * 80)
-        logger.error("DRY RUN FAILED: all %d sample photos failed to score (0 succeeded).", sample_count)
-        logger.error("=" * 80)
-        exit(1)
+        # Print results table and exit non-zero if every sample failed (issue #15).
+        exit(_report_dry_run(results, sample_count))
 
     # Pre-scan free-space guard: refuse to start if the volume can't hold the
     # thumbnails + embeddings this scan will write into the single-file DB.

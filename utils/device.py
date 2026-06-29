@@ -2,6 +2,39 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+
+
+def detect_c_compiler() -> str | None:
+    """Return the path to a usable C compiler (honouring ``$CC``), or None.
+
+    torch.compile's inductor backend shells out to a C compiler the first
+    time a compiled module runs inference. Minimal Docker GPU images often
+    ship ``torch`` + CUDA but no ``gcc``/``g++``, so the failure surfaces
+    lazily on every image instead of at startup (issue #15). Probe up-front
+    so callers can fall back to eager execution honestly.
+    """
+    return (
+        shutil.which(os.environ.get("CC") or "cc")
+        or shutil.which("gcc")
+        or shutil.which("g++")
+    )
+
+
+def torch_compile_status() -> tuple[bool, str]:
+    """Decide whether torch.compile should be enabled, with a human reason.
+
+    Returns ``(enabled, reason)``. Honours ``TORCH_COMPILE_DISABLE`` and the
+    presence of a C compiler. Callers add their own device/platform gating
+    (CUDA-only, not Windows) before consulting this.
+    """
+    if os.environ.get("TORCH_COMPILE_DISABLE"):
+        return False, "TORCH_COMPILE_DISABLE is set"
+    if not detect_c_compiler():
+        return False, "no C compiler (gcc/g++) found"
+    return True, "C compiler available"
+
 
 def get_device() -> str:
     """Return the torch device string Facet should run on.
