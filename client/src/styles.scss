@@ -251,3 +251,13 @@ html.light-mode ::-webkit-scrollbar-thumb {
   outline: 2px solid var(--mat-sys-primary);
   outline-offset: 2px;
 }
+
+// Normal buttons: trade the M3 pill shape for a subtler radius.
+// Icon buttons and FABs keep their round shape (own tokens, untouched).
+:root {
+  --mat-button-text-container-shape: 8px;
+  --mat-button-outlined-container-shape: 8px;
+  --mat-button-filled-container-shape: 8px;
+  --mat-button-protected-container-shape: 8px;
+  --mat-button-tonal-container-shape: 8px;
+}
