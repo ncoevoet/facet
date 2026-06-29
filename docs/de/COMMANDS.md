@@ -93,7 +93,7 @@ Diese Befehle aktualisieren bestimmte Metriken, leiten neue Daten ab (KI-Bildunt
 | `python facet.py --recompute-category portrait` | Scores nur für eine einzelne Kategorie neu berechnen |
 | `python facet.py --recompute-tags` | Alle Fotos mit dem konfigurierten Modell neu verschlagworten |
 | `python facet.py --recompute-tags-vlm` | Alle Fotos mit dem VLM-Tagger neu verschlagworten |
-| `python facet.py --detect-moments` | Neue Fotos mit ihrem narrativen Moment kennzeichnen (Zero-Shot-CLIP + zeitliche Glättung; läuft am Ende jedes Scans automatisch). Günstig — Kosinus über bereits gespeicherte Embeddings, kein Modelldurchlauf pro Bild |
+| `python facet.py --detect-moments` | Neue Fotos mit ihrem narrativen Moment kennzeichnen (caption-semantisch, Zero-Shot + zeitliche Glättung; läuft am Ende jedes Scans automatisch). Kodiert jede neue Bildunterschrift einmal in `caption_embedding`, dann Kosinus über gespeicherte Vektoren — der erste vollständige Backfill über eine bestehende Bibliothek ist GPU-empfohlen; fügen Sie `--limit N` hinzu, um es an einer Stichprobe zu prüfen |
 | `python facet.py --recompute-moments` | Narrative Momente für die gesamte Bibliothek neu kennzeichnen (glättet die vollständige Zeitachse erneut). Fügen Sie `--dry-run --verbose` hinzu, um die Top-3-Momente pro Foto ohne Schreiben vorab anzuzeigen |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Metriken der Motiv-Salienz neu berechnen (BiRefNet_dynamic) |
 | `python facet.py --recompute-composition-cpu` | Komposition neu berechnen, regelbasiert (CPU, beliebiges Profil) |

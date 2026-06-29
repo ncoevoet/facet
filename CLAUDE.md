@@ -340,7 +340,7 @@ SQLite table `photos` with columns:
 
 **User Actions:** star_rating, is_favorite, is_rejected
 
-**AI/Content:** caption (VLM-generated text description), caption_translated, narrative_moment (zero-shot event moment, e.g. `vows`/`first_dance`/`other`), narrative_moment_confidence
+**AI/Content:** caption (VLM-generated text description), caption_translated, caption_embedding (BLOB; text-tower embedding of the caption — the caption-semantic moment signal), narrative_moment (zero-shot scene/activity moment, e.g. `beach`/`celebration`/`other`), narrative_moment_confidence
 
 **Location:** gps_latitude, gps_longitude
 
@@ -443,7 +443,7 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Scenes View:** `GET /api/scenes?page=&per_page=&album_id=&date_from=&date_to=` groups burst leads into chronological "scenes" by an adaptive capture-time gap (`scenes.gap_minutes` floor, widened by `adaptive_k × median`), sub-splitting any run over `scenes.max_scene_size` (cache-only, 1h TTL in `stats_cache`); optional `album_id`/`date_from`/`date_to` scope it. `POST /api/scenes/confirm` (body `{paths, keep_paths}`) rejects the non-kept photos and records `source='culling'` comparison rows with `group_type='scene'` (feeding the personal ranker). The per-scene **Cull this scene** button opens the culling darkroom scoped to that scene via `/culling?album=&from=&to=&scene=`. Gated by `viewer.features.show_scenes`. Angular route: `/scenes`. When `narrative_moment` is populated (see below) each scene is named by its dominant moment and (with `scenes.split_on_moment_change`) sub-split where the moment changes.
 
-**Narrative Moments:** zero-shot layered classifier that labels each photo's event moment (e.g. `getting_ready_bride`, `vows`, `first_kiss`, `first_dance`, `party_dancing`, …, or `other`) — something Narrative Select / AfterShoot don't do. Pipeline (`models/moment_classifier.py` L0 cosine of the stored CLIP/SigLIP embedding vs mean-pooled per-moment text prompts + L1 face/tag priors; `models/moment_smoothing.py` L2 Viterbi over the timeline; optional L3 Qwen VLM tie-breaker on low-margin frames, 16gb/24gb). Config: `narrative_moments` block (`enabled`, per-`event_types` prompt vocabulary, per-backend `thresholds`, `transitions`). Cheap (cosine over already-stored embeddings, no per-image model pass), so `--detect-moments` auto-runs at the end of every scan; `--recompute-moments` re-smooths the whole library. Filter the gallery via `GET /api/photos?narrative_moment=` and the `GET /api/filter_options/narrative_moments` dropdown. Columns: `narrative_moment`, `narrative_moment_confidence`.
+**Narrative Moments:** zero-shot layered classifier that labels each photo's scene/activity moment with a library-agnostic **general** vocabulary (e.g. `beach`, `celebration`, `cityscape`, `children`, `nature_wildlife`, `concert`, …, or `other`; `wedding` ships as an opt-in `event_type`) — something Narrative Select / AfterShoot don't do. **Caption-semantic**: each caption is encoded once with the text tower and stored in `caption_embedding`; the moment is the best **max-pooled** cosine of that caption embedding vs per-moment text prompts (`models/moment_classifier.py` L0), with the stored image embedding as the fallback when no caption (each signal has its own `other`-gate thresholds — caption cosines run ~2.4× higher). L1 face/tag priors break near-ties; `models/moment_smoothing.py` L2 Viterbi (stay-heavy, no forward bias — the agnostic vocab has no canonical order); optional L3 Qwen VLM tie-breaker on low-margin frames (16gb/24gb). Config: `narrative_moments` block (`enabled`, `default_event_type`, `pooling`, per-`event_types` prompt vocabulary, per-signal/per-backend `thresholds`, `transitions`). Caption embeddings are stored once so re-labelling is a free cosine (no image decode, no per-image model pass); `--detect-moments` auto-runs at the end of every scan (encoding only new captions), the first full backfill over an existing library is a manual `--detect-moments` (GPU recommended; `--limit N` to sample), and `--recompute-moments` re-labels the whole library. Filter the gallery via `GET /api/photos?narrative_moment=` and the `GET /api/filter_options/narrative_moments` dropdown. Columns: `caption_embedding`, `narrative_moment`, `narrative_moment_confidence`.
 
 **Personal Ranker ("My Taste"):** `GET /api/ranker/status` returns the global pooled ranker's training status — `trained`, `comparison_count`, `coverage` (share of embedded photos with a `learned_score`), `cv_accuracy`, `baseline_accuracy`, `improvement_pp` — from the `stats_cache` snapshot written by `train_ranker`. Powers the "My Taste" sort confidence badge. Gated by `viewer.features.show_my_taste`.
 
@@ -552,7 +552,8 @@ For quick reference, here are the actual defaults from the config file:
 | `scenes` | `max_photos` | `5000` |
 | `scenes` | `split_on_moment_change` | `false` |
 | `narrative_moments` | `enabled` | `true` |
-| `narrative_moments` | `default_event_type` | `"wedding"` |
+| `narrative_moments` | `default_event_type` | `"general"` |
+| `narrative_moments` | `pooling` | `"max"` |
 | `narrative_moments` | `vlm_tiebreak.enabled` | `false` |
 | `viewer.raw_processor` | `darktable.executable` | `"darktable-cli"` |
 | `viewer.raw_processor` | `darktable.profiles` | `[]` (array of `{name, hq, width, height, extra_args}`) |

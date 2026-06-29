@@ -93,7 +93,7 @@ Estos comandos actualizan métricas específicas, derivan datos nuevos (leyendas
 | `python facet.py --recompute-category portrait` | Recalcula las puntuaciones de una sola categoría |
 | `python facet.py --recompute-tags` | Vuelve a etiquetar todas las fotos con el modelo configurado |
 | `python facet.py --recompute-tags-vlm` | Vuelve a etiquetar todas las fotos con el etiquetador VLM |
-| `python facet.py --detect-moments` | Etiqueta las fotos nuevas con su momento narrativo (CLIP zero-shot + suavizado temporal; se ejecuta automáticamente al final de cada escaneo). Económico — coseno sobre los embeddings ya almacenados, sin un paso de modelo por imagen |
+| `python facet.py --detect-moments` | Etiqueta las fotos nuevas con su momento narrativo (semántico de leyenda, zero-shot + suavizado temporal; se ejecuta automáticamente al final de cada escaneo). Codifica cada leyenda nueva una vez en `caption_embedding`, y luego coseno sobre los vectores almacenados — el primer relleno retroactivo completo sobre una biblioteca existente recomienda GPU; añade `--limit N` para verificar en una muestra |
 | `python facet.py --recompute-moments` | Vuelve a etiquetar los momentos narrativos de toda la biblioteca (re-suaviza la línea de tiempo completa). Añade `--dry-run --verbose` para previsualizar los 3 momentos principales por foto sin escribir |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recalcula las métricas de saliencia del sujeto (BiRefNet_dynamic) |
 | `python facet.py --recompute-composition-cpu` | Recalcula la composición, basada en reglas (CPU, cualquier perfil) |

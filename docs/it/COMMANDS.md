@@ -93,7 +93,7 @@ Questi comandi aggiornano metriche specifiche, derivano nuovi dati (didascalie A
 | `python facet.py --recompute-category portrait` | Ricalcola i punteggi solo per una singola categoria |
 | `python facet.py --recompute-tags` | Riassegna i tag a tutte le foto usando il modello configurato |
 | `python facet.py --recompute-tags-vlm` | Riassegna i tag a tutte le foto usando il tagger VLM |
-| `python facet.py --detect-moments` | Etichetta le nuove foto con il loro momento narrativo (CLIP zero-shot + smussatura temporale; viene eseguito automaticamente alla fine di ogni scansione). Economico — coseno sugli embedding già memorizzati, nessun passaggio di modello per immagine |
+| `python facet.py --detect-moments` | Etichetta le nuove foto con il loro momento narrativo (semantico sulla didascalia, zero-shot + smussatura temporale; viene eseguito automaticamente alla fine di ogni scansione). Codifica ogni nuova didascalia una sola volta in `caption_embedding`, poi coseno sui vettori memorizzati — il primo backfill completo su una libreria esistente è consigliato con GPU; aggiungi `--limit N` per verificare su un campione |
 | `python facet.py --recompute-moments` | Rietichetta i momenti narrativi per l'intera libreria (rismussa l'intera timeline). Aggiungi `--dry-run --verbose` per visualizzare in anteprima i primi 3 momenti per foto senza scrivere |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Ricalcola le metriche di salienza del soggetto (BiRefNet_dynamic) |
 | `python facet.py --recompute-composition-cpu` | Ricalcola la composizione, basata su regole (CPU, qualsiasi profilo) |

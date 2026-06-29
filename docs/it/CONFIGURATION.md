@@ -1568,23 +1568,31 @@ Impostazioni per la vista Scene, che raggruppa le foto principali delle raffiche
 
 ## Narrative Moments
 
-Etichettatura zero-shot del "momento" dell'evento di ogni foto (es. `getting_ready_bride`, `vows`, `first_kiss`, `first_dance`, `party_dancing`, …, oppure `other`) tramite similarità coseno dell'embedding CLIP/SigLIP archiviato rispetto a prompt testuali per momento, levigata lungo la timeline. Popolata da `--detect-moments` (eseguito automaticamente al termine di ogni scansione) ed esposta come nomi di scena e filtro della galleria. Qualcosa che né Narrative Select né AfterShoot fanno.
+Etichettatura zero-shot del "momento" di scena/attività di ogni foto. Il vocabolario **general** predefinito copre `celebration`, `dining`, `beach`, `water_activity`, `mountains`, `nature_wildlife`, `cityscape`, `travel_landmark`, `concert`, `sports`, `group_gathering`, `portrait`, `children`, `pets`, `nightlife`, `ceremony`, `scenic_landscape`, `snow_winter`, `home_indoor`, `road_vehicle`, oppure `other` — così funziona su qualsiasi libreria, non solo sui matrimoni (`wedding` è incluso come genere opt-in). Popolata da `--detect-moments` (eseguito automaticamente al termine di ogni scansione) ed esposta come nomi di scena e filtro della galleria. Qualcosa che né Narrative Select né AfterShoot fanno.
+
+Il segnale è **semantico sulla didascalia**: la didascalia AI di ogni foto viene codificata una sola volta con l'encoder testuale e memorizzata (la colonna `caption_embedding`); il momento è il miglior coseno **max-pooled** di quell'embedding della didascalia rispetto ai prompt testuali per momento. L'embedding dell'immagine memorizzato è il ripiego quando una foto non ha didascalia. Il testo della didascalia corrisponde ai prompt dei momenti in modo ~2,4× più netto rispetto all'embedding grezzo dell'immagine, quindi il segnale `caption` adotta soglie più alte rispetto al ripiego `image`; ciascuno è regolato per backend (i coseni di open_clip sono molto più bassi di quelli di SigLIP). I valori `transformers` (SigLIP) sono forniti come valori predefiniti conservativi — riregolali se usi un profilo SigLIP.
 
 ```json
 {
   "narrative_moments": {
     "enabled": true,
     "prompt_template": "a photo of {desc}",
-    "default_event_type": "wedding",
-    "pooling": "mean",
+    "default_event_type": "general",
+    "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.20, "min_margin": 0.015 },
-      "transformers": { "min_confidence": 0.10, "min_margin": 0.010 }
+      "caption": {
+        "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
+        "transformers": { "min_confidence": 0.12, "min_margin": 0.01 }
+      },
+      "image": {
+        "open_clip": { "min_confidence": 0.20, "min_margin": 0.01 },
+        "transformers": { "min_confidence": 0.10, "min_margin": 0.01 }
+      }
     },
     "priors": { "enabled": true, "weight": 0.04 },
     "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
-    "transitions": { "stay_prob": 0.6, "forward_bias": 0.3, "weight": 0.5 },
-    "event_types": { "wedding": { "vows": ["the couple exchanging vows at the altar", "..."], "...": [] } }
+    "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
+    "event_types": { "general": { "beach": ["people at a sandy beach by the sea", "..."], "...": [] }, "wedding": { "vows": ["the couple exchanging vows at the altar", "..."] } }
   }
 }
 ```
@@ -1593,14 +1601,16 @@ Etichettatura zero-shot del "momento" dell'evento di ogni foto (es. `getting_rea
 |---------|---------|-------------|
 | `enabled` | `true` | Interruttore principale; quando disattivato, `--detect-moments` e l'hook di scansione non fanno nulla |
 | `prompt_template` | `"a photo of {desc}"` | Wrapper applicato a ogni prompt prima della codifica |
-| `default_event_type` | `"wedding"` | Quale vocabolario `event_types` è attivo (uno scatto/genere per DB) |
-| `pooling` | `"mean"` | I vettori dei prompt per momento vengono mediati (mean-pool) e poi ri-normalizzati |
-| `thresholds.<backend>.min_confidence` | `0.20` / `0.10` | Sotto questo coseno top-1 una foto è etichettata `other`. Per backend perché i coseni di open_clip sono molto più bassi di quelli di SigLIP |
-| `thresholds.<backend>.min_margin` | `0.015` / `0.010` | Divario coseno top-1/top-2 minimo; al di sotto il fotogramma è `other` |
-| `priors.enabled` / `priors.weight` | `true` / `0.04` | Spinte L1 su volti/tag (ritratto di gruppo → `family_formals`, ecc.) che rompono solo i quasi-pareggi |
-| `transitions.stay_prob` / `forward_bias` / `weight` | `0.6` / `0.3` / `0.5` | Levigatura L2 della timeline (Viterbi): bias self-loop vs passo in avanti, e con quanta forza applicarla (`weight=0` = nessuna levigatura) |
+| `default_event_type` | `"general"` | Quale vocabolario `event_types` è attivo. `general` = 20 momenti agnostici di scena/attività; `wedding` è incluso come genere opt-in |
+| `pooling` | `"max"` | Punteggio per momento = il singolo miglior coseno di prompt (max-pool), più discriminante della media |
+| `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Sotto questo coseno top-1 una foto è `other`. Indicizzato per **segnale** (`caption` vs `image`) poi per backend — i coseni di caption sono ~2,4× più alti |
+| `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Divario coseno top-1/top-2 minimo; al di sotto il fotogramma è `other` |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | Spinte L1 su volti/tag che rompono solo i quasi-pareggi (attive per il vocabolario `wedding`) |
+| `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Levigatura L2 della timeline (Viterbi): orientata alla permanenza senza progressione in avanti (il vocabolario agnostico non ha un ordine canonico), applicata in modo leggero (`weight=0` = nessuna levigatura) |
 | `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | L3 facoltativo: ri-classifica i fotogrammi a margine ridotto con il VLM Qwen (solo 16gb/24gb) |
-| `event_types` | set wedding | Per ogni tipo di evento `{moment: [sinonimi di prompt]}`; aggiungi qui il tuo genere |
+| `event_types` | `general` + `wedding` | Per ogni tipo di evento `{moment: [sinonimi di prompt]}`; imposta `default_event_type` per cambiare genere o aggiungere il tuo |
+
+> **Costo del backfill delle didascalie.** Gli embedding delle didascalie vengono calcolati una sola volta e memorizzati, quindi il coseno per foto è poi gratuito. Una scansione codifica solo la sua manciata di nuove didascalie (economico, incrementale), ma il primo passaggio completo su una libreria esistente codifica ogni didascalia — un passaggio in avanti dell'encoder testuale per didascalia, veloce su GPU e ~ore su CPU. Esegui `python facet.py --detect-moments` una volta (GPU consigliata) per quel backfill; aggiungi `--limit N` per verificare prima su un campione.
 
 ## Timeline
 

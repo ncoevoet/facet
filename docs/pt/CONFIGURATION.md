@@ -1568,23 +1568,31 @@ Configurações da visualização de Cenas, que agrupa fotos principais de rajad
 
 ## Narrative Moments
 
-Rotulagem zero-shot do "momento" de evento de cada foto (ex.: `getting_ready_bride`, `vows`, `first_kiss`, `first_dance`, `party_dancing`, …, ou `other`) pela similaridade de cosseno do embedding CLIP/SigLIP armazenado contra prompts de texto por momento, suavizada ao longo da linha do tempo. Preenchido por `--detect-moments` (executado automaticamente ao final de cada escaneamento) e exibido como nomes de cenas e um filtro de galeria. Algo que nem o Narrative Select nem o AfterShoot fazem.
+Rotulagem zero-shot do "momento" de cena/atividade de cada foto. O vocabulário **general** padrão cobre `celebration`, `dining`, `beach`, `water_activity`, `mountains`, `nature_wildlife`, `cityscape`, `travel_landmark`, `concert`, `sports`, `group_gathering`, `portrait`, `children`, `pets`, `nightlife`, `ceremony`, `scenic_landscape`, `snow_winter`, `home_indoor`, `road_vehicle` ou `other` — então funciona em qualquer biblioteca, não apenas em casamentos (`wedding` vem como um gênero opcional). Preenchido por `--detect-moments` (executado automaticamente ao final de cada escaneamento) e exibido como nomes de cenas e um filtro de galeria. Algo que nem o Narrative Select nem o AfterShoot fazem.
+
+O sinal é **semântico de legenda** (caption-semantic): a legenda por IA de cada foto é codificada uma vez com a torre de texto e armazenada (a coluna `caption_embedding`); o momento é o melhor cosseno com **max-pooling** desse embedding de legenda contra os prompts de texto por momento. O embedding de imagem armazenado é o fallback quando uma foto não tem legenda. O texto da legenda corresponde aos prompts de momento ~2,4× de forma mais limpa do que o embedding de imagem bruto, então o sinal `caption` carrega limiares mais altos que o fallback `image`; cada um é ajustado por backend (os cossenos do open_clip ficam muito mais baixos que os do SigLIP). Os valores de `transformers` (SigLIP) vêm como padrões conservadores — reajuste-os se você usar um perfil SigLIP.
 
 ```json
 {
   "narrative_moments": {
     "enabled": true,
     "prompt_template": "a photo of {desc}",
-    "default_event_type": "wedding",
-    "pooling": "mean",
+    "default_event_type": "general",
+    "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.20, "min_margin": 0.015 },
-      "transformers": { "min_confidence": 0.10, "min_margin": 0.010 }
+      "caption": {
+        "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
+        "transformers": { "min_confidence": 0.12, "min_margin": 0.01 }
+      },
+      "image": {
+        "open_clip": { "min_confidence": 0.20, "min_margin": 0.01 },
+        "transformers": { "min_confidence": 0.10, "min_margin": 0.01 }
+      }
     },
     "priors": { "enabled": true, "weight": 0.04 },
     "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
-    "transitions": { "stay_prob": 0.6, "forward_bias": 0.3, "weight": 0.5 },
-    "event_types": { "wedding": { "vows": ["the couple exchanging vows at the altar", "..."], "...": [] } }
+    "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
+    "event_types": { "general": { "beach": ["people at a sandy beach by the sea", "..."], "...": [] }, "wedding": { "vows": ["the couple exchanging vows at the altar", "..."] } }
   }
 }
 ```
@@ -1593,14 +1601,16 @@ Rotulagem zero-shot do "momento" de evento de cada foto (ex.: `getting_ready_bri
 |--------------|--------|-----------|
 | `enabled` | `true` | Interruptor mestre; quando desligado, `--detect-moments` e o hook de escaneamento não fazem nada |
 | `prompt_template` | `"a photo of {desc}"` | Invólucro aplicado a cada prompt antes da codificação |
-| `default_event_type` | `"wedding"` | Qual vocabulário de `event_types` está ativo (uma sessão/gênero por banco de dados) |
-| `pooling` | `"mean"` | Os vetores de prompt por momento passam por mean-pooling e são renormalizados |
-| `thresholds.<backend>.min_confidence` | `0.20` / `0.10` | Abaixo deste cosseno top-1, uma foto é rotulada como `other`. Por backend porque os cossenos do open_clip ficam muito mais baixos que os do SigLIP |
-| `thresholds.<backend>.min_margin` | `0.015` / `0.010` | Diferença mínima de cosseno entre top-1/top-2; abaixo dela o quadro vira `other` |
-| `priors.enabled` / `priors.weight` | `true` / `0.04` | Ajustes L1 de face/tag (retrato de grupo → `family_formals`, etc.) que só desempatam quase-empates |
-| `transitions.stay_prob` / `forward_bias` / `weight` | `0.6` / `0.3` / `0.5` | Suavização L2 da linha do tempo (Viterbi): viés de auto-laço vs. passo adiante, e o quão fortemente aplicá-la (`weight=0` = sem suavização) |
+| `default_event_type` | `"general"` | Qual vocabulário de `event_types` está ativo. `general` = 20 momentos de cena/atividade agnósticos; `wedding` vem como um gênero opcional |
+| `pooling` | `"max"` | Pontuação por momento = o melhor cosseno de prompt individual (max-pool), mais discriminativo que a média |
+| `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Abaixo deste cosseno top-1, uma foto é `other`. Indexado por **sinal** (`caption` vs `image`) e depois por backend — os cossenos de legenda ficam ~2,4× mais altos |
+| `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Diferença mínima de cosseno entre top-1/top-2; abaixo dela o quadro vira `other` |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | Ajustes L1 de face/tag que só desempatam quase-empates (ativos para o vocabulário `wedding`) |
+| `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Suavização L2 da linha do tempo (Viterbi): pesada em auto-laço, sem progressão adiante (o vocabulário agnóstico não tem ordem canônica), aplicada de forma leve (`weight=0` = sem suavização) |
 | `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | L3 opcional: reclassifica quadros de baixa margem com o VLM Qwen (apenas 16gb/24gb) |
-| `event_types` | conjunto de casamento | `{momento: [sinônimos de prompt]}` por tipo de evento; adicione seu próprio gênero aqui |
+| `event_types` | `general` + `wedding` | `{momento: [sinônimos de prompt]}` por tipo de evento; defina `default_event_type` para trocar de gênero ou adicionar o seu próprio |
+
+> **Custo do backfill de legendas.** Os embeddings de legenda são computados uma vez e armazenados, então o cosseno por foto é gratuito depois disso. Um escaneamento codifica apenas seu punhado de novas legendas (barato, incremental), mas a primeira passagem completa sobre uma biblioteca existente codifica cada legenda — uma passagem direta pela torre de texto por legenda, rápida na GPU e ~horas na CPU. Execute `python facet.py --detect-moments` uma vez (GPU recomendada) para esse backfill; adicione `--limit N` para verificar primeiro em uma amostra.
 
 ## Timeline
 

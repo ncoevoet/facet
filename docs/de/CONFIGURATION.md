@@ -1568,23 +1568,31 @@ Einstellungen für die Szenen-Ansicht, die führende Serienbildfotos in chronolo
 
 ## Narrative Moments
 
-Zero-Shot-Labelling des „Moments“ jedes Fotos im Ereignis (z. B. `getting_ready_bride`, `vows`, `first_kiss`, `first_dance`, `party_dancing`, …, oder `other`) durch Kosinusähnlichkeit des gespeicherten CLIP/SigLIP-Embeddings gegenüber Text-Prompts pro Moment, geglättet entlang der Timeline. Befüllt durch `--detect-moments` (läuft automatisch am Ende jedes Scans) und als Szenennamen sowie als Galeriefilter dargestellt. Etwas, das weder Narrative Select noch AfterShoot bieten.
+Zero-Shot-Labelling des Szenen-/Aktivitäts-„Moments” jedes Fotos. Das standardmäßige **general**-Vokabular umfasst `celebration`, `dining`, `beach`, `water_activity`, `mountains`, `nature_wildlife`, `cityscape`, `travel_landmark`, `concert`, `sports`, `group_gathering`, `portrait`, `children`, `pets`, `nightlife`, `ceremony`, `scenic_landscape`, `snow_winter`, `home_indoor`, `road_vehicle` oder `other` — sodass es mit jeder Bibliothek funktioniert, nicht nur mit Hochzeiten (`wedding` wird als optionales Genre mitgeliefert). Befüllt durch `--detect-moments` (läuft automatisch am Ende jedes Scans) und als Szenennamen sowie als Galeriefilter dargestellt. Etwas, das weder Narrative Select noch AfterShoot bieten.
+
+Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird einmal mit dem Text-Tower kodiert und gespeichert (Spalte `caption_embedding`); der Moment ist der beste **max-gepoolte** (max-pooled) Kosinus dieses Bildunterschrift-Embeddings gegenüber den Text-Prompts pro Moment. Das gespeicherte Bild-Embedding dient als Rückfalloption, wenn ein Foto keine Bildunterschrift hat. Bildunterschriftstext passt ~2,4× sauberer zu den Moment-Prompts als das rohe Bild-Embedding, weshalb das `caption`-Signal höhere Schwellen trägt als die `image`-Rückfalloption; beide werden pro Backend abgestimmt (open_clip-Kosinuswerte fallen deutlich niedriger aus als die von SigLIP). Die `transformers`-Werte (SigLIP) werden als konservative Standardwerte ausgeliefert — stimmen Sie sie neu ab, wenn Sie ein SigLIP-Profil verwenden.
 
 ```json
 {
   "narrative_moments": {
     "enabled": true,
     "prompt_template": "a photo of {desc}",
-    "default_event_type": "wedding",
-    "pooling": "mean",
+    "default_event_type": "general",
+    "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.20, "min_margin": 0.015 },
-      "transformers": { "min_confidence": 0.10, "min_margin": 0.010 }
+      "caption": {
+        "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
+        "transformers": { "min_confidence": 0.12, "min_margin": 0.01 }
+      },
+      "image": {
+        "open_clip": { "min_confidence": 0.20, "min_margin": 0.01 },
+        "transformers": { "min_confidence": 0.10, "min_margin": 0.01 }
+      }
     },
     "priors": { "enabled": true, "weight": 0.04 },
     "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
-    "transitions": { "stay_prob": 0.6, "forward_bias": 0.3, "weight": 0.5 },
-    "event_types": { "wedding": { "vows": ["the couple exchanging vows at the altar", "..."], "...": [] } }
+    "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
+    "event_types": { "general": { "beach": ["people at a sandy beach by the sea", "..."], "...": [] }, "wedding": { "vows": ["the couple exchanging vows at the altar", "..."] } }
   }
 }
 ```
@@ -1593,14 +1601,16 @@ Zero-Shot-Labelling des „Moments“ jedes Fotos im Ereignis (z. B. `getting_re
 |---------|---------|-------------|
 | `enabled` | `true` | Hauptschalter; wenn aus, sind `--detect-moments` und der Scan-Hook ein No-op |
 | `prompt_template` | `"a photo of {desc}"` | Wrapper, der vor dem Encoding auf jeden Prompt angewendet wird |
-| `default_event_type` | `"wedding"` | Welches `event_types`-Vokabular aktiv ist (eine Aufnahme/ein Genre pro DB) |
-| `pooling` | `"mean"` | Prompt-Vektoren pro Moment werden gemittelt (mean-pooled) und dann neu normalisiert |
-| `thresholds.<backend>.min_confidence` | `0.20` / `0.10` | Liegt der Top-1-Kosinus darunter, wird ein Foto als `other` gelabelt. Pro Backend, da open_clip-Kosinuswerte deutlich niedriger ausfallen als die von SigLIP |
-| `thresholds.<backend>.min_margin` | `0.015` / `0.010` | Minimaler Kosinusabstand zwischen Top-1 und Top-2; darunter ist der Frame `other` |
-| `priors.enabled` / `priors.weight` | `true` / `0.04` | L1-Anstöße aus Gesicht/Tag (Gruppenporträt → `family_formals` usw.), die nur knappe Gleichstände auflösen |
-| `transitions.stay_prob` / `forward_bias` / `weight` | `0.6` / `0.3` / `0.5` | L2-Timeline-Glättung (Viterbi): Self-Loop vs. Forward-Step-Bias und wie stark sie angewendet wird (`weight=0` = keine Glättung) |
+| `default_event_type` | `"general"` | Welches `event_types`-Vokabular aktiv ist. `general` = 20 agnostische Szenen-/Aktivitäts-Momente; `wedding` wird als optionales Genre mitgeliefert |
+| `pooling` | `"max"` | Score pro Moment = der einzelne beste Prompt-Kosinus (max-pool), trennschärfer als Mittelung |
+| `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Liegt der Top-1-Kosinus darunter, wird ein Foto als `other` gelabelt. Aufgeschlüsselt nach **Signal** (`caption` vs. `image`), dann nach Backend — caption-Kosinuswerte fallen ~2,4× höher aus |
+| `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Minimaler Kosinusabstand zwischen Top-1 und Top-2; darunter ist der Frame `other` |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | L1-Anstöße aus Gesicht/Tag, die nur knappe Gleichstände auflösen (aktiv für das `wedding`-Vokabular) |
+| `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | L2-Timeline-Glättung (Viterbi): bleibe-lastig ohne Vorwärtsprogression (das agnostische Vokabular hat keine kanonische Reihenfolge), nur leicht angewendet (`weight=0` = keine Glättung) |
 | `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | Optionales L3: Frames mit geringem Abstand mit dem Qwen-VLM neu klassifizieren (nur 16gb/24gb) |
-| `event_types` | wedding-Satz | Pro Ereignistyp `{moment: [Prompt-Synonyme]}`; fügen Sie hier Ihr eigenes Genre hinzu |
+| `event_types` | `general` + `wedding` | Pro Ereignistyp `{moment: [Prompt-Synonyme]}`; setzen Sie `default_event_type`, um das Genre zu wechseln, oder fügen Sie Ihr eigenes hinzu |
+
+> **Kosten des Caption-Backfills.** Bildunterschrift-Embeddings werden einmal berechnet und gespeichert, sodass der Kosinus pro Foto danach kostenlos ist. Ein Scan kodiert nur seine wenigen neuen Bildunterschriften (günstig, inkrementell), aber der erste vollständige Durchlauf über eine bestehende Bibliothek kodiert jede Bildunterschrift — ein Text-Tower-Vorwärtsdurchlauf pro Bildunterschrift, schnell auf GPU und ~Stunden auf CPU. Führen Sie `python facet.py --detect-moments` einmal aus (GPU empfohlen) für diesen Backfill; fügen Sie `--limit N` hinzu, um es zuerst an einer Stichprobe zu prüfen.
 
 ## Timeline
 

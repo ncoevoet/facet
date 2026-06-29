@@ -1568,23 +1568,31 @@ Settings for the Scenes view, which groups burst-lead photos into chronological 
 
 ## Narrative Moments
 
-Zero-shot labelling of each photo's event "moment" (e.g. `getting_ready_bride`, `vows`, `first_kiss`, `first_dance`, `party_dancing`, …, or `other`) by cosine similarity of the stored CLIP/SigLIP embedding against per-moment text prompts, smoothed along the timeline. Populated by `--detect-moments` (auto-runs at the end of every scan) and surfaced as scene names and a gallery filter. Something neither Narrative Select nor AfterShoot do.
+Zero-shot labelling of each photo's scene/activity "moment". The default **general** vocabulary covers `celebration`, `dining`, `beach`, `water_activity`, `mountains`, `nature_wildlife`, `cityscape`, `travel_landmark`, `concert`, `sports`, `group_gathering`, `portrait`, `children`, `pets`, `nightlife`, `ceremony`, `scenic_landscape`, `snow_winter`, `home_indoor`, `road_vehicle`, or `other` — so it works on any library, not just weddings (`wedding` ships as an opt-in genre). Populated by `--detect-moments` (auto-runs at the end of every scan) and surfaced as scene names and a gallery filter. Something neither Narrative Select nor AfterShoot do.
+
+The signal is **caption-semantic**: each photo's AI caption is encoded once with the text tower and stored (the `caption_embedding` column); the moment is the best **max-pooled** cosine of that caption embedding against the per-moment text prompts. The stored image embedding is the fallback when a photo has no caption. Caption text matches moment prompts ~2.4× more cleanly than the raw image embedding does, so the `caption` signal carries higher thresholds than the `image` fallback; each is tuned per backend (open_clip cosines run much lower than SigLIP's). The `transformers` (SigLIP) values ship as conservative defaults — re-tune them if you run a SigLIP profile.
 
 ```json
 {
   "narrative_moments": {
     "enabled": true,
     "prompt_template": "a photo of {desc}",
-    "default_event_type": "wedding",
-    "pooling": "mean",
+    "default_event_type": "general",
+    "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.20, "min_margin": 0.015 },
-      "transformers": { "min_confidence": 0.10, "min_margin": 0.010 }
+      "caption": {
+        "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
+        "transformers": { "min_confidence": 0.12, "min_margin": 0.01 }
+      },
+      "image": {
+        "open_clip": { "min_confidence": 0.20, "min_margin": 0.01 },
+        "transformers": { "min_confidence": 0.10, "min_margin": 0.01 }
+      }
     },
     "priors": { "enabled": true, "weight": 0.04 },
     "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
-    "transitions": { "stay_prob": 0.6, "forward_bias": 0.3, "weight": 0.5 },
-    "event_types": { "wedding": { "vows": ["the couple exchanging vows at the altar", "..."], "...": [] } }
+    "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
+    "event_types": { "general": { "beach": ["people at a sandy beach by the sea", "..."], "...": [] }, "wedding": { "vows": ["the couple exchanging vows at the altar", "..."] } }
   }
 }
 ```
@@ -1593,14 +1601,16 @@ Zero-shot labelling of each photo's event "moment" (e.g. `getting_ready_bride`, 
 |---------|---------|-------------|
 | `enabled` | `true` | Master switch; when off, `--detect-moments` and the scan hook no-op |
 | `prompt_template` | `"a photo of {desc}"` | Wrapper applied to every prompt before encoding |
-| `default_event_type` | `"wedding"` | Which `event_types` vocabulary is active (one shoot/genre per DB) |
-| `pooling` | `"mean"` | Per-moment prompt vectors are mean-pooled then re-normalized |
-| `thresholds.<backend>.min_confidence` | `0.20` / `0.10` | Below this top-1 cosine a photo is labelled `other`. Per-backend because open_clip cosines run much lower than SigLIP's |
-| `thresholds.<backend>.min_margin` | `0.015` / `0.010` | Minimum top-1/top-2 cosine gap; below it the frame is `other` |
-| `priors.enabled` / `priors.weight` | `true` / `0.04` | L1 face/tag nudges (group-portrait → `family_formals`, etc.) that only break near-ties |
-| `transitions.stay_prob` / `forward_bias` / `weight` | `0.6` / `0.3` / `0.5` | L2 timeline smoothing (Viterbi): self-loop vs forward-step bias, and how strongly to apply it (`weight=0` = no smoothing) |
+| `default_event_type` | `"general"` | Which `event_types` vocabulary is active. `general` = 20 agnostic scene/activity moments; `wedding` ships as an opt-in genre |
+| `pooling` | `"max"` | Per-moment score = the single best prompt cosine (max-pool), more discriminative than averaging |
+| `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Below this top-1 cosine a photo is `other`. Keyed by **signal** (`caption` vs `image`) then backend — caption cosines run ~2.4× higher |
+| `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Minimum top-1/top-2 cosine gap; below it the frame is `other` |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | L1 face/tag nudges that only break near-ties (active for the `wedding` vocab) |
+| `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | L2 timeline smoothing (Viterbi): stay-heavy with no forward progression (the agnostic vocab has no canonical order), applied lightly (`weight=0` = no smoothing) |
 | `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | Optional L3: re-classify low-margin frames with the Qwen VLM (16gb/24gb only) |
-| `event_types` | wedding set | Per-event-type `{moment: [prompt synonyms]}`; add your own genre here |
+| `event_types` | `general` + `wedding` | Per-event-type `{moment: [prompt synonyms]}`; set `default_event_type` to switch genre or add your own |
+
+> **Caption backfill cost.** Caption embeddings are computed once and stored, so the per-photo cosine is free afterwards. A scan encodes only its handful of new captions (cheap, incremental), but the first full pass over an existing library encodes every caption — one text-tower forward pass per caption, fast on GPU and ~hours on CPU. Run `python facet.py --detect-moments` once (GPU recommended) for that backfill; add `--limit N` to verify on a sample first.
 
 ## Timeline
 
