@@ -1414,6 +1414,14 @@
     }
   },
   "scan": {
+    "phase": {
+      "gather": "Raccolta file",
+      "scoring": "Valutazione",
+      "bursts": "Rilevamento raffiche",
+      "tagging": "Etichettatura",
+      "vec": "Indicizzazione",
+      "done": "Completato"
+    },
     "title": "Scansiona foto",
     "start_button": "Avvia scansione",
     "close": "Chiudi",

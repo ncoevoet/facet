@@ -1414,6 +1414,14 @@
     }
   },
   "scan": {
+    "phase": {
+      "gather": "Analyse des fichiers",
+      "scoring": "Notation",
+      "bursts": "Détection des rafales",
+      "tagging": "Étiquetage",
+      "vec": "Indexation",
+      "done": "Terminé"
+    },
     "title": "Scanner les photos",
     "start_button": "Lancer le scan",
     "close": "Fermer",

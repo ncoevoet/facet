@@ -1412,6 +1412,14 @@
     }
   },
   "scan": {
+    "phase": {
+      "gather": "Gathering files",
+      "scoring": "Scoring",
+      "bursts": "Detecting bursts",
+      "tagging": "Tagging",
+      "vec": "Indexing",
+      "done": "Done"
+    },
     "title": "Scan Photos",
     "start_button": "Start Scan",
     "close": "Close",

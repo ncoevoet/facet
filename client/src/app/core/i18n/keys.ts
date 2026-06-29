@@ -1414,6 +1414,14 @@ export const I18N = {
     },
   },
   scan: {
+    phase: {
+      gather: "scan.phase.gather",
+      scoring: "scan.phase.scoring",
+      bursts: "scan.phase.bursts",
+      tagging: "scan.phase.tagging",
+      vec: "scan.phase.vec",
+      done: "scan.phase.done",
+    },
     title: "scan.title",
     start_button: "scan.start_button",
     close: "scan.close",

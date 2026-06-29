@@ -86,7 +86,11 @@ export class ScanLauncherComponent implements OnInit {
     if (!p || !p.total) return null;
     return Math.round(((p.current ?? 0) / p.total) * 100);
   });
-  protected readonly phaseLabel = computed(() => this.status().progress?.phase ?? I18N.scan.running);
+  protected readonly phaseLabel = computed(() => {
+    const phase = this.status().progress?.phase;
+    if (!phase) return I18N.scan.running;
+    return (I18N.scan.phase as Record<string, string>)[phase] ?? phase;
+  });
   protected readonly eta = computed(() => this.status().progress?.eta_seconds ?? null);
   protected readonly outputTail = computed(() => this.status().output.slice(-20).join('\n'));
 

@@ -1418,6 +1418,14 @@
     }
   },
   "scan": {
+    "phase": {
+      "gather": "Dateien sammeln",
+      "scoring": "Bewertung",
+      "bursts": "Serien erkennen",
+      "tagging": "Verschlagwortung",
+      "vec": "Indizierung",
+      "done": "Fertig"
+    },
     "title": "Fotos scannen",
     "start_button": "Scan starten",
     "close": "Schließen",

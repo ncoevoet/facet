@@ -1414,6 +1414,14 @@
     }
   },
   "scan": {
+    "phase": {
+      "gather": "Recopilando archivos",
+      "scoring": "Puntuación",
+      "bursts": "Detectando ráfagas",
+      "tagging": "Etiquetado",
+      "vec": "Indexación",
+      "done": "Hecho"
+    },
     "title": "Escanear fotos",
     "start_button": "Iniciar escaneo",
     "close": "Cerrar",
