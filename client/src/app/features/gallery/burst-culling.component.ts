@@ -434,7 +434,7 @@ interface ShortcutRow {
                              (click)="$event.stopPropagation()"
                              (keydown)="$event.stopPropagation()"
                              [src]="lbPhoto.path | thumbnailUrl:1920"
-                             [fullResSrc]="lbPhoto.path | imageUrl"
+                             [fullResSrc]="lbPhoto.path | imageUrl:true"
                              [zoom]="zoom()"
                              (zoomChange)="zoom.set($event)"
                              [alt]="lbPhoto.filename" />
@@ -451,7 +451,7 @@ interface ShortcutRow {
                      [class.ring-amber-400]="photo.path === lbPhoto.path">
                   <app-synced-zoom class="w-full h-full min-h-0"
                                    [src]="photo.path | thumbnailUrl:1920"
-                                   [fullResSrc]="photo.path | imageUrl"
+                                   [fullResSrc]="photo.path | imageUrl:true"
                                    [zoom]="zoom()"
                                    (zoomChange)="zoom.set($event)"
                                    [alt]="photo.filename" />
@@ -562,10 +562,8 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly loadingScenes = signal(false);
   // Album name for the current scope, resolved from the loaded album list
   // (works for both menu selection and a deep-linked ?album=ID).
-  protected readonly scopeAlbumName = computed(() => {
-    const id = this.scopeAlbum();
-    return id ? this.albums().find(a => a.id.toString() === id)?.name ?? null : null;
-  });
+  protected readonly scopeAlbumName = computed(() =>
+    AlbumService.nameById(this.albums(), this.scopeAlbum()));
   // Human label for the scope button / banner (null = whole library).
   protected readonly scopeLabel = computed(() => {
     const album = this.scopeAlbumName();
@@ -804,8 +802,7 @@ export class BurstCullingComponent implements OnDestroy {
   /** Non-smart albums for the scope cascade's first level (best-effort). */
   private async loadAlbums(): Promise<void> {
     try {
-      const res = await firstValueFrom(this.albumService.list());
-      this.albums.set(res.albums.filter(a => !a.is_smart));
+      this.albums.set(await firstValueFrom(this.albumService.listNonSmart()));
     } catch {
       // Scope menu keeps the "Whole library" entry only.
     }

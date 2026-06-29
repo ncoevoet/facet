@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { ApiService } from './api.service';
 import { Photo } from '../../shared/models/photo.model';
 
@@ -31,6 +31,16 @@ export class AlbumService {
 
   list(params?: Record<string, string | number>): Observable<{ albums: Album[]; total: number; has_more: boolean }> {
     return this.api.get('/albums', params);
+  }
+
+  /** Manual (non-smart) albums only — the set used by the scope pickers. */
+  listNonSmart(): Observable<Album[]> {
+    return this.list().pipe(map(res => res.albums.filter(a => !a.is_smart)));
+  }
+
+  /** Resolve an album name from a string id (as carried in query params). */
+  static nameById(albums: Album[], id: string | null): string | null {
+    return id ? albums.find(a => a.id.toString() === id)?.name ?? null : null;
   }
 
   create(name: string, description = '', is_smart = false, smart_filter_json: string | null = null): Observable<Album> {

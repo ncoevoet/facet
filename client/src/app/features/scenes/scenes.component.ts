@@ -178,10 +178,8 @@ export class ScenesComponent implements OnInit {
   protected readonly albumId = signal<string | null>(null);
   // Non-smart albums for the header scope picker.
   protected readonly albums = signal<Album[]>([]);
-  protected readonly currentAlbumName = computed(() => {
-    const id = this.albumId();
-    return id ? this.albums().find(a => a.id.toString() === id)?.name ?? null : null;
-  });
+  protected readonly currentAlbumName = computed(() =>
+    AlbumService.nameById(this.albums(), this.albumId()));
   // Hover-loupe (Photo-Mechanic-style Z key) state for the contact strip.
   protected readonly loupeActive = signal(false);
   protected readonly loupeZoom = signal(3);
@@ -200,8 +198,7 @@ export class ScenesComponent implements OnInit {
 
   private async loadAlbums(): Promise<void> {
     try {
-      const res = await firstValueFrom(this.albumService.list());
-      this.albums.set(res.albums.filter(a => !a.is_smart));
+      this.albums.set(await firstValueFrom(this.albumService.listNonSmart()));
     } catch {
       // Picker stays at "Whole library" if albums fail to load.
     }
