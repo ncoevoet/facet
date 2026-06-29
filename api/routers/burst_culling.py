@@ -981,6 +981,10 @@ async def api_culling_groups(
             user_id = user.user_id if user else None
             vis_sql, vis_params = get_visibility_clause(user_id)
 
+            if album_id is not None:
+                from api.routers.albums import _check_album_access
+                _check_album_access(conn, album_id, user_id)
+
             if group_by == 'scene':
                 # Scenes carry their own stats_cache; bypass the burst/similar memo
                 # and stay chronological (sort is ignored for this mode).

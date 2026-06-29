@@ -20,7 +20,6 @@ import warnings
 import json
 import logging
 from pathlib import Path
-from datetime import datetime
 from db import init_database, get_connection
 from db.vec import sync_vec_batch
 

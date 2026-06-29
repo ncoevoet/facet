@@ -137,10 +137,10 @@ class MomentClassifier:
         top2 = float(sims[order[1]]) if len(order) > 1 else -1.0
         if top1 < min_confidence or (top1 - top2) < min_margin:
             return OTHER, top1
-        label = self.moments[order[0]]
+        chosen = order[0]
         if photo_data is not None and self.priors_enabled:
-            label = self.moments[int(np.argmax(probs))]
-        return label, top1
+            chosen = int(np.argmax(probs))
+        return self.moments[chosen], float(sims[chosen])
 
     def probabilities(self, embedding_bytes, photo_data=None, signal='image'):
         """Calibrated probability vector over moments (L0 softmax + L1 priors).

@@ -101,10 +101,18 @@ def check_disk_space(target_path, needed_bytes, margin=1.2):
 
 
 def _rotate_backups(db_path, base_dir, keep):
-    """Delete the oldest .backup-* snapshots, keeping the newest `keep`."""
+    """Delete the oldest backup snapshots, keeping the newest `keep`.
+
+    Covers both the current `.backup-<ts>` (dash) and legacy `.backup.<ts>`
+    (dot) naming, sorted by mtime so the two timestamp schemes still prune by
+    age rather than by lexical order of their differing separators.
+    """
     db_name = os.path.basename(db_path)
-    pattern = os.path.join(base_dir, f"{db_name}.backup-*")
-    backups = sorted(glob.glob(pattern))
+    patterns = (f"{db_name}.backup-*", f"{db_name}.backup.*")
+    backups = sorted(
+        (path for pat in patterns for path in glob.glob(os.path.join(base_dir, pat))),
+        key=os.path.getmtime,
+    )
     excess = backups[:-keep] if keep > 0 else backups
     for old in excess:
         try:

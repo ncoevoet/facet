@@ -17,7 +17,7 @@ import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from PIL import Image
 
-from api.auth import CurrentUser, get_optional_user
+from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG
 from api.database import get_db
 from api.db_helpers import get_visibility_clause
@@ -55,7 +55,7 @@ def _render_overlay(thumbnail: bytes) -> bytes:
 @router.get("/api/saliency_overlay")
 def api_saliency_overlay(
     path: str = Query(...),
-    user: Optional[CurrentUser] = Depends(get_optional_user),
+    user: CurrentUser = Depends(require_authenticated),
 ):
     """Return a translucent saliency heatmap PNG for a photo's stored thumbnail.
 
@@ -77,6 +77,9 @@ def api_saliency_overlay(
         png = _render_overlay(row["thumbnail"])
     except ValueError:
         raise HTTPException(status_code=500, detail="Failed to encode heatmap")
+    except RuntimeError:
+        logger.exception("Saliency model/inference failure for %s", path)
+        raise HTTPException(status_code=503, detail="Saliency model unavailable")
     return Response(content=png, media_type="image/png",
                     headers={"Cache-Control": "private, max-age=300"})
 

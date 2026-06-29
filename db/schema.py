@@ -616,8 +616,13 @@ def _run_migration_ladder(conn, is_fresh):
                 logger.info("Running schema migration to v%d: %s",
                             target, getattr(fn, '__name__', repr(fn)))
                 fn(conn)
-    if current != SCHEMA_VERSION:
+    if current < SCHEMA_VERSION:
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+    elif current > SCHEMA_VERSION:
+        logger.warning(
+            "Database user_version %d is newer than this code's SCHEMA_VERSION %d; "
+            "leaving it untouched to avoid downgrading a DB written by newer Facet.",
+            current, SCHEMA_VERSION)
 
 
 def init_database(db_path='photo_scores_pro.db'):

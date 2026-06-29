@@ -1881,24 +1881,23 @@ Configuration:
     # --resume reuses the directories recorded by the last interrupted run;
     # --retry-failed needs no directories at all (worklist comes from the DB)
     resumed_run = None
-    if args.resume and not args.photo_paths:
+    if args.resume:
         from processing.scan_state import get_last_resumable_run
-        resumed_run = get_last_resumable_run(args.db)
-        if not resumed_run:
-            logger.error("No interrupted or failed scan run found to resume")
-            exit(1)
-        try:
-            args.photo_paths = json.loads(resumed_run['args_json']).get('directories', [])
-        except (json.JSONDecodeError, TypeError):
-            args.photo_paths = []
-        if resumed_run.get('status') == 'running':
-            logger.info("Resuming hard-crashed scan run #%d (last heartbeat %s)",
-                        resumed_run['id'], resumed_run.get('heartbeat_at') or resumed_run['started_at'])
-        else:
-            logger.info("Resuming scan run #%d (%s)", resumed_run['id'], resumed_run['started_at'])
-    elif args.resume:
-        from processing.scan_state import get_last_resumable_run
-        resumed_run = get_last_resumable_run(args.db)
+        stale_seconds = ScoringConfig(args.config, validate=False).config.get('processing', {}).get('scan_stale_seconds', 120)
+        resumed_run = get_last_resumable_run(args.db, stale_seconds)
+        if not args.photo_paths:
+            if not resumed_run:
+                logger.error("No interrupted or failed scan run found to resume")
+                exit(1)
+            try:
+                args.photo_paths = json.loads(resumed_run['args_json']).get('directories', [])
+            except (json.JSONDecodeError, TypeError):
+                args.photo_paths = []
+            if resumed_run.get('status') == 'running':
+                logger.info("Resuming hard-crashed scan run #%d (last heartbeat %s)",
+                            resumed_run['id'], resumed_run.get('heartbeat_at') or resumed_run['started_at'])
+            else:
+                logger.info("Resuming scan run #%d (%s)", resumed_run['id'], resumed_run['started_at'])
 
     if not args.photo_paths and not args.retry_failed:
         logger.error("photo_paths is required unless using --recompute-average or --compute-percentiles")

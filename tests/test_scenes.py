@@ -85,7 +85,6 @@ def _seconds_apart_db(n, step_seconds=30):
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     rows = []
-    base_min, base_sec = 0, 0
     for i in range(n):
         total = i * step_seconds
         hh = 10 + total // 3600

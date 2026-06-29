@@ -45,6 +45,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["export"])
 
+# Cap the placeholders in a single IN (...) query so a large selection (paths is
+# bounded at 10000) can never exceed legacy SQLite's SQLITE_MAX_VARIABLE_NUMBER
+# (999). Matches the chunked-fetch size used in gallery.py.
+_PATH_QUERY_CHUNK = 500
+
 
 # --- Request models ---
 
@@ -358,13 +363,19 @@ def _reject_state_map(conn, paths, user_id):
     pref_cols = get_preference_columns(user_id)
     from_clause, from_params = get_photos_from_clause(user_id)
     vis_sql, vis_params = get_visibility_clause(user_id)
-    placeholders = ",".join("?" * len(paths))
-    rows = conn.execute(
-        f"SELECT photos.path AS path, {pref_cols['is_rejected']} AS is_rejected "
-        f"FROM {from_clause} WHERE photos.path IN ({placeholders}) AND {vis_sql}",
-        from_params + list(paths) + vis_params,
-    ).fetchall()
-    return {r["path"]: bool(r["is_rejected"]) for r in rows}
+    paths = list(paths)
+    state = {}
+    for start in range(0, len(paths), _PATH_QUERY_CHUNK):
+        chunk = paths[start:start + _PATH_QUERY_CHUNK]
+        placeholders = ",".join("?" * len(chunk))
+        rows = conn.execute(
+            f"SELECT photos.path AS path, {pref_cols['is_rejected']} AS is_rejected "
+            f"FROM {from_clause} WHERE photos.path IN ({placeholders}) AND {vis_sql}",
+            from_params + chunk + vis_params,
+        ).fetchall()
+        for r in rows:
+            state[r["path"]] = bool(r["is_rejected"])
+    return state
 
 
 def _move_into(files, target_dir):
@@ -375,7 +386,7 @@ def _move_into(files, target_dir):
         try:
             shutil.move(src, _unique_dest(target_dir, os.path.basename(src)))
             moved += 1
-        except OSError:
+        except (OSError, shutil.Error):
             logger.exception("Failed to move %s into %s", src, target_dir)
             errors += 1
     return moved, errors

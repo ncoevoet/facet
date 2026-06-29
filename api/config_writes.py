@@ -9,7 +9,9 @@ context manager.
 
 import json
 import logging
+import os
 import shutil
+import tempfile
 from datetime import datetime
 
 from fastapi import HTTPException
@@ -65,7 +67,15 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
     if filters is not None:
         target['filters'] = filters
 
-    with open(config_path, 'w') as f:
-        json.dump(config, f, indent=2)
+    # Atomic write: write to temp file in the same directory then rename
+    dir_name = os.path.dirname(config_path)
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(config, f, indent=2)
+        os.replace(tmp_path, config_path)
+    except Exception:
+        os.unlink(tmp_path)
+        raise
 
     return backup_path
