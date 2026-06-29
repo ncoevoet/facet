@@ -1,6 +1,6 @@
-import { Component, inject, signal, computed, effect, viewChild, ElementRef, OnDestroy, WritableSignal, HostListener } from '@angular/core';
+import { Component, inject, signal, computed, effect, viewChild, ElementRef, OnDestroy, WritableSignal, HostListener, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
-import { DecimalPipe, NgClass } from '@angular/common';
+import { DecimalPipe, NgClass, NgTemplateOutlet } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
@@ -17,6 +17,7 @@ import { ThumbnailUrlPipe, FaceThumbnailUrlPipe, ImageUrlPipe } from '../../shar
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { I18nService } from '../../core/services/i18n.service';
 import { PageHelpService } from '../../core/services/page-help.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { isTypingContext } from '../../shared/utils/keyboard';
 import { createLoupeState } from '../../shared/utils/loupe-state';
@@ -112,25 +113,30 @@ interface ShortcutRow {
     CullGroupIconPipe,
     CullGroupLabelPipe,
     InfiniteScrollDirective,
+    NgTemplateOutlet,
   ],
   template: `
     <div class="px-2 pt-2 md:px-8 md:pt-3 mx-auto w-full lg:max-w-[96%] h-full flex flex-col">
       <!-- Header (sticky: only the group list below scrolls) -->
-      <div class="flex items-center gap-3 shrink-0 mb-3">
-        @if (scoped()) {
-          <button mat-icon-button (click)="exitScope()"
-                  [matTooltip]="I18N.culling.exit_scene | translate"
-                  [attr.aria-label]="I18N.culling.exit_scene | translate">
-            <mat-icon>arrow_back</mat-icon>
-          </button>
-        }
-        <!-- On small screens the toolbar detaches into a horizontally-scrollable
-             bottom bar (same DOM, repositioned via max-lg:* — no duplication). -->
-        <div class="flex items-center gap-3 md:gap-4 ml-auto lg:flex-wrap
+      <!-- The toolbar projects into the global header on lg+ (HeaderSlotService) and
+           renders as a fixed bottom bar on small screens (same #cullToolbar template).
+           When scoped, the back button is its first element (see below). -->
+      <div class="lg:hidden">
+        <ng-container [ngTemplateOutlet]="cullToolbar" />
+      </div>
+      <ng-template #cullToolbar>
+        <div class="flex items-center gap-3 md:gap-4
                     max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-40
                     max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-3 max-lg:py-2
                     max-lg:bg-[var(--mat-sys-surface-container)] max-lg:border-t max-lg:border-[var(--mat-sys-outline-variant)]
                     max-lg:shadow-lg safe-area-pb">
+          @if (scoped()) {
+            <button mat-icon-button (click)="exitScope()"
+                    [matTooltip]="I18N.culling.exit_scene | translate"
+                    [attr.aria-label]="I18N.culling.exit_scene | translate">
+              <mat-icon>arrow_back</mat-icon>
+            </button>
+          }
           <!-- Controls ordered by impact: granularity → sort → category →
                thresholds → exclude → scope → status/loupe/help. -->
           <button mat-icon-button [matMenuTriggerFor]="cullGroupByMenu"
@@ -141,16 +147,20 @@ interface ShortcutRow {
           </button>
           <mat-menu #cullGroupByMenu="matMenu">
             <button mat-menu-item (click)="onGroupByChange('all')">
+              <mat-icon>{{ 'all' | cullGroupIcon }}</mat-icon>
               <span [class.font-bold]="groupBy() === 'all'">{{ I18N.culling.group_by.all | translate }}</span>
             </button>
             <button mat-menu-item (click)="onGroupByChange('burst')">
+              <mat-icon>{{ 'burst' | cullGroupIcon }}</mat-icon>
               <span [class.font-bold]="groupBy() === 'burst'">{{ I18N.culling.group_by.bursts | translate }}</span>
             </button>
             <button mat-menu-item (click)="onGroupByChange('similar')">
+              <mat-icon>{{ 'similar' | cullGroupIcon }}</mat-icon>
               <span [class.font-bold]="groupBy() === 'similar'">{{ I18N.culling.group_by.similar | translate }}</span>
             </button>
             @if (store.config()?.features?.show_scenes || groupBy() === 'scene') {
               <button mat-menu-item (click)="onGroupByChange('scene')">
+                <mat-icon>{{ 'scene' | cullGroupIcon }}</mat-icon>
                 <span [class.font-bold]="groupBy() === 'scene'">{{ I18N.culling.group_by.scenes | translate }}</span>
               </button>
             }
@@ -196,7 +206,7 @@ interface ShortcutRow {
               </mat-slider>
               <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
             </div>
-            <button mat-icon-button class="lg:hidden" [matMenuTriggerFor]="thresholdMenu"
+            <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="thresholdMenu"
                     [matTooltip]="I18N.culling.threshold | translate"
                     [attr.aria-label]="I18N.culling.threshold | translate">
               <mat-icon>compare</mat-icon>
@@ -218,7 +228,7 @@ interface ShortcutRow {
             </mat-slider>
             <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
           </div>
-          <button mat-icon-button class="lg:hidden" [matMenuTriggerFor]="strictnessMenu"
+          <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="strictnessMenu"
                   [matTooltip]="I18N.culling.strictness | translate"
                   [attr.aria-label]="I18N.culling.strictness | translate">
             <mat-icon>tune</mat-icon>
@@ -283,19 +293,14 @@ interface ShortcutRow {
                      [attr.aria-label]="I18N.culling.loupe | translate" />
             </mat-slider>
           }
+          @if (unconfirmedCount() > 0) {
+            <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="confirming()" class="!hidden lg:!inline-flex !rounded-md shrink-0">
+              <mat-icon>done_all</mat-icon>
+              {{ I18N.culling.confirm_all | translate }} ({{ unconfirmedCount() }})
+            </button>
+          }
         </div>
-      </div>
-
-      @if (scoped()) {
-        <div class="flex items-center gap-2 shrink-0 mb-2 text-sm">
-          <mat-icon class="!text-base text-[var(--mat-sys-primary)]">movie_filter</mat-icon>
-          <span class="opacity-80">{{ scopeLabel() }}</span>
-          <button mat-stroked-button class="!ml-1 !min-w-0" (click)="exitScope()">
-            <mat-icon class="!text-base">close</mat-icon>
-            {{ I18N.culling.exit_scene | translate }}
-          </button>
-        </div>
-      }
+      </ng-template>
 
       @if (pageHelp.open()) {
         <div class="shrink-0 p-3 mb-3 rounded-lg bg-[var(--mat-sys-surface-container)] space-y-3">
@@ -495,9 +500,9 @@ interface ShortcutRow {
       }
       </div>
 
-      <!-- Sticky footer: Confirm All stays visible regardless of list scroll -->
+      <!-- Sticky footer (small screens only): on lg+ the action moves into the top toolbar -->
       @if (unconfirmedCount() > 0) {
-        <div class="shrink-0 flex justify-center py-3 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
+        <div class="lg:!hidden shrink-0 flex justify-center py-3 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
           <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="confirming()" class="!px-6 !rounded-md">
             <mat-icon>done_all</mat-icon>
             {{ I18N.culling.confirm_all | translate }} ({{ unconfirmedCount() }})
@@ -672,6 +677,7 @@ export class BurstCullingComponent implements OnDestroy {
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
   protected readonly pageHelp = inject(PageHelpService);
+  private readonly headerSlot = inject(HeaderSlotService);
   private readonly albumService = inject(AlbumService);
   private readonly compareFilters = inject(CompareFiltersService);
   protected readonly store = inject(GalleryStore);
@@ -785,6 +791,7 @@ export class BurstCullingComponent implements OnDestroy {
   /** The fullscreen darkroom dialog element, focused on open so the photo tiles
    *  behind the overlay stop receiving keystrokes (otherwise Space double-fires). */
   private readonly lightboxDialog = viewChild<ElementRef<HTMLElement>>('lightboxDialog');
+  private readonly cullToolbar = viewChild<TemplateRef<unknown>>('cullToolbar');
 
   /** photo path -> detected faces, loaded lazily when a lightbox group opens. */
   protected readonly faceMap = signal<Map<string, CullingFace[]>>(new Map());
@@ -895,6 +902,12 @@ export class BurstCullingComponent implements OnDestroy {
     effect(() => {
       this.lightboxDialog()?.nativeElement.focus();
     });
+    // Project the toolbar into the global header on lg+ (the page renders it in
+    // its own bottom bar on small screens — see the #cullToolbar template).
+    effect(() => {
+      const tpl = this.cullToolbar();
+      if (tpl) this.headerSlot.set(tpl);
+    });
   }
 
   /** Update a signal holding a Map by cloning and setting a key. */
@@ -915,6 +928,8 @@ export class BurstCullingComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.pageHelp.setDescription(null);
     this.clearAllPassTimers();
+    const tpl = this.cullToolbar();
+    if (tpl) this.headerSlot.clear(tpl);
   }
 
   protected groupKey(group: CullingGroup): string {

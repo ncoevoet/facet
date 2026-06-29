@@ -122,6 +122,9 @@ export class ComparisonSnapshotsTabComponent {
   hasMoreSnapshots = signal(true);
   loadingSnapshots = signal(false);
   private readonly SNAPSHOT_PAGE = 20;
+  // Bumped on every loadSnapshots() so a slow in-flight page can't append its
+  // rows after the category changed (fast category switching race).
+  private loadGeneration = 0;
 
   /** Emitted after a snapshot is successfully restored — parent reloads weights */
   readonly restored = output<void>();
@@ -134,14 +137,19 @@ export class ComparisonSnapshotsTabComponent {
   }
 
   async loadSnapshots(): Promise<void> {
+    this.loadGeneration++;
     this.snapshots.set([]);
     this.hasMoreSnapshots.set(true);
+    // Clear the in-flight guard so the fresh generation's first page always
+    // fires; the stale request bails on the generation check below.
+    this.loadingSnapshots.set(false);
     await this.loadMoreSnapshots();
   }
 
   async loadMoreSnapshots(): Promise<void> {
     if (this.loadingSnapshots() || !this.hasMoreSnapshots()) return;
     this.loadingSnapshots.set(true);
+    const gen = this.loadGeneration;
     const cat = this.compareFilters.selectedCategory();
     const params: Record<string, string | number> = { offset: this.snapshots().length, limit: this.SNAPSHOT_PAGE };
     if (cat) params['category'] = cat;
@@ -149,13 +157,15 @@ export class ComparisonSnapshotsTabComponent {
       const res = await firstValueFrom(
         this.api.get<{ snapshots: Snapshot[]; has_more: boolean }>('/config/weight_snapshots', params),
       );
+      if (gen !== this.loadGeneration) return;
       this.snapshots.update(cur => [...cur, ...(res.snapshots ?? [])]);
       this.hasMoreSnapshots.set(!!res.has_more);
     } catch {
+      if (gen !== this.loadGeneration) return;
       this.hasMoreSnapshots.set(false);
       this.snackBar.open(this.i18n.t(I18N.comparison.error_loading_snapshots), '', { duration: 4000 });
     } finally {
-      this.loadingSnapshots.set(false);
+      if (gen === this.loadGeneration) this.loadingSnapshots.set(false);
     }
   }
 

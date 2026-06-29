@@ -1,5 +1,5 @@
 import { Component, inject, computed, signal, effect, untracked, OnInit } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -25,6 +25,7 @@ import { AuthService } from './core/services/auth.service';
 import { I18nService } from './core/services/i18n.service';
 import { ThemeService } from './core/services/theme.service';
 import { PageHelpService } from './core/services/page-help.service';
+import { HeaderSlotService } from './core/services/header-slot.service';
 import { GalleryStore, GalleryFilters } from './features/gallery/gallery.store';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { TimelineFiltersService } from './features/timeline/timeline-filters.service';
@@ -108,6 +109,7 @@ export class EditionDialogComponent {
     PersonThumbnailUrlPipe,
     ThumbnailUrlPipe,
     MatSliderModule,
+    NgTemplateOutlet,
     DateRangeFilterComponent,
     SlideshowComponent,
   ],
@@ -126,6 +128,7 @@ export class App implements OnInit {
   protected readonly i18n = inject(I18nService);
   protected readonly themeService = inject(ThemeService);
   protected readonly pageHelp = inject(PageHelpService);
+  protected readonly headerSlot = inject(HeaderSlotService);
   protected readonly store = inject(GalleryStore);
   protected readonly statsFilters = inject(StatsFiltersService);
   protected readonly timelineFilters = inject(TimelineFiltersService);
@@ -156,7 +159,6 @@ export class App implements OnInit {
     const s = this.rankerStatus();
     if (this.store.filters().sort !== 'learned_score' || !s?.trained) return null;
     return {
-      coveragePct: Math.round((s.coverage ?? 0) * 100),
       accuracy: s.cv_accuracy != null ? Math.round(s.cv_accuracy) : null,
       comparisons: s.comparison_count ?? 0,
     };
@@ -190,7 +192,7 @@ export class App implements OnInit {
   protected readonly hasHeaderControls = computed(() =>
     this.isGalleryRoute() || this.isCompareRoute() || this.isStatsRoute()
     || this.isAlbumsRoute() || this.isTimelineRoute() || this.isMapRoute()
-    || this.isCapsuleRoute() || this.isPersonsRoute(),
+    || this.isCapsuleRoute() || this.isPersonsRoute() || !!this.headerSlot.template(),
   );
 
   protected readonly sortGroups = computed(() => {
@@ -393,7 +395,7 @@ export class App implements OnInit {
       const s = this.auth.status();
       const key = s ? `${s.authenticated}|${s.edition_authenticated}|${s.user_role ?? ''}` : '';
       untracked(() => {
-        if (this.lastAuthKey !== null && key !== this.lastAuthKey) {
+        if (this.lastAuthKey !== null && this.lastAuthKey !== '' && key !== this.lastAuthKey) {
           void this.store.refreshConfig();
           // Edition-only indicators loaded once at startup must refresh when
           // edition is gained mid-session (otherwise they'd need an app reload).
@@ -445,9 +447,6 @@ export class App implements OnInit {
     }
   }
 
-  protected onTypeChange(type: string): void {
-    this.store.updateFilter('type', type);
-  }
 
   protected onSortChange(sort: string): void {
     this.store.updateFilter('sort', sort);
@@ -469,9 +468,6 @@ export class App implements OnInit {
     this.store.updateFilter('search', '');
   }
 
-  protected onStatsCategoryChange(cat: string): void {
-    this.statsFilters.filterCategory.set(cat);
-  }
 
   protected onCompareCategoryChange(cat: string): void {
     this.compareFilters.selectedCategory.set(cat);
@@ -514,6 +510,11 @@ export class App implements OnInit {
         this.api.get<{ years: { photos: Photo[] }[] }>('/memories'),
       );
       const photos = (res.years ?? []).flatMap(y => y.photos ?? []);
+      if (photos.length === 0) {
+        this.memoriesActive.set(false);
+        this.snackBar.open(this.i18n.t(I18N.memories.no_memories), '', { duration: 3000 });
+        return;
+      }
       for (let i = photos.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [photos[i], photos[j]] = [photos[j], photos[i]];

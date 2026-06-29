@@ -56,7 +56,7 @@ interface CullResponse {
                placeholder="/path/to/folder" />
       }
 
-      <mat-checkbox [checked]="includeCompanions()" (change)="includeCompanions.set($event.checked)"
+      <mat-checkbox [checked]="includeCompanions()" (change)="includeCompanions.set($event.checked); preview.set(null)"
                     class="text-sm">
         {{ I18N.cull.include_companions | translate }}
       </mat-checkbox>

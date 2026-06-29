@@ -1,5 +1,5 @@
 import {
-  Component, OnInit, OnDestroy, inject, signal, effect, viewChild, ElementRef,
+  Component, OnInit, OnDestroy, inject, signal, effect, viewChild, ElementRef, TemplateRef,
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -10,6 +10,8 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { MapFiltersService } from './map-filters.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
+import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 import { I18N } from '../../core/i18n/keys';
@@ -40,8 +42,15 @@ interface MapResponse {
 @Component({
   selector: 'app-map',
   standalone: true,
-  imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule, DateRangeFilterComponent],
   template: `
+    <ng-template #mapToolbar>
+      <app-date-range-filter
+        [from]="mapFilters.dateFrom()" [to]="mapFilters.dateTo()"
+        fromLabel="map.date_from" toLabel="map.date_to"
+        fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
+        (fromChange)="mapFilters.dateFrom.set($event)" (toChange)="mapFilters.dateTo.set($event)" />
+    </ng-template>
     <div class="relative h-full">
       @if (loading()) {
         <div class="absolute inset-0 flex items-center justify-center z-[1000] bg-black/20">
@@ -75,9 +84,18 @@ export class MapComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
-  private readonly mapFilters = inject(MapFiltersService);
+  protected readonly mapFilters = inject(MapFiltersService);
   private readonly pageHelp = inject(PageHelpService);
+  private readonly headerSlot = inject(HeaderSlotService);
   private readonly mapContainer = viewChild.required<ElementRef<HTMLDivElement>>('mapContainer');
+  private readonly mapToolbar = viewChild<TemplateRef<unknown>>('mapToolbar');
+
+  constructor() {
+    effect(() => {
+      const t = this.mapToolbar();
+      if (t) this.headerSlot.set(t);
+    });
+  }
 
   /** Escape HTML special characters to prevent XSS in Leaflet popups. */
   private escapeHtml(text: string): string {
@@ -122,6 +140,8 @@ export class MapComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.pageHelp.setDescription(null);
+    const t = this.mapToolbar();
+    if (t) this.headerSlot.clear(t);
     if (this.initTimeout !== null) {
       clearTimeout(this.initTimeout);
     }

@@ -1,4 +1,5 @@
-import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, effect, viewChild, TemplateRef, OnInit, OnDestroy } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,6 +17,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { I18N } from '../../core/i18n/keys';
 
 interface SuggestionPerson {
@@ -51,41 +53,42 @@ interface MergeSuggestionsResponse {
     TranslatePipe,
     PersonThumbnailUrlPipe,
     FixedPipe,
+    NgTemplateOutlet,
   ],
   template: `
-    <div class="p-4 md:p-6 pb-20 max-w-screen-xl mx-auto">
-      <!-- Header -->
-      <div class="flex items-center gap-3 mb-6">
-        <a
-          mat-icon-button
-          routerLink="/persons"
-          [matTooltip]="I18N.photo_detail.back | translate"
-        >
-          <mat-icon>arrow_back</mat-icon>
-        </a>
-        <h1 class="text-2xl font-medium">{{ I18N.persons.merge_suggestions_title | translate }}</h1>
+    <div class="p-4 md:p-6 pb-20 w-full lg:max-w-[96%] mx-auto">
+      <!-- Toolbar projects into the global header on lg+ (HeaderSlotService); on small
+           screens it renders as a fixed bottom bar (same #mergeToolbar template). -->
+      <div class="lg:hidden">
+        <ng-container [ngTemplateOutlet]="mergeToolbar" />
       </div>
-
-      <!-- Bottom action bar: threshold slider + accept all -->
-      <div class="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-2 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-        <span class="text-sm opacity-70 shrink-0">{{ I18N.persons.similarity_threshold | translate }}</span>
-        <mat-slider [min]="0.3" [max]="0.9" [step]="0.05" [discrete]="true" class="w-40">
-          <input
-            matSliderThumb
-            [value]="threshold()"
-            (valueChange)="onThresholdChange($event)"
-            [attr.aria-label]="I18N.persons.similarity_threshold | translate"
-          />
-        </mat-slider>
-        <span class="text-sm font-mono w-12">{{ threshold() * 100 | fixed:0 }}%</span>
-        <div class="flex-1"></div>
-        @if (suggestions().length > 0) {
-          <button mat-flat-button [disabled]="merging()" (click)="confirmAcceptAll()">
-            <mat-icon>done_all</mat-icon>
-            {{ I18N.persons.accept_all | translate:{ count: suggestions().length } }}
-          </button>
-        }
-      </div>
+      <ng-template #mergeToolbar>
+        <div class="flex items-center gap-3 lg:flex-wrap
+                    max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-50
+                    max-lg:px-4 max-lg:py-2 max-lg:bg-[var(--mat-sys-surface-container)]
+                    max-lg:border-t max-lg:border-[var(--mat-sys-outline-variant)] safe-area-pb">
+          <a mat-icon-button routerLink="/persons" [matTooltip]="I18N.photo_detail.back | translate">
+            <mat-icon>arrow_back</mat-icon>
+          </a>
+          <span class="text-sm opacity-70 shrink-0">{{ I18N.persons.similarity_threshold | translate }}</span>
+          <mat-slider [min]="0.3" [max]="0.9" [step]="0.05" [discrete]="true" class="w-40">
+            <input
+              matSliderThumb
+              [value]="threshold()"
+              (valueChange)="onThresholdChange($event)"
+              [attr.aria-label]="I18N.persons.similarity_threshold | translate"
+            />
+          </mat-slider>
+          <span class="text-sm font-mono w-12">{{ threshold() * 100 | fixed:0 }}%</span>
+          <div class="flex-1"></div>
+          @if (suggestions().length > 0) {
+            <button mat-flat-button [disabled]="merging()" (click)="confirmAcceptAll()">
+              <mat-icon>done_all</mat-icon>
+              {{ I18N.persons.accept_all | translate:{ count: suggestions().length } }}
+            </button>
+          }
+        </div>
+      </ng-template>
 
       <!-- Loading -->
       @if (loading()) {
@@ -190,6 +193,8 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
+  private readonly headerSlot = inject(HeaderSlotService);
+  private readonly mergeToolbar = viewChild<TemplateRef<unknown>>('mergeToolbar');
 
   readonly suggestions = signal<MergeSuggestion[]>([]);
   readonly loading = signal(false);
@@ -200,12 +205,23 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
 
   readonly hasSuggestions = computed(() => this.suggestions().length > 0);
 
+  constructor() {
+    // Project the toolbar into the global header on lg+ (the page renders it in its
+    // own bottom bar on small screens — see the #mergeToolbar template).
+    effect(() => {
+      const tpl = this.mergeToolbar();
+      if (tpl) this.headerSlot.set(tpl);
+    });
+  }
+
   async ngOnInit(): Promise<void> {
     await this.loadSuggestions();
   }
 
   ngOnDestroy(): void {
     if (this.thresholdTimeout) clearTimeout(this.thresholdTimeout);
+    const tpl = this.mergeToolbar();
+    if (tpl) this.headerSlot.clear(tpl);
   }
 
   onThresholdChange(value: number): void {

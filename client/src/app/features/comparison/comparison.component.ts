@@ -1,4 +1,5 @@
-import { Component, computed, DestroyRef, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, signal, viewChild, TemplateRef } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -11,6 +12,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { GalleryStore } from '../gallery/gallery.store';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { CompareFiltersService } from './compare-filters.service';
 import { ComparisonWeightsTabComponent } from './comparison-weights-tab.component';
@@ -24,6 +26,7 @@ Chart.register(...registerables);
 @Component({
   selector: 'app-comparison',
   imports: [
+    NgTemplateOutlet,
     MatIconModule,
     MatButtonModule,
     MatTabsModule,
@@ -37,9 +40,45 @@ Chart.register(...registerables);
   ],
   template: `
     <div class="p-4 md:p-6 max-w-screen-2xl mx-auto">
-      <!-- Top bar: actions contextual to the active tab -->
+      <!-- Tab-contextual actions projected into the global header on lg (HeaderSlotService);
+           small screens use the in-page Top bar below and the weights-tab mobile bar. -->
+      <ng-template #compareToolbar>
+        <div class="flex items-center gap-1">
+          @if (selectedTabIndex() === 3) {
+            <ng-container *ngTemplateOutlet="weightsTab()?.weightsActionsTpl() ?? null" />
+          }
+          @if (selectedTabIndex() === 2) {
+            <button mat-icon-button
+              [disabled]="!suggestionsTab()?.canApply() || (suggestionsTab()?.saving() ?? false) || !auth.isEdition()"
+              (click)="suggestionsTab()?.applySuggested()"
+              [matTooltip]="I18N.comparison.apply_suggested | translate"
+              [attr.aria-label]="I18N.comparison.apply_suggested | translate">
+              @if (suggestionsTab()?.saving()) {
+                <mat-spinner diameter="20" />
+              } @else {
+                <mat-icon>auto_fix_high</mat-icon>
+              }
+            </button>
+            @if (suggestionsTab()?.needsRecompute()) {
+              <button mat-icon-button
+                [disabled]="(suggestionsTab()?.recomputing() ?? false) || !auth.isEdition()"
+                (click)="suggestionsTab()?.recompute()"
+                [matTooltip]="I18N.comparison.recompute_category | translate"
+                [attr.aria-label]="I18N.comparison.recompute_category | translate">
+                @if (suggestionsTab()?.recomputing()) {
+                  <mat-spinner diameter="20" />
+                } @else {
+                  <mat-icon>calculate</mat-icon>
+                }
+              </button>
+            }
+          }
+        </div>
+      </ng-template>
+
+      <!-- Top bar: actions contextual to the active tab (small screens; lg uses the header slot) -->
       @if (showTopActions()) {
-        <div class="flex flex-wrap items-center gap-3 mb-4 md:mb-6">
+        <div class="lg:hidden flex flex-wrap items-center gap-3 mb-4 md:mb-6">
           <div class="flex gap-2 ml-auto flex-wrap">
             @if (selectedTabIndex() === 2) {
               <!-- Weight Suggestions tab -->
@@ -129,11 +168,13 @@ export class ComparisonComponent {
   private readonly themeService = inject(ThemeService);
   protected readonly compareFilters = inject(CompareFiltersService);
   private readonly pageHelp = inject(PageHelpService);
+  private readonly headerSlot = inject(HeaderSlotService);
 
   protected readonly weightsTab = viewChild<ComparisonWeightsTabComponent>('weightsTabEl');
   protected readonly snapshotsTab = viewChild<ComparisonSnapshotsTabComponent>('snapshotsTabEl');
   protected readonly abTab = viewChild<ComparisonAbTabComponent>('abTabEl');
   protected readonly suggestionsTab = viewChild<ComparisonSuggestionsTabComponent>('suggestionsTabEl');
+  protected readonly compareToolbar = viewChild<TemplateRef<unknown>>('compareToolbar');
 
   /** Active tab (0 Snapshots, 1 Compare, 2 Suggestions, 3 Weights) — drives the contextual top bar. */
   protected readonly selectedTabIndex = signal(0);
@@ -153,11 +194,19 @@ export class ComparisonComponent {
 
   constructor() {
     this.pageHelp.setDescription(I18N.compare.help);
-    inject(DestroyRef).onDestroy(() => this.pageHelp.setDescription(null));
+    inject(DestroyRef).onDestroy(() => {
+      this.pageHelp.setDescription(null);
+      const tpl = this.compareToolbar();
+      if (tpl) this.headerSlot.clear(tpl);
+    });
     effect(() => {
       const dark = this.themeService.darkMode();
       Chart.defaults.color = dark ? '#a3a3a3' : '#525252';
       Chart.defaults.borderColor = dark ? '#262626' : '#e5e5e5';
+    });
+    effect(() => {
+      const tpl = this.compareToolbar();
+      if (tpl) this.headerSlot.set(tpl);
     });
     void this.loadCategories();
     void this.loadComparisonStats();

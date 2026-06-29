@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, TemplateRef } from '@angular/core';
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -128,10 +128,6 @@ class SignalErrorMatcher {
         }
       </button>
     </ng-template>
-
-    <div class="!hidden lg:!flex items-center justify-end gap-1 mb-2">
-      <ng-container *ngTemplateOutlet="weightsActions" />
-    </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
       <!-- Left: Weight sliders -->
@@ -407,6 +403,9 @@ export class ComparisonWeightsTabComponent {
   weightImpactData = signal<WeightImpactResponse | null>(null);
   weightImpactLoading = signal(false);
   weightImpactCanvas = viewChild<ElementRef<HTMLCanvasElement>>('weightImpactCanvas');
+
+  /** Save/reset/recalculate actions, projected into the global header by the parent on lg. */
+  readonly weightsActionsTpl = viewChild<TemplateRef<unknown>>('weightsActions');
 
   weightKeys = computed(() => Object.keys(this.weights()).filter(k => k.endsWith('_percent')));
 

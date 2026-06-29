@@ -1,7 +1,10 @@
-import { Component, inject, signal, computed, effect, untracked, DestroyRef } from '@angular/core';
+import { Component, inject, signal, computed, effect, untracked, viewChild, TemplateRef, DestroyRef } from '@angular/core';
 import { RouterLink, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -19,17 +22,48 @@ import { ShareDialogComponent, ShareDialogData } from '../../shared/components/s
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { I18N } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 
 @Component({
   selector: 'app-albums',
   standalone: true,
   host: { class: 'block px-4 pt-4 pb-4' },
   imports: [
-    RouterLink, MatButtonModule, MatIconModule, MatDialogModule, MatTooltipModule,
+    RouterLink, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
+    MatSelectModule, MatDialogModule, MatTooltipModule,
     MatProgressSpinnerModule,
     TranslatePipe, ThumbnailUrlPipe, InfiniteScrollDirective,
   ],
   template: `
+    <ng-template #albumsToolbar>
+      <mat-form-field class="!hidden lg:!inline-flex w-52" subscriptSizing="dynamic">
+        <mat-label>{{ I18N.albums.search | translate }}</mat-label>
+        <input matInput [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" />
+        <mat-icon matPrefix class="opacity-60">search</mat-icon>
+      </mat-form-field>
+      <mat-form-field class="!hidden lg:!inline-flex w-36" subscriptSizing="dynamic">
+        <mat-label>{{ I18N.albums.filter_type | translate }}</mat-label>
+        <mat-select [value]="albumsFilters.typeFilter()" (selectionChange)="albumsFilters.typeFilter.set($event.value)">
+          <mat-option value="">{{ I18N.albums.type_all | translate }}</mat-option>
+          <mat-option value="manual">{{ I18N.albums.type_manual | translate }}</mat-option>
+          <mat-option value="smart">{{ I18N.albums.type_smart | translate }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field class="!hidden lg:!inline-flex w-40" subscriptSizing="dynamic">
+        <mat-label>{{ I18N.albums.sort_by | translate }}</mat-label>
+        <mat-select [value]="albumsFilters.sort()" (selectionChange)="albumsFilters.sort.set($event.value)">
+          <mat-option value="updated_at">{{ I18N.albums.sort_recent | translate }}</mat-option>
+          <mat-option value="name">{{ I18N.albums.sort_name | translate }}</mat-option>
+          <mat-option value="photo_count">{{ I18N.albums.sort_photos | translate }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      @if (auth.isEdition()) {
+        <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="I18N.albums.create | translate" [attr.aria-label]="I18N.albums.create | translate" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
+          <mat-icon>add</mat-icon>
+        </button>
+      }
+    </ng-template>
+
     @if (loading() && albums().length === 0) {
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" />
@@ -130,9 +164,11 @@ export class AlbumsComponent {
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
   protected readonly auth = inject(AuthService);
-  private readonly albumsFilters = inject(AlbumsFiltersService);
+  protected readonly albumsFilters = inject(AlbumsFiltersService);
   private readonly router = inject(Router);
   private readonly pageHelp = inject(PageHelpService);
+  private readonly headerSlot = inject(HeaderSlotService);
+  private readonly albumsToolbar = viewChild<TemplateRef<unknown>>('albumsToolbar');
 
   protected readonly albums = signal<Album[]>([]);
   protected readonly total = signal(0);
@@ -144,7 +180,15 @@ export class AlbumsComponent {
 
   constructor() {
     this.pageHelp.setDescription(I18N.albums.help);
-    inject(DestroyRef).onDestroy(() => this.pageHelp.setDescription(null));
+    effect(() => {
+      const t = this.albumsToolbar();
+      if (t) this.headerSlot.set(t);
+    });
+    inject(DestroyRef).onDestroy(() => {
+      this.pageHelp.setDescription(null);
+      const t = this.albumsToolbar();
+      if (t) this.headerSlot.clear(t);
+    });
     // Reload when filters change
     effect(() => {
       this.albumsFilters.typeFilter();

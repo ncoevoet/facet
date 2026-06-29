@@ -1,6 +1,6 @@
-import { Component, inject, signal, computed, OnInit, effect, untracked, DestroyRef } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import {
@@ -11,6 +11,7 @@ import {
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -19,6 +20,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { PageHelpService } from '../../core/services/page-help.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PersonThumbnailUrlPipe, FaceThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { PersonCardComponent, Person } from '../../shared/components/person-card/person-card.component';
@@ -235,14 +237,65 @@ export class PersonFacesDialogComponent implements OnInit {
     MatButtonModule,
     MatIconModule,
     MatDialogModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
     MatTooltipModule,
     TranslatePipe,
     PersonCardComponent,
     InfiniteScrollDirective,
+    RouterLink,
   ],
   template: `
+    <ng-template #personsToolbar>
+      <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
+        <mat-label>{{ I18N.persons.search_placeholder | translate }}</mat-label>
+        <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" />
+        <mat-icon matPrefix class="opacity-60">search</mat-icon>
+        @if (personsFilters.search()) {
+          <button matSuffix mat-icon-button (click)="personsFilters.search.set('')">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </mat-form-field>
+      <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
+        <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
+        <mat-select [value]="personsFilters.sort()" (selectionChange)="onPersonsSortChange($event.value)">
+          <mat-option value="count">{{ I18N.persons.sort_count | translate }}</mat-option>
+          <mat-option value="name">{{ I18N.persons.sort_name | translate }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <button
+        class="!hidden lg:!inline-flex"
+        mat-icon-button
+        (click)="togglePersonsSortDirection()"
+        [matTooltip]="personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
+      >
+        <mat-icon>{{ personsFilters.sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+      </button>
+      @if (auth.isEdition()) {
+        <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="I18N.manage_persons.new_person | translate" [attr.aria-label]="I18N.manage_persons.new_person | translate" (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
+          <mat-icon>person_add</mat-icon>
+        </button>
+        <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/merge-suggestions" [matTooltip]="I18N.persons.merge_suggestions | translate" [attr.aria-label]="I18N.persons.merge_suggestions | translate">
+          <mat-icon>auto_fix_high</mat-icon>
+        </a>
+        <button
+          class="!hidden lg:!inline-flex"
+          mat-icon-button
+          [class.!text-[var(--mat-sys-primary)]]="personsFilters.showHidden()"
+          [attr.aria-pressed]="personsFilters.showHidden()"
+          [matTooltip]="I18N.persons.show_hidden | translate"
+          [attr.aria-label]="I18N.persons.show_hidden | translate"
+          (click)="personsFilters.showHidden.set(!personsFilters.showHidden())"
+        >
+          <mat-icon>{{ personsFilters.showHidden() ? 'visibility' : 'visibility_off' }}</mat-icon>
+        </button>
+      }
+    </ng-template>
+
     <div class="px-4 pt-4 pb-4">
       <!-- Loading -->
       @if (loading() && persons().length === 0) {
@@ -343,10 +396,12 @@ export class ManagePersonsComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly pageHelp = inject(PageHelpService);
+  private readonly headerSlot = inject(HeaderSlotService);
   private readonly router = inject(Router);
-  private readonly personsFilters = inject(PersonsFiltersService);
+  protected readonly personsFilters = inject(PersonsFiltersService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
+  private readonly personsToolbar = viewChild<TemplateRef<unknown>>('personsToolbar');
 
   readonly persons = signal<Person[]>([]);
   readonly total = signal(0);
@@ -363,7 +418,15 @@ export class ManagePersonsComponent implements OnInit {
   readonly hasMore = computed(() => this.persons().length < this.total());
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.pageHelp.setDescription(null));
+    inject(DestroyRef).onDestroy(() => {
+      this.pageHelp.setDescription(null);
+      const t = this.personsToolbar();
+      if (t) this.headerSlot.clear(t);
+    });
+    effect(() => {
+      const t = this.personsToolbar();
+      if (t) this.headerSlot.set(t);
+    });
     effect(() => {
       this.personsFilters.sort();
       this.personsFilters.sortDirection();
@@ -386,6 +449,14 @@ export class ManagePersonsComponent implements OnInit {
     this.pageHelp.setDescription(I18N.persons.help);
     this.initialized = true;
     await Promise.all([this.loadPersons(true), this.loadNeedsNaming()]);
+  }
+
+  onPersonsSortChange(sort: string): void {
+    this.personsFilters.sort.set(sort);
+  }
+
+  togglePersonsSortDirection(): void {
+    this.personsFilters.sortDirection.update(d => d === 'desc' ? 'asc' : 'desc');
   }
 
   async loadNeedsNaming(): Promise<void> {

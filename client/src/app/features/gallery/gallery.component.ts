@@ -11,12 +11,16 @@ import {
   untracked,
   DestroyRef,
   Injector,
+  TemplateRef,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatSidenav, MatSidenavModule, MatSidenavContent } from '@angular/material/sidenav';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
+import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatBottomSheet, MatBottomSheetModule } from '@angular/material/bottom-sheet';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -50,6 +54,7 @@ import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { I18N } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 
 @Component({
   selector: 'app-gallery',
@@ -58,6 +63,9 @@ import { PageHelpService } from '../../core/services/page-help.service';
     MatProgressSpinnerModule,
     MatIconModule,
     MatButtonModule,
+    MatFormFieldModule,
+    MatSelectModule,
+    MatInputModule,
     MatDialogModule,
     MatMenuModule,
     MatTooltipModule,
@@ -72,6 +80,38 @@ import { PageHelpService } from '../../core/services/page-help.service';
     InfiniteScrollDirective,
   ],
   template: `
+    <!-- Header-slot toolbar: the app shell renders this in the global header on lg+.
+         Type filter + semantic search, rebound to the gallery store. -->
+    <ng-template #galleryToolbar>
+      <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
+        <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
+        <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
+          <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
+          @for (t of store.types(); track t.id) {
+            <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Search -->
+      <mat-form-field class="!hidden 2xl:!inline-flex w-64" subscriptSizing="dynamic">
+        <input
+          matInput
+          [placeholder]="I18N.gallery.search_placeholder | translate"
+          [value]="store.filters().search"
+          (keyup.enter)="onSearchChange($event)"
+          (blur)="onSearchChange($event)"
+        />
+        @if (store.filters().search) {
+          <button matSuffix mat-icon-button (click)="clearSearch()">
+            <mat-icon>close</mat-icon>
+          </button>
+        } @else {
+          <mat-icon matSuffix>search</mat-icon>
+        }
+      </mat-form-field>
+    </ng-template>
+
     <mat-sidenav-container class="h-full">
       <!-- Filter sidebar -->
       <mat-sidenav #filterDrawer disableClose="false" [mode]="isDesktop() ? 'side' : 'over'" position="end" class="w-[min(320px,100vw)] p-0"
@@ -419,6 +459,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
   private readonly pageHelp = inject(PageHelpService);
+  private readonly headerSlot = inject(HeaderSlotService);
+  private readonly galleryToolbar = viewChild<TemplateRef<unknown>>('galleryToolbar');
 
   // Album options for "Add to album" menu
   protected readonly albumOptions = signal<Album[]>([]);
@@ -601,6 +643,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.setupScrollTracking();
     });
 
+    // Project the gallery toolbar into the global header slot (rendered lg-only by the shell)
+    effect(() => {
+      const t = this.galleryToolbar();
+      if (t) this.headerSlot.set(t);
+    });
+
     // Sync store.filterDrawerOpen signal → mat-sidenav
     effect(() => {
       const open = this.store.filterDrawerOpen();
@@ -662,6 +710,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.pageHelp.setDescription(null);
+    const t = this.galleryToolbar();
+    if (t) this.headerSlot.clear(t);
     this.saveViewSnapshot();
     this.resizeObserver?.disconnect();
     this.desktop.cleanup();
@@ -991,6 +1041,19 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   filterByPerson(personId: number): void {
     this.store.updateFilter('person_id', String(personId));
+  }
+
+  protected onTypeChange(type: string): void {
+    this.store.updateFilter('type', type);
+  }
+
+  protected onSearchChange(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    if (value !== this.store.filters().search) this.store.updateFilter('search', value);
+  }
+
+  protected clearSearch(): void {
+    this.store.updateFilter('search', '');
   }
 
   private setupResizeObserver(): void {

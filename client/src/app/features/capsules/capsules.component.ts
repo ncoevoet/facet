@@ -1,4 +1,4 @@
-import { Component, inject, signal, effect, untracked, OnDestroy, afterNextRender } from '@angular/core';
+import { Component, inject, signal, effect, untracked, OnDestroy, afterNextRender, viewChild, TemplateRef } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -9,8 +9,10 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { PageHelpService } from '../../core/services/page-help.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { CapsuleFiltersService } from './capsule-filters.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { Photo } from '../../shared/models/photo.model';
@@ -51,8 +53,20 @@ interface CapsulesResponse {
     ThumbnailUrlPipe,
     InfiniteScrollDirective,
     SlideshowComponent,
+    DateRangeFilterComponent,
   ],
   template: `
+    <ng-template #capsulesToolbar>
+      <app-date-range-filter
+        [from]="capsuleFilters.dateFrom()" [to]="capsuleFilters.dateTo()"
+        fromLabel="capsules.date_from" toLabel="capsules.date_to"
+        fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
+        (fromChange)="capsuleFilters.dateFrom.set($event)" (toChange)="capsuleFilters.dateTo.set($event)" />
+      <button class="!hidden lg:!inline-flex" mat-icon-button [disabled]="capsuleFilters.refreshing()" [matTooltip]="I18N.capsules.regenerate | translate" [attr.aria-label]="I18N.capsules.regenerate | translate" (click)="capsuleFilters.regenerate.set(capsuleFilters.regenerate() + 1)">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </ng-template>
+
     @if (loading() && capsules().length === 0) {
       <div class="flex flex-col items-center justify-center py-16 gap-3">
         <mat-spinner diameter="48" />
@@ -166,8 +180,10 @@ export class CapsulesComponent implements OnDestroy {
   protected readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
-  private readonly filters = inject(CapsuleFiltersService);
+  protected readonly capsuleFilters = inject(CapsuleFiltersService);
   private readonly pageHelp = inject(PageHelpService);
+  private readonly headerSlot = inject(HeaderSlotService);
+  private readonly capsulesToolbar = viewChild<TemplateRef<unknown>>('capsulesToolbar');
 
   protected readonly capsules = signal<Capsule[]>([]);
   protected readonly loading = signal(false);
@@ -218,9 +234,13 @@ export class CapsulesComponent implements OnDestroy {
     afterNextRender(() => {
       this.loadCapsules();
     });
+    effect(() => {
+      const t = this.capsulesToolbar();
+      if (t) this.headerSlot.set(t);
+    });
     // Watch for regenerate trigger from header button
     effect(() => {
-      this.filters.regenerate();
+      this.capsuleFilters.regenerate();
       untracked(() => {
         if (this.capsules().length > 0) {
           this.currentPage = 1;
@@ -232,6 +252,8 @@ export class CapsulesComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.pageHelp.setDescription(null);
+    const t = this.capsulesToolbar();
+    if (t) this.headerSlot.clear(t);
     this.destroyed = true;
     this.slideshowActive.set(false);
     this.clearTransitionTimer();
@@ -240,14 +262,14 @@ export class CapsulesComponent implements OnDestroy {
   private async loadCapsules(refresh = false): Promise<void> {
     if (this.loading()) return;
     this.loading.set(true);
-    if (refresh) this.filters.refreshing.set(true);
+    if (refresh) this.capsuleFilters.refreshing.set(true);
     try {
       const res = await firstValueFrom(
         this.api.get<CapsulesResponse>('/capsules', {
           page: this.currentPage,
           per_page: this.perPage,
-          date_from: this.filters.dateFrom(),
-          date_to: this.filters.dateTo(),
+          date_from: this.capsuleFilters.dateFrom(),
+          date_to: this.capsuleFilters.dateTo(),
           ...(refresh ? { refresh: true } : {}),
         }),
       );
@@ -263,7 +285,7 @@ export class CapsulesComponent implements OnDestroy {
       if (this.currentPage === 1) this.capsules.set([]);
     } finally {
       this.loading.set(false);
-      this.filters.refreshing.set(false);
+      this.capsuleFilters.refreshing.set(false);
     }
   }
 
@@ -303,8 +325,8 @@ export class CapsulesComponent implements OnDestroy {
     try {
       const res = await firstValueFrom(
         this.api.get<{ photos: Photo[]; capsule: Capsule }>(`/capsules/${capsule.id}/photos`, {
-          date_from: this.filters.dateFrom(),
-          date_to: this.filters.dateTo(),
+          date_from: this.capsuleFilters.dateFrom(),
+          date_to: this.capsuleFilters.dateTo(),
         }),
       );
       if (this.destroyed) return;
@@ -329,8 +351,8 @@ export class CapsulesComponent implements OnDestroy {
     this.savingAlbum.set(true);
     try {
       const params = new URLSearchParams();
-      if (this.filters.dateFrom()) params.set('date_from', this.filters.dateFrom());
-      if (this.filters.dateTo()) params.set('date_to', this.filters.dateTo());
+      if (this.capsuleFilters.dateFrom()) params.set('date_from', this.capsuleFilters.dateFrom());
+      if (this.capsuleFilters.dateTo()) params.set('date_to', this.capsuleFilters.dateTo());
       const qs = params.toString();
       await firstValueFrom(
         this.api.post<{ album_id: number; name: string }>(

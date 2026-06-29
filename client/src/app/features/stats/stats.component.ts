@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, untracked } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, ElementRef, effect, DestroyRef, untracked, TemplateRef } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -17,6 +17,9 @@ import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThemeService } from '../../core/services/theme.service';
 import { PageHelpService } from '../../core/services/page-help.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
+import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
+import { GalleryStore } from '../gallery/gallery.store';
 import { StatsFiltersService, StatsOverviewData } from './stats-filters.service';
 import { GearChartCardComponent, GearItem } from './gear-chart-card.component';
 import { ChartHeightPipe } from './chart-height.pipe';
@@ -86,6 +89,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
     MatProgressSpinnerModule,
     MatTooltipModule,
     TranslatePipe,
+    DateRangeFilterComponent,
     ChartHeightPipe,
     GearChartCardComponent,
     StatsTimelineTabComponent,
@@ -93,6 +97,22 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
   ],
   host: { class: 'block p-4 md:p-6' },
   template: `
+    <ng-template #statsToolbar>
+      <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
+        <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
+        <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="statsFilters.filterCategory()" (selectionChange)="onStatsCategoryChange($event.value)">
+          <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
+          @for (t of store.types(); track t.id) {
+            <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <app-date-range-filter
+        [from]="statsFilters.dateFrom()" [to]="statsFilters.dateTo()"
+        fromLabel="stats.filter.date_from" toLabel="stats.filter.date_to"
+        fromClass="!hidden lg:!inline-flex w-44"
+        (fromChange)="statsFilters.dateFrom.set($event)" (toChange)="statsFilters.dateTo.set($event)" />
+    </ng-template>
     @if (loading()) {
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" />
@@ -263,8 +283,11 @@ export class StatsComponent {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   readonly statsFilters = inject(StatsFiltersService);
+  readonly store = inject(GalleryStore);
   readonly themeService = inject(ThemeService);
   private readonly pageHelp = inject(PageHelpService);
+  private readonly headerSlot = inject(HeaderSlotService);
+  private readonly statsToolbar = viewChild<TemplateRef<unknown>>('statsToolbar');
   private charts = new Map<string, Chart>();
   private chartRefs = new Map<string, ElementRef<HTMLCanvasElement>>();
 
@@ -280,6 +303,10 @@ export class StatsComponent {
   protected get dateFrom() { return this.statsFilters.dateFrom; }
   protected get dateTo() { return this.statsFilters.dateTo; }
   protected get filterCategory() { return this.statsFilters.filterCategory; }
+
+  protected onStatsCategoryChange(cat: string): void {
+    this.statsFilters.filterCategory.set(cat);
+  }
 
   protected readonly loading = signal(true);
 
@@ -314,6 +341,12 @@ export class StatsComponent {
   constructor() {
     this.pageHelp.setDescription(I18N.stats.help);
 
+    // Register the large-screen header toolbar into the shared header slot
+    effect(() => {
+      const t = this.statsToolbar();
+      if (t) this.headerSlot.set(t);
+    });
+
     // Initialize filters from URL
     const params = this.route.snapshot.queryParams;
     if (params['category']) this.statsFilters.filterCategory.set(params['category']);
@@ -347,6 +380,8 @@ export class StatsComponent {
       this.charts.clear();
       this.statsFilters.overview.set(null);
       this.pageHelp.setDescription(null);
+      const t = this.statsToolbar();
+      if (t) this.headerSlot.clear(t);
     });
 
     // Chart effects — canvas refs must be tracked so charts render on tab switch
