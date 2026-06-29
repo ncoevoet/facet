@@ -3,11 +3,13 @@ Albums router — user-curated photo collections and smart albums.
 
 """
 
+import hashlib
 import hmac
 import json
 import logging
 import secrets
 import sqlite3
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -258,45 +260,111 @@ async def _get_album_filter_options(conn, album_id):
     }
 
 
+_COVER_CACHE_TTL = 86400  # 24h — a smart album cover is just a thumbnail; staleness is fine
+
+
 def _get_first_photo_path(conn, album_row, user_id=None):
     """Get the first photo path for an album (for cover display)."""
     if album_row['cover_photo_path']:
         return album_row['cover_photo_path']
     if album_row['is_smart'] and album_row['smart_filter_json']:
-        try:
-            from api.routers.gallery import _build_gallery_where
-            saved_filters = json.loads(album_row['smart_filter_json'])
-            saved_filters = _normalize_smart_filters(saved_filters)
-            # Apply viewer defaults for hide filters (excluded from smart_filter_json but active by default)
-            defaults = VIEWER_CONFIG.get('defaults', {})
-            for key in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_rejected'):
-                if key not in saved_filters:
-                    saved_filters[key] = '1' if defaults.get(key, False) else '0'
-            where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=user_id)
-            from_clause, from_params = get_photos_from_clause(user_id)
-            all_params = from_params + sql_params
-            where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-            sort_col = saved_filters.get('sort', 'aggregate')
-            if sort_col not in VALID_SORT_COLS:
-                sort_col = 'aggregate'
-            if sort_col == 'top_picks_score':
-                from api.top_picks import get_top_picks_score_sql
-                sort_col = f"({get_top_picks_score_sql()})"
-            sort_dir = 'ASC' if saved_filters.get('sort_direction') == 'ASC' else 'DESC'
-            row = conn.execute(
-                f"SELECT path FROM {from_clause}{where_str} ORDER BY {sort_col} {sort_dir}, path ASC LIMIT 1",
-                all_params
-            ).fetchone()
-            return row['path'] if row else None
-        except (sqlite3.Error, json.JSONDecodeError, KeyError, TypeError):
-            logger.debug("Failed to resolve smart album cover photo", exc_info=True)
-            return None
+        return _smart_album_cover(conn, album_row, user_id)
     # Manual album: get first photo from album_photos
     row = conn.execute(
         "SELECT photo_path FROM album_photos WHERE album_id = ? ORDER BY position ASC LIMIT 1",
         (album_row['id'],)
     ).fetchone()
     return row['photo_path'] if row else None
+
+
+def _cover_cache_key(album_row, user_id):
+    """stats_cache key for a smart album's cover (id + filter/user hash)."""
+    digest = hashlib.md5(f"{album_row['smart_filter_json']}|{user_id}".encode()).hexdigest()[:12]
+    return f"album_cover_{album_row['id']}_{digest}"
+
+
+def _smart_album_cover(conn, album_row, user_id=None):
+    """Resolve a smart album's cover, caching the result in stats_cache.
+
+    Picking a smart album's cover means running its full gallery filter + sort
+    over the whole library — cheap once, but the albums list does it for every
+    smart album on every page load. Cache the chosen path keyed by the album id
+    plus a hash of its filter (and user), so a filter edit recomputes while an
+    unchanged album is a single key lookup for ``_COVER_CACHE_TTL``. This turns
+    the list from N full-library sorts into N key reads. ``--refresh-stats``
+    pre-warms these (see ``warm_smart_album_covers``).
+    """
+    cache_key = _cover_cache_key(album_row, user_id)
+    cached = conn.execute(
+        "SELECT value, updated_at FROM stats_cache WHERE key = ?", (cache_key,)
+    ).fetchone()
+    if cached and (time.time() - cached['updated_at']) < _COVER_CACHE_TTL:
+        return cached['value'] or None
+    path = _compute_smart_album_cover(conn, album_row, user_id)
+    conn.execute(
+        "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+        (cache_key, path or '', time.time()),
+    )
+    conn.commit()
+    return path
+
+
+def warm_smart_album_covers(db_path):
+    """Precompute every smart album's cover into stats_cache (for --refresh-stats).
+
+    Forces a fresh compute and store so the albums list never pays the per-album
+    gallery sort on a cold cache. Albums with an explicit ``cover_photo_path`` are
+    skipped (they never hit the sort). Returns the number of covers warmed.
+    """
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM albums WHERE is_smart = 1 AND smart_filter_json IS NOT NULL "
+            "AND (cover_photo_path IS NULL OR cover_photo_path = '')"
+        ).fetchall()
+        for row in rows:
+            path = _compute_smart_album_cover(conn, row, None)
+            conn.execute(
+                "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+                (_cover_cache_key(row, None), path or '', time.time()),
+            )
+        conn.commit()
+        return len(rows)
+    finally:
+        conn.close()
+
+
+def _compute_smart_album_cover(conn, album_row, user_id=None):
+    """Run a smart album's filter + sort to pick its top photo as the cover."""
+    try:
+        from api.routers.gallery import _build_gallery_where
+        saved_filters = json.loads(album_row['smart_filter_json'])
+        saved_filters = _normalize_smart_filters(saved_filters)
+        # Apply viewer defaults for hide filters (excluded from smart_filter_json but active by default)
+        defaults = VIEWER_CONFIG.get('defaults', {})
+        for key in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_rejected'):
+            if key not in saved_filters:
+                saved_filters[key] = '1' if defaults.get(key, False) else '0'
+        where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=user_id)
+        from_clause, from_params = get_photos_from_clause(user_id)
+        all_params = from_params + sql_params
+        where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        sort_col = saved_filters.get('sort', 'aggregate')
+        if sort_col not in VALID_SORT_COLS:
+            sort_col = 'aggregate'
+        if sort_col == 'top_picks_score':
+            from api.top_picks import get_top_picks_score_sql
+            sort_col = f"({get_top_picks_score_sql()})"
+        sort_dir = 'ASC' if saved_filters.get('sort_direction') == 'ASC' else 'DESC'
+        row = conn.execute(
+            f"SELECT path FROM {from_clause}{where_str} ORDER BY {sort_col} {sort_dir}, path ASC LIMIT 1",
+            all_params
+        ).fetchone()
+        return row['path'] if row else None
+    except (sqlite3.Error, json.JSONDecodeError, KeyError, TypeError):
+        logger.debug("Failed to resolve smart album cover photo", exc_info=True)
+        return None
 
 
 # --- Endpoints ---

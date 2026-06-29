@@ -305,6 +305,11 @@ def main():
     elif args.refresh_stats:
         # Refresh the stats cache
         refresh_stats_cache(args.db, verbose=True)
+        # Pre-warm smart-album covers so the albums list never pays the per-album
+        # gallery sort on a cold cache.
+        from api.routers.albums import warm_smart_album_covers
+        warmed = warm_smart_album_covers(args.db)
+        logger.info("  Warmed %d smart-album cover(s)", warmed)
     elif args.info:
         info = get_schema_info()
         try:
