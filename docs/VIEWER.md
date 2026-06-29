@@ -477,6 +477,14 @@ The culling page (`/culling`, edition mode) groups near-identical shots so you c
 
 For each group, pick the keeper(s); confirming rejects the rest. Confirms are deferred and can be undone (see [Undo](#undo)).
 
+**Scoped culling.** The darkroom can be narrowed to a subset via query params: `?album=<id>` restricts it to an album, and `?from=&to=` (EXIF capture-time window, the basis of **Cull this scene**) restricts it to one scene. A banner shows the active scope with an **Exit scene** control; the burst member fetch stays album-scoped but ignores the window, so a burst straddling the scene boundary still shows all its frames.
+
+**My Taste chip.** Every confirm records `source='culling'` comparison rows that train the personal ranker, so the header shows a small "My Taste · N comparisons" chip that updates after each decision — the AI learns your eye as you cull (`GET /api/ranker/status`).
+
+### Loupe / Z-key zoom
+
+Press **`Z`** in the single-view lightbox to toggle a Photo-Mechanic-style loupe (fit ↔ 2×; wheel/`+`/`-` zoom up to 800%). Past the fit scale the pane swaps its thumbnail for the full-resolution `/image` source, so you judge critical focus on real pixels without leaving the view. On the Scenes contact strip, `Z` toggles a hover-magnifier that follows the cursor over a tile (sourced from the full-res image), with an adjustable zoom slider. Stored thumbnails cap at 640px, so the loupe is the way to pixel-peek beyond that.
+
 ### Per-Face Badges
 
 In the burst/similar culling lightbox, each detected face carries its own badges — eyes open/closed, poor expression, and detection confidence — instead of a single photo-level blink flag. This makes group shots easier to cull: you can see at a glance which face has closed eyes or a weak expression. The badges are fetched for a whole group in one batch call (`POST /api/culling-group/faces`).
@@ -488,6 +496,16 @@ API: see the [API Endpoints](#api-endpoints) section below.
 ## Scenes View
 
 Group burst-lead photos into chronological "scenes" so you can cull a whole shoot in story order. Photos are split into scenes by capture-time gaps (a new scene starts when more than `scenes.gap_minutes` pass between consecutive shots, adaptively widened on sparse shoots), and any over-long run is sub-split so a continuously-shot event never collapses into one giant scene. Each scene has a primary **Cull this scene** button that opens the full culling darkroom scoped to just that scene (burst detection, blink flags, quality scores, face close-ups, loupe), plus a **Quick reject** strip. Access via the `/scenes` route (nav icon "theaters"); also reachable per-album from the Albums grid.
+
+When narrative moments are computed (below), each scene is also titled by its dominant moment, and `scenes.split_on_moment_change` can sub-split a long run where the moment changes.
+
+## Narrative Moments
+
+Facet labels each photo with the event "moment" it depicts — for a wedding: getting ready (bride/groom), ceremony entrance, vows, ring exchange, first kiss, recessional, family formals, couple portraits, cocktail hour, reception details, dinner/toasts, cake cutting, first dance, party, send-off — or `other`. Neither Narrative Select nor AfterShoot does this; they group by time and visual similarity only.
+
+It is **zero-shot and fully local**: the stored CLIP/SigLIP embedding is compared by cosine similarity to mean-pooled text prompts for each moment (L0), nudged by small face/tag priors (L1), then **smoothed along the timeline** with a Viterbi pass so an isolated misread is pulled back into the surrounding run (L2). An optional VLM tie-breaker (L3, 16gb/24gb) can re-judge low-confidence frames. Because it is just a dot product over embeddings already in the database — no image decode, no per-image model pass — it is cheap and **runs automatically at the end of every scan**; re-run the whole library with `python facet.py --recompute-moments`.
+
+Moments surface as scene titles and as a gallery filter (`GET /api/photos?narrative_moment=vows`, options from `GET /api/filter_options/narrative_moments`). The vocabulary is config-driven per event type — see [Configuration — Narrative Moments](CONFIGURATION.md#narrative-moments) to tune prompts/thresholds or add a non-wedding genre.
 
 - Each scene shows its lead photos in capture order
 - Tap photos to mark them for culling; confirming rejects them and feeds the personal ranker

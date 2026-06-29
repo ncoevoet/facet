@@ -121,8 +121,8 @@ python database.py --migrate-user-preferences --user alice
 
 ## Opzioni di filtraggio
 
-<details><summary>Barra laterale dei filtri — tutte le sezioni espanse (clicca per visualizzare)</summary>
-<p align="center"><img src="../screenshots/filter-sidebar-full.jpg" alt="Barra laterale dei filtri con ogni sezione espansa" width="360"></p>
+<details><summary>Barra laterale dei filtri completa — ogni sezione espansa (clicca per visualizzare)</summary>
+<p align="center"><img src="screenshots/filter-sidebar-full.jpg" alt="Barra laterale dei filtri con ogni sezione espansa" width="360"></p>
 </details>
 
 ### Filtri primari
@@ -175,7 +175,7 @@ Colonne ordinabili raggruppate per categoria (da `viewer.sort_options`):
 
 ### I miei gusti
 
-Un'opzione di ordinamento di prima classe, basata sul `learned_score` del ranker personale (rinominata da «Scelte per te»). Ordina le foto in base a ciò che il ranker ha appreso dai tuoi confronti A/B, dalle valutazioni e dalle decisioni di selezione. Un badge di confidenza accanto all'ordinamento mostra la copertura appresa (% di foto con un punteggio appreso) e l'accuratezza del ranker su dati di validazione, così da poter giudicare quanto fidarsi dell'ordinamento. Addestra o aggiorna il ranker con `python facet.py --train-ranker`.
+Un'opzione di ordinamento di prima classe, basata sul `learned_score` del ranker personale (rinominata da "Scelte per te"). Ordina le foto in base a ciò che il ranker ha appreso dai tuoi confronti A/B, dalle valutazioni e dalle decisioni di selezione. Un badge di confidenza accanto all'ordinamento mostra la copertura appresa (% di foto con un punteggio appreso) e l'accuratezza del ranker su dati di validazione, così da poter giudicare quanto fidarsi dell'ordinamento. Addestra o aggiorna il ranker con `python facet.py --train-ranker`.
 
 Controllato da `viewer.features.show_my_taste` (predefinito: `true`). Lo stato del ranker è esposto tramite `GET /api/ranker/status`.
 
@@ -214,10 +214,10 @@ Le azioni di gruppo richiedono la modalità di modifica. Fai doppio clic su una 
 - **Scorrimento infinito** - Le foto si caricano man mano che scorri
 - **Scorrimento rapido (virtualizzato)** - Rendering a finestra di righe: solo le righe
   vicine al viewport sono nel DOM, così lo scorrimento profondo attraverso decine di
-  migliaia di foto rimane reattivo. Attivo per impostazione predefinita; disabilitalo nella
-  sezione Visualizzazione della barra laterale dei filtri se riscontri problemi di layout
-  (la modalità griglia con dettagli visibili usa sempre il rendering completo, poiché le altezze
-  delle righe non sono deterministiche in quel caso). Salvato in
+  migliaia di foto rimane reattivo. Attivo per impostazione predefinita; disabilitalo
+  nella sezione Visualizzazione della barra laterale dei filtri se riscontri problemi
+  di layout (la modalità griglia con dettagli visibili usa sempre il rendering completo,
+  poiché le altezze delle righe non sono deterministiche in quel caso). Salvato in
   localStorage (`facet_virtual_scroll`).
 
 ### Foto simili
@@ -296,18 +296,7 @@ Crea album e aggiungi foto dalla galleria usando la selezione multipla. Gli albu
 
 Salva una combinazione di filtri (fotocamera, tag, persona, intervallo di date, soglie di punteggio, ecc.) come album intelligente. Gli album intelligenti si aggiornano dinamicamente man mano che nuove foto corrispondono ai criteri di filtro salvati. La combinazione di filtri è memorizzata come JSON in `smart_filter_json`.
 
-### API
-
-| Endpoint | Descrizione |
-|----------|-------------|
-| `GET /api/albums` | Elenca tutti gli album |
-| `POST /api/albums` | Crea un album |
-| `GET /api/albums/{id}` | Ottieni i dettagli dell'album |
-| `PUT /api/albums/{id}` | Aggiorna l'album (nome, descrizione, copertina) |
-| `DELETE /api/albums/{id}` | Elimina l'album |
-| `GET /api/albums/{id}/photos` | Elenca le foto nell'album (supporta `page`, `per_page`, `sort`, `sort_direction`) |
-| `POST /api/albums/{id}/photos` | Aggiungi foto all'album |
-| `DELETE /api/albums/{id}/photos` | Rimuovi foto dall'album |
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 Controllato da `viewer.features.show_albums` (predefinito: `true`).
 
@@ -321,13 +310,7 @@ Condividi gli album con utenti esterni tramite collegamenti con token. Non è ri
 | **Revoca** | Clicca "Annulla condivisione" per invalidare il token di condivisione |
 | **Visualizza** | I destinatari aprono il collegamento per sfogliare l'album condiviso in `/shared/album/:id` |
 
-### API
-
-| Endpoint | Descrizione |
-|----------|-------------|
-| `POST /api/albums/{id}/share` | Genera un token di condivisione per l'album |
-| `DELETE /api/albums/{id}/share` | Revoca il token di condivisione |
-| `GET /api/shared/album/{id}?token=` | Visualizza l'album condiviso (nessuna autenticazione richiesta) |
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 ## Critica IA
 
@@ -341,12 +324,7 @@ Disponibile su tutti i profili VRAM. Analizza le metriche memorizzate (estetica,
 
 Usa il VLM configurato (Qwen3.5-2B o Qwen3.5-4B) per una critica consapevole del contesto. Richiede il profilo VRAM 16gb o 24gb e `viewer.features.show_vlm_critique: true`.
 
-### API
-
-| Endpoint | Descrizione |
-|----------|-------------|
-| `GET /api/critique?path=<photo_path>&mode=rule` | Dettaglio del punteggio basato su regole |
-| `GET /api/critique?path=<photo_path>&mode=vlm` | Critica basata su VLM (richiede GPU) |
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 Controllato da `viewer.features.show_critique` (predefinito: `true`) e `viewer.features.show_vlm_critique` (predefinito: `true`).
 
@@ -356,12 +334,7 @@ Controllato da `viewer.features.show_critique` (predefinito: `true`) e `viewer.f
 
 Ottieni una didascalia in linguaggio naturale generata dall'IA per qualsiasi foto. Le didascalie vengono generate alla prima richiesta e memorizzate nella cache nella colonna `caption` del database. Le didascalie possono essere modificate manualmente in modalità di modifica tramite la pagina di dettaglio della foto. (La *traduzione* delle didascalie viene eseguita su CPU — vedi sotto.)
 
-### API
-
-| Endpoint | Descrizione |
-|----------|-------------|
-| `GET /api/caption?path=<photo_path>` | Ottieni o genera la didascalia di una foto |
-| `PUT /api/caption` | Aggiorna il testo della didascalia (richiede la modalità di modifica) |
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 Disponibile anche tramite CLI per la generazione e la traduzione di massa:
 
@@ -378,11 +351,7 @@ Controllato da `viewer.features.show_captions` (predefinito: `true`). Richiede i
 
 Sfoglia le foto scattate nella stessa data di calendario negli anni precedenti. Una finestra dei ricordi mostra una retrospettiva anno per anno delle foto corrispondenti.
 
-### API
-
-| Endpoint | Descrizione |
-|----------|-------------|
-| `GET /api/memories?date=YYYY-MM-DD` | Ottieni le foto scattate in questa data negli anni precedenti |
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 Controllato da `viewer.features.show_memories` (predefinito: `true`).
 
@@ -396,12 +365,7 @@ Controllato da `viewer.features.show_memories` (predefinito: `true`).
 
 Browser di foto cronologico con navigazione basata sulle date. Scorri tra le foto organizzate per data con una barra laterale che mostra gli anni e i mesi disponibili.
 
-### API
-
-| Endpoint | Descrizione |
-|----------|-------------|
-| `GET /api/timeline?cursor=&limit=&direction=` | Foto cronologiche impaginate con navigazione basata su cursore |
-| `GET /api/timeline/dates?year=&month=` | Date disponibili per la navigazione anno/mese |
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 Accessibile tramite la rotta `/timeline`. Controllato da `viewer.features.show_timeline` (predefinito: `true`).
 
@@ -419,12 +383,7 @@ python facet.py --extract-gps    # Estrai lat/lng GPS da EXIF nel database
 
 Le coordinate GPS vengono estratte automaticamente anche durante la valutazione delle nuove foto.
 
-### API
-
-| Endpoint | Descrizione |
-|----------|-------------|
-| `GET /api/photos/map?bounds=&zoom=&limit=` | Foto entro i confini della mappa (raggruppate per zoom) |
-| `GET /api/photos/map/count` | Conteggio totale delle foto geolocalizzate |
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 Accessibile tramite la rotta `/map`. Controllato da `viewer.features.show_map` (predefinito: `true`).
 
@@ -465,13 +424,7 @@ Le capsule di posizione e di viaggio mostrano i nomi dei luoghi (ad es. "Parigi,
 
 Installazione: `pip install reverse_geocoder`
 
-### API
-
-| Endpoint | Descrizione |
-|----------|-------------|
-| `GET /api/capsules` | Elenco capsule impaginato (in cache) |
-| `GET /api/capsules/{id}/photos` | Foto di una capsula specifica |
-| `POST /api/capsules/{id}/save-album` | Salva la capsula come album (modalità di modifica) |
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 ### Configurazione
 
@@ -512,14 +465,9 @@ Scrivi su disco le tue valutazioni, preferiti e scarti come sidecar XMP, così c
 
 - **Dalla galleria** — seleziona le foto, quindi **Azioni → Esporta** scrive un sidecar accanto a ogni file.
 - **Da un album** ("paniere") — esporta l'intero album come sidecar, oppure copia/crea collegamenti simbolici dei file in una directory di destinazione.
+- **Scrivi metadati nel file** — l'azione "Scrivi metadati nel file" della pagina di dettaglio incorpora la valutazione/le parole chiave direttamente nel file originale (JPEG/HEIC/TIFF/PNG/DNG tramite exiftool) oltre a scrivere il sidecar, così che l'intero ecosistema fotografico le veda. I file RAW proprietari originali non vengono mai modificati. Controllato da `viewer.features.show_embed_metadata` (predefinito: `true`).
 
-### API
-
-| Endpoint | Descrizione |
-|----------|-------------|
-| `POST /api/photo/export_xmp` | Scrivi un sidecar XMP (`path`, `overwrite` facoltativo) |
-| `POST /api/export/sidecars` | Scrivi i sidecar per `paths` espliciti o per un insieme di filtri |
-| `POST /api/albums/{id}/export` | Esportazione album — `mode` = `sidecars`, `copy` o `symlink` (gli ultimi due richiedono `target_dir`) |
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 ## Selezione
 
@@ -530,38 +478,43 @@ La pagina di selezione (`/culling`, modalità di modifica) raggruppa gli scatti 
 
 Per ogni gruppo, scegli quale/quali conservare; la conferma scarta il resto. Le conferme sono differite e possono essere annullate (vedi [Annulla](#annulla)).
 
+**Selezione delimitata.** La camera oscura può essere ristretta a un sottoinsieme tramite parametri di query: `?album=<id>` la limita a un album, e `?from=&to=` (finestra temporale di scatto EXIF, alla base di **Seleziona questa scena**) la limita a una sola scena. Un banner mostra l'ambito attivo con un controllo **Esci dalla scena**; il recupero dei membri della raffica rimane delimitato all'album ma ignora la finestra, così che una raffica a cavallo del confine della scena mostri comunque tutti i suoi fotogrammi.
+
+**Chip I miei gusti.** Ogni conferma registra righe di confronto `source='culling'` che addestrano il ranker personale, così l'intestazione mostra un piccolo chip "I miei gusti · N confronti" che si aggiorna dopo ogni decisione — l'IA impara il tuo occhio mentre selezioni (`GET /api/ranker/status`).
+
+### Lente / zoom con tasto Z
+
+Premi **`Z`** nel lightbox a vista singola per attivare una lente in stile Photo Mechanic (adatta ↔ 2×; zoom con rotellina/`+`/`-` fino all'800%). Oltre la scala di adattamento il riquadro sostituisce la sua miniatura con la sorgente `/image` a piena risoluzione, così puoi giudicare la messa a fuoco critica sui pixel reali senza lasciare la vista. Sulla striscia provini delle Scene, `Z` attiva una lente d'ingrandimento al passaggio del mouse che segue il cursore su una tessera (proveniente dall'immagine a piena risoluzione), con un cursore di zoom regolabile. Le miniature memorizzate si fermano a 640px, perciò la lente è il modo per esaminare i pixel oltre tale limite.
+
 ### Badge per volto
 
 Nel lightbox di selezione delle raffiche/foto simili, ogni volto rilevato porta i propri badge — occhi aperti/chiusi, espressione scadente e confidenza di rilevamento — anziché un'unica indicazione di occhi chiusi a livello di foto. Questo rende più facile selezionare le foto di gruppo: puoi vedere a colpo d'occhio quale volto ha gli occhi chiusi o un'espressione debole. I badge vengono recuperati per un intero gruppo in un'unica chiamata batch (`POST /api/culling-group/faces`).
 
 **Confronto sincronizzato (2-up / 4-up).** L'intestazione del lightbox ha i pulsanti Singolo / Confronta 2 / Confronta 4. In modalità di confronto i riquadri condividono un'unica trasformazione di pan/zoom, così lo zoom con la rotellina o il trascinamento su un riquadro qualsiasi sposta tutti gli altri sullo stesso identico ritaglio — il modo per scegliere il fotogramma più nitido di una raffica esaminando davvero i pixel. Il doppio clic alterna adatta ↔ zoom; oltre la scala di adattamento ogni riquadro sostituisce in modo lazy la sua miniatura da 1920px con la sorgente `/image` a piena risoluzione, così l'ingrandimento resta nitido. Nessuna modifica al backend — entrambe le rotte dell'immagine esistono già. (Il pinch tattile non è ancora collegato; sul desktop usa la rotellina.)
 
-### API
-
-| Endpoint | Descrizione |
-|----------|-------------|
-| `GET /api/burst-groups` | Gruppi di raffica per la selezione |
-| `GET /api/similar-groups?threshold=&page=&per_page=` | Gruppi impaginati di foto visivamente simili |
-| `GET /api/culling-groups` | Gruppi combinati di raffiche e foto simili |
-| `POST /api/culling-groups/confirm` | Conferma le selezioni della selezione |
-| `POST /api/culling-group/faces` | Badge per volto (occhi, espressione, confidenza) per un gruppo, in un'unica chiamata batch |
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 ## Vista Scene
 
-Raggruppa le foto guida delle raffiche in «scene» cronologiche, così da poter selezionare un intero servizio fotografico in ordine narrativo. Le foto vengono suddivise in scene in base agli intervalli temporali di scatto (una nuova scena inizia quando trascorrono più di `scenes.gap_hours` tra due scatti consecutivi). Accesso tramite la rotta `/scenes` (icona di navigazione «theaters»).
+Raggruppa le foto guida delle raffiche in "scene" cronologiche, così da poter selezionare un intero servizio fotografico in ordine narrativo. Le foto vengono suddivise in scene in base agli intervalli temporali di scatto (una nuova scena inizia quando trascorrono più di `scenes.gap_minutes` tra due scatti consecutivi, ampliati adattivamente nei servizi con pochi scatti), e qualsiasi sequenza troppo lunga viene ulteriormente suddivisa affinché un evento ripreso in continuità non collassi in un'unica scena gigantesca. Ogni scena ha un pulsante principale **Seleziona questa scena** che apre la camera oscura di selezione completa delimitata a quella sola scena (rilevamento delle raffiche, indicazioni di occhi chiusi, punteggi di qualità, primi piani dei volti, lente), oltre a una striscia di **Rifiuto rapido**. Accessibile tramite la rotta `/scenes` (icona di navigazione "theaters"); raggiungibile anche per album dalla griglia degli Album.
+
+Quando vengono calcolati i momenti narrativi (più sotto), ogni scena viene inoltre titolata dal suo momento dominante, e `scenes.split_on_moment_change` può ulteriormente suddividere una sequenza lunga in cui il momento cambia.
+
+## Momenti narrativi
+
+Facet etichetta ogni foto con il "momento" dell'evento che raffigura — per un matrimonio: preparativi (sposa/sposo), ingresso della cerimonia, promesse, scambio degli anelli, primo bacio, uscita, foto di famiglia, ritratti di coppia, aperitivo, dettagli del ricevimento, cena/brindisi, taglio della torta, primo ballo, festa, partenza — oppure `other`. Né Narrative Select né AfterShoot fanno questo; raggruppano solo per tempo e somiglianza visiva.
+
+È **zero-shot e completamente locale**: l'embedding CLIP/SigLIP memorizzato viene confrontato per somiglianza coseno con prompt testuali mediati per ogni momento (L0), corretto da piccoli prior di volto/tag (L1), poi **regolarizzato lungo la cronologia** con un passaggio Viterbi affinché una lettura errata isolata venga riportata nella sequenza circostante (L2). Un tie-breaker VLM facoltativo (L3, 16gb/24gb) può rigiudicare i fotogrammi a bassa confidenza. Poiché è solo un prodotto scalare su embedding già presenti nel database — nessuna decodifica dell'immagine, nessun passaggio del modello per immagine — è poco costoso e **viene eseguito automaticamente al termine di ogni scansione**; ri-elabora l'intera libreria con `python facet.py --recompute-moments`.
+
+I momenti emergono come titoli di scena e come filtro della galleria (`GET /api/photos?narrative_moment=vows`, opzioni da `GET /api/filter_options/narrative_moments`). Il vocabolario è guidato dalla configurazione per tipo di evento — vedi [Configurazione — Momenti narrativi](CONFIGURATION.md#narrative-moments) per regolare prompt/soglie o aggiungere un genere non matrimoniale.
 
 - Ogni scena mostra le sue foto guida in ordine di scatto
 - Tocca le foto per segnarle per la selezione; la conferma le scarta e alimenta il ranker personale
 - Le scene più piccole di `scenes.min_size` vengono omesse; vengono caricate al massimo `scenes.max_photos` foto
 
-### API
+API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
-| Endpoint | Descrizione |
-|----------|-------------|
-| `GET /api/scenes` | Scene cronologiche delle foto guida delle raffiche |
-| `POST /api/scenes/confirm` | Conferma le selezioni di selezione delle scene (scarta le foto segnate) |
-
-Controllato da `viewer.features.show_scenes` (predefinito: `true`). Vedi [Configurazione — Scene](CONFIGURATION.md#scene) per `gap_hours`, `min_size` e `max_photos`.
+Controllato da `viewer.features.show_scenes` (predefinito: `true`). Vedi [Configurazione — Scene](CONFIGURATION.md#scenes) per `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` e `adaptive_k`.
 
 ## Modalità di confronto a coppie
 
@@ -855,7 +808,7 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | `GET /api/similar_photos/{path}` | Foto simili (modalità: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Ricerca semantica testo-immagine (`scope=text` = solo testo OCR/didascalia) |
 | `GET /api/critique?path=&mode=` | Critica IA (basata su regole o VLM) |
-| `GET /api/ranker/status` | Stato del ranker personale per l'ordinamento «I miei gusti» (% di copertura appresa, accuratezza su dati di validazione) |
+| `GET /api/ranker/status` | Stato del ranker personale per l'ordinamento "I miei gusti" (% di copertura appresa, accuratezza su dati di validazione) |
 | `GET /api/config` | Configurazione della galleria |
 
 ### Autenticazione
@@ -949,45 +902,53 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Foto geolocalizzate entro i confini |
 | `GET /api/photos/map/count` | Conteggio delle foto geolocalizzate |
 
+### Capsule
+
+| Endpoint | Descrizione |
+|----------|-------------|
+| `GET /api/capsules` | Elenco capsule impaginato (in cache) |
+| `GET /api/capsules/{id}/photos` | Foto di una capsula specifica |
+| `POST /api/capsules/{id}/save-album` | Salva la capsula come album (modalità di modifica) |
+
 ### Statistiche
 
 | Endpoint | Descrizione |
 |----------|-------------|
 | `GET /api/stats/overview` | Riepilogo generale delle statistiche di valutazione |
 | `GET /api/stats/score_distribution` | Dati dell'istogramma di distribuzione dei punteggi |
-| `GET /api/stats/top_cameras` | Fotocamere principali per conteggio di foto |
+| `GET /api/stats/top_cameras` | Fotocamere principali per numero di foto |
 | `GET /api/stats/categories` | Conteggi e medie delle categorie |
 | `GET /api/stats/gear` | Conteggi di fotocamere/obiettivi/combinazioni |
 | `GET /api/stats/settings` | Distribuzioni delle impostazioni di scatto |
 | `GET /api/stats/timeline` | Dati della cronologia |
-| `GET /api/stats/correlations` | Correlazioni personalizzate tra metriche |
-| `GET /api/stats/categories/breakdown` | Conteggi di foto e distribuzioni dei punteggi per categoria |
+| `GET /api/stats/correlations` | Correlazioni di metriche personalizzate |
+| `GET /api/stats/categories/breakdown` | Conteggi foto per categoria e distribuzioni dei punteggi |
 | `GET /api/stats/categories/weights` | Pesi e modificatori delle categorie dalla configurazione |
-| `GET /api/stats/categories/correlations` | Correlazione Pearson r per dimensione per categoria |
-| `GET /api/stats/categories/metrics?category=X` | Valori metrici grezzi per l'anteprima lato client |
+| `GET /api/stats/categories/correlations` | Correlazione di Pearson r per dimensione per categoria |
+| `GET /api/stats/categories/metrics?category=X` | Valori grezzi delle metriche per l'anteprima lato client |
 | `GET /api/stats/categories/overlap` | Analisi della sovrapposizione dei filtri tra categorie |
-| `POST /api/stats/categories/update` | Aggiorna i pesi/modificatori delle categorie (modalità di modifica) |
-| `POST /api/stats/categories/recompute` | Ricalcola i punteggi di una categoria (modalità di modifica) |
+| `POST /api/stats/categories/update` | Aggiorna pesi/modificatori della categoria (modalità di modifica) |
+| `POST /api/stats/categories/recompute` | Ricalcola i punteggi per una categoria (modalità di modifica) |
 
 ### Modalità di confronto
 
 | Endpoint | Descrizione |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Ottieni la prossima coppia di foto per il confronto |
+| `GET /api/comparison/next_pair` | Ottieni la prossima coppia di foto da confrontare |
 | `POST /api/comparison/submit` | Invia il risultato del confronto |
-| `POST /api/comparison/reset` | Reimposta i dati di confronto |
+| `POST /api/comparison/reset` | Azzera i dati di confronto |
 | `GET /api/comparison/stats` | Statistiche della sessione di confronto |
 | `GET /api/comparison/history` | Elenca i confronti passati |
 | `POST /api/comparison/edit` | Modifica il risultato di un confronto |
 | `POST /api/comparison/delete` | Elimina un confronto |
-| `GET /api/comparison/coverage` | Copertura delle categorie nei confronti |
+| `GET /api/comparison/coverage` | Copertura per categoria dei confronti |
 | `GET /api/comparison/confidence` | Metriche di confidenza per i punteggi appresi |
-| `GET /api/comparison/photo_metrics` | Metriche grezze per le foto |
-| `GET /api/comparison/category_weights` | Pesi/filtri delle categorie |
+| `GET /api/comparison/photo_metrics` | Metriche grezze delle foto |
+| `GET /api/comparison/category_weights` | Pesi/filtri della categoria |
 | `GET /api/comparison/learned_weights` | Pesi suggeriti dai confronti |
 | `POST /api/comparison/preview_score` | Anteprima con pesi personalizzati |
 | `POST /api/comparison/suggest_filters` | Analizza i conflitti dei filtri |
-| `POST /api/comparison/override_category` | Sovrascrivi la categoria della foto |
+| `POST /api/comparison/override_category` | Sovrascrivi la categoria di una foto |
 | `POST /api/recalculate` | Ricalcola i punteggi con i pesi correnti |
 
 ### Selezione delle raffiche
@@ -995,11 +956,11 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | Endpoint | Descrizione |
 |----------|-------------|
 | `GET /api/burst-groups` | Elenca i gruppi di raffica per la selezione |
-| `POST /api/burst-groups/select` | Seleziona i preferiti da un gruppo di raffica |
+| `POST /api/burst-groups/select` | Seleziona i conservati da un gruppo di raffica |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Gruppi di foto visivamente simili |
-| `POST /api/similar-groups/select` | Seleziona i preferiti da un gruppo di foto simili |
-| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Gruppi combinati di raffiche e foto simili. `exclude_rejected` (predefinito `true`) nasconde le foto con `is_rejected=1`; i gruppi con meno di 2 foto rimanenti vengono eliminati |
-| `POST /api/culling-groups/confirm` | Conferma le selezioni della selezione |
+| `POST /api/similar-groups/select` | Seleziona i conservati da un gruppo di foto simili |
+| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Gruppi combinati di raffiche e foto simili. `exclude_rejected` (predefinito `true`) nasconde le foto con `is_rejected=1`; i gruppi con meno di 2 foto rimanenti vengono scartati |
+| `POST /api/culling-groups/confirm` | Conferma le selezioni di selezione |
 | `POST /api/culling-group/faces` | Badge per volto (occhi aperti/chiusi, espressione, confidenza) per un gruppo, in un'unica chiamata batch |
 | `GET /api/scenes` | Scene cronologiche delle foto guida delle raffiche |
 | `POST /api/scenes/confirm` | Conferma le selezioni di selezione delle scene |
@@ -1009,8 +970,8 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | Endpoint | Descrizione |
 |----------|-------------|
 | `POST /api/scan/start` | `[Superadmin]` Avvia una scansione di valutazione |
-| `GET /api/scan/status` | Controlla l'avanzamento della scansione (`progress` strutturato: `{phase, current, total, eta_seconds}`) |
-| `GET /api/scan/stream?token=<jwt>` | `[Superadmin]` Avanzamento in tempo reale tramite Server-Sent Events; il token viene passato come parametro di query (l'API `EventSource` non può impostare intestazioni), con fallback automatico al polling di `/status` |
+| `GET /api/scan/status` | Controlla l'avanzamento della scansione (campo strutturato `progress`: `{phase, current, total, eta_seconds}`) |
+| `GET /api/scan/stream?token=<jwt>` | `[Superadmin]` Avanzamento in tempo reale tramite Server-Sent Events; il token viene passato come parametro di query (l'API `EventSource` non può impostare header), con fallback automatico al polling di `/status` |
 | `GET /api/scan/directories` | Elenca le directory di scansione configurate |
 
 ### Gestione dei volti
@@ -1022,15 +983,15 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | `GET /api/photo/faces` | Elenca i volti rilevati in una foto |
 | `POST /api/face/{id}/assign` | Assegna un volto a una persona |
 | `POST /api/photo/assign_all_faces` | Assegna tutti i volti di una foto a una persona |
-| `POST /api/photo/unassign_person` | Disassegna una persona da una foto |
+| `POST /api/photo/unassign_person` | Rimuovi l'assegnazione di una persona da una foto |
 
 ### Azioni sulle foto
 
 | Endpoint | Descrizione |
 |----------|-------------|
-| `POST /api/photo/set_rating` | Imposta la valutazione a stelle per una foto |
+| `POST /api/photo/set_rating` | Imposta la valutazione a stelle di una foto |
 | `POST /api/photo/toggle_favorite` | Attiva/disattiva lo stato di preferito |
-| `POST /api/photo/toggle_rejected` | Attiva/disattiva lo stato di scarto |
+| `POST /api/photo/toggle_rejected` | Attiva/disattiva lo stato di scartato |
 
 ### Gestione della configurazione
 
@@ -1051,7 +1012,7 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 
 | Endpoint | Descrizione |
 |----------|-------------|
-| `GET /api/folders` | Elenca la struttura delle cartelle di foto |
+| `GET /api/folders` | Elenca la struttura delle cartelle delle foto |
 
 ### Download
 
@@ -1063,18 +1024,19 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 **Tipi di download:**
 
 - `original` — Serve il file così com'è (JPG/HEIF) o convertito in JPEG tramite rawpy (file RAW).
-- `darktable` — Converte il RAW associato con un profilo darktable denominato (richiede il parametro `profile`). Ricade sull'originale se non esiste un RAW associato.
+- `darktable` — Converte il RAW associato con un profilo darktable denominato (richiede il parametro `profile`). Ricade sull'originale se non esiste alcun RAW associato.
 - `raw` — Serve il file RAW associato così com'è (non disponibile negli album condivisi).
 
-L'endpoint `/api/download/options` rileva automaticamente i file RAW associati e restituisce le opzioni disponibili, inclusi i profili darktable configurati. La galleria lo usa per popolare un menu di download per ogni foto.
+L'endpoint `/api/download/options` rileva automaticamente i file RAW associati e restituisce le opzioni disponibili, inclusi i profili darktable configurati. La galleria lo usa per popolare un menu di download per foto.
 
 ### Esportazione per editor
 
 | Endpoint | Descrizione |
 |----------|-------------|
-| `POST /api/photo/export_xmp` | Scrivi un sidecar XMP (modalità di modifica) |
-| `POST /api/export/sidecars` | Scrivi i sidecar per percorsi espliciti o per un insieme di filtri (modalità di modifica) |
-| `POST /api/albums/{id}/export` | Esportazione album come sidecar, copia o collegamento simbolico (modalità di modifica) |
+| `POST /api/photo/export_xmp` | `[Edition]` Scrivi un sidecar XMP |
+| `POST /api/export/sidecars` | `[Edition]` Scrivi i sidecar per percorsi espliciti o per un insieme di filtri |
+| `POST /api/photo/embed_metadata` | `[Edition]` Incorpora i metadati nel file originale (JPEG/HEIC/TIFF/PNG/DNG; RAW mai modificato) e scrivi il sidecar |
+| `POST /api/albums/{id}/export` | `[Edition]` Esportazione album come sidecar, copia o collegamento simbolico |
 
 ### Plugin
 
@@ -1083,13 +1045,13 @@ L'endpoint `/api/download/options` rileva automaticamente i file RAW associati e
 | `GET /api/plugins` | Elenca i plugin configurati |
 | `POST /api/plugins/test-webhook` | Testa un plugin webhook |
 
-### Stato
+### Stato di salute
 
 | Endpoint | Descrizione |
 |----------|-------------|
-| `GET /health` | Controllo dello stato del server |
+| `GET /health` | Controllo dello stato di salute del server |
 | `GET /ready` | Controllo della prontezza del server |
-| `GET /metrics` | Metriche in formato Prometheus: conteggi di foto, copertura degli embedding, dimensione del DB, memoria del processo |
+| `GET /metrics` | Metriche in formato Prometheus: conteggi foto, copertura degli embedding, dimensione del DB, memoria del processo |
 
 ### Internazionalizzazione
 
@@ -1108,14 +1070,14 @@ L'endpoint `/api/download/options` rileva automaticamente i file RAW associati e
 
 | Problema | Soluzione |
 |-------|----------|
-| Caricamento lento della pagina | Esegui `--migrate-tags` e `--optimize` |
-| I filtri non vengono mostrati | Controlla `--stats-info`, esegui `--refresh-stats` |
+| Caricamento pagina lento | Esegui `--migrate-tags` e `--optimize` |
+| I filtri non compaiono | Controlla `--stats-info`, esegui `--refresh-stats` |
 | Filtro persona vuoto | Esegui `--cluster-faces-incremental` |
 | Pulsante Confronta mancante | Imposta una `edition_password` non vuota (utente singolo) o usa il ruolo `admin`/`superadmin` (multiutente) |
 | Password non funzionante | Controlla `viewer.password` (utente singolo) o verifica l'hash della password (multiutente) |
 | L'utente non vede le foto | Controlla `directories` nella sua configurazione utente e `shared_directories` |
-| Pulsante Scansione mancante | Richiede il ruolo `superadmin` e `viewer.features.show_scan_button: true` |
-| La ricerca non restituisce risultati | Assicurati che le foto abbiano dati `clip_embedding` (esegui prima la valutazione) |
+| Pulsante di scansione mancante | Richiede il ruolo `superadmin` e `viewer.features.show_scan_button: true` |
+| La ricerca non restituisce risultati | Assicurati che le foto abbiano i dati `clip_embedding` (esegui prima la valutazione) |
 | Critica VLM non disponibile | Richiede il profilo VRAM 16gb/24gb e `viewer.features.show_vlm_critique: true` |
 | La mappa non mostra foto | Esegui `--extract-gps` per popolare le colonne GPS, assicurati che le foto abbiano dati GPS EXIF |
 | Le didascalie non vengono generate | Richiede il profilo VRAM 16gb/24gb per le didascalie VLM |

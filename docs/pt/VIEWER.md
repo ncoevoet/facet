@@ -6,14 +6,14 @@ Aplicação de página única em FastAPI + Angular para navegar, filtrar e geren
 
 ## Conteúdo
 
-- [Iniciando o Visualizador](#starting-the-viewer) · [Autenticação](#authentication) · [Opções de Filtragem](#filtering-options) · [Ordenação](#sorting) · [Recursos da Galeria](#gallery-features)
-- [Gerenciamento de Pessoas](#person-management) · [Disparar Varredura (Superadmin)](#scan-trigger-superadmin) · [Busca Semântica](#semantic-search) · [Álbuns](#albums)
-- [Crítica por IA](#ai-critique) · [Legendagem por IA](#ai-captioning-gpu-16gb24gb-edition) · [Memórias ("Neste Dia")](#memories-on-this-day) · [Visão Linha do Tempo](#timeline-view) · [Visão Mapa](#map-view) · [Cápsulas](#capsules)
-- [Visão Pastas](#folders-view) · [Diálogo de Filtro GPS](#gps-filter-dialog) · [Sugestões de Mesclagem](#merge-suggestions) · [Exportação para Editores](#editor-export) · [Triagem](#culling) · [Modo de Comparação por Pares](#pairwise-comparison-mode)
-- [Estatísticas EXIF](#exif-statistics) · [Atalhos de Teclado](#keyboard-shortcuts-gallery) · [Desfazer](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
-- [Configuração](#configuration) · [Desempenho](#performance) · [Endpoints da API](#api-endpoints) · [Solução de Problemas](#troubleshooting)
+- [Iniciando o Visualizador](#iniciando-o-visualizador) · [Autenticação](#autenticação) · [Opções de Filtragem](#opções-de-filtragem) · [Ordenação](#ordenação) · [Recursos da Galeria](#recursos-da-galeria)
+- [Gerenciamento de Pessoas](#gerenciamento-de-pessoas) · [Disparo de Varredura (Superadmin)](#disparo-de-varredura-superadmin) · [Busca Semântica](#busca-semântica) · [Álbuns](#álbuns)
+- [Crítica por IA](#crítica-por-ia) · [Legendagem por IA](#legendagem-por-ia-gpu-16gb24gb-edition) · [Memórias ("Neste Dia")](#memórias-neste-dia) · [Visão de Linha do Tempo](#visão-de-linha-do-tempo) · [Visão de Mapa](#visão-de-mapa) · [Cápsulas](#cápsulas)
+- [Visão de Pastas](#visão-de-pastas) · [Diálogo de Filtro por GPS](#diálogo-de-filtro-por-gps) · [Sugestões de Mesclagem](#sugestões-de-mesclagem) · [Exportação para Editor](#exportação-para-editor) · [Triagem](#triagem) · [Modo de Comparação Pareada](#modo-de-comparação-pareada)
+- [Estatísticas EXIF](#estatísticas-exif) · [Atalhos de Teclado](#atalhos-de-teclado-galeria) · [Desfazer](#desfazer) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
+- [Configuração](#configuração) · [Desempenho](#desempenho) · [Endpoints da API](#endpoints-da-api) · [Solução de Problemas](#solução-de-problemas)
 
-> **Os requisitos de cada recurso** são marcados inline: `[GPU]` · `[16gb/24gb]` (perfil de VRAM) · `[Edition]` (senha de edição) · `[Superadmin]`. Veja a [matriz de recursos](../README.md#feature-availability--requirements).
+> **Requisitos de recurso** são marcados em linha: `[GPU]` · `[16gb/24gb]` (perfil de VRAM) · `[Edition]` (senha de edição) · `[Superadmin]`. Veja a [matriz de recursos](../README.md#feature-availability--requirements).
 
 ## Iniciando o Visualizador
 
@@ -26,7 +26,7 @@ python viewer.py
 
 Isso serve tanto a API quanto a aplicação Angular pré-compilada em uma única porta.
 
-Para maior throughput, execute em modo de produção (Uvicorn, sem auto-reload). Adicione `--workers N` para escalar (padrão 1):
+Para maior taxa de transferência, execute em modo de produção (Uvicorn, sem auto-reload). Adicione `--workers N` para escalar (padrão 1):
 
 ```bash
 python viewer.py --production --workers 4
@@ -50,7 +50,7 @@ cd client && npx ng serve
 
 ### Modo de Usuário Único (Padrão)
 
-Proteção opcional por senha via configuração:
+Proteção por senha opcional via configuração:
 
 ```json
 {
@@ -60,7 +60,7 @@ Proteção opcional por senha via configuração:
 }
 ```
 
-Quando definida, os usuários devem se autenticar antes de acessar o visualizador. Uma `edition_password` opcional concede acesso ao gerenciamento de pessoas e ao modo de comparação.
+Quando definida, os usuários precisam se autenticar antes de acessar o visualizador. Uma `edition_password` opcional concede acesso ao gerenciamento de pessoas e ao modo de comparação.
 
 ### Modo Multiusuário
 
@@ -89,7 +89,7 @@ Para cenários de NAS familiar onde cada membro tem diretórios de fotos privado
 }
 ```
 
-Os usuários são criados somente via CLI (sem interface de registro):
+Os usuários são criados apenas via CLI (sem interface de registro):
 
 ```bash
 python database.py --add-user alice --role superadmin --display-name "Alice"
@@ -105,13 +105,13 @@ Veja [Configuração](CONFIGURATION.md#users) para a referência completa.
 | `admin` | sim | sim | sim | não |
 | `superadmin` | sim | sim | sim | sim |
 
-### Visibilidade das Fotos
+### Visibilidade de Fotos
 
-Cada usuário vê fotos de seus diretórios configurados mais os diretórios compartilhados. A visibilidade é aplicada em todos os endpoints: galeria, miniaturas, downloads, estatísticas, opções de filtro e páginas de pessoas.
+Cada usuário vê fotos de seus diretórios configurados além dos diretórios compartilhados. A visibilidade é aplicada em todos os endpoints: galeria, miniaturas, downloads, estatísticas, opções de filtro e páginas de pessoas.
 
 ### Avaliações por Usuário
 
-No modo multiusuário, as classificações por estrelas, favoritos e marcações de rejeitado são armazenadas por usuário na tabela `user_preferences`. Cada usuário avalia de forma independente — os favoritos de Alice não afetam a visão de Bob.
+No modo multiusuário, avaliações por estrelas, favoritos e marcações de rejeição são armazenados por usuário na tabela `user_preferences`. Cada usuário avalia de forma independente — os favoritos da Alice não afetam a visão do Bob.
 
 Para migrar avaliações existentes de usuário único:
 
@@ -122,16 +122,16 @@ python database.py --migrate-user-preferences --user alice
 ## Opções de Filtragem
 
 <details><summary>Barra lateral de filtros completa — todas as seções expandidas (clique para ver)</summary>
-<p align="center"><img src="screenshots/filter-sidebar-full.jpg" alt="Barra lateral de filtros com todas as seções expandidas" width="360"></p>
+<p align="center"><img src="screenshots/filter-sidebar-full.jpg" alt="Filter sidebar with every section expanded" width="360"></p>
 </details>
 
 ### Filtros Primários
 
 | Filtro | Opções |
 |--------|---------|
-| **Tipo de Foto** | Top Picks, Retratos, Pessoas na Cena, Paisagens, Arquitetura, Natureza, Animais, Arte & Estátuas, Preto & Branco, Pouca Luz, Silhuetas, Macro, Astrofotografia, Rua, Longa Exposição, Aérea & Drone, Shows |
+| **Tipo de Foto** | Melhores Escolhas, Retratos, Pessoas na Cena, Paisagens, Arquitetura, Natureza, Animais, Arte e Estátuas, Preto e Branco, Pouca Luz, Silhuetas, Macro, Astrofotografia, Rua, Longa Exposição, Aéreo e Drone, Shows |
 | **Nível de Qualidade** | Bom (6+), Ótimo (7+), Excelente (8+), Melhor (9+) |
-| **Câmera & Lente** | Filtragem por equipamento |
+| **Câmera e Lente** | Filtragem baseada em equipamento |
 | **Pessoa** | Filtrar por pessoa reconhecida |
 | **Categoria** | Filtrar por categoria de foto |
 
@@ -139,22 +139,22 @@ python database.py --migrate-user-preferences --user alice
 
 | Categoria | Filtros |
 |----------|---------|
-| **Data** | Data inicial e final |
+| **Data** | Data de início e fim |
 | **Pontuações** | Agregada, estética, pontuação TOPIQ, pontuação de qualidade |
-| **Qualidade Estendida** | IAA estético (mérito artístico), Face Quality IQA, pontuação LIQE |
-| **Métricas Faciais** | Qualidade do rosto, nitidez dos olhos, nitidez do rosto, proporção do rosto, confiança do rosto, contagem de rostos |
-| **Composição** | Pontuação de composição, pontos de poder, linhas-guia, isolamento, padrão de composição |
+| **Qualidade Estendida** | IAA estético (mérito artístico), IQA de qualidade de rosto, pontuação LIQE |
+| **Métricas de Rosto** | Qualidade do rosto, nitidez dos olhos, nitidez do rosto, proporção do rosto, confiança do rosto, contagem de rostos |
+| **Composição** | Pontuação de composição, pontos de força, linhas guia, isolamento, padrão de composição |
 | **Saliência do Sujeito** | Nitidez do sujeito, proeminência do sujeito, posicionamento do sujeito, separação do fundo |
 | **Técnica** | Nitidez, contraste, faixa dinâmica, nível de ruído |
 | **Cor** | Pontuação de cor, saturação, luminância, espalhamento do histograma; temperatura de cor (quente/fria/neutra) e faixa de matiz (requer `--recompute-colors`) |
 | **Exposição** | Pontuação de exposição |
-| **Avaliações do Usuário** | Classificação por estrelas |
-| **Configurações da Câmera** | ISO, abertura (slider de faixa de f-stop), distância focal (slider de faixa) |
-| **Conteúdo** | Tags, alternância monocromática |
+| **Avaliações do Usuário** | Avaliação por estrelas |
+| **Configurações da Câmera** | ISO, abertura (controle deslizante de faixa de f-stop), distância focal (controle deslizante de faixa) |
+| **Conteúdo** | Tags, alternância de monocromático |
 
 ### Padrões de Composição
 
-Filtre pelos padrões detectados pelo SAMP-Net:
+Filtrar pelos padrões detectados pelo SAMP-Net:
 - rule_of_thirds, golden_ratio, center, diagonal
 - horizontal, vertical, symmetric, triangle
 - curved, radial, vanishing_point, pattern, fill_frame
@@ -165,19 +165,19 @@ Colunas ordenáveis agrupadas por categoria (de `viewer.sort_options`):
 
 | Grupo | Colunas |
 |-------|---------|
-| **Geral** | Pontuação Agregada, Estética, Pontuação de Qualidade, Data da Captura, Classificação por Estrelas, Estética (IAA), Pontuação LIQE |
-| **Métricas Faciais** | Qualidade do Rosto, Qualidade do Rosto (IQA), Nitidez dos Olhos, Nitidez do Rosto, Proporção do Rosto, Contagem de Rostos |
+| **Geral** | Pontuação Agregada, Estética, Pontuação de Qualidade, Data de Captura, Avaliação por Estrelas, Estética (IAA), Pontuação LIQE |
+| **Métricas de Rosto** | Qualidade do Rosto, Qualidade do Rosto (IQA), Nitidez dos Olhos, Nitidez do Rosto, Proporção do Rosto, Contagem de Rostos |
 | **Técnica** | Nitidez Técnica, Contraste, Nível de Ruído |
 | **Cor** | Pontuação de Cor, Saturação |
 | **Exposição** | Pontuação de Exposição, Luminância Média, Espalhamento do Histograma, Faixa Dinâmica |
-| **Composição** | Pontuação de Composição, Pontuação de Pontos de Poder, Linhas-Guia, Bônus de Isolamento, Padrão de Composição |
+| **Composição** | Pontuação de Composição, Pontuação de Ponto de Força, Linhas Guia, Bônus de Isolamento, Padrão de Composição |
 | **Saliência do Sujeito** | Nitidez do Sujeito, Proeminência do Sujeito, Posicionamento do Sujeito, Separação do Fundo |
 
-### My Taste
+### Meu Gosto
 
-Uma opção de ordenação de primeira classe apoiada pelo `learned_score` do ranqueador pessoal (renomeada de "Picked for you"). Ela ordena as fotos pelo que o ranqueador aprendeu com suas comparações A/B, avaliações e decisões de triagem. Um selo de confiança ao lado da ordenação mostra a cobertura aprendida (% de fotos com uma pontuação aprendida) e a acurácia do ranqueador em dados retidos, para que você possa julgar o quanto confiar na ordenação. Treine ou atualize o ranqueador com `python facet.py --train-ranker`.
+Uma opção de ordenação de primeira classe apoiada pelo `learned_score` do ranqueador pessoal (renomeada de "Escolhido para você"). Ela ordena as fotos pelo que o ranqueador aprendeu com suas comparações A/B, avaliações e decisões de triagem. Um selo de confiança ao lado da ordenação mostra a cobertura aprendida (% de fotos com uma pontuação aprendida) e a precisão em dados retidos do ranqueador, para que você possa julgar o quanto confiar na ordenação. Treine ou atualize o ranqueador com `python facet.py --train-ranker`.
 
-Controlada por `viewer.features.show_my_taste` (padrão: `true`). O status do ranqueador é exposto via `GET /api/ranker/status`.
+Controlado por `viewer.features.show_my_taste` (padrão: `true`). O status do ranqueador é exposto via `GET /api/ranker/status`.
 
 ## Recursos da Galeria
 
@@ -188,47 +188,46 @@ Controlada por `viewer.features.show_my_taste` (padrão: `true`). O status do ra
 - Avatares de pessoas para rostos reconhecidos
 - Selo de categoria
 
-### Multisseleção & Ações em Lote
+### Seleção Múltipla e Ações em Lote
 
 - Clique nas fotos para selecionar, Shift+Clique para seleção de intervalo
 - A barra de ações aparece com a contagem da seleção e as ações disponíveis
-- **Favoritar** — Marca todas as selecionadas como favoritas (limpa rejeitado)
-- **Rejeitar** — Marca todas as selecionadas como rejeitadas (limpa favorito e classificação)
-- **Avaliar** — Define a classificação por estrelas (1–5) para todas as selecionadas, ou limpa a classificação
+- **Favoritar** — Marca todas as selecionadas como favoritas (limpa rejeição)
+- **Rejeitar** — Marca todas as selecionadas como rejeitadas (limpa favorito e avaliação)
+- **Avaliar** — Define a avaliação por estrelas (1–5) para todas as selecionadas, ou limpa a avaliação
 - **Adicionar ao álbum** — Adiciona as selecionadas a um álbum existente ou novo
 - **Copiar nomes de arquivo** — Copia os nomes de arquivo selecionados para a área de transferência
-- **Exportar** — Escreve sidecars XMP (classificação/favorito/rejeitado) ao lado dos arquivos selecionados (veja [Exportação para Editores](#editor-export))
+- **Exportar** — Grava sidecars XMP (avaliação/favorito/rejeição) ao lado dos arquivos selecionados (veja [Exportação para Editor](#exportação-para-editor))
 - **Baixar** — Baixa as fotos selecionadas
 - Limpe a seleção com Escape ou o botão Limpar
 
-As ações em lote exigem o modo de edição. Dê duplo clique em qualquer foto para baixá-la diretamente.
+As ações em lote requerem o modo de edição. Dê um duplo clique em qualquer foto para baixá-la diretamente.
 
 ### Opções de Exibição
 
-- **Modo de Layout** - Alterne entre **Grade** (cartões uniformes) e **Mosaico** (linhas justificadas preservando as proporções). O Mosaico é exclusivo para desktop; o mobile sempre usa grade.
-- **Tamanho da Miniatura** - Slider para ajustar a altura do cartão/linha (120–400px, persistido no localStorage)
-- **Ocultar Detalhes** - Oculta os metadados da foto nos cartões (somente no modo grade)
-- **Ocultar Tooltip** - Desativa o tooltip de hover que mostra os detalhes da foto no desktop
+- **Modo de Layout** - Alterne entre **Grade** (cartões uniformes) e **Mosaico** (linhas justificadas preservando as proporções). O Mosaico é apenas para desktop; o mobile sempre usa grade.
+- **Tamanho da Miniatura** - Controle deslizante para ajustar a altura do cartão/linha (120–400px, persistido no localStorage)
+- **Ocultar Detalhes** - Oculta os metadados da foto nos cartões (apenas no modo grade)
+- **Ocultar Dica** - Desativa a dica de ferramenta ao passar o mouse que mostra os detalhes da foto no desktop
 - **Ocultar Piscadas** - Filtra fotos com piscadas detectadas
-- **Melhor da Rajada** - Mostra apenas a foto com maior pontuação de cada rajada
+- **Melhor da Sequência** - Mostra apenas a foto com maior pontuação de cada sequência (burst)
 - **Rolagem Infinita** - As fotos carregam conforme você rola
-- **Rolagem Rápida (virtualizada)** - Renderização por janelamento de linhas: apenas as
-  linhas próximas à viewport ficam no DOM, então rolar profundamente por dezenas de
-  milhares de fotos permanece responsivo. Ativada por padrão; desative na seção
-  Exibição da barra lateral de filtros se encontrar problemas de layout (o modo grade
-  com detalhes exibidos sempre usa renderização completa, pois as alturas das linhas
-  não são determinísticas nesse caso). Persistida no
+- **Rolagem Rápida (virtualizada)** - Renderização em janela de linhas: apenas as linhas
+  próximas à viewport ficam no DOM, então a rolagem profunda por dezenas de milhares de fotos
+  permanece responsiva. Ativada por padrão; desative na seção Exibição da barra
+  lateral de filtros se você encontrar problemas de layout (o modo grade com detalhes exibidos
+  sempre usa renderização completa, já que as alturas das linhas não são determinísticas ali). Persistido no
   localStorage (`facet_virtual_scroll`).
 
-### Fotos Similares
+### Fotos Semelhantes
 
-Clique no botão "Similar" em qualquer foto para escolher um modo de similaridade:
+Clique no botão "Semelhantes" em qualquer foto para escolher um modo de similaridade:
 
-- **Visual** (padrão) — distância de hamming de pHash (70%) + similaridade de cosseno CLIP/SigLIP (30%). Recai para apenas CLIP quando nenhum pHash está disponível.
-- **Cor** — Interseção de histograma (70%) + distância de saturação (10%) + distância de luminância (10%) + bônus monocromático (10%). Pré-filtra pela marcação monocromática e pela faixa de saturação.
-- **Pessoa** — Encontra fotos que contêm a(s) mesma(s) pessoa(s). Usa `person_id` quando disponível (rápido), caso contrário recai para a similaridade de cosseno do embedding facial.
+- **Visual** (padrão) — distância de Hamming do pHash (70%) + similaridade de cosseno CLIP/SigLIP (30%). Recorre apenas ao CLIP quando nenhum pHash está disponível.
+- **Cor** — Interseção de histograma (70%) + distância de saturação (10%) + distância de luminância (10%) + bônus monocromático (10%). Pré-filtra pela marcação monocromática e faixa de saturação.
+- **Pessoa** — Encontra fotos contendo a(s) mesma(s) pessoa(s). Usa `person_id` quando disponível (rápido), caso contrário recorre à similaridade de cosseno do embedding facial.
 
-Use o **slider de limiar de similaridade** (0–90%) para controlar o quão rigorosa é a correspondência (não exibido no modo pessoa). O painel suporta rolagem infinita para grandes conjuntos de resultados.
+Use o **controle deslizante de limiar de similaridade** (0–90%) para controlar o quão restrita é a correspondência (não exibido no modo pessoa). O painel suporta rolagem infinita para grandes conjuntos de resultados.
 
 ### Chips de Filtro
 
@@ -240,101 +239,101 @@ Os filtros ativos são exibidos como chips removíveis com contagens no topo da 
 
 ### Filtro de Pessoa
 
-O dropdown mostra as pessoas com miniaturas de rosto. Clique para filtrar a galeria.
+O menu suspenso mostra pessoas com miniaturas de rostos. Clique para filtrar a galeria.
 
 ### Galeria de Pessoa
 
 Clique no nome da pessoa para ver todas as suas fotos em `/person/<id>`.
 
-### Página de Gerenciar Pessoas
+### Página Gerenciar Pessoas
 
-Acesse via botão no cabeçalho ou `/persons`:
+Acesse pelo botão no cabeçalho ou por `/persons`:
 
 | Ação | Como Fazer |
 |--------|--------|
-| **Mesclar** | Selecione a pessoa de origem, clique no alvo, confirme |
-| **Excluir** | Clique no botão de excluir no cartão da pessoa |
-| **Renomear** | Clique no nome da pessoa para editar inline |
+| **Mesclar** | Selecione a pessoa de origem, clique no destino, confirme |
+| **Excluir** | Clique no botão excluir no cartão da pessoa |
+| **Renomear** | Clique no nome da pessoa para editar em linha |
 | **Dividir** | Abra os rostos de uma pessoa, selecione um subconjunto, divida-os em uma nova pessoa |
-| **Ocultar** | Oculta um cluster da lista de pessoas, dos filtros e das sugestões de mesclagem (reversível) |
+| **Ocultar** | Oculta um cluster da lista de pessoas, filtros e sugestões de mesclagem (reversível) |
 
-## Disparar Varredura (Superadmin)
+## Disparo de Varredura (Superadmin)
 
-Quando `viewer.features.show_scan_button` é `true` e o usuário tem o papel `superadmin`, um botão **Scan photos to get started** aparece no estado de galeria vazia. Ele vem definido como **`false`** no `scoring_config.json` (opt-in de superadmin). O botão abre o diálogo do lançador de varredura (`ScanLauncherComponent`).
+Quando `viewer.features.show_scan_button` é `true` e o usuário tem o papel `superadmin`, um botão **Varrer fotos para começar** aparece no estado de galeria vazia. Ele vem definido como **`false`** no `scoring_config.json` (adesão explícita do superadmin). O botão abre o diálogo do lançador de varredura (`ScanLauncherComponent`).
 
-- Escolha um diretório na lista do lançador e inicie a varredura no app
-- O lançador transmite o progresso ao vivo (SSE com fallback automático para polling) em uma `mat-progress-bar` acionada pelo campo estruturado `progress`, além de uma cauda de linhas de saída, e atualiza a galeria quando a varredura termina
-- A varredura roda como um subprocesso em segundo plano (`facet.py`); apenas uma varredura por vez (trava global)
-- As opções de diretório vêm de `get_all_scan_directories()`, que une os `directories` de cada usuário, os diretórios compartilhados, os alvos de `path_mapping` e a lista independente `viewer.scan_directories` — preencha esta última (por exemplo, `/data/photos`) para que instalações de usuário único / Docker tenham um alvo selecionável
+- Escolha um diretório da lista do lançador e inicie a varredura dentro do aplicativo
+- O lançador transmite o progresso ao vivo (SSE com fallback automático para polling) em uma `mat-progress-bar` controlada pelo campo estruturado `progress`, além de um trecho final de linhas de saída, e atualiza a galeria quando a varredura termina
+- A varredura é executada como um subprocesso em segundo plano (`facet.py`); apenas uma varredura por vez (trava global)
+- As escolhas de diretório vêm de `get_all_scan_directories()`, que une os `directories` de cada usuário, os diretórios compartilhados, os destinos de `path_mapping` e a lista autônoma `viewer.scan_directories` — preencha esta última (ex.: `/data/photos`) para que instalações de usuário único / Docker tenham um destino selecionável
 
-Isso é útil quando o visualizador roda na mesma máquina que tem acesso à GPU para pontuação.
+Isso é útil quando o visualizador é executado na mesma máquina que tem acesso à GPU para pontuação.
 
 ## Busca Semântica
 
-Busca híbrida que combina a similaridade de embedding CLIP/SigLIP (70%) com a correspondência de texto BM25 do FTS5 em legendas e tags (30%). Digite uma consulta como "pôr do sol sobre montanhas" ou "criança brincando na neve" e o visualizador retorna as fotos correspondentes ordenadas pela pontuação combinada.
+Busca híbrida combinando a similaridade de embedding CLIP/SigLIP (70%) com a correspondência de texto FTS5 BM25 em legendas e tags (30%). Digite uma consulta como "pôr do sol sobre montanhas" ou "criança brincando na neve" e o visualizador retorna fotos correspondentes ranqueadas pela pontuação combinada.
 
 - Requer dados `clip_embedding` armazenados (computados durante a pontuação)
-- Usa o sqlite-vec para busca vetorial KNN quando instalado, recai para NumPy em memória
-- A busca de texto FTS5 nas legendas/tags geradas por IA fornece correspondência adicional por palavra-chave (execute `database.py --rebuild-fts` para habilitar)
+- Usa sqlite-vec para busca vetorial KNN quando instalado, recorre ao NumPy em memória
+- A busca de texto FTS5 em legendas/tags geradas por IA fornece correspondência de palavras-chave adicional (execute `database.py --rebuild-fts` para habilitar)
 - Usa o mesmo modelo de embedding do perfil de VRAM ativo (SigLIP 2 para 16gb/24gb, CLIP ViT-L-14 para legacy/8gb)
-- `scope=text` restringe a consulta a correspondências literais do FTS5 em texto de OCR/legenda e ignora a busca por embedding
-- Controlada por `viewer.features.show_semantic_search` (padrão: `true`)
+- `scope=text` restringe a consulta a correspondências literais FTS5 em texto OCR/legenda e ignora a busca por embedding
+- Controlado por `viewer.features.show_semantic_search` (padrão: `true`)
 
 ## Álbuns
 
-Organize fotos em álbuns nomeados. Acesse via a rota `/albums`.
+Organize fotos em álbuns nomeados. Acesse pela rota `/albums`.
 
 ### Álbuns Manuais
 
-Crie álbuns e adicione fotos da galeria usando a multisseleção. Os álbuns suportam:
+Crie álbuns e adicione fotos da galeria usando seleção múltipla. Os álbuns suportam:
 - Nome e descrição
 - Foto de capa personalizada
 - Ordenação personalizada
-- Navegue pelo conteúdo do álbum em `/album/:albumId`
+- Navegar pelo conteúdo do álbum em `/album/:albumId`
 
 ### Álbuns Inteligentes
 
-Salve uma combinação de filtros (câmera, tag, pessoa, faixa de datas, limiares de pontuação, etc.) como um álbum inteligente. Os álbuns inteligentes se atualizam dinamicamente à medida que novas fotos correspondem aos critérios de filtro salvos. A combinação de filtros é armazenada como JSON em `smart_filter_json`.
+Salve uma combinação de filtros (câmera, tag, pessoa, intervalo de datas, limiares de pontuação, etc.) como um álbum inteligente. Os álbuns inteligentes se atualizam dinamicamente conforme novas fotos correspondem aos critérios de filtro salvos. A combinação de filtros é armazenada como JSON em `smart_filter_json`.
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
-Controlados por `viewer.features.show_albums` (padrão: `true`).
+Controlado por `viewer.features.show_albums` (padrão: `true`).
 
 ### Compartilhamento de Fotos
 
-Compartilhe álbuns com usuários externos via links com token. Nenhuma autenticação é necessária para visualizar álbuns compartilhados.
+Compartilhe álbuns com usuários externos por meio de links com token. Nenhuma autenticação é necessária para visualizar álbuns compartilhados.
 
 | Ação | Como Fazer |
 |--------|--------|
-| **Compartilhar** | Abra o álbum, clique no botão "Share" para gerar um link compartilhável |
-| **Revogar** | Clique em "Unshare" para invalidar o token de compartilhamento |
+| **Compartilhar** | Abra o álbum, clique no botão "Compartilhar" para gerar um link compartilhável |
+| **Revogar** | Clique em "Descompartilhar" para invalidar o token de compartilhamento |
 | **Visualizar** | Os destinatários abrem o link para navegar pelo álbum compartilhado em `/shared/album/:id` |
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
 ## Crítica por IA
 
-Desmembra as pontuações de uma foto em pontos fortes, pontos fracos e sugestões.
+Decompõe as pontuações de uma foto em pontos fortes, pontos fracos e sugestões.
 
 ### Crítica Baseada em Regras
 
-Disponível em todos os perfis de VRAM. Analisa as métricas armazenadas (estética, composição, nitidez, qualidade do rosto, etc.) e gera uma explicação estruturada da pontuação.
+Disponível em todos os perfis de VRAM. Analisa métricas armazenadas (estética, composição, nitidez, qualidade do rosto, etc.) e gera uma explicação estruturada da pontuação.
 
 ### Crítica por VLM `[GPU]` `[16gb/24gb]`
 
-Usa o VLM configurado (Qwen3.5-2B ou Qwen3.5-4B) para uma crítica sensível ao contexto. Requer o perfil de VRAM 16gb ou 24gb e `viewer.features.show_vlm_critique: true`.
+Usa o VLM configurado (Qwen3.5-2B ou Qwen3.5-4B) para uma crítica contextual. Requer o perfil de VRAM 16gb ou 24gb e `viewer.features.show_vlm_critique: true`.
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
-Controlada por `viewer.features.show_critique` (padrão: `true`) e `viewer.features.show_vlm_critique` (padrão: `true`).
+Controlado por `viewer.features.show_critique` (padrão: `true`) e `viewer.features.show_vlm_critique` (padrão: `true`).
 
-**Sobreposição visual "por que esta pontuação".** Quando `viewer.features.show_saliency_overlay` é `true` (padrão), o diálogo de crítica ganha uma alternância **Show overlay**: ele desenha o mapa de saliência do BiRefNet como um mapa de calor translúcido sobre a foto (recomputado sob demanda a partir da miniatura armazenada — `GET /api/saliency_overlay`), além de caixas suaves por rosto e marcadores de olhos reconstruídos a partir de pontos de referência armazenados (`GET /api/photo/face_markers`). As caixas ficam verdes quando os olhos estão abertos, âmbar em uma piscada. O mapa de calor é ilustrativo (resolução de miniatura), não exato em nível de pixel; a alternância se oculta em perfis onde nenhuma máscara de saliência pode ser produzida.
+**Sobreposição visual "por que esta pontuação".** Quando `viewer.features.show_saliency_overlay` é `true` (padrão), o diálogo de crítica ganha uma alternância **Mostrar sobreposição**: ela desenha o mapa de saliência do BiRefNet como um mapa de calor translúcido sobre a foto (recomputado sob demanda a partir da miniatura armazenada — `GET /api/saliency_overlay`), além de caixas suaves por rosto e marcadores de olhos reconstruídos de pontos de referência (landmarks) armazenados (`GET /api/photo/face_markers`). As caixas ficam verdes quando os olhos estão abertos, âmbar em uma piscada. O mapa de calor é ilustrativo (resolução de miniatura), não exato ao pixel; a alternância se oculta em perfis onde nenhuma máscara de saliência pode ser produzida.
 
 ## Legendagem por IA `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Obtenha uma legenda em linguagem natural gerada por IA para qualquer foto. As legendas são geradas na primeira solicitação e armazenadas em cache na coluna `caption` do banco de dados. As legendas podem ser editadas manualmente no modo de edição através da página de detalhes da foto. (A *tradução* da legenda roda na CPU — veja abaixo.)
+Obtenha uma legenda em linguagem natural gerada por IA para qualquer foto. As legendas são geradas na primeira solicitação e armazenadas em cache na coluna `caption` do banco de dados. As legendas podem ser editadas manualmente no modo de edição pela página de detalhes da foto. (A *tradução* de legendas roda na CPU — veja abaixo.)
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
 Também disponível via CLI para geração e tradução em lote:
 
@@ -343,174 +342,192 @@ python facet.py --generate-captions      # Generate captions for all uncaptioned
 python facet.py --translate-captions     # Translate captions to configured target language
 ```
 
-A tradução de legendas usa o MarianMT (CPU, nenhuma GPU necessária). Configure o idioma de destino no `scoring_config.json` em `translation.target_language` (padrão: `"fr"`). Idiomas suportados: francês, alemão, espanhol, italiano.
+A tradução de legendas usa MarianMT (CPU, sem GPU necessária). Configure o idioma de destino no `scoring_config.json` em `translation.target_language` (padrão: `"fr"`). Idiomas suportados: francês, alemão, espanhol, italiano.
 
-Controlada por `viewer.features.show_captions` (padrão: `true`). Requer o perfil de VRAM 16gb ou 24gb para legendagem baseada em VLM.
+Controlado por `viewer.features.show_captions` (padrão: `true`). Requer o perfil de VRAM 16gb ou 24gb para legendagem baseada em VLM.
 
 ## Memórias ("Neste Dia")
 
-Navegue por fotos tiradas na mesma data do calendário em anos anteriores. Um diálogo de memórias mostra uma retrospectiva ano a ano das fotos correspondentes.
+Navegue pelas fotos tiradas na mesma data do calendário em anos anteriores. Um diálogo de memórias mostra uma retrospectiva ano a ano das fotos correspondentes.
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
-Controlada por `viewer.features.show_memories` (padrão: `true`).
+Controlado por `viewer.features.show_memories` (padrão: `true`).
 
 ## Fluxos de trabalho comuns
 
-- **Triar uma viagem** — abra Cápsulas → procure a cápsula `journey` gerada automaticamente para as datas da viagem. Cada cápsula oferece uma ação de Salvar-como-Álbum.
-- **Percorrer uma revisão dia a dia** — abra a Linha do Tempo → ordene por agregada → avance pelo ano. As melhores fotos sobem primeiro quando você habilitou `hide_bursts` e `hide_duplicates` (padrões: ativados).
-- **Mostrar o que está oculto** — a galeria oculta piscadas / rajadas não-líderes / duplicatas não-líderes por padrão. Quando pelo menos um desses filtros está ativo e excluiria linhas, um banner "N photos hidden by current filters · Show all" aparece acima da grade.
+- **Triar umas férias** — abra Cápsulas → procure a cápsula `journey` gerada automaticamente para as datas da viagem. Cada cápsula oferece uma ação Salvar como Álbum.
+- **Percorrer uma revisão dia a dia** — abra a Linha do Tempo → ordene por agregada → percorra o ano. As melhores fotos sobem primeiro quando você habilita `hide_bursts` e `hide_duplicates` (padrões: ativados).
+- **Mostrar o que está oculto** — a galeria oculta piscadas / sequências não líderes / duplicatas não líderes por padrão. Quando pelo menos um desses filtros está ativo e excluiria linhas, um banner "N fotos ocultas pelos filtros atuais · Mostrar tudo" aparece acima da grade.
 
-## Visão Linha do Tempo
+## Visão de Linha do Tempo
 
 Navegador cronológico de fotos com navegação baseada em datas. Role pelas fotos organizadas por data com uma barra lateral mostrando os anos e meses disponíveis.
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
-Acesse via a rota `/timeline`. Controlada por `viewer.features.show_timeline` (padrão: `true`).
+Acesse pela rota `/timeline`. Controlado por `viewer.features.show_timeline` (padrão: `true`).
 
-## Visão Mapa
+## Visão de Mapa
 
-Visualize fotos em um mapa interativo com base nas coordenadas GPS extraídas dos dados EXIF. Usa o Leaflet para renderização do mapa com agrupamento em diferentes níveis de zoom.
+Veja fotos em um mapa interativo com base nas coordenadas GPS extraídas dos dados EXIF. Usa Leaflet para renderização do mapa com agrupamento em diferentes níveis de zoom.
 
-### Configuração Inicial
+### Configuração
 
-Extraia as coordenadas GPS de fotos existentes:
+Extraia coordenadas GPS de fotos existentes:
 
 ```bash
 python facet.py --extract-gps    # Extract GPS lat/lng from EXIF into database
 ```
 
-As coordenadas GPS também são extraídas automaticamente durante a pontuação de novas fotos.
+As coordenadas GPS também são extraídas automaticamente durante a pontuação para fotos novas.
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
-Acesse via a rota `/map`. Controlada por `viewer.features.show_map` (padrão: `true`).
+Acesse pela rota `/map`. Controlado por `viewer.features.show_map` (padrão: `true`).
 
 ## Cápsulas
 
-Diaporamas (apresentações de slides) de fotos curadas e agrupadas por tema. Acesse via a rota `/capsules`.
+Diaporamas (apresentações de slides) de fotos curadas, agrupadas por tema. Acesse pela rota `/capsules`.
 
 ### Tipos de Cápsula
 
 As cápsulas são geradas automaticamente a partir da sua biblioteca usando múltiplos algoritmos:
 
-- **Journey** — viagens detectadas via agrupamento por GPS, com nomes de destino geocodificados reversamente ("Journey to Rome — March 2025")
-- **Moments with [Person]** — as melhores fotos de cada pessoa reconhecida
-- **Seasonal Palette** — fotos agrupadas por estação + ano
-- **Golden Collection** — top 1% por pontuação agregada
-- **Color Story** — grupos visualmente similares via agrupamento de embedding CLIP
-- **This Week, Years Ago** — "Neste Dia" estendido por ±3 dias
-- **Location** — clusters de fotos geotagueadas com nomes de lugares
-- **Favorites** — fotos favoritadas agrupadas por ano e estação
-- **Baseadas em dimensão** — geradas automaticamente a partir de câmera, lente, categoria, padrão de composição, faixa de distância focal, hora do dia, classificação por estrelas e combinações entre dimensões
+- **Jornada** — viagens detectadas via agrupamento de GPS, com nomes de destino obtidos por geocodificação reversa ("Jornada a Roma — Março de 2025")
+- **Momentos com [Pessoa]** — melhores fotos de cada pessoa reconhecida
+- **Paleta Sazonal** — fotos agrupadas por estação + ano
+- **Coleção Dourada** — top 1% por pontuação agregada
+- **História de Cores** — grupos visualmente semelhantes via agrupamento de embedding CLIP
+- **Esta Semana, Anos Atrás** — "Neste Dia" estendido por ±3 dias
+- **Localização** — clusters de fotos geolocalizadas com nomes de lugares
+- **Favoritos** — fotos favoritadas agrupadas por ano e estação
+- **Baseadas em dimensão** — geradas automaticamente a partir de câmera, lente, categoria, padrão de composição, faixa de distância focal, hora do dia, avaliação por estrelas e combinações entre dimensões
 
 ### Apresentação de Slides
 
 Clique em qualquer cartão de cápsula para iniciar uma apresentação de slides. Recursos:
-- **Transições temáticas** — slide (journeys), zoom (retratos), kenburns (golden/seasonal), crossfade (padrão)
+- **Transições temáticas** — slide (jornadas), zoom (retratos), kenburns (dourada/sazonal), crossfade (padrão)
 - **Encadeamento automático** — quando uma cápsula termina, um cartão de transição mostra a próxima cápsula antes de continuar
-- **Embaralhar & retomar** — as fotos são embaralhadas para variedade; a posição de retomada é rastreada por cápsula
+- **Embaralhar e retomar** — as fotos são embaralhadas para variar; a posição de retomada é rastreada por cápsula
 - **Agrupamento adaptativo** — fotos em retrato são agrupadas lado a lado com base na proporção da viewport
 - **Salvar como álbum** — salve qualquer cápsula como um álbum permanente
 
 ### Atualização
 
-As cápsulas rotacionam em um cronograma configurável (padrão: 24 horas). As fotos de capa e as cápsulas de descoberta com seed se alinham ao mesmo período de rotação. O botão "Regenerate" no cabeçalho força uma atualização imediata.
+As cápsulas são rotacionadas em um cronograma configurável (padrão: 24 horas). As fotos de capa e as cápsulas de descoberta semeadas alinham-se ao mesmo período de rotação. O botão "Regenerar" no cabeçalho força uma atualização imediata.
 
 ### Geocodificação Reversa
 
-As cápsulas de localização e viagem mostram nomes de lugares (por exemplo, "Paris, France") em vez de coordenadas. Isso usa geocodificação offline via o pacote `reverse_geocoder` — nenhuma chamada de API é necessária. Os resultados são armazenados em cache no banco de dados.
+As cápsulas de localização e jornada mostram nomes de lugares (ex.: "Paris, França") em vez de coordenadas. Isso usa geocodificação offline via o pacote `reverse_geocoder` — sem necessidade de chamadas de API. Os resultados são armazenados em cache no banco de dados.
 
 Instalação: `pip install reverse_geocoder`
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
 ### Configuração
 
 Veja [Configuração — Cápsulas](CONFIGURATION.md#capsules) para todas as configurações.
 
-## Visão Pastas
+## Visão de Pastas
 
-Navegue pela sua biblioteca de fotos por estrutura de diretórios. Acesse via a rota `/folders`.
+Navegue pela sua biblioteca de fotos pela estrutura de diretórios. Acesse pela rota `/folders`.
 
-- Navegação por breadcrumb para subir na árvore de diretórios
-- Cada pasta mostra uma foto de capa (a imagem com maior pontuação naquele diretório)
+- Navegação por trilha de navegação (breadcrumb) para subir na árvore de diretórios
+- Cada pasta mostra uma foto de capa (a imagem de maior pontuação naquele diretório)
 - Clique em uma pasta para entrar nela, ou clique em uma foto para abri-la na galeria
 - Respeita a visibilidade de diretórios multiusuário no modo multiusuário
 
-## Diálogo de Filtro GPS
+## Diálogo de Filtro por GPS
 
 Filtre fotos por localização geográfica usando um seletor de mapa interativo:
 
 - Clique no botão de filtro de localização para abrir o diálogo do mapa
 - Clique ou arraste no mapa para definir um ponto central
-- Ajuste o slider de raio para controlar a área de busca
+- Ajuste o controle deslizante de raio para controlar a área de busca
 - As fotos dentro do raio selecionado são filtradas na galeria
-- Requer coordenadas GPS (execute `--extract-gps` se as fotos tiverem dados de GPS EXIF)
+- Requer coordenadas GPS (execute `--extract-gps` se as fotos tiverem dados GPS EXIF)
 
 ## Sugestões de Mesclagem
 
-Encontre clusters de pessoas que podem ser o mesmo indivíduo. Acesse via `/merge-suggestions` ou na página de Gerenciar Pessoas.
+Encontre clusters de pessoas que podem ser o mesmo indivíduo. Acesse por `/merge-suggestions` ou pela página Gerenciar Pessoas.
 
-- **Slider de limiar de similaridade** — o quão similares duas pessoas devem parecer para serem sugeridas (menor = mais sugestões, maior = menos)
+- **Controle deslizante de limiar de similaridade** — o quão semelhantes duas pessoas devem parecer para serem sugeridas (menor = mais sugestões, maior = menos)
 - **Mesclar** — aceite uma sugestão para mesclar as duas pessoas
 - **Mesclagem em lote** — selecione várias sugestões e mescle-as de uma vez
 - As sugestões descartadas são lembradas e não propostas novamente
 - Também disponível via CLI: `python facet.py --suggest-person-merges`
 
-## Exportação para Editores
+## Exportação para Editor
 
-Escreva suas avaliações, favoritos e rejeições no disco como sidecars XMP, para que editores externos (darktable, Lightroom) os reconheçam. Requer o modo de edição.
+Grave suas avaliações, favoritos e rejeições no disco como sidecars XMP, para que editores externos (darktable, Lightroom) os reconheçam. Requer o modo de edição.
 
-- **A partir da galeria** — selecione fotos, então **Ações → Exportar** escreve um sidecar ao lado de cada arquivo.
-- **A partir de um álbum** ("cesta") — exporte o álbum inteiro como sidecars, ou copie/crie symlink dos arquivos para um diretório de destino.
-- **Escrever metadados no arquivo** — a ação "Write metadata to file" nos detalhes da foto incorpora a classificação/palavras-chave diretamente no arquivo original (JPEG/HEIC/TIFF/PNG/DNG via exiftool) além de escrever o sidecar, para que todo o ecossistema de fotos os enxergue. Os originais RAW proprietários nunca são modificados. Controlada por `viewer.features.show_embed_metadata` (padrão: `true`).
+- **Da galeria** — selecione fotos, então **Ações → Exportar** grava um sidecar ao lado de cada arquivo.
+- **De um álbum** ("cesta") — exporte o álbum inteiro como sidecars, ou copie/crie links simbólicos dos arquivos para um diretório de destino.
+- **Gravar metadados no arquivo** — a ação "Gravar metadados no arquivo" nos detalhes da foto incorpora a avaliação/palavras-chave diretamente no arquivo original (JPEG/HEIC/TIFF/PNG/DNG via exiftool) além de gravar o sidecar, para que todo o ecossistema de fotos os veja. Originais RAW proprietários nunca são modificados. Controlado por `viewer.features.show_embed_metadata` (padrão: `true`).
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
 ## Triagem
 
-A página de triagem (`/culling`, modo de edição) agrupa fotos quase idênticas para que você possa manter a melhor de cada e rejeitar o restante. Duas fontes de grupos:
+A página de triagem (`/culling`, modo de edição) agrupa fotos quase idênticas para que você possa manter a melhor de cada uma e rejeitar o resto. Duas fontes de grupos:
 
-- **Rajada** — fotos tiradas em curto intervalo de tempo (da detecção de rajadas).
-- **Similar** — fotos que se parecem independentemente de quando foram tiradas, agrupadas pela similaridade de embedding CLIP/SigLIP. Um slider de limiar controla o quão rigoroso é o agrupamento.
+- **Sequência** — fotos tiradas próximas no tempo (da detecção de sequências).
+- **Semelhantes** — fotos que se parecem independentemente de quando foram tiradas, agrupadas pela similaridade de embedding CLIP/SigLIP. Um controle deslizante de limiar controla o quão restrito é o agrupamento.
 
-Para cada grupo, escolha a(s) que serão mantidas; confirmar rejeita o restante. As confirmações são adiadas e podem ser desfeitas (veja [Desfazer](#undo)).
+Para cada grupo, escolha a(s) foto(s) a manter; confirmar rejeita o resto. As confirmações são adiadas e podem ser desfeitas (veja [Desfazer](#desfazer)).
+
+**Triagem com escopo.** O laboratório (darkroom) pode ser restringido a um subconjunto via parâmetros de consulta: `?album=<id>` restringe-o a um álbum, e `?from=&to=` (janela de horário de captura EXIF, a base de **Triar esta cena**) restringe-o a uma cena. Um banner mostra o escopo ativo com um controle **Sair da cena**; a busca de membros da sequência permanece com escopo de álbum, mas ignora a janela, então uma sequência que atravessa o limite da cena ainda mostra todos os seus quadros.
+
+**Chip Meu Gosto.** Cada confirmação registra linhas de comparação `source='culling'` que treinam o ranqueador pessoal, então o cabeçalho mostra um pequeno chip "Meu Gosto · N comparações" que se atualiza após cada decisão — a IA aprende seu olhar conforme você tria (`GET /api/ranker/status`).
+
+### Lupa / Zoom com tecla Z
+
+Pressione **`Z`** na lightbox de visualização única para alternar uma lupa no estilo Photo Mechanic (ajuste ↔ 2×; roda/`+`/`-` para zoom de até 800%). Além da escala de ajuste, o painel troca sua miniatura pela fonte `/image` em resolução total, para que você julgue o foco crítico em pixels reais sem sair da visão. Na tira de contato de Cenas, `Z` alterna uma lupa flutuante que segue o cursor sobre um ladrilho (originada da imagem em resolução total), com um controle deslizante de zoom ajustável. As miniaturas armazenadas têm um limite de 640px, então a lupa é a forma de inspecionar pixels além disso.
 
 ### Selos por Rosto
 
-Na lightbox de triagem de rajada/similar, cada rosto detectado carrega seus próprios selos — olhos abertos/fechados, expressão ruim e confiança de detecção — em vez de uma única marcação de piscada em nível de foto. Isso torna fotos de grupo mais fáceis de triar: você pode ver de relance qual rosto tem olhos fechados ou uma expressão fraca. Os selos são buscados para um grupo inteiro em uma única chamada em lote (`POST /api/culling-group/faces`).
+Na lightbox de triagem de sequência/semelhantes, cada rosto detectado carrega seus próprios selos — olhos abertos/fechados, expressão ruim e confiança da detecção — em vez de uma única marcação de piscada por foto. Isso facilita a triagem de fotos em grupo: você pode ver de relance qual rosto tem os olhos fechados ou uma expressão fraca. Os selos são buscados para um grupo inteiro em uma única chamada em lote (`POST /api/culling-group/faces`).
 
-**Comparação sincronizada (2-up / 4-up).** O cabeçalho da lightbox tem botões Single / Compare 2 / Compare 4. No modo de comparação, os painéis compartilham uma única transformação de pan/zoom, então o zoom da roda de rolagem ou o pan por arrasto em qualquer painel move todos para o recorte idêntico — a forma de escolher o quadro mais nítido de uma rajada inspecionando os pixels de verdade. O duplo clique alterna entre ajustar ↔ zoom; passada a escala de ajuste, cada painel troca preguiçosamente sua miniatura de 1920px pela fonte `/image` em resolução total para que a inspeção fique nítida. Nenhuma mudança no backend — ambas as rotas de imagem já existem. (O pinch por toque ainda não está conectado; use a roda no desktop.)
+**Comparação sincronizada (2-up / 4-up).** O cabeçalho da lightbox tem botões Único / Comparar 2 / Comparar 4. No modo de comparação, os painéis compartilham uma única transformação de panorâmica/zoom, então o zoom com roda do mouse ou panorâmica com arrasto em qualquer painel move todos para o recorte idêntico — a forma de escolher o quadro mais nítido de uma sequência inspecionando pixels de verdade. O duplo clique alterna ajuste ↔ zoom; além da escala de ajuste, cada painel troca preguiçosamente sua miniatura de 1920px pela fonte `/image` em resolução total, para que a inspeção fique nítida. Sem mudança no backend — ambas as rotas de imagem já existem. (O pinçar por toque ainda não está implementado; use a roda no desktop.)
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
-## Visão Cenas
+## Visão de Cenas
 
-Agrupe fotos líderes de rajada em "cenas" cronológicas para que você possa triar uma sessão inteira na ordem da história. As fotos são divididas em cenas por intervalos de tempo de captura (uma nova cena começa quando passam mais de `scenes.gap_minutes` entre fotos consecutivas, ampliado de forma adaptativa em sessões esparsas), e qualquer sequência excessivamente longa é subdividida para que um evento fotografado continuamente nunca colapse em uma única cena gigante. Cada cena tem um botão primário **Cull this scene** que abre o câmara escura de triagem completa com escopo apenas para aquela cena (detecção de rajadas, marcações de piscada, pontuações de qualidade, close-ups de rosto, lupa), além de uma faixa de **Quick reject**. Acesse via a rota `/scenes` (ícone de navegação "theaters"); também acessível por álbum a partir da grade de Álbuns.
+Agrupa fotos líderes de sequência em "cenas" cronológicas para que você possa triar uma sessão inteira na ordem da história. As fotos são divididas em cenas por intervalos de horário de captura (uma nova cena começa quando mais de `scenes.gap_minutes` passam entre fotos consecutivas, ampliado de forma adaptativa em sessões esparsas), e qualquer sequência longa demais é subdividida para que um evento fotografado continuamente nunca colapse em uma única cena gigante. Cada cena tem um botão principal **Triar esta cena** que abre o laboratório de triagem completo com escopo apenas para aquela cena (detecção de sequências, marcações de piscadas, pontuações de qualidade, close-ups de rostos, lupa), além de uma tira de **Rejeição rápida**. Acesse pela rota `/scenes` (ícone de navegação "theaters"); também acessível por álbum a partir da grade de Álbuns.
+
+Quando os momentos narrativos são computados (abaixo), cada cena também é intitulada por seu momento dominante, e `scenes.split_on_moment_change` pode subdividir uma sequência longa onde o momento muda.
+
+## Momentos Narrativos
+
+O Facet rotula cada foto com o "momento" do evento que ela retrata — para um casamento: preparativos (noiva/noivo), entrada da cerimônia, votos, troca de alianças, primeiro beijo, saída, fotos de família, retratos do casal, hora do coquetel, detalhes da recepção, jantar/brindes, corte do bolo, primeira dança, festa, despedida — ou `other`. Nem o Narrative Select nem o AfterShoot fazem isso; eles agrupam apenas por tempo e similaridade visual.
+
+É **zero-shot e totalmente local**: o embedding CLIP/SigLIP armazenado é comparado por similaridade de cosseno a prompts de texto agregados por média (mean-pooled) para cada momento (L0), ajustado por pequenos priors de rosto/tag (L1), depois **suavizado ao longo da linha do tempo** com uma passagem de Viterbi para que uma leitura incorreta isolada seja puxada de volta para a sequência circundante (L2). Um desempate opcional por VLM (L3, 16gb/24gb) pode rejulgar quadros de baixa confiança. Como é apenas um produto escalar sobre embeddings já presentes no banco de dados — sem decodificação de imagem, sem passagem de modelo por imagem — é barato e **roda automaticamente ao final de cada varredura**; reprocesse a biblioteca inteira com `python facet.py --recompute-moments`.
+
+Os momentos surgem como títulos de cenas e como um filtro de galeria (`GET /api/photos?narrative_moment=vows`, opções de `GET /api/filter_options/narrative_moments`). O vocabulário é controlado por configuração por tipo de evento — veja [Configuração — Momentos Narrativos](CONFIGURATION.md#narrative-moments) para ajustar prompts/limiares ou adicionar um gênero não relacionado a casamentos.
 
 - Cada cena mostra suas fotos líderes na ordem de captura
-- Toque nas fotos para marcá-las para triagem; confirmar as rejeita e alimenta o ranqueador pessoal
+- Toque nas fotos para marcá-las para triagem; confirmar rejeita-as e alimenta o ranqueador pessoal
 - Cenas menores que `scenes.min_size` são omitidas; no máximo `scenes.max_photos` fotos são carregadas
 
-API: veja a seção [Endpoints da API](#api-endpoints) abaixo.
+API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
-Controlada por `viewer.features.show_scenes` (padrão: `true`). Veja [Configuração — Cenas](CONFIGURATION.md#scenes) para `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` e `adaptive_k`.
+Controlado por `viewer.features.show_scenes` (padrão: `true`). Veja [Configuração — Cenas](CONFIGURATION.md#scenes) para `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` e `adaptive_k`.
 
-## Modo de Comparação por Pares
+## Modo de Comparação Pareada
 
-Ranqueie fotos julgando-as duas de cada vez. Os votos acumulados alimentam o ajuste de pesos. Acesse via a rota `/compare` (botão Compare no cabeçalho). Requer uma `edition_password` não vazia (usuário único) ou o papel `admin`/`superadmin` (multiusuário).
+Ranqueie fotos julgando-as de duas em duas. Os votos acumulados alimentam o ajuste de pesos. Acesse pela rota `/compare` (botão Comparar no cabeçalho). Requer uma `edition_password` não vazia (usuário único) ou o papel `admin`/`superadmin` (multiusuário).
 
 A página tem quatro abas:
 
-### Aba Comparação A/B
+### Aba Comparar A/B
 
-Pares de fotos lado a lado. Escolha um vencedor, marque um empate ou pule. Uma barra de progresso rastreia os votos até 50, com contagens correntes de vitórias-A/vitórias-B/empate. Um filtro de categoria define o escopo da sessão, e um dropdown de estratégia de seleção controla como os pares são escolhidos.
+Pares de fotos lado a lado. Escolha um vencedor, marque um empate ou pule. Uma barra de progresso rastreia os votos em direção a 50, com contagens correntes de vitórias-A/vitórias-B/empates. Um filtro de categoria define o escopo da sessão, e um menu suspenso de estratégia de seleção controla como os pares são escolhidos.
 
 | Estratégia | Descrição |
 |----------|-------------|
-| `uncertainty` | Fotos com pontuações similares (mais informativas) |
+| `uncertainty` | Fotos com pontuações semelhantes (mais informativas) |
 | `boundary` | Faixa de pontuação 6–8 (zona ambígua) |
 | `active` | Fotos com o menor número de comparações (garante cobertura) |
 | `random` | Pares aleatórios (linha de base) |
@@ -525,99 +542,99 @@ Pares de fotos lado a lado. Escolha um vencedor, marque um empate ou pule. Uma b
 | `S` | Pular par |
 | `Escape` | Fechar o modal de substituição de categoria |
 
-### Aba Sugestões de Peso
+### Aba Sugestões de Pesos
 
-Mostra os pesos aprendidos das comparações em relação aos pesos atuais, lado a lado, com a acurácia do modelo antes/depois. As 10 melhores fotos atuais e as 10 melhores previstas após o recálculo são pré-visualizadas em colunas adjacentes. **Aplicar** escreve os pesos sugeridos; **Recalcular** repontua a categoria para aplicá-los (ambos requerem o modo de edição).
+Mostra os pesos aprendidos das comparações em relação aos pesos atuais, lado a lado, com a precisão do modelo antes/depois. As top 10 fotos atuais e as top 10 previstas após o recálculo são visualizadas em colunas adjacentes. **Aplicar** grava os pesos sugeridos; **Recalcular** repontua a categoria para aplicá-los (ambos requerem o modo de edição).
 
 ### Aba Pesos
 
-Editor manual de pesos: um slider por métrica para a categoria selecionada com uma pré-visualização de pontuação ao vivo. **Salvar** escreve no `scoring_config.json` (com um backup); **Recalcular Pontuações** os aplica; **Redefinir** recarrega os pesos armazenados.
+Editor de pesos manual: um controle deslizante por métrica para a categoria selecionada com uma prévia de pontuação ao vivo. **Salvar** grava no `scoring_config.json` (com um backup); **Recalcular Pontuações** os aplica; **Redefinir** recarrega os pesos armazenados.
 
-### Aba Snapshots
+### Aba Instantâneos
 
-Salve os pesos atuais como um snapshot nomeado e restaure qualquer snapshot anterior.
+Salve os pesos atuais como um instantâneo nomeado e restaure qualquer instantâneo anterior.
 
 ### Substituição de Categoria
 
-Para reatribuir a categoria de uma foto a partir da visão de comparação: edite o selo de categoria, selecione uma categoria de destino, execute "Analyze Filter Conflicts" para ver quais filtros a excluem, então aplique a substituição.
+Para reatribuir a categoria de uma foto a partir da visão de comparação: edite o selo de categoria, selecione uma categoria de destino, execute "Analisar Conflitos de Filtro" para ver quais filtros a excluem, depois aplique a substituição.
 
 ## Estatísticas EXIF
 
-A página de Estatísticas (`/stats`) fornece análises em 5 abas. Use os seletores de **categoria** e **faixa de datas** na barra de ferramentas para filtrar todos os gráficos para um subconjunto específico da sua biblioteca.
+A página de Estatísticas (`/stats`) fornece análises em 5 abas. Use os seletores de **categoria** e **intervalo de datas** na barra de ferramentas para filtrar todos os gráficos para um subconjunto específico da sua biblioteca.
 
 ### Abas
 
 | Aba | Descrição |
 |-----|-------------|
-| **Equipamento** | Corpos de câmera, lentes e combos (top 20 de cada) |
+| **Equipamento** | Corpos de câmera, lentes e combinações (top 20 de cada) |
 | **Configurações de Captura** | Distribuições de ISO, abertura, distância focal, velocidade do obturador |
 | **Linha do Tempo** | Fotos ao longo do tempo |
 | **Categorias** | Análises de categoria, gerenciamento de pesos e correlações de pontuação |
-| **Correlações** | Gráficos personalizados de correlação de métricas X/Y com agrupamento |
+| **Correlações** | Gráficos de correlação personalizados de métrica X/Y com agrupamento |
 
 ### Aba Categorias
 
-Quatro subabas:
+Quatro sub-abas:
 
-| Subaba | Descrição |
+| Sub-aba | Descrição |
 |---------|-------------|
 | **Detalhamento** | Contagens de fotos por categoria, pontuações médias, histogramas de distribuição de pontuação |
 | **Pesos** | Comparação por gráfico de radar (até 5 categorias), mapa de calor de pesos e editor de pesos (modo de edição) |
 | **Correlações** | Mapa de calor de correlação de Pearson mostrando como cada dimensão influencia a agregada, visão de detalhe ao clicar |
 | **Sobreposição** | Análise de sobreposição de filtros mostrando quais categorias compartilham fotos correspondentes |
 
-Cada gráfico tem um botão de ajuda `?` alternável explicando como lê-lo. Uma alternância de ajuda global na barra de subabas mostra explicações para todas as subabas.
+Cada gráfico tem um botão de ajuda `?` alternável que explica como lê-lo. Uma alternância de ajuda global na barra de sub-abas mostra as explicações de todas as sub-abas.
 
 ### Editor de Pesos (Modo de Edição)
 
-Disponível na subaba Pesos quando o modo de edição está ativo:
+Disponível na sub-aba Pesos quando o modo de edição está ativo:
 
-1. Selecione uma categoria no dropdown
-2. Ajuste os sliders de peso (um por métrica, devem somar 100%)
-3. Use "Normalize to 100" para auto-balancear
+1. Selecione uma categoria no menu suspenso
+2. Ajuste os controles deslizantes de peso (um por métrica, devem somar 100%)
+3. Use "Normalizar para 100" para autobalancear
 4. Expanda a seção recolhível de Modificadores para ajustar bônus/penalidades
-5. A **Pré-visualização de Distribuição de Pontuação** mostra um histograma ao vivo de antes/depois conforme você move os sliders
-6. Clique em **Salvar** para atualizar o `scoring_config.json` (cria um backup com timestamp)
+5. A **Prévia de Distribuição de Pontuação** mostra um histograma ao vivo antes/depois conforme você move os controles deslizantes
+6. Clique em **Salvar** para atualizar o `scoring_config.json` (cria um backup com data e hora)
 7. Clique em **Recalcular Pontuações** (aparece após salvar) para aplicar os novos pesos a todas as fotos daquela categoria
 
-Todas as estatísticas são sensíveis ao usuário no modo multiusuário — cada usuário vê análises apenas para suas fotos visíveis.
+Todas as estatísticas são sensíveis ao usuário no modo multiusuário — cada usuário vê análises apenas de suas fotos visíveis.
 
 ## Atalhos de Teclado (Galeria)
 
 | Tecla | Ação |
 |-----|--------|
-| `←` `→` `↑` `↓` | Mover o foco do teclado entre os cartões de foto (colunas da grade e linhas do mosaico) |
-| `Enter` | Abrir a foto em foco |
-| `Space` | Selecionar / desmarcar a foto em foco |
-| `Ctrl+A` | Selecionar todas as fotos carregadas |
-| `Escape` | Limpar a seleção / fechar a gaveta de filtros |
-| `Shift+Click` | Selecionar o intervalo de fotos entre a última selecionada e a clicada |
-| `Double-click` | Abrir foto |
-| `?` | Mostrar a referência de atalhos de teclado (funciona em todas as páginas) |
+| `←` `→` `↑` `↓` | Move o foco do teclado entre os cartões de foto (colunas da grade e linhas do mosaico) |
+| `Enter` | Abre a foto em foco |
+| `Space` | Seleciona / desseleciona a foto em foco |
+| `Ctrl+A` | Seleciona todas as fotos carregadas |
+| `Escape` | Limpa a seleção / fecha a gaveta de filtros |
+| `Shift+Click` | Seleciona em intervalo as fotos entre a última selecionada e a clicada |
+| `Double-click` | Abre a foto |
+| `?` | Mostra a referência de atalhos de teclado (funciona em todas as páginas) |
 
 ## Desfazer
 
-Operações em lote de favoritar/rejeitar/avaliar e confirmações de triagem mostram uma
-snackbar com uma ação **Desfazer** por ~7 segundos. As operações de marcação em lote são
-confirmadas imediatamente e desfeitas via chamadas de API inversas (limitadas a 500 fotos);
-as confirmações de triagem são adiadas — o grupo desaparece instantaneamente, mas a chamada
-de API só é disparada quando a janela de desfazer expira.
+Operações em lote de favoritar/rejeitar/avaliar e confirmações de triagem mostram uma snackbar
+com uma ação **Desfazer** por cerca de 7 segundos. As operações de marcação em lote são confirmadas
+imediatamente e desfeitas por chamadas de API inversas (limitadas a 500 fotos); as confirmações
+de triagem são adiadas — o grupo desaparece instantaneamente, mas a chamada de API só
+dispara quando a janela de desfazer expira.
 
 ## Progressive Web App
 
 O visualizador inclui um manifesto de web app e um service worker do Angular (apenas em
 builds de produção): ele pode ser instalado na tela inicial, o app shell carrega
 offline, e até 1000 miniaturas são armazenadas em cache LRU por 7 dias. As respostas da API
-nunca são armazenadas em cache (exceto os pacotes de i18n com uma estratégia de atualização), e o logout
-limpa o cache de miniaturas para que configurações multiusuário que compartilham um navegador não vazem
-pré-visualizações entre contas. Uma snackbar oferece um recarregamento quando uma nova versão foi
+nunca são armazenadas em cache (exceto os bundles de i18n com uma estratégia de atualização), e o logout
+limpa o cache de miniaturas para que configurações multiusuário compartilhando um navegador não vazem
+prévias entre contas. Uma snackbar oferece um recarregamento quando uma nova versão é
 implantada.
 
 ## Mobile
 
-Em telas pequenas, a barra de seleção em lote se reduz à contagem da seleção,
-limpar, selecionar tudo e um único botão **Ações** que abre uma
-bottom sheet amigável ao toque com todas as operações em lote (favoritar, rejeitar, avaliar, álbuns, copiar,
+Em telas pequenas, a barra de seleção em lote colapsa para a contagem da seleção,
+limpar, selecionar-tudo e um único botão **Ações** que abre uma folha inferior
+amigável ao toque com todas as operações em lote (favoritar, rejeitar, avaliar, álbuns, copiar,
 baixar).
 
 ## Configuração
@@ -649,7 +666,7 @@ baixar).
 }
 ```
 
-### Limites de Dropdown
+### Limites de Menus Suspensos
 
 ```json
 {
@@ -665,7 +682,7 @@ baixar).
 }
 ```
 
-Defina `min_photos_for_person` mais alto para ocultar pessoas com poucas fotos do dropdown de filtro.
+Defina `min_photos_for_person` mais alto para ocultar do menu suspenso de filtro as pessoas com poucas fotos.
 
 ### Limiares de Qualidade
 
@@ -702,7 +719,7 @@ Defina `min_photos_for_person` mais alto para ocultar pessoas com poucas fotos d
 }
 ```
 
-### Pesos de Top Picks
+### Pesos das Melhores Escolhas
 
 ```json
 {
@@ -725,7 +742,7 @@ Defina `min_photos_for_person` mais alto para ocultar pessoas com poucas fotos d
 
 ### Bancos de Dados Grandes (50k+ fotos)
 
-Execute estes para um melhor desempenho:
+Execute estes comandos para melhor desempenho:
 
 ```bash
 python database.py --migrate-tags    # 10-50x faster tag queries
@@ -733,19 +750,19 @@ python database.py --refresh-stats   # Precompute aggregations
 python database.py --optimize        # Defragment database
 ```
 
-### SQLite Assíncrono (opt-in, para caminhos de leitura de alta concorrência)
+### SQLite Assíncrono (opcional, para caminhos de leitura de alta concorrência)
 
 `api.database.get_async_db()` é um gerenciador de contexto assíncrono apoiado por aiosqlite,
-paralelo a `get_db()`. Os endpoints são atualmente síncronos (o FastAPI os delega
-a um pool de threads de trabalho, o que é adequado em concorrência típica). Para caminhos
-de leitura de alta concorrência (>5 usuários simultâneos), endpoints individuais podem ser
+paralelo ao `get_db()`. Os endpoints são atualmente síncronos (o FastAPI os delega
+a um pool de threads de trabalho, o que é adequado para concorrência típica). Para caminhos de
+leitura de alta concorrência (>5 usuários simultâneos), endpoints individuais podem ser
 migrados assim:
 
 1. Mude `def foo(...)` para `async def foo(...)`.
 2. Substitua `with get_db() as conn:` por `async with get_async_db() as conn:`.
 3. Use `await` em cada `.execute()` e `.fetchone()` / `.fetchall()`.
-4. Mantenha os caminhos de escrita síncronos — o aiosqlite serializa as escritas de qualquer forma, e o pool de
-   conexões do caminho síncrono já as gerencia.
+4. Mantenha os caminhos de escrita síncronos — o aiosqlite serializa as escritas de qualquer forma, e o
+   pool de conexões do caminho síncrono já as gerencia.
 
 Os candidatos mais quentes do plano são `/api/photos`, `/api/timeline`,
 `/api/search`. Migre um de cada vez e faça benchmark antes de promover.
@@ -765,7 +782,7 @@ python database.py --stats-info
 
 ### Carregamento Preguiçoso de Filtros
 
-Os dropdowns de filtro carregam sob demanda via API:
+Os menus suspensos de filtro carregam sob demanda via API:
 - `/api/filter_options/cameras`
 - `/api/filter_options/lenses`
 - `/api/filter_options/tags`
@@ -788,20 +805,20 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `GET /api/photos` | Lista paginada de fotos com filtros |
 | `GET /api/photo` | Detalhes de uma única foto |
 | `GET /api/type_counts` | Contagens de fotos por tipo |
-| `GET /api/similar_photos/{path}` | Fotos similares (modos: `visual`, `color`, `person`) |
-| `GET /api/search?q=&limit=&threshold=&scope=` | Busca semântica de texto para imagem (`scope=text` = apenas texto de OCR/legenda) |
+| `GET /api/similar_photos/{path}` | Fotos semelhantes (modos: `visual`, `color`, `person`) |
+| `GET /api/search?q=&limit=&threshold=&scope=` | Busca semântica de texto para imagem (`scope=text` = apenas texto OCR/legenda) |
 | `GET /api/critique?path=&mode=` | Crítica por IA (baseada em regras ou VLM) |
-| `GET /api/ranker/status` | Status do ranqueador pessoal para a ordenação "My Taste" (% de cobertura aprendida, acurácia em dados retidos) |
+| `GET /api/ranker/status` | Status do ranqueador pessoal para a ordenação "Meu Gosto" (% de cobertura aprendida, precisão em dados retidos) |
 | `GET /api/config` | Configuração do visualizador |
 
 ### Autenticação
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `POST /api/auth/login` | Autenticar e receber token |
-| `POST /api/auth/edition/login` | Desbloquear o modo de edição |
-| `POST /api/auth/edition/logout` | Bloquear o modo de edição (perder privilégios, permanecer autenticado) |
-| `GET /api/auth/status` | Verificar o status de autenticação |
+| `POST /api/auth/login` | Autentica e recebe um token |
+| `POST /api/auth/edition/login` | Desbloqueia o modo de edição |
+| `POST /api/auth/edition/logout` | Bloqueia o modo de edição (abandona privilégios, permanece autenticado) |
+| `GET /api/auth/status` | Verifica o status de autenticação |
 
 ### Miniaturas e Imagens
 
@@ -825,65 +842,65 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `GET /api/filter_options/apertures` | Valores distintos de f-stop com contagens |
 | `GET /api/filter_options/focal_lengths` | Distâncias focais distintas com contagens |
 | `GET /api/filter_options/colors` | Facetas de temperatura de cor e faixa de matiz com contagens |
-| `GET /api/filter_options/metric_ranges` | Mín/máx observados e histograma por métrica numérica (para os limites do slider) |
+| `GET /api/filter_options/metric_ranges` | Mín/máx observados e histograma por métrica numérica (para limites do controle deslizante) |
 
 ### Operações em Lote
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `POST /api/photos/batch_favorite` | Marcar múltiplas fotos como favoritas |
-| `POST /api/photos/batch_reject` | Marcar múltiplas fotos como rejeitadas |
-| `POST /api/photos/batch_rating` | Definir classificação por estrelas para múltiplas fotos |
+| `POST /api/photos/batch_favorite` | Marca várias fotos como favoritas |
+| `POST /api/photos/batch_reject` | Marca várias fotos como rejeitadas |
+| `POST /api/photos/batch_rating` | Define a avaliação por estrelas para várias fotos |
 
 ### Pessoas
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/persons` | Listar todas as pessoas |
-| `POST /api/persons` | Criar uma nova pessoa, opcionalmente anexando rostos (restrito ao modo de edição). Corpo: `{name, face_ids}` |
-| `GET /api/persons/needs_naming?min_faces=N` | Listar pessoas auto-agrupadas sem nome com `face_count >= N` (padrão de `viewer.persons.needs_naming_min_faces`) |
-| `POST /api/persons/{id}/rename` | Renomear uma pessoa |
-| `POST /api/persons/{id}/assign_faces` | Anexar rostos em massa a uma pessoa; pessoas antigas vazias são auto-excluídas (restrito ao modo de edição). Corpo: `{face_ids}` |
-| `POST /api/persons/{id}/split` | Dividir um subconjunto dos rostos de uma pessoa em uma nova pessoa (restrito ao modo de edição). Corpo: `{face_ids, name}` |
-| `POST /api/persons/{id}/hide` | Ocultar uma pessoa da lista, dos filtros e das sugestões de mesclagem |
-| `POST /api/persons/{id}/unhide` | Reexibir uma pessoa previamente ocultada |
-| `POST /api/persons/merge` | Mesclar duas pessoas (corpo JSON) |
-| `POST /api/persons/merge/{source_id}/{target_id}` | Mesclar pessoa de origem no alvo |
-| `POST /api/persons/merge_batch` | Mesclar múltiplas pessoas de uma vez |
-| `POST /api/persons/merge_suggestions/reject` | Descartar uma sugestão de mesclagem para que não seja proposta novamente |
-| `POST /api/persons/{id}/delete` | Excluir uma pessoa |
-| `POST /api/persons/delete_batch` | Excluir múltiplas pessoas de uma vez |
+| `GET /api/persons` | Lista todas as pessoas |
+| `POST /api/persons` | Cria uma nova pessoa, opcionalmente anexando rostos (restrito à edição). Corpo: `{name, face_ids}` |
+| `GET /api/persons/needs_naming?min_faces=N` | Lista pessoas agrupadas automaticamente e sem nome com `face_count >= N` (padrão de `viewer.persons.needs_naming_min_faces`) |
+| `POST /api/persons/{id}/rename` | Renomeia uma pessoa |
+| `POST /api/persons/{id}/assign_faces` | Anexa rostos em massa a uma pessoa; pessoas antigas vazias são excluídas automaticamente (restrito à edição). Corpo: `{face_ids}` |
+| `POST /api/persons/{id}/split` | Divide um subconjunto dos rostos de uma pessoa em uma nova pessoa (restrito à edição). Corpo: `{face_ids, name}` |
+| `POST /api/persons/{id}/hide` | Oculta uma pessoa da lista, filtros e sugestões de mesclagem |
+| `POST /api/persons/{id}/unhide` | Reexibe uma pessoa anteriormente oculta |
+| `POST /api/persons/merge` | Mescla duas pessoas (corpo JSON) |
+| `POST /api/persons/merge/{source_id}/{target_id}` | Mescla a pessoa de origem no destino |
+| `POST /api/persons/merge_batch` | Mescla várias pessoas de uma vez |
+| `POST /api/persons/merge_suggestions/reject` | Descarta uma sugestão de mesclagem para que não seja proposta novamente |
+| `POST /api/persons/{id}/delete` | Exclui uma pessoa |
+| `POST /api/persons/delete_batch` | Exclui várias pessoas de uma vez |
 
 ### Álbuns
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/albums` | Listar todos os álbuns |
-| `POST /api/albums` | Criar álbum |
-| `GET /api/albums/{id}` | Obter detalhes do álbum |
-| `PUT /api/albums/{id}` | Atualizar álbum |
-| `DELETE /api/albums/{id}` | Excluir álbum |
-| `GET /api/albums/{id}/photos` | Listar fotos no álbum (paginado) |
-| `POST /api/albums/{id}/photos` | Adicionar fotos ao álbum |
-| `DELETE /api/albums/{id}/photos` | Remover fotos do álbum |
-| `POST /api/albums/{id}/share` | Gerar token de compartilhamento |
-| `DELETE /api/albums/{id}/share` | Revogar token de compartilhamento |
-| `GET /api/shared/album/{id}?token=` | Visualizar álbum compartilhado (sem autenticação) |
+| `GET /api/albums` | Lista todos os álbuns |
+| `POST /api/albums` | Cria um álbum |
+| `GET /api/albums/{id}` | Obtém os detalhes do álbum |
+| `PUT /api/albums/{id}` | Atualiza o álbum |
+| `DELETE /api/albums/{id}` | Exclui o álbum |
+| `GET /api/albums/{id}/photos` | Lista as fotos do álbum (paginado) |
+| `POST /api/albums/{id}/photos` | Adiciona fotos ao álbum |
+| `DELETE /api/albums/{id}/photos` | Remove fotos do álbum |
+| `POST /api/albums/{id}/share` | Gera um token de compartilhamento |
+| `DELETE /api/albums/{id}/share` | Revoga o token de compartilhamento |
+| `GET /api/shared/album/{id}?token=` | Visualiza o álbum compartilhado (sem autenticação) |
 
-### Memórias, Linha do Tempo, Mapa & Legendas
+### Memórias, Linha do Tempo, Mapa e Legendas
 
 | Endpoint | Descrição |
 |----------|-------------|
 | `GET /api/memories?date=` | Fotos tiradas nesta data em anos anteriores |
-| `GET /api/memories/check` | Verificar se existem memórias para uma data |
-| `GET /api/caption?path=` | Obter ou gerar legenda por IA |
-| `PUT /api/caption` | Atualizar a legenda da foto (modo de edição) |
+| `GET /api/memories/check` | Verifica se existem memórias para uma data |
+| `GET /api/caption?path=` | Obtém ou gera uma legenda por IA |
+| `PUT /api/caption` | Atualiza a legenda da foto (modo de edição) |
 | `GET /api/timeline?cursor=&limit=&direction=` | Fotos paginadas da linha do tempo |
 | `GET /api/timeline/dates?year=&month=` | Datas disponíveis para navegação |
 | `GET /api/timeline/years` | Anos disponíveis com contagens de fotos |
 | `GET /api/timeline/months` | Meses disponíveis para um ano |
-| `GET /api/photos/map?bounds=&zoom=&limit=` | Fotos geotagueadas dentro dos limites |
-| `GET /api/photos/map/count` | Contagem de fotos geotagueadas |
+| `GET /api/photos/map?bounds=&zoom=&limit=` | Fotos geolocalizadas dentro dos limites |
+| `GET /api/photos/map/count` | Contagem de fotos geolocalizadas |
 
 ### Cápsulas
 
@@ -891,7 +908,7 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 |----------|-------------|
 | `GET /api/capsules` | Lista paginada de cápsulas (em cache) |
 | `GET /api/capsules/{id}/photos` | Fotos de uma cápsula específica |
-| `POST /api/capsules/{id}/save-album` | Salvar cápsula como álbum (modo de edição) |
+| `POST /api/capsules/{id}/save-album` | Salva a cápsula como álbum (modo de edição) |
 
 ### Estatísticas
 
@@ -900,133 +917,133 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `GET /api/stats/overview` | Resumo geral das estatísticas de pontuação |
 | `GET /api/stats/score_distribution` | Dados do histograma de distribuição de pontuação |
 | `GET /api/stats/top_cameras` | Principais câmeras por contagem de fotos |
-| `GET /api/stats/categories` | Contagens e médias por categoria |
-| `GET /api/stats/gear` | Contagens de câmera/lente/combo |
+| `GET /api/stats/categories` | Contagens e médias de categorias |
+| `GET /api/stats/gear` | Contagens de câmera/lente/combinação |
 | `GET /api/stats/settings` | Distribuições de configurações de captura |
 | `GET /api/stats/timeline` | Dados da linha do tempo |
 | `GET /api/stats/correlations` | Correlações de métricas personalizadas |
 | `GET /api/stats/categories/breakdown` | Contagens de fotos por categoria e distribuições de pontuação |
 | `GET /api/stats/categories/weights` | Pesos e modificadores de categoria da configuração |
-| `GET /api/stats/categories/correlations` | Correlação de Pearson r por dimensão por categoria |
-| `GET /api/stats/categories/metrics?category=X` | Valores brutos de métricas para pré-visualização no cliente |
+| `GET /api/stats/categories/correlations` | Correlação r de Pearson por dimensão por categoria |
+| `GET /api/stats/categories/metrics?category=X` | Valores brutos de métricas para prévia no cliente |
 | `GET /api/stats/categories/overlap` | Análise de sobreposição de filtros entre categorias |
-| `POST /api/stats/categories/update` | Atualizar pesos/modificadores de categoria (modo de edição) |
-| `POST /api/stats/categories/recompute` | Recalcular pontuações para uma categoria (modo de edição) |
+| `POST /api/stats/categories/update` | Atualiza pesos/modificadores de categoria (modo de edição) |
+| `POST /api/stats/categories/recompute` | Recalcula as pontuações de uma categoria (modo de edição) |
 
 ### Modo de Comparação
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Obter o próximo par de fotos para comparação |
-| `POST /api/comparison/submit` | Enviar resultado da comparação |
-| `POST /api/comparison/reset` | Redefinir dados de comparação |
+| `GET /api/comparison/next_pair` | Obtém o próximo par de fotos para comparação |
+| `POST /api/comparison/submit` | Envia o resultado da comparação |
+| `POST /api/comparison/reset` | Redefine os dados de comparação |
 | `GET /api/comparison/stats` | Estatísticas da sessão de comparação |
-| `GET /api/comparison/history` | Listar comparações anteriores |
-| `POST /api/comparison/edit` | Editar um resultado de comparação |
-| `POST /api/comparison/delete` | Excluir uma comparação |
-| `GET /api/comparison/coverage` | Cobertura de categoria das comparações |
+| `GET /api/comparison/history` | Lista comparações anteriores |
+| `POST /api/comparison/edit` | Edita o resultado de uma comparação |
+| `POST /api/comparison/delete` | Exclui uma comparação |
+| `GET /api/comparison/coverage` | Cobertura de comparações por categoria |
 | `GET /api/comparison/confidence` | Métricas de confiança para pontuações aprendidas |
 | `GET /api/comparison/photo_metrics` | Métricas brutas das fotos |
 | `GET /api/comparison/category_weights` | Pesos/filtros de categoria |
-| `GET /api/comparison/learned_weights` | Pesos sugeridos a partir das comparações |
-| `POST /api/comparison/preview_score` | Pré-visualização com pesos personalizados |
-| `POST /api/comparison/suggest_filters` | Analisar conflitos de filtro |
-| `POST /api/comparison/override_category` | Substituir a categoria da foto |
-| `POST /api/recalculate` | Recalcular pontuações com os pesos atuais |
+| `GET /api/comparison/learned_weights` | Pesos sugeridos a partir de comparações |
+| `POST /api/comparison/preview_score` | Prévia com pesos personalizados |
+| `POST /api/comparison/suggest_filters` | Analisa conflitos de filtro |
+| `POST /api/comparison/override_category` | Substitui a categoria da foto |
+| `POST /api/recalculate` | Recalcula as pontuações com os pesos atuais |
 
-### Triagem de Rajadas
+### Triagem de Sequências
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/burst-groups` | Listar grupos de rajada para triagem |
-| `POST /api/burst-groups/select` | Selecionar as mantidas de um grupo de rajada |
-| `GET /api/similar-groups?threshold=&page=&per_page=` | Grupos de fotos visualmente similares |
-| `POST /api/similar-groups/select` | Selecionar as mantidas de um grupo similar |
-| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos combinados de rajada e similares. `exclude_rejected` (padrão `true`) oculta fotos com `is_rejected=1`; grupos com menos de 2 fotos restantes são descartados |
-| `POST /api/culling-groups/confirm` | Confirmar seleções de triagem |
+| `GET /api/burst-groups` | Lista grupos de sequência para triagem |
+| `POST /api/burst-groups/select` | Seleciona as fotos a manter de um grupo de sequência |
+| `GET /api/similar-groups?threshold=&page=&per_page=` | Grupos de fotos visualmente semelhantes |
+| `POST /api/similar-groups/select` | Seleciona as fotos a manter de um grupo semelhante |
+| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos combinados de sequência e semelhantes. `exclude_rejected` (padrão `true`) oculta fotos com `is_rejected=1`; grupos com menos de 2 fotos restantes são descartados |
+| `POST /api/culling-groups/confirm` | Confirma as seleções de triagem |
 | `POST /api/culling-group/faces` | Selos por rosto (olhos abertos/fechados, expressão, confiança) para um grupo, em um único lote |
-| `GET /api/scenes` | Cenas cronológicas de fotos líderes de rajada |
-| `POST /api/scenes/confirm` | Confirmar seleções de triagem de cena |
+| `GET /api/scenes` | Cenas cronológicas de fotos líderes de sequência |
+| `POST /api/scenes/confirm` | Confirma as seleções de triagem de cena |
 
 ### Varredura
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `POST /api/scan/start` | `[Superadmin]` Iniciar uma varredura de pontuação |
-| `GET /api/scan/status` | Verificar o progresso da varredura (`progress` estruturado: `{phase, current, total, eta_seconds}`) |
+| `POST /api/scan/start` | `[Superadmin]` Inicia uma varredura de pontuação |
+| `GET /api/scan/status` | Verifica o progresso da varredura (`progress` estruturado: `{phase, current, total, eta_seconds}`) |
 | `GET /api/scan/stream?token=<jwt>` | `[Superadmin]` Progresso em tempo real via Server-Sent Events; o token é passado como parâmetro de consulta (a API `EventSource` não pode definir cabeçalhos), com fallback automático para polling de `/status` |
-| `GET /api/scan/directories` | Listar diretórios de varredura configurados |
+| `GET /api/scan/directories` | Lista os diretórios de varredura configurados |
 
 ### Gerenciamento de Rostos
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/person/{id}/faces` | Listar rostos de uma pessoa |
-| `POST /api/person/{id}/avatar` | Definir o rosto de avatar da pessoa |
-| `GET /api/photo/faces` | Listar rostos detectados em uma foto |
-| `POST /api/face/{id}/assign` | Atribuir um rosto a uma pessoa |
-| `POST /api/photo/assign_all_faces` | Atribuir todos os rostos de uma foto a uma pessoa |
-| `POST /api/photo/unassign_person` | Desassociar uma pessoa de uma foto |
+| `GET /api/person/{id}/faces` | Lista os rostos de uma pessoa |
+| `POST /api/person/{id}/avatar` | Define o rosto de avatar da pessoa |
+| `GET /api/photo/faces` | Lista os rostos detectados em uma foto |
+| `POST /api/face/{id}/assign` | Atribui um rosto a uma pessoa |
+| `POST /api/photo/assign_all_faces` | Atribui todos os rostos de uma foto a uma pessoa |
+| `POST /api/photo/unassign_person` | Desatribui uma pessoa de uma foto |
 
 ### Ações de Foto
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `POST /api/photo/set_rating` | Definir classificação por estrelas para uma foto |
-| `POST /api/photo/toggle_favorite` | Alternar o status de favorito |
-| `POST /api/photo/toggle_rejected` | Alternar o status de rejeitado |
+| `POST /api/photo/set_rating` | Define a avaliação por estrelas de uma foto |
+| `POST /api/photo/toggle_favorite` | Alterna o status de favorito |
+| `POST /api/photo/toggle_rejected` | Alterna o status de rejeição |
 
 ### Gerenciamento de Configuração
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `POST /api/config/update_weights` | Atualizar pesos de pontuação |
-| `GET /api/config/weight_snapshots` | Listar snapshots de peso salvos |
-| `POST /api/config/save_snapshot` | Salvar os pesos atuais como snapshot |
-| `POST /api/config/restore_weights` | Restaurar pesos de um snapshot |
+| `POST /api/config/update_weights` | Atualiza os pesos de pontuação |
+| `GET /api/config/weight_snapshots` | Lista os instantâneos de pesos salvos |
+| `POST /api/config/save_snapshot` | Salva os pesos atuais como instantâneo |
+| `POST /api/config/restore_weights` | Restaura os pesos de um instantâneo |
 
 ### Sugestões de Mesclagem
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/merge_suggestions` | Mesclagens de pessoas sugeridas com base na similaridade facial |
+| `GET /api/merge_suggestions` | Sugestões de mesclagem de pessoas com base na similaridade de rostos |
 
 ### Pastas
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/folders` | Listar a estrutura de pastas de fotos |
+| `GET /api/folders` | Lista a estrutura de pastas de fotos |
 
 ### Download
 
 | Endpoint | Descrição |
 |----------|-------------|
 | `GET /api/download/options` | Tipos de download disponíveis para uma foto (`path`, `is_shared` opcional) |
-| `GET /api/download` | Baixar uma foto (`path`, `type=original\|darktable\|raw`, `profile` opcional) |
+| `GET /api/download` | Baixa uma foto (`path`, `type=original\|darktable\|raw`, `profile` opcional) |
 
 **Tipos de download:**
 
-- `original` — Serve o arquivo como está (JPG/HEIF) ou convertido por rawpy para JPEG (arquivos RAW).
-- `darktable` — Converte o RAW companheiro com um perfil darktable nomeado (requer o parâmetro `profile`). Recai para o original se não existir um RAW companheiro.
+- `original` — Serve o arquivo como está (JPG/HEIF) ou convertido para JPEG por rawpy (arquivos RAW).
+- `darktable` — Converte o RAW companheiro com um perfil darktable nomeado (requer o parâmetro `profile`). Recorre ao original se não houver RAW companheiro.
 - `raw` — Serve o arquivo RAW companheiro como está (não disponível em álbuns compartilhados).
 
-O endpoint `/api/download/options` detecta arquivos RAW companheiros automaticamente e retorna as opções disponíveis, incluindo os perfis darktable configurados. O visualizador usa isso para preencher um menu de download por foto.
+O endpoint `/api/download/options` detecta automaticamente arquivos RAW companheiros e retorna as opções disponíveis, incluindo perfis darktable configurados. O visualizador usa isso para preencher um menu de download por foto.
 
-### Exportação para Editores
+### Exportação para Editor
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `POST /api/photo/export_xmp` | `[Edition]` Escrever um sidecar XMP |
-| `POST /api/export/sidecars` | `[Edition]` Escrever sidecars para caminhos explícitos ou um conjunto de filtros |
-| `POST /api/photo/embed_metadata` | `[Edition]` Incorporar metadados no arquivo original (JPEG/HEIC/TIFF/PNG/DNG; RAW nunca modificado) e escrever o sidecar |
-| `POST /api/albums/{id}/export` | `[Edition]` Exportação de álbum como sidecars, cópia ou symlink |
+| `POST /api/photo/export_xmp` | `[Edition]` Grava um sidecar XMP |
+| `POST /api/export/sidecars` | `[Edition]` Grava sidecars para caminhos explícitos ou um conjunto de filtros |
+| `POST /api/photo/embed_metadata` | `[Edition]` Incorpora metadados no arquivo original (JPEG/HEIC/TIFF/PNG/DNG; RAW nunca modificado) e grava o sidecar |
+| `POST /api/albums/{id}/export` | `[Edition]` Exportação de álbum como sidecars, cópia ou link simbólico |
 
 ### Plugins
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/plugins` | Listar plugins configurados |
-| `POST /api/plugins/test-webhook` | Testar um plugin de webhook |
+| `GET /api/plugins` | Lista os plugins configurados |
+| `POST /api/plugins/test-webhook` | Testa um plugin de webhook |
 
 ### Saúde
 
@@ -1034,20 +1051,20 @@ O endpoint `/api/download/options` detecta arquivos RAW companheiros automaticam
 |----------|-------------|
 | `GET /health` | Verificação de saúde do servidor |
 | `GET /ready` | Verificação de prontidão do servidor |
-| `GET /metrics` | Métricas em formato Prometheus: contagens de fotos, cobertura de embeddings, tamanho do DB, memória do processo |
+| `GET /metrics` | Métricas em formato Prometheus: contagens de fotos, cobertura de embeddings, tamanho do BD, memória do processo |
 
 ### Internacionalização
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/i18n/languages` | Listar idiomas disponíveis |
-| `GET /api/i18n/{lang}` | Obter traduções para um idioma |
+| `GET /api/i18n/languages` | Lista os idiomas disponíveis |
+| `GET /api/i18n/{lang}` | Obtém as traduções de um idioma |
 
 ### Opções de Filtro (adicionais)
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/filter_options/location_name?lat=&lng=` | Geocodificar reversamente coordenadas para um nome de lugar |
+| `GET /api/filter_options/location_name?lat=&lng=` | Geocodifica coordenadas reversamente para um nome de lugar |
 
 ## Solução de Problemas
 
@@ -1056,13 +1073,13 @@ O endpoint `/api/download/options` detecta arquivos RAW companheiros automaticam
 | Carregamento lento da página | Execute `--migrate-tags` e `--optimize` |
 | Filtros não aparecem | Verifique `--stats-info`, execute `--refresh-stats` |
 | Filtro de pessoa vazio | Execute `--cluster-faces-incremental` |
-| Botão Compare ausente | Defina uma `edition_password` não vazia (usuário único) ou use o papel `admin`/`superadmin` (multiusuário) |
+| Botão Comparar ausente | Defina uma `edition_password` não vazia (usuário único) ou use o papel `admin`/`superadmin` (multiusuário) |
 | Senha não funciona | Verifique `viewer.password` (usuário único) ou verifique o hash da senha (multiusuário) |
 | Usuário não consegue ver fotos | Verifique `directories` na configuração do usuário e `shared_directories` |
 | Botão de varredura ausente | Requer o papel `superadmin` e `viewer.features.show_scan_button: true` |
-| Busca não retorna resultados | Certifique-se de que as fotos têm dados `clip_embedding` (execute a pontuação primeiro) |
+| Busca não retorna resultados | Garanta que as fotos tenham dados `clip_embedding` (execute a pontuação primeiro) |
 | Crítica por VLM indisponível | Requer o perfil de VRAM 16gb/24gb e `viewer.features.show_vlm_critique: true` |
-| Mapa não mostra fotos | Execute `--extract-gps` para preencher as colunas GPS, certifique-se de que as fotos têm dados de GPS EXIF |
+| Mapa não mostra fotos | Execute `--extract-gps` para preencher as colunas GPS, garanta que as fotos tenham dados GPS EXIF |
 | Legendas não são geradas | Requer o perfil de VRAM 16gb/24gb para legendagem por VLM |
-| Linha do tempo vazia | Certifique-se de que as fotos têm valores de `date_taken` |
-| Porta 5000 em uso | Execute `python viewer.py --port 5001` (ou defina `PORT=5001`). No macOS, o AirPlay Receiver do ControlCenter ocupa a porta 5000 por padrão — escolha outra porta ou desative o AirPlay Receiver em Configurações do Sistema → Geral → AirDrop & Handoff. |
+| Linha do tempo vazia | Garanta que as fotos tenham valores em `date_taken` |
+| Porta 5000 em uso | Execute `python viewer.py --port 5001` (ou defina `PORT=5001`). No macOS, o AirPlay Receiver do ControlCenter vincula a 5000 por padrão — escolha outra porta ou desative o AirPlay Receiver em Ajustes do Sistema → Geral → AirDrop e Handoff. |

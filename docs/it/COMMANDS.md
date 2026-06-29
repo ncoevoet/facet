@@ -79,13 +79,13 @@ campo `progress` di `/api/scan/status` e nel flusso SSE.
 | `python facet.py --export-sidecars --embed-originals` | Incorpora anche i metadati **nel file** per JPEG/HEIC/TIFF/PNG/DNG (riscrive gli originali) |
 | `python facet.py --export-sidecars --score-to-stars` | Deriva `xmp:Rating` dal punteggio aggregato per le foto che non hai valutato manualmente (una valutazione/preferito/scarto manuale ha sempre la precedenza) |
 
-> **Sincronizzazione bidirezionale dei metadati.** Facet scrive valutazioni, etichette colore, parole chiave, didascalie e regioni di volti nominati in un sidecar `<image>.xmp` standard che tutto l'ecosistema legge (Lightroom, darktable, digiKam, immich, …). **Per impostazione predefinita l'immagine originale non viene mai modificata**: viene scritto/unito solo il sidecar. Per incorporare i metadati *nel file* per JPEG/HEIC/TIFF/PNG/DNG (così che li vedano anche gli editor che ignorano i sidecar), attivalo esplicitamente: l'azione **«Scrivi i metadati nel file»** per miniatura nel visualizzatore, oppure il comando `--export-sidecars --embed-originals`. Gli originali RAW non vengono mai modificati. L'incorporamento e l'unione sicura dei sidecar richiedono **exiftool** (le parole chiave esistenti/esterne vengono lette e fuse nell'unione, mai cancellate); in sua assenza, Facet ricade su un sidecar XML puro senza dipendenze. `--import-sidecars` è la direzione inversa: ripiega le modifiche esterne in Facet — valutazioni/etichette vengono applicate con la regola *vince la più recente* (in base a `xmp:MetadataDate`, altrimenti l'mtime del sidecar, rispetto allo `scanned_at` della foto), e le parole chiave vengono unite (unione), così che i tag automatici di Facet non vadano mai persi.
+> **Sincronizzazione bidirezionale dei metadati.** Facet scrive valutazioni, etichette colore, parole chiave, didascalie e regioni di volti nominati in un sidecar `<image>.xmp` standard che l'ecosistema legge (Lightroom, darktable, digiKam, immich, …); l'immagine originale non viene mai modificata a meno che non si scelga di farlo con `--export-sidecars --embed-originals` (solo JPEG/HEIC/TIFF/PNG/DNG — i RAW non vengono mai toccati). L'incorporamento e l'unione sicura delle parole chiave richiedono **exiftool**; in sua assenza, Facet ricade su un sidecar XML puro senza dipendenze.
 >
-> **Limitazioni.** Il timestamp lato foto per *vince la più recente* è `scanned_at` (l'ultima scansione), non un orario di modifica della valutazione: un sidecar più recente dell'ultima scansione può quindi sovrascrivere una valutazione modificata in Facet *dopo* quella scansione. Esegui `--import-sidecars` prima di rivalutare in Facet se l'editor esterno fa fede. Per impostazione predefinita i comandi CLI `--import-sidecars` / `--export-sidecars` operano sulle colonne di valutazione **globali a utente singolo**. In modalità multiutente, passa `--user <nome>` per leggere/scrivere invece le valutazioni di `user_preferences` di quell'utente (le parole chiave restano comunque globali). Se usi la tabella di lookup `photo_tags`, esegui `python database.py --migrate-tags` dopo l'importazione.
+> **Limitazioni.** `--import-sidecars` risolve valutazioni/etichette con la regola *vince la più recente* rispetto allo `scanned_at` della foto (l'ultima scansione), non a un orario di modifica per singola valutazione — quindi un sidecar più recente dell'ultima scansione può sovrascrivere una valutazione che hai modificato in Facet dopo di essa. Esegui `--import-sidecars` prima di rivalutare se l'editor esterno fa fede, e `python database.py --migrate-tags` dopo l'importazione se usi la tabella di lookup `photo_tags`.
 
 ## Operazioni di ricalcolo
 
-Questi comandi aggiornano metriche specifiche senza una rielaborazione completa delle foto.
+Questi comandi aggiornano metriche specifiche, derivano nuovi dati (didascalie AI, GPS, embedding) o analizzano il database — il tutto senza rieseguire l'intera pipeline di valutazione. La maggior parte riutilizza le miniature/i punti di riferimento memorizzati ed è leggera per la CPU, ma le righe AI/di estrazione (es. `--generate-captions`) e quelle che ricalcolano dall'immagine sono pesanti per la GPU.
 
 | Comando | Descrizione |
 |---------|-------------|
@@ -93,6 +93,8 @@ Questi comandi aggiornano metriche specifiche senza una rielaborazione completa 
 | `python facet.py --recompute-category portrait` | Ricalcola i punteggi solo per una singola categoria |
 | `python facet.py --recompute-tags` | Riassegna i tag a tutte le foto usando il modello configurato |
 | `python facet.py --recompute-tags-vlm` | Riassegna i tag a tutte le foto usando il tagger VLM |
+| `python facet.py --detect-moments` | Etichetta le nuove foto con il loro momento narrativo (CLIP zero-shot + smussatura temporale; viene eseguito automaticamente alla fine di ogni scansione). Economico — coseno sugli embedding già memorizzati, nessun passaggio di modello per immagine |
+| `python facet.py --recompute-moments` | Rietichetta i momenti narrativi per l'intera libreria (rismussa l'intera timeline). Aggiungi `--dry-run --verbose` per visualizzare in anteprima i primi 3 momenti per foto senza scrivere |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Ricalcola le metriche di salienza del soggetto (BiRefNet_dynamic) |
 | `python facet.py --recompute-composition-cpu` | Ricalcola la composizione, basata su regole (CPU, qualsiasi profilo) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Ricalcola la composizione con SAMP-Net |
@@ -224,6 +226,10 @@ Riporta la versione di Python, la build PyTorch/CUDA, il rilevamento della GPU e
 | `python facet.py --eval-iqa-srcc` | Riporta lo Spearman SRCC di ogni metrica IQA/estetica rispetto alle tue valutazioni a stelle (sola lettura) |
 | `python facet.py --mine-insights` | Report di data-mining: inventario delle etichette, correlazioni metrica-etichetta, distribuzione delle categorie, deriva dei percentili, salute dei confronti |
 | `python facet.py --mine-insights report.json` | Lo stesso, scrive anche il report completo come JSON |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt` | Calibra i pesi di valutazione per categoria rispetto al [dataset AVA](https://github.com/imfing/ava_downloader) massimizzando lo SRCC rispetto ai mean opinion score di AVA (sola lettura; stampa i pesi proposti) |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt --categories landscape,portrait --apply` | Limita a categorie specifiche e riscrive i pesi ottimizzati in `scoring_config.json` |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt --method nelder-mead` | Sceglie l'ottimizzatore (`de` = evoluzione differenziale, predefinito; `nelder-mead` = simplesso locale) |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt --ava-tags` | Calibra anche rispetto ai tag semantici di AVA (`--ava-tags-only` per usare esclusivamente i tag; `--apply-filters` per regolare anche le soglie dei filtri di categoria) |
 
 ## Configurazione
 

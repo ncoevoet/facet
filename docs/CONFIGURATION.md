@@ -1563,6 +1563,44 @@ Settings for the Scenes view, which groups burst-lead photos into chronological 
 | `max_scene_size` | `60` | A scene larger than this is recursively sub-split at its largest internal gaps, so a continuously-shot event never collapses into one giant scene |
 | `adaptive` | `true` | When on, the effective gap widens to `adaptive_k × median` of the shoot's consecutive gaps (tightens for rapid shooting, loosens for sparse holidays) |
 | `adaptive_k` | `6.0` | Multiplier applied to the median gap when `adaptive` is on |
+| `split_on_moment_change` | `false` | When on (and narrative moments are computed), sub-split a time-run where the dominant moment changes and holds for `moment_split_min_run` frames |
+| `moment_split_min_run` | `4` | Hysteresis for `split_on_moment_change` — how many consecutive frames a new moment must persist to force a boundary |
+
+## Narrative Moments
+
+Zero-shot labelling of each photo's event "moment" (e.g. `getting_ready_bride`, `vows`, `first_kiss`, `first_dance`, `party_dancing`, …, or `other`) by cosine similarity of the stored CLIP/SigLIP embedding against per-moment text prompts, smoothed along the timeline. Populated by `--detect-moments` (auto-runs at the end of every scan) and surfaced as scene names and a gallery filter. Something neither Narrative Select nor AfterShoot do.
+
+```json
+{
+  "narrative_moments": {
+    "enabled": true,
+    "prompt_template": "a photo of {desc}",
+    "default_event_type": "wedding",
+    "pooling": "mean",
+    "thresholds": {
+      "open_clip": { "min_confidence": 0.20, "min_margin": 0.015 },
+      "transformers": { "min_confidence": 0.10, "min_margin": 0.010 }
+    },
+    "priors": { "enabled": true, "weight": 0.04 },
+    "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
+    "transitions": { "stay_prob": 0.6, "forward_bias": 0.3, "weight": 0.5 },
+    "event_types": { "wedding": { "vows": ["the couple exchanging vows at the altar", "..."], "...": [] } }
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Master switch; when off, `--detect-moments` and the scan hook no-op |
+| `prompt_template` | `"a photo of {desc}"` | Wrapper applied to every prompt before encoding |
+| `default_event_type` | `"wedding"` | Which `event_types` vocabulary is active (one shoot/genre per DB) |
+| `pooling` | `"mean"` | Per-moment prompt vectors are mean-pooled then re-normalized |
+| `thresholds.<backend>.min_confidence` | `0.20` / `0.10` | Below this top-1 cosine a photo is labelled `other`. Per-backend because open_clip cosines run much lower than SigLIP's |
+| `thresholds.<backend>.min_margin` | `0.015` / `0.010` | Minimum top-1/top-2 cosine gap; below it the frame is `other` |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | L1 face/tag nudges (group-portrait → `family_formals`, etc.) that only break near-ties |
+| `transitions.stay_prob` / `forward_bias` / `weight` | `0.6` / `0.3` / `0.5` | L2 timeline smoothing (Viterbi): self-loop vs forward-step bias, and how strongly to apply it (`weight=0` = no smoothing) |
+| `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | Optional L3: re-classify low-margin frames with the Qwen VLM (16gb/24gb only) |
+| `event_types` | wedding set | Per-event-type `{moment: [prompt synonyms]}`; add your own genre here |
 
 ## Timeline
 

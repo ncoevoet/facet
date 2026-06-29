@@ -79,13 +79,13 @@ visor expone en el campo `progress` de `/api/scan/status` y del flujo SSE.
 | `python facet.py --export-sidecars --embed-originals` | Incrusta además los metadatos **dentro del archivo** para JPEG/HEIC/TIFF/PNG/DNG (reescribe los originales) |
 | `python facet.py --export-sidecars --score-to-stars` | Deriva `xmp:Rating` de la puntuación agregada para las fotos que no has valorado manualmente (una valoración/favorito/rechazo manual siempre prevalece) |
 
-> **Sincronización bidireccional de metadatos.** Facet escribe valoraciones, etiquetas de color, palabras clave, leyendas y regiones de rostros con nombre en un sidecar `<image>.xmp` estándar que todo el ecosistema lee (Lightroom, darktable, digiKam, immich, …). **De forma predeterminada, la imagen original nunca se modifica**: solo se escribe/fusiona el sidecar. Para incrustar los metadatos *dentro del archivo* para JPEG/HEIC/TIFF/PNG/DNG (de modo que también los vean los editores que ignoran los sidecars), actívalo explícitamente: la acción **«Escribir metadatos en el archivo»** por miniatura en el visor, o el comando `--export-sidecars --embed-originals`. Los originales RAW nunca se modifican. La incrustación y la fusión segura de sidecars requieren **exiftool** (las palabras clave existentes/externas se leen y se fusionan en la unión, nunca se borran); sin él, Facet recurre a un sidecar XML puro sin dependencias. `--import-sidecars` es la dirección inversa: reincorpora a Facet las ediciones externas — las valoraciones/etiquetas de color se aplican según el criterio *gana el más reciente* (por `xmp:MetadataDate`, en su defecto el mtime del sidecar, frente al `scanned_at` de la foto), y las palabras clave se fusionan (unión), de modo que las etiquetas automáticas de Facet nunca se pierden.
+> **Sincronización bidireccional de metadatos.** Facet escribe valoraciones, etiquetas de color, palabras clave, leyendas y regiones de rostros con nombre en un sidecar `<image>.xmp` estándar que el ecosistema lee (Lightroom, darktable, digiKam, immich, …); la imagen original nunca se modifica a menos que lo actives explícitamente con `--export-sidecars --embed-originals` (solo JPEG/HEIC/TIFF/PNG/DNG — los RAW nunca se tocan). La incrustación y la fusión segura por unión de palabras clave requieren **exiftool**; sin él, Facet recurre a un sidecar XML puro sin dependencias.
 >
-> **Limitaciones.** La marca de tiempo del lado de la foto para *gana el más reciente* es `scanned_at` (el último escaneo), no una hora de edición de la valoración: un sidecar más reciente que el último escaneo puede sobrescribir una valoración que cambiaste en Facet *después* de ese escaneo. Ejecuta `--import-sidecars` antes de volver a valorar en Facet si el editor externo es la fuente de verdad. De forma predeterminada, los comandos `--import-sidecars` / `--export-sidecars` de la CLI operan sobre las columnas de valoración **globales de usuario único**. En modo multiusuario, pasa `--user <nombre>` para leer/escribir las valoraciones de `user_preferences` de ese usuario en su lugar (las palabras clave siguen siendo globales en cualquier caso). Si usas la tabla de búsqueda `photo_tags`, ejecuta `python database.py --migrate-tags` después de importar.
+> **Advertencia.** `--import-sidecars` resuelve las valoraciones/etiquetas con el criterio *gana el más reciente* frente al `scanned_at` de la foto (último escaneo), no a una hora de edición por valoración: un sidecar más reciente que el último escaneo puede sobrescribir una valoración que cambiaste en Facet después de él. Ejecuta `--import-sidecars` antes de volver a valorar si el editor externo es la fuente de verdad, y `python database.py --migrate-tags` tras importar si usas la tabla de búsqueda `photo_tags`.
 
 ## Operaciones de recálculo
 
-Estos comandos actualizan métricas específicas sin reprocesar las fotos por completo.
+Estos comandos actualizan métricas específicas, derivan datos nuevos (leyendas de IA, GPS, embeddings) o analizan la base de datos — todo sin volver a ejecutar el pipeline completo de puntuación. La mayoría reutilizan las miniaturas/puntos de referencia almacenados y son ligeros para la CPU, pero las filas de IA/extracción (p. ej. `--generate-captions`) y las de recálculo a partir de la imagen son intensivas en GPU.
 
 | Comando | Descripción |
 |---------|-------------|
@@ -93,6 +93,8 @@ Estos comandos actualizan métricas específicas sin reprocesar las fotos por co
 | `python facet.py --recompute-category portrait` | Recalcula las puntuaciones de una sola categoría |
 | `python facet.py --recompute-tags` | Vuelve a etiquetar todas las fotos con el modelo configurado |
 | `python facet.py --recompute-tags-vlm` | Vuelve a etiquetar todas las fotos con el etiquetador VLM |
+| `python facet.py --detect-moments` | Etiqueta las fotos nuevas con su momento narrativo (CLIP zero-shot + suavizado temporal; se ejecuta automáticamente al final de cada escaneo). Económico — coseno sobre los embeddings ya almacenados, sin un paso de modelo por imagen |
+| `python facet.py --recompute-moments` | Vuelve a etiquetar los momentos narrativos de toda la biblioteca (re-suaviza la línea de tiempo completa). Añade `--dry-run --verbose` para previsualizar los 3 momentos principales por foto sin escribir |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recalcula las métricas de saliencia del sujeto (BiRefNet_dynamic) |
 | `python facet.py --recompute-composition-cpu` | Recalcula la composición, basada en reglas (CPU, cualquier perfil) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Recalcula la composición con SAMP-Net |
@@ -211,19 +213,23 @@ Informa de la versión de Python, la compilación de PyTorch/CUDA, la detección
 | Comando | Descripción |
 |---------|-------------|
 | `python facet.py --comparison-stats` | Muestra las estadísticas de comparación por pares |
-| `python facet.py --optimize-weights` | Optimiza y guarda los pesos a partir de las comparaciones (todas las fuentes, ponderado por fiabilidad); se aplica solo si la precisión de validación cruzada k-fold supera la de los pesos actuales |
+| `python facet.py --optimize-weights` | Optimiza y guarda los pesos a partir de las comparaciones (todas las fuentes, ponderado por fiabilidad); se aplica solo si la precisión de validación cruzada k-fold de datos reservados supera la de los pesos actuales |
 | `python facet.py --optimize-weights --optimize-force` | Aplica los pesos optimizados aunque no se cumpla el umbral de precisión |
 | `python facet.py --optimize-weights --optimize-sources vote,culling` | Restringe los datos de entrenamiento a fuentes de comparación específicas |
 | `python facet.py --optimize-weights --optimize-category portrait` | Entrena solo en una categoría y escribe su bloque `categories[].weights` v4 |
-| `python facet.py --auto-tune-categories` | **Solo superadministrador** (pase `--user` en modo multiusuario): informa la disponibilidad de etiquetas de comparación por categoría para el autoajuste de los pesos globales compartidos. Stub — solo informa la disponibilidad; el bucle de aplicación automática está aplazado a la espera de etiquetas |
+| `python facet.py --auto-tune-categories` | **Solo superadministrador** (pasa `--user` en modo multiusuario): informa la disponibilidad de etiquetas de comparación por categoría para el autoajuste de los pesos globales compartidos. Stub — solo informa la disponibilidad; el bucle de aplicación automática está aplazado a la espera de etiquetas |
 | `python facet.py --sync-label-comparisons` | Reconstruye los pares derivados de valoraciones (source=rating) a partir de valoraciones por estrellas/favoritos/rechazos |
-| `python facet.py --train-ranker` | Entrena el clasificador personal sobre [embedding + puntuaciones] y escribe learned_scores (sujeto a la precisión de validación cruzada k-fold frente a la línea base del agregado) |
+| `python facet.py --train-ranker` | Entrena el clasificador personal sobre [embedding + puntuaciones] y escribe learned_scores (sujeto a la precisión de validación cruzada k-fold de datos reservados frente a la línea base del agregado) |
 | `python facet.py --train-ranker --ranker-category portrait` | Entrena el clasificador solo en una categoría |
 | `python facet.py --train-ranker --train-ranker-force` | Escribe learned_scores aunque no se cumpla el umbral de precisión |
 | `python facet.py --report-unreviewed-bursts` | Informa de cuántos grupos de ráfaga siguen sin revisar (solo lectura) |
 | `python facet.py --eval-iqa-srcc` | Informa del SRCC de Spearman de cada métrica IQA/estética frente a tus valoraciones por estrellas (solo lectura) |
 | `python facet.py --mine-insights` | Informe de minería de datos: inventario de etiquetas, correlaciones métrica-etiqueta, distribución por categoría, deriva de percentiles, salud de las comparaciones |
 | `python facet.py --mine-insights report.json` | Lo mismo, además escribe el informe completo en JSON |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt` | Calibra los pesos de puntuación por categoría frente al [conjunto de datos AVA](https://github.com/imfing/ava_downloader) maximizando el SRCC frente a las puntuaciones medias de opinión de AVA (solo lectura; imprime los pesos propuestos) |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt --categories landscape,portrait --apply` | Restringe a categorías específicas y escribe los pesos optimizados de vuelta a `scoring_config.json` |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt --method nelder-mead` | Elige el optimizador (`de` = evolución diferencial, por defecto; `nelder-mead` = símplex local) |
+| `python calibrate.py --db <path> --ava-annotations AVA.txt --ava-tags` | Calibra también frente a las etiquetas semánticas de AVA (`--ava-tags-only` para usar las etiquetas exclusivamente; `--apply-filters` para ajustar también los umbrales de los filtros de categoría) |
 
 ## Configuración
 

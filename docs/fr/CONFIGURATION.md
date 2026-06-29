@@ -2,49 +2,49 @@
 
 > 🌐 [English](../CONFIGURATION.md) · **Français** · [Deutsch](../de/CONFIGURATION.md) · [Italiano](../it/CONFIGURATION.md) · [Español](../es/CONFIGURATION.md) · [Português](../pt/CONFIGURATION.md)
 
-Tous les réglages se trouvent dans `scoring_config.json`. Après modification, lancez `python facet.py --recompute-average` pour mettre à jour les scores (aucun GPU requis).
+Tous les réglages se trouvent dans `scoring_config.json`. Après modification, exécutez `python facet.py --recompute-average` pour mettre à jour les scores (aucun GPU requis).
 
 ## Table des matières
 
-- [Utilisateurs](#utilisateurs)
-- [Analyse](#analyse)
-- [Catégories](#catégories)
-- [Scoring](#scoring)
-- [Seuils](#seuils)
+- [Utilisateurs](#users)
+- [Analyse](#scanning)
+- [Catégories](#categories)
+- [Notation](#scoring)
+- [Seuils](#thresholds)
 - [Composition](#composition)
-- [Ajustements EXIF](#ajustements-exif)
-- [Exposition](#exposition)
-- [Pénalités](#pénalités)
-- [Normalisation](#normalisation)
-- [Modèles](#modèles)
-- [Modèles d'évaluation de la qualité](#modèles-dévaluation-de-la-qualité)
-- [Traitement](#traitement)
-- [Détection de rafales](#détection-de-rafales)
-- [Scoring des rafales](#scoring-des-rafales)
-- [Détection de doublons](#détection-de-doublons)
-- [Détection de visages](#détection-de-visages)
-- [Regroupement de visages](#regroupement-de-visages)
-- [Traitement des visages](#traitement-des-visages)
-- [Détection monochrome](#détection-monochrome)
-- [Étiquetage](#étiquetage)
-- [Tags autonomes](#tags-autonomes)
-- [Analyse statistique](#analyse-statistique)
-- [Galerie web](#galerie-web)
+- [Ajustements EXIF](#exif-adjustments)
+- [Exposition](#exposure)
+- [Pénalités](#penalties)
+- [Normalisation](#normalization)
+- [Modèles](#models)
+- [Modèles d'évaluation de la qualité](#quality-assessment-models)
+- [Traitement](#processing)
+- [Détection de rafales](#burst-detection)
+- [Notation des rafales](#burst-scoring)
+- [Détection de doublons](#duplicate-detection)
+- [Détection des visages](#face-detection)
+- [Regroupement des visages](#face-clustering)
+- [Traitement des visages](#face-processing)
+- [Détection monochrome](#monochrome-detection)
+- [Étiquetage](#tagging)
+- [Étiquettes autonomes](#standalone-tags)
+- [Analyse](#analysis)
+- [Visionneuse](#viewer)
 - [Performance](#performance)
-- [Stockage](#stockage)
+- [Stockage](#storage)
 - [Plugins](#plugins)
 - [Capsules](#capsules)
-- [Groupes de similarité](#groupes-de-similarité)
-- [Scènes](#scènes)
-- [Chronologie](#chronologie)
-- [Carte](#carte)
-- [Traduction](#traduction)
+- [Groupes de similarité](#similarity-groups)
+- [Scènes](#scenes)
+- [Frise chronologique](#timeline)
+- [Carte](#map)
+- [Traduction](#translation)
 
 ---
 
 ## Utilisateurs
 
-Mode multi-utilisateur facultatif. Lorsque la clé `users` est présente (avec au moins un utilisateur), l'authentification par mot de passe unique est remplacée par une connexion par utilisateur.
+Mode multi-utilisateur optionnel. Lorsque la clé `users` est présente (avec au moins un utilisateur), l'authentification par mot de passe unique est remplacée par une connexion par utilisateur.
 
 ```json
 {
@@ -73,18 +73,18 @@ Mode multi-utilisateur facultatif. Lorsque la clé `users` est présente (avec a
 
 | Champ | Type | Description |
 |-------|------|-------------|
-| `password_hash` | chaîne | Empreinte PBKDF2-HMAC-SHA256 (`salt_hex:dk_hex`). Générée par la CLI `--add-user`. |
+| `password_hash` | chaîne | Empreinte PBKDF2-HMAC-SHA256 (`salt_hex:dk_hex`). Générée par la commande `--add-user`. |
 | `display_name` | chaîne | Affiché dans l'en-tête de l'interface |
 | `role` | chaîne | `user`, `admin` ou `superadmin` |
-| `directories` | tableau | Répertoires de photos privés de cet utilisateur |
+| `directories` | tableau | Répertoires photo privés de cet utilisateur |
 
 ### Répertoires partagés
 
-La clé `shared_directories` (sœur des objets utilisateur) liste les répertoires visibles par tous les utilisateurs.
+La clé `shared_directories` (au même niveau que les objets utilisateur) liste les répertoires visibles par tous les utilisateurs.
 
 ### Rôles
 
-| Rôle | Voir ses propres + partagés | Noter/favori | Gérer personnes/visages | Déclencher des analyses |
+| Rôle | Voir ses photos + partagées | Noter/favori | Gérer personnes/visages | Déclencher des analyses |
 |------|:-:|:-:|:-:|:-:|
 | `user` | oui | oui | non | non |
 | `admin` | oui | oui | oui | non |
@@ -92,26 +92,26 @@ La clé `shared_directories` (sœur des objets utilisateur) liste les répertoir
 
 ### Ajouter des utilisateurs
 
-Les utilisateurs sont créés uniquement via la CLI — il n'y a ni interface ni API d'inscription :
+Les utilisateurs sont créés uniquement via la ligne de commande — il n'existe ni interface ni API d'inscription :
 
 ```bash
 python database.py --add-user alice --role superadmin --display-name "Alice"
-# Demande le mot de passe, écrit l'empreinte dans scoring_config.json
+# Demande un mot de passe, écrit l'empreinte dans scoring_config.json
 ```
 
-Après avoir ajouté un utilisateur, modifiez `scoring_config.json` pour configurer ses `directories`.
+Après l'ajout d'un utilisateur, modifiez `scoring_config.json` pour configurer ses `directories`.
 
 ### Rétrocompatibilité
 
 - Absence de clé `users` = mode mono-utilisateur historique (comportement inchangé)
 - `viewer.password` et `viewer.edition_password` sont ignorés en mode multi-utilisateur
-- Les notes existantes dans la table `photos` restent valables pour le mode mono-utilisateur ; utilisez `--migrate-user-preferences` pour les copier
+- Les notes existantes dans la table `photos` restent valables en mode mono-utilisateur ; utilisez `--migrate-user-preferences` pour les copier
 
 ---
 
 ## Analyse
 
-Contrôle le comportement de l'analyse des répertoires.
+Contrôle le comportement d'analyse des répertoires.
 
 ```json
 {
@@ -122,26 +122,26 @@ Contrôle le comportement de l'analyse des répertoires.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `skip_hidden_directories` | `true` | Ignorer les répertoires commençant par `.` lors de l'analyse des photos |
 
 ---
 
 ## Catégories
 
-Tableau de définitions de catégories. Voir [Scoring](SCORING.md) pour la documentation détaillée des catégories.
+Tableau de définitions de catégories. Voir [Notation](SCORING.md) pour la documentation détaillée des catégories.
 
-Chaque catégorie possède :
+Chaque catégorie possède :
 - `name` - Identifiant de la catégorie
-- `priority` - Plus bas = priorité plus élevée (évalué en premier)
+- `priority` - Plus la valeur est faible, plus la priorité est élevée (évaluée en premier)
 - `filters` - Conditions de correspondance
-- `weights` - Poids des métriques de scoring (la somme doit faire 100)
+- `weights` - Pondérations des métriques de notation (la somme doit faire 100)
 - `modifiers` - Ajustements de comportement
-- `tags` - Vocabulaire CLIP pour la correspondance par tag
+- `tags` - Vocabulaire CLIP pour la correspondance par étiquettes
 
 ---
 
-## Scoring
+## Notation
 
 ```json
 {
@@ -154,7 +154,7 @@ Chaque catégorie possède :
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `score_min` | `0.0` | Score minimum possible |
 | `score_max` | `10.0` | Score maximum possible |
 | `score_precision` | `2` | Nombre de décimales pour les scores |
@@ -179,19 +179,19 @@ Seuils de détection pour la catégorisation automatique.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `portrait_face_ratio_percent` | `5` | Visage > 5 % du cadre = portrait |
-| `blink_penalty_percent` | `50` | Multiplicateur de score lors d'un clignement détecté (0,5×) |
-| `night_luminance_threshold` | `0.15` | Luminance moyenne inférieure = nuit |
-| `night_iso_threshold` | `3200` | ISO supérieur = faible luminosité |
-| `long_exposure_shutter_threshold` | `1.0` | Vitesse > 1 s = pose longue |
-| `astro_shutter_threshold` | `10.0` | Vitesse > 10 s = astrophotographie |
+| `blink_penalty_percent` | `50` | Multiplicateur de score en cas de clignement détecté (0,5x) |
+| `night_luminance_threshold` | `0.15` | Luminance moyenne inférieure à cette valeur = nuit |
+| `night_iso_threshold` | `3200` | ISO supérieur à cette valeur = faible luminosité |
+| `long_exposure_shutter_threshold` | `1.0` | Vitesse d'obturation > 1 s = pose longue |
+| `astro_shutter_threshold` | `10.0` | Vitesse d'obturation > 10 s = astrophotographie |
 
 ---
 
 ## Composition
 
-Scoring de composition basé sur des règles (utilisé lorsque SAMP-Net n'est pas actif).
+Notation de composition fondée sur des règles (utilisée lorsque SAMP-Net n'est pas actif).
 
 ```json
 {
@@ -203,15 +203,15 @@ Scoring de composition basé sur des règles (utilisé lorsque SAMP-Net n'est pa
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `power_point_weight` | `2.0` | Poids du placement selon la règle des tiers |
-| `line_weight` | `1.0` | Poids des lignes directrices |
+|---------|--------|-------------|
+| `power_point_weight` | `2.0` | Pondération du placement selon la règle des tiers |
+| `line_weight` | `1.0` | Pondération des lignes directrices |
 
 ---
 
 ## Ajustements EXIF
 
-Ajustements de scoring automatiques basés sur les réglages de l'appareil.
+Ajustements de notation automatiques fondés sur les réglages de l'appareil.
 
 ```json
 {
@@ -223,15 +223,15 @@ Ajustements de scoring automatiques basés sur les réglages de l'appareil.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `iso_sharpness_compensation` | `true` | Réduire la pénalité de netteté pour les hauts ISO |
-| `aperture_isolation_boost` | `true` | Augmenter l'isolation pour les grandes ouvertures (f/1.4–f/2.8) |
+|---------|--------|-------------|
+| `iso_sharpness_compensation` | `true` | Réduit la pénalité de netteté pour les ISO élevés |
+| `aperture_isolation_boost` | `true` | Renforce l'isolation pour les grandes ouvertures (f/1.4-f/2.8) |
 
 ---
 
 ## Exposition
 
-Contrôle l'analyse de l'exposition et la détection de l'écrêtage.
+Contrôle l'analyse de l'exposition et la détection des écrêtages.
 
 ```json
 {
@@ -244,9 +244,9 @@ Contrôle l'analyse de l'exposition et la détection de l'écrêtage.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `shadow_clip_threshold_percent` | `15` | Signaler si > 15 % de pixels noir pur |
-| `highlight_clip_threshold_percent` | `10` | Signaler si > 10 % de pixels blanc pur |
+|---------|--------|-------------|
+| `shadow_clip_threshold_percent` | `15` | Signaler si > 15 % des pixels sont noir pur |
+| `highlight_clip_threshold_percent` | `10` | Signaler si > 10 % des pixels sont blanc pur |
 | `silhouette_detection` | `true` | Détecter les silhouettes intentionnelles |
 
 ---
@@ -272,18 +272,18 @@ Pénalités de score pour les problèmes techniques.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `noise_sigma_threshold` | `4.0` | Un bruit supérieur déclenche une pénalité |
 | `noise_max_penalty_points` | `1.5` | Pénalité de bruit maximale |
-| `noise_penalty_per_sigma` | `0.3` | Points par sigma au-delà du seuil |
+| `noise_penalty_per_sigma` | `0.3` | Points par sigma au-dessus du seuil |
 | `bimodality_threshold` | `2.5` | Coefficient de bimodalité de l'histogramme |
 | `bimodality_penalty_points` | `0.5` | Pénalité pour les histogrammes bimodaux |
-| `leading_lines_blend_percent` | `30` | Intégration dans comp_score |
+| `leading_lines_blend_percent` | `30` | Mélange dans comp_score |
 | `oversaturation_threshold` | `0.9` | Seuil de saturation moyenne |
 | `oversaturation_pixel_percent` | `5` | Réservé à la détection au niveau du pixel |
 | `oversaturation_penalty_points` | `0.5` | Pénalité de sursaturation |
 
-**Formule de pénalité de bruit :**
+**Formule de pénalité de bruit :**
 ```
 penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalty_per_sigma)
 ```
@@ -292,7 +292,7 @@ penalty = min(noise_max_penalty_points, (noise_sigma - threshold) * noise_penalt
 
 ## Normalisation
 
-Contrôle la façon dont les métriques brutes sont mises à l'échelle en scores de 0 à 10.
+Contrôle la façon dont les métriques brutes sont mises à l'échelle entre 0 et 10.
 
 ```json
 {
@@ -306,11 +306,11 @@ Contrôle la façon dont les métriques brutes sont mises à l'échelle en score
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `method` | `"percentile"` | Méthode de normalisation |
-| `percentile_target` | `90` | 90ᵉ percentile = score de 10,0 |
-| `per_category` | `true` | Normalisation spécifique à la catégorie |
-| `category_min_samples` | `50` | Photos minimum pour la normalisation par catégorie |
+| `percentile_target` | `90` | Le 90e centile = score de 10,0 |
+| `per_category` | `true` | Normalisation propre à chaque catégorie |
+| `category_min_samples` | `50` | Nombre minimal de photos pour la normalisation par catégorie |
 
 ---
 
@@ -411,19 +411,19 @@ Sélectionne les modèles utilisés selon le profil VRAM.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `vram_profile` | `"auto"` | Profil actif (`auto`, `legacy`, `8gb`, `16gb`, `24gb`) |
-| `keep_in_ram` | `"auto"` | Conserver les modèles en RAM entre les passes multi-passes (`"auto"`, `"always"`, `"never"`). `auto` vérifie la RAM disponible avant la mise en cache. |
-| `profiles.*.supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | Modèles PyIQA à exécuter pour ce profil (vide sur `legacy`) |
+| `keep_in_ram` | `"auto"` | Conserver les modèles en RAM entre les blocs multi-pass (`"auto"`, `"always"`, `"never"`). `auto` vérifie la RAM disponible avant la mise en cache. |
+| `profiles.*.supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | Modèles PyIQA à exécuter pour ce profil (vide pour `legacy`) |
 | `profiles.*.saliency_enabled` | `true` (16gb/24gb) | Exécuter la saillance du sujet BiRefNet pour ce profil |
 | `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | Modèle d'embedding SigLIP 2 NaFlex (16gb/24gb) |
-| `clip.backend` | `"transformers"` | `"transformers"` (SigLIP 2 NaFlex) ou `"open_clip"` (historique) |
+| `clip.backend` | `"transformers"` | `"transformers"` (SigLIP 2 NaFlex) ou `"open_clip"` (legacy) |
 | `clip.embedding_dim` | `1152` | Dimensions de l'embedding (1152 pour SigLIP 2) |
-| `clip.similarity_threshold_percent` | `8` | Similarité cosinus CLIP minimale pour une correspondance de tag |
+| `clip.similarity_threshold_percent` | `8` | Similarité cosinus CLIP minimale pour une correspondance d'étiquette |
 | `clip_legacy.model_name` | `"ViT-L-14"` | Modèle CLIP historique (profils legacy/8gb) |
 | `clip_legacy.pretrained` | `"laion2b_s32b_b82k"` | Poids pré-entraînés historiques |
 | `clip_legacy.embedding_dim` | `768` | Dimensions de l'embedding historique |
-| `clip_legacy.similarity_threshold_percent` | `22` | Seuil de correspondance de tag pour le CLIP historique |
+| `clip_legacy.similarity_threshold_percent` | `22` | Seuil de correspondance d'étiquette pour le CLIP historique |
 | `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | Chemin HuggingFace (VLM de composition 24gb) |
 | `qwen3_5_2b.model_path` | `"Qwen/Qwen3.5-2B"` | Modèle d'étiquetage pour le profil 16gb |
 | `qwen3_5_2b.vlm_batch_size` | `4` | Images par lot d'inférence VLM |
@@ -432,15 +432,15 @@ Sélectionne les modèles utilisés selon le profil VRAM.
 | `saliency.model` | `"ZhengPeng7/BiRefNet_dynamic"` | Modèle de saillance BiRefNet |
 | `saliency.resolution` | `1024` | Résolution d'inférence |
 | `saliency.mask_threshold` | `0.3` | Seuil sigmoïde pour le masque binaire du sujet |
-| `saliency.min_subject_pixels` | `50` | Pixels de sujet minimum pour considérer un sujet comme détecté |
+| `saliency.min_subject_pixels` | `50` | Nombre minimal de pixels de sujet pour considérer qu'un sujet est détecté |
 | `samp_net.input_size` | `384` | Taille d'entrée du modèle de composition |
 
 ### Détection automatique de la VRAM
 
-Lorsque `vram_profile` vaut `"auto"` (par défaut), le système détecte la VRAM GPU disponible au démarrage et sélectionne le plus grand profil qui tient :
+Lorsque `vram_profile` vaut `"auto"` (par défaut), le système détecte la VRAM GPU disponible au démarrage et sélectionne le plus grand profil compatible :
 
 | VRAM détectée | Profil sélectionné |
-|---------------|------------------|
+|---------------|--------------------|
 | ≥ 20 Go | `24gb` |
 | ≥ 14 Go | `16gb` |
 | ≥ 6 Go | `8gb` |
@@ -450,7 +450,7 @@ Lorsque `vram_profile` vaut `"auto"` (par défaut), le système détecte la VRAM
 
 ## Modèles d'évaluation de la qualité
 
-Sélectionne le modèle qui évalue la qualité/esthétique de l'image, via la bibliothèque [pyiqa](https://github.com/chaofengc/IQA-PyTorch).
+Sélectionne le modèle qui note la qualité/l'esthétique de l'image, via la bibliothèque [pyiqa](https://github.com/chaofengc/IQA-PyTorch).
 
 ```json
 {
@@ -462,33 +462,33 @@ Sélectionne le modèle qui évalue la qualité/esthétique de l'image, via la b
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `model` | `"auto"` | Modèle de qualité : `auto`, `topiq`, `hyperiqa`, `dbcnn`, `musiq`, `clip-mlp`. `auto` utilise `topiq`. |
-| `prefer_llm` | `false` | Préférer un évaluateur basé sur un LLM lorsqu'il est disponible |
+|---------|--------|-------------|
+| `model` | `"auto"` | Modèle de qualité : `auto`, `topiq`, `hyperiqa`, `dbcnn`, `musiq`, `clip-mlp`. `auto` utilise `topiq`. |
+| `prefer_llm` | `false` | Préférer un évaluateur fondé sur un LLM lorsqu'il est disponible |
 
 ### Modèles de qualité disponibles
 
 SRCC = coefficient de corrélation de rang de Spearman sur le benchmark KonIQ-10k (1,0 = parfait).
 
 | Modèle | SRCC | VRAM | Notes |
-|-------|------|------|-------|
-| `topiq` | 0.93 | ~2 Go | Par défaut (`auto`) ; ossature ResNet50 avec attention descendante |
-| `hyperiqa` | 0.90 | ~2 Go | Hyper-réseau, adaptatif au contenu |
-| `dbcnn` | 0.90 | ~2 Go | CNN à double branche (distorsions synthétiques + authentiques) |
-| `musiq` | 0.87 | ~2 Go | Transformeur multi-échelle ; gère toute résolution |
-| `clipiqa+` | 0.86 | ~4 Go | CLIP avec invites de qualité apprises |
-| `clip-mlp` | 0.76 | ~4 Go | CLIP ViT-L-14 historique + tête MLP |
+|--------|------|------|-------|
+| `topiq` | 0,93 | ~2 Go | Par défaut (`auto`) ; squelette ResNet50 avec attention descendante |
+| `hyperiqa` | 0,90 | ~2 Go | Hyper-réseau, adaptatif au contenu |
+| `dbcnn` | 0,90 | ~2 Go | CNN à double branche (distorsions synthétiques + authentiques) |
+| `musiq` | 0,87 | ~2 Go | Transformeur multi-échelle ; gère toute résolution |
+| `clipiqa+` | 0,86 | ~4 Go | CLIP avec prompts de qualité appris |
+| `clip-mlp` | 0,76 | ~4 Go | CLIP ViT-L-14 historique + tête MLP |
 
 ### Changer de modèle de qualité
 
-1. Modifiez `scoring_config.json` :
+1. Modifiez `scoring_config.json` :
    ```json
    "quality": {
      "model": "topiq"
    }
    ```
 
-2. Re-noter les photos existantes (facultatif) :
+2. Re-notez les photos existantes (optionnel) :
    ```bash
    python facet.py /path --pass quality
    python facet.py --recompute-average
@@ -498,7 +498,7 @@ SRCC = coefficient de corrélation de rang de Spearman sur le benchmark KonIQ-10
 
 ## Traitement
 
-Réglages de traitement unifiés pour le traitement par lots GPU et le mode multi-passes.
+Réglages de traitement unifiés pour le traitement par lots GPU et le mode multi-pass.
 
 ```json
 {
@@ -532,88 +532,88 @@ Réglages de traitement unifiés pour le traitement par lots GPU et le mode mult
 
 ### Concepts clés
 
-**`gpu_batch_size`** - Nombre d'images traitées ensemble sur le GPU en une seule passe avant. Limité par la VRAM. Auto-ajusté : réduit lorsque la mémoire GPU dépasse la limite.
+**`gpu_batch_size`** - Nombre d'images traitées ensemble sur le GPU en une seule passe avant. Limité par la VRAM. Auto-réglé : réduit lorsque la mémoire GPU dépasse la limite.
 
-**`ram_chunk_size`** - Nombre d'images mises en cache en RAM entre les passes de modèles (mode multi-passes uniquement). Réduit les E/S disque en chargeant les images une seule fois par lot. Limité par la RAM système. Auto-ajusté : réduit lorsque la mémoire système dépasse la limite.
+**`ram_chunk_size`** - Nombre d'images mises en cache en RAM entre les passes de modèle (mode multi-pass uniquement). Réduit les E/S disque en chargeant les images une fois par bloc. Limité par la RAM système. Auto-réglé : réduit lorsque la mémoire système dépasse la limite.
 
 ### Référence des réglages
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `mode` | `"auto"` | Mode de traitement : `auto`, `multi-pass`, `single-pass` |
+|---------|--------|-------------|
+| `mode` | `"auto"` | Mode de traitement : `auto`, `multi-pass`, `single-pass` |
 | `gpu_batch_size` | `16` | Images par lot GPU (limité par la VRAM) |
-| `ram_chunk_size` | `32` | Images par lot RAM (multi-passes) |
+| `ram_chunk_size` | `32` | Images par bloc RAM (multi-pass) |
 | `num_workers` | `4` | Threads de chargement d'images |
-| `load_workers` | `num_workers` | Threads de chargement de lots multi-passes (plafonné à 8, `1` = séquentiel) |
-| `raw_decode_concurrency` | `0` (auto) | Décodages RAW simultanés maximum ; dimensionné automatiquement selon CPU/RAM (1-4), `1` = entièrement sérialisé |
-| `raw_decode_timeout_seconds` | `120` | Abandonner un décodage RAW bloqué après ce délai (`0` = désactivé) ; l'analyse échoue rapidement après plusieurs blocages |
-| `exif_prefetch` | `true` | Mode single-pass : précharger les EXIF en arrière-plan au lieu de bloquer le thread GPU |
+| `load_workers` | `num_workers` | Threads de chargement de blocs en multi-pass (plafonnés à 8, `1` = séquentiel) |
+| `raw_decode_concurrency` | `0` (auto) | Nombre maximal de décodages RAW simultanés ; dimensionné automatiquement selon CPU/RAM (1-4), `1` = entièrement sérialisé |
+| `raw_decode_timeout_seconds` | `120` | Abandonner un décodage RAW bloqué après ce délai (`0` = désactivé) ; l'analyse échoue rapidement après des blocages répétés |
+| `exif_prefetch` | `true` | Mode single-pass : précharger l'EXIF en arrière-plan au lieu de bloquer le thread GPU |
 | **auto_tuning** | | |
-| `enabled` | `true` | Activer l'auto-ajustement |
+| `enabled` | `true` | Activer l'auto-réglage |
 | `monitor_interval_seconds` | `5` | Intervalle de vérification des ressources |
-| `tuning_interval_images` | `32` | Réajuster toutes les N images |
-| `min_processing_workers` | `1` | Threads de chargement minimum |
-| `max_processing_workers` | `32` | Threads de chargement maximum |
-| `min_gpu_batch_size` | `2` | Taille de lot GPU minimale |
-| `max_gpu_batch_size` | `32` | Taille de lot GPU maximale |
-| `min_ram_chunk_size` | `10` | Taille de lot RAM minimale |
-| `max_ram_chunk_size` | `128` | Taille de lot RAM maximale |
+| `tuning_interval_images` | `32` | Re-régler toutes les N images |
+| `min_processing_workers` | `1` | Nombre minimal de threads de chargement |
+| `max_processing_workers` | `32` | Nombre maximal de threads de chargement |
+| `min_gpu_batch_size` | `2` | Taille minimale de lot GPU |
+| `max_gpu_batch_size` | `32` | Taille maximale de lot GPU |
+| `min_ram_chunk_size` | `10` | Taille minimale de bloc RAM |
+| `max_ram_chunk_size` | `128` | Taille maximale de bloc RAM |
 | `memory_limit_percent` | `85` | Limite d'utilisation de la mémoire système |
 | `cpu_target_percent` | `85` | Cible d'utilisation du CPU |
-| `metrics_print_interval_seconds` | `30` | Intervalle d'affichage des stats |
+| `metrics_print_interval_seconds` | `30` | Intervalle d'affichage des statistiques |
 | **thumbnails** | | |
-| `photo_size` | `640` | Taille de la miniature stockée (pixels) |
-| `photo_quality` | `80` | Qualité JPEG de la miniature |
+| `photo_size` | `640` | Taille de la vignette stockée (pixels) |
+| `photo_quality` | `80` | Qualité JPEG des vignettes |
 | `face_padding_ratio` | `0.3` | Marge autour des recadrages de visage |
 
 ### Modes de traitement
 
 | Mode | Description |
 |------|-------------|
-| `auto` | Sélectionne automatiquement le mode multi-passes ou single-pass selon la VRAM |
+| `auto` | Sélectionne automatiquement multi-pass ou single-pass selon la VRAM |
 | `multi-pass` | Chargement séquentiel des modèles (fonctionne avec une VRAM limitée) |
-| `single-pass` | Tous les modèles chargés à la fois (nécessite une VRAM élevée) |
+| `single-pass` | Tous les modèles chargés en même temps (nécessite une VRAM élevée) |
 
-### Fonctionnement du mode multi-passes
+### Fonctionnement du multi-pass
 
-Au lieu de charger tous les modèles à la fois, le mode multi-passes :
+Au lieu de charger tous les modèles en même temps, le multi-pass :
 
-1. Charge les images par lots en RAM (`ram_chunk_size` par défaut : 32)
-2. Pour chaque lot, exécute les modèles séquentiellement : charger le modèle → traiter le lot → décharger le modèle
+1. Charge les images par blocs en RAM (`ram_chunk_size` par défaut : 32)
+2. Pour chaque bloc, exécute les modèles séquentiellement : charger le modèle → traiter le bloc → décharger le modèle
 3. Combine les résultats dans une passe d'agrégation finale
 
-Chaque image est chargée une fois par lot, et les passes sont regroupées pour tenir dans la VRAM disponible, de sorte que les plus gros VLM d'étiquetage/composition s'exécutent même avec une VRAM limitée.
+Chaque image est chargée une fois par bloc, et les passes sont regroupées pour tenir dans la VRAM disponible, de sorte que les VLM de tagger/composition plus volumineux s'exécutent même avec une VRAM limitée.
 
-### Comportement de l'auto-ajustement
+### Comportement de l'auto-réglage
 
-Le système surveille l'utilisation des ressources et s'ajuste :
+Le système surveille l'utilisation des ressources et ajuste :
 
 | Métrique | Action |
-|--------|--------|
+|----------|--------|
 | Mémoire GPU > limite | Réduire `gpu_batch_size` de 25 % |
 | RAM système > limite | Réduire `ram_chunk_size` de 25 % |
 | RAM système < (limite - 20 %) | Augmenter `ram_chunk_size` de 25 % |
 | CPU > cible | Suggérer moins de workers |
-| Délais d'attente de la file > 5 % | Suggérer plus de workers |
+| Délais de file d'attente > 5 % | Suggérer plus de workers |
 
 ### Regroupement dynamique des passes
 
-Lorsque la VRAM le permet, plusieurs petits modèles s'exécutent ensemble :
+Quand la VRAM le permet, plusieurs petits modèles s'exécutent ensemble :
 
 | VRAM | Passe 1 | Passe 2 |
-|------|--------|--------|
+|------|---------|---------|
 | 8 Go | CLIP + SAMP-Net + InsightFace | TOPIQ |
 | 12 Go | CLIP + SAMP-Net + InsightFace + TOPIQ | - |
-| 16 Go | CLIP + SAMP-Net + InsightFace + TOPIQ | VLM d'étiquetage |
+| 16 Go | CLIP + SAMP-Net + InsightFace + TOPIQ | VLM tagger |
 | 24 Go+ | Tous les modèles ensemble (single-pass) | - |
 
-### Options CLI
+### Options en ligne de commande
 
 ```bash
-# Par défaut : multi-passes automatique avec regroupement optimal
+# Par défaut : multi-pass automatique avec regroupement optimal
 python facet.py /path/to/photos
 
-# Forcer le single-pass (tous les modèles chargés à la fois)
+# Forcer le single-pass (tous les modèles chargés en même temps)
 python facet.py /path --single-pass
 
 # Exécuter une passe spécifique uniquement
@@ -621,7 +621,7 @@ python facet.py /path --pass quality       # TOPIQ uniquement
 python facet.py /path --pass quality-iaa   # TOPIQ IAA (mérite esthétique)
 python facet.py /path --pass quality-face  # TOPIQ NR-Face
 python facet.py /path --pass quality-liqe  # LIQE (qualité + distorsion)
-python facet.py /path --pass tags          # Étiqueteur configuré uniquement
+python facet.py /path --pass tags          # Tagger configuré uniquement
 python facet.py /path --pass composition   # SAMP-Net uniquement
 python facet.py /path --pass faces         # InsightFace uniquement
 python facet.py /path --pass embeddings    # Embeddings CLIP/SigLIP uniquement
@@ -648,16 +648,16 @@ Regroupe les photos similaires prises en succession rapide.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `similarity_threshold_percent` | `70` | Seuil de similarité de l'empreinte d'image |
-| `time_window_minutes` | `0.8` | Temps maximum entre les photos |
-| `rapid_burst_seconds` | `0.4` | Photos dans ce délai automatiquement regroupées |
+|---------|--------|-------------|
+| `similarity_threshold_percent` | `70` | Seuil de similarité des empreintes d'image |
+| `time_window_minutes` | `0.8` | Temps maximal entre deux photos |
+| `rapid_burst_seconds` | `0.4` | Photos prises dans cet intervalle automatiquement regroupées |
 
 ---
 
-## Scoring des rafales
+## Notation des rafales
 
-Poids utilisés par le tri de rafales pour calculer un score composite afin de sélectionner la meilleure prise au sein de chaque groupe de rafale. La somme des poids devrait faire 1,0.
+Pondérations utilisées par le tri de rafales pour calculer un score composite afin de sélectionner la meilleure prise au sein de chaque groupe de rafale. La somme des pondérations doit faire 1,0.
 
 ```json
 {
@@ -671,17 +671,17 @@ Poids utilisés par le tri de rafales pour calculer un score composite afin de s
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `weight_aggregate` | `0.4` | Poids du score agrégat global |
-| `weight_aesthetic` | `0.25` | Poids du score de qualité esthétique |
-| `weight_sharpness` | `0.2` | Poids du score de netteté technique |
-| `weight_blink` | `0.15` | Poids de pénalité pour les clignements détectés (plus élevé = pénalité plus forte) |
+|---------|--------|-------------|
+| `weight_aggregate` | `0.4` | Pondération du score agrégé global |
+| `weight_aesthetic` | `0.25` | Pondération du score de qualité esthétique |
+| `weight_sharpness` | `0.2` | Pondération du score de netteté technique |
+| `weight_blink` | `0.15` | Pondération de pénalité pour les clignements détectés (plus élevée = pénalité plus forte) |
 
 ---
 
 ## Détection de doublons
 
-Détecte les photos en doublon de façon globale par comparaison d'empreinte perceptuelle (pHash).
+Détecter les photos en double globalement à l'aide d'une comparaison par empreinte perceptuelle (pHash).
 
 ```json
 {
@@ -694,20 +694,20 @@ Détecte les photos en doublon de façon globale par comparaison d'empreinte per
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `similarity_threshold_percent` | `90` | Filtre pHash strict (90 % = distance de Hamming <= 6 sur 64 bits) ; utilisé comme seul critère lorsqu'un embedding manque pour l'une des photos |
-| `prefilter_hamming` | `12` | Filtre Hamming large d'étape 1 pour l'ensemble de candidats lorsque les deux photos ont des embeddings (forcé à être >= au filtre strict) |
-| `embedding_cosine_threshold` | `0.90` | Filtre cosinus SigLIP/CLIP d'étape 2 : un candidat pHash large ne fusionne que si le cosinus est >= à cette valeur |
+|---------|--------|-------------|
+| `similarity_threshold_percent` | `90` | Filtre pHash strict (90 % = distance de Hamming <= 6 sur 64 bits) ; utilisé comme seul critère quand un embedding manque pour l'une des deux photos |
+| `prefilter_hamming` | `12` | Surcharge optionnelle (absente du fichier livré). Filtre Hamming lâche de l'étape 1 pour l'ensemble candidat quand les deux photos ont des embeddings (forcé à être >= au filtre strict) |
+| `embedding_cosine_threshold` | `0.90` | Surcharge optionnelle (absente du fichier livré). Filtre cosinus SigLIP/CLIP de l'étape 2 : un candidat à pHash lâche n'est fusionné que si le cosinus >= cette valeur |
 
-La détection est en deux étapes : candidats pHash larges (rappel) confirmés par un filtre cosinus d'embedding serré (précision). Les photos sans embedding retombent sur le critère strict pHash seul, donc le comportement est inchangé en l'absence d'embeddings.
+La détection se fait en deux étapes : candidats pHash lâches (rappel) confirmés par un filtre cosinus d'embedding strict (précision). Les photos sans embedding retombent sur le critère strict pHash seul, donc le comportement est inchangé en l'absence d'embeddings.
 
-Lancez `python facet.py --detect-duplicates` pour détecter et regrouper les doublons. Lancez `python facet.py --sweep-dedup-thresholds [labels.json]` pour évaluer le filtre cosinus — avec un JSON de labels, il affiche un tableau précision/rappel, sinon la distribution cosinus des candidats et le nombre de collisions pHash strictes que le filtre rejette.
+Exécutez `python facet.py --detect-duplicates` pour détecter et regrouper les doublons. Exécutez `python facet.py --sweep-dedup-thresholds [labels.json]` pour évaluer le filtre cosinus — avec un fichier de labels JSON, il affiche un tableau précision/rappel, sinon la distribution des cosinus candidats et combien de collisions pHash strictes le filtre rejette.
 
 ---
 
-## Niveau IQA étendu (facultatif)
+## Niveau IQA étendu (optionnel)
 
-Évaluateurs de qualité lourds/expérimentaux, **désactivés par défaut** et **jamais en remplacement de TOPIQ** — ils ajoutent uniquement des colonnes supplémentaires lorsqu'ils sont explicitement activés. Une fois activés, les évaluateurs étendus s'exécutent **pendant une analyse normale** et écrivent leurs propres colonnes ; un échec de chargement/VRAM est journalisé et la colonne reste `NULL` (l'analyse n'est jamais interrompue).
+Évaluateurs de qualité lourds/expérimentaux, **désactivés par défaut** et **jamais un remplacement de TOPIQ** — ils n'ajoutent des colonnes supplémentaires que lorsqu'ils sont explicitement activés. Lorsqu'ils sont activés, les évaluateurs étendus s'exécutent **pendant une analyse normale** et écrivent leurs propres colonnes ; une erreur de chargement/VRAM est journalisée et la colonne reste à `NULL` (l'analyse ne s'interrompt jamais).
 
 ```json
 {
@@ -720,24 +720,24 @@ Lancez `python facet.py --detect-duplicates` pour détecter et regrouper les dou
 ```
 
 | Réglage | Défaut | Valeurs acceptées | Colonne | Description |
-|---------|---------|-----------------|--------|-------------|
-| `qalign` | `false` | `false` · `"4bit"` · `"8bit"` · `true`/`"full"` | `qalign_score` | IQA basé sur LLM Q-Align (adossé à pyiqa). `"4bit"` (~6-8 Go VRAM) est le choix pratique sur une carte de 16 Go ; `"8bit"` ~12-14 Go ; pleine précision (`true`) nécessite 16 Go+. Le 4/8 bits requiert `bitsandbytes`. |
+|---------|--------|-------------------|---------|-------------|
+| `qalign` | `false` | `false` · `"4bit"` · `"8bit"` · `true`/`"full"` | `qalign_score` | IQA fondé sur un LLM Q-Align (basé sur pyiqa). `"4bit"` (~6-8 Go VRAM) est le choix pratique sur une carte 16 Go ; `"8bit"` ~12-14 Go ; pleine précision (`true`) requiert 16 Go+. Les modes 4/8 bits nécessitent `bitsandbytes`. |
 | `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (tête SigLIP, ~2 Go). Nécessite le paquet `aesthetic-predictor-v2-5`. |
-| `deqa` | `false` | `true` / `false` | `deqa_score` | IQA VLM DeQA-Score (GPU 16 Go+ ; ignoré et laissé NULL sinon). |
+| `deqa` | `false` | `true` / `false` | `deqa_score` | IQA VLM DeQA-Score (GPU 16 Go+ ; ignoré et laissé à NULL sinon). |
 
-**Installez les dépendances facultatives** correspondant à ce que vous activez : `pip install -e .[iqa-extended]` (ajoute `aesthetic-predictor-v2-5` + `bitsandbytes`), ou décommentez les lignes correspondantes dans `requirements.txt`. Q-Align lui-même est livré avec `pyiqa` ; DeQA-Score se télécharge via `transformers`.
+**Installez les dépendances optionnelles** correspondant à ce que vous activez : `pip install -e .[iqa-extended]` (ajoute `aesthetic-predictor-v2-5` + `bitsandbytes`), ou décommentez les lignes correspondantes dans `requirements.txt`. Q-Align lui-même est livré avec `pyiqa` ; DeQA-Score se télécharge via `transformers`.
 
-Une fois activée, chaque métrique est exposée à l'agrégat pondéré mais avec un poids 0 par défaut, donc `--recompute-average` est identique octet par octet jusqu'à ce que vous lui attribuiez un poids. Lancez `python facet.py --eval-iqa-srcc` pour mesurer à quel point chaque métrique classe votre bibliothèque par rapport à vos propres notes en étoiles.
+Lorsqu'elle est activée, chaque métrique est exposée à l'agrégat pondéré mais avec une pondération par défaut de 0, de sorte que `--recompute-average` reste identique au bit près jusqu'à ce que vous lui attribuiez une pondération. Exécutez `python facet.py --eval-iqa-srcc` pour mesurer la qualité du classement de votre photothèque par chaque métrique au regard de vos propres notes en étoiles.
 
-**Affichage dans la galerie web.** Lorsque l'une de ces colonnes est renseignée, la galerie affiche la valeur dans le panneau **Qualité** du détail de la photo (`Q-Align`, `Aesthetic V2.5`, `DeQA`) et expose un curseur de plage correspondant dans la barre latérale de filtres de la galerie sous **Qualité étendue** (`min_qalign`/`max_qalign`, `min_aesthetic_v25`/`max_aesthetic_v25`, `min_deqa`/`max_deqa`). Les photos analysées avant l'activation du niveau ont simplement `NULL` dans ces colonnes et ne sont pas affectées par les filtres.
+**Affichage dans la visionneuse.** Lorsqu'une de ces colonnes est renseignée, la visionneuse affiche la valeur dans le panneau **Quality** du détail de la photo (`Q-Align`, `Aesthetic V2.5`, `DeQA`) et expose un curseur de plage correspondant dans la barre latérale de filtres de la galerie, sous **Extended Quality** (`min_qalign`/`max_qalign`, `min_aesthetic_v25`/`max_aesthetic_v25`, `min_deqa`/`max_deqa`). Les photos analysées avant l'activation du niveau ont simplement `NULL` dans ces colonnes et ne sont pas affectées par les filtres.
 
-**Robustesse.** DeQA-Score charge du code distant `trust_remote_code` dont la signature de la fonction forward varie selon les révisions de checkpoint ; son évaluateur est défensif — tout échec de prédiction (mauvaise signature, forme de sortie inattendue, OOM) est intercepté et le `deqa_score` de l'image reste `NULL` plutôt que de faire planter l'analyse.
+**Robustesse.** DeQA-Score charge du code `trust_remote_code` distant dont la signature de forward varie selon les révisions de checkpoint ; son évaluateur est défensif — toute défaillance de prédiction (mauvaise signature, forme de sortie inattendue, OOM) est interceptée et le `deqa_score` de l'image reste à `NULL` au lieu de faire planter l'analyse.
 
 ---
 
-## Détection de visages
+## Détection des visages
 
-Réglages de détection de visages InsightFace.
+Réglages de détection des visages InsightFace.
 
 ```json
 {
@@ -752,18 +752,18 @@ Réglages de détection de visages InsightFace.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `min_confidence_percent` | `65` | Confiance de détection minimale |
-| `min_face_size` | `20` | Taille de visage minimale en pixels |
-| `blink_ear_threshold` | `0.28` | Ratio d'aspect de l'œil (EAR) pour la détection de clignement |
-| `min_faces_for_group` | `4` | Visages minimum pour classer comme portrait de groupe (recalculé lors de `--recompute-average`) |
-| `enable_3d_landmarks` | `false` | Charger le module InsightFace `landmark_3d_68` pour l'extraction de la pose de la tête (lacet/tangage/roulis). Coûte ~5 Mo de poids ONNX supplémentaires. Actuellement informatif ; de futures améliorations de profil/silhouette le liront. |
+| `min_face_size` | `20` | Taille minimale du visage en pixels |
+| `blink_ear_threshold` | `0.28` | Rapport d'aspect de l'œil (EAR) pour la détection de clignement |
+| `min_faces_for_group` | `4` | Nombre minimal de visages pour classer en portrait de groupe (recalculé lors de `--recompute-average`) |
+| `enable_3d_landmarks` | `false` | Surcharge optionnelle (absente du fichier livré ; défaut du code `false`). Charge le module InsightFace `landmark_3d_68` pour l'extraction de la pose de tête (lacet/tangage/roulis). Coûte ~5 Mo de poids ONNX supplémentaires. Actuellement informatif ; de futurs affinements de profil/silhouette le liront. |
 
 ---
 
-## Regroupement de visages
+## Regroupement des visages
 
-Regroupement HDBSCAN pour la reconnaissance faciale.
+Regroupement HDBSCAN pour la reconnaissance des visages.
 
 ```json
 {
@@ -782,32 +782,32 @@ Regroupement HDBSCAN pour la reconnaissance faciale.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `enabled` | `true` | Activer le regroupement de visages |
-| `min_faces_per_person` | `2` | Photos minimum par personne |
+|---------|--------|-------------|
+| `enabled` | `true` | Activer le regroupement des visages |
+| `min_faces_per_person` | `2` | Nombre minimal de photos par personne |
 | `min_samples` | `2` | Paramètre min_samples de HDBSCAN |
 | `auto_merge_distance_percent` | `15` | Fusion automatique dans cette distance |
 | `clustering_algorithm` | `"best"` | Algorithme HDBSCAN |
-| `leaf_size` | `40` | Taille de feuille de l'arbre (CPU uniquement) |
-| `use_gpu` | `"auto"` | Mode GPU : `auto`, `always`, `never` |
+| `leaf_size` | `40` | Taille des feuilles de l'arbre (CPU uniquement) |
+| `use_gpu` | `"auto"` | Mode GPU : `auto`, `always`, `never` |
 | `merge_threshold` | `0.6` | Similarité de centroïde pour la correspondance |
-| `chunk_size` | `10000` | Taille de lot de traitement |
+| `chunk_size` | `10000` | Taille des blocs de traitement |
 
-**Algorithmes de regroupement :**
+**Algorithmes de regroupement :**
 
 | Algorithme | Complexité | Idéal pour |
-|-----------|------------|----------|
+|------------|------------|------------|
 | `boruvka_balltree` | O(n log n) | Données de haute dimension (recommandé) |
-| `boruvka_kdtree` | O(n log n) | Données de basse dimension |
+| `boruvka_kdtree` | O(n log n) | Données de faible dimension |
 | `prims_balltree` | O(n²) | Mémoire limitée, haute dimension |
-| `prims_kdtree` | O(n²) | Mémoire limitée, basse dimension |
+| `prims_kdtree` | O(n²) | Mémoire limitée, faible dimension |
 | `best` | Auto | Laisser HDBSCAN décider |
 
 ---
 
 ## Traitement des visages
 
-Contrôle l'extraction des visages et la génération de miniatures.
+Contrôle l'extraction des visages et la génération de vignettes.
 
 ```json
 {
@@ -831,19 +831,19 @@ Contrôle l'extraction des visages et la génération de miniatures.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `crop_padding` | `0.3` | Ratio de marge pour les recadrages de visage |
-| `use_db_thumbnails` | `true` | Utiliser les miniatures stockées |
-| `face_thumbnail_size` | `640` | Taille de miniature en pixels |
+| `use_db_thumbnails` | `true` | Utiliser les vignettes stockées |
+| `face_thumbnail_size` | `640` | Taille de la vignette en pixels |
 | `face_thumbnail_quality` | `90` | Qualité JPEG |
 | `extract_workers` | `2` | Workers d'extraction parallèles |
 | `extract_batch_size` | `16` | Taille de lot d'extraction |
-| `refill_workers` | `4` | Workers de réapprovisionnement de miniatures |
-| `refill_batch_size` | `100` | Taille de lot de réapprovisionnement |
+| `refill_workers` | `4` | Workers de regénération de vignettes |
+| `refill_batch_size` | `100` | Taille de lot de regénération |
 | **auto_tuning** | | |
-| `enabled` | `true` | Activer l'ajustement basé sur la mémoire |
+| `enabled` | `true` | Activer le réglage fondé sur la mémoire |
 | `memory_limit_percent` | `80` | Limite d'utilisation de la mémoire |
-| `min_batch_size` | `8` | Taille de lot minimale |
+| `min_batch_size` | `8` | Taille minimale de lot |
 | `monitor_interval_seconds` | `5` | Intervalle de vérification |
 
 ---
@@ -861,7 +861,7 @@ Détection des photos en noir et blanc.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `saturation_threshold_percent` | `5` | Saturation moyenne < 5 % = monochrome |
 
 ---
@@ -880,43 +880,43 @@ Réglages généraux d'étiquetage. Le modèle d'étiquetage est configuré par 
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `enabled` | `true` | Activer l'étiquetage |
-| `max_tags` | `5` | Tags maximum par photo |
+| `max_tags` | `5` | Nombre maximal d'étiquettes par photo |
 
-**Note :** les réglages spécifiques à CLIP comme `similarity_threshold_percent` se trouvent dans la section `models.clip`.
+**Note :** les réglages spécifiques à CLIP comme `similarity_threshold_percent` se trouvent dans la section `models.clip`.
 
 ### Modèles d'étiquetage disponibles
 
-Configurés via `models.profiles.*.tagging_model` :
+Configurés via `models.profiles.*.tagging_model` :
 
-| Modèle | VRAM | Style de tags | Notes |
-|-------|------|-----------|-------|
-| `clip` | 0 (réutilise les embeddings) | Ambiance/atmosphère (dramatic, golden_hour, vintage) | Aucun chargement de modèle supplémentaire ; détection d'objets moins littérale |
+| Modèle | VRAM | Style d'étiquette | Notes |
+|--------|------|-------------------|-------|
+| `clip` | 0 (réutilise les embeddings) | Ambiance/atmosphère (dramatic, golden_hour, vintage) | Aucun chargement de modèle supplémentaire ; détection d'objets moins littérale |
 | `qwen3.5-2b` | ~4 Go | Scènes structurées (landscape, architecture, reflection) | Nécessite transformers + VRAM supplémentaire |
-| `qwen3.5-4b` | ~8 Go | Scènes détaillées avec nuance | VRAM plus élevée ; inférence plus lente |
+| `qwen3.5-4b` | ~8 Go | Scènes détaillées avec nuance | VRAM plus élevée ; inférence plus lente |
 
 ### Modèles d'étiquetage par défaut selon le profil
 
 | Profil | Modèle d'étiquetage | Modèle d'embedding |
-|---------|---------------|-----------------|
-| `legacy` | `clip` | CLIP ViT-L-14 (768-dim) |
-| `8gb` | `clip` | CLIP ViT-L-14 (768-dim) |
-| `16gb` | `qwen3.5-2b` | SigLIP 2 NaFlex SO400M (1152-dim) |
-| `24gb` | `qwen3.5-4b` | SigLIP 2 NaFlex SO400M (1152-dim) |
+|--------|---------------------|--------------------|
+| `legacy` | `clip` | CLIP ViT-L-14 (768 dim) |
+| `8gb` | `clip` | CLIP ViT-L-14 (768 dim) |
+| `16gb` | `qwen3.5-2b` | SigLIP 2 NaFlex SO400M (1152 dim) |
+| `24gb` | `qwen3.5-4b` | SigLIP 2 NaFlex SO400M (1152 dim) |
 
-### Réétiqueter les photos
+### Ré-étiquetage des photos
 
 ```bash
-python facet.py --recompute-tags       # Réétiqueter avec le modèle configuré par profil
-python facet.py --recompute-tags-vlm   # Réétiqueter avec l'étiqueteur VLM
+python facet.py --recompute-tags       # Ré-étiqueter avec le modèle configuré par profil
+python facet.py --recompute-tags-vlm   # Ré-étiqueter avec le tagger VLM
 ```
 
 ---
 
-## Tags autonomes
+## Étiquettes autonomes
 
-Tags avec des listes de synonymes qui ne sont liés à aucune catégorie spécifique. Ils sont disponibles pour toutes les photos quelle que soit l'attribution de catégorie. Chaque clé est le nom du tag ; la valeur est une liste de synonymes pour la correspondance CLIP/VLM.
+Étiquettes avec listes de synonymes qui ne sont liées à aucune catégorie spécifique. Elles sont disponibles pour toutes les photos, quelle que soit l'attribution de catégorie. Chaque clé est le nom de l'étiquette ; la valeur est une liste de synonymes pour la correspondance CLIP/VLM.
 
 ```json
 {
@@ -930,11 +930,11 @@ Tags avec des listes de synonymes qui ne sont liés à aucune catégorie spécif
 }
 ```
 
-Ajoutez de nouveaux tags autonomes en fournissant une clé et une liste de synonymes. Les tags définis ici sont fusionnés avec les tags spécifiques aux catégories pour former le vocabulaire de tags complet.
+Ajoutez de nouvelles étiquettes autonomes en fournissant une clé et une liste de synonymes. Les étiquettes définies ici sont fusionnées avec les étiquettes spécifiques aux catégories pour former le vocabulaire complet d'étiquettes.
 
 ---
 
-## Analyse statistique
+## Analyse
 
 Seuils pour `--compute-recommendations`.
 
@@ -956,13 +956,13 @@ Seuils pour `--compute-recommendations`.
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `aesthetic_max_threshold` | `9.0` | Avertir si l'esthétique maximale est en dessous |
 | `aesthetic_target` | `9.5` | Cible pour aesthetic_scale |
 | `quality_avg_threshold` | `7.5` | Seuil de qualité « haute valeur » |
-| `quality_weight_threshold_percent` | `10` | Avertir si le poids de qualité ≤ cette valeur |
+| `quality_weight_threshold_percent` | `10` | Avertir si la pondération de qualité ≤ cette valeur |
 | `correlation_dominant_threshold` | `0.5` | Avertissement « signal dominant » |
-| `category_min_samples` | `50` | Photos minimum par catégorie |
+| `category_min_samples` | `50` | Nombre minimal de photos par catégorie |
 | `category_imbalance_threshold` | `0.5` | Avertissement d'écart de score |
 | `score_clustering_std_threshold` | `1.0` | Avertir si l'écart-type < cette valeur |
 | `top_score_threshold` | `8.5` | Avertir si l'agrégat maximal < cette valeur |
@@ -970,7 +970,7 @@ Seuils pour `--compute-recommendations`.
 
 ---
 
-## Galerie web
+## Visionneuse
 
 Affichage et comportement de la galerie web.
 
@@ -1063,81 +1063,83 @@ Affichage et comportement de la galerie web.
 }
 ```
 
+> **Note :** `sort_options` (élidé en `{ ... }` ci-dessus) associe les colonnes de la base aux libellés du menu déroulant et est rarement modifié.
+
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `default_category` | `""` | Filtre de catégorie par défaut |
 | `edition_password` | `""` | Mot de passe pour déverrouiller le mode édition (vide = désactivé) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Minimum pour l'optimisation |
-| `pair_selection_strategy` | `"learning"` | Stratégie de paires : `learning` (démarrage à froid par diversité d'embeddings + désaccord de classement une fois entraîné), `uncertainty`, `boundary`, `active`, `random` |
-| `candidate_pool_size` | `200` | Bassin de candidats aléatoire dans lequel la stratégie `learning` échantillonne les paires |
+| `pair_selection_strategy` | `"learning"` | Stratégie de paires : `learning` (démarrage à froid par diversité d'embeddings + désaccord de rang une fois entraîné), `uncertainty`, `boundary`, `active`, `random` |
+| `candidate_pool_size` | `200` | Bassin candidat aléatoire au sein duquel la stratégie `learning` échantillonne les paires |
 | `show_current_scores` | `true` | Afficher les scores pendant la comparaison |
 | **pagination** | | |
 | `default_per_page` | `64` | Photos par page |
 | **dropdowns** | | |
-| `max_cameras` | `50` | Appareils maximum dans le menu déroulant |
-| `max_lenses` | `50` | Objectifs maximum |
-| `max_persons` | `50` | Personnes maximum |
-| `max_tags` | `20` | Tags maximum |
-| `min_photos_for_person` | `10` | Masquer les personnes ayant moins de photos du menu déroulant |
+| `max_cameras` | `50` | Nombre maximal d'appareils dans le menu déroulant |
+| `max_lenses` | `50` | Nombre maximal d'objectifs |
+| `max_persons` | `50` | Nombre maximal de personnes |
+| `max_tags` | `20` | Nombre maximal d'étiquettes |
+| `min_photos_for_person` | `10` | Masquer du menu déroulant les personnes ayant moins de photos |
 | **persons** | | |
-| `needs_naming_min_faces` | `5` | Valeur minimale de face_count pour qu'un groupe auto-clusterisé apparaisse dans la section « À nommer » de `/persons` |
+| `needs_naming_min_faces` | `5` | face_count minimal pour qu'un cluster auto-regroupé apparaisse dans la section « À nommer » de `/persons` |
 | **raw_processor** | | |
 | `darktable.executable` | `"darktable-cli"` | Nom du binaire darktable-cli ou chemin absolu |
 | `darktable.profiles` | `[]` | Tableau de profils d'export darktable nommés (voir ci-dessous) |
 | `darktable.profiles[].name` | *(requis)* | Nom d'affichage du profil (utilisé dans le menu de téléchargement et le paramètre API `profile`) |
-| `darktable.profiles[].hq` | `true` | Passer `--hq true` pour un export de haute qualité |
-| `darktable.profiles[].width` | *(omis)* | Largeur de sortie maximale (omettre pour la pleine résolution) |
-| `darktable.profiles[].height` | *(omis)* | Hauteur de sortie maximale (omettre pour la pleine résolution) |
-| `darktable.profiles[].style` | *(omis)* | Nom du style darktable appliqué lors de l'export (`--style`) |
-| `darktable.profiles[].apply_custom_presets` | `true` | Si `false`, passe `--apply-custom-presets false` pour que seul le `style` explicite soit rendu (et non les préréglages appliqués automatiquement) |
-| `darktable.profiles[].extra_args` | `[]` | Arguments CLI supplémentaires (ex : `["--style-overwrite"]`) |
+| `darktable.profiles[].hq` | `true` | Passe `--hq true` pour un export haute qualité |
+| `darktable.profiles[].width` | *(omettre)* | Largeur de sortie maximale (omettre pour la pleine résolution) |
+| `darktable.profiles[].height` | *(omettre)* | Hauteur de sortie maximale (omettre pour la pleine résolution) |
+| `darktable.profiles[].style` | *(omettre)* | Nom du style darktable appliqué lors de l'export (`--style`) |
+| `darktable.profiles[].apply_custom_presets` | `true` | Lorsque `false`, passe `--apply-custom-presets false` afin que seul le `style` explicite soit rendu (et non les préréglages auto-appliqués) |
+| `darktable.profiles[].extra_args` | `[]` | Arguments CLI supplémentaires (par ex. `["--style-overwrite"]`) |
 | **display** | | |
-| `tags_per_photo` | `4` | Tags affichés sur les cartes |
-| `card_width_px` | `168` | Largeur de carte |
-| `image_width_px` | `160` | Largeur d'image |
+| `tags_per_photo` | `4` | Étiquettes affichées sur les cartes |
+| `card_width_px` | `168` | Largeur de la carte |
+| `image_width_px` | `160` | Largeur de l'image |
 | `image_jpeg_quality` | `96` | Qualité JPEG pour la conversion RAW/HEIF dans `/api/download` et `/api/image` (1–100) |
-| `thumbnail_slider.min_px` | `120` | Taille de miniature minimale (px) |
-| `thumbnail_slider.max_px` | `400` | Taille de miniature maximale (px) |
-| `thumbnail_slider.default_px` | `168` | Taille de miniature par défaut (px) |
-| `thumbnail_slider.step_px` | `8` | Incrément de pas du curseur (px) |
+| `thumbnail_slider.min_px` | `120` | Taille minimale de vignette (px) |
+| `thumbnail_slider.max_px` | `400` | Taille maximale de vignette (px) |
+| `thumbnail_slider.default_px` | `168` | Taille de vignette par défaut (px) |
+| `thumbnail_slider.step_px` | `8` | Pas d'incrément du curseur (px) |
 | **face_thumbnails** | | |
-| `output_size_px` | `64` | Taille de miniature |
+| `output_size_px` | `64` | Taille de vignette |
 | `jpeg_quality` | `80` | Qualité JPEG |
-| `crop_padding_ratio` | `0.2` | Marge de visage |
-| `min_crop_size_px` | `20` | Taille de recadrage minimale |
+| `crop_padding_ratio` | `0.2` | Marge du visage |
+| `min_crop_size_px` | `20` | Taille minimale de recadrage |
 | **quality_thresholds** | | |
 | `good` | `6` | Seuil « bon » |
 | `great` | `7` | Seuil « très bon » |
 | `excellent` | `8` | Seuil « excellent » |
 | `best` | `9` | Seuil « meilleur » |
 | **photo_types** | | |
-| `top_picks_min_score` | `7` | Minimum pour Meilleurs choix |
-| `top_picks_min_face_ratio` | `0.2` | Ratio de visage pour les poids |
+| `top_picks_min_score` | `7` | Minimum pour Top Picks |
+| `top_picks_min_face_ratio` | `0.2` | Ratio de visage pour les pondérations |
 | `low_light_max_luminance` | `0.2` | Seuil de faible luminosité |
 | **defaults** | | |
-| `type` | `""` | Filtre de type de photo par défaut (ex : `"portraits"`, `"landscapes"` ou `""` pour Toutes) |
+| `type` | `""` | Filtre de type de photo par défaut (par ex. `"portraits"`, `"landscapes"`, ou `""` pour Toutes) |
 | `sort` | `"aggregate"` | Colonne de tri par défaut |
-| `sort_direction` | `"DESC"` | Direction de tri par défaut (`"ASC"` ou `"DESC"`) |
+| `sort_direction` | `"DESC"` | Sens de tri par défaut (`"ASC"` ou `"DESC"`) |
 | `hide_blinks` | `true` | Masquer les photos avec clignement par défaut |
-| `hide_bursts` | `true` | N'afficher que la meilleure de la rafale par défaut |
-| `hide_duplicates` | `true` | Masquer les photos en doublon non principales par défaut |
+| `hide_bursts` | `true` | Afficher uniquement la meilleure de chaque rafale par défaut |
+| `hide_duplicates` | `true` | Masquer les doublons non principaux par défaut |
 | `hide_details` | `true` | Masquer les détails des photos sur les cartes par défaut |
-| `tooltip_mode` | `"hover"` | Déclencheur d'infobulle : `"hover"`, `"click"` ou `"off"`. Remplace l'ancien booléen `hide_tooltip`. |
+| `tooltip_mode` | `"hover"` | Déclencheur d'infobulle : `"hover"`, `"click"` ou `"off"`. Remplace l'ancien booléen `hide_tooltip`. |
 | `hide_rejected` | `true` | Masquer les photos rejetées par défaut |
 | `gallery_mode` | `"mosaic"` | Disposition de galerie par défaut (`"grid"` ou `"mosaic"`) |
 | **allowed_origins** | | |
-| `allowed_origins` | `["http://localhost:4200", "http://localhost:5000"]` | Origines CORS autorisées pour le serveur FastAPI. Ajoutez votre domaine ou l'URL du reverse proxy lors d'un hébergement distant. |
+| `allowed_origins` | `["http://localhost:4200", "http://localhost:5000"]` | Origines CORS autorisées pour le serveur FastAPI. Ajoutez votre domaine ou l'URL de votre reverse proxy en cas d'hébergement distant. |
 | **security_headers** | | |
-| `security_headers.content_security_policy` | _(valeur par défaut compatible SPA)_ | Valeur de l'en-tête Content-Security-Policy. Par défaut, une politique autorisant les propres ressources du SPA (script/style de thème inline, Google Fonts, tuiles OpenStreetMap, API de même origine). Définir à `""` pour désactiver, ou fournir une politique plus stricte. |
-| `security_headers.hsts` | `false` | Envoyer `Strict-Transport-Security`. À activer uniquement lorsque la galerie est servie via HTTPS. |
+| `security_headers.content_security_policy` | _(valeur par défaut compatible SPA)_ | Valeur de l'en-tête Content-Security-Policy. Par défaut, une politique autorisant les ressources propres de la SPA (script/style de thème inline, Google Fonts, tuiles OpenStreetMap, API de même origine). Mettre `""` pour désactiver, ou fournir une politique plus stricte. |
+| `security_headers.hsts` | `false` | Envoyer `Strict-Transport-Security`. À activer uniquement lorsque la visionneuse est servie en HTTPS. |
 | **Autres** | | |
 | `cache_ttl_seconds` | `60` | TTL du cache de requêtes |
 | `notification_duration_ms` | `2000` | Durée des notifications toast |
 
 ### Fonctionnalités
 
-Activez ou désactivez les fonctionnalités facultatives pour réduire l'utilisation de la mémoire ou simplifier l'interface :
+Activez ou désactivez des fonctionnalités optionnelles pour réduire l'utilisation mémoire ou simplifier l'interface :
 
 ```json
 {
@@ -1159,30 +1161,32 @@ Activez ou désactivez les fonctionnalités facultatives pour réduire l'utilisa
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `show_similar_button` | `true` | Afficher le bouton « Similaires » sur les cartes photo (utilise numpy pour la similarité CLIP) |
+|---------|--------|-------------|
+| `show_similar_button` | `true` | Afficher le bouton « Trouver des similaires » sur les cartes photo (utilise numpy pour la similarité CLIP) |
 | `show_merge_suggestions` | `true` | Activer la fonctionnalité de suggestions de fusion sur la page de gestion des personnes |
-| `show_rating_controls` | `true` | Afficher les contrôles de note (étoiles) et de favori |
-| `show_rating_badge` | `true` | Afficher le badge de note sur les cartes photo |
-| `show_scan_button` | `false` | Afficher le bouton de déclenchement d'analyse pour les utilisateurs superadmin (nécessite un GPU sur l'hôte de la galerie) |
-| `metrics_enabled` | `false` | Activer le point de terminaison Prometheus public `GET /metrics`. Désactivé par défaut — il expose le nombre de photos/personnes/visages, la taille de la base et la mémoire du processus ; à activer uniquement lorsque le point de terminaison est accessible depuis le réseau du scraper, pas depuis l'internet public. |
-| `show_semantic_search` | `true` | Afficher la barre de recherche sémantique (recherche texte-vers-image avec les embeddings CLIP/SigLIP) |
-| `show_albums` | `true` | Afficher la fonctionnalité d'albums (créer, gérer et parcourir des albums de photos) |
-| `show_critique` | `true` | Afficher le bouton de critique IA sur les cartes photo (ventilation du score basée sur des règles) |
-| `show_vlm_critique` | `false` | Activer le mode de critique alimenté par VLM (nécessite un profil VRAM 16gb/24gb) |
-| `show_embed_metadata` | `true` | Affiche l'action « Écrire les métadonnées dans le fichier » par vignette en mode édition (intègre notes/mots-clés dans l'image originale via exiftool) |
-| `show_memories` | `true` | Afficher la boîte de dialogue Souvenirs « Ce jour-là » (photos prises à la même date les années précédentes) |
+| `show_rating_controls` | `true` | Afficher les commandes de notation par étoiles et de favori |
+| `show_rating_badge` | `true` | Afficher le badge de notation sur les cartes photo |
+| `show_scan_button` | `false` | Afficher le bouton de déclenchement d'analyse pour les superadmins (nécessite un GPU sur l'hôte de la visionneuse) |
+| `metrics_enabled` | `false` | Activer le point d'accès public Prometheus `GET /metrics`. Désactivé par défaut — il expose les nombres de photos/personnes/visages, la taille de la base et la mémoire du processus ; à n'activer que lorsque le point d'accès est joignable depuis le réseau du collecteur, et non depuis Internet public. |
+| `show_semantic_search` | `true` | Afficher la barre de recherche sémantique (recherche texte-vers-image via les embeddings CLIP/SigLIP) |
+| `show_albums` | `true` | Afficher la fonctionnalité d'albums (créer, gérer et parcourir des albums photo) |
+| `show_critique` | `true` | Afficher le bouton de critique IA sur les cartes photo (décomposition de score fondée sur des règles) |
+| `show_vlm_critique` | `true` | Activer le mode de critique propulsé par VLM (nécessite un profil VRAM 16gb/24gb). Le code retombe sur `false` quand la clé est absente. |
+| `show_embed_metadata` | `true` | Afficher l'action « Écrire les métadonnées dans le fichier » par vignette en mode édition (intègre notes/mots-clés dans l'image originale via exiftool) |
+| `show_memories` | `true` | Afficher la boîte de dialogue souvenirs « Ce jour-là » (photos prises à la même date les années précédentes) |
 | `show_captions` | `true` | Afficher les légendes générées par IA sur les cartes photo |
-| `show_timeline` | `true` | Afficher la vue chronologie pour un parcours chronologique avec navigation par date |
-| `show_scenes` | `true` | Afficher la vue Scènes (`/scenes`) qui regroupe les photos principales de rafale en scènes chronologiques pour un tri dans l'ordre du récit |
-| `show_my_taste` | `true` | Afficher le tri « Mon goût » basé sur le score appris du classeur personnel, avec un badge de confiance (couverture apprise / précision) |
-| `show_map` | `false` | Afficher la vue carte avec les emplacements de photos géolocalisées (nécessite Leaflet ; désactivé par défaut car les photos peuvent manquer de données GPS) |
+| `show_timeline` | `true` | Afficher la vue chronologique pour un parcours chronologique avec navigation par date |
+| `show_map` | `true` | Afficher la vue carte avec les emplacements GPS des photos (nécessite Leaflet). Le code retombe sur `false` quand la clé est absente. |
+| `show_capsules` | `true` | Afficher la vue Capsules (diaporamas de photos sélectionnées regroupées par thème) |
+| `show_folders` | `true` | Afficher le parcours par dossiers de la structure de répertoires photo |
+| `show_scenes` | `true` | Afficher la vue Scènes (`/scenes`) qui regroupe les photos de tête de rafale en scènes chronologiques pour un tri dans l'ordre du récit |
+| `show_my_taste` | `true` | Afficher le tri « My Taste » fondé sur le score appris du classeur personnel, avec un badge de confiance couverture-apprise / précision |
 
-**Optimisation de la mémoire :** définir `show_similar_button: false` empêche le chargement de numpy, réduisant l'empreinte mémoire de la galerie. La fonctionnalité de photos similaires calcule la similarité cosinus des embeddings CLIP, ce qui nécessite numpy.
+**Optimisation mémoire :** définir `show_similar_button: false` empêche le chargement de numpy, réduisant l'empreinte mémoire de la visionneuse. La fonctionnalité de photos similaires calcule la similarité cosinus des embeddings CLIP, ce qui nécessite numpy.
 
 ### Mappage de chemins
 
-Mappez les chemins de la base de données vers les chemins du système de fichiers local. Utile lorsque les photos ont été notées sur une machine (ex : Windows avec des chemins UNC) mais que la galerie tourne sur une autre (ex : NAS Linux avec des points de montage).
+Associer les chemins de la base à des chemins du système de fichiers local. Utile lorsque les photos ont été notées sur une machine (par ex. Windows avec des chemins UNC) mais que la visionneuse s'exécute sur une autre (par ex. un NAS Linux avec des points de montage).
 
 ```json
 {
@@ -1196,16 +1200,16 @@ Mappez les chemins de la base de données vers les chemins du système de fichie
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `path_mapping` | `{}` | Dictionnaire de préfixe source vers préfixe destination. Lors du service d'images en pleine taille ou de la critique VLM, les chemins de la base commençant par un préfixe source sont réécrits pour utiliser le préfixe destination. |
+|---------|--------|-------------|
+| `path_mapping` | `{}` | Dictionnaire de préfixe source vers préfixe de destination. Lors du service d'images en pleine taille ou de la critique VLM, les chemins de la base commençant par un préfixe source sont réécrits pour utiliser le préfixe de destination. |
 
-**Fonctionnement :**
-- S'applique uniquement lors de la **lecture de fichiers depuis le disque** (service d'images en pleine taille, téléchargements de fichiers, critique VLM). Les chemins de la base de données ne sont jamais modifiés.
-- La normalisation barre oblique inverse/barre oblique est gérée automatiquement : `\\NAS\Photos\img.jpg` et `//NAS/Photos/img.jpg` correspondent tous deux.
-- Les mappages sont évalués dans l'ordre ; le premier préfixe correspondant l'emporte.
-- Les cibles de mappage de chemins sont automatiquement incluses dans la liste d'autorisation des répertoires d'analyse pour les contrôles de sécurité multi-utilisateur.
+**Fonctionnement :**
+- Ne s'applique que lors de la **lecture de fichiers depuis le disque** (service d'images en pleine taille, téléchargements de fichiers, critique VLM). Les chemins de la base ne sont jamais modifiés.
+- La normalisation barre oblique inverse/barre oblique est gérée automatiquement : `\\NAS\Photos\img.jpg` et `//NAS/Photos/img.jpg` correspondent tous deux.
+- Les mappages sont évalués dans l'ordre ; le premier préfixe correspondant l'emporte.
+- Les cibles de mappage de chemins sont automatiquement incluses dans la liste blanche des répertoires d'analyse pour les contrôles de sécurité multi-utilisateurs.
 
-**Exemple :** une base remplie sous Windows stocke des chemins comme `\\NAS\Photos\2024\IMG_001.jpg`. Sous Linux, le même partage est monté sur `/mnt/nas/Photos`. Configurez :
+**Exemple :** une base remplie sous Windows stocke des chemins comme `\\NAS\Photos\2024\IMG_001.jpg`. Sous Linux, le même partage est monté sur `/mnt/nas/Photos`. Configurez :
 
 ```json
 "path_mapping": {"\\\\NAS\\Photos": "/mnt/nas/Photos"}
@@ -1213,7 +1217,7 @@ Mappez les chemins de la base de données vers les chemins du système de fichie
 
 ### Protection par mot de passe
 
-Protection par mot de passe facultative pour la galerie :
+Protection par mot de passe optionnelle pour la visionneuse :
 
 ```json
 {
@@ -1223,11 +1227,11 @@ Protection par mot de passe facultative pour la galerie :
 }
 ```
 
-Une fois définie, les utilisateurs doivent s'authentifier avant d'accéder à la galerie.
+Lorsqu'il est défini, les utilisateurs doivent s'authentifier avant d'accéder à la visionneuse.
 
-### Performance de la galerie
+### Performance de la visionneuse
 
-Surcharge les réglages globaux `performance` lors de l'exécution de la galerie. Utile pour un déploiement NAS à faible mémoire où la notation nécessite beaucoup de ressources mais pas la galerie.
+Surcharger les réglages globaux `performance` lors de l'exécution de la visionneuse. Utile pour un déploiement NAS à faible mémoire où la notation a besoin de ressources élevées mais pas la visionneuse.
 
 ```json
 {
@@ -1244,14 +1248,14 @@ Surcharge les réglages globaux `performance` lors de l'exécution de la galerie
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `mmap_size_mb` | *(global)* | Surcharge de la taille mmap SQLite pour les connexions de la galerie. `0` désactive le mmap. |
-| `cache_size_mb` | *(global)* | Surcharge de la taille de cache SQLite pour les connexions de la galerie |
+|---------|--------|-------------|
+| `mmap_size_mb` | *(global)* | Surcharge de la taille mmap SQLite pour les connexions de la visionneuse. `0` désactive mmap. |
+| `cache_size_mb` | *(global)* | Surcharge de la taille du cache SQLite pour les connexions de la visionneuse |
 | `pool_size` | `5` | Taille du pool de connexions (réduire pour les systèmes à faible mémoire) |
-| `thumbnail_cache_size` | `2000` | Entrées maximum dans le cache en mémoire de redimensionnement des miniatures |
-| `face_cache_size` | `500` | Entrées maximum dans le cache en mémoire des miniatures de visage |
+| `thumbnail_cache_size` | `2000` | Nombre maximal d'entrées dans le cache de redimensionnement de vignettes en mémoire |
+| `face_cache_size` | `500` | Nombre maximal d'entrées dans le cache de vignettes de visages en mémoire |
 
-Lorsqu'elles ne sont pas définies, la galerie utilise les valeurs globales `performance`. Voir [Déploiement](DEPLOYMENT.md) pour les réglages NAS recommandés.
+Lorsqu'ils ne sont pas définis, la visionneuse utilise les valeurs `performance` globales. Voir [Déploiement](DEPLOYMENT.md) pour les réglages NAS recommandés.
 
 ---
 
@@ -1262,26 +1266,27 @@ Réglages de performance de la base de données.
 ```json
 {
   "performance": {
-    "mmap_size_mb": 12288,
-    "cache_size_mb": 64,
-    "wal_checkpoint_minutes": 30,
+    "mmap_size_mb": 2048,
+    "cache_size_mb": 128,
     "slow_request_ms": 1000
   }
 }
 ```
 
+> **Note :** `wal_checkpoint_minutes` est une surcharge optionnelle et **n'est pas** présente dans le bloc `performance` livré (qui ne contient que `mmap_size_mb`, `cache_size_mb` et `slow_request_ms`). Ajoutez-le explicitement pour changer la valeur par défaut de `30`.
+
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `mmap_size_mb` | `12288` | Taille des E/S mappées en mémoire SQLite |
-| `cache_size_mb` | `64` | Taille du cache SQLite |
-| `wal_checkpoint_minutes` | `30` | Intervalle en minutes pour le `PRAGMA wal_checkpoint(TRUNCATE)` en arrière-plan de la galerie. Empêche le gonflement du WAL sur les déploiements de longue durée. Définir à `0` pour désactiver. |
-| `slow_request_ms` | `1000` | Les requêtes de l'API de la galerie plus lentes que ce nombre de millisecondes sont journalisées au niveau WARNING avec un marqueur `SLOW`. Définir à `0` pour désactiver. |
+|---------|--------|-------------|
+| `mmap_size_mb` | `2048` | Taille des E/S mappées en mémoire SQLite |
+| `cache_size_mb` | `128` | Taille du cache SQLite |
+| `wal_checkpoint_minutes` | `30` | Surcharge optionnelle (absente du fichier livré). Intervalle en minutes du `PRAGMA wal_checkpoint(TRUNCATE)` en arrière-plan de la visionneuse. Empêche le gonflement du WAL sur les déploiements de longue durée. Mettre `0` pour désactiver. |
+| `slow_request_ms` | `1000` | Les requêtes de l'API de la visionneuse plus lentes que ce nombre de millisecondes sont journalisées en WARNING avec un marqueur `SLOW`. Mettre `0` pour désactiver. |
 
 ---
 
 ## Stockage
 
-Contrôle l'emplacement de stockage des miniatures et des embeddings. Par défaut, ce sont des colonnes BLOB dans la base SQLite ; le mode système de fichiers les stocke à la place sous forme de fichiers sur le disque, ce qui réduit la taille de la base.
+Contrôle l'emplacement de stockage des vignettes et des embeddings. Par défaut, des colonnes BLOB dans la base SQLite ; le mode système de fichiers les stocke à la place sous forme de fichiers sur disque, ce qui réduit la taille de la base.
 
 ```json
 {
@@ -1293,20 +1298,20 @@ Contrôle l'emplacement de stockage des miniatures et des embeddings. Par défau
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `mode` | `"database"` | Backend de stockage : `"database"` (BLOB SQLite) ou `"filesystem"` (fichiers sur disque) |
-| `filesystem_path` | `"./storage"` | Répertoire de base pour le mode système de fichiers. Les miniatures sont stockées dans `<path>/thumbnails/` et les embeddings dans `<path>/embeddings/`, organisés en sous-répertoires par hash de contenu. |
+|---------|--------|-------------|
+| `mode` | `"database"` | Backend de stockage : `"database"` (BLOBs SQLite) ou `"filesystem"` (fichiers sur disque) |
+| `filesystem_path` | `"./storage"` | Répertoire de base pour le mode système de fichiers. Les vignettes sont stockées dans `<path>/thumbnails/` et les embeddings dans `<path>/embeddings/`, organisés en sous-répertoires par empreinte de contenu. |
 
-**Détails du mode système de fichiers :**
-- Les fichiers sont organisés par hash SHA-256 du chemin de la photo, avec des sous-répertoires à deux caractères pour éviter trop de fichiers dans un même répertoire (ex : `thumbnails/a3/a3f8..._640.jpg`).
-- Supprimer une photo supprime toutes les tailles de miniature et fichiers d'embedding associés.
+**Détails du mode système de fichiers :**
+- Les fichiers sont organisés par empreinte SHA-256 du chemin de la photo, avec des sous-répertoires à deux caractères pour éviter d'avoir trop de fichiers dans un seul répertoire (par ex. `thumbnails/a3/a3f8..._640.jpg`).
+- Supprimer une photo supprime toutes les tailles de vignettes et fichiers d'embeddings associés.
 - Le répertoire est créé automatiquement à la première utilisation.
 
 ---
 
 ## Plugins
 
-Système de plugins piloté par événements pour réagir aux événements de notation. Les plugins peuvent être des modules Python, des webhooks ou des actions intégrées.
+Système de plugins événementiel pour réagir aux événements de notation. Les plugins peuvent être des modules Python, des webhooks ou des actions intégrées.
 
 ### Configuration
 
@@ -1335,24 +1340,24 @@ Système de plugins piloté par événements pour réagir aux événements de no
 ```
 
 | Clé | Défaut | Description |
-|-----|---------|-------------|
-| `enabled` | `false` | Interrupteur principal — lorsque faux, aucun événement n'est émis |
-| `high_score_threshold` | `8.0` | Score agrégat minimum pour déclencher les événements `on_high_score` |
-| `webhooks` | `[]` | Liste des points de terminaison webhook recevant des charges utiles JSON POST |
+|-----|--------|-------------|
+| `enabled` | `false` | Interrupteur principal — lorsque false, aucun événement n'est émis |
+| `high_score_threshold` | `8.0` | Score agrégé minimal pour déclencher les événements `on_high_score` |
+| `webhooks` | `[]` | Liste des points d'accès webhook recevant des charges utiles JSON POST |
 | `actions` | `{}` | Actions intégrées nommées déclenchées par des événements |
 
 ### Événements pris en charge
 
 | Événement | Déclencheur | Charge utile |
-|-------|---------|---------|
-| `on_score_complete` | Après notation de chaque photo | `path`, `filename`, `aggregate`, `aesthetic`, `comp_score`, `category`, `tags` |
-| `on_new_photo` | Lorsqu'une photo entre dans la base | Identique à `on_score_complete` |
-| `on_high_score` | Lorsque l'agrégat ≥ `high_score_threshold` | Identique à `on_score_complete` |
-| `on_burst_detected` | Lorsqu'un groupe de rafale est identifié | `burst_group_id`, `photo_count`, `best_path`, `paths` |
+|-----------|-------------|--------------|
+| `on_score_complete` | Après la notation de chaque photo | `path`, `filename`, `aggregate`, `aesthetic`, `comp_score`, `category`, `tags` |
+| `on_new_photo` | Quand une photo entre dans la base | Identique à `on_score_complete` |
+| `on_high_score` | Quand l'agrégat ≥ `high_score_threshold` | Identique à `on_score_complete` |
+| `on_burst_detected` | Quand un groupe de rafale est identifié | `burst_group_id`, `photo_count`, `best_path`, `paths` |
 
 ### Écrire un plugin
 
-Placez un fichier `.py` dans le répertoire `plugins/`. Définissez des fonctions nommées d'après les événements que vous voulez gérer :
+Placez un fichier `.py` dans le répertoire `plugins/`. Définissez des fonctions nommées d'après les événements que vous souhaitez gérer :
 
 ```python
 def on_score_complete(data: dict) -> None:
@@ -1366,7 +1371,7 @@ Voir `plugins/example_plugin.py.example` pour l'interface complète.
 
 ### Webhooks
 
-Chaque webhook reçoit un POST JSON avec protection SSRF (les adresses privées/loopback sont bloquées) :
+Chaque webhook reçoit un POST JSON avec protection SSRF (les adresses privées/loopback sont bloquées) :
 
 ```json
 {
@@ -1382,7 +1387,7 @@ Chaque webhook reçoit un POST JSON avec protection SSRF (les adresses privées/
 }
 ```
 
-Options de webhook : `url` (requis), `events` (liste de noms d'événements), `min_score` (agrégat minimum pour déclencher).
+Options de webhook : `url` (requis), `events` (liste de noms d'événements), `min_score` (agrégat minimal pour déclencher).
 
 ### Actions intégrées
 
@@ -1391,10 +1396,10 @@ Options de webhook : `url` (requis), `events` (liste de noms d'événements), `
 | `copy_to_folder` | Copier la photo dans un dossier | `folder`, `min_score` |
 | `send_notification` | Journaliser une notification | `min_score` |
 
-### Points de terminaison API
+### Points d'accès de l'API
 
 | Méthode | Chemin | Description |
-|--------|------|-------------|
+|---------|--------|-------------|
 | `GET` | `/api/plugins` | Lister les plugins, webhooks et actions chargés |
 | `POST` | `/api/plugins/test-webhook` | Envoyer une charge utile de test à une URL de webhook |
 
@@ -1402,7 +1407,7 @@ Options de webhook : `url` (requis), `events` (liste de noms d'événements), `
 
 ## Capsules
 
-Diaporamas de photos sélectionnées, regroupés par thème. Les capsules sont auto-générées à partir de votre bibliothèque de photos et mises en cache avec un TTL configurable.
+Diaporamas de photos sélectionnées regroupées par thème. Les capsules sont générées automatiquement à partir de votre photothèque et mises en cache avec un TTL configurable.
 
 ```json
 {
@@ -1445,13 +1450,13 @@ Diaporamas de photos sélectionnées, regroupés par thème. Les capsules sont a
 ### Réglages globaux
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `min_aggregate` | `6.0` | Score agrégat minimum pour qu'une photo soit incluse dans les capsules |
-| `max_photos_per_capsule` | `40` | Photos maximum par capsule (diversité MMR appliquée au-delà de 5) |
+|---------|--------|-------------|
+| `min_aggregate` | `6.0` | Score agrégé minimal pour qu'une photo soit incluse dans les capsules |
+| `max_photos_per_capsule` | `40` | Nombre maximal de photos par capsule (diversité MMR appliquée au-delà de 5) |
 | `max_photo_overlap` | `0.2` | Fraction maximale de photos partagées entre deux capsules avant que la déduplication n'en supprime une |
-| `mmr_lambda` | `0.5` | Poids de diversité MMR : 0 = maximiser la diversité, 1 = maximiser la qualité |
-| `freshness_hours` | `24` | TTL du cache et période de rotation des photos de couverture et des capsules amorcées |
-| `reverse_geocoding` | `true` | Activer le géocodage inverse hors ligne pour les titres de capsules d'emplacement/voyage (nécessite le paquet `reverse_geocoder`) |
+| `mmr_lambda` | `0.5` | Pondération de diversité MMR : 0 = maximiser la diversité, 1 = maximiser la qualité |
+| `freshness_hours` | `24` | TTL du cache et période de rotation des photos de couverture et des capsules graines |
+| `reverse_geocoding` | `true` | Activer le géocodage inverse hors ligne pour les titres des capsules de lieu/voyage (nécessite le paquet `reverse_geocoder`) |
 
 ### Types de capsules
 
@@ -1460,60 +1465,60 @@ Diaporamas de photos sélectionnées, regroupés par thème. Les capsules sont a
 | `journey` | Voyages détectés via le regroupement GPS + écarts temporels. Les titres incluent le nom de la destination lorsque le géocodage est activé. |
 | `faces_of` | Meilleures photos de chaque personne reconnue |
 | `seasonal` | Photos regroupées par saison + année |
-| `golden` | Top 1 % par score agrégat |
+| `golden` | Top 1 % par score agrégé |
 | `color_story` | Groupes visuellement similaires via le regroupement des embeddings CLIP |
-| `this_week` | « Cette semaine, il y a des années » — « Ce jour-là » étendu sur ±3 jours |
-| `location` | Groupes de photos géolocalisées avec noms de lieux géocodés inversement |
+| `this_week` | « Cette semaine, il y a des années » — extension de Ce jour-là sur ±3 jours |
+| `location` | Clusters de photos géolocalisées avec noms de lieux géocodés en inverse |
 | `person_pair` | Paires de personnes nommées apparaissant ensemble |
-| `seeded` | Découverte basée sur des amorces via le temps, la similarité, la personne, le tag, l'emplacement, l'ambiance |
+| `seeded` | Découverte à base de graines via le temps, la similarité, la personne, l'étiquette, le lieu, l'ambiance |
 | `progress` | « Votre photographie s'améliore » à partir des tendances de score trimestrielles |
 | `color_palette` | « Couleur du mois » à partir des profils de saturation/monochrome |
-| `rare_pair` | Paires de personnes peu fréquentes dans les photos à haut score |
-| `favorites` | Photos mises en favori regroupées par année et saison |
+| `rare_pair` | Paires de personnes peu fréquentes dans les photos bien notées |
+| `favorites` | Photos favorites regroupées par année et saison |
 
-### Capsules basées sur les dimensions
+### Capsules fondées sur des dimensions
 
-Générées automatiquement à partir des colonnes de la base de données :
+Générées automatiquement à partir des colonnes de la base :
 
 | Dimension | Regroupe par |
-|-----------|-----------|
+|-----------|--------------|
 | `year` | Année extraite de date_taken |
 | `month` | Année-mois extraits de date_taken |
 | `week` | Année-semaine extraites de date_taken |
 | `camera` | Modèle d'appareil |
 | `lens` | Modèle d'objectif |
-| `tag` | Tags de photo (nécessite la table `photo_tags`) |
+| `tag` | Étiquettes de photo (nécessite la table `photo_tags`) |
 | `day_of_week` | Jour de la semaine (dimanche–samedi) |
 | `composition` | Motif de composition SAMP-Net (rule_of_thirds, horizontal, etc.) |
-| `focal_range` | Tranches de focale : ultra grand-angle (<24 mm), grand-angle (24–35 mm), standard (36–70 mm), portrait (71–135 mm), téléobjectif (136–300 mm), super téléobjectif (300 mm+) |
-| `category` | Catégorie de contenu de la photo (portrait, landscape, street, etc.) |
-| `time_of_day` | Tranches horaires : golden morning, morning, midday, afternoon, golden evening, night |
+| `focal_range` | Tranches de focale : ultra grand-angle (<24 mm), grand-angle (24–35 mm), standard (36–70 mm), portrait (71–135 mm), téléobjectif (136–300 mm), super téléobjectif (300 mm+) |
+| `category` | Catégorie de contenu de la photo (portrait, paysage, rue, etc.) |
+| `time_of_day` | Tranches horaires : matin doré, matin, midi, après-midi, soir doré, nuit |
 | `star_rating` | Notes en étoiles de l'utilisateur (1–5 étoiles) |
 
-Des combinaisons inter-dimensionnelles sont également générées (ex : camera × year, focal_range × category, category × year).
+Des combos transversaux sont également générés (par ex. appareil × année, focal_range × category, category × year).
 
-### Transitions de diaporama
+### Transitions du diaporama
 
-Chaque type de capsule est associé à une transition de diapositive thématique :
+Chaque type de capsule correspond à une transition de diapositive thématique :
 
 | Transition | Utilisée par | Effet |
-|-----------|---------|--------|
-| `crossfade` | Par défaut | Échange d'opacité de 300 ms |
+|-----------|--------------|-------|
+| `crossfade` | Par défaut | Échange d'opacité en 300 ms |
 | `slide` | journey, location, this_week | Glissement depuis la droite (500 ms) |
 | `zoom` | faces_of, color_story | Échelle 1,05→1,0 avec fondu (400 ms) |
 | `kenburns` | golden, seasonal, star_rating, favorites | Zoom lent 1,0→1,08 sur la durée de la diapositive |
 
 ### Géocodage inverse
 
-Les capsules d'emplacement et de voyage utilisent le géocodage inverse hors ligne via le paquet `reverse_geocoder` (jeu de données GeoNames local, ~30 Mo, aucun appel API). Les résultats sont mis en cache dans la table de base de données `location_names` à une résolution de grille de 0,1° (~11 km).
+Les capsules de lieu et de voyage utilisent le géocodage inverse hors ligne via le paquet `reverse_geocoder` (jeu de données GeoNames local, ~30 Mo, aucun appel API). Les résultats sont mis en cache dans la table `location_names` de la base à une résolution de grille de 0,1° (~11 km).
 
-Installation : `pip install reverse_geocoder`
+Installer : `pip install reverse_geocoder`
 
-Définir `"reverse_geocoding": false` pour désactiver et revenir à l'affichage des coordonnées.
+Mettez `"reverse_geocoding": false` pour désactiver et revenir à l'affichage des coordonnées.
 
 ## Groupes de similarité
 
-Réglages pour la fonctionnalité de tri IA des photos similaires, qui regroupe les photos visuellement similaires à l'aide des embeddings CLIP/SigLIP :
+Réglages pour la fonctionnalité de tri IA des photos similaires, qui regroupe les photos visuellement similaires à l'aide des embeddings CLIP/SigLIP :
 
 ```json
 {
@@ -1527,35 +1532,79 @@ Réglages pour la fonctionnalité de tri IA des photos similaires, qui regroupe 
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
+|---------|--------|-------------|
 | `default_threshold` | `0.85` | Similarité cosinus minimale (0,0–1,0) pour considérer deux photos comme visuellement similaires. Des valeurs plus basses produisent des groupes plus grands mais avec moins de similarité visuelle. |
-| `min_group_size` | `2` | Nombre minimum de photos requis pour former un groupe de similarité |
-| `max_photos` | `10000` | Photos maximum à charger pour le calcul de similarité (coût O(n²)). Augmentez pour les bibliothèques plus grandes au détriment du temps de calcul. |
-| `max_group_size` | `50` | Photos maximum par groupe de similarité. Les groupes plus grands sont scindés pour garder l'interface utilisable. |
+| `min_group_size` | `2` | Nombre minimal de photos requis pour former un groupe de similarité |
+| `max_photos` | `10000` | Nombre maximal de photos chargées pour le calcul de similarité (coût en O(n²)). Augmentez pour les photothèques plus grandes au prix du temps de calcul. |
+| `max_group_size` | `50` | Nombre maximal de photos par groupe de similarité. Les groupes plus grands sont scindés pour garder l'interface utilisable. |
 
 ## Scènes
 
-Réglages pour la vue Scènes, qui regroupe les photos principales de rafale en scènes chronologiques (découpées selon les écarts entre prises de vue) pour un tri dans l'ordre du récit :
+Réglages pour la vue Scènes, qui regroupe les photos de tête de rafale en scènes chronologiques (séparées par les écarts de temps de capture) pour un tri dans l'ordre du récit :
 
 ```json
 {
   "scenes": {
-    "gap_hours": 4.0,
+    "gap_minutes": 20.0,
     "min_size": 2,
-    "max_photos": 5000
+    "max_photos": 5000,
+    "max_scene_size": 60,
+    "adaptive": true,
+    "adaptive_k": 6.0
   }
 }
 ```
 
 | Réglage | Défaut | Description |
 |---------|--------|-------------|
-| `gap_hours` | `4.0` | Une nouvelle scène commence lorsque plus de ce nombre d'heures s'écoule entre deux photos principales de rafale consécutives |
-| `min_size` | `2` | Nombre minimum de photos pour qu'une scène soit affichée |
-| `max_photos` | `5000` | Nombre maximum de photos principales de rafale chargées pour le regroupement en scènes |
+| `gap_minutes` | `20.0` | Une nouvelle scène commence lorsque plus de ce nombre de minutes s'écoule entre deux photos de tête de rafale consécutives (le plancher quand `adaptive` est activé) |
+| `min_size` | `2` | Nombre minimal de photos pour qu'une scène soit affichée |
+| `max_photos` | `5000` | Nombre maximal de photos de tête de rafale chargées pour le regroupement en scènes |
+| `max_scene_size` | `60` | Une scène plus grande est sous-scindée récursivement à ses plus grands écarts internes, afin qu'un événement photographié en continu ne s'effondre jamais en une seule scène géante |
+| `adaptive` | `true` | Lorsqu'il est activé, l'écart effectif s'élargit à `adaptive_k × médiane` des écarts consécutifs de la séance (se resserre pour les prises rapides, s'élargit pour les vacances clairsemées) |
+| `adaptive_k` | `6.0` | Multiplicateur appliqué à l'écart médian lorsque `adaptive` est activé |
+| `split_on_moment_change` | `false` | Lorsqu'il est activé (et que les moments narratifs sont calculés), sous-scinder une série temporelle où le moment dominant change et se maintient pendant `moment_split_min_run` images |
+| `moment_split_min_run` | `4` | Hystérésis pour `split_on_moment_change` — nombre d'images consécutives durant lesquelles un nouveau moment doit persister pour forcer une frontière |
 
-## Chronologie
+## Moments narratifs
 
-Réglages pour la vue chronologie chronologique :
+Étiquetage zero-shot du « moment » événementiel de chaque photo (par ex. `getting_ready_bride`, `vows`, `first_kiss`, `first_dance`, `party_dancing`, …, ou `other`) par similarité cosinus de l'embedding CLIP/SigLIP stocké au regard de prompts textuels par moment, lissé le long de la frise chronologique. Renseigné par `--detect-moments` (s'exécute automatiquement à la fin de chaque analyse) et exposé comme noms de scènes et filtre de galerie. Quelque chose que ni Narrative Select ni AfterShoot ne font.
+
+```json
+{
+  "narrative_moments": {
+    "enabled": true,
+    "prompt_template": "a photo of {desc}",
+    "default_event_type": "wedding",
+    "pooling": "mean",
+    "thresholds": {
+      "open_clip": { "min_confidence": 0.20, "min_margin": 0.015 },
+      "transformers": { "min_confidence": 0.10, "min_margin": 0.010 }
+    },
+    "priors": { "enabled": true, "weight": 0.04 },
+    "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
+    "transitions": { "stay_prob": 0.6, "forward_bias": 0.3, "weight": 0.5 },
+    "event_types": { "wedding": { "vows": ["the couple exchanging vows at the altar", "..."], "...": [] } }
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|--------|-------------|
+| `enabled` | `true` | Interrupteur principal ; lorsque désactivé, `--detect-moments` et le hook d'analyse ne font rien |
+| `prompt_template` | `"a photo of {desc}"` | Enveloppe appliquée à chaque prompt avant l'encodage |
+| `default_event_type` | `"wedding"` | Quel vocabulaire `event_types` est actif (une séance/un genre par base) |
+| `pooling` | `"mean"` | Les vecteurs de prompt par moment sont moyennés puis re-normalisés |
+| `thresholds.<backend>.min_confidence` | `0.20` / `0.10` | En dessous de ce cosinus top-1, une photo est étiquetée `other`. Par backend car les cosinus open_clip sont bien plus bas que ceux de SigLIP |
+| `thresholds.<backend>.min_margin` | `0.015` / `0.010` | Écart cosinus minimal top-1/top-2 ; en dessous, l'image est `other` |
+| `priors.enabled` / `priors.weight` | `true` / `0.04` | Coups de pouce L1 visage/étiquette (portrait de groupe → `family_formals`, etc.) qui ne départagent que les quasi-égalités |
+| `transitions.stay_prob` / `forward_bias` / `weight` | `0.6` / `0.3` / `0.5` | Lissage de frise chronologique L2 (Viterbi) : biais auto-boucle vs pas en avant, et intensité d'application (`weight=0` = pas de lissage) |
+| `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | L3 optionnel : reclasser les images à faible marge avec le VLM Qwen (16gb/24gb uniquement) |
+| `event_types` | jeu wedding | `{moment: [synonymes de prompt]}` par type d'événement ; ajoutez ici votre propre genre |
+
+## Frise chronologique
+
+Réglages pour la vue chronologique :
 
 ```json
 {
@@ -1566,12 +1615,12 @@ Réglages pour la vue chronologie chronologique :
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `photos_per_group` | `30` | Nombre de photos chargées par groupe de date dans la vue chronologie. Des valeurs plus élevées affichent plus de photos par date mais alourdissent la page. |
+|---------|--------|-------------|
+| `photos_per_group` | `30` | Nombre de photos chargées par groupe de date dans la vue chronologique. Des valeurs plus élevées affichent plus de photos par date mais alourdissent la page. |
 
 ## Carte
 
-Réglages pour la vue carte interactive :
+Réglages pour la vue carte interactive :
 
 ```json
 {
@@ -1582,12 +1631,12 @@ Réglages pour la vue carte interactive :
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `cluster_zoom_threshold` | `10` | Niveau de zoom auquel les marqueurs individuels remplacent les groupes. Des valeurs plus basses affichent les marqueurs individuels plus tôt (plus de détail à un zoom plus large). Plage : 1 (monde) à 18 (rue). |
+|---------|--------|-------------|
+| `cluster_zoom_threshold` | `10` | Niveau de zoom auquel les marqueurs individuels remplacent les clusters. Des valeurs plus basses affichent les marqueurs individuels plus tôt (plus de détail à un zoom plus large). Plage : 1 (monde) à 18 (rue). |
 
 ## Traduction
 
-Réglages pour la traduction des légendes IA via MarianMT :
+Réglages pour la traduction des légendes IA via MarianMT :
 
 ```json
 {
@@ -1598,12 +1647,12 @@ Réglages pour la traduction des légendes IA via MarianMT :
 ```
 
 | Réglage | Défaut | Description |
-|---------|---------|-------------|
-| `target_language` | `"fr"` | Code de langue cible pour `--translate-captions`. Pris en charge : `fr` (français), `de` (allemand), `es` (espagnol), `it` (italien). Utilise les modèles MarianMT Helsinki-NLP (CPU, aucun GPU requis). |
+|---------|--------|-------------|
+| `target_language` | `"fr"` | Code de langue cible pour `--translate-captions`. Pris en charge : `fr` (français), `de` (allemand), `es` (espagnol), `it` (italien). Utilise les modèles MarianMT de Helsinki-NLP (CPU, aucun GPU requis). |
 
 ## CLIP esthétique (R2)
 
-Score esthétique supplémentaire dérivé des embeddings CLIP/SigLIP mis en cache via projection textuelle. Les invites sont ajustables par l'utilisateur pour le benchmarking AVA — voir `scripts/benchmark_aesthetic.py` pour mesurer l'impact SRCC de tout changement.
+Score esthétique supplémentaire dérivé des embeddings CLIP/SigLIP mis en cache via projection textuelle. Les prompts sont réglables par l'utilisateur pour le benchmarking AVA — voir `scripts/benchmark_aesthetic.py` pour mesurer l'impact SRCC de tout changement.
 
 ```json
 {
@@ -1626,13 +1675,13 @@ Score esthétique supplémentaire dérivé des embeddings CLIP/SigLIP mis en cac
 }
 ```
 
-Les tableaux vides retombent sur les valeurs par défaut du module intégrées dans `analyzers/aesthetic_clip.py`. N'ajustez pas ces valeurs sans relancer le benchmark AVA — les valeurs par défaut obtiennent un SRCC ~0,52 sur `ava_test/` et des changements peuvent facilement régresser à ~0,30.
+Des tableaux vides retombent sur les valeurs par défaut du module intégrées dans `analyzers/aesthetic_clip.py`. Ne réglez pas ces prompts sans relancer le benchmark AVA — les valeurs par défaut obtiennent un SRCC de ~0,52 sur `ava_test/` et des changements peuvent facilement régresser à ~0,30.
 
-## Ajouter des modèles VLM d'étiquetage / critique alternatifs (R3)
+## Ajout de modèles VLM tagger / critique alternatifs (R3)
 
-La clé `tagging_model` de chaque profil VRAM (ex : `qwen3.5-2b`) renvoie à une entrée de modèle dans la même section `models`. Pour expérimenter avec un VLM différent (Pixtral-12B, InternVL-2.5, etc.) :
+La clé `tagging_model` de chaque profil VRAM (par ex. `qwen3.5-2b`) correspond à une entrée de modèle dans la même section `models`. Pour expérimenter avec un VLM différent (Pixtral-12B, InternVL-2.5, etc.) :
 
-1. Ajoutez une entrée de modèle sous `models` :
+1. Ajoutez une entrée de modèle sous `models` :
    ```json
    "pixtral_12b": {
      "model_path": "mistralai/Pixtral-12B-2409",
@@ -1641,19 +1690,19 @@ La clé `tagging_model` de chaque profil VRAM (ex : `qwen3.5-2b`) renvoie à un
      "vlm_batch_size": 1
    }
    ```
-2. Pointez un profil vers celui-ci :
+2. Pointez un profil dessus :
    ```json
    "profiles": {
      "24gb": { "tagging_model": "pixtral_12b", ... }
    }
    ```
-3. Lancez `python facet.py --recompute-tags-vlm` pour réétiqueter.
+3. Exécutez `python facet.py --recompute-tags-vlm` pour ré-étiqueter.
 
-Aucun changement de code requis. Validez la qualité via un contrôle ponctuel côte à côte sur ~30 photos avant de promouvoir en tant que valeur par défaut.
+Aucun changement de code nécessaire. Validez la qualité par un contrôle ponctuel côte à côte sur ~30 photos avant de promouvoir en valeur par défaut.
 
 ## Secret de partage
 
-Chaîne hexadécimale de 64 caractères auto-générée pour les jetons de session/partage :
+Chaîne hexadécimale de 64 caractères auto-générée pour les jetons de session/partage :
 
 ```json
 {

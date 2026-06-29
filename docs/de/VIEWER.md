@@ -122,7 +122,7 @@ python database.py --migrate-user-preferences --user alice
 ## Filteroptionen
 
 <details><summary>Filter-Seitenleiste — alle Abschnitte aufgeklappt (zum Anzeigen klicken)</summary>
-<p align="center"><img src="../screenshots/filter-sidebar-full.jpg" alt="Filter-Seitenleiste mit allen aufgeklappten Abschnitten" width="360"></p>
+<p align="center"><img src="screenshots/filter-sidebar-full.jpg" alt="Filter-Seitenleiste mit allen aufgeklappten Abschnitten" width="360"></p>
 </details>
 
 ### Primärfilter
@@ -142,7 +142,7 @@ python database.py --migrate-user-preferences --user alice
 | **Datum** | Start- und Enddatum |
 | **Wertungen** | Gesamtwertung, Ästhetik, TOPIQ-Wert, Qualitätswert |
 | **Erweiterte Qualität** | Ästhetik IAA (künstlerischer Wert), Gesichtsqualität IQA, LIQE-Wert |
-| **Gesichtsmetriken** | Gesichtsqualität, Augenschärfe, Gesichtsschärfe, Gesichtsanteil, Gesichtserkennung, Gesichteranzahl |
+| **Gesichtsmetriken** | Gesichtsqualität, Augenschärfe, Gesichtsschärfe, Gesichtsanteil, Gesichtskonfidenz, Gesichteranzahl |
 | **Komposition** | Kompositionswert, Kraftpunkte, Führungslinien, Freistellung, Kompositionsmuster |
 | **Motiverkennung** | Motivschärfe, Motivhervorhebung, Motivplatzierung, Hintergrundtrennung |
 | **Technik** | Schärfe, Kontrast, Dynamikumfang, Rauschniveau |
@@ -175,7 +175,7 @@ Sortierbare Spalten nach Kategorie gruppiert (aus `viewer.sort_options`):
 
 ### Mein Geschmack
 
-Eine vollwertige Sortieroption, gestützt auf den `learned_score` des persönlichen Rankers (umbenannt von „Für Sie ausgewählt"). Sie ordnet Fotos danach, was der Ranker aus Ihren A/B-Vergleichen, Bewertungen und Auswahlentscheidungen gelernt hat. Ein Konfidenzabzeichen neben der Sortierung zeigt die gelernte Abdeckung (% der Fotos mit gelerntem Wert) sowie die Halten-aus-Genauigkeit (Held-out-Genauigkeit) des Rankers an, sodass Sie einschätzen können, wie sehr Sie der Reihenfolge vertrauen können. Trainieren oder aktualisieren Sie den Ranker mit `python facet.py --train-ranker`.
+Eine vollwertige Sortieroption, gestützt auf den `learned_score` des persönlichen Rankers (umbenannt von „Für Sie ausgewählt"). Sie ordnet Fotos danach, was der Ranker aus Ihren A/B-Vergleichen, Bewertungen und Auswahlentscheidungen gelernt hat. Ein Konfidenzabzeichen neben der Sortierung zeigt die gelernte Abdeckung (% der Fotos mit gelerntem Wert) sowie die Held-out-Genauigkeit des Rankers an, sodass Sie einschätzen können, wie sehr Sie der Reihenfolge vertrauen können. Trainieren oder aktualisieren Sie den Ranker mit `python facet.py --train-ranker`.
 
 Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-Status wird über `GET /api/ranker/status` bereitgestellt.
 
@@ -296,18 +296,7 @@ Erstellen Sie Alben und fügen Sie Fotos aus der Galerie per Mehrfachauswahl hin
 
 Speichern Sie eine Kombination von Filtern (Kamera, Tag, Person, Zeitraum, Wertungsschwellen usw.) als intelligentes Album. Intelligente Alben aktualisieren sich dynamisch, sobald neue Fotos den gespeicherten Filterkriterien entsprechen. Die Filterkombination wird als JSON in `smart_filter_json` gespeichert.
 
-### API
-
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `GET /api/albums` | Alle Alben auflisten |
-| `POST /api/albums` | Album erstellen |
-| `GET /api/albums/{id}` | Albumdetails abrufen |
-| `PUT /api/albums/{id}` | Album aktualisieren (Name, Beschreibung, Titelbild) |
-| `DELETE /api/albums/{id}` | Album löschen |
-| `GET /api/albums/{id}/photos` | Fotos im Album auflisten (unterstützt `page`, `per_page`, `sort`, `sort_direction`) |
-| `POST /api/albums/{id}/photos` | Fotos zum Album hinzufügen |
-| `DELETE /api/albums/{id}/photos` | Fotos aus dem Album entfernen |
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 Gesteuert über `viewer.features.show_albums` (Standard: `true`).
 
@@ -321,13 +310,7 @@ Teilen Sie Alben mit externen Nutzern über tokenisierte Links. Für die Ansicht
 | **Widerrufen** | Auf „Freigabe aufheben" klicken, um das Freigabe-Token ungültig zu machen |
 | **Ansehen** | Empfänger öffnen den Link, um das geteilte Album unter `/shared/album/:id` zu durchsuchen |
 
-### API
-
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `POST /api/albums/{id}/share` | Freigabe-Token für Album erzeugen |
-| `DELETE /api/albums/{id}/share` | Freigabe-Token widerrufen |
-| `GET /api/shared/album/{id}?token=` | Geteiltes Album ansehen (keine Authentifizierung erforderlich) |
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 ## KI-Kritik
 
@@ -341,12 +324,7 @@ Auf allen VRAM-Profilen verfügbar. Analysiert gespeicherte Metriken (Ästhetik,
 
 Verwendet das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbewusste Kritik. Erfordert das 16gb- oder 24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true`.
 
-### API
-
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `GET /api/critique?path=<photo_path>&mode=rule` | Regelbasierte Wertungsaufschlüsselung |
-| `GET /api/critique?path=<photo_path>&mode=vlm` | VLM-gestützte Kritik (erfordert GPU) |
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 Gesteuert über `viewer.features.show_critique` (Standard: `true`) und `viewer.features.show_vlm_critique` (Standard: `true`).
 
@@ -356,18 +334,13 @@ Gesteuert über `viewer.features.show_critique` (Standard: `true`) und `viewer.f
 
 Erhalten Sie eine KI-generierte Bildbeschreibung in natürlicher Sprache für jedes Foto. Beschreibungen werden bei der ersten Anfrage generiert und in der Datenbankspalte `caption` zwischengespeichert. Beschreibungen können im Bearbeitungsmodus über die Fotodetailseite manuell bearbeitet werden. (Die *Übersetzung* von Beschreibungen läuft auf der CPU — siehe unten.)
 
-### API
-
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `GET /api/caption?path=<photo_path>` | Beschreibung für ein Foto abrufen oder generieren |
-| `PUT /api/caption` | Beschreibungstext aktualisieren (Bearbeitungsmodus erforderlich) |
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 Auch über die CLI für Massengenerierung und Übersetzung verfügbar:
 
 ```bash
-python facet.py --generate-captions      # Bildunterschriften für alle Fotos ohne Bildunterschrift generieren
-python facet.py --translate-captions     # Bildunterschriften in die konfigurierte Zielsprache übersetzen
+python facet.py --generate-captions      # Bildbeschreibungen für alle Fotos ohne Beschreibung generieren
+python facet.py --translate-captions     # Bildbeschreibungen in die konfigurierte Zielsprache übersetzen
 ```
 
 Die Übersetzung von Beschreibungen verwendet MarianMT (CPU, keine GPU erforderlich). Konfigurieren Sie die Zielsprache in `scoring_config.json` unter `translation.target_language` (Standard: `"fr"`). Unterstützte Sprachen: Französisch, Deutsch, Spanisch, Italienisch.
@@ -378,11 +351,7 @@ Gesteuert über `viewer.features.show_captions` (Standard: `true`). Erfordert da
 
 Durchsuchen Sie Fotos, die am selben Kalendertag in früheren Jahren aufgenommen wurden. Ein Erinnerungsdialog zeigt eine Jahr-für-Jahr-Rückschau passender Fotos.
 
-### API
-
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `GET /api/memories?date=YYYY-MM-DD` | Fotos abrufen, die an diesem Datum in früheren Jahren aufgenommen wurden |
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 Gesteuert über `viewer.features.show_memories` (Standard: `true`).
 
@@ -396,12 +365,7 @@ Gesteuert über `viewer.features.show_memories` (Standard: `true`).
 
 Chronologischer Foto-Browser mit datumsbasierter Navigation. Scrollen Sie durch nach Datum organisierte Fotos mit einer Seitenleiste, die verfügbare Jahre und Monate anzeigt.
 
-### API
-
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `GET /api/timeline?cursor=&limit=&direction=` | Paginierte Zeitleisten-Fotos mit cursorbasierter Navigation |
-| `GET /api/timeline/dates?year=&month=` | Verfügbare Daten für die Jahr-/Monats-Navigation |
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 Zugriff über die Route `/timeline`. Gesteuert über `viewer.features.show_timeline` (Standard: `true`).
 
@@ -419,12 +383,7 @@ python facet.py --extract-gps    # GPS-Breite/-Länge aus EXIF in die Datenbank 
 
 GPS-Koordinaten werden für neue Fotos auch automatisch während der Bewertung extrahiert.
 
-### API
-
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `GET /api/photos/map?bounds=&zoom=&limit=` | Fotos innerhalb der Kartengrenzen (nach Zoom geclustert) |
-| `GET /api/photos/map/count` | Gesamtanzahl der georeferenzierten Fotos |
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 Zugriff über die Route `/map`. Gesteuert über `viewer.features.show_map` (Standard: `true`).
 
@@ -465,13 +424,7 @@ Standort- und Reisekapseln zeigen Ortsnamen (z.B. „Paris, Frankreich") statt K
 
 Installation: `pip install reverse_geocoder`
 
-### API
-
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `GET /api/capsules` | Paginierte Kapselliste (zwischengespeichert) |
-| `GET /api/capsules/{id}/photos` | Fotos für eine bestimmte Kapsel |
-| `POST /api/capsules/{id}/save-album` | Kapsel als Album speichern (Bearbeitungsmodus) |
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 ### Konfiguration
 
@@ -512,14 +465,9 @@ Schreiben Sie Ihre Bewertungen, Favoriten und Ablehnungen als XMP-Sidecars auf d
 
 - **Aus der Galerie** — Fotos auswählen, dann schreibt **Aktionen → Exportieren** ein Sidecar neben jede Datei.
 - **Aus einem Album** („Korb") — das gesamte Album als Sidecars exportieren oder die Dateien in ein Zielverzeichnis kopieren/verlinken.
+- **Metadaten in Datei schreiben** — die Aktion „Metadaten in Datei schreiben" in der Fotodetailansicht bettet die Bewertung/Schlüsselwörter zusätzlich zum Sidecar direkt in die Originaldatei ein (JPEG/HEIC/TIFF/PNG/DNG über exiftool), sodass das gesamte Foto-Ökosystem sie sieht. Proprietäre RAW-Originale werden niemals verändert. Gesteuert über `viewer.features.show_embed_metadata` (Standard: `true`).
 
-### API
-
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `POST /api/photo/export_xmp` | Ein XMP-Sidecar schreiben (`path`, optional `overwrite`) |
-| `POST /api/export/sidecars` | Sidecars für explizite `paths` oder eine Filtermenge schreiben |
-| `POST /api/albums/{id}/export` | Album-Export — `mode` = `sidecars`, `copy` oder `symlink` (die beiden letzteren benötigen `target_dir`) |
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 ## Auswahl
 
@@ -530,38 +478,43 @@ Die Auswahl-Seite (`/culling`, Bearbeitungsmodus) gruppiert nahezu identische Au
 
 Wählen Sie für jede Gruppe die Behaltefoto(s); das Bestätigen lehnt den Rest ab. Bestätigungen werden verzögert ausgeführt und können rückgängig gemacht werden (siehe [Rückgängig](#rückgängig)).
 
+**Eingegrenzte Auswahl.** Die Dunkelkammer kann über Query-Parameter auf eine Teilmenge eingegrenzt werden: `?album=<id>` beschränkt sie auf ein Album, und `?from=&to=` (EXIF-Aufnahmezeitfenster, die Grundlage von **Diese Szene aussortieren**) beschränkt sie auf eine Szene. Ein Banner zeigt den aktiven Geltungsbereich mit einer **Szene verlassen**-Steuerung; das Abrufen der Serienbildmitglieder bleibt albumbezogen, ignoriert aber das Zeitfenster, sodass ein Serienbild, das über die Szenengrenze hinausreicht, weiterhin alle seine Frames anzeigt.
+
+**„Mein Geschmack"-Chip.** Jede Bestätigung erfasst `source='culling'`-Vergleichszeilen, die den persönlichen Ranker trainieren, sodass der Header einen kleinen Chip „Mein Geschmack · N Vergleiche" zeigt, der sich nach jeder Entscheidung aktualisiert — die KI lernt Ihren Blick, während Sie aussortieren (`GET /api/ranker/status`).
+
+### Lupe / Z-Tasten-Zoom
+
+Drücken Sie **`Z`** in der Einzelansicht-Lightbox, um eine Lupe im Photo-Mechanic-Stil umzuschalten (Einpassen ↔ 2×; Mausrad/`+`/`-`-Zoom bis 800%). Jenseits der Einpassen-Skalierung tauscht der Bereich sein Vorschaubild gegen die vollauflösende `/image`-Quelle, sodass Sie die kritische Schärfe an echten Pixeln beurteilen, ohne die Ansicht zu verlassen. Auf dem Kontaktstreifen der Szenen schaltet `Z` eine Hover-Lupe um, die dem Cursor über einer Kachel folgt (aus dem vollauflösenden Bild gespeist), mit einem einstellbaren Zoom-Regler. Gespeicherte Vorschaubilder sind auf 640px begrenzt, daher ist die Lupe der Weg, um darüber hinaus pixelgenau zu prüfen.
+
 ### Abzeichen pro Gesicht
 
 In der Lightbox der Serienbild-/Ähnlichkeitsauswahl trägt jedes erkannte Gesicht seine eigenen Abzeichen — Augen offen/geschlossen, schwacher Ausdruck und Erkennungskonfidenz — statt einer einzigen Blinzel-Markierung auf Fotoebene. Das erleichtert die Auswahl bei Gruppenaufnahmen: Sie sehen auf einen Blick, welches Gesicht geschlossene Augen oder einen schwachen Ausdruck hat. Die Abzeichen werden für eine ganze Gruppe in einem einzigen Batch-Aufruf abgerufen (`POST /api/culling-group/faces`).
 
 **Synchronisierter Vergleich (2-fach / 4-fach).** Der Lightbox-Header hat die Schaltflächen Einzeln / Vergleich 2 / Vergleich 4. Im Vergleichsmodus teilen sich die Bereiche eine gemeinsame Schwenk-/Zoom-Transformation, sodass Mausrad-Zoom oder Ziehen-Schwenken in einem beliebigen Bereich alle auf denselben Bildausschnitt bewegt — die Art, das schärfste Bild einer Serie zu wählen, indem man tatsächlich die Pixel begutachtet. Doppelklick schaltet zwischen Einpassen ↔ Zoom um; jenseits der Einpassen-Skalierung tauscht jeder Bereich faul sein 1920px-Vorschaubild gegen die vollauflösende `/image`-Quelle, damit der Blick gestochen scharf ist. Keine Backend-Änderung — beide Bildrouten existieren bereits. (Touch-Pinch ist noch nicht verdrahtet; verwenden Sie am Desktop das Mausrad.)
 
-### API
-
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `GET /api/burst-groups` | Serienbildgruppen für die Auswahl |
-| `GET /api/similar-groups?threshold=&page=&per_page=` | Paginierte Gruppen visuell ähnlicher Fotos |
-| `GET /api/culling-groups` | Kombinierte Serienbild- und Ähnlichkeitsgruppen |
-| `POST /api/culling-groups/confirm` | Auswahlentscheidungen bestätigen |
-| `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen, Ausdruck, Konfidenz) für eine Gruppe in einem Batch-Aufruf |
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 ## Szenen-Ansicht
 
-Gruppieren Sie Serienbild-Leitfotos zu chronologischen „Szenen", sodass Sie eine ganze Aufnahmesession in Erzählreihenfolge auswählen können. Fotos werden anhand von Lücken in der Aufnahmezeit in Szenen unterteilt (eine neue Szene beginnt, wenn zwischen zwei aufeinanderfolgenden Aufnahmen mehr als `scenes.gap_hours` vergehen). Zugriff über die Route `/scenes` (Navigations-Symbol „theaters").
+Gruppieren Sie Serienbild-Leitfotos zu chronologischen „Szenen", sodass Sie eine ganze Aufnahmesession in Erzählreihenfolge auswählen können. Fotos werden anhand von Lücken in der Aufnahmezeit in Szenen unterteilt (eine neue Szene beginnt, wenn zwischen zwei aufeinanderfolgenden Aufnahmen mehr als `scenes.gap_minutes` vergehen, bei spärlichen Aufnahmen adaptiv erweitert), und jeder übermäßig lange Lauf wird unterteilt, sodass ein durchgehend aufgenommenes Ereignis nie zu einer einzigen riesigen Szene zusammenfällt. Jede Szene hat eine primäre Schaltfläche **Diese Szene aussortieren**, die die vollständige Auswahl-Dunkelkammer eingegrenzt auf nur diese Szene öffnet (Serienbilderkennung, Blinzel-Markierungen, Qualitätswertungen, Gesichts-Nahaufnahmen, Lupe), plus einen Streifen für **Schnelles Ablehnen**. Zugriff über die Route `/scenes` (Navigations-Symbol „theaters"); auch pro Album über das Alben-Raster erreichbar.
+
+Wenn narrative Momente berechnet werden (siehe unten), wird jede Szene zusätzlich nach ihrem dominanten Moment betitelt, und `scenes.split_on_moment_change` kann einen langen Lauf dort unterteilen, wo sich der Moment ändert.
+
+## Narrative Momente
+
+Facet kennzeichnet jedes Foto mit dem „Moment" des Ereignisses, das es darstellt — bei einer Hochzeit: Vorbereitung (Braut/Bräutigam), Zeremonieeinzug, Eheversprechen, Ringtausch, erster Kuss, Auszug, Familienfotos, Paar-Porträts, Cocktailstunde, Empfangsdetails, Dinner/Toasts, Tortenanschnitt, erster Tanz, Party, Verabschiedung — oder `other`. Weder Narrative Select noch AfterShoot tun dies; sie gruppieren nur nach Zeit und visueller Ähnlichkeit.
+
+Es ist **Zero-Shot und vollständig lokal**: Das gespeicherte CLIP/SigLIP-Embedding wird per Kosinusähnlichkeit mit gemittelten Text-Prompts für jeden Moment verglichen (L0), durch kleine Gesichts-/Tag-Prioren angepasst (L1) und dann **entlang der Zeitleiste geglättet** mit einem Viterbi-Durchgang, sodass ein isolierter Fehler in den umgebenden Lauf zurückgezogen wird (L2). Ein optionaler VLM-Stichentscheider (L3, 16gb/24gb) kann Frames mit niedriger Konfidenz neu beurteilen. Da es sich nur um ein Skalarprodukt über bereits in der Datenbank befindlichen Embeddings handelt — keine Bilddekodierung, kein Modelldurchlauf pro Bild — ist es günstig und **läuft automatisch am Ende jedes Scans**; die gesamte Bibliothek mit `python facet.py --recompute-moments` erneut verarbeiten.
+
+Momente erscheinen als Szenentitel und als Galerie-Filter (`GET /api/photos?narrative_moment=vows`, Optionen aus `GET /api/filter_options/narrative_moments`). Das Vokabular ist pro Ereignistyp konfigurationsgesteuert — siehe [Konfiguration — Narrative Momente](CONFIGURATION.md#narrative-moments), um Prompts/Schwellen abzustimmen oder ein Nicht-Hochzeits-Genre hinzuzufügen.
 
 - Jede Szene zeigt ihre Leitfotos in Aufnahmereihenfolge
 - Tippen Sie Fotos an, um sie für die Auswahl zu markieren; das Bestätigen lehnt sie ab und speist den persönlichen Ranker
 - Szenen, die kleiner als `scenes.min_size` sind, werden weggelassen; es werden höchstens `scenes.max_photos` Fotos geladen
 
-### API
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
-| Endpunkt | Beschreibung |
-|----------|-------------|
-| `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos |
-| `POST /api/scenes/confirm` | Szenen-Auswahlentscheidungen bestätigen (markierte Fotos ablehnen) |
-
-Gesteuert über `viewer.features.show_scenes` (Standard: `true`). Siehe [Konfiguration — Szenen](CONFIGURATION.md#szenen) für `gap_hours`, `min_size` und `max_photos`.
+Gesteuert über `viewer.features.show_scenes` (Standard: `true`). Siehe [Konfiguration — Szenen](CONFIGURATION.md#scenes) für `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` und `adaptive_k`.
 
 ## Paarweiser Vergleichsmodus
 
@@ -844,20 +797,20 @@ Filter-Dropdowns werden bei Bedarf über die API geladen:
 
 ## API-Endpunkte
 
-Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar, das OpenAPI-Schema unter `/api/openapi.json`.
+Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar, das OpenAPI-Schema unter `/api/openapi.json`.
 
 ### Galerie
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
 | `GET /api/photos` | Paginierte Fotoliste mit Filtern |
-| `GET /api/photo` | Details eines einzelnen Fotos |
+| `GET /api/photo` | Details zu einem einzelnen Foto |
 | `GET /api/type_counts` | Fotoanzahlen pro Typ |
 | `GET /api/similar_photos/{path}` | Ähnliche Fotos (Modi: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantische Text-zu-Bild-Suche (`scope=text` = nur OCR-/Beschreibungstext) |
 | `GET /api/critique?path=&mode=` | KI-Kritik (regelbasiert oder VLM) |
 | `GET /api/ranker/status` | Status des persönlichen Rankers für die Sortierung „Mein Geschmack" (gelernte Abdeckung %, Held-out-Genauigkeit) |
-| `GET /api/config` | Galeriekonfiguration |
+| `GET /api/config` | Galerie-Konfiguration |
 
 ### Authentifizierung
 
@@ -865,7 +818,7 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 |----------|-------------|
 | `POST /api/auth/login` | Authentifizieren und Token erhalten |
 | `POST /api/auth/edition/login` | Bearbeitungsmodus entsperren |
-| `POST /api/auth/edition/logout` | Bearbeitungsmodus sperren (Rechte abgeben, angemeldet bleiben) |
+| `POST /api/auth/edition/logout` | Bearbeitungsmodus sperren (Rechte ablegen, angemeldet bleiben) |
 | `GET /api/auth/status` | Authentifizierungsstatus prüfen |
 
 ### Vorschaubilder und Bilder
@@ -873,7 +826,7 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 | Endpunkt | Beschreibung |
 |----------|-------------|
 | `GET /thumbnail` | Foto-Vorschaubild |
-| `GET /face_thumbnail/{id}` | Gesichtsausschnitt-Vorschaubild |
+| `GET /face_thumbnail/{id}` | Gesichts-Ausschnitt-Vorschaubild |
 | `GET /person_thumbnail/{id}` | Repräsentatives Personen-Vorschaubild |
 | `GET /image` | Bild in voller Auflösung |
 
@@ -905,17 +858,17 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 | Endpunkt | Beschreibung |
 |----------|-------------|
 | `GET /api/persons` | Alle Personen auflisten |
-| `POST /api/persons` | Eine neue Person erstellen, optional mit Anhängen von Gesichtern (Bearbeitungsmodus). Body: `{name, face_ids}` |
-| `GET /api/persons/needs_naming?min_faces=N` | Unbenannte automatisch gruppierte Personen mit `face_count >= N` auflisten (Standard aus `viewer.persons.needs_naming_min_faces`) |
+| `POST /api/persons` | Eine neue Person erstellen, optional mit Gesichtern (Bearbeitungsmodus erforderlich). Body: `{name, face_ids}` |
+| `GET /api/persons/needs_naming?min_faces=N` | Unbenannte, automatisch geclusterte Personen mit `face_count >= N` auflisten (Standard aus `viewer.persons.needs_naming_min_faces`) |
 | `POST /api/persons/{id}/rename` | Eine Person umbenennen |
-| `POST /api/persons/{id}/assign_faces` | Gesichter sammelweise an eine Person anhängen; leere alte Personen werden automatisch gelöscht (Bearbeitungsmodus). Body: `{face_ids}` |
-| `POST /api/persons/{id}/split` | Eine Teilmenge der Gesichter einer Person in eine neue Person aufteilen (Bearbeitungsmodus). Body: `{face_ids, name}` |
-| `POST /api/persons/{id}/hide` | Eine Person aus der Liste, den Filtern und den Zusammenführungsvorschlägen ausblenden |
+| `POST /api/persons/{id}/assign_faces` | Gesichter per Sammelaktion einer Person zuweisen; leere Alt-Personen werden automatisch gelöscht (Bearbeitungsmodus erforderlich). Body: `{face_ids}` |
+| `POST /api/persons/{id}/split` | Eine Teilmenge der Gesichter einer Person in eine neue Person aufteilen (Bearbeitungsmodus erforderlich). Body: `{face_ids, name}` |
+| `POST /api/persons/{id}/hide` | Eine Person aus Liste, Filtern und Zusammenführungsvorschlägen ausblenden |
 | `POST /api/persons/{id}/unhide` | Eine zuvor ausgeblendete Person wieder einblenden |
 | `POST /api/persons/merge` | Zwei Personen zusammenführen (JSON-Body) |
-| `POST /api/persons/merge/{source_id}/{target_id}` | Quellperson in Ziel zusammenführen |
+| `POST /api/persons/merge/{source_id}/{target_id}` | Quellperson in Zielperson zusammenführen |
 | `POST /api/persons/merge_batch` | Mehrere Personen auf einmal zusammenführen |
-| `POST /api/persons/merge_suggestions/reject` | Einen Zusammenführungsvorschlag verwerfen, damit er nicht erneut vorgeschlagen wird |
+| `POST /api/persons/merge_suggestions/reject` | Einen Zusammenführungsvorschlag verwerfen, sodass er nicht erneut vorgeschlagen wird |
 | `POST /api/persons/{id}/delete` | Eine Person löschen |
 | `POST /api/persons/delete_batch` | Mehrere Personen auf einmal löschen |
 
@@ -935,37 +888,45 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 | `DELETE /api/albums/{id}/share` | Freigabe-Token widerrufen |
 | `GET /api/shared/album/{id}?token=` | Geteiltes Album ansehen (keine Authentifizierung) |
 
-### Erinnerungen, Zeitleiste, Karte & Beschreibungen
+### Erinnerungen, Zeitleiste, Karte & Bildbeschreibungen
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
 | `GET /api/memories?date=` | Fotos, die an diesem Datum in früheren Jahren aufgenommen wurden |
-| `GET /api/memories/check` | Prüfen, ob Erinnerungen für ein Datum existieren |
+| `GET /api/memories/check` | Prüfen, ob für ein Datum Erinnerungen existieren |
 | `GET /api/caption?path=` | KI-Bildbeschreibung abrufen oder generieren |
-| `PUT /api/caption` | Fotobeschreibung aktualisieren (Bearbeitungsmodus) |
+| `PUT /api/caption` | Bildbeschreibung aktualisieren (Bearbeitungsmodus) |
 | `GET /api/timeline?cursor=&limit=&direction=` | Paginierte Zeitleisten-Fotos |
-| `GET /api/timeline/dates?year=&month=` | Verfügbare Daten zur Navigation |
+| `GET /api/timeline/dates?year=&month=` | Verfügbare Daten für die Navigation |
 | `GET /api/timeline/years` | Verfügbare Jahre mit Fotoanzahlen |
-| `GET /api/timeline/months` | Verfügbare Monate eines Jahres |
+| `GET /api/timeline/months` | Verfügbare Monate für ein Jahr |
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Georeferenzierte Fotos innerhalb der Grenzen |
-| `GET /api/photos/map/count` | Anzahl der georeferenzierten Fotos |
+| `GET /api/photos/map/count` | Anzahl georeferenzierter Fotos |
+
+### Kapseln
+
+| Endpunkt | Beschreibung |
+|----------|-------------|
+| `GET /api/capsules` | Paginierte Kapselliste (zwischengespeichert) |
+| `GET /api/capsules/{id}/photos` | Fotos für eine bestimmte Kapsel |
+| `POST /api/capsules/{id}/save-album` | Kapsel als Album speichern (Bearbeitungsmodus) |
 
 ### Statistiken
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
-| `GET /api/stats/overview` | Zusammenfassung der Gesamtbewertungsstatistik |
-| `GET /api/stats/score_distribution` | Daten für das Wertungsverteilungs-Histogramm |
+| `GET /api/stats/overview` | Zusammenfassung der Gesamtwertungsstatistiken |
+| `GET /api/stats/score_distribution` | Histogrammdaten der Wertungsverteilung |
 | `GET /api/stats/top_cameras` | Top-Kameras nach Fotoanzahl |
 | `GET /api/stats/categories` | Kategorieanzahlen und -durchschnitte |
 | `GET /api/stats/gear` | Kamera-/Objektiv-/Kombinationsanzahlen |
 | `GET /api/stats/settings` | Verteilungen der Aufnahmeeinstellungen |
-| `GET /api/stats/timeline` | Zeitverlaufsdaten |
-| `GET /api/stats/correlations` | Benutzerdefinierte Metrik-Korrelationen |
-| `GET /api/stats/categories/breakdown` | Fotoanzahlen und Wertungsverteilungen pro Kategorie |
+| `GET /api/stats/timeline` | Zeitleistendaten |
+| `GET /api/stats/correlations` | Benutzerdefinierte Metrikkorrelationen |
+| `GET /api/stats/categories/breakdown` | Fotoanzahlen pro Kategorie und Wertungsverteilungen |
 | `GET /api/stats/categories/weights` | Kategoriegewichte und -modifikatoren aus der Konfiguration |
 | `GET /api/stats/categories/correlations` | Pearson-r-Korrelation pro Dimension pro Kategorie |
-| `GET /api/stats/categories/metrics?category=X` | Rohe Metrikwerte für clientseitige Vorschau |
+| `GET /api/stats/categories/metrics?category=X` | Rohe Metrikwerte für die clientseitige Vorschau |
 | `GET /api/stats/categories/overlap` | Filterüberschneidungsanalyse zwischen Kategorien |
 | `POST /api/stats/categories/update` | Kategoriegewichte/-modifikatoren aktualisieren (Bearbeitungsmodus) |
 | `POST /api/stats/categories/recompute` | Wertungen für eine Kategorie neu berechnen (Bearbeitungsmodus) |
@@ -977,7 +938,7 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 | `GET /api/comparison/next_pair` | Nächstes Fotopaar zum Vergleich abrufen |
 | `POST /api/comparison/submit` | Vergleichsergebnis übermitteln |
 | `POST /api/comparison/reset` | Vergleichsdaten zurücksetzen |
-| `GET /api/comparison/stats` | Statistik der Vergleichssitzung |
+| `GET /api/comparison/stats` | Statistiken der Vergleichssitzung |
 | `GET /api/comparison/history` | Vergangene Vergleiche auflisten |
 | `POST /api/comparison/edit` | Ein Vergleichsergebnis bearbeiten |
 | `POST /api/comparison/delete` | Einen Vergleich löschen |
@@ -1001,7 +962,7 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 | `POST /api/similar-groups/select` | Behaltefotos aus einer Ähnlichkeitsgruppe auswählen |
 | `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Kombinierte Serienbild- und Ähnlichkeitsgruppen. `exclude_rejected` (Standard `true`) blendet Fotos mit `is_rejected=1` aus; Gruppen mit weniger als 2 verbleibenden Fotos werden verworfen |
 | `POST /api/culling-groups/confirm` | Auswahlentscheidungen bestätigen |
-| `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen offen/geschlossen, Ausdruck, Konfidenz) für eine Gruppe in einem Batch-Aufruf |
+| `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen offen/geschlossen, Ausdruck, Konfidenz) für eine Gruppe, in einem Batch |
 | `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos |
 | `POST /api/scenes/confirm` | Szenen-Auswahlentscheidungen bestätigen |
 
@@ -1009,7 +970,7 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
-| `POST /api/scan/start` | `[Superadmin]` Einen Bewertungsscan starten |
+| `POST /api/scan/start` | `[Superadmin]` Einen Bewertungs-Scan starten |
 | `GET /api/scan/status` | Scan-Fortschritt prüfen (strukturiertes `progress`: `{phase, current, total, eta_seconds}`) |
 | `GET /api/scan/stream?token=<jwt>` | `[Superadmin]` Echtzeit-Fortschritt über Server-Sent Events; das Token wird als Query-Parameter übergeben (die `EventSource`-API kann keine Header setzen), mit automatischem Rückgriff auf das Polling von `/status` |
 | `GET /api/scan/directories` | Konfigurierte Scan-Verzeichnisse auflisten |
@@ -1019,11 +980,11 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 | Endpunkt | Beschreibung |
 |----------|-------------|
 | `GET /api/person/{id}/faces` | Gesichter einer Person auflisten |
-| `POST /api/person/{id}/avatar` | Avatargesicht einer Person setzen |
+| `POST /api/person/{id}/avatar` | Avatar-Gesicht einer Person festlegen |
 | `GET /api/photo/faces` | In einem Foto erkannte Gesichter auflisten |
 | `POST /api/face/{id}/assign` | Ein Gesicht einer Person zuweisen |
 | `POST /api/photo/assign_all_faces` | Alle Gesichter in einem Foto einer Person zuweisen |
-| `POST /api/photo/unassign_person` | Eine Person von einem Foto trennen |
+| `POST /api/photo/unassign_person` | Eine Person von einem Foto entfernen |
 
 ### Fotoaktionen
 
@@ -1063,19 +1024,20 @@ Die interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar,
 
 **Download-Typen:**
 
-- `original` — Die Datei unverändert bereitstellen (JPG/HEIF) oder per rawpy in JPEG konvertiert (RAW-Dateien).
-- `darktable` — Begleitende RAW mit einem benannten darktable-Profil konvertieren (erfordert den Parameter `profile`). Greift auf das Original zurück, wenn keine begleitende RAW existiert.
-- `raw` — Die begleitende RAW-Datei unverändert bereitstellen (in geteilten Alben nicht verfügbar).
+- `original` — Die Datei unverändert ausliefern (JPG/HEIF) oder rawpy-konvertiert zu JPEG (RAW-Dateien).
+- `darktable` — Begleitende RAW-Datei mit einem benannten darktable-Profil konvertieren (erfordert den Parameter `profile`). Greift auf das Original zurück, wenn keine begleitende RAW-Datei existiert.
+- `raw` — Die begleitende RAW-Datei unverändert ausliefern (in geteilten Alben nicht verfügbar).
 
-Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch und gibt verfügbare Optionen einschließlich konfigurierter darktable-Profile zurück. Die Galerie verwendet dies, um ein Download-Menü pro Foto zu füllen.
+Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch und liefert verfügbare Optionen einschließlich konfigurierter darktable-Profile zurück. Die Galerie verwendet dies, um ein Download-Menü pro Foto zu befüllen.
 
 ### Editor-Export
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
-| `POST /api/photo/export_xmp` | Ein XMP-Sidecar schreiben (Bearbeitungsmodus) |
-| `POST /api/export/sidecars` | Sidecars für explizite Pfade oder eine Filtermenge schreiben (Bearbeitungsmodus) |
-| `POST /api/albums/{id}/export` | Album-Export als Sidecars, Kopie oder Symlink (Bearbeitungsmodus) |
+| `POST /api/photo/export_xmp` | `[Edition]` Ein XMP-Sidecar schreiben |
+| `POST /api/export/sidecars` | `[Edition]` Sidecars für explizite Pfade oder eine Filtermenge schreiben |
+| `POST /api/photo/embed_metadata` | `[Edition]` Metadaten in die Originaldatei einbetten (JPEG/HEIC/TIFF/PNG/DNG; RAW wird nie verändert) und das Sidecar schreiben |
+| `POST /api/albums/{id}/export` | `[Edition]` Album-Export als Sidecars, Kopie oder Symlink |
 
 ### Plugins
 
@@ -1084,12 +1046,12 @@ Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch
 | `GET /api/plugins` | Konfigurierte Plugins auflisten |
 | `POST /api/plugins/test-webhook` | Ein Webhook-Plugin testen |
 
-### Gesundheit
+### Health
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
-| `GET /health` | Server-Gesundheitsprüfung |
-| `GET /ready` | Server-Bereitschaftsprüfung |
+| `GET /health` | Server-Health-Check |
+| `GET /ready` | Server-Readiness-Check |
 | `GET /metrics` | Metriken im Prometheus-Format: Fotoanzahlen, Embedding-Abdeckung, DB-Größe, Prozessspeicher |
 
 ### Internationalisierung
@@ -1118,7 +1080,7 @@ Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch
 | Scan-Schaltfläche fehlt | Erfordert die Rolle `superadmin` und `viewer.features.show_scan_button: true` |
 | Suche liefert keine Ergebnisse | Sicherstellen, dass Fotos `clip_embedding`-Daten haben (zuerst Bewertung ausführen) |
 | VLM-Kritik nicht verfügbar | Erfordert das 16gb/24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true` |
-| Karte zeigt keine Fotos | `--extract-gps` ausführen, um GPS-Spalten zu füllen; sicherstellen, dass Fotos EXIF-GPS-Daten haben |
-| Beschreibungen werden nicht generiert | Erfordert das 16gb/24gb-VRAM-Profil für VLM-Bildbeschreibungen |
+| Karte zeigt keine Fotos | `--extract-gps` ausführen, um GPS-Spalten zu befüllen; sicherstellen, dass Fotos EXIF-GPS-Daten haben |
+| Bildbeschreibungen werden nicht generiert | Erfordert das 16gb/24gb-VRAM-Profil für VLM-Bildbeschreibungen |
 | Zeitleiste leer | Sicherstellen, dass Fotos `date_taken`-Werte haben |
 | Port 5000 belegt | `python viewer.py --port 5001` ausführen (oder `PORT=5001` setzen). Unter macOS belegt der AirPlay-Empfänger des ControlCenter standardmäßig Port 5000 — entweder einen anderen Port wählen oder den AirPlay-Empfänger unter Systemeinstellungen → Allgemein → AirDrop & Handoff deaktivieren. |
