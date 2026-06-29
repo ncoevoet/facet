@@ -1,4 +1,14 @@
 import { vi } from 'vitest';
+import { I18N } from './app/core/i18n/keys';
+
+// Force the leaf i18n keys module to initialize before any component module
+// captures its `I18N` import. Under the Vitest unit-test builder, spec load
+// order can otherwise evaluate a component module before keys.ts, snapshotting
+// `I18N` as undefined and crashing any spec that renders an I18N-using template
+// (e.g. photo-card / person-card). Referencing it here pins the init order.
+if (!I18N) {
+  throw new Error('i18n keys module failed to initialize in the test setup');
+}
 
 // jsdom implements neither ResizeObserver nor IntersectionObserver, which the
 // gallery / shared-view components (and Leaflet, when the real module leaks into
