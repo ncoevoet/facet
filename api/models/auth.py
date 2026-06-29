@@ -24,6 +24,8 @@ class AuthStatusResponse(BaseModel):
     multi_user: bool
     edition_enabled: bool
     edition_authenticated: bool
+    edition_password_required: bool = False
+    login_password_required: bool = False
     user_id: Optional[str] = None
     user_role: Optional[str] = None
     display_name: Optional[str] = None

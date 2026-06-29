@@ -236,6 +236,27 @@ def test_scene_named_by_dominant_moment(monkeypatch):
     assert scenes[0]["moment_confidence"] is not None
 
 
+def test_scene_named_other_when_every_frame_is_other(monkeypatch):
+    # Degenerate moment labelling: every frame is the catch-all 'other'. The
+    # dominant-moment pick must still resolve to 'other' (not None, no raise).
+    photos = [
+        (f"/o{i}.jpg", f"o{i}.jpg", 7.0, f"2024:06:15 10:0{i}:00", 1, 0, None,
+         "other", 0.5)
+        for i in range(5)
+    ]
+    conn = _moment_db(photos)
+    monkeypatch.setattr("api.routers.scenes._scene_config", lambda: {
+        'gap_minutes': 20.0, 'min_size': 2, 'max_photos': 5000, 'max_scene_size': 60,
+        'adaptive': True, 'adaptive_k': 6.0,
+        'split_on_moment_change': False, 'moment_split_min_run': 4,
+    })
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        scenes = compute_scenes(conn, user_id=None)
+    assert len(scenes) == 1
+    assert scenes[0]["moment"] == "other"
+    assert scenes[0]["moment_confidence"] is not None
+
+
 def test_split_on_moment_change(monkeypatch):
     # One continuous time-run: first 5 frames 'vows', next 5 'first_dance'.
     photos = [

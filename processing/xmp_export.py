@@ -599,7 +599,7 @@ def _cli_face_regions(conn, path: str, width, height) -> list[FaceRegion]:
 
 def export_sidecars(conn, root: str | None = None, *, embed_original: bool = False,
                     timeout: int = 60, user_id: str | None = None,
-                    xmp_export_cfg: dict | None = None, score_to_stars: bool = False) -> dict:
+                    xmp_export_cfg: dict | None = None, derive_stars: bool = False) -> dict:
     """Write/merge ``<image>.xmp`` sidecars from the DB for all photos (or a subtree).
 
     By default operates on the global rating columns (``photos.star_rating`` /
@@ -630,7 +630,7 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
         user_params + params,
     ).fetchall()
     cfg = dict(xmp_export_cfg or {})
-    if score_to_stars:
+    if derive_stars:
         sr = dict(cfg.get("score_to_rating", {}))
         sr["enabled"] = True
         cfg["score_to_rating"] = sr

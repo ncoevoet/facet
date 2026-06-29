@@ -91,6 +91,7 @@ def api_face_markers(
     Coordinates are normalised by the original image size so the client can
     scale them to whatever resolution it displays.
     """
+    _require_overlay_enabled()
     vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
     with get_db() as conn:
         prow = conn.execute(

@@ -54,14 +54,11 @@ class _FakeClassifier:
     def __init__(self, *args, **kwargs):
         _FakeClassifier.classify_calls = []
 
-    def probabilities(self, emb, photo_data, signal=None):
-        return None, [0.5, 0.5]
-
-    def classify(self, emb, photo_data, signal=None):
+    def classify_with_probs(self, emb, photo_data, signal=None):
         _FakeClassifier.classify_calls.append((emb, signal))
         if emb == b"imgB":
-            return OTHER, 0.22          # gated 'other', raw cosine-scale confidence
-        return 'celebration', 0.80      # confident moment
+            return [0.5, 0.5], OTHER         # gated 'other'
+        return [0.5, 0.5], 'celebration'     # confident moment
 
 
 def _fake_smooth(prob_vectors, timestamps, transitions):

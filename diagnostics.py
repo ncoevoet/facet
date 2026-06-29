@@ -134,6 +134,16 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
         except Exception:
             pass
 
+        if not os.environ.get('TORCH_COMPILE_DISABLE'):
+            c_compiler = (
+                shutil.which(os.environ.get('CC') or 'cc')
+                or shutil.which('gcc')
+                or shutil.which('g++')
+            )
+            if not c_compiler:
+                _warn("torch.compile", "no C compiler (gcc/g++) found — will run eager CUDA inference")
+                logger.warning("    This is expected and fine in minimal Docker images; torch.compile is auto-disabled.")
+
     elif torch is not None:
         _section("GPU Troubleshooting")
         # Check if nvidia-smi sees a GPU even though PyTorch can't use it

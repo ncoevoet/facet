@@ -333,8 +333,7 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
             emb_bytes, signal = cap_emb, 'caption'
         else:
             emb_bytes, signal = row['clip_embedding'], 'image'
-        _, probs = classifier.probabilities(emb_bytes, photo_data, signal=signal)
-        raw_label, _ = classifier.classify(emb_bytes, photo_data, signal=signal)
+        probs, raw_label = classifier.classify_with_probs(emb_bytes, photo_data, signal=signal)
         prob_vectors.append(probs)
         raw_labels.append(raw_label)
         timestamps.append(parse_date(row['date_taken']))
@@ -1791,7 +1790,7 @@ Configuration:
             stats = export_sidecars(
                 conn, root, embed_original=args.embed_originals, user_id=args.user,
                 xmp_export_cfg=_export_cfg.get('xmp_export', {}),
-                score_to_stars=args.score_to_stars,
+                derive_stars=args.score_to_stars,
             )
         logger.info(
             "Sidecar export: %d written, %d embedded, %d missing, %d errors",
@@ -2052,7 +2051,12 @@ Configuration:
             logger.info("Summary: %d photos scored", len(results))
             logger.info("  Average aggregate: %.2f", avg_agg)
             logger.info("  Average aesthetic: %.2f", avg_aes)
-        exit()
+            exit()
+
+        logger.error("=" * 80)
+        logger.error("DRY RUN FAILED: all %d sample photos failed to score (0 succeeded).", sample_count)
+        logger.error("=" * 80)
+        exit(1)
 
     # Pre-scan free-space guard: refuse to start if the volume can't hold the
     # thumbnails + embeddings this scan will write into the single-file DB.

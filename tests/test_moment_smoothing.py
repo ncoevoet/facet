@@ -54,6 +54,24 @@ def test_empty_order_is_noop():
     assert out == [(None, None)]
 
 
+def test_nan_vector_degrades_without_raising():
+    # A degenerate embedding can yield a NaN probability vector. Smoothing must
+    # not crash the whole timeline: it returns a valid in-range label for every
+    # usable frame (confidence may be NaN, but no exception escapes).
+    probs = [_peaked(3, 0), np.full(3, np.nan), _peaked(3, 0)]
+    out = smooth(probs, _times(3), _PROD)
+    assert len(out) == 3
+    for label, _conf in out:
+        assert label is None or label in range(len(_ORDER))
+
+
+def test_single_frame_run_returns_its_argmax():
+    # One frame with a real transition order: the Viterbi/_segment_ranges boundary
+    # has nothing to smooth against, so the output is just that frame's argmax.
+    out = smooth([_peaked(3, 2)], _times(1), _PROD)
+    assert out[0][0] == 2
+
+
 def test_segment_ranges_splits_on_large_gap():
     base = datetime(2024, 6, 15, 10, 0, 0)
     times = [base, base + timedelta(seconds=30), base + timedelta(seconds=60),

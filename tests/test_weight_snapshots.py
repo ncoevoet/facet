@@ -15,10 +15,7 @@ from contextlib import contextmanager
 from unittest import mock
 
 import pytest
-from fastapi.testclient import TestClient
 
-from api import create_app
-from api.auth import CurrentUser, require_authenticated
 from db import init_database, record_weight_snapshot, get_connection
 
 _AUTH_MODULE = "api.auth"
@@ -58,14 +55,6 @@ def env(tmp_path):
         ],
     }))
     return {"db": db, "cfg": cfg}
-
-
-def _edition_client():
-    app = create_app()
-    app.dependency_overrides[require_authenticated] = lambda: CurrentUser(
-        user_id="u1", role="admin", edition_authenticated=True
-    )
-    return TestClient(app)
 
 
 def _real_db_cm(db_path):
@@ -112,8 +101,8 @@ class TestHelper:
 class TestUpdateWeights:
     ENDPOINT = "/api/config/update_weights"
 
-    def test_weights_only_records_snapshot_no_loose_file(self, env):
-        client = _edition_client()
+    def test_weights_only_records_snapshot_no_loose_file(self, env, edition_client):
+        client = edition_client
         with (
             mock.patch(f"{_CMP_MODULE}._CONFIG_PATH", str(env["cfg"])),
             mock.patch(f"{_CMP_MODULE}.reload_config", lambda: None),
@@ -132,8 +121,8 @@ class TestUpdateWeights:
         cfg = json.loads(env["cfg"].read_text())
         assert cfg["categories"][0]["weights"]["aesthetic_percent"] == 50
 
-    def test_with_modifiers_keeps_loose_file(self, env):
-        client = _edition_client()
+    def test_with_modifiers_keeps_loose_file(self, env, edition_client):
+        client = edition_client
         with (
             mock.patch(f"{_CMP_MODULE}._CONFIG_PATH", str(env["cfg"])),
             mock.patch(f"{_CMP_MODULE}.reload_config", lambda: None),
@@ -153,12 +142,12 @@ class TestUpdateWeights:
 class TestRestoreWeights:
     ENDPOINT = "/api/config/restore_weights"
 
-    def test_records_pre_restore_snapshot_no_loose_file(self, env):
+    def test_records_pre_restore_snapshot_no_loose_file(self, env, edition_client):
         sid = record_weight_snapshot(
             "portrait", {"aesthetic_percent": 10, "composition_percent": 90},
             created_by="manual", db=env["db"],
         )
-        client = _edition_client()
+        client = edition_client
         with (
             mock.patch(f"{_CMP_MODULE}._CONFIG_PATH", str(env["cfg"])),
             mock.patch(f"{_CMP_MODULE}.reload_config", lambda: None),
@@ -180,8 +169,8 @@ class TestRestoreWeights:
 class TestStatsCategoryUpdate:
     ENDPOINT = "/api/stats/categories/update"
 
-    def test_weights_only_records_snapshot_no_loose_file(self, env):
-        client = _edition_client()
+    def test_weights_only_records_snapshot_no_loose_file(self, env, edition_client):
+        client = edition_client
         with (
             mock.patch(f"{_STATS_MODULE}._CONFIG_PATH", str(env["cfg"])),
             mock.patch(f"{_STATS_MODULE}.reload_config", lambda: None),
@@ -198,8 +187,8 @@ class TestStatsCategoryUpdate:
         assert json.loads(rows[0]["weights"]) == {"aesthetic_percent": 40, "composition_percent": 60}
         assert _loose_backups(env["cfg"]) == []
 
-    def test_with_modifiers_keeps_loose_file(self, env):
-        client = _edition_client()
+    def test_with_modifiers_keeps_loose_file(self, env, edition_client):
+        client = edition_client
         with (
             mock.patch(f"{_STATS_MODULE}._CONFIG_PATH", str(env["cfg"])),
             mock.patch(f"{_STATS_MODULE}.reload_config", lambda: None),
@@ -218,10 +207,10 @@ class TestStatsCategoryUpdate:
 class TestListPagination:
     ENDPOINT = "/api/config/weight_snapshots"
 
-    def test_has_more_and_offset(self, env):
+    def test_has_more_and_offset(self, env, edition_client):
         for i in range(3):
             record_weight_snapshot("portrait", {"aesthetic_percent": i}, created_by="manual", db=env["db"])
-        client = _edition_client()
+        client = edition_client
         with mock.patch(f"{_CMP_MODULE}.get_db", _real_db_cm(env["db"])):
             r1 = client.get(self.ENDPOINT, params={"limit": 2, "offset": 0})
             r2 = client.get(self.ENDPOINT, params={"limit": 2, "offset": 2})
@@ -230,6 +219,39 @@ class TestListPagination:
         assert r1.json()["has_more"] is True
         assert len(r2.json()["snapshots"]) == 1
         assert r2.json()["has_more"] is False
+
+
+class TestDeleteSnapshot:
+    ENDPOINT = "/api/config/weight_snapshots"
+
+    def test_delete_removes_snapshot(self, env, edition_client):
+        sid = record_weight_snapshot(
+            "portrait", {"aesthetic_percent": 1}, created_by="manual", db=env["db"]
+        )
+        client = edition_client
+        with mock.patch(f"{_CMP_MODULE}.get_db", _real_db_cm(env["db"])):
+            resp = client.delete(f"{self.ENDPOINT}/{sid}")
+            listing = client.get(self.ENDPOINT, params={"limit": 50, "offset": 0})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["success"] is True
+        assert _snapshots(env["db"]) == []
+        assert all(s["id"] != sid for s in listing.json()["snapshots"])
+
+    def test_delete_missing_returns_404(self, env, edition_client):
+        client = edition_client
+        with mock.patch(f"{_CMP_MODULE}.get_db", _real_db_cm(env["db"])):
+            resp = client.delete(f"{self.ENDPOINT}/999999")
+        assert resp.status_code == 404, resp.text
+
+    def test_delete_requires_edition(self, env, regular_client):
+        sid = record_weight_snapshot(
+            "portrait", {"aesthetic_percent": 1}, created_by="manual", db=env["db"]
+        )
+        client = regular_client
+        with mock.patch(f"{_CMP_MODULE}.get_db", _real_db_cm(env["db"])):
+            resp = client.delete(f"{self.ENDPOINT}/{sid}")
+        assert resp.status_code == 403, resp.text
+        assert len(_snapshots(env["db"])) == 1
 
 
 class TestCli:

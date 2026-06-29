@@ -6,11 +6,9 @@ Comparison router -- pairwise photo ranking, weight optimization, downloads.
 import json
 import logging
 import os
-import shutil
 import asyncio
 import sqlite3
 import sys
-from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Literal, Optional
@@ -28,22 +26,13 @@ from api.config import (
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
 from api.db_helpers import get_visibility_clause
-from db import DEFAULT_DB_PATH, record_weight_snapshot
+from db import DEFAULT_DB_PATH, record_weight_snapshot, delete_weight_snapshot
+from api.config_writes import update_category_weights
 from utils.image_loading import RAW_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["comparison"])
-
-
-def _record_snapshot_safely(category, weights, created_by):
-    """Best-effort weights snapshot before a config write; never blocks the write."""
-    try:
-        with get_db() as conn:
-            record_weight_snapshot(category, weights, created_by=created_by, db=conn)
-            conn.commit()
-    except Exception:
-        logger.warning("Could not record weight snapshot for %s", category, exc_info=True)
 
 # Mapping from optimizer DB column names to config weight names (used by learned_weights and confidence)
 METRIC_NAME_MAPPING = {
@@ -416,35 +405,16 @@ async def api_update_weights(
 
         config_path = str(_CONFIG_PATH)
 
-        # Read current config
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-
-        target = next((c for c in config.get('categories', []) if c.get('name') == body.category), None)
-        if target is None:
-            raise HTTPException(status_code=404, detail=f'Category "{body.category}" not found in config')
-
-        # Snapshot the current weights before overwriting (restorable from the viewer)
-        _record_snapshot_safely(body.category, dict(target.get('weights', {})), 'auto:edit')
-
         # A loose full-config backup is only needed when non-weight config
         # (modifiers/filters) changes -- the snapshot table is weights-only.
-        backup_path = None
-        if body.modifiers is not None or body.filters is not None:
-            backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            shutil.copy2(config_path, backup_path)
-
-        if 'weights' not in target:
-            target['weights'] = {}
-        target['weights'].update(body.weights)
-        if body.modifiers is not None:
-            target['modifiers'] = body.modifiers
-        if body.filters is not None:
-            target['filters'] = body.filters
-
-        # Save updated config
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=2)
+        backup_path = update_category_weights(
+            config_path, body.category, 'auto:edit', get_db,
+            not_found_detail=f'Category "{body.category}" not found in config',
+            weights=body.weights,
+            modifiers=body.modifiers,
+            filters=body.filters,
+            backup=body.modifiers is not None or body.filters is not None,
+        )
 
         reload_config()
         _stats_cache.clear()
@@ -1323,22 +1293,13 @@ def api_restore_weights(
             raise HTTPException(status_code=500, detail='Corrupted snapshot data')
         category = snapshot['category']
 
-        # Load and update config
-        config_path = str(_CONFIG_PATH)
-        with open(config_path) as f:
-            config = json.load(f)
-
-        target = next((c for c in config.get('categories', []) if c.get('name') == category), None)
-        if target is None:
-            raise HTTPException(status_code=404, detail=f'Category "{category}" not found in config')
-
         # Snapshot the current weights before overwriting, so a restore can be undone
-        _record_snapshot_safely(category, dict(target.get('weights', {})), 'auto:pre_restore')
-
-        target['weights'] = weights
-
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=2)
+        update_category_weights(
+            str(_CONFIG_PATH), category, 'auto:pre_restore', get_db,
+            not_found_detail=f'Category "{category}" not found in config',
+            weights=weights,
+            replace_weights=True,
+        )
 
         reload_config()
         _stats_cache.clear()
@@ -1353,3 +1314,23 @@ def api_restore_weights(
     except Exception:
         logger.exception("Failed to restore weights from snapshot")
         raise HTTPException(status_code=500, detail='Internal server error')
+
+
+@router.delete("/api/config/weight_snapshots/{snapshot_id}")
+def api_delete_weight_snapshot(
+    snapshot_id: int,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Delete a saved weight configuration snapshot."""
+    try:
+        with get_db() as conn:
+            deleted = delete_weight_snapshot(snapshot_id, db=conn)
+            conn.commit()
+    except Exception:
+        logger.exception("Failed to delete weight snapshot")
+        raise HTTPException(status_code=500, detail='Internal server error')
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail='Snapshot not found')
+
+    return {'success': True}

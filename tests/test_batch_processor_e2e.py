@@ -114,6 +114,7 @@ def _make_processor(scorer, **kwargs):
 
 
 class TestBatchProcessorE2E:
+    @pytest.mark.timeout(30)
     def test_all_paths_saved_and_committed(self, tmp_path):
         paths = _tiny_jpegs(tmp_path, 5)
         scorer = FakeScorer()
@@ -125,6 +126,7 @@ class TestBatchProcessorE2E:
         assert all(r["aggregate"] == 7.5 for r in scorer.saved)
         assert scorer.committed is True
 
+    @pytest.mark.timeout(30)
     def test_error_isolation_one_bad_image(self, tmp_path):
         # img_1 is the 32x32 sentinel; the stubbed face analyzer raises on it.
         paths = _tiny_jpegs(tmp_path, 4, sentinel_index=1)
@@ -141,6 +143,7 @@ class TestBatchProcessorE2E:
         assert saved == {"img_0.jpg", "img_2.jpg", "img_3.jpg"}
         assert any(p.endswith("img_1.jpg") for p, _ in errors)
 
+    @pytest.mark.timeout(30)
     def test_inference_failure_drains_without_hanging(self, tmp_path):
         paths = _tiny_jpegs(tmp_path, 4)
         scorer = FakeScorer(fail_inference=True)

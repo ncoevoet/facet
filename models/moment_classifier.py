@@ -111,6 +111,37 @@ class MomentClassifier:
             return None
         return {m: float(s) for m, s in zip(self.moments, sims)}
 
+    def _calibrate(self, sims, photo_data, signal):
+        """Softmax probability vector over moments (L0 temperature + L1 priors)."""
+        adjusted = sims.copy()
+        if self.priors_enabled:
+            # Nudge at the cosine scale (before the softmax temperature) so a
+            # small prior only flips genuine near-ties, never a confident lead.
+            adjusted = adjusted + self._prior_logits(photo_data, signal)
+        logits = adjusted / self.temperature
+        logits = logits - logits.max()
+        probs = np.exp(logits)
+        return probs / probs.sum()
+
+    def _gate_label(self, sims, probs, photo_data, signal):
+        """No-smoothing label + raw confidence from precomputed sims/probs.
+
+        ``'other'`` when the top cosine is below ``signal``'s ``min_confidence``
+        or the top-1/top-2 margin is below its ``min_margin``; otherwise the
+        prior-nudged argmax (the raw top-1 when priors are off). L1 priors only
+        nudge the chosen label, never the gate.
+        """
+        min_confidence, min_margin = self.thresholds.get(signal, self.thresholds['image'])
+        order = np.argsort(sims)[::-1]
+        top1 = float(sims[order[0]])
+        top2 = float(sims[order[1]]) if len(order) > 1 else -1.0
+        if top1 < min_confidence or (top1 - top2) < min_margin:
+            return OTHER, top1
+        label = self.moments[order[0]]
+        if photo_data is not None and self.priors_enabled:
+            label = self.moments[int(np.argmax(probs))]
+        return label, top1
+
     def probabilities(self, embedding_bytes, photo_data=None, signal='image'):
         """Calibrated probability vector over moments (L0 softmax + L1 priors).
 
@@ -121,16 +152,7 @@ class MomentClassifier:
         sims = self.score_vector(embedding_bytes)
         if sims is None:
             return None, None
-        adjusted = sims.copy()
-        if self.priors_enabled:
-            # Nudge at the cosine scale (before the softmax temperature) so a
-            # small prior only flips genuine near-ties, never a confident lead.
-            adjusted = adjusted + self._prior_logits(photo_data, signal)
-        logits = adjusted / self.temperature
-        logits = logits - logits.max()
-        probs = np.exp(logits)
-        probs = probs / probs.sum()
-        return self.moments, probs
+        return self.moments, self._calibrate(sims, photo_data, signal)
 
     def classify(self, embedding_bytes, photo_data=None, signal='image'):
         """Single label + confidence (the no-smoothing path).
@@ -143,18 +165,23 @@ class MomentClassifier:
         sims = self.score_vector(embedding_bytes)
         if sims is None:
             return None, None
-        min_confidence, min_margin = self.thresholds.get(signal, self.thresholds['image'])
-        order = np.argsort(sims)[::-1]
-        top1 = float(sims[order[0]])
-        top2 = float(sims[order[1]]) if len(order) > 1 else -1.0
-        if top1 < min_confidence or (top1 - top2) < min_margin:
-            return OTHER, top1
-        label = self.moments[order[0]]
-        if photo_data is not None and self.priors_enabled:
-            _, probs = self.probabilities(embedding_bytes, photo_data, signal=signal)
-            if probs is not None:
-                label = self.moments[int(np.argmax(probs))]
-        return label, top1
+        return self._gate_label(
+            sims, self._calibrate(sims, photo_data, signal), photo_data, signal)
+
+    def classify_with_probs(self, embedding_bytes, photo_data=None, signal='image'):
+        """``(probs, label)`` from a single ``score_vector`` pass.
+
+        The fused ``probabilities`` + ``classify`` the moment-detection loop uses
+        so the cosine matrix-multiply runs once per photo instead of three times.
+        ``probs`` matches ``probabilities``; ``label`` matches ``classify``.
+        Returns ``(None, None)`` when the embedding is unusable.
+        """
+        sims = self.score_vector(embedding_bytes)
+        if sims is None:
+            return None, None
+        probs = self._calibrate(sims, photo_data, signal)
+        label, _ = self._gate_label(sims, probs, photo_data, signal)
+        return probs, label
 
     def _prior_logits(self, photo_data, signal='image'):
         """Config-driven additive nudges from signals Facet already has (L1).

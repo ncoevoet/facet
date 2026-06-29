@@ -85,3 +85,6 @@ aiosqlite>=0.20.0
 
 # Testing — async test support (tests/test_async_db.py uses @pytest.mark.asyncio)
 pytest-asyncio>=0.23.0
+# Testing — per-test timeouts (tests/test_batch_processor_e2e.py uses @pytest.mark.timeout
+# so a threaded-engine regression fails instead of hanging the suite forever)
+pytest-timeout>=2.3.0

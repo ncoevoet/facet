@@ -5,6 +5,7 @@ Facet class and supporting functions extracted from facet.py.
 """
 import os
 import sys
+import shutil
 import sqlite3
 
 # Ensure the script's directory is in Python path for local imports
@@ -646,12 +647,23 @@ class Facet:
                 # Apply torch.compile() for faster inference on PyTorch 2.0+
                 # Skip on Windows as Triton (required by inductor backend) is not supported
                 if hasattr(torch, 'compile') and self.device == 'cuda' and sys.platform != 'win32':
-                    try:
-                        self.model = torch.compile(self.model, mode='reduce-overhead')
-                        self.aesthetic_head = torch.compile(self.aesthetic_head, mode='reduce-overhead')
-                        logger.info("Models compiled with torch.compile()")
-                    except Exception as e:
-                        logger.info("torch.compile() not available: %s", e)
+                    compile_disabled = bool(os.environ.get('TORCH_COMPILE_DISABLE'))
+                    c_compiler = (
+                        shutil.which(os.environ.get('CC') or 'cc')
+                        or shutil.which('gcc')
+                        or shutil.which('g++')
+                    )
+                    if compile_disabled:
+                        logger.info("Skipping torch.compile(): TORCH_COMPILE_DISABLE is set; using eager CUDA inference")
+                    elif not c_compiler:
+                        logger.info("Skipping torch.compile(): no C compiler (gcc/g++) found; using eager CUDA inference")
+                    else:
+                        try:
+                            self.model = torch.compile(self.model, mode='reduce-overhead')
+                            self.aesthetic_head = torch.compile(self.aesthetic_head, mode='reduce-overhead')
+                            logger.info("Models compiled with torch.compile()")
+                        except Exception as e:
+                            logger.info("torch.compile() not available: %s", e)
                 elif self.device == 'cuda' and sys.platform == 'win32':
                     logger.info("Skipping torch.compile() on Windows (Triton not supported)")
 

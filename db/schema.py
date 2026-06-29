@@ -603,9 +603,11 @@ def _run_migration_ladder(conn, is_fresh):
 
     A fresh DB is built at the latest shape by CREATE TABLE, so it skips the
     ladder and is stamped straight to SCHEMA_VERSION. An existing DB runs every
-    pending step from its stored user_version in order. The whole init runs in
-    one transaction (sqlite3 connection context), so a step that raises rolls
-    the upgrade back rather than leaving a half-applied schema.
+    pending step from its stored user_version in order. Note: in legacy sqlite3
+    mode, DDL (ALTER/DROP/CREATE) and ``PRAGMA user_version`` auto-commit
+    outside the ``with conn`` transaction, so a step that raises is NOT rolled
+    back and can leave a half-applied schema. Each migration in MIGRATIONS must
+    therefore guard itself (own savepoint, or call backup_database first).
     """
     current = conn.execute("PRAGMA user_version").fetchone()[0]
     if not is_fresh and current < SCHEMA_VERSION:
