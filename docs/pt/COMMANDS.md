@@ -93,8 +93,8 @@ Esses comandos atualizam métricas específicas, derivam novos dados (legendas p
 | `python facet.py --recompute-category portrait` | Recalcula as pontuações apenas para uma única categoria |
 | `python facet.py --recompute-tags` | Re-marca todas as fotos usando o modelo configurado |
 | `python facet.py --recompute-tags-vlm` | Re-marca todas as fotos usando o marcador VLM |
-| `python facet.py --detect-moments` | Rotula novas fotos com seu momento narrativo (semântico de legenda, zero-shot + suavização temporal; executa automaticamente ao final de cada escaneamento). Codifica cada nova legenda uma vez em `caption_embedding`, depois cosseno sobre vetores armazenados — o primeiro backfill completo sobre uma biblioteca existente tem GPU recomendada; adicione `--limit N` para verificar em uma amostra |
-| `python facet.py --recompute-moments` | Re-rotula os momentos narrativos de toda a biblioteca (re-suaviza a linha do tempo completa). Adicione `--dry-run --verbose` para visualizar os 3 principais momentos por foto sem gravar |
+| `python facet.py --detect-moments` | Rotula novas fotos com seu momento narrativo (semântico de legenda, zero-shot + suavização temporal; executa automaticamente ao final de cada escaneamento). Codifica cada nova legenda uma vez em `caption_embedding`, depois cosseno sobre vetores armazenados — o primeiro backfill completo sobre uma biblioteca existente tem GPU recomendada; adicione `--limit N` para verificar em uma amostra. Quando `narrative_moments.vlm_tiebreak.enabled` está definido (perfis 16gb/24gb), quadros de baixo posterior / baixa margem são reclassificados pelo VLM do perfil |
+| `python facet.py --recompute-moments` | Re-rotula os momentos narrativos de toda a biblioteca (re-suaviza a linha do tempo completa). Adicione `--dry-run --verbose` para visualizar os 3 principais momentos por foto sem gravar. Também respeita a reclassificação por VLM `narrative_moments.vlm_tiebreak` de quadros de baixa confiança quando habilitada (16gb/24gb) |
 | `python facet.py --discover-moments` | Propõe um vocabulário de momentos específico da biblioteca agrupando os embeddings de legenda armazenados (HDBSCAN) e nomeando cada cluster a partir de suas legendas. Grava `scoring_config.discovered.json` para revisão — nunca reescreve a configuração ativa. Execute `--detect-moments` primeiro para preencher `caption_embedding`; ajuste a granularidade com `--discover-min-cluster-size N` |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recalcula as métricas de saliência do sujeito (BiRefNet_dynamic) |
 | `python facet.py --recompute-composition-cpu` | Recalcula a composição, baseada em regras (CPU, qualquer perfil) |
@@ -108,7 +108,7 @@ Esses comandos atualizam métricas específicas, derivam novos dados (legendas p
 | `python facet.py --recompute-burst` | Recalcula os grupos de detecção de rajada |
 | `python facet.py --detect-duplicates` | Detecta fotos duplicadas via pHash |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Avalia limiares de cosseno para quase-duplicatas (tabela de precisão/revocação com rótulos; caso contrário, distribuição de cosseno dos candidatos) |
-| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Gera legendas por IA para as fotos usando VLM |
+| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Gera legendas por IA para as fotos usando VLM. Quando `narrative_moments.caption_min_confidence > 0`, ignora fotos sem rótulo / `other` / abaixo do limiar (o mesmo portão se aplica ao endpoint de legenda sob demanda) |
 | `python facet.py --translate-captions` | Traduz as legendas em inglês para o idioma de destino configurado (CPU, MarianMT) |
 | `python facet.py --extract-gps` | Extrai coordenadas GPS dos dados EXIF para colunas do banco de dados |
 | `python facet.py --rescan-gps` | Re-extrai as coordenadas GPS do EXIF para todas as fotos (sobrescreve as existentes) |

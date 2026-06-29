@@ -151,6 +151,7 @@ python database.py --migrate-user-preferences --user alice
 | **Notes utilisateur** | Note en étoiles |
 | **Réglages de l'appareil** | ISO, ouverture (curseur de plage de diaphragme), focale (curseur de plage) |
 | **Contenu** | Tags, bascule monochrome |
+| **Moments** | Confiance du moment narratif (curseur de plage 0–1 : `min_moment_confidence` / `max_moment_confidence`) |
 
 ### Motifs de composition
 
@@ -172,6 +173,7 @@ Colonnes triables regroupées par catégorie (depuis `viewer.sort_options`) :
 | **Exposition** | Score d'exposition, Luminance moyenne, Étalement de l'histogramme, Plage dynamique |
 | **Composition** | Score de composition, Score des points de force, Lignes directrices, Bonus d'isolation, Motif de composition |
 | **Saillance du sujet** | Netteté du sujet, Prééminence du sujet, Placement du sujet, Séparation de l'arrière-plan |
+| **Contenu** | Confiance du moment (les NULL coulent) |
 
 ### My Taste
 
@@ -349,7 +351,7 @@ Contrôlé par `viewer.features.show_captions` (par défaut : `true`). Nécessit
 
 ## Souvenirs (« Ce jour-là »)
 
-Parcourez les photos prises à la même date du calendrier les années précédentes. Une boîte de dialogue de souvenirs affiche une rétrospective année par année des photos correspondantes.
+Parcourez les photos prises à la même date du calendrier les années précédentes. L'ouverture des Souvenirs lance un diaporama plein écran aléatoire des photos correspondantes plutôt qu'une grille ; l'infobulle du bouton de navigation explique précisément ce qu'il fait.
 
 API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
 
@@ -389,7 +391,7 @@ Accessible via la route `/map`. Contrôlé par `viewer.features.show_map` (par d
 
 ## Capsules
 
-Diaporamas de photos sélectionnées regroupés par thème. Accessible via la route `/capsules`.
+Diaporamas de photos sélectionnées regroupés par thème, lieu, personnes et période — cliquez sur une capsule pour la lire. Accessible via la route `/capsules`.
 
 ### Types de capsules
 
@@ -471,14 +473,16 @@ API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
 
 ## Tri sélectif
 
-La page de tri sélectif (`/culling`, mode édition) regroupe les clichés quasi identiques afin que vous puissiez conserver le meilleur de chaque groupe et rejeter le reste. Deux sources de groupes :
+La page de tri sélectif (`/culling`, mode édition) regroupe les clichés quasi identiques afin que vous puissiez conserver le meilleur de chaque groupe et rejeter le reste. Un sélecteur de **granularité** — la première commande, la plus impactante, de la barre d'outils — choisit la façon dont les photos sont regroupées :
 
-- **Rafale** — photos prises dans un court intervalle de temps (issues de la détection de rafales).
+- **Tout** (par défaut) — groupes combinés de rafale + similaires.
+- **Rafales** — photos prises dans un court intervalle de temps (issues de la détection de rafales).
 - **Similaires** — photos qui se ressemblent quel que soit le moment où elles ont été prises, regroupées par similarité d'embeddings CLIP/SigLIP. Un curseur de seuil contrôle la rigueur du regroupement.
+- **Scènes** — groupes de scènes chronologiques (suites de temps de capture), chacun en-tête de son intervalle de temps et de son moment narratif dominant. Conditionné par `viewer.features.show_scenes`.
 
-Pour chaque groupe, choisissez la ou les photos à conserver ; la confirmation rejette le reste. Les confirmations sont différées et peuvent être annulées (voir [Annuler](#annuler)).
+Pour chaque groupe, choisissez la ou les photos à conserver ; la confirmation rejette le reste. Les confirmations sont différées et peuvent être annulées (voir [Annuler](#annuler)). Les choix de granularité, de tri et de catégorie sont conservés dans le `localStorage`. Les commandes qui ne s'appliquent pas à la granularité courante sont masquées — le menu déroulant de tri et le curseur de seuil de similarité disparaissent en mode scène, et le bouton de portée est masqué lorsque vous n'avez aucun album manuel. Chaque bouton de la barre d'outils et d'action de groupe porte une infobulle, et sur les petits écrans la barre d'outils se détache en une barre inférieure défilante.
 
-**Tri sélectif limité.** La chambre noire peut être restreinte à un sous-ensemble via des paramètres de requête : `?album=<id>` la limite à un album, et `?from=&to=` (fenêtre de temps de capture EXIF, base de **Trier cette scène**) la limite à une seule scène. Une bannière affiche la portée active avec une commande **Quitter la scène** ; la récupération des membres de la rafale reste limitée à l'album mais ignore la fenêtre, de sorte qu'une rafale chevauchant la limite de la scène montre quand même toutes ses images.
+**Tri sélectif limité.** La chambre noire peut être restreinte à un sous-ensemble via des paramètres de requête : `?group_by=scene` bascule en granularité scène, `?album=<id>` la limite à un album, et `?from=&to=` (fenêtre de temps de capture EXIF, base de **Trier cette scène**) la limite à une seule scène. Une bannière affiche la portée active avec une commande **Quitter la scène** ; la récupération des membres de la rafale reste limitée à l'album mais ignore la fenêtre, de sorte qu'une rafale chevauchant la limite de la scène montre quand même toutes ses images.
 
 **Puce My Taste.** Chaque confirmation enregistre des lignes de comparaison `source='culling'` qui entraînent le classeur personnel, de sorte que l'en-tête affiche une petite puce « My Taste · N comparaisons » qui se met à jour après chaque décision — l'IA apprend votre œil au fil du tri (`GET /api/ranker/status`).
 
@@ -496,7 +500,9 @@ API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
 
 ## Vue Scènes
 
-Regroupez les photos leaders de rafale en « scènes » chronologiques afin de pouvoir trier toute une séance dans l'ordre du récit. Les photos sont divisées en scènes par les intervalles de temps de capture (une nouvelle scène commence lorsque plus de `scenes.gap_minutes` s'écoulent entre deux clichés consécutifs, élargi de manière adaptative sur les séances clairsemées), et toute suite trop longue est sous-divisée pour qu'un événement photographié en continu ne s'effondre jamais en une seule scène géante. Chaque scène a un bouton principal **Trier cette scène** qui ouvre la chambre noire de tri complète restreinte à cette seule scène (détection de rafale, indicateurs de clignement, scores de qualité, gros plans de visage, loupe), plus une bande **Rejet rapide**. Accessible via la route `/scenes` (icône de navigation « theaters ») ; également accessible par album depuis la grille des Albums.
+Une consultation en **lecture seule** de votre bibliothèque regroupée en « scènes » chronologiques — des suites de temps de capture présentées dans l'ordre du récit avec une grille, une loupe au survol et des en-têtes de date/moment. Ouverte à **tous les utilisateurs authentifiés** (lecture seule comme édition). Les photos sont divisées en scènes par les intervalles de temps de capture (une nouvelle scène commence lorsque plus de `scenes.gap_minutes` s'écoulent entre deux clichés consécutifs, élargi de manière adaptative sur les séances clairsemées), et toute suite trop longue est sous-divisée pour qu'un événement photographié en continu ne s'effondre jamais en une seule scène géante.
+
+Le seul point d'entrée est le bouton d'action **Afficher les scènes de cet album** par album dans la grille des Albums (un sélecteur de portée d'album à l'intérieur de la consultation permet de changer la portée). Il n'y a pas d'entrée Scènes dans la navigation principale. Chaque scène porte un bouton **Trier cette scène** réservé à l'édition qui pointe en profondeur vers la surface de [Tri sélectif](#tri-sélectif) en granularité scène (`/culling?group_by=scene&album=&from=&to=`) ; les utilisateurs en édition peuvent aussi atteindre Scènes-en-tri-sélectif directement depuis la navigation Tri sélectif. La consultation elle-même n'a ni grille de rejet ni confirmation groupée — tout le tri passe désormais par la surface de Tri sélectif unifiée.
 
 Lorsque les moments narratifs sont calculés (ci-dessous), chaque scène est également intitulée par son moment dominant, et `scenes.split_on_moment_change` peut sous-diviser une longue suite là où le moment change.
 
@@ -508,8 +514,10 @@ Il est **zero-shot et entièrement local**, et repose sur la **sémantique de la
 
 Les moments apparaissent comme titres de scène et comme filtre de galerie (`GET /api/photos?narrative_moment=beach`, options depuis `GET /api/filter_options/narrative_moments`). Le vocabulaire est piloté par la configuration selon le type d'événement — voir [Configuration — Narrative Moments](CONFIGURATION.md#narrative-moments) pour ajuster les prompts/seuils ou changer de genre.
 
+**Confiance du moment.** Chaque étiquette stocke une confiance a posteriori (`narrative_moment_confidence`). Les étiquettes en dessous de `viewer.moment_confidence_min` (par défaut `0` = jamais atténuées) s'affichent en atténué avec un suffixe « (incertain) » dans l'en-tête des Scènes, l'en-tête de groupe de scène du Tri sélectif et l'infobulle de photo de la galerie (qui affiche aussi le % de confiance). La confiance est aussi une option de tri — **Confiance du moment** (les NULL coulent) sous le groupe Contenu — et un filtre de plage de galerie (`min_moment_confidence` / `max_moment_confidence`, un curseur 0–1 dans la section **Moments** de la barre latérale).
+
 - Chaque scène montre ses photos leaders dans l'ordre de capture
-- Touchez les photos pour les marquer en vue du tri ; la confirmation les rejette et alimente le classeur personnel
+- Triez une scène depuis son bouton **Trier cette scène**, qui ouvre la surface de tri restreinte à cette scène
 - Les scènes plus petites que `scenes.min_size` sont omises ; au plus `scenes.max_photos` photos sont chargées
 
 API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
@@ -960,11 +968,10 @@ La documentation interactive de l'API est disponible à `/api/docs` (Swagger UI)
 | `POST /api/burst-groups/select` | Sélectionner les photos à conserver d'un groupe de rafale |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Groupes de photos visuellement similaires |
 | `POST /api/similar-groups/select` | Sélectionner les photos à conserver d'un groupe similaire |
-| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Groupes combinés de rafale et de similaires. `exclude_rejected` (par défaut `true`) masque les photos avec `is_rejected=1` ; les groupes ayant moins de 2 photos restantes sont supprimés |
-| `POST /api/culling-groups/confirm` | Confirmer les sélections de tri |
+| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Groupes de rafale/similaires/scène pour le tri. `group_by` (par défaut `all`) sélectionne les groupes combinés rafale+similaires, rafale uniquement, similaires uniquement, ou scènes chronologiques (les groupes de scène ajoutent `type`/`start`/`end`/`moment`/`moment_confidence` ; le paramètre `sort` est ignoré en mode scène). `exclude_rejected` (par défaut `true`) masque les photos avec `is_rejected=1` ; les groupes ayant moins de 2 photos restantes sont supprimés |
+| `POST /api/culling-groups/confirm` | Confirmer les sélections de tri (rafale, similaires ou scène). Corps `{group_id, type, paths, keep_paths}` ; `type:'scene'` enregistre les lignes de comparaison de tri de scène |
 | `POST /api/culling-group/faces` | Badges par visage (yeux ouverts/fermés, expression, confiance) pour un groupe, en un seul lot |
-| `GET /api/scenes` | Scènes chronologiques de photos leaders de rafale |
-| `POST /api/scenes/confirm` | Confirmer les sélections de tri de scène |
+| `GET /api/scenes` | Scènes chronologiques de photos leaders de rafale (consultation en lecture seule) |
 
 ### Scan
 

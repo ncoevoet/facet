@@ -1058,12 +1058,13 @@ Exibição e comportamento da galeria web.
     },
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
+    "moment_confidence_min": 0,
     "path_mapping": {}
   }
 }
 ```
 
-> **Nota:** `sort_options` (elidido como `{ ... }` acima) mapeia colunas do banco de dados para rótulos de menu suspenso e raramente é editado.
+> **Nota:** `sort_options` (elidido como `{ ... }` acima) mapeia colunas do banco de dados para rótulos de menu suspenso e raramente é editado. O grupo **Conteúdo** inclui uma ordenação `{ "column": "narrative_moment_confidence", "label": "Moment Confidence" }` (NULLs ao final).
 
 | Configuração | Padrão | Descrição |
 |--------------|--------|-----------|
@@ -1136,6 +1137,7 @@ Exibição e comportamento da galeria web.
 | **Outros** | | |
 | `cache_ttl_seconds` | `60` | TTL do cache de consultas |
 | `notification_duration_ms` | `2000` | Duração do toast |
+| `moment_confidence_min` | `0` | Abaixo deste posterior de `narrative_moment_confidence` armazenado (0–1), os rótulos de momento são renderizados esmaecidos com um sufixo "(incerto)" no cabeçalho de Cenas, no cabeçalho de grupo de cena da Triagem e na dica da foto na galeria. `0` = nunca esmaecer |
 
 ### Recursos
 
@@ -1416,6 +1418,7 @@ Diaporamas de fotos (slideshows) curados e agrupados por tema. As cápsulas são
     "max_photos_per_capsule": 40,
     "max_photo_overlap": 0.2,
     "mmr_lambda": 0.5,
+    "mmr_moment_weight": 0.0,
     "freshness_hours": 24,
     "reverse_geocoding": true,
     "journey": {
@@ -1455,6 +1458,7 @@ Diaporamas de fotos (slideshows) curados e agrupados por tema. As cápsulas são
 | `max_photos_per_capsule` | `40` | Máximo de fotos por cápsula (diversidade MMR aplicada acima de 5) |
 | `max_photo_overlap` | `0.2` | Fração máxima de fotos compartilhadas entre duas cápsulas antes que a deduplicação remova uma |
 | `mmr_lambda` | `0.5` | Peso de diversidade do MMR: 0=maximizar diversidade, 1=maximizar qualidade |
+| `mmr_moment_weight` | `0.0` | Peso opcional que mescla o `narrative_moment_confidence` de cada foto na seleção MMR da cápsula. `0.0` = comportamento inalterado |
 | `freshness_hours` | `24` | TTL do cache e período de rotação para fotos de capa e cápsulas com seed |
 | `reverse_geocoding` | `true` | Ativa a geocodificação reversa offline para títulos de cápsulas de localização/jornada (requer o pacote `reverse_geocoder`) |
 
@@ -1579,6 +1583,7 @@ O sinal é **semântico de legenda** (caption-semantic): a legenda por IA de cad
     "prompt_template": "a photo of {desc}",
     "default_event_type": "general",
     "pooling": "max",
+    "caption_min_confidence": 0,
     "thresholds": {
       "caption": {
         "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
@@ -1590,7 +1595,7 @@ O sinal é **semântico de legenda** (caption-semantic): a legenda por IA de cad
       }
     },
     "priors": { "enabled": true, "weight": 0.04 },
-    "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
+    "vlm_tiebreak": { "enabled": false, "min_confidence": 0.0, "min_margin": 0.04 },
     "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
     "event_types": { "general": { "beach": ["people at a sandy beach by the sea", "..."], "...": [] }, "wedding": { "vows": ["the couple exchanging vows at the altar", "..."] } }
   }
@@ -1603,13 +1608,14 @@ O sinal é **semântico de legenda** (caption-semantic): a legenda por IA de cad
 | `prompt_template` | `"a photo of {desc}"` | Invólucro aplicado a cada prompt antes da codificação |
 | `default_event_type` | `"general"` | Qual vocabulário de `event_types` está ativo. `general` = 20 momentos de cena/atividade agnósticos; `wedding` vem como um gênero opcional |
 | `pooling` | `"max"` | Pontuação por momento = o melhor cosseno de prompt individual (max-pool), mais discriminativo que a média |
+| `caption_min_confidence` | `0` | Portão de qualidade de legenda: quando > 0, `--generate-captions` e o endpoint de legenda sob demanda ignoram fotos sem rótulo, `other`, ou abaixo desta confiança de momento armazenada. `0` = sem portão |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Abaixo deste cosseno top-1, uma foto é `other`. Indexado por **sinal** (`caption` vs `image`) e depois por backend — os cossenos de legenda ficam ~2,4× mais altos |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Diferença mínima de cosseno entre top-1/top-2; abaixo dela o quadro vira `other` |
 | `priors.enabled` / `priors.weight` | `true` / `0.04` | Ajustes L1 de face/tag que só desempatam quase-empates; `weight` limita cada ajuste à escala do cosseno |
 | `priors.caption_tag_scale` | `0.25` | Reduz as regras `tag` no sinal caption (o L0 já codifica a legenda); as regras estruturais mantêm o peso total |
 | `priors.rules` / `priors.event_types.<et>.rules` | (conjunto geral) | Regras declarativas `{kind, when, boost}` independentes do vocabulário; um `boost` para um momento ausente do vocabulário ativo é ignorado. As regras por `event_type` substituem a lista global. Referência completa dos predicados: doc em inglês |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Suavização L2 da linha do tempo (Viterbi): pesada em auto-laço, sem progressão adiante (o vocabulário agnóstico não tem ordem canônica), aplicada de forma leve (`weight=0` = sem suavização) |
-| `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | L3 opcional: reclassifica quadros de baixa margem com o VLM Qwen (apenas 16gb/24gb) |
+| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | Desempate L3 (agora ativo): quando habilitado nos perfis 16gb/24gb, apenas quadros de baixo posterior (abaixo de `min_confidence`) ou de baixa margem (abaixo de `min_margin`) são reclassificados pelo VLM do perfil durante `--detect-moments` / `--recompute-moments` |
 | `event_types` | `general` + `wedding` | `{momento: [sinônimos de prompt]}` por tipo de evento; defina `default_event_type` para trocar de gênero ou adicionar o seu próprio |
 
 > **Custo do backfill de legendas.** Os embeddings de legenda são computados uma vez e armazenados, então o cosseno por foto é gratuito depois disso. Um escaneamento codifica apenas seu punhado de novas legendas (barato, incremental), mas a primeira passagem completa sobre uma biblioteca existente codifica cada legenda — uma passagem direta pela torre de texto por legenda, rápida na GPU e ~horas na CPU. Execute `python facet.py --detect-moments` uma vez (GPU recomendada) para esse backfill; adicione `--limit N` para verificar primeiro em uma amostra.

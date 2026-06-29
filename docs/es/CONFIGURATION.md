@@ -1058,12 +1058,13 @@ Visualización y comportamiento de la galería web.
     },
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
+    "moment_confidence_min": 0,
     "path_mapping": {}
   }
 }
 ```
 
-> **Nota:** `sort_options` (omitido como `{ ... }` arriba) asigna columnas de la BD a etiquetas de menú desplegable y rara vez se edita.
+> **Nota:** `sort_options` (omitido como `{ ... }` arriba) asigna columnas de la BD a etiquetas de menú desplegable y rara vez se edita. El grupo **Content** incluye una ordenación `{ "column": "narrative_moment_confidence", "label": "Moment Confidence" }` (los NULL se hunden al final).
 
 | Ajuste | Por defecto | Descripción |
 |---------|---------|-------------|
@@ -1136,6 +1137,7 @@ Visualización y comportamiento de la galería web.
 | **Otros** | | |
 | `cache_ttl_seconds` | `60` | TTL de la caché de consultas |
 | `notification_duration_ms` | `2000` | Duración del aviso emergente |
+| `moment_confidence_min` | `0` | Por debajo de este posterior `narrative_moment_confidence` almacenado (0-1), las etiquetas de momento se muestran atenuadas con un sufijo "(incierto)" en la cabecera de Escenas, la cabecera de grupo de escena del Descarte y el tooltip de foto de la galería. `0` = nunca atenuar |
 
 ### Funciones
 
@@ -1416,6 +1418,7 @@ Diaporamas de fotos curados (pases de diapositivas) agrupados por tema. Las cáp
     "max_photos_per_capsule": 40,
     "max_photo_overlap": 0.2,
     "mmr_lambda": 0.5,
+    "mmr_moment_weight": 0.0,
     "freshness_hours": 24,
     "reverse_geocoding": true,
     "journey": {
@@ -1455,6 +1458,7 @@ Diaporamas de fotos curados (pases de diapositivas) agrupados por tema. Las cáp
 | `max_photos_per_capsule` | `40` | Máximo de fotos por cápsula (diversidad MMR aplicada por encima de 5) |
 | `max_photo_overlap` | `0.2` | Fracción máxima de fotos compartidas entre dos cápsulas antes de que la deduplicación elimine una |
 | `mmr_lambda` | `0.5` | Peso de diversidad MMR: 0=maximizar diversidad, 1=maximizar calidad |
+| `mmr_moment_weight` | `0.0` | Peso opcional que combina el `narrative_moment_confidence` de cada foto en la selección MMR de la cápsula. `0.0` = comportamiento sin cambios |
 | `freshness_hours` | `24` | TTL de la caché y periodo de rotación de las fotos de portada y las cápsulas semilladas |
 | `reverse_geocoding` | `true` | Activar la geocodificación inversa sin conexión para los títulos de las cápsulas de ubicación/viaje (requiere el paquete `reverse_geocoder`) |
 
@@ -1579,6 +1583,7 @@ La señal es **semántica de leyenda**: la leyenda de IA de cada foto se codific
     "prompt_template": "a photo of {desc}",
     "default_event_type": "general",
     "pooling": "max",
+    "caption_min_confidence": 0,
     "thresholds": {
       "caption": {
         "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
@@ -1590,7 +1595,7 @@ La señal es **semántica de leyenda**: la leyenda de IA de cada foto se codific
       }
     },
     "priors": { "enabled": true, "weight": 0.04 },
-    "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
+    "vlm_tiebreak": { "enabled": false, "min_confidence": 0.0, "min_margin": 0.04 },
     "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
     "event_types": { "general": { "beach": ["people at a sandy beach by the sea", "..."], "...": [] }, "wedding": { "vows": ["the couple exchanging vows at the altar", "..."] } }
   }
@@ -1603,13 +1608,14 @@ La señal es **semántica de leyenda**: la leyenda de IA de cada foto se codific
 | `prompt_template` | `"a photo of {desc}"` | Envoltorio aplicado a cada prompt antes de codificarlo |
 | `default_event_type` | `"general"` | Qué vocabulario de `event_types` está activo. `general` = 20 momentos de escena/actividad agnósticos; `wedding` se incluye como género opcional |
 | `pooling` | `"max"` | Puntuación por momento = el mejor coseno de un único prompt (max-pool), más discriminativo que promediar |
+| `caption_min_confidence` | `0` | Filtro de calidad de leyenda: cuando > 0, `--generate-captions` y el endpoint de leyenda bajo demanda omiten las fotos sin etiqueta, `other` o por debajo de esta confianza de momento almacenada. `0` = sin filtro |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Por debajo de este coseno top-1, una foto se etiqueta como `other`. Indexado por **señal** (`caption` frente a `image`) y luego por backend — los cosenos de leyenda son ~2,4× más altos |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Brecha coseno top-1/top-2 mínima; por debajo de ella el fotograma es `other` |
 | `priors.enabled` / `priors.weight` | `true` / `0.04` | Empujones L1 de rostro/etiqueta que solo deshacen casi-empates; `weight` limita cada ajuste a la escala del coseno |
 | `priors.caption_tag_scale` | `0.25` | Reduce las reglas `tag` en la señal caption (L0 ya codifica el pie de foto); las reglas estructurales conservan todo su peso |
 | `priors.rules` / `priors.event_types.<et>.rules` | (conjunto general) | Reglas declarativas `{kind, when, boost}` independientes del vocabulario; un `boost` hacia un momento ausente del vocabulario activo se omite. Las reglas por `event_type` reemplazan la lista global. Referencia completa de predicados: doc en inglés |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Suavizado L2 de la línea de tiempo (Viterbi): sesgo fuerte a permanecer sin progresión hacia delante (el vocabulario agnóstico no tiene un orden canónico), aplicado de forma ligera (`weight=0` = sin suavizado) |
-| `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | L3 opcional: reclasificar los fotogramas de bajo margen con el VLM Qwen (solo 16gb/24gb) |
+| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | Desempate L3 (ahora activo): cuando se activa en perfiles 16gb/24gb, solo los fotogramas de bajo posterior (por debajo de `min_confidence`) o bajo margen (por debajo de `min_margin`) se reclasifican con el VLM del perfil durante `--detect-moments` / `--recompute-moments` |
 | `event_types` | `general` + `wedding` | `{moment: [sinónimos de prompt]}` por tipo de evento; establece `default_event_type` para cambiar de género o añadir el tuyo propio |
 
 > **Coste del relleno retroactivo de leyendas.** Los embeddings de leyenda se calculan una vez y se almacenan, así que el coseno por foto es gratis después. Un escaneo codifica solo su puñado de leyendas nuevas (económico, incremental), pero el primer pase completo sobre una biblioteca existente codifica cada leyenda — un pase hacia delante por la torre de texto por leyenda, rápido en GPU y ~horas en CPU. Ejecuta `python facet.py --detect-moments` una vez (GPU recomendada) para ese relleno retroactivo; añade `--limit N` para verificar primero en una muestra.

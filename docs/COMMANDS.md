@@ -93,8 +93,8 @@ These commands update specific metrics, derive new data (AI captions, GPS, embed
 | `python facet.py --recompute-category portrait` | Recompute scores for a single category only |
 | `python facet.py --recompute-tags` | Re-tag all photos using configured model |
 | `python facet.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
-| `python facet.py --detect-moments` | Label new photos with their narrative moment (caption-semantic, zero-shot + temporal smoothing; auto-runs at the end of every scan). Encodes each new caption once into `caption_embedding`, then cosine over stored vectors — the first full backfill over an existing library is GPU-recommended; add `--limit N` to verify on a sample |
-| `python facet.py --recompute-moments` | Re-label narrative moments for the whole library (re-smooths the full timeline). Add `--dry-run --verbose` to preview the top-3 moments per photo without writing |
+| `python facet.py --detect-moments` | Label new photos with their narrative moment (caption-semantic, zero-shot + temporal smoothing; auto-runs at the end of every scan). Encodes each new caption once into `caption_embedding`, then cosine over stored vectors — the first full backfill over an existing library is GPU-recommended; add `--limit N` to verify on a sample. When `narrative_moments.vlm_tiebreak.enabled` is set (16gb/24gb profiles), low-posterior / low-margin frames are re-classified by the profile VLM |
+| `python facet.py --recompute-moments` | Re-label narrative moments for the whole library (re-smooths the full timeline). Add `--dry-run --verbose` to preview the top-3 moments per photo without writing. Also honours the `narrative_moments.vlm_tiebreak` VLM re-classification of low-confidence frames when enabled (16gb/24gb) |
 | `python facet.py --discover-moments` | Propose a library-specific moment vocabulary by clustering the stored caption embeddings (HDBSCAN) and naming each cluster from its captions. Writes `scoring_config.discovered.json` for review — never rewrites the active config. Run `--detect-moments` first to populate `caption_embedding`; tune granularity with `--discover-min-cluster-size N` |
 | `python facet.py --recompute-saliency` | `[GPU]` `[16gb/24gb]` Recompute subject saliency metrics (BiRefNet_dynamic) |
 | `python facet.py --recompute-composition-cpu` | Recompute composition, rule-based (CPU, any profile) |
@@ -108,7 +108,7 @@ These commands update specific metrics, derive new data (AI captions, GPS, embed
 | `python facet.py --recompute-burst` | Recompute burst detection groups |
 | `python facet.py --detect-duplicates` | Detect duplicate photos via pHash |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Evaluate near-dup cosine thresholds (precision/recall table with labels, else candidate-cosine distribution) |
-| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Generate AI captions for photos using VLM |
+| `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Generate AI captions for photos using VLM. When `narrative_moments.caption_min_confidence > 0`, skips unlabelled / `other` / below-threshold photos (the same gate applies to the on-demand caption endpoint) |
 | `python facet.py --translate-captions` | Translate English captions to configured target language (CPU, MarianMT) |
 | `python facet.py --extract-gps` | Extract GPS coordinates from EXIF data into database columns |
 | `python facet.py --rescan-gps` | Re-extract GPS coordinates from EXIF for all photos (overwrites existing) |

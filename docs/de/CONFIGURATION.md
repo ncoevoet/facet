@@ -1058,12 +1058,13 @@ Anzeige und Verhalten der Web-Galerie.
     },
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
+    "moment_confidence_min": 0,
     "path_mapping": {}
   }
 }
 ```
 
-> **Hinweis:** `sort_options` (oben als `{ ... }` ausgelassen) ordnet DB-Spalten Dropdown-Bezeichnungen zu und wird selten bearbeitet.
+> **Hinweis:** `sort_options` (oben als `{ ... }` ausgelassen) ordnet DB-Spalten Dropdown-Bezeichnungen zu und wird selten bearbeitet. Die **Content**-Gruppe enthält eine Sortierung `{ "column": "narrative_moment_confidence", "label": "Moment Confidence" }` (NULL-Werte werden zuletzt einsortiert).
 
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
@@ -1136,6 +1137,7 @@ Anzeige und Verhalten der Web-Galerie.
 | **Sonstiges** | | |
 | `cache_ttl_seconds` | `60` | TTL des Abfrage-Caches |
 | `notification_duration_ms` | `2000` | Dauer der Toast-Benachrichtigung |
+| `moment_confidence_min` | `0` | Unterhalb dieser gespeicherten `narrative_moment_confidence`-Posteriori (0–1) werden Moment-Labels abgeblendet und mit dem Suffix „(uncertain)“ im Szenen-Header, im Culling-Szenengruppen-Header und im Galerie-Foto-Tooltip dargestellt. `0` = nie abblenden |
 
 ### Features
 
@@ -1416,6 +1418,7 @@ Kuratierte Foto-Diaschauen (Slideshows), nach Thema gruppiert. Capsules werden a
     "max_photos_per_capsule": 40,
     "max_photo_overlap": 0.2,
     "mmr_lambda": 0.5,
+    "mmr_moment_weight": 0.0,
     "freshness_hours": 24,
     "reverse_geocoding": true,
     "journey": {
@@ -1455,6 +1458,7 @@ Kuratierte Foto-Diaschauen (Slideshows), nach Thema gruppiert. Capsules werden a
 | `max_photos_per_capsule` | `40` | Maximale Anzahl Fotos pro Capsule (MMR-Diversität wird ab 5 angewendet) |
 | `max_photo_overlap` | `0.2` | Maximaler Anteil gemeinsamer Fotos zwischen zwei Capsules, bevor die Deduplizierung eine entfernt |
 | `mmr_lambda` | `0.5` | MMR-Diversitätsgewicht: 0 = Diversität maximieren, 1 = Qualität maximieren |
+| `mmr_moment_weight` | `0.0` | Optionales Gewicht, das die `narrative_moment_confidence` jedes Fotos in die MMR-Auswahl der Capsules einfließen lässt. `0.0` = unverändertes Verhalten |
 | `freshness_hours` | `24` | Cache-TTL und Rotationsperiode für Titelbilder und Seeded-Capsules |
 | `reverse_geocoding` | `true` | Offline-Reverse-Geocoding für Titel von Location-/Journey-Capsules aktivieren (erfordert das Paket `reverse_geocoder`) |
 
@@ -1579,6 +1583,7 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
     "prompt_template": "a photo of {desc}",
     "default_event_type": "general",
     "pooling": "max",
+    "caption_min_confidence": 0,
     "thresholds": {
       "caption": {
         "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
@@ -1590,7 +1595,7 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
       }
     },
     "priors": { "enabled": true, "weight": 0.04 },
-    "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
+    "vlm_tiebreak": { "enabled": false, "min_confidence": 0.0, "min_margin": 0.04 },
     "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
     "event_types": { "general": { "beach": ["people at a sandy beach by the sea", "..."], "...": [] }, "wedding": { "vows": ["the couple exchanging vows at the altar", "..."] } }
   }
@@ -1603,13 +1608,14 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
 | `prompt_template` | `"a photo of {desc}"` | Wrapper, der vor dem Encoding auf jeden Prompt angewendet wird |
 | `default_event_type` | `"general"` | Welches `event_types`-Vokabular aktiv ist. `general` = 20 agnostische Szenen-/Aktivitäts-Momente; `wedding` wird als optionales Genre mitgeliefert |
 | `pooling` | `"max"` | Score pro Moment = der einzelne beste Prompt-Kosinus (max-pool), trennschärfer als Mittelung |
+| `caption_min_confidence` | `0` | Qualitätsgate für Bildunterschriften: wenn > 0, überspringen `--generate-captions` und der On-Demand-Bildunterschriften-Endpunkt Fotos, die ungelabelt, `other` oder unterhalb dieser gespeicherten Moment-Konfidenz sind. `0` = kein Gate |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Liegt der Top-1-Kosinus darunter, wird ein Foto als `other` gelabelt. Aufgeschlüsselt nach **Signal** (`caption` vs. `image`), dann nach Backend — caption-Kosinuswerte fallen ~2,4× höher aus |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Minimaler Kosinusabstand zwischen Top-1 und Top-2; darunter ist der Frame `other` |
 | `priors.enabled` / `priors.weight` | `true` / `0.04` | L1-Anstöße aus Gesicht/Tag, die nur knappe Gleichstände auflösen; `weight` begrenzt jeden Boost auf Kosinus-Skala |
 | `priors.caption_tag_scale` | `0.25` | Dämpft `tag`-Regeln beim Caption-Signal (L0 kodiert die Bildunterschrift bereits); strukturelle Regeln behalten ihr volles Gewicht |
 | `priors.rules` / `priors.event_types.<et>.rules` | (allgemeines Set) | Deklarative `{kind, when, boost}`-Regeln, vokabularunabhängig; ein `boost` auf ein im aktiven Vokabular fehlendes Moment wird stillschweigend übersprungen. Pro-`event_type`-Regeln ersetzen die globale Liste. Vollständige Prädikat-Referenz: englische Doku |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | L2-Timeline-Glättung (Viterbi): bleibe-lastig ohne Vorwärtsprogression (das agnostische Vokabular hat keine kanonische Reihenfolge), nur leicht angewendet (`weight=0` = keine Glättung) |
-| `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | Optionales L3: Frames mit geringem Abstand mit dem Qwen-VLM neu klassifizieren (nur 16gb/24gb) |
+| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | L3-Tie-Break (jetzt aktiv): wenn auf 16gb/24gb-Profilen aktiviert, werden nur Frames mit geringer Posteriori (unter `min_confidence`) oder geringem Abstand (unter `min_margin`) während `--detect-moments` / `--recompute-moments` vom Profil-VLM neu klassifiziert |
 | `event_types` | `general` + `wedding` | Pro Ereignistyp `{moment: [Prompt-Synonyme]}`; setzen Sie `default_event_type`, um das Genre zu wechseln, oder fügen Sie Ihr eigenes hinzu |
 
 > **Kosten des Caption-Backfills.** Bildunterschrift-Embeddings werden einmal berechnet und gespeichert, sodass der Kosinus pro Foto danach kostenlos ist. Ein Scan kodiert nur seine wenigen neuen Bildunterschriften (günstig, inkrementell), aber der erste vollständige Durchlauf über eine bestehende Bibliothek kodiert jede Bildunterschrift — ein Text-Tower-Vorwärtsdurchlauf pro Bildunterschrift, schnell auf GPU und ~Stunden auf CPU. Führen Sie `python facet.py --detect-moments` einmal aus (GPU empfohlen) für diesen Backfill; fügen Sie `--limit N` hinzu, um es zuerst an einer Stichprobe zu prüfen.

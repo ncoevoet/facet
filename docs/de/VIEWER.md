@@ -151,6 +151,7 @@ python database.py --migrate-user-preferences --user alice
 | **Benutzerbewertungen** | Sternebewertung |
 | **Kameraeinstellungen** | ISO, Blende (F-Stop-Bereichsregler), Brennweite (Bereichsregler) |
 | **Inhalt** | Tags, Monochrom-Umschalter |
+| **Momente** | Narrative-Moment-Konfidenz (0–1-Bereichsregler: `min_moment_confidence` / `max_moment_confidence`) |
 
 ### Kompositionsmuster
 
@@ -172,6 +173,7 @@ Sortierbare Spalten nach Kategorie gruppiert (aus `viewer.sort_options`):
 | **Belichtung** | Belichtungswert, Mittlere Helligkeit, Histogrammbreite, Dynamikumfang |
 | **Komposition** | Kompositionswert, Kraftpunktwert, Führungslinien, Freistellungsbonus, Kompositionsmuster |
 | **Motiverkennung** | Motivschärfe, Motivhervorhebung, Motivplatzierung, Hintergrundtrennung |
+| **Inhalt** | Moment-Konfidenz (NULL-Werte ans Ende) |
 
 ### Mein Geschmack
 
@@ -349,7 +351,7 @@ Gesteuert über `viewer.features.show_captions` (Standard: `true`). Erfordert da
 
 ## Erinnerungen ("Heute vor Jahren")
 
-Durchsuchen Sie Fotos, die am selben Kalendertag in früheren Jahren aufgenommen wurden. Ein Erinnerungsdialog zeigt eine Jahr-für-Jahr-Rückschau passender Fotos.
+Durchsuchen Sie Fotos, die am selben Kalendertag in früheren Jahren aufgenommen wurden. Beim Öffnen der Erinnerungen startet eine zufällig gemischte Vollbild-Diaschau (Slideshow) der passenden Fotos statt eines Rasters; der Tooltip der Navigationsschaltfläche erläutert ausführlich, was sie tut.
 
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
@@ -389,7 +391,7 @@ Zugriff über die Route `/map`. Gesteuert über `viewer.features.show_map` (Stan
 
 ## Kapseln
 
-Kuratierte Foto-Diaschows (Slideshows), nach Thema gruppiert. Zugriff über die Route `/capsules`.
+Kuratierte Foto-Diaschows (Slideshows), gruppiert nach Thema, Ort, Personen und Zeit — klicken Sie auf eine Kapsel, um sie abzuspielen. Zugriff über die Route `/capsules`.
 
 ### Kapseltypen
 
@@ -471,14 +473,16 @@ API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 ## Auswahl
 
-Die Auswahl-Seite (`/culling`, Bearbeitungsmodus) gruppiert nahezu identische Aufnahmen, sodass Sie die beste jeder Gruppe behalten und den Rest ablehnen können. Zwei Gruppenquellen:
+Die Auswahl-Seite (`/culling`, Bearbeitungsmodus) gruppiert nahezu identische Aufnahmen, sodass Sie die beste jeder Gruppe behalten und den Rest ablehnen können. Ein **Granularitäts**-Selektor — das erste und einflussreichste Steuerelement in der Symbolleiste — bestimmt, wie Fotos gruppiert werden:
 
-- **Serienbild** — zeitlich dicht aufeinanderfolgend aufgenommene Fotos (aus der Serienbilderkennung).
+- **Alle** (Standard) — kombinierte Serienbild- + Ähnlichkeitsgruppen.
+- **Serienbilder** — zeitlich dicht aufeinanderfolgend aufgenommene Fotos (aus der Serienbilderkennung).
 - **Ähnlich** — Fotos, die sich ähneln, unabhängig vom Aufnahmezeitpunkt, gruppiert nach CLIP/SigLIP-Embedding-Ähnlichkeit. Ein Schwellenwertregler steuert, wie streng die Gruppierung ist.
+- **Szenen** — chronologische Szenengruppen (Aufnahmezeit-Läufe), jeweils mit ihrer Zeitspanne und ihrem dominanten narrativen Moment als Überschrift. Abhängig von `viewer.features.show_scenes`.
 
-Wählen Sie für jede Gruppe die Behaltefoto(s); das Bestätigen lehnt den Rest ab. Bestätigungen werden verzögert ausgeführt und können rückgängig gemacht werden (siehe [Rückgängig](#rückgängig)).
+Wählen Sie für jede Gruppe die Behaltefoto(s); das Bestätigen lehnt den Rest ab. Bestätigungen werden verzögert ausgeführt und können rückgängig gemacht werden (siehe [Rückgängig](#rückgängig)). Die Granularitäts-, Sortier- und Kategoriewahl wird in `localStorage` gespeichert. Steuerelemente, die für die aktuelle Granularität nicht gelten, werden ausgeblendet — das Sortier-Dropdown und der Ähnlichkeitsschwellen-Regler verschwinden im Szenenmodus, und die Geltungsbereich-Schaltfläche wird ausgeblendet, wenn Sie keine manuellen Alben haben. Jede Symbolleisten- und Gruppenaktions-Schaltfläche trägt einen Tooltip, und auf kleinen Bildschirmen löst sich die Symbolleiste in eine scrollbare untere Leiste.
 
-**Eingegrenzte Auswahl.** Die Dunkelkammer kann über Query-Parameter auf eine Teilmenge eingegrenzt werden: `?album=<id>` beschränkt sie auf ein Album, und `?from=&to=` (EXIF-Aufnahmezeitfenster, die Grundlage von **Diese Szene aussortieren**) beschränkt sie auf eine Szene. Ein Banner zeigt den aktiven Geltungsbereich mit einer **Szene verlassen**-Steuerung; das Abrufen der Serienbildmitglieder bleibt albumbezogen, ignoriert aber das Zeitfenster, sodass ein Serienbild, das über die Szenengrenze hinausreicht, weiterhin alle seine Frames anzeigt.
+**Eingegrenzte Auswahl.** Die Dunkelkammer kann über Query-Parameter auf eine Teilmenge eingegrenzt werden: `?group_by=scene` wechselt zur Szenen-Granularität, `?album=<id>` beschränkt sie auf ein Album, und `?from=&to=` (EXIF-Aufnahmezeitfenster, die Grundlage von **Diese Szene aussortieren**) beschränkt sie auf eine Szene. Ein Banner zeigt den aktiven Geltungsbereich mit einer **Szene verlassen**-Steuerung; das Abrufen der Serienbildmitglieder bleibt albumbezogen, ignoriert aber das Zeitfenster, sodass ein Serienbild, das über die Szenengrenze hinausreicht, weiterhin alle seine Frames anzeigt.
 
 **„Mein Geschmack"-Chip.** Jede Bestätigung erfasst `source='culling'`-Vergleichszeilen, die den persönlichen Ranker trainieren, sodass der Header einen kleinen Chip „Mein Geschmack · N Vergleiche" zeigt, der sich nach jeder Entscheidung aktualisiert — die KI lernt Ihren Blick, während Sie aussortieren (`GET /api/ranker/status`).
 
@@ -496,7 +500,9 @@ API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 ## Szenen-Ansicht
 
-Gruppieren Sie Serienbild-Leitfotos zu chronologischen „Szenen", sodass Sie eine ganze Aufnahmesession in Erzählreihenfolge auswählen können. Fotos werden anhand von Lücken in der Aufnahmezeit in Szenen unterteilt (eine neue Szene beginnt, wenn zwischen zwei aufeinanderfolgenden Aufnahmen mehr als `scenes.gap_minutes` vergehen, bei spärlichen Aufnahmen adaptiv erweitert), und jeder übermäßig lange Lauf wird unterteilt, sodass ein durchgehend aufgenommenes Ereignis nie zu einer einzigen riesigen Szene zusammenfällt. Jede Szene hat eine primäre Schaltfläche **Diese Szene aussortieren**, die die vollständige Auswahl-Dunkelkammer eingegrenzt auf nur diese Szene öffnet (Serienbilderkennung, Blinzel-Markierungen, Qualitätswertungen, Gesichts-Nahaufnahmen, Lupe), plus einen Streifen für **Schnelles Ablehnen**. Zugriff über die Route `/scenes` (Navigations-Symbol „theaters"); auch pro Album über das Alben-Raster erreichbar.
+Ein **schreibgeschütztes** Durchsuchen Ihrer Bibliothek, gruppiert in chronologische „Szenen" — Aufnahmezeit-Läufe, in Erzählreihenfolge mit einem Raster, einer Hover-Lupe und Datums-/Moment-Überschriften dargestellt. Offen für **alle authentifizierten Benutzer** (schreibgeschützt wie Bearbeitungsmodus gleichermaßen). Fotos werden anhand von Lücken in der Aufnahmezeit in Szenen unterteilt (eine neue Szene beginnt, wenn zwischen zwei aufeinanderfolgenden Aufnahmen mehr als `scenes.gap_minutes` vergehen, bei spärlichen Aufnahmen adaptiv erweitert), und jeder übermäßig lange Lauf wird unterteilt, sodass ein durchgehend aufgenommenes Ereignis nie zu einer einzigen riesigen Szene zusammenfällt.
+
+Der einzige Einstiegspunkt ist die Aktionsschaltfläche **Szenen dieses Albums anzeigen** pro Album im Alben-Raster (ein Album-Geltungsbereich-Auswähler innerhalb des Durchsuchens erlaubt das Wechseln des Geltungsbereichs). Es gibt keinen Szenen-Eintrag in der Hauptnavigation. Jede Szene trägt eine nur im Bearbeitungsmodus verfügbare Schaltfläche **Diese Szene aussortieren**, die per Deep-Link in die [Auswahl](#auswahl)-Oberfläche in Szenen-Granularität führt (`/culling?group_by=scene&album=&from=&to=`); Bearbeitungsbenutzer erreichen Szenen-als-Auswahl auch direkt über die Auswahl-Navigation. Das Durchsuchen selbst hat kein Ablehnungsraster und keine Sammelbestätigung — die gesamte Auswahl erfolgt nun über die einheitliche Auswahl-Oberfläche.
 
 Wenn narrative Momente berechnet werden (siehe unten), wird jede Szene zusätzlich nach ihrem dominanten Moment betitelt, und `scenes.split_on_moment_change` kann einen langen Lauf dort unterteilen, wo sich der Moment ändert.
 
@@ -508,8 +514,10 @@ Es ist **Zero-Shot und vollständig lokal** sowie **caption-semantisch**: Die KI
 
 Momente erscheinen als Szenentitel und als Galerie-Filter (`GET /api/photos?narrative_moment=beach`, Optionen aus `GET /api/filter_options/narrative_moments`). Das Vokabular ist pro Ereignistyp konfigurationsgesteuert — siehe [Konfiguration — Narrative Momente](CONFIGURATION.md#narrative-moments), um Prompts/Schwellen abzustimmen oder das Genre zu wechseln.
 
+**Moment-Konfidenz.** Jedes Label speichert eine A-posteriori-Konfidenz (`narrative_moment_confidence`). Labels unterhalb von `viewer.moment_confidence_min` (Standard `0` = nie abblenden) werden abgeblendet mit dem Suffix „(unsicher)" dargestellt — in der Szenen-Überschrift, der Szenengruppen-Überschrift der Auswahl und im Galerie-Foto-Tooltip (der außerdem die Konfidenz in % anzeigt). Die Konfidenz ist außerdem eine Sortieroption — **Moment-Konfidenz** (NULL-Werte ans Ende) unter der Gruppe „Inhalt" — und ein Galerie-Bereichsfilter (`min_moment_confidence` / `max_moment_confidence`, ein 0–1-Regler im Seitenleisten-Abschnitt **Momente**).
+
 - Jede Szene zeigt ihre Leitfotos in Aufnahmereihenfolge
-- Tippen Sie Fotos an, um sie für die Auswahl zu markieren; das Bestätigen lehnt sie ab und speist den persönlichen Ranker
+- Sortieren Sie eine Szene über ihre Schaltfläche **Diese Szene aussortieren** aus, die die auf diese Szene eingegrenzte Auswahl-Oberfläche öffnet
 - Szenen, die kleiner als `scenes.min_size` sind, werden weggelassen; es werden höchstens `scenes.max_photos` Fotos geladen
 
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
@@ -960,11 +968,10 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `POST /api/burst-groups/select` | Behaltefotos aus einer Serienbildgruppe auswählen |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Gruppen visuell ähnlicher Fotos |
 | `POST /api/similar-groups/select` | Behaltefotos aus einer Ähnlichkeitsgruppe auswählen |
-| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Kombinierte Serienbild- und Ähnlichkeitsgruppen. `exclude_rejected` (Standard `true`) blendet Fotos mit `is_rejected=1` aus; Gruppen mit weniger als 2 verbleibenden Fotos werden verworfen |
-| `POST /api/culling-groups/confirm` | Auswahlentscheidungen bestätigen |
+| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Serienbild-/Ähnlichkeits-/Szenengruppen für die Auswahl. `group_by` (Standard `all`) wählt kombinierte Serienbild+Ähnlichkeit, nur Serienbild, nur Ähnlichkeit oder chronologische Szenengruppen (Szenengruppen ergänzen `type`/`start`/`end`/`moment`/`moment_confidence`; der `sort`-Parameter wird im Szenenmodus ignoriert). `exclude_rejected` (Standard `true`) blendet Fotos mit `is_rejected=1` aus; Gruppen mit weniger als 2 verbleibenden Fotos werden verworfen |
+| `POST /api/culling-groups/confirm` | Auswahlentscheidungen bestätigen (Serienbild, Ähnlichkeit oder Szene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` erfasst die Szenen-Auswahl-Vergleichszeilen |
 | `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen offen/geschlossen, Ausdruck, Konfidenz) für eine Gruppe, in einem Batch |
-| `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos |
-| `POST /api/scenes/confirm` | Szenen-Auswahlentscheidungen bestätigen |
+| `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos (schreibgeschütztes Durchsuchen) |
 
 ### Scan
 

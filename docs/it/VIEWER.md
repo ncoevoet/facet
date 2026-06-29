@@ -151,6 +151,7 @@ python database.py --migrate-user-preferences --user alice
 | **Valutazioni utente** | Valutazione a stelle |
 | **Impostazioni fotocamera** | ISO, apertura (cursore di intervallo f-stop), lunghezza focale (cursore di intervallo) |
 | **Contenuto** | Tag, interruttore monocromatico |
+| **Momenti** | Confidenza del momento narrativo (cursore di intervallo 0–1: `min_moment_confidence` / `max_moment_confidence`) |
 
 ### Modelli compositivi
 
@@ -172,6 +173,7 @@ Colonne ordinabili raggruppate per categoria (da `viewer.sort_options`):
 | **Esposizione** | Punteggio esposizione, Luminanza media, Ampiezza istogramma, Gamma dinamica |
 | **Composizione** | Punteggio composizione, Punteggio punti di forza, Linee guida, Bonus isolamento, Modello compositivo |
 | **Salienza del soggetto** | Nitidezza soggetto, Prominenza soggetto, Posizionamento soggetto, Separazione sfondo |
+| **Contenuto** | Confidenza del momento (i NULL finiscono in fondo) |
 
 ### I miei gusti
 
@@ -349,7 +351,7 @@ Controllato da `viewer.features.show_captions` (predefinito: `true`). Richiede i
 
 ## Ricordi ("In questo giorno")
 
-Sfoglia le foto scattate nella stessa data di calendario negli anni precedenti. Una finestra dei ricordi mostra una retrospettiva anno per anno delle foto corrispondenti.
+Sfoglia le foto scattate nella stessa data di calendario negli anni precedenti. L'apertura dei Ricordi avvia un diaporama (presentazione) a schermo intero in ordine casuale delle foto corrispondenti, anziché una griglia; il tooltip del pulsante di navigazione ne spiega esplicitamente il funzionamento.
 
 API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
@@ -389,7 +391,7 @@ Accessibile tramite la rotta `/map`. Controllato da `viewer.features.show_map` (
 
 ## Capsule
 
-Diaporama di foto curati (presentazioni) raggruppati per tema. Accessibile tramite la rotta `/capsules`.
+Diaporama di foto curati (presentazioni) raggruppati per tema, luogo, persone e tempo — clicca su una capsula per riprodurla. Accessibile tramite la rotta `/capsules`.
 
 ### Tipi di capsula
 
@@ -471,14 +473,16 @@ API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 ## Selezione
 
-La pagina di selezione (`/culling`, modalità di modifica) raggruppa gli scatti quasi identici in modo da poter conservare il migliore di ciascuno e scartare il resto. Due fonti di gruppi:
+La pagina di selezione (`/culling`, modalità di modifica) raggruppa gli scatti quasi identici in modo da poter conservare il migliore di ciascuno e scartare il resto. Un selettore di **granularità** — il primo controllo, quello con maggiore impatto, della barra degli strumenti — sceglie come raggruppare le foto:
 
-- **Raffica** — foto scattate ravvicinate nel tempo (dal rilevamento delle raffiche).
-- **Simile** — foto che si assomigliano indipendentemente da quando sono state scattate, raggruppate per somiglianza degli embedding CLIP/SigLIP. Un cursore di soglia controlla quanto è rigido il raggruppamento.
+- **Tutto** (predefinito) — gruppi combinati di raffiche + foto simili.
+- **Raffiche** — foto scattate ravvicinate nel tempo (dal rilevamento delle raffiche).
+- **Simili** — foto che si assomigliano indipendentemente da quando sono state scattate, raggruppate per somiglianza degli embedding CLIP/SigLIP. Un cursore di soglia controlla quanto è rigido il raggruppamento.
+- **Scene** — gruppi di scene cronologiche (sequenze temporali di scatto), ciascuna intestata dal proprio intervallo temporale e dal momento narrativo dominante. Soggetto a `viewer.features.show_scenes`.
 
-Per ogni gruppo, scegli quale/quali conservare; la conferma scarta il resto. Le conferme sono differite e possono essere annullate (vedi [Annulla](#annulla)).
+Per ogni gruppo, scegli quale/quali conservare; la conferma scarta il resto. Le conferme sono differite e possono essere annullate (vedi [Annulla](#annulla)). Le scelte di granularità, ordinamento e categoria vengono salvate in `localStorage`. I controlli che non si applicano alla granularità corrente vengono nascosti — il menu a tendina di ordinamento e il cursore della soglia di somiglianza scompaiono in modalità scena, e il pulsante di ambito viene nascosto quando non hai album manuali. Ogni pulsante della barra degli strumenti e di azione di gruppo riporta un tooltip e, sugli schermi piccoli, la barra degli strumenti si stacca in una barra inferiore scorrevole.
 
-**Selezione delimitata.** La camera oscura può essere ristretta a un sottoinsieme tramite parametri di query: `?album=<id>` la limita a un album, e `?from=&to=` (finestra temporale di scatto EXIF, alla base di **Seleziona questa scena**) la limita a una sola scena. Un banner mostra l'ambito attivo con un controllo **Esci dalla scena**; il recupero dei membri della raffica rimane delimitato all'album ma ignora la finestra, così che una raffica a cavallo del confine della scena mostri comunque tutti i suoi fotogrammi.
+**Selezione delimitata.** La camera oscura può essere ristretta a un sottoinsieme tramite parametri di query: `?group_by=scene` passa alla granularità per scene, `?album=<id>` la limita a un album, e `?from=&to=` (finestra temporale di scatto EXIF, alla base di **Seleziona questa scena**) la limita a una sola scena. Un banner mostra l'ambito attivo con un controllo **Esci dalla scena**; il recupero dei membri della raffica rimane delimitato all'album ma ignora la finestra, così che una raffica a cavallo del confine della scena mostri comunque tutti i suoi fotogrammi.
 
 **Chip I miei gusti.** Ogni conferma registra righe di confronto `source='culling'` che addestrano il ranker personale, così l'intestazione mostra un piccolo chip "I miei gusti · N confronti" che si aggiorna dopo ogni decisione — l'IA impara il tuo occhio mentre selezioni (`GET /api/ranker/status`).
 
@@ -496,7 +500,9 @@ API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 ## Vista Scene
 
-Raggruppa le foto guida delle raffiche in "scene" cronologiche, così da poter selezionare un intero servizio fotografico in ordine narrativo. Le foto vengono suddivise in scene in base agli intervalli temporali di scatto (una nuova scena inizia quando trascorrono più di `scenes.gap_minutes` tra due scatti consecutivi, ampliati adattivamente nei servizi con pochi scatti), e qualsiasi sequenza troppo lunga viene ulteriormente suddivisa affinché un evento ripreso in continuità non collassi in un'unica scena gigantesca. Ogni scena ha un pulsante principale **Seleziona questa scena** che apre la camera oscura di selezione completa delimitata a quella sola scena (rilevamento delle raffiche, indicazioni di occhi chiusi, punteggi di qualità, primi piani dei volti, lente), oltre a una striscia di **Rifiuto rapido**. Accessibile tramite la rotta `/scenes` (icona di navigazione "theaters"); raggiungibile anche per album dalla griglia degli Album.
+Una consultazione in **sola lettura** della tua libreria raggruppata in "scene" cronologiche — sequenze temporali di scatto mostrate in ordine narrativo con una griglia, una lente al passaggio del mouse e intestazioni di data/momento. Aperta a **tutti gli utenti autenticati** (sia in sola lettura sia in modalità di modifica). Le foto vengono suddivise in scene in base agli intervalli temporali di scatto (una nuova scena inizia quando trascorrono più di `scenes.gap_minutes` tra due scatti consecutivi, ampliati adattivamente nei servizi con pochi scatti), e qualsiasi sequenza troppo lunga viene ulteriormente suddivisa affinché un evento ripreso in continuità non collassi in un'unica scena gigantesca.
+
+L'unico punto di accesso è il pulsante di azione per album **Mostra le scene di questo album** nella griglia degli Album (un selettore di ambito album all'interno della consultazione consente di cambiare l'ambito). Non esiste alcuna voce Scene nella navigazione principale. Ogni scena riporta un pulsante **Seleziona questa scena**, riservato alla modalità di modifica, che effettua un collegamento diretto alla superficie di [Selezione](#selezione) nella granularità per scene (`/culling?group_by=scene&album=&from=&to=`); gli utenti in modalità di modifica possono inoltre raggiungere le Scene-come-selezione direttamente dalla navigazione Selezione. La consultazione in sé non ha griglia di rifiuto né conferma in blocco — tutta la selezione avviene ora tramite la superficie unificata di Selezione.
 
 Quando vengono calcolati i momenti narrativi (più sotto), ogni scena viene inoltre titolata dal suo momento dominante, e `scenes.split_on_moment_change` può ulteriormente suddividere una sequenza lunga in cui il momento cambia.
 
@@ -508,8 +514,10 @@ Facet etichetta ogni foto con il "momento" di scena/attività che raffigura. Il 
 
 I momenti emergono come titoli di scena e come filtro della galleria (`GET /api/photos?narrative_moment=beach`, opzioni da `GET /api/filter_options/narrative_moments`). Il vocabolario è guidato dalla configurazione per tipo di evento — vedi [Configurazione — Momenti narrativi](CONFIGURATION.md#narrative-moments) per regolare prompt/soglie o cambiare genere.
 
+**Confidenza del momento.** Ogni etichetta memorizza una confidenza posteriore (`narrative_moment_confidence`). Le etichette al di sotto di `viewer.moment_confidence_min` (predefinito `0` = non attenuare mai) vengono mostrate attenuate con un suffisso "(incerto)" nell'intestazione delle Scene, nell'intestazione del gruppo di scena della Selezione e nel tooltip della foto in galleria (che mostra anche la percentuale di confidenza). La confidenza è anche un'opzione di ordinamento — **Confidenza del momento** (i NULL finiscono in fondo) sotto il gruppo Contenuto — e un filtro di intervallo della galleria (`min_moment_confidence` / `max_moment_confidence`, un cursore 0–1 nella sezione **Momenti** della barra laterale).
+
 - Ogni scena mostra le sue foto guida in ordine di scatto
-- Tocca le foto per segnarle per la selezione; la conferma le scarta e alimenta il ranker personale
+- Seleziona una scena dal suo pulsante **Seleziona questa scena**, che apre la superficie di selezione delimitata a quella scena
 - Le scene più piccole di `scenes.min_size` vengono omesse; vengono caricate al massimo `scenes.max_photos` foto
 
 API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
@@ -959,11 +967,10 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | `POST /api/burst-groups/select` | Seleziona i conservati da un gruppo di raffica |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Gruppi di foto visivamente simili |
 | `POST /api/similar-groups/select` | Seleziona i conservati da un gruppo di foto simili |
-| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Gruppi combinati di raffiche e foto simili. `exclude_rejected` (predefinito `true`) nasconde le foto con `is_rejected=1`; i gruppi con meno di 2 foto rimanenti vengono scartati |
-| `POST /api/culling-groups/confirm` | Conferma le selezioni di selezione |
+| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Gruppi di raffiche/foto simili/scene per la selezione. `group_by` (predefinito `all`) seleziona i gruppi combinati di raffiche+foto simili, solo raffiche, solo foto simili oppure gruppi di scene cronologiche (i gruppi di scene aggiungono `type`/`start`/`end`/`moment`/`moment_confidence`; il parametro `sort` viene ignorato in modalità scena). `exclude_rejected` (predefinito `true`) nasconde le foto con `is_rejected=1`; i gruppi con meno di 2 foto rimanenti vengono scartati |
+| `POST /api/culling-groups/confirm` | Conferma le selezioni (raffica, foto simili o scena). Corpo `{group_id, type, paths, keep_paths}`; `type:'scene'` registra le righe di confronto della selezione delle scene |
 | `POST /api/culling-group/faces` | Badge per volto (occhi aperti/chiusi, espressione, confidenza) per un gruppo, in un'unica chiamata batch |
-| `GET /api/scenes` | Scene cronologiche delle foto guida delle raffiche |
-| `POST /api/scenes/confirm` | Conferma le selezioni di selezione delle scene |
+| `GET /api/scenes` | Scene cronologiche delle foto guida delle raffiche (consultazione in sola lettura) |
 
 ### Scansione
 

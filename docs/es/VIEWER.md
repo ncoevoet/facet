@@ -151,6 +151,7 @@ python database.py --migrate-user-preferences --user alice
 | **Valoraciones del usuario** | Valoración por estrellas |
 | **Ajustes de cámara** | ISO, apertura (control deslizante de rango de diafragma), distancia focal (control deslizante de rango) |
 | **Contenido** | Etiquetas, interruptor monocromático |
+| **Momentos** | Confianza del momento narrativo (control deslizante de rango 0–1: `min_moment_confidence` / `max_moment_confidence`) |
 
 ### Patrones de composición
 
@@ -172,6 +173,7 @@ Columnas ordenables agrupadas por categoría (desde `viewer.sort_options`):
 | **Exposición** | Puntuación de exposición, Luminancia media, Dispersión del histograma, Rango dinámico |
 | **Composición** | Puntuación de composición, Puntuación de puntos de poder, Líneas guía, Bonificación por aislamiento, Patrón de composición |
 | **Prominencia del sujeto** | Nitidez del sujeto, Prominencia del sujeto, Ubicación del sujeto, Separación del fondo |
+| **Contenido** | Confianza del momento (los NULL al final) |
 
 ### My Taste
 
@@ -348,7 +350,7 @@ Controlado por `viewer.features.show_captions` (predeterminado: `true`). Requier
 
 ## Recuerdos ("En este día")
 
-Explora las fotos tomadas en la misma fecha del calendario en años anteriores. Un diálogo de recuerdos muestra una retrospectiva año por año de las fotos coincidentes.
+Explora las fotos tomadas en la misma fecha del calendario en años anteriores. Al abrir Recuerdos se inicia un diaporama (pase de diapositivas) a pantalla completa y aleatorizado de las fotos coincidentes, en lugar de una cuadrícula; la información emergente del botón de navegación detalla lo que hace.
 
 API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
 
@@ -388,7 +390,7 @@ Accede mediante la ruta `/map`. Controlado por `viewer.features.show_map` (prede
 
 ## Cápsulas
 
-Diaporamas (pases de diapositivas) de fotos seleccionadas agrupadas por tema. Accede mediante la ruta `/capsules`.
+Diaporamas (pases de diapositivas) de fotos seleccionadas agrupadas por tema, lugar, personas y tiempo: haz clic en una cápsula para reproducirla. Accede mediante la ruta `/capsules`.
 
 ### Tipos de cápsula
 
@@ -470,14 +472,16 @@ API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo
 
 ## Descarte
 
-La página de descarte (`/culling`, modo de edición) agrupa las tomas casi idénticas para que puedas conservar la mejor de cada una y descartar el resto. Dos orígenes de grupo:
+La página de descarte (`/culling`, modo de edición) agrupa las tomas casi idénticas para que puedas conservar la mejor de cada una y descartar el resto. Un selector de **granularidad** —el primer control y el de mayor impacto en la barra de herramientas— elige cómo se agrupan las fotos:
 
-- **Ráfaga** — fotos tomadas muy seguidas en el tiempo (de la detección de ráfagas).
+- **Todas** (predeterminado) — grupos combinados de ráfaga + similares.
+- **Ráfagas** — fotos tomadas muy seguidas en el tiempo (de la detección de ráfagas).
 - **Similar** — fotos que se parecen entre sí independientemente de cuándo se tomaron, agrupadas por la similitud de embeddings de CLIP/SigLIP. Un control deslizante de umbral controla lo estricta que es la agrupación.
+- **Escenas** — grupos de escena cronológicos (series por hora de captura), cada uno encabezado por su intervalo de tiempo y su momento narrativo dominante. Sujeto a `viewer.features.show_scenes`.
 
-Para cada grupo, elige la foto o fotos a conservar; al confirmar se descartan el resto. Las confirmaciones se difieren y se pueden deshacer (consulta [Deshacer](#deshacer)).
+Para cada grupo, elige la foto o fotos a conservar; al confirmar se descartan el resto. Las confirmaciones se difieren y se pueden deshacer (consulta [Deshacer](#deshacer)). La granularidad, la ordenación y la categoría elegidas se conservan en `localStorage`. Los controles que no se aplican a la granularidad actual se ocultan: el desplegable de ordenación y el control deslizante de umbral de similitud desaparecen en el modo escena, y el botón de ámbito se oculta cuando no tienes álbumes manuales. Cada botón de la barra de herramientas y de acción de grupo lleva una información emergente, y en pantallas pequeñas la barra de herramientas se desprende en una barra inferior desplazable.
 
-**Descarte con ámbito acotado.** El laboratorio se puede acotar a un subconjunto mediante parámetros de consulta: `?album=<id>` lo restringe a un álbum, y `?from=&to=` (ventana de hora de captura EXIF, la base de **Descartar esta escena**) lo restringe a una sola escena. Un banner muestra el ámbito activo con un control **Salir de la escena**; la obtención de los miembros de la ráfaga permanece acotada al álbum pero ignora la ventana, de modo que una ráfaga que cruza el límite de la escena sigue mostrando todos sus fotogramas.
+**Descarte con ámbito acotado.** El laboratorio se puede acotar a un subconjunto mediante parámetros de consulta: `?group_by=scene` cambia a la granularidad de escena, `?album=<id>` lo restringe a un álbum, y `?from=&to=` (ventana de hora de captura EXIF, la base de **Descartar esta escena**) lo restringe a una sola escena. Un banner muestra el ámbito activo con un control **Salir de la escena**; la obtención de los miembros de la ráfaga permanece acotada al álbum pero ignora la ventana, de modo que una ráfaga que cruza el límite de la escena sigue mostrando todos sus fotogramas.
 
 **Chip de My Taste.** Cada confirmación registra filas de comparación con `source='culling'` que entrenan al clasificador personal, así que la cabecera muestra un pequeño chip "My Taste · N comparaciones" que se actualiza tras cada decisión: la IA aprende tu ojo mientras descartas (`GET /api/ranker/status`).
 
@@ -495,7 +499,9 @@ API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo
 
 ## Vista de escenas
 
-Agrupa las fotos líderes de ráfaga en "escenas" cronológicas para que puedas descartar toda una sesión en orden narrativo. Las fotos se dividen en escenas por los intervalos de la hora de captura (una nueva escena comienza cuando transcurren más de `scenes.gap_minutes` entre tomas consecutivas, ampliados de forma adaptativa en sesiones dispersas), y cualquier serie demasiado larga se subdivide para que un evento fotografiado de forma continua nunca se reduzca a una única escena gigante. Cada escena tiene un botón principal **Descartar esta escena** que abre el laboratorio de descarte completo acotado solo a esa escena (detección de ráfagas, marcas de parpadeo, puntuaciones de calidad, primeros planos de caras, lupa), más una tira de **Descarte rápido**. Accede mediante la ruta `/scenes` (icono de navegación "theaters"); también accesible por álbum desde la cuadrícula de Álbumes.
+Una exploración de **solo lectura** de tu biblioteca agrupada en "escenas" cronológicas: series por hora de captura mostradas en orden narrativo con una cuadrícula, una lupa al pasar el cursor y cabeceras de fecha/momento. Abierta a **todos los usuarios autenticados** (tanto de solo lectura como de edición). Las fotos se dividen en escenas por los intervalos de la hora de captura (una nueva escena comienza cuando transcurren más de `scenes.gap_minutes` entre tomas consecutivas, ampliados de forma adaptativa en sesiones dispersas), y cualquier serie demasiado larga se subdivide para que un evento fotografiado de forma continua nunca se reduzca a una única escena gigante.
+
+El único punto de entrada es el botón de acción **Mostrar las escenas de este álbum** por álbum en la cuadrícula de Álbumes (un selector de ámbito de álbum dentro de la exploración te permite cambiar el ámbito). No hay ninguna entrada de Escenas en la navegación principal. Cada escena lleva un botón **Descartar esta escena** solo de edición que enlaza directamente con la superficie de [Descarte](#descarte) en granularidad de escena (`/culling?group_by=scene&album=&from=&to=`); los usuarios de edición también pueden acceder a las Escenas-como-descarte directamente desde la navegación de Descarte. La exploración en sí no tiene cuadrícula de descarte ni confirmación masiva: todo el descarte se realiza ahora a través de la superficie unificada de Descarte.
 
 Cuando se calculan los momentos narrativos (más abajo), cada escena también se titula según su momento dominante, y `scenes.split_on_moment_change` puede subdividir una serie larga donde cambia el momento.
 
@@ -507,8 +513,10 @@ Es **zero-shot y totalmente local**, y **semántico de leyenda**: la leyenda de 
 
 Los momentos aparecen como títulos de escena y como filtro de galería (`GET /api/photos?narrative_moment=beach`, con opciones de `GET /api/filter_options/narrative_moments`). El vocabulario se basa en la configuración por tipo de evento; consulta [Configuración — Momentos narrativos](CONFIGURATION.md#narrative-moments) para ajustar prompts/umbrales o cambiar de género.
 
+**Confianza del momento.** Cada etiqueta almacena una confianza posterior (`narrative_moment_confidence`). Las etiquetas por debajo de `viewer.moment_confidence_min` (predeterminado `0` = nunca atenuar) se muestran atenuadas con un sufijo "(incierto)" en la cabecera de Escenas, la cabecera del grupo de escena en Descarte y la información emergente de la foto en la galería (que también muestra el % de confianza). La confianza es también una opción de ordenación —**Confianza del momento** (los NULL al final) bajo el grupo Contenido— y un filtro de rango de galería (`min_moment_confidence` / `max_moment_confidence`, un control deslizante 0–1 en la sección **Momentos** de la barra lateral).
+
 - Cada escena muestra sus fotos líderes en orden de captura
-- Toca las fotos para marcarlas para descarte; al confirmar se descartan y alimentan al clasificador personal
+- Descarta una escena desde su botón **Descartar esta escena**, que abre la superficie de descarte acotada a esa escena
 - Las escenas más pequeñas que `scenes.min_size` se omiten; se cargan como máximo `scenes.max_photos` fotos
 
 API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
@@ -958,11 +966,10 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `POST /api/burst-groups/select` | Seleccionar las fotos a conservar de un grupo de ráfaga |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Grupos de fotos visualmente similares |
 | `POST /api/similar-groups/select` | Seleccionar las fotos a conservar de un grupo similar |
-| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos combinados de ráfaga y similares. `exclude_rejected` (predeterminado `true`) oculta las fotos con `is_rejected=1`; los grupos con menos de 2 fotos restantes se descartan |
-| `POST /api/culling-groups/confirm` | Confirmar las selecciones de descarte |
+| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos de ráfaga/similares/escena para descarte. `group_by` (predeterminado `all`) selecciona los grupos combinados de ráfaga+similares, solo de ráfaga, solo de similares o de escena cronológicos (los grupos de escena añaden `type`/`start`/`end`/`moment`/`moment_confidence`; el parámetro `sort` se ignora en el modo escena). `exclude_rejected` (predeterminado `true`) oculta las fotos con `is_rejected=1`; los grupos con menos de 2 fotos restantes se descartan |
+| `POST /api/culling-groups/confirm` | Confirmar las selecciones de descarte (ráfaga, similares o escena). Cuerpo `{group_id, type, paths, keep_paths}`; `type:'scene'` registra las filas de comparación del descarte de escena |
 | `POST /api/culling-group/faces` | Insignias por cara (ojos abiertos/cerrados, expresión, confianza) de un grupo, en un solo lote |
-| `GET /api/scenes` | Escenas cronológicas de fotos líderes de ráfaga |
-| `POST /api/scenes/confirm` | Confirmar las selecciones de descarte de escena |
+| `GET /api/scenes` | Escenas cronológicas de fotos líderes de ráfaga (exploración de solo lectura) |
 
 ### Escaneo
 

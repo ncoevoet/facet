@@ -1058,12 +1058,13 @@ Visualizzazione e comportamento della galleria web.
     },
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
+    "moment_confidence_min": 0,
     "path_mapping": {}
   }
 }
 ```
 
-> **Nota:** `sort_options` (omesso come `{ ... }` sopra) mappa le colonne del DB sulle etichette dei menu a discesa e viene modificato raramente.
+> **Nota:** `sort_options` (omesso come `{ ... }` sopra) mappa le colonne del DB sulle etichette dei menu a discesa e viene modificato raramente. Il gruppo **Content** include un ordinamento `{ "column": "narrative_moment_confidence", "label": "Moment Confidence" }` (i NULL finiscono in fondo).
 
 | Impostazione | Predefinito | Descrizione |
 |---------|---------|-------------|
@@ -1136,6 +1137,7 @@ Visualizzazione e comportamento della galleria web.
 | **Altro** | | |
 | `cache_ttl_seconds` | `60` | TTL della cache delle query |
 | `notification_duration_ms` | `2000` | Durata del toast |
+| `moment_confidence_min` | `0` | Al di sotto di questo posterior `narrative_moment_confidence` memorizzato (0–1), le etichette dei momenti vengono mostrate attenuate con un suffisso "(uncertain)" nell'intestazione delle Scene, nell'intestazione del gruppo di scena della selezione e nel tooltip della foto in galleria. `0` = non attenuare mai |
 
 ### Funzionalità
 
@@ -1416,6 +1418,7 @@ Diaporame (slideshow) di foto curate raggruppate per tema. Le capsule vengono ge
     "max_photos_per_capsule": 40,
     "max_photo_overlap": 0.2,
     "mmr_lambda": 0.5,
+    "mmr_moment_weight": 0.0,
     "freshness_hours": 24,
     "reverse_geocoding": true,
     "journey": {
@@ -1455,6 +1458,7 @@ Diaporame (slideshow) di foto curate raggruppate per tema. Le capsule vengono ge
 | `max_photos_per_capsule` | `40` | Foto massime per capsula (diversità MMR applicata oltre 5) |
 | `max_photo_overlap` | `0.2` | Frazione massima di foto condivise tra due capsule prima che la deduplica ne rimuova una |
 | `mmr_lambda` | `0.5` | Peso della diversità MMR: 0=massimizza la diversità, 1=massimizza la qualità |
+| `mmr_moment_weight` | `0.0` | Peso facoltativo che mescola il `narrative_moment_confidence` di ogni foto nella selezione MMR delle capsule. `0.0` = comportamento invariato |
 | `freshness_hours` | `24` | TTL della cache e periodo di rotazione per le foto di copertina e le capsule seeded |
 | `reverse_geocoding` | `true` | Abilita il reverse geocoding offline per i titoli delle capsule di luogo/viaggio (richiede il pacchetto `reverse_geocoder`) |
 
@@ -1579,6 +1583,7 @@ Il segnale è **semantico sulla didascalia**: la didascalia AI di ogni foto vien
     "prompt_template": "a photo of {desc}",
     "default_event_type": "general",
     "pooling": "max",
+    "caption_min_confidence": 0,
     "thresholds": {
       "caption": {
         "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
@@ -1590,7 +1595,7 @@ Il segnale è **semantico sulla didascalia**: la didascalia AI di ogni foto vien
       }
     },
     "priors": { "enabled": true, "weight": 0.04 },
-    "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
+    "vlm_tiebreak": { "enabled": false, "min_confidence": 0.0, "min_margin": 0.04 },
     "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
     "event_types": { "general": { "beach": ["people at a sandy beach by the sea", "..."], "...": [] }, "wedding": { "vows": ["the couple exchanging vows at the altar", "..."] } }
   }
@@ -1603,13 +1608,14 @@ Il segnale è **semantico sulla didascalia**: la didascalia AI di ogni foto vien
 | `prompt_template` | `"a photo of {desc}"` | Wrapper applicato a ogni prompt prima della codifica |
 | `default_event_type` | `"general"` | Quale vocabolario `event_types` è attivo. `general` = 20 momenti agnostici di scena/attività; `wedding` è incluso come genere opt-in |
 | `pooling` | `"max"` | Punteggio per momento = il singolo miglior coseno di prompt (max-pool), più discriminante della media |
+| `caption_min_confidence` | `0` | Gate sulla qualità della didascalia: quando > 0, `--generate-captions` e l'endpoint di didascalia on-demand saltano le foto non etichettate, `other` o al di sotto di questa confidenza di momento memorizzata. `0` = nessun gate |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Sotto questo coseno top-1 una foto è `other`. Indicizzato per **segnale** (`caption` vs `image`) poi per backend — i coseni di caption sono ~2,4× più alti |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Divario coseno top-1/top-2 minimo; al di sotto il fotogramma è `other` |
 | `priors.enabled` / `priors.weight` | `true` / `0.04` | Spinte L1 su volti/tag che rompono solo i quasi-pareggi; `weight` limita ogni spinta alla scala del coseno |
 | `priors.caption_tag_scale` | `0.25` | Riduce le regole `tag` sul segnale caption (L0 codifica già la didascalia); le regole strutturali mantengono il peso pieno |
 | `priors.rules` / `priors.event_types.<et>.rules` | (set generale) | Regole dichiarative `{kind, when, boost}` indipendenti dal vocabolario; un `boost` verso un momento assente dal vocabolario attivo viene ignorato. Le regole per `event_type` sostituiscono l'elenco globale. Riferimento completo dei predicati: doc inglese |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | Levigatura L2 della timeline (Viterbi): orientata alla permanenza senza progressione in avanti (il vocabolario agnostico non ha un ordine canonico), applicata in modo leggero (`weight=0` = nessuna levigatura) |
-| `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | L3 facoltativo: ri-classifica i fotogrammi a margine ridotto con il VLM Qwen (solo 16gb/24gb) |
+| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | Spareggio L3 (ora attivo): quando abilitato sui profili 16gb/24gb, solo i fotogrammi a basso posterior (sotto `min_confidence`) o a margine ridotto (sotto `min_margin`) vengono ri-classificati dal VLM del profilo durante `--detect-moments` / `--recompute-moments` |
 | `event_types` | `general` + `wedding` | Per ogni tipo di evento `{moment: [sinonimi di prompt]}`; imposta `default_event_type` per cambiare genere o aggiungere il tuo |
 
 > **Costo del backfill delle didascalie.** Gli embedding delle didascalie vengono calcolati una sola volta e memorizzati, quindi il coseno per foto è poi gratuito. Una scansione codifica solo la sua manciata di nuove didascalie (economico, incrementale), ma il primo passaggio completo su una libreria esistente codifica ogni didascalia — un passaggio in avanti dell'encoder testuale per didascalia, veloce su GPU e ~ore su CPU. Esegui `python facet.py --detect-moments` una volta (GPU consigliata) per quel backfill; aggiungi `--limit N` per verificare prima su un campione.

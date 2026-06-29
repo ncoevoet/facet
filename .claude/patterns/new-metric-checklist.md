@@ -24,8 +24,8 @@ When adding a new scoring metric to Facet, update all of these locations:
 ## Sort Options
 13. **`scoring_config.json`** → `viewer.sort_options` — Add sort option in appropriate group
 
-## i18n (all 5 languages)
-14. **`i18n/translations/{en,fr,de,es,it}.json`** — Add keys for:
+## i18n (all 6 languages)
+14. **`i18n/translations/{en,fr,de,es,it,pt}.json`** — Add keys for:
     - `ui.tooltip.<metric>` — Tooltip label
     - `ui.sidebar.<section>` — Section header (if new section)
     - `ui.gallery.<metric>_range` — Filter chip label

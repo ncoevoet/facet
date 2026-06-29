@@ -1,7 +1,7 @@
 # i18n Sync Pattern
 
 ## Languages
-All 5 translation files must stay in sync: `en.json`, `fr.json`, `de.json`, `es.json`, `it.json`
+All 6 translation files must stay in sync: `en.json`, `fr.json`, `de.json`, `es.json`, `it.json`, `pt.json`
 
 ## Key Structure
 Translation keys use **full dot-path from JSON root**:

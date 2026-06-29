@@ -151,6 +151,7 @@ python database.py --migrate-user-preferences --user alice
 | **Avaliações do Usuário** | Avaliação por estrelas |
 | **Configurações da Câmera** | ISO, abertura (controle deslizante de faixa de f-stop), distância focal (controle deslizante de faixa) |
 | **Conteúdo** | Tags, alternância de monocromático |
+| **Momentos** | Confiança do momento narrativo (controle deslizante de faixa 0–1: `min_moment_confidence` / `max_moment_confidence`) |
 
 ### Padrões de Composição
 
@@ -172,6 +173,7 @@ Colunas ordenáveis agrupadas por categoria (de `viewer.sort_options`):
 | **Exposição** | Pontuação de Exposição, Luminância Média, Espalhamento do Histograma, Faixa Dinâmica |
 | **Composição** | Pontuação de Composição, Pontuação de Ponto de Força, Linhas Guia, Bônus de Isolamento, Padrão de Composição |
 | **Saliência do Sujeito** | Nitidez do Sujeito, Proeminência do Sujeito, Posicionamento do Sujeito, Separação do Fundo |
+| **Conteúdo** | Confiança do Momento (NULLs ao final) |
 
 ### Meu Gosto
 
@@ -348,7 +350,7 @@ Controlado por `viewer.features.show_captions` (padrão: `true`). Requer o perfi
 
 ## Memórias ("Neste Dia")
 
-Navegue pelas fotos tiradas na mesma data do calendário em anos anteriores. Um diálogo de memórias mostra uma retrospectiva ano a ano das fotos correspondentes.
+Navegue pelas fotos tiradas na mesma data do calendário em anos anteriores. Abrir Memórias inicia um diaporama (apresentação de slides) aleatório em tela cheia das fotos correspondentes, em vez de uma grade; a dica do botão de navegação explica o que ele faz.
 
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
@@ -388,7 +390,7 @@ Acesse pela rota `/map`. Controlado por `viewer.features.show_map` (padrão: `tr
 
 ## Cápsulas
 
-Diaporamas (apresentações de slides) de fotos curadas, agrupadas por tema. Acesse pela rota `/capsules`.
+Diaporamas (apresentações de slides) de fotos curadas, agrupadas por tema, lugar, pessoas e tempo — clique em uma cápsula para reproduzi-la. Acesse pela rota `/capsules`.
 
 ### Tipos de Cápsula
 
@@ -470,14 +472,16 @@ API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
 ## Triagem
 
-A página de triagem (`/culling`, modo de edição) agrupa fotos quase idênticas para que você possa manter a melhor de cada uma e rejeitar o resto. Duas fontes de grupos:
+A página de triagem (`/culling`, modo de edição) agrupa fotos quase idênticas para que você possa manter a melhor de cada uma e rejeitar o resto. Um seletor de **granularidade** — o primeiro e mais impactante controle da barra de ferramentas — escolhe como as fotos são agrupadas:
 
-- **Sequência** — fotos tiradas próximas no tempo (da detecção de sequências).
+- **Tudo** (padrão) — grupos combinados de sequência + semelhantes.
+- **Sequências** — fotos tiradas próximas no tempo (da detecção de sequências).
 - **Semelhantes** — fotos que se parecem independentemente de quando foram tiradas, agrupadas pela similaridade de embedding CLIP/SigLIP. Um controle deslizante de limiar controla o quão restrito é o agrupamento.
+- **Cenas** — grupos de cenas cronológicas (sequências por horário de captura), cada um encabeçado por seu intervalo de tempo e momento narrativo dominante. Condicionado a `viewer.features.show_scenes`.
 
-Para cada grupo, escolha a(s) foto(s) a manter; confirmar rejeita o resto. As confirmações são adiadas e podem ser desfeitas (veja [Desfazer](#desfazer)).
+Para cada grupo, escolha a(s) foto(s) a manter; confirmar rejeita o resto. As confirmações são adiadas e podem ser desfeitas (veja [Desfazer](#desfazer)). As escolhas de granularidade, ordenação e categoria persistem no `localStorage`. Controles que não se aplicam à granularidade atual são ocultados — o menu suspenso de ordenação e o controle deslizante de limiar de similaridade desaparecem no modo de cena, e o botão de escopo fica oculto quando você não tem álbuns manuais. Cada botão da barra de ferramentas e de ação de grupo tem uma dica (tooltip), e em telas pequenas a barra de ferramentas se destaca em uma barra inferior rolável.
 
-**Triagem com escopo.** O laboratório (darkroom) pode ser restringido a um subconjunto via parâmetros de consulta: `?album=<id>` restringe-o a um álbum, e `?from=&to=` (janela de horário de captura EXIF, a base de **Triar esta cena**) restringe-o a uma cena. Um banner mostra o escopo ativo com um controle **Sair da cena**; a busca de membros da sequência permanece com escopo de álbum, mas ignora a janela, então uma sequência que atravessa o limite da cena ainda mostra todos os seus quadros.
+**Triagem com escopo.** O laboratório (darkroom) pode ser restringido a um subconjunto via parâmetros de consulta: `?group_by=scene` muda para a granularidade de cena, `?album=<id>` restringe-o a um álbum, e `?from=&to=` (janela de horário de captura EXIF, a base de **Triar esta cena**) restringe-o a uma cena. Um banner mostra o escopo ativo com um controle **Sair da cena**; a busca de membros da sequência permanece com escopo de álbum, mas ignora a janela, então uma sequência que atravessa o limite da cena ainda mostra todos os seus quadros.
 
 **Chip Meu Gosto.** Cada confirmação registra linhas de comparação `source='culling'` que treinam o ranqueador pessoal, então o cabeçalho mostra um pequeno chip "Meu Gosto · N comparações" que se atualiza após cada decisão — a IA aprende seu olhar conforme você tria (`GET /api/ranker/status`).
 
@@ -495,7 +499,9 @@ API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
 ## Visão de Cenas
 
-Agrupa fotos líderes de sequência em "cenas" cronológicas para que você possa triar uma sessão inteira na ordem da história. As fotos são divididas em cenas por intervalos de horário de captura (uma nova cena começa quando mais de `scenes.gap_minutes` passam entre fotos consecutivas, ampliado de forma adaptativa em sessões esparsas), e qualquer sequência longa demais é subdividida para que um evento fotografado continuamente nunca colapse em uma única cena gigante. Cada cena tem um botão principal **Triar esta cena** que abre o laboratório de triagem completo com escopo apenas para aquela cena (detecção de sequências, marcações de piscadas, pontuações de qualidade, close-ups de rostos, lupa), além de uma tira de **Rejeição rápida**. Acesse pela rota `/scenes` (ícone de navegação "theaters"); também acessível por álbum a partir da grade de Álbuns.
+Uma navegação **somente leitura** da sua biblioteca agrupada em "cenas" cronológicas — sequências por horário de captura exibidas na ordem da história com uma grade, uma lupa flutuante e cabeçalhos de data/momento. Aberta a **todos os usuários autenticados** (somente leitura e edição igualmente). As fotos são divididas em cenas por intervalos de horário de captura (uma nova cena começa quando mais de `scenes.gap_minutes` passam entre fotos consecutivas, ampliado de forma adaptativa em sessões esparsas), e qualquer sequência longa demais é subdividida para que um evento fotografado continuamente nunca colapse em uma única cena gigante.
+
+O único ponto de entrada é o botão de ação por álbum **Exibir cenas deste álbum** na grade de Álbuns (um seletor de escopo de álbum dentro da navegação permite trocar o escopo). Não há entrada de Cenas na navegação principal. Cada cena carrega um botão **Triar esta cena** (somente edição) que cria um link direto para a superfície de [Triagem](#triagem) na granularidade de cena (`/culling?group_by=scene&album=&from=&to=`); usuários de edição também podem acessar Cenas-como-triagem diretamente pela navegação de Triagem. A navegação em si não tem grade de rejeição nem confirmação em lote — toda a triagem agora acontece pela superfície de Triagem unificada.
 
 Quando os momentos narrativos são computados (abaixo), cada cena também é intitulada por seu momento dominante, e `scenes.split_on_moment_change` pode subdividir uma sequência longa onde o momento muda.
 
@@ -507,8 +513,10 @@ O Facet rotula cada foto com o "momento" de cena/atividade que ela retrata. O vo
 
 Os momentos surgem como títulos de cenas e como um filtro de galeria (`GET /api/photos?narrative_moment=beach`, opções de `GET /api/filter_options/narrative_moments`). O vocabulário é controlado por configuração por tipo de evento — veja [Configuração — Momentos Narrativos](CONFIGURATION.md#narrative-moments) para ajustar prompts/limiares ou trocar de gênero.
 
+**Confiança do momento.** Cada rótulo armazena uma confiança posterior (`narrative_moment_confidence`). Rótulos abaixo de `viewer.moment_confidence_min` (padrão `0` = nunca esmaecer) são renderizados esmaecidos com um sufixo "(incerto)" no cabeçalho de Cenas, no cabeçalho de grupo de cena da Triagem e na dica da foto na galeria (que também mostra a % de confiança). A confiança também é uma opção de ordenação — **Confiança do Momento** (NULLs ao final) sob o grupo Conteúdo — e um filtro de faixa na galeria (`min_moment_confidence` / `max_moment_confidence`, um controle deslizante de 0–1 na seção **Momentos** da barra lateral).
+
 - Cada cena mostra suas fotos líderes na ordem de captura
-- Toque nas fotos para marcá-las para triagem; confirmar rejeita-as e alimenta o ranqueador pessoal
+- Triar uma cena pelo seu botão **Triar esta cena**, que abre a superfície de triagem com escopo para aquela cena
 - Cenas menores que `scenes.min_size` são omitidas; no máximo `scenes.max_photos` fotos são carregadas
 
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
@@ -959,11 +967,10 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `POST /api/burst-groups/select` | Seleciona as fotos a manter de um grupo de sequência |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Grupos de fotos visualmente semelhantes |
 | `POST /api/similar-groups/select` | Seleciona as fotos a manter de um grupo semelhante |
-| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos combinados de sequência e semelhantes. `exclude_rejected` (padrão `true`) oculta fotos com `is_rejected=1`; grupos com menos de 2 fotos restantes são descartados |
-| `POST /api/culling-groups/confirm` | Confirma as seleções de triagem |
+| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos de sequência/semelhantes/cena para triagem. `group_by` (padrão `all`) seleciona grupos combinados de sequência+semelhantes, apenas de sequência, apenas semelhantes, ou grupos de cenas cronológicas (grupos de cena adicionam `type`/`start`/`end`/`moment`/`moment_confidence`; o parâmetro `sort` é ignorado no modo de cena). `exclude_rejected` (padrão `true`) oculta fotos com `is_rejected=1`; grupos com menos de 2 fotos restantes são descartados |
+| `POST /api/culling-groups/confirm` | Confirma as seleções de triagem (sequência, semelhantes ou cena). Corpo `{group_id, type, paths, keep_paths}`; `type:'scene'` registra as linhas de comparação de triagem de cena |
 | `POST /api/culling-group/faces` | Selos por rosto (olhos abertos/fechados, expressão, confiança) para um grupo, em um único lote |
-| `GET /api/scenes` | Cenas cronológicas de fotos líderes de sequência |
-| `POST /api/scenes/confirm` | Confirma as seleções de triagem de cena |
+| `GET /api/scenes` | Cenas cronológicas de fotos líderes de sequência (navegação somente leitura) |
 
 ### Varredura
 

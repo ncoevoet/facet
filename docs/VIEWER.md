@@ -151,6 +151,7 @@ python database.py --migrate-user-preferences --user alice
 | **User Ratings** | Star rating |
 | **Camera Settings** | ISO, aperture (f-stop range slider), focal length (range slider) |
 | **Content** | Tags, monochrome toggle |
+| **Moments** | Narrative moment confidence (0–1 range slider: `min_moment_confidence` / `max_moment_confidence`) |
 
 ### Composition Patterns
 
@@ -172,6 +173,7 @@ Sortable columns grouped by category (from `viewer.sort_options`):
 | **Exposure** | Exposure Score, Mean Luminance, Histogram Spread, Dynamic Range |
 | **Composition** | Composition Score, Power Point Score, Leading Lines, Isolation Bonus, Composition Pattern |
 | **Subject Saliency** | Subject Sharpness, Subject Prominence, Subject Placement, Background Separation |
+| **Content** | Moment Confidence (NULLs sink) |
 
 ### My Taste
 
@@ -348,7 +350,7 @@ Controlled by `viewer.features.show_captions` (default: `true`). Requires 16gb o
 
 ## Memories ("On This Day")
 
-Browse photos taken on the same calendar date in previous years. A memories dialog shows a year-by-year retrospective of matching photos.
+Browse photos taken on the same calendar date in previous years. Opening Memories starts a randomized full-screen diaporama (slideshow) of the matching photos rather than a grid; the nav button's tooltip spells out what it does.
 
 API: see the [API Endpoints](#api-endpoints) section below.
 
@@ -388,7 +390,7 @@ Access via the `/map` route. Controlled by `viewer.features.show_map` (default: 
 
 ## Capsules
 
-Curated photo diaporamas (slideshows) grouped by theme. Access via the `/capsules` route.
+Curated photo diaporamas (slideshows) grouped by theme, place, people, and time — click a capsule to play it. Access via the `/capsules` route.
 
 ### Capsule Types
 
@@ -470,14 +472,16 @@ API: see the [API Endpoints](#api-endpoints) section below.
 
 ## Culling
 
-The culling page (`/culling`, edition mode) groups near-identical shots so you can keep the best of each and reject the rest. Two group sources:
+The culling page (`/culling`, edition mode) groups near-identical shots so you can keep the best of each and reject the rest. A **granularity** select — the first, highest-impact control in the toolbar — chooses how photos are grouped:
 
-- **Burst** — photos shot close together in time (from burst detection).
+- **All** (default) — merged burst + similar groups.
+- **Bursts** — photos shot close together in time (from burst detection).
 - **Similar** — photos that look alike regardless of when they were taken, grouped by CLIP/SigLIP embedding similarity. A threshold slider controls how strict the grouping is.
+- **Scenes** — chronological scene groups (capture-time runs), each headed by its time span and dominant narrative moment. Gated on `viewer.features.show_scenes`.
 
-For each group, pick the keeper(s); confirming rejects the rest. Confirms are deferred and can be undone (see [Undo](#undo)).
+For each group, pick the keeper(s); confirming rejects the rest. Confirms are deferred and can be undone (see [Undo](#undo)). The granularity, sort, and category choices persist in `localStorage`. Controls that don't apply to the current granularity are hidden — the sort dropdown and similarity-threshold slider disappear in scene mode, and the scope button is hidden when you have no manual albums. Every toolbar and group-action button carries a tooltip, and on small screens the toolbar detaches into a scrollable bottom bar.
 
-**Scoped culling.** The darkroom can be narrowed to a subset via query params: `?album=<id>` restricts it to an album, and `?from=&to=` (EXIF capture-time window, the basis of **Cull this scene**) restricts it to one scene. A banner shows the active scope with an **Exit scene** control; the burst member fetch stays album-scoped but ignores the window, so a burst straddling the scene boundary still shows all its frames.
+**Scoped culling.** The darkroom can be narrowed to a subset via query params: `?group_by=scene` switches to scene granularity, `?album=<id>` restricts it to an album, and `?from=&to=` (EXIF capture-time window, the basis of **Cull this scene**) restricts it to one scene. A banner shows the active scope with an **Exit scene** control; the burst member fetch stays album-scoped but ignores the window, so a burst straddling the scene boundary still shows all its frames.
 
 **My Taste chip.** Every confirm records `source='culling'` comparison rows that train the personal ranker, so the header shows a small "My Taste · N comparisons" chip that updates after each decision — the AI learns your eye as you cull (`GET /api/ranker/status`).
 
@@ -495,7 +499,9 @@ API: see the [API Endpoints](#api-endpoints) section below.
 
 ## Scenes View
 
-Group burst-lead photos into chronological "scenes" so you can cull a whole shoot in story order. Photos are split into scenes by capture-time gaps (a new scene starts when more than `scenes.gap_minutes` pass between consecutive shots, adaptively widened on sparse shoots), and any over-long run is sub-split so a continuously-shot event never collapses into one giant scene. Each scene has a primary **Cull this scene** button that opens the full culling darkroom scoped to just that scene (burst detection, blink flags, quality scores, face close-ups, loupe), plus a **Quick reject** strip. Access via the `/scenes` route (nav icon "theaters"); also reachable per-album from the Albums grid.
+A **read-only** browse of your library grouped into chronological "scenes" — capture-time runs shown in story order with a grid, a hover loupe, and date/moment headers. Open to **all authenticated users** (read-only and edition alike). Photos are split into scenes by capture-time gaps (a new scene starts when more than `scenes.gap_minutes` pass between consecutive shots, adaptively widened on sparse shoots), and any over-long run is sub-split so a continuously-shot event never collapses into one giant scene.
+
+The only entry point is the per-album **Display scenes of this album** action button in the Albums grid (an album-scope picker inside the browse lets you switch the scope). There is no Scenes entry in the main nav. Each scene carries an edition-only **Cull this scene** button that deep-links into the [Culling](#culling) surface in scene granularity (`/culling?group_by=scene&album=&from=&to=`); edition users can also reach Scenes-as-culling directly from the Culling nav. The browse itself has no reject grid or bulk confirm — all culling now happens through the unified Culling surface.
 
 When narrative moments are computed (below), each scene is also titled by its dominant moment, and `scenes.split_on_moment_change` can sub-split a long run where the moment changes.
 
@@ -507,8 +513,10 @@ It is **zero-shot and fully local**, and **caption-semantic**: each photo's AI c
 
 Moments surface as scene titles and as a gallery filter (`GET /api/photos?narrative_moment=beach`, options from `GET /api/filter_options/narrative_moments`). The vocabulary is config-driven per event type — see [Configuration — Narrative Moments](CONFIGURATION.md#narrative-moments) to tune prompts/thresholds or switch genre.
 
+**Moment confidence.** Each label stores a posterior confidence (`narrative_moment_confidence`). Labels below `viewer.moment_confidence_min` (default `0` = never dim) render dimmed with an "(uncertain)" suffix in the Scenes header, the Culling scene-group header, and the gallery photo tooltip (which also shows the confidence %). Confidence is also a sort option — **Moment Confidence** (NULLs sink) under the Content group — and a gallery range filter (`min_moment_confidence` / `max_moment_confidence`, a 0–1 slider in the sidebar **Moments** section).
+
 - Each scene shows its lead photos in capture order
-- Tap photos to mark them for culling; confirming rejects them and feeds the personal ranker
+- Cull a scene from its **Cull this scene** button, which opens the culling surface scoped to that scene
 - Scenes smaller than `scenes.min_size` are omitted; at most `scenes.max_photos` photos are loaded
 
 API: see the [API Endpoints](#api-endpoints) section below.
@@ -959,11 +967,10 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `POST /api/burst-groups/select` | Select keepers from a burst group |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Groups of visually similar photos |
 | `POST /api/similar-groups/select` | Select keepers from a similar group |
-| `GET /api/culling-groups?exclude_rejected=true&similarity_threshold=&page=&per_page=` | Combined burst and similar groups. `exclude_rejected` (default `true`) hides photos with `is_rejected=1`; groups with fewer than 2 remaining photos are dropped |
-| `POST /api/culling-groups/confirm` | Confirm culling selections |
+| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Burst/similar/scene groups for culling. `group_by` (default `all`) selects merged burst+similar, burst-only, similar-only, or chronological scene groups (scene groups add `type`/`start`/`end`/`moment`/`moment_confidence`; the `sort` param is ignored in scene mode). `exclude_rejected` (default `true`) hides photos with `is_rejected=1`; groups with fewer than 2 remaining photos are dropped |
+| `POST /api/culling-groups/confirm` | Confirm culling selections (burst, similar, or scene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` records the scene-cull comparison rows |
 | `POST /api/culling-group/faces` | Per-face badges (eyes open/closed, expression, confidence) for a group, in one batch |
-| `GET /api/scenes` | Chronological scenes of burst-lead photos |
-| `POST /api/scenes/confirm` | Confirm scene culling selections |
+| `GET /api/scenes` | Chronological scenes of burst-lead photos (read-only browse) |
 
 ### Scan
 

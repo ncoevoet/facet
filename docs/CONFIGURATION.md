@@ -1058,12 +1058,13 @@ Web gallery display and behavior.
     },
     "cache_ttl_seconds": 60,
     "notification_duration_ms": 2000,
+    "moment_confidence_min": 0,
     "path_mapping": {}
   }
 }
 ```
 
-> **Note:** `sort_options` (elided as `{ ... }` above) maps DB columns to dropdown labels and is rarely edited.
+> **Note:** `sort_options` (elided as `{ ... }` above) maps DB columns to dropdown labels and is rarely edited. The **Content** group includes a `{ "column": "narrative_moment_confidence", "label": "Moment Confidence" }` sort (NULLs sink last).
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -1136,6 +1137,7 @@ Web gallery display and behavior.
 | **Other** | | |
 | `cache_ttl_seconds` | `60` | Query cache TTL |
 | `notification_duration_ms` | `2000` | Toast duration |
+| `moment_confidence_min` | `0` | Below this stored `narrative_moment_confidence` posterior (0–1), moment labels render dimmed with an "(uncertain)" suffix in the Scenes header, the Culling scene-group header, and the gallery photo tooltip. `0` = never dim |
 
 ### Features
 
@@ -1416,6 +1418,7 @@ Curated photo diaporamas (slideshows) grouped by theme. Capsules are auto-genera
     "max_photos_per_capsule": 40,
     "max_photo_overlap": 0.2,
     "mmr_lambda": 0.5,
+    "mmr_moment_weight": 0.0,
     "freshness_hours": 24,
     "reverse_geocoding": true,
     "journey": {
@@ -1455,6 +1458,7 @@ Curated photo diaporamas (slideshows) grouped by theme. Capsules are auto-genera
 | `max_photos_per_capsule` | `40` | Maximum photos per capsule (MMR diversity applied above 5) |
 | `max_photo_overlap` | `0.2` | Maximum fraction of shared photos between two capsules before dedup removes one |
 | `mmr_lambda` | `0.5` | MMR diversity weight: 0=maximize diversity, 1=maximize quality |
+| `mmr_moment_weight` | `0.0` | Optional weight blending each photo's `narrative_moment_confidence` into capsule MMR selection. `0.0` = unchanged behaviour |
 | `freshness_hours` | `24` | Cache TTL and rotation period for cover photos and seeded capsules |
 | `reverse_geocoding` | `true` | Enable offline reverse geocoding for location/journey capsule titles (requires `reverse_geocoder` package) |
 
@@ -1579,6 +1583,7 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
     "prompt_template": "a photo of {desc}",
     "default_event_type": "general",
     "pooling": "max",
+    "caption_min_confidence": 0,
     "thresholds": {
       "caption": {
         "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
@@ -1597,7 +1602,7 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
       ],
       "event_types": { "wedding": { "rules": [ { "kind": "tag", "when": { "tags_any": ["cake"] }, "boost": { "cake_cutting": 1.0 } } ] } }
     },
-    "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
+    "vlm_tiebreak": { "enabled": false, "min_confidence": 0.0, "min_margin": 0.04 },
     "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
     "event_types": { "general": { "beach": ["people at a sandy beach by the sea", "..."], "...": [] }, "wedding": { "vows": ["the couple exchanging vows at the altar", "..."] } }
   }
@@ -1610,6 +1615,7 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 | `prompt_template` | `"a photo of {desc}"` | Wrapper applied to every prompt before encoding |
 | `default_event_type` | `"general"` | Which `event_types` vocabulary is active. `general` = 20 agnostic scene/activity moments; `wedding` ships as an opt-in genre |
 | `pooling` | `"max"` | Per-moment score = the single best prompt cosine (max-pool), more discriminative than averaging |
+| `caption_min_confidence` | `0` | Caption quality gate: when > 0, `--generate-captions` and the on-demand caption endpoint skip photos that are unlabelled, `other`, or below this stored moment confidence. `0` = no gate |
 | `thresholds.<signal>.<backend>.min_confidence` | caption `0.30`/`0.12`, image `0.20`/`0.10` | Below this top-1 cosine a photo is `other`. Keyed by **signal** (`caption` vs `image`) then backend — caption cosines run ~2.4× higher |
 | `thresholds.<signal>.<backend>.min_margin` | caption `0.02`/`0.01`, image `0.01`/`0.01` | Minimum top-1/top-2 cosine gap; below it the frame is `other` |
 | `priors.enabled` / `priors.weight` | `true` / `0.04` | L1 face/tag nudges that only break near-ties; `weight` caps each boost at cosine scale |
@@ -1617,7 +1623,7 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 | `priors.rules` | (general set) | Declarative `{kind, when, boost}` list, vocabulary-agnostic. `kind`: `structural` (face geometry) or `tag`. `when` predicates (all ANDed): `is_group_portrait`, `face_count_min`/`face_count_max`, `face_ratio_min`/`face_ratio_max`, `tags_any`, `tags_all`. `boost`: `{moment: amount}` — a moment absent from the active vocabulary is silently skipped, so one rule set degrades gracefully across vocabs |
 | `priors.event_types.<et>.rules` | `wedding` override | Per-event-type rules that **replace** the global `rules` when that vocabulary is active, keeping the shared list vocabulary-clean |
 | `transitions.stay_prob` / `forward_bias` / `weight` | `0.7` / `0.0` / `0.3` | L2 timeline smoothing (Viterbi): stay-heavy with no forward progression (the agnostic vocab has no canonical order), applied lightly (`weight=0` = no smoothing) |
-| `vlm_tiebreak.enabled` / `min_margin` | `false` / `0.04` | Optional L3: re-classify low-margin frames with the Qwen VLM (16gb/24gb only) |
+| `vlm_tiebreak.enabled` / `min_confidence` / `min_margin` | `false` / `0.0` / `0.04` | L3 tie-break (now active): when enabled on 16gb/24gb profiles, only low-posterior (below `min_confidence`) or low-margin (below `min_margin`) frames are re-classified by the profile VLM during `--detect-moments` / `--recompute-moments` |
 | `event_types` | `general` + `wedding` | Per-event-type `{moment: [prompt synonyms]}`; set `default_event_type` to switch genre or add your own |
 
 > **Caption backfill cost.** Caption embeddings are computed once and stored, so the per-photo cosine is free afterwards. A scan encodes only its handful of new captions (cheap, incremental), but the first full pass over an existing library encodes every caption — one text-tower forward pass per caption, fast on GPU and ~hours on CPU. Run `python facet.py --detect-moments` once (GPU recommended) for that backfill; add `--limit N` to verify on a sample first.
