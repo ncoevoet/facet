@@ -37,6 +37,9 @@ class _StubConfig:
     def get_moment_transitions(self):
         return {'order': ['beach', 'celebration'], 'weight': 0.0}
 
+    def get_moment_vlm_tiebreak(self):
+        return {'enabled': False, 'min_confidence': 0.0, 'min_margin': 0.04}
+
 
 class _StubManager:
     device = 'cpu'

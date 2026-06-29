@@ -24,6 +24,7 @@ from api.db_helpers import (
     trigger_auto_retrain, set_photos_rejected, album_filter_clause, time_window_clauses,
 )
 from api.similarity_groups import compute_similarity_groups
+from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBody
 from comparison.comparison_manager import record_culling_pairs
 from utils.date_utils import parse_date
 
@@ -58,7 +59,7 @@ class SimilarSelectionBody(BaseModel):
 
 class CullingConfirmBody(BaseModel):
     group_id: int
-    type: Literal['burst', 'similar']
+    type: Literal['burst', 'similar', 'scene']
     paths: list[str]
     keep_paths: list[str]
 
@@ -671,6 +672,56 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
     return result
 
 
+def _fetch_scene_groups(conn, user_id=None, album_id=None, date_from=None, date_to=None,
+                        exclude_rejected=True):
+    """Build culling groups from chronological scenes (``group_by='scene'``).
+
+    Reuses ``compute_scenes`` for the adaptive time-gap segmentation, then
+    enriches each scene's member photos with the same burst_score + cull_reason
+    shape the burst/similar feeds use. Scenes stay chronological (the feed's
+    ``sort`` is ignored for this mode) and are paginated by the caller, so the
+    full list is returned here. ``max_per_group`` is sized to the largest scene
+    so a 60-photo scene returns all 60 enriched members (the burst/similar
+    default of 20 would truncate it).
+    """
+    scenes = compute_scenes(
+        conn, user_id=user_id, album_id=album_id, date_from=date_from, date_to=date_to,
+    )
+    if not scenes:
+        return []
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    max_per_group = max((s['count'] for s in scenes), default=1)
+    photos_by_idx = _fetch_similar_group_photos(
+        conn,
+        [{'paths': [p['path'] for p in s['photos']]} for s in scenes],
+        vis_sql, vis_params, max_per_group=max_per_group,
+        exclude_rejected=exclude_rejected, user_id=user_id,
+    )
+    groups = []
+    for idx, scene in enumerate(scenes):
+        photos = photos_by_idx.get(idx, [])
+        if not photos:
+            continue
+        present = {p['path'] for p in photos}
+        best_path = scene['best_path'] if scene.get('best_path') in present else photos[0]['path']
+        moment = scene.get('moment')
+        reason = moment if (moment and moment != 'other') else f"{len(photos)} photos"
+        groups.append({
+            'group_id': scene['scene_id'],
+            'type': 'scene',
+            'reason': reason,
+            'photos': photos,
+            'best_path': best_path,
+            'count': len(photos),
+            'category': _dominant_category(photos, best_path),
+            'start': scene.get('start'),
+            'end': scene.get('end'),
+            'moment': moment,
+            'moment_confidence': scene.get('moment_confidence'),
+        })
+    return groups
+
+
 def _get_rejected_paths(conn, user_id):
     """Fetch set of rejected paths for the current user."""
     from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
@@ -782,6 +833,7 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
 
 
 _CULLING_SORTS = ('easiest', 'redundant', 'best', 'recent', 'needs_comparisons')
+_CULLING_GROUP_BY = ('all', 'burst', 'similar', 'scene')
 
 # Memo of the fully-enriched + globally-sorted culling groups, keyed by the
 # request params that determine the set. Pagination over the same set then
@@ -903,69 +955,88 @@ async def api_culling_groups(
     seed: int = Query(0),
     exclude_rejected: bool = Query(True),
     sort: str = Query('easiest'),
+    group_by: str = Query('all'),
     album_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
-    """Return a unified list of burst + similar groups for culling.
+    """Return a list of culling groups for one granularity.
 
-    Merges unreviewed burst and similar groups, orders them globally by `sort`
-    (easiest | redundant | best | recent | needs_comparisons), then paginates.
-    Each group includes a `type` field ("burst" or "similar") and a human-readable
-    `reason` string. Optionally scoped to an album and/or an EXIF capture-time
-    window (used by "Cull this scene").
+    `group_by` selects the grouping: `all` (today's merged burst+similar feed),
+    `burst`, `similar`, or `scene`. Burst/similar groups are enriched + globally
+    ordered by `sort` (easiest | redundant | best | recent | needs_comparisons)
+    and memoized; `scene` groups come from `compute_scenes`, stay chronological
+    (`sort` is ignored), and bypass the memo (compute_scenes has its own cache).
+    Each group includes a `type` field ("burst" | "similar" | "scene") and a
+    human-readable `reason`. Optionally scoped to an album and/or an EXIF
+    capture-time window (used by "Cull this scene").
     """
     if sort not in _CULLING_SORTS:
         sort = 'easiest'
+    if group_by not in _CULLING_GROUP_BY:
+        group_by = 'all'
     with get_db() as conn:
         try:
             user_id = user.user_id if user else None
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            # Enriching + globally sorting the whole unreviewed set is identical
-            # across pages, so memo it and let pagination reuse one enrichment
-            # instead of re-materializing + re-scoring every group per page.
-            cache_key = (round(similarity_threshold, 3), seed, sort, exclude_rejected, user_id,
-                         album_id, date_from, date_to)
-            cached = _culling_groups_cache.get(cache_key)
-            now = time.time()
-            if cached is not None and now - cached[0] < _CULLING_GROUPS_CACHE_TTL:
-                all_groups = cached[1]
+            if group_by == 'scene':
+                # Scenes carry their own stats_cache; bypass the burst/similar memo
+                # and stay chronological (sort is ignored for this mode).
+                all_groups = _fetch_scene_groups(
+                    conn, user_id=user_id, album_id=album_id,
+                    date_from=date_from, date_to=date_to, exclude_rejected=exclude_rejected,
+                )
             else:
-                burst_groups = _fetch_unreviewed_burst_groups(
-                    conn, vis_sql, vis_params,
-                    page=None, per_page=None,
-                    exclude_rejected=exclude_rejected, user_id=user_id,
-                    album_id=album_id, date_from=date_from, date_to=date_to,
-                )
-                _, similar_shuffled = _count_unreviewed_similar_groups(
-                    conn, similarity_threshold, user_id, seed, exclude_rejected=exclude_rejected,
-                    album_id=album_id, date_from=date_from, date_to=date_to,
-                )
-                similar_groups = []
-                if similar_shuffled:
-                    similar_groups = _fetch_unreviewed_similar_groups(
-                        conn, similarity_threshold, vis_sql, vis_params, seed, user_id,
-                        page_groups=similar_shuffled, offset=0,
-                        exclude_rejected=exclude_rejected,
-                        album_id=album_id, date_from=date_from, date_to=date_to,
-                    )
-                    # Keep similar IDs distinct from burst IDs; the type suffix the
-                    # client appends ('<id>_<type>') already disambiguates the rest.
-                    for g in similar_groups:
-                        g['group_id'] += len(burst_groups)
+                # Enriching + globally sorting the whole unreviewed set is identical
+                # across pages, so memo it and let pagination reuse one enrichment
+                # instead of re-materializing + re-scoring every group per page.
+                cache_key = (round(similarity_threshold, 3), seed, sort, exclude_rejected, user_id,
+                             album_id, date_from, date_to, group_by)
+                cached = _culling_groups_cache.get(cache_key)
+                now = time.time()
+                if cached is not None and now - cached[0] < _CULLING_GROUPS_CACHE_TTL:
+                    all_groups = cached[1]
+                else:
+                    burst_groups = []
+                    if group_by in ('all', 'burst'):
+                        burst_groups = _fetch_unreviewed_burst_groups(
+                            conn, vis_sql, vis_params,
+                            page=None, per_page=None,
+                            exclude_rejected=exclude_rejected, user_id=user_id,
+                            album_id=album_id, date_from=date_from, date_to=date_to,
+                        )
+                    similar_groups = []
+                    if group_by in ('all', 'similar'):
+                        _, similar_shuffled = _count_unreviewed_similar_groups(
+                            conn, similarity_threshold, user_id, seed, exclude_rejected=exclude_rejected,
+                            album_id=album_id, date_from=date_from, date_to=date_to,
+                        )
+                        if similar_shuffled:
+                            similar_groups = _fetch_unreviewed_similar_groups(
+                                conn, similarity_threshold, vis_sql, vis_params, seed, user_id,
+                                page_groups=similar_shuffled, offset=0,
+                                exclude_rejected=exclude_rejected,
+                                album_id=album_id, date_from=date_from, date_to=date_to,
+                            )
+                            # Keep similar IDs distinct from burst IDs only when both
+                            # feeds are present; the type suffix the client appends
+                            # ('<id>_<type>') already disambiguates the rest.
+                            if burst_groups:
+                                for g in similar_groups:
+                                    g['group_id'] += len(burst_groups)
 
-                all_groups = burst_groups + similar_groups
+                    all_groups = burst_groups + similar_groups
 
-                cat_needs, default_need = ({}, 0)
-                if sort == 'needs_comparisons':
-                    cat_needs, default_need = _category_comparison_needs(conn)
-                all_groups.sort(key=lambda g: _culling_sort_key(g, sort, cat_needs, default_need), reverse=True)
+                    cat_needs, default_need = ({}, 0)
+                    if sort == 'needs_comparisons':
+                        cat_needs, default_need = _category_comparison_needs(conn)
+                    all_groups.sort(key=lambda g: _culling_sort_key(g, sort, cat_needs, default_need), reverse=True)
 
-                if len(_culling_groups_cache) >= _CULLING_GROUPS_CACHE_MAX:
-                    _culling_groups_cache.clear()
-                _culling_groups_cache[cache_key] = (now, all_groups)
+                    if len(_culling_groups_cache) >= _CULLING_GROUPS_CACHE_MAX:
+                        _culling_groups_cache.clear()
+                    _culling_groups_cache[cache_key] = (now, all_groups)
 
             total_groups = len(all_groups)
             total_pages, offset = paginate(total_groups, page, per_page)
@@ -988,9 +1059,9 @@ async def confirm_culling_group(
     body: CullingConfirmBody,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Confirm culling selection for a burst or similar group.
+    """Confirm culling selection for a burst, similar, or scene group.
 
-    Delegates to the existing burst or similar confirm logic based on `type`.
+    Delegates to the existing burst/similar/scene confirm logic based on `type`.
     """
     if body.type == 'burst':
         burst_body = BurstSelectionBody(
@@ -1004,5 +1075,11 @@ async def confirm_culling_group(
             keep_paths=body.keep_paths,
         )
         return await select_similar_photos(similar_body, user)
+    elif body.type == 'scene':
+        scene_body = SceneConfirmBody(
+            paths=body.paths,
+            keep_paths=body.keep_paths,
+        )
+        return await apply_scene_cull(scene_body, user)
     else:
         raise HTTPException(status_code=400, detail=f'Unknown group type: {body.type}')

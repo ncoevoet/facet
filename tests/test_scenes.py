@@ -270,13 +270,18 @@ def test_get_scenes_paginates(client):
 
 
 def test_confirm_scene_rejects_and_records_pairs(client):
+    # The dedicated POST /api/scenes/confirm route is gone — scene culling now
+    # runs through the unified feed (type='scene'), delegating to apply_scene_cull
+    # in scenes.py, so the scenes-module mocks below still apply.
     conn = _db()
     with (
         mock.patch("api.routers.scenes.get_db", lambda: _cm(conn)),
         mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])),
         mock.patch("api.routers.scenes.trigger_auto_retrain", lambda *a, **k: None),
     ):
-        resp = client.post("/api/scenes/confirm", json={
+        resp = client.post("/api/culling-groups/confirm", json={
+            "group_id": 0,
+            "type": "scene",
             "paths": ["/a1.jpg", "/a2.jpg", "/a3.jpg"],
             "keep_paths": ["/a2.jpg"],
         })
@@ -287,7 +292,16 @@ def test_confirm_scene_rejects_and_records_pairs(client):
         "SELECT path FROM photos WHERE is_rejected = 1 ORDER BY path"
     ).fetchall()
     assert [r["path"] for r in rejected] == ["/a1.jpg", "/a3.jpg"]
-    # culling comparison rows written with source='culling'
-    pairs = conn.execute("SELECT source FROM comparisons").fetchall()
+    # culling comparison rows written with source='culling' and the scene group tag
+    pairs = conn.execute("SELECT source, session_id FROM comparisons").fetchall()
     assert len(pairs) >= 1
     assert all(p["source"] == "culling" for p in pairs)
+    assert all(p["session_id"] == "cull-scene" for p in pairs)
+
+
+def test_legacy_scene_confirm_route_removed(client):
+    # The duplicate scene reject UI is gone; only the unified culling confirm remains.
+    # No API route handles POST /api/scenes/confirm now (the SPA catch-all matches
+    # the path for GET only, so a POST is rejected as 404/405 either way).
+    resp = client.post("/api/scenes/confirm", json={"paths": [], "keep_paths": []})
+    assert resp.status_code in (404, 405)

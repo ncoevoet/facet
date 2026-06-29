@@ -119,6 +119,21 @@ async def api_caption(
                 # Return English caption
                 return {"caption": row['caption'], "source": "cached"}
 
+        # F5 quality gate: when narrative_moments.caption_min_confidence > 0, skip
+        # on-demand generation for unlabelled / 'other' / low-confidence photos so
+        # the gate holds on the API path too (default 0 = generate for any photo).
+        caption_min_conf = float((_FULL_CONFIG.get('narrative_moments', {}) or {}).get('caption_min_confidence', 0) or 0)
+        if caption_min_conf > 0 and {'narrative_moment', 'narrative_moment_confidence'} <= set(existing_cols):
+            cur = await conn.execute(
+                "SELECT narrative_moment, narrative_moment_confidence FROM photos WHERE path = ?", [path]
+            )
+            mrow = await cur.fetchone()
+            await cur.close()
+            moment = mrow['narrative_moment'] if mrow else None
+            mconf = mrow['narrative_moment_confidence'] if mrow else None
+            if not moment or moment == 'other' or mconf is None or mconf < caption_min_conf:
+                return {"caption": None, "source": "gated"}
+
         # Try to generate via VLM. Generation is a blocking GPU/CPU call —
         # offload it from the event loop.
         caption = await asyncio.to_thread(_generate_caption, path)

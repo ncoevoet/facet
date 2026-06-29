@@ -332,8 +332,7 @@ async def api_scenes(
     }
 
 
-@router.post("/api/scenes/confirm")
-async def confirm_scene(
+async def apply_scene_cull(
     body: SceneConfirmBody,
     user: CurrentUser = Depends(require_edition),
 ):
@@ -341,7 +340,9 @@ async def confirm_scene(
 
     Marks non-kept photos as rejected, records culling pairs with
     ``group_type='scene'`` (so the personal ranker learns from the decision),
-    invalidates the scenes cache and nudges an auto-retrain.
+    invalidates the scenes cache and nudges an auto-retrain. Not a route of its
+    own — the unified culling feed (``POST /api/culling-groups/confirm`` with
+    ``type='scene'``) is the single cull surface; this is its scene branch.
     """
     with get_db() as conn:
         try:
@@ -377,6 +378,12 @@ async def confirm_scene(
                 conn, list(keep_set), reject_paths, user_id=user_id, group_type='scene',
             )
             conn.commit()
+
+            # The unified culling feed memoizes its enriched burst/similar groups
+            # in-process; a scene cull rejects photos those groups may include, so
+            # drop the memo (imported lazily — burst_culling imports this module).
+            from api.routers.burst_culling import _invalidate_culling_groups_cache
+            _invalidate_culling_groups_cache()
 
             from db import DEFAULT_DB_PATH
             trigger_auto_retrain(DEFAULT_DB_PATH, user_id, len(keep_set) * len(reject_paths), conn=conn)

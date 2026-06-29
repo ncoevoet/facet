@@ -848,6 +848,31 @@ class ScoringConfig:
         thresholds = self.get_narrative_moments_config().get('thresholds', {})
         return thresholds.get(signal, {})
 
+    def get_moment_vlm_tiebreak(self):
+        """Return the L3 VLM tie-break settings for narrative-moment labelling.
+
+        ``{enabled, min_confidence, min_margin}``. Only frames whose smoothed
+        posterior falls below ``min_confidence`` *or* whose L0+L1 top-1/top-2
+        probability margin falls below ``min_margin`` are re-classified by the
+        VLM (16gb/24gb profiles only). Disabled by default — a config-only stub
+        until enabled.
+        """
+        vt = self.get_narrative_moments_config().get('vlm_tiebreak', {}) or {}
+        return {
+            'enabled': bool(vt.get('enabled', False)),
+            'min_confidence': float(vt.get('min_confidence', 0.0)),
+            'min_margin': float(vt.get('min_margin', 0.04)),
+        }
+
+    def get_caption_min_confidence(self):
+        """Min narrative-moment posterior required to auto-caption a photo (F5).
+
+        ``0`` (default) disables the gate — every uncaptioned photo is eligible.
+        When > 0, ``--generate-captions`` and the on-demand caption endpoint skip
+        photos that are unlabelled, labelled ``other``, or below this confidence.
+        """
+        return float(self.get_narrative_moments_config().get('caption_min_confidence', 0.0))
+
     def get_category_tags(self, category):
         """Get trigger tags for a category.
 

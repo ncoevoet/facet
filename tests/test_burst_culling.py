@@ -271,6 +271,57 @@ class TestCullingGroupsEndpoint:
         assert body["groups"] == []
         assert body["total_groups"] == 0
 
+    def test_group_by_scene_returns_scene_groups(self, client):
+        mock_conn = mock.MagicMock()
+        scene_groups = [{
+            "group_id": 0, "type": "scene", "reason": "beach",
+            "photos": [{"path": "/s1.jpg"}], "best_path": "/s1.jpg", "count": 1,
+            "category": None, "start": "2026:01:01 10:00:00", "end": "2026:01:01 10:05:00",
+            "moment": "beach", "moment_confidence": 0.8,
+        }]
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
+            mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.routers.burst_culling._fetch_scene_groups", return_value=scene_groups) as scene_fetch,
+        ):
+            resp = client.get("/api/culling-groups?group_by=scene")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert [g["type"] for g in body["groups"]] == ["scene"]
+        assert body["groups"][0]["moment"] == "beach"
+        scene_fetch.assert_called_once()
+
+    def test_group_by_burst_skips_similar_feed(self, client):
+        mock_conn = mock.MagicMock()
+        burst_groups = [{
+            "group_id": 1, "type": "burst", "reason": "burst", "photos": [],
+            "best_path": None, "count": 0, "category": None,
+        }]
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
+            mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.routers.burst_culling._fetch_unreviewed_burst_groups", return_value=burst_groups),
+            mock.patch("api.routers.burst_culling._count_unreviewed_similar_groups") as similar_count,
+        ):
+            resp = client.get("/api/culling-groups?group_by=burst")
+        assert resp.status_code == 200
+        assert [g["type"] for g in resp.json()["groups"]] == ["burst"]
+        # The similar feed must not be queried when grouping by burst only.
+        similar_count.assert_not_called()
+
+    def test_confirm_group_scene_delegates_to_scene_cull(self, client):
+        with mock.patch(
+            "api.routers.burst_culling.apply_scene_cull", new_callable=mock.AsyncMock,
+        ) as scene_cull:
+            scene_cull.return_value = {"status": "ok", "kept": 1, "rejected": 1}
+            resp = client.post("/api/culling-groups/confirm", json={
+                "group_id": 0, "type": "scene",
+                "paths": ["/a.jpg", "/b.jpg"], "keep_paths": ["/a.jpg"],
+            })
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok", "kept": 1, "rejected": 1}
+        scene_cull.assert_awaited_once()
+
 
 class TestFilterSimilarGroups:
     """Unit tests for read-time rejected-photo filtering of cached similar groups."""

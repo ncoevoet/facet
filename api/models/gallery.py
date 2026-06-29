@@ -230,6 +230,9 @@ class GalleryParams(BaseModel):
     max_subject_placement: str = ''
     min_bg_separation: str = ''
     max_bg_separation: str = ''
+    # Narrative moment confidence (posterior 0..1)
+    min_moment_confidence: str = ''
+    max_moment_confidence: str = ''
     # Path
     path_prefix: str = ''
 

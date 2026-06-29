@@ -2043,7 +2043,8 @@
         }
       }
     },
-    "vlm_tiebreak": { "enabled": false, "min_margin": 0.04 },
+    "vlm_tiebreak": { "enabled": false, "min_confidence": 0.0, "min_margin": 0.04 },
+    "caption_min_confidence": 0,
     "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
     "event_types": {
       "general": {
@@ -2093,6 +2094,7 @@
     "max_photos_per_capsule": 40,
     "max_photo_overlap": 0.2,
     "mmr_lambda": 0.5,
+    "mmr_moment_weight": 0.0,
     "freshness_hours": 24,
     "reverse_geocoding": true,
     "journey": {
@@ -2479,6 +2481,12 @@
           "column": "bg_separation",
           "label": "Background Separation"
         }
+      ],
+      "Content": [
+        {
+          "column": "narrative_moment_confidence",
+          "label": "Moment Confidence"
+        }
       ]
     },
     "pagination": {
@@ -2518,6 +2526,7 @@
       "excellent": 8,
       "best": 9
     },
+    "moment_confidence_min": 0,
     "photo_types": {
       "top_picks_min_score": 7,
       "top_picks_min_face_ratio": 0.2,

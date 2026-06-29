@@ -180,18 +180,29 @@ def _geocode_centroid(conn, photos):
     return geocode_grid(conn, sum(lats) / len(lats), sum(lons) / len(lons))
 
 
-def _mmr_select(conn, paths, max_photos, lambda_weight=0.5):
+def _mmr_select(conn, paths, max_photos, lambda_weight=0.5, moment_weight=0.0):
     """Select diverse photos using Maximal Marginal Relevance.
 
     MMR = λ * quality - (1-λ) * max_cosine_sim(candidate, selected_set)
     Starts with the highest-quality photo, then greedily adds the best MMR candidate.
+
+    ``moment_weight`` (0 by default) blends the F21 narrative-moment posterior into
+    the quality term — ``(1-w)*aggregate_norm + w*moment_confidence`` — so a
+    confidently-labelled photo is favoured over an equally-scored ambiguous one.
+    0 keeps the pure-aggregate behaviour.
     """
     if len(paths) <= max_photos:
         return paths
 
+    has_moment = moment_weight > 0 and 'narrative_moment_confidence' in {
+        r[1] for r in conn.execute("PRAGMA table_info(photos)").fetchall()
+    }
+    select_cols = "path, clip_embedding, aggregate"
+    if has_moment:
+        select_cols += ", narrative_moment_confidence"
     placeholders = ",".join(["?"] * len(paths))
     rows = conn.execute(
-        f"SELECT path, clip_embedding, aggregate FROM photos WHERE path IN ({placeholders})",
+        f"SELECT {select_cols} FROM photos WHERE path IN ({placeholders})",
         paths,
     ).fetchall()
 
@@ -200,6 +211,7 @@ def _mmr_select(conn, paths, max_photos, lambda_weight=0.5):
     emb_paths = []
     emb_list = []
     scores = []
+    moment_confs = []
     no_emb_paths = []
 
     for p in paths:
@@ -210,6 +222,8 @@ def _mmr_select(conn, paths, max_photos, lambda_weight=0.5):
                 emb_paths.append(p)
                 emb_list.append(emb)
                 scores.append(data["aggregate"] or 0)
+                moment_confs.append(float(data["narrative_moment_confidence"]) if has_moment
+                                    and data["narrative_moment_confidence"] is not None else 0.0)
                 continue
         no_emb_paths.append(p)
 
@@ -217,12 +231,12 @@ def _mmr_select(conn, paths, max_photos, lambda_weight=0.5):
         return paths[:max_photos]
 
     # Filter to uniform embedding dimension (CLIP 768 vs SigLIP 1152)
-    combined = list(zip(emb_paths, scores))
+    combined = list(zip(emb_paths, scores, moment_confs))
     emb_list, combined = filter_uniform_embeddings(emb_list, combined)
     if not emb_list:
         return paths[:max_photos]
-    emb_paths, scores = zip(*combined)
-    emb_paths, scores = list(emb_paths), list(scores)
+    emb_paths, scores, moment_confs = zip(*combined)
+    emb_paths, scores, moment_confs = list(emb_paths), list(scores), list(moment_confs)
 
     emb_matrix = np.stack(emb_list)
 
@@ -230,6 +244,9 @@ def _mmr_select(conn, paths, max_photos, lambda_weight=0.5):
     max_score = max(scores)
     score_range = max_score - min_score if max_score > min_score else 1.0
     norm_scores = [(s - min_score) / score_range for s in scores]
+    if has_moment:
+        norm_scores = [(1 - moment_weight) * ns + moment_weight * mc
+                       for ns, mc in zip(norm_scores, moment_confs)]
 
     n_select = min(max_photos, len(emb_paths))
     selected_indices = []
@@ -373,11 +390,12 @@ def generate_all_capsules(conn, config=None, user_id=None, date_from=None, date_
     t0 = time.time()
     max_photos = capsule_config.get("max_photos_per_capsule", 40)
     mmr_lambda = capsule_config.get("mmr_lambda", 0.5)
+    mmr_moment_weight = capsule_config.get("mmr_moment_weight", 0.0)
     freshness_seconds = capsule_config.get("freshness_hours", 24) * 3600
     for c in capsules:
         paths = c.get("params", {}).get("paths", [])
         if len(paths) > 5:
-            c["params"]["paths"] = _mmr_select(conn, paths, max_photos, mmr_lambda)
+            c["params"]["paths"] = _mmr_select(conn, paths, max_photos, mmr_lambda, mmr_moment_weight)
             c["photo_count"] = len(c["params"]["paths"])
             c["cover_photo_path"] = _pick_cover_photo(c["params"]["paths"], c["id"],
                                                        freshness_seconds=freshness_seconds,

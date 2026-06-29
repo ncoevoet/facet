@@ -362,6 +362,7 @@ SCORE_RANGE_COLUMNS = [
     ("subject_prominence", "min_subject_prominence", "max_subject_prominence", True),
     ("subject_placement", "min_subject_placement", "max_subject_placement", True),
     ("bg_separation", "min_bg_separation", "max_bg_separation", True),
+    ("narrative_moment_confidence", "min_moment_confidence", "max_moment_confidence", True),
 ]
 
 EXIF_RANGE_COLUMNS = [
@@ -547,6 +548,12 @@ async def api_photos(
         # regardless of direction, so the gallery degrades gracefully to a stable
         # path order on an untrained DB.
         order_by_clause = f"(learned_score IS NULL) ASC, learned_score {sort_dir}, path ASC"
+    elif sort_col == 'narrative_moment_confidence':
+        # Unlabelled photos (NULL confidence) always sink so the gallery stays
+        # stable on a library that has not been through --detect-moments.
+        order_by_clause = (
+            f"(narrative_moment_confidence IS NULL) ASC, narrative_moment_confidence {sort_dir}, path ASC"
+        )
     else:
         order_by_clause = f"{sort_col} {sort_dir}, path ASC"
 
@@ -1136,6 +1143,7 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         'display': VIEWER_CONFIG['display'],
         'features': features,
         'quality_thresholds': VIEWER_CONFIG['quality_thresholds'],
+        'moment_confidence_min': VIEWER_CONFIG.get('moment_confidence_min', 0),
         'notification_duration_ms': VIEWER_CONFIG.get('notification_duration_ms', 2000),
         'translation_target_language': _FULL_CONFIG.get('translation', {}).get('target_language', ''),
         'is_multi_user': is_multi_user_enabled(),

@@ -100,6 +100,9 @@ PARAMETERISED_ROUTES = [
     ('/api/filter_options/location_name', {'lat': 48.85, 'lng': 2.35}),
     ('/api/scenes', {'album_id': 1, 'date_from': '2024:06:15 00:00:00', 'date_to': '2024:06:15 23:59:59'}),
     ('/api/culling-groups', {'album_id': 1, 'date_from': '2024:06:15 00:00:00', 'date_to': '2024:06:15 23:59:59'}),
+    ('/api/culling-groups', {'group_by': 'scene'}),
+    ('/api/culling-groups', {'group_by': 'burst'}),
+    ('/api/culling-groups', {'group_by': 'similar'}),
 ]
 
 # Routes that require superadmin (scan).

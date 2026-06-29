@@ -163,6 +163,82 @@ def _commit_in_chunks(conn, sql, rows, size=500):
         conn.commit()
 
 
+def _top2_margin(probs):
+    """Top-1/top-2 gap of an L0+L1 probability vector (None when not scorable)."""
+    if probs is None or len(probs) < 2:
+        return None
+    import numpy as np
+    s = np.sort(np.asarray(probs, dtype=np.float32))[::-1]
+    return float(s[0] - s[1])
+
+
+# Profile tagging-model name -> ModelManager.load_model_only VLM key. Profiles
+# whose tagging_model is CLIP similarity (legacy/8gb) are absent -> no VLM.
+_MOMENT_VLM_KEYS = {
+    'qwen2.5-vl-7b': 'vlm_tagger',
+    'qwen3-vl-2b': 'qwen3_vl_tagger',
+    'qwen3.5-2b': 'qwen3_5_tagger',
+    'qwen3.5-4b': 'qwen3_5_4b_tagger',
+}
+
+
+def _moment_vlm_tiebreak(db_path, config, model_manager, candidates, moments):
+    """L3: re-classify low-confidence moment frames with the profile VLM.
+
+    ``candidates`` is ``[(update_index, path, current_label), ...]``. Returns
+    ``{path: new_label}`` only for frames the VLM relabelled. No-op (``{}``) when
+    the active profile runs CLIP-similarity tagging (no VLM) or the model fails
+    to load. Decodes each candidate's stored thumbnail (no original re-read) and
+    asks the VLM to pick one label from the moment vocabulary or ``other``.
+    """
+    from models.moment_classifier import OTHER
+    from PIL import Image
+    import io
+
+    vlm_key = _MOMENT_VLM_KEYS.get(config.get_model_for_task('tagging'))
+    if not vlm_key:
+        logger.info("VLM moment tie-break skipped: active profile has no VLM tagger")
+        return {}
+    vlm = model_manager.load_model_only(vlm_key)
+    if vlm is None:
+        logger.warning("VLM moment tie-break skipped: tagger failed to load")
+        return {}
+
+    label_for = {m: m.replace('_', ' ') for m in moments}
+    key_for = {human.lower(): m for m, human in label_for.items()}
+    options = ", ".join(label_for[m] for m in moments)
+    prompt = (
+        "Look at the photo and choose the single label that best describes its "
+        f"scene or activity from this list: {options}, other. "
+        "Reply with only the label, nothing else."
+    )
+
+    paths = [p for _, p, _ in candidates]
+    placeholders = ",".join("?" * len(paths))
+    with get_connection(db_path) as conn:
+        thumbs = {r['path']: r['thumbnail'] for r in conn.execute(
+            f"SELECT path, thumbnail FROM photos WHERE path IN ({placeholders})", paths,
+        ).fetchall()}
+
+    result = {}
+    for _, path, current in candidates:
+        blob = thumbs.get(path)
+        if not blob:
+            continue
+        try:
+            img = Image.open(io.BytesIO(blob)).convert('RGB')
+            answer = (vlm.generate(img, prompt, max_new_tokens=12) or "").strip().lower()
+        except Exception as e:
+            logger.debug("VLM tie-break failed for %s: %s", path, e)
+            continue
+        new_label = key_for.get(answer)
+        if new_label is None:
+            new_label = next((m for human, m in key_for.items() if human and human in answer), OTHER)
+        if new_label != current:
+            result[path] = new_label
+    return result
+
+
 def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
                          dry_run=False, verbose_count=0, limit=None):
     """Label photos with their narrative moment (zero-shot CLIP + L2 smoothing).
@@ -275,7 +351,9 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
     smoothed = moment_smoothing.smooth(prob_vectors, timestamps, transitions)
     moments = classifier.moments
     OTHER_CONFIDENCE = 0.5
+    vt = config.get_moment_vlm_tiebreak()
     updates = []
+    tiebreak_candidates = []  # (update_index, path, current_label) for L3 VLM
     for i, (j, conf) in enumerate(smoothed):
         if j is None or raw_labels[i] is None:
             continue
@@ -289,8 +367,32 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
             label, frame_conf = OTHER, OTHER_CONFIDENCE
         else:
             label, frame_conf = moments[j], conf
-        updates.append((label, round(float(frame_conf), 4) if frame_conf is not None else None, paths[i]))
+        updates.append([label, round(float(frame_conf), 4) if frame_conf is not None else None, paths[i]])
+        # L3 targeting: only frames whose posterior or top-1/top-2 margin is low.
+        if vt['enabled']:
+            margin = _top2_margin(prob_vectors[i])
+            if (frame_conf is not None and frame_conf < vt['min_confidence']) \
+                    or (margin is not None and margin < vt['min_margin']):
+                tiebreak_candidates.append((len(updates) - 1, paths[i], label))
 
+    # L3: optional VLM tie-break on the low-margin frames only (gated by profile +
+    # config). Relabelled frames keep their stored posterior; a frame the VLM
+    # pushes to 'other' is reset to the neutral 0.5 to stay on one scale.
+    if vt['enabled'] and tiebreak_candidates and not dry_run:
+        relabels = _moment_vlm_tiebreak(db_path, config, model_manager, tiebreak_candidates, moments)
+        for idx, path, _old in tiebreak_candidates:
+            new_label = relabels.get(path)
+            if new_label is not None:
+                updates[idx][0] = new_label
+                if new_label == OTHER:
+                    updates[idx][1] = OTHER_CONFIDENCE
+        logger.info("VLM moment tie-break: %d low-margin frames checked, %d relabelled",
+                    len(tiebreak_candidates), len(relabels))
+    elif vt['enabled'] and tiebreak_candidates:
+        logger.info("VLM moment tie-break (dry-run): %d low-margin frames would be re-checked",
+                    len(tiebreak_candidates))
+
+    updates = [tuple(u) for u in updates]
     spread = dict(Counter(u[0] for u in updates).most_common())
     if owns_manager:
         model_manager.unload_all()
@@ -1222,10 +1324,22 @@ Configuration:
                 print("Error: 'caption' column not found. Run 'python database.py' to migrate the schema first.")
                 sys.exit(1)
 
-            total = conn.execute("SELECT COUNT(*) FROM photos WHERE caption IS NULL").fetchone()[0]
+            # F5 quality gate: when narrative_moments.caption_min_confidence > 0,
+            # only auto-caption photos with a confident, non-'other' moment so the
+            # VLM budget goes to clearly-classified shots. Default 0 = caption all.
+            caption_min_conf = config.get_caption_min_confidence()
+            where_caption = "caption IS NULL"
+            gate_params = []
+            if caption_min_conf > 0 and {'narrative_moment', 'narrative_moment_confidence'} <= cols:
+                where_caption += (" AND narrative_moment IS NOT NULL AND narrative_moment != 'other'"
+                                  " AND narrative_moment_confidence >= ?")
+                gate_params = [caption_min_conf]
+                logger.info("Caption gate active: moment confidence >= %.2f, non-'other' only", caption_min_conf)
+
+            total = conn.execute(f"SELECT COUNT(*) FROM photos WHERE {where_caption}", gate_params).fetchone()[0]
             logger.info("Generating captions for %d photos...", total)
             vlm.load()
-            cursor = conn.execute("SELECT path, thumbnail FROM photos WHERE caption IS NULL")
+            cursor = conn.execute(f"SELECT path, thumbnail FROM photos WHERE {where_caption}", gate_params)
             batch_size = 100
             with tqdm(total=total, desc="Captioning") as pbar:
                 while True:

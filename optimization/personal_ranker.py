@@ -73,18 +73,36 @@ def _persist_ranker_metrics(db_path, category, user_id, result):
         logger.debug("Failed to persist ranker metrics", exc_info=True)
 
 
+def _has_moment_confidence(conn):
+    """True when the photos table carries the narrative_moment_confidence column."""
+    return 'narrative_moment_confidence' in {
+        r[1] for r in conn.execute("PRAGMA table_info(photos)").fetchall()
+    }
+
+
 def _load_embeddings_and_aggregate(conn, paths):
-    """Return {path: (normalized_embedding_or_None, aggregate_or_None)}."""
+    """Return {path: (normalized_embedding_or_None, aggregate_or_None, moment_confidence)}.
+
+    ``moment_confidence`` is the F21 posterior (0..1), or 0.0 when the photo is
+    unlabelled or the column is absent — appended to the ranker feature vector as
+    one extra signal. A column of all-zeros (un-migrated DB) is a constant the
+    feature scaler floors out, so the dimension stays consistent either way.
+    """
+    has_moment = _has_moment_confidence(conn)
+    sel = "path, clip_embedding, aggregate"
+    if has_moment:
+        sel += ", narrative_moment_confidence"
     out = {}
     path_list = list(paths)
     for start in range(0, len(path_list), 900):
         chunk = path_list[start:start + 900]
         ph = ','.join('?' * len(chunk))
-        for r in conn.execute(
-            f"SELECT path, clip_embedding, aggregate FROM photos WHERE path IN ({ph})",
-            chunk,
-        ):
-            out[r['path']] = (bytes_to_normalized_embedding(r['clip_embedding']), r['aggregate'])
+        for r in conn.execute(f"SELECT {sel} FROM photos WHERE path IN ({ph})", chunk):
+            mc = r['narrative_moment_confidence'] if has_moment else None
+            out[r['path']] = (
+                bytes_to_normalized_embedding(r['clip_embedding']), r['aggregate'],
+                float(mc) if mc is not None else 0.0,
+            )
     return out
 
 
@@ -115,7 +133,7 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None):
     emb_agg = _load_embeddings_and_aggregate(conn, paths)
 
     # Dominant embedding dimension among involved photos.
-    dims = [e.shape[0] for (e, _) in emb_agg.values() if e is not None]
+    dims = [e.shape[0] for (e, _, _) in emb_agg.values() if e is not None]
     if not dims:
         logger.warning("No comparison photos have embeddings — cannot train the ranker.")
         return None
@@ -125,13 +143,14 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None):
     feats_a, feats_b, y, weights, agg_a, agg_b = [], [], [], [], [], []
     dropped = 0
     for i, c in enumerate(comparisons):
-        ea, aa = emb_agg.get(c['photo_a'], (None, None))
-        eb, ab = emb_agg.get(c['photo_b'], (None, None))
+        ea, aa, mca = emb_agg.get(c['photo_a'], (None, None, 0.0))
+        eb, ab, mcb = emb_agg.get(c['photo_b'], (None, None, 0.0))
         if ea is None or eb is None or ea.shape[0] != emb_dim or eb.shape[0] != emb_dim:
             dropped += 1
             continue
-        feats_a.append(np.concatenate([ea, X_a[i] / 10.0]))
-        feats_b.append(np.concatenate([eb, X_b[i] / 10.0]))
+        # Feature = [embedding ⊕ metric_vector/10 ⊕ moment_confidence].
+        feats_a.append(np.concatenate([ea, X_a[i] / 10.0, [mca]]))
+        feats_b.append(np.concatenate([eb, X_b[i] / 10.0, [mcb]]))
         y.append(1 if winners[i] == 1 else 0)
         weights.append(float(row_weights[i]))
         agg_a.append(aa if aa is not None else 0.0)
@@ -299,7 +318,9 @@ def _write_learned_scores(db_path, w, col_std, emb_dim, optimizer, category, use
             if emb is None or emb.shape[0] != emb_dim:
                 continue
             mv = np.asarray(optimizer._metric_vector(row, category), dtype=np.float64) / 10.0
-            feat = np.concatenate([emb, mv]) / col_std
+            mc = row.get('narrative_moment_confidence')
+            mc = float(mc) if mc is not None else 0.0
+            feat = np.concatenate([emb, mv, [mc]]) / col_std
             scored.append((row['path'], float(feat @ w)))
 
         if not scored:
