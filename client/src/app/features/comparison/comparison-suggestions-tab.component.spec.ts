@@ -7,6 +7,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { CompareFiltersService } from './compare-filters.service';
+import { GalleryStore } from '../gallery/gallery.store';
 import { ComparisonSuggestionsTabComponent } from './comparison-suggestions-tab.component';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -39,6 +40,7 @@ describe('ComparisonSuggestionsTabComponent', () => {
         { provide: I18nService, useValue: { t: (key: string) => key } },
         { provide: AuthService, useValue: { isEdition: () => true } },
         { provide: CompareFiltersService, useValue: { selectedCategory } },
+        { provide: GalleryStore, useValue: { types: signal([]) } },
       ],
     });
     component = TestBed.inject(ComparisonSuggestionsTabComponent);

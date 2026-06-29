@@ -15,6 +15,8 @@ describe('AuthService', () => {
     multi_user: true,
     edition_enabled: true,
     edition_authenticated: false,
+    edition_password_required: false,
+    login_password_required: false,
     user_id: 'testuser',
     user_role: 'admin',
     display_name: 'Test User',

@@ -145,7 +145,8 @@ describe('ManagePersonsComponent', () => {
     });
 
     it('should request hidden persons when showHidden is on', async () => {
-      component.showHidden.set(true);
+      const personsFilters = TestBed.inject(PersonsFiltersService);
+      personsFilters.showHidden.set(true);
 
       await component.loadPersons(true);
 
@@ -264,12 +265,16 @@ describe('ManagePersonsComponent', () => {
     });
   });
 
-  describe('toggleShowHidden', () => {
-    it('should set the signal and reload', () => {
-      const spy = vi.spyOn(component, 'loadPersons').mockResolvedValue();
-      component.toggleShowHidden(true);
-      expect(component.showHidden()).toBe(true);
-      expect(spy).toHaveBeenCalledWith(true);
+  describe('showHidden toggle (filters service)', () => {
+    it('should flip the shared signal the way the toolbar button does', () => {
+      const personsFilters = TestBed.inject(PersonsFiltersService);
+      expect(personsFilters.showHidden()).toBe(false);
+
+      personsFilters.showHidden.set(!personsFilters.showHidden());
+      expect(personsFilters.showHidden()).toBe(true);
+
+      personsFilters.showHidden.set(!personsFilters.showHidden());
+      expect(personsFilters.showHidden()).toBe(false);
     });
   });
 
@@ -286,7 +291,8 @@ describe('ManagePersonsComponent', () => {
     });
 
     it('should post hide and mark the person hidden when showHidden is on', async () => {
-      component.showHidden.set(true);
+      const personsFilters = TestBed.inject(PersonsFiltersService);
+      personsFilters.showHidden.set(true);
       component.persons.set(mockPersonsResponse.persons);
 
       await component.setHidden(1, true);
