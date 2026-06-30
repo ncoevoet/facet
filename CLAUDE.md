@@ -34,6 +34,7 @@ Checklists for recurring multi-file changes — consult before starting:
 |---------|-------------|
 | [`new-metric-checklist.md`](.claude/patterns/new-metric-checklist.md) | Adding a new scoring metric (schema, scorer, config validator, API, client) |
 | [`i18n-sync.md`](.claude/patterns/i18n-sync.md) | Adding or renaming user-facing strings across all 6 languages |
+| [`vlm-model-change-checklist.md`](.claude/patterns/vlm-model-change-checklist.md) | Adding/upgrading/renaming/removing a VLM tagging or caption model (config, loaders, all routing sites, docs) |
 
 ## Project Overview
 

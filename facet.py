@@ -1525,10 +1525,11 @@ Configuration:
 
         # Use configured VLM or default to qwen3-vl-2b
         tag_model = config.get_model_for_task('tagging')
-        if tag_model == 'qwen2.5-vl-7b':
-            model_key = 'vlm_tagger'
-        else:
-            model_key = 'qwen3_vl_tagger'
+        model_key = {
+            'qwen2.5-vl-7b': 'vlm_tagger',
+            'qwen3.5-2b': 'qwen3_5_tagger',
+            'qwen3.5-4b': 'qwen3_5_4b_tagger',
+        }.get(tag_model, 'qwen3_vl_tagger')
 
         model_manager = ModelManager(config)
 
@@ -1634,10 +1635,10 @@ Configuration:
                 conn.commit()
             logger.info("Updated tags for %d photos", updated)
 
-        elif tag_model in ('ram++', 'qwen2.5-vl-7b', 'qwen3-vl-2b'):
+        elif tag_model in ('ram++', 'qwen2.5-vl-7b', 'qwen3-vl-2b', 'qwen3.5-2b', 'qwen3.5-4b'):
             # Need to load images for VLM/RAM++ tagging
             logger.info("Loading %s model...", tag_model)
-            model_key = {'ram++': 'ram_tagger', 'qwen2.5-vl-7b': 'vlm_tagger', 'qwen3-vl-2b': 'qwen3_vl_tagger'}[tag_model]
+            model_key = {'ram++': 'ram_tagger', 'qwen2.5-vl-7b': 'vlm_tagger', 'qwen3-vl-2b': 'qwen3_vl_tagger', 'qwen3.5-2b': 'qwen3_5_tagger', 'qwen3.5-4b': 'qwen3_5_4b_tagger'}[tag_model]
             tagger = model_manager.load_model_only(model_key)
             if not tagger:
                 logger.error("Failed to load %s", tag_model)

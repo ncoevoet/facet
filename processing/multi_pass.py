@@ -267,6 +267,10 @@ class ChunkedMultiPassProcessor:
             models.append('vlm_tagger')
         elif tagging_model == 'qwen3-vl-2b' and self.available_vram >= 4:
             models.append('qwen3_vl_tagger')
+        elif tagging_model == 'qwen3.5-2b' and self.available_vram >= 4:
+            models.append('qwen3_5_tagger')
+        elif tagging_model == 'qwen3.5-4b' and self.available_vram >= 8:
+            models.append('qwen3_5_4b_tagger')
         # else: CLIP tagging uses clip embeddings, no extra model needed
 
         # Composition model (SAMP-Net if configured)
@@ -586,7 +590,7 @@ class ChunkedMultiPassProcessor:
             self._pass_samp_net(model, images, results)
         elif model_name == 'insightface':
             self._pass_insightface(model, images, results)
-        elif model_name in ('vlm_tagger', 'qwen3_vl_tagger'):
+        elif model_name in ('vlm_tagger', 'qwen3_vl_tagger', 'qwen3_5_tagger', 'qwen3_5_4b_tagger'):
             self._pass_vlm_tagger(model, images, results)
         elif model_name == 'saliency':
             self._pass_saliency(model, images, results)
@@ -1019,6 +1023,8 @@ class ChunkedMultiPassProcessor:
         fallbacks = {
             'vlm_tagger': 'qwen3_vl_tagger',
             'qwen3_vl_tagger': 'clip',
+            'qwen3_5_4b_tagger': 'qwen3_5_tagger',
+            'qwen3_5_tagger': 'clip',
             'clipiqa+': 'topiq',      # CLIP-IQA+ -> TOPIQ
             'musiq': 'topiq',
             'hyperiqa': 'topiq',
@@ -1125,6 +1131,10 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
             model_name = 'vlm_tagger'
         elif tag_model == 'qwen3-vl-2b':
             model_name = 'qwen3_vl_tagger'
+        elif tag_model == 'qwen3.5-2b':
+            model_name = 'qwen3_5_tagger'
+        elif tag_model == 'qwen3.5-4b':
+            model_name = 'qwen3_5_4b_tagger'
         else:
             model_name = 'clip'
 
@@ -1167,6 +1177,8 @@ def list_available_models():
     logger.info("-" * 70)
     logger.info("  %-15s %-8s %-8s Embedding similarity (reuses CLIP/SigLIP, no extra model)", "clip", "~0GB", "--")
     logger.info("  %-15s %-8s %-8s Vision-language model (structured scene tags)", "qwen3-vl-2b", "~4GB", "--")
+    logger.info("  %-15s %-8s %-8s Vision-language model (Qwen3.5, default 16gb)", "qwen3.5-2b", "~6GB", "--")
+    logger.info("  %-15s %-8s %-8s Vision-language model (Qwen3.5, default 24gb)", "qwen3.5-4b", "~10GB", "--")
     logger.info("  %-15s %-8s %-8s Vision-language model (most capable)", "qwen2.5-vl-7b", "~16GB", "--")
 
     logger.info("-" * 70)
