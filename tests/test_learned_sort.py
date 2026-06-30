@@ -1,9 +1,10 @@
 """
-Topic 1 step 6: gallery exposes an opt-in learned_score sort.
+Gallery exposes an opt-in learned_score ("My Taste") sort.
 
-LEFT-correlated to the personal-ranker learned_scores table; never overwrites
-aggregate. Trained photos sort by learned_score; untrained (NULL) photos sink,
-and the query must not crash on an untrained DB.
+Reads the denormalized photos.learned_score column (synced from the global
+personal ranker); never overwrites aggregate. Trained photos sort by
+learned_score; untrained (NULL) photos sink, and the query must not crash on an
+untrained DB.
 """
 
 import sqlite3
@@ -70,15 +71,10 @@ def gallery_db(tmp_path):
             "INSERT INTO photos (path, filename, aggregate) VALUES (?, ?, 5.0)",
             (f'/g/{name}.jpg', f'{name}.jpg'),
         )
-    # Trained scores for a (high) and b (low); c is untrained (no row).
-    conn.execute(
-        "INSERT INTO learned_scores (photo_path, learned_score, comparison_count, category, updated_at, user_id) "
-        "VALUES ('/g/a.jpg', 9.0, 50, NULL, '2026-01-01', NULL)"
-    )
-    conn.execute(
-        "INSERT INTO learned_scores (photo_path, learned_score, comparison_count, category, updated_at, user_id) "
-        "VALUES ('/g/b.jpg', 2.0, 50, NULL, '2026-01-01', NULL)"
-    )
+    # Denormalized global ranker scores (what the gallery sort reads): a (high),
+    # b (low); c stays untrained (NULL) and must sink.
+    conn.execute("UPDATE photos SET learned_score = 9.0 WHERE path = '/g/a.jpg'")
+    conn.execute("UPDATE photos SET learned_score = 2.0 WHERE path = '/g/b.jpg'")
     conn.commit()
     cols = {r[1] for r in conn.execute("PRAGMA table_info(photos)")}
     conn.close()

@@ -135,6 +135,7 @@ PHOTOS_COLUMNS = [
     ('narrative_moment', 'TEXT'),              # e.g. 'celebration', 'beach', 'other'
     ('narrative_moment_confidence', 'REAL'),   # confidence in the assigned label: forward-backward posterior (0-1) for a moment, neutral 0.5 for 'other'
     ('caption_embedding', 'BLOB'),             # text embedding of the caption (semantic moment signal)
+    ('learned_score', 'REAL'),                 # denormalized global personal-ranker score (mirrors learned_scores user_id/category NULL) so the "My Taste" sort is an indexed column read
 ]
 
 FACES_COLUMNS = [
@@ -268,6 +269,10 @@ INDEXES = [
     # hide-bursts filter) and includes path so the DESC order_by is a covering
     # index hit with no temp B-tree — mirrors idx_burst_aggregate.
     ('idx_burst_moment', 'photos', 'is_burst_lead, narrative_moment_confidence DESC, path'),
+    # "My Taste" (personal ranker) sort. The global learned_score is denormalized
+    # into photos.learned_score so this sort is a covering-index hit instead of a
+    # per-row correlated subquery into learned_scores (~0.4s/page) + temp B-tree.
+    ('idx_burst_learned', 'photos', 'is_burst_lead, learned_score DESC, path'),
 ]
 
 # Photo tags lookup table for fast exact-match queries (replaces LIKE '%tag%')

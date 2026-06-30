@@ -594,16 +594,11 @@ async def api_select_bottom_percent(
             if cut <= 0:
                 return {"total": total, "keep": keep, "cut": 0, "truncated": False, "paths": []}
 
-            # Computed sorts are SELECT aliases, not columns — mirror the gallery.
+            # top_picks_score is a computed SELECT alias (not a column); learned_score
+            # is now a denormalized photos column, so only top_picks needs injecting.
             select_cols = ["path"]
             if 'top_picks_score' in order_by_clause:
                 select_cols.append(f"({get_top_picks_score_sql()}) as top_picks_score")
-            if 'learned_score' in order_by_clause:
-                select_cols.append(
-                    "(SELECT ls.learned_score FROM learned_scores ls "
-                    "WHERE ls.photo_path = photos.path AND ls.user_id IS NULL "
-                    "AND ls.category IS NULL) AS learned_score"
-                )
             limit = min(cut, _SELECT_BOTTOM_MAX)
             query = (
                 f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} "
@@ -719,16 +714,12 @@ async def api_photos(
                 top_picks_expr = get_top_picks_score_sql()
                 select_cols.append(f"({top_picks_expr}) as top_picks_score")
 
-            if sort_col == 'learned_score':
-                # Opt-in alternate sort from the personal ranker. Correlated
-                # subquery (not a JOIN) avoids ambiguity with photos.category /
-                # photos.user_id; scoped to the global pooled ranker (category
-                # NULL, user_id NULL). NULL when untrained -> sorts last.
-                select_cols.append(
-                    "(SELECT ls.learned_score FROM learned_scores ls "
-                    "WHERE ls.photo_path = photos.path AND ls.user_id IS NULL "
-                    "AND ls.category IS NULL) AS learned_score"
-                )
+            # learned_score is a denormalized, indexed photos column (synced by
+            # train_ranker for the global ranker), so the "My Taste" sort orders by
+            # the real column via idx_burst_learned — no correlated subquery. Surface
+            # the value in the response for that sort.
+            if sort_col == 'learned_score' and 'learned_score' not in select_cols:
+                select_cols.append('learned_score')
 
             if total_count:
                 query = f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
