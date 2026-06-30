@@ -387,6 +387,40 @@ async def get_cached_count_async(conn, where_str, sql_params, from_clause="photo
     return count
 
 
+async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_clause="photos"):
+    """Cached blink/burst/duplicate aggregates over the no-hide set.
+
+    The gallery builds its hidden_summary from a full-table aggregate (~100ms on a
+    large library). It is identical across every page of a filter set, so cache it
+    with the same TTL/keying as the count cache instead of re-running it on every
+    infinite-scroll fetch.
+    """
+    cache_key = "hs:" + hashlib.sha256(
+        f"{from_clause}:{where_str}:{tuple(sql_params)}".encode()
+    ).hexdigest()
+    cached = _count_cache_lookup(cache_key)
+    if cached is not None:
+        return cached
+    cursor = await conn.execute(
+        "SELECT COUNT(*) AS unhidden, "
+        "SUM(CASE WHEN is_blink = 1 THEN 1 ELSE 0 END) AS blinks, "
+        "SUM(CASE WHEN is_burst_lead = 0 THEN 1 ELSE 0 END) AS bursts, "
+        "SUM(CASE WHEN is_duplicate_lead = 0 AND duplicate_group_id IS NOT NULL "
+        "THEN 1 ELSE 0 END) AS duplicates "
+        f"FROM {from_clause}{where_str}",
+        sql_params,
+    )
+    row = await cursor.fetchone()
+    await cursor.close()
+    agg = {
+        'unhidden': row['unhidden'] if row else 0,
+        'blinks': int(row['blinks'] or 0) if row else 0,
+        'bursts': int(row['bursts'] or 0) if row else 0,
+        'duplicates': int(row['duplicates'] or 0) if row else 0,
+    }
+    _count_cache_store(cache_key, agg)
+    return agg
+
 
 def paginate(total: int, page: int, per_page: int) -> tuple[int, int]:
     """Calculate pagination values.

@@ -16,7 +16,8 @@ from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_async_db, get_db
 from api.models.gallery import GalleryParams
 from api.db_helpers import (
-    get_existing_columns, get_cached_count_async, _add_tag_filter,
+    get_existing_columns, get_cached_count_async,
+    get_cached_hidden_aggregates_async, _add_tag_filter,
     get_art_tags_from_config, build_hide_clauses,
     split_photo_tags, attach_person_data_async, sanitize_float_values,
     get_visibility_clause, get_photos_from_clause, get_preference_columns,
@@ -681,24 +682,14 @@ async def api_photos(
                 where_str_no_hide = (
                     f" WHERE {' AND '.join(where_no_hide)}" if where_no_hide else ""
                 )
-                cur = await conn.execute(
-                    "SELECT "
-                    "COUNT(*) AS unhidden, "
-                    "SUM(CASE WHEN is_blink = 1 THEN 1 ELSE 0 END) AS blinks, "
-                    "SUM(CASE WHEN is_burst_lead = 0 THEN 1 ELSE 0 END) AS bursts, "
-                    "SUM(CASE WHEN is_duplicate_lead = 0 AND duplicate_group_id IS NOT NULL "
-                    "THEN 1 ELSE 0 END) AS duplicates "
-                    f"FROM {from_clause}{where_str_no_hide}",
-                    all_params_no_hide,
+                agg = await get_cached_hidden_aggregates_async(
+                    conn, where_str_no_hide, all_params_no_hide, from_clause=from_clause
                 )
-                row = await cur.fetchone()
-                await cur.close()
-                unhidden_total = row['unhidden'] if row else total_count
                 hidden_summary = {
-                    'total': max(0, unhidden_total - total_count),
-                    'blinks': int(row['blinks'] or 0) if row else 0,
-                    'bursts': int(row['bursts'] or 0) if row else 0,
-                    'duplicates': int(row['duplicates'] or 0) if row else 0,
+                    'total': max(0, agg['unhidden'] - total_count),
+                    'blinks': agg['blinks'],
+                    'bursts': agg['bursts'],
+                    'duplicates': agg['duplicates'],
                 }
             else:
                 hidden_summary = {'total': 0, 'blinks': 0, 'bursts': 0, 'duplicates': 0}
