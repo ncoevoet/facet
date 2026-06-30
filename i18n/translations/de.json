@@ -1089,7 +1089,6 @@
     },
     "keep_top": {
       "label": "Top % behalten",
-      "tooltip": "Die am niedrigsten bewerteten Fotos auswählen, um sie abzulehnen",
       "help": "Behält den oberen Anteil der aktuellen Ansicht nach der aktuellen Sortierung; der Rest wird zur Prüfung ausgewählt.",
       "preview": "Top {keep} behalten · {cut} von {total} ausgewählt",
       "apply": "Rest auswählen",

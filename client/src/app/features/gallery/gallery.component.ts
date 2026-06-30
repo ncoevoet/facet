@@ -122,7 +122,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
           <mat-icon>content_cut</mat-icon>
         </button>
         <mat-menu #keepTopMenu="matMenu" class="!max-w-none">
-          <div class="p-4 w-80" (click)="$event.stopPropagation()">
+          <div class="p-4 w-80" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
             <div class="text-xs opacity-70 mb-2">{{ I18N.gallery.keep_top.help | translate }}</div>
             <div class="flex items-center gap-2">
               <mat-slider class="flex-1 !min-w-0" [min]="5" [max]="95" [step]="5" [discrete]="true">

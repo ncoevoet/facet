@@ -1089,7 +1089,6 @@ export const I18N = {
     },
     keep_top: {
       label: "gallery.keep_top.label",
-      tooltip: "gallery.keep_top.tooltip",
       help: "gallery.keep_top.help",
       preview: "gallery.keep_top.preview",
       apply: "gallery.keep_top.apply",

@@ -1085,7 +1085,6 @@
     },
     "keep_top": {
       "label": "Conservar % superior",
-      "tooltip": "Seleccionar las fotos peor clasificadas para rechazarlas",
       "help": "Conserva la parte superior de la vista actual según el orden actual; el resto se selecciona para revisar.",
       "preview": "Conservar top {keep} · seleccionar {cut} de {total}",
       "apply": "Seleccionar el resto",

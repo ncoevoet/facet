@@ -1085,7 +1085,6 @@
     },
     "keep_top": {
       "label": "Tieni top %",
-      "tooltip": "Seleziona le foto con punteggio più basso per rifiutarle",
       "help": "Mantiene la quota superiore della vista corrente secondo l'ordinamento attuale; il resto viene selezionato per la revisione.",
       "preview": "Tieni top {keep} · seleziona {cut} di {total}",
       "apply": "Seleziona il resto",

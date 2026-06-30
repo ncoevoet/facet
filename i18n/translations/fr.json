@@ -1085,7 +1085,6 @@
     },
     "keep_top": {
       "label": "Garder le top %",
-      "tooltip": "Sélectionner les photos les moins bien classées pour les rejeter",
       "help": "Garde la part supérieure de la vue actuelle selon le tri courant ; le reste est sélectionné pour révision.",
       "preview": "Top {keep} gardé · {cut} sélectionnées sur {total}",
       "apply": "Sélectionner le reste",

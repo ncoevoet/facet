@@ -1085,7 +1085,6 @@
     },
     "keep_top": {
       "label": "Keep top %",
-      "tooltip": "Select the lowest-ranked photos so you can reject them",
       "help": "Keep the top share of the current view by the current sort; the rest get selected for review.",
       "preview": "Keep top {keep} · select {cut} of {total}",
       "apply": "Select the rest",

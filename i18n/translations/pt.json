@@ -1085,7 +1085,6 @@
     },
     "keep_top": {
       "label": "Manter top %",
-      "tooltip": "Selecionar as fotos com pior classificação para rejeitá-las",
       "help": "Mantém a parcela superior da visualização atual pela ordenação atual; o restante é selecionado para revisão.",
       "preview": "Manter top {keep} · selecionar {cut} de {total}",
       "apply": "Selecionar o restante",
