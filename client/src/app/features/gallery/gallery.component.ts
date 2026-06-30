@@ -116,13 +116,13 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
       <!-- Keep top N%: server-rank the current view by the current sort and
            select the bottom (100-N)% for review/rejection via the selection bar. -->
       @if (auth.isEdition() && store.total() > 0) {
-        <button mat-stroked-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="keepTopMenu"
-                [matTooltip]="I18N.gallery.keep_top.tooltip | translate"
+        <button mat-icon-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="keepTopMenu"
+                [matTooltip]="I18N.gallery.keep_top.label | translate"
                 [attr.aria-label]="I18N.gallery.keep_top.label | translate">
-          <mat-icon>content_cut</mat-icon> {{ I18N.gallery.keep_top.label | translate }}
+          <mat-icon>content_cut</mat-icon>
         </button>
-        <mat-menu #keepTopMenu="matMenu">
-          <div class="p-3 w-64" (click)="$event.stopPropagation()">
+        <mat-menu #keepTopMenu="matMenu" class="!max-w-none">
+          <div class="p-4 w-80" (click)="$event.stopPropagation()">
             <div class="text-xs opacity-70 mb-2">{{ I18N.gallery.keep_top.help | translate }}</div>
             <div class="flex items-center gap-2">
               <mat-slider class="flex-1 !min-w-0" [min]="5" [max]="95" [step]="5" [discrete]="true">
