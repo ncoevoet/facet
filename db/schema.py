@@ -263,6 +263,11 @@ INDEXES = [
     # Color facet filters (hue bucket + warm/cool/neutral classification)
     ('idx_dominant_hue', 'photos', 'dominant_hue'),
     ('idx_color_temp', 'photos', 'color_temp'),
+    # Narrative-moment confidence sort. Without this the "Moment Confidence" sort
+    # full-sorts 126k+ rows (~1.5s/page). Leads with is_burst_lead (the default
+    # hide-bursts filter) and includes path so the DESC order_by is a covering
+    # index hit with no temp B-tree — mirrors idx_burst_aggregate.
+    ('idx_burst_moment', 'photos', 'is_burst_lead, narrative_moment_confidence DESC, path'),
 ]
 
 # Photo tags lookup table for fast exact-match queries (replaces LIKE '%tag%')
