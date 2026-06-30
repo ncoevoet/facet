@@ -21,6 +21,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
+import { MatSliderModule } from '@angular/material/slider';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatBottomSheet, MatBottomSheetModule } from '@angular/material/bottom-sheet';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -66,6 +67,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
     MatFormFieldModule,
     MatSelectModule,
     MatInputModule,
+    MatSliderModule,
     MatDialogModule,
     MatMenuModule,
     MatTooltipModule,
@@ -110,6 +112,39 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
           <mat-icon matSuffix>search</mat-icon>
         }
       </mat-form-field>
+
+      <!-- Keep top N%: server-rank the current view by the current sort and
+           select the bottom (100-N)% for review/rejection via the selection bar. -->
+      @if (auth.isEdition() && store.total() > 0) {
+        <button mat-stroked-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="keepTopMenu"
+                [matTooltip]="I18N.gallery.keep_top.tooltip | translate"
+                [attr.aria-label]="I18N.gallery.keep_top.label | translate">
+          <mat-icon>content_cut</mat-icon> {{ I18N.gallery.keep_top.label | translate }}
+        </button>
+        <mat-menu #keepTopMenu="matMenu">
+          <div class="p-3 w-64" (click)="$event.stopPropagation()">
+            <div class="text-xs opacity-70 mb-2">{{ I18N.gallery.keep_top.help | translate }}</div>
+            <div class="flex items-center gap-2">
+              <mat-slider class="flex-1 !min-w-0" [min]="5" [max]="95" [step]="5" [discrete]="true">
+                <input matSliderThumb [value]="keepPercent()" (valueChange)="keepPercent.set($event)"
+                       [attr.aria-label]="I18N.gallery.keep_top.label | translate" />
+              </mat-slider>
+              <span class="text-sm font-medium w-9 text-right">{{ keepPercent() }}%</span>
+            </div>
+            <div class="text-xs opacity-70 my-2">
+              {{ I18N.gallery.keep_top.preview | translate:{ keep: keepPreviewKeep(), cut: keepPreviewCut(), total: store.total() } }}
+            </div>
+            <button mat-flat-button class="w-full" [disabled]="keepApplying() || keepPreviewCut() === 0" (click)="applyKeepTop()">
+              @if (keepApplying()) {
+                <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner>
+              } @else {
+                <mat-icon>checklist</mat-icon>
+              }
+              {{ I18N.gallery.keep_top.apply | translate }}
+            </button>
+          </div>
+        </mat-menu>
+      }
     </ng-template>
 
     <mat-sidenav-container class="h-full">
@@ -465,6 +500,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
   // Album options for "Add to album" menu
   protected readonly albumOptions = signal<Album[]>([]);
   protected readonly downloading = signal(false);
+
+  // "Keep top N%" cull dial: keep the top N% of the current view, select the rest.
+  protected readonly keepPercent = signal(20);
+  protected readonly keepApplying = signal(false);
+  protected readonly keepPreviewKeep = computed(() => Math.ceil(this.store.total() * this.keepPercent() / 100));
+  protected readonly keepPreviewCut = computed(() => Math.max(0, this.store.total() - this.keepPreviewKeep()));
 
   private resizeObserver: ResizeObserver | null = null;
   private readonly scrollDirective = viewChild(InfiniteScrollDirective);
@@ -829,6 +870,25 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   protected async batchRate(rating: number): Promise<void> {
     await this.executeBatchAction(p => this.store.batchRating(p, rating), 'gallery.selection.batch_rated', { rating });
+  }
+
+  /**
+   * "Keep top N%": ask the server for the bottom (100-N)% of the current view by
+   * the current sort, select them, and let the user reject via the selection bar.
+   */
+  protected async applyKeepTop(): Promise<void> {
+    if (this.keepApplying()) return;
+    this.keepApplying.set(true);
+    try {
+      const res = await this.store.selectBottomPercent(this.keepPercent());
+      if (!res) return;
+      const msg = res.truncated
+        ? this.i18n.t(I18N.gallery.keep_top.truncated, { count: res.paths.length, cut: res.cut })
+        : this.i18n.t(I18N.gallery.keep_top.selected, { count: res.cut });
+      this.snackBar.open(msg, '', { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+    } finally {
+      this.keepApplying.set(false);
+    }
   }
 
   protected downloadPhoto(photo: Photo): void {

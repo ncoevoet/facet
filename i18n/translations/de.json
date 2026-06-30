@@ -1087,6 +1087,15 @@
       "select_all": "Alle auswählen",
       "actions": "Aktionen"
     },
+    "keep_top": {
+      "label": "Top % behalten",
+      "tooltip": "Die am niedrigsten bewerteten Fotos auswählen, um sie abzulehnen",
+      "help": "Behält den oberen Anteil der aktuellen Ansicht nach der aktuellen Sortierung; der Rest wird zur Prüfung ausgewählt.",
+      "preview": "Top {keep} behalten · {cut} von {total} ausgewählt",
+      "apply": "Rest auswählen",
+      "selected": "{count} Fotos ausgewählt — unten in der Leiste ablehnen",
+      "truncated": "Erste {count} von {cut} ausgewählt — Filter eingrenzen für den Rest"
+    },
     "composition_pattern": "Komposition",
     "sidebar": {
       "display": "Anzeigeoptionen",

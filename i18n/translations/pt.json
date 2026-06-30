@@ -1083,6 +1083,15 @@
       "select_all": "Selecionar todas",
       "actions": "Ações"
     },
+    "keep_top": {
+      "label": "Manter top %",
+      "tooltip": "Selecionar as fotos com pior classificação para rejeitá-las",
+      "help": "Mantém a parcela superior da visualização atual pela ordenação atual; o restante é selecionado para revisão.",
+      "preview": "Manter top {keep} · selecionar {cut} de {total}",
+      "apply": "Selecionar o restante",
+      "selected": "{count} fotos selecionadas — rejeite na barra abaixo",
+      "truncated": "Selecionadas as primeiras {count} de {cut} — refine o filtro para o restante"
+    },
     "composition_pattern": "Composição",
     "sidebar": {
       "display": "Opções de exibição",

@@ -1087,6 +1087,15 @@ export const I18N = {
       select_all: "gallery.selection.select_all",
       actions: "gallery.selection.actions",
     },
+    keep_top: {
+      label: "gallery.keep_top.label",
+      tooltip: "gallery.keep_top.tooltip",
+      help: "gallery.keep_top.help",
+      preview: "gallery.keep_top.preview",
+      apply: "gallery.keep_top.apply",
+      selected: "gallery.keep_top.selected",
+      truncated: "gallery.keep_top.truncated",
+    },
     composition_pattern: "gallery.composition_pattern",
     sidebar: {
       display: "gallery.sidebar.display",

@@ -1083,6 +1083,15 @@
       "select_all": "Select all",
       "actions": "Actions"
     },
+    "keep_top": {
+      "label": "Keep top %",
+      "tooltip": "Select the lowest-ranked photos so you can reject them",
+      "help": "Keep the top share of the current view by the current sort; the rest get selected for review.",
+      "preview": "Keep top {keep} · select {cut} of {total}",
+      "apply": "Select the rest",
+      "selected": "{count} photos selected — reject from the bar below",
+      "truncated": "Selected the first {count} of {cut} — narrow your filter to act on the rest"
+    },
     "composition_pattern": "Composition",
     "sidebar": {
       "display": "Display Options",

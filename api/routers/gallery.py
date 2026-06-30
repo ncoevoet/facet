@@ -493,6 +493,135 @@ def api_type_counts(
     return {'types': types}
 
 
+def _prepare_gallery_params(qp: dict):
+    """Normalize, merge with defaults, validate, and apply type-filter overrides.
+
+    Shared by the gallery listing and the percentile selection endpoint so both
+    apply identical filters, sort, visibility and type scoping. Raises
+    ValidationError on bad params (callers translate to HTTP 422).
+    """
+    defaults_cfg = VIEWER_CONFIG['defaults']
+    default_per_page = VIEWER_CONFIG['pagination']['default_per_page']
+    normalized = normalize_params(qp)
+    default_type = defaults_cfg.get('type', '')
+    merged = {
+        **qp,
+        **{k: v for k, v in normalized.items() if v},
+        'sort': normalized.get('sort') or qp.get('sort', defaults_cfg['sort']),
+        'dir': qp.get('sort_direction') or qp.get('dir', defaults_cfg['sort_direction']),
+        'person': qp.get('person') or qp.get('person_id', ''),
+        'type': qp.get('type', '' if (qp.get('person') or qp.get('person_id')) else default_type),
+        'per_page': qp.get('per_page', str(default_per_page)),
+    }
+    gallery_params = GalleryParams.model_validate(merged)
+    params = gallery_params.model_dump()
+    if params.get('type') in TYPE_FILTERS:
+        for key, value in TYPE_FILTERS[params['type']].items():
+            if not params.get(key):
+                params[key] = value
+    return gallery_params, params
+
+
+def _resolve_order_by(params: dict) -> str:
+    """Build the ORDER BY clause matching the gallery's sort semantics."""
+    sort_col = params['sort'] if params['sort'] in VALID_SORT_COLS else 'aggregate'
+    sort_dir = 'ASC' if params['dir'] == 'ASC' else 'DESC'
+    if sort_col == 'learned_score':
+        return f"(learned_score IS NULL) ASC, learned_score {sort_dir}, path ASC"
+    if sort_col == 'narrative_moment_confidence':
+        return (
+            f"(narrative_moment_confidence IS NULL) ASC, "
+            f"narrative_moment_confidence {sort_dir}, path ASC"
+        )
+    return f"{sort_col} {sort_dir}, path ASC"
+
+
+# Cap on paths returned by the percentile selection so a huge unfiltered view
+# can't try to select 100k photos client-side; the UI warns when truncated.
+_SELECT_BOTTOM_MAX = 5000
+
+
+@router.get("/api/photos/select_bottom_percent")
+async def api_select_bottom_percent(
+    request: Request,
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Paths of the bottom (100 - keep_percent)% of the current gallery view.
+
+    Ranks the current filter+sort exactly like /api/photos, keeps the top
+    ``keep_percent`` of rows, and returns the remaining worst-ranked paths so the
+    client can select them for review ("Keep top N%"). Read-only; the reject step
+    is the existing edition-gated batch action. Capped at _SELECT_BOTTOM_MAX
+    (``truncated`` flags a larger cut).
+    """
+    qp = dict(request.query_params)
+    try:
+        keep_percent = float(qp.get('keep_percent', ''))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="keep_percent must be a number")
+    if not 0 < keep_percent < 100:
+        raise HTTPException(
+            status_code=422, detail="keep_percent must be between 0 and 100 (exclusive)"
+        )
+    try:
+        _, params = _prepare_gallery_params(qp)
+    except ValidationError as e:
+        logger.warning("Selection parameter validation failed: %s", e.errors())
+        raise HTTPException(status_code=422, detail="Invalid gallery parameters") from e
+
+    order_by_clause = _resolve_order_by(params)
+    try:
+        async with get_async_db() as conn:
+            user_id = user.user_id if user else None
+            _, album_params = album_filter_clause(params.get('album_id'))
+            if album_params:
+                from api.routers.albums import _check_album_access_async
+                await _check_album_access_async(conn, album_params[0], user_id)
+            from_clause, from_params = get_photos_from_clause(user_id)
+            where_clauses, sql_params = _build_gallery_where(params, conn, user_id=user_id)
+            all_params = from_params + sql_params
+            where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+            total = await get_cached_count_async(
+                conn, where_str, all_params, from_clause=from_clause
+            )
+            keep = math.ceil(total * keep_percent / 100.0)
+            cut = max(0, total - keep)
+            if cut <= 0:
+                return {"total": total, "keep": keep, "cut": 0, "truncated": False, "paths": []}
+
+            # Computed sorts are SELECT aliases, not columns — mirror the gallery.
+            select_cols = ["path"]
+            if 'top_picks_score' in order_by_clause:
+                select_cols.append(f"({get_top_picks_score_sql()}) as top_picks_score")
+            if 'learned_score' in order_by_clause:
+                select_cols.append(
+                    "(SELECT ls.learned_score FROM learned_scores ls "
+                    "WHERE ls.photo_path = photos.path AND ls.user_id IS NULL "
+                    "AND ls.category IS NULL) AS learned_score"
+                )
+            limit = min(cut, _SELECT_BOTTOM_MAX)
+            query = (
+                f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} "
+                f"ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
+            )
+            cur = await conn.execute(query, all_params + [limit, keep])
+            rows = await cur.fetchall()
+            await cur.close()
+            paths = [r['path'] for r in rows]
+    except sqlite3.Error:
+        logger.exception("Failed to compute percentile selection")
+        raise HTTPException(status_code=500, detail='Internal server error')
+
+    return {
+        "total": total,
+        "keep": keep,
+        "cut": cut,
+        "truncated": cut > _SELECT_BOTTOM_MAX,
+        "paths": paths,
+    }
+
+
 @router.get("/api/photos")
 async def api_photos(
     request: Request,
@@ -507,26 +636,11 @@ async def api_photos(
     DB paths.
     """
     qp = dict(request.query_params)
-    defaults_cfg = VIEWER_CONFIG['defaults']
-    default_per_page = VIEWER_CONFIG['pagination']['default_per_page']
 
-    # Normalize semantic params (quality→min_score, type→filter overrides)
-    normalized = normalize_params(qp)
-
-    # Merge query params with normalized values and defaults
-    default_type = defaults_cfg.get('type', '')
-    merged = {
-        **qp,
-        **{k: v for k, v in normalized.items() if v},
-        'sort': normalized.get('sort') or qp.get('sort', defaults_cfg['sort']),
-        'dir': qp.get('sort_direction') or qp.get('dir', defaults_cfg['sort_direction']),
-        'person': qp.get('person') or qp.get('person_id', ''),
-        'type': qp.get('type', '' if (qp.get('person') or qp.get('person_id')) else default_type),
-        'per_page': qp.get('per_page', str(default_per_page)),
-    }
-
+    # Normalize, merge, and validate the gallery params (shared with the
+    # percentile selection endpoint so both apply identical scoping).
     try:
-        gallery_params = GalleryParams.model_validate(merged)
+        gallery_params, params = _prepare_gallery_params(qp)
     except ValidationError as e:
         # Log the structured detail server-side; return a clean message rather
         # than leaking Pydantic internals (loc/type/ctx/url) to the client.
@@ -534,28 +648,9 @@ async def api_photos(
         raise HTTPException(status_code=422, detail="Invalid gallery parameters") from e
     page = max(1, gallery_params.page)
     per_page = gallery_params.per_page
-    params = gallery_params.model_dump()
-
-    if params.get('type') in TYPE_FILTERS:
-        for key, value in TYPE_FILTERS[params['type']].items():
-            if not params.get(key):
-                params[key] = value
 
     sort_col = params['sort'] if params['sort'] in VALID_SORT_COLS else 'aggregate'
-    sort_dir = 'ASC' if params['dir'] == 'ASC' else 'DESC'
-    if sort_col == 'learned_score':
-        # Personal-ranker sort: untrained photos (NULL learned_score) always sink,
-        # regardless of direction, so the gallery degrades gracefully to a stable
-        # path order on an untrained DB.
-        order_by_clause = f"(learned_score IS NULL) ASC, learned_score {sort_dir}, path ASC"
-    elif sort_col == 'narrative_moment_confidence':
-        # Unlabelled photos (NULL confidence) always sink so the gallery stays
-        # stable on a library that has not been through --detect-moments.
-        order_by_clause = (
-            f"(narrative_moment_confidence IS NULL) ASC, narrative_moment_confidence {sort_dir}, path ASC"
-        )
-    else:
-        order_by_clause = f"{sort_col} {sort_dir}, path ASC"
+    order_by_clause = _resolve_order_by(params)
 
     try:
         async with get_async_db() as conn:

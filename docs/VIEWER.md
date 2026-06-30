@@ -205,6 +205,10 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 
 Bulk actions require edition mode. Double-click any photo to download it directly.
 
+### Keep Top N%
+
+A **Keep top %** control in the gallery toolbar (edition mode) turns the whole filtered view into a one-step cull. Set a percentage; the server ranks the current view by the **current sort** (aggregate, My Taste, Top Picks, sharpness, …), keeps that top share, and **selects the rest** — the lowest-ranked photos — so you can reject them from the selection action bar (or deselect any you want to spare first). Nothing is moved or deleted: it only populates the selection (and every reject still trains "My Taste"). The selection is capped at 5000 photos; on a very large view the control says so — narrow the filter (album, date, person…) to act on the remainder.
+
 ### Display Options
 
 - **Layout Mode** - Switch between **Grid** (uniform cards) and **Mosaic** (justified rows preserving aspect ratios). Mosaic is desktop-only; mobile always uses grid.

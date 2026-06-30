@@ -730,6 +730,31 @@ export class GalleryStore {
   }
 
   /**
+   * Select the bottom (100 - keepPercent)% of the CURRENT filtered view, ranked
+   * by the current sort on the server, so the user can review/reject them
+   * ("Keep top N%"). Replaces the current selection with the returned paths.
+   * Read-only — mutates no photo here; the reject is the existing batch action.
+   * Returns the server summary (counts + truncated flag), or null on failure.
+   */
+  async selectBottomPercent(
+    keepPercent: number,
+  ): Promise<{ total: number; keep: number; cut: number; truncated: boolean; paths: string[] } | null> {
+    const params = buildApiParams(this.filters(), this.currentAlbum()?.is_smart ?? false);
+    try {
+      const res = await firstValueFrom(
+        this.api.get<{ total: number; keep: number; cut: number; truncated: boolean; paths: string[] }>(
+          '/photos/select_bottom_percent', { ...params, keep_percent: keepPercent },
+        ),
+      );
+      this.selectedPaths.set(new Set(res.paths));
+      return res;
+    } catch {
+      this.notifyActionFailed();
+      return null;
+    }
+  }
+
+  /**
    * Batch set rating for multiple photos. Optimistic with revert on error.
    * Returns the pre-mutation snapshot for undo, or null on failure.
    */
