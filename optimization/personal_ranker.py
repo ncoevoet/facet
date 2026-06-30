@@ -348,7 +348,7 @@ def _write_learned_scores(db_path, w, col_std, emb_dim, optimizer, category, use
         )
         if category is None and user_id is None:
             # Mirror the global ranker score into photos.learned_score so the
-            # gallery "My Taste" sort reads an indexed column (idx_burst_learned)
+            # gallery "My Taste" sort reads an indexed column (idx_learned_score)
             # instead of a per-row correlated subquery into learned_scores. Write
             # straight from the in-memory scores: clear the previously-set rows,
             # then set the freshly scored ones by primary key.

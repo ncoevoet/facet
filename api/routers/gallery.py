@@ -601,11 +601,15 @@ async def api_select_bottom_percent(
             if 'top_picks_score' in order_by_clause:
                 select_cols.append(f"({get_top_picks_score_sql()}) as top_picks_score")
             limit = min(cut, _SELECT_BOTTOM_MAX)
+            # Offset to the bottom of the ranking so a capped selection returns the
+            # WORST `limit` photos, not the best of the cut. When not truncated
+            # (limit == cut) this equals `keep`, so the whole cut is returned.
+            offset = total - limit
             query = (
                 f"SELECT {', '.join(select_cols)} FROM {from_clause}{where_str} "
                 f"ORDER BY {order_by_clause} LIMIT ? OFFSET ?"
             )
-            cur = await conn.execute(query, all_params + [limit, keep])
+            cur = await conn.execute(query, all_params + [limit, offset])
             rows = await cur.fetchall()
             await cur.close()
             paths = [r['path'] for r in rows]
@@ -707,7 +711,7 @@ async def api_photos(
 
             # learned_score is a denormalized, indexed photos column (synced by
             # train_ranker for the global ranker), so the "My Taste" sort orders by
-            # the real column via idx_burst_learned — no correlated subquery. Surface
+            # the real column via idx_learned_score — no correlated subquery. Surface
             # the value in the response for that sort.
             if sort_col == 'learned_score' and 'learned_score' not in select_cols:
                 select_cols.append('learned_score')

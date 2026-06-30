@@ -409,3 +409,17 @@ class TestSelectBottomPercent:
         data = self._get(db_path, "keep_percent=99").json()
         assert data["cut"] == 0
         assert data["paths"] == []
+
+    def test_truncated_selects_worst_tail(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [
+            _photo(f"/p{i}.jpg", "2024:01:01 10:00:00", aggregate=float(i))
+            for i in range(10)
+        ])
+        # keep 10% -> keep 1 (p9), cut 9; cap at 3 selects the WORST 3, not the
+        # best of the cut. p0/p1/p2 (lowest aggregate) must be the selection.
+        with mock.patch("api.routers.gallery._SELECT_BOTTOM_MAX", 3):
+            data = self._get(db_path, "keep_percent=10&sort=aggregate&sort_direction=DESC").json()
+        assert (data["total"], data["keep"], data["cut"]) == (10, 1, 9)
+        assert data["truncated"] is True
+        assert set(data["paths"]) == {"/p0.jpg", "/p1.jpg", "/p2.jpg"}
