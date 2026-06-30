@@ -265,14 +265,17 @@ INDEXES = [
     ('idx_dominant_hue', 'photos', 'dominant_hue'),
     ('idx_color_temp', 'photos', 'color_temp'),
     # Narrative-moment confidence sort. Without this the "Moment Confidence" sort
-    # full-sorts 126k+ rows (~1.5s/page). Leads with is_burst_lead (the default
-    # hide-bursts filter) and includes path so the DESC order_by is a covering
-    # index hit with no temp B-tree — mirrors idx_burst_aggregate.
-    ('idx_burst_moment', 'photos', 'is_burst_lead, narrative_moment_confidence DESC, path'),
+    # full-sorts 126k+ rows (~1.5s/page). Standalone (not a (is_burst_lead, …)
+    # composite) so the planner scans it in sort order and residual-filters the
+    # hide predicates: hide-bursts is "(is_burst_lead = 1 OR is_burst_lead IS
+    # NULL)", whose OR triggers a MULTI-INDEX OR that defeats a composite's
+    # equality seek. Includes path so the DESC order_by needs no temp B-tree.
+    ('idx_moment_confidence', 'photos', 'narrative_moment_confidence DESC, path'),
     # "My Taste" (personal ranker) sort. The global learned_score is denormalized
-    # into photos.learned_score so this sort is a covering-index hit instead of a
-    # per-row correlated subquery into learned_scores (~0.4s/page) + temp B-tree.
-    ('idx_burst_learned', 'photos', 'is_burst_lead, learned_score DESC, path'),
+    # into photos.learned_score so this sort reads an index instead of a per-row
+    # correlated subquery into learned_scores (~0.5s/page). Standalone (X DESC,
+    # path) for the same MULTI-INDEX-OR reason as idx_moment_confidence above.
+    ('idx_learned_score', 'photos', 'learned_score DESC, path'),
 ]
 
 # Photo tags lookup table for fast exact-match queries (replaces LIKE '%tag%')
@@ -771,11 +774,33 @@ def init_database(db_path='photo_scores_pro.db'):
         _migrate_add_missing_columns(conn, 'comparisons', COMPARISONS_COLUMNS)
         _migrate_add_missing_columns(conn, 'learned_scores', LEARNED_SCORES_COLUMNS)
 
+        # Drop indexes that were superseded by a different shape, so DBs that
+        # received the earlier version don't keep a now-unused index. The moment /
+        # learned_score sorts were first shipped as (is_burst_lead, X) composites,
+        # but the hide-bursts "OR IS NULL" filter defeats that shape (MULTI-INDEX
+        # OR), so they are now standalone (X DESC, path) — see INDEXES above.
+        for stale_idx in ('idx_burst_moment', 'idx_burst_learned'):
+            conn.execute(f'DROP INDEX IF EXISTS {stale_idx}')
+
         # Create all indexes
         for idx_name, table, column_expr in INDEXES:
             conn.execute(
                 f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
             )
+
+        # A freshly created index has no row in sqlite_stat1, and with stale
+        # partial stats the query planner ignores it (the moment / learned_score
+        # sorts kept temp-sorting 126k rows until ANALYZE ran). Analyze the photos
+        # table once when a recent sort index is missing from the stats so upgraded
+        # DBs pick up the new indexes without a manual `database.py --analyze`.
+        try:
+            analyzed = {r[0] for r in conn.execute(
+                "SELECT idx FROM sqlite_stat1 WHERE idx IS NOT NULL"
+            )}
+        except sqlite3.OperationalError:
+            analyzed = set()  # sqlite_stat1 not created yet (never analyzed)
+        if 'idx_moment_confidence' not in analyzed:
+            conn.execute("ANALYZE photos")
 
         # Create photo_tags indexes
         for idx_name, table, column_expr in PHOTO_TAGS_INDEXES:
