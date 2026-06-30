@@ -44,6 +44,29 @@ def _ensure_imports():
         PIL_Image = _Image
 
 
+# Single source of truth for VLM tagging routing: profile ``tagging_model`` string
+# -> (model-manager tagger key, profile-activation min VRAM in GB). Every routing
+# site (_select_models, _run_model_pass, run_single_pass, facet recompute-tags)
+# reads this map so adding a tagger is one entry, not ~6 duplicated string->key
+# branches that silently fall through to CLIP when one is missed (commit 3cf0604).
+# RAM++ is not here: it is a non-VLM tagger handled separately in facet.py.
+TAGGING_MODELS = {
+    'qwen2.5-vl-7b': ('vlm_tagger', 16),
+    'qwen3-vl-2b': ('qwen3_vl_tagger', 4),
+    'qwen3.5-2b': ('qwen3_5_tagger', 4),
+    'qwen3.5-4b': ('qwen3_5_4b_tagger', 8),
+}
+
+# Tagger keys dispatched to _pass_vlm_tagger (the values of TAGGING_MODELS).
+VLM_TAGGER_KEYS = tuple(key for key, _ in TAGGING_MODELS.values())
+
+
+def tagging_model_to_key(tagging_model, default=None):
+    """Map a profile ``tagging_model`` string to its tagger key, or ``default``."""
+    entry = TAGGING_MODELS.get(tagging_model)
+    return entry[0] if entry else default
+
+
 class ChunkedMultiPassProcessor:
     """
     Orchestrates sequential model passes with image caching.
@@ -263,14 +286,9 @@ class ChunkedMultiPassProcessor:
         # Tagging model (from profile)
         profile = self.model_manager.get_active_profile()
         tagging_model = profile.get('tagging_model', 'clip')
-        if tagging_model == 'qwen2.5-vl-7b' and self.available_vram >= 16:
-            models.append('vlm_tagger')
-        elif tagging_model == 'qwen3-vl-2b' and self.available_vram >= 4:
-            models.append('qwen3_vl_tagger')
-        elif tagging_model == 'qwen3.5-2b' and self.available_vram >= 4:
-            models.append('qwen3_5_tagger')
-        elif tagging_model == 'qwen3.5-4b' and self.available_vram >= 8:
-            models.append('qwen3_5_4b_tagger')
+        tagging_entry = TAGGING_MODELS.get(tagging_model)
+        if tagging_entry and self.available_vram >= tagging_entry[1]:
+            models.append(tagging_entry[0])
         # else: CLIP tagging uses clip embeddings, no extra model needed
 
         # Composition model (SAMP-Net if configured)
@@ -590,7 +608,7 @@ class ChunkedMultiPassProcessor:
             self._pass_samp_net(model, images, results)
         elif model_name == 'insightface':
             self._pass_insightface(model, images, results)
-        elif model_name in ('vlm_tagger', 'qwen3_vl_tagger', 'qwen3_5_tagger', 'qwen3_5_4b_tagger'):
+        elif model_name in VLM_TAGGER_KEYS:
             self._pass_vlm_tagger(model, images, results)
         elif model_name == 'saliency':
             self._pass_saliency(model, images, results)
@@ -1127,16 +1145,7 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
     # For tags, determine model from profile
     if pass_name == 'tags':
         tag_model = scorer.config.get_model_for_task('tagging')
-        if tag_model == 'qwen2.5-vl-7b':
-            model_name = 'vlm_tagger'
-        elif tag_model == 'qwen3-vl-2b':
-            model_name = 'qwen3_vl_tagger'
-        elif tag_model == 'qwen3.5-2b':
-            model_name = 'qwen3_5_tagger'
-        elif tag_model == 'qwen3.5-4b':
-            model_name = 'qwen3_5_4b_tagger'
-        else:
-            model_name = 'clip'
+        model_name = tagging_model_to_key(tag_model, 'clip')
 
     if not model_name:
         logger.error("Unknown pass: %s", pass_name)
