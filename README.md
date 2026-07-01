@@ -14,6 +14,19 @@ Facet is a local photo-analysis and culling engine. It scores each image across 
   <img src="docs/screenshots/hero-mosaic.jpg" alt="Facet — Top Picks mosaic gallery" width="100%">
 </p>
 
+<!--
+  Demo walkthrough (60–90s): record the viewer at 1280×720 — scan → browse → cull → search —
+  then encode to docs/screenshots/walkthrough.gif and it will replace the still above:
+    ffmpeg -i walkthrough.mp4 -vf "fps=12,scale=960:-1:flags=lanczos" -c:v gif docs/screenshots/walkthrough.gif
+  (higher quality: gifski --fps 12 --width 960 -o docs/screenshots/walkthrough.gif frames/*.png)
+  Once the file exists, uncomment the block below.
+-->
+<!--
+<p align="center">
+  <img src="docs/screenshots/walkthrough.gif" alt="Facet in action — scan, browse, cull, search" width="100%">
+</p>
+-->
+
 ## How It Works
 
 1. **Scan** — Point Facet at a folder of photos. Each image is analyzed for quality, composition, and faces. Supports JPG, HEIF/HEIC, and 10 RAW formats (CR2, CR3, NEF, ARW, RAF, RW2, DNG, ORF, SRW, PEF).

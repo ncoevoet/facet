@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Facet — local AI photo scoring, culling & gallery</title>
+  <meta name="description" content="Facet is a local, self-hosted photo engine: it scores every image across 9 dimensions, culls bursts, blinks and near-duplicates, and serves a web gallery with face recognition and semantic search. No cloud, no accounts, no subscriptions.">
+  <link rel="canonical" href="https://ncoevoet.github.io/facet/">
+  <link rel="icon" type="image/png" href="logo-512.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Facet — local AI photo scoring, culling & gallery">
+  <meta property="og:description" content="Score, cull and organize your photo library entirely on your own machine. AI gallery + culling workflow. No cloud, no subscriptions.">
+  <meta property="og:url" content="https://ncoevoet.github.io/facet/">
+  <meta property="og:image" content="https://ncoevoet.github.io/facet/social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Facet — local AI photo scoring, culling & gallery">
+  <meta name="twitter:description" content="Score, cull and organize your photo library entirely on your own machine. No cloud, no subscriptions.">
+  <meta name="twitter:image" content="https://ncoevoet.github.io/facet/social-preview.png">
+
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #14171c;
+      --panel-2: #1b1f26;
+      --text: #e7ebf0;
+      --muted: #9aa4b2;
+      --accent: #4f9dff;
+      --accent-2: #7c5cff;
+      --border: #262b33;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+    img { max-width: 100%; display: block; }
+
+    header.nav {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(11,13,16,0.82);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--text); }
+    .brand img { width: 28px; height: 28px; border-radius: 7px; }
+    .nav-links { display: flex; align-items: center; gap: 22px; }
+    .nav-links a { color: var(--muted); font-size: 15px; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .btn {
+      display: inline-block; padding: 10px 18px; border-radius: 10px;
+      font-weight: 600; font-size: 15px; border: 1px solid transparent; cursor: pointer;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+    .btn-primary:hover { text-decoration: none; opacity: 0.92; }
+    .btn-ghost { border-color: var(--border); color: var(--text); background: var(--panel); }
+    .btn-ghost:hover { text-decoration: none; border-color: var(--accent); }
+
+    .hero { padding: 72px 0 40px; text-align: center; }
+    .hero h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.1; margin: 0 0 18px; letter-spacing: -0.02em; }
+    .hero h1 .grad { background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero p.lead { font-size: clamp(17px, 2.4vw, 21px); color: var(--muted); max-width: 720px; margin: 0 auto 28px; }
+    .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 26px; }
+    .badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 34px; }
+    .badges img { display: inline-block; height: 20px; }
+    .hero-shot { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+
+    section { padding: 56px 0; }
+    section h2 { font-size: clamp(26px, 4vw, 34px); margin: 0 0 10px; letter-spacing: -0.01em; text-align: center; }
+    section .sub { color: var(--muted); text-align: center; max-width: 640px; margin: 0 auto 40px; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 26px;
+    }
+    .card h3 { margin: 0 0 8px; font-size: 21px; }
+    .card p { color: var(--muted); margin: 0 0 14px; }
+    .card ul { margin: 0; padding-left: 18px; color: var(--muted); }
+    .card ul li { margin-bottom: 6px; }
+    .tag { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+
+    .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .shots figure { margin: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
+    .shots figcaption { font-size: 13px; color: var(--muted); padding: 10px 14px; border-top: 1px solid var(--border); }
+
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .feature { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .feature h4 { margin: 0 0 6px; font-size: 16px; }
+    .feature p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .install { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 30px; }
+    .install h2 { text-align: left; margin-bottom: 6px; }
+    pre {
+      background: #0a0c0f; border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 18px; overflow-x: auto; margin: 14px 0 0;
+      font-family: "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+      font-size: 14px; color: #d7e2ee;
+    }
+    pre .c { color: #6b7684; }
+
+    footer { border-top: 1px solid var(--border); padding: 40px 0 60px; color: var(--muted); text-align: center; }
+    footer a { color: var(--muted); }
+    footer .foot-links { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+
+    @media (max-width: 720px) {
+      .two-col, .shots, .features { grid-template-columns: 1fr; }
+      .nav-links a:not(.btn) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top"><img src="logo-512.png" alt="Facet logo">Facet</a>
+      <nav class="nav-links">
+        <a href="#gallery">Gallery</a>
+        <a href="#culling">Culling</a>
+        <a href="#install">Install</a>
+        <a class="btn btn-ghost" href="https://github.com/ncoevoet/facet">GitHub ★</a>
+      </nav>
+    </div>
+  </header>
+
+  <a id="top"></a>
+  <div class="hero wrap">
+    <h1>Your best photos, found <span class="grad">on your own machine</span></h1>
+    <p class="lead">Facet scores every image across 9 dimensions, culls bursts, blinks and near-duplicates, and serves a fast web gallery with face recognition and semantic search. No cloud, no accounts, no subscriptions.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/ncoevoet/facet">Get it on GitHub</a>
+      <a class="btn btn-ghost" href="#install">Quick start</a>
+    </div>
+    <div class="badges">
+      <a href="https://github.com/ncoevoet/facet/stargazers"><img src="https://img.shields.io/github/stars/ncoevoet/facet?style=flat&color=4f9dff" alt="GitHub stars"></a>
+      <img src="https://img.shields.io/badge/license-MIT-2ecc71" alt="MIT License">
+      <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Docker-9aa4b2" alt="Platforms">
+    </div>
+    <div class="hero-shot">
+      <img src="screenshots/hero-mosaic.jpg" alt="Facet Top Picks mosaic gallery">
+    </div>
+  </div>
+
+  <section id="gallery" class="wrap">
+    <h2>Two tools in one</h2>
+    <p class="sub">A private AI gallery to browse and explore your whole library — and a culling workflow to keep only the shots that shine.</p>
+    <div class="two-col">
+      <div class="card">
+        <span class="tag">Self-hosted gallery</span>
+        <h3>Browse &amp; explore</h3>
+        <p>Everything Immich and PhotoPrism give you for organizing — plus quality scoring and ranking they don't.</p>
+        <ul>
+          <li>Semantic search — "sunset on the beach" finds the photo</li>
+          <li>Face recognition, persons, and merge suggestions</li>
+          <li>Timeline, map, folders, albums &amp; themed capsules</li>
+          <li>Virtualized gallery stays fast at 100k+ photos</li>
+        </ul>
+      </div>
+      <div id="culling" class="card">
+        <span class="tag">Culling workflow</span>
+        <h3>Score &amp; cull</h3>
+        <p>A free, local alternative to Aftershoot, Narrative and FilterPixel — with tunable scoring that learns your taste.</p>
+        <ul>
+          <li>9-dimension scoring, 30+ content categories</li>
+          <li>Burst, similarity &amp; scene grouping with best-of-group</li>
+          <li>Per-face blink &amp; expression badges</li>
+          <li>A/B comparison trains a personal "My Taste" ranker</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="shots">
+      <figure>
+        <img src="screenshots/semantic-search.jpg" alt="Semantic search results">
+        <figcaption>Semantic search — natural-language queries over your library</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/burst-culling.jpg" alt="Burst culling view">
+        <figcaption>Burst culling — best-of-group auto-selection with blink detection</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/persons-manage.jpg" alt="Manage persons page">
+        <figcaption>Face recognition — group, rename and merge person clusters</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/stats-categories.jpg" alt="Category analytics dashboard">
+        <figcaption>Statistics — equipment, categories, timeline &amp; correlations</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2>What's inside</h2>
+    <p class="sub">An ensemble of vision models, running locally — GPU optional.</p>
+    <div class="features">
+      <div class="feature"><h4>Aesthetic scoring</h4><p>TOPIQ (0.93 SRCC), IAA merit &amp; LIQE distortion diagnosis.</p></div>
+      <div class="feature"><h4>Embeddings &amp; search</h4><p>SigLIP 2 / CLIP embeddings power semantic and similarity search.</p></div>
+      <div class="feature"><h4>Composition</h4><p>SAMP-Net detects 14 patterns — rule of thirds, golden ratio, more.</p></div>
+      <div class="feature"><h4>Faces</h4><p>InsightFace detection, 106-point landmarks, blink &amp; recognition.</p></div>
+      <div class="feature"><h4>Runs anywhere</h4><p>CPU-only works; a GPU (16&nbsp;GB / 24&nbsp;GB) unlocks the strongest models.</p></div>
+      <div class="feature"><h4>Interops cleanly</h4><p>Reads/writes XMP sidecars for Lightroom, darktable, digiKam &amp; Immich.</p></div>
+    </div>
+  </section>
+
+  <section id="install" class="wrap">
+    <div class="install">
+      <h2>Quick start</h2>
+      <p style="color:var(--muted);margin:0;">Runs in CPU mode — no GPU needed to browse and serve an existing library.</p>
+      <pre><span class="c"># Docker (recommended)</span>
+docker compose up
+<span class="c"># then open http://localhost:5000</span>
+
+<span class="c"># or manual install</span>
+git clone https://github.com/ncoevoet/facet.git &amp;&amp; cd facet
+bash install.sh          <span class="c"># auto-detects GPU, creates venv, installs everything</span>
+python facet.py /photos  <span class="c"># score photos</span>
+python viewer.py         <span class="c"># start the web viewer</span></pre>
+      <div class="cta-row" style="justify-content:flex-start;margin-top:20px;">
+        <a class="btn btn-primary" href="https://github.com/ncoevoet/facet">View on GitHub</a>
+        <a class="btn btn-ghost" href="https://github.com/ncoevoet/facet/blob/master/docs/INSTALLATION.md">Installation docs</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div class="foot-links">
+        <a href="https://github.com/ncoevoet/facet">GitHub</a>
+        <a href="https://github.com/ncoevoet/facet/blob/master/docs/COMMANDS.md">Commands</a>
+        <a href="https://github.com/ncoevoet/facet/blob/master/docs/CONFIGURATION.md">Configuration</a>
+        <a href="https://github.com/ncoevoet/facet/blob/master/docs/FACE_RECOGNITION.md">Face recognition</a>
+        <a href="https://github.com/ncoevoet/facet/discussions">Discussions</a>
+      </div>
+      <div>Facet — local photo scoring, culling &amp; gallery. MIT licensed. No cloud, no subscriptions.</div>
+    </div>
+  </footer>
+</body>
+</html>
