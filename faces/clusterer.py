@@ -42,9 +42,15 @@ def _check_cuml_available():
     """
     try:
         from cuml.cluster import HDBSCAN as cumlHDBSCAN  # noqa: F401
-        import cupy as cp  # noqa: F401
+        import cupy as cp
+        # cuML/cupy can import on a host with no usable GPU — e.g. the CPU-only
+        # "legacy" profile running the same (GPU-capable) image. Require an actual
+        # CUDA device so clustering falls back to CPU HDBSCAN instead of crashing
+        # at the first GPU op (the GPU path has no other guard).
+        if cp.cuda.runtime.getDeviceCount() < 1:
+            return False
         return True
-    except ImportError:
+    except Exception:
         return False
 
 
@@ -203,22 +209,27 @@ class FaceClusterer:
         if self.cluster_selection_epsilon:
             euclidean_epsilon = float(np.sqrt(2 * self.cluster_selection_epsilon))
 
+        labels = None
         if self._should_use_gpu():
-            # Use cuML GPU clustering
-            from cuml.cluster import HDBSCAN as cumlHDBSCAN
-            import cupy as cp
+            # Use cuML GPU clustering, falling back to CPU on any GPU failure so a
+            # transient CUDA/cuML problem degrades gracefully instead of aborting.
+            try:
+                from cuml.cluster import HDBSCAN as cumlHDBSCAN
+                import cupy as cp
 
-            logger.info("Step 3/4: Computing clusters on GPU (cuML HDBSCAN, min_cluster_size=%s, min_samples=%s)...", self.min_faces, self.min_samples)
-            embeddings_gpu = cp.asarray(embeddings_normalized)
-            clusterer = cumlHDBSCAN(
-                min_cluster_size=self.min_faces,
-                min_samples=self.min_samples,
-                metric='euclidean',
-                cluster_selection_epsilon=euclidean_epsilon,
-            )
-            labels = clusterer.fit_predict(embeddings_gpu)
-            labels = cp.asnumpy(labels)  # Back to numpy
-        else:
+                logger.info("Step 3/4: Computing clusters on GPU (cuML HDBSCAN, min_cluster_size=%s, min_samples=%s)...", self.min_faces, self.min_samples)
+                embeddings_gpu = cp.asarray(embeddings_normalized)
+                clusterer = cumlHDBSCAN(
+                    min_cluster_size=self.min_faces,
+                    min_samples=self.min_samples,
+                    metric='euclidean',
+                    cluster_selection_epsilon=euclidean_epsilon,
+                )
+                labels = cp.asnumpy(clusterer.fit_predict(embeddings_gpu))  # Back to numpy
+            except Exception as e:
+                logger.warning("GPU clustering failed (%s); falling back to CPU HDBSCAN", e)
+                labels = None
+        if labels is None:
             # Use CPU clustering (standalone hdbscan library)
             logger.info("Step 3/4: Computing clusters on CPU (algorithm=%s, leaf_size=%s, min_cluster_size=%s, min_samples=%s)...", self.algorithm, self.leaf_size, self.min_faces, self.min_samples)
             # Run HDBSCAN with cluster_selection_epsilon (works in standalone hdbscan library)
@@ -688,6 +699,14 @@ def run_face_clustering(db_path, config, force=False, preserve_named_only=False)
     if not cluster_settings.get('enabled', True):
         return False
 
+    # The legacy profile is CPU-only by design; never use GPU clustering for it,
+    # even on a machine that has a GPU (legacy deliberately avoids GPU models).
+    use_gpu = cluster_settings.get('use_gpu', 'auto')
+    profile = config.get_model_config().get('vram_profile', 'legacy')
+    if profile == 'legacy' and use_gpu != 'never':
+        logger.info("legacy profile: forcing CPU face clustering (use_gpu=never)")
+        use_gpu = 'never'
+
     auto_merge = cluster_settings.get('auto_merge_distance_percent', 0) / 100
     face_processing = config.get_face_processing_settings()
 
@@ -698,7 +717,7 @@ def run_face_clustering(db_path, config, force=False, preserve_named_only=False)
         auto_merge_distance=auto_merge,
         algorithm=cluster_settings.get('clustering_algorithm', 'boruvka_balltree'),
         leaf_size=cluster_settings.get('leaf_size', 40),
-        use_gpu=cluster_settings.get('use_gpu', 'auto'),
+        use_gpu=use_gpu,
         merge_threshold=cluster_settings.get('merge_threshold', 0.6),
         use_db_thumbnails=face_processing.get('use_db_thumbnails', True),
         chunk_size=cluster_settings.get('chunk_size', 10000),

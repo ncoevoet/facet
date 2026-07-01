@@ -20,14 +20,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/*
 
-# Python dependencies (torch/torchvision already in base image)
+# Python dependencies — pinned lock for a reproducible, self-contained image.
+# requirements.lock.txt is a full pip freeze from a validated container (every
+# version tested working end-to-end) with torch/torchvision + nvidia-*/triton
+# stripped, since the CUDA base image already provides them. This makes the image
+# "sticky": it does not float to newer, untested releases (e.g. transformers 5.3+
+# broke the Qwen3.5 batched tagger). Regenerate the lock from a good build with:
+#   docker compose ... exec facet pip freeze | grep -ivE '^(torch|torchvision|nvidia-|triton)' > requirements.lock.txt
 # The optional extended-IQA tier (scoring_config.json "iqa_extended") is OFF by
-# default and intentionally NOT installed here to keep the image lean. To use it,
-# add `pip install --no-cache-dir aesthetic-predictor-v2-5 bitsandbytes` below
-# (see docs/CONFIGURATION.md "Extended IQA tier").
-COPY requirements.txt .
-RUN sed -i '/^torch>=/d; /^torchvision>=/d' requirements.txt \
-    && pip install --no-cache-dir -r requirements.txt
+# default and intentionally NOT installed here (see docs/CONFIGURATION.md).
+COPY requirements.lock.txt .
+RUN pip install --no-cache-dir -r requirements.lock.txt
+
+# GPU face clustering (RAPIDS cuML). Baked in so the GPU profiles (8gb/16gb/24gb)
+# use cuML HDBSCAN via face_clustering.use_gpu="auto"; the legacy profile forces
+# CPU clustering (faces/clusterer.py) and the clusterer also falls back to CPU
+# when no CUDA device is present. RAPIDS wheels come from the NVIDIA index. This
+# is by far the largest single add to the image (~5.75 GB); pinned for reproducibility.
+# Installed unconstrained: cuML pins numba<0.65 (the lock has 0.65.1 via pyiqa) and
+# pulls newer nvidia-cuda-* 12.9 wheels. Validated that torch + pyiqa still work after.
+RUN pip install --no-cache-dir --extra-index-url https://pypi.nvidia.com cuml-cu12==26.6.0
 
 # Copy built Angular client
 COPY --from=client-build /app/client/dist/client/browser client/dist/client/browser
@@ -49,13 +61,20 @@ COPY plugins/ plugins/
 COPY storage/ storage/
 COPY validation/ validation/
 COPY facet.py database.py viewer.py tag_existing.py validate_db.py calibrate.py diagnostics.py ./
-# scoring_config.json is NOT baked in — mount it via docker-compose volume
+# Ship a sanitized default config so the image runs preconfigured with zero host
+# setup (empty secrets, darktable-cli on PATH, vram_profile=auto, all profiles at
+# full feature set). Baked as the active scoring_config.json AND kept alongside so
+# users can `cp scoring_config.default.json scoring_config.json` to customize and
+# mount it back (docker-compose.yml has the optional mount commented in).
+COPY scoring_config.default.json /app/scoring_config.default.json
+COPY scoring_config.default.json /app/scoring_config.json
 COPY pyproject.toml ./
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN useradd --create-home --shell /bin/bash facet \
     && mkdir -p /app/data \
     && chown -R facet:facet /app \
+    && sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
     && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Pin HOME so the HuggingFace / InsightFace caches are deterministic. They pick

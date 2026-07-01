@@ -1,0 +1,15 @@
+# "8gb" profile override (GPU, 6-14 GB VRAM: CLIP ViT-L-14 + CLIP-MLP aesthetic +
+# CLIP tagging + TOPIQ/LIQE + SAMP-Net + InsightFace + saliency).
+# Requires the NVIDIA Container Toolkit. Compose with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.8gb.yml up -d
+services:
+  facet:
+    environment:
+      - FACET_VRAM_PROFILE=8gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

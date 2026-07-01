@@ -1,0 +1,7 @@
+# "legacy" profile override (CPU-only: CLIP ViT-L-14 + CLIP-MLP aesthetic + CLIP tagging).
+# No GPU is requested. Compose with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.legacy.yml up -d
+services:
+  facet:
+    environment:
+      - FACET_VRAM_PROFILE=legacy
