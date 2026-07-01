@@ -1592,6 +1592,7 @@
     "weaknesses": "Pontos fracos",
     "suggestions": "Sugestões",
     "penalties": "Penalidades",
+    "distortions": "Distorções detectadas",
     "vlm_title": "Crítica por AI",
     "vlm_loading": "Gerando crítica por AI...",
     "vlm_refresh": "Regenerar",
@@ -1650,6 +1651,30 @@
       "form_fractal": "Inclua mais detalhe ou textura — o quadro parece visualmente pobre",
       "color_harmony": "Ajuste a paleta para um esquema harmônico, como cores complementares ou análogas"
     },
+    "distortion": {
+      "motion_blur": "Desfoque de movimento",
+      "defocus_blur": "Desfoque",
+      "white_noise": "Ruído / grão",
+      "impulse_noise": "Ruído sal e pimenta",
+      "jpeg_artifacts": "Artefatos de compressão",
+      "oversharpening": "Halos de nitidez excessiva",
+      "low_contrast": "Contraste baixo",
+      "overexposure": "Superexposição",
+      "underexposure": "Subexposição",
+      "color_cast": "Dominante de cor",
+      "oversaturation": "Saturação excessiva",
+      "desaturation": "Cores desbotadas",
+      "banding": "Banding",
+      "pixelation": "Pixelização",
+      "haze": "Névoa",
+      "chromatic_aberration": "Aberração cromática"
+    },
+    "skin_cast": {
+      "green": "verde",
+      "magenta": "magenta",
+      "blue": "azul",
+      "yellow": "amarela"
+    },
     "reason": {
       "default": "Categoria padrão (nenhuma categoria específica correspondeu)",
       "classified_as": "Classificada como {category}",
@@ -1694,7 +1719,8 @@
       "blink": "Piscada detectada",
       "noise": "Ruído: {value}",
       "highlight_clipping": "Estouro de altas-luzes: {value}",
-      "shadow_clipping": "Corte de sombras: {value}"
+      "shadow_clipping": "Corte de sombras: {value}",
+      "skin_tone": "Tom de pele: dominante {cast} (ΔE {delta})"
     }
   },
   "culling": {

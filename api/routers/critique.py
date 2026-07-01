@@ -5,6 +5,7 @@ Provides per-photo analysis: score breakdown, strengths, weaknesses, suggestions
 """
 
 import asyncio
+import json
 import logging
 from typing import Optional
 
@@ -288,9 +289,11 @@ def _identify_strengths_weaknesses(breakdown):
 
 
 def _check_penalties(photo):
-    """Check for scoring penalties (blink, noise, clipping).
+    """Check for scoring penalties (blink, noise, clipping, skin-tone cast).
 
-    Returns a dict of penalty names to values.
+    Returns a dict of penalty names to values. The skin-tone entry is advisory
+    (it never enters the aggregate) and only appears when the stored worst-face
+    delta exceeds the configured cast threshold.
     """
     penalties = {}
     if photo.get('is_blink'):
@@ -303,7 +306,28 @@ def _check_penalties(photo):
         penalties['highlight_clipping'] = round(-photo['highlight_clipped'] * 1.0, 2)
     if photo.get('shadow_clipped') and photo['shadow_clipped'] > 0:
         penalties['shadow_clipping'] = round(-photo['shadow_clipped'] * 0.5, 2)
+    skin_delta = photo.get('skin_tone_delta')
+    if skin_delta is not None and photo.get('skin_tone_cast'):
+        threshold = float(_FULL_CONFIG.get('skin_tone', {}).get('cast_delta_threshold', 12.0))
+        if skin_delta > threshold:
+            penalties['skin_tone'] = {
+                'cast': photo['skin_tone_cast'],
+                'delta': round(float(skin_delta), 1),
+            }
     return penalties
+
+
+def _parse_distortions(raw):
+    """Attribute keys from the stored distortion_attributes JSON column."""
+    if not raw:
+        return []
+    try:
+        entries = json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(entries, list):
+        return []
+    return [e['attribute'] for e in entries if isinstance(e, dict) and e.get('attribute')]
 
 
 def _build_rule_critique(photo):
@@ -327,6 +351,7 @@ def _build_rule_critique(photo):
         'weaknesses': sorted(weaknesses, key=lambda x: x['value'])[:5],
         'suggestions': suggestions[:3],
         'penalties': penalties,
+        'distortions': _parse_distortions(photo.get('distortion_attributes')),
     }
 
 
@@ -365,6 +390,7 @@ async def api_critique(
             'bg_separation', 'mean_saturation', 'mean_luminance',
             'form_symmetry', 'form_balance', 'form_edge_entropy',
             'form_fractal', 'color_harmony',
+            'distortion_attributes', 'skin_tone_delta', 'skin_tone_cast',
             'face_ratio', 'face_count', 'is_monochrome', 'is_blink',
             'is_silhouette', 'is_group_portrait',
             'highlight_clipped', 'shadow_clipped', 'tags', 'shutter_speed',

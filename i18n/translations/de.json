@@ -1598,6 +1598,7 @@
     "weaknesses": "Schwachen",
     "suggestions": "Vorschlage",
     "penalties": "Strafen",
+    "distortions": "Erkannte Verzerrungen",
     "vlm_title": "KI-Kritik",
     "vlm_loading": "KI-Kritik wird erstellt...",
     "vlm_refresh": "Neu generieren",
@@ -1656,6 +1657,30 @@
       "form_fractal": "Fugen Sie mehr Detail oder Textur hinzu — das Bild wirkt visuell karg",
       "color_harmony": "Passen Sie die Palette an ein harmonisches Farbschema an, etwa Komplementar- oder Analogfarben"
     },
+    "distortion": {
+      "motion_blur": "Bewegungsunschärfe",
+      "defocus_blur": "Fokusunschärfe",
+      "white_noise": "Rauschen / Korn",
+      "impulse_noise": "Salz-und-Pfeffer-Rauschen",
+      "jpeg_artifacts": "Kompressionsartefakte",
+      "oversharpening": "Überschärfungs-Halos",
+      "low_contrast": "Geringer Kontrast",
+      "overexposure": "Überbelichtung",
+      "underexposure": "Unterbelichtung",
+      "color_cast": "Farbstich",
+      "oversaturation": "Übersättigung",
+      "desaturation": "Ausgewaschene Farben",
+      "banding": "Farbstreifen (Banding)",
+      "pixelation": "Verpixelung",
+      "haze": "Dunst",
+      "chromatic_aberration": "Chromatische Aberration"
+    },
+    "skin_cast": {
+      "green": "Grün",
+      "magenta": "Magenta",
+      "blue": "Blau",
+      "yellow": "Gelb"
+    },
     "reason": {
       "default": "Standardkategorie (keine spezifische Kategorie zugeordnet)",
       "classified_as": "Klassifiziert als {category}",
@@ -1700,7 +1725,8 @@
       "blink": "Blinzeln erkannt",
       "noise": "Rauschen: {value}",
       "highlight_clipping": "Lichter-Clipping: {value}",
-      "shadow_clipping": "Schatten-Clipping: {value}"
+      "shadow_clipping": "Schatten-Clipping: {value}",
+      "skin_tone": "Hautton-Farbstich: {cast} (ΔE {delta})"
     }
   },
   "culling": {

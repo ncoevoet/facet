@@ -1594,6 +1594,7 @@
     "weaknesses": "Debilidades",
     "suggestions": "Sugerencias",
     "penalties": "Penalizaciones",
+    "distortions": "Distorsiones detectadas",
     "vlm_title": "Critica IA",
     "vlm_loading": "Generando critica IA...",
     "vlm_refresh": "Regenerar",
@@ -1652,6 +1653,30 @@
       "form_fractal": "Anade mas detalle o textura — la imagen parece visualmente pobre",
       "color_harmony": "Ajusta la paleta hacia un esquema armonico, colores complementarios o analogos"
     },
+    "distortion": {
+      "motion_blur": "Desenfoque de movimiento",
+      "defocus_blur": "Desenfoque",
+      "white_noise": "Ruido / grano",
+      "impulse_noise": "Ruido sal y pimienta",
+      "jpeg_artifacts": "Artefactos de compresión",
+      "oversharpening": "Halos de sobreenfoque",
+      "low_contrast": "Contraste bajo",
+      "overexposure": "Sobreexposición",
+      "underexposure": "Subexposición",
+      "color_cast": "Dominante de color",
+      "oversaturation": "Sobresaturación",
+      "desaturation": "Colores lavados",
+      "banding": "Bandeado",
+      "pixelation": "Pixelación",
+      "haze": "Bruma",
+      "chromatic_aberration": "Aberración cromática"
+    },
+    "skin_cast": {
+      "green": "verde",
+      "magenta": "magenta",
+      "blue": "azul",
+      "yellow": "amarilla"
+    },
     "reason": {
       "default": "Categoria predeterminada (ninguna categoria especifica coincidente)",
       "classified_as": "Clasificado como {category}",
@@ -1696,7 +1721,8 @@
       "blink": "Parpadeo detectado",
       "noise": "Ruido: {value}",
       "highlight_clipping": "Recorte de altas luces: {value}",
-      "shadow_clipping": "Recorte de sombras: {value}"
+      "shadow_clipping": "Recorte de sombras: {value}",
+      "skin_tone": "Tono de piel: dominante {cast} (ΔE {delta})"
     }
   },
   "culling": {

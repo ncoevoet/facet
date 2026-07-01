@@ -57,6 +57,11 @@ interface CategoryReason {
   rejected?: RejectedCategory[];
 }
 
+interface SkinTonePenalty {
+  cast: string;
+  delta: number;
+}
+
 interface CritiqueResponse {
   category: string;
   category_reason: CategoryReason;
@@ -65,7 +70,8 @@ interface CritiqueResponse {
   strengths: CritiqueMetricRef[];
   weaknesses: CritiqueMetricRef[];
   suggestions: string[];
-  penalties: Record<string, number | boolean>;
+  penalties: Record<string, number | boolean | SkinTonePenalty>;
+  distortions?: string[];
   vlm_critique?: string;
   vlm_source?: string;
   vlm_available?: boolean;
@@ -261,6 +267,21 @@ export class MismatchReasonPipe implements PipeTransform {
           </div>
         }
 
+        <!-- Detected distortions (advisory, zero-shot) -->
+        @if (c.distortions?.length) {
+          <div class="mb-3">
+            <div class="text-xs uppercase tracking-wider text-amber-400 mb-1">{{ 'critique.distortions' | translate }}</div>
+            <div class="flex flex-wrap gap-1.5">
+              @for (d of c.distortions; track d) {
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-400/10 text-amber-400">
+                  <mat-icon class="!text-xs !w-3.5 !h-3.5 !leading-3.5">warning_amber</mat-icon>
+                  {{ 'critique.distortion.' + d | translate }}
+                </span>
+              }
+            </div>
+          </div>
+        }
+
         <!-- Suggestions -->
         @if (c.suggestions.length) {
           <div class="mb-3">
@@ -304,6 +325,7 @@ export class MismatchReasonPipe implements PipeTransform {
             @if (c.penalties['noise']) { <span class="ml-2">{{ I18N.critique.penalty.noise | translate:{ value: '' + c.penalties['noise'] } }}</span> }
             @if (c.penalties['highlight_clipping']) { <span class="ml-2">{{ I18N.critique.penalty.highlight_clipping | translate:{ value: '' + c.penalties['highlight_clipping'] } }}</span> }
             @if (c.penalties['shadow_clipping']) { <span class="ml-2">{{ I18N.critique.penalty.shadow_clipping | translate:{ value: '' + c.penalties['shadow_clipping'] } }}</span> }
+            @if (skinTone(); as st) { <span class="ml-2 text-amber-400">{{ 'critique.penalty.skin_tone' | translate:{ cast: ('critique.skin_cast.' + st.cast | translate), delta: '' + st.delta } }}</span> }
           </div>
         }
       }
@@ -345,6 +367,11 @@ export class PhotoCritiqueDialogComponent implements OnInit {
   protected readonly hasPenalties = computed(() => {
     const c = this.critique();
     return !!(c && Object.keys(c.penalties).length > 0);
+  });
+
+  protected readonly skinTone = computed<SkinTonePenalty | null>(() => {
+    const p = this.critique()?.penalties['skin_tone'];
+    return p && typeof p === 'object' ? p : null;
   });
 
   protected readonly vlmRefreshing = signal(false);

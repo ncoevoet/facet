@@ -1594,6 +1594,7 @@
     "weaknesses": "Punti deboli",
     "suggestions": "Suggerimenti",
     "penalties": "Penalita",
+    "distortions": "Distorsioni rilevate",
     "vlm_title": "Critica IA",
     "vlm_loading": "Generazione critica IA...",
     "vlm_refresh": "Rigenera",
@@ -1652,6 +1653,30 @@
       "form_fractal": "Aggiungi piu dettaglio o texture — l'immagine appare visivamente povera",
       "color_harmony": "Regola la palette verso uno schema armonico, colori complementari o analoghi"
     },
+    "distortion": {
+      "motion_blur": "Mosso",
+      "defocus_blur": "Sfocatura",
+      "white_noise": "Rumore / grana",
+      "impulse_noise": "Rumore sale e pepe",
+      "jpeg_artifacts": "Artefatti di compressione",
+      "oversharpening": "Aloni da nitidezza eccessiva",
+      "low_contrast": "Contrasto basso",
+      "overexposure": "Sovraesposizione",
+      "underexposure": "Sottoesposizione",
+      "color_cast": "Dominante di colore",
+      "oversaturation": "Saturazione eccessiva",
+      "desaturation": "Colori sbiaditi",
+      "banding": "Banding",
+      "pixelation": "Pixelizzazione",
+      "haze": "Foschia",
+      "chromatic_aberration": "Aberrazione cromatica"
+    },
+    "skin_cast": {
+      "green": "verde",
+      "magenta": "magenta",
+      "blue": "blu",
+      "yellow": "gialla"
+    },
     "reason": {
       "default": "Categoria predefinita (nessuna categoria specifica corrispondente)",
       "classified_as": "Classificato come {category}",
@@ -1696,7 +1721,8 @@
       "blink": "Battito di ciglia rilevato",
       "noise": "Rumore: {value}",
       "highlight_clipping": "Taglio alte luci: {value}",
-      "shadow_clipping": "Taglio ombre: {value}"
+      "shadow_clipping": "Taglio ombre: {value}",
+      "skin_tone": "Incarnato: dominante {cast} (ΔE {delta})"
     }
   },
   "culling": {

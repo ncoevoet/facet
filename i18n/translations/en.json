@@ -1592,6 +1592,7 @@
     "weaknesses": "Weaknesses",
     "suggestions": "Suggestions",
     "penalties": "Penalties",
+    "distortions": "Detected Distortions",
     "vlm_title": "AI Critique",
     "vlm_loading": "Generating AI critique...",
     "vlm_refresh": "Regenerate",
@@ -1650,6 +1651,30 @@
       "form_fractal": "Include richer detail or texture — the frame reads as visually sparse",
       "color_harmony": "Adjust the palette toward a harmonic hue scheme such as complementary or analogous colors"
     },
+    "distortion": {
+      "motion_blur": "Motion blur",
+      "defocus_blur": "Defocus blur",
+      "white_noise": "Noise / grain",
+      "impulse_noise": "Salt-and-pepper noise",
+      "jpeg_artifacts": "Compression artifacts",
+      "oversharpening": "Oversharpening halos",
+      "low_contrast": "Low contrast",
+      "overexposure": "Overexposure",
+      "underexposure": "Underexposure",
+      "color_cast": "Color cast",
+      "oversaturation": "Oversaturation",
+      "desaturation": "Washed-out colors",
+      "banding": "Color banding",
+      "pixelation": "Pixelation",
+      "haze": "Haze",
+      "chromatic_aberration": "Chromatic aberration"
+    },
+    "skin_cast": {
+      "green": "green",
+      "magenta": "magenta",
+      "blue": "blue",
+      "yellow": "yellow"
+    },
     "reason": {
       "default": "Default category (no specific category matched)",
       "classified_as": "Classified as {category}",
@@ -1694,7 +1719,8 @@
       "blink": "Blink detected",
       "noise": "Noise: {value}",
       "highlight_clipping": "Highlight clip: {value}",
-      "shadow_clipping": "Shadow clip: {value}"
+      "shadow_clipping": "Shadow clip: {value}",
+      "skin_tone": "Skin tone cast: {cast} (ΔE {delta})"
     }
   },
   "culling": {

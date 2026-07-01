@@ -147,6 +147,11 @@ PHOTOS_COLUMNS = [
     ('narrative_moment_confidence', 'REAL'),   # confidence in the assigned label: forward-backward posterior (0-1) for a moment, neutral 0.5 for 'other'
     ('caption_embedding', 'BLOB'),             # text embedding of the caption (semantic moment signal)
     ('learned_score', 'REAL'),                 # denormalized global personal-ranker score (mirrors learned_scores user_id/category NULL) so the "My Taste" sort is an indexed column read
+
+    # Advisory explainability diagnostics (opt-in recompute passes; never enter the aggregate)
+    ('distortion_attributes', 'TEXT'),  # JSON [{attribute, confidence}] from --recompute-distortions (zero-shot ExIQA-style)
+    ('skin_tone_delta', 'REAL'),        # worst-face CIEDE2000 distance to the natural skin locus (--recompute-skin-tone)
+    ('skin_tone_cast', 'TEXT'),         # 'green'|'magenta'|'blue'|'yellow' when the delta exceeds the cast threshold, else NULL
 ]
 
 FACES_COLUMNS = [

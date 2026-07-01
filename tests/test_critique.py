@@ -28,6 +28,7 @@ _CRITIQUE_COLS = [
     'bg_separation', 'mean_saturation', 'mean_luminance',
     'form_symmetry', 'form_balance', 'form_edge_entropy',
     'form_fractal', 'color_harmony',
+    'distortion_attributes', 'skin_tone_delta', 'skin_tone_cast',
     'face_ratio', 'face_count', 'is_monochrome', 'is_blink',
     'is_silhouette', 'is_group_portrait',
     'highlight_clipped', 'shadow_clipped', 'tags', 'shutter_speed',
@@ -103,6 +104,9 @@ def _make_photo(**overrides):
         "bg_separation": 6.2,
         "mean_saturation": 0.45,
         "mean_luminance": 0.52,
+        "distortion_attributes": None,
+        "skin_tone_delta": None,
+        "skin_tone_cast": None,
         "face_ratio": None,
         "face_count": 0,
         "is_monochrome": 0,
@@ -405,6 +409,7 @@ class TestBuildRuleCritique:
             "weaknesses",
             "suggestions",
             "penalties",
+            "distortions",
         }
         assert expected_keys == set(result.keys())
 
@@ -414,6 +419,7 @@ class TestBuildRuleCritique:
         assert isinstance(result["weaknesses"], list)
         assert isinstance(result["suggestions"], list)
         assert isinstance(result["penalties"], dict)
+        assert isinstance(result["distortions"], list)
         assert isinstance(result["category_reason"], dict)
         assert result["aggregate"] == photo["aggregate"]
         assert result["category"] == photo["category"]
@@ -466,6 +472,64 @@ class TestBuildRuleCritique:
             result = _build_rule_critique(photo)
 
         assert result["penalties"] == {}
+
+    def test_distortions_parsed_from_json_column(self):
+        """The stored distortion_attributes JSON surfaces as attribute keys."""
+        from api.routers.critique import _build_rule_critique
+
+        weights = {"aesthetic": 0.50, "composition": 0.50}
+        photo = _make_photo(distortion_attributes=(
+            '[{"attribute": "motion_blur", "confidence": 0.91},'
+            ' {"attribute": "haze", "confidence": 0.7}]'
+        ))
+
+        with mock.patch("config.ScoringConfig", self._mock_scoring_config(weights)):
+            result = _build_rule_critique(photo)
+
+        assert result["distortions"] == ["motion_blur", "haze"]
+
+    def test_distortions_empty_and_malformed_json(self):
+        """NULL and malformed columns degrade to an empty list, never raise."""
+        from api.routers.critique import _build_rule_critique
+
+        weights = {"aesthetic": 0.50, "composition": 0.50}
+
+        with mock.patch("config.ScoringConfig", self._mock_scoring_config(weights)):
+            assert _build_rule_critique(_make_photo())["distortions"] == []
+            broken = _make_photo(distortion_attributes="not-json")
+            assert _build_rule_critique(broken)["distortions"] == []
+
+    def test_skin_tone_penalty_above_threshold(self):
+        """A stored cast above the configured delta threshold becomes a penalty."""
+        from api.routers.critique import _build_rule_critique
+
+        weights = {"aesthetic": 0.50, "composition": 0.50}
+        photo = _make_photo(skin_tone_delta=18.0, skin_tone_cast="green")
+
+        with (
+            mock.patch("config.ScoringConfig", self._mock_scoring_config(weights)),
+            mock.patch("api.routers.critique._FULL_CONFIG",
+                       {"skin_tone": {"cast_delta_threshold": 12.0}}),
+        ):
+            result = _build_rule_critique(photo)
+
+        assert result["penalties"]["skin_tone"] == {"cast": "green", "delta": 18.0}
+
+    def test_skin_tone_below_threshold_no_penalty(self):
+        """A delta at or below the threshold stays advisory-silent."""
+        from api.routers.critique import _build_rule_critique
+
+        weights = {"aesthetic": 0.50, "composition": 0.50}
+        photo = _make_photo(skin_tone_delta=5.0, skin_tone_cast=None)
+
+        with (
+            mock.patch("config.ScoringConfig", self._mock_scoring_config(weights)),
+            mock.patch("api.routers.critique._FULL_CONFIG",
+                       {"skin_tone": {"cast_delta_threshold": 12.0}}),
+        ):
+            result = _build_rule_critique(photo)
+
+        assert "skin_tone" not in result["penalties"]
 
 
 # ---------------------------------------------------------------------------

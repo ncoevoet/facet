@@ -1594,6 +1594,7 @@
     "weaknesses": "Points faibles",
     "suggestions": "Suggestions",
     "penalties": "Penalites",
+    "distortions": "Distorsions détectées",
     "vlm_title": "Critique IA",
     "vlm_loading": "Generation de la critique IA...",
     "vlm_refresh": "Régénérer",
@@ -1652,6 +1653,30 @@
       "form_fractal": "Ajoutez du detail ou de la texture — l'image parait visuellement pauvre",
       "color_harmony": "Ajustez la palette vers un schema harmonique, couleurs complementaires ou analogues"
     },
+    "distortion": {
+      "motion_blur": "Flou de mouvement",
+      "defocus_blur": "Flou de mise au point",
+      "white_noise": "Bruit / grain",
+      "impulse_noise": "Bruit poivre et sel",
+      "jpeg_artifacts": "Artefacts de compression",
+      "oversharpening": "Halos de suraccentuation",
+      "low_contrast": "Contraste faible",
+      "overexposure": "Surexposition",
+      "underexposure": "Sous-exposition",
+      "color_cast": "Dominante de couleur",
+      "oversaturation": "Sursaturation",
+      "desaturation": "Couleurs délavées",
+      "banding": "Effet de bandes",
+      "pixelation": "Pixellisation",
+      "haze": "Voile",
+      "chromatic_aberration": "Aberration chromatique"
+    },
+    "skin_cast": {
+      "green": "verte",
+      "magenta": "magenta",
+      "blue": "bleue",
+      "yellow": "jaune"
+    },
     "reason": {
       "default": "Categorie par defaut (aucune categorie specifique correspondante)",
       "classified_as": "Classe comme {category}",
@@ -1696,7 +1721,8 @@
       "blink": "Clignement detecte",
       "noise": "Bruit : {value}",
       "highlight_clipping": "Ecretage hautes lumieres : {value}",
-      "shadow_clipping": "Ecretage ombres : {value}"
+      "shadow_clipping": "Ecretage ombres : {value}",
+      "skin_tone": "Teinte de peau : dominante {cast} (ΔE {delta})"
     }
   },
   "culling": {

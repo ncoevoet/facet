@@ -587,6 +587,12 @@ Configuration:
     db_group.add_argument('--recompute-form', action='store_true',
                         help='Recompute form facet metrics (symmetry, balance, edge entropy, fractal '
                              'dimension) + Matsuda colour harmony from stored thumbnails (CPU only)')
+    db_group.add_argument('--recompute-distortions', action='store_true',
+                        help='Zero-shot ExIQA-style distortion attributes from stored CLIP/SigLIP '
+                             'embeddings (advisory JSON column + liqe/noise correlation validation report)')
+    db_group.add_argument('--recompute-skin-tone', action='store_true',
+                        help='Skin-tone naturalness from stored face thumbnails + landmarks '
+                             '(cheek CIELAB vs skin locus, CIEDE2000; CPU, no model)')
     db_group.add_argument('--upgrade-db', action='store_true',
                         help='Migrate schema + run the full backfill chain '
                              '(extract-gps, detect-duplicates, recompute-iqa, '
@@ -1351,6 +1357,126 @@ Configuration:
         total, updated = _recompute_from_thumbnails("Form facet", _form_update)
         logger.info("Form facet recompute complete: %d/%d photos updated.", updated, total)
         logger.info("Run --recompute-average to fold any configured form weights into aggregates.")
+        exit()
+
+    # Zero-shot distortion attributes from stored embeddings (advisory only,
+    # never enters the aggregate). Prints the mandatory Spearman sanity report
+    # vs stored liqe_score / noise_sigma before anyone trusts the signal.
+    if args.recompute_distortions:
+        import numpy as np
+        from collections import Counter
+        from scipy.stats import spearmanr
+        from tqdm import tqdm
+        from models.model_manager import ModelManager
+        from models.distortion_classifier import DistortionClassifier
+
+        init_database(args.db)  # Ensure distortion_attributes column exists
+        config = ScoringConfig(args.config)
+        if not config.config.get('distortion_attributes', {}).get('enabled', True):
+            logger.error("distortion_attributes is disabled in scoring_config.json; nothing to do.")
+            exit(0)
+        config.check_vram_profile_compatibility(verbose=True)
+        model_manager = ModelManager(config)
+        clip = model_manager.load_model_only('clip')
+        if not clip:
+            logger.error("Could not load the embedding model; aborting.")
+            exit(1)
+        classifier = DistortionClassifier(
+            clip_model=clip['model'], device=model_manager.device, config=config,
+            model_name=clip['model_name'], backend=clip['backend'],
+            embedding_dim=clip['embedding_dim'],
+        )
+        with get_connection(args.db) as conn:
+            rows = conn.execute(
+                "SELECT path, clip_embedding, liqe_score, noise_sigma FROM photos "
+                "WHERE clip_embedding IS NOT NULL"
+            ).fetchall()
+        updates, skipped = [], 0
+        per_attr = {a: [] for a in classifier.attributes}
+        liqe_vals, noise_vals = [], []
+        flag_counts = Counter()
+        for row in tqdm(rows, desc="Distortions"):
+            conf = classifier.confidences(row['clip_embedding'])
+            if conf is None:
+                skipped += 1
+                continue
+            hits = classifier.top_attributes(conf)
+            updates.append((json.dumps(hits), row['path']))
+            for hit in hits:
+                flag_counts[hit['attribute']] += 1
+            for attr, p in conf.items():
+                per_attr[attr].append(p)
+            liqe_vals.append(row['liqe_score'])
+            noise_vals.append(row['noise_sigma'])
+        with get_connection(args.db) as conn:
+            _commit_in_chunks(
+                conn, "UPDATE photos SET distortion_attributes = ? WHERE path = ?", updates)
+        model_manager.unload_all()
+        logger.info("Labeled %d photos (%d skipped: missing/mismatched embedding).",
+                    len(updates), skipped)
+        logger.info("Flagged attributes: %s",
+                    ", ".join(f"{a}={n}" for a, n in flag_counts.most_common()) or "(none)")
+
+        def _spearman(conf_v, metric):
+            m = np.array([v if v is not None else np.nan for v in metric], dtype=np.float64)
+            mask = ~np.isnan(m)
+            if mask.sum() < 10 or np.std(conf_v[mask]) == 0 or np.std(m[mask]) == 0:
+                return None
+            return float(spearmanr(conf_v[mask], m[mask]).correlation)
+
+        logger.info("Validation (Spearman of raw confidence vs stored metrics; "
+                    "expect negative vs liqe_score, positive vs noise_sigma for noise):")
+        logger.info("  %-22s %12s %12s", "attribute", "liqe_score", "noise_sigma")
+        for attr in classifier.attributes:
+            conf_v = np.asarray(per_attr[attr], dtype=np.float64)
+            rho_liqe = _spearman(conf_v, liqe_vals)
+            rho_noise = _spearman(conf_v, noise_vals)
+            logger.info("  %-22s %12s %12s", attr,
+                        f"{rho_liqe:+.3f}" if rho_liqe is not None else "n/a",
+                        f"{rho_noise:+.3f}" if rho_noise is not None else "n/a")
+        logger.info("Treat weak or n/a correlations as an unvalidated signal for this library.")
+        exit()
+
+    # Skin-tone naturalness from stored face crops + landmarks (CPU, no model)
+    if args.recompute_skin_tone:
+        from collections import Counter
+        from tqdm import tqdm
+        from analyzers.skin_tone import compute_photo_skin_tone
+
+        init_database(args.db)  # Ensure skin_tone_delta / skin_tone_cast columns exist
+        config = ScoringConfig(args.config)
+        padding = float(config.get_face_processing_settings().get('crop_padding', 0.3))
+        cast_threshold = float(
+            config.config.get('skin_tone', {}).get('cast_delta_threshold', 12.0))
+        with get_connection(args.db) as conn:
+            photo_paths = [r['photo_path'] for r in conn.execute(
+                "SELECT DISTINCT photo_path FROM faces "
+                "WHERE face_thumbnail IS NOT NULL AND landmark_2d_106 IS NOT NULL"
+            ).fetchall()]
+        updates = []
+        cast_counts = Counter()
+        with get_connection(args.db) as conn:
+            for path in tqdm(photo_paths, desc="Skin tone"):
+                faces = conn.execute(
+                    "SELECT bbox_x1, bbox_y1, bbox_x2, bbox_y2, landmark_2d_106, "
+                    "face_thumbnail FROM faces WHERE photo_path = ? "
+                    "AND face_thumbnail IS NOT NULL AND landmark_2d_106 IS NOT NULL",
+                    (path,),
+                ).fetchall()
+                delta, cast = compute_photo_skin_tone(
+                    faces, padding=padding, cast_threshold=cast_threshold)
+                if delta is None:
+                    continue
+                updates.append((round(delta, 2), cast, path))
+                cast_counts[cast or 'natural'] += 1
+        with get_connection(args.db) as conn:
+            _commit_in_chunks(
+                conn,
+                "UPDATE photos SET skin_tone_delta = ?, skin_tone_cast = ? WHERE path = ?",
+                updates)
+        logger.info("Skin tone measured for %d/%d photos with usable faces (%s).",
+                    len(updates), len(photo_paths),
+                    ", ".join(f"{c}={n}" for c, n in cast_counts.most_common()) or "none")
         exit()
 
     # Recompute burst detection
