@@ -9,8 +9,10 @@
 open-clip-torch>=2.20.0
 
 # HuggingFace Transformers - required for BiRefNet saliency, SigLIP 2 NaFlex embeddings,
-# and VLM taggers (Qwen3-VL / Qwen2.5-VL on 16gb/24gb profiles)
-transformers>=4.57.0
+# and VLM taggers (Qwen3.5 / Qwen3-VL / Qwen2.5-VL on 16gb/24gb profiles).
+# Upper-bounded: transformers 5.3+ changed Qwen3.5 vision-token handling and breaks the
+# batched VLM tagger (torch.cat "sizes must match" during tagging); 5.2.x is validated.
+transformers>=4.57.0,<5.3
 # accelerate is required for VLM taggers (device_map="auto") and SigLIP 2.
 # install.sh installs it unconditionally — keep it here for direct pip users too.
 accelerate>=0.25.0
@@ -77,7 +79,10 @@ sqlite-vec>=0.1.6
 # Async SQLite for FastAPI read endpoints (see api/database.py get_async_db)
 aiosqlite>=0.20.0
 
-# Subject Saliency: BiRefNet loaded via transformers (see above)
+# Subject Saliency: BiRefNet loaded via transformers (see above). Its remote
+# modeling code imports kornia, which transformers does not pull in — without it
+# the saliency pass fails with "requires ... kornia" and stores no subject metrics.
+kornia>=0.7.0
 
 # GPU Face Clustering (optional, requires conda + CUDA)
 # cuml

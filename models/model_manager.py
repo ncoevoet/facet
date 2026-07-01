@@ -793,6 +793,8 @@ class ModelManager:
         'qwen2_vl': 6,
         'vlm_tagger': 18,    # 16GB weights + 2GB inference
         'qwen3_vl_tagger': 7,  # 4GB weights + 3GB inference (vision token KV cache)
+        'qwen3_5_tagger': 7,     # Qwen3.5-2B: ~4GB weights + 3GB inference
+        'qwen3_5_4b_tagger': 10, # Qwen3.5-4B: ~8GB weights + 2GB inference
         # PyIQA models (lightweight, high accuracy)
         'topiq': 2,
         'hyperiqa': 2,
@@ -827,6 +829,8 @@ class ModelManager:
         'liqe': 2.0,
         'saliency': 2.0,
         'qwen3_vl_tagger': 5.0,
+        'qwen3_5_tagger': 5.0,
+        'qwen3_5_4b_tagger': 8.0,
     }
 
     def get_model_vram(self, model_name: str) -> int:

@@ -347,3 +347,79 @@ class TestGallerySinglePhoto:
         data = resp.json()
         assert data["path"] == "/found.jpg"
         assert data["aggregate"] == 7.0
+
+
+class TestSelectBottomPercent:
+    """GET /api/photos/select_bottom_percent — 'keep top N%' percentile selection."""
+
+    def _get(self, db_path, query):
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
+            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch.dict("api.config._count_cache", {}, clear=True),
+        ):
+            return TestClient(app).get(f"/api/photos/select_bottom_percent?{query}")
+
+    def test_returns_bottom_paths_by_sort(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [
+            _photo(f"/p{i}.jpg", "2024:01:01 10:00:00", aggregate=float(i))
+            for i in range(10)
+        ])
+        resp = self._get(db_path, "keep_percent=30&sort=aggregate&sort_direction=DESC")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert (data["total"], data["keep"], data["cut"]) == (10, 3, 7)
+        assert data["truncated"] is False
+        assert len(data["paths"]) == 7
+        # Top 3 by aggregate (9, 8, 7) are kept -> never selected.
+        assert {"/p9.jpg", "/p8.jpg", "/p7.jpg"}.isdisjoint(data["paths"])
+        # The worst (aggregate 0) is in the cut.
+        assert "/p0.jpg" in data["paths"]
+
+    def test_rejects_invalid_percent(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [_photo("/a.jpg", "2024:01:01 10:00:00")])
+        assert self._get(db_path, "keep_percent=abc").status_code == 422
+        assert self._get(db_path, "keep_percent=0").status_code == 422
+        assert self._get(db_path, "keep_percent=100").status_code == 422
+        assert self._get(db_path, "").status_code == 422
+
+    def test_respects_active_filters(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [
+            _photo("/c1.jpg", "2024:01:01 10:00:00", aggregate=1.0, camera_model="Canon R6"),
+            _photo("/c2.jpg", "2024:01:01 10:00:00", aggregate=9.0, camera_model="Canon R6"),
+            _photo("/n1.jpg", "2024:01:01 10:00:00", aggregate=2.0, camera_model="Nikon Z6"),
+        ])
+        resp = self._get(db_path, "keep_percent=50&sort=aggregate&sort_direction=DESC&camera=Canon+R6")
+        data = resp.json()
+        # Scoped to the 2 Canon photos: keep ceil(2*0.5)=1 (agg 9), cut 1 (agg 1).
+        assert data["total"] == 2
+        assert data["paths"] == ["/c1.jpg"]
+
+    def test_keep_all_yields_empty_cut(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [
+            _photo(f"/p{i}.jpg", "2024:01:01 10:00:00", aggregate=float(i)) for i in range(3)
+        ])
+        data = self._get(db_path, "keep_percent=99").json()
+        assert data["cut"] == 0
+        assert data["paths"] == []
+
+    def test_truncated_selects_worst_tail(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [
+            _photo(f"/p{i}.jpg", "2024:01:01 10:00:00", aggregate=float(i))
+            for i in range(10)
+        ])
+        # keep 10% -> keep 1 (p9), cut 9; cap at 3 selects the WORST 3, not the
+        # best of the cut. p0/p1/p2 (lowest aggregate) must be the selection.
+        with mock.patch("api.routers.gallery._SELECT_BOTTOM_MAX", 3):
+            data = self._get(db_path, "keep_percent=10&sort=aggregate&sort_direction=DESC").json()
+        assert (data["total"], data["keep"], data["cut"]) == (10, 1, 9)
+        assert data["truncated"] is True
+        assert set(data["paths"]) == {"/p0.jpg", "/p1.jpg", "/p2.jpg"}

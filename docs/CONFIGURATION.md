@@ -329,9 +329,9 @@ Selects which models are used per VRAM profile.
         "clip_config": "clip_legacy",
         "composition_model": "samp-net",
         "tagging_model": "clip",
-        "supplementary_pyiqa": [],
-        "saliency_enabled": false,
-        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (8GB+ RAM)"
+        "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
+        "saliency_enabled": true,
+        "description": "CPU: CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging + TOPIQ IAA/NR-Face/LIQE + BiRefNet saliency (8GB+ RAM; saliency/IQA are slower on CPU)"
       },
       "8gb": {
         "aesthetic_model": "clip-mlp",
@@ -339,8 +339,8 @@ Selects which models are used per VRAM profile.
         "composition_model": "samp-net",
         "tagging_model": "clip",
         "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
-        "saliency_enabled": false,
-        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging (6-14GB VRAM)"
+        "saliency_enabled": true,
+        "description": "CLIP-MLP aesthetic + SAMP-Net composition + CLIP tagging + TOPIQ IAA/NR-Face/LIQE + BiRefNet saliency (6-14GB VRAM)"
       },
       "16gb": {
         "aesthetic_model": "topiq",
@@ -412,10 +412,10 @@ Selects which models are used per VRAM profile.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `vram_profile` | `"auto"` | Active profile (`auto`, `legacy`, `8gb`, `16gb`, `24gb`) |
+| `vram_profile` | `"auto"` | Active profile (`auto`, `legacy`, `8gb`, `16gb`, `24gb`). Overridable at runtime by the `FACET_VRAM_PROFILE` env var (see below). |
 | `keep_in_ram` | `"auto"` | Keep models in RAM between multi-pass chunks (`"auto"`, `"always"`, `"never"`). `auto` checks available RAM before caching. |
-| `profiles.*.supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | PyIQA models to run for this profile (empty on `legacy`) |
-| `profiles.*.saliency_enabled` | `true` (16gb/24gb) | Run BiRefNet subject saliency for this profile |
+| `profiles.*.supplementary_pyiqa` | `["topiq_iaa", "topiq_nr_face", "liqe"]` | PyIQA models to run for this profile (all four profiles run the full set) |
+| `profiles.*.saliency_enabled` | `true` (all profiles) | Run BiRefNet subject saliency for this profile |
 | `clip.model_name` | `"google/siglip2-so400m-patch16-naflex"` | SigLIP 2 NaFlex embedding model (16gb/24gb) |
 | `clip.backend` | `"transformers"` | `"transformers"` (SigLIP 2 NaFlex) or `"open_clip"` (legacy) |
 | `clip.embedding_dim` | `1152` | Embedding dimensions (1152 for SigLIP 2) |
@@ -445,6 +445,14 @@ When `vram_profile` is `"auto"` (default), the system detects available GPU VRAM
 | ≥ 14GB | `16gb` |
 | ≥ 6GB | `8gb` |
 | No GPU | `legacy` (uses system RAM) |
+
+### `FACET_VRAM_PROFILE` environment override
+
+The `FACET_VRAM_PROFILE` environment variable overrides `models.vram_profile` at load time (honored by `config/scoring_config.py`), so a single mounted config can serve every Docker profile without editing the JSON. Accepted values are `auto`, `legacy`, `8gb`, `16gb`, and `24gb`; any other value is ignored with a warning (so a typo can't silently mis-scan). The per-profile Docker Compose overlays (`docker-compose.{legacy,8gb,16gb,24gb}.yml`) set this variable for you.
+
+```bash
+FACET_VRAM_PROFILE=8gb python facet.py /path/to/photos
+```
 
 ---
 
@@ -789,9 +797,16 @@ HDBSCAN clustering for face recognition.
 | `auto_merge_distance_percent` | `15` | Auto-merge within this distance |
 | `clustering_algorithm` | `"best"` | HDBSCAN algorithm |
 | `leaf_size` | `40` | Tree leaf size (CPU only) |
-| `use_gpu` | `"auto"` | GPU mode: `auto`, `always`, `never` |
+| `use_gpu` | `"auto"` | GPU mode: `auto`, `always`, `never` (see notes below) |
 | `merge_threshold` | `0.6` | Centroid similarity for matching |
 | `chunk_size` | `10000` | Processing chunk size |
+
+**GPU clustering notes (`use_gpu`):**
+
+- Requires the optional `cuml` + `cupy` packages. The Docker GPU image bundles cuML, so the GPU profiles cluster on GPU out of the box.
+- The `legacy` profile is **forced to CPU** clustering regardless of `use_gpu` (it deliberately avoids GPU models), so it always clusters on CPU even on a GPU host.
+- Even on GPU profiles, the clusterer only uses the GPU when a CUDA device is actually present — a `cupy` device-count guard falls back to CPU HDBSCAN when cuML/cupy import but no usable GPU is found (e.g. running the GPU image in `legacy` mode).
+- `always` warns and falls back to CPU if cuML is unavailable; any GPU/cuML error during clustering also degrades gracefully to CPU HDBSCAN rather than aborting the run.
 
 **Clustering algorithms:**
 

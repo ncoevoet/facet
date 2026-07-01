@@ -1083,6 +1083,14 @@
       "select_all": "Seleziona tutto",
       "actions": "Azioni"
     },
+    "keep_top": {
+      "label": "Tieni top %",
+      "help": "Mantiene la quota superiore della vista corrente secondo l'ordinamento attuale; il resto viene selezionato per la revisione.",
+      "preview": "Tieni top {keep} · seleziona {cut} di {total}",
+      "apply": "Seleziona il resto",
+      "selected": "{count} foto selezionate — rifiutale dalla barra in basso",
+      "truncated": "Selezionate le prime {count} di {cut} — restringi il filtro per il resto"
+    },
     "composition_pattern": "Composizione",
     "sidebar": {
       "display": "Opzioni di visualizzazione",

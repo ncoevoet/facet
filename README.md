@@ -192,16 +192,17 @@ The aesthetic score is model-based and approximate; expect to tune the weights t
 ### Docker (recommended)
 
 ```bash
-docker compose up
+cp .env.example .env      # set PHOTOS_DIR + FACET_VRAM_PROFILE (auto-detects the GPU)
+docker compose up -d
 # Open http://localhost:5000
 ```
 
-This runs in CPU mode — no GPU required to browse and serve an existing library. Mount your photos directory in `docker-compose.yml`.
+One image serves every profile: `FACET_VRAM_PROFILE=auto` detects the GPU (no GPU → CPU `legacy`), model weights download at runtime, and `PHOTOS_DIR` in `.env` points at your photos. The base compose runs CPU-only — no GPU required to browse and serve an existing library.
 
-**GPU acceleration** (optional) requires an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Enable it with the override file:
+**GPU acceleration** (optional) requires an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Enable it with an override — the generic GPU file or a per-profile overlay (`docker-compose.{legacy,8gb,16gb}.yml`):
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
 
 ### Manual Install

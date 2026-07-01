@@ -94,6 +94,22 @@ class ScoringConfig:
                 f"Config must have a 'categories' array with category definitions."
             )
 
+        # Environment override for the VRAM profile. Lets a single mounted config
+        # serve every Docker profile (legacy/8gb/16gb/24gb/auto) via an env var
+        # instead of editing the JSON — e.g. `FACET_VRAM_PROFILE=8gb`. Invalid
+        # values are ignored with a warning so a typo can't silently mis-scan.
+        env_profile = os.environ.get('FACET_VRAM_PROFILE', '').strip()
+        if env_profile:
+            valid_profiles = {'auto', 'legacy', '8gb', '16gb', '24gb'}
+            if env_profile in valid_profiles:
+                config.setdefault('models', {})['vram_profile'] = env_profile
+                logger.info("VRAM profile overridden by FACET_VRAM_PROFILE=%s", env_profile)
+            else:
+                logger.warning(
+                    "Ignoring FACET_VRAM_PROFILE=%r (not one of %s)",
+                    env_profile, sorted(valid_profiles),
+                )
+
         return config
 
     def _merge_configs(self, base, override):

@@ -1,0 +1,15 @@
+# "16gb" profile override (GPU, ~14 GB VRAM: SigLIP2 embeddings + TOPIQ aesthetic +
+# Qwen3.5-2B VLM tagging + SAMP-Net + InsightFace + BiRefNet saliency).
+# Requires the NVIDIA Container Toolkit. Compose with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d
+services:
+  facet:
+    environment:
+      - FACET_VRAM_PROFILE=16gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

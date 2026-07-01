@@ -1519,16 +1519,14 @@ Configuration:
     # Recompute tags using VLM model (loads images from disk)
     if args.recompute_tags_vlm:
         from models.model_manager import ModelManager
+        from processing.multi_pass import tagging_model_to_key
 
         config = ScoringConfig(args.config)
         config.check_vram_profile_compatibility(verbose=True)
 
         # Use configured VLM or default to qwen3-vl-2b
         tag_model = config.get_model_for_task('tagging')
-        if tag_model == 'qwen2.5-vl-7b':
-            model_key = 'vlm_tagger'
-        else:
-            model_key = 'qwen3_vl_tagger'
+        model_key = tagging_model_to_key(tag_model, 'qwen3_vl_tagger')
 
         model_manager = ModelManager(config)
 
@@ -1586,6 +1584,7 @@ Configuration:
     if args.recompute_tags:
         from processing.scorer import Facet
         from models.model_manager import ModelManager
+        from processing.multi_pass import TAGGING_MODELS, tagging_model_to_key
 
         config = ScoringConfig(args.config)
         config.check_vram_profile_compatibility(verbose=True)  # Resolve 'auto' profile
@@ -1634,10 +1633,10 @@ Configuration:
                 conn.commit()
             logger.info("Updated tags for %d photos", updated)
 
-        elif tag_model in ('ram++', 'qwen2.5-vl-7b', 'qwen3-vl-2b'):
+        elif tag_model in TAGGING_MODELS or tag_model == 'ram++':
             # Need to load images for VLM/RAM++ tagging
             logger.info("Loading %s model...", tag_model)
-            model_key = {'ram++': 'ram_tagger', 'qwen2.5-vl-7b': 'vlm_tagger', 'qwen3-vl-2b': 'qwen3_vl_tagger'}[tag_model]
+            model_key = 'ram_tagger' if tag_model == 'ram++' else tagging_model_to_key(tag_model)
             tagger = model_manager.load_model_only(model_key)
             if not tagger:
                 logger.error("Failed to load %s", tag_model)

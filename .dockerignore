@@ -41,3 +41,39 @@ test-screenshots/
 .ruff_cache/
 .codegraph/
 .claude/
+
+# Local Python environment (never belongs in the image; base image ships torch)
+conda/
+env/
+miniconda/
+
+# Local datasets / benchmarks (not needed to build or run the service)
+ava_sample/
+ava_test/
+AVA.txt
+photos_sample/
+
+# Runtime caches mounted as volumes at run time
+model-cache/
+data/
+storage/thumbnails/
+storage/embeddings/
+
+# Bundled Windows exiftool (the image installs libimage-exiftool-perl via apt)
+exiftool.exe
+exiftool_files/
+
+# Local build/dev tooling and one-off artifacts
+build-tools/
+darktable-auto-style/
+*.log
+verify-*.png
+verify-*.txt
+verify-*.log
+*.csv
+*_scores.json
+export_test.json
+scoring_config.local-backup.json
+scoring_config.json.backup
+scoring_config.discovered.json
+PRESERVED_LOCAL_CONFIG.md
