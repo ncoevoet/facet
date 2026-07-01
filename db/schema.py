@@ -455,12 +455,26 @@ ALBUM_PHOTOS_COLUMNS = [
     ('added_at', "TEXT DEFAULT (datetime('now'))"),
 ]
 
+# Client proofing picks on shared albums — fully isolated from the owner's
+# ratings (photos.is_favorite / user_preferences are never written by proofing)
+ALBUM_CLIENT_PICKS_COLUMNS = [
+    ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
+    ('album_id', 'INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE'),
+    ('photo_path', 'TEXT NOT NULL'),
+    ('picked', 'INTEGER DEFAULT 1'),
+    ('comment', 'TEXT'),
+    ('client_name', 'TEXT'),
+    ('created_at', "TEXT DEFAULT (datetime('now'))"),
+    ('updated_at', "TEXT DEFAULT (datetime('now'))"),
+]
+
 ALBUM_INDEXES = [
     ('idx_albums_user', 'albums', 'user_id'),
     ('idx_albums_share_token', 'albums', 'share_token'),
     ('idx_album_photos_album', 'album_photos', 'album_id'),
     ('idx_album_photos_path', 'album_photos', 'photo_path'),
     ('idx_album_photos_position', 'album_photos', 'album_id, position'),
+    ('idx_album_client_picks_album', 'album_client_picks', 'album_id'),
 ]
 
 # Per-user preferences for multi-user mode (ratings, favorites, rejected flags)
@@ -749,6 +763,13 @@ def init_database(db_path='photo_scores_pro.db'):
             constraints=['UNIQUE(album_id, photo_path)']
         ))
         _migrate_add_missing_columns(conn, 'album_photos', ALBUM_PHOTOS_COLUMNS)
+
+        conn.execute(_build_create_table_sql(
+            'album_client_picks',
+            ALBUM_CLIENT_PICKS_COLUMNS,
+            constraints=['UNIQUE(album_id, photo_path)']
+        ))
+        _migrate_add_missing_columns(conn, 'album_client_picks', ALBUM_CLIENT_PICKS_COLUMNS)
 
         # Create location_names cache table for reverse geocoding
         conn.execute(_build_create_table_sql(

@@ -2104,5 +2104,22 @@
   },
   "moments": {
     "uncertain": "uncertain"
+  },
+  "proofing": {
+    "client_picks": "Client picks",
+    "no_picks": "No client picks yet.",
+    "picks_count": "{count} picks",
+    "pick": "Pick this photo",
+    "unpick": "Remove pick",
+    "comment": "Comment",
+    "comment_placeholder": "Leave a comment for the photographer…",
+    "pin_prompt": "This gallery is protected. Enter the PIN to mark your picks.",
+    "pin_label": "PIN",
+    "pin_invalid": "Incorrect PIN.",
+    "name_prompt": "Add your name so the photographer knows who picked (optional).",
+    "name_label": "Your name",
+    "start": "Start",
+    "skip": "Skip",
+    "save_error": "Could not save your pick."
   }
 }

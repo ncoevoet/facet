@@ -791,6 +791,9 @@ async def get_shared_album(
         result['album'] = _album_to_dict(album)
         result['effective_sort'] = sort
         result['effective_sort_direction'] = sort_dir
+        result['proofing_enabled'] = (
+            bool(VIEWER_CONFIG.get('features', {}).get('show_proofing', False)) and is_manual
+        )
         if SORT_OPTIONS_GROUPED:
             result['sort_options_grouped'] = SORT_OPTIONS_GROUPED
 

@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, OnInit, effect, viewChild, DestroyRef, ElementRef, afterNextRender } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -67,6 +67,13 @@ interface SharedAlbumResponse {
   effective_sort_direction?: string;
   sort_options_grouped?: Record<string, SortOption[]>;
   filter_options?: FilterOptions;
+  proofing_enabled?: boolean;
+}
+
+interface SharedPick {
+  path: string;
+  picked: boolean;
+  comment: string | null;
 }
 
 interface ViewerConfig {
@@ -358,34 +365,62 @@ interface SharedFilters {
               @for (row of mosaicRows(); track row.photos[0]?.path ?? $index) {
                 <div class="flex gap-2 mb-2">
                   @for (photo of row.photos; track photo.path; let i = $index) {
-                    <app-photo-card
-                      [photo]="photo"
-                      [config]="cardConfig()"
-                      [hideDetails]="true"
-                      [mosaicMode]="true"
-                      [isEditionMode]="false"
-                      [isSelected]="selectedPaths().has(photo.path)"
-                      [thumbSize]="row.widths[i]"
-                      [style.width.px]="row.widths[i]"
-                      [style.height.px]="row.height"
-                      (selectionChange)="toggleSelection($event.photo, $event.event)"
-                      (doubleClicked)="openPhotoDetail($event)"
-                    />
+                    <div class="relative" [style.width.px]="row.widths[i]" [style.height.px]="row.height">
+                      <app-photo-card
+                        [photo]="photo"
+                        [config]="cardConfig()"
+                        [hideDetails]="true"
+                        [mosaicMode]="true"
+                        [isEditionMode]="false"
+                        [isSelected]="selectedPaths().has(photo.path)"
+                        [thumbSize]="row.widths[i]"
+                        [style.width.px]="row.widths[i]"
+                        [style.height.px]="row.height"
+                        (selectionChange)="toggleSelection($event.photo, $event.event)"
+                        (doubleClicked)="openPhotoDetail($event)"
+                      />
+                      @if (proofingActive()) {
+                        <button class="absolute top-1 right-1 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-black/40 text-white hover:bg-black/60"
+                                [matTooltip]="(pickedPaths().has(photo.path) ? 'proofing.unpick' : 'proofing.pick') | translate"
+                                (click)="togglePick(photo, $event)">
+                          <mat-icon class="!text-lg !w-5 !h-5 !leading-5" [class.!text-red-400]="pickedPaths().has(photo.path)">{{ pickedPaths().has(photo.path) ? 'favorite' : 'favorite_border' }}</mat-icon>
+                        </button>
+                        <button class="absolute top-1 right-10 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-black/40 text-white hover:bg-black/60"
+                                [matTooltip]="'proofing.comment' | translate"
+                                (click)="openComment(photo, $event)">
+                          <mat-icon class="!text-lg !w-5 !h-5 !leading-5" [class.!text-amber-300]="pickComments().has(photo.path)">{{ pickComments().has(photo.path) ? 'chat' : 'chat_bubble_outline' }}</mat-icon>
+                        </button>
+                      }
+                    </div>
                   }
                 </div>
               }
             } @else {
               <div class="grid grid-cols-1 gap-2">
                 @for (photo of photos(); track photo.path) {
-                  <app-photo-card
-                    [photo]="photo"
-                    [config]="cardConfig()"
-                    [hideDetails]="true"
-                    [isEditionMode]="false"
-                    [isSelected]="selectedPaths().has(photo.path)"
-                    (selectionChange)="toggleSelection($event.photo, $event.event)"
-                    (doubleClicked)="openPhotoDetail($event)"
-                  />
+                  <div class="relative">
+                    <app-photo-card
+                      [photo]="photo"
+                      [config]="cardConfig()"
+                      [hideDetails]="true"
+                      [isEditionMode]="false"
+                      [isSelected]="selectedPaths().has(photo.path)"
+                      (selectionChange)="toggleSelection($event.photo, $event.event)"
+                      (doubleClicked)="openPhotoDetail($event)"
+                    />
+                    @if (proofingActive()) {
+                      <button class="absolute top-1 right-1 z-10 flex items-center justify-center w-9 h-9 rounded-full bg-black/40 text-white hover:bg-black/60"
+                              [matTooltip]="(pickedPaths().has(photo.path) ? 'proofing.unpick' : 'proofing.pick') | translate"
+                              (click)="togglePick(photo, $event)">
+                        <mat-icon class="!text-xl !w-6 !h-6 !leading-6" [class.!text-red-400]="pickedPaths().has(photo.path)">{{ pickedPaths().has(photo.path) ? 'favorite' : 'favorite_border' }}</mat-icon>
+                      </button>
+                      <button class="absolute top-1 right-12 z-10 flex items-center justify-center w-9 h-9 rounded-full bg-black/40 text-white hover:bg-black/60"
+                              [matTooltip]="'proofing.comment' | translate"
+                              (click)="openComment(photo, $event)">
+                        <mat-icon class="!text-xl !w-6 !h-6 !leading-6" [class.!text-amber-300]="pickComments().has(photo.path)">{{ pickComments().has(photo.path) ? 'chat' : 'chat_bubble_outline' }}</mat-icon>
+                      </button>
+                    }
+                  </div>
                 }
               </div>
             }
@@ -425,6 +460,56 @@ interface SharedFilters {
         <div class="md:hidden fixed bottom-0 left-0 right-0 z-50 h-11 flex items-center gap-2 px-4 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
           <span class="text-sm font-medium truncate">{{ entityName() }}</span>
           <span class="text-xs opacity-60 ml-auto shrink-0">{{ total() }}</span>
+        </div>
+      }
+
+      <!-- Client proofing: sticky picks counter -->
+      @if (proofingActive()) {
+        <div class="fixed bottom-14 md:bottom-4 right-4 z-40 flex items-center gap-1.5 rounded-full px-3 py-1.5 bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] shadow-lg text-sm font-medium pointer-events-none">
+          <mat-icon class="!text-base !w-4 !h-4 !leading-4">favorite</mat-icon>
+          {{ 'proofing.picks_count' | translate:{ count: picksCount() } }}
+        </div>
+      }
+
+      <!-- Client proofing: PIN / name setup -->
+      @if (pinRequired() || askName()) {
+        <div class="fixed bottom-0 left-0 right-0 z-[55] flex flex-wrap items-center gap-2 px-3 md:px-6 py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
+          <mat-icon class="text-[var(--mat-sys-primary)] shrink-0">favorite</mat-icon>
+          <span class="text-sm">{{ (pinRequired() ? 'proofing.pin_prompt' : 'proofing.name_prompt') | translate }}</span>
+          @if (pinRequired()) {
+            <input type="password" inputmode="numeric" autocomplete="off"
+                   class="w-24 px-2 py-1.5 rounded border bg-transparent text-sm"
+                   [class]="pinError() ? 'border-red-500' : 'border-[var(--mat-sys-outline-variant)]'"
+                   [placeholder]="'proofing.pin_label' | translate"
+                   [value]="pinInput()" (input)="pinInput.set($any($event.target).value)"
+                   (keydown.enter)="submitProofingSetup()" />
+          }
+          <input type="text" maxlength="100"
+                 class="w-40 px-2 py-1.5 rounded border border-[var(--mat-sys-outline-variant)] bg-transparent text-sm"
+                 [placeholder]="'proofing.name_label' | translate"
+                 [value]="nameInput()" (input)="nameInput.set($any($event.target).value)"
+                 (keydown.enter)="submitProofingSetup()" />
+          <button mat-flat-button (click)="submitProofingSetup()">{{ 'proofing.start' | translate }}</button>
+          @if (!pinRequired()) {
+            <button mat-button (click)="askName.set(false)">{{ 'proofing.skip' | translate }}</button>
+          }
+          @if (pinError()) {
+            <span class="text-sm text-red-500">{{ 'proofing.pin_invalid' | translate }}</span>
+          }
+        </div>
+      }
+
+      <!-- Client proofing: inline comment editor -->
+      @if (commentFor()) {
+        <div class="fixed bottom-0 left-0 right-0 z-[60] flex items-center gap-2 px-3 md:px-6 py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
+          <mat-icon class="opacity-60 shrink-0">chat_bubble_outline</mat-icon>
+          <input type="text" maxlength="2000"
+                 class="flex-1 min-w-0 px-2 py-1.5 rounded border border-[var(--mat-sys-outline-variant)] bg-transparent text-sm"
+                 [placeholder]="'proofing.comment_placeholder' | translate"
+                 [value]="commentDraft()" (input)="commentDraft.set($any($event.target).value)"
+                 (keydown.enter)="saveComment()" />
+          <button mat-button (click)="commentFor.set(null)">{{ I18N.ui.buttons.cancel | translate }}</button>
+          <button mat-flat-button (click)="saveComment()">{{ I18N.ui.buttons.save | translate }}</button>
         </div>
       }
 
@@ -581,6 +666,24 @@ export class SharedViewComponent implements OnInit {
   protected readonly selectionCount = computed(() => this.selectedPaths().size);
   private lastSelectedIndex = -1;
 
+  // Client proofing (session JWT scoped to this album, carried explicitly —
+  // the shared page has no logged-in user)
+  private static readonly PROOFING_NAME_KEY = 'facet_proofing_name';
+  private readonly http = inject(HttpClient);
+  protected readonly proofingToken = signal<string | null>(null);
+  protected readonly proofingActive = computed(() => this.proofingToken() !== null);
+  protected readonly pinRequired = signal(false);
+  protected readonly pinError = signal(false);
+  protected readonly askName = signal(false);
+  protected readonly pinInput = signal('');
+  protected readonly nameInput = signal('');
+  protected readonly pickedPaths = signal<Set<string>>(new Set());
+  protected readonly pickComments = signal<Map<string, string>>(new Map());
+  protected readonly picksCount = computed(() => this.pickedPaths().size);
+  protected readonly commentFor = signal<Photo | null>(null);
+  protected readonly commentDraft = signal('');
+  private proofingInitDone = false;
+
   private entityId = 0;
   private token = '';
   private currentPage = 1;
@@ -735,6 +838,132 @@ export class SharedViewComponent implements OnInit {
     }
   }
 
+  // --- Client proofing ---
+
+  private initProofing(): void {
+    if (this.proofingInitDone) return;
+    this.proofingInitDone = true;
+    const storedName = localStorage.getItem(SharedViewComponent.PROOFING_NAME_KEY) ?? '';
+    this.nameInput.set(storedName);
+    void this.mintProofingSession(storedName, '');
+  }
+
+  private async mintProofingSession(clientName: string, pin: string): Promise<boolean> {
+    try {
+      const res = await firstValueFrom(this.http.post<{ session_token: string }>(
+        `/api/shared/album/${this.entityId}/session`,
+        { token: this.token, pin, client_name: clientName },
+      ));
+      this.proofingToken.set(res.session_token);
+      this.pinRequired.set(false);
+      this.pinError.set(false);
+      if (!localStorage.getItem(SharedViewComponent.PROOFING_NAME_KEY)) {
+        this.askName.set(true);
+      }
+      await this.loadPicks();
+      return true;
+    } catch (e: unknown) {
+      if (e instanceof HttpErrorResponse && e.status === 403) {
+        const detail = (e.error as { detail?: string } | null)?.detail;
+        if (detail === 'pin_required') {
+          this.pinRequired.set(true);
+        } else if (detail === 'pin_invalid') {
+          this.pinRequired.set(true);
+          this.pinError.set(true);
+        }
+      }
+      return false;
+    }
+  }
+
+  protected async submitProofingSetup(): Promise<void> {
+    const name = this.nameInput().trim();
+    const ok = await this.mintProofingSession(name, this.pinInput().trim());
+    if (ok) {
+      if (name) localStorage.setItem(SharedViewComponent.PROOFING_NAME_KEY, name);
+      this.askName.set(false);
+    }
+  }
+
+  private proofingHeaders(): Record<string, string> {
+    return { Authorization: `Bearer ${this.proofingToken()}` };
+  }
+
+  private async loadPicks(): Promise<void> {
+    try {
+      const res = await firstValueFrom(this.http.get<{ picks: SharedPick[] }>(
+        `/api/shared/album/${this.entityId}/picks`,
+        { headers: this.proofingHeaders() },
+      ));
+      const picked = new Set<string>();
+      const comments = new Map<string, string>();
+      for (const pick of res.picks) {
+        if (pick.picked) picked.add(pick.path);
+        if (pick.comment) comments.set(pick.path, pick.comment);
+      }
+      this.pickedPaths.set(picked);
+      this.pickComments.set(comments);
+    } catch {
+      // Non-critical — picks simply start empty
+    }
+  }
+
+  private async putPick(path: string, picked: boolean, comment?: string): Promise<boolean> {
+    if (!this.proofingToken()) return false;
+    try {
+      await firstValueFrom(this.http.put(
+        `/api/shared/album/${this.entityId}/picks`,
+        comment === undefined ? { path, picked } : { path, picked, comment },
+        { headers: this.proofingHeaders() },
+      ));
+      return true;
+    } catch {
+      this.snackBar.open(this.i18n.t('proofing.save_error'), '', { duration: 3000 });
+      return false;
+    }
+  }
+
+  protected async togglePick(photo: Photo, event: Event): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    const picked = !this.pickedPaths().has(photo.path);
+    this.pickedPaths.update(prev => {
+      const next = new Set(prev);
+      if (picked) next.add(photo.path); else next.delete(photo.path);
+      return next;
+    });
+    const ok = await this.putPick(photo.path, picked);
+    if (!ok) {
+      this.pickedPaths.update(prev => {
+        const next = new Set(prev);
+        if (picked) next.delete(photo.path); else next.add(photo.path);
+        return next;
+      });
+    }
+  }
+
+  protected openComment(photo: Photo, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.commentDraft.set(this.pickComments().get(photo.path) ?? '');
+    this.commentFor.set(photo);
+  }
+
+  protected async saveComment(): Promise<void> {
+    const photo = this.commentFor();
+    if (!photo) return;
+    const comment = this.commentDraft().trim();
+    const ok = await this.putPick(photo.path, this.pickedPaths().has(photo.path), comment);
+    if (ok) {
+      this.pickComments.update(prev => {
+        const next = new Map(prev);
+        if (comment) next.set(photo.path, comment); else next.delete(photo.path);
+        return next;
+      });
+      this.commentFor.set(null);
+    }
+  }
+
   // --- Photo detail navigation ---
 
   protected openPhotoDetail(photo: Photo): void {
@@ -795,6 +1024,9 @@ export class SharedViewComponent implements OnInit {
     this.entityName.set(res.album.name);
     this.description.set(res.album.description);
     this.isManualAlbum.set(!res.album.is_smart);
+    if (res.proofing_enabled) {
+      this.initProofing();
+    }
     this.total.set(res.total);
     this.hasMore.set(res.has_more);
     this.currentPage = res.page;

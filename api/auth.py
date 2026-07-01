@@ -160,6 +160,54 @@ async def require_superadmin(
     return user
 
 
+# --- SHARE CLIENT SESSIONS (proofing on shared albums) ---
+
+SHARE_CLIENT_ROLE = 'share_client'
+
+
+def create_share_client_token(album_id: int, client_name: str = '') -> str:
+    """Mint a short-lived JWT for a proofing client on one shared album.
+
+    The token is scoped to a single album (``sub: share:<album_id>``) and a
+    dedicated role, so it grants nothing on the regular authenticated surface
+    (``get_optional_user`` yields a plain non-edition user at most). Expiry
+    comes from ``viewer.proofing.session_minutes`` (default 1440 = 24h).
+    """
+    minutes = int((VIEWER_CONFIG.get('proofing', {}) or {}).get('session_minutes', 1440))
+    return create_access_token(
+        {
+            'sub': f'share:{album_id}',
+            'role': SHARE_CLIENT_ROLE,
+            'album_id': album_id,
+            'client_name': client_name,
+        },
+        expires_delta=timedelta(minutes=minutes),
+    )
+
+
+async def require_share_client(
+    album_id: int,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> dict:
+    """Require a share-client JWT bound to the path's ``album_id``.
+
+    Validates the bearer token's role AND that it was minted for the same
+    album as the route being called — a session for album A can never write
+    picks on album B. Raises 403 otherwise.
+    """
+    payload = decode_access_token(credentials.credentials) if credentials else None
+    if (
+        payload is None
+        or payload.get('role') != SHARE_CLIENT_ROLE
+        or payload.get('album_id') != album_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Share session required",
+        )
+    return payload
+
+
 # --- PASSWORD HASHING (multi-user) ---
 
 def hash_password(password: str) -> str:

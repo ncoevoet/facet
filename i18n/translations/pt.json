@@ -2104,5 +2104,22 @@
   },
   "moments": {
     "uncertain": "incerto"
+  },
+  "proofing": {
+    "client_picks": "Seleções do cliente",
+    "no_picks": "Ainda não há seleções do cliente.",
+    "picks_count": "{count} seleções",
+    "pick": "Selecionar esta foto",
+    "unpick": "Remover a seleção",
+    "comment": "Comentário",
+    "comment_placeholder": "Deixe um comentário para o fotógrafo…",
+    "pin_prompt": "Esta galeria está protegida. Introduza o PIN para marcar as suas seleções.",
+    "pin_label": "PIN",
+    "pin_invalid": "PIN incorreto.",
+    "name_prompt": "Adicione o seu nome para o fotógrafo saber quem escolheu (opcional).",
+    "name_label": "O seu nome",
+    "start": "Começar",
+    "skip": "Ignorar",
+    "save_error": "Não foi possível guardar a sua seleção."
   }
 }
