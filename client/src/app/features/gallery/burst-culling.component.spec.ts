@@ -4,6 +4,7 @@ import { of, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { GalleryStore } from './gallery.store';
 import { BurstCullingComponent } from './burst-culling.component';
@@ -62,6 +63,7 @@ describe('BurstCullingComponent', () => {
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: I18nService, useValue: mockI18n },
         { provide: GalleryStore, useValue: { config: () => null } },
+        { provide: AuthService, useValue: { isEdition: () => true } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
     });
@@ -445,6 +447,57 @@ describe('BurstCullingComponent', () => {
     it('persists the category filter to localStorage', () => {
       component['onCategoryFilterChange']('portrait');
       expect(localStorage.getItem('facet_culling_category')).toBe('portrait');
+    });
+  });
+
+  describe('auto-cull (one-button cull with keeper budget)', () => {
+    const preview = {
+      groups_processed: 3, kept: 4, rejected: 5, highlights_added: 2,
+      dry_run: true, preview: [], preview_truncated: false,
+    };
+
+    it('openAutoCull dry-runs the current scope and stores the preview', async () => {
+      mockApi.post = vi.fn(() => of(preview));
+      await component['openAutoCull']();
+      expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({
+        dry_run: true,
+        group_by: 'all',
+        strictness: component['strictness'](),
+      }));
+      expect(component['autoCullPreview']()).toEqual(preview);
+    });
+
+    it('confirmAutoCull applies with dry_run false, closes the dialog and reloads', async () => {
+      component['autoCullPreview'].set(preview);
+      mockApi.post = vi.fn(() => of({ ...preview, dry_run: false }));
+      const reload = vi.spyOn(component as any, 'loadGroups');
+      await component['confirmAutoCull']();
+      expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({ dry_run: false }));
+      expect(component['autoCullPreview']()).toBeNull();
+      expect(reload).toHaveBeenCalled();
+      expect(mockSnackBar.open).toHaveBeenCalled();
+    });
+
+    it('sends an empty highlights_album on apply when the checkbox is off', async () => {
+      component['autoCullHighlights'].set(false);
+      mockApi.post = vi.fn(() => of(preview));
+      await component['confirmAutoCull']();
+      expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({ highlights_album: '' }));
+    });
+
+    it('sends the generated highlights album name on apply when the checkbox is on', async () => {
+      component['autoCullHighlights'].set(true);
+      mockApi.post = vi.fn(() => of(preview));
+      await component['confirmAutoCull']();
+      const body = mockApi.post.mock.calls[0][1] as Record<string, unknown>;
+      expect(String(body['highlights_album'])).not.toBe('');
+    });
+
+    it('openAutoCull surfaces an error snackbar on failure', async () => {
+      mockApi.post = vi.fn(() => throwError(() => new Error('boom')));
+      await component['openAutoCull']();
+      expect(component['autoCullPreview']()).toBeNull();
+      expect(mockSnackBar.open).toHaveBeenCalled();
     });
   });
 

@@ -9,6 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSliderModule } from '@angular/material/slider';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { GalleryStore } from './gallery.store';
 import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from '../scenes/scenes.pipes';
@@ -29,7 +30,7 @@ import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe,
   FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
-  CullingGroup, CullingFace, FaceThresholds,
+  BetterInGroupPipe, CullingGroup, CullingFace, FaceThresholds,
 } from './burst-culling.pipes';
 
 interface CullingGroupsResponse {
@@ -38,6 +39,17 @@ interface CullingGroupsResponse {
   page: number;
   per_page: number;
   total_pages: number;
+}
+
+/** Response of POST /api/culling/auto (dry-run preview and apply share the shape). */
+interface AutoCullResponse {
+  groups_processed: number;
+  kept: number;
+  rejected: number;
+  highlights_added: number;
+  dry_run: boolean;
+  preview: { group_id: number; type: string; keep_paths: string[]; reject_paths: string[]; best_path: string }[];
+  preview_truncated: boolean;
 }
 
 // Per-user culling toolbar preferences, persisted so the page reopens the way
@@ -122,6 +134,7 @@ interface ShortcutRow {
     WeightRemainingPipe,
     CullGroupIconPipe,
     CullGroupLabelPipe,
+    BetterInGroupPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
   ],
@@ -303,6 +316,13 @@ interface ShortcutRow {
                      [attr.aria-label]="I18N.culling.loupe | translate" />
             </mat-slider>
           }
+          @if (auth.isEdition()) {
+            <button mat-icon-button (click)="openAutoCull()" [disabled]="autoCullLoading()"
+                    [matTooltip]="'culling.auto_cull.tooltip' | translate"
+                    [attr.aria-label]="'culling.auto_cull.button' | translate">
+              <mat-icon>auto_fix_high</mat-icon>
+            </button>
+          }
           @if (unconfirmedCount() > 0) {
             <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="confirming()" class="!hidden lg:!inline-flex !rounded-md shrink-0">
               <mat-icon>done_all</mat-icon>
@@ -403,6 +423,13 @@ interface ShortcutRow {
                     } @else if (photo.cull_reason; as reason) {
                       <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-xs font-medium max-w-[160px] truncate">
                         {{ reason | cullReason }}
+                      </div>
+                    }
+                    @if (photo.path | betterInGroup:group.best_path) {
+                      <div class="absolute top-9 left-2 w-6 h-6 rounded-full bg-amber-500/90 inline-flex items-center justify-center"
+                           [matTooltip]="'culling.auto_cull.better_tooltip' | translate"
+                           [attr.aria-label]="'culling.auto_cull.better_tooltip' | translate">
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">stars</mat-icon>
                       </div>
                     }
                     @if (photo.path | isKept:selectionsMap():group.group_id) {
@@ -702,6 +729,46 @@ interface ShortcutRow {
         }
       </div>
     }
+
+    <!-- Auto-cull preview / confirm dialog -->
+    @if (autoCullPreview(); as ac) {
+      <div class="fixed inset-0 z-[110] bg-black/50 flex items-center justify-center p-4"
+           role="presentation"
+           (click)="cancelAutoCull()"
+           (keydown.escape)="cancelAutoCull()">
+        <div class="rounded-xl bg-[var(--mat-sys-surface-container-high)] p-6 w-full max-w-md space-y-4"
+             role="dialog"
+             aria-modal="true"
+             (click)="$event.stopPropagation()"
+             (keydown)="$event.stopPropagation()">
+          <h2 class="text-lg font-semibold">{{ 'culling.auto_cull.title' | translate }}</h2>
+          @if (ac.groups_processed === 0) {
+            <p class="text-sm opacity-80">{{ 'culling.auto_cull.empty' | translate }}</p>
+          } @else {
+            <p class="text-sm opacity-80">
+              {{ 'culling.auto_cull.summary' | translate:{ groups: ac.groups_processed, kept: ac.kept, rejected: ac.rejected } }}
+            </p>
+            <p class="text-xs opacity-60">{{ I18N.culling.strictness | translate }} · {{ strictness() }}%</p>
+            @if (ac.highlights_added > 0) {
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" class="accent-[var(--mat-sys-primary)]"
+                       [checked]="autoCullHighlights()"
+                       (change)="autoCullHighlights.set(!autoCullHighlights())" />
+                {{ 'culling.auto_cull.highlights_label' | translate:{ count: ac.highlights_added } }}
+              </label>
+            }
+          }
+          <div class="flex justify-end gap-2">
+            <button mat-stroked-button (click)="cancelAutoCull()">{{ I18N.dialog.cancel | translate }}</button>
+            @if (ac.groups_processed > 0) {
+              <button mat-flat-button (click)="confirmAutoCull()" [disabled]="autoCullLoading()">
+                {{ 'culling.auto_cull.apply' | translate:{ rejected: ac.rejected } }}
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    }
   `,
   host: { class: 'block h-full' },
 })
@@ -716,6 +783,7 @@ export class BurstCullingComponent implements OnDestroy {
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly albumService = inject(AlbumService);
   private readonly compareFilters = inject(CompareFiltersService);
+  protected readonly auth = inject(AuthService);
   protected readonly store = inject(GalleryStore);
   private readonly sceneDate = new SceneDatePipe();
 
@@ -911,6 +979,12 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Per-category comparison counts + threshold, for the weight-tuning chip. */
   protected readonly comparisonStats = signal<ComparisonStatsLite | null>(null);
+
+  /** Dry-run result of POST /culling/auto shown in the confirm dialog (null = closed). */
+  protected readonly autoCullPreview = signal<AutoCullResponse | null>(null);
+  protected readonly autoCullLoading = signal(false);
+  /** Whether the apply also fills the Highlights album (dialog checkbox, opt-in). */
+  protected readonly autoCullHighlights = signal(false);
 
   protected readonly darkroomShortcuts: ShortcutRow[] = [
     { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
@@ -1462,9 +1536,83 @@ export class BurstCullingComponent implements OnDestroy {
 
   @HostListener('document:keydown.escape', ['$event'])
   protected onEscape(event: Event): void {
+    if (this.autoCullPreview()) {
+      event.preventDefault();
+      this.cancelAutoCull();
+      return;
+    }
     if (this.lightboxGroup()) {
       event.preventDefault();
       this.closeLightbox();
+    }
+  }
+
+  // --- Auto-cull (one-button cull under a keeper budget) ---
+
+  /** Request body for POST /culling/auto, reusing the page's scope + strictness. */
+  private autoCullBody(dryRun: boolean, highlightsAlbum: string): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      group_by: this.groupBy(),
+      strictness: this.strictness(),
+      dry_run: dryRun,
+      highlights_album: highlightsAlbum,
+    };
+    const album = this.scopeAlbum();
+    if (album) body['album_id'] = Number(album);
+    const from = this.scopeFrom();
+    if (from) body['date_from'] = from;
+    const to = this.scopeTo();
+    if (to) body['date_to'] = to;
+    return body;
+  }
+
+  /** Deterministic Highlights album name for the current scope and day. */
+  private highlightsAlbumName(): string {
+    const scope = this.scopeLabel() ?? this.i18n.t(I18N.culling.scope_whole_library);
+    const day = new Date().toISOString().slice(0, 10);
+    return `${this.i18n.t('culling.auto_cull.highlights_name')} — ${scope} ${day}`;
+  }
+
+  /** Dry-run the auto-cull for the current scope and open the confirm dialog. */
+  protected async openAutoCull(): Promise<void> {
+    this.autoCullLoading.set(true);
+    try {
+      const preview = await firstValueFrom(this.api.post<AutoCullResponse>(
+        '/culling/auto', this.autoCullBody(true, this.highlightsAlbumName()),
+      ));
+      this.autoCullPreview.set(preview);
+    } catch {
+      this.snackBar.open(this.i18n.t('culling.auto_cull.error'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+    } finally {
+      this.autoCullLoading.set(false);
+    }
+  }
+
+  protected cancelAutoCull(): void {
+    this.autoCullPreview.set(null);
+  }
+
+  /** Apply the previewed auto-cull (dry_run=false), then refresh the feed. */
+  protected async confirmAutoCull(): Promise<void> {
+    this.autoCullLoading.set(true);
+    try {
+      const album = this.autoCullHighlights() ? this.highlightsAlbumName() : '';
+      const result = await firstValueFrom(this.api.post<AutoCullResponse>(
+        '/culling/auto', this.autoCullBody(false, album),
+      ));
+      this.autoCullPreview.set(null);
+      this.snackBar.open(
+        this.i18n.t('culling.auto_cull.applied', { kept: result.kept, rejected: result.rejected }),
+        '', { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' },
+      );
+      this.selectedGroupIndex.set(0);
+      this.resetForReload();
+      void this.refreshComparisonStats();
+      void this.refreshRankerStatus();
+    } catch {
+      this.snackBar.open(this.i18n.t('culling.auto_cull.error'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+    } finally {
+      this.autoCullLoading.set(false);
     }
   }
 

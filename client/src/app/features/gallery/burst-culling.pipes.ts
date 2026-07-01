@@ -178,6 +178,15 @@ export class FaceDimmedPipe implements PipeTransform {
   }
 }
 
+/** True when a better photo exists in the group — i.e. this tile is not the
+ *  group's auto-best. Drives the inline hint badge on non-best tiles. */
+@Pipe({ name: 'betterInGroup' })
+export class BetterInGroupPipe implements PipeTransform {
+  transform(path: string, bestPath: string | null | undefined): boolean {
+    return !!bestPath && path !== bestPath;
+  }
+}
+
 /** Map a culling granularity / group kind to its Material icon. */
 @Pipe({ name: 'cullGroupIcon' })
 export class CullGroupIconPipe implements PipeTransform {

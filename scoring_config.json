@@ -2155,6 +2155,10 @@
     "weight_sharpness": 0.2,
     "weight_blink": 0.15
   },
+  "auto_cull": {
+    "default_strictness": 50,
+    "highlights_min": 8.0
+  },
   "similarity_groups": {
     "default_threshold": 0.85,
     "min_group_size": 2,
