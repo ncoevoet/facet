@@ -204,7 +204,7 @@ docker compose up -d
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
 
-`scoring_config.json` is mounted as a volume (not baked into the image), so edit it on the host and restart. The database path is set by `DB_PATH` (default `/app/data/photo_scores_pro.db`). Model caches persist under `./model-cache/` so they survive restarts.
+A sanitized `scoring_config.default.json` is **baked into the image** as the active config (empty secrets, `darktable-cli` on PATH, `vram_profile: auto`, all profiles at their full feature set), so it runs with zero host setup. To customize (weights, viewer password, categories), `cp scoring_config.default.json scoring_config.json`, edit it, and uncomment the config mount in `docker-compose.yml`. Deploy knobs live in `.env` (copy `.env.example`): `FACET_VRAM_PROFILE`, `PHOTOS_DIR`, `PORT`, and `DB_PATH` (default `/app/data/photo_scores_pro.db`) — the base compose is templated with these. Model caches live in Docker-managed named volumes (`facet-hf-cache`, `facet-insightface`, `facet-pretrained`) so the image is self-contained and the models survive restarts. Select a VRAM profile without editing any config via the per-profile overrides (`docker-compose.{legacy,8gb,16gb}.yml`, which set `FACET_VRAM_PROFILE`) or the generic `docker-compose.gpu.yml`.
 
 For a viewer-only NAS where the image must stay small (no CUDA), build a slim image instead. Note the CI guard requires every `COPY` source to be git-tracked, so the build context must include the listed files:
 
@@ -232,6 +232,152 @@ services:
       - /volume1/Photos:/volume1/Photos:ro  # Mount photos for downloads
     restart: always
 ```
+
+## Windows (WSL2) with an NVIDIA GPU
+
+Run the full GPU scoring + viewer stack in Docker on Windows via WSL2 — without
+Docker Desktop. This keeps everything (the Linux distro, its Docker images, and
+`/var/lib/docker`) on a **data drive** (e.g. `D:`), which matters when the system
+drive `C:` is short on space.
+
+**Prerequisites:** a recent NVIDIA driver on Windows (`nvidia-smi` works at the
+Windows prompt — the driver provides WSL2 CUDA passthrough; you do **not** install
+a driver inside WSL).
+
+### 1. Install WSL2 (admin, one-time)
+
+In an **elevated** PowerShell, then reboot if asked:
+
+```powershell
+wsl --install --no-distribution   # WSL2 platform only, no distro on C:
+```
+
+### 2. Install a distro whose disk lives on the data drive
+
+```powershell
+wsl --install -d Ubuntu --location D:\wsl\facet --name facet --no-launch
+```
+
+`--location` puts the distro's `ext4.vhdx` under `D:\wsl\facet`, so Docker's image
+store stays off `C:`. `--no-launch` skips the interactive first-run user prompt;
+the commands below run as `root`, which is fine for a single-purpose box.
+
+### 3. Enable systemd (needed for the docker service)
+
+```powershell
+wsl -d facet -u root -- bash -lc 'printf "[boot]\nsystemd=true\n" > /etc/wsl.conf'
+wsl --shutdown           # apply on next start
+```
+
+### 4. Install Docker CE + the NVIDIA Container Toolkit (inside the distro)
+
+```bash
+wsl -d facet -u root
+# --- inside the distro ---
+apt-get update && apt-get install -y ca-certificates curl gnupg
+# Docker repo (fall back to the newest supported codename if yours is too new):
+. /etc/os-release; CODE=$VERSION_CODENAME
+curl -fsSL -o /dev/null "https://download.docker.com/linux/ubuntu/dists/$CODE/Release" || CODE=noble
+install -m0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $CODE stable" > /etc/apt/sources.list.d/docker.list
+# NVIDIA toolkit repo (distribution-agnostic):
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+  > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin nvidia-container-toolkit
+nvidia-ctk runtime configure --runtime=docker
+nvidia-ctk config --set nvidia-container-cli.no-cgroups=true --in-place   # WSL2 has no nvidia cgroup
+systemctl enable --now docker
+# Verify GPU passthrough:
+docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi --query-gpu=name,memory.total --format=csv
+```
+
+### 5. Build and run Facet, one file per profile
+
+The repo on the Windows drive is visible inside WSL at `/mnt/d/...`. The image is
+**self-contained**: dependencies are pinned in `requirements.lock.txt` (a tested,
+frozen version set — see "Reproducible, self-contained image" below) and all model
+caches live in Docker-managed **named volumes**, so the container never reads the
+host's native model caches or any shared local state. Models download once on
+first run into those volumes and persist.
+
+Pick the profile with a per-profile override file — no need to edit any JSON:
+
+```bash
+cd /mnt/d/photo-llm
+# legacy (CPU-only): CLIP ViT-L-14 + CLIP-MLP aesthetic + CLIP tagging
+docker compose -f docker-compose.yml -f docker-compose.legacy.yml up -d --build
+# 8gb (GPU): CLIP + TOPIQ + SAMP-Net + faces + saliency
+docker compose -f docker-compose.yml -f docker-compose.8gb.yml up -d --build
+# 16gb (GPU): SigLIP2 + TOPIQ + Qwen3.5-2B tagging + BiRefNet saliency
+docker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d --build
+
+curl -s localhost:5000/health          # -> ok
+```
+
+Each override sets `FACET_VRAM_PROFILE` (honored by `config/scoring_config.py`,
+overriding `models.vram_profile` in the config — no JSON edit) and, for the GPU
+profiles, reserves the NVIDIA GPU. GPU profiles (8gb/16gb/24gb) cluster faces on
+the GPU via the baked-in RAPIDS cuML; the legacy profile always clusters on CPU.
+The generic `docker-compose.gpu.yml` remains for a plain GPU run using the config's
+own `vram_profile` (default `auto`).
+
+First run downloads the profile's models into the named volumes; reset them with
+`docker compose down -v`.
+
+### Reproducible, self-contained image
+
+- **Sticky versions.** The image builds from `requirements.lock.txt` — a full
+  `pip freeze` of a validated container with `torch`/`torchvision` + `nvidia-*`
+  stripped (the CUDA base image provides those). This prevents silent drift to
+  untested releases. (Example this guards against: transformers 5.3+ changed
+  Qwen3.5 vision batching and broke the VLM tagger; `kornia`, required by
+  BiRefNet, is not pulled in by transformers and must be pinned.) Regenerate after
+  an intentional upgrade: `docker compose ... exec facet pip freeze | grep -ivE '^(torch|torchvision|nvidia-|triton)' > requirements.lock.txt`.
+- **GPU face clustering baked in.** RAPIDS cuML (`cuml-cu12`) ships in the image,
+  so the GPU profiles (8gb/16gb/24gb) cluster faces on the GPU (HDBSCAN via
+  `face_clustering.use_gpu="auto"`); the legacy profile — and any host with no CUDA
+  device — always clusters on CPU. cuML is the single largest dependency (~5.75 GB;
+  see the size breakdown below).
+- **No host coupling.** Model caches are named volumes, not host binds; the
+  container runs unprivileged (the default entrypoint drops to the `facet` user).
+- **Lean build context.** `.dockerignore` excludes local-only bulk (`conda/`,
+  sample datasets, `*.db`, caches, dev artifacts) — keep new large local
+  directories out of the context by adding them there.
+
+### Image size & model downloads
+
+The image is large — **~21 GB — but it contains no model weights.** That size is
+all runtime dependencies, dominated by the GPU stack:
+
+| Layer | Size |
+|-------|------|
+| RAPIDS cuML (GPU face clustering) | ~5.75 GB |
+| CUDA runtime libs (`nvidia-*`) | ~3.7 GB |
+| PyTorch + Triton | ~1.9 GB |
+| Python ML deps (transformers, pyiqa, insightface, …) | ~1.9 GB |
+| Base OS + conda | ~2-3 GB |
+
+Model weights **download at first run** into the named volumes (`facet-hf-cache`,
+`facet-insightface`, `facet-pretrained`) — never into the image — so the size on
+disk depends on the active profile:
+
+| Model | Size | Profiles |
+|-------|------|----------|
+| SigLIP 2 NaFlex SO400M (embeddings) | ~4.3 GB | 16gb / 24gb |
+| Qwen3.5-2B (tagging) | ~4.2 GB | 16gb |
+| Qwen3.5-4B (tagging) | ~8 GB | 24gb |
+| Qwen2-VL-2B (composition) | ~4.2 GB | 24gb |
+| CLIP ViT-L-14 (embeddings + tagging) | ~1.6 GB | legacy / 8gb |
+| BiRefNet (saliency) | ~424 MB | all |
+| InsightFace buffalo_l (faces) | ~600 MB | all |
+| SAMP-Net (composition) | ~175 MB | all |
+
+**First-run download total per profile:** legacy / 8gb ~3-4 GB, 16gb ~10-11 GB,
+24gb ~18 GB. Budget disk for the image **plus** these volumes; `docker compose
+down -v` deletes the volumes and forces a re-download on the next start.
 
 ## Generic Linux Server
 

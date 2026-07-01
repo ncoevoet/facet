@@ -2,22 +2,34 @@ services:
   facet:
     build: .
     ports:
-      - "5000:5000"
+      - "${PORT:-5000}:5000"
     volumes:
-      - ./photos:/data/photos
+      - ${PHOTOS_DIR:-./photos}:/data/photos
       - ./data:/app/data
-      - ./scoring_config.json:/app/scoring_config.json
       - ./storage:/app/storage
-      - ./model-cache/huggingface:/home/facet/.cache/huggingface
-      - ./model-cache/insightface:/home/facet/.insightface
-      - ./model-cache/pretrained:/app/pretrained_models
+      # Bring your own config to customize (weights, viewer password, categories):
+      #   cp scoring_config.default.json scoring_config.json   # then edit
+      # and uncomment the next line. Otherwise the image's baked, sanitized
+      # scoring_config.default.json is used and FACET_VRAM_PROFILE picks the profile.
+      # - ./scoring_config.json:/app/scoring_config.json
+      # Model caches are Docker-managed named volumes so the image is fully
+      # self-contained: it never reads the host's native model caches or any
+      # shared local state. Models download once on first run into these volumes
+      # and persist across restarts. Reset with `docker compose down -v`.
+      - facet-hf-cache:/home/facet/.cache/huggingface
+      - facet-torch-cache:/home/facet/.cache/torch
+      - facet-insightface:/home/facet/.insightface
+      - facet-pretrained:/app/pretrained_models
     environment:
       - FACET_LOG_LEVEL=INFO
-      - DB_PATH=/app/data/photo_scores_pro.db
+      - DB_PATH=${DB_PATH:-/app/data/photo_scores_pro.db}
+      # Pick the VRAM profile without editing any JSON (auto|legacy|8gb|16gb|24gb).
+      - FACET_VRAM_PROFILE=${FACET_VRAM_PROFILE:-auto}
     # GPU acceleration is opt-in. The default config runs in CPU mode so
     # `docker compose up` works on any machine. To enable an NVIDIA GPU
     # (requires the NVIDIA Container Toolkit), add the override file:
     #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+    # or a per-profile overlay (docker-compose.{8gb,16gb}.yml).
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
       interval: 30s
@@ -25,3 +37,9 @@ services:
       retries: 3
       start_period: 30s
     restart: unless-stopped
+
+volumes:
+  facet-hf-cache:
+  facet-torch-cache:
+  facet-insightface:
+  facet-pretrained:

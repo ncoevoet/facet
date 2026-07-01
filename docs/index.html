@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Facet — local AI photo scoring, culling & gallery</title>
+  <meta name="description" content="Facet is a local, self-hosted photo engine: it scores every image, culls bursts, blinks and near-duplicates, and serves a web gallery with face recognition and search by plain words. No cloud, no accounts, no subscriptions.">
+  <link rel="canonical" href="https://ncoevoet.github.io/facet/">
+  <link rel="icon" type="image/png" href="logo-512.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Facet — local AI photo scoring, culling & gallery">
+  <meta property="og:description" content="Score, cull and organize your photo library entirely on your own machine. AI gallery + culling workflow. No cloud, no subscriptions.">
+  <meta property="og:url" content="https://ncoevoet.github.io/facet/">
+  <meta property="og:image" content="https://ncoevoet.github.io/facet/social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Facet — local AI photo scoring, culling & gallery">
+  <meta name="twitter:description" content="Score, cull and organize your photo library entirely on your own machine. No cloud, no subscriptions.">
+  <meta name="twitter:image" content="https://ncoevoet.github.io/facet/social-preview.png">
+
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #14171c;
+      --panel-2: #1b1f26;
+      --text: #e7ebf0;
+      --muted: #9aa4b2;
+      --accent: #4f9dff;
+      --accent-2: #7c5cff;
+      --border: #262b33;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; }
+    img { max-width: 100%; display: block; }
+
+    header.nav {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(11,13,16,0.82);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--text); }
+    .brand img { width: 28px; height: 28px; border-radius: 7px; }
+    .nav-links { display: flex; align-items: center; gap: 22px; }
+    .nav-links a { color: var(--muted); font-size: 15px; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .btn {
+      display: inline-block; padding: 10px 18px; border-radius: 10px;
+      font-weight: 600; font-size: 15px; border: 1px solid transparent; cursor: pointer;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+    .btn-primary:hover { text-decoration: none; opacity: 0.92; }
+    .btn-ghost { border-color: var(--border); color: var(--text); background: var(--panel); }
+    .btn-ghost:hover { text-decoration: none; border-color: var(--accent); }
+    .lang-select {
+      background: var(--panel); color: var(--text); border: 1px solid var(--border);
+      border-radius: 9px; padding: 7px 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+
+    .hero { padding-block: 64px 40px; text-align: center; }
+    .hero h1 { font-size: clamp(27px, 4.2vw, 40px); line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.02em; }
+    .hero h1 .grad { background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero p.lead { font-size: clamp(17px, 2.4vw, 21px); color: var(--muted); max-width: 720px; margin: 0 auto 28px; }
+    .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 26px; }
+    .badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 34px; }
+    .badges img { display: inline-block; height: 20px; }
+    .hero-shot { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+
+    section { padding: 56px 0; }
+    section h2 { font-size: clamp(26px, 4vw, 34px); margin: 0 0 10px; letter-spacing: -0.01em; text-align: center; }
+    section .sub { color: var(--muted); text-align: center; max-width: 640px; margin: 0 auto 40px; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 26px;
+    }
+    .card h3 { margin: 0 0 8px; font-size: 21px; }
+    .card p { color: var(--muted); margin: 0 0 14px; }
+    .card ul { margin: 0; padding-left: 18px; color: var(--muted); }
+    .card ul li { margin-bottom: 6px; }
+    .tag { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+
+    .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .shots figure { margin: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
+    .shots figcaption { font-size: 13px; color: var(--muted); padding: 10px 14px; border-top: 1px solid var(--border); }
+
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .feature { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .feature h4 { margin: 0 0 6px; font-size: 16px; }
+    .feature p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .install { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 30px; }
+    .install h2 { text-align: left; margin-bottom: 6px; }
+    pre {
+      background: #0a0c0f; border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 18px; overflow-x: auto; margin: 14px 0 0;
+      font-family: "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+      font-size: 14px; color: #d7e2ee;
+    }
+    pre .c { color: #6b7684; }
+
+    /* Docker profile picker */
+    .picker { margin-top: 18px; }
+    .ptabs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ptab {
+      padding: 8px 14px; border-radius: 9px 9px 0 0; border: 1px solid var(--border); border-bottom: none;
+      background: var(--panel); color: var(--muted); font-weight: 600; font-size: 14px; cursor: pointer;
+      font-family: inherit;
+    }
+    .ptab:hover { color: var(--text); }
+    .ptab.active { background: #0a0c0f; color: var(--text); }
+    .ptab .dim { font-weight: 400; color: var(--muted); font-size: 12px; }
+    .code-wrap { position: relative; }
+    .code-wrap pre { margin-top: 0; border-top-left-radius: 0; }
+    .copy-btn {
+      position: absolute; top: 10px; right: 10px; padding: 5px 12px; font-size: 12px; font-weight: 600;
+      border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text);
+      cursor: pointer; font-family: inherit;
+    }
+    .copy-btn:hover { border-color: var(--accent); }
+    .pnote { color: var(--muted); font-size: 13px; margin: 12px 0 0; }
+
+    .star-hint {
+      display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;
+      background: linear-gradient(135deg, rgba(79,157,255,0.12), rgba(124,92,255,0.12));
+      border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 26px; text-align: center;
+    }
+    .star-hint span { font-size: 17px; }
+
+    footer { border-top: 1px solid var(--border); padding: 40px 0 60px; color: var(--muted); text-align: center; }
+    footer a { color: var(--muted); }
+    footer .foot-links { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+
+    @media (max-width: 720px) {
+      .two-col, .shots, .features { grid-template-columns: 1fr; }
+      .nav-links a:not(.btn) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top"><img src="logo-512.png" alt="Facet logo">Facet</a>
+      <nav class="nav-links">
+        <a href="#gallery" data-i18n="nav.gallery">Gallery</a>
+        <a href="#culling" data-i18n="nav.culling">Culling</a>
+        <a href="#install" data-i18n="nav.install">Install</a>
+        <select id="langSelect" class="lang-select" aria-label="Language"></select>
+        <a class="btn btn-ghost" href="https://github.com/ncoevoet/facet">GitHub ★</a>
+      </nav>
+    </div>
+  </header>
+
+  <a id="top"></a>
+  <div class="hero wrap">
+    <h1><span data-i18n="hero.t1">Score, cull and browse your photos, </span><span class="grad" data-i18n="hero.t2">entirely on your own machine</span></h1>
+    <p class="lead" data-i18n="hero.lead">Facet rates every photo, throws out the bursts, blinks and near-duplicates, and gives you a fast private gallery you can search in plain words and browse by the people in it. No cloud, no accounts, no subscriptions.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/ncoevoet/facet" data-i18n="hero.cta1">Get it on GitHub</a>
+      <a class="btn btn-ghost" href="#install" data-i18n="hero.cta2">Quick start</a>
+    </div>
+    <div class="badges">
+      <a href="https://github.com/ncoevoet/facet/stargazers"><img src="https://img.shields.io/github/stars/ncoevoet/facet?style=flat&color=4f9dff" alt="GitHub stars"></a>
+      <img src="https://img.shields.io/badge/license-MIT-2ecc71" alt="MIT License">
+      <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Docker-9aa4b2" alt="Platforms">
+    </div>
+    <div class="hero-shot">
+      <img src="screenshots/hero-mosaic.jpg" alt="Facet Top Picks mosaic gallery">
+    </div>
+  </div>
+
+  <section id="gallery" class="wrap">
+    <h2 data-i18n="tools.h2">Two tools in one</h2>
+    <p class="sub" data-i18n="tools.sub">A private gallery to browse and explore your whole library — and a culling workflow to keep only the shots that shine.</p>
+    <div class="two-col">
+      <div class="card">
+        <span class="tag" data-i18n="tools.c1.tag">Self-hosted gallery</span>
+        <h3 data-i18n="tools.c1.h3">Browse &amp; explore</h3>
+        <p data-i18n="tools.c1.p">Everything Immich and PhotoPrism give you for organizing — plus the quality scoring and ranking they don't.</p>
+        <ul>
+          <li data-i18n="tools.c1.li1">Search in plain words — "sunset on the beach" finds the photo</li>
+          <li data-i18n="tools.c1.li2">Recognizes people and suggests who to merge</li>
+          <li data-i18n="tools.c1.li3">Timeline, map, folders, albums &amp; themed slideshows</li>
+          <li data-i18n="tools.c1.li4">Stays fast even at 100,000+ photos</li>
+        </ul>
+      </div>
+      <div id="culling" class="card">
+        <span class="tag" data-i18n="tools.c2.tag">Culling workflow</span>
+        <h3 data-i18n="tools.c2.h3">Score &amp; cull</h3>
+        <p data-i18n="tools.c2.p">A free, local alternative to Aftershoot, Narrative and FilterPixel — with scoring that learns your taste.</p>
+        <ul>
+          <li data-i18n="tools.c2.li1">Rates every photo and picks the keepers</li>
+          <li data-i18n="tools.c2.li2">Groups bursts, look-alikes &amp; scenes, flags the best of each</li>
+          <li data-i18n="tools.c2.li3">Per-face blink &amp; expression badges</li>
+          <li data-i18n="tools.c2.li4">A/B comparison trains a personal "My Taste" ranking</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="shots">
+      <figure>
+        <img src="screenshots/semantic-search.jpg" alt="Search results">
+        <figcaption data-i18n="shot.search">Search — describe a photo in plain words and find it</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/burst-culling.jpg" alt="Burst culling view">
+        <figcaption data-i18n="shot.cull">Culling — the best shot of each burst is picked for you</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/persons-manage.jpg" alt="Manage persons page">
+        <figcaption data-i18n="shot.people">People — group, rename and merge the people in your photos</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/stats-categories.jpg" alt="Category analytics dashboard">
+        <figcaption data-i18n="shot.stats">Insights — gear, categories, timeline &amp; trends at a glance</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2 data-i18n="feat.h2">What it does for you</h2>
+    <p class="sub" data-i18n="feat.sub">Smart photo tools that run entirely on your machine — a graphics card is optional.</p>
+    <div class="features">
+      <div class="feature"><h4 data-i18n="feat.f1.h">Finds your best shots</h4><p data-i18n="feat.f1.p">Rates every photo's quality and picks the keepers, so you don't scroll through thousands.</p></div>
+      <div class="feature"><h4 data-i18n="feat.f2.h">Search in plain words</h4><p data-i18n="feat.f2.p">Type "sunset on the beach" and get the photo — no manual tagging needed.</p></div>
+      <div class="feature"><h4 data-i18n="feat.f3.h">Spots good composition</h4><p data-i18n="feat.f3.p">Highlights well-framed shots — rule of thirds, leading lines and more.</p></div>
+      <div class="feature"><h4 data-i18n="feat.f4.h">Recognizes people</h4><p data-i18n="feat.f4.p">Groups your photos by who's in them and learns the names you give.</p></div>
+      <div class="feature"><h4 data-i18n="feat.f5.h">Knows what's in each photo</h4><p data-i18n="feat.f5.p">Auto-labels scenes and subjects so you can filter your whole library instantly.</p></div>
+      <div class="feature"><h4 data-i18n="feat.f6.h">Locks onto the subject</h4><p data-i18n="feat.f6.p">Tells the subject from the background to judge focus and framing.</p></div>
+      <div class="feature"><h4 data-i18n="feat.f7.h">Runs on your machine</h4><p data-i18n="feat.f7.p">Works on a laptop CPU; a graphics card just makes it faster and sharper.</p></div>
+      <div class="feature"><h4 data-i18n="feat.f8.h">Fits your workflow</h4><p data-i18n="feat.f8.p">Plays nicely with Lightroom, darktable and digiKam via standard sidecar files.</p></div>
+    </div>
+  </section>
+
+  <section id="install" class="wrap">
+    <div class="install">
+      <h2 data-i18n="install.h2">Quick start with Docker</h2>
+      <p style="color:var(--muted);margin:0;" data-i18n="install.intro">Pick your hardware, copy two lines. One image serves every profile — it runs on a plain CPU with no graphics card.</p>
+      <div class="picker">
+        <div class="ptabs" role="tablist">
+          <button class="ptab active" data-p="auto" data-i18n="install.tab.auto">Auto-detect</button>
+          <button class="ptab" data-p="legacy">CPU <span class="dim">legacy</span></button>
+          <button class="ptab" data-p="8gb">8&nbsp;GB GPU</button>
+          <button class="ptab" data-p="16gb">16&nbsp;GB GPU</button>
+          <button class="ptab" data-p="24gb">24&nbsp;GB GPU</button>
+        </div>
+        <div class="code-wrap">
+          <button class="copy-btn" id="copyBtn" data-i18n="install.copy">Copy</button>
+          <pre id="profileCode"></pre>
+        </div>
+        <p class="pnote" id="profileNote"></p>
+      </div>
+      <pre style="margin-top:24px;"><span class="c" data-i18n-comment="install.native"># …or install natively, without Docker</span>
+git clone https://github.com/ncoevoet/facet.git &amp;&amp; cd facet
+bash install.sh
+python facet.py /photos
+python viewer.py</pre>
+      <div class="cta-row" style="justify-content:flex-start;margin-top:20px;">
+        <a class="btn btn-primary" href="https://github.com/ncoevoet/facet" data-i18n="install.cta1">View on GitHub</a>
+        <a class="btn btn-ghost" href="https://github.com/ncoevoet/facet/blob/master/docs/INSTALLATION.md" data-i18n="install.cta2">Installation docs</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" style="padding-top:0;">
+    <div class="star-hint">
+      <span data-i18n="star.text">⭐ Enjoying Facet? A GitHub star genuinely helps — and keeps the project going.</span>
+      <a class="btn btn-primary" href="https://github.com/ncoevoet/facet" data-i18n="star.btn">Star it on GitHub ★</a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div class="foot-links">
+        <a href="https://github.com/ncoevoet/facet" data-i18n="foot.github">GitHub</a>
+        <a href="https://github.com/ncoevoet/facet/blob/master/docs/COMMANDS.md" data-i18n="foot.commands">Commands</a>
+        <a href="https://github.com/ncoevoet/facet/blob/master/docs/CONFIGURATION.md" data-i18n="foot.config">Configuration</a>
+        <a href="https://github.com/ncoevoet/facet/blob/master/docs/INSTALLATION.md" data-i18n="foot.install">Installation</a>
+        <a href="https://github.com/ncoevoet/facet/discussions" data-i18n="foot.discuss">Discussions</a>
+      </div>
+      <div data-i18n="foot.tagline">Facet — local photo scoring, culling &amp; gallery. MIT licensed. No cloud, no subscriptions.</div>
+    </div>
+  </footer>
+
+  <script>
+    // Docker command per profile. Commands are code (not translated); notes are.
+    var CMDS = {
+      auto:   'cp .env.example .env\n# edit .env: set PHOTOS_DIR to your photo folder\ndocker compose up -d\n# open http://localhost:5000',
+      legacy: 'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.legacy.yml up -d\n# open http://localhost:5000',
+      '8gb':  'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.8gb.yml up -d\n# open http://localhost:5000',
+      '16gb': 'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d\n# open http://localhost:5000',
+      '24gb': 'echo "PHOTOS_DIR=/path/to/photos" > .env\ndocker compose -f docker-compose.yml -f docker-compose.24gb.yml up -d\n# open http://localhost:5000'
+    };
+
+    // Translations. English is the fallback; other languages are merged over it.
+    // Keep keys in sync with data-i18n / data-i18n-comment attributes above.
+    var I18N = {
+      en: {
+        "install.note.auto": "Auto-detects your hardware: a 16 GB graphics card uses the 16 GB profile; no graphics card falls back to CPU.",
+        "install.note.legacy": "CPU only — no graphics card required. Everything runs on the processor (slower, but works anywhere).",
+        "install.note.8gb": "For a 6–14 GB NVIDIA graphics card. Requires the NVIDIA Container Toolkit.",
+        "install.note.16gb": "For a ~16 GB NVIDIA graphics card — unlocks the strongest photo-understanding models. Requires the NVIDIA Container Toolkit.",
+        "install.note.24gb": "For a ~24 GB NVIDIA graphics card — the largest, most capable models. Requires the NVIDIA Container Toolkit."
+      },
+      fr: {
+        "nav.gallery": "Galerie",
+        "nav.culling": "Tri",
+        "nav.install": "Installation",
+        "hero.t1": "Notez, triez et parcourez vos photos, ",
+        "hero.t2": "entièrement sur votre propre machine",
+        "hero.lead": "Facet note chaque photo, écarte les rafales, les yeux fermés et les quasi-doublons, et vous offre une galerie privée et rapide que vous pouvez interroger avec des mots simples et parcourir selon les personnes présentes. Pas de cloud, pas de comptes, pas d'abonnements.",
+        "hero.cta1": "Obtenir sur GitHub",
+        "hero.cta2": "Démarrage rapide",
+        "tools.h2": "Deux outils en un",
+        "tools.sub": "Une galerie privée pour parcourir et explorer toute votre photothèque — et un flux de tri pour ne garder que les clichés qui sortent du lot.",
+        "tools.c1.tag": "Galerie auto-hébergée",
+        "tools.c1.h3": "Parcourir et explorer",
+        "tools.c1.p": "Tout ce qu'Immich et PhotoPrism offrent pour organiser — plus la notation de la qualité et le classement qu'ils n'ont pas.",
+        "tools.c1.li1": "Recherche en mots simples — « coucher de soleil sur la plage » trouve la photo",
+        "tools.c1.li2": "Reconnaît les personnes et suggère lesquelles fusionner",
+        "tools.c1.li3": "Chronologie, carte, dossiers, albums et diaporamas thématiques",
+        "tools.c1.li4": "Reste rapide même avec plus de 100 000 photos",
+        "tools.c2.tag": "Flux de tri",
+        "tools.c2.h3": "Noter et trier",
+        "tools.c2.p": "Une alternative gratuite et locale à Aftershoot, Narrative et FilterPixel — avec une notation qui apprend vos goûts.",
+        "tools.c2.li1": "Note chaque photo et sélectionne celles à garder",
+        "tools.c2.li2": "Regroupe rafales, sosies et scènes, signale la meilleure de chaque",
+        "tools.c2.li3": "Badges de clignement et d'expression par visage",
+        "tools.c2.li4": "La comparaison A/B entraîne un classement personnel « Mes goûts »",
+        "shot.search": "Recherche — décrivez une photo avec des mots simples et retrouvez-la",
+        "shot.cull": "Tri — le meilleur cliché de chaque rafale est choisi pour vous",
+        "shot.people": "Personnes — regroupez, renommez et fusionnez les personnes de vos photos",
+        "shot.stats": "Analyses — matériel, catégories, chronologie et tendances en un coup d'œil",
+        "feat.h2": "Ce qu'il fait pour vous",
+        "feat.sub": "Des outils photo intelligents qui fonctionnent entièrement sur votre machine — la carte graphique est facultative.",
+        "feat.f1.h": "Trouve vos meilleurs clichés",
+        "feat.f1.p": "Évalue la qualité de chaque photo et sélectionne celles à garder, pour ne pas faire défiler des milliers d'images.",
+        "feat.f2.h": "Recherche en mots simples",
+        "feat.f2.p": "Tapez « coucher de soleil sur la plage » et obtenez la photo — aucun étiquetage manuel nécessaire.",
+        "feat.f3.h": "Repère une bonne composition",
+        "feat.f3.p": "Met en avant les clichés bien cadrés — règle des tiers, lignes directrices et plus encore.",
+        "feat.f4.h": "Reconnaît les personnes",
+        "feat.f4.p": "Regroupe vos photos selon qui s'y trouve et retient les noms que vous donnez.",
+        "feat.f5.h": "Sait ce qu'il y a dans chaque photo",
+        "feat.f5.p": "Étiquette automatiquement scènes et sujets pour filtrer toute votre photothèque en un instant.",
+        "feat.f6.h": "Se concentre sur le sujet",
+        "feat.f6.p": "Distingue le sujet de l'arrière-plan pour juger la mise au point et le cadrage.",
+        "feat.f7.h": "Fonctionne sur votre machine",
+        "feat.f7.p": "Fonctionne sur le processeur d'un portable ; une carte graphique le rend simplement plus rapide et plus précis.",
+        "feat.f8.h": "S'intègre à votre flux de travail",
+        "feat.f8.p": "S'accorde avec Lightroom, darktable et digiKam via des fichiers annexes standard.",
+        "install.h2": "Démarrage rapide avec Docker",
+        "install.intro": "Choisissez votre matériel, copiez deux lignes. Une seule image sert tous les profils — elle tourne sur un simple processeur, sans carte graphique.",
+        "install.tab.auto": "Détection auto",
+        "install.copy": "Copier",
+        "install.cta1": "Voir sur GitHub",
+        "install.cta2": "Documentation d'installation",
+        "install.native": "# …ou installez nativement, sans Docker",
+        "install.note.auto": "Détecte automatiquement votre matériel : une carte graphique de 16 Go utilise le profil 16 Go ; sans carte graphique, bascule sur le processeur.",
+        "install.note.legacy": "Processeur uniquement — aucune carte graphique requise. Tout tourne sur le processeur (plus lent, mais fonctionne partout).",
+        "install.note.8gb": "Pour une carte graphique NVIDIA de 6 à 14 Go. Nécessite le NVIDIA Container Toolkit.",
+        "install.note.16gb": "Pour une carte graphique NVIDIA d'environ 16 Go — débloque les modèles de compréhension photo les plus puissants. Nécessite le NVIDIA Container Toolkit.",
+        "install.note.24gb": "Pour une carte graphique NVIDIA d'environ 24 Go — les modèles les plus grands et les plus performants. Nécessite le NVIDIA Container Toolkit.",
+        "star.text": "⭐ Facet vous plaît ? Une étoile sur GitHub aide vraiment — et fait vivre le projet.",
+        "star.btn": "Mettre une étoile sur GitHub ★",
+        "foot.github": "GitHub",
+        "foot.commands": "Commandes",
+        "foot.config": "Configuration",
+        "foot.install": "Installation",
+        "foot.discuss": "Discussions",
+        "foot.tagline": "Facet — notation, tri et galerie photo en local. Sous licence MIT. Pas de cloud, pas d'abonnements."
+      },
+      de: {
+        "nav.gallery": "Galerie",
+        "nav.culling": "Auswahl",
+        "nav.install": "Installation",
+        "hero.t1": "Bewerten, sichten und durchstöbern Sie Ihre Fotos, ",
+        "hero.t2": "vollständig auf Ihrem eigenen Rechner",
+        "hero.lead": "Facet bewertet jedes Foto, sortiert Serien, geschlossene Augen und Beinahe-Duplikate aus und gibt Ihnen eine schnelle, private Galerie, die Sie mit einfachen Worten durchsuchen und nach den abgebildeten Personen durchstöbern können. Keine Cloud, keine Konten, keine Abos.",
+        "hero.cta1": "Auf GitHub holen",
+        "hero.cta2": "Schnellstart",
+        "tools.h2": "Zwei Werkzeuge in einem",
+        "tools.sub": "Eine private Galerie zum Durchstöbern und Erkunden Ihrer gesamten Sammlung — und ein Auswahl-Workflow, der nur die herausragenden Aufnahmen behält.",
+        "tools.c1.tag": "Selbst gehostete Galerie",
+        "tools.c1.h3": "Durchstöbern und erkunden",
+        "tools.c1.p": "Alles, was Immich und PhotoPrism zum Organisieren bieten — plus die Qualitätsbewertung und das Ranking, die ihnen fehlen.",
+        "tools.c1.li1": "Suche mit einfachen Worten — „Sonnenuntergang am Strand“ findet das Foto",
+        "tools.c1.li2": "Erkennt Personen und schlägt vor, welche zusammenzuführen sind",
+        "tools.c1.li3": "Zeitleiste, Karte, Ordner, Alben und thematische Diashows",
+        "tools.c1.li4": "Bleibt schnell, selbst bei über 100.000 Fotos",
+        "tools.c2.tag": "Auswahl-Workflow",
+        "tools.c2.h3": "Bewerten und aussortieren",
+        "tools.c2.p": "Eine kostenlose, lokale Alternative zu Aftershoot, Narrative und FilterPixel — mit einer Bewertung, die Ihren Geschmack lernt.",
+        "tools.c2.li1": "Bewertet jedes Foto und wählt die Behaltenswerten aus",
+        "tools.c2.li2": "Gruppiert Serien, Ähnliche und Szenen und markiert jeweils das beste Bild",
+        "tools.c2.li3": "Badges für Blinzeln und Ausdruck pro Gesicht",
+        "tools.c2.li4": "Der A/B-Vergleich trainiert ein persönliches Ranking „Mein Geschmack“",
+        "shot.search": "Suche — beschreiben Sie ein Foto mit einfachen Worten und finden Sie es",
+        "shot.cull": "Auswahl — die beste Aufnahme jeder Serie wird für Sie ausgewählt",
+        "shot.people": "Personen — gruppieren, umbenennen und die Personen in Ihren Fotos zusammenführen",
+        "shot.stats": "Einblicke — Ausrüstung, Kategorien, Zeitleiste und Trends auf einen Blick",
+        "feat.h2": "Was es für Sie leistet",
+        "feat.sub": "Intelligente Foto-Werkzeuge, die vollständig auf Ihrem Rechner laufen — eine Grafikkarte ist optional.",
+        "feat.f1.h": "Findet Ihre besten Aufnahmen",
+        "feat.f1.p": "Bewertet die Qualität jedes Fotos und wählt die Behaltenswerten aus, damit Sie sich nicht durch Tausende scrollen müssen.",
+        "feat.f2.h": "Suche mit einfachen Worten",
+        "feat.f2.p": "Tippen Sie „Sonnenuntergang am Strand“ und erhalten Sie das Foto — ganz ohne manuelles Verschlagworten.",
+        "feat.f3.h": "Erkennt gute Komposition",
+        "feat.f3.p": "Hebt gut komponierte Aufnahmen hervor — Drittelregel, Führungslinien und mehr.",
+        "feat.f4.h": "Erkennt Personen",
+        "feat.f4.p": "Gruppiert Ihre Fotos nach den abgebildeten Personen und merkt sich die Namen, die Sie vergeben.",
+        "feat.f5.h": "Weiß, was auf jedem Foto zu sehen ist",
+        "feat.f5.p": "Beschriftet Szenen und Motive automatisch, damit Sie Ihre gesamte Sammlung sofort filtern können.",
+        "feat.f6.h": "Fokussiert das Motiv",
+        "feat.f6.p": "Unterscheidet das Motiv vom Hintergrund, um Schärfe und Bildaufbau zu beurteilen.",
+        "feat.f7.h": "Läuft auf Ihrem Rechner",
+        "feat.f7.p": "Funktioniert auf der CPU eines Laptops; eine Grafikkarte macht es einfach schneller und schärfer.",
+        "feat.f8.h": "Passt in Ihren Workflow",
+        "feat.f8.p": "Versteht sich mit Lightroom, darktable und digiKam über standardisierte Sidecar-Dateien.",
+        "install.h2": "Schnellstart mit Docker",
+        "install.intro": "Wählen Sie Ihre Hardware, kopieren Sie zwei Zeilen. Ein Image bedient jedes Profil — es läuft auf einer einfachen CPU ganz ohne Grafikkarte.",
+        "install.tab.auto": "Automatisch erkennen",
+        "install.copy": "Kopieren",
+        "install.cta1": "Auf GitHub ansehen",
+        "install.cta2": "Installationsdokumentation",
+        "install.native": "# …oder nativ installieren, ohne Docker",
+        "install.note.auto": "Erkennt Ihre Hardware automatisch: Eine Grafikkarte mit 16 GB nutzt das 16-GB-Profil; ohne Grafikkarte wird auf die CPU zurückgegriffen.",
+        "install.note.legacy": "Nur CPU — keine Grafikkarte erforderlich. Alles läuft auf dem Prozessor (langsamer, aber überall lauffähig).",
+        "install.note.8gb": "Für eine NVIDIA-Grafikkarte mit 6–14 GB. Erfordert das NVIDIA Container Toolkit.",
+        "install.note.16gb": "Für eine NVIDIA-Grafikkarte mit ca. 16 GB — schaltet die stärksten Modelle zum Bildverständnis frei. Erfordert das NVIDIA Container Toolkit.",
+        "install.note.24gb": "Für eine NVIDIA-Grafikkarte mit ca. 24 GB — die größten, leistungsfähigsten Modelle. Erfordert das NVIDIA Container Toolkit.",
+        "star.text": "⭐ Gefällt Ihnen Facet? Ein Stern auf GitHub hilft wirklich — und hält das Projekt am Leben.",
+        "star.btn": "Auf GitHub mit einem Stern versehen ★",
+        "foot.github": "GitHub",
+        "foot.commands": "Befehle",
+        "foot.config": "Konfiguration",
+        "foot.install": "Installation",
+        "foot.discuss": "Diskussionen",
+        "foot.tagline": "Facet — lokale Fotobewertung, Auswahl und Galerie. MIT-lizenziert. Keine Cloud, keine Abos."
+      },
+      it: {
+        "nav.gallery": "Galleria",
+        "nav.culling": "Selezione",
+        "nav.install": "Installazione",
+        "hero.t1": "Valuta, seleziona e sfoglia le tue foto, ",
+        "hero.t2": "interamente sul tuo computer",
+        "hero.lead": "Facet valuta ogni foto, scarta raffiche, occhi chiusi e quasi-duplicati e ti offre una galleria privata e veloce che puoi cercare a parole tue e sfogliare in base alle persone presenti. Niente cloud, niente account, niente abbonamenti.",
+        "hero.cta1": "Scaricalo su GitHub",
+        "hero.cta2": "Avvio rapido",
+        "tools.h2": "Due strumenti in uno",
+        "tools.sub": "Una galleria privata per sfogliare ed esplorare tutta la tua libreria — e un flusso di selezione per tenere solo gli scatti che brillano.",
+        "tools.c1.tag": "Galleria self-hosted",
+        "tools.c1.h3": "Sfoglia ed esplora",
+        "tools.c1.p": "Tutto ciò che Immich e PhotoPrism offrono per organizzare — più la valutazione della qualità e la classifica che loro non hanno.",
+        "tools.c1.li1": "Ricerca a parole tue — « tramonto sulla spiaggia » trova la foto",
+        "tools.c1.li2": "Riconosce le persone e suggerisce quali unire",
+        "tools.c1.li3": "Cronologia, mappa, cartelle, album e presentazioni a tema",
+        "tools.c1.li4": "Resta veloce anche con oltre 100.000 foto",
+        "tools.c2.tag": "Flusso di selezione",
+        "tools.c2.h3": "Valuta e seleziona",
+        "tools.c2.p": "Un'alternativa gratuita e locale ad Aftershoot, Narrative e FilterPixel — con una valutazione che impara i tuoi gusti.",
+        "tools.c2.li1": "Valuta ogni foto e sceglie quelle da tenere",
+        "tools.c2.li2": "Raggruppa raffiche, sosia e scene, segnalando la migliore di ciascuna",
+        "tools.c2.li3": "Badge di ammiccamento ed espressione per ogni volto",
+        "tools.c2.li4": "Il confronto A/B allena una classifica personale « I miei gusti »",
+        "shot.search": "Ricerca — descrivi una foto a parole tue e trovala",
+        "shot.cull": "Selezione — lo scatto migliore di ogni raffica viene scelto per te",
+        "shot.people": "Persone — raggruppa, rinomina e unisci le persone nelle tue foto",
+        "shot.stats": "Analisi — attrezzatura, categorie, cronologia e tendenze a colpo d'occhio",
+        "feat.h2": "Cosa fa per te",
+        "feat.sub": "Strumenti fotografici intelligenti che funzionano interamente sul tuo computer — la scheda grafica è facoltativa.",
+        "feat.f1.h": "Trova i tuoi scatti migliori",
+        "feat.f1.p": "Valuta la qualità di ogni foto e sceglie quelle da tenere, così non devi scorrere tra migliaia di immagini.",
+        "feat.f2.h": "Ricerca a parole tue",
+        "feat.f2.p": "Digita « tramonto sulla spiaggia » e ottieni la foto — senza alcun tag manuale.",
+        "feat.f3.h": "Individua una buona composizione",
+        "feat.f3.p": "Mette in risalto gli scatti ben inquadrati — regola dei terzi, linee guida e altro.",
+        "feat.f4.h": "Riconosce le persone",
+        "feat.f4.p": "Raggruppa le tue foto in base a chi vi compare e memorizza i nomi che assegni.",
+        "feat.f5.h": "Sa cosa c'è in ogni foto",
+        "feat.f5.p": "Etichetta automaticamente scene e soggetti così puoi filtrare tutta la tua libreria all'istante.",
+        "feat.f6.h": "Si concentra sul soggetto",
+        "feat.f6.p": "Distingue il soggetto dallo sfondo per valutare messa a fuoco e inquadratura.",
+        "feat.f7.h": "Funziona sul tuo computer",
+        "feat.f7.p": "Funziona sulla CPU di un portatile; una scheda grafica lo rende solo più rapido e più nitido.",
+        "feat.f8.h": "Si adatta al tuo flusso di lavoro",
+        "feat.f8.p": "Si integra con Lightroom, darktable e digiKam tramite file sidecar standard.",
+        "install.h2": "Avvio rapido con Docker",
+        "install.intro": "Scegli il tuo hardware, copia due righe. Un'unica immagine serve ogni profilo — gira su una semplice CPU senza scheda grafica.",
+        "install.tab.auto": "Rilevamento automatico",
+        "install.copy": "Copia",
+        "install.cta1": "Vedi su GitHub",
+        "install.cta2": "Documentazione di installazione",
+        "install.native": "# …oppure installa in modo nativo, senza Docker",
+        "install.note.auto": "Rileva automaticamente il tuo hardware: una scheda grafica da 16 GB usa il profilo 16 GB; senza scheda grafica passa alla CPU.",
+        "install.note.legacy": "Solo CPU — nessuna scheda grafica richiesta. Tutto gira sul processore (più lento, ma funziona ovunque).",
+        "install.note.8gb": "Per una scheda grafica NVIDIA da 6–14 GB. Richiede il NVIDIA Container Toolkit.",
+        "install.note.16gb": "Per una scheda grafica NVIDIA da circa 16 GB — sblocca i modelli di comprensione delle foto più potenti. Richiede il NVIDIA Container Toolkit.",
+        "install.note.24gb": "Per una scheda grafica NVIDIA da circa 24 GB — i modelli più grandi e capaci. Richiede il NVIDIA Container Toolkit.",
+        "star.text": "⭐ Ti piace Facet? Una stella su GitHub aiuta davvero — e mantiene vivo il progetto.",
+        "star.btn": "Metti una stella su GitHub ★",
+        "foot.github": "GitHub",
+        "foot.commands": "Comandi",
+        "foot.config": "Configurazione",
+        "foot.install": "Installazione",
+        "foot.discuss": "Discussioni",
+        "foot.tagline": "Facet — valutazione, selezione e galleria foto in locale. Con licenza MIT. Niente cloud, niente abbonamenti."
+      },
+      es: {
+        "nav.gallery": "Galería",
+        "nav.culling": "Selección",
+        "nav.install": "Instalación",
+        "hero.t1": "Puntúa, depura y explora tus fotos, ",
+        "hero.t2": "por completo en tu propia máquina",
+        "hero.lead": "Facet puntúa cada foto, descarta ráfagas, parpadeos y casi duplicados, y te ofrece una galería privada y rápida que puedes buscar con palabras sencillas y explorar según las personas que aparecen. Sin nube, sin cuentas, sin suscripciones.",
+        "hero.cta1": "Consíguelo en GitHub",
+        "hero.cta2": "Inicio rápido",
+        "tools.h2": "Dos herramientas en una",
+        "tools.sub": "Una galería privada para explorar y recorrer toda tu biblioteca — y un flujo de selección para conservar solo las tomas que destacan.",
+        "tools.c1.tag": "Galería autoalojada",
+        "tools.c1.h3": "Explorar y recorrer",
+        "tools.c1.p": "Todo lo que Immich y PhotoPrism ofrecen para organizar — más la puntuación de calidad y la clasificación que ellos no tienen.",
+        "tools.c1.li1": "Búsqueda con palabras sencillas — «atardecer en la playa» encuentra la foto",
+        "tools.c1.li2": "Reconoce a las personas y sugiere cuáles fusionar",
+        "tools.c1.li3": "Línea de tiempo, mapa, carpetas, álbumes y pases de diapositivas temáticos",
+        "tools.c1.li4": "Sigue siendo rápida incluso con más de 100 000 fotos",
+        "tools.c2.tag": "Flujo de selección",
+        "tools.c2.h3": "Puntuar y depurar",
+        "tools.c2.p": "Una alternativa gratuita y local a Aftershoot, Narrative y FilterPixel — con una puntuación que aprende tu gusto.",
+        "tools.c2.li1": "Puntúa cada foto y elige las que conservar",
+        "tools.c2.li2": "Agrupa ráfagas, similares y escenas, y marca la mejor de cada una",
+        "tools.c2.li3": "Insignias de parpadeo y expresión por cada rostro",
+        "tools.c2.li4": "La comparación A/B entrena una clasificación personal «Mi gusto»",
+        "shot.search": "Búsqueda — describe una foto con palabras sencillas y encuéntrala",
+        "shot.cull": "Selección — se elige por ti la mejor toma de cada ráfaga",
+        "shot.people": "Personas — agrupa, renombra y fusiona a las personas de tus fotos",
+        "shot.stats": "Estadísticas — equipo, categorías, línea de tiempo y tendencias de un vistazo",
+        "feat.h2": "Qué hace por ti",
+        "feat.sub": "Herramientas fotográficas inteligentes que funcionan por completo en tu máquina — la tarjeta gráfica es opcional.",
+        "feat.f1.h": "Encuentra tus mejores tomas",
+        "feat.f1.p": "Evalúa la calidad de cada foto y elige las que conservar, para que no tengas que desplazarte por miles.",
+        "feat.f2.h": "Búsqueda con palabras sencillas",
+        "feat.f2.p": "Escribe «atardecer en la playa» y obtén la foto — sin etiquetado manual.",
+        "feat.f3.h": "Detecta una buena composición",
+        "feat.f3.p": "Destaca las tomas bien encuadradas — regla de los tercios, líneas guía y más.",
+        "feat.f4.h": "Reconoce a las personas",
+        "feat.f4.p": "Agrupa tus fotos según quién aparece y aprende los nombres que asignas.",
+        "feat.f5.h": "Sabe qué hay en cada foto",
+        "feat.f5.p": "Etiqueta automáticamente escenas y sujetos para que puedas filtrar toda tu biblioteca al instante.",
+        "feat.f6.h": "Se centra en el sujeto",
+        "feat.f6.p": "Distingue el sujeto del fondo para valorar el enfoque y el encuadre.",
+        "feat.f7.h": "Funciona en tu máquina",
+        "feat.f7.p": "Funciona en la CPU de un portátil; una tarjeta gráfica solo lo hace más rápido y nítido.",
+        "feat.f8.h": "Se adapta a tu flujo de trabajo",
+        "feat.f8.p": "Se lleva bien con Lightroom, darktable y digiKam mediante archivos sidecar estándar.",
+        "install.h2": "Inicio rápido con Docker",
+        "install.intro": "Elige tu hardware, copia dos líneas. Una sola imagen sirve para todos los perfiles — funciona en una CPU normal sin tarjeta gráfica.",
+        "install.tab.auto": "Detección automática",
+        "install.copy": "Copiar",
+        "install.cta1": "Ver en GitHub",
+        "install.cta2": "Documentación de instalación",
+        "install.native": "# …o instala de forma nativa, sin Docker",
+        "install.note.auto": "Detecta automáticamente tu hardware: una tarjeta gráfica de 16 GB usa el perfil de 16 GB; sin tarjeta gráfica recurre a la CPU.",
+        "install.note.legacy": "Solo CPU — no se requiere tarjeta gráfica. Todo se ejecuta en el procesador (más lento, pero funciona en cualquier lugar).",
+        "install.note.8gb": "Para una tarjeta gráfica NVIDIA de 6 a 14 GB. Requiere el NVIDIA Container Toolkit.",
+        "install.note.16gb": "Para una tarjeta gráfica NVIDIA de unos 16 GB — desbloquea los modelos de comprensión de fotos más potentes. Requiere el NVIDIA Container Toolkit.",
+        "install.note.24gb": "Para una tarjeta gráfica NVIDIA de unos 24 GB — los modelos más grandes y capaces. Requiere el NVIDIA Container Toolkit.",
+        "star.text": "⭐ ¿Te gusta Facet? Una estrella en GitHub ayuda de verdad — y mantiene vivo el proyecto.",
+        "star.btn": "Dale una estrella en GitHub ★",
+        "foot.github": "GitHub",
+        "foot.commands": "Comandos",
+        "foot.config": "Configuración",
+        "foot.install": "Instalación",
+        "foot.discuss": "Debates",
+        "foot.tagline": "Facet — puntuación, selección y galería de fotos en local. Con licencia MIT. Sin nube, sin suscripciones."
+      },
+      pt: {
+        "nav.gallery": "Galeria",
+        "nav.culling": "Seleção",
+        "nav.install": "Instalação",
+        "hero.t1": "Avalie, selecione e navegue pelas suas fotos, ",
+        "hero.t2": "inteiramente na sua própria máquina",
+        "hero.lead": "O Facet avalia cada foto, descarta rajadas, olhos fechados e quase-duplicatas e oferece uma galeria privada e rápida que você pode pesquisar com palavras simples e navegar pelas pessoas nela. Sem nuvem, sem contas, sem assinaturas.",
+        "hero.cta1": "Baixe no GitHub",
+        "hero.cta2": "Início rápido",
+        "tools.h2": "Duas ferramentas em uma",
+        "tools.sub": "Uma galeria privada para navegar e explorar toda a sua biblioteca — e um fluxo de seleção para manter apenas as fotos que se destacam.",
+        "tools.c1.tag": "Galeria auto-hospedada",
+        "tools.c1.h3": "Navegar e explorar",
+        "tools.c1.p": "Tudo o que o Immich e o PhotoPrism oferecem para organizar — mais a avaliação de qualidade e a classificação que eles não têm.",
+        "tools.c1.li1": "Pesquisa com palavras simples — “pôr do sol na praia” encontra a foto",
+        "tools.c1.li2": "Reconhece pessoas e sugere quais mesclar",
+        "tools.c1.li3": "Linha do tempo, mapa, pastas, álbuns e apresentações temáticas",
+        "tools.c1.li4": "Continua rápida mesmo com mais de 100.000 fotos",
+        "tools.c2.tag": "Fluxo de seleção",
+        "tools.c2.h3": "Avaliar e selecionar",
+        "tools.c2.p": "Uma alternativa gratuita e local ao Aftershoot, Narrative e FilterPixel — com avaliação que aprende o seu gosto.",
+        "tools.c2.li1": "Avalia cada foto e escolhe as que valem a pena manter",
+        "tools.c2.li2": "Agrupa rajadas, semelhantes e cenas, destacando a melhor de cada",
+        "tools.c2.li3": "Selos de piscar de olhos e expressão por rosto",
+        "tools.c2.li4": "A comparação A/B treina uma classificação pessoal “Meu Gosto”",
+        "shot.search": "Pesquisa — descreva uma foto com palavras simples e encontre-a",
+        "shot.cull": "Seleção — a melhor foto de cada rajada é escolhida para você",
+        "shot.people": "Pessoas — agrupe, renomeie e mescle as pessoas nas suas fotos",
+        "shot.stats": "Análises — equipamento, categorias, linha do tempo e tendências num relance",
+        "feat.h2": "O que ele faz por você",
+        "feat.sub": "Ferramentas fotográficas inteligentes que funcionam inteiramente na sua máquina — a placa de vídeo é opcional.",
+        "feat.f1.h": "Encontra suas melhores fotos",
+        "feat.f1.p": "Avalia a qualidade de cada foto e escolhe as que valem a pena manter, para você não rolar por milhares.",
+        "feat.f2.h": "Pesquisa com palavras simples",
+        "feat.f2.p": "Digite “pôr do sol na praia” e obtenha a foto — sem marcação manual.",
+        "feat.f3.h": "Detecta uma boa composição",
+        "feat.f3.p": "Destaca as fotos bem enquadradas — regra dos terços, linhas-guia e mais.",
+        "feat.f4.h": "Reconhece pessoas",
+        "feat.f4.p": "Agrupa suas fotos por quem aparece nelas e aprende os nomes que você dá.",
+        "feat.f5.h": "Sabe o que há em cada foto",
+        "feat.f5.p": "Rotula automaticamente cenas e objetos para você filtrar toda a sua biblioteca num instante.",
+        "feat.f6.h": "Foca no assunto",
+        "feat.f6.p": "Distingue o assunto do fundo para avaliar o foco e o enquadramento.",
+        "feat.f7.h": "Roda na sua máquina",
+        "feat.f7.p": "Funciona na CPU de um notebook; uma placa de vídeo apenas o torna mais rápido e nítido.",
+        "feat.f8.h": "Encaixa no seu fluxo de trabalho",
+        "feat.f8.p": "Combina bem com Lightroom, darktable e digiKam por meio de arquivos sidecar padrão.",
+        "install.h2": "Início rápido com Docker",
+        "install.intro": "Escolha seu hardware, copie duas linhas. Uma única imagem serve para todos os perfis — roda numa CPU comum, sem placa de vídeo.",
+        "install.tab.auto": "Detecção automática",
+        "install.copy": "Copiar",
+        "install.cta1": "Ver no GitHub",
+        "install.cta2": "Documentação de instalação",
+        "install.native": "# …ou instale nativamente, sem Docker",
+        "install.note.auto": "Detecta automaticamente seu hardware: uma placa de vídeo de 16 GB usa o perfil de 16 GB; sem placa de vídeo, recorre à CPU.",
+        "install.note.legacy": "Somente CPU — nenhuma placa de vídeo necessária. Tudo roda no processador (mais lento, mas funciona em qualquer lugar).",
+        "install.note.8gb": "Para uma placa de vídeo NVIDIA de 6 a 14 GB. Requer o NVIDIA Container Toolkit.",
+        "install.note.16gb": "Para uma placa de vídeo NVIDIA de cerca de 16 GB — libera os modelos de compreensão de fotos mais poderosos. Requer o NVIDIA Container Toolkit.",
+        "install.note.24gb": "Para uma placa de vídeo NVIDIA de cerca de 24 GB — os modelos maiores e mais capazes. Requer o NVIDIA Container Toolkit.",
+        "star.text": "⭐ Curtindo o Facet? Uma estrela no GitHub ajuda de verdade — e mantém o projeto vivo.",
+        "star.btn": "Dê uma estrela no GitHub ★",
+        "foot.github": "GitHub",
+        "foot.commands": "Comandos",
+        "foot.config": "Configuração",
+        "foot.install": "Instalação",
+        "foot.discuss": "Discussões",
+        "foot.tagline": "Facet — avaliação, seleção e galeria de fotos em local. Licença MIT. Sem nuvem, sem assinaturas."
+      }
+    };
+    var LANGS = { en: "English", fr: "Français", de: "Deutsch", it: "Italiano", es: "Español", pt: "Português" };
+
+    function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function renderCode(p){
+      var raw = CMDS[p];
+      var html = esc(raw).split('\n').map(function(l){
+        var i = l.indexOf('#');
+        if (i === 0) return '<span class="c">'+l+'</span>';
+        if (i > 0) return l.slice(0,i)+'<span class="c">'+l.slice(i)+'</span>';
+        return l;
+      }).join('\n');
+      document.getElementById('profileCode').innerHTML = html;
+      window.__cmd = raw;
+    }
+    function dict(){ var l = (window.__lang||'en'); var d = I18N[l]||{}; var en = I18N.en;
+      return function(k){ return (d[k]!=null?d[k]:en[k]); }; }
+    var curProfile = 'auto';
+    function applyI18n(){
+      var t = dict();
+      document.querySelectorAll('[data-i18n]').forEach(function(el){
+        var v = t(el.getAttribute('data-i18n')); if (v!=null) el.textContent = v;
+      });
+      document.querySelectorAll('[data-i18n-comment]').forEach(function(el){
+        var v = t(el.getAttribute('data-i18n-comment')); if (v!=null) el.textContent = v;
+      });
+      var note = t('install.note.'+curProfile);
+      if (note!=null) document.getElementById('profileNote').textContent = note;
+      document.documentElement.lang = window.__lang||'en';
+    }
+    function setLang(l){ window.__lang = (I18N[l]?l:'en'); try{ localStorage.setItem('facetLang', window.__lang); }catch(e){} applyI18n(); }
+
+    document.querySelectorAll('.ptab').forEach(function(b){
+      b.addEventListener('click', function(){
+        document.querySelectorAll('.ptab').forEach(function(x){ x.classList.remove('active'); });
+        b.classList.add('active'); curProfile = b.getAttribute('data-p');
+        renderCode(curProfile); applyI18n();
+      });
+    });
+    document.getElementById('copyBtn').addEventListener('click', function(){
+      var b = this;
+      navigator.clipboard.writeText(window.__cmd).then(function(){
+        var o = b.textContent; b.textContent = '✓'; setTimeout(function(){ applyI18n(); if(b.textContent==='✓') b.textContent=o; }, 1400);
+      });
+    });
+
+    // Language switcher, seeded from the browser then any saved choice.
+    (function(){
+      // Capture the HTML's English text as the complete `en` bundle so switching
+      // back to English restores every string and other languages fall back cleanly.
+      document.querySelectorAll('[data-i18n],[data-i18n-comment]').forEach(function(el){
+        var k = el.getAttribute('data-i18n') || el.getAttribute('data-i18n-comment');
+        if (I18N.en[k] == null) I18N.en[k] = el.textContent;
+      });
+      var sel = document.getElementById('langSelect');
+      Object.keys(LANGS).forEach(function(code){
+        var o = document.createElement('option'); o.value = code; o.textContent = LANGS[code]; sel.appendChild(o);
+      });
+      var browser = (navigator.language || 'en').slice(0,2).toLowerCase();
+      var saved; try { saved = localStorage.getItem('facetLang'); } catch(e){}
+      var initial = I18N[saved] ? saved : (I18N[browser] ? browser : 'en');
+      sel.value = initial;
+      sel.addEventListener('change', function(){ setLang(sel.value); });
+      window.__lang = initial;
+      renderCode('auto');
+      applyI18n();
+    })();
+  </script>
+</body>
+</html>

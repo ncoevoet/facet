@@ -28,6 +28,20 @@ python facet.py --doctor # verify your setup
 
 A `Makefile` is also available: `make install`, `make install-cpu`, `make run`, `make doctor`.
 
+### Docker
+
+One image serves every profile; model weights download at runtime into Docker named volumes, so the image is self-contained. Pick a profile with `FACET_VRAM_PROFILE` — no JSON editing.
+
+```bash
+cp .env.example .env      # set FACET_VRAM_PROFILE + PHOTOS_DIR
+docker compose up -d      # baked default config, CPU
+
+# GPU / per-profile — add an overlay (needs NVIDIA Container Toolkit):
+docker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d
+```
+
+Overlays exist for `legacy`, `8gb`, and `16gb` (`docker-compose.{legacy,8gb,16gb}.yml`). Dependencies are pinned in `requirements.lock.txt` and cuML GPU face clustering is baked in, so GPU profiles cluster on GPU out of the box. Models download once on first run into the `facet-hf-cache` / `facet-insightface` / `facet-pretrained` volumes. Deploy knobs live in `.env` (`FACET_VRAM_PROFILE`, `PHOTOS_DIR`, `PORT`, `DB_PATH`). See [Deployment](DEPLOYMENT.md) for the full Docker + Windows/WSL2 guide.
+
 ---
 
 ## Manual Installation
@@ -112,6 +126,8 @@ pip install -r requirements.txt
 
 When cuML is available, face clustering automatically uses GPU (configurable via `face_clustering.use_gpu` in `scoring_config.json`).
 
+> **Docker:** the image bundles cuML, so containerized GPU profiles (`8gb`/`16gb`/`24gb`) get GPU face clustering out of the box — no extra install. The `legacy` profile always clusters on CPU. Native (non-Docker) installs keep cuML optional as above.
+
 ## Verify Installation
 
 ```bash
@@ -171,12 +187,12 @@ Most of Facet runs anywhere (CPU, any profile). Some features need a GPU, a high
 |---------|:---:|---------|:----:|------------------|
 | Scoring / scan (baseline) | optional | any (`legacy` = CPU) | — | — |
 | TOPIQ aesthetic | yes | `16gb`/`24gb` | — | — |
-| Supplementary IQA (TOPIQ IAA, NR-Face, LIQE) | yes | `8gb`/`16gb`/`24gb` | — | — |
+| Supplementary IQA (TOPIQ IAA, NR-Face, LIQE) | optional | any (`legacy` = CPU) | — | — |
 | SigLIP 2 embeddings | yes | `16gb`/`24gb` | — | — |
 | VLM tagging (Qwen3.5) | yes | `16gb`/`24gb` | — | — |
 | Composition pattern (SAMP-Net) | optional | any (`legacy` = CPU) | — | — |
 | Composition (Qwen2-VL) | yes | `24gb` | — | — |
-| Subject saliency (BiRefNet) | yes | `16gb`/`24gb` | — | — |
+| Subject saliency (BiRefNet) | optional | any (`legacy` = CPU) | — | — |
 | AI captions (generate / view) | yes | `16gb`/`24gb` | — | — |
 | AI captions (edit) | yes | `16gb`/`24gb` | edition | — |
 | VLM critique | yes | `16gb`/`24gb` | — | — |
@@ -237,12 +253,23 @@ python facet.py --doctor --simulate-gpu "RTX 5070 Ti" --simulate-vram 16
 
 ## First Run
 
-On first run, Facet automatically downloads the embedding model for your profile:
-- CLIP ViT-L-14 (legacy/8gb profiles): ~1.7GB — or SigLIP 2 NaFlex SO400M (16gb/24gb profiles), larger
-- InsightFace buffalo_l model: ~400MB
-- SAMP-Net weights (all profiles): ~50MB
+On first run, Facet automatically downloads the models for your profile:
 
-Models are cached in standard locations (`~/.cache/` or `~/.insightface/`).
+| Model | Size | Profiles |
+|-------|------|----------|
+| CLIP ViT-L-14 laion2b (embeddings + tagging) | ~1.6 GB | `legacy`/`8gb` |
+| SigLIP 2 NaFlex SO400M (embeddings) | ~4.3 GB | `16gb`/`24gb` |
+| Qwen3.5-2B (VLM tagging) | ~4.2 GB | `16gb` |
+| Qwen3.5-4B (VLM tagging) | ~8 GB | `24gb` |
+| Qwen2-VL-2B (composition) | ~4.2 GB | `24gb` |
+| InsightFace buffalo_l (faces) | ~600 MB | all |
+| SAMP-Net weights (composition) | ~175 MB | all (`24gb` uses Qwen2-VL instead) |
+| BiRefNet_dynamic (subject saliency) | ~424 MB | all |
+| U2-Net-P (saliency helper) | ~5 MB | all |
+
+Approximate first-run download total per profile: `legacy`/`8gb` ~3–4 GB · `16gb` ~10–11 GB · `24gb` ~18 GB.
+
+Models are cached in standard locations (`~/.cache/` or `~/.insightface/`) — or in the Docker named volumes for container deployments.
 
 ## Angular Client (Optional)
 
