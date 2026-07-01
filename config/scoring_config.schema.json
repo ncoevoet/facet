@@ -38,6 +38,7 @@
     "performance": { "type": "object" },
     "maintenance": { "type": "object" },
     "critique": { "type": "object" },
+    "immich": { "type": "object" },
     "xmp_export": { "type": "object" }
   }
 }

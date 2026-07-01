@@ -2598,6 +2598,20 @@
     "webhooks": [],
     "actions": {}
   },
+  "immich": {
+    "url": "",
+    "api_key": "",
+    "path_map": [
+      { "facet_prefix": "", "immich_prefix": "" }
+    ],
+    "push": {
+      "ratings": true,
+      "favorites": true,
+      "top_picks_album": "",
+      "top_picks_min_rating": 4
+    },
+    "timeout_seconds": 30
+  },
   "share_secret": "fe64e67f9a98fbfca566a1ddb24ea9e85439b93528fdab0b336a74700b532a59",
   "storage": {
     "mode": "database",

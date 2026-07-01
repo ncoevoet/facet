@@ -713,8 +713,13 @@ Configuration:
                         help='With --export-sidecars: derive xmp:Rating from the aggregate score for '
                              'photos the user has not manually rated (overrides xmp_export config for this run)')
     export_group.add_argument('--user', type=str, default=None, metavar='USERNAME',
-                        help='With --import-sidecars/--export-sidecars in multi-user mode: read/write '
-                             "that user's ratings (user_preferences) instead of the global columns")
+                        help='With --import-sidecars/--export-sidecars/--immich-sync in multi-user mode: '
+                             "read/write that user's ratings (user_preferences) instead of the global columns")
+    export_group.add_argument('--immich-sync', action='store_true',
+                        help='Push ratings/favorites to the configured Immich server via its REST API '
+                             '(one-way; needs the "immich" config block; honors --user and --dry-run)')
+    export_group.add_argument('--immich-test', action='store_true',
+                        help='Test connectivity and authentication against the configured Immich server')
 
     # AI features
     ai_group = parser.add_argument_group('AI features')
@@ -1823,6 +1828,40 @@ Configuration:
         logger.info(
             "Sidecar export: %d written, %d embedded, %d missing, %d errors",
             stats['written'], stats['embedded'], stats['missing'], stats['errors'],
+        )
+        exit()
+
+    # Immich connectivity test (lightweight - no GPU needed)
+    if args.immich_test:
+        from sync.immich import ImmichClient
+        _immich_cfg = ScoringConfig(args.config or 'scoring_config.json',
+                                    validate=False).config.get('immich', {})
+        try:
+            client = ImmichClient(_immich_cfg.get('url', ''), _immich_cfg.get('api_key', ''),
+                                  timeout=_immich_cfg.get('timeout_seconds', 30))
+            about = client.ping()
+            logger.info("Immich reachable at %s — version %s",
+                        client.base_url, about.get('version', 'unknown'))
+        except Exception as e:
+            logger.error("Immich test failed: %s", e)
+            sys.exit(1)
+        exit()
+
+    # Immich one-way push (lightweight - no GPU needed)
+    if args.immich_sync:
+        from sync.immich import sync_to_immich
+        _immich_config = ScoringConfig(args.config or 'scoring_config.json', validate=False).config
+        try:
+            stats = sync_to_immich(args.db, _immich_config, user_id=args.user, dry_run=args.dry_run)
+        except ValueError as e:
+            logger.error("Immich sync aborted: %s", e)
+            sys.exit(1)
+        logger.info(
+            "Immich sync%s: %d matched, %d unmatched, %d updated, "
+            "%d skipped (unrated), %d album(s) created",
+            " (dry-run)" if args.dry_run else "",
+            stats['matched'], stats['unmatched'], stats['updated'],
+            stats['skipped_unrated'], stats['albums_created'],
         )
         exit()
 
