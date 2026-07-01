@@ -196,6 +196,12 @@
     "subject_prominence": "Hervorhebung",
     "subject_placement": "Platzierung",
     "bg_separation": "Hintergrundtrennung",
+    "form_section": "Form & Harmonie",
+    "form_symmetry": "Symmetrie",
+    "form_balance": "Balance",
+    "form_edge_entropy": "Kantenentropie",
+    "form_fractal": "Fraktal",
+    "color_harmony": "Farbharmonie",
     "caption": "Beschreibung",
     "histogram_spread": "Histogramm",
     "star_rating": "Bewertung",
@@ -1619,7 +1625,12 @@
       "subject_placement": "Motivplatzierung",
       "bg_separation": "Hintergrundtrennung",
       "mean_saturation": "Sattigung",
-      "mean_luminance": "Helligkeit"
+      "mean_luminance": "Helligkeit",
+      "form_symmetry": "Symmetrie",
+      "form_balance": "Visuelle Balance",
+      "form_edge_entropy": "Kantenentropie",
+      "form_fractal": "Fraktale Komplexitat",
+      "color_harmony": "Farbharmonie"
     },
     "suggestion": {
       "aesthetic": "Streben Sie eine starkere visuelle Wirkung durch bessere Beleuchtung oder Motivwahl an",
@@ -1638,7 +1649,12 @@
       "subject_prominence": "Geben Sie dem Motiv mehr Raum oder verwenden Sie eine geringere Scharfentiefe",
       "bg_separation": "Verwenden Sie grossere Blende oder mehr Abstand zur Hintergrundtrennung",
       "liqe_score": "Verbessern Sie die Gesamtbildqualitat — prufen Sie auf Verzerrungen oder Artefakte",
-      "isolation_bonus": "Verwenden Sie grossere Blende zur besseren Freistellung des Motivs"
+      "isolation_bonus": "Verwenden Sie grossere Blende zur besseren Freistellung des Motivs",
+      "form_symmetry": "Zentrieren Sie das Motiv oder richten Sie starke Formen aus, um linke und rechte Bildhalfte auszugleichen",
+      "form_balance": "Komponieren Sie neu, damit das visuelle Gewicht naher an der Bildmitte oder einer Drittelposition liegt",
+      "form_edge_entropy": "Variieren Sie Linien und Texturen — die dominanten Kanten verlaufen alle in dieselbe Richtung",
+      "form_fractal": "Fugen Sie mehr Detail oder Textur hinzu — das Bild wirkt visuell karg",
+      "color_harmony": "Passen Sie die Palette an ein harmonisches Farbschema an, etwa Komplementar- oder Analogfarben"
     },
     "reason": {
       "default": "Standardkategorie (keine spezifische Kategorie zugeordnet)",

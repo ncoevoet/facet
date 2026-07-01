@@ -195,6 +195,12 @@
     "subject_prominence": "Proéminence",
     "subject_placement": "Placement",
     "bg_separation": "Séparation fond",
+    "form_section": "Forme et harmonie",
+    "form_symmetry": "Symétrie",
+    "form_balance": "Équilibre",
+    "form_edge_entropy": "Entropie des contours",
+    "form_fractal": "Fractale",
+    "color_harmony": "Harmonie couleurs",
     "caption": "Légende",
     "persons": "Personnes",
     "histogram": "Histogramme"
@@ -1615,7 +1621,12 @@
       "subject_placement": "Placement du sujet",
       "bg_separation": "Separation de l'arriere-plan",
       "mean_saturation": "Saturation",
-      "mean_luminance": "Luminosite"
+      "mean_luminance": "Luminosite",
+      "form_symmetry": "Symetrie",
+      "form_balance": "Equilibre visuel",
+      "form_edge_entropy": "Entropie des contours",
+      "form_fractal": "Complexite fractale",
+      "color_harmony": "Harmonie des couleurs"
     },
     "suggestion": {
       "aesthetic": "Cherchez un impact visuel plus fort avec un meilleur eclairage ou sujet",
@@ -1634,7 +1645,12 @@
       "subject_prominence": "Donnez plus d'espace au sujet ou utilisez une profondeur de champ plus faible",
       "bg_separation": "Utilisez une ouverture plus grande ou une distance accrue pour separer le sujet de l'arriere-plan",
       "liqe_score": "Ameliorez la qualite globale de l'image — verifiez les distorsions ou artefacts",
-      "isolation_bonus": "Utilisez une ouverture plus grande pour mieux isoler le sujet de l'arriere-plan"
+      "isolation_bonus": "Utilisez une ouverture plus grande pour mieux isoler le sujet de l'arriere-plan",
+      "form_symmetry": "Centrez le sujet ou alignez les formes fortes pour equilibrer les moities gauche et droite du cadre",
+      "form_balance": "Recomposez pour rapprocher le poids visuel du centre du cadre ou d'un point des tiers",
+      "form_edge_entropy": "Variez les lignes et les textures — les contours dominants vont tous dans la meme direction",
+      "form_fractal": "Ajoutez du detail ou de la texture — l'image parait visuellement pauvre",
+      "color_harmony": "Ajustez la palette vers un schema harmonique, couleurs complementaires ou analogues"
     },
     "reason": {
       "default": "Categorie par defaut (aucune categorie specifique correspondante)",

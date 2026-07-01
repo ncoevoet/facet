@@ -584,6 +584,9 @@ Configuration:
     db_group.add_argument('--recompute-colors', action='store_true',
                         help='Extract dominant hue + warm/cool colour temperature from stored thumbnails '
                              '(CPU only, fast) into dominant_hue / color_temp')
+    db_group.add_argument('--recompute-form', action='store_true',
+                        help='Recompute form facet metrics (symmetry, balance, edge entropy, fractal '
+                             'dimension) + Matsuda colour harmony from stored thumbnails (CPU only)')
     db_group.add_argument('--upgrade-db', action='store_true',
                         help='Migrate schema + run the full backfill chain '
                              '(extract-gps, detect-duplicates, recompute-iqa, '
@@ -1261,6 +1264,10 @@ Configuration:
     def _recompute_from_thumbnails(desc, compute):
         import io
         from PIL import Image
+        # Local import: the "from tqdm import tqdm" statements in later CLI
+        # blocks make tqdm a (yet unassigned) local of main, so the closure
+        # cannot resolve the module-level import through the enclosing scope.
+        from tqdm import tqdm
         with get_connection(args.db) as conn:
             rows = conn.execute(
                 "SELECT path, thumbnail FROM photos WHERE thumbnail IS NOT NULL"
@@ -1319,6 +1326,21 @@ Configuration:
 
         total, updated = _recompute_from_thumbnails("Color facet", _color_update)
         logger.info("Color facet extraction complete: %d/%d photos updated.", updated, total)
+        exit()
+
+    # Recompute form facet metrics + Matsuda colour harmony from stored thumbnails (CPU)
+    if args.recompute_form:
+        from analyzers.form_facet import compute_form_metrics
+
+        init_database(args.db)  # Ensure form facet columns exist
+
+        def _form_update(img):
+            metrics = compute_form_metrics(img)
+            return metrics, metrics.get('form_symmetry') is not None
+
+        total, updated = _recompute_from_thumbnails("Form facet", _form_update)
+        logger.info("Form facet recompute complete: %d/%d photos updated.", updated, total)
+        logger.info("Run --recompute-average to fold any configured form weights into aggregates.")
         exit()
 
     # Recompute burst detection

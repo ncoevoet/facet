@@ -493,6 +493,14 @@ def build_metric_vector(m, cfg, category, weights=None, penalties=None):
         'subject_prominence': safe_float(m.get('subject_prominence'), 5.0),
         'subject_placement': safe_float(m.get('subject_placement'), 5.0),
         'bg_separation': safe_float(m.get('bg_separation'), 5.0),
+        # Form facet + Matsuda color harmony (weights default to 0 in every
+        # category, so the aggregate is byte-identical until a user adds them)
+        'symmetry': safe_float(m.get('form_symmetry'), 5.0),
+        'balance': safe_float(m.get('form_balance'), 5.0),
+        'edge_entropy': safe_float(m.get('form_edge_entropy'), 5.0),
+        'fractal': safe_float(m.get('form_fractal'), 5.0),
+        # Neutral for B&W, mirroring the color_score monochrome guard above
+        'color_harmony': 5.0 if m.get('is_monochrome', 0) else safe_float(m.get('color_harmony'), 5.0),
     }
 
     # Extended IQA tier (config-gated OFF by default). Each metric is exposed to
@@ -1091,6 +1099,10 @@ class Facet:
             noise_data = self.tech_analyzer.get_noise_estimate(img_cv, cache=cache)
             contrast_data = self.tech_analyzer.get_contrast_score(img_cv, cache=cache)
 
+            # 3d. Form facet + Matsuda color harmony (CPU, fixed 512px working size)
+            from analyzers.form_facet import compute_form_metrics
+            form_data = compute_form_metrics(pil_img)
+
             # 4. Facial Analysis (now handles multiple faces with confidence filtering)
             face_res = self.face_analyzer.analyze_faces(img_cv)
 
@@ -1164,6 +1176,12 @@ class Facet:
                 'is_monochrome': mono_data['is_monochrome'],
                 # Contrast score for B&W images
                 'contrast_score': contrast_data['contrast_score'],
+                # Form facet + Matsuda color harmony
+                'form_symmetry': form_data.get('form_symmetry'),
+                'form_balance': form_data.get('form_balance'),
+                'form_edge_entropy': form_data.get('form_edge_entropy'),
+                'form_fractal': form_data.get('form_fractal'),
+                'color_harmony': form_data.get('color_harmony'),
                 # EXIF data for ISO/aperture adjustments
                 'iso': exif_data.get('iso'),
                 'f_stop': exif_data.get('f_stop'),
@@ -1219,6 +1237,12 @@ class Facet:
                 'dynamic_range_stops': dynamic_range_data['dynamic_range_stops'],
                 'noise_sigma': noise_data['noise_sigma'],
                 'contrast_score': contrast_data['contrast_score'],
+                # Form facet + Matsuda color harmony
+                'form_symmetry': form_data.get('form_symmetry'),
+                'form_balance': form_data.get('form_balance'),
+                'form_edge_entropy': form_data.get('form_edge_entropy'),
+                'form_fractal': form_data.get('form_fractal'),
+                'color_harmony': form_data.get('color_harmony'),
                 # Semantic tags
                 'tags': tags,
                 # Advanced model outputs
@@ -1285,7 +1309,8 @@ class Facet:
                 histogram_data, topiq_score,
                 aesthetic_iaa, face_quality_iqa, liqe_score,
                 qalign_score, aesthetic_v25, deqa_score,
-                subject_sharpness, subject_prominence, subject_placement, bg_separation
+                subject_sharpness, subject_prominence, subject_placement, bg_separation,
+                form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony
             """
             if category_filter:
                 cursor = conn.execute(f"SELECT {recalc_cols} FROM photos WHERE category = ?", (category_filter,))
@@ -2014,6 +2039,12 @@ class Facet:
         thumb.save(buf, format="JPEG", quality=80)
         res['thumbnail'] = buf.getvalue()
 
+        # Form facet columns default to NULL for callers that did not compute
+        # them (named-param INSERT needs every key).
+        for form_col in ('form_symmetry', 'form_balance', 'form_edge_entropy',
+                         'form_fractal', 'color_harmony'):
+            res.setdefault(form_col, None)
+
         with get_connection(self.db_path, row_factory=False) as conn:
             conn.execute('''
                 INSERT OR REPLACE INTO photos (
@@ -2029,6 +2060,7 @@ class Facet:
                     face_confidence, is_monochrome, mean_saturation,
                     dynamic_range_stops, noise_sigma, contrast_score, tags,
                     quality_score, composition_explanation, scoring_model, composition_pattern,
+                    form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
                     gps_latitude, gps_longitude, scanned_at
                 )
                 VALUES (
@@ -2044,6 +2076,7 @@ class Facet:
                     :face_confidence, :is_monochrome, :mean_saturation,
                     :dynamic_range_stops, :noise_sigma, :contrast_score, :tags,
                     :quality_score, :composition_explanation, :scoring_model, :composition_pattern,
+                    :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
                     :gps_latitude, :gps_longitude, datetime('now')
                 )
             ''', res)
@@ -2128,6 +2161,9 @@ class Facet:
                 res.setdefault('qalign_score', None)
                 res.setdefault('aesthetic_v25', None)
                 res.setdefault('deqa_score', None)
+                for form_col in ('form_symmetry', 'form_balance', 'form_edge_entropy',
+                                 'form_fractal', 'color_harmony'):
+                    res.setdefault(form_col, None)
                 conn.execute('''
                     INSERT OR REPLACE INTO photos (
                         path, filename, category, image_width, image_height,
@@ -2145,6 +2181,7 @@ class Facet:
                         aesthetic_iaa, face_quality_iqa, liqe_score,
                         qalign_score, aesthetic_v25, deqa_score,
                         subject_sharpness, subject_prominence, subject_placement, bg_separation,
+                        form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
                         gps_latitude, gps_longitude, scanned_at
                     )
                     VALUES (
@@ -2163,6 +2200,7 @@ class Facet:
                         :aesthetic_iaa, :face_quality_iqa, :liqe_score,
                         :qalign_score, :aesthetic_v25, :deqa_score,
                         :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation,
+                        :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
                         :gps_latitude, :gps_longitude, datetime('now')
                     )
                 ''', res)

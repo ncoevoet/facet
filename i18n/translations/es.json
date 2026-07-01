@@ -192,6 +192,12 @@
     "subject_prominence": "Prominencia",
     "subject_placement": "Ubicación",
     "bg_separation": "Separación fondo",
+    "form_section": "Forma y armonía",
+    "form_symmetry": "Simetría",
+    "form_balance": "Equilibrio",
+    "form_edge_entropy": "Entropía de bordes",
+    "form_fractal": "Fractal",
+    "color_harmony": "Armonía de color",
     "caption": "Leyenda",
     "histogram_spread": "Histograma",
     "star_rating": "Valoración",
@@ -1615,7 +1621,12 @@
       "subject_placement": "Colocacion del sujeto",
       "bg_separation": "Separacion del fondo",
       "mean_saturation": "Saturacion",
-      "mean_luminance": "Luminosidad"
+      "mean_luminance": "Luminosidad",
+      "form_symmetry": "Simetria",
+      "form_balance": "Equilibrio visual",
+      "form_edge_entropy": "Entropia de bordes",
+      "form_fractal": "Complejidad fractal",
+      "color_harmony": "Armonia de color"
     },
     "suggestion": {
       "aesthetic": "Busca un mayor impacto visual con mejor iluminacion o eleccion de sujeto",
@@ -1634,7 +1645,12 @@
       "subject_prominence": "Dale mas espacio al sujeto o usa una profundidad de campo menor",
       "bg_separation": "Usa una apertura mayor o mas distancia para separar el sujeto del fondo",
       "liqe_score": "Mejora la calidad general de la imagen — verifica distorsiones o artefactos",
-      "isolation_bonus": "Usa una apertura mayor para aislar mejor el sujeto del fondo"
+      "isolation_bonus": "Usa una apertura mayor para aislar mejor el sujeto del fondo",
+      "form_symmetry": "Centra el sujeto o alinea las formas fuertes para equilibrar las mitades izquierda y derecha del encuadre",
+      "form_balance": "Recompon para acercar el peso visual al centro del encuadre o a una posicion de tercios",
+      "form_edge_entropy": "Varia las lineas y texturas — los bordes dominantes van todos en la misma direccion",
+      "form_fractal": "Anade mas detalle o textura — la imagen parece visualmente pobre",
+      "color_harmony": "Ajusta la paleta hacia un esquema armonico, colores complementarios o analogos"
     },
     "reason": {
       "default": "Categoria predeterminada (ninguna categoria especifica coincidente)",

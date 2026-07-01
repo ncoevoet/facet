@@ -33,6 +33,8 @@ VALID_WEIGHT_COLUMNS = [
     "aesthetic_iaa", "face_quality_iqa", "liqe",
     # Subject saliency metrics (BiRefNet)
     "subject_sharpness", "subject_prominence", "subject_placement", "bg_separation",
+    # Form facet + Matsuda color harmony (CPU explainability pack)
+    "symmetry", "balance", "edge_entropy", "fractal", "color_harmony",
 ]
 
 

@@ -35,7 +35,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -102,7 +107,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.5,
@@ -162,7 +172,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.1,
@@ -215,7 +230,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -277,7 +297,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -312,7 +337,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -349,7 +379,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.419,
@@ -388,7 +423,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.901,
@@ -423,7 +463,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -465,7 +510,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.171,
@@ -556,7 +606,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -601,7 +656,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.328,
@@ -725,7 +785,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.417,
@@ -773,7 +838,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.93,
@@ -866,7 +936,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -913,7 +988,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -958,7 +1038,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.512,
@@ -1010,7 +1095,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "tags": {
         "architecture": [
@@ -1099,7 +1189,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.922,
@@ -1144,7 +1239,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -1177,7 +1277,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1222,7 +1327,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.3,
@@ -1271,7 +1381,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.72,
@@ -1320,7 +1435,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 1.5,
@@ -1385,7 +1505,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1427,7 +1552,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1469,7 +1599,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.216,
@@ -1516,7 +1651,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -1594,7 +1734,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.463,
@@ -1702,7 +1847,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -1737,7 +1887,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -1773,7 +1928,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1809,7 +1969,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {}
     },
@@ -1843,7 +2008,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {}
     }

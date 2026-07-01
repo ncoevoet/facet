@@ -195,6 +195,12 @@
     "subject_prominence": "Proeminência",
     "subject_placement": "Posicionamento",
     "bg_separation": "Separação do fundo",
+    "form_section": "Forma e harmonia",
+    "form_symmetry": "Simetria",
+    "form_balance": "Equilíbrio",
+    "form_edge_entropy": "Entropia de bordas",
+    "form_fractal": "Fractal",
+    "color_harmony": "Harmonia de cores",
     "caption": "Legenda",
     "persons": "Pessoas",
     "histogram": "Histograma"
@@ -1613,7 +1619,12 @@
       "subject_placement": "Posicionamento do tema",
       "bg_separation": "Separação do fundo",
       "mean_saturation": "Saturação",
-      "mean_luminance": "Luminância"
+      "mean_luminance": "Luminância",
+      "form_symmetry": "Simetria",
+      "form_balance": "Equilíbrio visual",
+      "form_edge_entropy": "Entropia de bordas",
+      "form_fractal": "Complexidade fractal",
+      "color_harmony": "Harmonia de cores"
     },
     "suggestion": {
       "aesthetic": "Considere um impacto visual mais forte com melhor iluminação ou escolha de tema",
@@ -1632,7 +1643,12 @@
       "subject_prominence": "Dê mais espaço ao tema no enquadramento ou use uma profundidade de campo menor",
       "bg_separation": "Use uma abertura maior ou mais distância para separar o tema do fundo",
       "liqe_score": "Melhore a qualidade geral da imagem — verifique distorções ou artefatos",
-      "isolation_bonus": "Use uma abertura maior para isolar melhor o tema do fundo"
+      "isolation_bonus": "Use uma abertura maior para isolar melhor o tema do fundo",
+      "form_symmetry": "Centralize o tema ou alinhe formas fortes para equilibrar as metades esquerda e direita do quadro",
+      "form_balance": "Recomponha para aproximar o peso visual do centro do quadro ou de uma posição dos terços",
+      "form_edge_entropy": "Varie linhas e texturas — as bordas dominantes seguem todas na mesma direção",
+      "form_fractal": "Inclua mais detalhe ou textura — o quadro parece visualmente pobre",
+      "color_harmony": "Ajuste a paleta para um esquema harmônico, como cores complementares ou análogas"
     },
     "reason": {
       "default": "Categoria padrão (nenhuma categoria específica correspondeu)",

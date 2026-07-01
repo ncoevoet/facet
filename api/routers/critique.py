@@ -58,6 +58,11 @@ METRIC_LABELS = {
     'bg_separation': 'Background Separation',
     'mean_saturation': 'Saturation',
     'mean_luminance': 'Luminance',
+    'form_symmetry': 'Symmetry',
+    'form_balance': 'Visual Balance',
+    'form_edge_entropy': 'Edge Entropy',
+    'form_fractal': 'Fractal Complexity',
+    'color_harmony': 'Color Harmony',
 }
 
 # Map config weight keys to DB column names
@@ -85,6 +90,11 @@ WEIGHT_TO_COLUMN = {
     'bg_separation': 'bg_separation',
     'noise': 'noise_sigma',
     'saturation': 'mean_saturation',
+    'symmetry': 'form_symmetry',
+    'balance': 'form_balance',
+    'edge_entropy': 'form_edge_entropy',
+    'fractal': 'form_fractal',
+    'color_harmony': 'color_harmony',
 }
 
 # Suggestions keyed by metric name (low score triggers these)
@@ -106,6 +116,11 @@ SUGGESTIONS = {
     'bg_separation': 'Use wider aperture or greater distance to separate subject from background',
     'liqe_score': 'Improve overall image quality — check for distortions or artifacts',
     'isolation_bonus': 'Use wider aperture to better isolate the subject from background',
+    'form_symmetry': 'Center the subject or align strong shapes to balance the left and right halves of the frame',
+    'form_balance': 'Recompose so the visual weight sits closer to the frame center or a balanced thirds position',
+    'form_edge_entropy': 'Add more varied lines and textures — the dominant edges all run in the same direction',
+    'form_fractal': 'Include richer detail or texture — the frame reads as visually sparse',
+    'color_harmony': 'Adjust the palette toward a harmonic hue scheme such as complementary or analogous colors',
 }
 
 
@@ -348,6 +363,8 @@ async def api_critique(
             'power_point_score', 'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
             'subject_sharpness', 'subject_prominence', 'subject_placement',
             'bg_separation', 'mean_saturation', 'mean_luminance',
+            'form_symmetry', 'form_balance', 'form_edge_entropy',
+            'form_fractal', 'color_harmony',
             'face_ratio', 'face_count', 'is_monochrome', 'is_blink',
             'is_silhouette', 'is_group_portrait',
             'highlight_clipped', 'shadow_clipped', 'tags', 'shutter_speed',

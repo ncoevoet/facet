@@ -180,6 +180,28 @@ export class CategoryLabelPipe implements PipeTransform {
                     }
                   </div>
                 }
+
+                <!-- Form facet + color harmony section -->
+                @if (p.form_symmetry != null || p.form_balance != null || p.form_edge_entropy != null || p.form_fractal != null || p.color_harmony != null) {
+                  <div class="border-t border-[var(--facet-tooltip-divider)] pt-1.5 mt-2">
+                    <div class="text-[10px] text-[var(--facet-tooltip-text-muted)] uppercase tracking-wider mb-1">{{ 'tooltip.form_section' | translate }}</div>
+                    @if (p.form_symmetry != null) {
+                      <div class="flex justify-between"><span class="text-[var(--facet-tooltip-text-secondary)]">{{ 'tooltip.form_symmetry' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.form_symmetry | fixed:1 }}</span></div>
+                    }
+                    @if (p.form_balance != null) {
+                      <div class="flex justify-between"><span class="text-[var(--facet-tooltip-text-secondary)]">{{ 'tooltip.form_balance' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.form_balance | fixed:1 }}</span></div>
+                    }
+                    @if (p.form_edge_entropy != null) {
+                      <div class="flex justify-between"><span class="text-[var(--facet-tooltip-text-secondary)]">{{ 'tooltip.form_edge_entropy' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.form_edge_entropy | fixed:1 }}</span></div>
+                    }
+                    @if (p.form_fractal != null) {
+                      <div class="flex justify-between"><span class="text-[var(--facet-tooltip-text-secondary)]">{{ 'tooltip.form_fractal' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.form_fractal | fixed:1 }}</span></div>
+                    }
+                    @if (p.color_harmony != null) {
+                      <div class="flex justify-between"><span class="text-[var(--facet-tooltip-text-secondary)]">{{ 'tooltip.color_harmony' | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.color_harmony | fixed:1 }}</span></div>
+                    }
+                  </div>
+                }
               </div>
             </div>
           </div>

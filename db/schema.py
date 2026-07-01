@@ -128,6 +128,13 @@ PHOTOS_COLUMNS = [
     ('dominant_hue', 'REAL'),       # 0-360 dominant hue, NULL for monochrome/unknown
     ('color_temp', 'TEXT'),         # 'warm' | 'cool' | 'neutral'
 
+    # Form facet + Matsuda color harmony (CPU; scan-time + --recompute-form)
+    ('form_symmetry', 'REAL'),      # left-right mirror symmetry, 0-10
+    ('form_balance', 'REAL'),       # edge-energy centroid centeredness, 0-10
+    ('form_edge_entropy', 'REAL'),  # edge-orientation histogram entropy, 0-10
+    ('form_fractal', 'REAL'),       # box-counting fractal dimension mapped to 0-10
+    ('color_harmony', 'REAL'),      # Matsuda hue-template harmony, 0-10; NULL for monochrome
+
     # GPS coordinates
     ('gps_latitude', 'REAL'),
     ('gps_longitude', 'REAL'),

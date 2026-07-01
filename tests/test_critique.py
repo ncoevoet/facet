@@ -26,6 +26,8 @@ _CRITIQUE_COLS = [
     'power_point_score', 'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
     'subject_sharpness', 'subject_prominence', 'subject_placement',
     'bg_separation', 'mean_saturation', 'mean_luminance',
+    'form_symmetry', 'form_balance', 'form_edge_entropy',
+    'form_fractal', 'color_harmony',
     'face_ratio', 'face_count', 'is_monochrome', 'is_blink',
     'is_silhouette', 'is_group_portrait',
     'highlight_clipped', 'shadow_clipped', 'tags', 'shutter_speed',

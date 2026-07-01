@@ -192,6 +192,12 @@
     "subject_prominence": "Prominenza",
     "subject_placement": "Posizionamento",
     "bg_separation": "Separazione sfondo",
+    "form_section": "Forma e armonia",
+    "form_symmetry": "Simmetria",
+    "form_balance": "Equilibrio",
+    "form_edge_entropy": "Entropia dei bordi",
+    "form_fractal": "Frattale",
+    "color_harmony": "Armonia colori",
     "caption": "Didascalia",
     "histogram_spread": "Istogramma",
     "star_rating": "Valutazione",
@@ -1615,7 +1621,12 @@
       "subject_placement": "Posizionamento del soggetto",
       "bg_separation": "Separazione dallo sfondo",
       "mean_saturation": "Saturazione",
-      "mean_luminance": "Luminosita"
+      "mean_luminance": "Luminosita",
+      "form_symmetry": "Simmetria",
+      "form_balance": "Equilibrio visivo",
+      "form_edge_entropy": "Entropia dei bordi",
+      "form_fractal": "Complessita frattale",
+      "color_harmony": "Armonia dei colori"
     },
     "suggestion": {
       "aesthetic": "Cerca un impatto visivo piu forte con illuminazione o soggetto migliori",
@@ -1634,7 +1645,12 @@
       "subject_prominence": "Dai piu spazio al soggetto o usa una profondita di campo ridotta",
       "bg_separation": "Usa un diaframma piu aperto o maggiore distanza per separare il soggetto dallo sfondo",
       "liqe_score": "Migliora la qualita complessiva dell'immagine — controlla distorsioni o artefatti",
-      "isolation_bonus": "Usa un diaframma piu aperto per isolare meglio il soggetto dallo sfondo"
+      "isolation_bonus": "Usa un diaframma piu aperto per isolare meglio il soggetto dallo sfondo",
+      "form_symmetry": "Centra il soggetto o allinea le forme forti per bilanciare le meta sinistra e destra dell'inquadratura",
+      "form_balance": "Ricomponi in modo che il peso visivo sia piu vicino al centro o a una posizione dei terzi",
+      "form_edge_entropy": "Varia linee e texture — i bordi dominanti vanno tutti nella stessa direzione",
+      "form_fractal": "Aggiungi piu dettaglio o texture — l'immagine appare visivamente povera",
+      "color_harmony": "Regola la palette verso uno schema armonico, colori complementari o analoghi"
     },
     "reason": {
       "default": "Categoria predefinita (nessuna categoria specifica corrispondente)",
