@@ -304,3 +304,99 @@ class TestOwnerPicks:
     def test_owner_picks_requires_auth(self, anonymous_client, albums):
         resp = anonymous_client.get(f"/api/albums/{albums['manual_id']}/picks")
         assert resp.status_code == 401
+
+
+class TestShareTokenIsolation:
+    """A minted share-client token must authenticate NOTHING but its picks routes."""
+
+    def _mint_token(self, client, albums):
+        return _mint(client, albums["manual_id"], client_name="Mallory").json()["session_token"]
+
+    def test_share_token_cannot_rate_photos(self, client, proofing_on, albums):
+        token = self._mint_token(client, albums)
+        # require_auth (via get_optional_user) must treat a share token as
+        # unauthenticated, so it can never write owner ratings — the pre-fix
+        # escalation let it through as an edition user in empty-password mode.
+        resp = client.post(
+            "/api/photo/set_rating",
+            json={"path": PHOTO_IN_ALBUM, "rating": 5},
+            headers=_bearer(token),
+        )
+        assert resp.status_code in (401, 403)
+
+    def test_share_token_cannot_reach_edition_action(self, client, proofing_on, albums):
+        token = self._mint_token(client, albums)
+        # Even in empty-edition-password mode this must not pass require_edition.
+        resp = client.post(
+            "/api/culling/auto", json={"dry_run": True}, headers=_bearer(token)
+        )
+        assert resp.status_code in (401, 403)
+
+    def test_owner_picks_rejects_share_token(self, client, proofing_on, albums):
+        token = self._mint_token(client, albums)
+        resp = client.get(
+            f"/api/albums/{albums['manual_id']}/picks", headers=_bearer(token)
+        )
+        assert resp.status_code in (401, 403)
+
+
+class TestShareRevocation:
+    """A live session stops working once the album is unshared or proofing is off."""
+
+    def _session(self, client, albums):
+        return _mint(client, albums["manual_id"], client_name="Dana").json()["session_token"]
+
+    def test_picks_denied_after_unshare(self, client, proofing_on, albums):
+        token = self._session(client, albums)
+        conn = _connect()
+        conn.execute("UPDATE albums SET share_token = NULL WHERE id = ?", (albums["manual_id"],))
+        conn.commit()
+        conn.close()
+        resp = client.put(
+            f"/api/shared/album/{albums['manual_id']}/picks",
+            json={"path": PHOTO_IN_ALBUM, "picked": True},
+            headers=_bearer(token),
+        )
+        assert resp.status_code == 403
+        read = client.get(
+            f"/api/shared/album/{albums['manual_id']}/picks", headers=_bearer(token)
+        )
+        assert read.status_code == 403
+
+    def test_picks_denied_when_proofing_disabled(self, client, proofing_on, albums):
+        token = self._session(client, albums)
+        VIEWER_CONFIG["features"]["show_proofing"] = False
+        try:
+            resp = client.put(
+                f"/api/shared/album/{albums['manual_id']}/picks",
+                json={"path": PHOTO_IN_ALBUM, "picked": True},
+                headers=_bearer(token),
+            )
+        finally:
+            VIEWER_CONFIG["features"]["show_proofing"] = True
+        assert resp.status_code == 403
+
+
+class TestSessionRateLimitAndRole:
+    """PIN brute-force is rate-limited; regular JWTs are rejected on picks routes."""
+
+    def test_pin_attempts_rate_limited(self, client, proofing_on, albums):
+        proofing_on["pin"] = "1234"
+        codes = [
+            _mint(client, albums["manual_id"], pin="0000").status_code
+            for _ in range(8)
+        ]
+        assert 429 in codes
+
+    def test_regular_edition_jwt_rejected_on_picks(self, edition_client, proofing_on, albums):
+        # A valid edition JWT is not a share_client token → require_share_client 403s.
+        resp = edition_client.put(
+            f"/api/shared/album/{albums['manual_id']}/picks",
+            json={"path": PHOTO_IN_ALBUM, "picked": True},
+        )
+        assert resp.status_code == 403
+
+    def test_non_ascii_token_pin_no_500(self, client, proofing_on, albums):
+        proofing_on["pin"] = "1234"
+        resp = _mint(client, albums["manual_id"], token="clé-partagée-😀", pin="pîn")
+        assert resp.status_code == 403

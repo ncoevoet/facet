@@ -292,8 +292,10 @@ def _check_penalties(photo):
     """Check for scoring penalties (blink, noise, clipping, skin-tone cast).
 
     Returns a dict of penalty names to values. The skin-tone entry is advisory
-    (it never enters the aggregate) and only appears when the stored worst-face
-    delta exceeds the configured cast threshold.
+    (it never enters the aggregate) and surfaces whenever the stored worst-face
+    cast is present: ``compute_photo_skin_tone`` already applied the configured
+    ``cast_delta_threshold`` once at recompute time (``skin_tone_cast`` is NULL
+    below it), so the stored decision is trusted here rather than re-gated.
     """
     penalties = {}
     if photo.get('is_blink'):
@@ -308,12 +310,10 @@ def _check_penalties(photo):
         penalties['shadow_clipping'] = round(-photo['shadow_clipped'] * 0.5, 2)
     skin_delta = photo.get('skin_tone_delta')
     if skin_delta is not None and photo.get('skin_tone_cast'):
-        threshold = float(_FULL_CONFIG.get('skin_tone', {}).get('cast_delta_threshold', 12.0))
-        if skin_delta > threshold:
-            penalties['skin_tone'] = {
-                'cast': photo['skin_tone_cast'],
-                'delta': round(float(skin_delta), 1),
-            }
+        penalties['skin_tone'] = {
+            'cast': photo['skin_tone_cast'],
+            'delta': round(float(skin_delta), 1),
+        }
     return penalties
 
 

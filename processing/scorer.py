@@ -1496,6 +1496,38 @@ class Facet:
             logger.error("Failed to decode %s thumbnails", decode_failed)
         logger.info("Run --recompute-average to update aggregate scores with new comp_score values")
 
+    @staticmethod
+    def _foreach_face_landmark(db_path, select_cols, desc, compute):
+        """Shared scaffold for the landmark-only face recompute passes.
+
+        Selects ``select_cols`` from every face with a stored 106-pt landmark
+        blob, decodes each to a (106, 2) float32 array (undecodable blobs are
+        skipped and counted), and calls ``compute(row, landmarks)`` per face.
+        Returns ``(results, total_faces, no_landmark_count, decode_errors)``.
+        """
+        import numpy as np
+        from tqdm import tqdm
+
+        with get_connection(db_path) as conn:
+            rows = conn.execute(
+                f"SELECT {select_cols} FROM faces WHERE landmark_2d_106 IS NOT NULL"
+            ).fetchall()
+            no_landmark_count = conn.execute(
+                "SELECT COUNT(*) FROM faces WHERE landmark_2d_106 IS NULL"
+            ).fetchone()[0]
+
+        results = []
+        decode_errors = 0
+        for row in tqdm(rows, desc=desc):
+            try:
+                landmarks = np.frombuffer(
+                    row['landmark_2d_106'], dtype=np.float32).reshape(106, 2)
+            except (ValueError, TypeError):
+                decode_errors += 1
+                continue
+            results.append(compute(row, landmarks))
+        return results, len(rows), no_landmark_count, decode_errors
+
     def recompute_blink_detection(self):
         """
         Re-compute blink detection using stored landmarks from the faces table.
@@ -1505,71 +1537,40 @@ class Facet:
         - Falls back to thumbnail-based detection for faces without stored landmarks
         - ~100x faster than thumbnail-based detection when landmarks are available
         """
-        import numpy as np
-        from tqdm import tqdm
+        from analyzers import FaceAnalyzer as _FaceAnalyzer
 
-        # Get blink threshold from config
         face_detection = self.config.config.get('face_detection', {})
         blink_threshold = face_detection.get('blink_ear_threshold', 0.21)
 
+        def _compute(row, landmarks):
+            avg_ear = _FaceAnalyzer.compute_avg_ear(landmarks)
+            return row['photo_path'], 1 if avg_ear < blink_threshold else 0
+
+        per_face, total, no_landmark_count, _ = Facet._foreach_face_landmark(
+            self.db_path, "photo_path, landmark_2d_106", "EAR from landmarks", _compute)
+
+        if total:
+            logger.info("Computing blinks from stored landmarks for %s faces...", total)
+
+        photo_blink_status = {}  # {path: is_blink}
+        for path, is_blink in per_face:
+            # If ANY face is blinking, the photo is marked as blink
+            if path not in photo_blink_status:
+                photo_blink_status[path] = is_blink
+            elif is_blink:
+                photo_blink_status[path] = 1
+
+        if no_landmark_count > 0:
+            logger.debug("Note: %s faces lack stored landmarks.", no_landmark_count)
+            logger.info("  Run '--batch' scan on new photos to store landmarks,")
+            logger.info("  or run '--extract-faces-gpu' to backfill landmarks.")
+
+        logger.info("Saving results to database...")
         with get_connection(self.db_path) as conn:
-            # Phase 1: Get all faces with stored landmarks for optimized detection
-            landmark_query = """
-                SELECT f.photo_path, f.landmark_2d_106
-                FROM faces f
-                WHERE f.landmark_2d_106 IS NOT NULL
-            """
-            landmark_rows = conn.execute(landmark_query).fetchall()
-
-            # Count faces without landmarks
-            no_landmark_count = conn.execute("""
-                SELECT COUNT(*) FROM faces WHERE landmark_2d_106 IS NULL
-            """).fetchone()[0]
-
-            photo_blink_status = {}  # {path: is_blink}
-
-            if landmark_rows:
-                logger.info("Computing blinks from stored landmarks for %s faces...", len(landmark_rows))
-
-                from analyzers import FaceAnalyzer as _FaceAnalyzer
-
-                for row in tqdm(landmark_rows, desc="EAR from landmarks"):
-                    path = row['photo_path']
-                    landmark_blob = row['landmark_2d_106']
-
-                    try:
-                        # Decode landmarks: 106 x 2 float32
-                        landmarks = np.frombuffer(landmark_blob, dtype=np.float32).reshape(106, 2)
-
-                        avg_ear = _FaceAnalyzer.compute_avg_ear(landmarks)
-
-                        is_blink = 1 if avg_ear < blink_threshold else 0
-
-                        # Track per-photo: if ANY face is blinking, photo is marked as blink
-                        if path not in photo_blink_status:
-                            photo_blink_status[path] = is_blink
-                        elif is_blink:
-                            photo_blink_status[path] = 1
-
-                    except Exception as e:
-                        logger.warning("Error computing EAR for %s: %s", path, e)
-
-            # Phase 2: Fallback for faces without landmarks (if any)
-            if no_landmark_count > 0:
-                logger.debug("Note: %s faces lack stored landmarks.", no_landmark_count)
-                logger.info("  Run '--batch' scan on new photos to store landmarks,")
-                logger.info("  or run '--extract-faces-gpu' to backfill landmarks.")
-
-            # Phase 3: Batch update the photos table
-            logger.info("Saving results to database...")
-
             # Reset all photos with faces to non-blink status first
             conn.execute("UPDATE photos SET is_blink = 0 WHERE face_count >= 1")
-
-            # Update photos that have blinks
             update_data = [(status, path) for path, status in photo_blink_status.items()]
             conn.executemany("UPDATE photos SET is_blink = ? WHERE path = ?", update_data)
-
             conn.commit()
 
         blink_count = sum(1 for v in photo_blink_status.values() if v == 1)
@@ -1585,48 +1586,40 @@ class Facet:
         ``photos.eyes_open_score`` / ``photos.expression_score``. No InsightFace
         re-run — pure geometry on stored landmarks.
         """
-        import numpy as np
         from collections import defaultdict
-        from tqdm import tqdm
         from analyzers import FaceAnalyzer as _FaceAnalyzer
 
+        def _compute(row, landmarks):
+            return (row['photo_path'],
+                    _FaceAnalyzer.compute_eyes_open_score(landmarks),
+                    _FaceAnalyzer.compute_expression_score(landmarks))
+
+        per_face, total, no_landmark_count, _ = Facet._foreach_face_landmark(
+            self.db_path, "photo_path, landmark_2d_106",
+            "Eyes/expression from landmarks", _compute)
+
+        if not total:
+            logger.info("No faces with stored landmarks — nothing to compute.")
+            if no_landmark_count:
+                logger.info("  %s faces lack landmarks; re-scan to store them.", no_landmark_count)
+            return 0
+
+        logger.info("Computing eyes/expression from stored landmarks for %s faces...", total)
+
+        per_photo_eyes = defaultdict(list)
+        per_photo_expr = defaultdict(list)
+        for path, eyes, expr in per_face:
+            per_photo_eyes[path].append(eyes)
+            per_photo_expr[path].append(expr)
+
+        update_data = []
+        for path in per_photo_eyes:
+            eyes = _FaceAnalyzer.aggregate_eyes_open(per_photo_eyes[path])
+            expr = _FaceAnalyzer.aggregate_expression(per_photo_expr[path])
+            update_data.append((eyes, expr, path))
+
+        logger.info("Saving results to database...")
         with get_connection(self.db_path) as conn:
-            landmark_rows = conn.execute(
-                "SELECT photo_path, landmark_2d_106 FROM faces "
-                "WHERE landmark_2d_106 IS NOT NULL"
-            ).fetchall()
-            no_landmark_count = conn.execute(
-                "SELECT COUNT(*) FROM faces WHERE landmark_2d_106 IS NULL"
-            ).fetchone()[0]
-
-            if not landmark_rows:
-                logger.info("No faces with stored landmarks — nothing to compute.")
-                if no_landmark_count:
-                    logger.info("  %s faces lack landmarks; re-scan to store them.", no_landmark_count)
-                return 0
-
-            logger.info("Computing eyes/expression from stored landmarks for %s faces...",
-                        len(landmark_rows))
-
-            per_photo_eyes = defaultdict(list)
-            per_photo_expr = defaultdict(list)
-            for row in tqdm(landmark_rows, desc="Eyes/expression from landmarks"):
-                path = row['photo_path']
-                try:
-                    landmarks = np.frombuffer(row['landmark_2d_106'], dtype=np.float32).reshape(106, 2)
-                except Exception as e:
-                    logger.warning("Error decoding landmarks for %s: %s", path, e)
-                    continue
-                per_photo_eyes[path].append(_FaceAnalyzer.compute_eyes_open_score(landmarks))
-                per_photo_expr[path].append(_FaceAnalyzer.compute_expression_score(landmarks))
-
-            update_data = []
-            for path in per_photo_eyes:
-                eyes = _FaceAnalyzer.aggregate_eyes_open(per_photo_eyes[path])
-                expr = _FaceAnalyzer.aggregate_expression(per_photo_expr[path])
-                update_data.append((eyes, expr, path))
-
-            logger.info("Saving results to database...")
             conn.executemany(
                 "UPDATE photos SET eyes_open_score = ?, expression_score = ? WHERE path = ?",
                 update_data,
@@ -1647,43 +1640,26 @@ class Facet:
         aggregates. No InsightFace re-run — pure geometry on stored landmarks,
         so no pixels are needed.
         """
-        import numpy as np
-        from tqdm import tqdm
         from analyzers import FaceAnalyzer as _FaceAnalyzer
 
-        with get_connection(self.db_path) as conn:
-            landmark_rows = conn.execute(
-                "SELECT id, landmark_2d_106 FROM faces "
-                "WHERE landmark_2d_106 IS NOT NULL"
-            ).fetchall()
-            no_landmark_count = conn.execute(
-                "SELECT COUNT(*) FROM faces WHERE landmark_2d_106 IS NULL"
-            ).fetchone()[0]
-
-            if not landmark_rows:
-                logger.info("No faces with stored landmarks — nothing to compute.")
-                if no_landmark_count:
-                    logger.info("  %s faces lack landmarks; re-scan to store them.", no_landmark_count)
-                return 0
-
-            logger.info("Computing per-face eyes/smile signals for %s faces...",
-                        len(landmark_rows))
-
-            update_data = []
-            decode_errors = 0
-            for row in tqdm(landmark_rows, desc="Per-face signals from landmarks"):
-                try:
-                    landmarks = np.frombuffer(row['landmark_2d_106'], dtype=np.float32).reshape(106, 2)
-                except (ValueError, TypeError):
-                    decode_errors += 1
-                    continue
-                update_data.append((
-                    _FaceAnalyzer.compute_eyes_open_score(landmarks),
+        def _compute(row, landmarks):
+            return (_FaceAnalyzer.compute_eyes_open_score(landmarks),
                     _FaceAnalyzer.compute_smile_score(landmarks),
-                    row['id'],
-                ))
+                    row['id'])
 
-            logger.info("Saving results to database...")
+        update_data, total, no_landmark_count, decode_errors = Facet._foreach_face_landmark(
+            self.db_path, "id, landmark_2d_106",
+            "Per-face signals from landmarks", _compute)
+
+        if not total:
+            logger.info("No faces with stored landmarks — nothing to compute.")
+            if no_landmark_count:
+                logger.info("  %s faces lack landmarks; re-scan to store them.", no_landmark_count)
+            return 0
+
+        logger.info("Computing per-face eyes/smile signals for %s faces...", total)
+        logger.info("Saving results to database...")
+        with get_connection(self.db_path) as conn:
             conn.executemany(
                 "UPDATE faces SET eyes_open_score = ?, smile_score = ? WHERE id = ?",
                 update_data,
@@ -2101,8 +2077,8 @@ class Facet:
 
         # Form facet columns default to NULL for callers that did not compute
         # them (named-param INSERT needs every key).
-        for form_col in ('form_symmetry', 'form_balance', 'form_edge_entropy',
-                         'form_fractal', 'color_harmony'):
+        from analyzers.form_facet import FORM_METRIC_COLUMNS
+        for form_col in FORM_METRIC_COLUMNS:
             res.setdefault(form_col, None)
 
         with get_connection(self.db_path, row_factory=False) as conn:
@@ -2193,6 +2169,7 @@ class Facet:
                     face_records.append(face_upsert_row(res['path'], face))
 
         # Phase 3: Fast DB inserts (short transaction)
+        from analyzers.form_facet import FORM_METRIC_COLUMNS
         with get_connection(self.db_path, row_factory=False) as conn:
             # Batch insert photos
             for res, _ in results_with_images:
@@ -2201,8 +2178,7 @@ class Facet:
                 res.setdefault('qalign_score', None)
                 res.setdefault('aesthetic_v25', None)
                 res.setdefault('deqa_score', None)
-                for form_col in ('form_symmetry', 'form_balance', 'form_edge_entropy',
-                                 'form_fractal', 'color_harmony'):
+                for form_col in FORM_METRIC_COLUMNS:
                     res.setdefault(form_col, None)
                 conn.execute('''
                     INSERT OR REPLACE INTO photos (

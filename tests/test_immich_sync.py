@@ -9,16 +9,22 @@ from sync.immich import ImmichClient, _effective_rating, map_facet_path, sync_to
 
 
 class FakeTransport:
-    def __init__(self, assets_by_path=None, albums=None):
+    def __init__(self, assets_by_path=None, albums=None, bulk_assets=None):
         self.assets_by_path = assets_by_path or {}
+        # What the bulk-listing pass returns; None => same as assets_by_path.
+        self.bulk_assets = bulk_assets
         self.albums = albums or []
         self.requests = []
 
     def __call__(self, method, path, payload=None):
         self.requests.append((method, path, payload))
         if method == "POST" and path == "/api/search/metadata":
-            asset_id = self.assets_by_path.get(payload["originalPath"])
-            items = [{"id": asset_id}] if asset_id else []
+            if "originalPath" in payload:
+                asset_id = self.assets_by_path.get(payload["originalPath"])
+                items = [{"id": asset_id}] if asset_id else []
+                return {"assets": {"items": items, "nextPage": None}}
+            source = self.bulk_assets if self.bulk_assets is not None else self.assets_by_path
+            items = [{"id": aid, "originalPath": p} for p, aid in source.items()]
             return {"assets": {"items": items, "nextPage": None}}
         if method == "PUT" and path == "/api/assets":
             return None
@@ -40,7 +46,11 @@ class FakeTransport:
 
     def searched_paths(self):
         return [payload["originalPath"] for method, path, payload in self.requests
-                if path == "/api/search/metadata"]
+                if path == "/api/search/metadata" and "originalPath" in payload]
+
+    def bulk_listings(self):
+        return sum(1 for method, path, payload in self.requests
+                   if path == "/api/search/metadata" and "originalPath" not in payload)
 
 
 def make_db(tmp_path, rows, user_rows=()):
@@ -100,9 +110,9 @@ class TestPathMapping:
         summary = sync_to_immich(db_path, config)
         assert summary["matched"] == 2
         assert summary["unmatched"] == 1
-        assert set(transport.searched_paths()) == {
-            '/usr/src/app/upload/a.jpg', '/data/b.jpg',
-        }
+        # One bulk pass resolves both mapped paths; no per-path fallback needed.
+        assert transport.bulk_listings() == 1
+        assert transport.searched_paths() == []
 
     def test_empty_or_placeholder_map_is_identity(self):
         assert map_facet_path('/x/y.jpg', []) == '/x/y.jpg'
@@ -149,8 +159,9 @@ class TestRatingPolicy:
     def test_rejected_photo_is_skipped_never_minus_one(self, tmp_path, transport):
         db_path = make_db(tmp_path, [('/p/rej.jpg', 0, 0, 1)])
         summary = sync_to_immich(db_path, make_config())
+        # Pure-rejected rows are excluded at fetch — no dead iterations, no requests.
         assert transport.requests == []
-        assert summary["skipped_unrated"] == 1
+        assert summary["skipped_unrated"] == 0
 
     def test_effective_rating_bounds(self):
         assert _effective_rating(-1) is None
@@ -172,7 +183,8 @@ class TestDryRun:
                                    "top_picks_album": "Facet Top Picks"})
         summary = sync_to_immich(db_path, config, dry_run=True)
         assert transport.writes() == []
-        assert len(transport.searched_paths()) == 2
+        # dry-run still resolves via the read-only bulk pass, just never writes.
+        assert transport.bulk_listings() == 1
         assert summary["matched"] == 2
         assert summary["updated"] == 2
         assert summary["albums_created"] == 0
@@ -250,3 +262,78 @@ class TestClientValidation:
         config = make_config(api_key="")
         with pytest.raises(ValueError):
             sync_to_immich(db_path, config)
+
+
+class TestBulkResolution:
+    def test_bulk_pass_resolves_and_misses_fall_back(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [
+            ('/p/a.jpg', 5, 0, 0),
+            ('/p/b.jpg', 4, 0, 0),
+            ('/p/c.jpg', 3, 0, 0),
+        ])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a', '/p/b.jpg': 'id-b', '/p/c.jpg': 'id-c'}
+        # The bulk listing only knows a and b; c is resolvable per-path only.
+        transport.bulk_assets = {'/p/a.jpg': 'id-a', '/p/b.jpg': 'id-b'}
+        summary = sync_to_immich(db_path, make_config())
+        assert summary["matched"] == 3
+        assert summary["unmatched"] == 0
+        assert transport.bulk_listings() == 1
+        assert transport.searched_paths() == ['/p/c.jpg']
+
+
+class TestUpdateBatching:
+    def test_over_500_assets_split_into_two_puts(self, tmp_path, transport):
+        rows = [(f'/p/{i}.jpg', 5, 0, 0) for i in range(501)]
+        db_path = make_db(tmp_path, rows)
+        transport.assets_by_path = {f'/p/{i}.jpg': f'id-{i}' for i in range(501)}
+        summary = sync_to_immich(db_path, make_config())
+        updates = transport.asset_updates()
+        assert len(updates) == 2
+        assert len(updates[0]["ids"]) == 500
+        assert len(updates[1]["ids"]) == 1
+        assert summary["updated"] == 501
+
+
+class TestPushConfig:
+    def test_ratings_false_skips_rating_writes(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 1, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+        config = make_config(push={"ratings": False, "favorites": True, "top_picks_album": ""})
+        sync_to_immich(db_path, config)
+        updates = transport.asset_updates()
+        assert len(updates) == 1
+        assert "rating" not in updates[0]
+        assert updates[0]["isFavorite"] is True
+
+    def test_favorites_false_skips_favorite_writes(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 1, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+        config = make_config(push={"ratings": True, "favorites": False, "top_picks_album": ""})
+        sync_to_immich(db_path, config)
+        updates = transport.asset_updates()
+        assert len(updates) == 1
+        assert updates[0]["rating"] == 5
+        assert "isFavorite" not in updates[0]
+
+
+class TestPartialProgress:
+    def test_network_error_carries_partial_summary(self, tmp_path, monkeypatch):
+        import urllib.error
+
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0), ('/p/b.jpg', 4, 0, 0)])
+
+        def failing(_self, method, path, payload=None):
+            if method == "POST" and path == "/api/search/metadata" and "originalPath" not in payload:
+                return {"assets": {"items": [
+                    {"id": "id-a", "originalPath": "/p/a.jpg"},
+                    {"id": "id-b", "originalPath": "/p/b.jpg"},
+                ], "nextPage": None}}
+            if method == "PUT" and path == "/api/assets":
+                raise urllib.error.HTTPError(path, 500, "boom", {}, None)
+            return None
+
+        monkeypatch.setattr(ImmichClient, "_request", failing)
+        with pytest.raises(urllib.error.URLError) as excinfo:
+            sync_to_immich(db_path, make_config())
+        assert excinfo.value.partial_summary["matched"] == 2
+        assert excinfo.value.partial_summary["updated"] == 0

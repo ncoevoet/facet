@@ -19,11 +19,12 @@ import hmac
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from api.auth import (
-    CurrentUser, create_share_client_token, require_edition, require_share_client,
+    CurrentUser, RateLimiter, create_share_client_token, require_edition,
+    require_share_client,
 )
 from api.config import VIEWER_CONFIG
 from api.database import get_db
@@ -31,6 +32,24 @@ from api.routers.albums import _check_album_access, _get_user_id
 
 router = APIRouter(tags=["proofing"])
 logger = logging.getLogger(__name__)
+
+# Brute-force guard on the share-session PIN, mirroring the login limiter.
+_session_limiter = RateLimiter(max_attempts=5, window_seconds=60)
+
+
+def _load_album_share_token(conn, album_id):
+    """Return the album row and its share_token, or (None, None) if absent.
+
+    A share_token of NULL means the album is not (or no longer) shared, so any
+    proofing session minted earlier must stop working — this is the revocation
+    check the picks routes re-run on every request.
+    """
+    album = conn.execute(
+        "SELECT id, is_smart, share_token FROM albums WHERE id = ?", (album_id,)
+    ).fetchone()
+    if not album:
+        return None, None
+    return album, album['share_token']
 
 
 # --- Request models ---
@@ -81,28 +100,36 @@ def _picks_response(rows):
 
 # --- Client endpoints (share-token / share-session auth) ---
 
+def _tokens_match(stored: Optional[str], provided: str) -> bool:
+    """Constant-time compare of two secrets as UTF-8 bytes.
+
+    ``hmac.compare_digest`` raises TypeError on non-ASCII ``str`` inputs, so a
+    unicode token/PIN would surface as a 500 instead of a clean rejection.
+    """
+    if not stored:
+        return False
+    return hmac.compare_digest(stored.encode('utf-8'), provided.encode('utf-8'))
+
+
 @router.post("/api/shared/album/{album_id}/session")
-def create_share_session(album_id: int, body: ShareSessionRequest):
+def create_share_session(album_id: int, body: ShareSessionRequest, request: Request):
     """Exchange a valid share token (+ optional PIN) for a proofing session JWT."""
     if not _proofing_enabled():
         raise HTTPException(status_code=403, detail="Proofing disabled")
+    client_ip = request.client.host if request.client else "unknown"
+    if not _session_limiter.is_allowed(f"{client_ip}:{album_id}"):
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
     with get_db() as conn:
-        album = conn.execute(
-            "SELECT * FROM albums WHERE id = ?", (album_id,)
-        ).fetchone()
+        album, stored_token = _load_album_share_token(conn, album_id)
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
-    try:
-        stored_token = album['share_token']
-    except (IndexError, KeyError):
-        stored_token = None
-    if not stored_token or not hmac.compare_digest(stored_token, body.token):
+    if not _tokens_match(stored_token, body.token):
         raise HTTPException(status_code=403, detail="Invalid share token")
     pin = str(_proofing_config().get('pin', '') or '')
     if pin:
         if not body.pin:
             raise HTTPException(status_code=403, detail="pin_required")
-        if not hmac.compare_digest(body.pin, pin):
+        if not _tokens_match(pin, body.pin):
             raise HTTPException(status_code=403, detail="pin_invalid")
     client_name = body.client_name.strip()
     return {
@@ -123,11 +150,11 @@ def upsert_pick(
     don't wipe comments); an explicit empty string clears it.
     """
     with get_db() as conn:
-        album = conn.execute(
-            "SELECT is_smart FROM albums WHERE id = ?", (album_id,)
-        ).fetchone()
+        album, stored_token = _load_album_share_token(conn, album_id)
         if not album:
             raise HTTPException(status_code=404, detail="Album not found")
+        if not _proofing_enabled() or not stored_token:
+            raise HTTPException(status_code=403, detail="Share session revoked")
         if album['is_smart']:
             raise HTTPException(
                 status_code=400,
@@ -162,6 +189,9 @@ def get_share_picks(
 ):
     """Current picks for the shared album, for client-side re-hydration."""
     with get_db() as conn:
+        album, stored_token = _load_album_share_token(conn, album_id)
+        if not album or not _proofing_enabled() or not stored_token:
+            raise HTTPException(status_code=403, detail="Share session revoked")
         rows = _pick_rows(conn, album_id)
     return _picks_response(rows)
 

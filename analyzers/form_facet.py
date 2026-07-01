@@ -80,6 +80,7 @@ def _working_image(pil_image):
     img = img.resize(
         (max(1, round(w * scale)), max(1, round(h * scale))),
         Image.Resampling.LANCZOS,
+        reducing_gap=2.0,
     )
     rgb = np.asarray(img, dtype=np.float32) / 255.0
     hsv = np.asarray(img.convert('HSV'), dtype=np.float32) / 255.0

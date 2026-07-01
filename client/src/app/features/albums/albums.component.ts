@@ -126,7 +126,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
               @if (auth.isEdition()) {
                 @if (!album.is_smart && proofingEnabled()) {
                   <button mat-icon-button
-                          [matTooltip]="'proofing.client_picks' | translate"
+                          [matTooltip]="I18N.proofing.client_picks | translate"
                           (click)="openClientPicks($event, album)">
                     <mat-icon class="opacity-60">how_to_vote</mat-icon>
                   </button>

@@ -40,6 +40,7 @@
     "critique": { "type": "object" },
     "auto_cull": { "type": "object" },
     "distortion_attributes": { "type": "object" },
+    "skin_tone": { "type": "object" },
     "immich": { "type": "object" },
     "xmp_export": { "type": "object" }
   }

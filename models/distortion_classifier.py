@@ -17,7 +17,7 @@ low-level distortions — run the ``--recompute-distortions`` Spearman report
 import numpy as np
 
 from models.tagger import encode_text_prompts
-from utils import bytes_to_embedding
+from utils.embedding import bytes_to_normalized_embedding
 
 POSITIVE_TEMPLATE = 'There is {a} in the photo'
 NEGATIVE_TEMPLATE = 'There is not {a} in the photo'
@@ -81,22 +81,18 @@ class DistortionClassifier:
         """Raw per-attribute confidence dict (unthresholded), or None.
 
         Confidence is the 2-way softmax over the (positive, negative) prompt
-        cosines: ``sigmoid((cos_pos - cos_neg) / temperature)``. Returns None
-        when the embedding is missing, zero, or of a different dimension than
-        the prompt matrix (mixed CLIP-768 / SigLIP-1152 DB).
+        cosines: ``sigmoid((cos_pos - cos_neg) / temperature)``. The dimension
+        check, zero-norm guard and L2 normalization are delegated to the shared
+        ``bytes_to_normalized_embedding`` helper (the same validate/normalize
+        block ``MomentClassifier.score_vector`` relies on), so a missing, zero,
+        or mismatched-dimension embedding (mixed CLIP-768 / SigLIP-1152 DB)
+        yields None.
         """
-        if self.pos_matrix.shape[0] == 0 or embedding_bytes is None:
+        if self.pos_matrix.shape[0] == 0:
             return None
-        emb = bytes_to_embedding(embedding_bytes)
-        if emb is None:
+        unit = bytes_to_normalized_embedding(embedding_bytes, self.pos_matrix.shape[1])
+        if unit is None:
             return None
-        emb = np.asarray(emb, dtype=np.float32)
-        if emb.shape[0] != self.pos_matrix.shape[1]:
-            return None
-        norm = np.linalg.norm(emb)
-        if norm == 0:
-            return None
-        unit = emb / norm
         pos = self.pos_matrix @ unit
         neg = self.neg_matrix @ unit
         probs = 1.0 / (1.0 + np.exp((neg - pos) / self.temperature))

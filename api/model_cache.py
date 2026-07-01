@@ -10,6 +10,8 @@ concurrent generate() calls on the single cached model instance.
 import logging
 import threading
 
+from models.caption_translator import LANG_MODELS
+
 logger = logging.getLogger("facet.api.model_cache")
 
 _vlm_tagger = None
@@ -25,7 +27,7 @@ _resolved_profile = None
 
 vlm_generate_lock = threading.Lock()
 
-SUPPORTED_TRANSLATION_LANGS = {'fr', 'de', 'es', 'it', 'pt'}
+SUPPORTED_TRANSLATION_LANGS = frozenset(LANG_MODELS)
 
 _VLM_MODEL_KEY_MAP = {
     'qwen3-vl-2b': 'qwen3_vl_2b',
@@ -74,7 +76,7 @@ def translation_target(lang):
     """Return the configured translation target when ``lang`` requests it, else None."""
     from api.config import _FULL_CONFIG
 
-    if not lang or lang == 'en' or lang not in SUPPORTED_TRANSLATION_LANGS:
+    if not lang or lang not in SUPPORTED_TRANSLATION_LANGS:
         return None
     target = _FULL_CONFIG.get('translation', {}).get('target_language', '')
     return target if lang == target else None

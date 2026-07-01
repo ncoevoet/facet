@@ -541,6 +541,36 @@ def delete_album(
         return {'ok': True}
 
 
+def append_album_photos(conn, album_id, paths):
+    """Append ``paths`` to an album at MAX(position)+1, idempotently.
+
+    Shared by the add-photos endpoint and any feature that fills an album
+    (e.g. auto-cull Highlights). ``INSERT OR IGNORE`` against
+    ``UNIQUE(album_id, photo_path)`` keeps re-runs a no-op; a cover photo is
+    set only when the album has none. Does NOT commit — the caller owns the
+    transaction. Returns the number of rows actually inserted.
+    """
+    if not paths:
+        return 0
+    pos_row = conn.execute(
+        "SELECT COALESCE(MAX(position), -1) FROM album_photos WHERE album_id = ?",
+        (album_id,)
+    ).fetchone()
+    max_pos = pos_row[0] if pos_row else -1
+    before = conn.total_changes
+    conn.executemany(
+        "INSERT OR IGNORE INTO album_photos (album_id, photo_path, position) VALUES (?, ?, ?)",
+        [(album_id, path, max_pos + 1 + i) for i, path in enumerate(paths)],
+    )
+    added = conn.total_changes - before
+    conn.execute(
+        "UPDATE albums SET cover_photo_path = COALESCE(cover_photo_path, ?), "
+        "updated_at = datetime('now') WHERE id = ?",
+        (paths[0], album_id)
+    )
+    return added
+
+
 @router.post("/api/albums/{album_id}/photos")
 def add_photos_to_album(
     album_id: int,
@@ -553,35 +583,7 @@ def add_photos_to_album(
     with get_db() as conn:
         user_id = _get_user_id(user)
         _check_album_access(conn, album_id, user_id)
-
-        # Get current max position
-        row = conn.execute(
-            "SELECT COALESCE(MAX(position), -1) FROM album_photos WHERE album_id = ?",
-            (album_id,)
-        ).fetchone()
-        max_pos = row[0] if row else -1
-
-        added = 0
-        for i, path in enumerate(body.photo_paths):
-            try:
-                conn.execute(
-                    "INSERT OR IGNORE INTO album_photos (album_id, photo_path, position) VALUES (?, ?, ?)",
-                    (album_id, path, max_pos + 1 + i)
-                )
-                row = conn.execute("SELECT changes()").fetchone()
-                added += row[0] if row else 0
-            except sqlite3.Error:
-                logger.debug("Failed to add photo %s to album %s", path, album_id, exc_info=True)
-
-        # Auto-set cover if not set
-        album = conn.execute("SELECT cover_photo_path FROM albums WHERE id = ?", (album_id,)).fetchone()
-        if not album['cover_photo_path'] and body.photo_paths:
-            conn.execute(
-                "UPDATE albums SET cover_photo_path = ?, updated_at = datetime('now') WHERE id = ?",
-                (body.photo_paths[0], album_id)
-            )
-
-        conn.execute("UPDATE albums SET updated_at = datetime('now') WHERE id = ?", (album_id,))
+        append_album_photos(conn, album_id, body.photo_paths)
         conn.commit()
 
         row = conn.execute(

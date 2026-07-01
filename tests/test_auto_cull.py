@@ -412,6 +412,93 @@ class TestSimilarGroups:
         assert all(p["session_id"] == "cull-similar" for p in pairs)
 
 
+class TestCrossGroupOverlap:
+    """F4: a photo an earlier group decides is dropped from later groups so it
+    never ends up both kept and rejected, nor writes contradictory pairs."""
+
+    # Burst group 1 keeps /a (lead) and rejects /b, /c at strictness 100. The
+    # similar group also contains /a, but a stronger similar-only frame /z would
+    # win it — so without the cross-group drop, /a would be rejected there while
+    # staying a burst lead (contradiction). /z, /w carry no burst group.
+    _PHOTOS = [
+        ("/a.jpg", "2024:06:15 10:00:00", 9.0, 1),
+        ("/b.jpg", "2024:06:15 10:00:01", 8.0, 1),
+        ("/c.jpg", "2024:06:15 10:00:02", 2.0, 1),
+        ("/z.jpg", "2024:06:15 12:00:00", 9.5, None),
+        ("/w.jpg", "2024:06:15 12:00:01", 4.0, None),
+    ]
+
+    def test_overlapping_photo_is_never_both_kept_and_rejected(self, edition_client):
+        conn = _db(photos=self._PHOTOS)
+        similar = [{'paths': ['/a.jpg', '/z.jpg', '/w.jpg'],
+                    'best_path': '/z.jpg', 'count': 3}]
+        with mock.patch(
+            "api.routers.burst_culling.compute_similarity_groups", return_value=similar,
+        ):
+            resp, _ = _post(edition_client, conn, {
+                "group_by": "all", "strictness": 100, "dry_run": False,
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["groups_processed"] == 2
+        assert body["kept"] == 2 and body["rejected"] == 3
+
+        # No photo ends up flagged as both a burst lead and rejected.
+        contradictory = conn.execute(
+            "SELECT COUNT(*) FROM photos WHERE is_burst_lead = 1 AND is_rejected = 1"
+        ).fetchone()[0]
+        assert contradictory == 0
+        # /a stays the kept burst lead; the similar group never re-rejected it.
+        row = conn.execute(
+            "SELECT is_burst_lead, is_rejected FROM photos WHERE path = '/a.jpg'"
+        ).fetchone()
+        assert row["is_burst_lead"] == 1 and row["is_rejected"] == 0
+        assert conn.execute(
+            "SELECT is_rejected FROM photos WHERE path = '/c.jpg'").fetchone()[0] == 1
+
+        # No comparison pair contradicts: no path is both a winner and a loser.
+        winners, losers = set(), set()
+        for a, b, w in conn.execute(
+                "SELECT photo_a_path, photo_b_path, winner FROM comparisons"):
+            if w == 'a':
+                winners.add(a); losers.add(b)
+            else:
+                winners.add(b); losers.add(a)
+        assert winners.isdisjoint(losers)
+
+
+class TestLargeSimilarGroup:
+    """F5: a similar group larger than the paginated feed's 20-photo cap is
+    culled all the way down instead of leaving its worst photos untouched."""
+
+    def test_similar_group_over_twenty_culls_every_photo(self, edition_client):
+        photos = [(f"/p{i:02d}.jpg", f"2024:06:15 10:00:{i:02d}", float(25 - i), None)
+                  for i in range(25)]
+        conn = _db(photos=photos)
+        all_paths = [p[0] for p in photos]
+        similar = [{'paths': all_paths, 'best_path': '/p00.jpg', 'count': len(all_paths)}]
+        with mock.patch(
+            "api.routers.burst_culling.compute_similarity_groups", return_value=similar,
+        ):
+            resp, _ = _post(edition_client, conn, {
+                "group_by": "similar", "strictness": 100, "dry_run": False,
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["kept"] == 1
+        assert body["rejected"] == 24  # every photo but the best, not just top 20
+        # All 25 members are flagged reviewed (none silently skipped).
+        assert conn.execute(
+            "SELECT COUNT(*) FROM photos WHERE similarity_reviewed = 1").fetchone()[0] == 25
+        # A photo past the old 20-cap (lowest aggregate) is now rejected + reviewed.
+        row = conn.execute(
+            "SELECT is_rejected, similarity_reviewed FROM photos WHERE path = '/p24.jpg'"
+        ).fetchone()
+        assert row["is_rejected"] == 1 and row["similarity_reviewed"] == 1
+        assert conn.execute(
+            "SELECT is_rejected FROM photos WHERE path = '/p00.jpg'").fetchone()[0] == 0
+
+
 class TestConfigDefaults:
     def test_strictness_defaults_from_config(self, edition_client):
         conn = _db()

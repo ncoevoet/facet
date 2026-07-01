@@ -339,6 +339,51 @@ class TestCritiqueEndpoint:
         assert resp.json()["vlm_critique"] == "Fresh text."
         assert vlm_stub.call_count == 1
 
+    def test_vlm_translation_persisted_and_returned(self, client, tmp_path):
+        """When lang maps to a translation target, _attach_vlm_critique translates
+        the generated text, persists the translation, and returns it."""
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+
+        fake_rule = {
+            "category": "landscape",
+            "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
+            "aggregate": 7.5,
+            "breakdown": [],
+            "strengths": [],
+            "weaknesses": [],
+            "suggestions": [],
+            "penalties": {},
+        }
+
+        with (
+            mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
+            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
+            mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
+            mock.patch("api.routers.critique._get_vlm_critique", return_value="A lovely landscape."),
+            mock.patch("api.routers.critique.translation_target", return_value="fr"),
+            mock.patch("api.routers.critique.translate_text", return_value="Un beau paysage."),
+        ):
+            resp = client.get(
+                "/api/critique",
+                params={"path": "/photos/test.jpg", "mode": "vlm", "lang": "fr"},
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["vlm_critique"] == "Un beau paysage."
+        assert body["vlm_source"] == "generated"
+
+        conn = sqlite3.connect(db)
+        stored = conn.execute(
+            "SELECT vlm_critique, vlm_critique_translated FROM photos WHERE path = '/photos/test.jpg'"
+        ).fetchone()
+        conn.close()
+        assert stored[0] == "A lovely landscape."
+        assert stored[1] == "Un beau paysage."
+
 
 
 # ---------------------------------------------------------------------------
@@ -499,34 +544,41 @@ class TestBuildRuleCritique:
             broken = _make_photo(distortion_attributes="not-json")
             assert _build_rule_critique(broken)["distortions"] == []
 
-    def test_skin_tone_penalty_above_threshold(self):
-        """A stored cast above the configured delta threshold becomes a penalty."""
+    def test_skin_tone_cast_surfaces_penalty(self):
+        """A stored cast surfaces as an advisory penalty from the stored fields
+        alone — the compute-time cast decision is trusted, never re-gated (F20)."""
         from api.routers.critique import _build_rule_critique
 
         weights = {"aesthetic": 0.50, "composition": 0.50}
         photo = _make_photo(skin_tone_delta=18.0, skin_tone_cast="green")
 
-        with (
-            mock.patch("config.ScoringConfig", self._mock_scoring_config(weights)),
-            mock.patch("api.routers.critique._FULL_CONFIG",
-                       {"skin_tone": {"cast_delta_threshold": 12.0}}),
-        ):
+        with mock.patch("config.ScoringConfig", self._mock_scoring_config(weights)):
             result = _build_rule_critique(photo)
 
         assert result["penalties"]["skin_tone"] == {"cast": "green", "delta": 18.0}
 
-    def test_skin_tone_below_threshold_no_penalty(self):
-        """A delta at or below the threshold stays advisory-silent."""
+    def test_skin_tone_cast_surfaces_below_old_threshold(self):
+        """A cast set at compute time still surfaces when the delta is below the
+        old hardcoded 12.0 gate — proving _check_penalties no longer re-gates."""
+        from api.routers.critique import _build_rule_critique
+
+        weights = {"aesthetic": 0.50, "composition": 0.50}
+        photo = _make_photo(skin_tone_delta=8.0, skin_tone_cast="magenta")
+
+        with mock.patch("config.ScoringConfig", self._mock_scoring_config(weights)):
+            result = _build_rule_critique(photo)
+
+        assert result["penalties"]["skin_tone"] == {"cast": "magenta", "delta": 8.0}
+
+    def test_skin_tone_no_cast_no_penalty(self):
+        """A stored delta without a cast stays advisory-silent (the cast column
+        is NULL below the compute-time threshold, so nothing is surfaced)."""
         from api.routers.critique import _build_rule_critique
 
         weights = {"aesthetic": 0.50, "composition": 0.50}
         photo = _make_photo(skin_tone_delta=5.0, skin_tone_cast=None)
 
-        with (
-            mock.patch("config.ScoringConfig", self._mock_scoring_config(weights)),
-            mock.patch("api.routers.critique._FULL_CONFIG",
-                       {"skin_tone": {"cast_delta_threshold": 12.0}}),
-        ):
+        with mock.patch("config.ScoringConfig", self._mock_scoring_config(weights)):
             result = _build_rule_critique(photo)
 
         assert "skin_tone" not in result["penalties"]

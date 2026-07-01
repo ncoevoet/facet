@@ -8,6 +8,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { SceneDatePipe } from '../scenes/scenes.pipes';
 import { I18N } from '../../core/i18n/keys';
 
 export interface ClientPicksDialogData {
@@ -33,19 +34,19 @@ interface ClientPicksResponse {
   standalone: true,
   imports: [
     MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
-    TranslatePipe,
+    TranslatePipe, SceneDatePipe,
   ],
   template: `
-    <h2 mat-dialog-title class="truncate">{{ 'proofing.client_picks' | translate }} — {{ data.albumName }}</h2>
+    <h2 mat-dialog-title class="truncate">{{ I18N.proofing.client_picks | translate }} — {{ data.albumName }}</h2>
     <mat-dialog-content>
       @if (loading()) {
         <div class="flex justify-center py-8">
           <mat-spinner diameter="36" />
         </div>
       } @else if (picks().length === 0) {
-        <p class="opacity-60 py-4">{{ 'proofing.no_picks' | translate }}</p>
+        <p class="opacity-60 py-4">{{ I18N.proofing.no_picks | translate }}</p>
       } @else {
-        <p class="text-sm opacity-70 mb-2">{{ 'proofing.picks_count' | translate:{ count: pickedCount() } }}</p>
+        <p class="text-sm opacity-70 mb-2">{{ I18N.proofing.picks_count | translate:{ count: pickedCount() } }}</p>
         <div class="flex flex-col divide-y divide-[var(--mat-sys-outline-variant)]">
           @for (pick of picks(); track pick.path) {
             <div class="flex items-start gap-2 py-2">
@@ -61,7 +62,7 @@ interface ClientPicksResponse {
                   @if (pick.client_name) {
                     {{ pick.client_name }} —
                   }
-                  {{ pick.updated_at }}
+                  {{ pick.updated_at | sceneDate }}
                 </div>
               </div>
             </div>

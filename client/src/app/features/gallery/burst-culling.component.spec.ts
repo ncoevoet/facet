@@ -317,6 +317,7 @@ describe('BurstCullingComponent', () => {
     const setFullscreenElement = (value: Element | null) => {
       Object.defineProperty(document, 'fullscreenElement', { value, writable: true, configurable: true });
     };
+    const originalExitFullscreen = document.exitFullscreen;
 
     beforeEach(async () => {
       await (component as any).loadGroups();
@@ -324,6 +325,7 @@ describe('BurstCullingComponent', () => {
 
     afterEach(() => {
       setFullscreenElement(null);
+      document.exitFullscreen = originalExitFullscreen;
     });
 
     it('toggleFullscreen() requests fullscreen on the darkroom dialog when not fullscreen', () => {

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+from urllib import error as urllib_error
 from urllib import request as urllib_request
 from urllib.parse import urlparse
 
@@ -93,6 +94,26 @@ class ImmichClient:
                 return None
             page = int(next_page)
 
+    def iter_asset_paths(self):
+        """Yield ``(originalPath, id)`` for every asset by paging the search endpoint.
+
+        One bulk pass builds a local ``originalPath -> id`` index so the sync
+        resolves most assets without a per-photo round-trip; only misses fall
+        back to :meth:`search_asset_id`.
+        """
+        page = 1
+        while True:
+            data = self._request("POST", "/api/search/metadata", {"page": page}) or {}
+            assets = data.get("assets", {})
+            for item in assets.get("items", []):
+                original_path = item.get("originalPath")
+                if original_path:
+                    yield original_path, item["id"]
+            next_page = assets.get("nextPage")
+            if not next_page:
+                return
+            page = int(next_page)
+
     def update_assets(self, ids: list[str], fields: dict) -> None:
         for start in range(0, len(ids), UPDATE_CHUNK):
             self._request("PUT", "/api/assets", {"ids": ids[start:start + UPDATE_CHUNK], **fields})
@@ -136,26 +157,27 @@ def map_facet_path(path: str, path_map: list[dict]) -> str | None:
 
 
 def _fetch_rating_rows(conn, user_id: str | None) -> list:
-    """Read paths with any rating signal, mirroring the xmp_export overlay.
+    """Read only paths that can push a rating 1-5 or ``isFavorite=true``.
 
-    When *user_id* is given the per-user ``user_preferences`` overlay replaces
-    the global rating columns (COALESCE-d to 0), same as ``export_sidecars``.
+    Mirrors the xmp_export overlay: when *user_id* is given the per-user
+    ``user_preferences`` overlay replaces the global rating columns (COALESCE-d
+    to 0), same as ``export_sidecars``. Pure-rejected rows (no rating, not a
+    favorite) are excluded — they can never push anything.
     """
     if user_id:
         join = ("LEFT JOIN user_preferences up ON up.photo_path = photos.path "
                 "AND up.user_id = ?")
         star_expr = "COALESCE(up.star_rating, 0)"
         fav_expr = "COALESCE(up.is_favorite, 0)"
-        rej_expr = "COALESCE(up.is_rejected, 0)"
         params = [user_id]
     else:
         join = ""
-        star_expr, fav_expr, rej_expr = "star_rating", "is_favorite", "is_rejected"
+        star_expr, fav_expr = "star_rating", "is_favorite"
         params = []
     return conn.execute(
         f"SELECT photos.path AS path, {star_expr} AS star_rating, "
         f"{fav_expr} AS is_favorite FROM photos {join} "
-        f"WHERE {star_expr} != 0 OR {fav_expr} = 1 OR {rej_expr} = 1",
+        f"WHERE ({star_expr} BETWEEN 1 AND 5) OR {fav_expr} = 1",
         params,
     ).fetchall()
 
@@ -190,6 +212,9 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
     groups: dict[tuple, list[str]] = {}
     album_asset_ids: list[str] = []
     unmatched_paths: list[str] = []
+
+    # First pass (no network): compute each row's push payload and target path.
+    resolvable: list[tuple] = []
     for row in rows:
         rating = _effective_rating(row["star_rating"])
         favorite = bool(row["is_favorite"])
@@ -201,27 +226,38 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
         if not fields:
             summary["skipped_unrated"] += 1
             continue
-        immich_path = map_facet_path(row["path"], path_map)
-        asset_id = client.search_asset_id(immich_path) if immich_path else None
-        if asset_id is None:
-            summary["unmatched"] += 1
-            unmatched_paths.append(row["path"])
-            continue
-        summary["matched"] += 1
-        groups.setdefault(tuple(sorted(fields.items())), []).append(asset_id)
-        if rating is not None and rating >= album_min_rating:
-            album_asset_ids.append(asset_id)
-    for key, ids in groups.items():
-        if not dry_run:
-            client.update_assets(ids, dict(key))
-        summary["updated"] += len(ids)
-    if album_name and album_asset_ids and not dry_run:
-        album_id = client.find_album_id(album_name)
-        if album_id:
-            client.add_album_assets(album_id, album_asset_ids)
-        else:
-            client.create_album(album_name, album_asset_ids)
-            summary["albums_created"] = 1
+        resolvable.append(
+            (row["path"], map_facet_path(row["path"], path_map), fields, rating))
+
+    try:
+        # One bulk pass builds a local path index; misses fall back to per-path.
+        path_index = dict(client.iter_asset_paths()) if resolvable else {}
+        for facet_path, immich_path, fields, rating in resolvable:
+            asset_id = None
+            if immich_path:
+                asset_id = path_index.get(immich_path) or client.search_asset_id(immich_path)
+            if asset_id is None:
+                summary["unmatched"] += 1
+                unmatched_paths.append(facet_path)
+                continue
+            summary["matched"] += 1
+            groups.setdefault(tuple(sorted(fields.items())), []).append(asset_id)
+            if rating is not None and rating >= album_min_rating:
+                album_asset_ids.append(asset_id)
+        for key, ids in groups.items():
+            if not dry_run:
+                client.update_assets(ids, dict(key))
+            summary["updated"] += len(ids)
+        if album_name and album_asset_ids and not dry_run:
+            album_id = client.find_album_id(album_name)
+            if album_id:
+                client.add_album_assets(album_id, album_asset_ids)
+            else:
+                client.create_album(album_name, album_asset_ids)
+                summary["albums_created"] = 1
+    except (urllib_error.URLError, TimeoutError) as e:
+        e.partial_summary = dict(summary)
+        raise
     for path in unmatched_paths[:UNMATCHED_LOG_LIMIT]:
         logger.warning("No Immich asset found for %s", path)
     if len(unmatched_paths) > UNMATCHED_LOG_LIMIT:

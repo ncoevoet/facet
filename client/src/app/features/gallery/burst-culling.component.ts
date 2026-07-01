@@ -318,8 +318,8 @@ interface ShortcutRow {
           }
           @if (auth.isEdition()) {
             <button mat-icon-button (click)="openAutoCull()" [disabled]="autoCullLoading()"
-                    [matTooltip]="'culling.auto_cull.tooltip' | translate"
-                    [attr.aria-label]="'culling.auto_cull.button' | translate">
+                    [matTooltip]="I18N.culling.auto_cull.tooltip | translate"
+                    [attr.aria-label]="I18N.culling.auto_cull.button | translate">
               <mat-icon>auto_fix_high</mat-icon>
             </button>
           }
@@ -427,8 +427,9 @@ interface ShortcutRow {
                     }
                     @if (photo.path | betterInGroup:group.best_path) {
                       <div class="absolute top-9 left-2 w-6 h-6 rounded-full bg-amber-500/90 inline-flex items-center justify-center"
-                           [matTooltip]="'culling.auto_cull.better_tooltip' | translate"
-                           [attr.aria-label]="'culling.auto_cull.better_tooltip' | translate">
+                           role="img"
+                           [matTooltip]="I18N.culling.auto_cull.better_tooltip | translate"
+                           [attr.aria-label]="I18N.culling.auto_cull.better_tooltip | translate">
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">stars</mat-icon>
                       </div>
                     }
@@ -736,17 +737,19 @@ interface ShortcutRow {
            role="presentation"
            (click)="cancelAutoCull()"
            (keydown.escape)="cancelAutoCull()">
-        <div class="rounded-xl bg-[var(--mat-sys-surface-container-high)] p-6 w-full max-w-md space-y-4"
+        <div #autoCullDialog class="rounded-xl bg-[var(--mat-sys-surface-container-high)] p-6 w-full max-w-md space-y-4"
              role="dialog"
              aria-modal="true"
+             aria-labelledby="autoCullTitle"
+             tabindex="-1"
              (click)="$event.stopPropagation()"
              (keydown)="$event.stopPropagation()">
-          <h2 class="text-lg font-semibold">{{ 'culling.auto_cull.title' | translate }}</h2>
+          <h2 id="autoCullTitle" class="text-lg font-semibold">{{ I18N.culling.auto_cull.title | translate }}</h2>
           @if (ac.groups_processed === 0) {
-            <p class="text-sm opacity-80">{{ 'culling.auto_cull.empty' | translate }}</p>
+            <p class="text-sm opacity-80">{{ I18N.culling.auto_cull.empty | translate }}</p>
           } @else {
             <p class="text-sm opacity-80">
-              {{ 'culling.auto_cull.summary' | translate:{ groups: ac.groups_processed, kept: ac.kept, rejected: ac.rejected } }}
+              {{ I18N.culling.auto_cull.summary | translate:{ groups: ac.groups_processed, kept: ac.kept, rejected: ac.rejected } }}
             </p>
             <p class="text-xs opacity-60">{{ I18N.culling.strictness | translate }} · {{ strictness() }}%</p>
             @if (ac.highlights_added > 0) {
@@ -754,7 +757,7 @@ interface ShortcutRow {
                 <input type="checkbox" class="accent-[var(--mat-sys-primary)]"
                        [checked]="autoCullHighlights()"
                        (change)="autoCullHighlights.set(!autoCullHighlights())" />
-                {{ 'culling.auto_cull.highlights_label' | translate:{ count: ac.highlights_added } }}
+                {{ I18N.culling.auto_cull.highlights_label | translate:{ count: ac.highlights_added } }}
               </label>
             }
           }
@@ -762,7 +765,7 @@ interface ShortcutRow {
             <button mat-stroked-button (click)="cancelAutoCull()">{{ I18N.dialog.cancel | translate }}</button>
             @if (ac.groups_processed > 0) {
               <button mat-flat-button (click)="confirmAutoCull()" [disabled]="autoCullLoading()">
-                {{ 'culling.auto_cull.apply' | translate:{ rejected: ac.rejected } }}
+                {{ I18N.culling.auto_cull.apply | translate:{ rejected: ac.rejected } }}
               </button>
             }
           </div>
@@ -906,6 +909,9 @@ export class BurstCullingComponent implements OnDestroy {
   /** The fullscreen darkroom dialog element, focused on open so the photo tiles
    *  behind the overlay stop receiving keystrokes (otherwise Space double-fires). */
   private readonly lightboxDialog = viewChild<ElementRef<HTMLElement>>('lightboxDialog');
+  /** The auto-cull confirm dialog, focused on open so keyboard users aren't
+   *  stranded behind the modal overlay near the destructive "Reject" button. */
+  private readonly autoCullDialog = viewChild<ElementRef<HTMLElement>>('autoCullDialog');
   private readonly cullToolbar = viewChild<TemplateRef<unknown>>('cullToolbar');
 
   /** photo path -> detected faces, loaded lazily when a lightbox group opens. */
@@ -1041,6 +1047,11 @@ export class BurstCullingComponent implements OnDestroy {
     // re-open its group and fight the confirm+advance).
     effect(() => {
       this.lightboxDialog()?.nativeElement.focus();
+    });
+    // Focus the auto-cull confirm dialog on open so keyboard users land inside
+    // the modal (not stranded on the tiles behind it) next to a destructive action.
+    effect(() => {
+      if (this.autoCullPreview()) this.autoCullDialog()?.nativeElement.focus();
     });
     // Project the toolbar into the global header on lg+ (the page renders it in
     // its own bottom bar on small screens — see the #cullToolbar template).
@@ -1570,7 +1581,7 @@ export class BurstCullingComponent implements OnDestroy {
   private highlightsAlbumName(): string {
     const scope = this.scopeLabel() ?? this.i18n.t(I18N.culling.scope_whole_library);
     const day = new Date().toISOString().slice(0, 10);
-    return `${this.i18n.t('culling.auto_cull.highlights_name')} — ${scope} ${day}`;
+    return `${this.i18n.t(I18N.culling.auto_cull.highlights_name)} — ${scope} ${day}`;
   }
 
   /** Dry-run the auto-cull for the current scope and open the confirm dialog. */
@@ -1582,7 +1593,7 @@ export class BurstCullingComponent implements OnDestroy {
       ));
       this.autoCullPreview.set(preview);
     } catch {
-      this.snackBar.open(this.i18n.t('culling.auto_cull.error'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+      this.snackBar.open(this.i18n.t(I18N.culling.auto_cull.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
       this.autoCullLoading.set(false);
     }
@@ -1602,7 +1613,7 @@ export class BurstCullingComponent implements OnDestroy {
       ));
       this.autoCullPreview.set(null);
       this.snackBar.open(
-        this.i18n.t('culling.auto_cull.applied', { kept: result.kept, rejected: result.rejected }),
+        this.i18n.t(I18N.culling.auto_cull.applied, { kept: result.kept, rejected: result.rejected }),
         '', { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' },
       );
       this.selectedGroupIndex.set(0);
@@ -1610,7 +1621,7 @@ export class BurstCullingComponent implements OnDestroy {
       void this.refreshComparisonStats();
       void this.refreshRankerStatus();
     } catch {
-      this.snackBar.open(this.i18n.t('culling.auto_cull.error'), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+      this.snackBar.open(this.i18n.t(I18N.culling.auto_cull.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
       this.autoCullLoading.set(false);
     }

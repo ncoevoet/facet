@@ -1284,14 +1284,19 @@ Configuration:
         # blocks make tqdm a (yet unassigned) local of main, so the closure
         # cannot resolve the module-level import through the enclosing scope.
         from tqdm import tqdm
+        # Fetch paths up front but each thumbnail BLOB one at a time (a full
+        # fetchall of the BLOBs is ~6-12GB at 100k photos -> OOM on a NAS).
         with get_connection(args.db) as conn:
-            rows = conn.execute(
-                "SELECT path, thumbnail FROM photos WHERE thumbnail IS NOT NULL"
-            ).fetchall()
+            paths = [row['path'] for row in conn.execute(
+                "SELECT path FROM photos WHERE thumbnail IS NOT NULL"
+            ).fetchall()]
         counted = 0
-        with get_connection(args.db) as conn:
-            for row in tqdm(rows, desc=desc):
-                blob = row['thumbnail']
+        with get_connection(args.db) as read_conn, get_connection(args.db) as conn:
+            for path in tqdm(paths, desc=desc):
+                row = read_conn.execute(
+                    "SELECT thumbnail FROM photos WHERE path = ?", (path,)
+                ).fetchone()
+                blob = row['thumbnail'] if row else None
                 if not blob:
                     continue
                 try:
@@ -1302,12 +1307,12 @@ Configuration:
                 set_sql = ", ".join(f"{col} = ?" for col in updates)
                 conn.execute(
                     f"UPDATE photos SET {set_sql} WHERE path = ?",
-                    (*updates.values(), row['path']),
+                    (*updates.values(), path),
                 )
                 if is_counted:
                     counted += 1
             conn.commit()
-        return len(rows), counted
+        return len(paths), counted
 
     # Extract OCR text-in-image from stored thumbnails (opt-in, CPU; no-op if no engine)
     if args.recompute_ocr:
@@ -1386,29 +1391,33 @@ Configuration:
             model_name=clip['model_name'], backend=clip['backend'],
             embedding_dim=clip['embedding_dim'],
         )
-        with get_connection(args.db) as conn:
-            rows = conn.execute(
-                "SELECT path, clip_embedding, liqe_score, noise_sigma FROM photos "
-                "WHERE clip_embedding IS NOT NULL"
-            ).fetchall()
         updates, skipped = [], 0
         per_attr = {a: [] for a in classifier.attributes}
         liqe_vals, noise_vals = [], []
         flag_counts = Counter()
-        for row in tqdm(rows, desc="Distortions"):
-            conf = classifier.confidences(row['clip_embedding'])
-            if conf is None:
-                skipped += 1
-                continue
-            hits = classifier.top_attributes(conf)
-            updates.append((json.dumps(hits), row['path']))
-            for hit in hits:
-                flag_counts[hit['attribute']] += 1
-            for attr, p in conf.items():
-                per_attr[attr].append(p)
-            liqe_vals.append(row['liqe_score'])
-            noise_vals.append(row['noise_sigma'])
         with get_connection(args.db) as conn:
+            total_rows = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE clip_embedding IS NOT NULL"
+            ).fetchone()[0]
+            # Stream the cursor rather than fetchall() — the embeddings alone are
+            # ~460MB at 100k photos; iterating frees each row after use.
+            cursor = conn.execute(
+                "SELECT path, clip_embedding, liqe_score, noise_sigma FROM photos "
+                "WHERE clip_embedding IS NOT NULL"
+            )
+            for row in tqdm(cursor, desc="Distortions", total=total_rows):
+                conf = classifier.confidences(row['clip_embedding'])
+                if conf is None:
+                    skipped += 1
+                    continue
+                hits = classifier.top_attributes(conf)
+                updates.append((json.dumps(hits), row['path']))
+                for hit in hits:
+                    flag_counts[hit['attribute']] += 1
+                for attr, p in conf.items():
+                    per_attr[attr].append(p)
+                liqe_vals.append(row['liqe_score'])
+                noise_vals.append(row['noise_sigma'])
             _commit_in_chunks(
                 conn, "UPDATE photos SET distortion_attributes = ? WHERE path = ?", updates)
         model_manager.unload_all()
@@ -2007,12 +2016,22 @@ Configuration:
 
     # Immich one-way push (lightweight - no GPU needed)
     if args.immich_sync:
+        import urllib.error
         from sync.immich import sync_to_immich
         _immich_config = ScoringConfig(args.config or 'scoring_config.json', validate=False).config
         try:
             stats = sync_to_immich(args.db, _immich_config, user_id=args.user, dry_run=args.dry_run)
         except ValueError as e:
             logger.error("Immich sync aborted: %s", e)
+            sys.exit(1)
+        except (urllib.error.URLError, TimeoutError) as e:
+            endpoint = getattr(e, 'url', None) or getattr(e, 'reason', e)
+            status = getattr(e, 'code', None)
+            logger.error(
+                "Immich sync failed at %s%s: %s. Partial progress: %s",
+                endpoint, f" (HTTP {status})" if status else "", e,
+                getattr(e, 'partial_summary', {}),
+            )
             sys.exit(1)
         logger.info(
             "Immich sync%s: %d matched, %d unmatched, %d updated, "

@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed, OnInit, effect, viewChild, DestroyRef, ElementRef, afterNextRender } from '@angular/core';
+import { NgTemplateOutlet, NgClass } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
@@ -102,6 +103,7 @@ interface SharedFilters {
   standalone: true,
   host: { class: 'block h-full' },
   imports: [
+    NgTemplateOutlet, NgClass,
     MatIconModule, MatButtonModule, MatProgressSpinnerModule, MatMenuModule,
     MatSelectModule, MatFormFieldModule, MatSnackBarModule, MatTooltipModule,
     MatSliderModule, MatSidenavModule, MatExpansionModule, MatInputModule, MatCheckboxModule, MatDatepickerModule,
@@ -380,16 +382,8 @@ interface SharedFilters {
                         (doubleClicked)="openPhotoDetail($event)"
                       />
                       @if (proofingActive()) {
-                        <button class="absolute top-1 right-1 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-black/40 text-white hover:bg-black/60"
-                                [matTooltip]="(pickedPaths().has(photo.path) ? 'proofing.unpick' : 'proofing.pick') | translate"
-                                (click)="togglePick(photo, $event)">
-                          <mat-icon class="!text-lg !w-5 !h-5 !leading-5" [class.!text-red-400]="pickedPaths().has(photo.path)">{{ pickedPaths().has(photo.path) ? 'favorite' : 'favorite_border' }}</mat-icon>
-                        </button>
-                        <button class="absolute top-1 right-10 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-black/40 text-white hover:bg-black/60"
-                                [matTooltip]="'proofing.comment' | translate"
-                                (click)="openComment(photo, $event)">
-                          <mat-icon class="!text-lg !w-5 !h-5 !leading-5" [class.!text-amber-300]="pickComments().has(photo.path)">{{ pickComments().has(photo.path) ? 'chat' : 'chat_bubble_outline' }}</mat-icon>
-                        </button>
+                        <ng-container [ngTemplateOutlet]="proofingButtons"
+                                      [ngTemplateOutletContext]="{ $implicit: photo, btnSize: 'w-8 h-8', iconSize: '!text-lg !w-5 !h-5 !leading-5', commentPos: 'right-10' }" />
                       }
                     </div>
                   }
@@ -409,16 +403,8 @@ interface SharedFilters {
                       (doubleClicked)="openPhotoDetail($event)"
                     />
                     @if (proofingActive()) {
-                      <button class="absolute top-1 right-1 z-10 flex items-center justify-center w-9 h-9 rounded-full bg-black/40 text-white hover:bg-black/60"
-                              [matTooltip]="(pickedPaths().has(photo.path) ? 'proofing.unpick' : 'proofing.pick') | translate"
-                              (click)="togglePick(photo, $event)">
-                        <mat-icon class="!text-xl !w-6 !h-6 !leading-6" [class.!text-red-400]="pickedPaths().has(photo.path)">{{ pickedPaths().has(photo.path) ? 'favorite' : 'favorite_border' }}</mat-icon>
-                      </button>
-                      <button class="absolute top-1 right-12 z-10 flex items-center justify-center w-9 h-9 rounded-full bg-black/40 text-white hover:bg-black/60"
-                              [matTooltip]="'proofing.comment' | translate"
-                              (click)="openComment(photo, $event)">
-                        <mat-icon class="!text-xl !w-6 !h-6 !leading-6" [class.!text-amber-300]="pickComments().has(photo.path)">{{ pickComments().has(photo.path) ? 'chat' : 'chat_bubble_outline' }}</mat-icon>
-                      </button>
+                      <ng-container [ngTemplateOutlet]="proofingButtons"
+                                    [ngTemplateOutletContext]="{ $implicit: photo, btnSize: 'w-9 h-9', iconSize: '!text-xl !w-6 !h-6 !leading-6', commentPos: 'right-12' }" />
                     }
                   </div>
                 }
@@ -467,7 +453,7 @@ interface SharedFilters {
       @if (proofingActive()) {
         <div class="fixed bottom-14 md:bottom-4 right-4 z-40 flex items-center gap-1.5 rounded-full px-3 py-1.5 bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] shadow-lg text-sm font-medium pointer-events-none">
           <mat-icon class="!text-base !w-4 !h-4 !leading-4">favorite</mat-icon>
-          {{ 'proofing.picks_count' | translate:{ count: picksCount() } }}
+          {{ I18N.proofing.picks_count | translate:{ count: picksCount() } }}
         </div>
       }
 
@@ -475,26 +461,30 @@ interface SharedFilters {
       @if (pinRequired() || askName()) {
         <div class="fixed bottom-0 left-0 right-0 z-[55] flex flex-wrap items-center gap-2 px-3 md:px-6 py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
           <mat-icon class="text-[var(--mat-sys-primary)] shrink-0">favorite</mat-icon>
-          <span class="text-sm">{{ (pinRequired() ? 'proofing.pin_prompt' : 'proofing.name_prompt') | translate }}</span>
+          <span class="text-sm">{{ (pinRequired() ? I18N.proofing.pin_prompt : I18N.proofing.name_prompt) | translate }}</span>
           @if (pinRequired()) {
-            <input type="password" inputmode="numeric" autocomplete="off"
+            <input #pinInputEl type="password" inputmode="numeric" autocomplete="off"
                    class="w-24 px-2 py-1.5 rounded border bg-transparent text-sm"
                    [class]="pinError() ? 'border-red-500' : 'border-[var(--mat-sys-outline-variant)]'"
-                   [placeholder]="'proofing.pin_label' | translate"
+                   [placeholder]="I18N.proofing.pin_label | translate"
+                   [attr.aria-label]="I18N.proofing.pin_label | translate"
+                   [attr.aria-invalid]="pinError()"
+                   [attr.aria-describedby]="pinError() ? 'proofing-pin-error' : null"
                    [value]="pinInput()" (input)="pinInput.set($any($event.target).value)"
                    (keydown.enter)="submitProofingSetup()" />
           }
-          <input type="text" maxlength="100"
+          <input #nameInputEl type="text" maxlength="100"
                  class="w-40 px-2 py-1.5 rounded border border-[var(--mat-sys-outline-variant)] bg-transparent text-sm"
-                 [placeholder]="'proofing.name_label' | translate"
+                 [placeholder]="I18N.proofing.name_label | translate"
+                 [attr.aria-label]="I18N.proofing.name_label | translate"
                  [value]="nameInput()" (input)="nameInput.set($any($event.target).value)"
                  (keydown.enter)="submitProofingSetup()" />
-          <button mat-flat-button (click)="submitProofingSetup()">{{ 'proofing.start' | translate }}</button>
+          <button mat-flat-button (click)="submitProofingSetup()">{{ I18N.proofing.start | translate }}</button>
           @if (!pinRequired()) {
-            <button mat-button (click)="askName.set(false)">{{ 'proofing.skip' | translate }}</button>
+            <button mat-button (click)="askName.set(false)">{{ I18N.proofing.skip | translate }}</button>
           }
           @if (pinError()) {
-            <span class="text-sm text-red-500">{{ 'proofing.pin_invalid' | translate }}</span>
+            <span id="proofing-pin-error" role="alert" class="text-sm text-red-500">{{ I18N.proofing.pin_invalid | translate }}</span>
           }
         </div>
       }
@@ -503,9 +493,10 @@ interface SharedFilters {
       @if (commentFor()) {
         <div class="fixed bottom-0 left-0 right-0 z-[60] flex items-center gap-2 px-3 md:px-6 py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
           <mat-icon class="opacity-60 shrink-0">chat_bubble_outline</mat-icon>
-          <input type="text" maxlength="2000"
+          <input #commentInputEl type="text" maxlength="2000"
                  class="flex-1 min-w-0 px-2 py-1.5 rounded border border-[var(--mat-sys-outline-variant)] bg-transparent text-sm"
-                 [placeholder]="'proofing.comment_placeholder' | translate"
+                 [placeholder]="I18N.proofing.comment_placeholder | translate"
+                 [attr.aria-label]="I18N.proofing.comment_placeholder | translate"
                  [value]="commentDraft()" (input)="commentDraft.set($any($event.target).value)"
                  (keydown.enter)="saveComment()" />
           <button mat-button (click)="commentFor.set(null)">{{ I18N.ui.buttons.cancel | translate }}</button>
@@ -522,6 +513,25 @@ interface SharedFilters {
           (closed)="slideshowActive.set(false)"
         />
       }
+
+      <!-- Client proofing: pick + comment overlay buttons (shared by mosaic & grid) -->
+      <ng-template #proofingButtons let-photo let-btnSize="btnSize" let-iconSize="iconSize" let-commentPos="commentPos">
+        <button class="absolute top-1 right-1 z-10 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60"
+                [ngClass]="btnSize"
+                [matTooltip]="(pickedPaths().has(photo.path) ? I18N.proofing.unpick : I18N.proofing.pick) | translate"
+                [attr.aria-label]="(pickedPaths().has(photo.path) ? I18N.proofing.unpick : I18N.proofing.pick) | translate"
+                [attr.aria-pressed]="pickedPaths().has(photo.path)"
+                (click)="togglePick(photo, $event)">
+          <mat-icon [ngClass]="iconSize" [class.!text-red-400]="pickedPaths().has(photo.path)">{{ pickedPaths().has(photo.path) ? 'favorite' : 'favorite_border' }}</mat-icon>
+        </button>
+        <button class="absolute top-1 z-10 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60"
+                [ngClass]="[btnSize, commentPos]"
+                [matTooltip]="I18N.proofing.comment | translate"
+                [attr.aria-label]="I18N.proofing.comment | translate"
+                (click)="openComment(photo, $event)">
+          <mat-icon [ngClass]="iconSize" [class.!text-amber-300]="pickComments().has(photo.path)">{{ pickComments().has(photo.path) ? 'chat' : 'chat_bubble_outline' }}</mat-icon>
+        </button>
+      </ng-template>
     }
   `,
 })
@@ -536,6 +546,10 @@ export class SharedViewComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly contentArea = viewChild<ElementRef<HTMLElement>>('contentArea');
   private readonly scrollDirective = viewChild(InfiniteScrollDirective);
+  // Proofing editor inputs — focused when their bar opens (a11y keyboard flow).
+  private readonly commentInputEl = viewChild<ElementRef<HTMLInputElement>>('commentInputEl');
+  private readonly pinInputEl = viewChild<ElementRef<HTMLInputElement>>('pinInputEl');
+  private readonly nameInputEl = viewChild<ElementRef<HTMLInputElement>>('nameInputEl');
 
   // Loading state
   protected readonly loading = signal(true);
@@ -700,6 +714,16 @@ export class SharedViewComponent implements OnInit {
       if (!this.loading() && !this.resizeObserver) {
         // Defer to next microtask so Angular renders the sidenav container first
         queueMicrotask(() => this.setupResizeObserver());
+      }
+    });
+    // Move keyboard focus into the proofing editors when they open (the viewChild
+    // signal updates once the @if renders its input, re-running the effect).
+    effect(() => {
+      if (this.commentFor()) this.commentInputEl()?.nativeElement.focus();
+    });
+    effect(() => {
+      if (this.pinRequired() || this.askName()) {
+        (this.pinRequired() ? this.pinInputEl() : this.nameInputEl())?.nativeElement.focus();
       }
     });
     this.destroyRef.onDestroy(() => {
@@ -918,7 +942,7 @@ export class SharedViewComponent implements OnInit {
       ));
       return true;
     } catch {
-      this.snackBar.open(this.i18n.t('proofing.save_error'), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t(I18N.proofing.save_error), '', { duration: 3000 });
       return false;
     }
   }

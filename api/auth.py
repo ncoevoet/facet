@@ -99,6 +99,14 @@ async def get_optional_user(
     if payload is None:
         return None
 
+    # Share-client (proofing) tokens grant access ONLY through
+    # require_share_client, which decodes the raw bearer itself. They must never
+    # authenticate the regular surface: otherwise a shared-album link would
+    # become a full authenticated (and, in empty-edition-password mode, edition)
+    # session on every get_optional_user endpoint.
+    if payload.get('role') == SHARE_CLIENT_ROLE:
+        return None
+
     return CurrentUser(
         user_id=payload.get('sub'),
         role=payload.get('role', 'user'),
@@ -169,9 +177,10 @@ def create_share_client_token(album_id: int, client_name: str = '') -> str:
     """Mint a short-lived JWT for a proofing client on one shared album.
 
     The token is scoped to a single album (``sub: share:<album_id>``) and a
-    dedicated role, so it grants nothing on the regular authenticated surface
-    (``get_optional_user`` yields a plain non-edition user at most). Expiry
-    comes from ``viewer.proofing.session_minutes`` (default 1440 = 24h).
+    dedicated role. ``get_optional_user`` rejects that role outright, so the
+    token authenticates nothing but ``require_share_client`` on this album's
+    picks routes. Expiry comes from ``viewer.proofing.session_minutes``
+    (default 1440 = 24h).
     """
     minutes = int((VIEWER_CONFIG.get('proofing', {}) or {}).get('session_minutes', 1440))
     return create_access_token(

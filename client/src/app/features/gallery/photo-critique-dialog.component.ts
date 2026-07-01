@@ -145,12 +145,29 @@ export class MismatchReasonPipe implements PipeTransform {
   }
 }
 
+/**
+ * Distortion ids come from a config-replaceable server vocabulary, so an
+ * unknown id has no ``critique.distortion.<id>`` bundle entry. When the
+ * translation resolves to the key unchanged, fall back to a humanized form of
+ * the id (underscores → spaces) rather than rendering the raw dotted key.
+ */
+@Pipe({ name: 'distortionLabel', standalone: true, pure: false })
+export class DistortionLabelPipe implements PipeTransform {
+  private i18n = inject(I18nService);
+
+  transform(id: string): string {
+    const key = `critique.distortion.${id}`;
+    const label = this.i18n.t(key);
+    return label === key ? id.replace(/_/g, ' ') : label;
+  }
+}
+
 @Component({
   selector: 'app-photo-critique-dialog',
   standalone: true,
   imports: [
     MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
-    DecimalPipe, PercentPipe, TranslatePipe, ThumbnailUrlPipe, ContributionColorPipe, CategoryReasonPipe, MismatchReasonPipe,
+    DecimalPipe, PercentPipe, TranslatePipe, ThumbnailUrlPipe, ContributionColorPipe, CategoryReasonPipe, MismatchReasonPipe, DistortionLabelPipe,
   ],
   template: `
     <h2 mat-dialog-title class="!flex items-center gap-2 truncate">
@@ -191,7 +208,7 @@ export class MismatchReasonPipe implements PipeTransform {
             }
             <button mat-stroked-button class="!absolute !top-2 !right-2 !bg-[var(--mat-sys-surface)]/80" (click)="toggleOverlay()">
               <mat-icon>{{ overlayOn() ? 'visibility_off' : 'visibility' }}</mat-icon>
-              {{ (overlayOn() ? 'critique.overlay_hide' : 'critique.overlay_show') | translate }}
+              {{ (overlayOn() ? I18N.critique.overlay_hide : I18N.critique.overlay_show) | translate }}
             </button>
           </div>
         }
@@ -270,12 +287,12 @@ export class MismatchReasonPipe implements PipeTransform {
         <!-- Detected distortions (advisory, zero-shot) -->
         @if (c.distortions?.length) {
           <div class="mb-3">
-            <div class="text-xs uppercase tracking-wider text-amber-400 mb-1">{{ 'critique.distortions' | translate }}</div>
+            <div class="text-xs uppercase tracking-wider text-amber-400 mb-1">{{ I18N.critique.distortions | translate }}</div>
             <div class="flex flex-wrap gap-1.5">
               @for (d of c.distortions; track d) {
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-400/10 text-amber-400">
                   <mat-icon class="!text-xs !w-3.5 !h-3.5 !leading-3.5">warning_amber</mat-icon>
-                  {{ 'critique.distortion.' + d | translate }}
+                  {{ d | distortionLabel }}
                 </span>
               }
             </div>
@@ -325,7 +342,7 @@ export class MismatchReasonPipe implements PipeTransform {
             @if (c.penalties['noise']) { <span class="ml-2">{{ I18N.critique.penalty.noise | translate:{ value: '' + c.penalties['noise'] } }}</span> }
             @if (c.penalties['highlight_clipping']) { <span class="ml-2">{{ I18N.critique.penalty.highlight_clipping | translate:{ value: '' + c.penalties['highlight_clipping'] } }}</span> }
             @if (c.penalties['shadow_clipping']) { <span class="ml-2">{{ I18N.critique.penalty.shadow_clipping | translate:{ value: '' + c.penalties['shadow_clipping'] } }}</span> }
-            @if (skinTone(); as st) { <span class="ml-2 text-amber-400">{{ 'critique.penalty.skin_tone' | translate:{ cast: ('critique.skin_cast.' + st.cast | translate), delta: '' + st.delta } }}</span> }
+            @if (skinTone(); as st) { <span class="ml-2 text-amber-400">{{ I18N.critique.penalty.skin_tone | translate:{ cast: ('critique.skin_cast.' + st.cast | translate), delta: '' + st.delta } }}</span> }
           </div>
         }
       }
