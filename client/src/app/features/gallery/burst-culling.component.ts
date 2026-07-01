@@ -27,9 +27,9 @@ import { firstValueFrom } from 'rxjs';
 import { I18N } from '../../core/i18n/keys';
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
-  CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, WeightRemainingPipe,
-  CullGroupIconPipe, CullGroupLabelPipe,
-  CullingGroup, CullingFace,
+  CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe,
+  FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
+  CullingGroup, CullingFace, FaceThresholds,
 } from './burst-culling.pipes';
 
 interface CullingGroupsResponse {
@@ -46,6 +46,14 @@ interface CullingGroupsResponse {
 const CULL_GROUP_BY_KEY = 'facet_culling_group_by';
 const CULL_SORT_KEY = 'facet_culling_sort';
 const CULL_CATEGORY_KEY = 'facet_culling_category';
+const CULL_FACE_EYES_KEY = 'facet_culling_face_eyes_min';
+const CULL_FACE_SMILE_KEY = 'facet_culling_face_smile_min';
+
+/** Stored face-panel slider value (0-10); 0 = highlight filter off. */
+function readStoredFaceMin(key: string): number {
+  const v = Number(localStorage.getItem(key));
+  return Number.isFinite(v) && v >= 0 && v <= 10 ? v : 0;
+}
 const GROUP_BY_VALUES = ['all', 'burst', 'similar', 'scene'] as const;
 type GroupBy = typeof GROUP_BY_VALUES[number];
 const SORT_VALUES = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons'];
@@ -109,6 +117,8 @@ interface ShortcutRow {
     CullReasonPipe,
     FacesForPathPipe,
     FacePoorExpressionPipe,
+    FaceRingClassPipe,
+    FaceDimmedPipe,
     WeightRemainingPipe,
     CullGroupIconPipe,
     CullGroupLabelPipe,
@@ -628,7 +638,27 @@ interface ShortcutRow {
                role="presentation"
                (click)="$event.stopPropagation()"
                (keydown)="$event.stopPropagation()">
-            <div class="text-white/50 text-xs mb-2">{{ I18N.culling.face_grid_title | translate }}</div>
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
+              <div class="text-white/50 text-xs">{{ I18N.culling.face_grid_title | translate }}</div>
+              <div class="flex items-center gap-2"
+                   [matTooltip]="'culling.face_eyes_min_tooltip' | translate">
+                <span class="text-white/50 text-xs">{{ 'culling.face_eyes_min' | translate }}</span>
+                <mat-slider class="!w-24 !min-w-0" [min]="0" [max]="10" [step]="1" [discrete]="true">
+                  <input matSliderThumb [value]="faceEyesMin()" (valueChange)="onFaceEyesMinChange($event)"
+                         [attr.aria-label]="'culling.face_eyes_min' | translate" />
+                </mat-slider>
+                <span class="text-white/70 text-xs font-medium w-4">{{ faceEyesMin() }}</span>
+              </div>
+              <div class="flex items-center gap-2"
+                   [matTooltip]="'culling.face_smile_min_tooltip' | translate">
+                <span class="text-white/50 text-xs">{{ 'culling.face_smile_min' | translate }}</span>
+                <mat-slider class="!w-24 !min-w-0" [min]="0" [max]="10" [step]="1" [discrete]="true">
+                  <input matSliderThumb [value]="faceSmileMin()" (valueChange)="onFaceSmileMinChange($event)"
+                         [attr.aria-label]="'culling.face_smile_min' | translate" />
+                </mat-slider>
+                <span class="text-white/70 text-xs font-medium w-4">{{ faceSmileMin() }}</span>
+              </div>
+            </div>
             <div class="flex gap-3 items-start">
               @for (photo of lbGroup.photos; track photo.path; let pIdx = $index) {
                 @if ((photo.path | facesForPath:faceMap()).length > 0) {
@@ -637,9 +667,9 @@ interface ShortcutRow {
                       @for (face of photo.path | facesForPath:faceMap(); track face.id) {
                         <div class="relative">
                           <img [src]="face.id | faceThumbnailUrl"
-                               class="w-16 h-16 rounded object-cover border-2 border-white/20"
-                               [class.border-green-500]="photo.path === lbGroup.best_path && !face.is_blink"
-                               [class.border-red-500]="face.is_blink"
+                               class="w-16 h-16 rounded object-cover ring-2 ring-inset transition-opacity"
+                               [ngClass]="face | faceRingClass:faceThresholds()"
+                               [class.opacity-40]="face | faceDimmed:faceEyesMin():faceSmileMin()"
                                [alt]="photo.filename" loading="lazy" />
                           @if (face.confidence !== null && face.confidence !== undefined) {
                             <div class="absolute top-0 right-0 bg-black/60 text-white/80 text-[9px] leading-none px-1 py-0.5 rounded-bl">
@@ -650,7 +680,7 @@ interface ShortcutRow {
                             <div class="absolute bottom-0 inset-x-0 bg-yellow-600/90 text-white text-[10px] leading-tight text-center font-bold py-0.5">
                               {{ I18N.ui.badges.blink | translate }}
                             </div>
-                          } @else if (face | facePoorExpression) {
+                          } @else if (face | facePoorExpression:faceThresholds()) {
                             <div class="absolute bottom-0 inset-x-0 bg-orange-600/80 text-white text-[10px] leading-tight text-center font-bold py-0.5">
                               {{ I18N.culling.face_badge_expression | translate }}
                             </div>
@@ -812,6 +842,24 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** photo path -> detected faces, loaded lazily when a lightbox group opens. */
   protected readonly faceMap = signal<Map<string, CullingFace[]>>(new Map());
+
+  /** Config-driven face-signal cutoffs from the faces response (ring colors + badges). */
+  protected readonly faceThresholds = signal<FaceThresholds | null>(null);
+
+  /** Face-panel live-highlight sliders (0 = off): faces below the chosen
+   *  eyes-open / smile value stay bright while the rest dim. Persisted. */
+  protected readonly faceEyesMin = signal(readStoredFaceMin(CULL_FACE_EYES_KEY));
+  protected readonly faceSmileMin = signal(readStoredFaceMin(CULL_FACE_SMILE_KEY));
+
+  protected onFaceEyesMinChange(value: number): void {
+    this.faceEyesMin.set(value);
+    localStorage.setItem(CULL_FACE_EYES_KEY, String(value));
+  }
+
+  protected onFaceSmileMinChange(value: number): void {
+    this.faceSmileMin.set(value);
+    localStorage.setItem(CULL_FACE_SMILE_KEY, String(value));
+  }
 
   /** True when at least one photo in the focused group has loaded faces. */
   protected readonly faceGridHasFaces = computed(() => {
@@ -1253,10 +1301,11 @@ export class BurstCullingComponent implements OnDestroy {
     if (missing.length === 0) return;
     try {
       const data = await firstValueFrom(
-        this.api.post<{ faces_by_path: Record<string, CullingFace[]> }>(
+        this.api.post<{ faces_by_path: Record<string, CullingFace[]>; thresholds?: FaceThresholds }>(
           '/culling-group/faces', { paths: missing.map(p => p.path) },
         ),
       );
+      if (data.thresholds) this.faceThresholds.set(data.thresholds);
       const byPath = data.faces_by_path ?? {};
       this.faceMap.update(m => {
         const next = new Map(m);

@@ -29,8 +29,16 @@ export interface CullingFace {
   face_index: number;
   confidence?: number | null;
   eyes_open_score?: number | null;
+  smile_score?: number | null;
   expression_score?: number | null;
   is_blink?: boolean;
+}
+
+/** Server-side face-signal cutoffs (scoring_config face_detection), returned by
+ *  POST /api/culling-group/faces so the client never hardcodes them. */
+export interface FaceThresholds {
+  eyes_closed_max: number;
+  poor_expression_min: number;
 }
 
 /** A burst, similar, or scene group surfaced for culling. */
@@ -130,15 +138,43 @@ export class WeightRemainingPipe implements PipeTransform {
   }
 }
 
-/** True when a single face has a poor (wide-open) expression worth flagging. */
+/** True when a single face has a poor (wide-open) expression worth flagging.
+ *  The cutoff comes from the server's `thresholds` object (config-driven). */
 @Pipe({ name: 'facePoorExpression' })
 export class FacePoorExpressionPipe implements PipeTransform {
-  /** Threshold mirrors the backend _CULL_EXPRESSION_MIN (expression_score 0-10). */
-  private static readonly EXPRESSION_MIN = 4.0;
-
-  transform(face: CullingFace): boolean {
+  transform(face: CullingFace, thresholds: FaceThresholds | null): boolean {
     const expr = face.expression_score;
-    return expr != null && expr < FacePoorExpressionPipe.EXPRESSION_MIN;
+    return thresholds != null && expr != null && expr < thresholds.poor_expression_min;
+  }
+}
+
+/** Tailwind ring color for a face crop: red = eyes closed, orange = poor smile,
+ *  green = both signals fine, neutral when signals or thresholds are missing. */
+@Pipe({ name: 'faceRingClass' })
+export class FaceRingClassPipe implements PipeTransform {
+  transform(face: CullingFace, thresholds: FaceThresholds | null): string {
+    if (!thresholds) return 'ring-white/20';
+    if (face.eyes_open_score != null && face.eyes_open_score <= thresholds.eyes_closed_max) {
+      return 'ring-red-500';
+    }
+    if (face.smile_score != null && face.smile_score < thresholds.poor_expression_min) {
+      return 'ring-orange-500';
+    }
+    if (face.eyes_open_score == null && face.smile_score == null) return 'ring-white/20';
+    return 'ring-green-500';
+  }
+}
+
+/** True when the live face-panel sliders are active and this face is NOT below
+ *  either chosen value — such faces render dimmed so the below-threshold ones
+ *  stand out. Slider value 0 = filter off. */
+@Pipe({ name: 'faceDimmed' })
+export class FaceDimmedPipe implements PipeTransform {
+  transform(face: CullingFace, eyesMin: number, smileMin: number): boolean {
+    if (eyesMin <= 0 && smileMin <= 0) return false;
+    const belowEyes = eyesMin > 0 && face.eyes_open_score != null && face.eyes_open_score < eyesMin;
+    const belowSmile = smileMin > 0 && face.smile_score != null && face.smile_score < smileMin;
+    return !belowEyes && !belowSmile;
   }
 }
 

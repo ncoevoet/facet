@@ -1773,6 +1773,10 @@
     "my_taste_tooltip": "Jede Sichtungsentscheidung trainiert Ihr persönliches „Mein Geschmack“-Ranking.",
     "face_grid_title": "Gesichter in dieser Gruppe",
     "face_badge_expression": "Ausdruck",
+    "face_eyes_min": "Augen",
+    "face_eyes_min_tooltip": "Hebt Gesichter hervor, deren Augen-offen-Wert unter diesem Wert liegt",
+    "face_smile_min": "Lächeln",
+    "face_smile_min_tooltip": "Hebt Gesichter hervor, deren Lächeln-Wert unter diesem Wert liegt",
     "reason": {
       "best": "Beste der Gruppe",
       "eyes_closed": "Augen geschlossen",

@@ -1769,6 +1769,10 @@
     "my_taste_tooltip": "Ogni decisione di selezione allena la tua classifica personale \"I miei gusti\".",
     "face_grid_title": "Volti di questo gruppo",
     "face_badge_expression": "Espressione",
+    "face_eyes_min": "Occhi",
+    "face_eyes_min_tooltip": "Evidenzia i volti con un punteggio occhi aperti inferiore a questo valore",
+    "face_smile_min": "Sorriso",
+    "face_smile_min_tooltip": "Evidenzia i volti con un punteggio sorriso inferiore a questo valore",
     "reason": {
       "best": "La migliore del gruppo",
       "eyes_closed": "Occhi chiusi",

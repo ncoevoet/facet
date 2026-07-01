@@ -638,6 +638,8 @@ Configuration:
                         help='Recompute blink detection using stored landmarks (CPU only, fast)')
     face_group.add_argument('--recompute-eyes-expression', action='store_true',
                         help='Recompute eyes-open and expression scores from stored landmarks (CPU only, fast)')
+    face_group.add_argument('--recompute-face-signals', action='store_true',
+                        help='Backfill per-face eyes-open and smile scores from stored landmarks (CPU only, fast)')
     face_group.add_argument('--recompute-burst', action='store_true',
                         help='Recompute burst detection groups')
     face_group.add_argument('--suggest-person-merges', action='store_true',
@@ -1078,6 +1080,13 @@ Configuration:
         scorer.recompute_eyes_expression()
         exit()
 
+    # Backfill per-face eyes-open + smile scores using stored landmarks (CPU only, fast)
+    if args.recompute_face_signals:
+        init_database(args.db)  # Ensure the per-face signal columns exist
+        scorer = Facet(db_path=args.db, config_path=args.config, lightweight=True)
+        scorer.recompute_face_signals()
+        exit()
+
     # --upgrade-db: run the full backfill chain in dependency order by
     # re-invoking this script with each individual flag. Subprocess isolation
     # keeps model loads and GPU memory clean between steps. Idempotent — each
@@ -1109,6 +1118,7 @@ Configuration:
             ("--recompute-burst", "Burst detection grouping"),
             ("--recompute-blinks", "Blink detection from landmarks"),
             ("--recompute-eyes-expression", "Eyes-open + expression from landmarks"),
+            ("--recompute-face-signals", "Per-face eyes/smile signals from landmarks"),
             ("--recompute-average", "Aggregate scores"),
         ]
         cmd_base = [sys.executable, os.path.abspath(__file__)]

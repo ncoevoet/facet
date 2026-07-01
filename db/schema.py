@@ -162,6 +162,11 @@ FACES_COLUMNS = [
     ('person_id', 'INTEGER'),
     ('face_thumbnail', 'BLOB'),  # Pre-generated face crop from detection time
     ('landmark_2d_106', 'BLOB'),  # 106x2 float32 = 848 bytes for blink detection
+    # Per-face geometric quality signals derived from landmark_2d_106 (canonical
+    # source for the culling face panel; NULL for rows scanned before these
+    # columns existed until --recompute-face-signals backfills them).
+    ('eyes_open_score', 'REAL'),  # 0-10 continuous eyes-open (NULL on turned heads)
+    ('smile_score', 'REAL'),      # 0-10 mouth-corner-lift smile (5 ~ neutral)
     # Embedding-space marker: which recognition model produced `embedding`.
     # Embeddings from different models are NOT comparable, so clustering loads
     # only the active space (see faces/clusterer.py) — a future model swap can't
@@ -169,6 +174,35 @@ FACES_COLUMNS = [
     # ArcFace/buffalo_l) on migration and tags new inserts with no code change.
     ('embedding_model', "TEXT DEFAULT 'arcface_buffalo_l'"),
 ]
+
+# Single shared faces upsert used by every scan-time writer (processing/scorer.py
+# single + batch, faces/processor.py). INSERT OR REPLACE regenerates the whole
+# row on --force rescans via the UNIQUE(photo_path, face_index) constraint, so a
+# writer with a stale column list would silently NULL the columns it misses —
+# one shared statement + row builder makes that divergence impossible.
+FACES_UPSERT_SQL = """
+    INSERT OR REPLACE INTO faces
+    (photo_path, face_index, embedding, bbox_x1, bbox_y1, bbox_x2, bbox_y2,
+     confidence, face_thumbnail, landmark_2d_106, eyes_open_score, smile_score)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+
+def face_upsert_row(photo_path, face):
+    """Build the FACES_UPSERT_SQL parameter tuple from a face_details dict."""
+    bbox = face.get('bbox', [0, 0, 0, 0])
+    return (
+        photo_path,
+        face['index'],
+        face['embedding'],
+        bbox[0], bbox[1], bbox[2], bbox[3],
+        face.get('confidence', 0),
+        face.get('thumbnail'),
+        face.get('landmark_2d_106'),
+        face.get('eyes_open_score'),
+        face.get('smile_score'),
+    )
+
 
 PERSONS_COLUMNS = [
     ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),

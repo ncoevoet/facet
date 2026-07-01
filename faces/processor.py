@@ -6,6 +6,7 @@ Producer-consumer processor for parallel face operations.
 
 import logging
 from db import get_connection
+from db.schema import FACES_UPSERT_SQL, face_upsert_row
 import threading
 import queue
 import time
@@ -238,21 +239,8 @@ class FaceProcessor:
                 if result['type'] == 'extract':
                     for face in result['face_details']:
                         if face.get('embedding'):
-                            bbox = face.get('bbox', [0, 0, 0, 0])
-                            conn.execute('''
-                                INSERT OR REPLACE INTO faces
-                                (photo_path, face_index, embedding, bbox_x1, bbox_y1, bbox_x2, bbox_y2,
-                                 confidence, face_thumbnail, landmark_2d_106)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            ''', (
-                                result['photo_path'],
-                                face['index'],
-                                face['embedding'],
-                                bbox[0], bbox[1], bbox[2], bbox[3],
-                                face.get('confidence', 0),
-                                face.get('thumbnail'),
-                                face.get('landmark_2d_106')
-                            ))
+                            conn.execute(FACES_UPSERT_SQL,
+                                         face_upsert_row(result['photo_path'], face))
                 elif result['type'] == 'refill':
                     conn.execute("""
                         UPDATE faces SET face_thumbnail = ? WHERE id = ?

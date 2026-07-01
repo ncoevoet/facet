@@ -1767,6 +1767,10 @@
     "my_taste_tooltip": "Every cull decision trains your personal \"My Taste\" ranking.",
     "face_grid_title": "Faces in this group",
     "face_badge_expression": "Expression",
+    "face_eyes_min": "Eyes",
+    "face_eyes_min_tooltip": "Highlight faces with an eyes-open score below this value",
+    "face_smile_min": "Smile",
+    "face_smile_min_tooltip": "Highlight faces with a smile score below this value",
     "reason": {
       "best": "Best of group",
       "eyes_closed": "Eyes closed",

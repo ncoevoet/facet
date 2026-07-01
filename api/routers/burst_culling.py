@@ -114,10 +114,25 @@ def _compute_burst_score(photo):
     return score
 
 
+def _get_face_thresholds():
+    """Culling face-signal cutoffs from scoring_config face_detection.
+
+    Returns (eyes_closed_max, poor_expression_min): eyes_open_score (0-10)
+    at/below the former counts as closed, expression/smile (0-10) below the
+    latter counts as poor. Exposed to the client via the /culling-group/faces
+    ``thresholds`` object so both sides read one source.
+    """
+    from api.config import _FULL_CONFIG
+    fd = _FULL_CONFIG.get('face_detection', {})
+    return (
+        float(fd.get('eyes_closed_max', 4.0)),
+        float(fd.get('poor_expression_min', 4.0)),
+    )
+
+
 # Thresholds for deriving a plain-language cull reason from already-loaded
 # signals. Kept conservative so reasons only appear when clearly meaningful.
-_CULL_EYES_CLOSED_MAX = 4.0       # eyes_open_score (0-10) at/below this = closed
-_CULL_EXPRESSION_MIN = 4.0        # expression_score (0-10) below this = poor expression
+# The eyes/expression cutoffs come from scoring_config (_get_face_thresholds).
 _CULL_SHARP_DELTA = 1.0           # tech_sharpness gap vs best before flagging "soft"
 _CULL_AESTHETIC_DELTA = 0.5       # aesthetic gap vs best before flagging "lower aesthetic"
 _CULL_AGGREGATE_DELTA = 0.3       # aggregate gap vs best before flagging "lower overall"
@@ -138,13 +153,14 @@ def _compute_cull_reason(photo, best):
         return {'key': 'best', 'value': None}
 
     has_face = (photo.get('face_count') or 0) > 0
+    eyes_closed_max, expression_min = _get_face_thresholds()
 
     # 1. Blink / eyes closed (face photos only) — highest-priority defect.
     if photo.get('is_blink'):
         return {'key': 'eyes_closed', 'value': None}
     if has_face:
         eyes = photo.get('eyes_open_score')
-        if eyes is not None and eyes <= _CULL_EYES_CLOSED_MAX:
+        if eyes is not None and eyes <= eyes_closed_max:
             return {'key': 'eyes_closed', 'value': None}
 
     # 2. Softer than the best frame.
@@ -158,7 +174,7 @@ def _compute_cull_reason(photo, best):
         expr = photo.get('expression_score')
         best_expr = best.get('expression_score') if best else None
         if (expr is not None and best_expr is not None
-                and expr < _CULL_EXPRESSION_MIN and best_expr - expr >= 1.0):
+                and expr < expression_min and best_expr - expr >= 1.0):
             return {'key': 'expression', 'value': None}
 
     # 4. Lower aesthetic appeal.
@@ -896,15 +912,20 @@ async def api_culling_group_faces(
     """Per-face metrics for every photo in a culling group, in one batch call.
 
     Returns ``{faces_by_path: {path: [{id, face_index, bbox_*, confidence,
-    eyes_open_score, expression_score, is_blink}]}}``. Eyes-open and expression
-    are recomputed on the fly from each face's stored 106-point landmarks (no
-    model load); ``is_blink`` thresholds the eyes-open score at the same cutoff
-    used for cull reasons. Replaces the per-photo ``/api/photo/faces`` fan-out so
-    the culling lightbox can show true per-face badges.
+    eyes_open_score, smile_score, expression_score, is_blink}]}, thresholds:
+    {eyes_closed_max, poor_expression_min}}``. Eyes-open and smile come from the
+    persisted per-face columns when present, falling back to on-the-fly landmark
+    computation for rows scanned before those columns existed; expression
+    (mouth openness) is always recomputed (no model load either way).
+    ``is_blink`` thresholds the eyes-open score at the config cutoff shared via
+    ``thresholds``. Replaces the per-photo ``/api/photo/faces`` fan-out so the
+    culling lightbox can show true per-face badges.
     """
+    eyes_closed_max, poor_expression_min = _get_face_thresholds()
+    thresholds = {'eyes_closed_max': eyes_closed_max, 'poor_expression_min': poor_expression_min}
     paths = [p for p in (body.paths or []) if p]
     if not paths:
-        return {'faces_by_path': {}}
+        return {'faces_by_path': {}, 'thresholds': thresholds}
 
     import numpy as np
 
@@ -917,22 +938,29 @@ async def api_culling_group_faces(
     with get_db() as conn:
         rows = conn.execute(
             f"SELECT photo_path, id, face_index, bbox_x1, bbox_y1, bbox_x2, bbox_y2, "
-            f"confidence, landmark_2d_106 FROM faces WHERE photo_path IN ({placeholders}) "
+            f"confidence, landmark_2d_106, eyes_open_score, smile_score "
+            f"FROM faces WHERE photo_path IN ({placeholders}) "
             f"AND photo_path IN (SELECT path FROM photos WHERE {vis_sql}) "
             f"ORDER BY photo_path, face_index",
             paths + vis_params,
         ).fetchall()
 
     for row in rows:
-        eyes = expr = None
+        eyes = row['eyes_open_score']
+        smile = row['smile_score']
+        expr = None
         blob = row['landmark_2d_106']
         if blob is not None:
             try:
                 landmarks = np.frombuffer(blob, dtype=np.float32).reshape(106, 2)
-                eyes = FaceAnalyzer.compute_eyes_open_score(landmarks)
-                expr = FaceAnalyzer.compute_expression_score(landmarks)
             except (ValueError, TypeError):
-                pass
+                landmarks = None
+            if landmarks is not None:
+                expr = FaceAnalyzer.compute_expression_score(landmarks)
+                if eyes is None:
+                    eyes = FaceAnalyzer.compute_eyes_open_score(landmarks)
+                if smile is None:
+                    smile = FaceAnalyzer.compute_smile_score(landmarks)
         faces_by_path[row['photo_path']].append({
             'id': row['id'],
             'face_index': row['face_index'],
@@ -940,11 +968,12 @@ async def api_culling_group_faces(
             'bbox_x2': row['bbox_x2'], 'bbox_y2': row['bbox_y2'],
             'confidence': row['confidence'],
             'eyes_open_score': eyes,
+            'smile_score': smile,
             'expression_score': expr,
-            'is_blink': eyes is not None and eyes <= _CULL_EYES_CLOSED_MAX,
+            'is_blink': eyes is not None and eyes <= eyes_closed_max,
         })
 
-    return {'faces_by_path': faces_by_path}
+    return {'faces_by_path': faces_by_path, 'thresholds': thresholds}
 
 
 @router.get("/api/culling-groups")

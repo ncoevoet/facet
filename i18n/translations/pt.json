@@ -1767,6 +1767,10 @@
     "my_taste_tooltip": "Cada decisão de seleção treina o seu ranking pessoal \"Meu Gosto\".",
     "face_grid_title": "Rostos neste grupo",
     "face_badge_expression": "Expressão",
+    "face_eyes_min": "Olhos",
+    "face_eyes_min_tooltip": "Destaca os rostos com uma pontuação de olhos abertos abaixo deste valor",
+    "face_smile_min": "Sorriso",
+    "face_smile_min_tooltip": "Destaca os rostos com uma pontuação de sorriso abaixo deste valor",
     "reason": {
       "best": "Melhor do grupo",
       "eyes_closed": "Olhos fechados",

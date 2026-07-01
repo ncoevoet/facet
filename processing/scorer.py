@@ -20,6 +20,7 @@ import json
 import logging
 from pathlib import Path
 from db import init_database, get_connection
+from db.schema import FACES_UPSERT_SQL, face_upsert_row
 from db.vec import sync_vec_batch
 
 # Optional tqdm for progress bars
@@ -1637,6 +1638,65 @@ class Facet:
         logger.info("Finished. Updated %s photos with eyes/expression scores.", len(update_data))
         return len(update_data)
 
+    def recompute_face_signals(self):
+        """Backfill per-face eyes-open and smile scores from stored 106-pt landmarks.
+
+        Mirrors :meth:`recompute_eyes_expression` but writes the per-face
+        ``faces.eyes_open_score`` / ``faces.smile_score`` columns (the canonical
+        source for the culling face panel) instead of the photo-level
+        aggregates. No InsightFace re-run — pure geometry on stored landmarks,
+        so no pixels are needed.
+        """
+        import numpy as np
+        from tqdm import tqdm
+        from analyzers import FaceAnalyzer as _FaceAnalyzer
+
+        with get_connection(self.db_path) as conn:
+            landmark_rows = conn.execute(
+                "SELECT id, landmark_2d_106 FROM faces "
+                "WHERE landmark_2d_106 IS NOT NULL"
+            ).fetchall()
+            no_landmark_count = conn.execute(
+                "SELECT COUNT(*) FROM faces WHERE landmark_2d_106 IS NULL"
+            ).fetchone()[0]
+
+            if not landmark_rows:
+                logger.info("No faces with stored landmarks — nothing to compute.")
+                if no_landmark_count:
+                    logger.info("  %s faces lack landmarks; re-scan to store them.", no_landmark_count)
+                return 0
+
+            logger.info("Computing per-face eyes/smile signals for %s faces...",
+                        len(landmark_rows))
+
+            update_data = []
+            decode_errors = 0
+            for row in tqdm(landmark_rows, desc="Per-face signals from landmarks"):
+                try:
+                    landmarks = np.frombuffer(row['landmark_2d_106'], dtype=np.float32).reshape(106, 2)
+                except (ValueError, TypeError):
+                    decode_errors += 1
+                    continue
+                update_data.append((
+                    _FaceAnalyzer.compute_eyes_open_score(landmarks),
+                    _FaceAnalyzer.compute_smile_score(landmarks),
+                    row['id'],
+                ))
+
+            logger.info("Saving results to database...")
+            conn.executemany(
+                "UPDATE faces SET eyes_open_score = ?, smile_score = ? WHERE id = ?",
+                update_data,
+            )
+            conn.commit()
+
+        if no_landmark_count:
+            logger.info("Note: %s faces lack stored landmarks (skipped).", no_landmark_count)
+        if decode_errors:
+            logger.warning("%s faces had undecodable landmarks (skipped).", decode_errors)
+        logger.info("Finished. Updated %s faces with eyes/smile signals.", len(update_data))
+        return len(update_data)
+
     def rescan_samp_composition(self, batch_size: int = 16):
         """
         Rescan composition scores using SAMP-Net from stored thumbnails.
@@ -2081,24 +2141,12 @@ class Facet:
                 )
             ''', res)
 
-            # Store face embeddings, landmarks, and thumbnails for face recognition
+            # Store face embeddings, landmarks, thumbnails and per-face quality
+            # signals for recognition + culling (shared upsert: see db.schema)
             face_details = res.get('face_details', [])
             for face in face_details:
                 if face.get('embedding'):
-                    bbox = face.get('bbox', [0, 0, 0, 0])
-                    conn.execute('''
-                        INSERT OR REPLACE INTO faces
-                        (photo_path, face_index, embedding, bbox_x1, bbox_y1, bbox_x2, bbox_y2, confidence, face_thumbnail, landmark_2d_106)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (
-                        res['path'],
-                        face['index'],
-                        face['embedding'],
-                        bbox[0], bbox[1], bbox[2], bbox[3],
-                        face.get('confidence', 0),
-                        face.get('thumbnail'),
-                        face.get('landmark_2d_106')
-                    ))
+                    conn.execute(FACES_UPSERT_SQL, face_upsert_row(res['path'], face))
 
         # Emit plugin events
         from plugins import get_plugin_manager
@@ -2135,22 +2183,14 @@ class Facet:
             thumb.save(buf, format="JPEG", quality=80)
             res['thumbnail'] = buf.getvalue()
 
-        # Phase 2: Collect all face records for batch insert (including thumbnails and landmarks)
+        # Phase 2: Collect all face records for batch insert (including thumbnails,
+        # landmarks and per-face quality signals — shared upsert: see db.schema)
         face_records = []
         for res, _ in results_with_images:
             face_details = res.get('face_details', [])
             for face in face_details:
                 if face.get('embedding'):
-                    bbox = face.get('bbox', [0, 0, 0, 0])
-                    face_records.append((
-                        res['path'],
-                        face['index'],
-                        face['embedding'],
-                        bbox[0], bbox[1], bbox[2], bbox[3],
-                        face.get('confidence', 0),
-                        face.get('thumbnail'),  # Pre-generated face thumbnail
-                        face.get('landmark_2d_106')  # 106-point landmarks for blink detection
-                    ))
+                    face_records.append(face_upsert_row(res['path'], face))
 
         # Phase 3: Fast DB inserts (short transaction)
         with get_connection(self.db_path, row_factory=False) as conn:
@@ -2207,11 +2247,7 @@ class Facet:
 
             # Batch insert all face embeddings with executemany()
             if face_records:
-                conn.executemany('''
-                    INSERT OR REPLACE INTO faces
-                    (photo_path, face_index, embedding, bbox_x1, bbox_y1, bbox_x2, bbox_y2, confidence, face_thumbnail, landmark_2d_106)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', face_records)
+                conn.executemany(FACES_UPSERT_SQL, face_records)
 
             # Sync clip embeddings to photos_vec for vector search
             vec_records = [
