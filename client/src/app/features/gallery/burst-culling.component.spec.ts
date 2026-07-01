@@ -311,6 +311,66 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('fullscreen (darkroom)', () => {
+    const setFullscreenElement = (value: Element | null) => {
+      Object.defineProperty(document, 'fullscreenElement', { value, writable: true, configurable: true });
+    };
+
+    beforeEach(async () => {
+      await (component as any).loadGroups();
+    });
+
+    afterEach(() => {
+      setFullscreenElement(null);
+    });
+
+    it('toggleFullscreen() requests fullscreen on the darkroom dialog when not fullscreen', () => {
+      const mockEl = { requestFullscreen: vi.fn().mockResolvedValue(undefined), focus: vi.fn() };
+      Object.defineProperty(component, 'lightboxDialog', { value: () => ({ nativeElement: mockEl }), writable: true, configurable: true });
+      setFullscreenElement(null);
+      component['toggleFullscreen']();
+      expect(mockEl.requestFullscreen).toHaveBeenCalled();
+    });
+
+    it('toggleFullscreen() calls exitFullscreen when in fullscreen', () => {
+      document.exitFullscreen = vi.fn().mockResolvedValue(undefined);
+      setFullscreenElement(document.body);
+      component['toggleFullscreen']();
+      expect(document.exitFullscreen).toHaveBeenCalled();
+    });
+
+    it('f key toggles fullscreen only while the darkroom is open', () => {
+      const spy = vi.spyOn(component as any, 'toggleFullscreen').mockImplementation(() => {});
+      component['onFullscreenToggle'](new KeyboardEvent('keydown', { key: 'f' }));
+      expect(spy).not.toHaveBeenCalled();
+
+      component['openLightbox'](component['groups']()[0], 0);
+      component['onFullscreenToggle'](new KeyboardEvent('keydown', { key: 'f' }));
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('fullscreenchange syncs the isFullscreen signal from document.fullscreenElement', () => {
+      setFullscreenElement(document.body);
+      component['onFullscreenChange']();
+      expect(component['isFullscreen']()).toBe(true);
+
+      setFullscreenElement(null);
+      component['onFullscreenChange']();
+      expect(component['isFullscreen']()).toBe(false);
+    });
+
+    it('closeLightbox() exits fullscreen when the darkroom closes while fullscreen', () => {
+      document.exitFullscreen = vi.fn().mockResolvedValue(undefined);
+      component['openLightbox'](component['groups']()[0], 0);
+      setFullscreenElement(document.body);
+
+      component['closeLightbox']();
+
+      expect(document.exitFullscreen).toHaveBeenCalled();
+      expect(component['lightboxGroupId']()).toBeNull();
+    });
+  });
+
   describe('category filter', () => {
     beforeEach(async () => {
       mockApi.get.mockReturnValue(of({

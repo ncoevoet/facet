@@ -552,6 +552,12 @@ interface ShortcutRow {
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
           </div>
           <button mat-icon-button
+                  [matTooltip]="I18N.slideshow.fullscreen | translate"
+                  [attr.aria-label]="I18N.slideshow.fullscreen | translate"
+                  (click)="toggleFullscreen(); $event.stopPropagation()" class="!text-white">
+            <mat-icon>{{ isFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+          </button>
+          <button mat-icon-button
                   [attr.aria-label]="I18N.dialog.cancel | translate"
                   (click)="closeLightbox(); $event.stopPropagation()" class="!text-white">
             <mat-icon>close</mat-icon>
@@ -773,6 +779,8 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly compareMode = signal<'single' | '2up' | '4up'>('single');
   /** Pan/zoom transform shared by every compare pane (synced peek). */
   protected readonly zoom = signal<ZoomState>(FIT_ZOOM);
+  /** True while the darkroom dialog is the document's fullscreen element. */
+  protected readonly isFullscreen = signal(false);
 
   /** The frames shown in compare mode: N photos from the current index, clamped. */
   protected readonly compareFrames = computed(() => {
@@ -786,6 +794,15 @@ export class BurstCullingComponent implements OnDestroy {
   protected setCompareMode(mode: 'single' | '2up' | '4up'): void {
     this.compareMode.set(mode);
     this.zoom.set(FIT_ZOOM);
+  }
+
+  /** True Fullscreen API on the darkroom overlay (mirrors the slideshow pattern). */
+  protected toggleFullscreen(): void {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    } else {
+      void this.lightboxDialog()?.nativeElement.requestFullscreen().catch(() => {});
+    }
   }
 
   /** The fullscreen darkroom dialog element, focused on open so the photo tiles
@@ -852,6 +869,7 @@ export class BurstCullingComponent implements OnDestroy {
     { keys: ['↑'], labelKey: 'culling.shortcuts.keep' },
     { keys: ['↓'], labelKey: 'culling.shortcuts.reject' },
     { keys: ['Z'], labelKey: 'culling.shortcuts.zoom' },
+    { keys: ['F'], labelKey: 'slideshow.fullscreen' },
     { keys: ['Space'], labelKey: 'culling.shortcuts.confirm_next' },
     { keys: ['Esc'], labelKey: 'culling.shortcuts.close' },
   ];
@@ -928,6 +946,9 @@ export class BurstCullingComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.pageHelp.setDescription(null);
     this.clearAllPassTimers();
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    }
     const tpl = this.cullToolbar();
     if (tpl) this.headerSlot.clear(tpl);
   }
@@ -1207,6 +1228,9 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   protected closeLightbox(): void {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    }
     // Leave the page focused on the group just reviewed in the darkroom, so its
     // keep/reject choices (already written to the shared selectionsMap) are the
     // ones highlighted and scrolled into view on exit.
@@ -1282,6 +1306,20 @@ export class BurstCullingComponent implements OnDestroy {
     }
     event.preventDefault();
     this.zoom.set(this.zoom().scale > 1 ? FIT_ZOOM : { scale: 2, tx: 0, ty: 0 });
+  }
+
+  /** F toggles true fullscreen on the open darkroom (mirrors the slideshow's F key). */
+  @HostListener('document:keydown.f', ['$event'])
+  protected onFullscreenToggle(event: Event): void {
+    if (!this.lightboxGroup()) return;
+    if (isTypingContext(event)) return;
+    event.preventDefault();
+    this.toggleFullscreen();
+  }
+
+  @HostListener('document:fullscreenchange')
+  protected onFullscreenChange(): void {
+    this.isFullscreen.set(!!document.fullscreenElement);
   }
 
   private setCurrentLightboxPhotoKept(group: CullingGroup, keep: boolean): void {
