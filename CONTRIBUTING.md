@@ -109,6 +109,23 @@ pre-commit install
 CI additionally runs an advisory (non-blocking) `mypy api/` type-check; run it
 locally with `mypy api/`.
 
+A `commit-msg` guard (`.githooks/commit-msg`) rejects commit messages that
+contain Claude session links or AI attribution trailers (`Claude-Session:`,
+`Co-Authored-By: Claude`, ...); CI enforces the same rule on every push and PR.
+Register it through pre-commit:
+
+```bash
+pre-commit install --hook-type pre-commit --hook-type commit-msg
+```
+
+or, if you do not use pre-commit:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Pick one — `pre-commit install` refuses to run while `core.hooksPath` is set.
+
 ## Pull Requests
 
 - Branch from `master`.

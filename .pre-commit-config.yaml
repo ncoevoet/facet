@@ -30,3 +30,11 @@ repos:
         language: system
         pass_filenames: false
         files: ^tests/.*\.py$
+
+      - id: forbid-ai-attribution
+        name: Forbid Claude session links / AI attribution trailers
+        # Same script as the standalone .githooks setup; register with
+        # `pre-commit install --hook-type commit-msg`. Mirrors the CI guard.
+        entry: .githooks/commit-msg
+        language: script
+        stages: [commit-msg]

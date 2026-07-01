@@ -1,0 +1,46 @@
+name: Commit hygiene
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  no-ai-attribution:
+    name: No AI attribution in commit messages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Check pushed commits for Claude session links and attribution trailers
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          pattern='claude\.ai/code/session|Claude-Session:|Co-Authored-By: Claude|Generated with.*Claude Code'
+          if [ -n "$BASE_SHA" ] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BASE_SHA" 2>/dev/null; then
+            commits=$(git rev-list "$BASE_SHA..$HEAD_SHA")
+          else
+            commits=$(git rev-list --max-count=20 "$HEAD_SHA")
+          fi
+          bad=""
+          for c in $commits; do
+            if git log -1 --format=%B "$c" | grep -qiE "$pattern"; then
+              bad="$bad $c"
+            fi
+          done
+          if [ -n "$bad" ]; then
+            echo "The following commits contain a Claude session link or AI attribution trailer:"
+            for c in $bad; do
+              git log -1 --format='  %h %s' "$c"
+            done
+            echo "Rewrite these commit messages before merging (see .githooks/commit-msg)."
+            exit 1
+          fi
+          echo "Checked $(echo "$commits" | wc -w) commit(s): clean."

@@ -1,0 +1,6 @@
+#!/bin/sh
+if grep -qiE 'claude\.ai/code/session|Claude-Session:|Co-Authored-By: Claude|Generated with.*Claude Code' "$1"; then
+    echo "commit-msg: rejected — the message contains a Claude session link or AI attribution trailer." >&2
+    echo "Remove lines matching: Claude-Session / claude.ai/code/session / Co-Authored-By: Claude / Generated with ... Claude Code." >&2
+    exit 1
+fi
