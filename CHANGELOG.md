@@ -4,6 +4,26 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.5.0] "Aperture" — 2026-07-01
+
+### Added
+- One self-contained Docker image for **every VRAM profile**. Weights are not baked in — they download once at first run into Docker-managed named volumes (`facet-hf-cache`, `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), so the image never touches the host's caches. Dependencies are pinned in `requirements.lock.txt` (a frozen, tested set). Pick a profile without editing any JSON via `FACET_VRAM_PROFILE=auto|legacy|8gb|16gb|24gb` (a new env override honored by `config/scoring_config.py`) or the per-profile overlays `docker-compose.{legacy,8gb,16gb,24gb}.yml`; deploy knobs live in `.env` (`.env.example`: profile, photos dir, port, DB path) and the base compose is templated with them.
+- Preconfigured out of the box: a sanitized `scoring_config.default.json` (empty secrets, `vram_profile: auto`, all profiles at full feature set) is baked into the image as the active config, so `docker compose up -d` runs with zero host setup; mount your own to customize.
+- GPU face clustering baked into the image (RAPIDS cuML). GPU profiles cluster on GPU (`face_clustering.use_gpu="auto"`); the legacy profile is always CPU, guarded by a CUDA device-count check and a CPU fallback on any GPU error.
+- Gallery **"Keep top N%"** percentile cull in the toolbar — keep the best N% of the current selection and reject the rest.
+- GitHub Pages landing page (`docs/`): an interactive Docker profile picker with copy-to-clipboard commands, browser-language localization (English, French, German, Italian, Spanish, Portuguese with English fallback), and a benefit-focused feature tour.
+- Windows deployment guide for running the stack in Docker CE inside a WSL2 distro on a data drive (no Docker Desktop required), plus a documented image-size breakdown and per-profile model download sizes.
+
+### Changed
+- **Every VRAM profile now runs its full model set**: the `legacy` and `8gb` profiles gain the supplementary IQA models (TOPIQ IAA / NR-Face / LIQE) and BiRefNet subject saliency, previously enabled only on `16gb`/`24gb`.
+- Faster gallery at scale: the "My Taste" and "Moment Confidence" sorts are backed by standalone, ANALYZE'd indexes (with `learned_score` denormalized onto `photos`), and the hidden-summary aggregate is cached instead of recomputed per page.
+- The Docker dependency set is pinned for reproducibility: `transformers` is held below 5.3 (5.3+ broke Qwen3.5 batched VLM tagging) and `kornia` is included for BiRefNet.
+
+### Fixed
+- **16gb/24gb VLM tagging** now actually loads the Qwen3.5-2B / Qwen3.5-4B taggers instead of silently falling back to CLIP: all tagging-model routing is centralized in one `TAGGING_MODELS` map, closing the gaps that a rename left behind.
+- The percentile cull removes the worst tail when the selection is capped, instead of leaving it unculled.
+- The Docker entrypoint no longer crash-loops from CRLF line endings (normalized to LF and enforced via `.gitattributes` + a Dockerfile guard).
+
 ## [1.4.0] "Refraction" — 2026-06-29
 
 ### Added
