@@ -12,6 +12,9 @@ import math
 import sqlite3
 import sys
 
+if len(sys.argv) < 2:
+    print(__doc__)
+    sys.exit(2)
 DB = sys.argv[1]
 PROFILE = sys.argv[2] if len(sys.argv) > 2 else "?"
 
