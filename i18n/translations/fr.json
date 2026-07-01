@@ -1590,6 +1590,7 @@
     "penalties": "Penalites",
     "vlm_title": "Critique IA",
     "vlm_loading": "Generation de la critique IA...",
+    "vlm_refresh": "Régénérer",
     "error_fallback": "Impossible de charger la critique",
     "metrics": {
       "aesthetic": "Qualite esthetique",

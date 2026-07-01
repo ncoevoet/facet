@@ -1668,7 +1668,7 @@ Configurações para a tradução de legendas por IA via MarianMT:
 
 | Configuração | Padrão | Descrição |
 |--------------|--------|-----------|
-| `target_language` | `"fr"` | Código do idioma de destino para `--translate-captions`. Suportados: `fr` (francês), `de` (alemão), `es` (espanhol), `it` (italiano). Usa os modelos MarianMT da Helsinki-NLP (CPU, sem GPU). |
+| `target_language` | `"fr"` | Código do idioma de destino para `--translate-captions`. Suportados: `fr` (francês), `de` (alemão), `es` (espanhol), `it` (italiano), `pt` (português do Brasil). Usa os modelos MarianMT da Helsinki-NLP (CPU, sem GPU). |
 
 ## Aesthetic CLIP (R2)
 

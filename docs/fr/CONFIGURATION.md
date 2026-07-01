@@ -1668,7 +1668,7 @@ Réglages pour la traduction des légendes IA via MarianMT :
 
 | Réglage | Défaut | Description |
 |---------|--------|-------------|
-| `target_language` | `"fr"` | Code de langue cible pour `--translate-captions`. Pris en charge : `fr` (français), `de` (allemand), `es` (espagnol), `it` (italien). Utilise les modèles MarianMT de Helsinki-NLP (CPU, aucun GPU requis). |
+| `target_language` | `"fr"` | Code de langue cible pour `--translate-captions`. Pris en charge : `fr` (français), `de` (allemand), `es` (espagnol), `it` (italien), `pt` (portugais brésilien). Utilise les modèles MarianMT de Helsinki-NLP (CPU, aucun GPU requis). |
 
 ## CLIP esthétique (R2)
 

@@ -1668,7 +1668,7 @@ Impostazioni per la traduzione AI delle didascalie tramite MarianMT:
 
 | Impostazione | Predefinito | Descrizione |
 |---------|---------|-------------|
-| `target_language` | `"fr"` | Codice della lingua di destinazione per `--translate-captions`. Supportati: `fr` (francese), `de` (tedesco), `es` (spagnolo), `it` (italiano). Usa i modelli Helsinki-NLP MarianMT (CPU, nessuna GPU richiesta). |
+| `target_language` | `"fr"` | Codice della lingua di destinazione per `--translate-captions`. Supportati: `fr` (francese), `de` (tedesco), `es` (spagnolo), `it` (italiano), `pt` (portoghese brasiliano). Usa i modelli Helsinki-NLP MarianMT (CPU, nessuna GPU richiesta). |
 
 ## Aesthetic CLIP (R2)
 

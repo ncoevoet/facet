@@ -1588,6 +1588,7 @@
     "penalties": "Penalties",
     "vlm_title": "AI Critique",
     "vlm_loading": "Generating AI critique...",
+    "vlm_refresh": "Regenerate",
     "error_fallback": "Failed to load critique",
     "metrics": {
       "aesthetic": "Aesthetic Quality",

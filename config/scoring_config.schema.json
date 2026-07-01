@@ -37,6 +37,7 @@
     "capsules": { "type": "object" },
     "performance": { "type": "object" },
     "maintenance": { "type": "object" },
+    "critique": { "type": "object" },
     "xmp_export": { "type": "object" }
   }
 }

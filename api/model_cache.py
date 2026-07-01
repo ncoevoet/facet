@@ -2,7 +2,9 @@
 Lazy-loaded model cache for the API server.
 
 Keeps heavy GPU models (VLM tagger) loaded across requests to avoid
-repeated load/unload cycles. Models are loaded on first use.
+repeated load/unload cycles. Models are loaded on first use. Also hosts
+the shared VLM config resolution and the inference lock that serializes
+concurrent generate() calls on the single cached model instance.
 """
 
 import logging
@@ -18,6 +20,74 @@ _translator_lock = threading.Lock()
 
 _saliency_scorer = None
 _saliency_lock = threading.Lock()
+
+_resolved_profile = None
+
+vlm_generate_lock = threading.Lock()
+
+SUPPORTED_TRANSLATION_LANGS = {'fr', 'de', 'es', 'it', 'pt'}
+
+_VLM_MODEL_KEY_MAP = {
+    'qwen3-vl-2b': 'qwen3_vl_2b',
+    'qwen2.5-vl-7b': 'qwen2_5_vl_7b',
+    'qwen3.5-2b': 'qwen3_5_2b',
+    'qwen3.5-4b': 'qwen3_5_4b',
+}
+
+
+def resolve_vram_profile():
+    """Return the active VRAM profile name, resolving 'auto' via hardware detection once."""
+    global _resolved_profile
+    from api.config import _FULL_CONFIG
+
+    profile = _FULL_CONFIG.get('models', {}).get('vram_profile', 'legacy')
+    if profile != 'auto':
+        return profile
+
+    if _resolved_profile is None:
+        from config import ScoringConfig
+
+        _resolved_profile, _, msg = ScoringConfig.suggest_vram_profile()
+        logger.info("Resolved vram_profile 'auto' for the API: %s", msg)
+    return _resolved_profile
+
+
+def resolve_vlm_config():
+    """Resolve the active profile's VLM tagger model config dict, or None.
+
+    Returns None when the active profile (after 'auto' resolution) does not
+    use a VLM tagger or its model config lacks a model_path.
+    """
+    from api.config import _FULL_CONFIG
+
+    models_config = _FULL_CONFIG.get('models', {})
+    profile = models_config.get('profiles', {}).get(resolve_vram_profile(), {})
+    config_key = _VLM_MODEL_KEY_MAP.get(profile.get('tagging_model', ''))
+    if not config_key:
+        return None
+
+    vlm_config = models_config.get(config_key, {})
+    return vlm_config if vlm_config.get('model_path') else None
+
+
+def translation_target(lang):
+    """Return the configured translation target when ``lang`` requests it, else None."""
+    from api.config import _FULL_CONFIG
+
+    if not lang or lang == 'en' or lang not in SUPPORTED_TRANSLATION_LANGS:
+        return None
+    target = _FULL_CONFIG.get('translation', {}).get('target_language', '')
+    return target if lang == target else None
+
+
+def translate_text(text, target_lang):
+    """Translate ``text`` via the cached MarianMT translator; None on failure."""
+    try:
+        translator = get_or_load_caption_translator(target_lang)
+        return translator.translate(text)
+    except Exception:
+        logger.exception("Translation failed for lang=%s", target_lang)
+        return None
 
 
 def get_or_load_saliency_scorer():
@@ -43,15 +113,16 @@ def get_or_load_saliency_scorer():
         return _saliency_scorer
 
 
-def get_or_load_vlm_tagger(vlm_config, full_config):
+def get_or_load_vlm_tagger(vlm_config):
     """Get or lazily load the VLM tagger singleton.
 
     Args:
-        vlm_config: The ``models.vlm_tagger`` section of scoring_config.
-        full_config: The full scoring_config dict (unused, kept for call-site compat).
+        vlm_config: The resolved VLM model config (see ``resolve_vlm_config``).
 
     Returns:
-        A loaded VLMTagger instance ready for ``.generate()`` calls.
+        A loaded VLMTagger instance ready for ``.generate()`` calls. Callers
+        must hold ``vlm_generate_lock`` around ``.generate()`` — the cache
+        lock only guards loading, not inference.
     """
     global _vlm_tagger
     if _vlm_tagger is not None:

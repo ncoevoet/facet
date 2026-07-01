@@ -117,6 +117,10 @@ PHOTOS_COLUMNS = [
     ('caption', 'TEXT'),
     ('caption_translated', 'TEXT'),
 
+    # VLM critique cache (regenerated on demand via /api/critique?refresh=true)
+    ('vlm_critique', 'TEXT'),
+    ('vlm_critique_translated', 'TEXT'),
+
     # OCR text-in-image (opt-in --recompute-ocr; NULL until that pass runs)
     ('ocr_text', 'TEXT'),
 

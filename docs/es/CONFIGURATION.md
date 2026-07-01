@@ -1668,7 +1668,7 @@ Ajustes para la traducción de descripciones de IA mediante MarianMT:
 
 | Ajuste | Por defecto | Descripción |
 |---------|---------|-------------|
-| `target_language` | `"fr"` | Código de idioma de destino para `--translate-captions`. Admitidos: `fr` (francés), `de` (alemán), `es` (español), `it` (italiano). Usa los modelos MarianMT de Helsinki-NLP (CPU, sin GPU requerida). |
+| `target_language` | `"fr"` | Código de idioma de destino para `--translate-captions`. Admitidos: `fr` (francés), `de` (alemán), `es` (español), `it` (italiano), `pt` (portugués de Brasil). Usa los modelos MarianMT de Helsinki-NLP (CPU, sin GPU requerida). |
 
 ## Aesthetic CLIP (R2)
 

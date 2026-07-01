@@ -67,6 +67,7 @@ interface CritiqueResponse {
   suggestions: string[];
   penalties: Record<string, number | boolean>;
   vlm_critique?: string;
+  vlm_source?: string;
   vlm_available?: boolean;
   caption?: string;
 }
@@ -278,8 +279,20 @@ export class MismatchReasonPipe implements PipeTransform {
         <!-- VLM Critique -->
         @if (c.vlm_critique) {
           <div class="mt-4 p-3 rounded-lg bg-[var(--mat-sys-surface-container)]">
-            <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ I18N.critique.vlm_title | translate }}</div>
-            <p class="text-sm">{{ c.vlm_critique }}</p>
+            <div class="flex items-center mb-1">
+              <div class="flex-1 text-xs uppercase tracking-wider opacity-50">{{ I18N.critique.vlm_title | translate }}</div>
+              @if (vlmRefreshing()) {
+                <mat-spinner diameter="16" />
+              } @else {
+                <button mat-icon-button class="!w-6 !h-6 !p-0 opacity-50 hover:opacity-90"
+                        [attr.aria-label]="I18N.critique.vlm_refresh | translate"
+                        [title]="I18N.critique.vlm_refresh | translate"
+                        (click)="refreshVlm()">
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">refresh</mat-icon>
+                </button>
+              }
+            </div>
+            <p class="text-sm whitespace-pre-line">{{ c.vlm_critique }}</p>
           </div>
         }
 
@@ -334,11 +347,15 @@ export class PhotoCritiqueDialogComponent implements OnInit {
     return !!(c && Object.keys(c.penalties).length > 0);
   });
 
+  protected readonly vlmRefreshing = signal(false);
+
   async ngOnInit(): Promise<void> {
     try {
       const mode = this.data.vlmAvailable ? 'vlm' : 'rule';
       const res = await firstValueFrom(
-        this.api.get<CritiqueResponse>('/critique', { path: this.data.photoPath, mode }),
+        this.api.get<CritiqueResponse>('/critique', {
+          path: this.data.photoPath, mode, lang: this.i18n.locale(),
+        }),
       );
       this.critique.set(res);
     } catch (err: unknown) {
@@ -346,6 +363,23 @@ export class PhotoCritiqueDialogComponent implements OnInit {
       this.error.set(message);
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  protected async refreshVlm(): Promise<void> {
+    if (this.vlmRefreshing()) return;
+    this.vlmRefreshing.set(true);
+    try {
+      const res = await firstValueFrom(
+        this.api.get<CritiqueResponse>('/critique', {
+          path: this.data.photoPath, mode: 'vlm', lang: this.i18n.locale(), refresh: 'true',
+        }),
+      );
+      this.critique.set(res);
+    } catch {
+      // Keep the previous critique visible when regeneration fails.
+    } finally {
+      this.vlmRefreshing.set(false);
     }
   }
 }

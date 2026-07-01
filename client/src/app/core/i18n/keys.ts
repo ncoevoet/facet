@@ -1592,6 +1592,7 @@ export const I18N = {
     penalties: "critique.penalties",
     vlm_title: "critique.vlm_title",
     vlm_loading: "critique.vlm_loading",
+    vlm_refresh: "critique.vlm_refresh",
     error_fallback: "critique.error_fallback",
     metrics: {
       aesthetic: "critique.metrics.aesthetic",

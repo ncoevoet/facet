@@ -35,8 +35,11 @@ _CRITIQUE_COLS = [
 _CRITIQUE_SCHEMA = (
     "CREATE TABLE photos (path TEXT PRIMARY KEY, "
     + ", ".join(f"{c} TEXT" for c in _CRITIQUE_COLS if c != 'path')
-    + ", is_rejected INTEGER DEFAULT 0);"
+    + ", is_rejected INTEGER DEFAULT 0"
+    + ", thumbnail BLOB, vlm_critique TEXT, vlm_critique_translated TEXT);"
 )
+
+_VLM_TEST_COLS = set(_CRITIQUE_COLS) | {'thumbnail', 'vlm_critique', 'vlm_critique_translated'}
 
 
 def _make_db(path, photos):
@@ -212,6 +215,7 @@ class TestCritiqueEndpoint:
             mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
             mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
             mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
             mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
             mock.patch("api.routers.critique._get_vlm_critique", return_value=None),
         ):
@@ -242,6 +246,7 @@ class TestCritiqueEndpoint:
             mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
             mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
             mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
             mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
             mock.patch("api.routers.critique._get_vlm_critique", return_value="A lovely landscape."),
         ):
@@ -250,7 +255,83 @@ class TestCritiqueEndpoint:
         assert resp.status_code == 200
         body = resp.json()
         assert body["vlm_critique"] == "A lovely landscape."
+        assert body["vlm_source"] == "generated"
         assert "vlm_available" not in body
+
+    def test_vlm_critique_cached_on_second_call(self, client, tmp_path):
+        """The generated critique is persisted and reused without a second inference."""
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+
+        fake_rule = {
+            "category": "landscape",
+            "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
+            "aggregate": 7.5,
+            "breakdown": [],
+            "strengths": [],
+            "weaknesses": [],
+            "suggestions": [],
+            "penalties": {},
+        }
+        vlm_stub = mock.MagicMock(return_value="Cached critique text.")
+
+        with (
+            mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
+            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
+            mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
+            mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
+        ):
+            first = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
+            second = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
+
+        assert first.json()["vlm_source"] == "generated"
+        assert second.json()["vlm_critique"] == "Cached critique text."
+        assert second.json()["vlm_source"] == "cached"
+        assert vlm_stub.call_count == 1
+
+        conn = sqlite3.connect(db)
+        stored = conn.execute("SELECT vlm_critique FROM photos WHERE path = '/photos/test.jpg'").fetchone()[0]
+        conn.close()
+        assert stored == "Cached critique text."
+
+    def test_vlm_refresh_regenerates(self, client, tmp_path):
+        """refresh=true bypasses the cache and re-runs inference."""
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        conn = sqlite3.connect(db)
+        conn.execute("UPDATE photos SET vlm_critique = 'Stale text.' WHERE path = '/photos/test.jpg'")
+        conn.commit()
+        conn.close()
+
+        fake_rule = {
+            "category": "landscape",
+            "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
+            "aggregate": 7.5,
+            "breakdown": [],
+            "strengths": [],
+            "weaknesses": [],
+            "suggestions": [],
+            "penalties": {},
+        }
+        vlm_stub = mock.MagicMock(return_value="Fresh text.")
+
+        with (
+            mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
+            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
+            mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
+            mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
+        ):
+            resp = client.get(
+                "/api/critique",
+                params={"path": "/photos/test.jpg", "mode": "vlm", "refresh": "true"},
+            )
+
+        assert resp.json()["vlm_critique"] == "Fresh text."
+        assert vlm_stub.call_count == 1
 
 
 
@@ -383,3 +464,109 @@ class TestBuildRuleCritique:
             result = _build_rule_critique(photo)
 
         assert result["penalties"] == {}
+
+
+# ---------------------------------------------------------------------------
+# VLM config resolution (regression: the critique used to gate on a
+# nonexistent models.vlm_tagger block and the raw 'auto' vram_profile,
+# leaving mode=vlm permanently unavailable with the shipped config)
+# ---------------------------------------------------------------------------
+
+
+def _models_config(vram_profile, tagging_model="qwen3.5-2b", model_path="/models/qwen"):
+    return {
+        "models": {
+            "vram_profile": vram_profile,
+            "profiles": {
+                "legacy": {"tagging_model": "clip"},
+                "16gb": {"tagging_model": tagging_model},
+                "24gb": {"tagging_model": "qwen3.5-4b"},
+            },
+            "qwen3_5_2b": {"model_path": model_path},
+            "qwen3_5_4b": {"model_path": model_path},
+        }
+    }
+
+
+class TestResolveVlmConfig:
+    """resolve_vlm_config must follow the active profile's tagging model."""
+
+    def test_explicit_vlm_profile_resolves(self):
+        from api.model_cache import resolve_vlm_config
+
+        with mock.patch("api.config._FULL_CONFIG", _models_config("16gb")):
+            cfg = resolve_vlm_config()
+
+        assert cfg == {"model_path": "/models/qwen"}
+
+    def test_clip_profile_returns_none(self):
+        from api.model_cache import resolve_vlm_config
+
+        with mock.patch("api.config._FULL_CONFIG", _models_config("legacy")):
+            assert resolve_vlm_config() is None
+
+    def test_missing_model_path_returns_none(self):
+        from api.model_cache import resolve_vlm_config
+
+        with mock.patch("api.config._FULL_CONFIG", _models_config("16gb", model_path="")):
+            assert resolve_vlm_config() is None
+
+    def test_auto_profile_resolves_via_hardware_detection(self):
+        from api.model_cache import resolve_vlm_config
+
+        with (
+            mock.patch("api.config._FULL_CONFIG", _models_config("auto")),
+            mock.patch("api.model_cache._resolved_profile", None),
+            mock.patch("config.ScoringConfig.suggest_vram_profile", return_value=("16gb", 15.8, "detected")),
+        ):
+            cfg = resolve_vlm_config()
+
+        assert cfg == {"model_path": "/models/qwen"}
+
+    def test_auto_profile_without_gpu_returns_none(self):
+        from api.model_cache import resolve_vlm_config
+
+        with (
+            mock.patch("api.config._FULL_CONFIG", _models_config("auto")),
+            mock.patch("api.model_cache._resolved_profile", None),
+            mock.patch("config.ScoringConfig.suggest_vram_profile", return_value=("legacy", None, "no gpu")),
+        ):
+            assert resolve_vlm_config() is None
+
+
+class TestBuildVlmPrompt:
+    """The prompt template is filled with the full breakdown, penalties, and EXIF."""
+
+    def test_prompt_injects_breakdown_penalties_and_exif(self):
+        from api.routers.critique import _build_vlm_prompt
+
+        rule = {
+            "category": "portrait",
+            "aggregate": 6.4,
+            "breakdown": [
+                {"metric": "Aesthetic Quality", "metric_key": "aesthetic", "value": 7.1, "weight": 0.3, "contribution": 2.1},
+                {"metric": "Noise Level", "metric_key": "noise_sigma", "value": 2.5, "weight": 0.1, "contribution": 0.3},
+            ],
+            "penalties": {"blink": True},
+        }
+        photo = _make_photo(f_stop=2.8, shutter_speed="1/250", iso=400, focal_length=85)
+
+        prompt = _build_vlm_prompt(rule, photo)
+
+        assert "portrait" in prompt
+        assert "6.4/10" in prompt
+        assert "- Aesthetic Quality: 7.1 (weight 30%)" in prompt
+        assert "- Noise Level: 2.5 (weight 10%, lower is better)" in prompt
+        assert "Penalties applied: blink." in prompt
+        assert "f/2.8, 1/250s, ISO 400, 85mm" in prompt
+
+    def test_prompt_handles_missing_data(self):
+        from api.routers.critique import _build_vlm_prompt
+
+        rule = {"category": "", "aggregate": None, "breakdown": [], "penalties": {}}
+        photo = _make_photo(f_stop=None, shutter_speed=None, iso=None, focal_length=None)
+
+        prompt = _build_vlm_prompt(rule, photo)
+
+        assert "no per-metric data available" in prompt
+        assert "Camera settings: unknown." in prompt

@@ -1668,7 +1668,7 @@ Einstellungen für die KI-Übersetzung von Bildunterschriften über MarianMT:
 
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
-| `target_language` | `"fr"` | Zielsprachcode für `--translate-captions`. Unterstützt: `fr` (Französisch), `de` (Deutsch), `es` (Spanisch), `it` (Italienisch). Verwendet Helsinki-NLP MarianMT-Modelle (CPU, keine GPU erforderlich). |
+| `target_language` | `"fr"` | Zielsprachcode für `--translate-captions`. Unterstützt: `fr` (Französisch), `de` (Deutsch), `es` (Spanisch), `it` (Italienisch), `pt` (brasilianisches Portugiesisch). Verwendet Helsinki-NLP MarianMT-Modelle (CPU, keine GPU erforderlich). |
 
 ## Aesthetic CLIP (R2)
 

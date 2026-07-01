@@ -1691,7 +1691,7 @@ Settings for AI caption translation via MarianMT:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `target_language` | `"fr"` | Target language code for `--translate-captions`. Supported: `fr` (French), `de` (German), `es` (Spanish), `it` (Italian). Uses Helsinki-NLP MarianMT models (CPU, no GPU required). |
+| `target_language` | `"fr"` | Target language code for `--translate-captions`. Supported: `fr` (French), `de` (German), `es` (Spanish), `it` (Italian), `pt` (Brazilian Portuguese). Uses Helsinki-NLP MarianMT models (CPU, no GPU required). |
 
 ## Aesthetic CLIP (R2)
 
