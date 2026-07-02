@@ -13,6 +13,12 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
+# processing.scorer's image loader pulls in imagehash/cv2, which the minimal CI
+# test job does not install; skip the whole module there (it runs locally and in
+# any full-dependency environment).
+pytest.importorskip("imagehash")
+pytest.importorskip("cv2")
+
 from db import init_database, get_connection
 from processing.scorer import Facet, _load_image_modules
 
