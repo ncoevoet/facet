@@ -583,7 +583,7 @@ def add_photos_to_album(
     with get_db() as conn:
         user_id = _get_user_id(user)
         _check_album_access(conn, album_id, user_id)
-        append_album_photos(conn, album_id, body.photo_paths)
+        added = append_album_photos(conn, album_id, body.photo_paths)
         conn.commit()
 
         row = conn.execute(

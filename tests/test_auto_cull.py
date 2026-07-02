@@ -461,9 +461,11 @@ class TestCrossGroupOverlap:
         for a, b, w in conn.execute(
                 "SELECT photo_a_path, photo_b_path, winner FROM comparisons"):
             if w == 'a':
-                winners.add(a); losers.add(b)
+                winners.add(a)
+                losers.add(b)
             else:
-                winners.add(b); losers.add(a)
+                winners.add(b)
+                losers.add(a)
         assert winners.isdisjoint(losers)
 
 
