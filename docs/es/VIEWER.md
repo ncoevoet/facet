@@ -313,6 +313,14 @@ Comparte álbumes con usuarios externos mediante enlaces con token. No se requie
 
 API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
 
+### Revisión del cliente
+
+Cuando `viewer.features.show_proofing` está activado (predeterminado `false`), un enlace de álbum compartido puede ejecutarse en **modo de revisión**: el cliente (sin cuenta) abre el enlace de compartir, introduce opcionalmente un PIN (`viewer.proofing.pin`) y puede entonces marcar fotos con un **corazón** y dejar **comentarios** — una forma ligera de dejar que un cliente elija sus favoritas de una entrega.
+
+Las selecciones del cliente están totalmente aisladas de tu biblioteca. Viven en una tabla dedicada `album_client_picks`, están acotadas a las fotos de ese álbum y nunca tocan tus propios favoritos/valoraciones (`photos.is_favorite` / `user_preferences`) ni entrenan al clasificador personal. Como propietario, lees las selecciones desde un diálogo `[Edition]` en la tarjeta del álbum. Las sesiones son de corta duración (`viewer.proofing.session_minutes`, predeterminado 24 h) y dejan de funcionar en cuanto se deja de compartir el álbum o se desactiva la revisión.
+
+Controlado por `viewer.features.show_proofing` (predeterminado: `false`). Consulta [Configuración — Revisión del cliente](CONFIGURATION.md#client-proofing).
+
 ## Crítica con IA
 
 Desglosa las puntuaciones de una foto en fortalezas, debilidades y sugerencias.
@@ -321,9 +329,13 @@ Desglosa las puntuaciones de una foto en fortalezas, debilidades y sugerencias.
 
 Disponible en todos los perfiles de VRAM. Analiza las métricas almacenadas (estética, composición, nitidez, calidad facial, etc.) y genera una explicación estructurada de la puntuación.
 
+El desglose también muestra las filas explicables de **forma y armonía cromática** (simetría, equilibrio, entropía de orientación de bordes, complejidad fractal, armonía cromática de Matsuda — pobladas por `--recompute-form`), **chips de atributos de distorsión** para cualquier defecto probable (desenfoque por movimiento, dominante de color, exceso de nitidez, … — de `--recompute-distortions`) y una **nota de tono de piel** para los retratos cuyo croma de piel se aleja de lo natural (`--recompute-skin-tone`). Las tres son informativas — explican la foto, no cambian el agregado — y cada fila solo aparece cuando su columna subyacente está poblada.
+
 ### Crítica con VLM `[GPU]` `[16gb/24gb]`
 
 Usa el VLM configurado (Qwen3.5-2B o Qwen3.5-4B) para una crítica con conciencia de contexto. Requiere el perfil de VRAM de 16gb o 24gb y `viewer.features.show_vlm_critique: true`.
+
+El prompt es una plantilla escalonada configurable (`critique.vlm`) que inyecta el desglose completo de reglas, las penalizaciones y el EXIF, y la respuesta se presenta como **Observación / Evaluación / Sugerencias**. El resultado se almacena en caché por foto (`photos.vlm_critique`) y se traduce bajo demanda, con un botón **Regenerar** para recalcularlo. Se ejecuta sobre la miniatura almacenada, de modo que los archivos RAW se critican correctamente en lugar de fallar en silencio.
 
 API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
 
@@ -485,6 +497,16 @@ Para cada grupo, elige la foto o fotos a conservar; al confirmar se descartan el
 
 **Chip de My Taste.** Cada confirmación registra filas de comparación con `source='culling'` que entrenan al clasificador personal, así que la cabecera muestra un pequeño chip "My Taste · N comparaciones" que se actualiza tras cada decisión: la IA aprende tu ojo mientras descartas (`GET /api/ranker/status`).
 
+### Descarte automático
+
+Un botón **Descarte automático** de la barra de herramientas descarta todo un ámbito en una sola pasada en lugar de grupo por grupo. Elige el ámbito con los controles de granularidad/ámbito (todos los grupos, o solo ráfagas / similares / escenas, opcionalmente un álbum o una ventana de fechas), fija un **rigor** —el presupuesto de fotos a conservar, donde más alto conserva menos por grupo— y previsualiza. Cada grupo conserva su mejor foto más todo lo que quede dentro del margen de rigor (con un mínimo por grupo como suelo) y descarta el resto.
+
+La vista previa es una **simulación** (no se escribe nada): muestra el reparto de conservar/descartar por grupo. Confirma para aplicar — los descartes se registran y, como en todo descarte, entrenan a "My Taste"; un álbum opcional de **Destacados** recopila de forma idempotente la mejor foto de cada grupo que puntúe al menos `auto_cull.highlights_min`. Una insignia de aviso "mejor foto en este grupo" señala los grupos en los que el descarte automático conservaría un fotograma distinto del líder actual. `POST /api/culling/auto`; se configura mediante el bloque [`auto_cull`](CONFIGURATION.md#auto-cull).
+
+### Pantalla completa
+
+Pulsa **`F`** (o el interruptor de la cabecera) para activar la API de pantalla completa del navegador y revisar de borde a borde — el laboratorio llena la pantalla sin ningún elemento de interfaz de la aplicación. La tecla figura en la leyenda de atajos del laboratorio; pulsa `F` o `Esc` para salir.
+
 ### Lupa / zoom con la tecla Z
 
 Pulsa **`Z`** en la caja de luz de vista única para alternar una lupa estilo Photo Mechanic (ajustar ↔ 2×; rueda/`+`/`-` hacen zoom hasta el 800%). Más allá de la escala de ajuste, el panel cambia su miniatura por la fuente `/image` a resolución completa, de modo que juzgas el enfoque crítico con píxeles reales sin salir de la vista. En la tira de contactos de Escenas, `Z` alterna una lupa flotante que sigue al cursor sobre una baldosa (obtenida de la imagen a resolución completa), con un control deslizante de zoom ajustable. Las miniaturas almacenadas se limitan a 640px, así que la lupa es la forma de inspeccionar los píxeles más allá de eso.
@@ -492,6 +514,8 @@ Pulsa **`Z`** en la caja de luz de vista única para alternar una lupa estilo Ph
 ### Insignias por cara
 
 En la caja de luz de descarte por ráfaga/similar, cada cara detectada lleva sus propias insignias —ojos abiertos/cerrados, expresión deficiente y confianza de detección— en lugar de una única marca de parpadeo a nivel de foto. Esto facilita descartar fotos de grupo: puedes ver de un vistazo qué cara tiene los ojos cerrados o una expresión débil. Las insignias se obtienen para todo un grupo en una sola llamada por lotes (`POST /api/culling-group/faces`).
+
+El **panel de caras** del laboratorio codifica por color cada recorte de cara en verde / naranja / rojo a partir de sus puntuaciones continuas de ojos abiertos y sonrisa, y añade controles deslizantes de umbral de **ojos** y **sonrisa** en vivo para que puedas ajustar sobre la marcha qué cuenta como un parpadeo o una expresión débil. Los umbrales son las claves de configuración `face_detection.eyes_closed_max` y `face_detection.poor_expression_min` (ambas con valor por defecto `4.0`); los controles deslizantes parten de ahí.
 
 **Comparación sincronizada (2-up / 4-up).** La cabecera de la caja de luz tiene botones Única / Comparar 2 / Comparar 4. En modo de comparación, los paneles comparten una única transformación de panorámica/zoom, de modo que el zoom con la rueda del ratón o el arrastre de panorámica en cualquier panel los mueve todos al recorte idéntico: la forma de elegir el fotograma más nítido de una ráfaga inspeccionando realmente los píxeles. Al hacer doble clic se alterna ajustar ↔ zoom; más allá de la escala de ajuste, cada panel cambia de forma diferida su miniatura de 1920px por la fuente `/image` a resolución completa para que la inspección sea nítida. Sin cambios en el backend: ambas rutas de imagen ya existen. (El pellizco táctil aún no está implementado; usa la rueda en escritorio.)
 
@@ -814,7 +838,7 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `GET /api/type_counts` | Recuentos de fotos por tipo |
 | `GET /api/similar_photos/{path}` | Fotos similares (modos: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Búsqueda semántica de texto a imagen (`scope=text` = solo texto de OCR/subtítulos) |
-| `GET /api/critique?path=&mode=` | Crítica con IA (basada en reglas o VLM) |
+| `GET /api/critique?path=&mode=&refresh=` | Crítica con IA (basada en reglas o VLM); `refresh=true` regenera la crítica con VLM en caché |
 | `GET /api/ranker/status` | Estado del clasificador personal para la ordenación "My Taste" (% de cobertura aprendida, precisión sobre datos reservados) |
 | `GET /api/config` | Configuración del visor |
 
@@ -893,6 +917,10 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `POST /api/albums/{id}/share` | Generar un token de compartir |
 | `DELETE /api/albums/{id}/share` | Revocar un token de compartir |
 | `GET /api/shared/album/{id}?token=` | Ver un álbum compartido (sin autenticación) |
+| `POST /api/shared/album/{id}/session` | Canjear un token de compartir (+ PIN opcional) por una sesión de revisión de cliente (con límite de frecuencia) |
+| `PUT /api/shared/album/{id}/picks` | El cliente crea o actualiza un corazón/comentario en una foto (sesión de revisión) |
+| `GET /api/shared/album/{id}/picks` | El cliente lee sus propias selecciones (sesión de revisión) |
+| `GET /api/albums/{id}/picks` | `[Edition]` El propietario lee todas las selecciones del cliente para el álbum |
 
 ### Recuerdos, línea de tiempo, mapa y subtítulos
 
@@ -968,6 +996,7 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `POST /api/similar-groups/select` | Seleccionar las fotos a conservar de un grupo similar |
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos de ráfaga/similares/escena para descarte. `group_by` (predeterminado `all`) selecciona los grupos combinados de ráfaga+similares, solo de ráfaga, solo de similares o de escena cronológicos (los grupos de escena añaden `type`/`start`/`end`/`moment`/`moment_confidence`; el parámetro `sort` se ignora en el modo escena). `exclude_rejected` (predeterminado `true`) oculta las fotos con `is_rejected=1`; los grupos con menos de 2 fotos restantes se descartan |
 | `POST /api/culling-groups/confirm` | Confirmar las selecciones de descarte (ráfaga, similares o escena). Cuerpo `{group_id, type, paths, keep_paths}`; `type:'scene'` registra las filas de comparación del descarte de escena |
+| `POST /api/culling/auto` | `[Edition]` Descarte automático de un botón para todo un ámbito. Cuerpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (predeterminado `true`) devuelve la vista previa de conservar/descartar por grupo, una aplicación descarta el resto y registra pares de descarte |
 | `POST /api/culling-group/faces` | Insignias por cara (ojos abiertos/cerrados, expresión, confianza) de un grupo, en un solo lote |
 | `GET /api/scenes` | Escenas cronológicas de fotos líderes de ráfaga (exploración de solo lectura) |
 

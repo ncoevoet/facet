@@ -35,7 +35,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -102,7 +107,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.5,
@@ -162,7 +172,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.1,
@@ -215,7 +230,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -277,7 +297,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -312,7 +337,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -349,7 +379,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.419,
@@ -388,7 +423,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.901,
@@ -423,7 +463,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -465,7 +510,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.171,
@@ -556,7 +606,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -601,7 +656,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.328,
@@ -725,7 +785,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.417,
@@ -773,7 +838,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.93,
@@ -866,7 +936,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -913,7 +988,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -958,7 +1038,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.512,
@@ -1010,7 +1095,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "tags": {
         "architecture": [
@@ -1099,7 +1189,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.922,
@@ -1144,7 +1239,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -1177,7 +1277,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1222,7 +1327,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.3,
@@ -1271,7 +1381,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.72,
@@ -1320,7 +1435,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 1.5,
@@ -1385,7 +1505,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1427,7 +1552,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1469,7 +1599,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.216,
@@ -1516,7 +1651,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -1594,7 +1734,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.463,
@@ -1702,7 +1847,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -1737,7 +1887,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -1773,7 +1928,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1809,7 +1969,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {}
     },
@@ -1843,7 +2008,12 @@
         "subject_sharpness_percent": 0,
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
-        "bg_separation_percent": 0
+        "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0
       },
       "modifiers": {}
     }
@@ -1985,6 +2155,10 @@
     "weight_sharpness": 0.2,
     "weight_blink": 0.15
   },
+  "auto_cull": {
+    "default_strictness": 50,
+    "highlights_min": 8.0
+  },
   "similarity_groups": {
     "default_threshold": 0.85,
     "min_group_size": 2,
@@ -2008,12 +2182,24 @@
     "pooling": "max",
     "thresholds": {
       "caption": {
-        "open_clip": { "min_confidence": 0.30, "min_margin": 0.02 },
-        "transformers": { "min_confidence": 0.12, "min_margin": 0.01 }
+        "open_clip": {
+          "min_confidence": 0.3,
+          "min_margin": 0.02
+        },
+        "transformers": {
+          "min_confidence": 0.12,
+          "min_margin": 0.01
+        }
       },
       "image": {
-        "open_clip": { "min_confidence": 0.20, "min_margin": 0.01 },
-        "transformers": { "min_confidence": 0.10, "min_margin": 0.01 }
+        "open_clip": {
+          "min_confidence": 0.2,
+          "min_margin": 0.01
+        },
+        "transformers": {
+          "min_confidence": 0.1,
+          "min_margin": 0.01
+        }
       }
     },
     "priors": {
@@ -2021,73 +2207,440 @@
       "weight": 0.04,
       "caption_tag_scale": 0.25,
       "rules": [
-        { "kind": "structural", "when": { "is_group_portrait": true, "face_count_min": 4 }, "boost": { "group_gathering": 1.0, "celebration": 0.4 } },
-        { "kind": "structural", "when": { "face_count_min": 1, "face_count_max": 2, "face_ratio_min": 0.15 }, "boost": { "portrait": 1.0 } },
-        { "kind": "tag", "when": { "tags_any": ["beach", "ocean", "sea", "sand", "seaside", "coast"] }, "boost": { "beach": 0.8 } },
-        { "kind": "tag", "when": { "tags_any": ["concert", "stage", "band", "festival", "gig"] }, "boost": { "concert": 0.8 } },
-        { "kind": "tag", "when": { "tags_any": ["wildlife", "animal", "bird", "deer", "elephant", "safari"] }, "boost": { "nature_wildlife": 0.8 } },
-        { "kind": "tag", "when": { "tags_any": ["skyline", "skyscraper", "downtown", "cityscape", "buildings"] }, "boost": { "cityscape": 0.8 } },
-        { "kind": "tag", "when": { "tags_any": ["child", "kid", "toddler", "baby", "children"] }, "boost": { "children": 0.8 } },
-        { "kind": "tag", "when": { "tags_any": ["dog", "cat", "puppy", "kitten", "pet"] }, "boost": { "pets": 0.8 } },
-        { "kind": "tag", "when": { "tags_any": ["snow", "ski", "snowboard", "winter", "snowy"] }, "boost": { "snow_winter": 0.8 } },
-        { "kind": "tag", "when": { "tags_any": ["mountain", "alpine", "peak", "summit", "hiking"] }, "boost": { "mountains": 0.8 } },
-        { "kind": "tag", "when": { "tags_any": ["stadium", "match", "race", "athlete", "sport"] }, "boost": { "sports": 0.8 } }
+        {
+          "kind": "structural",
+          "when": {
+            "is_group_portrait": true,
+            "face_count_min": 4
+          },
+          "boost": {
+            "group_gathering": 1.0,
+            "celebration": 0.4
+          }
+        },
+        {
+          "kind": "structural",
+          "when": {
+            "face_count_min": 1,
+            "face_count_max": 2,
+            "face_ratio_min": 0.15
+          },
+          "boost": {
+            "portrait": 1.0
+          }
+        },
+        {
+          "kind": "tag",
+          "when": {
+            "tags_any": [
+              "beach",
+              "ocean",
+              "sea",
+              "sand",
+              "seaside",
+              "coast"
+            ]
+          },
+          "boost": {
+            "beach": 0.8
+          }
+        },
+        {
+          "kind": "tag",
+          "when": {
+            "tags_any": [
+              "concert",
+              "stage",
+              "band",
+              "festival",
+              "gig"
+            ]
+          },
+          "boost": {
+            "concert": 0.8
+          }
+        },
+        {
+          "kind": "tag",
+          "when": {
+            "tags_any": [
+              "wildlife",
+              "animal",
+              "bird",
+              "deer",
+              "elephant",
+              "safari"
+            ]
+          },
+          "boost": {
+            "nature_wildlife": 0.8
+          }
+        },
+        {
+          "kind": "tag",
+          "when": {
+            "tags_any": [
+              "skyline",
+              "skyscraper",
+              "downtown",
+              "cityscape",
+              "buildings"
+            ]
+          },
+          "boost": {
+            "cityscape": 0.8
+          }
+        },
+        {
+          "kind": "tag",
+          "when": {
+            "tags_any": [
+              "child",
+              "kid",
+              "toddler",
+              "baby",
+              "children"
+            ]
+          },
+          "boost": {
+            "children": 0.8
+          }
+        },
+        {
+          "kind": "tag",
+          "when": {
+            "tags_any": [
+              "dog",
+              "cat",
+              "puppy",
+              "kitten",
+              "pet"
+            ]
+          },
+          "boost": {
+            "pets": 0.8
+          }
+        },
+        {
+          "kind": "tag",
+          "when": {
+            "tags_any": [
+              "snow",
+              "ski",
+              "snowboard",
+              "winter",
+              "snowy"
+            ]
+          },
+          "boost": {
+            "snow_winter": 0.8
+          }
+        },
+        {
+          "kind": "tag",
+          "when": {
+            "tags_any": [
+              "mountain",
+              "alpine",
+              "peak",
+              "summit",
+              "hiking"
+            ]
+          },
+          "boost": {
+            "mountains": 0.8
+          }
+        },
+        {
+          "kind": "tag",
+          "when": {
+            "tags_any": [
+              "stadium",
+              "match",
+              "race",
+              "athlete",
+              "sport"
+            ]
+          },
+          "boost": {
+            "sports": 0.8
+          }
+        }
       ],
       "event_types": {
         "wedding": {
           "rules": [
-            { "kind": "structural", "when": { "is_group_portrait": true, "face_count_min": 4 }, "boost": { "family_formals": 1.0 } },
-            { "kind": "structural", "when": { "face_count_min": 1, "face_count_max": 2, "face_ratio_min": 0.15 }, "boost": { "couple_portraits": 0.5, "first_kiss": 0.5, "first_dance": 0.5 } },
-            { "kind": "tag", "when": { "tags_any": ["cake"] }, "boost": { "cake_cutting": 1.0 } }
+            {
+              "kind": "structural",
+              "when": {
+                "is_group_portrait": true,
+                "face_count_min": 4
+              },
+              "boost": {
+                "family_formals": 1.0
+              }
+            },
+            {
+              "kind": "structural",
+              "when": {
+                "face_count_min": 1,
+                "face_count_max": 2,
+                "face_ratio_min": 0.15
+              },
+              "boost": {
+                "couple_portraits": 0.5,
+                "first_kiss": 0.5,
+                "first_dance": 0.5
+              }
+            },
+            {
+              "kind": "tag",
+              "when": {
+                "tags_any": [
+                  "cake"
+                ]
+              },
+              "boost": {
+                "cake_cutting": 1.0
+              }
+            }
           ]
         }
       }
     },
-    "vlm_tiebreak": { "enabled": false, "min_confidence": 0.0, "min_margin": 0.04 },
+    "vlm_tiebreak": {
+      "enabled": false,
+      "min_confidence": 0.0,
+      "min_margin": 0.04
+    },
     "caption_min_confidence": 0,
-    "transitions": { "stay_prob": 0.7, "forward_bias": 0.0, "weight": 0.3 },
+    "transitions": {
+      "stay_prob": 0.7,
+      "forward_bias": 0.0,
+      "weight": 0.3
+    },
     "event_types": {
       "general": {
-        "celebration": ["people celebrating at a party", "a festive celebration with balloons and decorations", "blowing out candles on a birthday cake", "friends toasting drinks at a party"],
-        "dining": ["people eating a meal at a restaurant", "a table full of food and drinks", "friends sharing dinner around a table", "a plate of food at a cafe"],
-        "beach": ["people at a sandy beach by the sea", "a beach with ocean waves and sunshine", "sunbathing on the seaside", "playing in the sand at the beach"],
-        "water_activity": ["people swimming in a pool or lake", "kayaking and boating on the water", "surfing or paddleboarding on the sea", "splashing in the water"],
-        "mountains": ["a hiker on a mountain trail", "a scenic mountain landscape with peaks", "standing on a mountain summit", "alpine scenery with rugged mountains"],
-        "nature_wildlife": ["a wild animal in nature", "birds in their natural habitat", "wildlife such as deer or elephants", "a close-up of an animal in the wild"],
-        "cityscape": ["a city skyline with tall buildings", "an urban street scene downtown", "city lights at night", "a busy city square"],
-        "travel_landmark": ["a famous travel landmark or monument", "tourists visiting a historic site", "a well-known tourist attraction", "sightseeing at a monument"],
-        "concert": ["a live music concert with a crowd", "a band performing on stage", "a singer at a concert with stage lights", "a music festival crowd"],
-        "sports": ["people playing a team sport", "an athlete competing in a sporting event", "a sports match on a field or court", "running a race or marathon"],
-        "group_gathering": ["a group of people gathered together", "friends posing together for a photo", "a large family gathered for a group photo", "a social gathering of people"],
-        "portrait": ["a portrait of a single person", "a close-up headshot of a person", "a person posing for a photo", "an individual portrait"],
-        "children": ["children playing together", "a young child or toddler", "kids having fun outdoors", "a baby being held"],
-        "pets": ["a pet dog or cat", "a person with their pet", "a domestic animal at home", "a cute puppy or kitten"],
-        "nightlife": ["people at a bar or nightclub", "a night out with friends and drinks", "a lively nightlife scene with lights", "dancing at a club"],
-        "ceremony": ["a formal ceremony or ritual", "a wedding or graduation ceremony", "people attending a solemn ceremony", "an official ceremony with an audience"],
-        "scenic_landscape": ["a scenic landscape view of nature", "a sunset or sunrise over the horizon", "a peaceful countryside vista", "a panoramic view of the outdoors"],
-        "snow_winter": ["a snowy winter scene", "people in the snow with winter clothing", "skiing or snowboarding in the mountains", "a landscape covered in snow"],
-        "home_indoor": ["people relaxing indoors at home", "a cozy indoor home scene", "family time in the living room", "an indoor room interior"],
-        "road_vehicle": ["a car or vehicle on the road", "a road trip with a vehicle", "a motorcycle or bicycle on a street", "a vehicle parked outdoors"]
+        "celebration": [
+          "people celebrating at a party",
+          "a festive celebration with balloons and decorations",
+          "blowing out candles on a birthday cake",
+          "friends toasting drinks at a party"
+        ],
+        "dining": [
+          "people eating a meal at a restaurant",
+          "a table full of food and drinks",
+          "friends sharing dinner around a table",
+          "a plate of food at a cafe"
+        ],
+        "beach": [
+          "people at a sandy beach by the sea",
+          "a beach with ocean waves and sunshine",
+          "sunbathing on the seaside",
+          "playing in the sand at the beach"
+        ],
+        "water_activity": [
+          "people swimming in a pool or lake",
+          "kayaking and boating on the water",
+          "surfing or paddleboarding on the sea",
+          "splashing in the water"
+        ],
+        "mountains": [
+          "a hiker on a mountain trail",
+          "a scenic mountain landscape with peaks",
+          "standing on a mountain summit",
+          "alpine scenery with rugged mountains"
+        ],
+        "nature_wildlife": [
+          "a wild animal in nature",
+          "birds in their natural habitat",
+          "wildlife such as deer or elephants",
+          "a close-up of an animal in the wild"
+        ],
+        "cityscape": [
+          "a city skyline with tall buildings",
+          "an urban street scene downtown",
+          "city lights at night",
+          "a busy city square"
+        ],
+        "travel_landmark": [
+          "a famous travel landmark or monument",
+          "tourists visiting a historic site",
+          "a well-known tourist attraction",
+          "sightseeing at a monument"
+        ],
+        "concert": [
+          "a live music concert with a crowd",
+          "a band performing on stage",
+          "a singer at a concert with stage lights",
+          "a music festival crowd"
+        ],
+        "sports": [
+          "people playing a team sport",
+          "an athlete competing in a sporting event",
+          "a sports match on a field or court",
+          "running a race or marathon"
+        ],
+        "group_gathering": [
+          "a group of people gathered together",
+          "friends posing together for a photo",
+          "a large family gathered for a group photo",
+          "a social gathering of people"
+        ],
+        "portrait": [
+          "a portrait of a single person",
+          "a close-up headshot of a person",
+          "a person posing for a photo",
+          "an individual portrait"
+        ],
+        "children": [
+          "children playing together",
+          "a young child or toddler",
+          "kids having fun outdoors",
+          "a baby being held"
+        ],
+        "pets": [
+          "a pet dog or cat",
+          "a person with their pet",
+          "a domestic animal at home",
+          "a cute puppy or kitten"
+        ],
+        "nightlife": [
+          "people at a bar or nightclub",
+          "a night out with friends and drinks",
+          "a lively nightlife scene with lights",
+          "dancing at a club"
+        ],
+        "ceremony": [
+          "a formal ceremony or ritual",
+          "a wedding or graduation ceremony",
+          "people attending a solemn ceremony",
+          "an official ceremony with an audience"
+        ],
+        "scenic_landscape": [
+          "a scenic landscape view of nature",
+          "a sunset or sunrise over the horizon",
+          "a peaceful countryside vista",
+          "a panoramic view of the outdoors"
+        ],
+        "snow_winter": [
+          "a snowy winter scene",
+          "people in the snow with winter clothing",
+          "skiing or snowboarding in the mountains",
+          "a landscape covered in snow"
+        ],
+        "home_indoor": [
+          "people relaxing indoors at home",
+          "a cozy indoor home scene",
+          "family time in the living room",
+          "an indoor room interior"
+        ],
+        "road_vehicle": [
+          "a car or vehicle on the road",
+          "a road trip with a vehicle",
+          "a motorcycle or bicycle on a street",
+          "a vehicle parked outdoors"
+        ]
       },
       "wedding": {
-        "getting_ready_bride": ["a bride getting ready", "bridal hair and makeup preparation", "bridesmaids helping the bride into her wedding dress", "bride putting on jewelry before the wedding"],
-        "getting_ready_groom": ["a groom getting ready", "groom putting on his suit and tie", "groomsmen helping the groom with his boutonniere", "men dressing for a wedding"],
-        "ceremony_entrance": ["the wedding processional down the aisle", "bride walking down the aisle with her father", "guests seated as the wedding ceremony begins", "flower girl entering the ceremony"],
-        "vows": ["the couple exchanging vows at the altar", "bride and groom holding hands during the ceremony", "an officiant leading a wedding ceremony"],
-        "ring_exchange": ["exchanging wedding rings", "placing a wedding ring on the finger", "close-up of wedding rings during the ceremony"],
-        "first_kiss": ["the first kiss as a married couple at the altar", "bride and groom kissing during the ceremony"],
-        "recessional": ["newlyweds walking back up the aisle", "wedding recessional with guests cheering and throwing confetti"],
-        "family_formals": ["a formal group portrait of the wedding family", "a large group of relatives posed for a wedding photo", "the wedding party group portrait"],
-        "couple_portraits": ["a romantic portrait of the bride and groom alone", "newlyweds posing together outdoors", "a wedding couple portrait session"],
-        "cocktail_hour": ["guests mingling with drinks at a cocktail hour", "people chatting and holding champagne at a wedding reception"],
-        "reception_details": ["decorated wedding reception tables", "wedding centerpieces and place settings", "the wedding cake on display", "venue and floral decor close-ups"],
-        "dinner_toasts": ["a guest giving a speech at the wedding reception", "the best man toast with a microphone", "a seated wedding dinner with guests listening to a toast"],
-        "cake_cutting": ["the couple cutting the wedding cake together", "bride and groom slicing the cake"],
-        "first_dance": ["the bride and groom sharing their first dance", "newlyweds dancing alone on the dance floor"],
-        "party_dancing": ["guests dancing at a wedding party", "a crowded dance floor with colorful lights at a reception"],
-        "send_off": ["the wedding send-off with sparklers", "newlyweds leaving as guests wave goodbye", "the couple departing in a getaway car"]
+        "getting_ready_bride": [
+          "a bride getting ready",
+          "bridal hair and makeup preparation",
+          "bridesmaids helping the bride into her wedding dress",
+          "bride putting on jewelry before the wedding"
+        ],
+        "getting_ready_groom": [
+          "a groom getting ready",
+          "groom putting on his suit and tie",
+          "groomsmen helping the groom with his boutonniere",
+          "men dressing for a wedding"
+        ],
+        "ceremony_entrance": [
+          "the wedding processional down the aisle",
+          "bride walking down the aisle with her father",
+          "guests seated as the wedding ceremony begins",
+          "flower girl entering the ceremony"
+        ],
+        "vows": [
+          "the couple exchanging vows at the altar",
+          "bride and groom holding hands during the ceremony",
+          "an officiant leading a wedding ceremony"
+        ],
+        "ring_exchange": [
+          "exchanging wedding rings",
+          "placing a wedding ring on the finger",
+          "close-up of wedding rings during the ceremony"
+        ],
+        "first_kiss": [
+          "the first kiss as a married couple at the altar",
+          "bride and groom kissing during the ceremony"
+        ],
+        "recessional": [
+          "newlyweds walking back up the aisle",
+          "wedding recessional with guests cheering and throwing confetti"
+        ],
+        "family_formals": [
+          "a formal group portrait of the wedding family",
+          "a large group of relatives posed for a wedding photo",
+          "the wedding party group portrait"
+        ],
+        "couple_portraits": [
+          "a romantic portrait of the bride and groom alone",
+          "newlyweds posing together outdoors",
+          "a wedding couple portrait session"
+        ],
+        "cocktail_hour": [
+          "guests mingling with drinks at a cocktail hour",
+          "people chatting and holding champagne at a wedding reception"
+        ],
+        "reception_details": [
+          "decorated wedding reception tables",
+          "wedding centerpieces and place settings",
+          "the wedding cake on display",
+          "venue and floral decor close-ups"
+        ],
+        "dinner_toasts": [
+          "a guest giving a speech at the wedding reception",
+          "the best man toast with a microphone",
+          "a seated wedding dinner with guests listening to a toast"
+        ],
+        "cake_cutting": [
+          "the couple cutting the wedding cake together",
+          "bride and groom slicing the cake"
+        ],
+        "first_dance": [
+          "the bride and groom sharing their first dance",
+          "newlyweds dancing alone on the dance floor"
+        ],
+        "party_dancing": [
+          "guests dancing at a wedding party",
+          "a crowded dance floor with colorful lights at a reception"
+        ],
+        "send_off": [
+          "the wedding send-off with sparklers",
+          "newlyweds leaving as guests wave goodbye",
+          "the couple departing in a getaway car"
+        ]
       }
     }
+  },
+  "distortion_attributes": {
+    "enabled": true,
+    "top_n": 5,
+    "thresholds": {
+      "open_clip": {
+        "temperature": 0.02,
+        "min_confidence": 0.6
+      },
+      "transformers": {
+        "temperature": 0.05,
+        "min_confidence": 0.6
+      }
+    },
+    "vocabulary": {}
+  },
+  "skin_tone": {
+    "cast_delta_threshold": 12.0
   },
   "capsules": {
     "min_aggregate": 6.0,
@@ -2301,7 +2854,9 @@
     "min_confidence_percent": 65,
     "min_face_size": 20,
     "blink_ear_threshold": 0.28,
-    "min_faces_for_group": 4
+    "min_faces_for_group": 4,
+    "eyes_closed_max": 4.0,
+    "poor_expression_min": 4.0
   },
   "monochrome_detection": {
     "saturation_threshold_percent": 5
@@ -2598,7 +3153,24 @@
     "webhooks": [],
     "actions": {}
   },
-  "share_secret": "fe64e67f9a98fbfca566a1ddb24ea9e85439b93528fdab0b336a74700b532a59",
+  "immich": {
+    "url": "",
+    "api_key": "",
+    "path_map": [
+      {
+        "facet_prefix": "",
+        "immich_prefix": ""
+      }
+    ],
+    "push": {
+      "ratings": true,
+      "favorites": true,
+      "top_picks_album": "",
+      "top_picks_min_rating": 4
+    },
+    "timeout_seconds": 30
+  },
+  "share_secret": "784d380eaec27650058f23c585d8f982ef1edab50c21a9bbc5df68a635647726",
   "storage": {
     "mode": "database",
     "filesystem_path": "./storage"
@@ -2607,13 +3179,23 @@
     "score_to_rating": {
       "enabled": false,
       "source": "aggregate",
-      "thresholds": [9.0, 8.0, 7.0, 5.5],
+      "thresholds": [
+        9.0,
+        8.0,
+        7.0,
+        5.5
+      ],
       "favorite_min": 9.0,
       "only_when_unrated": true
     }
   },
   "translation": {
     "target_language": "fr"
+  },
+  "critique": {
+    "vlm": {
+      "max_new_tokens": 320
+    }
   },
   "performance": {
     "mmap_size_mb": 2048,

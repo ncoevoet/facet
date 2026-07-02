@@ -317,6 +317,14 @@ Share albums with external users via tokenized links. No authentication required
 
 API: see the [API Endpoints](#api-endpoints) section below.
 
+### Client Proofing
+
+When `viewer.features.show_proofing` is enabled (default `false`), a shared-album link can run in **proofing mode**: the client (no account) opens the share link, optionally enters a PIN (`viewer.proofing.pin`), and can then **heart** photos and leave **comments** — a lightweight way to let a client choose their favorites from a delivery.
+
+Client picks are fully isolated from your library. They live in a dedicated `album_client_picks` table, are bounded to that album's photos, and never touch your own favorites/ratings (`photos.is_favorite` / `user_preferences`) or train the personal ranker. As the owner you read the picks from an `[Edition]` dialog on the album card. Sessions are short-lived (`viewer.proofing.session_minutes`, default 24h) and stop working the moment the album is unshared or proofing is disabled.
+
+Controlled by `viewer.features.show_proofing` (default: `false`). See [Configuration — Client Proofing](CONFIGURATION.md#client-proofing).
+
 ## AI Critique
 
 Breaks down a photo's scores into strengths, weaknesses, and suggestions.
@@ -325,9 +333,13 @@ Breaks down a photo's scores into strengths, weaknesses, and suggestions.
 
 Available on all VRAM profiles. Analyzes stored metrics (aesthetic, composition, sharpness, face quality, etc.) and generates a structured explanation of the score.
 
+The breakdown also surfaces the explainable **form and color-harmony** rows (symmetry, balance, edge-orientation entropy, fractal complexity, Matsuda color harmony — populated by `--recompute-form`), **distortion-attribute chips** for any likely defects (motion blur, color cast, oversharpening, … — from `--recompute-distortions`), and a **skin-tone note** for portraits whose skin chroma drifts off-natural (`--recompute-skin-tone`). All three are advisory — they explain the photo, they do not change the aggregate — and each row shows only when its underlying column is populated.
+
 ### VLM Critique `[GPU]` `[16gb/24gb]`
 
 Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique. Requires 16gb or 24gb VRAM profile and `viewer.features.show_vlm_critique: true`.
+
+The prompt is a configurable ladder (`critique.vlm`) that injects the full rule breakdown, penalties and EXIF, and the reply is rendered as **Observation / Assessment / Suggestions**. The result is cached per photo (`photos.vlm_critique`) and translated on demand, with a **Regenerate** button to recompute it. It runs against the stored thumbnail, so RAW files critique correctly instead of failing silently.
 
 API: see the [API Endpoints](#api-endpoints) section below.
 
@@ -489,6 +501,16 @@ For each group, pick the keeper(s); confirming rejects the rest. Confirms are de
 
 **My Taste chip.** Every confirm records `source='culling'` comparison rows that train the personal ranker, so the header shows a small "My Taste · N comparisons" chip that updates after each decision — the AI learns your eye as you cull (`GET /api/ranker/status`).
 
+### Auto-cull
+
+A toolbar **Auto-cull** button culls a whole scope in one pass instead of group-by-group. Pick the scope with the granularity/scope controls (all groups, or only bursts / similars / scenes, optionally an album or date window), set a **strictness** — the keeper budget, where higher keeps fewer per group — and preview. Each group keeps its best photo plus everything within the strictness margin (floored at a per-group minimum) and rejects the rest.
+
+The preview is a **dry run** (nothing is written): it shows the per-group keep/reject split. Confirm to apply — rejections are recorded and, like every cull, train "My Taste"; an optional **Highlights** album idempotently collects each group's best photo scoring at least `auto_cull.highlights_min`. A "better photo in this group" hint badge flags groups where auto-cull would keep a different frame than the current lead. `POST /api/culling/auto`; configured via the [`auto_cull`](CONFIGURATION.md#auto-cull) block.
+
+### Fullscreen
+
+Press **`F`** (or the header toggle) to drive the browser Fullscreen API and review edge-to-edge — the darkroom fills the screen with no app chrome. The key is listed in the darkroom's shortcut legend; press `F` or `Esc` to exit.
+
 ### Loupe / Z-key zoom
 
 Press **`Z`** in the single-view lightbox to toggle a Photo-Mechanic-style loupe (fit ↔ 2×; wheel/`+`/`-` zoom up to 800%). Past the fit scale the pane swaps its thumbnail for the full-resolution `/image` source, so you judge critical focus on real pixels without leaving the view. On the Scenes contact strip, `Z` toggles a hover-magnifier that follows the cursor over a tile (sourced from the full-res image), with an adjustable zoom slider. Stored thumbnails cap at 640px, so the loupe is the way to pixel-peek beyond that.
@@ -496,6 +518,8 @@ Press **`Z`** in the single-view lightbox to toggle a Photo-Mechanic-style loupe
 ### Per-Face Badges
 
 In the burst/similar culling lightbox, each detected face carries its own badges — eyes open/closed, poor expression, and detection confidence — instead of a single photo-level blink flag. This makes group shots easier to cull: you can see at a glance which face has closed eyes or a weak expression. The badges are fetched for a whole group in one batch call (`POST /api/culling-group/faces`).
+
+The darkroom's **face panel** colour-codes each face crop green / orange / red from its continuous eyes-open and smile scores, and adds live **eyes** and **smile** threshold sliders so you can tune what counts as a blink or a weak expression on the fly. The cut-offs are the config keys `face_detection.eyes_closed_max` and `face_detection.poor_expression_min` (both default `4.0`); the sliders start there.
 
 **Synced compare (2-up / 4-up).** The lightbox header has Single / Compare 2 / Compare 4 buttons. In compare mode the panes share one pan/zoom transform, so scroll-wheel zoom or drag-pan on any pane moves them all to the identical crop — the way to pick the sharpest frame of a burst by actually peeping pixels. Double-click toggles fit ↔ zoom; past the fit scale each pane lazily swaps its 1920px thumbnail for the full-resolution `/image` source so the peek is crisp. No backend change — both image routes already exist. (Touch-pinch is not yet wired; use the wheel on desktop.)
 
@@ -819,7 +843,7 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/type_counts` | Photo counts per type |
 | `GET /api/similar_photos/{path}` | Similar photos (modes: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantic text-to-image search (`scope=text` = OCR/caption text only) |
-| `GET /api/critique?path=&mode=` | AI critique (rule-based or VLM) |
+| `GET /api/critique?path=&mode=&refresh=` | AI critique (rule-based or VLM); `refresh=true` regenerates the cached VLM critique |
 | `GET /api/ranker/status` | Personal-ranker status for the "My Taste" sort (learned coverage %, held-out accuracy) |
 | `GET /api/config` | Viewer configuration |
 
@@ -898,6 +922,10 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `POST /api/albums/{id}/share` | Generate share token |
 | `DELETE /api/albums/{id}/share` | Revoke share token |
 | `GET /api/shared/album/{id}?token=` | View shared album (no auth) |
+| `POST /api/shared/album/{id}/session` | Exchange a share token (+ optional PIN) for a client proofing session (rate-limited) |
+| `PUT /api/shared/album/{id}/picks` | Client upserts a heart/comment on a photo (proofing session) |
+| `GET /api/shared/album/{id}/picks` | Client reads their own picks (proofing session) |
+| `GET /api/albums/{id}/picks` | `[Edition]` Owner reads all client picks for the album |
 
 ### Memories, Timeline, Map & Captions
 
@@ -973,6 +1001,7 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `POST /api/similar-groups/select` | Select keepers from a similar group |
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Burst/similar/scene groups for culling. `group_by` (default `all`) selects merged burst+similar, burst-only, similar-only, or chronological scene groups (scene groups add `type`/`start`/`end`/`moment`/`moment_confidence`; the `sort` param is ignored in scene mode). `exclude_rejected` (default `true`) hides photos with `is_rejected=1`; groups with fewer than 2 remaining photos are dropped |
 | `POST /api/culling-groups/confirm` | Confirm culling selections (burst, similar, or scene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` records the scene-cull comparison rows |
+| `POST /api/culling/auto` | `[Edition]` One-button auto-cull for a whole scope. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (default `true`) returns the per-group keep/reject preview, an apply rejects the rest and records culling pairs |
 | `POST /api/culling-group/faces` | Per-face badges (eyes open/closed, expression, confidence) for a group, in one batch |
 | `GET /api/scenes` | Chronological scenes of burst-lead photos (read-only browse) |
 

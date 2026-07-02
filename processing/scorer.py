@@ -18,9 +18,35 @@ import struct
 import warnings
 import json
 import logging
+import functools
+import re as _re
 from pathlib import Path
 from db import init_database, get_connection
+from db.schema import FACES_UPSERT_SQL, face_upsert_row
 from db.vec import sync_vec_batch
+
+
+@functools.lru_cache(maxsize=8)
+def _photos_upsert(insert_sql):
+    """Turn an ``INSERT OR REPLACE INTO photos (...)`` into an UPSERT.
+
+    A re-scan (``--force``) must not destroy user data. ``INSERT OR REPLACE`` is
+    DELETE-then-INSERT on a PK conflict, so with foreign keys ON it cascade-deletes
+    the photo's faces, tags, comparisons, learned_scores and user_preferences, and
+    the re-inserted row NULLs every column absent from the INSERT list (ratings,
+    captions, moments, vlm_critique, …). The REPLACE-delete also desyncs the FTS
+    index (its delete trigger only fires under recursive_triggers, which is off).
+
+    Rewriting to ``INSERT … ON CONFLICT(path) DO UPDATE SET <scored columns>``
+    keeps the row alive: no cascade, preserved columns survive, and the UPDATE
+    fires the FTS update trigger correctly. The SET clause is derived from the
+    INSERT's own column list, so it can never drift from it.
+    """
+    cols_match = _re.search(r'INTO\s+photos\s*\((.*?)\)\s*VALUES', insert_sql, _re.S | _re.I)
+    columns = [c.strip() for c in cols_match.group(1).split(',')]
+    updates = ', '.join(f"{c}=excluded.{c}" for c in columns if c != 'path')
+    base = _re.sub(r'INSERT\s+OR\s+REPLACE\s+INTO\s+photos', 'INSERT INTO photos', insert_sql, flags=_re.I)
+    return f"{base}\nON CONFLICT(path) DO UPDATE SET {updates}"
 
 # Optional tqdm for progress bars
 try:
@@ -493,6 +519,14 @@ def build_metric_vector(m, cfg, category, weights=None, penalties=None):
         'subject_prominence': safe_float(m.get('subject_prominence'), 5.0),
         'subject_placement': safe_float(m.get('subject_placement'), 5.0),
         'bg_separation': safe_float(m.get('bg_separation'), 5.0),
+        # Form facet + Matsuda color harmony (weights default to 0 in every
+        # category, so the aggregate is byte-identical until a user adds them)
+        'symmetry': safe_float(m.get('form_symmetry'), 5.0),
+        'balance': safe_float(m.get('form_balance'), 5.0),
+        'edge_entropy': safe_float(m.get('form_edge_entropy'), 5.0),
+        'fractal': safe_float(m.get('form_fractal'), 5.0),
+        # Neutral for B&W, mirroring the color_score monochrome guard above
+        'color_harmony': 5.0 if m.get('is_monochrome', 0) else safe_float(m.get('color_harmony'), 5.0),
     }
 
     # Extended IQA tier (config-gated OFF by default). Each metric is exposed to
@@ -1091,6 +1125,10 @@ class Facet:
             noise_data = self.tech_analyzer.get_noise_estimate(img_cv, cache=cache)
             contrast_data = self.tech_analyzer.get_contrast_score(img_cv, cache=cache)
 
+            # 3d. Form facet + Matsuda color harmony (CPU, fixed 512px working size)
+            from analyzers.form_facet import compute_form_metrics
+            form_data = compute_form_metrics(pil_img)
+
             # 4. Facial Analysis (now handles multiple faces with confidence filtering)
             face_res = self.face_analyzer.analyze_faces(img_cv)
 
@@ -1164,6 +1202,12 @@ class Facet:
                 'is_monochrome': mono_data['is_monochrome'],
                 # Contrast score for B&W images
                 'contrast_score': contrast_data['contrast_score'],
+                # Form facet + Matsuda color harmony
+                'form_symmetry': form_data.get('form_symmetry'),
+                'form_balance': form_data.get('form_balance'),
+                'form_edge_entropy': form_data.get('form_edge_entropy'),
+                'form_fractal': form_data.get('form_fractal'),
+                'color_harmony': form_data.get('color_harmony'),
                 # EXIF data for ISO/aperture adjustments
                 'iso': exif_data.get('iso'),
                 'f_stop': exif_data.get('f_stop'),
@@ -1219,6 +1263,12 @@ class Facet:
                 'dynamic_range_stops': dynamic_range_data['dynamic_range_stops'],
                 'noise_sigma': noise_data['noise_sigma'],
                 'contrast_score': contrast_data['contrast_score'],
+                # Form facet + Matsuda color harmony
+                'form_symmetry': form_data.get('form_symmetry'),
+                'form_balance': form_data.get('form_balance'),
+                'form_edge_entropy': form_data.get('form_edge_entropy'),
+                'form_fractal': form_data.get('form_fractal'),
+                'color_harmony': form_data.get('color_harmony'),
                 # Semantic tags
                 'tags': tags,
                 # Advanced model outputs
@@ -1285,7 +1335,8 @@ class Facet:
                 histogram_data, topiq_score,
                 aesthetic_iaa, face_quality_iqa, liqe_score,
                 qalign_score, aesthetic_v25, deqa_score,
-                subject_sharpness, subject_prominence, subject_placement, bg_separation
+                subject_sharpness, subject_prominence, subject_placement, bg_separation,
+                form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony
             """
             if category_filter:
                 cursor = conn.execute(f"SELECT {recalc_cols} FROM photos WHERE category = ?", (category_filter,))
@@ -1470,6 +1521,38 @@ class Facet:
             logger.error("Failed to decode %s thumbnails", decode_failed)
         logger.info("Run --recompute-average to update aggregate scores with new comp_score values")
 
+    @staticmethod
+    def _foreach_face_landmark(db_path, select_cols, desc, compute):
+        """Shared scaffold for the landmark-only face recompute passes.
+
+        Selects ``select_cols`` from every face with a stored 106-pt landmark
+        blob, decodes each to a (106, 2) float32 array (undecodable blobs are
+        skipped and counted), and calls ``compute(row, landmarks)`` per face.
+        Returns ``(results, total_faces, no_landmark_count, decode_errors)``.
+        """
+        import numpy as np
+        from tqdm import tqdm
+
+        with get_connection(db_path) as conn:
+            rows = conn.execute(
+                f"SELECT {select_cols} FROM faces WHERE landmark_2d_106 IS NOT NULL"
+            ).fetchall()
+            no_landmark_count = conn.execute(
+                "SELECT COUNT(*) FROM faces WHERE landmark_2d_106 IS NULL"
+            ).fetchone()[0]
+
+        results = []
+        decode_errors = 0
+        for row in tqdm(rows, desc=desc):
+            try:
+                landmarks = np.frombuffer(
+                    row['landmark_2d_106'], dtype=np.float32).reshape(106, 2)
+            except (ValueError, TypeError):
+                decode_errors += 1
+                continue
+            results.append(compute(row, landmarks))
+        return results, len(rows), no_landmark_count, decode_errors
+
     def recompute_blink_detection(self):
         """
         Re-compute blink detection using stored landmarks from the faces table.
@@ -1479,71 +1562,40 @@ class Facet:
         - Falls back to thumbnail-based detection for faces without stored landmarks
         - ~100x faster than thumbnail-based detection when landmarks are available
         """
-        import numpy as np
-        from tqdm import tqdm
+        from analyzers import FaceAnalyzer as _FaceAnalyzer
 
-        # Get blink threshold from config
         face_detection = self.config.config.get('face_detection', {})
         blink_threshold = face_detection.get('blink_ear_threshold', 0.21)
 
+        def _compute(row, landmarks):
+            avg_ear = _FaceAnalyzer.compute_avg_ear(landmarks)
+            return row['photo_path'], 1 if avg_ear < blink_threshold else 0
+
+        per_face, total, no_landmark_count, _ = Facet._foreach_face_landmark(
+            self.db_path, "photo_path, landmark_2d_106", "EAR from landmarks", _compute)
+
+        if total:
+            logger.info("Computing blinks from stored landmarks for %s faces...", total)
+
+        photo_blink_status = {}  # {path: is_blink}
+        for path, is_blink in per_face:
+            # If ANY face is blinking, the photo is marked as blink
+            if path not in photo_blink_status:
+                photo_blink_status[path] = is_blink
+            elif is_blink:
+                photo_blink_status[path] = 1
+
+        if no_landmark_count > 0:
+            logger.debug("Note: %s faces lack stored landmarks.", no_landmark_count)
+            logger.info("  Run '--batch' scan on new photos to store landmarks,")
+            logger.info("  or run '--extract-faces-gpu' to backfill landmarks.")
+
+        logger.info("Saving results to database...")
         with get_connection(self.db_path) as conn:
-            # Phase 1: Get all faces with stored landmarks for optimized detection
-            landmark_query = """
-                SELECT f.photo_path, f.landmark_2d_106
-                FROM faces f
-                WHERE f.landmark_2d_106 IS NOT NULL
-            """
-            landmark_rows = conn.execute(landmark_query).fetchall()
-
-            # Count faces without landmarks
-            no_landmark_count = conn.execute("""
-                SELECT COUNT(*) FROM faces WHERE landmark_2d_106 IS NULL
-            """).fetchone()[0]
-
-            photo_blink_status = {}  # {path: is_blink}
-
-            if landmark_rows:
-                logger.info("Computing blinks from stored landmarks for %s faces...", len(landmark_rows))
-
-                from analyzers import FaceAnalyzer as _FaceAnalyzer
-
-                for row in tqdm(landmark_rows, desc="EAR from landmarks"):
-                    path = row['photo_path']
-                    landmark_blob = row['landmark_2d_106']
-
-                    try:
-                        # Decode landmarks: 106 x 2 float32
-                        landmarks = np.frombuffer(landmark_blob, dtype=np.float32).reshape(106, 2)
-
-                        avg_ear = _FaceAnalyzer.compute_avg_ear(landmarks)
-
-                        is_blink = 1 if avg_ear < blink_threshold else 0
-
-                        # Track per-photo: if ANY face is blinking, photo is marked as blink
-                        if path not in photo_blink_status:
-                            photo_blink_status[path] = is_blink
-                        elif is_blink:
-                            photo_blink_status[path] = 1
-
-                    except Exception as e:
-                        logger.warning("Error computing EAR for %s: %s", path, e)
-
-            # Phase 2: Fallback for faces without landmarks (if any)
-            if no_landmark_count > 0:
-                logger.debug("Note: %s faces lack stored landmarks.", no_landmark_count)
-                logger.info("  Run '--batch' scan on new photos to store landmarks,")
-                logger.info("  or run '--extract-faces-gpu' to backfill landmarks.")
-
-            # Phase 3: Batch update the photos table
-            logger.info("Saving results to database...")
-
             # Reset all photos with faces to non-blink status first
             conn.execute("UPDATE photos SET is_blink = 0 WHERE face_count >= 1")
-
-            # Update photos that have blinks
             update_data = [(status, path) for path, status in photo_blink_status.items()]
             conn.executemany("UPDATE photos SET is_blink = ? WHERE path = ?", update_data)
-
             conn.commit()
 
         blink_count = sum(1 for v in photo_blink_status.values() if v == 1)
@@ -1559,48 +1611,40 @@ class Facet:
         ``photos.eyes_open_score`` / ``photos.expression_score``. No InsightFace
         re-run — pure geometry on stored landmarks.
         """
-        import numpy as np
         from collections import defaultdict
-        from tqdm import tqdm
         from analyzers import FaceAnalyzer as _FaceAnalyzer
 
+        def _compute(row, landmarks):
+            return (row['photo_path'],
+                    _FaceAnalyzer.compute_eyes_open_score(landmarks),
+                    _FaceAnalyzer.compute_expression_score(landmarks))
+
+        per_face, total, no_landmark_count, _ = Facet._foreach_face_landmark(
+            self.db_path, "photo_path, landmark_2d_106",
+            "Eyes/expression from landmarks", _compute)
+
+        if not total:
+            logger.info("No faces with stored landmarks — nothing to compute.")
+            if no_landmark_count:
+                logger.info("  %s faces lack landmarks; re-scan to store them.", no_landmark_count)
+            return 0
+
+        logger.info("Computing eyes/expression from stored landmarks for %s faces...", total)
+
+        per_photo_eyes = defaultdict(list)
+        per_photo_expr = defaultdict(list)
+        for path, eyes, expr in per_face:
+            per_photo_eyes[path].append(eyes)
+            per_photo_expr[path].append(expr)
+
+        update_data = []
+        for path in per_photo_eyes:
+            eyes = _FaceAnalyzer.aggregate_eyes_open(per_photo_eyes[path])
+            expr = _FaceAnalyzer.aggregate_expression(per_photo_expr[path])
+            update_data.append((eyes, expr, path))
+
+        logger.info("Saving results to database...")
         with get_connection(self.db_path) as conn:
-            landmark_rows = conn.execute(
-                "SELECT photo_path, landmark_2d_106 FROM faces "
-                "WHERE landmark_2d_106 IS NOT NULL"
-            ).fetchall()
-            no_landmark_count = conn.execute(
-                "SELECT COUNT(*) FROM faces WHERE landmark_2d_106 IS NULL"
-            ).fetchone()[0]
-
-            if not landmark_rows:
-                logger.info("No faces with stored landmarks — nothing to compute.")
-                if no_landmark_count:
-                    logger.info("  %s faces lack landmarks; re-scan to store them.", no_landmark_count)
-                return 0
-
-            logger.info("Computing eyes/expression from stored landmarks for %s faces...",
-                        len(landmark_rows))
-
-            per_photo_eyes = defaultdict(list)
-            per_photo_expr = defaultdict(list)
-            for row in tqdm(landmark_rows, desc="Eyes/expression from landmarks"):
-                path = row['photo_path']
-                try:
-                    landmarks = np.frombuffer(row['landmark_2d_106'], dtype=np.float32).reshape(106, 2)
-                except Exception as e:
-                    logger.warning("Error decoding landmarks for %s: %s", path, e)
-                    continue
-                per_photo_eyes[path].append(_FaceAnalyzer.compute_eyes_open_score(landmarks))
-                per_photo_expr[path].append(_FaceAnalyzer.compute_expression_score(landmarks))
-
-            update_data = []
-            for path in per_photo_eyes:
-                eyes = _FaceAnalyzer.aggregate_eyes_open(per_photo_eyes[path])
-                expr = _FaceAnalyzer.aggregate_expression(per_photo_expr[path])
-                update_data.append((eyes, expr, path))
-
-            logger.info("Saving results to database...")
             conn.executemany(
                 "UPDATE photos SET eyes_open_score = ?, expression_score = ? WHERE path = ?",
                 update_data,
@@ -1610,6 +1654,48 @@ class Facet:
         if no_landmark_count:
             logger.info("Note: %s faces lack stored landmarks (skipped).", no_landmark_count)
         logger.info("Finished. Updated %s photos with eyes/expression scores.", len(update_data))
+        return len(update_data)
+
+    def recompute_face_signals(self):
+        """Backfill per-face eyes-open and smile scores from stored 106-pt landmarks.
+
+        Mirrors :meth:`recompute_eyes_expression` but writes the per-face
+        ``faces.eyes_open_score`` / ``faces.smile_score`` columns (the canonical
+        source for the culling face panel) instead of the photo-level
+        aggregates. No InsightFace re-run — pure geometry on stored landmarks,
+        so no pixels are needed.
+        """
+        from analyzers import FaceAnalyzer as _FaceAnalyzer
+
+        def _compute(row, landmarks):
+            return (_FaceAnalyzer.compute_eyes_open_score(landmarks),
+                    _FaceAnalyzer.compute_smile_score(landmarks),
+                    row['id'])
+
+        update_data, total, no_landmark_count, decode_errors = Facet._foreach_face_landmark(
+            self.db_path, "id, landmark_2d_106",
+            "Per-face signals from landmarks", _compute)
+
+        if not total:
+            logger.info("No faces with stored landmarks — nothing to compute.")
+            if no_landmark_count:
+                logger.info("  %s faces lack landmarks; re-scan to store them.", no_landmark_count)
+            return 0
+
+        logger.info("Computing per-face eyes/smile signals for %s faces...", total)
+        logger.info("Saving results to database...")
+        with get_connection(self.db_path) as conn:
+            conn.executemany(
+                "UPDATE faces SET eyes_open_score = ?, smile_score = ? WHERE id = ?",
+                update_data,
+            )
+            conn.commit()
+
+        if no_landmark_count:
+            logger.info("Note: %s faces lack stored landmarks (skipped).", no_landmark_count)
+        if decode_errors:
+            logger.warning("%s faces had undecodable landmarks (skipped).", decode_errors)
+        logger.info("Finished. Updated %s faces with eyes/smile signals.", len(update_data))
         return len(update_data)
 
     def rescan_samp_composition(self, batch_size: int = 16):
@@ -1915,7 +2001,7 @@ class Facet:
         try:
             result = subprocess.run(
                 ['exiftool', '-j', '-n', str(image_path)],
-                capture_output=True, text=True, check=True
+                capture_output=True, text=True, check=True, timeout=30
             )
             data = json.loads(result.stdout)[0]
             exif_data['date_taken'] = data.get('DateTimeOriginal') or data.get('CreateDate')
@@ -2014,8 +2100,14 @@ class Facet:
         thumb.save(buf, format="JPEG", quality=80)
         res['thumbnail'] = buf.getvalue()
 
+        # Form facet columns default to NULL for callers that did not compute
+        # them (named-param INSERT needs every key).
+        from analyzers.form_facet import FORM_METRIC_COLUMNS
+        for form_col in FORM_METRIC_COLUMNS:
+            res.setdefault(form_col, None)
+
         with get_connection(self.db_path, row_factory=False) as conn:
-            conn.execute('''
+            conn.execute(_photos_upsert('''
                 INSERT OR REPLACE INTO photos (
                     path, filename, category, image_width, image_height,
                     date_taken, camera_model, lens_model, iso, f_stop,
@@ -2029,6 +2121,7 @@ class Facet:
                     face_confidence, is_monochrome, mean_saturation,
                     dynamic_range_stops, noise_sigma, contrast_score, tags,
                     quality_score, composition_explanation, scoring_model, composition_pattern,
+                    form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
                     gps_latitude, gps_longitude, scanned_at
                 )
                 VALUES (
@@ -2044,28 +2137,19 @@ class Facet:
                     :face_confidence, :is_monochrome, :mean_saturation,
                     :dynamic_range_stops, :noise_sigma, :contrast_score, :tags,
                     :quality_score, :composition_explanation, :scoring_model, :composition_pattern,
+                    :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
                     :gps_latitude, :gps_longitude, datetime('now')
                 )
-            ''', res)
+            '''), res)
 
-            # Store face embeddings, landmarks, and thumbnails for face recognition
+            # Refresh this photo's faces (the UPSERT above no longer cascade-deletes
+            # them), then re-store embeddings, landmarks, thumbnails and per-face
+            # quality signals for recognition + culling.
+            conn.execute("DELETE FROM faces WHERE photo_path = ?", (res['path'],))
             face_details = res.get('face_details', [])
             for face in face_details:
                 if face.get('embedding'):
-                    bbox = face.get('bbox', [0, 0, 0, 0])
-                    conn.execute('''
-                        INSERT OR REPLACE INTO faces
-                        (photo_path, face_index, embedding, bbox_x1, bbox_y1, bbox_x2, bbox_y2, confidence, face_thumbnail, landmark_2d_106)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (
-                        res['path'],
-                        face['index'],
-                        face['embedding'],
-                        bbox[0], bbox[1], bbox[2], bbox[3],
-                        face.get('confidence', 0),
-                        face.get('thumbnail'),
-                        face.get('landmark_2d_106')
-                    ))
+                    conn.execute(FACES_UPSERT_SQL, face_upsert_row(res['path'], face))
 
         # Emit plugin events
         from plugins import get_plugin_manager
@@ -2102,24 +2186,17 @@ class Facet:
             thumb.save(buf, format="JPEG", quality=80)
             res['thumbnail'] = buf.getvalue()
 
-        # Phase 2: Collect all face records for batch insert (including thumbnails and landmarks)
+        # Phase 2: Collect all face records for batch insert (including thumbnails,
+        # landmarks and per-face quality signals — shared upsert: see db.schema)
         face_records = []
         for res, _ in results_with_images:
             face_details = res.get('face_details', [])
             for face in face_details:
                 if face.get('embedding'):
-                    bbox = face.get('bbox', [0, 0, 0, 0])
-                    face_records.append((
-                        res['path'],
-                        face['index'],
-                        face['embedding'],
-                        bbox[0], bbox[1], bbox[2], bbox[3],
-                        face.get('confidence', 0),
-                        face.get('thumbnail'),  # Pre-generated face thumbnail
-                        face.get('landmark_2d_106')  # 106-point landmarks for blink detection
-                    ))
+                    face_records.append(face_upsert_row(res['path'], face))
 
         # Phase 3: Fast DB inserts (short transaction)
+        from analyzers.form_facet import FORM_METRIC_COLUMNS
         with get_connection(self.db_path, row_factory=False) as conn:
             # Batch insert photos
             for res, _ in results_with_images:
@@ -2128,7 +2205,9 @@ class Facet:
                 res.setdefault('qalign_score', None)
                 res.setdefault('aesthetic_v25', None)
                 res.setdefault('deqa_score', None)
-                conn.execute('''
+                for form_col in FORM_METRIC_COLUMNS:
+                    res.setdefault(form_col, None)
+                conn.execute(_photos_upsert('''
                     INSERT OR REPLACE INTO photos (
                         path, filename, category, image_width, image_height,
                         date_taken, camera_model, lens_model, iso, f_stop,
@@ -2145,6 +2224,7 @@ class Facet:
                         aesthetic_iaa, face_quality_iqa, liqe_score,
                         qalign_score, aesthetic_v25, deqa_score,
                         subject_sharpness, subject_prominence, subject_placement, bg_separation,
+                        form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
                         gps_latitude, gps_longitude, scanned_at
                     )
                     VALUES (
@@ -2163,17 +2243,20 @@ class Facet:
                         :aesthetic_iaa, :face_quality_iqa, :liqe_score,
                         :qalign_score, :aesthetic_v25, :deqa_score,
                         :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation,
+                        :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
                         :gps_latitude, :gps_longitude, datetime('now')
                     )
-                ''', res)
+                '''), res)
 
-            # Batch insert all face embeddings with executemany()
+            # Refresh faces for every photo we just wrote (the UPSERT no longer
+            # cascade-deletes them) — this also clears stale faces on a photo
+            # that lost all its faces on re-scan — then batch-insert the fresh rows.
+            conn.executemany(
+                "DELETE FROM faces WHERE photo_path = ?",
+                [(res['path'],) for res, _ in results_with_images],
+            )
             if face_records:
-                conn.executemany('''
-                    INSERT OR REPLACE INTO faces
-                    (photo_path, face_index, embedding, bbox_x1, bbox_y1, bbox_x2, bbox_y2, confidence, face_thumbnail, landmark_2d_106)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', face_records)
+                conn.executemany(FACES_UPSERT_SQL, face_records)
 
             # Sync clip embeddings to photos_vec for vector search
             vec_records = [

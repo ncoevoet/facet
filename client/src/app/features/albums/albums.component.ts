@@ -17,6 +17,7 @@ import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { CreateAlbumDialogComponent } from './create-album-dialog.component';
 import { EditAlbumDialogComponent } from './edit-album-dialog.component';
+import { ClientPicksDialogComponent, ClientPicksDialogData } from './client-picks-dialog.component';
 import { AlbumsFiltersService } from './albums-filters.service';
 import { ShareDialogComponent, ShareDialogData } from '../../shared/components/share-dialog/share-dialog.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
@@ -123,6 +124,13 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
                 </button>
               }
               @if (auth.isEdition()) {
+                @if (!album.is_smart && proofingEnabled()) {
+                  <button mat-icon-button
+                          [matTooltip]="I18N.proofing.client_picks | translate"
+                          (click)="openClientPicks($event, album)">
+                    <mat-icon class="opacity-60">how_to_vote</mat-icon>
+                  </button>
+                }
                 <button mat-icon-button
                         [matTooltip]="I18N.albums.cull | translate"
                         (click)="openScoped($event, '/culling', album)">
@@ -177,6 +185,7 @@ export class AlbumsComponent {
   private readonly perPage = 48;
 
   protected readonly hasMore = computed(() => this.albums().length < this.total());
+  protected readonly proofingEnabled = computed(() => this.auth.hasFeature('show_proofing'));
 
   constructor() {
     this.pageHelp.setDescription(I18N.albums.help);
@@ -282,6 +291,15 @@ export class AlbumsComponent {
     await firstValueFrom(this.albumService.delete(album.id));
     this.albums.update(list => list.filter(a => a.id !== album.id));
     this.total.update(t => t - 1);
+  }
+
+  protected openClientPicks(event: Event, album: Album): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dialog.open(ClientPicksDialogComponent, {
+      data: { albumId: album.id, albumName: album.name } satisfies ClientPicksDialogData,
+      width: '480px',
+    });
   }
 
   protected async shareAlbum(event: Event, album: Album): Promise<void> {

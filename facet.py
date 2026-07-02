@@ -584,6 +584,15 @@ Configuration:
     db_group.add_argument('--recompute-colors', action='store_true',
                         help='Extract dominant hue + warm/cool colour temperature from stored thumbnails '
                              '(CPU only, fast) into dominant_hue / color_temp')
+    db_group.add_argument('--recompute-form', action='store_true',
+                        help='Recompute form facet metrics (symmetry, balance, edge entropy, fractal '
+                             'dimension) + Matsuda colour harmony from stored thumbnails (CPU only)')
+    db_group.add_argument('--recompute-distortions', action='store_true',
+                        help='Zero-shot ExIQA-style distortion attributes from stored CLIP/SigLIP '
+                             'embeddings (advisory JSON column + liqe/noise correlation validation report)')
+    db_group.add_argument('--recompute-skin-tone', action='store_true',
+                        help='Skin-tone naturalness from stored face thumbnails + landmarks '
+                             '(cheek CIELAB vs skin locus, CIEDE2000; CPU, no model)')
     db_group.add_argument('--upgrade-db', action='store_true',
                         help='Migrate schema + run the full backfill chain '
                              '(extract-gps, detect-duplicates, recompute-iqa, '
@@ -635,6 +644,8 @@ Configuration:
                         help='Recompute blink detection using stored landmarks (CPU only, fast)')
     face_group.add_argument('--recompute-eyes-expression', action='store_true',
                         help='Recompute eyes-open and expression scores from stored landmarks (CPU only, fast)')
+    face_group.add_argument('--recompute-face-signals', action='store_true',
+                        help='Backfill per-face eyes-open and smile scores from stored landmarks (CPU only, fast)')
     face_group.add_argument('--recompute-burst', action='store_true',
                         help='Recompute burst detection groups')
     face_group.add_argument('--suggest-person-merges', action='store_true',
@@ -713,8 +724,13 @@ Configuration:
                         help='With --export-sidecars: derive xmp:Rating from the aggregate score for '
                              'photos the user has not manually rated (overrides xmp_export config for this run)')
     export_group.add_argument('--user', type=str, default=None, metavar='USERNAME',
-                        help='With --import-sidecars/--export-sidecars in multi-user mode: read/write '
-                             "that user's ratings (user_preferences) instead of the global columns")
+                        help='With --import-sidecars/--export-sidecars/--immich-sync in multi-user mode: '
+                             "read/write that user's ratings (user_preferences) instead of the global columns")
+    export_group.add_argument('--immich-sync', action='store_true',
+                        help='Push ratings/favorites to the configured Immich server via its REST API '
+                             '(one-way; needs the "immich" config block; honors --user and --dry-run)')
+    export_group.add_argument('--immich-test', action='store_true',
+                        help='Test connectivity and authentication against the configured Immich server')
 
     # AI features
     ai_group = parser.add_argument_group('AI features')
@@ -1070,6 +1086,13 @@ Configuration:
         scorer.recompute_eyes_expression()
         exit()
 
+    # Backfill per-face eyes-open + smile scores using stored landmarks (CPU only, fast)
+    if args.recompute_face_signals:
+        init_database(args.db)  # Ensure the per-face signal columns exist
+        scorer = Facet(db_path=args.db, config_path=args.config, lightweight=True)
+        scorer.recompute_face_signals()
+        exit()
+
     # --upgrade-db: run the full backfill chain in dependency order by
     # re-invoking this script with each individual flag. Subprocess isolation
     # keeps model loads and GPU memory clean between steps. Idempotent — each
@@ -1101,6 +1124,7 @@ Configuration:
             ("--recompute-burst", "Burst detection grouping"),
             ("--recompute-blinks", "Blink detection from landmarks"),
             ("--recompute-eyes-expression", "Eyes-open + expression from landmarks"),
+            ("--recompute-face-signals", "Per-face eyes/smile signals from landmarks"),
             ("--recompute-average", "Aggregate scores"),
         ]
         cmd_base = [sys.executable, os.path.abspath(__file__)]
@@ -1256,14 +1280,19 @@ Configuration:
     def _recompute_from_thumbnails(desc, compute):
         import io
         from PIL import Image
+        # Fetch paths up front but each thumbnail BLOB one at a time (a full
+        # fetchall of the BLOBs is ~6-12GB at 100k photos -> OOM on a NAS).
         with get_connection(args.db) as conn:
-            rows = conn.execute(
-                "SELECT path, thumbnail FROM photos WHERE thumbnail IS NOT NULL"
-            ).fetchall()
+            paths = [row['path'] for row in conn.execute(
+                "SELECT path FROM photos WHERE thumbnail IS NOT NULL"
+            ).fetchall()]
         counted = 0
-        with get_connection(args.db) as conn:
-            for row in tqdm(rows, desc=desc):
-                blob = row['thumbnail']
+        with get_connection(args.db) as read_conn, get_connection(args.db) as conn:
+            for path in tqdm(paths, desc=desc):
+                row = read_conn.execute(
+                    "SELECT thumbnail FROM photos WHERE path = ?", (path,)
+                ).fetchone()
+                blob = row['thumbnail'] if row else None
                 if not blob:
                     continue
                 try:
@@ -1274,12 +1303,12 @@ Configuration:
                 set_sql = ", ".join(f"{col} = ?" for col in updates)
                 conn.execute(
                     f"UPDATE photos SET {set_sql} WHERE path = ?",
-                    (*updates.values(), row['path']),
+                    (*updates.values(), path),
                 )
                 if is_counted:
                     counted += 1
             conn.commit()
-        return len(rows), counted
+        return len(paths), counted
 
     # Extract OCR text-in-image from stored thumbnails (opt-in, CPU; no-op if no engine)
     if args.recompute_ocr:
@@ -1316,6 +1345,143 @@ Configuration:
         logger.info("Color facet extraction complete: %d/%d photos updated.", updated, total)
         exit()
 
+    # Recompute form facet metrics + Matsuda colour harmony from stored thumbnails (CPU)
+    if args.recompute_form:
+        from analyzers.form_facet import compute_form_metrics
+
+        init_database(args.db)  # Ensure form facet columns exist
+
+        def _form_update(img):
+            metrics = compute_form_metrics(img)
+            return metrics, metrics.get('form_symmetry') is not None
+
+        total, updated = _recompute_from_thumbnails("Form facet", _form_update)
+        logger.info("Form facet recompute complete: %d/%d photos updated.", updated, total)
+        logger.info("Run --recompute-average to fold any configured form weights into aggregates.")
+        exit()
+
+    # Zero-shot distortion attributes from stored embeddings (advisory only,
+    # never enters the aggregate). Prints the mandatory Spearman sanity report
+    # vs stored liqe_score / noise_sigma before anyone trusts the signal.
+    if args.recompute_distortions:
+        import numpy as np
+        from collections import Counter
+        from scipy.stats import spearmanr
+        from models.model_manager import ModelManager
+        from models.distortion_classifier import DistortionClassifier
+
+        init_database(args.db)  # Ensure distortion_attributes column exists
+        config = ScoringConfig(args.config)
+        if not config.config.get('distortion_attributes', {}).get('enabled', True):
+            logger.error("distortion_attributes is disabled in scoring_config.json; nothing to do.")
+            exit(0)
+        config.check_vram_profile_compatibility(verbose=True)
+        model_manager = ModelManager(config)
+        clip = model_manager.load_model_only('clip')
+        if not clip:
+            logger.error("Could not load the embedding model; aborting.")
+            exit(1)
+        classifier = DistortionClassifier(
+            clip_model=clip['model'], device=model_manager.device, config=config,
+            model_name=clip['model_name'], backend=clip['backend'],
+            embedding_dim=clip['embedding_dim'],
+        )
+        updates, skipped = [], 0
+        per_attr = {a: [] for a in classifier.attributes}
+        liqe_vals, noise_vals = [], []
+        flag_counts = Counter()
+        with get_connection(args.db) as conn:
+            total_rows = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE clip_embedding IS NOT NULL"
+            ).fetchone()[0]
+            # Stream the cursor rather than fetchall() — the embeddings alone are
+            # ~460MB at 100k photos; iterating frees each row after use.
+            cursor = conn.execute(
+                "SELECT path, clip_embedding, liqe_score, noise_sigma FROM photos "
+                "WHERE clip_embedding IS NOT NULL"
+            )
+            for row in tqdm(cursor, desc="Distortions", total=total_rows):
+                conf = classifier.confidences(row['clip_embedding'])
+                if conf is None:
+                    skipped += 1
+                    continue
+                hits = classifier.top_attributes(conf)
+                updates.append((json.dumps(hits), row['path']))
+                for hit in hits:
+                    flag_counts[hit['attribute']] += 1
+                for attr, p in conf.items():
+                    per_attr[attr].append(p)
+                liqe_vals.append(row['liqe_score'])
+                noise_vals.append(row['noise_sigma'])
+            _commit_in_chunks(
+                conn, "UPDATE photos SET distortion_attributes = ? WHERE path = ?", updates)
+        model_manager.unload_all()
+        logger.info("Labeled %d photos (%d skipped: missing/mismatched embedding).",
+                    len(updates), skipped)
+        logger.info("Flagged attributes: %s",
+                    ", ".join(f"{a}={n}" for a, n in flag_counts.most_common()) or "(none)")
+
+        def _spearman(conf_v, metric):
+            m = np.array([v if v is not None else np.nan for v in metric], dtype=np.float64)
+            mask = ~np.isnan(m)
+            if mask.sum() < 10 or np.std(conf_v[mask]) == 0 or np.std(m[mask]) == 0:
+                return None
+            return float(spearmanr(conf_v[mask], m[mask]).correlation)
+
+        logger.info("Validation (Spearman of raw confidence vs stored metrics; "
+                    "expect negative vs liqe_score, positive vs noise_sigma for noise):")
+        logger.info("  %-22s %12s %12s", "attribute", "liqe_score", "noise_sigma")
+        for attr in classifier.attributes:
+            conf_v = np.asarray(per_attr[attr], dtype=np.float64)
+            rho_liqe = _spearman(conf_v, liqe_vals)
+            rho_noise = _spearman(conf_v, noise_vals)
+            logger.info("  %-22s %12s %12s", attr,
+                        f"{rho_liqe:+.3f}" if rho_liqe is not None else "n/a",
+                        f"{rho_noise:+.3f}" if rho_noise is not None else "n/a")
+        logger.info("Treat weak or n/a correlations as an unvalidated signal for this library.")
+        exit()
+
+    # Skin-tone naturalness from stored face crops + landmarks (CPU, no model)
+    if args.recompute_skin_tone:
+        from collections import Counter
+        from analyzers.skin_tone import compute_photo_skin_tone
+
+        init_database(args.db)  # Ensure skin_tone_delta / skin_tone_cast columns exist
+        config = ScoringConfig(args.config)
+        padding = float(config.get_face_processing_settings().get('crop_padding', 0.3))
+        cast_threshold = float(
+            config.config.get('skin_tone', {}).get('cast_delta_threshold', 12.0))
+        with get_connection(args.db) as conn:
+            photo_paths = [r['photo_path'] for r in conn.execute(
+                "SELECT DISTINCT photo_path FROM faces "
+                "WHERE face_thumbnail IS NOT NULL AND landmark_2d_106 IS NOT NULL"
+            ).fetchall()]
+        updates = []
+        cast_counts = Counter()
+        with get_connection(args.db) as conn:
+            for path in tqdm(photo_paths, desc="Skin tone"):
+                faces = conn.execute(
+                    "SELECT bbox_x1, bbox_y1, bbox_x2, bbox_y2, landmark_2d_106, "
+                    "face_thumbnail FROM faces WHERE photo_path = ? "
+                    "AND face_thumbnail IS NOT NULL AND landmark_2d_106 IS NOT NULL",
+                    (path,),
+                ).fetchall()
+                delta, cast = compute_photo_skin_tone(
+                    faces, padding=padding, cast_threshold=cast_threshold)
+                if delta is None:
+                    continue
+                updates.append((round(delta, 2), cast, path))
+                cast_counts[cast or 'natural'] += 1
+        with get_connection(args.db) as conn:
+            _commit_in_chunks(
+                conn,
+                "UPDATE photos SET skin_tone_delta = ?, skin_tone_cast = ? WHERE path = ?",
+                updates)
+        logger.info("Skin tone measured for %d/%d photos with usable faces (%s).",
+                    len(updates), len(photo_paths),
+                    ", ".join(f"{c}={n}" for c, n in cast_counts.most_common()) or "none")
+        exit()
+
     # Recompute burst detection
     if args.recompute_burst:
         config = ScoringConfig(args.config)
@@ -1327,7 +1493,6 @@ Configuration:
     if args.generate_captions:
         from models.vlm_tagger import VLMTagger
         from PIL import Image
-        from tqdm import tqdm
         import io
 
         config = ScoringConfig(args.config)
@@ -1402,7 +1567,6 @@ Configuration:
     # Translate existing captions
     if args.translate_captions:
         from models.caption_translator import CaptionTranslator, LANG_MODELS
-        from tqdm import tqdm
 
         config = ScoringConfig(args.config)
         target_lang = config.config.get('translation', {}).get('target_language', '')
@@ -1458,7 +1622,6 @@ Configuration:
     # Backfill GPS coordinates from EXIF
     if args.extract_gps:
         from exiftool.exiftool_batch import get_exif_batch
-        from tqdm import tqdm
 
         with get_connection(args.db) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(photos)").fetchall()}
@@ -1823,6 +1986,50 @@ Configuration:
         logger.info(
             "Sidecar export: %d written, %d embedded, %d missing, %d errors",
             stats['written'], stats['embedded'], stats['missing'], stats['errors'],
+        )
+        exit()
+
+    # Immich connectivity test (lightweight - no GPU needed)
+    if args.immich_test:
+        from sync.immich import ImmichClient
+        _immich_cfg = ScoringConfig(args.config or 'scoring_config.json',
+                                    validate=False).config.get('immich', {})
+        try:
+            client = ImmichClient(_immich_cfg.get('url', ''), _immich_cfg.get('api_key', ''),
+                                  timeout=_immich_cfg.get('timeout_seconds', 30))
+            about = client.ping()
+            logger.info("Immich reachable at %s — version %s",
+                        client.base_url, about.get('version', 'unknown'))
+        except Exception as e:
+            logger.error("Immich test failed: %s", e)
+            sys.exit(1)
+        exit()
+
+    # Immich one-way push (lightweight - no GPU needed)
+    if args.immich_sync:
+        import urllib.error
+        from sync.immich import sync_to_immich
+        _immich_config = ScoringConfig(args.config or 'scoring_config.json', validate=False).config
+        try:
+            stats = sync_to_immich(args.db, _immich_config, user_id=args.user, dry_run=args.dry_run)
+        except ValueError as e:
+            logger.error("Immich sync aborted: %s", e)
+            sys.exit(1)
+        except (urllib.error.URLError, TimeoutError) as e:
+            endpoint = getattr(e, 'url', None) or getattr(e, 'reason', e)
+            status = getattr(e, 'code', None)
+            logger.error(
+                "Immich sync failed at %s%s: %s. Partial progress: %s",
+                endpoint, f" (HTTP {status})" if status else "", e,
+                getattr(e, 'partial_summary', {}),
+            )
+            sys.exit(1)
+        logger.info(
+            "Immich sync%s: %d matched, %d unmatched, %d updated, "
+            "%d skipped (unrated), %d album(s) created",
+            " (dry-run)" if args.dry_run else "",
+            stats['matched'], stats['unmatched'], stats['updated'],
+            stats['skipped_unrated'], stats['albums_created'],
         )
         exit()
 

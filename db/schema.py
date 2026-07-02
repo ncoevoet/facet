@@ -117,12 +117,23 @@ PHOTOS_COLUMNS = [
     ('caption', 'TEXT'),
     ('caption_translated', 'TEXT'),
 
+    # VLM critique cache (regenerated on demand via /api/critique?refresh=true)
+    ('vlm_critique', 'TEXT'),
+    ('vlm_critique_translated', 'TEXT'),
+
     # OCR text-in-image (opt-in --recompute-ocr; NULL until that pass runs)
     ('ocr_text', 'TEXT'),
 
     # Color facet (opt-in --recompute-colors; NULL until that pass runs)
     ('dominant_hue', 'REAL'),       # 0-360 dominant hue, NULL for monochrome/unknown
     ('color_temp', 'TEXT'),         # 'warm' | 'cool' | 'neutral'
+
+    # Form facet + Matsuda color harmony (CPU; scan-time + --recompute-form)
+    ('form_symmetry', 'REAL'),      # left-right mirror symmetry, 0-10
+    ('form_balance', 'REAL'),       # edge-energy centroid centeredness, 0-10
+    ('form_edge_entropy', 'REAL'),  # edge-orientation histogram entropy, 0-10
+    ('form_fractal', 'REAL'),       # box-counting fractal dimension mapped to 0-10
+    ('color_harmony', 'REAL'),      # Matsuda hue-template harmony, 0-10; NULL for monochrome
 
     # GPS coordinates
     ('gps_latitude', 'REAL'),
@@ -136,6 +147,11 @@ PHOTOS_COLUMNS = [
     ('narrative_moment_confidence', 'REAL'),   # confidence in the assigned label: forward-backward posterior (0-1) for a moment, neutral 0.5 for 'other'
     ('caption_embedding', 'BLOB'),             # text embedding of the caption (semantic moment signal)
     ('learned_score', 'REAL'),                 # denormalized global personal-ranker score (mirrors learned_scores user_id/category NULL) so the "My Taste" sort is an indexed column read
+
+    # Advisory explainability diagnostics (opt-in recompute passes; never enter the aggregate)
+    ('distortion_attributes', 'TEXT'),  # JSON [{attribute, confidence}] from --recompute-distortions (zero-shot ExIQA-style)
+    ('skin_tone_delta', 'REAL'),        # worst-face CIEDE2000 distance to the natural skin locus (--recompute-skin-tone)
+    ('skin_tone_cast', 'TEXT'),         # 'green'|'magenta'|'blue'|'yellow' when the delta exceeds the cast threshold, else NULL
 ]
 
 FACES_COLUMNS = [
@@ -151,6 +167,11 @@ FACES_COLUMNS = [
     ('person_id', 'INTEGER'),
     ('face_thumbnail', 'BLOB'),  # Pre-generated face crop from detection time
     ('landmark_2d_106', 'BLOB'),  # 106x2 float32 = 848 bytes for blink detection
+    # Per-face geometric quality signals derived from landmark_2d_106 (canonical
+    # source for the culling face panel; NULL for rows scanned before these
+    # columns existed until --recompute-face-signals backfills them).
+    ('eyes_open_score', 'REAL'),  # 0-10 continuous eyes-open (NULL on turned heads)
+    ('smile_score', 'REAL'),      # 0-10 mouth-corner-lift smile (5 ~ neutral)
     # Embedding-space marker: which recognition model produced `embedding`.
     # Embeddings from different models are NOT comparable, so clustering loads
     # only the active space (see faces/clusterer.py) — a future model swap can't
@@ -158,6 +179,35 @@ FACES_COLUMNS = [
     # ArcFace/buffalo_l) on migration and tags new inserts with no code change.
     ('embedding_model', "TEXT DEFAULT 'arcface_buffalo_l'"),
 ]
+
+# Single shared faces upsert used by every scan-time writer (processing/scorer.py
+# single + batch, faces/processor.py). INSERT OR REPLACE regenerates the whole
+# row on --force rescans via the UNIQUE(photo_path, face_index) constraint, so a
+# writer with a stale column list would silently NULL the columns it misses —
+# one shared statement + row builder makes that divergence impossible.
+FACES_UPSERT_SQL = """
+    INSERT OR REPLACE INTO faces
+    (photo_path, face_index, embedding, bbox_x1, bbox_y1, bbox_x2, bbox_y2,
+     confidence, face_thumbnail, landmark_2d_106, eyes_open_score, smile_score)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+
+def face_upsert_row(photo_path, face):
+    """Build the FACES_UPSERT_SQL parameter tuple from a face_details dict."""
+    bbox = face.get('bbox', [0, 0, 0, 0])
+    return (
+        photo_path,
+        face['index'],
+        face['embedding'],
+        bbox[0], bbox[1], bbox[2], bbox[3],
+        face.get('confidence', 0),
+        face.get('thumbnail'),
+        face.get('landmark_2d_106'),
+        face.get('eyes_open_score'),
+        face.get('smile_score'),
+    )
+
 
 PERSONS_COLUMNS = [
     ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
@@ -444,12 +494,26 @@ ALBUM_PHOTOS_COLUMNS = [
     ('added_at', "TEXT DEFAULT (datetime('now'))"),
 ]
 
+# Client proofing picks on shared albums — fully isolated from the owner's
+# ratings (photos.is_favorite / user_preferences are never written by proofing)
+ALBUM_CLIENT_PICKS_COLUMNS = [
+    ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
+    ('album_id', 'INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE'),
+    ('photo_path', 'TEXT NOT NULL'),
+    ('picked', 'INTEGER DEFAULT 1'),
+    ('comment', 'TEXT'),
+    ('client_name', 'TEXT'),
+    ('created_at', "TEXT DEFAULT (datetime('now'))"),
+    ('updated_at', "TEXT DEFAULT (datetime('now'))"),
+]
+
 ALBUM_INDEXES = [
     ('idx_albums_user', 'albums', 'user_id'),
     ('idx_albums_share_token', 'albums', 'share_token'),
     ('idx_album_photos_album', 'album_photos', 'album_id'),
     ('idx_album_photos_path', 'album_photos', 'photo_path'),
     ('idx_album_photos_position', 'album_photos', 'album_id, position'),
+    ('idx_album_client_picks_album', 'album_client_picks', 'album_id'),
 ]
 
 # Per-user preferences for multi-user mode (ratings, favorites, rejected flags)
@@ -739,6 +803,13 @@ def init_database(db_path='photo_scores_pro.db'):
         ))
         _migrate_add_missing_columns(conn, 'album_photos', ALBUM_PHOTOS_COLUMNS)
 
+        conn.execute(_build_create_table_sql(
+            'album_client_picks',
+            ALBUM_CLIENT_PICKS_COLUMNS,
+            constraints=['UNIQUE(album_id, photo_path)']
+        ))
+        _migrate_add_missing_columns(conn, 'album_client_picks', ALBUM_CLIENT_PICKS_COLUMNS)
+
         # Create location_names cache table for reverse geocoding
         conn.execute(_build_create_table_sql(
             'location_names',
@@ -842,14 +913,27 @@ def init_database(db_path='photo_scores_pro.db'):
         # narrower schema is detected (caption+tags only), drop it so the
         # CREATE below installs the covering schema. The FTS data is then
         # repopulated by db.fts.rebuild_fts (or whoever rebuilds next).
+        fts_recreated = False
         if not fts_schema_is_current(conn):
             logger.info("photos_fts schema outdated — dropping for recreate")
             for trigger in ('photos_fts_ai', 'photos_fts_ad', 'photos_fts_au'):
                 conn.execute(f"DROP TRIGGER IF EXISTS {trigger}")
             conn.execute("DROP TABLE IF EXISTS photos_fts")
+            fts_recreated = True
         conn.execute(PHOTOS_FTS_CREATE)
         for trigger_sql in PHOTOS_FTS_TRIGGERS:
             conn.execute(trigger_sql)
+
+        # The recreated external-content index starts empty; without this,
+        # text search silently returns nothing for every pre-upgrade photo
+        # until a manual --rebuild-fts. Repopulate it from the photos table.
+        if fts_recreated and not is_fresh:
+            try:
+                conn.execute("INSERT INTO photos_fts(photos_fts) VALUES('rebuild')")
+            except sqlite3.DatabaseError:
+                logger.warning(
+                    "photos_fts rebuild after recreate failed — run 'python database.py --rebuild-fts'"
+                )
 
         # Run the version ladder (no-op today) and stamp PRAGMA user_version.
         _run_migration_ladder(conn, is_fresh)

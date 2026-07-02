@@ -57,6 +57,11 @@ interface CategoryReason {
   rejected?: RejectedCategory[];
 }
 
+interface SkinTonePenalty {
+  cast: string;
+  delta: number;
+}
+
 interface CritiqueResponse {
   category: string;
   category_reason: CategoryReason;
@@ -65,8 +70,10 @@ interface CritiqueResponse {
   strengths: CritiqueMetricRef[];
   weaknesses: CritiqueMetricRef[];
   suggestions: string[];
-  penalties: Record<string, number | boolean>;
+  penalties: Record<string, number | boolean | SkinTonePenalty>;
+  distortions?: string[];
   vlm_critique?: string;
+  vlm_source?: string;
   vlm_available?: boolean;
   caption?: string;
 }
@@ -138,12 +145,29 @@ export class MismatchReasonPipe implements PipeTransform {
   }
 }
 
+/**
+ * Distortion ids come from a config-replaceable server vocabulary, so an
+ * unknown id has no ``critique.distortion.<id>`` bundle entry. When the
+ * translation resolves to the key unchanged, fall back to a humanized form of
+ * the id (underscores → spaces) rather than rendering the raw dotted key.
+ */
+@Pipe({ name: 'distortionLabel', standalone: true, pure: false })
+export class DistortionLabelPipe implements PipeTransform {
+  private i18n = inject(I18nService);
+
+  transform(id: string): string {
+    const key = `critique.distortion.${id}`;
+    const label = this.i18n.t(key);
+    return label === key ? id.replace(/_/g, ' ') : label;
+  }
+}
+
 @Component({
   selector: 'app-photo-critique-dialog',
   standalone: true,
   imports: [
     MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
-    DecimalPipe, PercentPipe, TranslatePipe, ThumbnailUrlPipe, ContributionColorPipe, CategoryReasonPipe, MismatchReasonPipe,
+    DecimalPipe, PercentPipe, TranslatePipe, ThumbnailUrlPipe, ContributionColorPipe, CategoryReasonPipe, MismatchReasonPipe, DistortionLabelPipe,
   ],
   template: `
     <h2 mat-dialog-title class="!flex items-center gap-2 truncate">
@@ -184,7 +208,7 @@ export class MismatchReasonPipe implements PipeTransform {
             }
             <button mat-stroked-button class="!absolute !top-2 !right-2 !bg-[var(--mat-sys-surface)]/80" (click)="toggleOverlay()">
               <mat-icon>{{ overlayOn() ? 'visibility_off' : 'visibility' }}</mat-icon>
-              {{ (overlayOn() ? 'critique.overlay_hide' : 'critique.overlay_show') | translate }}
+              {{ (overlayOn() ? I18N.critique.overlay_hide : I18N.critique.overlay_show) | translate }}
             </button>
           </div>
         }
@@ -260,6 +284,21 @@ export class MismatchReasonPipe implements PipeTransform {
           </div>
         }
 
+        <!-- Detected distortions (advisory, zero-shot) -->
+        @if (c.distortions?.length) {
+          <div class="mb-3">
+            <div class="text-xs uppercase tracking-wider text-amber-400 mb-1">{{ I18N.critique.distortions | translate }}</div>
+            <div class="flex flex-wrap gap-1.5">
+              @for (d of c.distortions; track d) {
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-400/10 text-amber-400">
+                  <mat-icon class="!text-xs !w-3.5 !h-3.5 !leading-3.5">warning_amber</mat-icon>
+                  {{ d | distortionLabel }}
+                </span>
+              }
+            </div>
+          </div>
+        }
+
         <!-- Suggestions -->
         @if (c.suggestions.length) {
           <div class="mb-3">
@@ -278,8 +317,20 @@ export class MismatchReasonPipe implements PipeTransform {
         <!-- VLM Critique -->
         @if (c.vlm_critique) {
           <div class="mt-4 p-3 rounded-lg bg-[var(--mat-sys-surface-container)]">
-            <div class="text-xs uppercase tracking-wider opacity-50 mb-1">{{ I18N.critique.vlm_title | translate }}</div>
-            <p class="text-sm">{{ c.vlm_critique }}</p>
+            <div class="flex items-center mb-1">
+              <div class="flex-1 text-xs uppercase tracking-wider opacity-50">{{ I18N.critique.vlm_title | translate }}</div>
+              @if (vlmRefreshing()) {
+                <mat-spinner diameter="16" />
+              } @else {
+                <button mat-icon-button class="!w-6 !h-6 !p-0 opacity-50 hover:opacity-90"
+                        [attr.aria-label]="I18N.critique.vlm_refresh | translate"
+                        [title]="I18N.critique.vlm_refresh | translate"
+                        (click)="refreshVlm()">
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">refresh</mat-icon>
+                </button>
+              }
+            </div>
+            <p class="text-sm whitespace-pre-line">{{ c.vlm_critique }}</p>
           </div>
         }
 
@@ -291,6 +342,7 @@ export class MismatchReasonPipe implements PipeTransform {
             @if (c.penalties['noise']) { <span class="ml-2">{{ I18N.critique.penalty.noise | translate:{ value: '' + c.penalties['noise'] } }}</span> }
             @if (c.penalties['highlight_clipping']) { <span class="ml-2">{{ I18N.critique.penalty.highlight_clipping | translate:{ value: '' + c.penalties['highlight_clipping'] } }}</span> }
             @if (c.penalties['shadow_clipping']) { <span class="ml-2">{{ I18N.critique.penalty.shadow_clipping | translate:{ value: '' + c.penalties['shadow_clipping'] } }}</span> }
+            @if (skinTone(); as st) { <span class="ml-2 text-amber-400">{{ I18N.critique.penalty.skin_tone | translate:{ cast: ('critique.skin_cast.' + st.cast | translate), delta: '' + st.delta } }}</span> }
           </div>
         }
       }
@@ -334,11 +386,20 @@ export class PhotoCritiqueDialogComponent implements OnInit {
     return !!(c && Object.keys(c.penalties).length > 0);
   });
 
+  protected readonly skinTone = computed<SkinTonePenalty | null>(() => {
+    const p = this.critique()?.penalties['skin_tone'];
+    return p && typeof p === 'object' ? p : null;
+  });
+
+  protected readonly vlmRefreshing = signal(false);
+
   async ngOnInit(): Promise<void> {
     try {
       const mode = this.data.vlmAvailable ? 'vlm' : 'rule';
       const res = await firstValueFrom(
-        this.api.get<CritiqueResponse>('/critique', { path: this.data.photoPath, mode }),
+        this.api.get<CritiqueResponse>('/critique', {
+          path: this.data.photoPath, mode, lang: this.i18n.locale(),
+        }),
       );
       this.critique.set(res);
     } catch (err: unknown) {
@@ -346,6 +407,23 @@ export class PhotoCritiqueDialogComponent implements OnInit {
       this.error.set(message);
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  protected async refreshVlm(): Promise<void> {
+    if (this.vlmRefreshing()) return;
+    this.vlmRefreshing.set(true);
+    try {
+      const res = await firstValueFrom(
+        this.api.get<CritiqueResponse>('/critique', {
+          path: this.data.photoPath, mode: 'vlm', lang: this.i18n.locale(), refresh: 'true',
+        }),
+      );
+      this.critique.set(res);
+    } catch {
+      // Keep the previous critique visible when regeneration fails.
+    } finally {
+      this.vlmRefreshing.set(false);
     }
   }
 }

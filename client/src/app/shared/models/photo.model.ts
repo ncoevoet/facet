@@ -26,6 +26,12 @@ export interface Photo {
   subject_prominence: number | null;
   subject_placement: number | null;
   bg_separation: number | null;
+  // Form facet + color harmony (optional — absent until the columns are populated)
+  form_symmetry?: number | null;
+  form_balance?: number | null;
+  form_edge_entropy?: number | null;
+  form_fractal?: number | null;
+  color_harmony?: number | null;
   // Face
   face_count: number;
   face_ratio: number;

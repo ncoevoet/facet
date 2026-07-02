@@ -1,9 +1,12 @@
 """Tests for the batch per-face culling endpoint (POST /api/culling-group/faces).
 
-The endpoint returns per-face eyes-open/expression/confidence + a per-face
-is_blink flag for every photo in a culling group, recomputing eyes/expression
-from stored landmarks. These tests pin the batching, grouping and is_blink
-threshold; the landmark geometry math itself lives in analyzers.FaceAnalyzer.
+The endpoint returns per-face eyes-open/smile/expression/confidence + a
+per-face is_blink flag for every photo in a culling group, preferring the
+persisted faces.eyes_open_score/smile_score columns and falling back to
+on-the-fly landmark computation for rows scanned before those columns existed.
+These tests pin the batching, grouping, persisted-vs-fallback precedence and
+the config-driven thresholds object; the landmark geometry math itself lives
+in analyzers.FaceAnalyzer.
 """
 
 import sqlite3
@@ -24,7 +27,8 @@ _SCHEMA = """
         id INTEGER PRIMARY KEY,
         photo_path TEXT, face_index INTEGER,
         bbox_x1 REAL, bbox_y1 REAL, bbox_x2 REAL, bbox_y2 REAL,
-        confidence REAL, landmark_2d_106 BLOB
+        confidence REAL, landmark_2d_106 BLOB,
+        eyes_open_score REAL, smile_score REAL
     );
     CREATE TABLE photos (path TEXT PRIMARY KEY);
 """
@@ -80,6 +84,7 @@ def test_batches_and_groups_by_path(client):
         mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
         mock.patch("analyzers.FaceAnalyzer.compute_eyes_open_score", lambda lm: 8.0),
         mock.patch("analyzers.FaceAnalyzer.compute_expression_score", lambda lm: 6.0),
+        mock.patch("analyzers.FaceAnalyzer.compute_smile_score", lambda lm: 7.0),
     ):
         resp = client.post("/api/culling-group/faces", json={"paths": ["/a.jpg", "/b.jpg"]})
 
@@ -91,10 +96,12 @@ def test_batches_and_groups_by_path(client):
     assert f0["id"] == 1 and f0["face_index"] == 0
     assert f0["confidence"] == 0.9
     assert f0["eyes_open_score"] == 8.0 and f0["expression_score"] == 6.0
+    assert f0["smile_score"] == 7.0
     assert f0["is_blink"] is False  # 8.0 > 4.0 cutoff
     # face with no landmarks -> scores None, not a blink
     fb = body["/b.jpg"][0]
-    assert fb["eyes_open_score"] is None and fb["is_blink"] is False
+    assert fb["eyes_open_score"] is None and fb["smile_score"] is None
+    assert fb["is_blink"] is False
 
 
 def test_low_eyes_open_flags_blink(client):
@@ -103,6 +110,7 @@ def test_low_eyes_open_flags_blink(client):
         mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
         mock.patch("analyzers.FaceAnalyzer.compute_eyes_open_score", lambda lm: 2.0),
         mock.patch("analyzers.FaceAnalyzer.compute_expression_score", lambda lm: 5.0),
+        mock.patch("analyzers.FaceAnalyzer.compute_smile_score", lambda lm: 5.0),
     ):
         resp = client.post("/api/culling-group/faces", json={"paths": ["/a.jpg"]})
 
@@ -110,10 +118,76 @@ def test_low_eyes_open_flags_blink(client):
     assert all(f["is_blink"] is True for f in faces)  # 2.0 <= 4.0 cutoff
 
 
+def test_persisted_values_win_over_recompute(client):
+    """Rows with persisted per-face columns must be served as-is: the fallback
+    landmark computation is only for NULL rows (old DBs)."""
+    conn = _db([
+        {"id": 1, "photo_path": "/a.jpg", "face_index": 0, "confidence": 0.9,
+         "landmark_2d_106": _LANDMARK_BLOB, "eyes_open_score": 9.5, "smile_score": 8.5},
+    ])
+    with (
+        mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
+        mock.patch("analyzers.FaceAnalyzer.compute_eyes_open_score", lambda lm: 1.0),
+        mock.patch("analyzers.FaceAnalyzer.compute_expression_score", lambda lm: 6.0),
+        mock.patch("analyzers.FaceAnalyzer.compute_smile_score", lambda lm: 1.0),
+    ):
+        resp = client.post("/api/culling-group/faces", json={"paths": ["/a.jpg"]})
+
+    face = resp.json()["faces_by_path"]["/a.jpg"][0]
+    assert face["eyes_open_score"] == 9.5 and face["smile_score"] == 8.5
+    assert face["expression_score"] == 6.0  # openness stays computed on the fly
+    assert face["is_blink"] is False  # persisted 9.5 wins over the mocked 1.0
+
+
+def test_null_rows_fall_back_to_landmark_compute(client):
+    """Rows scanned before the per-face columns existed (NULL) fall back to the
+    on-the-fly landmark computation, including per-face is_blink."""
+    conn = _db([
+        {"id": 1, "photo_path": "/a.jpg", "face_index": 0, "confidence": 0.9,
+         "landmark_2d_106": _LANDMARK_BLOB},
+    ])
+    with (
+        mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
+        mock.patch("analyzers.FaceAnalyzer.compute_eyes_open_score", lambda lm: 3.0),
+        mock.patch("analyzers.FaceAnalyzer.compute_expression_score", lambda lm: 5.5),
+        mock.patch("analyzers.FaceAnalyzer.compute_smile_score", lambda lm: 2.0),
+    ):
+        resp = client.post("/api/culling-group/faces", json={"paths": ["/a.jpg"]})
+
+    face = resp.json()["faces_by_path"]["/a.jpg"][0]
+    assert face["eyes_open_score"] == 3.0 and face["smile_score"] == 2.0
+    assert face["expression_score"] == 5.5
+    assert face["is_blink"] is True  # 3.0 <= 4.0 cutoff
+
+
+def test_thresholds_come_from_config(client):
+    """The response exposes the scoring_config face_detection cutoffs so the
+    client never hardcodes them."""
+    conn = _db(_faces())
+    with (
+        mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
+        mock.patch.dict(
+            "api.config._FULL_CONFIG",
+            {"face_detection": {"eyes_closed_max": 3.5, "poor_expression_min": 2.5}},
+        ),
+        mock.patch("analyzers.FaceAnalyzer.compute_eyes_open_score", lambda lm: 3.5),
+        mock.patch("analyzers.FaceAnalyzer.compute_expression_score", lambda lm: 5.0),
+        mock.patch("analyzers.FaceAnalyzer.compute_smile_score", lambda lm: 5.0),
+    ):
+        resp = client.post("/api/culling-group/faces", json={"paths": ["/a.jpg"]})
+
+    body = resp.json()
+    assert body["thresholds"] == {"eyes_closed_max": 3.5, "poor_expression_min": 2.5}
+    # is_blink follows the configured cutoff (3.5 <= 3.5)
+    assert all(f["is_blink"] is True for f in body["faces_by_path"]["/a.jpg"])
+
+
 def test_empty_paths_returns_empty(client):
     resp = client.post("/api/culling-group/faces", json={"paths": []})
     assert resp.status_code == 200
-    assert resp.json() == {"faces_by_path": {}}
+    body = resp.json()
+    assert body["faces_by_path"] == {}
+    assert body["thresholds"] == {"eyes_closed_max": 4.0, "poor_expression_min": 4.0}
 
 
 def test_path_not_visible_is_filtered(client):

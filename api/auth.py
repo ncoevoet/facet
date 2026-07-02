@@ -99,6 +99,14 @@ async def get_optional_user(
     if payload is None:
         return None
 
+    # Share-client (proofing) tokens grant access ONLY through
+    # require_share_client, which decodes the raw bearer itself. They must never
+    # authenticate the regular surface: otherwise a shared-album link would
+    # become a full authenticated (and, in empty-edition-password mode, edition)
+    # session on every get_optional_user endpoint.
+    if payload.get('role') == SHARE_CLIENT_ROLE:
+        return None
+
     return CurrentUser(
         user_id=payload.get('sub'),
         role=payload.get('role', 'user'),
@@ -158,6 +166,55 @@ async def require_superadmin(
     if not user.is_superadmin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superadmin access required")
     return user
+
+
+# --- SHARE CLIENT SESSIONS (proofing on shared albums) ---
+
+SHARE_CLIENT_ROLE = 'share_client'
+
+
+def create_share_client_token(album_id: int, client_name: str = '') -> str:
+    """Mint a short-lived JWT for a proofing client on one shared album.
+
+    The token is scoped to a single album (``sub: share:<album_id>``) and a
+    dedicated role. ``get_optional_user`` rejects that role outright, so the
+    token authenticates nothing but ``require_share_client`` on this album's
+    picks routes. Expiry comes from ``viewer.proofing.session_minutes``
+    (default 1440 = 24h).
+    """
+    minutes = int((VIEWER_CONFIG.get('proofing', {}) or {}).get('session_minutes', 1440))
+    return create_access_token(
+        {
+            'sub': f'share:{album_id}',
+            'role': SHARE_CLIENT_ROLE,
+            'album_id': album_id,
+            'client_name': client_name,
+        },
+        expires_delta=timedelta(minutes=minutes),
+    )
+
+
+async def require_share_client(
+    album_id: int,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> dict:
+    """Require a share-client JWT bound to the path's ``album_id``.
+
+    Validates the bearer token's role AND that it was minted for the same
+    album as the route being called — a session for album A can never write
+    picks on album B. Raises 403 otherwise.
+    """
+    payload = decode_access_token(credentials.credentials) if credentials else None
+    if (
+        payload is None
+        or payload.get('role') != SHARE_CLIENT_ROLE
+        or payload.get('album_id') != album_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Share session required",
+        )
+    return payload
 
 
 # --- PASSWORD HASHING (multi-user) ---

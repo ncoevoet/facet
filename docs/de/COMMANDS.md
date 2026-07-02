@@ -83,6 +83,18 @@ Viewers im `progress`-Feld von `/api/scan/status` und im SSE-Stream bereitstellt
 >
 > **Vorbehalt.** `--import-sidecars` löst Bewertungen/Labels *„neueste gewinnt"* gegen das `scanned_at` des Fotos (letzter Scan) auf, nicht gegen eine pro-Bewertung-Bearbeitungszeit — eine Sidecar, die neuer als der letzte Scan ist, kann also eine Bewertung überschreiben, die Sie in Facet danach geändert haben. Führen Sie `--import-sidecars` vor dem Neubewerten aus, wenn der externe Editor die Quelle der Wahrheit ist, und `python database.py --migrate-tags` nach dem Import, wenn Sie die `photo_tags`-Lookup-Tabelle verwenden.
 
+### Immich-Synchronisierung
+
+Übertragen Sie Ihre Facet-Bewertungen und Favoriten an einen [Immich](https://immich.app/)-Server über dessen REST-API (Einweg — Facet → Immich). Assets werden anhand von `originalPath` über die Pfad-Präfix-Zuordnungen im `immich`-Konfigurationsblock aufgelöst, in einem einzigen gebündelten Suchdurchlauf.
+
+| Befehl | Beschreibung |
+|---------|-------------|
+| `python facet.py --immich-test` | Konnektivität und Authentifizierung gegen den konfigurierten Immich-Server prüfen (`immich.url` + `immich.api_key`, gesendet als `x-api-key`) |
+| `python facet.py --immich-sync` | Sternebewertungen (1–5) und Favoriten an Immich übertragen, Assets anhand von `originalPath` auflösen. Berücksichtigt `--dry-run` (löst auf, schreibt aber nie) und `--user` (benutzerspezifische Bewertungen im Mehrbenutzermodus) |
+| `python facet.py --immich-sync --dry-run` | Jedes Asset auflösen und melden, was sich ändern würde, ohne zu schreiben |
+
+Bewertungen folgen Immichs versionssicherer Richtlinie (nur 1–5, nie 0/−1); ein optionales Top-Picks-Album sammelt Fotos oberhalb eines Bewertungsschwellenwerts. Nur REST — keine direkte Kopplung an die Immich-Datenbank. Siehe [Konfiguration — Immich-Synchronisierung](CONFIGURATION.md#immich-sync) für den vollständigen Block.
+
 ## Neuberechnungen
 
 Diese Befehle aktualisieren bestimmte Metriken, leiten neue Daten ab (KI-Bildunterschriften, GPS, Embeddings) oder analysieren die Datenbank — alles, ohne die vollständige Bewertungspipeline erneut auszuführen. Die meisten verwenden gespeicherte Thumbnails/Landmarken erneut und sind CPU-leicht, aber die KI-/Extraktionszeilen (z. B. `--generate-captions`) und die aus-dem-Bild-neuberechnenden Zeilen sind GPU-intensiv.
@@ -102,9 +114,13 @@ Diese Befehle aktualisieren bestimmte Metriken, leiten neue Daten ab (KI-Bildunt
 | `python facet.py --recompute-iqa` | `[GPU]` `[8gb/16gb/24gb]` Ergänzende IQA-Metriken (TOPIQ IAA, NR-Face, LIQE) aus gespeicherten Thumbnails neu berechnen |
 | `python facet.py --recompute-ocr` | In-Bild-Text in `ocr_text` aus Thumbnails extrahieren (opt-in; ohne OCR-Engine wirkungslos; danach `--rebuild-fts` ausführen, um zu indizieren) |
 | `python facet.py --recompute-colors` | Dominanten Farbton + warme/kalte Farbtemperatur aus Thumbnails extrahieren (CPU, schnell) in `dominant_hue` / `color_temp` |
-| `python facet.py --upgrade-db` | Schema migrieren und die vollständige Backfill-Kette ausführen: extract-gps, detect-duplicates, recompute-iqa, saliency, composition-cpu, burst, blinks, average. Idempotent; überspringt schwere Schritte wie das Erstellen von Bildunterschriften. |
+| `python facet.py --recompute-form` | Die fünf erklärbaren Form-/Farbmetriken neu berechnen — Links-rechts-Symmetrie, visuelle Balance, Kantenorientierungs-Entropie, Box-Counting-Fraktalkomplexität und Matsuda-Farbtonvorlagen-Farbharmonie — aus gespeicherten Thumbnails (CPU, kein Modell). Sie erscheinen in der Kritik-Aufschlüsselung, den Vorschlägen und dem Foto-Tooltip und sind als Kategoriegewichte verfügbar (mit 0 ausgeliefert) |
+| `python facet.py --recompute-skin-tone` | Natürlichkeit des Porträt-Hauttons aus gespeicherten Gesichts-Thumbnails + Landmarken neu berechnen (Wangen-CIELAB-Chroma gegen einen CCT-Hautlocus, CIEDE2000; CPU, kein Modell). Nur beratend — erscheint als Kritik-Hinweis, keine Aggregat-Kopplung |
+| `python facet.py --recompute-distortions` | Jedes Foto mit wahrscheinlichen Verzerrungsattributen kennzeichnen (Bewegungsunschärfe, Farbstich, Überschärfung, …) via Zero-Shot-ExIQA-artige kontrastive Prompts über das gespeicherte CLIP/SigLIP-Embedding, dann einen Spearman-Korrelationsbericht gegen `liqe_score` / `noise_sigma` ausgeben. Nur beratend (Kritik-Warnungs-Chips), keine Aggregat-Kopplung |
+| `python facet.py --upgrade-db` | Schema migrieren und die vollständige Backfill-Kette ausführen: extract-gps, detect-duplicates, recompute-iqa, saliency, composition-cpu, burst, blinks, eyes-expression, face-signals, average. Idempotent; überspringt schwere Schritte wie das Erstellen von Bildunterschriften. |
 | `python facet.py --recompute-blinks` | Blinzelerkennung aus gespeicherten Landmarken neu berechnen (CPU, schnell) |
 | `python facet.py --recompute-eyes-expression` | Augen-offen- + Ausdrucks-Scores aus gespeicherten Landmarken neu berechnen (CPU, schnell) |
+| `python facet.py --recompute-face-signals` | Augen-offen- + Lächel-Scores pro Gesicht aus den gespeicherten 106-Punkt-Landmarken nachfüllen (CPU, schnell; kein Modell). Läuft auch als Schritt von `--upgrade-db` |
 | `python facet.py --recompute-burst` | Serienbild-Erkennungsgruppen neu berechnen |
 | `python facet.py --detect-duplicates` | Doppelte Fotos via pHash erkennen |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Kosinus-Schwellenwerte für Beinahe-Duplikate auswerten (Präzisions-/Recall-Tabelle mit Labels, sonst Verteilung der Kandidaten-Kosinuswerte) |

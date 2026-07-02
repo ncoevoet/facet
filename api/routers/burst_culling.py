@@ -15,7 +15,7 @@ from itertools import groupby
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_db
@@ -68,6 +68,17 @@ class CullingFacesBody(BaseModel):
     paths: list[str]
 
 
+class AutoCullBody(BaseModel):
+    group_by: Literal['all', 'burst', 'similar', 'scene'] = 'all'
+    album_id: Optional[int] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    strictness: Optional[int] = Field(None, ge=0, le=100)
+    min_keep_per_group: int = Field(1, ge=1)
+    highlights_album: str = ''
+    dry_run: bool = True
+
+
 # --- Helpers ---
 
 def _get_burst_weights():
@@ -114,10 +125,25 @@ def _compute_burst_score(photo):
     return score
 
 
+def _get_face_thresholds():
+    """Culling face-signal cutoffs from scoring_config face_detection.
+
+    Returns (eyes_closed_max, poor_expression_min): eyes_open_score (0-10)
+    at/below the former counts as closed, expression/smile (0-10) below the
+    latter counts as poor. Exposed to the client via the /culling-group/faces
+    ``thresholds`` object so both sides read one source.
+    """
+    from api.config import _FULL_CONFIG
+    fd = _FULL_CONFIG.get('face_detection', {})
+    return (
+        float(fd.get('eyes_closed_max', 4.0)),
+        float(fd.get('poor_expression_min', 4.0)),
+    )
+
+
 # Thresholds for deriving a plain-language cull reason from already-loaded
 # signals. Kept conservative so reasons only appear when clearly meaningful.
-_CULL_EYES_CLOSED_MAX = 4.0       # eyes_open_score (0-10) at/below this = closed
-_CULL_EXPRESSION_MIN = 4.0        # expression_score (0-10) below this = poor expression
+# The eyes/expression cutoffs come from scoring_config (_get_face_thresholds).
 _CULL_SHARP_DELTA = 1.0           # tech_sharpness gap vs best before flagging "soft"
 _CULL_AESTHETIC_DELTA = 0.5       # aesthetic gap vs best before flagging "lower aesthetic"
 _CULL_AGGREGATE_DELTA = 0.3       # aggregate gap vs best before flagging "lower overall"
@@ -138,13 +164,14 @@ def _compute_cull_reason(photo, best):
         return {'key': 'best', 'value': None}
 
     has_face = (photo.get('face_count') or 0) > 0
+    eyes_closed_max, expression_min = _get_face_thresholds()
 
     # 1. Blink / eyes closed (face photos only) — highest-priority defect.
     if photo.get('is_blink'):
         return {'key': 'eyes_closed', 'value': None}
     if has_face:
         eyes = photo.get('eyes_open_score')
-        if eyes is not None and eyes <= _CULL_EYES_CLOSED_MAX:
+        if eyes is not None and eyes <= eyes_closed_max:
             return {'key': 'eyes_closed', 'value': None}
 
     # 2. Softer than the best frame.
@@ -158,7 +185,7 @@ def _compute_cull_reason(photo, best):
         expr = photo.get('expression_score')
         best_expr = best.get('expression_score') if best else None
         if (expr is not None and best_expr is not None
-                and expr < _CULL_EXPRESSION_MIN and best_expr - expr >= 1.0):
+                and expr < expression_min and best_expr - expr >= 1.0):
             return {'key': 'expression', 'value': None}
 
     # 4. Lower aesthetic appeal.
@@ -348,6 +375,40 @@ def get_burst_groups(
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
+def _mark_burst_reviewed(conn, keep_paths, reject_paths):
+    """Flag a confirmed burst group: keeps become leads, rejects lose the lead.
+
+    Both sides are marked burst_reviewed=1. Shared by the manual confirm
+    (``select_burst_photos``) and the auto-cull apply so the mark SQL lives once.
+    """
+    if keep_paths:
+        placeholders = ','.join('?' * len(keep_paths))
+        conn.execute(
+            f"UPDATE photos SET is_burst_lead = 1, burst_reviewed = 1 WHERE path IN ({placeholders})",
+            keep_paths,
+        )
+    if reject_paths:
+        placeholders = ','.join('?' * len(reject_paths))
+        conn.execute(
+            f"UPDATE photos SET is_burst_lead = 0, burst_reviewed = 1 WHERE path IN ({placeholders})",
+            reject_paths,
+        )
+
+
+def _mark_similarity_reviewed(conn, paths, vis_sql, vis_params):
+    """Flag every visible photo in a confirmed similarity group as reviewed.
+
+    Shared by the manual confirm (``select_similar_photos``) and the auto-cull
+    apply so the mark SQL lives once.
+    """
+    if paths:
+        placeholders = ','.join('?' * len(paths))
+        conn.execute(
+            f"UPDATE photos SET similarity_reviewed = 1 WHERE path IN ({placeholders}) AND {vis_sql}",
+            paths + vis_params,
+        )
+
+
 @router.post("/api/burst-groups/select")
 async def select_burst_photos(
     body: BurstSelectionBody,
@@ -387,18 +448,8 @@ async def select_burst_photos(
             # Batch update burst lead status and mark as reviewed
             keep_paths = list(keep_set)
             reject_paths = list(group_paths - keep_set)
-            if keep_paths:
-                placeholders = ','.join('?' * len(keep_paths))
-                conn.execute(
-                    f"UPDATE photos SET is_burst_lead = 1, burst_reviewed = 1 WHERE path IN ({placeholders})",
-                    keep_paths,
-                )
+            _mark_burst_reviewed(conn, keep_paths, reject_paths)
             if reject_paths:
-                placeholders = ','.join('?' * len(reject_paths))
-                conn.execute(
-                    f"UPDATE photos SET is_burst_lead = 0, burst_reviewed = 1 WHERE path IN ({placeholders})",
-                    reject_paths,
-                )
                 set_photos_rejected(conn, reject_paths, user_id)
 
             record_culling_pairs(
@@ -509,12 +560,7 @@ async def select_similar_photos(
             # is guaranteed present by the lifespan-time init_database() migration
             # (see api/__init__.py:lifespan and db/schema.py:PHOTOS_COLUMNS).
             all_paths = list(group_paths)
-            if all_paths:
-                placeholders = ','.join('?' * len(all_paths))
-                conn.execute(
-                    f"UPDATE photos SET similarity_reviewed = 1 WHERE path IN ({placeholders}) AND {vis_sql}",
-                    all_paths + vis_params,
-                )
+            _mark_similarity_reviewed(conn, all_paths, vis_sql, vis_params)
 
             # Invalidate similarity-groups cache: the kept photos now carry
             # similarity_reviewed=1 and must be excluded from subsequent group
@@ -778,12 +824,15 @@ def _count_unreviewed_similar_groups(conn, threshold, user_id, seed, exclude_rej
 
 def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed, user_id,
                                      page_groups=None, offset=0, exclude_rejected=False,
-                                     album_id=None, date_from=None, date_to=None):
+                                     max_per_group=20, album_id=None, date_from=None, date_to=None):
     """Fetch similar groups with photo data for a page slice.
 
     Args:
         page_groups: Pre-sliced list of groups to enrich. If None, fetches all.
         offset: The global offset of the first group in page_groups (for group_id assignment).
+        max_per_group: Photos fetched per group. The paginated UI feed keeps the
+            default 20; auto-cull sizes it to the largest group so a >20-photo
+            group is culled in full instead of leaving its worst photos untouched.
     """
     if page_groups is None:
         all_groups = compute_similarity_groups(
@@ -803,7 +852,7 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
         return []
 
     # Batch-fetch photos only for this page's groups
-    photos_by_group = _fetch_similar_group_photos(conn, page_groups, vis_sql, vis_params, exclude_rejected=exclude_rejected, user_id=user_id)
+    photos_by_group = _fetch_similar_group_photos(conn, page_groups, vis_sql, vis_params, max_per_group=max_per_group, exclude_rejected=exclude_rejected, user_id=user_id)
 
     sim_pct = round(threshold * 100)
     reason = f'{sim_pct}% similar'
@@ -896,15 +945,20 @@ async def api_culling_group_faces(
     """Per-face metrics for every photo in a culling group, in one batch call.
 
     Returns ``{faces_by_path: {path: [{id, face_index, bbox_*, confidence,
-    eyes_open_score, expression_score, is_blink}]}}``. Eyes-open and expression
-    are recomputed on the fly from each face's stored 106-point landmarks (no
-    model load); ``is_blink`` thresholds the eyes-open score at the same cutoff
-    used for cull reasons. Replaces the per-photo ``/api/photo/faces`` fan-out so
-    the culling lightbox can show true per-face badges.
+    eyes_open_score, smile_score, expression_score, is_blink}]}, thresholds:
+    {eyes_closed_max, poor_expression_min}}``. Eyes-open and smile come from the
+    persisted per-face columns when present, falling back to on-the-fly landmark
+    computation for rows scanned before those columns existed; expression
+    (mouth openness) is always recomputed (no model load either way).
+    ``is_blink`` thresholds the eyes-open score at the config cutoff shared via
+    ``thresholds``. Replaces the per-photo ``/api/photo/faces`` fan-out so the
+    culling lightbox can show true per-face badges.
     """
+    eyes_closed_max, poor_expression_min = _get_face_thresholds()
+    thresholds = {'eyes_closed_max': eyes_closed_max, 'poor_expression_min': poor_expression_min}
     paths = [p for p in (body.paths or []) if p]
     if not paths:
-        return {'faces_by_path': {}}
+        return {'faces_by_path': {}, 'thresholds': thresholds}
 
     import numpy as np
 
@@ -917,22 +971,29 @@ async def api_culling_group_faces(
     with get_db() as conn:
         rows = conn.execute(
             f"SELECT photo_path, id, face_index, bbox_x1, bbox_y1, bbox_x2, bbox_y2, "
-            f"confidence, landmark_2d_106 FROM faces WHERE photo_path IN ({placeholders}) "
+            f"confidence, landmark_2d_106, eyes_open_score, smile_score "
+            f"FROM faces WHERE photo_path IN ({placeholders}) "
             f"AND photo_path IN (SELECT path FROM photos WHERE {vis_sql}) "
             f"ORDER BY photo_path, face_index",
             paths + vis_params,
         ).fetchall()
 
     for row in rows:
-        eyes = expr = None
+        eyes = row['eyes_open_score']
+        smile = row['smile_score']
+        expr = None
         blob = row['landmark_2d_106']
         if blob is not None:
             try:
                 landmarks = np.frombuffer(blob, dtype=np.float32).reshape(106, 2)
-                eyes = FaceAnalyzer.compute_eyes_open_score(landmarks)
-                expr = FaceAnalyzer.compute_expression_score(landmarks)
             except (ValueError, TypeError):
-                pass
+                landmarks = None
+            if landmarks is not None:
+                expr = FaceAnalyzer.compute_expression_score(landmarks)
+                if eyes is None:
+                    eyes = FaceAnalyzer.compute_eyes_open_score(landmarks)
+                if smile is None:
+                    smile = FaceAnalyzer.compute_smile_score(landmarks)
         faces_by_path[row['photo_path']].append({
             'id': row['id'],
             'face_index': row['face_index'],
@@ -940,11 +1001,12 @@ async def api_culling_group_faces(
             'bbox_x2': row['bbox_x2'], 'bbox_y2': row['bbox_y2'],
             'confidence': row['confidence'],
             'eyes_open_score': eyes,
+            'smile_score': smile,
             'expression_score': expr,
-            'is_blink': eyes is not None and eyes <= _CULL_EYES_CLOSED_MAX,
+            'is_blink': eyes is not None and eyes <= eyes_closed_max,
         })
 
-    return {'faces_by_path': faces_by_path}
+    return {'faces_by_path': faces_by_path, 'thresholds': thresholds}
 
 
 @router.get("/api/culling-groups")
@@ -1087,3 +1149,241 @@ async def confirm_culling_group(
         return await apply_scene_cull(scene_body, user)
     else:
         raise HTTPException(status_code=400, detail=f'Unknown group type: {body.type}')
+
+
+# --- One-button auto-cull ---
+
+_AUTO_CULL_PREVIEW_CAP = 200
+
+# Decision order for overlapping photos: burst leads are decided first, then
+# similar, then scene, so a later group never re-decides a path an earlier one
+# already kept or rejected.
+_AUTO_CULL_TYPE_ORDER = {'burst': 0, 'similar': 1, 'scene': 2}
+
+
+def _get_auto_cull_config():
+    """auto_cull settings from scoring_config.json (with safe defaults)."""
+    try:
+        from api.config import _FULL_CONFIG
+        ac = _FULL_CONFIG.get('auto_cull', {}) or {}
+    except (ImportError, AttributeError):
+        ac = {}
+    return {
+        'default_strictness': int(ac.get('default_strictness', 50)),
+        'highlights_min': float(ac.get('highlights_min', 8.0)),
+    }
+
+
+def _auto_keep_split(photos, strictness, min_keep):
+    """Split a group's photos into (keep, reject) under the keeper budget.
+
+    Ranks by ``_compute_burst_score`` (the enriched ``burst_score`` field) for
+    every group type — scenes included — then keeps the best photo plus every
+    photo within ``margin = (100 - strictness) / 100 * 5`` of the best score
+    (the exact client ``computeAutoKeep`` semantics: strictness 100 keeps only
+    the single best, strictness 0 keeps everything within 5.0). The keep set is
+    then floored at ``min_keep`` photos by rank.
+    """
+    ranked = sorted(photos, key=lambda p: (-(p.get('burst_score') or 0), p.get('path') or ''))
+    margin = (100 - strictness) / 100 * 5
+    best_score = ranked[0].get('burst_score') or 0
+    keep_count = 1
+    if margin > 0:
+        while (keep_count < len(ranked)
+               and best_score - (ranked[keep_count].get('burst_score') or 0) <= margin):
+            keep_count += 1
+    keep_count = min(len(ranked), max(keep_count, min_keep))
+    return ranked[:keep_count], ranked[keep_count:]
+
+
+def _collect_auto_cull_groups(conn, user_id, group_by, album_id, date_from, date_to):
+    """Materialize the unreviewed culling groups for an auto-cull scope.
+
+    Reuses the exact fetchers behind ``GET /api/culling-groups`` with
+    ``exclude_rejected=True`` so already-rejected photos (per-user) never enter
+    the split, and every photo is bounded by the caller's visibility clause.
+    """
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    if group_by == 'scene':
+        groups = _fetch_scene_groups(
+            conn, user_id=user_id, album_id=album_id,
+            date_from=date_from, date_to=date_to, exclude_rejected=True,
+        )
+    else:
+        groups = []
+        if group_by in ('all', 'burst'):
+            groups += _fetch_unreviewed_burst_groups(
+                conn, vis_sql, vis_params, page=None, per_page=None,
+                exclude_rejected=True, user_id=user_id,
+                album_id=album_id, date_from=date_from, date_to=date_to,
+            )
+        if group_by in ('all', 'similar'):
+            from api.config import _FULL_CONFIG
+            threshold = float(
+                (_FULL_CONFIG.get('similarity_groups', {}) or {}).get('default_threshold', 0.85))
+            _, similar_shuffled = _count_unreviewed_similar_groups(
+                conn, threshold, user_id, seed=0, exclude_rejected=True,
+                album_id=album_id, date_from=date_from, date_to=date_to,
+            )
+            if similar_shuffled:
+                # Size the per-group cap to the largest group so auto-cull sees
+                # every photo; the paginated feed's default 20 would leave the
+                # worst photos of a >20-member group unreviewed (they resurface).
+                max_per_group = max((g['count'] for g in similar_shuffled), default=1)
+                groups += _fetch_unreviewed_similar_groups(
+                    conn, threshold, vis_sql, vis_params, seed=0, user_id=user_id,
+                    page_groups=similar_shuffled, offset=0,
+                    exclude_rejected=True, max_per_group=max_per_group,
+                    album_id=album_id, date_from=date_from, date_to=date_to,
+                )
+    return [g for g in groups if len(g.get('photos') or []) >= 2]
+
+
+def _apply_auto_cull_group(conn, group, keep_paths, reject_paths, user_id, vis_sql, vis_params):
+    """Commit one auto-culled group with the existing manual-confirm semantics.
+
+    Mirrors ``select_burst_photos`` / ``select_similar_photos`` /
+    ``apply_scene_cull``: per-user rejection via ``set_photos_rejected``,
+    reviewed flags per type, and one ``record_culling_pairs`` call per group
+    (source='culling'). Runs inside the caller's transaction. Returns the
+    number of comparison pairs inserted.
+    """
+    gtype = group['type']
+    if gtype == 'burst':
+        _mark_burst_reviewed(conn, keep_paths, reject_paths)
+    elif gtype == 'similar':
+        _mark_similarity_reviewed(conn, keep_paths + reject_paths, vis_sql, vis_params)
+    set_photos_rejected(conn, reject_paths, user_id)
+    return record_culling_pairs(
+        conn, keep_paths, reject_paths, user_id=user_id, group_type=gtype,
+    )
+
+
+def _fill_highlights_album(conn, user_id, album_name, paths):
+    """Create-or-reuse a manual album by name and append ``paths``.
+
+    Idempotent re-runs are handled by the shared ``append_album_photos``
+    helper. Returns the number of photos actually added.
+    """
+    from api.routers.albums import append_album_photos
+
+    row = conn.execute(
+        "SELECT id FROM albums WHERE name = ? AND user_id IS ?",
+        (album_name, user_id),
+    ).fetchone()
+    if row:
+        album_id = row['id']
+    else:
+        album_id = conn.execute(
+            "INSERT INTO albums (user_id, name, description, is_smart) VALUES (?, ?, '', 0)",
+            (user_id, album_name),
+        ).lastrowid
+    return append_album_photos(conn, album_id, paths)
+
+
+@router.post("/api/culling/auto")
+def auto_cull(
+    body: AutoCullBody,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Auto-cull a whole scope in one shot under a keeper budget.
+
+    Per unreviewed group (burst / similar / scene per ``group_by``), photos are
+    ranked by ``_compute_burst_score`` and the best plus every photo within the
+    strictness-derived margin is kept (floored at ``min_keep_per_group``); the
+    rest are rejected. Defaults to ``dry_run`` (no writes — returns the split as
+    a preview); an apply additionally records culling comparison pairs per
+    group, optionally fills a manual "Highlights" album with the top keep of
+    each group scoring at least ``auto_cull.highlights_min``, invalidates the
+    culling/scenes/similarity caches once, and nudges one auto-retrain with the
+    total pair count.
+
+    Groups are decided in burst→similar→scene order, and every path a group
+    keeps or rejects is dropped from later groups before they split. Without
+    this, an overlapping photo (a burst lead that is also a similar-group member)
+    could end up both kept and rejected, writing contradictory culling pairs.
+    Plain ``def`` so FastAPI runs the CPU-heavy collect/split/apply in a
+    threadpool instead of stalling the event loop (like GET /api/burst-groups).
+    """
+    cfg = _get_auto_cull_config()
+    strictness = body.strictness if body.strictness is not None else cfg['default_strictness']
+    with get_db() as conn:
+        try:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
+            if body.album_id is not None:
+                from api.routers.albums import _check_album_access
+                _check_album_access(conn, body.album_id, user_id)
+
+            groups = _collect_auto_cull_groups(
+                conn, user_id, body.group_by, body.album_id, body.date_from, body.date_to,
+            )
+            # Decide leads first: burst before similar before scene, so a photo an
+            # earlier group keeps/rejects is never re-decided by a later one.
+            groups.sort(key=lambda g: _AUTO_CULL_TYPE_ORDER.get(g['type'], 99))
+
+            kept = 0
+            rejected = 0
+            total_pairs = 0
+            processed = 0
+            preview = []
+            highlight_paths = []
+            decided: set[str] = set()
+            for group in groups:
+                photos = [p for p in group['photos'] if p['path'] not in decided]
+                if len(photos) < 2:
+                    continue
+                keep, reject = _auto_keep_split(
+                    photos, strictness, body.min_keep_per_group,
+                )
+                keep_paths = [p['path'] for p in keep]
+                reject_paths = [p['path'] for p in reject]
+                decided.update(keep_paths)
+                decided.update(reject_paths)
+                processed += 1
+                kept += len(keep_paths)
+                rejected += len(reject_paths)
+                if body.highlights_album and (keep[0].get('burst_score') or 0) >= cfg['highlights_min']:
+                    highlight_paths.append(keep_paths[0])
+                if len(preview) < _AUTO_CULL_PREVIEW_CAP:
+                    preview.append({
+                        'group_id': group['group_id'],
+                        'type': group['type'],
+                        'keep_paths': keep_paths,
+                        'reject_paths': reject_paths,
+                        'best_path': keep_paths[0],
+                    })
+                if not body.dry_run:
+                    total_pairs += _apply_auto_cull_group(
+                        conn, group, keep_paths, reject_paths, user_id, vis_sql, vis_params,
+                    )
+
+            highlights_added = len(highlight_paths)
+            if not body.dry_run:
+                if highlight_paths:
+                    highlights_added = _fill_highlights_album(
+                        conn, user_id, body.highlights_album, highlight_paths,
+                    )
+                conn.execute("DELETE FROM stats_cache WHERE key LIKE 'scenes_%'")
+                conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
+                conn.commit()
+                _invalidate_culling_groups_cache()
+                from db import DEFAULT_DB_PATH
+                trigger_auto_retrain(DEFAULT_DB_PATH, user_id, total_pairs, conn=conn)
+
+            return {
+                'groups_processed': processed,
+                'kept': kept,
+                'rejected': rejected,
+                'highlights_added': highlights_added,
+                'dry_run': body.dry_run,
+                'preview': preview,
+                'preview_truncated': processed > _AUTO_CULL_PREVIEW_CAP,
+            }
+
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            conn.rollback()
+            logger.exception("Auto-cull failed")
+            raise HTTPException(status_code=500, detail='Internal server error')

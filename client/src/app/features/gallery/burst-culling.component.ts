@@ -9,6 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSliderModule } from '@angular/material/slider';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { GalleryStore } from './gallery.store';
 import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from '../scenes/scenes.pipes';
@@ -27,9 +28,9 @@ import { firstValueFrom } from 'rxjs';
 import { I18N } from '../../core/i18n/keys';
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
-  CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, WeightRemainingPipe,
-  CullGroupIconPipe, CullGroupLabelPipe,
-  CullingGroup, CullingFace,
+  CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe,
+  FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
+  BetterInGroupPipe, CullingGroup, CullingFace, FaceThresholds,
 } from './burst-culling.pipes';
 
 interface CullingGroupsResponse {
@@ -40,12 +41,31 @@ interface CullingGroupsResponse {
   total_pages: number;
 }
 
+/** Response of POST /api/culling/auto (dry-run preview and apply share the shape). */
+interface AutoCullResponse {
+  groups_processed: number;
+  kept: number;
+  rejected: number;
+  highlights_added: number;
+  dry_run: boolean;
+  preview: { group_id: number; type: string; keep_paths: string[]; reject_paths: string[]; best_path: string }[];
+  preview_truncated: boolean;
+}
+
 // Per-user culling toolbar preferences, persisted so the page reopens the way
 // the user left it. The URL query param (deep links / "Cull this scene") still
 // overrides the stored granularity.
 const CULL_GROUP_BY_KEY = 'facet_culling_group_by';
 const CULL_SORT_KEY = 'facet_culling_sort';
 const CULL_CATEGORY_KEY = 'facet_culling_category';
+const CULL_FACE_EYES_KEY = 'facet_culling_face_eyes_min';
+const CULL_FACE_SMILE_KEY = 'facet_culling_face_smile_min';
+
+/** Stored face-panel slider value (0-10); 0 = highlight filter off. */
+function readStoredFaceMin(key: string): number {
+  const v = Number(localStorage.getItem(key));
+  return Number.isFinite(v) && v >= 0 && v <= 10 ? v : 0;
+}
 const GROUP_BY_VALUES = ['all', 'burst', 'similar', 'scene'] as const;
 type GroupBy = typeof GROUP_BY_VALUES[number];
 const SORT_VALUES = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons'];
@@ -109,9 +129,12 @@ interface ShortcutRow {
     CullReasonPipe,
     FacesForPathPipe,
     FacePoorExpressionPipe,
+    FaceRingClassPipe,
+    FaceDimmedPipe,
     WeightRemainingPipe,
     CullGroupIconPipe,
     CullGroupLabelPipe,
+    BetterInGroupPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
   ],
@@ -293,6 +316,13 @@ interface ShortcutRow {
                      [attr.aria-label]="I18N.culling.loupe | translate" />
             </mat-slider>
           }
+          @if (auth.isEdition()) {
+            <button mat-icon-button (click)="openAutoCull()" [disabled]="autoCullLoading()"
+                    [matTooltip]="I18N.culling.auto_cull.tooltip | translate"
+                    [attr.aria-label]="I18N.culling.auto_cull.button | translate">
+              <mat-icon>auto_fix_high</mat-icon>
+            </button>
+          }
           @if (unconfirmedCount() > 0) {
             <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="confirming()" class="!hidden lg:!inline-flex !rounded-md shrink-0">
               <mat-icon>done_all</mat-icon>
@@ -393,6 +423,14 @@ interface ShortcutRow {
                     } @else if (photo.cull_reason; as reason) {
                       <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-xs font-medium max-w-[160px] truncate">
                         {{ reason | cullReason }}
+                      </div>
+                    }
+                    @if (photo.path | betterInGroup:group.best_path) {
+                      <div class="absolute top-9 left-2 w-6 h-6 rounded-full bg-amber-500/90 inline-flex items-center justify-center"
+                           role="img"
+                           [matTooltip]="I18N.culling.auto_cull.better_tooltip | translate"
+                           [attr.aria-label]="I18N.culling.auto_cull.better_tooltip | translate">
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">stars</mat-icon>
                       </div>
                     }
                     @if (photo.path | isKept:selectionsMap():group.group_id) {
@@ -552,6 +590,12 @@ interface ShortcutRow {
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
           </div>
           <button mat-icon-button
+                  [matTooltip]="I18N.slideshow.fullscreen | translate"
+                  [attr.aria-label]="I18N.slideshow.fullscreen | translate"
+                  (click)="toggleFullscreen(); $event.stopPropagation()" class="!text-white">
+            <mat-icon>{{ isFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+          </button>
+          <button mat-icon-button
                   [attr.aria-label]="I18N.dialog.cancel | translate"
                   (click)="closeLightbox(); $event.stopPropagation()" class="!text-white">
             <mat-icon>close</mat-icon>
@@ -622,7 +666,27 @@ interface ShortcutRow {
                role="presentation"
                (click)="$event.stopPropagation()"
                (keydown)="$event.stopPropagation()">
-            <div class="text-white/50 text-xs mb-2">{{ I18N.culling.face_grid_title | translate }}</div>
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
+              <div class="text-white/50 text-xs">{{ I18N.culling.face_grid_title | translate }}</div>
+              <div class="flex items-center gap-2"
+                   [matTooltip]="'culling.face_eyes_min_tooltip' | translate">
+                <span class="text-white/50 text-xs">{{ 'culling.face_eyes_min' | translate }}</span>
+                <mat-slider class="!w-24 !min-w-0" [min]="0" [max]="10" [step]="1" [discrete]="true">
+                  <input matSliderThumb [value]="faceEyesMin()" (valueChange)="onFaceEyesMinChange($event)"
+                         [attr.aria-label]="'culling.face_eyes_min' | translate" />
+                </mat-slider>
+                <span class="text-white/70 text-xs font-medium w-4">{{ faceEyesMin() }}</span>
+              </div>
+              <div class="flex items-center gap-2"
+                   [matTooltip]="'culling.face_smile_min_tooltip' | translate">
+                <span class="text-white/50 text-xs">{{ 'culling.face_smile_min' | translate }}</span>
+                <mat-slider class="!w-24 !min-w-0" [min]="0" [max]="10" [step]="1" [discrete]="true">
+                  <input matSliderThumb [value]="faceSmileMin()" (valueChange)="onFaceSmileMinChange($event)"
+                         [attr.aria-label]="'culling.face_smile_min' | translate" />
+                </mat-slider>
+                <span class="text-white/70 text-xs font-medium w-4">{{ faceSmileMin() }}</span>
+              </div>
+            </div>
             <div class="flex gap-3 items-start">
               @for (photo of lbGroup.photos; track photo.path; let pIdx = $index) {
                 @if ((photo.path | facesForPath:faceMap()).length > 0) {
@@ -631,9 +695,9 @@ interface ShortcutRow {
                       @for (face of photo.path | facesForPath:faceMap(); track face.id) {
                         <div class="relative">
                           <img [src]="face.id | faceThumbnailUrl"
-                               class="w-16 h-16 rounded object-cover border-2 border-white/20"
-                               [class.border-green-500]="photo.path === lbGroup.best_path && !face.is_blink"
-                               [class.border-red-500]="face.is_blink"
+                               class="w-16 h-16 rounded object-cover ring-2 ring-inset transition-opacity"
+                               [ngClass]="face | faceRingClass:faceThresholds()"
+                               [class.opacity-40]="face | faceDimmed:faceEyesMin():faceSmileMin()"
                                [alt]="photo.filename" loading="lazy" />
                           @if (face.confidence !== null && face.confidence !== undefined) {
                             <div class="absolute top-0 right-0 bg-black/60 text-white/80 text-[9px] leading-none px-1 py-0.5 rounded-bl">
@@ -644,7 +708,7 @@ interface ShortcutRow {
                             <div class="absolute bottom-0 inset-x-0 bg-yellow-600/90 text-white text-[10px] leading-tight text-center font-bold py-0.5">
                               {{ I18N.ui.badges.blink | translate }}
                             </div>
-                          } @else if (face | facePoorExpression) {
+                          } @else if (face | facePoorExpression:faceThresholds()) {
                             <div class="absolute bottom-0 inset-x-0 bg-orange-600/80 text-white text-[10px] leading-tight text-center font-bold py-0.5">
                               {{ I18N.culling.face_badge_expression | translate }}
                             </div>
@@ -666,6 +730,48 @@ interface ShortcutRow {
         }
       </div>
     }
+
+    <!-- Auto-cull preview / confirm dialog -->
+    @if (autoCullPreview(); as ac) {
+      <div class="fixed inset-0 z-[110] bg-black/50 flex items-center justify-center p-4"
+           role="presentation"
+           (click)="cancelAutoCull()"
+           (keydown.escape)="cancelAutoCull()">
+        <div #autoCullDialog class="rounded-xl bg-[var(--mat-sys-surface-container-high)] p-6 w-full max-w-md space-y-4"
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="autoCullTitle"
+             tabindex="-1"
+             (click)="$event.stopPropagation()"
+             (keydown)="$event.stopPropagation()">
+          <h2 id="autoCullTitle" class="text-lg font-semibold">{{ I18N.culling.auto_cull.title | translate }}</h2>
+          @if (ac.groups_processed === 0) {
+            <p class="text-sm opacity-80">{{ I18N.culling.auto_cull.empty | translate }}</p>
+          } @else {
+            <p class="text-sm opacity-80">
+              {{ I18N.culling.auto_cull.summary | translate:{ groups: ac.groups_processed, kept: ac.kept, rejected: ac.rejected } }}
+            </p>
+            <p class="text-xs opacity-60">{{ I18N.culling.strictness | translate }} · {{ strictness() }}%</p>
+            @if (ac.highlights_added > 0) {
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" class="accent-[var(--mat-sys-primary)]"
+                       [checked]="autoCullHighlights()"
+                       (change)="autoCullHighlights.set(!autoCullHighlights())" />
+                {{ I18N.culling.auto_cull.highlights_label | translate:{ count: ac.highlights_added } }}
+              </label>
+            }
+          }
+          <div class="flex justify-end gap-2">
+            <button mat-stroked-button (click)="cancelAutoCull()">{{ I18N.dialog.cancel | translate }}</button>
+            @if (ac.groups_processed > 0) {
+              <button mat-flat-button (click)="confirmAutoCull()" [disabled]="autoCullLoading()">
+                {{ I18N.culling.auto_cull.apply | translate:{ rejected: ac.rejected } }}
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    }
   `,
   host: { class: 'block h-full' },
 })
@@ -680,6 +786,7 @@ export class BurstCullingComponent implements OnDestroy {
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly albumService = inject(AlbumService);
   private readonly compareFilters = inject(CompareFiltersService);
+  protected readonly auth = inject(AuthService);
   protected readonly store = inject(GalleryStore);
   private readonly sceneDate = new SceneDatePipe();
 
@@ -773,6 +880,8 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly compareMode = signal<'single' | '2up' | '4up'>('single');
   /** Pan/zoom transform shared by every compare pane (synced peek). */
   protected readonly zoom = signal<ZoomState>(FIT_ZOOM);
+  /** True while the darkroom dialog is the document's fullscreen element. */
+  protected readonly isFullscreen = signal(false);
 
   /** The frames shown in compare mode: N photos from the current index, clamped. */
   protected readonly compareFrames = computed(() => {
@@ -788,13 +897,43 @@ export class BurstCullingComponent implements OnDestroy {
     this.zoom.set(FIT_ZOOM);
   }
 
+  /** True Fullscreen API on the darkroom overlay (mirrors the slideshow pattern). */
+  protected toggleFullscreen(): void {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    } else {
+      void this.lightboxDialog()?.nativeElement.requestFullscreen().catch(() => {});
+    }
+  }
+
   /** The fullscreen darkroom dialog element, focused on open so the photo tiles
    *  behind the overlay stop receiving keystrokes (otherwise Space double-fires). */
   private readonly lightboxDialog = viewChild<ElementRef<HTMLElement>>('lightboxDialog');
+  /** The auto-cull confirm dialog, focused on open so keyboard users aren't
+   *  stranded behind the modal overlay near the destructive "Reject" button. */
+  private readonly autoCullDialog = viewChild<ElementRef<HTMLElement>>('autoCullDialog');
   private readonly cullToolbar = viewChild<TemplateRef<unknown>>('cullToolbar');
 
   /** photo path -> detected faces, loaded lazily when a lightbox group opens. */
   protected readonly faceMap = signal<Map<string, CullingFace[]>>(new Map());
+
+  /** Config-driven face-signal cutoffs from the faces response (ring colors + badges). */
+  protected readonly faceThresholds = signal<FaceThresholds | null>(null);
+
+  /** Face-panel live-highlight sliders (0 = off): faces below the chosen
+   *  eyes-open / smile value stay bright while the rest dim. Persisted. */
+  protected readonly faceEyesMin = signal(readStoredFaceMin(CULL_FACE_EYES_KEY));
+  protected readonly faceSmileMin = signal(readStoredFaceMin(CULL_FACE_SMILE_KEY));
+
+  protected onFaceEyesMinChange(value: number): void {
+    this.faceEyesMin.set(value);
+    localStorage.setItem(CULL_FACE_EYES_KEY, String(value));
+  }
+
+  protected onFaceSmileMinChange(value: number): void {
+    this.faceSmileMin.set(value);
+    localStorage.setItem(CULL_FACE_SMILE_KEY, String(value));
+  }
 
   /** True when at least one photo in the focused group has loaded faces. */
   protected readonly faceGridHasFaces = computed(() => {
@@ -847,11 +986,18 @@ export class BurstCullingComponent implements OnDestroy {
   /** Per-category comparison counts + threshold, for the weight-tuning chip. */
   protected readonly comparisonStats = signal<ComparisonStatsLite | null>(null);
 
+  /** Dry-run result of POST /culling/auto shown in the confirm dialog (null = closed). */
+  protected readonly autoCullPreview = signal<AutoCullResponse | null>(null);
+  protected readonly autoCullLoading = signal(false);
+  /** Whether the apply also fills the Highlights album (dialog checkbox, opt-in). */
+  protected readonly autoCullHighlights = signal(false);
+
   protected readonly darkroomShortcuts: ShortcutRow[] = [
     { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
     { keys: ['↑'], labelKey: 'culling.shortcuts.keep' },
     { keys: ['↓'], labelKey: 'culling.shortcuts.reject' },
     { keys: ['Z'], labelKey: 'culling.shortcuts.zoom' },
+    { keys: ['F'], labelKey: 'slideshow.fullscreen' },
     { keys: ['Space'], labelKey: 'culling.shortcuts.confirm_next' },
     { keys: ['Esc'], labelKey: 'culling.shortcuts.close' },
   ];
@@ -902,6 +1048,11 @@ export class BurstCullingComponent implements OnDestroy {
     effect(() => {
       this.lightboxDialog()?.nativeElement.focus();
     });
+    // Focus the auto-cull confirm dialog on open so keyboard users land inside
+    // the modal (not stranded on the tiles behind it) next to a destructive action.
+    effect(() => {
+      if (this.autoCullPreview()) this.autoCullDialog()?.nativeElement.focus();
+    });
     // Project the toolbar into the global header on lg+ (the page renders it in
     // its own bottom bar on small screens — see the #cullToolbar template).
     effect(() => {
@@ -928,6 +1079,9 @@ export class BurstCullingComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.pageHelp.setDescription(null);
     this.clearAllPassTimers();
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    }
     const tpl = this.cullToolbar();
     if (tpl) this.headerSlot.clear(tpl);
   }
@@ -1207,6 +1361,9 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   protected closeLightbox(): void {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    }
     // Leave the page focused on the group just reviewed in the darkroom, so its
     // keep/reject choices (already written to the shared selectionsMap) are the
     // ones highlighted and scrolled into view on exit.
@@ -1229,10 +1386,11 @@ export class BurstCullingComponent implements OnDestroy {
     if (missing.length === 0) return;
     try {
       const data = await firstValueFrom(
-        this.api.post<{ faces_by_path: Record<string, CullingFace[]> }>(
+        this.api.post<{ faces_by_path: Record<string, CullingFace[]>; thresholds?: FaceThresholds }>(
           '/culling-group/faces', { paths: missing.map(p => p.path) },
         ),
       );
+      if (data.thresholds) this.faceThresholds.set(data.thresholds);
       const byPath = data.faces_by_path ?? {};
       this.faceMap.update(m => {
         const next = new Map(m);
@@ -1282,6 +1440,20 @@ export class BurstCullingComponent implements OnDestroy {
     }
     event.preventDefault();
     this.zoom.set(this.zoom().scale > 1 ? FIT_ZOOM : { scale: 2, tx: 0, ty: 0 });
+  }
+
+  /** F toggles true fullscreen on the open darkroom (mirrors the slideshow's F key). */
+  @HostListener('document:keydown.f', ['$event'])
+  protected onFullscreenToggle(event: Event): void {
+    if (!this.lightboxGroup()) return;
+    if (isTypingContext(event)) return;
+    event.preventDefault();
+    this.toggleFullscreen();
+  }
+
+  @HostListener('document:fullscreenchange')
+  protected onFullscreenChange(): void {
+    this.isFullscreen.set(!!document.fullscreenElement);
   }
 
   private setCurrentLightboxPhotoKept(group: CullingGroup, keep: boolean): void {
@@ -1375,9 +1547,83 @@ export class BurstCullingComponent implements OnDestroy {
 
   @HostListener('document:keydown.escape', ['$event'])
   protected onEscape(event: Event): void {
+    if (this.autoCullPreview()) {
+      event.preventDefault();
+      this.cancelAutoCull();
+      return;
+    }
     if (this.lightboxGroup()) {
       event.preventDefault();
       this.closeLightbox();
+    }
+  }
+
+  // --- Auto-cull (one-button cull under a keeper budget) ---
+
+  /** Request body for POST /culling/auto, reusing the page's scope + strictness. */
+  private autoCullBody(dryRun: boolean, highlightsAlbum: string): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      group_by: this.groupBy(),
+      strictness: this.strictness(),
+      dry_run: dryRun,
+      highlights_album: highlightsAlbum,
+    };
+    const album = this.scopeAlbum();
+    if (album) body['album_id'] = Number(album);
+    const from = this.scopeFrom();
+    if (from) body['date_from'] = from;
+    const to = this.scopeTo();
+    if (to) body['date_to'] = to;
+    return body;
+  }
+
+  /** Deterministic Highlights album name for the current scope and day. */
+  private highlightsAlbumName(): string {
+    const scope = this.scopeLabel() ?? this.i18n.t(I18N.culling.scope_whole_library);
+    const day = new Date().toISOString().slice(0, 10);
+    return `${this.i18n.t(I18N.culling.auto_cull.highlights_name)} — ${scope} ${day}`;
+  }
+
+  /** Dry-run the auto-cull for the current scope and open the confirm dialog. */
+  protected async openAutoCull(): Promise<void> {
+    this.autoCullLoading.set(true);
+    try {
+      const preview = await firstValueFrom(this.api.post<AutoCullResponse>(
+        '/culling/auto', this.autoCullBody(true, this.highlightsAlbumName()),
+      ));
+      this.autoCullPreview.set(preview);
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.culling.auto_cull.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+    } finally {
+      this.autoCullLoading.set(false);
+    }
+  }
+
+  protected cancelAutoCull(): void {
+    this.autoCullPreview.set(null);
+  }
+
+  /** Apply the previewed auto-cull (dry_run=false), then refresh the feed. */
+  protected async confirmAutoCull(): Promise<void> {
+    this.autoCullLoading.set(true);
+    try {
+      const album = this.autoCullHighlights() ? this.highlightsAlbumName() : '';
+      const result = await firstValueFrom(this.api.post<AutoCullResponse>(
+        '/culling/auto', this.autoCullBody(false, album),
+      ));
+      this.autoCullPreview.set(null);
+      this.snackBar.open(
+        this.i18n.t(I18N.culling.auto_cull.applied, { kept: result.kept, rejected: result.rejected }),
+        '', { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' },
+      );
+      this.selectedGroupIndex.set(0);
+      this.resetForReload();
+      void this.refreshComparisonStats();
+      void this.refreshRankerStatus();
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.culling.auto_cull.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+    } finally {
+      this.autoCullLoading.set(false);
     }
   }
 

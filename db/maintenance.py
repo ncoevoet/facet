@@ -385,11 +385,18 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
     # Use intersection of src/dest columns to handle any schema skew gracefully
     src_photo_cols = [r[1] for r in dest_conn.execute("PRAGMA src.table_info(photos)").fetchall()]
     dest_photo_col_set = {r[1] for r in dest_conn.execute("PRAGMA main.table_info(photos)").fetchall()}
-    _STRIP_COLS = {'clip_embedding', 'histogram_data', 'raw_sharpness_variance', 'thumbnail', 'path'}
+    _STRIP_COLS = {'clip_embedding', 'histogram_data', 'raw_sharpness_variance', 'caption_embedding', 'thumbnail', 'path'}
+    # On-demand caches (VLM critique, caption) may be generated on the viewer
+    # deployment itself, while the source scan DB keeps them NULL. COALESCE onto
+    # the current destination value so a re-export never overwrites that
+    # GPU-expensive cache with a NULL from source.
+    _CACHE_COLS = {'vlm_critique', 'vlm_critique_translated', 'caption', 'caption_translated'}
     update_cols = [c for c in src_photo_cols if c not in _STRIP_COLS and c in dest_photo_col_set]
 
     if update_cols:
         set_clause = ', '.join(
+            f"{c} = COALESCE((SELECT {c} FROM src.photos WHERE src.photos.path = main.photos.path), {c})"
+            if c in _CACHE_COLS else
             f"{c} = (SELECT {c} FROM src.photos WHERE src.photos.path = main.photos.path)"
             for c in update_cols
         )
@@ -402,7 +409,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
     batch_size = 200
     if new_paths:
         common_photo_cols = [c for c in src_photo_cols if c in dest_photo_col_set]
-        _BLOB_STRIP = {'clip_embedding', 'histogram_data', 'raw_sharpness_variance', 'thumbnail'}
+        _BLOB_STRIP = {'clip_embedding', 'histogram_data', 'raw_sharpness_variance', 'caption_embedding', 'thumbnail'}
         select_exprs = ', '.join(
             f"NULL AS {c}" if c in _BLOB_STRIP else c
             for c in common_photo_cols
@@ -524,16 +531,23 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                 ).fetchone()[0]
                 logger.info("  Inserted %d new faces, downsized %d face thumbnails", new_face_count, face_resized)
 
-        # Update person_id for existing faces (handles re-clustering without full face re-insert)
-        dest_conn.execute(
-            "UPDATE main.faces SET person_id = ("
-            "  SELECT person_id FROM src.faces AS sf"
-            "  WHERE sf.photo_path = main.faces.photo_path AND sf.face_index = main.faces.face_index"
-            ")"
-        )
-        dest_conn.commit()
-        if verbose:
-            logger.info("  Updated person assignments for existing faces")
+        # Refresh mutable per-face signals for existing faces (re-clustering,
+        # recomputed blink/smile) without a full face re-insert. eyes_open_score
+        # and smile_score drive the viewer's face-signal badges, so they must
+        # propagate on every incremental export, not just person_id.
+        _FACE_SYNC_COLS = ['person_id', 'eyes_open_score', 'smile_score']
+        face_sync_cols = [c for c in _FACE_SYNC_COLS if c in src_face_cols and c in dest_face_col_set]
+        if face_sync_cols:
+            face_set_clause = ', '.join(
+                f"{c} = (SELECT sf.{c} FROM src.faces AS sf "
+                f"WHERE sf.photo_path = main.faces.photo_path "
+                f"AND sf.face_index = main.faces.face_index)"
+                for c in face_sync_cols
+            )
+            dest_conn.execute(f"UPDATE main.faces SET {face_set_clause}")
+            dest_conn.commit()
+            if verbose:
+                logger.info("  Updated person assignments and face signals for existing faces")
 
     # --- Sync persons (full replace — small table) ---
     if 'persons' in dest_tables and 'persons' in src_tables:
@@ -631,8 +645,11 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     if verbose:
         logger.info("  Stripping unused BLOB columns...")
 
-    # photos: clip_embedding, histogram_data, raw_sharpness_variance
-    dst_conn.execute("UPDATE photos SET clip_embedding = NULL, histogram_data = NULL, raw_sharpness_variance = NULL")
+    # photos: clip_embedding, histogram_data, raw_sharpness_variance, caption_embedding
+    # (caption_embedding is the scan-side moment signal, ~4.6KB/captioned photo,
+    # and is never read by the viewer — stripping it keeps the export lightweight).
+    dst_conn.execute("UPDATE photos SET clip_embedding = NULL, histogram_data = NULL, "
+                     "raw_sharpness_variance = NULL, caption_embedding = NULL")
     dst_conn.commit()
 
     # faces: embedding (NOT NULL constraint — use empty blob), landmark_2d_106

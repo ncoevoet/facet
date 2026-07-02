@@ -195,6 +195,12 @@
     "subject_prominence": "Prominence",
     "subject_placement": "Placement",
     "bg_separation": "BG Separation",
+    "form_section": "Form & Harmony",
+    "form_symmetry": "Symmetry",
+    "form_balance": "Balance",
+    "form_edge_entropy": "Edge Entropy",
+    "form_fractal": "Fractal",
+    "color_harmony": "Color Harmony",
     "caption": "Caption",
     "persons": "Persons",
     "histogram": "Histogram"
@@ -1586,8 +1592,10 @@
     "weaknesses": "Weaknesses",
     "suggestions": "Suggestions",
     "penalties": "Penalties",
+    "distortions": "Detected Distortions",
     "vlm_title": "AI Critique",
     "vlm_loading": "Generating AI critique...",
+    "vlm_refresh": "Regenerate",
     "error_fallback": "Failed to load critique",
     "metrics": {
       "aesthetic": "Aesthetic Quality",
@@ -1612,7 +1620,12 @@
       "subject_placement": "Subject Placement",
       "bg_separation": "Background Separation",
       "mean_saturation": "Saturation",
-      "mean_luminance": "Luminance"
+      "mean_luminance": "Luminance",
+      "form_symmetry": "Symmetry",
+      "form_balance": "Visual Balance",
+      "form_edge_entropy": "Edge Entropy",
+      "form_fractal": "Fractal Complexity",
+      "color_harmony": "Color Harmony"
     },
     "suggestion": {
       "aesthetic": "Consider stronger visual impact through better lighting or subject matter",
@@ -1631,7 +1644,36 @@
       "subject_prominence": "Give the subject more frame space or use a shallower depth of field",
       "bg_separation": "Use wider aperture or greater distance to separate subject from background",
       "liqe_score": "Improve overall image quality — check for distortions or artifacts",
-      "isolation_bonus": "Use wider aperture to better isolate the subject from background"
+      "isolation_bonus": "Use wider aperture to better isolate the subject from background",
+      "form_symmetry": "Center the subject or align strong shapes to balance the left and right halves of the frame",
+      "form_balance": "Recompose so the visual weight sits closer to the frame center or a balanced thirds position",
+      "form_edge_entropy": "Add more varied lines and textures — the dominant edges all run in the same direction",
+      "form_fractal": "Include richer detail or texture — the frame reads as visually sparse",
+      "color_harmony": "Adjust the palette toward a harmonic hue scheme such as complementary or analogous colors"
+    },
+    "distortion": {
+      "motion_blur": "Motion blur",
+      "defocus_blur": "Defocus blur",
+      "white_noise": "Noise / grain",
+      "impulse_noise": "Salt-and-pepper noise",
+      "jpeg_artifacts": "Compression artifacts",
+      "oversharpening": "Oversharpening halos",
+      "low_contrast": "Low contrast",
+      "overexposure": "Overexposure",
+      "underexposure": "Underexposure",
+      "color_cast": "Color cast",
+      "oversaturation": "Oversaturation",
+      "desaturation": "Washed-out colors",
+      "banding": "Color banding",
+      "pixelation": "Pixelation",
+      "haze": "Haze",
+      "chromatic_aberration": "Chromatic aberration"
+    },
+    "skin_cast": {
+      "green": "green",
+      "magenta": "magenta",
+      "blue": "blue",
+      "yellow": "yellow"
     },
     "reason": {
       "default": "Default category (no specific category matched)",
@@ -1677,7 +1719,8 @@
       "blink": "Blink detected",
       "noise": "Noise: {value}",
       "highlight_clipping": "Highlight clip: {value}",
-      "shadow_clipping": "Shadow clip: {value}"
+      "shadow_clipping": "Shadow clip: {value}",
+      "skin_tone": "Skin tone cast: {cast} (ΔE {delta})"
     }
   },
   "culling": {
@@ -1738,6 +1781,19 @@
     "weight_ready_tooltip": "Enough comparisons collected — open Comparison → Weight Suggestions to review and apply the optimized weights for this category.",
     "strictness": "Strictness",
     "strictness_tooltip": "Higher keeps only the single best photo; lower keeps near-ties too",
+    "auto_cull": {
+      "button": "Auto-cull",
+      "tooltip": "Automatically keep the best of every group and reject the rest",
+      "title": "Auto-cull preview",
+      "summary": "{groups} groups: keep {kept} photos, reject {rejected}",
+      "highlights_label": "Add the {count} very best keeps to a Highlights album",
+      "highlights_name": "Highlights",
+      "apply": "Reject {rejected} photos",
+      "applied": "Auto-cull applied: kept {kept}, rejected {rejected}",
+      "error": "Auto-cull failed",
+      "empty": "Nothing to auto-cull in this scope",
+      "better_tooltip": "A better photo exists in this group"
+    },
     "exit_scene": "Exit scene",
     "scene_complete": "Scene culled — nothing left to review",
     "scope": "Scope",
@@ -1750,6 +1806,10 @@
     "my_taste_tooltip": "Every cull decision trains your personal \"My Taste\" ranking.",
     "face_grid_title": "Faces in this group",
     "face_badge_expression": "Expression",
+    "face_eyes_min": "Eyes",
+    "face_eyes_min_tooltip": "Highlight faces with an eyes-open score below this value",
+    "face_smile_min": "Smile",
+    "face_smile_min_tooltip": "Highlight faces with a smile score below this value",
     "reason": {
       "best": "Best of group",
       "eyes_closed": "Eyes closed",
@@ -2087,5 +2147,22 @@
   },
   "moments": {
     "uncertain": "uncertain"
+  },
+  "proofing": {
+    "client_picks": "Client picks",
+    "no_picks": "No client picks yet.",
+    "picks_count": "{count} picks",
+    "pick": "Pick this photo",
+    "unpick": "Remove pick",
+    "comment": "Comment",
+    "comment_placeholder": "Leave a comment for the photographer…",
+    "pin_prompt": "This gallery is protected. Enter the PIN to mark your picks.",
+    "pin_label": "PIN",
+    "pin_invalid": "Incorrect PIN.",
+    "name_prompt": "Add your name so the photographer knows who picked (optional).",
+    "name_label": "Your name",
+    "start": "Start",
+    "skip": "Skip",
+    "save_error": "Could not save your pick."
   }
 }

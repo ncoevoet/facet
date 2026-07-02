@@ -195,6 +195,12 @@
     "subject_prominence": "Proeminência",
     "subject_placement": "Posicionamento",
     "bg_separation": "Separação do fundo",
+    "form_section": "Forma e harmonia",
+    "form_symmetry": "Simetria",
+    "form_balance": "Equilíbrio",
+    "form_edge_entropy": "Entropia de bordas",
+    "form_fractal": "Fractal",
+    "color_harmony": "Harmonia de cores",
     "caption": "Legenda",
     "persons": "Pessoas",
     "histogram": "Histograma"
@@ -1586,8 +1592,10 @@
     "weaknesses": "Pontos fracos",
     "suggestions": "Sugestões",
     "penalties": "Penalidades",
+    "distortions": "Distorções detectadas",
     "vlm_title": "Crítica por AI",
     "vlm_loading": "Gerando crítica por AI...",
+    "vlm_refresh": "Regenerar",
     "error_fallback": "Falha ao carregar a crítica",
     "metrics": {
       "aesthetic": "Qualidade estética",
@@ -1612,7 +1620,12 @@
       "subject_placement": "Posicionamento do tema",
       "bg_separation": "Separação do fundo",
       "mean_saturation": "Saturação",
-      "mean_luminance": "Luminância"
+      "mean_luminance": "Luminância",
+      "form_symmetry": "Simetria",
+      "form_balance": "Equilíbrio visual",
+      "form_edge_entropy": "Entropia de bordas",
+      "form_fractal": "Complexidade fractal",
+      "color_harmony": "Harmonia de cores"
     },
     "suggestion": {
       "aesthetic": "Considere um impacto visual mais forte com melhor iluminação ou escolha de tema",
@@ -1631,7 +1644,36 @@
       "subject_prominence": "Dê mais espaço ao tema no enquadramento ou use uma profundidade de campo menor",
       "bg_separation": "Use uma abertura maior ou mais distância para separar o tema do fundo",
       "liqe_score": "Melhore a qualidade geral da imagem — verifique distorções ou artefatos",
-      "isolation_bonus": "Use uma abertura maior para isolar melhor o tema do fundo"
+      "isolation_bonus": "Use uma abertura maior para isolar melhor o tema do fundo",
+      "form_symmetry": "Centralize o tema ou alinhe formas fortes para equilibrar as metades esquerda e direita do quadro",
+      "form_balance": "Recomponha para aproximar o peso visual do centro do quadro ou de uma posição dos terços",
+      "form_edge_entropy": "Varie linhas e texturas — as bordas dominantes seguem todas na mesma direção",
+      "form_fractal": "Inclua mais detalhe ou textura — o quadro parece visualmente pobre",
+      "color_harmony": "Ajuste a paleta para um esquema harmônico, como cores complementares ou análogas"
+    },
+    "distortion": {
+      "motion_blur": "Desfoque de movimento",
+      "defocus_blur": "Desfoque",
+      "white_noise": "Ruído / grão",
+      "impulse_noise": "Ruído sal e pimenta",
+      "jpeg_artifacts": "Artefatos de compressão",
+      "oversharpening": "Halos de nitidez excessiva",
+      "low_contrast": "Contraste baixo",
+      "overexposure": "Superexposição",
+      "underexposure": "Subexposição",
+      "color_cast": "Dominante de cor",
+      "oversaturation": "Saturação excessiva",
+      "desaturation": "Cores desbotadas",
+      "banding": "Banding",
+      "pixelation": "Pixelização",
+      "haze": "Névoa",
+      "chromatic_aberration": "Aberração cromática"
+    },
+    "skin_cast": {
+      "green": "verde",
+      "magenta": "magenta",
+      "blue": "azul",
+      "yellow": "amarela"
     },
     "reason": {
       "default": "Categoria padrão (nenhuma categoria específica correspondeu)",
@@ -1677,7 +1719,8 @@
       "blink": "Piscada detectada",
       "noise": "Ruído: {value}",
       "highlight_clipping": "Estouro de altas-luzes: {value}",
-      "shadow_clipping": "Corte de sombras: {value}"
+      "shadow_clipping": "Corte de sombras: {value}",
+      "skin_tone": "Tom de pele: dominante {cast} (ΔE {delta})"
     }
   },
   "culling": {
@@ -1738,6 +1781,19 @@
     "weight_ready_tooltip": "Comparações suficientes coletadas — abra Comparação → Sugestões de pesos para revisar e aplicar os pesos otimizados para esta categoria.",
     "strictness": "Rigor",
     "strictness_tooltip": "Mais alto mantém apenas a melhor foto; mais baixo mantém também os quase empates",
+    "auto_cull": {
+      "button": "Seleção automática",
+      "tooltip": "Mantém automaticamente a melhor foto de cada grupo e rejeita o resto",
+      "title": "Pré-visualização da seleção automática",
+      "summary": "{groups} grupos: manter {kept} fotos, rejeitar {rejected}",
+      "highlights_label": "Adicionar as {count} melhores fotos a um álbum de Destaques",
+      "highlights_name": "Destaques",
+      "apply": "Rejeitar {rejected} fotos",
+      "applied": "Seleção automática aplicada: {kept} mantidas, {rejected} rejeitadas",
+      "error": "Falha na seleção automática",
+      "empty": "Nada para selecionar automaticamente neste escopo",
+      "better_tooltip": "Existe uma foto melhor neste grupo"
+    },
     "exit_scene": "Sair da cena",
     "scene_complete": "Cena selecionada — nada mais para revisar",
     "scope": "Escopo",
@@ -1750,6 +1806,10 @@
     "my_taste_tooltip": "Cada decisão de seleção treina o seu ranking pessoal \"Meu Gosto\".",
     "face_grid_title": "Rostos neste grupo",
     "face_badge_expression": "Expressão",
+    "face_eyes_min": "Olhos",
+    "face_eyes_min_tooltip": "Destaca os rostos com uma pontuação de olhos abertos abaixo deste valor",
+    "face_smile_min": "Sorriso",
+    "face_smile_min_tooltip": "Destaca os rostos com uma pontuação de sorriso abaixo deste valor",
     "reason": {
       "best": "Melhor do grupo",
       "eyes_closed": "Olhos fechados",
@@ -2087,5 +2147,22 @@
   },
   "moments": {
     "uncertain": "incerto"
+  },
+  "proofing": {
+    "client_picks": "Seleções do cliente",
+    "no_picks": "Ainda não há seleções do cliente.",
+    "picks_count": "{count} seleções",
+    "pick": "Selecionar esta foto",
+    "unpick": "Remover a seleção",
+    "comment": "Comentário",
+    "comment_placeholder": "Deixe um comentário para o fotógrafo…",
+    "pin_prompt": "Esta galeria está protegida. Introduza o PIN para marcar as suas seleções.",
+    "pin_label": "PIN",
+    "pin_invalid": "PIN incorreto.",
+    "name_prompt": "Adicione o seu nome para o fotógrafo saber quem escolheu (opcional).",
+    "name_label": "O seu nome",
+    "start": "Começar",
+    "skip": "Ignorar",
+    "save_error": "Não foi possível guardar a sua seleção."
   }
 }

@@ -196,6 +196,12 @@
     "subject_prominence": "Hervorhebung",
     "subject_placement": "Platzierung",
     "bg_separation": "Hintergrundtrennung",
+    "form_section": "Form & Harmonie",
+    "form_symmetry": "Symmetrie",
+    "form_balance": "Balance",
+    "form_edge_entropy": "Kantenentropie",
+    "form_fractal": "Fraktal",
+    "color_harmony": "Farbharmonie",
     "caption": "Beschreibung",
     "histogram_spread": "Histogramm",
     "star_rating": "Bewertung",
@@ -1592,8 +1598,10 @@
     "weaknesses": "Schwachen",
     "suggestions": "Vorschlage",
     "penalties": "Strafen",
+    "distortions": "Erkannte Verzerrungen",
     "vlm_title": "KI-Kritik",
     "vlm_loading": "KI-Kritik wird erstellt...",
+    "vlm_refresh": "Neu generieren",
     "error_fallback": "Kritik konnte nicht geladen werden",
     "metrics": {
       "aesthetic": "Asthetische Qualitat",
@@ -1618,7 +1626,12 @@
       "subject_placement": "Motivplatzierung",
       "bg_separation": "Hintergrundtrennung",
       "mean_saturation": "Sattigung",
-      "mean_luminance": "Helligkeit"
+      "mean_luminance": "Helligkeit",
+      "form_symmetry": "Symmetrie",
+      "form_balance": "Visuelle Balance",
+      "form_edge_entropy": "Kantenentropie",
+      "form_fractal": "Fraktale Komplexitat",
+      "color_harmony": "Farbharmonie"
     },
     "suggestion": {
       "aesthetic": "Streben Sie eine starkere visuelle Wirkung durch bessere Beleuchtung oder Motivwahl an",
@@ -1637,7 +1650,36 @@
       "subject_prominence": "Geben Sie dem Motiv mehr Raum oder verwenden Sie eine geringere Scharfentiefe",
       "bg_separation": "Verwenden Sie grossere Blende oder mehr Abstand zur Hintergrundtrennung",
       "liqe_score": "Verbessern Sie die Gesamtbildqualitat — prufen Sie auf Verzerrungen oder Artefakte",
-      "isolation_bonus": "Verwenden Sie grossere Blende zur besseren Freistellung des Motivs"
+      "isolation_bonus": "Verwenden Sie grossere Blende zur besseren Freistellung des Motivs",
+      "form_symmetry": "Zentrieren Sie das Motiv oder richten Sie starke Formen aus, um linke und rechte Bildhalfte auszugleichen",
+      "form_balance": "Komponieren Sie neu, damit das visuelle Gewicht naher an der Bildmitte oder einer Drittelposition liegt",
+      "form_edge_entropy": "Variieren Sie Linien und Texturen — die dominanten Kanten verlaufen alle in dieselbe Richtung",
+      "form_fractal": "Fugen Sie mehr Detail oder Textur hinzu — das Bild wirkt visuell karg",
+      "color_harmony": "Passen Sie die Palette an ein harmonisches Farbschema an, etwa Komplementar- oder Analogfarben"
+    },
+    "distortion": {
+      "motion_blur": "Bewegungsunschärfe",
+      "defocus_blur": "Fokusunschärfe",
+      "white_noise": "Rauschen / Korn",
+      "impulse_noise": "Salz-und-Pfeffer-Rauschen",
+      "jpeg_artifacts": "Kompressionsartefakte",
+      "oversharpening": "Überschärfungs-Halos",
+      "low_contrast": "Geringer Kontrast",
+      "overexposure": "Überbelichtung",
+      "underexposure": "Unterbelichtung",
+      "color_cast": "Farbstich",
+      "oversaturation": "Übersättigung",
+      "desaturation": "Ausgewaschene Farben",
+      "banding": "Farbstreifen (Banding)",
+      "pixelation": "Verpixelung",
+      "haze": "Dunst",
+      "chromatic_aberration": "Chromatische Aberration"
+    },
+    "skin_cast": {
+      "green": "Grün",
+      "magenta": "Magenta",
+      "blue": "Blau",
+      "yellow": "Gelb"
     },
     "reason": {
       "default": "Standardkategorie (keine spezifische Kategorie zugeordnet)",
@@ -1683,7 +1725,8 @@
       "blink": "Blinzeln erkannt",
       "noise": "Rauschen: {value}",
       "highlight_clipping": "Lichter-Clipping: {value}",
-      "shadow_clipping": "Schatten-Clipping: {value}"
+      "shadow_clipping": "Schatten-Clipping: {value}",
+      "skin_tone": "Hautton-Farbstich: {cast} (ΔE {delta})"
     }
   },
   "culling": {
@@ -1744,6 +1787,19 @@
     "weight_ready_tooltip": "Genügend Vergleiche gesammelt — öffnen Sie Vergleich → Gewichtsvorschläge, um die optimierten Gewichte dieser Kategorie zu prüfen und anzuwenden.",
     "strictness": "Strenge",
     "strictness_tooltip": "Höher behält nur das beste Foto; niedriger behält auch knappe Treffer",
+    "auto_cull": {
+      "button": "Auto-Aussortierung",
+      "tooltip": "Behält automatisch das beste Foto jeder Gruppe und lehnt den Rest ab",
+      "title": "Vorschau der Auto-Aussortierung",
+      "summary": "{groups} Gruppen: {kept} Fotos behalten, {rejected} ablehnen",
+      "highlights_label": "Die {count} allerbesten Fotos einem Highlights-Album hinzufügen",
+      "highlights_name": "Highlights",
+      "apply": "{rejected} Fotos ablehnen",
+      "applied": "Auto-Aussortierung angewendet: {kept} behalten, {rejected} abgelehnt",
+      "error": "Auto-Aussortierung fehlgeschlagen",
+      "empty": "In diesem Bereich gibt es nichts automatisch auszusortieren",
+      "better_tooltip": "In dieser Gruppe gibt es ein besseres Foto"
+    },
     "exit_scene": "Szene verlassen",
     "scene_complete": "Szene gesichtet – nichts mehr zu prüfen",
     "scope": "Bereich",
@@ -1756,6 +1812,10 @@
     "my_taste_tooltip": "Jede Sichtungsentscheidung trainiert Ihr persönliches „Mein Geschmack“-Ranking.",
     "face_grid_title": "Gesichter in dieser Gruppe",
     "face_badge_expression": "Ausdruck",
+    "face_eyes_min": "Augen",
+    "face_eyes_min_tooltip": "Hebt Gesichter hervor, deren Augen-offen-Wert unter diesem Wert liegt",
+    "face_smile_min": "Lächeln",
+    "face_smile_min_tooltip": "Hebt Gesichter hervor, deren Lächeln-Wert unter diesem Wert liegt",
     "reason": {
       "best": "Beste der Gruppe",
       "eyes_closed": "Augen geschlossen",
@@ -2093,5 +2153,22 @@
   },
   "moments": {
     "uncertain": "unsicher"
+  },
+  "proofing": {
+    "client_picks": "Kundenauswahl",
+    "no_picks": "Noch keine Kundenauswahl.",
+    "picks_count": "{count} Favoriten",
+    "pick": "Dieses Foto auswählen",
+    "unpick": "Auswahl entfernen",
+    "comment": "Kommentar",
+    "comment_placeholder": "Hinterlassen Sie dem Fotografen einen Kommentar…",
+    "pin_prompt": "Diese Galerie ist geschützt. Geben Sie die PIN ein, um Ihre Auswahl zu markieren.",
+    "pin_label": "PIN",
+    "pin_invalid": "Falsche PIN.",
+    "name_prompt": "Geben Sie Ihren Namen an, damit der Fotograf weiß, wer ausgewählt hat (optional).",
+    "name_label": "Ihr Name",
+    "start": "Starten",
+    "skip": "Überspringen",
+    "save_error": "Ihre Auswahl konnte nicht gespeichert werden."
   }
 }

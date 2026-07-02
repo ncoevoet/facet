@@ -5,6 +5,7 @@ Provides per-photo analysis: score breakdown, strengths, weaknesses, suggestions
 """
 
 import asyncio
+import json
 import logging
 from typing import Optional
 
@@ -13,8 +14,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_async_db
-from api.db_helpers import get_visibility_clause
-from api.model_cache import get_or_load_vlm_tagger
+from api.db_helpers import get_existing_columns, get_visibility_clause
+from api.model_cache import (
+    get_or_load_vlm_tagger,
+    resolve_vlm_config,
+    translate_text,
+    translation_target,
+    vlm_generate_lock,
+)
 
 router = APIRouter(tags=["critique"])
 logger = logging.getLogger(__name__)
@@ -52,6 +59,11 @@ METRIC_LABELS = {
     'bg_separation': 'Background Separation',
     'mean_saturation': 'Saturation',
     'mean_luminance': 'Luminance',
+    'form_symmetry': 'Symmetry',
+    'form_balance': 'Visual Balance',
+    'form_edge_entropy': 'Edge Entropy',
+    'form_fractal': 'Fractal Complexity',
+    'color_harmony': 'Color Harmony',
 }
 
 # Map config weight keys to DB column names
@@ -79,6 +91,11 @@ WEIGHT_TO_COLUMN = {
     'bg_separation': 'bg_separation',
     'noise': 'noise_sigma',
     'saturation': 'mean_saturation',
+    'symmetry': 'form_symmetry',
+    'balance': 'form_balance',
+    'edge_entropy': 'form_edge_entropy',
+    'fractal': 'form_fractal',
+    'color_harmony': 'color_harmony',
 }
 
 # Suggestions keyed by metric name (low score triggers these)
@@ -100,6 +117,11 @@ SUGGESTIONS = {
     'bg_separation': 'Use wider aperture or greater distance to separate subject from background',
     'liqe_score': 'Improve overall image quality — check for distortions or artifacts',
     'isolation_bonus': 'Use wider aperture to better isolate the subject from background',
+    'form_symmetry': 'Center the subject or align strong shapes to balance the left and right halves of the frame',
+    'form_balance': 'Recompose so the visual weight sits closer to the frame center or a balanced thirds position',
+    'form_edge_entropy': 'Add more varied lines and textures — the dominant edges all run in the same direction',
+    'form_fractal': 'Include richer detail or texture — the frame reads as visually sparse',
+    'color_harmony': 'Adjust the palette toward a harmonic hue scheme such as complementary or analogous colors',
 }
 
 
@@ -267,9 +289,13 @@ def _identify_strengths_weaknesses(breakdown):
 
 
 def _check_penalties(photo):
-    """Check for scoring penalties (blink, noise, clipping).
+    """Check for scoring penalties (blink, noise, clipping, skin-tone cast).
 
-    Returns a dict of penalty names to values.
+    Returns a dict of penalty names to values. The skin-tone entry is advisory
+    (it never enters the aggregate) and surfaces whenever the stored worst-face
+    cast is present: ``compute_photo_skin_tone`` already applied the configured
+    ``cast_delta_threshold`` once at recompute time (``skin_tone_cast`` is NULL
+    below it), so the stored decision is trusted here rather than re-gated.
     """
     penalties = {}
     if photo.get('is_blink'):
@@ -282,7 +308,26 @@ def _check_penalties(photo):
         penalties['highlight_clipping'] = round(-photo['highlight_clipped'] * 1.0, 2)
     if photo.get('shadow_clipped') and photo['shadow_clipped'] > 0:
         penalties['shadow_clipping'] = round(-photo['shadow_clipped'] * 0.5, 2)
+    skin_delta = photo.get('skin_tone_delta')
+    if skin_delta is not None and photo.get('skin_tone_cast'):
+        penalties['skin_tone'] = {
+            'cast': photo['skin_tone_cast'],
+            'delta': round(float(skin_delta), 1),
+        }
     return penalties
+
+
+def _parse_distortions(raw):
+    """Attribute keys from the stored distortion_attributes JSON column."""
+    if not raw:
+        return []
+    try:
+        entries = json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(entries, list):
+        return []
+    return [e['attribute'] for e in entries if isinstance(e, dict) and e.get('attribute')]
 
 
 def _build_rule_critique(photo):
@@ -306,6 +351,7 @@ def _build_rule_critique(photo):
         'weaknesses': sorted(weaknesses, key=lambda x: x['value'])[:5],
         'suggestions': suggestions[:3],
         'penalties': penalties,
+        'distortions': _parse_distortions(photo.get('distortion_attributes')),
     }
 
 
@@ -313,13 +359,18 @@ def _build_rule_critique(photo):
 async def api_critique(
     path: str = Query(...),
     mode: str = Query("rule"),
+    lang: Optional[str] = Query(None),
+    refresh: bool = Query(False),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Get AI critique for a photo's score.
 
     Modes:
       - rule: Fast rule-based analysis (always available)
-      - vlm: VLM-powered natural language critique (requires GPU + VLM model)
+      - vlm: VLM-powered natural language critique (requires GPU + a profile
+        with a VLM tagging model). The generated text is cached per photo;
+        ``refresh=true`` regenerates it. When ``lang`` matches the configured
+        ``translation.target_language``, the critique is translated.
     """
     if not VIEWER_CONFIG.get('features', {}).get('show_critique', True):
         raise HTTPException(status_code=403, detail="Critique feature is disabled")
@@ -337,6 +388,9 @@ async def api_critique(
             'power_point_score', 'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
             'subject_sharpness', 'subject_prominence', 'subject_placement',
             'bg_separation', 'mean_saturation', 'mean_luminance',
+            'form_symmetry', 'form_balance', 'form_edge_entropy',
+            'form_fractal', 'color_harmony',
+            'distortion_attributes', 'skin_tone_delta', 'skin_tone_cast',
             'face_ratio', 'face_count', 'is_monochrome', 'is_blink',
             'is_silhouette', 'is_group_portrait',
             'highlight_clipped', 'shadow_clipped', 'tags', 'shutter_speed',
@@ -357,60 +411,158 @@ async def api_critique(
         result = _build_rule_critique(photo)
 
         if mode == 'vlm':
-            # VLM inference is GPU/CPU-bound and blocking — run it off the
-            # event loop so it never stalls other async requests.
-            vlm_critique = await asyncio.to_thread(_get_vlm_critique, photo, result)
-            if vlm_critique:
-                result['vlm_critique'] = vlm_critique
-            else:
-                result['vlm_available'] = False
+            await _attach_vlm_critique(conn, photo, result, lang, refresh)
 
         return result
 
 
-def _get_vlm_critique(photo, rule_critique):
-    """Generate VLM-powered critique if available."""
-    try:
-        models_config = _FULL_CONFIG.get('models', {})
-        profile = models_config.get('vram_profile', 'legacy')
-        if profile not in ('16gb', '24gb'):
-            return None
+async def _attach_vlm_critique(conn, photo, result, lang, refresh):
+    """Attach a cached or freshly generated VLM critique to the rule result."""
+    path = photo['path']
+    existing_cols = get_existing_columns()
+    can_cache = 'vlm_critique' in existing_cols
+    text = None
+    translated = None
+    source = 'cached'
 
+    if can_cache and not refresh:
+        cur = await conn.execute(
+            "SELECT vlm_critique, vlm_critique_translated FROM photos WHERE path = ?", [path]
+        )
+        row = await cur.fetchone()
+        await cur.close()
+        if row:
+            text = row['vlm_critique']
+            translated = row['vlm_critique_translated']
+
+    if not text:
+        cur = await conn.execute("SELECT thumbnail FROM photos WHERE path = ?", [path])
+        row = await cur.fetchone()
+        await cur.close()
+        thumbnail = row['thumbnail'] if row else None
+        # VLM inference is GPU/CPU-bound and blocking — run it off the
+        # event loop so it never stalls other async requests.
+        text = await asyncio.to_thread(_get_vlm_critique, photo, result, thumbnail)
+        translated = None
+        source = 'generated'
+        if text and can_cache:
+            await conn.execute(
+                "UPDATE photos SET vlm_critique = ?, vlm_critique_translated = NULL WHERE path = ?",
+                [text, path],
+            )
+            await conn.commit()
+
+    if not text:
+        result['vlm_available'] = False
+        return
+
+    target_lang = translation_target(lang)
+    if target_lang:
+        if not translated:
+            translated = await asyncio.to_thread(translate_text, text, target_lang)
+            if translated and can_cache:
+                await conn.execute(
+                    "UPDATE photos SET vlm_critique_translated = ? WHERE path = ?",
+                    [translated, path],
+                )
+                await conn.commit()
+        if translated:
+            text = translated
+
+    result['vlm_critique'] = text
+    result['vlm_source'] = source
+
+
+_DEFAULT_VLM_PROMPT = (
+    "You are an experienced photography critic reviewing a {category} photo "
+    "that scored {aggregate}/10 overall.\n"
+    "Measured metrics (0-10):\n{breakdown}\n"
+    "{penalties}"
+    "Camera settings: {exif}.\n\n"
+    "Look at the photo and write exactly three short titled sections.\n"
+    "Observation: one factual sentence describing subject and framing.\n"
+    "Assessment: 2-3 sentences on what works and what fails, grounded in what "
+    "is visible in the photo and consistent with the measurements.\n"
+    "Suggestions: 2-3 concrete, actionable improvements (shooting or editing). "
+    "Do not repeat the numbers; interpret them."
+)
+
+
+def _build_vlm_prompt(rule_critique, photo):
+    """Fill the configured critique prompt template with the rule breakdown and EXIF."""
+    vlm_cfg = _FULL_CONFIG.get('critique', {}).get('vlm', {})
+    template = vlm_cfg.get('prompt_template') or _DEFAULT_VLM_PROMPT
+
+    lines = []
+    for item in rule_critique.get('breakdown', [])[:12]:
+        suffix = ', lower is better' if item['metric_key'] == 'noise_sigma' else ''
+        lines.append(f"- {item['metric']}: {item['value']} (weight {item['weight']:.0%}{suffix})")
+    breakdown = '\n'.join(lines) or '- no per-metric data available'
+
+    penalty_keys = list(rule_critique.get('penalties', {}))
+    penalties = f"Penalties applied: {', '.join(penalty_keys)}.\n" if penalty_keys else ''
+
+    exif_parts = []
+    if photo.get('f_stop'):
+        exif_parts.append(f"f/{photo['f_stop']}")
+    if photo.get('shutter_speed'):
+        exif_parts.append(f"{photo['shutter_speed']}s")
+    if photo.get('iso'):
+        exif_parts.append(f"ISO {photo['iso']}")
+    if photo.get('focal_length'):
+        exif_parts.append(f"{photo['focal_length']}mm")
+    exif = ', '.join(exif_parts) or 'unknown'
+
+    aggregate = rule_critique.get('aggregate')
+    return template.format(
+        category=rule_critique.get('category', 'photo'),
+        aggregate=f"{aggregate:.1f}" if aggregate is not None else 'unscored',
+        breakdown=breakdown,
+        penalties=penalties,
+        exif=exif,
+    )
+
+
+def _load_critique_image(path, thumbnail_bytes):
+    """Build the PIL image fed to the VLM: stored thumbnail, else decoded original.
+
+    The stored 640px thumbnail is preferred — it exists for every scored photo
+    including RAW files, which PIL cannot decode from disk.
+    """
+    from io import BytesIO
+
+    from PIL import Image
+
+    if thumbnail_bytes:
+        return Image.open(BytesIO(thumbnail_bytes)).convert('RGB')
+
+    from api.path_validation import resolve_photo_disk_path
+
+    disk_path = resolve_photo_disk_path(path)
+    img = Image.open(disk_path).convert('RGB')
+    img.thumbnail((640, 640))
+    return img
+
+
+def _get_vlm_critique(photo, rule_critique, thumbnail_bytes):
+    """Generate a VLM critique; None when the VLM is unavailable or fails."""
+    try:
         if not VIEWER_CONFIG.get('features', {}).get('show_vlm_critique', False):
             return None
 
-        from api.path_validation import resolve_photo_disk_path
-        from PIL import Image
-
-        vlm_config = models_config.get('vlm_tagger', {})
-        if not vlm_config.get('model_name'):
+        vlm_config = resolve_vlm_config()
+        if not vlm_config:
             return None
 
-        tagger = get_or_load_vlm_tagger(vlm_config, _FULL_CONFIG)
+        tagger = get_or_load_vlm_tagger(vlm_config)
+        prompt = _build_vlm_prompt(rule_critique, photo)
+        img = _load_critique_image(photo['path'], thumbnail_bytes)
 
-        # Build critique prompt
-        category = rule_critique.get('category', 'photo')
-        aggregate = rule_critique.get('aggregate', 0)
-        strengths = ', '.join(
-            METRIC_LABELS.get(s['metric_key'], s['metric_key']) for s in rule_critique.get('strengths', [])[:3]
-        ) or 'none identified'
-        weaknesses = ', '.join(
-            METRIC_LABELS.get(w['metric_key'], w['metric_key']) for w in rule_critique.get('weaknesses', [])[:3]
-        ) or 'none identified'
-
-        prompt = (
-            f"This {category} photo scored {aggregate:.1f}/10. "
-            f"Strengths: {strengths}. Weaknesses: {weaknesses}. "
-            f"Give a 2-3 sentence photography critique with specific improvement suggestions."
-        )
-
-        disk_path = resolve_photo_disk_path(photo['path'])
-        img = Image.open(disk_path).convert('RGB')
-        img.thumbnail((640, 640))
-
-        # Use VLM generate method
-        response = tagger.generate(img, prompt, max_new_tokens=200)
-        return response
+        max_new_tokens = int(_FULL_CONFIG.get('critique', {}).get('vlm', {}).get('max_new_tokens', 320))
+        with vlm_generate_lock:
+            response = tagger.generate(img, prompt, max_new_tokens=max_new_tokens)
+        response = (response or '').strip()
+        return response or None
 
     except Exception:
         logger.exception("VLM critique failed")

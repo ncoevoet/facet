@@ -1,7 +1,7 @@
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
-  FacesForPathPipe, FacePoorExpressionPipe, WeightRemainingPipe,
-  CullingGroup, CullingFace,
+  FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
+  WeightRemainingPipe, BetterInGroupPipe, CullingGroup, CullingFace, FaceThresholds,
 } from './burst-culling.pipes';
 
 const group = (overrides: Partial<CullingGroup> = {}): CullingGroup => ({
@@ -133,20 +133,103 @@ describe('WeightRemainingPipe', () => {
   });
 });
 
+const face = (overrides: Partial<CullingFace> = {}): CullingFace =>
+  ({ id: 1, face_index: 0, ...overrides });
+
+const thresholds: FaceThresholds = { eyes_closed_max: 4.0, poor_expression_min: 4.0 };
+
 describe('FacePoorExpressionPipe', () => {
   const pipe = new FacePoorExpressionPipe();
-  const face = (overrides: Partial<CullingFace> = {}): CullingFace =>
-    ({ id: 1, face_index: 0, ...overrides });
 
-  it('returns true when expression_score is below the threshold', () => {
-    expect(pipe.transform(face({ expression_score: 2 }))).toBe(true);
+  it('returns true when expression_score is below the server threshold', () => {
+    expect(pipe.transform(face({ expression_score: 2 }), thresholds)).toBe(true);
   });
 
   it('returns false when expression_score is at or above the threshold', () => {
-    expect(pipe.transform(face({ expression_score: 4 }))).toBe(false);
+    expect(pipe.transform(face({ expression_score: 4 }), thresholds)).toBe(false);
   });
 
   it('returns false when expression_score is absent', () => {
-    expect(pipe.transform(face())).toBe(false);
+    expect(pipe.transform(face(), thresholds)).toBe(false);
+  });
+
+  it('returns false when thresholds have not loaded yet', () => {
+    expect(pipe.transform(face({ expression_score: 2 }), null)).toBe(false);
+  });
+});
+
+describe('FaceRingClassPipe', () => {
+  const pipe = new FaceRingClassPipe();
+
+  it('returns red when eyes_open_score is at or below eyes_closed_max', () => {
+    expect(pipe.transform(face({ eyes_open_score: 4, smile_score: 8 }), thresholds)).toBe('ring-red-500');
+  });
+
+  it('returns orange when eyes are fine but smile_score is below poor_expression_min', () => {
+    expect(pipe.transform(face({ eyes_open_score: 8, smile_score: 2 }), thresholds)).toBe('ring-orange-500');
+  });
+
+  it('prioritizes red (eyes closed) over orange (poor smile)', () => {
+    expect(pipe.transform(face({ eyes_open_score: 1, smile_score: 1 }), thresholds)).toBe('ring-red-500');
+  });
+
+  it('returns green when both signals are above their cutoffs', () => {
+    expect(pipe.transform(face({ eyes_open_score: 8, smile_score: 7 }), thresholds)).toBe('ring-green-500');
+  });
+
+  it('returns green when only one signal is present and fine', () => {
+    expect(pipe.transform(face({ eyes_open_score: 8 }), thresholds)).toBe('ring-green-500');
+  });
+
+  it('returns neutral when both signals are missing (turned head)', () => {
+    expect(pipe.transform(face(), thresholds)).toBe('ring-white/20');
+  });
+
+  it('returns neutral when thresholds have not loaded yet', () => {
+    expect(pipe.transform(face({ eyes_open_score: 1 }), null)).toBe('ring-white/20');
+  });
+});
+
+describe('FaceDimmedPipe', () => {
+  const pipe = new FaceDimmedPipe();
+
+  it('never dims when both sliders are at 0 (filter off)', () => {
+    expect(pipe.transform(face({ eyes_open_score: 1, smile_score: 1 }), 0, 0)).toBe(false);
+  });
+
+  it('keeps faces below the eyes slider bright and dims the rest', () => {
+    expect(pipe.transform(face({ eyes_open_score: 3 }), 5, 0)).toBe(false);
+    expect(pipe.transform(face({ eyes_open_score: 8 }), 5, 0)).toBe(true);
+  });
+
+  it('keeps faces below the smile slider bright and dims the rest', () => {
+    expect(pipe.transform(face({ smile_score: 2 }), 0, 5)).toBe(false);
+    expect(pipe.transform(face({ smile_score: 8 }), 0, 5)).toBe(true);
+  });
+
+  it('stays bright when below either of two active sliders', () => {
+    expect(pipe.transform(face({ eyes_open_score: 8, smile_score: 2 }), 5, 5)).toBe(false);
+  });
+
+  it('dims faces with no signals while a slider is active', () => {
+    expect(pipe.transform(face(), 5, 0)).toBe(true);
+  });
+});
+
+describe('BetterInGroupPipe', () => {
+  const pipe = new BetterInGroupPipe();
+
+  it('returns true for a non-best tile (a better photo exists)', () => {
+    expect(pipe.transform('/photo2.jpg', '/photo1.jpg')).toBe(true);
+  });
+
+  it('returns false for the best tile itself', () => {
+    expect(pipe.transform('/photo1.jpg', '/photo1.jpg')).toBe(false);
+  });
+
+  it('returns false when the group has no best_path', () => {
+    expect(pipe.transform('/photo1.jpg', null)).toBe(false);
+    expect(pipe.transform('/photo1.jpg', undefined)).toBe(false);
+    expect(pipe.transform('/photo1.jpg', '')).toBe(false);
   });
 });

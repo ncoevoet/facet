@@ -475,6 +475,7 @@ class ChunkedMultiPassProcessor:
         from pathlib import Path
         from utils import load_image_from_path
         from analyzers import TechnicalAnalyzer, ImageCache
+        from analyzers.form_facet import compute_form_metrics
 
         # Get a TechnicalAnalyzer instance (stateless, so we can create one)
         tech_analyzer = TechnicalAnalyzer()
@@ -523,6 +524,9 @@ class ChunkedMultiPassProcessor:
             noise_data = tech_analyzer.get_noise_estimate(img_cv, cache=cache)
             contrast_data = tech_analyzer.get_contrast_score(img_cv, cache=cache)
 
+            # Form facet + Matsuda color harmony (CPU, fixed 512px working size)
+            form_data = compute_form_metrics(pil_img)
+
             # Compute perceptual hash
             phash = str(imagehash.phash(pil_img))
 
@@ -543,6 +547,8 @@ class ChunkedMultiPassProcessor:
                 'dynamic_range': dynamic_range_data,
                 'noise': noise_data,
                 'contrast': contrast_data,
+                # Form facet + Matsuda color harmony
+                'form': form_data,
                 # Hash
                 'phash': phash,
             }
@@ -904,6 +910,12 @@ class ChunkedMultiPassProcessor:
                 'subject_prominence': data.get('subject_prominence'),
                 'subject_placement': data.get('subject_placement'),
                 'bg_separation': data.get('bg_separation'),
+                # Form facet + Matsuda color harmony (computed in _load_images)
+                'form_symmetry': img_data.get('form', {}).get('form_symmetry'),
+                'form_balance': img_data.get('form', {}).get('form_balance'),
+                'form_edge_entropy': img_data.get('form', {}).get('form_edge_entropy'),
+                'form_fractal': img_data.get('form', {}).get('form_fractal'),
+                'color_harmony': img_data.get('form', {}).get('color_harmony'),
                 # EXIF for adjustments
                 'iso': img_data.get('exif', {}).get('iso'),
                 'f_stop': img_data.get('exif', {}).get('f_stop'),
@@ -1021,6 +1033,13 @@ class ChunkedMultiPassProcessor:
                 'subject_prominence': data.get('subject_prominence'),
                 'subject_placement': data.get('subject_placement'),
                 'bg_separation': data.get('bg_separation'),
+
+                # Form facet + Matsuda color harmony (computed in _load_images)
+                'form_symmetry': img_data.get('form', {}).get('form_symmetry'),
+                'form_balance': img_data.get('form', {}).get('form_balance'),
+                'form_edge_entropy': img_data.get('form', {}).get('form_edge_entropy'),
+                'form_fractal': img_data.get('form', {}).get('form_fractal'),
+                'color_harmony': img_data.get('form', {}).get('color_harmony'),
 
                 # Other fields
                 'is_silhouette': data.get('is_silhouette', 0),

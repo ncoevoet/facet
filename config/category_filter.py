@@ -5,6 +5,26 @@ Evaluates whether a photo matches a category's filter rules.
 """
 
 
+def _to_float(val):
+    """Coerce a value to float, handling fractional strings like '1/250'.
+
+    Shutter speeds are stored as strings ('1/250'); a plain float() raises on
+    them, which would make every shutter_speed filter unconditionally mismatch
+    and diverge from the scorer's category assignment (it parses fractions).
+    """
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    try:
+        if isinstance(val, str) and '/' in val:
+            num, denom = val.split('/')
+            return float(num) / float(denom)
+        return float(val)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return None
+
+
 # Valid filter fields for v4.0 category-centric config
 VALID_NUMERIC_FILTERS = [
     "face_ratio_min", "face_ratio_max",
@@ -33,6 +53,8 @@ VALID_WEIGHT_COLUMNS = [
     "aesthetic_iaa", "face_quality_iqa", "liqe",
     # Subject saliency metrics (BiRefNet)
     "subject_sharpness", "subject_prominence", "subject_placement", "bg_separation",
+    # Form facet + Matsuda color harmony (CPU explainability pack)
+    "symmetry", "balance", "edge_entropy", "fractal", "color_harmony",
 ]
 
 
@@ -93,11 +115,9 @@ class CategoryFilter:
         for field, actual in numeric_fields.items():
             min_val = self.filters.get(f"{field}_min")
             max_val = self.filters.get(f"{field}_max")
-            # Coerce to float — SQLite can return strings for numeric columns
-            try:
-                num_actual = float(actual) if actual is not None else None
-            except (ValueError, TypeError):
-                num_actual = None
+            # Coerce to float — SQLite can return strings for numeric columns,
+            # and shutter speeds are fractional strings like '1/250'.
+            num_actual = _to_float(actual)
             if min_val is not None:
                 if num_actual is None:
                     return {"key": f"{field}_min", "required": min_val, "actual": None}

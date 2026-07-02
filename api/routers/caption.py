@@ -19,17 +19,16 @@ from api.database import get_async_db, get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
 from api.path_validation import resolve_photo_disk_path
 
-from api.model_cache import get_or_load_vlm_tagger
+from api.model_cache import (
+    get_or_load_vlm_tagger,
+    resolve_vlm_config,
+    translate_text,
+    translation_target,
+    vlm_generate_lock,
+)
 
 router = APIRouter(tags=["caption"])
 logger = logging.getLogger(__name__)
-
-SUPPORTED_TRANSLATION_LANGS = {'fr', 'de', 'es', 'it'}
-
-
-def _get_target_language() -> str:
-    """Return the configured translation target language, or '' if disabled."""
-    return _FULL_CONFIG.get('translation', {}).get('target_language', '')
 
 
 @router.get("/api/caption")
@@ -70,13 +69,8 @@ async def api_caption(
         existing_cols = get_existing_columns()
 
         # Determine if we should return a translation
-        target_lang = _get_target_language()
-        wants_translation = (
-            lang
-            and lang != 'en'
-            and lang in SUPPORTED_TRANSLATION_LANGS
-            and lang == target_lang
-        )
+        target_lang = translation_target(lang)
+        wants_translation = target_lang is not None
 
         # Check if caption column exists and return cached caption/translation
         if 'caption' in existing_cols:
@@ -102,7 +96,7 @@ async def api_caption(
                     # Translate on-demand and cache. Translation is a blocking
                     # model call — offload it from the event loop.
                     translated = await asyncio.to_thread(
-                        _translate_caption, row['caption'], target_lang
+                        translate_text, row['caption'], target_lang
                     )
                     if translated:
                         await conn.execute(
@@ -154,7 +148,7 @@ async def api_caption(
         # If translation requested, translate the freshly generated caption
         if wants_translation:
             translated = await asyncio.to_thread(
-                _translate_caption, caption, target_lang
+                translate_text, caption, target_lang
             )
             if translated and 'caption_translated' in existing_cols:
                 await conn.execute(
@@ -171,32 +165,6 @@ async def api_caption(
         return {"caption": caption, "source": "generated"}
 
 
-def _resolve_vlm_config() -> Optional[dict]:
-    """Resolve the VLM tagger config dict from the active profile.
-
-    Returns the model config dict (with model_path, etc.) or None if
-    the active profile doesn't use a VLM tagger.
-    """
-    models_config = _FULL_CONFIG.get('models', {})
-    profile_name = models_config.get('vram_profile', 'legacy')
-    profile = models_config.get('profiles', {}).get(profile_name, {})
-    tagging_model = profile.get('tagging_model', '')
-
-    # Map tagging_model name to config key
-    model_key_map = {
-        'qwen3-vl-2b': 'qwen3_vl_2b',
-        'qwen2.5-vl-7b': 'qwen2_5_vl_7b',
-        'qwen3.5-2b': 'qwen3_5_2b',
-        'qwen3.5-4b': 'qwen3_5_4b',
-    }
-    config_key = model_key_map.get(tagging_model)
-    if not config_key:
-        return None
-
-    vlm_config = models_config.get(config_key, {})
-    return vlm_config if vlm_config.get('model_path') else None
-
-
 def _generate_caption(photo_path: str) -> Optional[str]:
     """Generate a caption for a photo using the VLM tagger.
 
@@ -205,7 +173,7 @@ def _generate_caption(photo_path: str) -> Optional[str]:
     opened. Returns None if VLM is unavailable (wrong profile, missing config,
     or a generation error).
     """
-    vlm_config = _resolve_vlm_config()
+    vlm_config = resolve_vlm_config()
     if not vlm_config:
         return None
 
@@ -214,35 +182,21 @@ def _generate_caption(photo_path: str) -> Optional[str]:
     try:
         from PIL import Image
 
-        tagger = get_or_load_vlm_tagger(vlm_config, _FULL_CONFIG)
+        tagger = get_or_load_vlm_tagger(vlm_config)
 
         img = Image.open(disk_path).convert('RGB')
         img.thumbnail((640, 640))
 
-        caption = tagger.generate(
-            img,
-            "Describe this photo in one concise sentence.",
-            max_new_tokens=100,
-        )
+        with vlm_generate_lock:
+            caption = tagger.generate(
+                img,
+                "Describe this photo in one concise sentence.",
+                max_new_tokens=100,
+            )
         return caption.strip() if caption else None
 
     except Exception:
         logger.exception("VLM caption generation failed")
-        return None
-
-
-def _translate_caption(caption: str, target_lang: str) -> Optional[str]:
-    """Translate a caption to the target language using MarianMT.
-
-    Returns None if translation fails.
-    """
-    try:
-        from api.model_cache import get_or_load_caption_translator
-
-        translator = get_or_load_caption_translator(target_lang)
-        return translator.translate(caption)
-    except Exception:
-        logger.exception("Caption translation failed for lang=%s", target_lang)
         return None
 
 

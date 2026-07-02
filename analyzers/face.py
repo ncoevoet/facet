@@ -210,15 +210,27 @@ class FaceAnalyzer:
             # 3D head pose [yaw, pitch, roll] in degrees — only populated when
             # enable_3d_landmarks=True and the landmark_3d_68 module ran.
             # InsightFace exposes face.pose as a numpy array of 3 floats.
+            pose = None
             if self.enable_3d_landmarks and hasattr(face, 'pose') and face.pose is not None:
                 try:
-                    pose = np.asarray(face.pose, dtype=np.float32).flatten()
-                    if pose.size >= 3:
-                        detail['pose_yaw'] = float(pose[0])
-                        detail['pose_pitch'] = float(pose[1])
-                        detail['pose_roll'] = float(pose[2])
+                    p = np.asarray(face.pose, dtype=np.float32).flatten()
+                    if p.size >= 3:
+                        pose = p
+                        detail['pose_yaw'] = float(p[0])
+                        detail['pose_pitch'] = float(p[1])
+                        detail['pose_roll'] = float(p[2])
                 except (ValueError, TypeError):
                     pass
+            # Per-face geometric quality signals, persisted on the faces table
+            # (canonical source for the culling face panel; pure landmark
+            # geometry, so --recompute-face-signals can backfill without pixels).
+            landmarks = (face.landmark_2d_106
+                         if hasattr(face, 'landmark_2d_106') and face.landmark_2d_106 is not None
+                         else None)
+            detail['eyes_open_score'] = (
+                self.compute_eyes_open_score(landmarks, pose) if landmarks is not None else None)
+            detail['smile_score'] = (
+                self.compute_smile_score(landmarks, pose) if landmarks is not None else None)
             face_details.append(detail)
 
         return {
@@ -283,19 +295,15 @@ class FaceAnalyzer:
         return float(np.linalg.norm(landmarks[eye_indices[0]] - landmarks[eye_indices[1]]))
 
     @classmethod
-    def compute_eyes_open_score(cls, landmarks, pose=None):
-        """Continuous 0-10 eyes-open score from a 106-point landmark array.
+    def _head_turned(cls, landmarks, pose=None):
+        """True when the head is turned enough that eye/mouth geometry is unreliable.
 
-        10 = wide open, 0 = fully closed, linearly mapped from the average EAR.
-        Returns ``None`` (neutral / unknown) when the head is turned enough that
-        EAR is unreliable: detected from explicit head ``pose`` (|yaw|/|pitch| >
-        POSE_BLINK_GATE_DEG) when available, otherwise from strong left/right eye
-        width asymmetry in the landmarks themselves (a foreshortening proxy, so
-        the backfill path with no stored pose still gates turned heads).
+        Detected from explicit head ``pose`` (|yaw|/|pitch| > POSE_BLINK_GATE_DEG)
+        when available, otherwise from strong left/right eye width asymmetry in
+        the landmarks themselves (a foreshortening proxy, so backfill paths with
+        no stored pose still gate turned heads: one eye <45% the width of the
+        other -> head strongly turned).
         """
-        landmarks = np.asarray(landmarks, dtype=np.float32)
-        if landmarks.shape[0] < 96:
-            return None
         if pose is not None:
             try:
                 p = np.asarray(pose, dtype=np.float32).flatten()
@@ -303,17 +311,84 @@ class FaceAnalyzer:
                     abs(p[0]) > cls.POSE_BLINK_GATE_DEG
                     or abs(p[1]) > cls.POSE_BLINK_GATE_DEG
                 ):
-                    return None
+                    return True
             except (ValueError, TypeError):
                 pass
         lw = cls._eye_width(landmarks, cls.LEFT_EYE_INDICES)
         rw = cls._eye_width(landmarks, cls.RIGHT_EYE_INDICES)
-        if lw > 0 and rw > 0 and (min(lw, rw) / max(lw, rw)) < 0.45:
-            # One eye is <45% the width of the other -> head strongly turned.
+        return lw > 0 and rw > 0 and (min(lw, rw) / max(lw, rw)) < 0.45
+
+    @classmethod
+    def compute_eyes_open_score(cls, landmarks, pose=None):
+        """Continuous 0-10 eyes-open score from a 106-point landmark array.
+
+        10 = wide open, 0 = fully closed, linearly mapped from the average EAR.
+        Returns ``None`` (neutral / unknown) when the head is turned enough that
+        EAR is unreliable (see :meth:`_head_turned`).
+        """
+        landmarks = np.asarray(landmarks, dtype=np.float32)
+        if landmarks.shape[0] < 96:
+            return None
+        if cls._head_turned(landmarks, pose):
             return None
         ear = cls.compute_avg_ear(landmarks)
         frac = (ear - cls.EAR_CLOSED) / (cls.EAR_OPEN - cls.EAR_CLOSED)
         return float(max(0.0, min(1.0, frac)) * 10.0)
+
+    # Outer mouth corners in the insightface 2d_106 layout. Verified empirically
+    # on stored landmarks: over 5000 real faces the extreme-x points of the 52-71
+    # mouth block are index 52 (left) and 61 (right) in ~86% of cases, with the
+    # remainder landing on the adjacent inner-lip points.
+    MOUTH_CORNER_LEFT = 52
+    MOUTH_CORNER_RIGHT = 61
+
+    # Corner-lift -> smile mapping, calibrated on the lift distribution over 17k
+    # stored faces (p10=-0.033, p50=+0.024, p90=+0.082). Neutral mouths sit near
+    # +0.02 (the lip-block centroid includes lower-lip mass below the corner
+    # line); a broad smile reaches +0.10, a frown drops below -0.05.
+    SMILE_LIFT_NEUTRAL = 0.02
+    SMILE_LIFT_SPAN = 0.08
+
+    @classmethod
+    def compute_smile_score(cls, landmarks, pose=None):
+        """Continuous 0-10 smile score (mouth-corner lift, ~ AU12) from 106-pt landmarks.
+
+        Geometry (all indices from the insightface 2d_106 layout):
+        - corners: landmarks 52 (left) and 61 (right) — the outer mouth corners,
+          empirically the extreme-x points of the 52-71 mouth block;
+        - mouth center: centroid of the remaining 18 points of the 52-71 block
+          (the lip-mass center line);
+        - lift: signed distance from the corners' midpoint to that centroid,
+          projected onto the image-down direction perpendicular to the
+          inter-ocular axis (roll invariant), normalized by the inter-ocular
+          distance (eye centers = mean of each eye's 6 EAR landmark points).
+
+        Mapped linearly so 5 ~ neutral (lift SMILE_LIFT_NEUTRAL): corners lifted
+        above the lip center (smile) score high, drooping corners (frown) score
+        low; clipped to [0, 10]. Returns ``None`` on turned heads (same pose /
+        eye-asymmetry guards as :meth:`compute_eyes_open_score`) or degenerate
+        geometry.
+        """
+        landmarks = np.asarray(landmarks, dtype=np.float32)
+        if landmarks.shape[0] < 96:
+            return None
+        if cls._head_turned(landmarks, pose):
+            return None
+        left_eye = landmarks[cls.LEFT_EYE_INDICES].mean(axis=0)
+        right_eye = landmarks[cls.RIGHT_EYE_INDICES].mean(axis=0)
+        eye_axis = right_eye - left_eye
+        inter_ocular = float(np.linalg.norm(eye_axis))
+        if inter_ocular <= 1e-6:
+            return None
+        down = np.array([-eye_axis[1], eye_axis[0]], dtype=np.float32) / inter_ocular
+        mouth = landmarks[cls.MOUTH_INDICES]
+        corners_mid = (landmarks[cls.MOUTH_CORNER_LEFT] + landmarks[cls.MOUTH_CORNER_RIGHT]) / 2.0
+        corner_rows = [cls.MOUTH_CORNER_LEFT - cls.MOUTH_INDICES[0],
+                       cls.MOUTH_CORNER_RIGHT - cls.MOUTH_INDICES[0]]
+        center = np.delete(mouth, corner_rows, axis=0).mean(axis=0)
+        lift = float(np.dot(center - corners_mid, down)) / inter_ocular
+        frac = (lift - cls.SMILE_LIFT_NEUTRAL) / cls.SMILE_LIFT_SPAN
+        return float(max(0.0, min(10.0, 5.0 + frac * 5.0)))
 
     @classmethod
     def compute_expression_score(cls, landmarks):

@@ -139,6 +139,8 @@ Chaque catégorie possède :
 - `modifiers` - Ajustements de comportement
 - `tags` - Vocabulaire CLIP pour la correspondance par étiquettes
 
+> **Poids de forme et d'harmonie colorimétrique.** Le bloc `weights` de chaque catégorie porte cinq clés de métriques explicables — `symmetry_percent`, `balance_percent`, `edge_entropy_percent`, `fractal_percent` et `color_harmony_percent` — renseignées par `--recompute-form`. Elles sont livrées à `0` dans chaque catégorie, si bien que les agrégats restent identiques au bit près jusqu'à ce que vous en pondériez une (relancez alors `--recompute-average`). La somme des poids d'une catégorie doit toujours faire 100.
+
 ---
 
 ## Notation
@@ -746,7 +748,9 @@ Réglages de détection des visages InsightFace.
     "min_face_size": 20,
     "blink_ear_threshold": 0.28,
     "min_faces_for_group": 4,
-    "enable_3d_landmarks": false
+    "enable_3d_landmarks": false,
+    "eyes_closed_max": 4.0,
+    "poor_expression_min": 4.0
   }
 }
 ```
@@ -758,6 +762,8 @@ Réglages de détection des visages InsightFace.
 | `blink_ear_threshold` | `0.28` | Rapport d'aspect de l'œil (EAR) pour la détection de clignement |
 | `min_faces_for_group` | `4` | Nombre minimal de visages pour classer en portrait de groupe (recalculé lors de `--recompute-average`) |
 | `enable_3d_landmarks` | `false` | Surcharge optionnelle (absente du fichier livré ; défaut du code `false`). Charge le module InsightFace `landmark_3d_68` pour l'extraction de la pose de tête (lacet/tangage/roulis). Coûte ~5 Mo de poids ONNX supplémentaires. Actuellement informatif ; de futurs affinements de profil/silhouette le liront. |
+| `eyes_closed_max` | `4.0` | Score d'ouverture des yeux par visage (0–10) à ou en dessous duquel la chambre noire de tri signale un visage comme clignant. Pilote les anneaux de visage rouge/orange/vert et le curseur de seuil des yeux (déplacé depuis une constante codée en dur) |
+| `poor_expression_min` | `4.0` | Score de sourire/expression par visage (0–10) en dessous duquel la chambre noire signale une expression faible. Pilote l'anneau de visage d'expression et le curseur (déplacé depuis une constante codée en dur) |
 
 ---
 
@@ -1183,8 +1189,31 @@ Activez ou désactivez des fonctionnalités optionnelles pour réduire l'utilisa
 | `show_folders` | `true` | Afficher le parcours par dossiers de la structure de répertoires photo |
 | `show_scenes` | `true` | Afficher la vue Scènes (`/scenes`) qui regroupe les photos de tête de rafale en scènes chronologiques pour un tri dans l'ordre du récit |
 | `show_my_taste` | `true` | Afficher le tri « My Taste » fondé sur le score appris du classeur personnel, avec un badge de confiance couverture-apprise / précision |
+| `show_proofing` | `false` | Active l'épreuvage client sur les albums partagés : un lien de partage (plus un code PIN facultatif) permet à un client sans compte de mettre un cœur aux photos et de laisser des commentaires, que le propriétaire de l'album examine depuis une boîte de dialogue réservée à l'édition. Désactivé par défaut. Voir [Épreuvage client](#client-proofing) |
 
 **Optimisation mémoire :** définir `show_similar_button: false` empêche le chargement de numpy, réduisant l'empreinte mémoire de la visionneuse. La fonctionnalité de photos similaires calcule la similarité cosinus des embeddings CLIP, ce qui nécessite numpy.
+
+### Épreuvage client
+
+`viewer.features.show_proofing` (par défaut `false`) transforme n'importe quel album partagé en surface d'épreuvage client. Un lien de partage — éventuellement protégé par `viewer.proofing.pin` — permet à un client sans compte d'échanger le jeton de partage contre une session éphémère, puis de mettre un cœur aux photos et de laisser des commentaires. Les sélections vivent dans une table dédiée `album_client_picks`, limitées aux photos de cet album et totalement isolées des notes du propriétaire (elles ne touchent jamais `photos.is_favorite` / `user_preferences` et n'entraînent jamais le classeur personnel). Le propriétaire lit les sélections depuis une boîte de dialogue réservée à l'édition sur la carte de l'album.
+
+```json
+{
+  "viewer": {
+    "features": { "show_proofing": false },
+    "proofing": {
+      "pin": "",
+      "session_minutes": 1440
+    }
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|--------|-------------|
+| `features.show_proofing` | `false` | Interrupteur principal de l'épreuvage client sur les albums partagés |
+| `proofing.pin` | `""` | Code PIN facultatif qu'un client doit saisir (avec le jeton de partage) pour ouvrir une session d'épreuvage. Vide = aucun PIN. Les vérifications sont limitées en débit et sûres au niveau des octets |
+| `proofing.session_minutes` | `1440` | Durée de vie en minutes d'un jeton de session d'épreuvage client (par défaut 24 h). Les sessions s'arrêtent aussi dès que l'album n'est plus partagé ou que l'épreuvage est désactivé |
 
 ### Mappage de chemins
 
@@ -1542,6 +1571,26 @@ Réglages pour la fonctionnalité de tri IA des photos similaires, qui regroupe 
 | `max_photos` | `10000` | Nombre maximal de photos chargées pour le calcul de similarité (coût en O(n²)). Augmentez pour les photothèques plus grandes au prix du temps de calcul. |
 | `max_group_size` | `50` | Nombre maximal de photos par groupe de similarité. Les groupes plus grands sont scindés pour garder l'interface utilisable. |
 
+## Tri automatique
+
+Tri automatique en un bouton pour la chambre noire de tri (`POST /api/culling/auto`, réservé à l'édition). Il trie toute une portée — tous les groupes, ou seulement les rafales / similaires / scènes, éventuellement restreinte à un album ou une fenêtre de dates — en une seule passe. Chaque groupe conserve sa meilleure photo plus tout ce qui se trouve dans une marge dérivée de la rigueur (le même budget de conservation que le curseur manuel de la chambre noire), avec un plancher par groupe, et rejette le reste.
+
+```json
+{
+  "auto_cull": {
+    "default_strictness": 50,
+    "highlights_min": 8.0
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|--------|-------------|
+| `default_strictness` | `50` | Budget de conservation (0–100) utilisé lorsque la requête omet `strictness`. Plus élevé = conserver moins de photos par groupe (marge plus serrée autour de la meilleure du groupe) |
+| `highlights_min` | `8.0` | Score agrégé minimal pour que la meilleure photo d'un groupe soit rassemblée dans l'album **Highlights** facultatif lorsqu'un tri automatique est appliqué (idempotent) |
+
+`dry_run` est activé par défaut et renvoie un aperçu conservation/rejet par groupe ; une application enregistre en plus des lignes de comparaison `source='culling'` et déclenche un ré-entraînement automatique. Voir [Visionneuse web — Tri automatique](VIEWER.md#auto-cull).
+
 ## Scènes
 
 Réglages pour la vue Scènes, qui regroupe les photos de tête de rafale en scènes chronologiques (séparées par les écarts de temps de capture) pour un tri dans l'ordre du récit :
@@ -1622,6 +1671,104 @@ Le signal repose sur la **sémantique de la légende** : la légende IA de chaq
 
 **Découvrir un vocabulaire propre à la bibliothèque.** L'ensemble `general` est une valeur par défaut raisonnable, mais vous pouvez proposer un vocabulaire adapté à *votre* bibliothèque avec `python facet.py --discover-moments` : il regroupe les vecteurs `caption_embedding` stockés (HDBSCAN), nomme chaque grappe à partir de ses légendes (un mot-clé plus les légendes les plus proches du centroïde comme prompts prêts à l'emploi), et écrit le résultat sous forme d'un bloc `event_types.discovered` dans `scoring_config.discovered.json`. Examinez-le, copiez `discovered` dans `event_types` ci-dessus, réglez `default_event_type` sur `discovered`, et exécutez `--recompute-moments` pour l'adopter — la découverte propose, elle ne réécrit jamais la configuration active. `--discover-min-cluster-size N` contrôle la granularité (plus petit = plus de moments, plus fins).
 
+## Critique IA
+
+Configuration du prompt de la critique propulsée par VLM (profils 16gb/24gb). La critique injecte la décomposition complète des règles, les pénalités et l'EXIF dans un prompt à paliers configurable, restitue la réponse sous forme Observation / Évaluation / Suggestions, et la met en cache par photo dans `photos.vlm_critique` (traduite à la demande dans `vlm_critique_translated`). Elle s'exécute sur la vignette stockée, si bien que les fichiers RAW sont critiqués correctement au lieu d'échouer en silence ; `refresh` régénère.
+
+```json
+{
+  "critique": {
+    "vlm": {
+      "max_new_tokens": 320
+    }
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|--------|-------------|
+| `critique.vlm.max_new_tokens` | `320` | Budget de jetons pour la génération de la critique VLM structurée |
+
+Voir [Visionneuse web — Critique IA](VIEWER.md#ai-critique).
+
+## Attributs de distorsion
+
+Étiquetage de distorsion zero-shot, indicatif uniquement. `--recompute-distortions` note chaque photo au regard de prompts contrastifs de style ExIQA sur son embedding CLIP/SigLIP stocké et enregistre les défauts probables (flou de bougé, dominante colorée, suraccentuation, …) dans une colonne JSON indicative. Il n'alimente jamais l'agrégat ; les étiquettes s'affichent sous forme de puces d'avertissement dans la boîte de dialogue de critique.
+
+```json
+{
+  "distortion_attributes": {
+    "enabled": true,
+    "top_n": 5,
+    "thresholds": {
+      "open_clip":    { "temperature": 0.02, "min_confidence": 0.6 },
+      "transformers": { "temperature": 0.05, "min_confidence": 0.6 }
+    },
+    "vocabulary": {}
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|--------|-------------|
+| `enabled` | `true` | Calcule les attributs de distorsion lors de `--recompute-distortions` |
+| `top_n` | `5` | Nombre maximal d'étiquettes de distorsion conservées par photo |
+| `thresholds.<backend>.temperature` | open_clip `0.02`, transformers `0.05` | Température softmax sur les scores des prompts contrastifs, par backend d'embedding (comme pour `narrative_moments`, les cosinus open_clip et transformers évoluent à des échelles différentes) |
+| `thresholds.<backend>.min_confidence` | `0.6` | Probabilité minimale pour qu'une étiquette de distorsion soit conservée |
+| `vocabulary` | `{}` | Remplacement facultatif de l'ensemble de prompts de distorsion intégré (`{attribut: [synonymes de prompt]}`) ; vide = valeurs par défaut du module |
+
+## Teint
+
+Naturel du teint des portraits (indicatif uniquement). `--recompute-skin-tone` échantillonne le chroma CIELAB des joues à partir des vignettes de visage + points de repère stockés et mesure sa distance CIEDE2000 à un lieu de peau à température de couleur corrélée, signalant les portraits dont la peau dérive vers le vert / magenta / bleu / jaune. Il n'alimente jamais l'agrégat ; le résultat s'affiche comme note de teint dans la boîte de dialogue de critique.
+
+```json
+{
+  "skin_tone": {
+    "cast_delta_threshold": 12.0
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|--------|-------------|
+| `cast_delta_threshold` | `12.0` | Écart CIEDE2000 minimal entre le chroma de peau mesuré et le lieu de peau avant qu'une dominante de couleur soit signalée |
+
+## Synchronisation Immich
+
+Synchronisation à sens unique des notes en étoiles et favoris Facet vers un serveur [Immich](https://immich.app/) via son API REST. Les ressources sont résolues par `originalPath` grâce aux correspondances de préfixes de chemin configurées, en une seule passe de recherche groupée. Lancez-la avec `--immich-sync` (vérifiez d'abord avec `--immich-test`) ; voir [Commandes — Synchronisation Immich](COMMANDS.md#immich-sync).
+
+```json
+{
+  "immich": {
+    "url": "",
+    "api_key": "",
+    "path_map": [
+      { "facet_prefix": "", "immich_prefix": "" }
+    ],
+    "push": {
+      "ratings": true,
+      "favorites": true,
+      "top_picks_album": "",
+      "top_picks_min_rating": 4
+    },
+    "timeout_seconds": 30
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|--------|-------------|
+| `url` | `""` | URL de base du serveur Immich (par ex. `http://nas:2283`) |
+| `api_key` | `""` | Clé API Immich, envoyée comme en-tête `x-api-key` |
+| `path_map` | `[{facet_prefix, immich_prefix}]` | Réécritures de préfixe des chemins Facet vers les valeurs `originalPath` d'Immich ; le premier `facet_prefix` correspondant est remplacé par son `immich_prefix` lors de la résolution d'une ressource |
+| `push.ratings` | `true` | Pousse les notes en étoiles. La politique de compatibilité de version d'Immich est respectée — seul 1–5 est écrit, jamais 0/−1 |
+| `push.favorites` | `true` | Pousse l'indicateur de favori |
+| `push.top_picks_album` | `""` | Nom d'album Immich facultatif qui rassemble les photos poussées au-dessus du seuil de note. Vide = aucun album |
+| `push.top_picks_min_rating` | `4` | Note en étoiles minimale pour qu'une photo soit ajoutée à `top_picks_album` |
+| `timeout_seconds` | `30` | Délai d'expiration REST par requête |
+
+`--immich-sync` honore `--dry-run` (résout chaque ressource mais n'écrit rien) et `--user` (pousse les notes `user_preferences` de cet utilisateur en mode multi-utilisateurs). REST uniquement — Facet ne touche jamais la base de données Immich.
+
 ## Frise chronologique
 
 Réglages pour la vue chronologique :
@@ -1668,7 +1815,7 @@ Réglages pour la traduction des légendes IA via MarianMT :
 
 | Réglage | Défaut | Description |
 |---------|--------|-------------|
-| `target_language` | `"fr"` | Code de langue cible pour `--translate-captions`. Pris en charge : `fr` (français), `de` (allemand), `es` (espagnol), `it` (italien). Utilise les modèles MarianMT de Helsinki-NLP (CPU, aucun GPU requis). |
+| `target_language` | `"fr"` | Code de langue cible pour `--translate-captions`. Pris en charge : `fr` (français), `de` (allemand), `es` (espagnol), `it` (italien), `pt` (portugais brésilien). Utilise les modèles MarianMT de Helsinki-NLP (CPU, aucun GPU requis). |
 
 ## CLIP esthétique (R2)
 

@@ -83,6 +83,18 @@ visor expone en el campo `progress` de `/api/scan/status` y del flujo SSE.
 >
 > **Advertencia.** `--import-sidecars` resuelve las valoraciones/etiquetas con el criterio *gana el más reciente* frente al `scanned_at` de la foto (último escaneo), no a una hora de edición por valoración: un sidecar más reciente que el último escaneo puede sobrescribir una valoración que cambiaste en Facet después de él. Ejecuta `--import-sidecars` antes de volver a valorar si el editor externo es la fuente de verdad, y `python database.py --migrate-tags` tras importar si usas la tabla de búsqueda `photo_tags`.
 
+### Sincronización con Immich
+
+Envía tus valoraciones y favoritos de Facet a un servidor [Immich](https://immich.app/) mediante su API REST (unidireccional — Facet → Immich). Los recursos se resuelven por `originalPath` a través de las asignaciones de prefijo de ruta del bloque de configuración `immich`, en una única pasada de búsqueda masiva.
+
+| Comando | Descripción |
+|---------|-------------|
+| `python facet.py --immich-test` | Comprueba la conectividad y la autenticación contra el servidor Immich configurado (`immich.url` + `immich.api_key`, enviada como `x-api-key`) |
+| `python facet.py --immich-sync` | Envía las valoraciones por estrellas (1–5) y los favoritos a Immich, resolviendo los recursos por `originalPath`. Respeta `--dry-run` (resuelve pero nunca escribe) y `--user` (valoraciones por usuario en modo multiusuario) |
+| `python facet.py --immich-sync --dry-run` | Resuelve cada recurso e informa de lo que cambiaría sin escribir |
+
+Las valoraciones siguen la política segura por versión de Immich (solo 1–5, nunca 0/−1); un álbum opcional de mejores fotos recopila las fotos por encima de un umbral de valoración. Solo REST — sin acoplamiento directo con la base de datos de Immich. Consulta [Configuración — Sincronización con Immich](CONFIGURATION.md#immich-sync) para el bloque completo.
+
 ## Operaciones de recálculo
 
 Estos comandos actualizan métricas específicas, derivan datos nuevos (leyendas de IA, GPS, embeddings) o analizan la base de datos — todo sin volver a ejecutar el pipeline completo de puntuación. La mayoría reutilizan las miniaturas/puntos de referencia almacenados y son ligeros para la CPU, pero las filas de IA/extracción (p. ej. `--generate-captions`) y las de recálculo a partir de la imagen son intensivas en GPU.
@@ -102,9 +114,13 @@ Estos comandos actualizan métricas específicas, derivan datos nuevos (leyendas
 | `python facet.py --recompute-iqa` | `[GPU]` `[8gb/16gb/24gb]` Recalcula métricas IQA suplementarias (TOPIQ IAA, NR-Face, LIQE) a partir de las miniaturas almacenadas |
 | `python facet.py --recompute-ocr` | Extrae el texto presente en la imagen a `ocr_text` desde las miniaturas (opcional; sin efecto si no hay motor OCR; ejecuta `--rebuild-fts` después para indexar) |
 | `python facet.py --recompute-colors` | Extrae el tono dominante + la temperatura de color cálida/fría desde las miniaturas (CPU, rápido) a `dominant_hue` / `color_temp` |
-| `python facet.py --upgrade-db` | Migra el esquema y ejecuta la cadena completa de relleno: extract-gps, detect-duplicates, recompute-iqa, saliency, composition-cpu, burst, blinks, average. Idempotente; omite pasos pesados como el subtitulado. |
+| `python facet.py --recompute-form` | Recalcula las cinco métricas explicables de forma/color — simetría izquierda-derecha, equilibrio visual, entropía de orientación de bordes, complejidad fractal por conteo de cajas y armonía cromática por plantilla de tono de Matsuda — a partir de las miniaturas almacenadas (CPU, sin modelo). Aparecen en el desglose de la crítica, las sugerencias y la información emergente de la foto, y están disponibles como pesos de categoría (distribuidas a 0) |
+| `python facet.py --recompute-skin-tone` | Recalcula la naturalidad del tono de piel en retratos a partir de las miniaturas de rostro almacenadas + puntos de referencia (croma CIELAB de la mejilla frente a un locus de piel CCT, CIEDE2000; CPU, sin modelo). Solo informativo — se muestra como una nota de crítica, sin acoplamiento con el agregado |
+| `python facet.py --recompute-distortions` | Etiqueta cada foto con los atributos de distorsión probables (desenfoque por movimiento, dominante de color, exceso de nitidez, …) mediante prompts contrastivos de tipo ExIQA en zero-shot sobre el embedding CLIP/SigLIP almacenado, y luego imprime un informe de correlación de Spearman frente a `liqe_score` / `noise_sigma`. Solo informativo (chips de aviso de la crítica), sin acoplamiento con el agregado |
+| `python facet.py --upgrade-db` | Migra el esquema y ejecuta la cadena completa de relleno: extract-gps, detect-duplicates, recompute-iqa, saliency, composition-cpu, burst, blinks, eyes-expression, face-signals, average. Idempotente; omite pasos pesados como el subtitulado. |
 | `python facet.py --recompute-blinks` | Recalcula la detección de parpadeo a partir de los puntos de referencia almacenados (CPU, rápido) |
 | `python facet.py --recompute-eyes-expression` | Recalcula las puntuaciones de ojos abiertos + expresión a partir de los puntos de referencia almacenados (CPU, rápido) |
+| `python facet.py --recompute-face-signals` | Rellena las puntuaciones de ojos abiertos + sonrisa por cara a partir de los puntos de referencia de 106 puntos almacenados (CPU, rápido; sin modelo). También se ejecuta como paso de `--upgrade-db` |
 | `python facet.py --recompute-burst` | Recalcula los grupos de detección de ráfaga |
 | `python facet.py --detect-duplicates` | Detecta fotos duplicadas mediante pHash |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Evalúa los umbrales de coseno de casi-duplicados (tabla de precisión/exhaustividad con etiquetas; en su defecto, distribución de coseno de candidatos) |
