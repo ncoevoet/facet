@@ -139,6 +139,8 @@ Each category has:
 - `modifiers` - Behavior adjustments
 - `tags` - CLIP vocabulary for tag-based matching
 
+> **Form & color-harmony weights.** Every category's `weights` block carries five explainable metric keys — `symmetry_percent`, `balance_percent`, `edge_entropy_percent`, `fractal_percent`, and `color_harmony_percent` — populated by `--recompute-form`. They ship at `0` in every category, so aggregates stay byte-identical until you give one a weight (then re-run `--recompute-average`). Weights within a category must still sum to 100.
+
 ---
 
 ## Scoring
@@ -754,7 +756,9 @@ InsightFace face detection settings.
     "min_face_size": 20,
     "blink_ear_threshold": 0.28,
     "min_faces_for_group": 4,
-    "enable_3d_landmarks": false
+    "enable_3d_landmarks": false,
+    "eyes_closed_max": 4.0,
+    "poor_expression_min": 4.0
   }
 }
 ```
@@ -766,6 +770,8 @@ InsightFace face detection settings.
 | `blink_ear_threshold` | `0.28` | Eye Aspect Ratio for blink detection |
 | `min_faces_for_group` | `4` | Minimum faces to classify as group portrait (recomputed on `--recompute-average`) |
 | `enable_3d_landmarks` | `false` | Optional override (absent from the shipped file; code default `false`). Load InsightFace `landmark_3d_68` module for head-pose extraction (yaw/pitch/roll). Costs ~5MB extra ONNX weights. Currently informational; future profile/silhouette refinements will read this. |
+| `eyes_closed_max` | `4.0` | Per-face eyes-open score (0–10) at or below which the culling darkroom flags a face as blinking. Drives the red/orange/green face rings and the eyes threshold slider (moved from a hardcoded constant) |
+| `poor_expression_min` | `4.0` | Per-face smile/expression score (0–10) below which the darkroom flags a weak expression. Drives the expression face ring and slider (moved from a hardcoded constant) |
 
 ---
 
@@ -1198,8 +1204,31 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_folders` | `true` | Show folder-based browsing of the photo directory structure |
 | `show_scenes` | `true` | Show the Scenes view (`/scenes`) that groups burst-lead photos into chronological scenes for story-order culling |
 | `show_my_taste` | `true` | Show the "My Taste" sort backed by the personal ranker's learned score, with a learned-coverage / accuracy confidence badge |
+| `show_proofing` | `false` | Enable client proofing on shared albums: a share link (plus optional PIN) lets a no-account client heart photos and leave comments, which the album owner reviews from an edition-gated dialog. Off by default. See [Client Proofing](#client-proofing) |
 
 **Memory optimization:** Setting `show_similar_button: false` prevents numpy from being loaded, reducing viewer memory footprint. The similar photos feature computes CLIP embedding cosine similarity which requires numpy.
+
+### Client Proofing
+
+`viewer.features.show_proofing` (default `false`) turns any shared album into a client-proofing surface. A share link — optionally gated by `viewer.proofing.pin` — lets a client with no account exchange the share token for a short-lived session, then heart photos and leave comments. Picks live in a dedicated `album_client_picks` table, bounded to that album's photos and fully isolated from the owner's ratings (they never touch `photos.is_favorite` / `user_preferences` and never train the personal ranker). The owner reads the picks from an edition-gated dialog on the album card.
+
+```json
+{
+  "viewer": {
+    "features": { "show_proofing": false },
+    "proofing": {
+      "pin": "",
+      "session_minutes": 1440
+    }
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `features.show_proofing` | `false` | Master switch for client proofing on shared albums |
+| `proofing.pin` | `""` | Optional PIN a client must enter (with the share token) to open a proofing session. Empty = no PIN. Checks are rate-limited and byte-safe |
+| `proofing.session_minutes` | `1440` | Lifetime in minutes of a client proofing session token (default 24h). Sessions also stop the moment the album is unshared or proofing is disabled |
 
 ### Path Mapping
 
@@ -1557,6 +1586,26 @@ Settings for the AI similar-photo culling feature, which groups visually similar
 | `max_photos` | `10000` | Maximum photos to load for similarity computation (O(n²) cost). Increase for larger libraries at the expense of computation time. |
 | `max_group_size` | `50` | Maximum photos per similarity group. Larger groups are split to keep the UI usable. |
 
+## Auto-Cull
+
+One-button auto-cull for the culling darkroom (`POST /api/culling/auto`, edition-gated). It culls a whole scope — all groups, or only bursts / similars / scenes, optionally narrowed to an album or date window — in a single pass. Each group keeps its best photo plus everything within a strictness-derived margin (the same keeper budget as the manual darkroom slider), floored at a per-group minimum, and rejects the rest.
+
+```json
+{
+  "auto_cull": {
+    "default_strictness": 50,
+    "highlights_min": 8.0
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `default_strictness` | `50` | Keeper budget (0–100) used when the request omits `strictness`. Higher = keep fewer photos per group (tighter margin around the group's best) |
+| `highlights_min` | `8.0` | Minimum aggregate score for a group's best photo to be collected into the optional **Highlights** album when an auto-cull is applied (idempotent) |
+
+`dry_run` defaults on and returns a per-group keep/reject preview; an apply additionally records `source='culling'` comparison rows and nudges one auto-retrain. See [Web Viewer — Auto-cull](VIEWER.md#auto-cull).
+
 ## Scenes
 
 Settings for the Scenes view, which groups burst-lead photos into chronological scenes (split by capture-time gaps) for story-order culling:
@@ -1644,6 +1693,104 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 > **Caption backfill cost.** Caption embeddings are computed once and stored, so the per-photo cosine is free afterwards. A scan encodes only its handful of new captions (cheap, incremental), but the first full pass over an existing library encodes every caption — one text-tower forward pass per caption, fast on GPU and ~hours on CPU. Run `python facet.py --detect-moments` once (GPU recommended) for that backfill; add `--limit N` to verify on a sample first.
 
 **Discovering a library-specific vocabulary.** The `general` set is a sensible default, but you can propose a vocabulary fitted to *your* library with `python facet.py --discover-moments`: it clusters the stored `caption_embedding` vectors (HDBSCAN), names each cluster from its captions (a keyword plus the captions nearest the centroid as ready-made prompts), and writes the result as an `event_types.discovered` block to `scoring_config.discovered.json`. Review it, copy `discovered` into `event_types` above, set `default_event_type` to `discovered`, and run `--recompute-moments` to adopt — discovery proposes, it never rewrites the active config. `--discover-min-cluster-size N` controls granularity (smaller = more, finer moments).
+
+## AI Critique
+
+Prompt configuration for the VLM-powered critique (16gb/24gb profiles). The critique injects the full rule breakdown, penalties and EXIF into a configurable ladder prompt, renders the reply as Observation / Assessment / Suggestions, and caches it per photo in `photos.vlm_critique` (translated on demand into `vlm_critique_translated`). It runs against the stored thumbnail, so RAW files critique correctly instead of failing silently; `refresh` regenerates.
+
+```json
+{
+  "critique": {
+    "vlm": {
+      "max_new_tokens": 320
+    }
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `critique.vlm.max_new_tokens` | `320` | Token budget for the structured VLM critique generation |
+
+See [Web Viewer — AI Critique](VIEWER.md#ai-critique).
+
+## Distortion Attributes
+
+Zero-shot, advisory-only distortion labelling. `--recompute-distortions` scores each photo against ExIQA-style contrastive prompts over its stored CLIP/SigLIP embedding and stores the likely defects (motion blur, color cast, oversharpening, …) as an advisory JSON column. It never feeds the aggregate; the labels render as warning chips in the critique dialog.
+
+```json
+{
+  "distortion_attributes": {
+    "enabled": true,
+    "top_n": 5,
+    "thresholds": {
+      "open_clip":    { "temperature": 0.02, "min_confidence": 0.6 },
+      "transformers": { "temperature": 0.05, "min_confidence": 0.6 }
+    },
+    "vocabulary": {}
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Compute distortion attributes during `--recompute-distortions` |
+| `top_n` | `5` | Maximum number of distortion labels kept per photo |
+| `thresholds.<backend>.temperature` | open_clip `0.02`, transformers `0.05` | Softmax temperature over the contrastive prompt scores, per embedding backend (like `narrative_moments`, open_clip and transformers cosines run at different scales) |
+| `thresholds.<backend>.min_confidence` | `0.6` | Minimum probability for a distortion label to be kept |
+| `vocabulary` | `{}` | Optional override of the built-in distortion prompt set (`{attribute: [prompt synonyms]}`); empty = module defaults |
+
+## Skin Tone
+
+Portrait skin-tone naturalness (advisory-only). `--recompute-skin-tone` samples cheek CIELAB chroma from stored face thumbnails + landmarks and measures its CIEDE2000 distance from a correlated-color-temperature skin locus, flagging portraits whose skin drifts green / magenta / blue / yellow. It never feeds the aggregate; the result renders as a skin-tone note in the critique dialog.
+
+```json
+{
+  "skin_tone": {
+    "cast_delta_threshold": 12.0
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `cast_delta_threshold` | `12.0` | Minimum CIEDE2000 delta between the measured skin chroma and the skin locus before a color cast is flagged |
+
+## Immich Sync
+
+One-way sync of Facet star ratings and favorites to an [Immich](https://immich.app/) server over its REST API. Assets are resolved by `originalPath` through the configured path-prefix mappings, in a single bulk search pass. Run it with `--immich-sync` (check first with `--immich-test`); see [Commands — Immich Sync](COMMANDS.md#immich-sync).
+
+```json
+{
+  "immich": {
+    "url": "",
+    "api_key": "",
+    "path_map": [
+      { "facet_prefix": "", "immich_prefix": "" }
+    ],
+    "push": {
+      "ratings": true,
+      "favorites": true,
+      "top_picks_album": "",
+      "top_picks_min_rating": 4
+    },
+    "timeout_seconds": 30
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `url` | `""` | Base URL of the Immich server (e.g. `http://nas:2283`) |
+| `api_key` | `""` | Immich API key, sent as the `x-api-key` header |
+| `path_map` | `[{facet_prefix, immich_prefix}]` | Prefix rewrites from Facet paths to Immich `originalPath` values; the first matching `facet_prefix` is swapped for its `immich_prefix` when resolving an asset |
+| `push.ratings` | `true` | Push star ratings. Immich's version-safe policy is honored — only 1–5 is written, never 0/−1 |
+| `push.favorites` | `true` | Push the favorite flag |
+| `push.top_picks_album` | `""` | Optional Immich album name that collects pushed photos above the rating threshold. Empty = no album |
+| `push.top_picks_min_rating` | `4` | Minimum star rating for a photo to be added to `top_picks_album` |
+| `timeout_seconds` | `30` | Per-request REST timeout |
+
+`--immich-sync` honors `--dry-run` (resolves every asset but writes nothing) and `--user` (pushes that user's `user_preferences` ratings in multi-user mode). REST-only — Facet never touches the Immich database.
 
 ## Timeline
 

@@ -83,6 +83,18 @@ lines (phase, current/total, ETA) which the viewer's scan API surfaces in the
 >
 > **Caveat.** `--import-sidecars` resolves ratings/labels *newest-wins* against the photo's `scanned_at` (last scan), not a per-rating edit time — so a sidecar newer than the last scan can override a rating you changed in Facet after it. Run `--import-sidecars` before re-rating if the external editor is the source of truth, and `python database.py --migrate-tags` after importing if you use the `photo_tags` lookup table.
 
+### Immich Sync
+
+Push your Facet ratings and favorites to an [Immich](https://immich.app/) server over its REST API (one-way — Facet → Immich). Assets are resolved by `originalPath` through the path-prefix mappings in the `immich` config block, in a single bulk search pass.
+
+| Command | Description |
+|---------|-------------|
+| `python facet.py --immich-test` | Check connectivity and authentication against the configured Immich server (`immich.url` + `immich.api_key`, sent as `x-api-key`) |
+| `python facet.py --immich-sync` | Push star ratings (1–5) and favorites to Immich, resolving assets by `originalPath`. Honors `--dry-run` (resolves but never writes) and `--user` (per-user ratings in multi-user mode) |
+| `python facet.py --immich-sync --dry-run` | Resolve every asset and report what would change without writing |
+
+Ratings follow Immich's version-safe policy (1–5 only, never 0/−1); an optional top-picks album collects photos above a rating threshold. REST-only — no direct Immich database coupling. See [Configuration — Immich Sync](CONFIGURATION.md#immich-sync) for the full block.
+
 ## Recompute Operations
 
 These commands update specific metrics, derive new data (AI captions, GPS, embeddings), or analyze the database — all without re-running the full scoring pipeline. Most reuse stored thumbnails/landmarks and are CPU-light, but the AI/extraction rows (e.g. `--generate-captions`) and recompute-from-image rows are GPU-heavy.
@@ -102,9 +114,13 @@ These commands update specific metrics, derive new data (AI captions, GPS, embed
 | `python facet.py --recompute-iqa` | `[GPU]` Recompute supplementary IQA metrics (TOPIQ IAA, NR-Face, LIQE) from stored thumbnails. Enabled on all profiles (legacy runs on CPU, slower); GPU strongly recommended |
 | `python facet.py --recompute-ocr` | Extract in-image text into `ocr_text` from thumbnails (opt-in; no-op without an OCR engine; run `--rebuild-fts` after to index) |
 | `python facet.py --recompute-colors` | Extract dominant hue + warm/cool color temperature from thumbnails (CPU, fast) into `dominant_hue` / `color_temp` |
-| `python facet.py --upgrade-db` | Migrate schema and run the full backfill chain: extract-gps, detect-duplicates, recompute-iqa, saliency, composition-cpu, burst, blinks, average. Idempotent; skips heavy steps like captioning. |
+| `python facet.py --recompute-form` | Recompute the five explainable form/color metrics — left-right symmetry, visual balance, edge-orientation entropy, box-counting fractal complexity, and Matsuda hue-template color harmony — from stored thumbnails (CPU, no model). They surface in the critique breakdown, suggestions and photo tooltip, and are available as category weights (shipped at 0) |
+| `python facet.py --recompute-skin-tone` | Recompute portrait skin-tone naturalness from stored face thumbnails + landmarks (cheek CIELAB chroma vs a CCT skin locus, CIEDE2000; CPU, no model). Advisory only — renders as a critique note, no aggregate coupling |
+| `python facet.py --recompute-distortions` | Label each photo with likely distortion attributes (motion blur, color cast, oversharpening, …) via zero-shot ExIQA-style contrastive prompts over the stored CLIP/SigLIP embedding, then print a Spearman correlation report vs `liqe_score` / `noise_sigma`. Advisory only (critique warning chips), no aggregate coupling |
+| `python facet.py --upgrade-db` | Migrate schema and run the full backfill chain: extract-gps, detect-duplicates, recompute-iqa, saliency, composition-cpu, burst, blinks, eyes-expression, face-signals, average. Idempotent; skips heavy steps like captioning. |
 | `python facet.py --recompute-blinks` | Recompute blink detection from stored landmarks (CPU, fast) |
 | `python facet.py --recompute-eyes-expression` | Recompute eyes-open + expression scores from stored landmarks (CPU, fast) |
+| `python facet.py --recompute-face-signals` | Backfill per-face eyes-open + smile scores from the stored 106-point landmarks (CPU, fast; no model). Also runs as a step of `--upgrade-db` |
 | `python facet.py --recompute-burst` | Recompute burst detection groups |
 | `python facet.py --detect-duplicates` | Detect duplicate photos via pHash |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Evaluate near-dup cosine thresholds (precision/recall table with labels, else candidate-cosine distribution) |

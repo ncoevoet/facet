@@ -313,6 +313,14 @@ Compartilhe álbuns com usuários externos por meio de links com token. Nenhuma 
 
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
+### Aprovação de Cliente
+
+Quando `viewer.features.show_proofing` está ativado (padrão `false`), um link de álbum compartilhado pode rodar em **modo de aprovação**: o cliente (sem conta) abre o link de compartilhamento, opcionalmente insere um PIN (`viewer.proofing.pin`) e pode então **curtir** fotos e deixar **comentários** — uma forma leve de deixar um cliente escolher seus favoritos de uma entrega.
+
+As escolhas do cliente ficam totalmente isoladas da sua biblioteca. Elas vivem em uma tabela dedicada `album_client_picks`, são limitadas às fotos daquele álbum e nunca tocam seus próprios favoritos/avaliações (`photos.is_favorite` / `user_preferences`) nem treinam o ranqueador pessoal. Como dono, você lê as escolhas em um diálogo `[Edition]` no cartão do álbum. As sessões são de curta duração (`viewer.proofing.session_minutes`, padrão 24h) e param de funcionar no momento em que o álbum deixa de ser compartilhado ou a aprovação é desativada.
+
+Controlado por `viewer.features.show_proofing` (padrão: `false`). Veja [Configuração — Aprovação de Cliente](CONFIGURATION.md#aprovação-de-cliente).
+
 ## Crítica por IA
 
 Decompõe as pontuações de uma foto em pontos fortes, pontos fracos e sugestões.
@@ -321,9 +329,13 @@ Decompõe as pontuações de uma foto em pontos fortes, pontos fracos e sugestõ
 
 Disponível em todos os perfis de VRAM. Analisa métricas armazenadas (estética, composição, nitidez, qualidade do rosto, etc.) e gera uma explicação estruturada da pontuação.
 
+O detalhamento também exibe as linhas explicáveis de **forma e harmonia de cores** (simetria, equilíbrio, entropia de orientação de bordas, complexidade fractal, harmonia de cores de Matsuda — preenchidas por `--recompute-form`), **chips de atributos de distorção** para quaisquer defeitos prováveis (desfoque de movimento, dominante de cor, nitidez excessiva, … — de `--recompute-distortions`) e uma **nota de tom de pele** para retratos cujo croma de pele desvia do natural (`--recompute-skin-tone`). Os três são informativos — explicam a foto, não alteram o agregado — e cada linha só aparece quando sua coluna subjacente está preenchida.
+
 ### Crítica por VLM `[GPU]` `[16gb/24gb]`
 
 Usa o VLM configurado (Qwen3.5-2B ou Qwen3.5-4B) para uma crítica contextual. Requer o perfil de VRAM 16gb ou 24gb e `viewer.features.show_vlm_critique: true`.
+
+O prompt é uma escada configurável (`critique.vlm`) que injeta o detalhamento completo de regras, penalidades e EXIF, e a resposta é apresentada como **Observação / Avaliação / Sugestões**. O resultado é armazenado em cache por foto (`photos.vlm_critique`) e traduzido sob demanda, com um botão **Regenerar** para recomputá-lo. Ele roda sobre a miniatura armazenada, então arquivos RAW são criticados corretamente em vez de falharem silenciosamente.
 
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
@@ -485,6 +497,16 @@ Para cada grupo, escolha a(s) foto(s) a manter; confirmar rejeita o resto. As co
 
 **Chip Meu Gosto.** Cada confirmação registra linhas de comparação `source='culling'` que treinam o ranqueador pessoal, então o cabeçalho mostra um pequeno chip "Meu Gosto · N comparações" que se atualiza após cada decisão — a IA aprende seu olhar conforme você tria (`GET /api/ranker/status`).
 
+### Triagem automática
+
+Um botão **Triagem automática** na barra de ferramentas tria um escopo inteiro em uma passagem, em vez de grupo por grupo. Escolha o escopo com os controles de granularidade/escopo (todos os grupos, ou apenas sequências / semelhantes / cenas, opcionalmente um álbum ou janela de datas), defina um **rigor** — o orçamento de fotos mantidas, onde maior mantém menos por grupo — e visualize a prévia. Cada grupo mantém sua melhor foto mais tudo dentro da margem de rigor (com um piso mínimo por grupo) e rejeita o resto.
+
+A prévia é uma **simulação** (dry run — nada é gravado): ela mostra a divisão de manter/rejeitar por grupo. Confirme para aplicar — as rejeições são registradas e, como toda triagem, treinam o "Meu Gosto"; um álbum opcional **Highlights** reúne de forma idempotente a melhor foto de cada grupo com pontuação de pelo menos `auto_cull.highlights_min`. Um selo de dica "foto melhor neste grupo" sinaliza os grupos em que a triagem automática manteria um quadro diferente do líder atual. `POST /api/culling/auto`; configurado pelo bloco [`auto_cull`](CONFIGURATION.md#auto-cull).
+
+### Tela cheia
+
+Pressione **`F`** (ou a alternância no cabeçalho) para acionar a API de Tela cheia do navegador e revisar de borda a borda — o laboratório preenche a tela sem os controles do aplicativo. A tecla está listada na legenda de atalhos do laboratório; pressione `F` ou `Esc` para sair.
+
 ### Lupa / Zoom com tecla Z
 
 Pressione **`Z`** na lightbox de visualização única para alternar uma lupa no estilo Photo Mechanic (ajuste ↔ 2×; roda/`+`/`-` para zoom de até 800%). Além da escala de ajuste, o painel troca sua miniatura pela fonte `/image` em resolução total, para que você julgue o foco crítico em pixels reais sem sair da visão. Na tira de contato de Cenas, `Z` alterna uma lupa flutuante que segue o cursor sobre um ladrilho (originada da imagem em resolução total), com um controle deslizante de zoom ajustável. As miniaturas armazenadas têm um limite de 640px, então a lupa é a forma de inspecionar pixels além disso.
@@ -492,6 +514,8 @@ Pressione **`Z`** na lightbox de visualização única para alternar uma lupa no
 ### Selos por Rosto
 
 Na lightbox de triagem de sequência/semelhantes, cada rosto detectado carrega seus próprios selos — olhos abertos/fechados, expressão ruim e confiança da detecção — em vez de uma única marcação de piscada por foto. Isso facilita a triagem de fotos em grupo: você pode ver de relance qual rosto tem os olhos fechados ou uma expressão fraca. Os selos são buscados para um grupo inteiro em uma única chamada em lote (`POST /api/culling-group/faces`).
+
+O **painel de rostos** do laboratório colore cada recorte de rosto em verde / laranja / vermelho a partir de suas pontuações contínuas de olhos-abertos e sorriso, e adiciona controles deslizantes de limiar de **olhos** e **sorriso** ao vivo para que você ajuste na hora o que conta como uma piscada ou uma expressão fraca. Os limites são as chaves de configuração `face_detection.eyes_closed_max` e `face_detection.poor_expression_min` (ambas com padrão `4.0`); os controles deslizantes começam nesses valores.
 
 **Comparação sincronizada (2-up / 4-up).** O cabeçalho da lightbox tem botões Único / Comparar 2 / Comparar 4. No modo de comparação, os painéis compartilham uma única transformação de panorâmica/zoom, então o zoom com roda do mouse ou panorâmica com arrasto em qualquer painel move todos para o recorte idêntico — a forma de escolher o quadro mais nítido de uma sequência inspecionando pixels de verdade. O duplo clique alterna ajuste ↔ zoom; além da escala de ajuste, cada painel troca preguiçosamente sua miniatura de 1920px pela fonte `/image` em resolução total, para que a inspeção fique nítida. Sem mudança no backend — ambas as rotas de imagem já existem. (O pinçar por toque ainda não está implementado; use a roda no desktop.)
 
@@ -815,7 +839,7 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `GET /api/type_counts` | Contagens de fotos por tipo |
 | `GET /api/similar_photos/{path}` | Fotos semelhantes (modos: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Busca semântica de texto para imagem (`scope=text` = apenas texto OCR/legenda) |
-| `GET /api/critique?path=&mode=` | Crítica por IA (baseada em regras ou VLM) |
+| `GET /api/critique?path=&mode=&refresh=` | Crítica por IA (baseada em regras ou VLM); `refresh=true` regenera a crítica VLM em cache |
 | `GET /api/ranker/status` | Status do ranqueador pessoal para a ordenação "Meu Gosto" (% de cobertura aprendida, precisão em dados retidos) |
 | `GET /api/config` | Configuração do visualizador |
 
@@ -894,6 +918,10 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `POST /api/albums/{id}/share` | Gera um token de compartilhamento |
 | `DELETE /api/albums/{id}/share` | Revoga o token de compartilhamento |
 | `GET /api/shared/album/{id}?token=` | Visualiza o álbum compartilhado (sem autenticação) |
+| `POST /api/shared/album/{id}/session` | Troca um token de compartilhamento (+ PIN opcional) por uma sessão de aprovação de cliente (com limite de taxa) |
+| `PUT /api/shared/album/{id}/picks` | O cliente insere/atualiza uma curtida/comentário em uma foto (sessão de aprovação) |
+| `GET /api/shared/album/{id}/picks` | O cliente lê suas próprias escolhas (sessão de aprovação) |
+| `GET /api/albums/{id}/picks` | `[Edition]` O dono lê todas as escolhas de clientes do álbum |
 
 ### Memórias, Linha do Tempo, Mapa e Legendas
 
@@ -969,6 +997,7 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `POST /api/similar-groups/select` | Seleciona as fotos a manter de um grupo semelhante |
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos de sequência/semelhantes/cena para triagem. `group_by` (padrão `all`) seleciona grupos combinados de sequência+semelhantes, apenas de sequência, apenas semelhantes, ou grupos de cenas cronológicas (grupos de cena adicionam `type`/`start`/`end`/`moment`/`moment_confidence`; o parâmetro `sort` é ignorado no modo de cena). `exclude_rejected` (padrão `true`) oculta fotos com `is_rejected=1`; grupos com menos de 2 fotos restantes são descartados |
 | `POST /api/culling-groups/confirm` | Confirma as seleções de triagem (sequência, semelhantes ou cena). Corpo `{group_id, type, paths, keep_paths}`; `type:'scene'` registra as linhas de comparação de triagem de cena |
+| `POST /api/culling/auto` | `[Edition]` Triagem automática de um botão só para um escopo inteiro. Corpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (padrão `true`) retorna a prévia de manter/rejeitar por grupo, uma aplicação rejeita o resto e registra pares de triagem |
 | `POST /api/culling-group/faces` | Selos por rosto (olhos abertos/fechados, expressão, confiança) para um grupo, em um único lote |
 | `GET /api/scenes` | Cenas cronológicas de fotos líderes de sequência (navegação somente leitura) |
 

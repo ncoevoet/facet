@@ -87,6 +87,14 @@ python facet.py /path/to/photos --dry-run --dry-run-count 20
 python facet.py --recompute-tags
 python facet.py --recompute-tags-vlm    # Re-tag using VLM tagger
 python facet.py --recompute-iqa         # Recompute supplementary IQA (TOPIQ IAA, NR-Face, LIQE) from thumbnails
+python facet.py --recompute-form         # Recompute explainable form metrics: symmetry, balance, edge-entropy, fractal, color_harmony (CPU, from thumbnails)
+python facet.py --recompute-face-signals # Recompute per-face eyes_open_score + smile_score from stored 106-pt landmarks (also runs in --upgrade-db)
+python facet.py --recompute-distortions  # Zero-shot distortion attributes over stored embeddings; prints Spearman correlation vs liqe_score/noise_sigma
+python facet.py --recompute-skin-tone    # Portrait skin-tone naturalness: CIEDE2000 vs CCT skin locus, green/magenta/blue/yellow cast
+
+# Immich sync (push ratings/favorites to an Immich server via REST)
+python facet.py --immich-sync            # Push ratings/favorites to Immich (honors --dry-run and --user)
+python facet.py --immich-test            # Check Immich connectivity + API key
 
 # Narrative moments (zero-shot CLIP + temporal smoothing; cheap — cosine over stored embeddings)
 python facet.py --detect-moments        # Label new photos with their narrative moment (auto-runs at end of each scan)
@@ -330,11 +338,13 @@ SQLite table `photos` with columns:
 
 **Faces (extended):** face_sharpness, face_confidence, is_silhouette, is_group_portrait, raw_eye_sharpness
 
-**Technical:** noise_sigma, contrast_score, dynamic_range_stops, mean_saturation, is_monochrome, focal_length_35mm, scoring_model
+**Technical:** noise_sigma, contrast_score, dynamic_range_stops, mean_saturation, is_monochrome, focal_length_35mm, scoring_model, distortion_attributes (JSON, --recompute-distortions), skin_tone_delta, skin_tone_cast (--recompute-skin-tone)
 
 **Histogram:** histogram_spread, histogram_bimodality, mean_luminance, raw_color_entropy, shadow_clipped, highlight_clipped
 
 **Composition:** composition_pattern (SAMP-Net), power_point_score, leading_lines_score, composition_explanation, isolation_bonus
+
+**Form/Color (explainable, opt-in `--recompute-form`):** form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony
 
 **Subject Saliency:** subject_sharpness, subject_prominence, subject_placement, bg_separation
 
@@ -342,7 +352,7 @@ SQLite table `photos` with columns:
 
 **User Actions:** star_rating, is_favorite, is_rejected
 
-**AI/Content:** caption (VLM-generated text description), caption_translated, caption_embedding (BLOB; text-tower embedding of the caption — the caption-semantic moment signal), narrative_moment (zero-shot scene/activity moment, e.g. `beach`/`celebration`/`other`), narrative_moment_confidence
+**AI/Content:** caption (VLM-generated text description), caption_translated, caption_embedding (BLOB; text-tower embedding of the caption — the caption-semantic moment signal), narrative_moment (zero-shot scene/activity moment, e.g. `beach`/`celebration`/`other`), narrative_moment_confidence, vlm_critique, vlm_critique_translated (VLM critique cache)
 
 **Location:** gps_latitude, gps_longitude
 
@@ -352,10 +362,11 @@ SQLite table `photos` with columns:
 
 **Lookup tables:**
 - `photo_tags(photo_path, tag)` - Normalized tag lookup for fast exact-match queries (replaces `LIKE '%tag%'`)
-- `faces(id, photo_path, face_index, embedding, bbox_*, person_id, confidence, face_thumbnail)` - Face embeddings and thumbnails for recognition
+- `faces(id, photo_path, face_index, embedding, bbox_*, person_id, confidence, face_thumbnail, eyes_open_score, smile_score)` - Face embeddings and thumbnails for recognition (`eyes_open_score`/`smile_score` per-face, from 106-pt landmarks)
 - `persons(id, name, representative_face_id, face_count, centroid, auto_clustered, face_thumbnail)` - Person clusters (name=NULL for auto-clustered)
 - `albums(id, user_id, name, description, cover_photo_path, is_smart, smart_filter_json, share_token, created_at, updated_at)` - Photo albums (manual, smart, and shared)
 - `album_photos(id, album_id, photo_path, position, added_at)` - Album membership with ordering
+- `album_client_picks(id, album_id→albums CASCADE, photo_path, picked, comment, client_name, created_at, updated_at, UNIQUE(album_id, photo_path))` - Client proofing picks (isolated from owner ratings)
 - `location_names(lat_grid, lon_grid, city, region, country, display_name)` - Reverse geocoding cache (0.1° grid cells)
 - `comparisons(id, photo_a_path, photo_b_path, winner, category, timestamp, session_id, user_id, source)` - Pairwise photo comparisons (`source`: `vote` = explicit A/B, `culling` = derived from burst/similar culling decisions, `rating` = synthetic from star ratings/favorites)
 - `learned_scores(photo_path, learned_score, comparison_count, category, updated_at, user_id)` - Scores derived from comparisons
@@ -423,7 +434,7 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Albums:** Full CRUD via `GET|POST /api/albums`, `GET|PUT|DELETE /api/albums/{id}`, `GET|POST|DELETE /api/albums/{id}/photos`. Smart albums store filter combinations in `smart_filter_json`. Angular routes: `/albums` (list), `/album/:albumId` (gallery filtered by album).
 
-**AI Critique:** `GET /api/critique?path=<photo_path>&mode=rule|vlm` — rule-based score breakdown (all profiles) or VLM-powered critique (16gb/24gb only).
+**AI Critique:** `GET /api/critique?path=<photo_path>&mode=rule|vlm` — rule-based score breakdown (all profiles) or VLM-powered critique (16gb/24gb only). `mode=vlm` uses a configurable structured prompt (`critique.vlm`), caches to `photos.vlm_critique`, and translates on demand (`refresh=true` regenerates). The per-face batch endpoint `POST /api/culling-group/faces` now returns persisted `eyes_open_score`/`smile_score` plus a `thresholds` object.
 
 **Saliency Overlay:** `GET /api/saliency_overlay?path=` returns a translucent BiRefNet heatmap PNG (alpha = saliency) recomputed on demand from the stored 640px thumbnail (the mask is never persisted; the model loads once via `api/model_cache.get_or_load_saliency_scorer`). `GET /api/photo/face_markers?path=` returns per-face boxes + eye centres (normalised 0..1) and `eyes_open_score`/`is_blink` reconstructed from stored 106-point landmarks (no model). Both read-only; the critique dialog's "Show overlay" toggle composites them. Gated by `viewer.features.show_saliency_overlay` (default `true`).
 
@@ -458,6 +469,10 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 **Metadata Export:** `POST /api/photo/export_xmp` (single, sidecar only), `POST /api/export/sidecars` (bulk by paths/filters, sidecar only), `POST /api/photo/embed_metadata` (single, embeds into the original file for JPEG/HEIC/TIFF/PNG/DNG via exiftool — the gallery "Write metadata to file" action; RAW originals never modified). All edition-gated.
 
 **Cull to folder:** `POST /api/cull/apply` (edition-gated) physically acts on a culling decision — `copy_keeps` (additive), `move_rejects`, or `trash_rejects` (OS-trash via optional `send2trash`, gated behind `viewer.cull.allow_trash`). `dry_run` defaults true (returns the resolved `would_copy/would_move/would_trash` lists for a preview with no I/O); destructive actions require an explicit `dry_run=false`. The op is bounded server-side to the action's reject state (per-user `is_rejected`): `copy_keeps` acts only on non-rejected photos, `move_rejects`/`trash_rejects` only on rejected ones, so a buggy client can never act outside the user's reject set — the mismatch count is returned as `excluded_by_state`. Destinations go through the same validated `viewer.export.allowed_target_dirs` + scan-dir allow-list as album export; `include_companions` (opt-in, default off — a rejected JPEG must not silently destroy its untouched companion RAW/sidecar) extends the action to the sibling RAW/XMP so a moved shot stays whole. After a real move/trash, run `database.py --cleanup-missing-photos`. `processing.xmp_export.write_metadata(..., embed_original=False)` is sidecar-only by default; embedding is opt-in (this endpoint and the `--export-sidecars --embed-originals` CLI). Keyword lists are read-merged (union), so external Lightroom/darktable keywords are preserved. The CLI `--export-sidecars` / `--import-sidecars` default to the global rating columns; pass `--user <name>` in multi-user mode to read/write that user's `user_preferences` ratings instead (keywords stay global).
+
+**AI Auto-cull:** `POST /api/culling/auto` (edition-gated) — one-shot cull of a scope (`group_by=all|burst|similar|scene`, optional `album_id`/date range) keeping the best photo per group within a strictness margin. `dry_run` defaults true (returns a per-group preview with no writes); optional Highlights album collects the kept picks. Config: `auto_cull` block.
+
+**Client Proofing:** `POST /api/shared/album/{id}/session` exchanges a share token (+ optional PIN) for a session; `PUT|GET /api/shared/album/{id}/picks` read/write the client's picks (share-session auth, bounded to album membership); `GET /api/albums/{id}/picks` is the owner view (edition-gated). Picks live in `album_client_picks`, isolated from owner ratings. Gated by `viewer.features.show_proofing` (default `false`).
 
 **Comparison Mode:** Full pairwise comparison workflow — `GET /api/comparison/next_pair`, `POST /api/comparison/submit`, `GET /api/comparison/stats`, `GET /api/comparison/history`, `GET /api/comparison/coverage`, `GET /api/comparison/confidence`, plus weight management via `POST /api/config/update_weights`, `GET /api/config/weight_snapshots`, `POST /api/config/save_snapshot`, `POST /api/config/restore_weights`.
 
@@ -499,6 +514,8 @@ For quick reference, here are the actual defaults from the config file:
 | `face_detection` | `min_confidence_percent` | `65` |
 | `face_detection` | `blink_ear_threshold` | `0.28` |
 | `face_detection` | `min_faces_for_group` | `4` |
+| `face_detection` | `eyes_closed_max` | `4.0` |
+| `face_detection` | `poor_expression_min` | `4.0` |
 | `processing` | `load_workers` | `num_workers` (multi-pass chunk loader threads, cap 8) |
 | `processing` | `raw_decode_concurrency` | `0` (auto: 1-4 from CPU/RAM; `1` = serialized) |
 | `processing` | `raw_decode_timeout_seconds` | `120` (`0` = disabled) |
@@ -538,6 +555,7 @@ For quick reference, here are the actual defaults from the config file:
 | `viewer.features` | `show_rating_controls` | `true` |
 | `viewer.features` | `show_rating_badge` | `true` |
 | `viewer.features` | `show_folders` | `true` |
+| `viewer.features` | `show_proofing` | `false` |
 | `capsules` | `freshness_hours` | `24` |
 | `capsules` | `reverse_geocoding` | `true` |
 | `capsules` | `min_aggregate` | `6.0` |
@@ -561,6 +579,14 @@ For quick reference, here are the actual defaults from the config file:
 | `narrative_moments` | `vlm_tiebreak.enabled` | `false` |
 | `narrative_moments` | `vlm_tiebreak.min_confidence` | `0.0` |
 | `narrative_moments` | `caption_min_confidence` | `0` (0 = no caption gate) |
+| `auto_cull` | `default_strictness` | `50` |
+| `auto_cull` | `highlights_min` | `8.0` |
+| `distortion_attributes` | `enabled` | `true` |
+| `skin_tone` | `cast_delta_threshold` | `12.0` |
+| `critique.vlm` | `max_new_tokens` | `320` |
+| `immich` | `url` | `""` (empty = disabled) |
+| `viewer.proofing` | `session_minutes` | `1440` |
+| `translation` | `target_language` | `"fr"` (supported: fr/de/es/it/pt) |
 | `viewer.raw_processor` | `darktable.executable` | `"darktable-cli"` |
 | `viewer.raw_processor` | `darktable.profiles` | `[]` (array of `{name, hq, width, height, extra_args}`) |
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete reference.

@@ -139,6 +139,8 @@ Jede Kategorie hat:
 - `modifiers` - Verhaltensanpassungen
 - `tags` - CLIP-Vokabular für tagbasierte Zuordnung
 
+> **Form- & Farbharmonie-Gewichte.** Der `weights`-Block jeder Kategorie trägt fünf erklärbare Metrik-Schlüssel — `symmetry_percent`, `balance_percent`, `edge_entropy_percent`, `fractal_percent` und `color_harmony_percent` — befüllt durch `--recompute-form`. Sie werden in jeder Kategorie mit `0` ausgeliefert, sodass Aggregate byte-identisch bleiben, bis Sie einem ein Gewicht geben (führen Sie dann `--recompute-average` erneut aus). Die Gewichte innerhalb einer Kategorie müssen weiterhin in Summe 100 ergeben.
+
 ---
 
 ## Scoring
@@ -746,7 +748,9 @@ InsightFace-Einstellungen zur Gesichtserkennung.
     "min_face_size": 20,
     "blink_ear_threshold": 0.28,
     "min_faces_for_group": 4,
-    "enable_3d_landmarks": false
+    "enable_3d_landmarks": false,
+    "eyes_closed_max": 4.0,
+    "poor_expression_min": 4.0
   }
 }
 ```
@@ -758,6 +762,8 @@ InsightFace-Einstellungen zur Gesichtserkennung.
 | `blink_ear_threshold` | `0.28` | Eye Aspect Ratio für die Blinzelerkennung |
 | `min_faces_for_group` | `4` | Mindestanzahl an Gesichtern für die Klassifizierung als Gruppenporträt (bei `--recompute-average` neu berechnet) |
 | `enable_3d_landmarks` | `false` | Optionale Überschreibung (in der ausgelieferten Datei nicht vorhanden; Code-Standard `false`). Lädt das InsightFace-Modul `landmark_3d_68` für die Extraktion der Kopfhaltung (yaw/pitch/roll). Kostet ~5MB zusätzliche ONNX-Gewichte. Derzeit nur informativ; künftige Profil-/Silhouetten-Verfeinerungen werden dies auslesen. |
+| `eyes_closed_max` | `4.0` | Augen-offen-Score pro Gesicht (0–10), bei oder unter dem die Culling-Dunkelkammer ein Gesicht als blinzelnd markiert. Steuert die roten/orangen/grünen Gesichtsringe und den Augen-Schwellenwert-Schieberegler (von einer fest codierten Konstante verschoben) |
+| `poor_expression_min` | `4.0` | Lächel-/Ausdrucks-Score pro Gesicht (0–10), unter dem die Dunkelkammer einen schwachen Ausdruck markiert. Steuert den Ausdrucks-Gesichtsring und den Schieberegler (von einer fest codierten Konstante verschoben) |
 
 ---
 
@@ -1183,8 +1189,31 @@ Schalten Sie optionale Features um, um den Speicherverbrauch zu senken oder die 
 | `show_folders` | `true` | Ordnerbasiertes Durchsuchen der Fotoverzeichnisstruktur anzeigen |
 | `show_scenes` | `true` | Die Szenen-Ansicht (`/scenes`) anzeigen, die führende Serienbildfotos in chronologische Szenen für ein Culling in Erzählreihenfolge gruppiert |
 | `show_my_taste` | `true` | Die Sortierung „My Taste“ anzeigen, gestützt auf den gelernten Score des persönlichen Rankers, mit einem Konfidenz-Badge für gelernte Abdeckung / Genauigkeit |
+| `show_proofing` | `false` | Client-Proofing für geteilte Alben aktivieren: Ein Freigabelink (plus optionale PIN) erlaubt einem kontolosen Client, Fotos mit einem Herz zu markieren und Kommentare zu hinterlassen, die der Albumbesitzer aus einem editionsbeschränkten Dialog überprüft. Standardmäßig aus. Siehe [Client-Proofing](#client-proofing) |
 
 **Speicheroptimierung:** Wenn `show_similar_button: false` gesetzt wird, verhindert dies, dass numpy geladen wird, und reduziert so den Speicherbedarf des Viewers. Die Funktion für ähnliche Fotos berechnet die Kosinusähnlichkeit der CLIP-Embeddings, was numpy erfordert.
+
+### Client-Proofing
+
+`viewer.features.show_proofing` (Standard `false`) verwandelt jedes geteilte Album in eine Client-Proofing-Oberfläche. Ein Freigabelink — optional durch `viewer.proofing.pin` abgesichert — erlaubt einem Client ohne Konto, das Freigabe-Token gegen eine kurzlebige Sitzung einzutauschen und dann Fotos mit einem Herz zu markieren und Kommentare zu hinterlassen. Die Auswahlen liegen in einer eigenen `album_client_picks`-Tabelle, sind auf die Fotos dieses Albums beschränkt und vollständig von den Bewertungen des Besitzers isoliert (sie berühren nie `photos.is_favorite` / `user_preferences` und trainieren nie den persönlichen Ranker). Der Besitzer liest die Auswahlen aus einem editionsbeschränkten Dialog auf der Albumkarte.
+
+```json
+{
+  "viewer": {
+    "features": { "show_proofing": false },
+    "proofing": {
+      "pin": "",
+      "session_minutes": 1440
+    }
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `features.show_proofing` | `false` | Hauptschalter für Client-Proofing auf geteilten Alben |
+| `proofing.pin` | `""` | Optionale PIN, die ein Client (zusammen mit dem Freigabe-Token) eingeben muss, um eine Proofing-Sitzung zu öffnen. Leer = keine PIN. Prüfungen sind ratenbegrenzt und byte-sicher |
+| `proofing.session_minutes` | `1440` | Lebensdauer in Minuten eines Client-Proofing-Sitzungstokens (Standard 24 h). Sitzungen enden außerdem in dem Moment, in dem die Albumfreigabe aufgehoben oder Proofing deaktiviert wird |
 
 ### Path Mapping
 
@@ -1542,6 +1571,26 @@ Einstellungen für die KI-Funktion zum Culling ähnlicher Fotos, die visuell äh
 | `max_photos` | `10000` | Maximale Anzahl an Fotos, die für die Ähnlichkeitsberechnung geladen werden (O(n²)-Kosten). Für größere Bibliotheken auf Kosten der Rechenzeit erhöhen. |
 | `max_group_size` | `50` | Maximale Anzahl an Fotos pro Ähnlichkeitsgruppe. Größere Gruppen werden aufgeteilt, um die UI nutzbar zu halten. |
 
+## Auto-Cull
+
+Ein-Knopf-Auto-Cull für die Culling-Dunkelkammer (`POST /api/culling/auto`, editionsbeschränkt). Es culled einen ganzen Bereich — alle Gruppen oder nur Serienbilder / Ähnliche / Szenen, optional auf ein Album oder ein Datumsfenster eingegrenzt — in einem einzigen Durchgang. Jede Gruppe behält ihr bestes Foto plus alles innerhalb einer aus der Strenge abgeleiteten Marge (dasselbe Behalte-Budget wie der Schieberegler der manuellen Dunkelkammer), begrenzt durch ein Minimum pro Gruppe, und lehnt den Rest ab.
+
+```json
+{
+  "auto_cull": {
+    "default_strictness": 50,
+    "highlights_min": 8.0
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `default_strictness` | `50` | Behalte-Budget (0–100), das verwendet wird, wenn die Anfrage `strictness` auslässt. Höher = weniger Fotos pro Gruppe behalten (engere Marge um das beste Foto der Gruppe) |
+| `highlights_min` | `8.0` | Minimaler aggregierter Score für das beste Foto einer Gruppe, damit es beim Anwenden eines Auto-Culls in das optionale **Highlights**-Album aufgenommen wird (idempotent) |
+
+`dry_run` ist standardmäßig aktiv und liefert eine Behalte-/Ablehnen-Vorschau pro Gruppe; ein Anwenden zeichnet zusätzlich `source='culling'`-Vergleichszeilen auf und stößt ein automatisches Nachtrainieren an. Siehe [Web-Viewer — Auto-Cull](VIEWER.md#auto-cull).
+
 ## Scenes
 
 Einstellungen für die Szenen-Ansicht, die führende Serienbildfotos in chronologische Szenen gruppiert (aufgeteilt nach Aufnahmezeit-Lücken) für ein Culling in Erzählreihenfolge:
@@ -1621,6 +1670,104 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
 > **Kosten des Caption-Backfills.** Bildunterschrift-Embeddings werden einmal berechnet und gespeichert, sodass der Kosinus pro Foto danach kostenlos ist. Ein Scan kodiert nur seine wenigen neuen Bildunterschriften (günstig, inkrementell), aber der erste vollständige Durchlauf über eine bestehende Bibliothek kodiert jede Bildunterschrift — ein Text-Tower-Vorwärtsdurchlauf pro Bildunterschrift, schnell auf GPU und ~Stunden auf CPU. Führen Sie `python facet.py --detect-moments` einmal aus (GPU empfohlen) für diesen Backfill; fügen Sie `--limit N` hinzu, um es zuerst an einer Stichprobe zu prüfen.
 
 **Ein bibliotheksspezifisches Vokabular entdecken.** Das `general`-Set ist ein sinnvoller Standard, aber Sie können mit `python facet.py --discover-moments` ein auf *Ihre* Bibliothek zugeschnittenes Vokabular vorschlagen: Es clustert die gespeicherten `caption_embedding`-Vektoren (HDBSCAN), benennt jedes Cluster anhand seiner Bildunterschriften (ein Schlüsselwort plus die dem Zentroid am nächsten liegenden Bildunterschriften als gebrauchsfertige Prompts) und schreibt das Ergebnis als `event_types.discovered`-Block in `scoring_config.discovered.json`. Überprüfen Sie es, kopieren Sie `discovered` in `event_types` oben, setzen Sie `default_event_type` auf `discovered` und führen Sie `--recompute-moments` aus, um es zu übernehmen — die Entdeckung schlägt vor, sie überschreibt niemals die aktive Konfiguration. `--discover-min-cluster-size N` steuert die Granularität (kleiner = mehr, feinere Momente).
+
+## AI Critique
+
+Prompt-Konfiguration für die VLM-gestützte Kritik (16gb/24gb-Profile). Die Kritik fügt die vollständige Regelaufschlüsselung, Strafen und EXIF in einen konfigurierbaren Leiter-Prompt ein, rendert die Antwort als Observation / Assessment / Suggestions und speichert sie pro Foto in `photos.vlm_critique` (bei Bedarf übersetzt in `vlm_critique_translated`). Sie läuft gegen das gespeicherte Thumbnail, sodass RAW-Dateien korrekt kritisiert werden, statt still zu scheitern; `refresh` regeneriert.
+
+```json
+{
+  "critique": {
+    "vlm": {
+      "max_new_tokens": 320
+    }
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `critique.vlm.max_new_tokens` | `320` | Token-Budget für die Generierung der strukturierten VLM-Kritik |
+
+Siehe [Web-Viewer — KI-Kritik](VIEWER.md#ki-kritik).
+
+## Distortion Attributes
+
+Zero-Shot-Verzerrungskennzeichnung, nur beratend. `--recompute-distortions` bewertet jedes Foto gegen ExIQA-artige kontrastive Prompts über sein gespeichertes CLIP/SigLIP-Embedding und speichert die wahrscheinlichen Defekte (Bewegungsunschärfe, Farbstich, Überschärfung, …) als beratende JSON-Spalte. Es fließt nie in das Aggregat ein; die Labels erscheinen als Warnungs-Chips im Kritik-Dialog.
+
+```json
+{
+  "distortion_attributes": {
+    "enabled": true,
+    "top_n": 5,
+    "thresholds": {
+      "open_clip":    { "temperature": 0.02, "min_confidence": 0.6 },
+      "transformers": { "temperature": 0.05, "min_confidence": 0.6 }
+    },
+    "vocabulary": {}
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `enabled` | `true` | Verzerrungsattribute während `--recompute-distortions` berechnen |
+| `top_n` | `5` | Maximale Anzahl an Verzerrungs-Labels, die pro Foto behalten werden |
+| `thresholds.<backend>.temperature` | open_clip `0.02`, transformers `0.05` | Softmax-Temperatur über die kontrastiven Prompt-Scores, pro Embedding-Backend (wie bei `narrative_moments` laufen open_clip- und transformers-Kosinuswerte auf unterschiedlichen Skalen) |
+| `thresholds.<backend>.min_confidence` | `0.6` | Minimale Wahrscheinlichkeit, damit ein Verzerrungs-Label behalten wird |
+| `vocabulary` | `{}` | Optionale Überschreibung des integrierten Verzerrungs-Prompt-Sets (`{attribute: [prompt synonyms]}`); leer = Modul-Standards |
+
+## Skin Tone
+
+Natürlichkeit des Porträt-Hauttons (nur beratend). `--recompute-skin-tone` entnimmt Wangen-CIELAB-Chroma aus gespeicherten Gesichts-Thumbnails + Landmarken und misst deren CIEDE2000-Distanz zu einem Hautlocus mit korrelierter Farbtemperatur, wodurch Porträts markiert werden, deren Haut ins Grüne / Magenta / Blaue / Gelbe driftet. Es fließt nie in das Aggregat ein; das Ergebnis erscheint als Hautton-Hinweis im Kritik-Dialog.
+
+```json
+{
+  "skin_tone": {
+    "cast_delta_threshold": 12.0
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `cast_delta_threshold` | `12.0` | Minimaler CIEDE2000-Delta zwischen dem gemessenen Haut-Chroma und dem Hautlocus, bevor ein Farbstich markiert wird |
+
+## Immich Sync
+
+Einweg-Synchronisierung von Facet-Sternebewertungen und -Favoriten zu einem [Immich](https://immich.app/)-Server über dessen REST-API. Assets werden anhand von `originalPath` über die konfigurierten Pfad-Präfix-Zuordnungen aufgelöst, in einem einzigen gebündelten Suchdurchlauf. Führen Sie es mit `--immich-sync` aus (prüfen Sie zuerst mit `--immich-test`); siehe [Befehle — Immich-Synchronisierung](COMMANDS.md#immich-synchronisierung).
+
+```json
+{
+  "immich": {
+    "url": "",
+    "api_key": "",
+    "path_map": [
+      { "facet_prefix": "", "immich_prefix": "" }
+    ],
+    "push": {
+      "ratings": true,
+      "favorites": true,
+      "top_picks_album": "",
+      "top_picks_min_rating": 4
+    },
+    "timeout_seconds": 30
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `url` | `""` | Basis-URL des Immich-Servers (z. B. `http://nas:2283`) |
+| `api_key` | `""` | Immich-API-Schlüssel, gesendet als `x-api-key`-Header |
+| `path_map` | `[{facet_prefix, immich_prefix}]` | Präfix-Umschreibungen von Facet-Pfaden zu Immich-`originalPath`-Werten; das erste passende `facet_prefix` wird beim Auflösen eines Assets durch sein `immich_prefix` ersetzt |
+| `push.ratings` | `true` | Sternebewertungen übertragen. Immichs versionssichere Richtlinie wird berücksichtigt — nur 1–5 wird geschrieben, nie 0/−1 |
+| `push.favorites` | `true` | Das Favoriten-Flag übertragen |
+| `push.top_picks_album` | `""` | Optionaler Immich-Albumname, der übertragene Fotos oberhalb des Bewertungsschwellenwerts sammelt. Leer = kein Album |
+| `push.top_picks_min_rating` | `4` | Minimale Sternebewertung, damit ein Foto zu `top_picks_album` hinzugefügt wird |
+| `timeout_seconds` | `30` | REST-Timeout pro Anfrage |
+
+`--immich-sync` berücksichtigt `--dry-run` (löst jedes Asset auf, schreibt aber nichts) und `--user` (überträgt die `user_preferences`-Bewertungen dieses Benutzers im Mehrbenutzermodus). Nur REST — Facet berührt nie die Immich-Datenbank.
 
 ## Timeline
 

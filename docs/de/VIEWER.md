@@ -314,6 +314,14 @@ Teilen Sie Alben mit externen Nutzern über tokenisierte Links. Für die Ansicht
 
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
+### Client-Proofing
+
+Wenn `viewer.features.show_proofing` aktiviert ist (Standard `false`), kann ein Link zu einem geteilten Album im **Proofing-Modus** laufen: Der Client (ohne Konto) öffnet den Freigabelink, gibt optional eine PIN ein (`viewer.proofing.pin`) und kann dann Fotos mit einem **Herz** markieren und **Kommentare** hinterlassen — eine leichtgewichtige Möglichkeit, einen Client seine Favoriten aus einer Lieferung wählen zu lassen.
+
+Die Auswahlen des Clients sind vollständig von Ihrer Bibliothek isoliert. Sie liegen in einer eigenen `album_client_picks`-Tabelle, sind auf die Fotos dieses Albums beschränkt und berühren nie Ihre eigenen Favoriten/Bewertungen (`photos.is_favorite` / `user_preferences`) und trainieren auch nicht den persönlichen Ranker. Als Besitzer lesen Sie die Auswahlen aus einem `[Edition]`-Dialog auf der Albumkarte. Sitzungen sind kurzlebig (`viewer.proofing.session_minutes`, Standard 24 h) und funktionieren nicht mehr, sobald die Albumfreigabe aufgehoben oder Proofing deaktiviert wird.
+
+Gesteuert über `viewer.features.show_proofing` (Standard: `false`). Siehe [Konfiguration — Client-Proofing](CONFIGURATION.md#client-proofing).
+
 ## KI-Kritik
 
 Schlüsselt die Wertungen eines Fotos in Stärken, Schwächen und Vorschläge auf.
@@ -322,9 +330,13 @@ Schlüsselt die Wertungen eines Fotos in Stärken, Schwächen und Vorschläge au
 
 Auf allen VRAM-Profilen verfügbar. Analysiert gespeicherte Metriken (Ästhetik, Komposition, Schärfe, Gesichtsqualität usw.) und erzeugt eine strukturierte Erläuterung der Wertung.
 
+Die Aufschlüsselung zeigt außerdem die erklärbaren **Form- und Farbharmonie**-Zeilen (Symmetrie, Balance, Kantenorientierungs-Entropie, Fraktalkomplexität, Matsuda-Farbharmonie — befüllt durch `--recompute-form`), **Verzerrungsattribut-Chips** für alle wahrscheinlichen Defekte (Bewegungsunschärfe, Farbstich, Überschärfung, … — aus `--recompute-distortions`) und einen **Hautton-Hinweis** für Porträts, deren Haut-Chroma ins Unnatürliche driftet (`--recompute-skin-tone`). Alle drei sind beratend — sie erläutern das Foto, sie ändern das Aggregat nicht — und jede Zeile wird nur angezeigt, wenn ihre zugrunde liegende Spalte befüllt ist.
+
 ### VLM-Kritik `[GPU]` `[16gb/24gb]`
 
 Verwendet das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbewusste Kritik. Erfordert das 16gb- oder 24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true`.
+
+Der Prompt ist eine konfigurierbare Leiter (`critique.vlm`), die die vollständige Regelaufschlüsselung, Strafen und EXIF einfügt, und die Antwort wird als **Observation / Assessment / Suggestions** gerendert. Das Ergebnis wird pro Foto zwischengespeichert (`photos.vlm_critique`) und bei Bedarf übersetzt, mit einer **Regenerieren**-Schaltfläche zum Neuberechnen. Es läuft gegen das gespeicherte Thumbnail, sodass RAW-Dateien korrekt kritisiert werden, statt still zu scheitern.
 
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
@@ -486,6 +498,16 @@ Wählen Sie für jede Gruppe die Behaltefoto(s); das Bestätigen lehnt den Rest 
 
 **„Mein Geschmack"-Chip.** Jede Bestätigung erfasst `source='culling'`-Vergleichszeilen, die den persönlichen Ranker trainieren, sodass der Header einen kleinen Chip „Mein Geschmack · N Vergleiche" zeigt, der sich nach jeder Entscheidung aktualisiert — die KI lernt Ihren Blick, während Sie aussortieren (`GET /api/ranker/status`).
 
+### Auto-Cull
+
+Eine **Auto-Cull**-Schaltfläche in der Symbolleiste sortiert einen ganzen Geltungsbereich in einem Durchgang aus, statt Gruppe für Gruppe. Wählen Sie den Geltungsbereich mit den Granularitäts-/Geltungsbereich-Steuerelementen (alle Gruppen oder nur Serienbilder / Ähnliche / Szenen, optional ein Album oder ein Datumsfenster), stellen Sie eine **Strenge** ein — das Behalte-Budget, wobei höher weniger pro Gruppe behält — und rufen Sie die Vorschau auf. Jede Gruppe behält ihr bestes Foto plus alles innerhalb der Strenge-Marge (begrenzt durch ein Minimum pro Gruppe) und lehnt den Rest ab.
+
+Die Vorschau ist ein **Probelauf** (nichts wird geschrieben): Sie zeigt die Behalte-/Ablehnen-Aufteilung pro Gruppe. Bestätigen zum Anwenden — Ablehnungen werden erfasst und trainieren, wie jedes Aussortieren, „Mein Geschmack"; ein optionales **Highlights**-Album sammelt idempotent das beste Foto jeder Gruppe, das mindestens `auto_cull.highlights_min` erreicht. Ein Hinweis-Badge „besseres Foto in dieser Gruppe" markiert Gruppen, in denen Auto-Cull ein anderes Bild als das aktuelle Leitfoto behalten würde. `POST /api/culling/auto`; konfiguriert über den [`auto_cull`](CONFIGURATION.md#auto-cull)-Block.
+
+### Vollbild
+
+Drücken Sie **`F`** (oder den Header-Umschalter), um die Fullscreen-API des Browsers anzusteuern und randlos zu prüfen — die Dunkelkammer füllt den Bildschirm ohne App-Bedienelemente. Die Taste ist in der Tastenkürzel-Legende der Dunkelkammer aufgeführt; drücken Sie `F` oder `Esc` zum Verlassen.
+
 ### Lupe / Z-Tasten-Zoom
 
 Drücken Sie **`Z`** in der Einzelansicht-Lightbox, um eine Lupe im Photo-Mechanic-Stil umzuschalten (Einpassen ↔ 2×; Mausrad/`+`/`-`-Zoom bis 800%). Jenseits der Einpassen-Skalierung tauscht der Bereich sein Vorschaubild gegen die vollauflösende `/image`-Quelle, sodass Sie die kritische Schärfe an echten Pixeln beurteilen, ohne die Ansicht zu verlassen. Auf dem Kontaktstreifen der Szenen schaltet `Z` eine Hover-Lupe um, die dem Cursor über einer Kachel folgt (aus dem vollauflösenden Bild gespeist), mit einem einstellbaren Zoom-Regler. Gespeicherte Vorschaubilder sind auf 640px begrenzt, daher ist die Lupe der Weg, um darüber hinaus pixelgenau zu prüfen.
@@ -493,6 +515,8 @@ Drücken Sie **`Z`** in der Einzelansicht-Lightbox, um eine Lupe im Photo-Mechan
 ### Abzeichen pro Gesicht
 
 In der Lightbox der Serienbild-/Ähnlichkeitsauswahl trägt jedes erkannte Gesicht seine eigenen Abzeichen — Augen offen/geschlossen, schwacher Ausdruck und Erkennungskonfidenz — statt einer einzigen Blinzel-Markierung auf Fotoebene. Das erleichtert die Auswahl bei Gruppenaufnahmen: Sie sehen auf einen Blick, welches Gesicht geschlossene Augen oder einen schwachen Ausdruck hat. Die Abzeichen werden für eine ganze Gruppe in einem einzigen Batch-Aufruf abgerufen (`POST /api/culling-group/faces`).
+
+Das **Gesichts-Panel** der Dunkelkammer färbt jeden Gesichtsausschnitt anhand seiner kontinuierlichen Augen-offen- und Lächel-Scores grün / orange / rot und fügt Live-Schwellenwert-Schieberegler für **Augen** und **Lächeln** hinzu, sodass Sie unmittelbar abstimmen können, was als Blinzeln oder schwacher Ausdruck zählt. Die Grenzwerte sind die Konfigurationsschlüssel `face_detection.eyes_closed_max` und `face_detection.poor_expression_min` (beide Standard `4.0`); die Schieberegler beginnen dort.
 
 **Synchronisierter Vergleich (2-fach / 4-fach).** Der Lightbox-Header hat die Schaltflächen Einzeln / Vergleich 2 / Vergleich 4. Im Vergleichsmodus teilen sich die Bereiche eine gemeinsame Schwenk-/Zoom-Transformation, sodass Mausrad-Zoom oder Ziehen-Schwenken in einem beliebigen Bereich alle auf denselben Bildausschnitt bewegt — die Art, das schärfste Bild einer Serie zu wählen, indem man tatsächlich die Pixel begutachtet. Doppelklick schaltet zwischen Einpassen ↔ Zoom um; jenseits der Einpassen-Skalierung tauscht jeder Bereich faul sein 1920px-Vorschaubild gegen die vollauflösende `/image`-Quelle, damit der Blick gestochen scharf ist. Keine Backend-Änderung — beide Bildrouten existieren bereits. (Touch-Pinch ist noch nicht verdrahtet; verwenden Sie am Desktop das Mausrad.)
 
@@ -816,7 +840,7 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `GET /api/type_counts` | Fotoanzahlen pro Typ |
 | `GET /api/similar_photos/{path}` | Ähnliche Fotos (Modi: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantische Text-zu-Bild-Suche (`scope=text` = nur OCR-/Beschreibungstext) |
-| `GET /api/critique?path=&mode=` | KI-Kritik (regelbasiert oder VLM) |
+| `GET /api/critique?path=&mode=&refresh=` | KI-Kritik (regelbasiert oder VLM); `refresh=true` regeneriert die zwischengespeicherte VLM-Kritik |
 | `GET /api/ranker/status` | Status des persönlichen Rankers für die Sortierung „Mein Geschmack" (gelernte Abdeckung %, Held-out-Genauigkeit) |
 | `GET /api/config` | Galerie-Konfiguration |
 
@@ -895,6 +919,10 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `POST /api/albums/{id}/share` | Freigabe-Token erzeugen |
 | `DELETE /api/albums/{id}/share` | Freigabe-Token widerrufen |
 | `GET /api/shared/album/{id}?token=` | Geteiltes Album ansehen (keine Authentifizierung) |
+| `POST /api/shared/album/{id}/session` | Ein Freigabe-Token (+ optionale PIN) gegen eine Client-Proofing-Sitzung eintauschen (ratenbegrenzt) |
+| `PUT /api/shared/album/{id}/picks` | Client fügt ein Herz/einen Kommentar zu einem Foto hinzu oder aktualisiert es (Proofing-Sitzung) |
+| `GET /api/shared/album/{id}/picks` | Client liest seine eigenen Auswahlen (Proofing-Sitzung) |
+| `GET /api/albums/{id}/picks` | `[Edition]` Besitzer liest alle Client-Auswahlen für das Album |
 
 ### Erinnerungen, Zeitleiste, Karte & Bildbeschreibungen
 
@@ -970,6 +998,7 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `POST /api/similar-groups/select` | Behaltefotos aus einer Ähnlichkeitsgruppe auswählen |
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Serienbild-/Ähnlichkeits-/Szenengruppen für die Auswahl. `group_by` (Standard `all`) wählt kombinierte Serienbild+Ähnlichkeit, nur Serienbild, nur Ähnlichkeit oder chronologische Szenengruppen (Szenengruppen ergänzen `type`/`start`/`end`/`moment`/`moment_confidence`; der `sort`-Parameter wird im Szenenmodus ignoriert). `exclude_rejected` (Standard `true`) blendet Fotos mit `is_rejected=1` aus; Gruppen mit weniger als 2 verbleibenden Fotos werden verworfen |
 | `POST /api/culling-groups/confirm` | Auswahlentscheidungen bestätigen (Serienbild, Ähnlichkeit oder Szene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` erfasst die Szenen-Auswahl-Vergleichszeilen |
+| `POST /api/culling/auto` | `[Edition]` Ein-Knopf-Auto-Cull für einen ganzen Geltungsbereich. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (Standard `true`) liefert die Behalte-/Ablehnen-Vorschau pro Gruppe, ein Anwenden lehnt den Rest ab und erfasst Culling-Paare |
 | `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen offen/geschlossen, Ausdruck, Konfidenz) für eine Gruppe, in einem Batch |
 | `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos (schreibgeschütztes Durchsuchen) |
 
