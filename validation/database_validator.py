@@ -372,25 +372,42 @@ class DatabaseValidator:
         self._print_result(result3)
 
     def _check_embedding_integrity(self, conn: sqlite3.Connection):
-        """Check CLIP embedding integrity."""
+        """Check CLIP/SigLIP embedding integrity.
+
+        The blob size depends on the profile's embedding model (CLIP ViT-L =
+        768 dims = 3072 bytes; SigLIP2 SO400M = 1152 dims = 4608 bytes), so a
+        single hardcoded expected size false-positives on every photo of the
+        other model. Derive the library's baseline from its own dominant
+        embedding size and flag only the rows that deviate from it.
+        """
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT LENGTH(clip_embedding) AS len, COUNT(*) AS c
+            FROM photos
+            WHERE clip_embedding IS NOT NULL
+            GROUP BY len ORDER BY c DESC LIMIT 1
+        """)
+        dominant = cursor.fetchone()
+        if not dominant:
+            return  # no embeddings stored — nothing to validate
+
+        expected = dominant[0]
         result = ValidationResult(
             "clip_embedding_size",
-            "clip_embedding BLOB incorrect size (should be 3072 bytes)"
+            f"clip_embedding BLOB size inconsistent with the library baseline ({expected} bytes)"
         )
-
-        cursor = conn.cursor()
         cursor.execute("""
             SELECT path, filename, LENGTH(clip_embedding) as len
             FROM photos
             WHERE clip_embedding IS NOT NULL
-              AND LENGTH(clip_embedding) != 3072
+              AND LENGTH(clip_embedding) != ?
             LIMIT 100
-        """)
+        """, (expected,))
 
         for row in cursor.fetchall():
             result.add_issue(
                 {'path': row[0], 'filename': row[1], 'blob_size': row[2]},
-                f"size={row[2]} bytes (expected 3072)"
+                f"size={row[2]} bytes (expected {expected})"
             )
 
         self.results.append(result)

@@ -18,10 +18,35 @@ import struct
 import warnings
 import json
 import logging
+import functools
+import re as _re
 from pathlib import Path
 from db import init_database, get_connection
 from db.schema import FACES_UPSERT_SQL, face_upsert_row
 from db.vec import sync_vec_batch
+
+
+@functools.lru_cache(maxsize=8)
+def _photos_upsert(insert_sql):
+    """Turn an ``INSERT OR REPLACE INTO photos (...)`` into an UPSERT.
+
+    A re-scan (``--force``) must not destroy user data. ``INSERT OR REPLACE`` is
+    DELETE-then-INSERT on a PK conflict, so with foreign keys ON it cascade-deletes
+    the photo's faces, tags, comparisons, learned_scores and user_preferences, and
+    the re-inserted row NULLs every column absent from the INSERT list (ratings,
+    captions, moments, vlm_critique, …). The REPLACE-delete also desyncs the FTS
+    index (its delete trigger only fires under recursive_triggers, which is off).
+
+    Rewriting to ``INSERT … ON CONFLICT(path) DO UPDATE SET <scored columns>``
+    keeps the row alive: no cascade, preserved columns survive, and the UPDATE
+    fires the FTS update trigger correctly. The SET clause is derived from the
+    INSERT's own column list, so it can never drift from it.
+    """
+    cols_match = _re.search(r'INTO\s+photos\s*\((.*?)\)\s*VALUES', insert_sql, _re.S | _re.I)
+    columns = [c.strip() for c in cols_match.group(1).split(',')]
+    updates = ', '.join(f"{c}=excluded.{c}" for c in columns if c != 'path')
+    base = _re.sub(r'INSERT\s+OR\s+REPLACE\s+INTO\s+photos', 'INSERT INTO photos', insert_sql, flags=_re.I)
+    return f"{base}\nON CONFLICT(path) DO UPDATE SET {updates}"
 
 # Optional tqdm for progress bars
 try:
@@ -1976,7 +2001,7 @@ class Facet:
         try:
             result = subprocess.run(
                 ['exiftool', '-j', '-n', str(image_path)],
-                capture_output=True, text=True, check=True
+                capture_output=True, text=True, check=True, timeout=30
             )
             data = json.loads(result.stdout)[0]
             exif_data['date_taken'] = data.get('DateTimeOriginal') or data.get('CreateDate')
@@ -2082,7 +2107,7 @@ class Facet:
             res.setdefault(form_col, None)
 
         with get_connection(self.db_path, row_factory=False) as conn:
-            conn.execute('''
+            conn.execute(_photos_upsert('''
                 INSERT OR REPLACE INTO photos (
                     path, filename, category, image_width, image_height,
                     date_taken, camera_model, lens_model, iso, f_stop,
@@ -2115,10 +2140,12 @@ class Facet:
                     :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
                     :gps_latitude, :gps_longitude, datetime('now')
                 )
-            ''', res)
+            '''), res)
 
-            # Store face embeddings, landmarks, thumbnails and per-face quality
-            # signals for recognition + culling (shared upsert: see db.schema)
+            # Refresh this photo's faces (the UPSERT above no longer cascade-deletes
+            # them), then re-store embeddings, landmarks, thumbnails and per-face
+            # quality signals for recognition + culling.
+            conn.execute("DELETE FROM faces WHERE photo_path = ?", (res['path'],))
             face_details = res.get('face_details', [])
             for face in face_details:
                 if face.get('embedding'):
@@ -2180,7 +2207,7 @@ class Facet:
                 res.setdefault('deqa_score', None)
                 for form_col in FORM_METRIC_COLUMNS:
                     res.setdefault(form_col, None)
-                conn.execute('''
+                conn.execute(_photos_upsert('''
                     INSERT OR REPLACE INTO photos (
                         path, filename, category, image_width, image_height,
                         date_taken, camera_model, lens_model, iso, f_stop,
@@ -2219,9 +2246,15 @@ class Facet:
                         :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
                         :gps_latitude, :gps_longitude, datetime('now')
                     )
-                ''', res)
+                '''), res)
 
-            # Batch insert all face embeddings with executemany()
+            # Refresh faces for every photo we just wrote (the UPSERT no longer
+            # cascade-deletes them) — this also clears stale faces on a photo
+            # that lost all its faces on re-scan — then batch-insert the fresh rows.
+            conn.executemany(
+                "DELETE FROM faces WHERE photo_path = ?",
+                [(res['path'],) for res, _ in results_with_images],
+            )
             if face_records:
                 conn.executemany(FACES_UPSERT_SQL, face_records)
 

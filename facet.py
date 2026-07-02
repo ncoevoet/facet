@@ -1280,10 +1280,6 @@ Configuration:
     def _recompute_from_thumbnails(desc, compute):
         import io
         from PIL import Image
-        # Local import: the "from tqdm import tqdm" statements in later CLI
-        # blocks make tqdm a (yet unassigned) local of main, so the closure
-        # cannot resolve the module-level import through the enclosing scope.
-        from tqdm import tqdm
         # Fetch paths up front but each thumbnail BLOB one at a time (a full
         # fetchall of the BLOBs is ~6-12GB at 100k photos -> OOM on a NAS).
         with get_connection(args.db) as conn:
@@ -1371,7 +1367,6 @@ Configuration:
         import numpy as np
         from collections import Counter
         from scipy.stats import spearmanr
-        from tqdm import tqdm
         from models.model_manager import ModelManager
         from models.distortion_classifier import DistortionClassifier
 
@@ -1449,7 +1444,6 @@ Configuration:
     # Skin-tone naturalness from stored face crops + landmarks (CPU, no model)
     if args.recompute_skin_tone:
         from collections import Counter
-        from tqdm import tqdm
         from analyzers.skin_tone import compute_photo_skin_tone
 
         init_database(args.db)  # Ensure skin_tone_delta / skin_tone_cast columns exist
@@ -1499,7 +1493,6 @@ Configuration:
     if args.generate_captions:
         from models.vlm_tagger import VLMTagger
         from PIL import Image
-        from tqdm import tqdm
         import io
 
         config = ScoringConfig(args.config)
@@ -1574,7 +1567,6 @@ Configuration:
     # Translate existing captions
     if args.translate_captions:
         from models.caption_translator import CaptionTranslator, LANG_MODELS
-        from tqdm import tqdm
 
         config = ScoringConfig(args.config)
         target_lang = config.config.get('translation', {}).get('target_language', '')
@@ -1630,7 +1622,6 @@ Configuration:
     # Backfill GPS coordinates from EXIF
     if args.extract_gps:
         from exiftool.exiftool_batch import get_exif_batch
-        from tqdm import tqdm
 
         with get_connection(args.db) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(photos)").fetchall()}

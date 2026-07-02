@@ -913,14 +913,27 @@ def init_database(db_path='photo_scores_pro.db'):
         # narrower schema is detected (caption+tags only), drop it so the
         # CREATE below installs the covering schema. The FTS data is then
         # repopulated by db.fts.rebuild_fts (or whoever rebuilds next).
+        fts_recreated = False
         if not fts_schema_is_current(conn):
             logger.info("photos_fts schema outdated — dropping for recreate")
             for trigger in ('photos_fts_ai', 'photos_fts_ad', 'photos_fts_au'):
                 conn.execute(f"DROP TRIGGER IF EXISTS {trigger}")
             conn.execute("DROP TABLE IF EXISTS photos_fts")
+            fts_recreated = True
         conn.execute(PHOTOS_FTS_CREATE)
         for trigger_sql in PHOTOS_FTS_TRIGGERS:
             conn.execute(trigger_sql)
+
+        # The recreated external-content index starts empty; without this,
+        # text search silently returns nothing for every pre-upgrade photo
+        # until a manual --rebuild-fts. Repopulate it from the photos table.
+        if fts_recreated and not is_fresh:
+            try:
+                conn.execute("INSERT INTO photos_fts(photos_fts) VALUES('rebuild')")
+            except sqlite3.DatabaseError:
+                logger.warning(
+                    "photos_fts rebuild after recreate failed — run 'python database.py --rebuild-fts'"
+                )
 
         # Run the version ladder (no-op today) and stamp PRAGMA user_version.
         _run_migration_ladder(conn, is_fresh)

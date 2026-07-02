@@ -15,7 +15,7 @@ from api.config import (
     _existing_columns_cache, _existing_columns_lock,
     _photo_tags_available, _photo_tags_lock, PHOTO_TAGS_CACHE_TTL,
     _count_cache, _count_cache_lock, COUNT_CACHE_TTL,
-    is_multi_user_enabled, get_user_directories, _FULL_CONFIG,
+    is_multi_user_enabled, get_user_directories, _FULL_CONFIG, VIEWER_CONFIG,
 )
 from api.database import get_db_connection
 
@@ -621,7 +621,15 @@ def get_visibility_clause(user_id, table_alias='photos'):
         user_id: The current user ID (or None).
         table_alias: Table name or alias to qualify the path column (default: 'photos').
     """
-    if not user_id or not is_multi_user_enabled():
+    if not user_id:
+        # No identified user. On a protected deployment — multi-user, or a
+        # single-user viewer password — an unauthenticated request must see
+        # nothing; only a fully open single-user install is world-readable.
+        if is_multi_user_enabled() or VIEWER_CONFIG.get('password', ''):
+            return '0=1', []
+        return '1=1', []
+
+    if not is_multi_user_enabled():
         return '1=1', []
 
     all_dirs = get_user_directories(user_id)
