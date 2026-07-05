@@ -9,7 +9,7 @@ Aplicación de página única (SPA) basada en FastAPI + Angular para explorar, f
 - [Iniciar el visor](#iniciar-el-visor) · [Autenticación](#autenticación) · [Opciones de filtrado](#opciones-de-filtrado) · [Ordenación](#ordenación) · [Funciones de la galería](#funciones-de-la-galería)
 - [Gestión de personas](#gestión-de-personas) · [Activador de escaneo (superadmin)](#activador-de-escaneo-superadmin) · [Búsqueda semántica](#búsqueda-semántica) · [Álbumes](#álbumes)
 - [Crítica con IA](#crítica-con-ia) · [Subtitulado con IA](#subtitulado-con-ia-gpu-16gb24gb-edition) · [Recuerdos ("En este día")](#recuerdos-en-este-día) · [Vista de línea de tiempo](#vista-de-línea-de-tiempo) · [Vista de mapa](#vista-de-mapa) · [Cápsulas](#cápsulas)
-- [Vista de carpetas](#vista-de-carpetas) · [Diálogo de filtro GPS](#diálogo-de-filtro-gps) · [Sugerencias de fusión](#sugerencias-de-fusión) · [Exportación al editor](#exportación-al-editor) · [Descarte](#descarte) · [Modo de comparación por pares](#modo-de-comparación-por-pares)
+- [Vista de carpetas](#vista-de-carpetas) · [Diálogo de filtro GPS](#diálogo-de-filtro-gps) · [Sugerencias de fusión](#sugerencias-de-fusión) · [Exportación al editor](#exportación-al-editor) · [Descarte](#descarte) · [Limpieza de basura](#limpieza-de-basura) · [Modo de comparación por pares](#modo-de-comparación-por-pares)
 - [Estadísticas EXIF](#estadísticas-exif) · [Atajos de teclado](#atajos-de-teclado-galería) · [Deshacer](#deshacer) · [Aplicación web progresiva](#aplicación-web-progresiva) · [Móvil](#móvil)
 - [Configuración](#configuración) · [Rendimiento](#rendimiento) · [Endpoints de la API](#endpoints-de-la-api) · [Solución de problemas](#solución-de-problemas)
 
@@ -547,6 +547,22 @@ API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo
 
 Controlado por `viewer.features.show_scenes` (predeterminado: `true`). Consulta [Configuración — Escenas](CONFIGURATION.md#scenes) para `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` y `adaptive_k`.
 
+## Limpieza de basura
+
+Una cola de revisión rápida para la basura no fotográfica que se acumula en una biblioteca de aficionado — capturas de pantalla, documentos escaneados, recibos, memes y diapositivas de presentación. La detección es zero-shot sobre los embeddings de imagen almacenados (ver [Configuración — Limpieza de basura](CONFIGURATION.md#limpieza-de-basura)); ejecuta `python facet.py --detect-junk` (o deja que se ejecute automáticamente al final de cada escaneo) para poblar `junk_kind`.
+
+Ábrela desde el botón de navegación **Limpieza** (la ruta `/junk`, solo de edición). La página reutiliza la cuadrícula de la galería y muestra cada candidato marcado:
+
+- **Chips de filtro por tipo** — "Todos los tipos" más un chip por cada tipo detectado con su recuento (desde `GET /api/filter_options/junk_kinds`). Haz clic para acotar la cola a un solo tipo.
+- **Conservar** (por foto) — borra la etiqueta de basura para que la foto salga de la cola **de forma permanente**: se marca como evaluada-limpia (`not_junk`) y nunca vuelve a marcarse por un `--detect-junk` posterior.
+- **Rechazar** (por foto) — marca la foto como rechazada usando el mismo mecanismo de rechazo que en el resto de la aplicación (nada se borra del disco).
+- **Rechazar todo lo mostrado** — un rechazo masivo de todos los candidatos actualmente cargados, tras un diálogo de confirmación.
+- **Lupa** — pulsa **`Z`** (o el interruptor de la barra de herramientas) para una lupa al pasar el cursor al estilo Photo Mechanic, para leer texto fino antes de decidir.
+
+Las fotos de basura **no** se ocultan de la galería normal — permanecen visibles hasta que filtres por ellas. Filtra cualquier vista de galería con `?junk_kind=<tipo>` (exacto) o `?junk_kind=any` (cualquier basura, excluye el centinela `not_junk`).
+
+Controlado por `viewer.features.show_junk_sweep` (predeterminado: `true`).
+
 ## Modo de comparación por pares
 
 Clasifica las fotos juzgándolas de dos en dos. Los votos acumulados alimentan el ajuste de pesos. Accede mediante la ruta `/compare` (botón Comparar en la cabecera). Requiere una `edition_password` no vacía (un solo usuario) o el rol `admin`/`superadmin` (multiusuario).
@@ -999,6 +1015,8 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `POST /api/culling/auto` | `[Edition]` Descarte automático de un botón para todo un ámbito. Cuerpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (predeterminado `true`) devuelve la vista previa de conservar/descartar por grupo, una aplicación descarta el resto y registra pares de descarte |
 | `POST /api/culling-group/faces` | Insignias por cara (ojos abiertos/cerrados, expresión, confianza) de un grupo, en un solo lote |
 | `GET /api/scenes` | Escenas cronológicas de fotos líderes de ráfaga (exploración de solo lectura) |
+| `GET /api/filter_options/junk_kinds` | Tipos de basura detectados con su recuento (excluye el centinela `not_junk`) para los chips de Limpieza de basura |
+| `POST /api/photo/clear_junk` | `[Edition]` Conserva un candidato de basura — restablece su `junk_kind` a `not_junk` para que salga de la cola de forma permanente. Cuerpo `{photo_path}` |
 
 ### Escaneo
 

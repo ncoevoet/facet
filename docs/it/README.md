@@ -40,6 +40,7 @@ python viewer.py
 | [Punteggio](SCORING.md) | Categorie, pesi, guida alla regolazione |
 | [Riconoscimento facciale](FACE_RECOGNITION.md) | Flusso di lavoro dei volti, raggruppamento, gestione delle persone |
 | [Visualizzatore](VIEWER.md) | Funzionalità e utilizzo della galleria web |
+| [Interoperabilità](INTEROP.md) | Scambiare valutazioni/tag con Lightroom, Capture One, digiKam, darktable |
 
 ## Profili VRAM
 

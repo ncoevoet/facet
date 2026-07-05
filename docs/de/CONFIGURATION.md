@@ -1671,6 +1671,78 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
 
 **Ein bibliotheksspezifisches Vokabular entdecken.** Das `general`-Set ist ein sinnvoller Standard, aber Sie können mit `python facet.py --discover-moments` ein auf *Ihre* Bibliothek zugeschnittenes Vokabular vorschlagen: Es clustert die gespeicherten `caption_embedding`-Vektoren (HDBSCAN), benennt jedes Cluster anhand seiner Bildunterschriften (ein Schlüsselwort plus die dem Zentroid am nächsten liegenden Bildunterschriften als gebrauchsfertige Prompts) und schreibt das Ergebnis als `event_types.discovered`-Block in `scoring_config.discovered.json`. Überprüfen Sie es, kopieren Sie `discovered` in `event_types` oben, setzen Sie `default_event_type` auf `discovered` und führen Sie `--recompute-moments` aus, um es zu übernehmen — die Entdeckung schlägt vor, sie überschreibt niemals die aktive Konfiguration. `--discover-min-cluster-size N` steuert die Granularität (kleiner = mehr, feinere Momente).
 
+## Junk Sweep
+
+Zero-Shot-Detektor für nicht-fotografischen „Müll" — Screenshots, gescannte Dokumente, Belege, Memes, Präsentationsfolien — über das **gespeicherte Bild-Embedding** (kein Bild-Decode, kein Modelldurchlauf pro Bild; dieselbe Form wie bei narrativen Momenten, nur ohne die zeitliche Glättung). Jede Art trägt eine Liste von Text-Prompts; das Embedding des Fotos wird per Kosinus gegen jeden Prompt bewertet und pro Art **max-gepoolt**. Ein `not_junk`-Kontrast-Prompt-Set steuert die Entscheidung: Ein Foto wird nur markiert, wenn die beste Müll-Art `min_confidence` überschreitet UND den besten `not_junk`-Prompt um `min_margin` schlägt — andernfalls wird es mit der Sentinel `not_junk` gespeichert (bewertet, sauber). `NULL` bedeutet „nicht bewertet": `--detect-junk` beschriftet nur `NULL`-Zeilen (und läuft automatisch am Ende jedes Scans), während `--recompute-junk` die gesamte Bibliothek neu bewertet. Füllt `photos.junk_kind`; die **Junk-Sweep**-Review-Warteschlange des Viewers ([VIEWER.md](VIEWER.md#müll-aufräumen)) liest diese Spalte.
+
+```json
+{
+  "junk_sweep": {
+    "enabled": true,
+    "prompt_template": "{desc}",
+    "pooling": "max",
+    "thresholds": {
+      "open_clip": { "min_confidence": 0.18, "min_margin": 0.02 },
+      "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
+    },
+    "kinds": {
+      "screenshot": ["a screenshot of a phone user interface", "..."],
+      "document": ["a scanned document", "..."],
+      "receipt": ["a photo of a receipt", "..."],
+      "meme": ["a meme with overlaid text", "..."],
+      "slide": ["a presentation slide", "..."]
+    },
+    "not_junk_prompts": ["a natural photograph", "a candid photo of people", "..."]
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `enabled` | `true` | Führt die Müllerkennung während `--detect-junk` / `--recompute-junk` und am Scan-Ende aus |
+| `prompt_template` | `"{desc}"` | Formatstring, der auf jeden Prompt angewendet wird (`{desc}` = der Prompt); standardmäßig Identität, da die Prompts vollständige Sätze sind |
+| `pooling` | `"max"` | Poolt die Kosinuswerte pro Prompt zu einem Wert pro Art, via `max` (bester einzelner Prompt, trennschärfer) oder `mean` |
+| `thresholds.<backend>.min_confidence` | open_clip `0.18`, transformers `0.1` | Minimaler max-gepoolter Kosinus, damit die beste Müll-Art berücksichtigt wird (CLIP/`open_clip`-Kosinuswerte liegen niedriger als SigLIP/`transformers`, daher hat jedes Backend eine eigene Schwelle) |
+| `thresholds.<backend>.min_margin` | `0.02` | Wie weit die beste Müll-Art den besten `not_junk`-Kontrast-Prompt schlagen muss, bevor das Foto markiert wird |
+| `kinds` | screenshot/document/receipt/meme/slide | `{art: [Prompt-Synonyme]}`; fügen Sie Arten frei hinzu, entfernen oder benennen Sie sie um — Spalte und Viewer-Warteschlange folgen der Konfiguration |
+| `not_junk_prompts` | 6 Foto-Prompts | Kontrast-Set, das echte Fotografien beschreibt; der Filter, der echte Fotos aus der Warteschlange heraushält |
+
+## VLM Backend
+
+Wählt, wo das Vision-Language-Modell für Bildunterschriften/Tags läuft. `local` (Standard) verwendet den In-Process-transformers-Qwen-Pfad, der mit den VRAM-Profilen 16gb/24gb ausgeliefert wird — keine Änderung für bestehende Installationen. Die beiden entfernten Backends verweisen Facet auf einen externen Server, sodass Bildbeschreibung und VLM-Tagging auf den **legacy/8gb-Profilen ohne lokales VLM** funktionieren: Wenn ein entferntes Backend ausgewählt ist, hängen die VLM-Funktionen nicht mehr vom VRAM-Profil ab.
+
+```json
+{
+  "vlm_backend": {
+    "type": "local",
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "model": "qwen2.5vl:7b",
+      "timeout_seconds": 120
+    },
+    "openai_compatible": {
+      "base_url": "http://localhost:1234/v1",
+      "api_key": "",
+      "model": "qwen2.5-vl-7b",
+      "timeout_seconds": 120
+    }
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `type` | `"local"` | Backend: `local` (In-Process-transformers-Qwen), `ollama` (native Ollama-REST-API) oder `openai_compatible` (beliebiger OpenAI-Chat-Completions-Endpunkt — LM Studio, vLLM, OpenRouter) |
+| `ollama.base_url` | `"http://localhost:11434"` | Basis-URL des Ollama-Servers; das Bild wird als Base64 an `POST /api/generate` gesendet |
+| `ollama.model` | `"qwen2.5vl:7b"` | Ollama-Modell-Tag (muss ein Vision-Modell sein, das auf dem Server bereits geladen wurde) |
+| `ollama.timeout_seconds` | `120` | Timeout pro Anfrage für Ollama-Aufrufe |
+| `openai_compatible.base_url` | `"http://localhost:1234/v1"` | OpenAI-kompatible Basis-URL **einschließlich des `/v1`-Suffixes**; Anfragen gehen an `{base_url}/chat/completions`, mit dem Bild als `image_url`-Daten-URI |
+| `openai_compatible.api_key` | `""` | Bearer-Token, gesendet als `Authorization: Bearer <schlüssel>`; für schlüssellose lokale Server leer lassen |
+| `openai_compatible.model` | `"qwen2.5-vl-7b"` | An den Endpunkt übergebener Modellname |
+| `openai_compatible.timeout_seconds` | `120` | Timeout pro Anfrage für OpenAI-kompatible Aufrufe |
+
+Das gemeinsame Backend steuert die Bildbeschreibung (`--generate-captions` und den On-Demand-Endpunkt `/api/caption`), die VLM-Kritik (`/api/critique?mode=vlm`), das VLM-Re-Tagging (`--recompute-tags-vlm`) und den VLM-Tie-Breaker für narrative Momente. Ein Fehlschlag einer entfernten Anfrage wird als Fehler pro Foto protokolliert (leere Tags / keine Bildunterschrift) und lässt den Lauf nie abstürzen. Das In-Scan-Tagging verwendet weiterhin den eigenen Tagger des Profils; führen Sie `--recompute-tags-vlm` aus, um ein entferntes Backend auf eine bestehende Bibliothek anzuwenden.
+
 ## AI Critique
 
 Prompt-Konfiguration für die VLM-gestützte Kritik (16gb/24gb-Profile). Die Kritik fügt die vollständige Regelaufschlüsselung, Strafen und EXIF in einen konfigurierbaren Leiter-Prompt ein, rendert die Antwort als Observation / Assessment / Suggestions und speichert sie pro Foto in `photos.vlm_critique` (bei Bedarf übersetzt in `vlm_critique_translated`). Sie läuft gegen das gespeicherte Thumbnail, sodass RAW-Dateien korrekt kritisiert werden, statt still zu scheitern; `refresh` regeneriert.

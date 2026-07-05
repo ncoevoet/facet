@@ -46,6 +46,7 @@ Facet is a multi-dimensional photo analysis engine that examines every facet of 
 - [docs/SCORING.md](docs/SCORING.md) - Category system and weight tuning
 - [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) - Face workflow and clustering
 - [docs/VIEWER.md](docs/VIEWER.md) - Web gallery features
+- [docs/INTEROP.md](docs/INTEROP.md) - Round-tripping ratings/tags with Lightroom, Capture One, digiKam, darktable
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Production deployment (Synology NAS, Linux, Docker)
 
 ## Commands

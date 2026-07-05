@@ -265,6 +265,7 @@ Run `python facet.py --doctor` to diagnose GPU issues. See [Installation](docs/I
 | [Scoring](docs/SCORING.md) | Categories, weights, tuning guide |
 | [Face Recognition](docs/FACE_RECOGNITION.md) | Face workflow, clustering, person management |
 | [Viewer](docs/VIEWER.md) | Web gallery features and usage |
+| [Interop](docs/INTEROP.md) | Round-tripping ratings/tags with Lightroom, Capture One, digiKam, darktable |
 | [Deployment](docs/DEPLOYMENT.md) | Production deployment (Synology NAS, Linux, Docker) |
 | [Contributing](CONTRIBUTING.md) | Development setup, architecture, code style |
 

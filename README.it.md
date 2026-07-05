@@ -37,6 +37,7 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 - **Rilevamento raffiche** — raggruppa gli scatti in rapida successione e seleziona automaticamente il migliore in base a nitidezza, qualità e rilevamento degli occhi chiusi
 - **Gruppi di somiglianza** — trova le foto visivamente simili in tutta la libreria, indipendentemente da quando sono state scattate
 - **Scene** — raggruppa una sessione in "scene" cronologiche in base agli intervalli tra gli scatti, così da selezionare nell'ordine del racconto; tocca per contrassegnare e conferma per rifiutare
+- **Pulizia degli scarti** — rilevamento zero-shot di file non fotografici superflui (screenshot, documenti, ricevute, meme, diapositive) con una coda di revisione rapida: conserva o rifiuta ogni candidato, oppure rifiutali tutti in una volta
 - **Badge per volto nella selezione** — il visualizzatore di selezione mostra badge per ogni volto (occhi aperti/chiusi, espressione, confidenza di rilevamento) invece di un singolo contrassegno di occhi chiusi a livello di foto
 - **Rilevamento occhi chiusi** — segnala gli scatti con gli occhi chiusi da nascondere o rifiutare con un clic
 - **Rilevamento duplicati** — identifica le immagini quasi identiche tramite hashing percettivo
@@ -145,7 +146,7 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 
 ## Cosa ti serve
 
-La maggior parte di Facet funziona su **qualsiasi macchina (CPU)** — punteggio, rilevamento dei volti, selezione, galleria, ricerca, album ed esportazione dei metadati funzionano tutti senza una GPU. Una **GPU** (con il profilo `16gb` o `24gb`) sblocca i modelli più potenti: punteggio estetico TOPIQ, embedding SigLIP 2, tagging VLM, didascalie e critica IA, e salienza del soggetto. Nel viewer, le azioni di modifica (valutazioni, volti, selezione) richiedono la **password di modifica**, e l'avvio delle scansioni richiede il ruolo **superadmin**.
+La maggior parte di Facet funziona su **qualsiasi macchina (CPU)** — punteggio, rilevamento dei volti, selezione, galleria, ricerca, album ed esportazione dei metadati funzionano tutti senza una GPU. Una **GPU** (con il profilo `16gb` o `24gb`) sblocca i modelli più potenti: punteggio estetico TOPIQ, embedding SigLIP 2, tagging VLM, didascalie e critica IA, e salienza del soggetto. Niente GPU locale? Indirizza il tagging/le didascalie/la critica VLM verso un server **Ollama** o **compatibile OpenAI** remoto tramite `vlm_backend` in `scoring_config.json` — queste funzionalità funzionano allora anche sui profili CPU `legacy`/`8gb`. Nel viewer, le azioni di modifica (valutazioni, volti, selezione) richiedono la **password di modifica**, e l'avvio delle scansioni richiede il ruolo **superadmin**.
 
 → Requisiti completi per ciascuna funzionalità (GPU, profilo VRAM, pacchetti opzionali, autenticazione): **[Installazione › Requisiti delle funzionalità](docs/it/INSTALLATION.md#requisiti-delle-funzionalità)**.
 
@@ -250,6 +251,7 @@ Esegui `python facet.py --doctor` per diagnosticare i problemi della GPU. Vedi [
 | [Punteggio](docs/it/SCORING.md) | Categorie, pesi, guida alla regolazione |
 | [Riconoscimento facciale](docs/it/FACE_RECOGNITION.md) | Flusso di lavoro dei volti, clustering, gestione delle persone |
 | [Viewer](docs/it/VIEWER.md) | Funzionalità e utilizzo della galleria web |
+| [Interoperabilità](docs/it/INTEROP.md) | Scambiare valutazioni/tag con Lightroom, Capture One, digiKam, darktable |
 | [Distribuzione](docs/it/DEPLOYMENT.md) | Distribuzione in produzione (NAS Synology, Linux, Docker) |
 | [Contribuire](CONTRIBUTING.md) | Configurazione di sviluppo, architettura, stile del codice |
 

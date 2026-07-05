@@ -9,7 +9,7 @@ FastAPI + Angular Single-Page-Application zum Durchsuchen, Filtern und Verwalten
 - [Galerie starten](#galerie-starten) · [Authentifizierung](#authentifizierung) · [Filteroptionen](#filteroptionen) · [Sortierung](#sortierung) · [Galeriefunktionen](#galeriefunktionen)
 - [Personenverwaltung](#personenverwaltung) · [Scan auslösen (Superadmin)](#scan-auslösen-superadmin) · [Semantische Suche](#semantische-suche) · [Alben](#alben)
 - [KI-Kritik](#ki-kritik) · [KI-Bildbeschreibung](#ki-bildbeschreibung-gpu-16gb24gb-edition) · [Erinnerungen ("Heute vor Jahren")](#erinnerungen-heute-vor-jahren) · [Zeitleisten-Ansicht](#zeitleisten-ansicht) · [Kartenansicht](#kartenansicht) · [Kapseln](#kapseln)
-- [Ordner-Ansicht](#ordner-ansicht) · [GPS-Filterdialog](#gps-filterdialog) · [Zusammenführungsvorschläge](#zusammenführungsvorschläge) · [Editor-Export](#editor-export) · [Auswahl](#auswahl) · [Paarweiser Vergleichsmodus](#paarweiser-vergleichsmodus)
+- [Ordner-Ansicht](#ordner-ansicht) · [GPS-Filterdialog](#gps-filterdialog) · [Zusammenführungsvorschläge](#zusammenführungsvorschläge) · [Editor-Export](#editor-export) · [Auswahl](#auswahl) · [Müll aufräumen](#müll-aufräumen) · [Paarweiser Vergleichsmodus](#paarweiser-vergleichsmodus)
 - [EXIF-Statistiken](#exif-statistiken) · [Tastenkürzel](#tastenkürzel-galerie) · [Rückgängig](#rückgängig) · [Progressive Web App](#progressive-web-app) · [Mobil](#mobil)
 - [Konfiguration](#konfiguration) · [Performance](#performance) · [API-Endpunkte](#api-endpunkte) · [Fehlerbehebung](#fehlerbehebung)
 
@@ -548,6 +548,22 @@ API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 Gesteuert über `viewer.features.show_scenes` (Standard: `true`). Siehe [Konfiguration — Szenen](CONFIGURATION.md#scenes) für `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` und `adaptive_k`.
 
+## Müll aufräumen
+
+Eine schnelle Review-Warteschlange für den nicht-fotografischen „Müll", der sich in einer Hobby-Bibliothek ansammelt — Screenshots, gescannte Dokumente, Belege, Memes und Präsentationsfolien. Die Erkennung ist Zero-Shot über die gespeicherten Bild-Embeddings (siehe [Konfiguration — Junk Sweep](CONFIGURATION.md#junk-sweep)); führen Sie `python facet.py --detect-junk` aus (oder lassen Sie es am Ende jedes Scans automatisch laufen), um `junk_kind` zu befüllen.
+
+Öffnen Sie sie über die Navigationsschaltfläche **Aufräumen** (die Route `/junk`, nur im Bearbeitungsmodus). Die Seite verwendet erneut das Galerie-Raster und zeigt jeden markierten Kandidaten:
+
+- **Filter-Chips nach Art** — „Alle Arten" plus ein Chip pro erkannter Art mit ihrer Anzahl (aus `GET /api/filter_options/junk_kinds`). Klicken, um die Warteschlange auf eine Art einzugrenzen.
+- **Behalten** (pro Foto) — löscht das Müll-Label, sodass das Foto die Warteschlange **dauerhaft** verlässt: Es wird als bewertet-sauber markiert (`not_junk`) und nie wieder von einem späteren `--detect-junk` markiert.
+- **Verwerfen** (pro Foto) — markiert das Foto als abgelehnt über dieselbe Ablehnungs-Logik wie überall sonst (nichts wird von der Festplatte gelöscht).
+- **Alle angezeigten verwerfen** — ein Sammel-Verwerfen aller aktuell geladenen Kandidaten, hinter einem Bestätigungsdialog.
+- **Lupe** — drücken Sie **`Z`** (oder die Symbolleisten-Umschaltfläche) für eine Hover-Lupe im Photo-Mechanic-Stil, um feinen Text vor der Entscheidung zu lesen.
+
+Müll-Fotos werden **nicht** aus der normalen Galerie ausgeblendet — sie bleiben sichtbar, bis Sie danach filtern. Filtern Sie jede Galerieansicht mit `?junk_kind=<art>` (exakt) oder `?junk_kind=any` (jeglicher Müll, ohne die Sentinel `not_junk`).
+
+Gesteuert über `viewer.features.show_junk_sweep` (Standard: `true`).
+
 ## Paarweiser Vergleichsmodus
 
 Bewerten Sie Fotos, indem Sie sie paarweise beurteilen. Die gesammelten Stimmen fließen in die Gewichtungsabstimmung ein. Zugriff über die Route `/compare` (Schaltfläche „Vergleichen" im Header). Erfordert ein nicht leeres `edition_password` (Einzelbenutzer) oder die Rolle `admin`/`superadmin` (Mehrbenutzer).
@@ -1001,6 +1017,8 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `POST /api/culling/auto` | `[Edition]` Ein-Knopf-Auto-Cull für einen ganzen Geltungsbereich. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (Standard `true`) liefert die Behalte-/Ablehnen-Vorschau pro Gruppe, ein Anwenden lehnt den Rest ab und erfasst Culling-Paare |
 | `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen offen/geschlossen, Ausdruck, Konfidenz) für eine Gruppe, in einem Batch |
 | `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos (schreibgeschütztes Durchsuchen) |
+| `GET /api/filter_options/junk_kinds` | Erkannte Müll-Arten mit Anzahl (ohne die Sentinel `not_junk`) für die Junk-Sweep-Chips |
+| `POST /api/photo/clear_junk` | `[Edition]` Behält einen Müll-Kandidaten — setzt dessen `junk_kind` auf `not_junk`, sodass er die Warteschlange dauerhaft verlässt. Body `{photo_path}` |
 
 ### Scan
 

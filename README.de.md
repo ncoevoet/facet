@@ -37,6 +37,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 - **Serienbilderkennung** — gruppiert Schnellfeuer-Aufnahmen und wählt automatisch die beste anhand von Schärfe, Qualität und Blinzelerkennung aus
 - **Ähnlichkeitsgruppen** — findet visuell ähnliche Fotos in der gesamten Bibliothek, unabhängig vom Aufnahmezeitpunkt
 - **Szenen** — gruppiert eine Aufnahmesession anhand der zeitlichen Abstände in chronologische „Szenen“, sodass Sie in Erzählreihenfolge aussortieren; antippen zum Markieren, bestätigen zum Ablehnen
+- **Müll aufräumen** — Zero-Shot-Erkennung von nicht-fotografischem Ballast (Screenshots, Dokumente, Belege, Memes, Folien) mit einer schnellen Review-Warteschlange: jeden Kandidaten behalten oder verwerfen, oder alle auf einmal verwerfen
 - **Auswahl-Badges pro Gesicht** — der Auswahl-Viewer zeigt Badges pro Gesicht (Augen offen/geschlossen, Ausdruck, Erkennungssicherheit) statt einer einzigen fotoweiten Blinzelmarkierung
 - **Blinzelerkennung** — markiert Aufnahmen mit geschlossenen Augen, um sie mit einem Klick auszublenden oder abzulehnen
 - **Duplikaterkennung** — identifiziert nahezu identische Bilder über perzeptuelles Hashing
@@ -145,7 +146,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 
 ## Was Sie benötigen
 
-Der Großteil von Facet läuft auf **jedem Rechner (CPU)** — Bewertung, Gesichtserkennung, Auswahl, die Galerie, Suche, Alben und Metadaten-Export funktionieren alle ohne GPU. Eine **GPU** (mit dem `16gb`- oder `24gb`-Profil) schaltet die leistungsstärksten Modelle frei: TOPIQ-Ästhetikbewertung, SigLIP-2-Embeddings, VLM-Tagging, KI-Beschreibungen und -Kritik sowie Motiverkennung. Im Viewer benötigen Bearbeitungsaktionen (Bewertungen, Gesichter, Auswahl) das **Bearbeitungspasswort**, und das Auslösen von Scans erfordert die **Superadmin**-Rolle.
+Der Großteil von Facet läuft auf **jedem Rechner (CPU)** — Bewertung, Gesichtserkennung, Auswahl, die Galerie, Suche, Alben und Metadaten-Export funktionieren alle ohne GPU. Eine **GPU** (mit dem `16gb`- oder `24gb`-Profil) schaltet die leistungsstärksten Modelle frei: TOPIQ-Ästhetikbewertung, SigLIP-2-Embeddings, VLM-Tagging, KI-Beschreibungen und -Kritik sowie Motiverkennung. Keine lokale GPU? Richten Sie das VLM-Tagging/die Beschreibungen/die Kritik über `vlm_backend` in `scoring_config.json` auf einen entfernten **Ollama**- oder **OpenAI-kompatiblen** Server aus — diese Funktionen laufen dann auch auf den CPU-Profilen `legacy`/`8gb`. Im Viewer benötigen Bearbeitungsaktionen (Bewertungen, Gesichter, Auswahl) das **Bearbeitungspasswort**, und das Auslösen von Scans erfordert die **Superadmin**-Rolle.
 
 → Vollständige Anforderungen pro Funktion (GPU, VRAM-Profil, optionale Pakete, Auth): **[Installation › Funktionsanforderungen](docs/de/INSTALLATION.md#funktionsanforderungen)**.
 
@@ -250,6 +251,7 @@ Führen Sie `python facet.py --doctor` aus, um GPU-Probleme zu diagnostizieren. 
 | [Bewertung](docs/de/SCORING.md) | Kategorien, Gewichte, Leitfaden zur Feinabstimmung |
 | [Gesichtserkennung](docs/de/FACE_RECOGNITION.md) | Gesichts-Workflow, Clustering, Personenverwaltung |
 | [Viewer](docs/de/VIEWER.md) | Funktionen und Nutzung der Web-Galerie |
+| [Interop](docs/de/INTEROP.md) | Bewertungen/Tags mit Lightroom, Capture One, digiKam, darktable austauschen |
 | [Bereitstellung](docs/de/DEPLOYMENT.md) | Produktivbereitstellung (Synology NAS, Linux, Docker) |
 | [Mitwirken](CONTRIBUTING.md) | Entwicklungseinrichtung, Architektur, Code-Stil |
 

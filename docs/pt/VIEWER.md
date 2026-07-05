@@ -9,7 +9,7 @@ Aplicação de página única em FastAPI + Angular para navegar, filtrar e geren
 - [Iniciando o Visualizador](#iniciando-o-visualizador) · [Autenticação](#autenticação) · [Opções de Filtragem](#opções-de-filtragem) · [Ordenação](#ordenação) · [Recursos da Galeria](#recursos-da-galeria)
 - [Gerenciamento de Pessoas](#gerenciamento-de-pessoas) · [Disparo de Varredura (Superadmin)](#disparo-de-varredura-superadmin) · [Busca Semântica](#busca-semântica) · [Álbuns](#álbuns)
 - [Crítica por IA](#crítica-por-ia) · [Legendagem por IA](#legendagem-por-ia-gpu-16gb24gb-edition) · [Memórias ("Neste Dia")](#memórias-neste-dia) · [Visão de Linha do Tempo](#visão-de-linha-do-tempo) · [Visão de Mapa](#visão-de-mapa) · [Cápsulas](#cápsulas)
-- [Visão de Pastas](#visão-de-pastas) · [Diálogo de Filtro por GPS](#diálogo-de-filtro-por-gps) · [Sugestões de Mesclagem](#sugestões-de-mesclagem) · [Exportação para Editor](#exportação-para-editor) · [Triagem](#triagem) · [Modo de Comparação Pareada](#modo-de-comparação-pareada)
+- [Visão de Pastas](#visão-de-pastas) · [Diálogo de Filtro por GPS](#diálogo-de-filtro-por-gps) · [Sugestões de Mesclagem](#sugestões-de-mesclagem) · [Exportação para Editor](#exportação-para-editor) · [Triagem](#triagem) · [Limpeza de lixo](#limpeza-de-lixo) · [Modo de Comparação Pareada](#modo-de-comparação-pareada)
 - [Estatísticas EXIF](#estatísticas-exif) · [Atalhos de Teclado](#atalhos-de-teclado-galeria) · [Desfazer](#desfazer) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
 - [Configuração](#configuração) · [Desempenho](#desempenho) · [Endpoints da API](#endpoints-da-api) · [Solução de Problemas](#solução-de-problemas)
 
@@ -547,6 +547,22 @@ API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
 Controlado por `viewer.features.show_scenes` (padrão: `true`). Veja [Configuração — Cenas](CONFIGURATION.md#scenes) para `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` e `adaptive_k`.
 
+## Limpeza de lixo
+
+Uma fila de revisão rápida para o "lixo" não fotográfico que se acumula em uma biblioteca amadora — capturas de tela, documentos escaneados, recibos, memes e slides de apresentação. A detecção é zero-shot sobre os embeddings de imagem armazenados (veja [Configuração — Junk Sweep](CONFIGURATION.md#junk-sweep)); execute `python facet.py --detect-junk` (ou deixe-o rodar automaticamente ao final de cada varredura) para preencher `junk_kind`.
+
+Abra-a pelo botão de navegação **Limpeza** (a rota `/junk`, somente edição). A página reutiliza a grade da galeria e exibe cada candidato sinalizado:
+
+- **Chips de filtro por tipo** — "Todos os tipos" mais um chip por tipo detectado com sua contagem (de `GET /api/filter_options/junk_kinds`). Clique para restringir a fila a um único tipo.
+- **Manter** (por foto) — limpa o rótulo de lixo para que a foto saia da fila **permanentemente**: ela é marcada como avaliada-limpa (`not_junk`) e nunca mais é sinalizada por um `--detect-junk` posterior.
+- **Rejeitar** (por foto) — marca a foto como rejeitada usando o mesmo mecanismo de rejeição de todo o resto (nada é excluído do disco).
+- **Rejeitar tudo** — uma rejeição em lote de todos os candidatos atualmente carregados, atrás de um diálogo de confirmação.
+- **Lupa** — pressione **`Z`** (ou o botão da barra de ferramentas) para uma lupa flutuante no estilo Photo Mechanic, para ler texto fino antes de decidir.
+
+As fotos de lixo **não** são ocultadas da galeria normal — elas permanecem visíveis até você filtrar por elas. Filtre qualquer visão da galeria com `?junk_kind=<tipo>` (exato) ou `?junk_kind=any` (qualquer lixo, exclui a sentinela `not_junk`).
+
+Controlado por `viewer.features.show_junk_sweep` (padrão: `true`).
+
 ## Modo de Comparação Pareada
 
 Ranqueie fotos julgando-as de duas em duas. Os votos acumulados alimentam o ajuste de pesos. Acesse pela rota `/compare` (botão Comparar no cabeçalho). Requer uma `edition_password` não vazia (usuário único) ou o papel `admin`/`superadmin` (multiusuário).
@@ -1000,6 +1016,8 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `POST /api/culling/auto` | `[Edition]` Triagem automática de um botão só para um escopo inteiro. Corpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (padrão `true`) retorna a prévia de manter/rejeitar por grupo, uma aplicação rejeita o resto e registra pares de triagem |
 | `POST /api/culling-group/faces` | Selos por rosto (olhos abertos/fechados, expressão, confiança) para um grupo, em um único lote |
 | `GET /api/scenes` | Cenas cronológicas de fotos líderes de sequência (navegação somente leitura) |
+| `GET /api/filter_options/junk_kinds` | Tipos de lixo detectados com contagem (exclui a sentinela `not_junk`) para os chips da Limpeza de lixo |
+| `POST /api/photo/clear_junk` | `[Edition]` Mantém um candidato a lixo — redefine seu `junk_kind` para `not_junk` para que ele saia da fila permanentemente. Corpo `{photo_path}` |
 
 ### Varredura
 

@@ -37,6 +37,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 - **Détection de rafales** — regroupe les prises de vue en rafale et sélectionne automatiquement la meilleure d'après la netteté, la qualité et la détection des clignements
 - **Groupes de similarité** — trouve les photos visuellement similaires dans toute la bibliothèque, quel que soit leur moment de prise de vue
 - **Scènes** — regroupe une séance en « scènes » chronologiques selon les écarts entre prises de vue, pour trier dans l'ordre du récit ; touchez pour marquer puis confirmez pour rejeter
+- **Nettoyage des indésirables** — détection zero-shot des fichiers non photographiques parasites (captures d'écran, documents, reçus, mèmes, diapositives) avec une file de revue rapide : conservez ou rejetez chaque candidat, ou rejetez-les tous d'un coup
 - **Badges par visage au tri** — la visionneuse de tri affiche des badges par visage (yeux ouverts/fermés, expression, confiance de détection) au lieu d'un seul indicateur de clignement au niveau de la photo
 - **Détection des clignements** — signale les prises aux yeux fermés pour les masquer ou les rejeter en un clic
 - **Détection des doublons** — identifie les images quasi identiques par hachage perceptuel
@@ -145,7 +146,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 
 ## Ce dont vous avez besoin
 
-L'essentiel de Facet fonctionne sur **n'importe quelle machine (CPU)** — l'évaluation, la détection de visages, le tri, la galerie, la recherche, les albums et l'export des métadonnées fonctionnent tous sans GPU. Un **GPU** (avec le profil `16gb` ou `24gb`) débloque les modèles les plus performants : l'évaluation esthétique TOPIQ, les embeddings SigLIP 2, le tagging par VLM, les légendes et la critique IA, ainsi que la saillance du sujet. Dans le visualiseur, les actions d'édition (notes, visages, tri) nécessitent le **mot de passe d'édition**, et le déclenchement des analyses nécessite le rôle **superadmin**.
+L'essentiel de Facet fonctionne sur **n'importe quelle machine (CPU)** — l'évaluation, la détection de visages, le tri, la galerie, la recherche, les albums et l'export des métadonnées fonctionnent tous sans GPU. Un **GPU** (avec le profil `16gb` ou `24gb`) débloque les modèles les plus performants : l'évaluation esthétique TOPIQ, les embeddings SigLIP 2, le tagging par VLM, les légendes et la critique IA, ainsi que la saillance du sujet. Pas de GPU local ? Pointez le tagging, le légendage et la critique VLM vers un serveur **Ollama** ou **compatible OpenAI** distant via `vlm_backend` dans `scoring_config.json` — ces fonctionnalités fonctionnent alors aussi sur les profils CPU `legacy`/`8gb`. Dans le visualiseur, les actions d'édition (notes, visages, tri) nécessitent le **mot de passe d'édition**, et le déclenchement des analyses nécessite le rôle **superadmin**.
 
 → Prérequis complets par fonctionnalité (GPU, profil VRAM, paquets optionnels, authentification) : **[Installation › Exigences par fonctionnalité](docs/fr/INSTALLATION.md#exigences-par-fonctionnalité)**.
 
@@ -250,6 +251,7 @@ Lancez `python facet.py --doctor` pour diagnostiquer les problèmes de GPU. Voir
 | [Évaluation](docs/fr/SCORING.md) | Catégories, poids, guide de réglage |
 | [Reconnaissance faciale](docs/fr/FACE_RECOGNITION.md) | Flux des visages, regroupement, gestion des personnes |
 | [Visualiseur](docs/fr/VIEWER.md) | Fonctionnalités et utilisation de la galerie web |
+| [Interopérabilité](docs/fr/INTEROP.md) | Faire circuler notes/tags avec Lightroom, Capture One, digiKam, darktable |
 | [Déploiement](docs/fr/DEPLOYMENT.md) | Déploiement en production (NAS Synology, Linux, Docker) |
 | [Contribuer](CONTRIBUTING.md) | Configuration de développement, architecture, style de code |
 

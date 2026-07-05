@@ -1671,6 +1671,78 @@ O sinal é **semântico de legenda** (caption-semantic): a legenda por IA de cad
 
 **Descobrindo um vocabulário específico da biblioteca.** O conjunto `general` é um padrão sensato, mas você pode propor um vocabulário ajustado à *sua* biblioteca com `python facet.py --discover-moments`: ele agrupa os vetores `caption_embedding` armazenados (HDBSCAN), nomeia cada cluster a partir de suas legendas (uma palavra-chave mais as legendas mais próximas do centroide como prompts prontos) e grava o resultado como um bloco `event_types.discovered` em `scoring_config.discovered.json`. Revise-o, copie `discovered` para `event_types` acima, defina `default_event_type` como `discovered` e execute `--recompute-moments` para adotá-lo — a descoberta propõe, ela nunca reescreve a configuração ativa. `--discover-min-cluster-size N` controla a granularidade (menor = mais momentos, mais finos).
 
+## Junk Sweep
+
+Detector zero-shot para "lixo" não fotográfico — capturas de tela, documentos escaneados, recibos, memes, slides de apresentação — sobre o **embedding de imagem armazenado** (sem decodificação de imagem, sem passagem de modelo por imagem; o mesmo formato dos momentos narrativos sem a suavização temporal). Cada tipo carrega uma lista de prompts de texto; o embedding da foto é pontuado por cosseno contra cada prompt e agrupado por **máximo** (max-pooling) por tipo. Um conjunto de prompts de contraste `not_junk` condiciona a decisão: uma foto só é sinalizada quando o melhor tipo de lixo ultrapassa `min_confidence` E supera o melhor prompt `not_junk` por `min_margin` — caso contrário, é armazenada com a sentinela `not_junk` (avaliada, limpa). `NULL` significa "não avaliada": `--detect-junk` rotula apenas as linhas `NULL` (e roda automaticamente ao final da varredura), enquanto `--recompute-junk` reavalia a biblioteca inteira. Preenche `photos.junk_kind`; a fila de revisão **Limpeza de lixo** do visualizador ([VIEWER.md](VIEWER.md#limpeza-de-lixo)) a consome.
+
+```json
+{
+  "junk_sweep": {
+    "enabled": true,
+    "prompt_template": "{desc}",
+    "pooling": "max",
+    "thresholds": {
+      "open_clip": { "min_confidence": 0.18, "min_margin": 0.02 },
+      "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
+    },
+    "kinds": {
+      "screenshot": ["a screenshot of a phone user interface", "..."],
+      "document": ["a scanned document", "..."],
+      "receipt": ["a photo of a receipt", "..."],
+      "meme": ["a meme with overlaid text", "..."],
+      "slide": ["a presentation slide", "..."]
+    },
+    "not_junk_prompts": ["a natural photograph", "a candid photo of people", "..."]
+  }
+}
+```
+
+| Configuração | Padrão | Descrição |
+|--------------|--------|-----------|
+| `enabled` | `true` | Executa a detecção de lixo durante `--detect-junk` / `--recompute-junk` e ao final da varredura |
+| `prompt_template` | `"{desc}"` | String de formato aplicada a cada prompt (`{desc}` = o prompt); identidade por padrão, já que os prompts são frases completas |
+| `pooling` | `"max"` | Agrupa os cossenos por prompt em uma pontuação por tipo, via `max` (melhor prompt individual, mais discriminante) ou `mean` |
+| `thresholds.<backend>.min_confidence` | open_clip `0.18`, transformers `0.1` | Cosseno mínimo com max-pooling para que o melhor tipo de lixo seja considerado (os cossenos de CLIP/`open_clip` são mais baixos que os de SigLIP/`transformers`, daí um limiar próprio por backend) |
+| `thresholds.<backend>.min_margin` | `0.02` | Quanto o melhor tipo de lixo precisa superar o melhor prompt de contraste `not_junk` antes de a foto ser sinalizada |
+| `kinds` | screenshot/document/receipt/meme/slide | `{tipo: [sinônimos de prompt]}`; adicione, remova ou renomeie tipos livremente — a coluna e a fila do visualizador seguem a configuração |
+| `not_junk_prompts` | 6 prompts fotográficos | Conjunto de contraste que descreve fotografias reais; o filtro que mantém as fotos genuínas fora da fila |
+
+## VLM Backend
+
+Seleciona onde o modelo visão-linguagem de legendas/tags é executado. `local` (padrão) usa o caminho transformers Qwen em processo, incluído nos perfis de VRAM 16gb/24gb — nenhuma mudança para instalações existentes. Os dois backends remotos apontam o Facet para um servidor externo, de modo que legendagem e marcação por VLM funcionem nos **perfis legacy/8gb que não trazem VLM local**: quando um backend remoto é selecionado, os recursos de VLM deixam de depender do perfil de VRAM.
+
+```json
+{
+  "vlm_backend": {
+    "type": "local",
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "model": "qwen2.5vl:7b",
+      "timeout_seconds": 120
+    },
+    "openai_compatible": {
+      "base_url": "http://localhost:1234/v1",
+      "api_key": "",
+      "model": "qwen2.5-vl-7b",
+      "timeout_seconds": 120
+    }
+  }
+}
+```
+
+| Configuração | Padrão | Descrição |
+|--------------|--------|-----------|
+| `type` | `"local"` | Backend: `local` (transformers Qwen em processo), `ollama` (API REST nativa do Ollama) ou `openai_compatible` (qualquer endpoint de chat completions compatível com OpenAI — LM Studio, vLLM, OpenRouter) |
+| `ollama.base_url` | `"http://localhost:11434"` | URL base do servidor Ollama; a imagem é enviada em base64 para `POST /api/generate` |
+| `ollama.model` | `"qwen2.5vl:7b"` | Tag do modelo Ollama (precisa ser um modelo de visão já baixado no servidor) |
+| `ollama.timeout_seconds` | `120` | Tempo limite por requisição para as chamadas ao Ollama |
+| `openai_compatible.base_url` | `"http://localhost:1234/v1"` | URL base compatível com OpenAI **incluindo o sufixo `/v1`**; as requisições vão para `{base_url}/chat/completions` com a imagem como URI de dados `image_url` |
+| `openai_compatible.api_key` | `""` | Token bearer enviado como `Authorization: Bearer <chave>`; deixe vazio para servidores locais sem chave |
+| `openai_compatible.model` | `"qwen2.5-vl-7b"` | Nome do modelo passado ao endpoint |
+| `openai_compatible.timeout_seconds` | `120` | Tempo limite por requisição para as chamadas compatíveis com OpenAI |
+
+O backend compartilhado alimenta a legendagem (`--generate-captions` e o endpoint sob demanda `/api/caption`), a crítica por VLM (`/api/critique?mode=vlm`), a remarcação por VLM (`--recompute-tags-vlm`) e o desempate por VLM dos momentos narrativos. Uma falha de requisição remota é registrada como falha por foto (log gravado, tags vazias / sem legenda) e nunca derruba a execução. A marcação durante a varredura ainda usa o marcador próprio do perfil; execute `--recompute-tags-vlm` para aplicar um backend remoto a uma biblioteca existente.
+
 ## AI Critique
 
 Configuração de prompt para a crítica com VLM (perfis 16gb/24gb). A crítica injeta o detalhamento completo de regras, penalidades e EXIF em um prompt em escada configurável, apresenta a resposta como Observação / Avaliação / Sugestões e a armazena em cache por foto em `photos.vlm_critique` (traduzida sob demanda para `vlm_critique_translated`). Ela roda sobre a miniatura armazenada, então arquivos RAW são criticados corretamente em vez de falharem silenciosamente; `refresh` regenera.

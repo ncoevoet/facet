@@ -40,6 +40,7 @@ python viewer.py
 | [Bewertung](SCORING.md) | Kategorien, Gewichte, Tuning-Anleitung |
 | [Gesichtserkennung](FACE_RECOGNITION.md) | Gesichts-Workflow, Clustering, Personenverwaltung |
 | [Viewer](VIEWER.md) | Funktionen und Nutzung der Web-Galerie |
+| [Interop](INTEROP.md) | Bewertungen/Tags mit Lightroom, Capture One, digiKam, darktable austauschen |
 
 ## VRAM-Profile
 

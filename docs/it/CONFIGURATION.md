@@ -1671,6 +1671,78 @@ Il segnale è **semantico sulla didascalia**: la didascalia AI di ogni foto vien
 
 **Scoprire un vocabolario specifico per la libreria.** L'insieme `general` è un'impostazione predefinita sensata, ma puoi proporre un vocabolario adattato alla *tua* libreria con `python facet.py --discover-moments`: raggruppa i vettori `caption_embedding` memorizzati (HDBSCAN), nomina ogni cluster a partire dalle sue didascalie (una parola chiave più le didascalie più vicine al centroide come prompt già pronti) e scrive il risultato come blocco `event_types.discovered` in `scoring_config.discovered.json`. Rivedilo, copia `discovered` in `event_types` sopra, imposta `default_event_type` su `discovered` ed esegui `--recompute-moments` per adottarlo — la scoperta propone, non riscrive mai la configurazione attiva. `--discover-min-cluster-size N` controlla la granularità (più piccolo = momenti più numerosi e fini).
 
+## Junk Sweep
+
+Rilevatore zero-shot per file non fotografici "spazzatura" — screenshot, documenti scansionati, ricevute, meme, diapositive di presentazione — sull'**embedding immagine memorizzato** (nessuna decodifica dell'immagine, nessun passaggio del modello per immagine; la stessa struttura dei momenti narrativi senza il livellamento temporale). Ogni tipo porta un elenco di prompt testuali; l'embedding della foto viene valutato per coseno contro ogni prompt e poi **max-pooled** per tipo. Un insieme di prompt di contrasto `not_junk` condiziona la decisione: una foto viene segnalata solo quando il miglior tipo di spazzatura supera `min_confidence` E batte il miglior prompt `not_junk` di `min_margin` — altrimenti viene memorizzata con la sentinella `not_junk` (valutata, pulita). `NULL` significa "non valutata": `--detect-junk` etichetta solo le righe `NULL` (ed è eseguito automaticamente al termine di ogni scansione), mentre `--recompute-junk` rivaluta l'intera libreria. Popola `photos.junk_kind`; la coda di revisione **Junk Sweep** del visualizzatore ([VIEWER.md](VIEWER.md#pulizia-degli-scarti)) la consulta.
+
+```json
+{
+  "junk_sweep": {
+    "enabled": true,
+    "prompt_template": "{desc}",
+    "pooling": "max",
+    "thresholds": {
+      "open_clip": { "min_confidence": 0.18, "min_margin": 0.02 },
+      "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
+    },
+    "kinds": {
+      "screenshot": ["a screenshot of a phone user interface", "..."],
+      "document": ["a scanned document", "..."],
+      "receipt": ["a photo of a receipt", "..."],
+      "meme": ["a meme with overlaid text", "..."],
+      "slide": ["a presentation slide", "..."]
+    },
+    "not_junk_prompts": ["a natural photograph", "a candid photo of people", "..."]
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|---------|---------|-------------|
+| `enabled` | `true` | Esegue il rilevamento di spazzatura durante `--detect-junk` / `--recompute-junk` e al termine della scansione |
+| `prompt_template` | `"{desc}"` | Stringa di formato applicata a ogni prompt (`{desc}` = il prompt); identità per impostazione predefinita poiché i prompt sono frasi complete |
+| `pooling` | `"max"` | Raggruppa i coseni per prompt in un punteggio per tipo, tramite `max` (miglior prompt singolo, più discriminante) o `mean` |
+| `thresholds.<backend>.min_confidence` | open_clip `0.18`, transformers `0.1` | Coseno max-pooled minimo perché il miglior tipo di spazzatura venga considerato (i coseni CLIP/`open_clip` sono più bassi di quelli SigLIP/`transformers`, da cui una soglia propria per ciascun backend) |
+| `thresholds.<backend>.min_margin` | `0.02` | Quanto il miglior tipo di spazzatura deve superare il miglior prompt di contrasto `not_junk` prima che la foto venga segnalata |
+| `kinds` | screenshot/document/receipt/meme/slide | `{tipo: [sinonimi di prompt]}`; aggiungi, rimuovi o rinomina i tipi liberamente — la colonna e la coda del visualizzatore seguono la configurazione |
+| `not_junk_prompts` | 6 prompt fotografici | Insieme di contrasto che descrive fotografie autentiche; il filtro che tiene le foto genuine fuori dalla coda |
+
+## VLM Backend
+
+Sceglie dove viene eseguito il modello visione-linguaggio per didascalie/tag. `local` (predefinito) usa il percorso transformers Qwen in-process, incluso nei profili VRAM 16gb/24gb — nessun cambiamento per le installazioni esistenti. I due backend remoti puntano Facet verso un server esterno così che la generazione di didascalie e il tagging VLM funzionino sui **profili legacy/8gb che non includono alcun VLM locale**: quando è selezionato un backend remoto, le funzionalità VLM non dipendono più dal profilo VRAM.
+
+```json
+{
+  "vlm_backend": {
+    "type": "local",
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "model": "qwen2.5vl:7b",
+      "timeout_seconds": 120
+    },
+    "openai_compatible": {
+      "base_url": "http://localhost:1234/v1",
+      "api_key": "",
+      "model": "qwen2.5-vl-7b",
+      "timeout_seconds": 120
+    }
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|---------|---------|-------------|
+| `type` | `"local"` | Backend: `local` (transformers Qwen in-process), `ollama` (API REST nativa di Ollama), oppure `openai_compatible` (qualsiasi endpoint di chat completions compatibile OpenAI — LM Studio, vLLM, OpenRouter) |
+| `ollama.base_url` | `"http://localhost:11434"` | URL base del server Ollama; l'immagine viene inviata come base64 a `POST /api/generate` |
+| `ollama.model` | `"qwen2.5vl:7b"` | Tag del modello Ollama (deve essere un modello vision già scaricato sul server) |
+| `ollama.timeout_seconds` | `120` | Timeout per richiesta per le chiamate Ollama |
+| `openai_compatible.base_url` | `"http://localhost:1234/v1"` | URL base compatibile OpenAI **incluso il suffisso `/v1`**; le richieste vanno a `{base_url}/chat/completions` con l'immagine come URI di dati `image_url` |
+| `openai_compatible.api_key` | `""` | Token bearer inviato come `Authorization: Bearer <chiave>`; lascia vuoto per i server locali senza autenticazione |
+| `openai_compatible.model` | `"qwen2.5-vl-7b"` | Nome del modello passato all'endpoint |
+| `openai_compatible.timeout_seconds` | `120` | Timeout per richiesta per le chiamate compatibili OpenAI |
+
+Il backend condiviso guida la generazione delle didascalie (`--generate-captions` e l'endpoint su richiesta `/api/caption`), la critica VLM (`/api/critique?mode=vlm`), il ri-tagging VLM (`--recompute-tags-vlm`) e lo spareggio VLM dei momenti narrativi. Un fallimento di richiesta remota viene riportato come un fallimento per foto (registrato, tag vuoti / nessuna didascalia) e non fa mai fallire l'esecuzione. Il tagging durante la scansione usa ancora il tagger proprio del profilo; esegui `--recompute-tags-vlm` per applicare un backend remoto a una libreria esistente.
+
 ## AI Critique
 
 Configurazione del prompt per la critica basata su VLM (profili 16gb/24gb). La critica inserisce la scomposizione completa delle regole, le penalità e l'EXIF in un prompt a scala configurabile, presenta la risposta come Osservazione / Valutazione / Suggerimenti e la memorizza nella cache per foto in `photos.vlm_critique` (tradotta su richiesta in `vlm_critique_translated`). Viene eseguita sulla miniatura memorizzata, così i file RAW vengono criticati correttamente invece di fallire silenziosamente; `refresh` la rigenera.

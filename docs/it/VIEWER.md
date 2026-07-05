@@ -9,7 +9,7 @@ Applicazione a pagina singola FastAPI + Angular per sfogliare, filtrare e gestir
 - [Avvio della galleria](#avvio-della-galleria) · [Autenticazione](#autenticazione) · [Opzioni di filtraggio](#opzioni-di-filtraggio) · [Ordinamento](#ordinamento) · [Funzionalità della galleria](#funzionalità-della-galleria)
 - [Gestione delle persone](#gestione-delle-persone) · [Avvio scansione (Superadmin)](#avvio-scansione-superadmin) · [Ricerca semantica](#ricerca-semantica) · [Album](#album)
 - [Critica IA](#critica-ia) · [Didascalie IA](#didascalie-ia-gpu-16gb24gb-edition) · [Ricordi ("In questo giorno")](#ricordi-in-questo-giorno) · [Vista cronologia](#vista-cronologia) · [Vista mappa](#vista-mappa) · [Capsule](#capsule)
-- [Vista cartelle](#vista-cartelle) · [Finestra filtro GPS](#finestra-filtro-gps) · [Suggerimenti di unione](#suggerimenti-di-unione) · [Esportazione per editor](#esportazione-per-editor) · [Selezione](#selezione) · [Modalità di confronto a coppie](#modalità-di-confronto-a-coppie)
+- [Vista cartelle](#vista-cartelle) · [Finestra filtro GPS](#finestra-filtro-gps) · [Suggerimenti di unione](#suggerimenti-di-unione) · [Esportazione per editor](#esportazione-per-editor) · [Selezione](#selezione) · [Pulizia degli scarti](#pulizia-degli-scarti) · [Modalità di confronto a coppie](#modalità-di-confronto-a-coppie)
 - [Statistiche EXIF](#statistiche-exif) · [Scorciatoie da tastiera](#scorciatoie-da-tastiera-galleria) · [Annulla](#annulla) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
 - [Configurazione](#configurazione) · [Prestazioni](#prestazioni) · [Endpoint API](#endpoint-api) · [Risoluzione dei problemi](#risoluzione-dei-problemi)
 
@@ -548,6 +548,22 @@ API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 Controllato da `viewer.features.show_scenes` (predefinito: `true`). Vedi [Configurazione — Scene](CONFIGURATION.md#scenes) per `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` e `adaptive_k`.
 
+## Pulizia degli scarti
+
+Una coda di revisione rapida per gli scarti non fotografici che si accumulano in una libreria amatoriale — screenshot, documenti scansionati, ricevute, meme e diapositive di presentazione. Il rilevamento è zero-shot sugli embedding immagine memorizzati (vedi [Configurazione — Junk Sweep](CONFIGURATION.md#junk-sweep)); esegui `python facet.py --detect-junk` (o lascia che venga eseguito automaticamente alla fine di ogni scansione) per popolare `junk_kind`.
+
+Aprila dal pulsante di navigazione **Pulizia** (la rotta `/junk`, riservata alla modifica). La pagina riutilizza la griglia della galleria e mostra ogni candidato segnalato:
+
+- **Chip di filtro per tipo** — "Tutti i tipi" più un chip per ogni tipo rilevato con il suo conteggio (da `GET /api/filter_options/junk_kinds`). Clicca per restringere la coda a un solo tipo.
+- **Conserva** (per foto) — cancella l'etichetta di scarto così la foto lascia la coda **permanentemente**: viene marcata come valutata-pulita (`not_junk`) e non viene mai più segnalata da un successivo `--detect-junk`.
+- **Rifiuta** (per foto) — segna la foto come rifiutata usando lo stesso meccanismo di rifiuto usato ovunque altrove (nulla viene eliminato dal disco).
+- **Rifiuta tutto** — un rifiuto in blocco di tutti i candidati attualmente caricati, dietro una finestra di conferma.
+- **Lente** — premi **`Z`** (o l'interruttore nella barra degli strumenti) per una lente d'ingrandimento al passaggio del mouse in stile Photo Mechanic, per leggere il testo fine prima di decidere.
+
+Le foto scarto **non** vengono nascoste dalla galleria normale — restano visibili finché non le filtri. Filtra qualsiasi vista della galleria con `?junk_kind=<tipo>` (esatto) o `?junk_kind=any` (qualsiasi scarto, esclude la sentinella `not_junk`).
+
+Controllato da `viewer.features.show_junk_sweep` (predefinito: `true`).
+
 ## Modalità di confronto a coppie
 
 Classifica le foto giudicandole due alla volta. I voti accumulati alimentano la regolazione dei pesi. Accessibile tramite la rotta `/compare` (pulsante Confronta nell'intestazione). Richiede una `edition_password` non vuota (utente singolo) o il ruolo `admin`/`superadmin` (multiutente).
@@ -1000,6 +1016,8 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | `POST /api/culling/auto` | `[Edition]` Selezione automatica con un solo pulsante per un intero ambito. Corpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (predefinito `true`) restituisce l'anteprima di conservazione/scarto per gruppo, l'applicazione scarta il resto e registra le coppie di selezione |
 | `POST /api/culling-group/faces` | Badge per volto (occhi aperti/chiusi, espressione, confidenza) per un gruppo, in un'unica chiamata batch |
 | `GET /api/scenes` | Scene cronologiche delle foto guida delle raffiche (consultazione in sola lettura) |
+| `GET /api/filter_options/junk_kinds` | Tipi di scarto rilevati con conteggio (esclude la sentinella `not_junk`) per i chip di Pulizia degli scarti |
+| `POST /api/photo/clear_junk` | `[Edition]` Conserva un candidato scarto — riporta il suo `junk_kind` a `not_junk` così lascia la coda permanentemente. Corpo `{photo_path}` |
 
 ### Scansione
 
