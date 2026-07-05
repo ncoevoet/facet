@@ -14,6 +14,37 @@ from io import BytesIO
 
 logger = logging.getLogger("facet.db_maintenance")
 
+_PATH_PRESENT = 'present'
+_PATH_DELETED = 'deleted'
+_PATH_INACCESSIBLE = 'inaccessible'
+
+
+def _classify_missing_path(path):
+    """Classify a stored photo path as present, genuinely deleted, or merely
+    inaccessible (permission denied or an unmounted/absent parent).
+
+    A path is deletable only when its own entry is absent (``ENOENT``) and its
+    parent directory exists and is readable+searchable. A ``chmod 000`` parent,
+    an unreadable share, or a whole missing subtree (unmounted root) surfaces as
+    ``ENOENT``/``EACCES`` and is classified inaccessible so it is preserved
+    rather than cascade-deleted.
+    """
+    try:
+        os.lstat(path)
+        return _PATH_PRESENT
+    except FileNotFoundError:
+        pass
+    except OSError:
+        return _PATH_INACCESSIBLE
+    parent = os.path.dirname(path) or os.sep
+    try:
+        os.lstat(parent)
+    except OSError:
+        return _PATH_INACCESSIBLE
+    if not os.access(parent, os.R_OK | os.X_OK):
+        return _PATH_INACCESSIBLE
+    return _PATH_DELETED
+
 
 def vacuum_database(db_path='photo_scores_pro.db', verbose=True):
     """Run VACUUM to reclaim space and defragment the database.
@@ -215,28 +246,54 @@ def cleanup_missing_photos(db_path='photo_scores_pro.db', dry_run=False, force=F
     if verbose:
         logger.info("Found %d photos in the database. Checking filesystem...", len(all_paths))
 
-    deleted_paths = [path for path in all_paths if not os.path.exists(path)]
+    deleted_paths = []
+    inaccessible_paths = []
+    for path in all_paths:
+        status = _classify_missing_path(path)
+        if status == _PATH_DELETED:
+            deleted_paths.append(path)
+        elif status == _PATH_INACCESSIBLE:
+            inaccessible_paths.append(path)
 
-    if not deleted_paths:
+    if inaccessible_paths and verbose:
+        if force:
+            logger.warning(
+                "%d photo(s) are on an unreadable or unmounted path — removing them "
+                "anyway (--force):", len(inaccessible_paths))
+        else:
+            logger.warning(
+                "%d photo(s) are on an unreadable or unmounted path — preserving them "
+                "(re-run with --force to remove anyway):", len(inaccessible_paths))
+        for p in inaccessible_paths[:10]:
+            logger.warning("    %s", p)
+        if len(inaccessible_paths) > 10:
+            logger.warning("    ... and %d more.", len(inaccessible_paths) - 10)
+
+    targets = deleted_paths + inaccessible_paths if force else deleted_paths
+
+    if not targets:
         if verbose:
-            logger.info("No missing files found. The database is up to date.")
+            if inaccessible_paths:
+                logger.info("No deletable missing files — only inaccessible paths, which were preserved.")
+            else:
+                logger.info("No missing files found. The database is up to date.")
         conn.close()
         return 0
 
     if verbose:
-        logger.info("Found %d photos in the database that are missing on disk.", len(deleted_paths))
+        logger.info("Found %d photos in the database that are missing on disk.", len(targets))
 
     if dry_run:
         if verbose:
             logger.info("DRY RUN: The following files would be removed:")
-            for p in deleted_paths[:10]:
+            for p in targets[:10]:
                 logger.info("  - %s", p)
-            if len(deleted_paths) > 10:
-                logger.info("  ... and %d more.", len(deleted_paths) - 10)
+            if len(targets) > 10:
+                logger.info("  ... and %d more.", len(targets) - 10)
         conn.close()
-        return len(deleted_paths)
+        return len(targets)
 
-    if len(deleted_paths) == len(all_paths) and not force:
+    if len(targets) == len(all_paths) and not force:
         conn.close()
         raise RuntimeError(
             f"All {len(all_paths)} photos appear missing on disk — refusing to wipe the "
@@ -248,8 +305,8 @@ def cleanup_missing_photos(db_path='photo_scores_pro.db', dry_run=False, force=F
         logger.info("Removing missing files from the database (cascading deletes will clean up faces, tags, etc.)...")
 
     batch_size = 500
-    for i in range(0, len(deleted_paths), batch_size):
-        params = [(p,) for p in deleted_paths[i:i + batch_size]]
+    for i in range(0, len(targets), batch_size):
+        params = [(p,) for p in targets[i:i + batch_size]]
         cursor.executemany("DELETE FROM photos WHERE path = ?", params)
         # album_photos.photo_path has no ON DELETE CASCADE — drop memberships explicitly.
         cursor.executemany("DELETE FROM album_photos WHERE photo_path = ?", params)
@@ -280,8 +337,8 @@ def cleanup_missing_photos(db_path='photo_scores_pro.db', dry_run=False, force=F
     load_sqlite_vec(conn)
     if HAS_SQLITE_VEC and _vec_table_exists(conn):
         try:
-            for i in range(0, len(deleted_paths), batch_size):
-                chunk = deleted_paths[i:i + batch_size]
+            for i in range(0, len(targets), batch_size):
+                chunk = targets[i:i + batch_size]
                 placeholders = ','.join('?' * len(chunk))
                 cursor.execute(f"DELETE FROM photos_vec WHERE path IN ({placeholders})", chunk)
             conn.commit()
@@ -289,7 +346,7 @@ def cleanup_missing_photos(db_path='photo_scores_pro.db', dry_run=False, force=F
             logger.warning("Could not clean photos_vec entries (rebuild with --populate-vec): %s", ex)
 
     if verbose:
-        logger.info("Successfully removed %d missing files from the database.", len(deleted_paths))
+        logger.info("Successfully removed %d missing files from the database.", len(targets))
         if emptied_persons:
             logger.info(
                 "%d person(s) now have no faces — run --cleanup-orphaned-persons to remove them.",
@@ -297,7 +354,7 @@ def cleanup_missing_photos(db_path='photo_scores_pro.db', dry_run=False, force=F
             )
 
     conn.close()
-    return len(deleted_paths)
+    return len(targets)
 
 def cleanup_orphaned_persons(db_path='photo_scores_pro.db', verbose=True):
     """Delete persons with no assigned faces.
@@ -391,15 +448,28 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
     # the current destination value so a re-export never overwrites that
     # GPU-expensive cache with a NULL from source.
     _CACHE_COLS = {'vlm_critique', 'vlm_critique_translated', 'caption', 'caption_translated'}
+    _RATING_COLS = {'star_rating', 'is_favorite', 'is_rejected'}
     update_cols = [c for c in src_photo_cols if c not in _STRIP_COLS and c in dest_photo_col_set]
 
+    def _photo_set_expr(col):
+        """SET expression that propagates source metadata while preserving
+        viewer-side edits. Cache columns keep the destination value when source
+        is NULL. A rating column keeps a *set* viewer value (non-NULL and
+        non-zero: star > 0, favorite/rejected = 1), else takes the source value —
+        so the first export carries the scan rating, later viewer ratings survive
+        a re-export, and scan ratings still reach a never-rated photo. A rating
+        cleared to 0 on the viewer is indistinguishable from unrated and cannot
+        be preserved against a non-zero source."""
+        src_val = f"(SELECT {col} FROM src.photos WHERE src.photos.path = main.photos.path)"
+        if col in _CACHE_COLS:
+            return f"{col} = COALESCE({src_val}, {col})"
+        if col in _RATING_COLS:
+            return (f"{col} = CASE WHEN main.photos.{col} IS NOT NULL AND main.photos.{col} != 0 "
+                    f"THEN main.photos.{col} ELSE {src_val} END")
+        return f"{col} = {src_val}"
+
     if update_cols:
-        set_clause = ', '.join(
-            f"{c} = COALESCE((SELECT {c} FROM src.photos WHERE src.photos.path = main.photos.path), {c})"
-            if c in _CACHE_COLS else
-            f"{c} = (SELECT {c} FROM src.photos WHERE src.photos.path = main.photos.path)"
-            for c in update_cols
-        )
+        set_clause = ', '.join(_photo_set_expr(c) for c in update_cols)
         dest_conn.execute(f"UPDATE main.photos SET {set_clause}")
         dest_conn.commit()
         if verbose:
@@ -476,60 +546,65 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         # Exclude 'id' so AUTOINCREMENT generates new IDs for inserted faces
         face_insert_cols = [c for c in src_face_cols if c != 'id' and c in dest_face_col_set]
 
-        if new_paths and face_insert_cols:
-            face_select_exprs = ', '.join(
-                'zeroblob(0)' if c == 'embedding'
-                else 'NULL' if c == 'landmark_2d_106'
-                else c
-                for c in face_insert_cols
-            )
-            face_col_list = ', '.join(face_insert_cols)
+        if face_insert_cols:
+            face_resync_paths = [r[0] for r in dest_conn.execute(
+                "SELECT p.path FROM main.photos p WHERE "
+                "(SELECT COUNT(*) FROM src.faces sf WHERE sf.photo_path = p.path) != "
+                "(SELECT COUNT(*) FROM main.faces df WHERE df.photo_path = p.path)"
+            ).fetchall()]
 
-            for i in range(0, len(new_paths), batch_size):
-                batch = new_paths[i:i + batch_size]
-                placeholders = ','.join('?' * len(batch))
-                dest_conn.execute(
-                    f"INSERT OR IGNORE INTO main.faces ({face_col_list}) "
-                    f"SELECT {face_select_exprs} FROM src.faces WHERE photo_path IN ({placeholders})",
-                    batch
+            if face_resync_paths:
+                face_select_exprs = ', '.join(
+                    'zeroblob(0)' if c == 'embedding'
+                    else 'NULL' if c == 'landmark_2d_106'
+                    else c
+                    for c in face_insert_cols
                 )
-            dest_conn.commit()
+                face_col_list = ', '.join(face_insert_cols)
 
-            # Downsize face thumbnails for new photo faces
-            face_resized = 0
-            for i in range(0, len(new_paths), batch_size):
-                batch = new_paths[i:i + batch_size]
-                placeholders = ','.join('?' * len(batch))
-                rows = dest_conn.execute(
-                    f"SELECT id, face_thumbnail FROM main.faces "
-                    f"WHERE photo_path IN ({placeholders}) AND face_thumbnail IS NOT NULL",
-                    batch
-                ).fetchall()
-                updates = []
-                for face_id, thumb_bytes in rows:
-                    try:
-                        img = Image.open(BytesIO(thumb_bytes))
-                        if max(img.size) > thumbnail_size:
-                            img.thumbnail((thumbnail_size, thumbnail_size), Image.LANCZOS)
-                            buf = BytesIO()
-                            img.save(buf, format='JPEG', quality=80)
-                            updates.append((buf.getvalue(), face_id))
-                            face_resized += 1
-                    except Exception:
-                        pass
-                if updates:
-                    dest_conn.executemany(
-                        "UPDATE main.faces SET face_thumbnail = ? WHERE id = ?", updates
+                for i in range(0, len(face_resync_paths), batch_size):
+                    batch = face_resync_paths[i:i + batch_size]
+                    placeholders = ','.join('?' * len(batch))
+                    dest_conn.execute(
+                        f"DELETE FROM main.faces WHERE photo_path IN ({placeholders})", batch
                     )
-                    dest_conn.commit()
+                    dest_conn.execute(
+                        f"INSERT OR IGNORE INTO main.faces ({face_col_list}) "
+                        f"SELECT {face_select_exprs} FROM src.faces WHERE photo_path IN ({placeholders})",
+                        batch
+                    )
+                dest_conn.commit()
 
-            if verbose:
-                new_face_count = dest_conn.execute(
-                    "SELECT COUNT(*) FROM main.faces WHERE photo_path IN "
-                    f"(SELECT path FROM main.photos WHERE path IN ({','.join('?' * len(new_paths))}))",
-                    new_paths
-                ).fetchone()[0]
-                logger.info("  Inserted %d new faces, downsized %d face thumbnails", new_face_count, face_resized)
+                face_resized = 0
+                for i in range(0, len(face_resync_paths), batch_size):
+                    batch = face_resync_paths[i:i + batch_size]
+                    placeholders = ','.join('?' * len(batch))
+                    rows = dest_conn.execute(
+                        f"SELECT id, face_thumbnail FROM main.faces "
+                        f"WHERE photo_path IN ({placeholders}) AND face_thumbnail IS NOT NULL",
+                        batch
+                    ).fetchall()
+                    updates = []
+                    for face_id, thumb_bytes in rows:
+                        try:
+                            img = Image.open(BytesIO(thumb_bytes))
+                            if max(img.size) > thumbnail_size:
+                                img.thumbnail((thumbnail_size, thumbnail_size), Image.LANCZOS)
+                                buf = BytesIO()
+                                img.save(buf, format='JPEG', quality=80)
+                                updates.append((buf.getvalue(), face_id))
+                                face_resized += 1
+                        except Exception:
+                            pass
+                    if updates:
+                        dest_conn.executemany(
+                            "UPDATE main.faces SET face_thumbnail = ? WHERE id = ?", updates
+                        )
+                        dest_conn.commit()
+
+                if verbose:
+                    logger.info("  Resynced faces for %d photos, downsized %d face thumbnails",
+                                len(face_resync_paths), face_resized)
 
         # Refresh mutable per-face signals for existing faces (re-clustering,
         # recomputed blink/smile) without a full face re-insert. eyes_open_score

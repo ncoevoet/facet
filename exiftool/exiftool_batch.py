@@ -10,9 +10,12 @@ import json
 import logging
 import math
 import subprocess
+import threading
 from pathlib import Path
 
 logger = logging.getLogger("facet.exiftool")
+
+STAY_OPEN_TIMEOUT_SECONDS = 30
 
 
 class ExifToolBatch:
@@ -25,6 +28,7 @@ class ExifToolBatch:
 
     def __init__(self):
         self.process = None
+        self._lock = threading.Lock()
         self._start_process()
         atexit.register(self.close)
 
@@ -55,9 +59,31 @@ class ExifToolBatch:
                 self.process.kill()
             self.process = None
 
+    def _kill_process(self):
+        """Kill the current persistent process (used as the read watchdog)."""
+        proc = self.process
+        if proc is not None:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+
+    def _restart(self):
+        """Kill and re-spawn the persistent process after a failed round-trip."""
+        self._kill_process()
+        self.process = None
+        self._start_process()
+
     def get_metadata(self, image_path):
         """
         Get EXIF metadata for a single image.
+
+        Serializes the stdin write and stdout read of the shared persistent
+        process behind a lock so concurrent loader threads can never consume
+        each other's response (cross-photo EXIF corruption). A watchdog timer
+        kills a dead or stalled process so the response loop can never hang;
+        on any failure an empty dict is returned so the caller falls back to a
+        fresh subprocess.
 
         Args:
             image_path: Path to the image file
@@ -68,29 +94,41 @@ class ExifToolBatch:
         if self.process is None:
             return {}
 
-        try:
-            # Send command to ExifTool
-            self.process.stdin.write(f'-j\n-n\n{image_path}\n-execute\n')
-            self.process.stdin.flush()
+        with self._lock:
+            timer = threading.Timer(STAY_OPEN_TIMEOUT_SECONDS, self._kill_process)
+            try:
+                self.process.stdin.write(f'-j\n-n\n{image_path}\n-execute\n')
+                self.process.stdin.flush()
+                timer.start()
 
-            # Read output until we see the {ready} marker
-            output_lines = []
-            while True:
-                line = self.process.stdout.readline()
-                if line.strip() == '{ready}':
-                    break
-                output_lines.append(line)
+                output_lines = []
+                while True:
+                    line = self.process.stdout.readline()
+                    if line == '':
+                        timer.cancel()
+                        self._restart()
+                        return {}
+                    if line.strip() == '{ready}':
+                        break
+                    output_lines.append(line)
 
-            # Parse JSON output
-            if output_lines:
-                output = ''.join(output_lines)
-                data = json.loads(output)
-                if data:
-                    return data[0]
-        except Exception:
-            pass
-
-        return {}
+                timer.cancel()
+                if output_lines:
+                    data = json.loads(''.join(output_lines))
+                    if data:
+                        return data[0]
+                return {}
+            except json.JSONDecodeError:
+                # More specific than the ValueError branch below (JSONDecodeError
+                # subclasses ValueError) — must be listed first or it is
+                # unreachable. The process answered, just with unparsable
+                # output, so there is no need to restart it.
+                timer.cancel()
+                return {}
+            except (BrokenPipeError, OSError, ValueError):
+                timer.cancel()
+                self._restart()
+                return {}
 
     def get_metadata_batch(self, image_paths, chunk_size=50, timeout_per_chunk=30):
         """
