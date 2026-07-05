@@ -9,7 +9,7 @@ FastAPI + Angular single-page application for browsing, filtering, and managing 
 - [Starting the Viewer](#starting-the-viewer) · [Authentication](#authentication) · [Filtering Options](#filtering-options) · [Sorting](#sorting) · [Gallery Features](#gallery-features)
 - [Person Management](#person-management) · [Scan Trigger (Superadmin)](#scan-trigger-superadmin) · [Semantic Search](#semantic-search) · [Albums](#albums)
 - [AI Critique](#ai-critique) · [AI Captioning](#ai-captioning-gpu-16gb24gb-edition) · [Memories ("On This Day")](#memories-on-this-day) · [Timeline View](#timeline-view) · [Map View](#map-view) · [Capsules](#capsules)
-- [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [Editor Export](#editor-export) · [Culling](#culling) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
+- [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [Editor Export](#editor-export) · [Culling](#culling) · [Junk Sweep](#junk-sweep) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
 - [EXIF Statistics](#exif-statistics) · [Keyboard Shortcuts](#keyboard-shortcuts-gallery) · [Undo](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
 - [Configuration](#configuration) · [Performance](#performance) · [API Endpoints](#api-endpoints) · [Troubleshooting](#troubleshooting)
 
@@ -551,6 +551,22 @@ API: see the [API Endpoints](#api-endpoints) section below.
 
 Controlled by `viewer.features.show_scenes` (default: `true`). See [Configuration — Scenes](CONFIGURATION.md#scenes) for `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive`, and `adaptive_k`.
 
+## Junk Sweep
+
+A fast review queue for the non-photo "junk" that piles up in a hobbyist library — screenshots, scanned documents, receipts, memes, and presentation slides. Detection is zero-shot over the stored image embeddings (see [Configuration — Junk Sweep](CONFIGURATION.md#junk-sweep)); run `python facet.py --detect-junk` (or let it auto-run at the end of each scan) to populate `junk_kind`.
+
+Open it from the **Junk Sweep** nav button (the `/junk` route, edition-only). The page reuses the gallery grid and shows every flagged candidate:
+
+- **Kind filter chips** — "All kinds" plus one chip per detected kind with its count (from `GET /api/filter_options/junk_kinds`). Click to narrow the queue to one kind.
+- **Keep** (per photo) — clears the junk label so the photo leaves the queue **permanently**: it is marked evaluated-clean (`not_junk`) and is never re-flagged by a later `--detect-junk`.
+- **Reject** (per photo) — flags the photo as rejected using the same reject plumbing as everywhere else (nothing is deleted from disk).
+- **Reject all shown** — a bulk reject of every candidate currently loaded, behind a confirmation dialog.
+- **Loupe** — press **`Z`** (or the toolbar toggle) for a Photo-Mechanic-style hover magnifier to read fine text before deciding.
+
+Junk photos are **not** hidden from the normal gallery — they stay visible until you filter for them. Filter any gallery view with `?junk_kind=<kind>` (exact) or `?junk_kind=any` (any junk, excludes the `not_junk` sentinel).
+
+Controlled by `viewer.features.show_junk_sweep` (default: `true`).
+
 ## Pairwise Comparison Mode
 
 Rank photos by judging them two at a time. The accumulated votes feed weight tuning. Access via the `/compare` route (Compare button in the header). Requires a non-empty `edition_password` (single-user) or `admin`/`superadmin` role (multi-user).
@@ -1004,6 +1020,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `POST /api/culling/auto` | `[Edition]` One-button auto-cull for a whole scope. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (default `true`) returns the per-group keep/reject preview, an apply rejects the rest and records culling pairs |
 | `POST /api/culling-group/faces` | Per-face badges (eyes open/closed, expression, confidence) for a group, in one batch |
 | `GET /api/scenes` | Chronological scenes of burst-lead photos (read-only browse) |
+| `GET /api/filter_options/junk_kinds` | Detected junk kinds with counts (excludes the `not_junk` sentinel) for the Junk Sweep chips |
+| `POST /api/photo/clear_junk` | `[Edition]` Keep a junk candidate — clears its `junk_kind` to `not_junk` so it leaves the queue permanently. Body `{photo_path}` |
 
 ### Scan
 

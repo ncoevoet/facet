@@ -439,6 +439,91 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
     return {'labeled': len(updates), 'spread': spread}
 
 
+def run_junk_detection(db_path, config, model_manager=None, only_missing=True,
+                       dry_run=False, verbose_count=0, limit=None):
+    """Flag non-photo junk via zero-shot CLIP over the stored image embeddings.
+
+    Scores each photo's stored image embedding against per-kind prompts
+    (screenshot/document/receipt/meme/slide) gated by a ``not_junk`` contrast
+    set (see ``models/junk_classifier.py``). Clean photos are persisted as the
+    ``not_junk`` sentinel (like moments' ``other``) so ``--detect-junk`` scopes
+    to genuinely unevaluated rows (``junk_kind IS NULL``) and never re-loads the
+    whole clean library. Free after the first pass — no image decode, no
+    per-image model. Reuses ``model_manager`` (and its RAM-cached CLIP) when
+    given; otherwise loads its own. Returns a summary dict.
+    """
+    from collections import Counter
+    from models.model_manager import ModelManager
+    from models.junk_classifier import JunkClassifier, NOT_JUNK
+
+    if not config.get_junk_sweep_config().get('enabled', False):
+        return {'skipped': 'disabled'}
+
+    owns_manager = model_manager is None
+    if owns_manager:
+        config.check_vram_profile_compatibility(verbose=True)
+        model_manager = ModelManager(config)
+    clip = model_manager.load_model_only('clip')
+    if not clip:
+        if owns_manager:
+            model_manager.unload_all()
+        return {'skipped': 'no_model'}
+
+    classifier = JunkClassifier(
+        clip_model=clip['model'], device=model_manager.device, config=config,
+        model_name=clip['model_name'], backend=clip['backend'],
+        embedding_dim=clip['embedding_dim'],
+    )
+
+    where = "clip_embedding IS NOT NULL"
+    if only_missing:
+        where += " AND junk_kind IS NULL"
+    limit_sql = f" LIMIT {int(limit)}" if limit else ""
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT path, clip_embedding FROM photos WHERE {where}{limit_sql}"
+        ).fetchall()
+
+    if not rows:
+        if owns_manager:
+            model_manager.unload_all()
+        return {'labeled': 0, 'junk_count': 0, 'spread': {}}
+
+    spread = Counter()
+    updates = []
+    verbose_left = verbose_count
+    for row in tqdm(rows, desc="Junk (score)"):
+        kind, _conf = classifier.classify(row['clip_embedding'])
+        if kind is None:
+            continue
+        spread[kind] += 1
+        updates.append((kind, row['path']))
+        if verbose_left > 0:
+            scores = classifier.scores(row['clip_embedding'])
+            if scores:
+                top3 = sorted(scores.items(), key=lambda kv: -kv[1])[:3]
+                logger.info("  %s -> %s (%s)", row['path'], kind,
+                            ", ".join(f"{k}={v:.3f}" for k, v in top3))
+                verbose_left -= 1
+
+    if updates and not dry_run:
+        with get_connection(db_path) as conn:
+            _commit_in_chunks(
+                conn, "UPDATE photos SET junk_kind = ? WHERE path = ?", updates)
+
+    if owns_manager:
+        model_manager.unload_all()
+
+    junk_count = sum(n for k, n in spread.items() if k != NOT_JUNK)
+    labeled = sum(spread.values())
+    return {
+        'labeled': 0 if dry_run else labeled,
+        'would_label': labeled if dry_run else 0,
+        'junk_count': junk_count,
+        'spread': dict(spread.most_common()),
+    }
+
+
 def main():
     import argparse
 
@@ -567,6 +652,10 @@ Configuration:
                         help='Label each photo with its narrative moment (zero-shot CLIP + temporal smoothing); skips already-labeled photos')
     db_group.add_argument('--recompute-moments', action='store_true',
                         help='Re-label narrative moments for the whole library (re-smooths the full timeline)')
+    db_group.add_argument('--detect-junk', action='store_true',
+                        help='Flag non-photo junk (screenshots, documents, receipts, memes, slides) via zero-shot CLIP over stored embeddings; skips already-evaluated photos')
+    db_group.add_argument('--recompute-junk', action='store_true',
+                        help='Re-evaluate junk_kind for the whole library')
     db_group.add_argument('--limit', type=int, default=None, metavar='N',
                         help='Cap --detect-moments / --recompute-moments to the first N photos (verification / incremental)')
     db_group.add_argument('--discover-moments', action='store_true',
@@ -1917,6 +2006,33 @@ Configuration:
             logger.info("Labeled %d photos with narrative moments", result.get('labeled', 0))
         exit()
 
+    if args.detect_junk or args.recompute_junk:
+        init_database(args.db)  # ensure junk_kind column exists
+        config = ScoringConfig(args.config)
+        if not config.get_junk_sweep_config().get('enabled', False):
+            logger.error("junk_sweep is disabled in scoring_config.json; nothing to do.")
+            exit(0)
+        logger.info("Detecting junk photos (screenshots, documents, receipts, memes, slides)")
+        result = run_junk_detection(
+            args.db, config,
+            only_missing=args.detect_junk and not args.recompute_junk,
+            dry_run=args.dry_run,
+            verbose_count=args.dry_run_count if args.verbose else 0,
+            limit=args.limit,
+        )
+        if result.get('skipped'):
+            logger.error("Junk detection skipped: %s", result['skipped'])
+            exit(1)
+        spread = ", ".join(f"{k}={n}" for k, n in result.get('spread', {}).items())
+        logger.info("Junk spread: %s", spread or "(none)")
+        if args.dry_run:
+            logger.info("Dry-run: %d photos would be evaluated (%d junk); no writes.",
+                        result.get('would_label', 0), result.get('junk_count', 0))
+        else:
+            logger.info("Evaluated %d photos, flagged %d as junk",
+                        result.get('labeled', 0), result.get('junk_count', 0))
+        exit()
+
     if args.discover_moments:
         init_database(args.db)  # ensure caption_embedding column exists (graceful skip if empty)
         from models.moment_discovery import run_discovery
@@ -2498,6 +2614,21 @@ Configuration:
                 logger.info("Labeled %d new photos with narrative moments.", result['labeled'])
         except Exception:
             logger.warning("Narrative-moment detection failed (non-fatal)", exc_info=True)
+
+    # 8. Junk sweep — cheap cosine over the same embeddings, so flag non-photo
+    # junk (screenshots/documents/receipts/memes/slides) on newly-scanned
+    # photos automatically. No-ops when junk_sweep is disabled.
+    if scorer.config.get_junk_sweep_config().get('enabled', False):
+        emit_progress('junk', force=True)
+        try:
+            result = run_junk_detection(
+                scorer.db_path, scorer.config,
+                model_manager=getattr(scorer, 'model_manager', None), only_missing=True,
+            )
+            if result.get('junk_count'):
+                logger.info("Flagged %d new photos as junk.", result['junk_count'])
+        except Exception:
+            logger.warning("Junk detection failed (non-fatal)", exc_info=True)
 
     _print_scan_summary(scorer.db_path, todo_list, raw_paired_skipped)
 

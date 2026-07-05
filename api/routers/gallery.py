@@ -26,7 +26,8 @@ from api.db_helpers import (
 )
 from api.top_picks import get_top_picks_score_sql, get_top_picks_threshold
 from api.types import (
-    VALID_SORT_COLS, TYPE_FILTERS, normalize_params, get_photo_types
+    VALID_SORT_COLS, TYPE_FILTERS, normalize_params, get_photo_types,
+    JUNK_ANY, JUNK_NOT_JUNK,
 )
 
 router = APIRouter(tags=["gallery"])
@@ -222,6 +223,14 @@ def _apply_text_filters(where_clauses, sql_params, params, conn):
     if params.get('narrative_moment'):
         where_clauses.append("narrative_moment = ?")
         sql_params.append(params['narrative_moment'])
+
+    if params.get('junk_kind'):
+        if params['junk_kind'] == JUNK_ANY:
+            where_clauses.append("junk_kind IS NOT NULL AND junk_kind != ?")
+            sql_params.append(JUNK_NOT_JUNK)
+        else:
+            where_clauses.append("junk_kind = ?")
+            sql_params.append(params['junk_kind'])
 
     if params.get('is_silhouette') == '1':
         where_clauses.append("is_silhouette = 1")
@@ -1211,6 +1220,7 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         features.setdefault('show_folders', True)
         features.setdefault('show_my_taste', True)
         features.setdefault('show_scenes', True)
+        features.setdefault('show_junk_sweep', True)
 
         # Check if albums table exists
         try:

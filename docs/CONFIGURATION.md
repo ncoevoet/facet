@@ -1694,6 +1694,42 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 
 **Discovering a library-specific vocabulary.** The `general` set is a sensible default, but you can propose a vocabulary fitted to *your* library with `python facet.py --discover-moments`: it clusters the stored `caption_embedding` vectors (HDBSCAN), names each cluster from its captions (a keyword plus the captions nearest the centroid as ready-made prompts), and writes the result as an `event_types.discovered` block to `scoring_config.discovered.json`. Review it, copy `discovered` into `event_types` above, set `default_event_type` to `discovered`, and run `--recompute-moments` to adopt — discovery proposes, it never rewrites the active config. `--discover-min-cluster-size N` controls granularity (smaller = more, finer moments).
 
+## Junk Sweep
+
+Zero-shot detector for non-photo "junk" — screenshots, scanned documents, receipts, memes, presentation slides — over the **stored image embedding** (no image decode, no per-image model pass; the same shape as narrative moments without the temporal smoothing). Each kind carries a list of text prompts; the photo's embedding is cosine-scored against every prompt and **max-pooled** per kind. A `not_junk` contrast prompt set gates the decision: a photo is only flagged when the best junk kind clears `min_confidence` AND beats the best `not_junk` prompt by `min_margin` — otherwise it is stored as the `not_junk` sentinel (evaluated clean). `NULL` means "not evaluated": `--detect-junk` labels only `NULL` rows (and auto-runs at scan end), while `--recompute-junk` re-evaluates the whole library. Populates `photos.junk_kind`; the viewer's **Junk Sweep** review queue ([VIEWER.md](VIEWER.md#junk-sweep)) reads it.
+
+```json
+{
+  "junk_sweep": {
+    "enabled": true,
+    "prompt_template": "{desc}",
+    "pooling": "max",
+    "thresholds": {
+      "open_clip": { "min_confidence": 0.18, "min_margin": 0.02 },
+      "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
+    },
+    "kinds": {
+      "screenshot": ["a screenshot of a phone user interface", "..."],
+      "document": ["a scanned document", "..."],
+      "receipt": ["a photo of a receipt", "..."],
+      "meme": ["a meme with overlaid text", "..."],
+      "slide": ["a presentation slide", "..."]
+    },
+    "not_junk_prompts": ["a natural photograph", "a candid photo of people", "..."]
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Run junk detection during `--detect-junk` / `--recompute-junk` and at scan end |
+| `prompt_template` | `"{desc}"` | Format string applied to every prompt (`{desc}` = the prompt); identity by default since the prompts are full sentences |
+| `pooling` | `"max"` | Pool the per-prompt cosines back to a kind by `max` (best single prompt, more discriminative) or `mean` |
+| `thresholds.<backend>.min_confidence` | open_clip `0.18`, transformers `0.1` | Minimum max-pooled cosine for the best junk kind to be considered (CLIP/`open_clip` cosines run lower than SigLIP/`transformers`, so each backend has its own gate) |
+| `thresholds.<backend>.min_margin` | `0.02` | How far the best junk kind must beat the best `not_junk` contrast prompt before the photo is flagged |
+| `kinds` | screenshot/document/receipt/meme/slide | `{kind: [prompt synonyms]}`; add, remove, or rename kinds freely — the column and viewer queue follow the config |
+| `not_junk_prompts` | 6 photograph prompts | Contrast set describing real photographs; the gate that keeps genuine photos out of the queue |
+
 ## AI Critique
 
 Prompt configuration for the VLM-powered critique (16gb/24gb profiles). The critique injects the full rule breakdown, penalties and EXIF into a configurable ladder prompt, renders the reply as Observation / Assessment / Suggestions, and caches it per photo in `photos.vlm_critique` (translated on demand into `vlm_critique_translated`). It runs against the stored thumbnail, so RAW files critique correctly instead of failing silently; `refresh` regenerates.

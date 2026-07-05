@@ -50,6 +50,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **Burst detection** — groups rapid-fire shots and auto-selects the best one based on sharpness, quality, and blink detection
 - **Similarity groups** — finds visually similar photos across the library, regardless of when they were taken
 - **Scenes** — groups a shoot into chronological "scenes" by capture-time gaps, so you cull in story order; tap to mark and confirm to reject
+- **Junk sweep** — zero-shot detection of non-photo clutter (screenshots, documents, receipts, memes, slides) with a fast review queue: keep or reject each candidate, or reject all at once
 - **Per-face culling badges** — the culling lightbox shows per-face eyes open/closed, expression, and detection-confidence badges, not just a single photo-level blink flag
 - **Blink detection** — flags closed-eye shots to hide or reject in one click
 - **Duplicate detection** — identifies near-identical images via perceptual hashing

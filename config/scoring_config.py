@@ -889,6 +889,32 @@ class ScoringConfig:
         """
         return float(self.get_narrative_moments_config().get('caption_min_confidence', 0.0))
 
+    def get_junk_sweep_config(self):
+        """Return the junk_sweep config block (empty/disabled if absent)."""
+        js = self.config.get('junk_sweep', {})
+        if not isinstance(js, dict):
+            return {'enabled': False}
+        return js
+
+    def get_junk_kinds(self):
+        """Return ``{kind: [prompt synonyms]}`` for zero-shot junk detection."""
+        kinds = self.get_junk_sweep_config().get('kinds', {})
+        return kinds if isinstance(kinds, dict) else {}
+
+    def get_junk_not_junk_prompts(self):
+        """Return the contrast ``not_junk`` prompts that gate real photographs."""
+        prompts = self.get_junk_sweep_config().get('not_junk_prompts', [])
+        return prompts if isinstance(prompts, list) else []
+
+    def get_junk_thresholds(self):
+        """Return per-backend junk-gate thresholds ``{backend: {min_confidence, min_margin}}``.
+
+        Backend is ``open_clip`` (CLIP, lower cosines) or ``transformers``
+        (SigLIP, higher cosines), so each carries its own confidence/margin.
+        """
+        thresholds = self.get_junk_sweep_config().get('thresholds', {})
+        return thresholds if isinstance(thresholds, dict) else {}
+
     def get_category_tags(self, category):
         """Get trigger tags for a category.
 

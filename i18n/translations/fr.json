@@ -1012,7 +1012,8 @@
     "timeline": "Chronologie",
     "folders": "Dossiers",
     "map": "Carte",
-    "capsules": "Capsules"
+    "capsules": "Capsules",
+    "junk_sweep": "Nettoyage"
   },
   "auth": {
     "logout": "Se deconnecter",
@@ -2166,5 +2167,31 @@
     "start": "Commencer",
     "skip": "Passer",
     "save_error": "Impossible d'enregistrer votre sélection."
+  },
+  "junk": {
+    "title": "Nettoyage des indésirables",
+    "subtitle": "Passez en revue les fichiers non photographiques détectés dans votre bibliothèque — captures d'écran, documents, reçus, mèmes et diapositives. Conservez ceux que vous voulez, rejetez les autres.",
+    "empty": "Aucun indésirable détecté. Lancez « python facet.py --detect-junk » pour analyser votre bibliothèque.",
+    "all_kinds": "Tous les types",
+    "keep": "Conserver",
+    "keep_hint": "Conserver cette photo (la retire de la file)",
+    "reject": "Rejeter",
+    "reject_hint": "Rejeter cette photo",
+    "reject_all": "Tout rejeter",
+    "confirm_reject_all_title": "Tout rejeter",
+    "confirm_reject_all_message": "Rejeter les {count} photos affichées ?",
+    "kept": "Photo conservée",
+    "rejected": "Photo rejetée",
+    "rejected_bulk": "{count} photos rejetées",
+    "load_more": "Charger plus",
+    "load_error": "Échec du chargement des indésirables",
+    "count": "{count} candidats",
+    "kinds": {
+      "screenshot": "Captures d'écran",
+      "document": "Documents",
+      "receipt": "Reçus",
+      "meme": "Mèmes",
+      "slide": "Diapositives"
+    }
   }
 }

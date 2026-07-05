@@ -44,6 +44,11 @@
             <a mat-icon-button class="lg:!hidden" routerLink="/culling" routerLinkActive #rlCullingM="routerLinkActive" [style.color]="rlCullingM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.culling | translate" [attr.aria-label]="I18N.nav.culling | translate">
               <mat-icon>burst_mode</mat-icon>
             </a>
+            @if (store.config()?.features?.show_junk_sweep) {
+              <a mat-icon-button class="lg:!hidden" routerLink="/junk" routerLinkActive #rlJunkM="routerLinkActive" [style.color]="rlJunkM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.junk_sweep | translate" [attr.aria-label]="I18N.nav.junk_sweep | translate">
+                <mat-icon>delete_sweep</mat-icon>
+              </a>
+            }
             <a mat-icon-button class="lg:!hidden" routerLink="/compare" routerLinkActive #rlCompareM="routerLinkActive" [style.color]="rlCompareM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.compare | translate" [attr.aria-label]="I18N.nav.compare | translate">
               <mat-icon>compare</mat-icon>
             </a>
@@ -88,6 +93,11 @@
             <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/culling" routerLinkActive #rlCulling="routerLinkActive" [style.color]="rlCulling.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.culling | translate" [attr.aria-label]="I18N.nav.culling | translate">
               <mat-icon>burst_mode</mat-icon>
             </a>
+            @if (store.config()?.features?.show_junk_sweep) {
+              <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/junk" routerLinkActive #rlJunk="routerLinkActive" [style.color]="rlJunk.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.junk_sweep | translate" [attr.aria-label]="I18N.nav.junk_sweep | translate">
+                <mat-icon>delete_sweep</mat-icon>
+              </a>
+            }
           }
           <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/stats" routerLinkActive #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.stats | translate" [attr.aria-label]="I18N.nav.stats | translate">
             <mat-icon>bar_chart</mat-icon>

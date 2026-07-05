@@ -99,6 +99,10 @@ python facet.py --immich-test            # Check Immich connectivity + API key
 # Narrative moments (zero-shot CLIP + temporal smoothing; cheap — cosine over stored embeddings)
 python facet.py --detect-moments        # Label new photos with their narrative moment (auto-runs at end of each scan)
 python facet.py --recompute-moments     # Re-label the whole library (re-smooths the full timeline)
+
+# Junk sweep (zero-shot non-photo detection: screenshots/documents/receipts/memes/slides; cosine over stored embeddings)
+python facet.py --detect-junk           # Flag junk in new/unevaluated photos (auto-runs at end of each scan)
+python facet.py --recompute-junk        # Re-evaluate junk_kind for the whole library
 python facet.py --discover-moments      # Propose a library-specific moment vocabulary (cluster caption embeddings → scoring_config.discovered.json for review)
 
 # List available models and VRAM requirements
@@ -352,7 +356,7 @@ SQLite table `photos` with columns:
 
 **User Actions:** star_rating, is_favorite, is_rejected
 
-**AI/Content:** caption (VLM-generated text description), caption_translated, caption_embedding (BLOB; text-tower embedding of the caption — the caption-semantic moment signal), narrative_moment (zero-shot scene/activity moment, e.g. `beach`/`celebration`/`other`), narrative_moment_confidence, vlm_critique, vlm_critique_translated (VLM critique cache)
+**AI/Content:** caption (VLM-generated text description), caption_translated, caption_embedding (BLOB; text-tower embedding of the caption — the caption-semantic moment signal), narrative_moment (zero-shot scene/activity moment, e.g. `beach`/`celebration`/`other`), narrative_moment_confidence, junk_kind (zero-shot non-photo junk: `screenshot`/`document`/`receipt`/`meme`/`slide`, `not_junk` = evaluated clean, NULL = not evaluated), vlm_critique, vlm_critique_translated (VLM critique cache)
 
 **Location:** gps_latitude, gps_longitude
 
@@ -458,6 +462,8 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Narrative Moments:** zero-shot layered classifier that labels each photo's scene/activity moment with a library-agnostic **general** vocabulary (e.g. `beach`, `celebration`, `cityscape`, `children`, `nature_wildlife`, `concert`, …, or `other`; `wedding` ships as an opt-in `event_type`) — something Narrative Select / AfterShoot don't do. **Caption-semantic**: each caption is encoded once with the text tower and stored in `caption_embedding`; the moment is the best **max-pooled** cosine of that caption embedding vs per-moment text prompts (`models/moment_classifier.py` L0), with the stored image embedding as the fallback when no caption (each signal has its own `other`-gate thresholds — caption cosines run ~2.4× higher). config-driven L1 face/tag priors (`priors.rules`, vocabulary-agnostic `{kind, when, boost}`; tag rules down-weighted on the caption signal via `caption_tag_scale`; per-`event_types` rule overrides) break near-ties; `models/moment_smoothing.py` L2 Viterbi (stay-heavy, no forward bias — the agnostic vocab has no canonical order) and a forward-backward posterior as the stored per-frame confidence (`narrative_moment_confidence`; neutral `0.5` for `other`); an optional, now-implemented L3 Qwen VLM tie-breaker (`vlm_tiebreak.enabled`, default off) re-classifies only low-posterior / low-margin frames on 16gb/24gb profiles during `--detect-moments` / `--recompute-moments`. Config: `narrative_moments` block (`enabled`, `default_event_type`, `pooling`, per-`event_types` prompt vocabulary, per-signal/per-backend `thresholds`, `priors`, `transitions`, `vlm_tiebreak` (`{enabled, min_confidence, min_margin}`), `caption_min_confidence`). Caption embeddings are stored once so re-labelling is a free cosine (no image decode, no per-image model pass); `--detect-moments` auto-runs at the end of every scan (encoding only new captions), the first full backfill over an existing library is a manual `--detect-moments` (GPU recommended; `--limit N` to sample), and `--recompute-moments` re-labels the whole library. Filter the gallery via `GET /api/photos?narrative_moment=` and the `GET /api/filter_options/narrative_moments` dropdown. Columns: `caption_embedding`, `narrative_moment`, `narrative_moment_confidence`. **Confidence consumers:** the stored `narrative_moment_confidence` posterior drives confidence dimming (labels render dimmed with an "(uncertain)" suffix below `viewer.moment_confidence_min`, default `0` = never dim — in the Scenes header, the Culling scene-group header, and the gallery tooltip, which also shows the confidence %), a "Moment Confidence" sort option (NULLs sink) and a `min_moment_confidence` / `max_moment_confidence` gallery range filter (a new sidebar "Moments" section), a caption gate (`narrative_moments.caption_min_confidence`, default `0` = no gate; when > 0, `--generate-captions` and the on-demand caption endpoint skip unlabelled / `other` / below-threshold photos), and is fed as an auto-normalized input feature to the personal ranker and optionally blended into capsule MMR selection via `capsules.mmr_moment_weight` (default `0.0` = unchanged). **Data-driven vocab (opt-in):** `--discover-moments` (`models/moment_discovery.py`) clusters the stored `caption_embedding` vectors (HDBSCAN), names each cluster from its captions (TF-IDF keyword + centroid-nearest captions as prompts), and writes a proposed `event_types.discovered` block to `scoring_config.discovered.json` for review — it never rewrites the active config (`--discover-min-cluster-size N` tunes granularity).
 
+**Junk Sweep:** zero-shot detector that flags non-photo "junk" (screenshots, scanned documents, receipts, memes, presentation slides) by cosine of the **stored image embedding** vs per-kind text prompts, **max-pooled** per kind (`models/junk_classifier.py`), gated by a `not_junk` contrast prompt set — a photo is only flagged when the best junk kind clears `min_confidence` AND beats the best contrast prompt by `min_margin`. No image decode, no per-image model pass (mirrors moments without the temporal smoothing). Clean photos are persisted as the `not_junk` sentinel (like moments' `other`) so `--detect-junk` scopes to genuinely unevaluated rows (`junk_kind IS NULL`) and never re-loads the whole clean library; `--detect-junk` auto-runs at the end of every scan, and `--recompute-junk` re-evaluates the whole library. Config: `junk_sweep` block (`enabled`, `prompt_template`, `pooling`, per-`kinds` prompt lists, `not_junk_prompts`, per-backend `thresholds` `{open_clip|transformers: {min_confidence, min_margin}}`). Column: `junk_kind`. The viewer's **Junk sweep** review queue (`/junk`, nav gated by `viewer.features.show_junk_sweep` + edition) reuses the gallery grid: filter chips per kind (from `GET /api/filter_options/junk_kinds`), per-photo **Keep** (`POST /api/photo/clear_junk` sets `junk_kind='not_junk'` so the photo leaves the queue permanently and is never re-flagged) / **Reject** (existing `POST /api/photos/batch_reject`), and a bulk **Reject all shown**. Filter the gallery via `GET /api/photos?junk_kind=<kind>` (exact) or `junk_kind=any` (any junk, excludes `not_junk`); the default gallery is unchanged (junk stays visible until the user filters). Gated by `viewer.features.show_junk_sweep` (default `true`).
+
 **Personal Ranker ("My Taste"):** `GET /api/ranker/status` returns the global pooled ranker's training status — `trained`, `comparison_count`, `coverage` (share of embedded photos with a `learned_score`), `cv_accuracy`, `baseline_accuracy`, `improvement_pp` — from the `stats_cache` snapshot written by `train_ranker`. Powers the "My Taste" sort confidence badge. Gated by `viewer.features.show_my_taste`.
 
 **Scan:** `POST /api/scan/start`, `GET /api/scan/status`, `GET /api/scan/stream?token=<jwt>` (SSE), `GET /api/scan/directories` — trigger and monitor scoring scans (superadmin only). The `/stream` endpoint uses Server-Sent Events for real-time progress with automatic fallback to polling. Status payloads include a structured `progress` field (`{phase, current, total, eta_seconds}`) parsed from the CLI's `@FACET_PROGRESS` lines.
@@ -550,6 +556,7 @@ For quick reference, here are the actual defaults from the config file:
 | `viewer.features` | `show_capsules` | `true` |
 | `viewer.features` | `show_my_taste` | `true` |
 | `viewer.features` | `show_scenes` | `true` |
+| `viewer.features` | `show_junk_sweep` | `true` |
 | `viewer.features` | `show_similar_button` | `true` |
 | `viewer.features` | `show_merge_suggestions` | `true` |
 | `viewer.features` | `show_rating_controls` | `true` |
@@ -579,6 +586,10 @@ For quick reference, here are the actual defaults from the config file:
 | `narrative_moments` | `vlm_tiebreak.enabled` | `false` |
 | `narrative_moments` | `vlm_tiebreak.min_confidence` | `0.0` |
 | `narrative_moments` | `caption_min_confidence` | `0` (0 = no caption gate) |
+| `junk_sweep` | `enabled` | `true` |
+| `junk_sweep` | `pooling` | `"max"` |
+| `junk_sweep` | `thresholds.open_clip` | `{min_confidence: 0.18, min_margin: 0.02}` |
+| `junk_sweep` | `thresholds.transformers` | `{min_confidence: 0.1, min_margin: 0.02}` |
 | `auto_cull` | `default_strictness` | `50` |
 | `auto_cull` | `highlights_min` | `8.0` |
 | `distortion_attributes` | `enabled` | `true` |

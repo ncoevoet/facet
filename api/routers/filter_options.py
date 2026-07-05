@@ -418,6 +418,31 @@ async def narrative_moments(user: Optional[CurrentUser] = Depends(get_optional_u
     return await _cached_filter_query('narrative_moments', 'narrative_moments', query)
 
 
+@router.get("/junk_kinds")
+async def junk_kinds(user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Lazy-load junk-kind options with counts (excludes the 'not_junk' sentinel)."""
+    from api.types import JUNK_NOT_JUNK
+    vis, vp = _vis_where(user)
+
+    async def query(conn):
+        try:
+            rows = await _fetch_all(
+                conn,
+                f"""
+                SELECT junk_kind, COUNT(*) as cnt FROM photos
+                WHERE junk_kind IS NOT NULL AND junk_kind != ?{vis}
+                GROUP BY junk_kind ORDER BY cnt DESC
+                """,
+                [JUNK_NOT_JUNK, *vp],
+            )
+            return [(r[0], r[1]) for r in rows]
+        except sqlite3.Error:
+            logger.exception("Failed to query junk_kinds")
+            return []
+
+    return await _cached_filter_query('junk_kinds', 'junk_kinds', query)
+
+
 @router.get("/location_name")
 def location_name(lat: float, lng: float):
     """Reverse geocode coordinates to a place name, using location_names cache.

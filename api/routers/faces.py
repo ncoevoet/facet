@@ -15,6 +15,7 @@ from api.auth import CurrentUser, require_edition, require_auth
 from api.config import is_multi_user_enabled, _stats_cache
 from api.database import get_async_db, get_db
 from api.db_helpers import update_person_face_count, trigger_auto_retrain
+from api.types import JUNK_NOT_JUNK
 
 logger = logging.getLogger(__name__)
 
@@ -428,6 +429,34 @@ def api_toggle_rejected(
             raise
         except sqlite3.Error:
             logger.exception("Database error toggling rejected for photo %s", body.photo_path)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
+
+
+@router.post("/api/photo/clear_junk")
+def api_clear_junk(
+    body: TogglePhotoRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Keep a junk-sweep candidate: mark it evaluated-clean so it leaves the queue.
+
+    Sets junk_kind to the 'not_junk' sentinel (not NULL) so --detect-junk does
+    not re-flag it on the next run. junk_kind is a global column (not per-user),
+    so this is edition-gated like the batch actions.
+    """
+    with get_db() as conn:
+        try:
+            row = conn.execute("SELECT 1 FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Photo not found")
+            conn.execute("UPDATE photos SET junk_kind = ? WHERE path = ?", (JUNK_NOT_JUNK, body.photo_path))
+            conn.commit()
+            _stats_cache.clear()
+            return {'success': True, 'junk_kind': None}
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error clearing junk for photo %s", body.photo_path)
             conn.rollback()
             raise HTTPException(status_code=500, detail='Internal server error')
 

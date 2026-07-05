@@ -145,6 +145,10 @@ PHOTOS_COLUMNS = [
     # Narrative moment (opt-in --detect-moments; NULL until that pass runs)
     ('narrative_moment', 'TEXT'),              # e.g. 'celebration', 'beach', 'other'
     ('narrative_moment_confidence', 'REAL'),   # confidence in the assigned label: forward-backward posterior (0-1) for a moment, neutral 0.5 for 'other'
+
+    # Junk sweep (opt-in --detect-junk; NULL = not evaluated, 'not_junk' = evaluated clean,
+    # else the junk kind: 'screenshot'|'document'|'receipt'|'meme'|'slide')
+    ('junk_kind', 'TEXT'),
     ('caption_embedding', 'BLOB'),             # text embedding of the caption (semantic moment signal)
     ('learned_score', 'REAL'),                 # denormalized global personal-ranker score (mirrors learned_scores user_id/category NULL) so the "My Taste" sort is an indexed column read
 
@@ -255,6 +259,7 @@ INDEXES = [
     ('idx_category', 'photos', 'category'),
     ('idx_category_aggregate', 'photos', 'category, aggregate DESC'),
     ('idx_narrative_moment', 'photos', 'narrative_moment'),
+    ('idx_junk_kind', 'photos', 'junk_kind'),
     # Additional composite indexes for viewer sorting performance
     ('idx_aesthetic_aggregate', 'photos', 'aesthetic DESC, aggregate DESC'),
     ('idx_face_quality_sort', 'photos', 'face_quality DESC, eye_sharpness DESC'),

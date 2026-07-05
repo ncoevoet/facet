@@ -1012,7 +1012,8 @@
     "timeline": "Cronologia",
     "folders": "Cartelle",
     "map": "Mappa",
-    "capsules": "Capsule"
+    "capsules": "Capsule",
+    "junk_sweep": "Pulizia"
   },
   "auth": {
     "logout": "Esci",
@@ -2166,5 +2167,31 @@
     "start": "Inizia",
     "skip": "Salta",
     "save_error": "Impossibile salvare la selezione."
+  },
+  "junk": {
+    "title": "Pulizia degli scarti",
+    "subtitle": "Esamina i file non fotografici rilevati nella tua libreria: screenshot, documenti, ricevute, meme e diapositive. Conserva quelli che vuoi, rifiuta gli altri.",
+    "empty": "Nessuno scarto rilevato. Esegui «python facet.py --detect-junk» per analizzare la libreria.",
+    "all_kinds": "Tutti i tipi",
+    "keep": "Conserva",
+    "keep_hint": "Conserva questa foto (la rimuove dalla coda)",
+    "reject": "Rifiuta",
+    "reject_hint": "Rifiuta questa foto",
+    "reject_all": "Rifiuta tutto",
+    "confirm_reject_all_title": "Rifiuta tutto",
+    "confirm_reject_all_message": "Rifiutare le {count} foto mostrate?",
+    "kept": "Foto conservata",
+    "rejected": "Foto rifiutata",
+    "rejected_bulk": "{count} foto rifiutate",
+    "load_more": "Carica altro",
+    "load_error": "Impossibile caricare i candidati",
+    "count": "{count} candidati",
+    "kinds": {
+      "screenshot": "Screenshot",
+      "document": "Documenti",
+      "receipt": "Ricevute",
+      "meme": "Meme",
+      "slide": "Diapositive"
+    }
   }
 }

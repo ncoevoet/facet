@@ -137,7 +137,7 @@ def load_viewer_config(config=None):
         'quality_thresholds': {'good': 6, 'great': 7, 'excellent': 8, 'best': 9},
         'photo_types': {'top_picks_min_score': 7, 'low_light_max_luminance': 0.2},
         'defaults': {'hide_blinks': True, 'hide_bursts': True, 'hide_duplicates': True, 'hide_details': True, 'hide_rejected': True, 'sort': 'aggregate', 'sort_direction': 'DESC'},
-        'features': {'show_similar_button': True, 'show_merge_suggestions': True, 'show_rating_controls': True, 'show_rating_badge': True, 'show_semantic_search': True, 'show_albums': True, 'show_critique': True, 'show_vlm_critique': False, 'show_embed_metadata': True, 'show_memories': True, 'show_captions': True, 'show_timeline': True, 'show_map': False, 'show_capsules': True, 'show_my_taste': True, 'show_scenes': True, 'show_proofing': False},
+        'features': {'show_similar_button': True, 'show_merge_suggestions': True, 'show_rating_controls': True, 'show_rating_badge': True, 'show_semantic_search': True, 'show_albums': True, 'show_critique': True, 'show_vlm_critique': False, 'show_embed_metadata': True, 'show_memories': True, 'show_captions': True, 'show_timeline': True, 'show_map': False, 'show_capsules': True, 'show_my_taste': True, 'show_scenes': True, 'show_junk_sweep': True, 'show_proofing': False},
         'proofing': {'pin': '', 'session_minutes': 1440},
         'cache_ttl_seconds': 3600,
         'notification_duration_ms': 2000

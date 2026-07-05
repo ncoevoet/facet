@@ -1016,7 +1016,8 @@
     "timeline": "Zeitleiste",
     "folders": "Ordner",
     "map": "Karte",
-    "capsules": "Kapseln"
+    "capsules": "Kapseln",
+    "junk_sweep": "Aufräumen"
   },
   "auth": {
     "logout": "Abmelden",
@@ -2170,5 +2171,31 @@
     "start": "Starten",
     "skip": "Überspringen",
     "save_error": "Ihre Auswahl konnte nicht gespeichert werden."
+  },
+  "junk": {
+    "title": "Müll aufräumen",
+    "subtitle": "Überprüfen Sie Nicht-Foto-Dateien in Ihrer Bibliothek — Screenshots, Dokumente, Belege, Memes und Folien. Behalten Sie, was Sie möchten, und verwerfen Sie den Rest.",
+    "empty": "Kein Müll erkannt. Führen Sie „python facet.py --detect-junk“ aus, um Ihre Bibliothek zu scannen.",
+    "all_kinds": "Alle Arten",
+    "keep": "Behalten",
+    "keep_hint": "Dieses Foto behalten (entfernt es aus der Warteschlange)",
+    "reject": "Verwerfen",
+    "reject_hint": "Dieses Foto verwerfen",
+    "reject_all": "Alle angezeigten verwerfen",
+    "confirm_reject_all_title": "Alle angezeigten verwerfen",
+    "confirm_reject_all_message": "Die {count} angezeigten Fotos verwerfen?",
+    "kept": "Foto behalten",
+    "rejected": "Foto verworfen",
+    "rejected_bulk": "{count} Fotos verworfen",
+    "load_more": "Mehr laden",
+    "load_error": "Müll-Kandidaten konnten nicht geladen werden",
+    "count": "{count} Kandidaten",
+    "kinds": {
+      "screenshot": "Screenshots",
+      "document": "Dokumente",
+      "receipt": "Belege",
+      "meme": "Memes",
+      "slide": "Folien"
+    }
   }
 }

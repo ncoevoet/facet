@@ -14,6 +14,12 @@ from api.db_helpers import build_hide_clauses
 
 logger = logging.getLogger(__name__)
 
+# Junk-sweep sentinels shared by the gallery filter and filter_options.
+# NOTE: the value must match models.junk_classifier.NOT_JUNK; kept as a plain
+# literal here so the API never imports the torch-heavy classifier module.
+JUNK_NOT_JUNK = 'not_junk'   # junk_kind sentinel: photo evaluated and found clean
+JUNK_ANY = 'any'             # gallery junk_kind filter value: match any junk kind
+
 
 # --- SORT OPTIONS (loaded from config) ---
 def _build_sort_options():

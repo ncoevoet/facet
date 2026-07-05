@@ -2624,6 +2624,63 @@
       }
     }
   },
+  "junk_sweep": {
+    "enabled": true,
+    "prompt_template": "{desc}",
+    "pooling": "max",
+    "thresholds": {
+      "open_clip": {
+        "min_confidence": 0.18,
+        "min_margin": 0.02
+      },
+      "transformers": {
+        "min_confidence": 0.1,
+        "min_margin": 0.02
+      }
+    },
+    "kinds": {
+      "screenshot": [
+        "a screenshot of a phone user interface",
+        "a screenshot of a computer screen",
+        "a screen capture of a mobile app",
+        "a screenshot of a web page",
+        "a screenshot of a chat conversation"
+      ],
+      "document": [
+        "a scanned document",
+        "a page of printed text",
+        "a scanned paper document",
+        "a photo of a printed page",
+        "a page from a book"
+      ],
+      "receipt": [
+        "a photo of a receipt",
+        "a shopping receipt",
+        "a scanned invoice",
+        "a restaurant bill"
+      ],
+      "meme": [
+        "a meme with overlaid text",
+        "an internet meme",
+        "a funny image with a caption",
+        "a reaction image with bold text"
+      ],
+      "slide": [
+        "a presentation slide",
+        "a powerpoint slide",
+        "a lecture slide with bullet points",
+        "a slide with a chart and text"
+      ]
+    },
+    "not_junk_prompts": [
+      "a natural photograph",
+      "a candid photo of people",
+      "a landscape photograph",
+      "a portrait of a person",
+      "a photo of a real scene",
+      "an ordinary snapshot"
+    ]
+  },
   "distortion_attributes": {
     "enabled": true,
     "top_n": 5,
@@ -3127,6 +3184,7 @@
       "show_folders": true,
       "show_my_taste": true,
       "show_scenes": true,
+      "show_junk_sweep": true,
       "show_scan_button": false,
       "show_saliency_overlay": true
     },

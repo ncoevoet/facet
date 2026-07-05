@@ -1012,7 +1012,8 @@
     "timeline": "Timeline",
     "folders": "Folders",
     "map": "Map",
-    "capsules": "Capsules"
+    "capsules": "Capsules",
+    "junk_sweep": "Junk Sweep"
   },
   "auth": {
     "logout": "Log out",
@@ -2164,5 +2165,31 @@
     "start": "Start",
     "skip": "Skip",
     "save_error": "Could not save your pick."
+  },
+  "junk": {
+    "title": "Junk Sweep",
+    "subtitle": "Review non-photo files found in your library — screenshots, documents, receipts, memes and slides. Keep the ones you want; reject the rest.",
+    "empty": "No junk detected. Run \"python facet.py --detect-junk\" to scan your library.",
+    "all_kinds": "All kinds",
+    "keep": "Keep",
+    "keep_hint": "Keep this photo (removes it from the queue)",
+    "reject": "Reject",
+    "reject_hint": "Reject this photo",
+    "reject_all": "Reject all shown",
+    "confirm_reject_all_title": "Reject all shown",
+    "confirm_reject_all_message": "Reject the {count} photos shown here?",
+    "kept": "Photo kept",
+    "rejected": "Photo rejected",
+    "rejected_bulk": "Rejected {count} photos",
+    "load_more": "Load more",
+    "load_error": "Failed to load junk candidates",
+    "count": "{count} candidates",
+    "kinds": {
+      "screenshot": "Screenshots",
+      "document": "Documents",
+      "receipt": "Receipts",
+      "meme": "Memes",
+      "slide": "Slides"
+    }
   }
 }
