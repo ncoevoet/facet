@@ -14,7 +14,7 @@ smoothing layer.
 import numpy as np
 
 from models.tagger import encode_text_prompts
-from utils.embedding import bytes_to_embedding
+from utils.embedding import bytes_to_normalized_embedding
 
 NOT_JUNK = 'not_junk'
 
@@ -64,22 +64,17 @@ class JunkClassifier:
         Pools the per-prompt cosines back to a label with ``self.pooling``
         (``max`` — the single best prompt, the default and more discriminative —
         or ``mean``). Returns an ndarray aligned to ``self.labels`` (the junk
-        kinds then ``not_junk``), or None when the embedding is missing, zero, or
-        of a different dimension than the prompts (mixed CLIP-768 / SigLIP-1152
-        DB).
+        kinds then ``not_junk``). The dimension check, zero-norm guard and L2
+        normalization are delegated to the shared ``bytes_to_normalized_embedding``
+        helper, so a missing, zero, or mismatched-dimension embedding (mixed
+        CLIP-768 / SigLIP-1152 DB) yields None.
         """
-        if self.prompt_matrix.shape[0] == 0 or embedding_bytes is None:
+        if self.prompt_matrix.shape[0] == 0:
             return None
-        emb = bytes_to_embedding(embedding_bytes)
-        if emb is None:
+        unit = bytes_to_normalized_embedding(embedding_bytes, self.prompt_matrix.shape[1])
+        if unit is None:
             return None
-        emb = np.asarray(emb, dtype=np.float32)
-        if emb.shape[0] != self.prompt_matrix.shape[1]:
-            return None
-        norm = np.linalg.norm(emb)
-        if norm == 0:
-            return None
-        per_prompt = self.prompt_matrix @ (emb / norm)
+        per_prompt = self.prompt_matrix @ unit
         if self.pooling == 'mean':
             sims = np.zeros(len(self.labels), dtype=np.float32)
             counts = np.zeros(len(self.labels), dtype=np.float32)

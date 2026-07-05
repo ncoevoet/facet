@@ -9,6 +9,7 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { SceneDatePipe } from '../scenes/scenes.pipes';
+import { basename, copyLines } from '../../shared/utils/clipboard';
 import { I18N } from '../../core/i18n/keys';
 
 export interface ClientPicksDialogData {
@@ -99,7 +100,7 @@ export class ClientPicksDialogComponent implements OnInit {
       );
       this.picks.set(res.picks.map(pick => ({
         ...pick,
-        filename: pick.path.split(/[\\/]/).pop() ?? pick.path,
+        filename: basename(pick.path),
       })));
     } catch {
       this.picks.set([]);
@@ -111,9 +112,8 @@ export class ClientPicksDialogComponent implements OnInit {
   protected copyFilenames(): void {
     const filenames = this.picks()
       .filter(pick => pick.picked)
-      .map(pick => pick.filename)
-      .join('\n');
-    navigator.clipboard.writeText(filenames).then(() => {
+      .map(pick => pick.filename);
+    copyLines(filenames).then(() => {
       this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
     });
   }

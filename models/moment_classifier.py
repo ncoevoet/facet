@@ -16,7 +16,7 @@ import json
 import numpy as np
 
 from models.tagger import encode_text_prompts
-from utils import bytes_to_embedding
+from utils.embedding import bytes_to_normalized_embedding
 
 OTHER = 'other'
 
@@ -77,23 +77,18 @@ class MomentClassifier:
         Pools the per-prompt cosines back to a moment with ``self.pooling``
         (``max`` — the single best prompt, the default and more discriminative —
         or ``mean``). Signal-agnostic: works for a caption text embedding or an
-        image embedding (both live in the shared CLIP space). Returns an ndarray
-        aligned to ``self.moments``, or None when the embedding is missing,
-        zero, or of a different dimension than the prompts (mixed CLIP-768 /
-        SigLIP-1152 DB).
+        image embedding (both live in the shared CLIP space). The dimension
+        check, zero-norm guard and L2 normalization are delegated to the shared
+        ``bytes_to_normalized_embedding`` helper, so a missing, zero, or
+        mismatched-dimension embedding (mixed CLIP-768 / SigLIP-1152 DB) yields
+        None.
         """
-        if self.prompt_matrix.shape[0] == 0 or embedding_bytes is None:
+        if self.prompt_matrix.shape[0] == 0:
             return None
-        emb = bytes_to_embedding(embedding_bytes)
-        if emb is None:
+        unit = bytes_to_normalized_embedding(embedding_bytes, self.prompt_matrix.shape[1])
+        if unit is None:
             return None
-        emb = np.asarray(emb, dtype=np.float32)
-        if emb.shape[0] != self.prompt_matrix.shape[1]:
-            return None
-        norm = np.linalg.norm(emb)
-        if norm == 0:
-            return None
-        per_prompt = self.prompt_matrix @ (emb / norm)        # (P,)
+        per_prompt = self.prompt_matrix @ unit        # (P,)
         if self.pooling == 'mean':
             sims = np.zeros(len(self.moments), dtype=np.float32)
             counts = np.zeros(len(self.moments), dtype=np.float32)

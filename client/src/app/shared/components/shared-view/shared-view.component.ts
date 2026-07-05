@@ -29,6 +29,7 @@ import { AdditionalFilterDef } from '../../models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../utils/range-filter';
 import { useDesktopSignal } from '../../utils/media-query';
 import { downloadAll } from '../../utils/download';
+import { basename, copyLines } from '../../utils/clipboard';
 import {
   SECTION_ORDER, FILTERS_BY_SECTION,
   FilterGroup, SECTION_ICONS,
@@ -841,10 +842,8 @@ export class SharedViewComponent implements OnInit {
   }
 
   protected copyPaths(): void {
-    const filenames = [...this.selectedPaths()]
-      .map(p => p.split(/[\\/]/).pop() ?? p)
-      .join('\n');
-    navigator.clipboard.writeText(filenames).then(() => {
+    const filenames = [...this.selectedPaths()].map(basename);
+    copyLines(filenames).then(() => {
       this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
     });
   }
