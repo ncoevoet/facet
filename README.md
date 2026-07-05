@@ -158,7 +158,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 
 ## What you need
 
-Most of Facet runs on **any machine (CPU)** — scoring, face detection, culling, the gallery, search, albums and metadata export all work without a GPU. A **GPU** (with the `16gb` or `24gb` profile) unlocks the strongest models: TOPIQ aesthetic scoring, SigLIP 2 embeddings, VLM tagging, AI captions and critique, and subject saliency. In the viewer, editing actions (ratings, faces, culling) need the **edition password**, and triggering scans needs the **superadmin** role.
+Most of Facet runs on **any machine (CPU)** — scoring, face detection, culling, the gallery, search, albums and metadata export all work without a GPU. A **GPU** (with the `16gb` or `24gb` profile) unlocks the strongest models: TOPIQ aesthetic scoring, SigLIP 2 embeddings, VLM tagging, AI captions and critique, and subject saliency. No local GPU? Point the VLM tagging/captions/critique at a remote **Ollama** or **OpenAI-compatible** server via `vlm_backend` in `scoring_config.json` — those features then work on the CPU `legacy`/`8gb` profiles too. In the viewer, editing actions (ratings, faces, culling) need the **edition password**, and triggering scans needs the **superadmin** role.
 
 → Full per-feature requirements (GPU, VRAM profile, optional packages, auth): **[Installation › Feature requirements](docs/INSTALLATION.md#feature-requirements)**.
 

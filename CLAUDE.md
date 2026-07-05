@@ -584,6 +584,7 @@ For quick reference, here are the actual defaults from the config file:
 | `distortion_attributes` | `enabled` | `true` |
 | `skin_tone` | `cast_delta_threshold` | `12.0` |
 | `critique.vlm` | `max_new_tokens` | `320` |
+| `vlm_backend` | `type` | `"local"` (`local` \| `ollama` \| `openai_compatible`; remote un-gates VLM on legacy/8gb) |
 | `immich` | `url` | `""` (empty = disabled) |
 | `viewer.proofing` | `session_minutes` | `1440` |
 | `translation` | `target_language` | `"fr"` (supported: fr/de/es/it/pt) |

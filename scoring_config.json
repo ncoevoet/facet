@@ -3197,6 +3197,20 @@
       "max_new_tokens": 320
     }
   },
+  "vlm_backend": {
+    "type": "local",
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "model": "qwen2.5vl:7b",
+      "timeout_seconds": 120
+    },
+    "openai_compatible": {
+      "base_url": "http://localhost:1234/v1",
+      "api_key": "",
+      "model": "qwen2.5-vl-7b",
+      "timeout_seconds": 120
+    }
+  },
   "performance": {
     "mmap_size_mb": 2048,
     "cache_size_mb": 128,

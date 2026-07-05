@@ -221,17 +221,20 @@ def _moment_vlm_tiebreak(db_path, config, model_manager, candidates, moments):
     asks the VLM to pick one label from the moment vocabulary or ``other``.
     """
     from models.moment_classifier import OTHER
+    from models.vlm_backend import create_remote_vlm_tagger
     from PIL import Image
     import io
 
-    vlm_key = _MOMENT_VLM_KEYS.get(config.get_model_for_task('tagging'))
-    if not vlm_key:
-        logger.info("VLM moment tie-break skipped: active profile has no VLM tagger")
-        return {}
-    vlm = model_manager.load_model_only(vlm_key)
+    vlm = create_remote_vlm_tagger(config.config, config)
     if vlm is None:
-        logger.warning("VLM moment tie-break skipped: tagger failed to load")
-        return {}
+        vlm_key = _MOMENT_VLM_KEYS.get(config.get_model_for_task('tagging'))
+        if not vlm_key:
+            logger.info("VLM moment tie-break skipped: active profile has no VLM tagger")
+            return {}
+        vlm = model_manager.load_model_only(vlm_key)
+        if vlm is None:
+            logger.warning("VLM moment tie-break skipped: tagger failed to load")
+            return {}
 
     label_for = {m: m.replace('_', ' ') for m in moments}
     key_for = {human.lower(): m for m, human in label_for.items()}
@@ -1496,20 +1499,24 @@ Configuration:
         import io
 
         config = ScoringConfig(args.config)
-        models_config = config.get_model_config()
-        tag_model = config.get_model_for_task('tagging')
-        model_key_map = {
-            'qwen3-vl-2b': 'qwen3_vl_2b',
-            'qwen2.5-vl-7b': 'qwen2_5_vl_7b',
-            'qwen3.5-2b': 'qwen3_5_2b',
-            'qwen3.5-4b': 'qwen3_5_4b',
-        }
-        config_key = model_key_map.get(tag_model)
-        if not config_key or config_key not in models_config:
-            logger.error("VLM tagger not available for profile %s (tagging_model=%s)",
-                         models_config.get('vram_profile', 'legacy'), tag_model)
-            sys.exit(1)
-        vlm = VLMTagger(models_config[config_key], config)
+        from models.vlm_backend import create_remote_vlm_tagger
+
+        vlm = create_remote_vlm_tagger(config.config, config)
+        if vlm is None:
+            models_config = config.get_model_config()
+            tag_model = config.get_model_for_task('tagging')
+            model_key_map = {
+                'qwen3-vl-2b': 'qwen3_vl_2b',
+                'qwen2.5-vl-7b': 'qwen2_5_vl_7b',
+                'qwen3.5-2b': 'qwen3_5_2b',
+                'qwen3.5-4b': 'qwen3_5_4b',
+            }
+            config_key = model_key_map.get(tag_model)
+            if not config_key or config_key not in models_config:
+                logger.error("VLM tagger not available for profile %s (tagging_model=%s)",
+                             models_config.get('vram_profile', 'legacy'), tag_model)
+                sys.exit(1)
+            vlm = VLMTagger(models_config[config_key], config)
 
         with get_connection(args.db) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(photos)").fetchall()}
@@ -1682,16 +1689,10 @@ Configuration:
     # Recompute tags using VLM model (loads images from disk)
     if args.recompute_tags_vlm:
         from models.model_manager import ModelManager
+        from models.vlm_backend import create_remote_vlm_tagger
         from processing.multi_pass import tagging_model_to_key
 
         config = ScoringConfig(args.config)
-        config.check_vram_profile_compatibility(verbose=True)
-
-        # Use configured VLM or default to qwen3-vl-2b
-        tag_model = config.get_model_for_task('tagging')
-        model_key = tagging_model_to_key(tag_model, 'qwen3_vl_tagger')
-
-        model_manager = ModelManager(config)
 
         # Get all photos from database
         init_database(args.db)
@@ -1699,12 +1700,20 @@ Configuration:
             cursor = conn.execute("SELECT path FROM photos")
             photos = cursor.fetchall()
 
-        logger.info("Re-tagging %d photos using VLM (%s)...", len(photos), model_key)
-
-        tagger = model_manager.load_model_only(model_key)
-        if not tagger:
-            logger.error("Failed to load VLM tagger")
-            exit(1)
+        tagger = create_remote_vlm_tagger(config.config, config)
+        model_manager = None
+        if tagger is not None:
+            logger.info("Re-tagging %d photos using remote VLM backend...", len(photos))
+        else:
+            config.check_vram_profile_compatibility(verbose=True)
+            tag_model = config.get_model_for_task('tagging')
+            model_key = tagging_model_to_key(tag_model, 'qwen3_vl_tagger')
+            model_manager = ModelManager(config)
+            logger.info("Re-tagging %d photos using VLM (%s)...", len(photos), model_key)
+            tagger = model_manager.load_model_only(model_key)
+            if not tagger:
+                logger.error("Failed to load VLM tagger")
+                exit(1)
 
         from utils import load_image_from_path, tags_to_string
         tagging_settings = config.get_tagging_settings()
@@ -1739,7 +1748,8 @@ Configuration:
 
             conn.commit()
 
-        model_manager.unload_all()
+        if model_manager is not None:
+            model_manager.unload_all()
         logger.info("Updated tags for %d photos", updated)
         exit()
 

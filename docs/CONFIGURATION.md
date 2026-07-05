@@ -1714,6 +1714,42 @@ Prompt configuration for the VLM-powered critique (16gb/24gb profiles). The crit
 
 See [Web Viewer — AI Critique](VIEWER.md#ai-critique).
 
+## VLM Backend
+
+Selects where the caption/tag vision-language model runs. `local` (default) uses the in-process transformers Qwen path bundled with the 16gb/24gb VRAM profiles — no change for existing installs. The two remote backends point Facet at an external server so captioning and VLM tagging work on the **legacy/8gb profiles that ship no local VLM**: when a remote backend is selected the VLM features are no longer gated on the VRAM profile.
+
+```json
+{
+  "vlm_backend": {
+    "type": "local",
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "model": "qwen2.5vl:7b",
+      "timeout_seconds": 120
+    },
+    "openai_compatible": {
+      "base_url": "http://localhost:1234/v1",
+      "api_key": "",
+      "model": "qwen2.5-vl-7b",
+      "timeout_seconds": 120
+    }
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `type` | `"local"` | Backend: `local` (in-process transformers Qwen), `ollama` (Ollama native REST API), or `openai_compatible` (any OpenAI chat-completions endpoint — LM Studio, vLLM, OpenRouter) |
+| `ollama.base_url` | `"http://localhost:11434"` | Ollama server base URL; the image is sent as base64 to `POST /api/generate` |
+| `ollama.model` | `"qwen2.5vl:7b"` | Ollama model tag (must be a vision model already pulled on the server) |
+| `ollama.timeout_seconds` | `120` | Per-request timeout for Ollama calls |
+| `openai_compatible.base_url` | `"http://localhost:1234/v1"` | OpenAI-compatible base URL **including the `/v1` suffix**; requests go to `{base_url}/chat/completions` with the image as an `image_url` data URI |
+| `openai_compatible.api_key` | `""` | Bearer token sent as `Authorization: Bearer <key>`; leave empty for keyless local servers |
+| `openai_compatible.model` | `"qwen2.5-vl-7b"` | Model name passed to the endpoint |
+| `openai_compatible.timeout_seconds` | `120` | Per-request timeout for OpenAI-compatible calls |
+
+The shared backend drives captioning (`--generate-captions` and the on-demand `/api/caption`), the VLM critique (`/api/critique?mode=vlm`), VLM re-tagging (`--recompute-tags-vlm`), and the narrative-moment VLM tie-breaker. A remote request failure is surfaced as a per-photo failure (logged, empty tags / no caption) and never crashes the run. In-scan tagging still uses the profile's own tagger; run `--recompute-tags-vlm` to apply a remote backend to an existing library.
+
 ## Distortion Attributes
 
 Zero-shot, advisory-only distortion labelling. `--recompute-distortions` scores each photo against ExIQA-style contrastive prompts over its stored CLIP/SigLIP embedding and stores the likely defects (motion blur, color cast, oversharpening, …) as an advisory JSON column. It never feeds the aggregate; the labels render as warning chips in the critique dialog.
