@@ -6,6 +6,10 @@ isolation, and batch-save flow all run for real on tiny CPU images. No GPU and
 no real torch weights are needed.
 """
 
+import threading
+import time
+from unittest import mock
+
 import numpy as np
 import pytest
 from PIL import Image
@@ -157,3 +161,84 @@ class TestBatchProcessorE2E:
         assert scorer.saved == []
         assert len(errors) == 4
         assert scorer.committed is True
+
+
+def _bounded_processor(scorer, **kwargs):
+    with mock.patch("processing.batch_processor.ResourceMonitor"):
+        return BatchProcessor(scorer=scorer, num_workers=1, batch_size=1,
+                              prefetch_multiplier=1,
+                              config={"exif_prefetch": False}, **kwargs)
+
+
+class TestBatchProcessorStopEvent:
+    @pytest.mark.timeout(15)
+    def test_worker_releases_on_stop_event_without_drain(self, monkeypatch):
+        # A producer blocked on the bounded put() must observe stop_event and
+        # exit even when nothing drains the queue. The pre-fix blocking put()
+        # never rechecks stop_event, so this hangs until the timeout (RED).
+        scorer = FakeScorer()
+        proc = _bounded_processor(scorer)
+        assert proc.image_queue.maxsize == 1
+        monkeypatch.setattr(proc, "_load_image", lambda path: {"path": path})
+
+        proc.image_queue.put({"path": "prefill"})  # fill the only slot
+        worker = threading.Thread(target=proc._worker_thread, args=(["a", "b", "c"],))
+        worker.start()
+
+        time.sleep(0.3)
+        assert worker.is_alive()  # blocked on the full bounded queue
+
+        proc.stop_event.set()
+        worker.join(timeout=5.0)
+        assert not worker.is_alive()
+
+    @pytest.mark.timeout(20)
+    @pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+    def test_gpu_thread_death_does_not_deadlock_join(self, tmp_path, monkeypatch):
+        # GPU thread dies mid-run while the worker is blocked on the full bounded
+        # queue. Pre-fix, process_files joins that blocked worker forever (RED);
+        # the stop_event.set() + drain in the abort/finally path releases it.
+        paths = _tiny_jpegs(tmp_path, 20)
+        scorer = FakeScorer()
+        proc = _bounded_processor(scorer)
+
+        def boom(batch):
+            raise RuntimeError("simulated GPU thread death")
+
+        monkeypatch.setattr(proc, "_process_batch", boom)
+
+        proc.process_files(paths, show_metrics=False)  # must return, not hang
+
+    @pytest.mark.timeout(25)
+    def test_keyboard_interrupt_halts_background_threads(self, tmp_path):
+        # Simulated Ctrl+C from the main-thread save path must stop the worker
+        # and GPU threads promptly. Pre-fix they keep grinding through the whole
+        # worklist in the background, so inference calls keep growing (RED).
+        paths = _tiny_jpegs(tmp_path, 40)
+        scorer = FakeScorer()
+
+        def interrupt_save(pending):
+            raise KeyboardInterrupt()
+
+        scorer.save_photos_batch = interrupt_save
+
+        inference_calls = {"n": 0}
+        base_inference = scorer.get_aesthetic_and_quality_batch
+
+        def counting_inference(pil_images, clip_inputs):
+            inference_calls["n"] += 1
+            return base_inference(pil_images, clip_inputs)
+
+        scorer.get_aesthetic_and_quality_batch = counting_inference
+
+        with mock.patch("processing.batch_processor.ResourceMonitor"):
+            proc = BatchProcessor(scorer=scorer, num_workers=2, batch_size=2,
+                                  batch_save_size=2, prefetch_multiplier=1,
+                                  config={"exif_prefetch": False})
+
+        with pytest.raises(KeyboardInterrupt):
+            proc.process_files(paths, show_metrics=False)
+
+        calls_after_unwind = inference_calls["n"]
+        time.sleep(1.5)
+        assert inference_calls["n"] == calls_after_unwind

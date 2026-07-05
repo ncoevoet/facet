@@ -168,7 +168,10 @@ def _log_scan_db_destination(db_path: str):
         )
 
 
-def _commit_in_chunks(conn, sql, rows, size=500):
+RECOMPUTE_COMMIT_BATCH = 500
+
+
+def _commit_in_chunks(conn, sql, rows, size=RECOMPUTE_COMMIT_BATCH):
     """Run ``conn.executemany(sql, ...)`` over ``rows`` in committed batches."""
     for k in range(0, len(rows), size):
         conn.executemany(sql, rows[k:k + size])
@@ -1406,6 +1409,7 @@ Configuration:
                 "SELECT path FROM photos WHERE thumbnail IS NOT NULL"
             ).fetchall()]
         counted = 0
+        pending = 0
         with get_connection(args.db) as read_conn, get_connection(args.db) as conn:
             for path in tqdm(paths, desc=desc):
                 row = read_conn.execute(
@@ -1424,6 +1428,10 @@ Configuration:
                     f"UPDATE photos SET {set_sql} WHERE path = ?",
                     (*updates.values(), path),
                 )
+                pending += 1
+                if pending >= RECOMPUTE_COMMIT_BATCH:
+                    conn.commit()
+                    pending = 0
                 if is_counted:
                     counted += 1
             conn.commit()
@@ -1861,8 +1869,7 @@ Configuration:
                             (tags, path)
                         )
                         updated += 1
-
-            conn.commit()
+                conn.commit()
 
         if model_manager is not None:
             model_manager.unload_all()
@@ -2596,8 +2603,10 @@ Configuration:
                 processor.process_files(todo_paths)
 
     except KeyboardInterrupt:
-        logger.info("Interrupted.")
+        logger.info("Interrupted; skipping post-processing. Re-run to finalize.")
+        scorer.commit()
         scan_run.finish('interrupted')
+        return
     except Exception:
         scan_run.finish('failed')
         raise

@@ -1780,6 +1780,7 @@ class Facet:
                             (result['comp_score'], result['pattern'], batched_paths[i])
                         )
                         updated += 1
+                    conn.commit()
                     batched_paths = []
                     batched_images = []
 
@@ -1794,8 +1795,7 @@ class Facet:
                         (result['comp_score'], result['pattern'], batched_paths[i])
                     )
                     updated += 1
-
-            conn.commit()
+                conn.commit()
 
         logger.info("Updated SAMP-Net composition scores for %s photos", updated)
         if decode_failed > 0:

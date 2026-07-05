@@ -23,6 +23,11 @@ from tqdm import tqdm
 
 logger = logging.getLogger("facet.multi_pass")
 
+# Marks a chunk photo whose required model pass failed, so it is recorded in
+# scan_failures and excluded from the save rather than stamped scanned-complete
+# with neutral default scores.
+SCAN_FAILED_KEY = '_scan_failed'
+
 # Lazy imports
 torch = None
 np = None
@@ -387,6 +392,7 @@ class ChunkedMultiPassProcessor:
 
         # Track results for each photo
         results = {path: {} for path in paths}
+        failed_stages = []
 
         # Supplementary/optional models — load failures skip rather than abort
         supplementary = set(self.model_manager.get_active_profile().get('supplementary_pyiqa', []))
@@ -427,8 +433,13 @@ class ChunkedMultiPassProcessor:
             for model_name, model in loaded_models.items():
                 try:
                     self._run_model_pass(model_name, model, images, results)
-                except torch.cuda.OutOfMemoryError:
-                    logger.error("OOM during %s inference, skipping...", model_name)
+                except Exception as ex:
+                    if model_name in supplementary:
+                        logger.error("Supplementary %s inference failed, skipping: %s", model_name, ex)
+                    else:
+                        logger.error("Required %s inference failed for chunk, marking retryable: %s",
+                                     model_name, ex)
+                        failed_stages.append(model_name)
 
             self.metrics['inference_time'] += time.time() - infer_start
             self.metrics['passes_executed'] += 1
@@ -441,6 +452,9 @@ class ChunkedMultiPassProcessor:
                 self.model_manager.unload_model(model_name)
             self.metrics['model_unload_time'] += time.time() - unload_start
 
+        if failed_stages:
+            self._record_chunk_pass_failure(images, results, failed_stages)
+
         # Compute aggregate scores (CPU pass) - needs images for technical metrics
         self._compute_aggregates(results, images)
 
@@ -452,6 +466,20 @@ class ChunkedMultiPassProcessor:
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+
+    def _record_chunk_pass_failure(self, images: Dict, results: Dict, failed_stages: List[str]):
+        """Record every image in a chunk whose required model pass failed.
+
+        The chunk lacks foundational outputs (e.g. the embedding/aesthetic pass),
+        so the photos are recorded in scan_failures (retryable via --retry-failed)
+        and marked for exclusion from the save instead of being stamped
+        scanned-complete with neutral default scores.
+        """
+        stage = "+".join(failed_stages)
+        for path in images:
+            results[path][SCAN_FAILED_KEY] = stage
+            if self.on_error:
+                self.on_error(path, stage, f"required model pass failed: {stage}")
 
     def _load_images(self, paths: List[str]) -> Dict[str, Dict]:
         """
@@ -803,7 +831,7 @@ class ChunkedMultiPassProcessor:
         from utils import detect_silhouette
 
         for path, data in results.items():
-            if not data or path not in images:
+            if not data or path not in images or data.get(SCAN_FAILED_KEY):
                 continue
 
             img_data = images[path]
@@ -936,7 +964,13 @@ class ChunkedMultiPassProcessor:
         """Save processing results to database with all required fields."""
         batch = []
         for path, data in results.items():
-            if not data or path not in images:
+            if path not in images:
+                continue
+            if data.get(SCAN_FAILED_KEY):
+                continue
+            if not data:
+                if self.on_error:
+                    self.on_error(path, 'save', 'no model produced results for this photo')
                 continue
 
             img_data = images[path]
