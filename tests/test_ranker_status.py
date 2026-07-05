@@ -33,7 +33,7 @@ def _cm(conn):
     return _ctx()
 
 
-def _db(embedded=0, scored=0, metrics=None):
+def _db(embedded=0, scored=0, metrics=None, user_id=None):
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
@@ -42,12 +42,12 @@ def _db(embedded=0, scored=0, metrics=None):
     for i in range(scored):
         conn.execute(
             "INSERT INTO learned_scores VALUES (?, ?, ?, ?, ?, ?)",
-            (f"/e{i}.jpg", 7.0, 40, None, "now", None),
+            (f"/e{i}.jpg", 7.0, 40, None, "now", user_id),
         )
     if metrics is not None:
         conn.execute(
             "INSERT INTO stats_cache VALUES (?, ?, ?)",
-            (ranker_metrics_key(None, None), json.dumps(metrics), 0.0),
+            (ranker_metrics_key(user_id, None), json.dumps(metrics), 0.0),
         )
     conn.commit()
     return conn
@@ -88,3 +88,21 @@ def test_trained_surfaces_metrics_and_coverage(client):
     assert body["comparison_count"] == 40
     assert body["cv_accuracy"] == 62.0
     assert body["baseline_accuracy"] == 55.0
+
+
+def test_user_scope_reads_per_user_key_and_coverage(client):
+    metrics = {
+        "trained": True, "gated": False, "comparison_count": 25,
+        "cv_accuracy": 60.0, "baseline_accuracy": 55.0, "improvement_pp": 5.0,
+    }
+    conn = _db(embedded=4, scored=3, metrics=metrics, user_id="alice")
+    with mock.patch("api.routers.ranker.get_db", lambda: _cm(conn)):
+        user_body = client.get("/api/ranker/status?user=alice").json()
+        global_body = client.get("/api/ranker/status").json()
+    # ?user=alice reads alice's per-user snapshot + coverage (3 scored / 4 embedded)
+    assert user_body["trained"] is True
+    assert user_body["coverage"] == 0.75
+    assert user_body["comparison_count"] == 25
+    # Global scope on the same DB sees no NULL-user rows -> untrained, 0 coverage
+    assert global_body["trained"] is False
+    assert global_body["coverage"] == 0.0

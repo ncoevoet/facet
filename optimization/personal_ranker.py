@@ -106,7 +106,7 @@ def _load_embeddings_and_aggregate(conn, paths):
     return out
 
 
-def build_ranker_dataset(conn, optimizer, category=None, sources=None):
+def build_ranker_dataset(conn, optimizer, category=None, sources=None, user_id=None):
     """Build the pairwise training dataset: difference vectors + labels + weights.
 
     Reuses ``optimizer._fetch_comparison_data`` for the per-photo metric vectors,
@@ -114,6 +114,9 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None):
     ``[embedding ⊕ metric_vector]``. Pairs are dropped when either photo lacks an
     embedding or its embedding dimension differs from the dominant dimension
     (mixed CLIP-768 / SigLIP-1152 DBs train per-dim, on the majority).
+
+    ``user_id`` scopes the comparisons to one user's rows plus legacy NULL rows
+    (None = the global pooled default).
 
     Returns a dict with:
         diff        (n, F)  feature_a - feature_b
@@ -124,7 +127,7 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None):
         emb_dim, n_metrics, n_pairs
     """
     comparisons, X_a, X_b, winners, row_weights = optimizer._fetch_comparison_data(
-        conn, category=category, include_ties=False, sources=sources
+        conn, category=category, include_ties=False, sources=sources, user_id=user_id
     )
     if not comparisons:
         return None
@@ -250,7 +253,8 @@ def train_ranker(db_path=DEFAULT_DB_PATH, category=None, user_id=None,
     """
     optimizer = WeightOptimizer(db_path, config_path)
     with get_connection(db_path) as conn:
-        data = build_ranker_dataset(conn, optimizer, category=category, sources=sources)
+        data = build_ranker_dataset(conn, optimizer, category=category, sources=sources,
+                                    user_id=user_id)
 
     if data is None or data['n_pairs'] < MIN_COMPARISONS:
         n = 0 if data is None else data['n_pairs']

@@ -74,6 +74,18 @@ def _autotune_superadmin_allowed(config, username):
     return isinstance(urec, dict) and urec.get('role') == 'superadmin'
 
 
+def _resolve_cli_user(config, username):
+    """Resolve a --user username to its stored user_id (the username itself).
+
+    The DB user_id columns hold the username verbatim (TEXT), so resolution is
+    validation: return the username when it is a configured user, else None so
+    the caller can fail with a clean error.
+    """
+    users = config.get('users', {})
+    urec = users.get(username) if username else None
+    return username if isinstance(urec, dict) else None
+
+
 def _print_scan_summary(db_path, todo_list, raw_paired_skipped):
     """Print a table of what landed in the DB from this scan.
 
@@ -775,7 +787,8 @@ Configuration:
     weight_group.add_argument('--train-ranker', action='store_true',
                         help='Train the personal ranker over [embedding + scores] and write '
                              'learned_scores (gated on held-out k-fold accuracy vs the aggregate '
-                             'baseline; use --train-ranker-force to write regardless)')
+                             'baseline; use --train-ranker-force to write regardless; pass --user '
+                             'in multi-user mode to scope to one user)')
     weight_group.add_argument('--train-ranker-force', action='store_true',
                         help='Write learned_scores even if the ranker accuracy gate is not met')
     weight_group.add_argument('--ranker-category', type=str, metavar='CATEGORY',
@@ -817,7 +830,9 @@ Configuration:
                              'photos the user has not manually rated (overrides xmp_export config for this run)')
     export_group.add_argument('--user', type=str, default=None, metavar='USERNAME',
                         help='With --import-sidecars/--export-sidecars/--immich-sync in multi-user mode: '
-                             "read/write that user's ratings (user_preferences) instead of the global columns")
+                             "read/write that user's ratings (user_preferences) instead of the global columns. "
+                             'With --train-ranker: scope the personal ranker to that user (own + legacy '
+                             'comparisons -> per-user learned_scores)')
     export_group.add_argument('--immich-sync', action='store_true',
                         help='Push ratings/favorites to the configured Immich server via its REST API '
                              '(one-way; needs the "immich" config block; honors --user and --dry-run)')
@@ -944,11 +959,23 @@ Configuration:
     # Train the personal ranker -> learned_scores (lightweight - no GPU needed)
     if args.train_ranker:
         from optimization import train_ranker
+        config_path = args.config or 'scoring_config.json'
+        user_id = None
+        if args.user:
+            cfg = ScoringConfig(config_path, validate=False)
+            user_id = _resolve_cli_user(cfg.config, args.user)
+            if user_id is None:
+                logger.error(
+                    "Unknown --user '%s': not a configured user. Add them with "
+                    "'python database.py --add-user %s --role user' first.",
+                    args.user, args.user)
+                exit(1)
         init_database(args.db)
         result = train_ranker(
             db_path=args.db or DEFAULT_DB_PATH,
             category=args.ranker_category,
-            config_path=args.config or 'scoring_config.json',
+            user_id=user_id,
+            config_path=config_path,
             force=args.train_ranker_force,
         )
         if 'error' in result:

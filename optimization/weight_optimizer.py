@@ -85,6 +85,7 @@ class WeightOptimizer:
         category: Optional[str] = None,
         include_ties: bool = True,
         sources: Optional[List[str]] = None,
+        user_id: Optional[str] = None,
     ):
         """Fetch comparisons and build both photos' production metric vectors.
 
@@ -99,6 +100,8 @@ class WeightOptimizer:
                       scoring category for the metric vectors when set
             include_ties: Include 'tie' outcomes
             sources: Restrict to these comparison sources (None = all)
+            user_id: Restrict to one user's rows plus legacy NULL rows
+                     (None = every user's rows, the global pooled default)
 
         Returns:
             Tuple (comparisons, X_a, X_b, winners, row_weights):
@@ -118,6 +121,9 @@ class WeightOptimizer:
             placeholders = ','.join('?' * len(sources))
             where_clauses.append(f"COALESCE(c.source, 'vote') IN ({placeholders})")
             params.extend(sources)
+        if user_id is not None:
+            where_clauses.append("(c.user_id = ? OR c.user_id IS NULL)")
+            params.append(user_id)
 
         n = len(self.SCORE_COMPONENTS)
         rows = conn.execute(f"""
