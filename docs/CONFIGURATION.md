@@ -758,7 +758,11 @@ InsightFace face detection settings.
     "min_faces_for_group": 4,
     "enable_3d_landmarks": false,
     "eyes_closed_max": 4.0,
-    "poor_expression_min": 4.0
+    "poor_expression_min": 4.0,
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
   }
 }
 ```
@@ -772,6 +776,8 @@ InsightFace face detection settings.
 | `enable_3d_landmarks` | `false` | Optional override (absent from the shipped file; code default `false`). Load InsightFace `landmark_3d_68` module for head-pose extraction (yaw/pitch/roll). Costs ~5MB extra ONNX weights. Currently informational; future profile/silhouette refinements will read this. |
 | `eyes_closed_max` | `4.0` | Per-face eyes-open score (0–10) at or below which the culling darkroom flags a face as blinking. Drives the red/orange/green face rings and the eyes threshold slider (moved from a hardcoded constant) |
 | `poor_expression_min` | `4.0` | Per-face smile/expression score (0–10) below which the darkroom flags a weak expression. Drives the expression face ring and slider (moved from a hardcoded constant) |
+| `blendshapes.enabled` | `true` | Use appearance-based MediaPipe blendshape scores for per-face `eyes_open_score` / `smile_score` when MediaPipe and the `face_landmarker.task` bundle are available; when true they replace the landmark-geometry scores, otherwise the geometry fallback runs automatically. Optional dependency — install with `pip install mediapipe==0.10.35 --no-deps` (never a plain `pip install mediapipe`). See [FACE_RECOGNITION.md](FACE_RECOGNITION.md#per-face-expression-signals-eyes-open--smile). |
+| `blendshapes.min_crop_size` | `192` | Faces whose padded crop is smaller than this (px, shorter side) fall back to the geometric score rather than upscale a tiny face |
 
 ---
 

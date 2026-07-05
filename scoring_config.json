@@ -2913,7 +2913,11 @@
     "blink_ear_threshold": 0.28,
     "min_faces_for_group": 4,
     "eyes_closed_max": 4.0,
-    "poor_expression_min": 4.0
+    "poor_expression_min": 4.0,
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
   },
   "monochrome_detection": {
     "saturation_threshold_percent": 5

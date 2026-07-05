@@ -13,13 +13,15 @@ import numpy as np
 logger = logging.getLogger("facet.face_analyzer")
 
 from utils.image_transforms import crop_face_with_padding
+from analyzers.face_blendshapes import crop_face_region, get_blendshape_scorer
 
 class FaceAnalyzer:
     """Uses InsightFace to detect people and evaluate facial features."""
 
     def __init__(self, device='cuda', min_confidence=0.7, min_face_size=30,
                  thumbnail_size=128, thumbnail_quality=85, blink_ear_threshold=0.21,
-                 min_faces_for_group=4, enable_3d_landmarks=False):
+                 min_faces_for_group=4, enable_3d_landmarks=False,
+                 enable_blendshapes=False, blendshape_min_crop=192):
         self.available = False
         self.min_confidence = min_confidence
         self.min_face_size = min_face_size
@@ -31,6 +33,9 @@ class FaceAnalyzer:
         self.blink_ear_threshold = blink_ear_threshold
         # Minimum number of faces to classify as group portrait
         self.min_faces_for_group = min_faces_for_group
+        self.enable_blendshapes = enable_blendshapes
+        self.blendshape_min_crop = blendshape_min_crop
+        self._blendshape_scorer = None
         # 3D landmarks (head pose: yaw / pitch / roll) — enables future refinements
         # for silhouette/profile detection. Costs ~5MB extra ONNX weights.
         self.enable_3d_landmarks = enable_3d_landmarks
@@ -71,6 +76,19 @@ class FaceAnalyzer:
             JPEG bytes of the face thumbnail, or None on error
         """
         return crop_face_with_padding(img_cv, bbox, padding, self.thumbnail_size, self.thumbnail_quality)
+
+    def _blendshape_face_scores(self, img_cv, bbox):
+        """Appearance-based (eyes_open, smile) for one face, or None to keep geometry.
+
+        Runs the MediaPipe blendshape scorer on a generous crop of the full-res
+        image. Returns None when blendshapes are disabled/unavailable or the crop
+        is too small, so the caller keeps the geometric landmark scores.
+        """
+        if not self.enable_blendshapes:
+            return None
+        if self._blendshape_scorer is None:
+            self._blendshape_scorer = get_blendshape_scorer(min_crop_size=self.blendshape_min_crop)
+        return self._blendshape_scorer.score_face_crop(crop_face_region(img_cv, bbox))
 
     def analyze_faces(self, img_cv):
         """
@@ -227,10 +245,15 @@ class FaceAnalyzer:
             landmarks = (face.landmark_2d_106
                          if hasattr(face, 'landmark_2d_106') and face.landmark_2d_106 is not None
                          else None)
-            detail['eyes_open_score'] = (
-                self.compute_eyes_open_score(landmarks, pose) if landmarks is not None else None)
-            detail['smile_score'] = (
-                self.compute_smile_score(landmarks, pose) if landmarks is not None else None)
+            eyes_open = (self.compute_eyes_open_score(landmarks, pose)
+                         if landmarks is not None else None)
+            smile = (self.compute_smile_score(landmarks, pose)
+                     if landmarks is not None else None)
+            appearance = self._blendshape_face_scores(img_cv, bbox)
+            if appearance is not None:
+                eyes_open, smile = appearance
+            detail['eyes_open_score'] = eyes_open
+            detail['smile_score'] = smile
             face_details.append(detail)
 
         return {

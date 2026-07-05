@@ -696,6 +696,7 @@ class Facet:
             # Initialize face analyzer with config settings
             face_settings = self.config.get_face_detection_settings()
             face_proc_settings = self.config.get_face_processing_settings()
+            blendshape_settings = face_settings.get('blendshapes', {})
             self.face_analyzer = FaceAnalyzer(
                 self.device,
                 min_confidence=face_settings.get('min_confidence_percent', 70) / 100,
@@ -705,6 +706,8 @@ class Facet:
                 blink_ear_threshold=face_settings.get('blink_ear_threshold', 0.21),
                 min_faces_for_group=face_settings.get('min_faces_for_group', 4),
                 enable_3d_landmarks=face_settings.get('enable_3d_landmarks', False),
+                enable_blendshapes=blendshape_settings.get('enabled', True),
+                blendshape_min_crop=blendshape_settings.get('min_crop_size', 192),
             )
             self.tech_analyzer = TechnicalAnalyzer()
 

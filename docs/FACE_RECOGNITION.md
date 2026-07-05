@@ -199,6 +199,75 @@ python facet.py --recompute-blinks
 
 Only processes photos with faces, no GPU needed.
 
+## Per-face Expression Signals (eyes-open + smile)
+
+Each face row stores two continuous 0-10 signals used by the culling face panel
+and the photo-level aggregates: `eyes_open_score` (10 = wide open, 0 = fully
+closed) and `smile_score` (5 = neutral, 10 = broad smile, 0 = frown).
+
+Two backends produce them, on the same 0-10 scale:
+
+1. **Geometry (always available).** Derived from the stored InsightFace 106-point
+   landmarks: Eye Aspect Ratio for eyes-open, mouth-corner lift for smile. Pure
+   geometry, so `--recompute-face-signals` can backfill them from stored
+   landmarks with no pixels and no GPU.
+2. **MediaPipe blendshapes (optional, appearance-based).** During scanning /
+   face extraction, a generous crop of each face is run through the MediaPipe
+   Face Landmarker, whose ARKit-style blendshapes (`eyeBlink*`, `mouthSmile*`,
+   `mouthFrown*`) map to the same scales. Appearance beats landmark geometry on
+   closed eyes, subtle smiles and off-axis heads, so when a face scores through
+   MediaPipe it **replaces** the geometric value. If MediaPipe or its model
+   bundle is absent, or the face crop is too small / undetected, the geometric
+   value is kept — behaviour is identical to a geometry-only install.
+
+### Installing MediaPipe
+
+MediaPipe is optional and **must** be installed without its bundled
+`opencv-contrib-python`, which would install a second `cv2` namespace alongside
+Facet's `opencv-python`:
+
+```bash
+pip install mediapipe==0.10.35 --no-deps
+pip install absl-py flatbuffers
+```
+
+Never run a plain `pip install mediapipe`.
+
+### Model bundle
+
+The `face_landmarker.task` bundle (~3.6 MiB, Apache-2.0) is auto-downloaded on
+first use to `pretrained_models/face_landmarker.task`. If the machine is
+offline, download it manually from
+`https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task`
+and place it at that path. A failed download logs a warning once and falls back
+to the geometric scores.
+
+### Configuration
+
+```json
+{
+  "face_detection": {
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
+  }
+}
+```
+
+- `enabled` (default `true`): use blendshape scores whenever MediaPipe and the
+  model bundle are available; otherwise the geometry fallback runs automatically.
+  Set `false` to force geometry-only.
+- `min_crop_size` (default `192`): faces whose padded crop is smaller than this
+  (px, shorter side) fall back to geometry rather than upscale a tiny face.
+
+### Recompute
+
+`--recompute-face-signals` recomputes the per-face signals from stored landmarks
+only — it is **geometry-only** and does not run MediaPipe (no pixels are read).
+To refresh the appearance-based scores, re-extract faces
+(`--extract-faces-gpu-force`) so the full-resolution crops are re-analysed.
+
 ## Face Thumbnails
 
 Thumbnails are stored in the database for fast display.

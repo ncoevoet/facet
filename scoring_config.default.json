@@ -2662,7 +2662,11 @@
     "min_confidence_percent": 65,
     "min_face_size": 20,
     "blink_ear_threshold": 0.28,
-    "min_faces_for_group": 4
+    "min_faces_for_group": 4,
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
   },
   "monochrome_detection": {
     "saturation_threshold_percent": 5

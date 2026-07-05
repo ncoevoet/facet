@@ -227,6 +227,8 @@ For vector search (optional): `sqlite-vec>=0.1.6` (enables KNN search in SQLite,
 
 For the extended IQA tier (optional, `scoring_config.json` `iqa_extended`, OFF by default): `aesthetic-predictor-v2-5` (for `aesthetic_v25`) and `bitsandbytes>=0.43.0` (for `qalign` 4-/8-bit). Install via `pip install -e .[iqa-extended]`. Q-Align ships with `pyiqa`; DeQA-Score loads via `transformers`.
 
+For appearance-based per-face eyes/smile (optional, `scoring_config.json` `face_detection.blendshapes`, ON when installed): `mediapipe==0.10.35`. MUST be installed as `pip install mediapipe==0.10.35 --no-deps` then `pip install absl-py flatbuffers` — NEVER a plain `pip install mediapipe`, whose bundled `opencv-contrib-python` would double-install the `cv2` namespace against Facet's `opencv-python`. Degrades silently to the landmark-geometry scores when absent. Model bundle `face_landmarker.task` (~3.6 MiB) auto-downloads to `pretrained_models/`. See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md).
+
 External tool: `exiftool` (command-line, optional — `exifread` fallback handles all RAW formats)
 
 ## Architecture
@@ -523,6 +525,8 @@ For quick reference, here are the actual defaults from the config file:
 | `face_detection` | `min_faces_for_group` | `4` |
 | `face_detection` | `eyes_closed_max` | `4.0` |
 | `face_detection` | `poor_expression_min` | `4.0` |
+| `face_detection.blendshapes` | `enabled` | `true` (appearance-based eyes/smile via MediaPipe when installed; else geometry fallback) |
+| `face_detection.blendshapes` | `min_crop_size` | `192` |
 | `processing` | `load_workers` | `num_workers` (multi-pass chunk loader threads, cap 8) |
 | `processing` | `raw_decode_concurrency` | `0` (auto: 1-4 from CPU/RAM; `1` = serialized) |
 | `processing` | `raw_decode_timeout_seconds` | `120` (`0` = disabled) |
