@@ -2089,7 +2089,8 @@
     "edit_location": "Editar ubicación",
     "add_location": "Añadir ubicación",
     "gps_click_to_place": "Haz clic en el mapa para colocar un marcador",
-    "gps_clear": "Borrar ubicación"
+    "gps_clear": "Borrar ubicación",
+    "social_crop": "Recorte social"
   },
   "download": {
     "type_original": "Original",
@@ -2178,15 +2179,14 @@
     "save_error": "No se pudo guardar tu selección."
   },
   "junk": {
-    "title": "Limpieza de basura",
-    "subtitle": "Revisa los archivos que no son fotos detectados en tu biblioteca: capturas de pantalla, documentos, recibos, memes y diapositivas. Conserva los que quieras y rechaza el resto.",
+    "help": "Revisa los archivos que no son fotos detectados en tu biblioteca: capturas de pantalla, documentos, recibos, memes y diapositivas. Conserva los que quieras y rechaza el resto.",
     "empty": "No se detectó basura. Ejecuta «python facet.py --detect-junk» para analizar tu biblioteca.",
     "all_kinds": "Todos los tipos",
     "keep": "Conservar",
     "keep_hint": "Conservar esta foto (la quita de la cola)",
     "reject": "Rechazar",
     "reject_hint": "Rechazar esta foto",
-    "reject_all": "Rechazar todo lo mostrado",
+    "reject_all": "Rechazar todo lo mostrado: {count}",
     "confirm_reject_all_title": "Rechazar todo lo mostrado",
     "confirm_reject_all_message": "¿Rechazar las {count} fotos mostradas?",
     "kept": "Foto conservada",
@@ -2194,13 +2194,24 @@
     "rejected_bulk": "{count} fotos rechazadas",
     "load_more": "Cargar más",
     "load_error": "No se pudieron cargar los candidatos",
-    "count": "{count} candidatos",
     "kinds": {
       "screenshot": "Capturas de pantalla",
       "document": "Documentos",
       "receipt": "Recibos",
       "meme": "Memes",
       "slide": "Diapositivas"
+    }
+  },
+  "social_export": {
+    "presets": {
+      "square": "Cuadrado (1:1)",
+      "portrait_4x5": "Retrato (4:5)",
+      "story_9x16": "Historia (9:16)"
+    },
+    "source": {
+      "saliency": "encuadrado en el sujeto",
+      "faces": "encuadrado en las caras",
+      "center": "recorte centrado"
     }
   }
 }

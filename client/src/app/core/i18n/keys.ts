@@ -2092,6 +2092,7 @@ export const I18N = {
     caption_error: "photo_detail.caption_error",
     translating_caption: "photo_detail.translating_caption",
     location: "photo_detail.location",
+    social_crop: "photo_detail.social_crop",
   },
   download: {
     type_original: "download.type_original",
@@ -2180,8 +2181,7 @@ export const I18N = {
     save_error: "proofing.save_error",
   },
   junk: {
-    title: "junk.title",
-    subtitle: "junk.subtitle",
+    help: "junk.help",
     empty: "junk.empty",
     all_kinds: "junk.all_kinds",
     keep: "junk.keep",
@@ -2196,13 +2196,24 @@ export const I18N = {
     rejected_bulk: "junk.rejected_bulk",
     load_more: "junk.load_more",
     load_error: "junk.load_error",
-    count: "junk.count",
     kinds: {
       screenshot: "junk.kinds.screenshot",
       document: "junk.kinds.document",
       receipt: "junk.kinds.receipt",
       meme: "junk.kinds.meme",
       slide: "junk.kinds.slide",
+    },
+  },
+  social_export: {
+    presets: {
+      square: "social_export.presets.square",
+      portrait_4x5: "social_export.presets.portrait_4x5",
+      story_9x16: "social_export.presets.story_9x16",
+    },
+    source: {
+      saliency: "social_export.source.saliency",
+      faces: "social_export.source.faces",
+      center: "social_export.source.center",
     },
   },
 } as const;

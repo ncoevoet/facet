@@ -23,7 +23,9 @@ describe('JunkSweepComponent', () => {
     { path: '/p/s3.jpg', filename: 's3.jpg', junk_kind: 'screenshot', aggregate: 1.2 },
   ];
 
-  function createComponent() {
+  const defaultFirstPage = { photos: initialPhotos, total: 4, total_pages: 1, page: 1, has_more: false };
+
+  function createComponent(firstPage: Record<string, unknown> = defaultFirstPage) {
     photosCall = 0;
     mockApi = {
       get: vi.fn((url: string) => {
@@ -32,7 +34,7 @@ describe('JunkSweepComponent', () => {
         }
         photosCall += 1;
         if (photosCall === 1) {
-          return of({ photos: initialPhotos, total: 4, total_pages: 1, page: 1, has_more: false });
+          return of(firstPage);
         }
         return of({ photos: [], total: 0, total_pages: 1, page: 1, has_more: false });
       }),
@@ -73,7 +75,7 @@ describe('JunkSweepComponent', () => {
     expect(Number.isNaN(component.total())).toBe(false);
   });
 
-  it('rejectAllShown refreshes per-kind chip counts instead of leaving them stale', async () => {
+  it('rejectAllShown refreshes the per-kind counts feeding the filter menu items', async () => {
     createComponent();
     await component.ngOnInit();
     expect(component.kinds()).toEqual([['meme', 1], ['screenshot', 3]]);
@@ -86,5 +88,16 @@ describe('JunkSweepComponent', () => {
     const counts = new Map(component.kinds() as [string, number][]);
     expect(counts.get('meme')).toBe(0);
     expect(counts.get('screenshot')).toBe(0);
+  });
+
+  it('feeds the count of *shown* candidates (not the API total) into the reject-all tooltip', async () => {
+    // Only 2 of 10 candidates are loaded on the first page; the reject-all button
+    // binds junk.reject_all with { count: photos().length }, so the tooltip must
+    // reflect the shown count (2), decoupled from the whole-library total (10).
+    createComponent({ photos: initialPhotos.slice(0, 2), total: 10, total_pages: 5, page: 1, has_more: true });
+    await component.ngOnInit();
+
+    expect(component.photos().length).toBe(2);
+    expect(component.total()).toBe(10);
   });
 });

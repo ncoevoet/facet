@@ -1,7 +1,8 @@
-import { Component, inject, signal, OnInit, HostListener } from '@angular/core';
-import { NgClass } from '@angular/common';
+import { Component, inject, signal, effect, viewChild, TemplateRef, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -10,12 +11,14 @@ import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { PageHelpService } from '../../core/services/page-help.service';
+import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { createLoupeState } from '../../shared/utils/loupe-state';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
-import { JunkKindLabelPipe } from './junk-sweep.pipes';
+import { JunkKindLabelPipe, JunkKindIconPipe } from './junk-sweep.pipes';
 import { I18N } from '../../core/i18n/keys';
 
 interface JunkPhoto {
@@ -39,9 +42,10 @@ const ANY_KIND = 'any';
   selector: 'app-junk-sweep',
   host: { class: 'block h-full overflow-y-auto' },
   imports: [
-    NgClass,
+    NgTemplateOutlet,
     MatIconModule,
     MatButtonModule,
+    MatMenuModule,
     MatProgressSpinnerModule,
     MatSliderModule,
     MatTooltipModule,
@@ -50,22 +54,46 @@ const ANY_KIND = 'any';
     ImageUrlPipe,
     LoupeDirective,
     JunkKindLabelPipe,
+    JunkKindIconPipe,
   ],
   template: `
-    <div class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%]">
-      <div class="flex items-center gap-3 mb-1">
-        <h2 class="text-lg font-semibold">{{ I18N.junk.title | translate }}</h2>
-        <span class="text-xs text-white/40">{{ I18N.junk.count | translate:{ count: total() } }}</span>
-        <div class="flex items-center gap-2 ml-auto">
-          @if (photos().length > 0) {
-            <button mat-flat-button color="warn" (click)="rejectAllShown()">
-              <mat-icon>delete_sweep</mat-icon>
-              {{ I18N.junk.reject_all | translate }}
+    <!-- The toolbar projects into the global header on lg+ (HeaderSlotService) and
+         renders as a fixed bottom bar on small screens (same #junkToolbar template):
+         filter group on the left, action group (loupe + reject-all) on the right. -->
+    <div class="lg:hidden">
+      <ng-container [ngTemplateOutlet]="junkToolbar" />
+    </div>
+    <ng-template #junkToolbar>
+      <div class="flex items-center gap-2 md:gap-3
+                  max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-40
+                  max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-3 max-lg:py-2
+                  max-lg:bg-[var(--mat-sys-surface-container)] max-lg:border-t max-lg:border-[var(--mat-sys-outline-variant)]
+                  max-lg:shadow-lg">
+        <button mat-icon-button [matMenuTriggerFor]="kindMenu"
+                [class.!text-[var(--mat-sys-primary)]]="activeKind() !== ANY_KIND"
+                [matTooltip]="activeKind() === ANY_KIND ? (I18N.junk.all_kinds | translate) : (activeKind() | junkKindLabel)"
+                [attr.aria-label]="activeKind() === ANY_KIND ? (I18N.junk.all_kinds | translate) : (activeKind() | junkKindLabel)">
+          <mat-icon>{{ activeKind() | junkKindIcon }}</mat-icon>
+        </button>
+        <mat-menu #kindMenu="matMenu">
+          <button mat-menu-item (click)="selectKind(ANY_KIND)">
+            <mat-icon>{{ ANY_KIND | junkKindIcon }}</mat-icon>
+            <span [class.font-bold]="activeKind() === ANY_KIND">{{ I18N.junk.all_kinds | translate }}</span>
+          </button>
+          @for (k of kinds(); track k[0]) {
+            <button mat-menu-item (click)="selectKind(k[0])">
+              <mat-icon>{{ k[0] | junkKindIcon }}</mat-icon>
+              <span [class.font-bold]="activeKind() === k[0]">{{ k[0] | junkKindLabel }}</span>
+              <span class="ml-2 text-xs opacity-50">{{ k[1] }}</span>
             </button>
           }
-          <button mat-stroked-button (click)="loupeActive.set(!loupeActive())"
-                  [class.!border-[var(--mat-sys-primary)]]="loupeActive()"
-                  [matTooltip]="I18N.scenes.loupe_hint | translate">
+        </mat-menu>
+        <div class="flex items-center gap-2 md:gap-3 ml-auto">
+          <button mat-icon-button (click)="loupeActive.set(!loupeActive())"
+                  [class.!text-[var(--mat-sys-primary)]]="loupeActive()"
+                  [attr.aria-pressed]="loupeActive()"
+                  [matTooltip]="I18N.scenes.loupe_hint | translate"
+                  [attr.aria-label]="I18N.scenes.loupe | translate">
             <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
           </button>
           @if (loupeActive()) {
@@ -74,24 +102,18 @@ const ANY_KIND = 'any';
                      [attr.aria-label]="I18N.scenes.loupe | translate" />
             </mat-slider>
           }
+          @if (photos().length > 0) {
+            <button mat-icon-button color="warn" (click)="rejectAllShown()"
+                    [matTooltip]="I18N.junk.reject_all | translate:{ count: photos().length }"
+                    [attr.aria-label]="I18N.junk.reject_all | translate:{ count: photos().length }">
+              <mat-icon>delete_sweep</mat-icon>
+            </button>
+          }
         </div>
       </div>
-      <p class="text-sm text-white/50 mb-4">{{ I18N.junk.subtitle | translate }}</p>
+    </ng-template>
 
-      <div class="flex flex-wrap items-center gap-2 mb-4">
-        <button mat-stroked-button (click)="selectKind(ANY_KIND)"
-                [ngClass]="activeKind() === ANY_KIND ? '!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]' : ''">
-          {{ I18N.junk.all_kinds | translate }}
-        </button>
-        @for (k of kinds(); track k[0]) {
-          <button mat-stroked-button (click)="selectKind(k[0])"
-                  [ngClass]="activeKind() === k[0] ? '!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]' : ''">
-            {{ k[0] | junkKindLabel }}
-            <span class="text-xs text-white/40 ml-1">{{ k[1] }}</span>
-          </button>
-        }
-      </div>
-
+    <div class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%] max-lg:pb-24">
       @if (loading() && photos().length === 0) {
         <div class="flex justify-center py-10"><mat-spinner diameter="32" /></div>
       } @else if (photos().length === 0) {
@@ -133,13 +155,24 @@ const ANY_KIND = 'any';
     </div>
   `,
 })
-export class JunkSweepComponent implements OnInit {
+export class JunkSweepComponent implements OnInit, OnDestroy {
   protected readonly I18N = I18N;
   protected readonly ANY_KIND = ANY_KIND;
   private readonly api = inject(ApiService);
   private readonly snack = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
   private readonly dialog = inject(MatDialog);
+  private readonly pageHelp = inject(PageHelpService);
+  private readonly headerSlot = inject(HeaderSlotService);
+
+  private readonly junkToolbar = viewChild<TemplateRef<unknown>>('junkToolbar');
+
+  constructor() {
+    effect(() => {
+      const tpl = this.junkToolbar();
+      if (tpl) this.headerSlot.set(tpl);
+    });
+  }
 
   protected readonly photos = signal<JunkPhoto[]>([]);
   protected readonly kinds = signal<[string, number][]>([]);
@@ -157,8 +190,15 @@ export class JunkSweepComponent implements OnInit {
   private loadGeneration = 0;
 
   async ngOnInit(): Promise<void> {
+    this.pageHelp.setDescription(I18N.junk.help);
     void this.loadKinds();
     await this.load();
+  }
+
+  ngOnDestroy(): void {
+    this.pageHelp.setDescription(null);
+    const tpl = this.junkToolbar();
+    if (tpl) this.headerSlot.clear(tpl);
   }
 
   private async loadKinds(): Promise<void> {
@@ -168,7 +208,7 @@ export class JunkSweepComponent implements OnInit {
       );
       this.kinds.set(data.junk_kinds ?? []);
     } catch {
-      // Chips stay empty; the "All kinds" view still works.
+      // The kind filter menu stays empty; the "All kinds" view still works.
     }
   }
 

@@ -2087,7 +2087,8 @@
     "caption_edit_title": "Editar legenda",
     "caption_error": "Falha ao gerar legenda",
     "translating_caption": "Traduzindo...",
-    "location": "Localização"
+    "location": "Localização",
+    "social_crop": "Recorte social"
   },
   "download": {
     "type_original": "Original",
@@ -2176,15 +2177,14 @@
     "save_error": "Não foi possível guardar a sua seleção."
   },
   "junk": {
-    "title": "Limpeza de lixo",
-    "subtitle": "Reveja os ficheiros que não são fotos detetados na sua biblioteca — capturas de ecrã, documentos, recibos, memes e diapositivos. Mantenha os que quiser e rejeite o resto.",
+    "help": "Reveja os ficheiros que não são fotos detetados na sua biblioteca — capturas de ecrã, documentos, recibos, memes e diapositivos. Mantenha os que quiser e rejeite o resto.",
     "empty": "Nenhum lixo detetado. Execute «python facet.py --detect-junk» para analisar a sua biblioteca.",
     "all_kinds": "Todos os tipos",
     "keep": "Manter",
     "keep_hint": "Manter esta foto (remove-a da fila)",
     "reject": "Rejeitar",
     "reject_hint": "Rejeitar esta foto",
-    "reject_all": "Rejeitar tudo",
+    "reject_all": "Rejeitar tudo: {count}",
     "confirm_reject_all_title": "Rejeitar tudo",
     "confirm_reject_all_message": "Rejeitar as {count} fotos apresentadas?",
     "kept": "Foto mantida",
@@ -2192,13 +2192,24 @@
     "rejected_bulk": "{count} fotos rejeitadas",
     "load_more": "Carregar mais",
     "load_error": "Falha ao carregar os candidatos",
-    "count": "{count} candidatos",
     "kinds": {
       "screenshot": "Capturas de ecrã",
       "document": "Documentos",
       "receipt": "Recibos",
       "meme": "Memes",
       "slide": "Diapositivos"
+    }
+  },
+  "social_export": {
+    "presets": {
+      "square": "Quadrado (1:1)",
+      "portrait_4x5": "Retrato (4:5)",
+      "story_9x16": "História (9:16)"
+    },
+    "source": {
+      "saliency": "enquadrado no sujeito",
+      "faces": "enquadrado nos rostos",
+      "center": "recorte centralizado"
     }
   }
 }

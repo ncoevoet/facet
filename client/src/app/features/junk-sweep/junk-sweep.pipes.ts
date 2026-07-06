@@ -17,3 +17,24 @@ export class JunkKindLabelPipe implements PipeTransform {
     return label === key ? kind : label;
   }
 }
+
+const KIND_ICONS: Record<string, string> = {
+  any: 'filter_alt',
+  screenshot: 'screenshot',
+  document: 'description',
+  receipt: 'receipt_long',
+  meme: 'mood',
+  slide: 'slideshow',
+};
+
+/**
+ * Map a junk-kind key (or the "any" filter sentinel) to a Material icon name for
+ * the header filter menu and its trigger. Unknown kinds fall back to a generic
+ * image glyph.
+ */
+@Pipe({ name: 'junkKindIcon' })
+export class JunkKindIconPipe implements PipeTransform {
+  transform(kind: string | null | undefined): string {
+    return (kind && KIND_ICONS[kind]) || 'image';
+  }
+}

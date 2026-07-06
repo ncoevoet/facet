@@ -2087,7 +2087,8 @@
     "caption_edit_title": "Edit Caption",
     "caption_error": "Failed to generate caption",
     "translating_caption": "Translating...",
-    "location": "Location"
+    "location": "Location",
+    "social_crop": "Social crop"
   },
   "download": {
     "type_original": "Original",
@@ -2176,15 +2177,14 @@
     "save_error": "Could not save your pick."
   },
   "junk": {
-    "title": "Junk Sweep",
-    "subtitle": "Review non-photo files found in your library — screenshots, documents, receipts, memes and slides. Keep the ones you want; reject the rest.",
+    "help": "Review non-photo files found in your library — screenshots, documents, receipts, memes and slides. Keep the ones you want; reject the rest.",
     "empty": "No junk detected. Run \"python facet.py --detect-junk\" to scan your library.",
     "all_kinds": "All kinds",
     "keep": "Keep",
     "keep_hint": "Keep this photo (removes it from the queue)",
     "reject": "Reject",
     "reject_hint": "Reject this photo",
-    "reject_all": "Reject all shown",
+    "reject_all": "Reject all shown: {count}",
     "confirm_reject_all_title": "Reject all shown",
     "confirm_reject_all_message": "Reject the {count} photos shown here?",
     "kept": "Photo kept",
@@ -2192,13 +2192,24 @@
     "rejected_bulk": "Rejected {count} photos",
     "load_more": "Load more",
     "load_error": "Failed to load junk candidates",
-    "count": "{count} candidates",
     "kinds": {
       "screenshot": "Screenshots",
       "document": "Documents",
       "receipt": "Receipts",
       "meme": "Memes",
       "slide": "Slides"
+    }
+  },
+  "social_export": {
+    "presets": {
+      "square": "Square (1:1)",
+      "portrait_4x5": "Portrait (4:5)",
+      "story_9x16": "Story (9:16)"
+    },
+    "source": {
+      "saliency": "framed on subject",
+      "faces": "framed on faces",
+      "center": "center crop"
     }
   }
 }

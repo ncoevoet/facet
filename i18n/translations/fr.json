@@ -2089,7 +2089,8 @@
     "caption_edit_title": "Modifier la légende",
     "caption_error": "Échec de la génération de la légende",
     "translating_caption": "Traduction en cours...",
-    "location": "Localisation"
+    "location": "Localisation",
+    "social_crop": "Recadrage social"
   },
   "download": {
     "type_original": "Original",
@@ -2178,15 +2179,14 @@
     "save_error": "Impossible d'enregistrer votre sélection."
   },
   "junk": {
-    "title": "Nettoyage des indésirables",
-    "subtitle": "Passez en revue les fichiers non photographiques détectés dans votre bibliothèque — captures d'écran, documents, reçus, mèmes et diapositives. Conservez ceux que vous voulez, rejetez les autres.",
+    "help": "Passez en revue les fichiers non photographiques détectés dans votre bibliothèque — captures d'écran, documents, reçus, mèmes et diapositives. Conservez ceux que vous voulez, rejetez les autres.",
     "empty": "Aucun indésirable détecté. Lancez « python facet.py --detect-junk » pour analyser votre bibliothèque.",
     "all_kinds": "Tous les types",
     "keep": "Conserver",
     "keep_hint": "Conserver cette photo (la retire de la file)",
     "reject": "Rejeter",
     "reject_hint": "Rejeter cette photo",
-    "reject_all": "Tout rejeter",
+    "reject_all": "Tout rejeter : {count}",
     "confirm_reject_all_title": "Tout rejeter",
     "confirm_reject_all_message": "Rejeter les {count} photos affichées ?",
     "kept": "Photo conservée",
@@ -2194,13 +2194,24 @@
     "rejected_bulk": "{count} photos rejetées",
     "load_more": "Charger plus",
     "load_error": "Échec du chargement des indésirables",
-    "count": "{count} candidats",
     "kinds": {
       "screenshot": "Captures d'écran",
       "document": "Documents",
       "receipt": "Reçus",
       "meme": "Mèmes",
       "slide": "Diapositives"
+    }
+  },
+  "social_export": {
+    "presets": {
+      "square": "Carré (1:1)",
+      "portrait_4x5": "Portrait (4:5)",
+      "story_9x16": "Story (9:16)"
+    },
+    "source": {
+      "saliency": "cadré sur le sujet",
+      "faces": "cadré sur les visages",
+      "center": "recadrage centré"
     }
   }
 }
