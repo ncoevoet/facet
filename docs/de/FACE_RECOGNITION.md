@@ -210,6 +210,77 @@ python facet.py --recompute-blinks
 
 Verarbeitet nur Fotos mit Gesichtern, keine GPU erforderlich.
 
+## Ausdruckssignale pro Gesicht (Augen offen + Lächeln)
+
+Jede Gesichtszeile speichert zwei kontinuierliche 0–10-Signale, die vom Gesichts-Panel der Auswahl
+und den Aggregaten auf Fotoebene verwendet werden: `eyes_open_score` (10 = weit geöffnet, 0 =
+vollständig geschlossen) und `smile_score` (5 = neutral, 10 = breites Lächeln, 0 = missmutiger
+Ausdruck).
+
+Zwei Backends erzeugen sie auf derselben 0–10-Skala:
+
+1. **Geometrie (immer verfügbar).** Abgeleitet aus den gespeicherten 106-Punkt-Landmarken von
+   InsightFace: Eye Aspect Ratio für Augen offen, Mundwinkel-Anhebung für Lächeln. Reine Geometrie,
+   sodass `--recompute-face-signals` sie aus gespeicherten Landmarken ohne Pixel und ohne GPU
+   nachträglich berechnen kann.
+2. **MediaPipe-Blendshapes (optional, erscheinungsbasiert).** Beim Scannen bzw. bei der
+   Gesichtsextraktion wird ein großzügiger Ausschnitt jedes Gesichts durch den MediaPipe Face
+   Landmarker geführt, dessen ARKit-artige Blendshapes (`eyeBlink*`, `mouthSmile*`, `mouthFrown*`)
+   auf dieselben Skalen abgebildet werden. Erscheinungsbild schlägt Landmark-Geometrie bei
+   geschlossenen Augen, subtilen Lächeln und schräg gehaltenen Köpfen, daher **ersetzt** ein per
+   MediaPipe bewertetes Gesicht den geometrischen Wert. Fehlt MediaPipe oder sein Modellbündel,
+   oder ist der Gesichtsausschnitt zu klein / nicht erkannt, bleibt der geometrische Wert erhalten
+   — das Verhalten entspricht dann einer reinen Geometrie-Installation.
+
+### MediaPipe installieren
+
+MediaPipe ist optional und **muss** ohne sein gebündeltes `opencv-contrib-python` installiert
+werden, das sonst einen zweiten `cv2`-Namensraum neben Facets `opencv-python` installieren würde:
+
+```bash
+pip install mediapipe==0.10.35 --no-deps
+pip install absl-py flatbuffers
+```
+
+Führen Sie niemals ein einfaches `pip install mediapipe` aus.
+
+### Modellbündel
+
+Das `face_landmarker.task`-Bündel (~3,6 MiB, Apache-2.0) wird bei der ersten Verwendung automatisch
+nach `pretrained_models/face_landmarker.task` heruntergeladen. Ist die Maschine offline, laden Sie
+es manuell von
+`https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task`
+herunter und legen Sie es an diesem Pfad ab. Ein fehlgeschlagener Download protokolliert einmalig
+eine Warnung und fällt auf die geometrischen Scores zurück.
+
+### Konfiguration
+
+```json
+{
+  "face_detection": {
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
+  }
+}
+```
+
+- `enabled` (Standard `true`): Blendshape-Scores verwenden, sobald MediaPipe und das Modellbündel
+  verfügbar sind; andernfalls läuft automatisch der Geometrie-Fallback. Auf `false` setzen, um
+  ausschließlich Geometrie zu erzwingen.
+- `min_crop_size` (Standard `192`): Gesichter, deren gepolsterter Ausschnitt kleiner als dieser Wert
+  ist (px, kürzere Seite), fallen auf die Geometrie zurück, statt ein winziges Gesicht
+  hochzuskalieren.
+
+### Neuberechnung
+
+`--recompute-face-signals` berechnet die Signale pro Gesicht ausschließlich aus gespeicherten
+Landmarken neu — es ist **rein geometrisch** und führt MediaPipe nicht aus (es werden keine Pixel
+gelesen). Um die erscheinungsbasierten Scores zu aktualisieren, extrahieren Sie die Gesichter
+erneut (`--extract-faces-gpu-force`), damit die Ausschnitte in voller Auflösung neu analysiert
+werden.
+
 ## Gesichts-Miniaturansichten
 
 Miniaturansichten werden für eine schnelle Anzeige in der Datenbank gespeichert.
@@ -311,6 +382,33 @@ Zugriff über die Header-Schaltfläche oder `/persons`:
 - **Ausblenden** – Einen Cluster aus der Liste, den Filtern und den Zusammenführungsvorschlägen ausschließen
 - **Löschen** – Personen-Cluster entfernen
 - **Umbenennen** – Auf den Namen klicken, um ihn inline zu bearbeiten
+
+### Eine Person erstellen
+
+Personen entstehen nicht mehr nur durch Clustering — Sie können ein vom Clusterer übersehenes
+Gesicht direkt aus der Galerie heraus benennen:
+
+1. Öffnen Sie auf einer Fotokarte die Personen-Aktionen und wählen Sie ein nicht zugewiesenes
+   Gesicht.
+2. Wählen Sie im Personen-Auswähler **Neue Person erstellen** und geben Sie einen Namen ein.
+3. Das Gesicht wird in einem Aufruf der neuen (manuell erstellten, `auto_clustered = 0`) Person
+   zugeordnet.
+
+Endpunkt: `POST /api/persons` (nur mit Bearbeitungsrecht), Body
+`{ "name": "<Name>", "face_ids": [<id>, ...] }`. Der Name ist erforderlich (nach dem Trimmen nicht
+leer). Gesichter, die bereits einer anderen Person gehören, werden neu zugewiesen, und jede alte
+Person, die dadurch ohne Gesichter zurückbleibt, wird gelöscht — dieselbe Logik wie bei der
+Gesichtszuweisung. Im Mehrbenutzermodus darf der Aufrufer nur Gesichter aus Fotos innerhalb der
+eigenen (oder geteilten) Verzeichnisse anhängen; ein Gesicht außerhalb dieses Bereichs wird als
+nicht gefunden abgelehnt.
+
+### Zu benennen
+
+Die Seite „Personen verwalten“ zeigt automatisch geclusterte Personen, die sich zu benennen lohnen,
+in einem Abschnitt **Zu benennen**: unbenannte Cluster (`name IS NULL`, `auto_clustered = 1`) mit
+mindestens `viewer.persons.needs_naming_min_faces` Gesichtern (Standard `5`), jeweils mit einem
+Inline-Namensfeld, damit große Cluster benannt werden können, ohne sie erst suchen zu müssen.
+Bereitgestellt über `GET /api/persons/needs_naming?min_faces=N`.
 
 ### Seite mit Zusammenführungsvorschlägen
 

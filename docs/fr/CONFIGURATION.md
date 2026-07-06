@@ -750,7 +750,11 @@ Réglages de détection des visages InsightFace.
     "min_faces_for_group": 4,
     "enable_3d_landmarks": false,
     "eyes_closed_max": 4.0,
-    "poor_expression_min": 4.0
+    "poor_expression_min": 4.0,
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
   }
 }
 ```
@@ -764,6 +768,8 @@ Réglages de détection des visages InsightFace.
 | `enable_3d_landmarks` | `false` | Surcharge optionnelle (absente du fichier livré ; défaut du code `false`). Charge le module InsightFace `landmark_3d_68` pour l'extraction de la pose de tête (lacet/tangage/roulis). Coûte ~5 Mo de poids ONNX supplémentaires. Actuellement informatif ; de futurs affinements de profil/silhouette le liront. |
 | `eyes_closed_max` | `4.0` | Score d'ouverture des yeux par visage (0–10) à ou en dessous duquel la chambre noire de tri signale un visage comme clignant. Pilote les anneaux de visage rouge/orange/vert et le curseur de seuil des yeux (déplacé depuis une constante codée en dur) |
 | `poor_expression_min` | `4.0` | Score de sourire/expression par visage (0–10) en dessous duquel la chambre noire signale une expression faible. Pilote l'anneau de visage d'expression et le curseur (déplacé depuis une constante codée en dur) |
+| `blendshapes.enabled` | `true` | Utilise les scores blendshapes de MediaPipe (basés sur l'apparence) pour `eyes_open_score` / `smile_score` par visage quand MediaPipe et le modèle `face_landmarker.task` sont disponibles ; quand `true`, ils remplacent les scores de géométrie des points de repère, sinon le repli géométrique s'exécute automatiquement. Dépendance optionnelle — installer avec `pip install mediapipe==0.10.35 --no-deps` (jamais un simple `pip install mediapipe`). Voir [FACE_RECOGNITION.md](FACE_RECOGNITION.md#signaux-dexpression-par-visage-yeux-ouverts--sourire). |
+| `blendshapes.min_crop_size` | `192` | Les visages dont le recadrage rembourré est plus petit que cette valeur (px, côté le plus court) retombent sur le score géométrique plutôt que d'agrandir un visage minuscule |
 
 ---
 

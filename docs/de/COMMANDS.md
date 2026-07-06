@@ -241,6 +241,7 @@ Berichtet die Python-Version, den PyTorch/CUDA-Build, die GPU-Erkennung und den 
 | `python facet.py --train-ranker` | Den persönlichen Ranker über [Embedding + Scores] trainieren und learned_scores schreiben (abhängig von der ausgelassenen k-fachen Genauigkeit gegenüber der aggregierten Baseline) |
 | `python facet.py --train-ranker --ranker-category portrait` | Den Ranker nur auf einer Kategorie trainieren |
 | `python facet.py --train-ranker --train-ranker-force` | learned_scores schreiben, auch wenn die Genauigkeitsschwelle nicht erreicht wird |
+| `python facet.py --train-ranker --user alice` | Training auf die eigenen Vergleiche dieses Benutzers beschränken (plus Alt-Zeilen von vor dem Mehrbenutzermodus) und dessen eigene learned_scores schreiben (Mehrbenutzermodus) |
 | `python facet.py --report-unreviewed-bursts` | Berichten, wie viele Serienbild-Gruppen ungeprüft bleiben (nur lesend) |
 | `python facet.py --eval-iqa-srcc` | Spearman-SRCC jeder IQA-/Ästhetik-Metrik gegenüber Ihren Sternebewertungen berichten (nur lesend) |
 | `python facet.py --mine-insights` | Data-Mining-Bericht: Label-Inventar, Metrik-Label-Korrelationen, Kategorienverteilung, Perzentil-Drift, Vergleichsgesundheit |

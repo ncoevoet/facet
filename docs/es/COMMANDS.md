@@ -241,6 +241,7 @@ Informa de la versión de Python, la compilación de PyTorch/CUDA, la detección
 | `python facet.py --train-ranker` | Entrena el clasificador personal sobre [embedding + puntuaciones] y escribe learned_scores (sujeto a la precisión de validación cruzada k-fold de datos reservados frente a la línea base del agregado) |
 | `python facet.py --train-ranker --ranker-category portrait` | Entrena el clasificador solo en una categoría |
 | `python facet.py --train-ranker --train-ranker-force` | Escribe learned_scores aunque no se cumpla el umbral de precisión |
+| `python facet.py --train-ranker --user alice` | Restringe el entrenamiento a las comparaciones propias de ese usuario (más las filas heredadas de antes del multiusuario), escribiendo los learned_scores propios de ese usuario (modo multiusuario) |
 | `python facet.py --report-unreviewed-bursts` | Informa de cuántos grupos de ráfaga siguen sin revisar (solo lectura) |
 | `python facet.py --eval-iqa-srcc` | Informa del SRCC de Spearman de cada métrica IQA/estética frente a tus valoraciones por estrellas (solo lectura) |
 | `python facet.py --mine-insights` | Informe de minería de datos: inventario de etiquetas, correlaciones métrica-etiqueta, distribución por categoría, deriva de percentiles, salud de las comparaciones |

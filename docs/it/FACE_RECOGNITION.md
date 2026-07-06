@@ -210,6 +210,74 @@ python facet.py --recompute-blinks
 
 Elabora solo le foto con volti, senza bisogno di GPU.
 
+## Segnali di espressione per volto (occhi aperti + sorriso)
+
+Ogni riga di volto memorizza due segnali continui su scala 0-10 usati dal pannello volti della
+selezione e dagli aggregati a livello di foto: `eyes_open_score` (10 = completamente aperti, 0 =
+completamente chiusi) e `smile_score` (5 = neutro, 10 = sorriso ampio, 0 = espressione accigliata).
+
+Due motori li producono, sulla stessa scala 0-10:
+
+1. **Geometria (sempre disponibile).** Derivato dai 106 punti di riferimento InsightFace
+   memorizzati: l'Eye Aspect Ratio per gli occhi aperti, il sollevamento degli angoli della bocca
+   per il sorriso. Pura geometria, quindi `--recompute-face-signals` può ricalcolarli dai punti di
+   riferimento memorizzati senza pixel e senza GPU.
+2. **Blendshape MediaPipe (opzionale, basato sull'aspetto).** Durante la scansione / l'estrazione
+   dei volti, un ritaglio generoso di ogni volto viene elaborato dal MediaPipe Face Landmarker, i
+   cui blendshape in stile ARKit (`eyeBlink*`, `mouthSmile*`, `mouthFrown*`) si mappano sulle
+   stesse scale. L'aspetto batte la geometria dei punti di riferimento su occhi chiusi, sorrisi
+   sottili e teste non frontali, quindi quando un volto viene valutato tramite MediaPipe
+   **sostituisce** il valore geometrico. Se MediaPipe o il suo pacchetto modello sono assenti, o il
+   ritaglio del volto è troppo piccolo / non rilevato, viene mantenuto il valore geometrico — il
+   comportamento è identico a un'installazione solo geometria.
+
+### Installare MediaPipe
+
+MediaPipe è opzionale e **deve** essere installato senza il suo `opencv-contrib-python` incluso,
+che installerebbe un secondo namespace `cv2` accanto a quello di Facet (`opencv-python`):
+
+```bash
+pip install mediapipe==0.10.35 --no-deps
+pip install absl-py flatbuffers
+```
+
+Non eseguire mai un semplice `pip install mediapipe`.
+
+### Pacchetto modello
+
+Il pacchetto `face_landmarker.task` (~3,6 MiB, Apache-2.0) viene scaricato automaticamente al primo
+utilizzo in `pretrained_models/face_landmarker.task`. Se la macchina è offline, scaricalo
+manualmente da
+`https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task`
+e posizionalo in quel percorso. Un download non riuscito registra un avviso una sola volta e
+ripiega sui punteggi geometrici.
+
+### Configurazione
+
+```json
+{
+  "face_detection": {
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
+  }
+}
+```
+
+- `enabled` (predefinito `true`): usa i punteggi blendshape ogni volta che MediaPipe e il pacchetto
+  modello sono disponibili; altrimenti il fallback geometrico si attiva automaticamente. Impostare
+  su `false` per forzare la sola geometria.
+- `min_crop_size` (predefinito `192`): i volti il cui ritaglio con padding è più piccolo di questo
+  valore (px, lato più corto) ripiegano sulla geometria invece di ingrandire un volto minuscolo.
+
+### Ricalcolo
+
+`--recompute-face-signals` ricalcola i segnali per volto solo dai punti di riferimento memorizzati
+— è **solo geometria** e non esegue MediaPipe (non viene letto alcun pixel). Per aggiornare i
+punteggi basati sull'aspetto, ri-estrarre i volti (`--extract-faces-gpu-force`) in modo che i
+ritagli a piena risoluzione vengano rianalizzati.
+
 ## Miniature dei volti
 
 Le miniature sono archiviate nel database per una visualizzazione rapida.
@@ -311,6 +379,32 @@ Accessibile tramite il pulsante nell'intestazione o `/persons`:
 - **Nascondi** - Escludi un cluster dall'elenco, dai filtri e dai suggerimenti di unione
 - **Elimina** - Rimuovi il cluster della persona
 - **Rinomina** - Clicca sul nome per modificarlo in linea
+
+### Creare una persona
+
+Le persone non derivano più solo dal clustering — puoi nominare un volto sfuggito al clusterer
+direttamente dalla galleria:
+
+1. Su una scheda foto, apri le azioni sulla persona e scegli un volto non assegnato.
+2. Nel selettore di persona, scegli **Crea nuova persona** e digita un nome.
+3. Il volto viene collegato alla nuova persona (creata manualmente, `auto_clustered = 0`) in
+   un'unica chiamata.
+
+Endpoint: `POST /api/persons` (riservato all'edizione), corpo
+`{ "name": "<nome>", "face_ids": [<id>, ...] }`. Il nome è obbligatorio (non vuoto dopo il trim). I
+volti già appartenenti a un'altra persona vengono riassegnati, e qualsiasi vecchia persona rimasta
+senza volti viene eliminata — la stessa semantica dell'assegnazione dei volti. In modalità
+multiutente, chi effettua la chiamata può collegare solo volti provenienti da foto all'interno
+delle proprie directory (o condivise); un volto al di fuori di questo ambito viene rifiutato come
+non trovato.
+
+### Da nominare
+
+La pagina Gestisci persone mostra le persone raggruppate automaticamente che meritano di essere
+nominate in una sezione **Da nominare**: cluster senza nome (`name IS NULL`, `auto_clustered = 1`)
+con almeno `viewer.persons.needs_naming_min_faces` volti (predefinito `5`), ciascuno con un campo
+nome in linea in modo che i cluster numerosi possano essere nominati senza doverli cercare. Servito
+da `GET /api/persons/needs_naming?min_faces=N`.
 
 ### Pagina Suggerimenti di unione
 

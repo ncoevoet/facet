@@ -750,7 +750,11 @@ Impostazioni di rilevamento dei volti InsightFace.
     "min_faces_for_group": 4,
     "enable_3d_landmarks": false,
     "eyes_closed_max": 4.0,
-    "poor_expression_min": 4.0
+    "poor_expression_min": 4.0,
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
   }
 }
 ```
@@ -764,6 +768,8 @@ Impostazioni di rilevamento dei volti InsightFace.
 | `enable_3d_landmarks` | `false` | Override facoltativo (assente dal file fornito; valore predefinito del codice `false`). Carica il modulo InsightFace `landmark_3d_68` per l'estrazione della posa della testa (yaw/pitch/roll). Costa ~5MB di pesi ONNX aggiuntivi. Attualmente informativo; futuri perfezionamenti di profilo/silhouette lo leggeranno. |
 | `eyes_closed_max` | `4.0` | Punteggio di occhi aperti per singolo volto (0–10) pari o inferiore al quale la camera oscura di selezione segnala un volto come occhi chiusi. Comanda gli anelli rosso/arancione/verde attorno al volto e il cursore della soglia degli occhi (spostato da una costante fissa nel codice) |
 | `poor_expression_min` | `4.0` | Punteggio di sorriso/espressione per singolo volto (0–10) sotto il quale la camera oscura segnala un'espressione debole. Comanda l'anello dell'espressione attorno al volto e il relativo cursore (spostato da una costante fissa nel codice) |
+| `blendshapes.enabled` | `true` | Usa i punteggi blendshape di MediaPipe (basati sull'aspetto) per `eyes_open_score` / `smile_score` per singolo volto quando MediaPipe e il pacchetto `face_landmarker.task` sono disponibili; se `true` sostituiscono i punteggi di geometria dei punti di riferimento, altrimenti il fallback geometrico si attiva automaticamente. Dipendenza opzionale — installare con `pip install mediapipe==0.10.35 --no-deps` (mai un semplice `pip install mediapipe`). Vedi [FACE_RECOGNITION.md](FACE_RECOGNITION.md#segnali-di-espressione-per-volto-occhi-aperti--sorriso). |
+| `blendshapes.min_crop_size` | `192` | I volti il cui ritaglio con padding è più piccolo di questo valore (px, lato più corto) ripiegano sul punteggio geometrico invece di ingrandire un volto minuscolo |
 
 ---
 

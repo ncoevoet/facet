@@ -750,7 +750,11 @@ InsightFace-Einstellungen zur Gesichtserkennung.
     "min_faces_for_group": 4,
     "enable_3d_landmarks": false,
     "eyes_closed_max": 4.0,
-    "poor_expression_min": 4.0
+    "poor_expression_min": 4.0,
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
   }
 }
 ```
@@ -764,6 +768,8 @@ InsightFace-Einstellungen zur Gesichtserkennung.
 | `enable_3d_landmarks` | `false` | Optionale Überschreibung (in der ausgelieferten Datei nicht vorhanden; Code-Standard `false`). Lädt das InsightFace-Modul `landmark_3d_68` für die Extraktion der Kopfhaltung (yaw/pitch/roll). Kostet ~5MB zusätzliche ONNX-Gewichte. Derzeit nur informativ; künftige Profil-/Silhouetten-Verfeinerungen werden dies auslesen. |
 | `eyes_closed_max` | `4.0` | Augen-offen-Score pro Gesicht (0–10), bei oder unter dem die Culling-Dunkelkammer ein Gesicht als blinzelnd markiert. Steuert die roten/orangen/grünen Gesichtsringe und den Augen-Schwellenwert-Schieberegler (von einer fest codierten Konstante verschoben) |
 | `poor_expression_min` | `4.0` | Lächel-/Ausdrucks-Score pro Gesicht (0–10), unter dem die Dunkelkammer einen schwachen Ausdruck markiert. Steuert den Ausdrucks-Gesichtsring und den Schieberegler (von einer fest codierten Konstante verschoben) |
+| `blendshapes.enabled` | `true` | Verwendet erscheinungsbasierte MediaPipe-Blendshape-Scores für `eyes_open_score` / `smile_score` pro Gesicht, wenn MediaPipe und das `face_landmarker.task`-Bündel verfügbar sind; bei `true` ersetzen sie die Landmark-Geometrie-Scores, andernfalls läuft automatisch der Geometrie-Fallback. Optionale Abhängigkeit — installieren mit `pip install mediapipe==0.10.35 --no-deps` (niemals ein einfaches `pip install mediapipe`). Siehe [FACE_RECOGNITION.md](FACE_RECOGNITION.md#ausdruckssignale-pro-gesicht-augen-offen--lächeln). |
+| `blendshapes.min_crop_size` | `192` | Gesichter, deren gepolsterter Ausschnitt kleiner als dieser Wert ist (px, kürzere Seite), fallen auf den geometrischen Score zurück, statt ein winziges Gesicht hochzuskalieren |
 
 ---
 

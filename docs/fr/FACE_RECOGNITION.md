@@ -210,6 +210,75 @@ python facet.py --recompute-blinks
 
 Ne traite que les photos comportant des visages, aucun GPU nécessaire.
 
+## Signaux d'expression par visage (yeux ouverts + sourire)
+
+Chaque ligne de visage stocke deux signaux continus sur une échelle de 0 à 10, utilisés par le
+panneau de visages du tri et les agrégats au niveau de la photo : `eyes_open_score` (10 = grand
+ouvert, 0 = complètement fermé) et `smile_score` (5 = neutre, 10 = large sourire, 0 = moue).
+
+Deux moteurs les produisent, sur la même échelle 0-10 :
+
+1. **Géométrie (toujours disponible).** Dérivé des 106 points de repère InsightFace stockés :
+   l'Eye Aspect Ratio pour les yeux ouverts, le soulèvement des coins de la bouche pour le sourire.
+   Pure géométrie, donc `--recompute-face-signals` peut les recalculer à partir des points de
+   repère stockés sans aucun pixel et sans GPU.
+2. **Blendshapes MediaPipe (optionnel, basé sur l'apparence).** Pendant l'analyse / l'extraction
+   des visages, un recadrage généreux de chaque visage passe par le MediaPipe Face Landmarker,
+   dont les blendshapes de style ARKit (`eyeBlink*`, `mouthSmile*`, `mouthFrown*`) correspondent
+   aux mêmes échelles. L'apparence surpasse la géométrie des points de repère sur les yeux fermés,
+   les sourires discrets et les têtes de profil, donc quand un visage est noté via MediaPipe, cela
+   **remplace** la valeur géométrique. Si MediaPipe ou son modèle est absent, ou si le recadrage du
+   visage est trop petit / non détecté, la valeur géométrique est conservée — le comportement est
+   identique à une installation géométrie seule.
+
+### Installer MediaPipe
+
+MediaPipe est optionnel et **doit** être installé sans son `opencv-contrib-python` embarqué, qui
+installerait un second espace de noms `cv2` à côté de celui de Facet (`opencv-python`) :
+
+```bash
+pip install mediapipe==0.10.35 --no-deps
+pip install absl-py flatbuffers
+```
+
+Ne lancez jamais un simple `pip install mediapipe`.
+
+### Modèle
+
+Le modèle `face_landmarker.task` (~3,6 Mio, Apache-2.0) est téléchargé automatiquement à la
+première utilisation vers `pretrained_models/face_landmarker.task`. Si la machine est hors ligne,
+téléchargez-le manuellement depuis
+`https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task`
+et placez-le à cet emplacement. Un téléchargement échoué journalise un avertissement une seule fois
+et revient aux scores géométriques.
+
+### Configuration
+
+```json
+{
+  "face_detection": {
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
+  }
+}
+```
+
+- `enabled` (défaut `true`) : utiliser les scores blendshapes dès que MediaPipe et le modèle
+  sont disponibles ; sinon le repli géométrique s'exécute automatiquement. Mettre à `false`
+  pour forcer la géométrie seule.
+- `min_crop_size` (défaut `192`) : les visages dont le recadrage rembourré est plus petit que
+  cette valeur (px, côté le plus court) retombent sur la géométrie plutôt que d'agrandir un visage
+  minuscule.
+
+### Recalcul
+
+`--recompute-face-signals` recalcule les signaux par visage uniquement à partir des points de
+repère stockés — il est **géométrie seule** et n'exécute pas MediaPipe (aucun pixel n'est lu). Pour
+rafraîchir les scores basés sur l'apparence, ré-extrayez les visages (`--extract-faces-gpu-force`)
+afin que les recadrages en pleine résolution soient réanalysés.
+
 ## Miniatures de visages
 
 Les miniatures sont stockées dans la base de données pour un affichage rapide.
@@ -311,6 +380,31 @@ Accès via le bouton d'en-tête ou `/persons` :
 - **Masquer** - exclure un cluster de la liste, des filtres et des suggestions de fusion
 - **Supprimer** - retirez le cluster de personne
 - **Renommer** - cliquez sur le nom pour le modifier en ligne
+
+### Créer une personne
+
+Les personnes ne proviennent plus uniquement du regroupement automatique — vous pouvez nommer un
+visage que le clusterer a manqué directement depuis la galerie :
+
+1. Sur une carte photo, ouvrez les actions de personne et choisissez un visage non assigné.
+2. Dans le sélecteur de personne, choisissez **Créer une nouvelle personne** et saisissez un nom.
+3. Le visage est rattaché à la nouvelle personne (créée manuellement, `auto_clustered = 0`) en un
+   seul appel.
+
+Endpoint : `POST /api/persons` (réservé à l'édition), corps
+`{ "name": "<nom>", "face_ids": [<id>, ...] }`. Le nom est requis (non vide après suppression des
+espaces). Les visages déjà rattachés à une autre personne sont réassignés, et toute ancienne
+personne qui se retrouve sans visage est supprimée — les mêmes règles que l'assignation de visage.
+En mode multi-utilisateur, l'appelant ne peut rattacher que des visages issus de photos de ses
+propres répertoires (ou partagés) ; un visage hors de ce périmètre est rejeté comme introuvable.
+
+### À nommer
+
+La page Gérer les personnes affiche les personnes regroupées automatiquement qui méritent d'être
+nommées dans une section **À nommer** : les clusters non nommés (`name IS NULL`,
+`auto_clustered = 1`) comportant au moins `viewer.persons.needs_naming_min_faces` visages (défaut
+`5`), chacun avec un champ de nom en ligne afin que les grands clusters puissent être nommés sans
+avoir à les chercher. Servi par `GET /api/persons/needs_naming?min_faces=N`.
 
 ### Page Suggestions de fusion
 

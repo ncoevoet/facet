@@ -750,7 +750,11 @@ Configurações de detecção de faces do InsightFace.
     "min_faces_for_group": 4,
     "enable_3d_landmarks": false,
     "eyes_closed_max": 4.0,
-    "poor_expression_min": 4.0
+    "poor_expression_min": 4.0,
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
   }
 }
 ```
@@ -764,6 +768,8 @@ Configurações de detecção de faces do InsightFace.
 | `enable_3d_landmarks` | `false` | Override opcional (ausente no arquivo distribuído; padrão `false` no código). Carrega o módulo `landmark_3d_68` do InsightFace para extração da pose da cabeça (yaw/pitch/roll). Custa ~5MB extras de pesos ONNX. Atualmente informativo; futuros refinamentos de perfil/silhueta vão ler isto. |
 | `eyes_closed_max` | `4.0` | Pontuação de olhos-abertos por rosto (0–10) igual ou abaixo da qual o laboratório de triagem sinaliza um rosto como piscando. Controla os anéis de rosto vermelho/laranja/verde e o controle deslizante de limiar de olhos (movido de uma constante fixa no código) |
 | `poor_expression_min` | `4.0` | Pontuação de sorriso/expressão por rosto (0–10) abaixo da qual o laboratório sinaliza uma expressão fraca. Controla o anel de rosto de expressão e o controle deslizante (movido de uma constante fixa no código) |
+| `blendshapes.enabled` | `true` | Usa as pontuações de blendshape do MediaPipe (baseadas em aparência) para `eyes_open_score` / `smile_score` por rosto quando o MediaPipe e o pacote `face_landmarker.task` estão disponíveis; quando `true`, elas substituem as pontuações de geometria de pontos de referência, caso contrário o retorno geométrico é executado automaticamente. Dependência opcional — instale com `pip install mediapipe==0.10.35 --no-deps` (nunca um simples `pip install mediapipe`). Veja [FACE_RECOGNITION.md](FACE_RECOGNITION.md#sinais-de-expressão-por-rosto-olhos-abertos--sorriso). |
+| `blendshapes.min_crop_size` | `192` | Rostos cujo recorte com margem seja menor que este valor (px, lado mais curto) recorrem à pontuação geométrica em vez de ampliar um rosto minúsculo |
 
 ---
 

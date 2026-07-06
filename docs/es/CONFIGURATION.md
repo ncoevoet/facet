@@ -750,7 +750,11 @@ Ajustes de detección de rostros de InsightFace.
     "min_faces_for_group": 4,
     "enable_3d_landmarks": false,
     "eyes_closed_max": 4.0,
-    "poor_expression_min": 4.0
+    "poor_expression_min": 4.0,
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
   }
 }
 ```
@@ -764,6 +768,8 @@ Ajustes de detección de rostros de InsightFace.
 | `enable_3d_landmarks` | `false` | Anulación opcional (ausente en el archivo distribuido; valor por defecto del código `false`). Carga el módulo `landmark_3d_68` de InsightFace para extraer la pose de la cabeza (yaw/pitch/roll). Cuesta ~5MB de pesos ONNX adicionales. Actualmente informativo; futuras mejoras de perfil/silueta lo leerán. |
 | `eyes_closed_max` | `4.0` | Puntuación de ojos abiertos por cara (0–10) igual o inferior a la cual el laboratorio de descarte marca una cara como parpadeo. Controla los anillos de cara rojo/naranja/verde y el control deslizante de umbral de ojos (movido desde una constante codificada) |
 | `poor_expression_min` | `4.0` | Puntuación de sonrisa/expresión por cara (0–10) por debajo de la cual el laboratorio marca una expresión débil. Controla el anillo de cara de expresión y su control deslizante (movido desde una constante codificada) |
+| `blendshapes.enabled` | `true` | Usa las puntuaciones blendshape de MediaPipe (basadas en apariencia) para `eyes_open_score` / `smile_score` por cara cuando MediaPipe y el paquete `face_landmarker.task` están disponibles; si `true`, sustituyen las puntuaciones de geometría de puntos de referencia, en caso contrario el respaldo geométrico se ejecuta automáticamente. Dependencia opcional — instalar con `pip install mediapipe==0.10.35 --no-deps` (nunca un simple `pip install mediapipe`). Ver [FACE_RECOGNITION.md](FACE_RECOGNITION.md#señales-de-expresión-por-rostro-ojos-abiertos--sonrisa). |
+| `blendshapes.min_crop_size` | `192` | Las caras cuyo recorte con relleno sea menor que este valor (px, lado más corto) recurren a la puntuación geométrica en lugar de ampliar una cara diminuta |
 
 ---
 
