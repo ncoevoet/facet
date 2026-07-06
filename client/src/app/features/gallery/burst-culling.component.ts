@@ -467,7 +467,7 @@ interface ShortcutRow {
                     }
                     @if (photo.path | isKept:selectionsMap():group.group_id) {
                       <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center">
-                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">check</mat-icon>
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">check</mat-icon>
                       </div>
                     }
                     <div class="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-white text-xs font-medium">
@@ -483,7 +483,7 @@ interface ShortcutRow {
                               [matTooltip]="I18N.culling.view_detail | translate"
                               [attr.aria-label]="I18N.culling.view_detail | translate"
                               (click)="openDetail($event, photo.path)">
-                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">info</mat-icon>
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">info</mat-icon>
                       </button>
                     }
                   </div>
@@ -570,8 +570,8 @@ interface ShortcutRow {
            On small screens the toolbar is fixed to the viewport bottom, so this bar clears
            its height (max-lg:mb-16) to avoid stacking under the fixed icon bar. -->
       @if (unconfirmedCount() > 0) {
-        <div class="lg:!hidden shrink-0 flex justify-center py-3 max-lg:mb-16 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
-          <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="confirming()" class="!px-6 !rounded-md">
+        <div class="lg:!hidden shrink-0 flex justify-center py-1.5 max-lg:mb-14 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
+          <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="confirming()" class="!px-6 !rounded-md !h-9">
             <mat-icon>done_all</mat-icon>
             {{ I18N.culling.confirm_all | translate }} ({{ unconfirmedCount() }})
           </button>

@@ -1,7 +1,8 @@
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
-  WeightRemainingPipe, CullingGroup, CullingFace, FaceThresholds,
+  WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
+  CullingGroup, CullingFace, FaceThresholds,
 } from './burst-culling.pipes';
 
 const group = (overrides: Partial<CullingGroup> = {}): CullingGroup => ({
@@ -213,5 +214,70 @@ describe('FaceDimmedPipe', () => {
 
   it('dims faces with no signals while a slider is active', () => {
     expect(pipe.transform(face(), 5, 0)).toBe(true);
+  });
+});
+
+describe('SortIconPipe', () => {
+  const pipe = new SortIconPipe();
+
+  it('maps each known sort mode to its icon', () => {
+    expect(pipe.transform('easiest')).toBe('bolt');
+    expect(pipe.transform('redundant')).toBe('content_copy');
+    expect(pipe.transform('best')).toBe('star');
+    expect(pipe.transform('recent')).toBe('schedule');
+    expect(pipe.transform('needs_comparisons')).toBe('compare_arrows');
+  });
+
+  it('falls back to the generic sort icon for an unknown mode', () => {
+    expect(pipe.transform('whatever')).toBe('sort');
+  });
+});
+
+describe('CullProfileIconPipe', () => {
+  const pipe = new CullProfileIconPipe();
+
+  it('maps each shipped profile to its icon', () => {
+    expect(pipe.transform('balanced')).toBe('balance');
+    expect(pipe.transform('wedding')).toBe('favorite');
+    expect(pipe.transform('sports')).toBe('directions_run');
+    expect(pipe.transform('concert')).toBe('music_note');
+    expect(pipe.transform('wildlife')).toBe('pets');
+  });
+
+  it('falls back to the theatre mask for unknown / empty profiles', () => {
+    expect(pipe.transform('custom_preset')).toBe('theaters');
+    expect(pipe.transform('')).toBe('theaters');
+    expect(pipe.transform(null)).toBe('theaters');
+    expect(pipe.transform(undefined)).toBe('theaters');
+  });
+});
+
+describe('CategoryIconPipe', () => {
+  const pipe = new CategoryIconPipe();
+  const ICONS = (CategoryIconPipe as unknown as { ICONS: Record<string, string> }).ICONS;
+
+  it('maps known categories to sensible distinct icons', () => {
+    expect(pipe.transform('portrait')).toBe('person');
+    expect(pipe.transform('landscape')).toBe('landscape');
+    expect(pipe.transform('sports')).toBe('sports_soccer');
+    expect(pipe.transform('golden_hour')).toBe('wb_twilight');
+    expect(pipe.transform('urban')).toBe('location_city');
+    expect(pipe.transform('human_others')).toBe('people');
+  });
+
+  it('falls back to the generic category icon for unknown / empty values', () => {
+    expect(pipe.transform('user_defined_genre')).toBe('category');
+    expect(pipe.transform('')).toBe('category');
+    expect(pipe.transform(null)).toBe('category');
+    expect(pipe.transform(undefined)).toBe('category');
+  });
+
+  it('assigns a pairwise-distinct icon to every mapped category', () => {
+    const icons = Object.values(ICONS);
+    expect(new Set(icons).size).toBe(icons.length);
+  });
+
+  it('never reuses the generic fallback icon for a mapped category', () => {
+    expect(Object.values(ICONS)).not.toContain('category');
   });
 });
