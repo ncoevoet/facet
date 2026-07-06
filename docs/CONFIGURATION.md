@@ -1211,6 +1211,7 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_scenes` | `true` | Show the Scenes view (`/scenes`) that groups burst-lead photos into chronological scenes for story-order culling |
 | `show_my_taste` | `true` | Show the "My Taste" sort backed by the personal ranker's learned score, with a learned-coverage / accuracy confidence badge |
 | `show_social_export` | `true` | Show the edition-only **Social crop** download menu (saliency-aware crops for social aspect presets). See [Social Export](#social-export) |
+| `show_portfolio_export` | `true` | Show the edition-only **Export portfolio** album action (self-contained static HTML gallery). See [Portfolio Export](#portfolio-export) |
 | `show_proofing` | `false` | Enable client proofing on shared albums: a share link (plus optional PIN) lets a no-account client heart photos and leave comments, which the album owner reviews from an edition-gated dialog. Off by default. See [Client Proofing](#client-proofing) |
 
 **Memory optimization:** Setting `show_similar_button: false` prevents numpy from being loaded, reducing viewer memory footprint. The similar photos feature computes CLIP embedding cosine similarity which requires numpy.
@@ -1758,6 +1759,28 @@ Saliency-aware crop presets for social aspect ratios (`GET /api/photo/social_cro
 | `jpeg_quality` | `92` | JPEG quality of the exported crop |
 
 Gated by `viewer.features.show_social_export` (default `true`). The `photos.subject_bbox` column is written by the saliency pass at scan time and by `--recompute-saliency`; rows scanned before it existed fall back to the face-union or center crop automatically.
+
+## Portfolio Export
+
+Export an album as a self-contained static HTML gallery a photographer can drop on any web host — no external tool (thumbsup/sigal) required (`POST /api/albums/{album_id}/export-portfolio`, edition-gated). The generated directory holds `index.html` (a responsive CSS-only thumbnail grid plus an inline vanilla-JS lightbox with **zero** external/CDN references — fully offline), an `assets/` folder of sequentially-named JPEGs (no library paths leaked), and a `manifest.json`. Each photo uses the on-disk **original** (downscaled to `max_edge`) when readable and falls back to the stored 640px thumbnail BLOB when the original is unreachable (offline network shares); the source used is recorded per photo in the manifest. Generation is deterministic and idempotent — a re-export rewrites only its own files.
+
+```json
+{
+  "portfolio": {
+    "max_photos": 500,
+    "max_edge": 2048,
+    "jpeg_quality": 88
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `max_photos` | `500` | Albums larger than this are refused with a 400 (the export is synchronous) |
+| `max_edge` | `2048` | Long-edge cap (px) for exported originals; the request may override it (clamped 256–8000) |
+| `jpeg_quality` | `88` | JPEG quality of the exported images |
+
+The `target_dir` goes through the exact same allow-list as the copy/move export endpoints (`viewer.export.allowed_target_dirs` plus the scan directories). Gated by `viewer.features.show_portfolio_export` (default `true`). See [Web Viewer — Portfolio export](VIEWER.md#portfolio-export).
 
 ## Junk Sweep
 

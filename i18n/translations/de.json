@@ -1583,7 +1583,8 @@
     "type_smart": "Intelligent",
     "invalid_share_link": "Ungültiger Freigabelink",
     "share_link_revoked": "Dieser Freigabelink ist ungültig oder wurde widerrufen.",
-    "load_error": "Album konnte nicht geladen werden."
+    "load_error": "Album konnte nicht geladen werden.",
+    "portfolio": "Portfolio exportieren"
   },
   "critique": {
     "overlay_show": "Überlagerung anzeigen",
@@ -2217,5 +2218,16 @@
       "faces": "auf Gesichter ausgerichtet",
       "center": "zentrierter Zuschnitt"
     }
+  },
+  "portfolio": {
+    "title": "Portfolio exportieren",
+    "description": "Exportieren Sie dieses Album als eigenständige statische Website, die Sie überall hosten können.",
+    "gallery_title": "Galerietitel",
+    "target_dir": "Zielordner",
+    "include_captions": "Bildunterschriften einbeziehen",
+    "export": "Exportieren",
+    "cancel": "Abbrechen",
+    "done": "Portfolio exportiert: {count} Fotos",
+    "error": "Portfolio-Export fehlgeschlagen"
   }
 }

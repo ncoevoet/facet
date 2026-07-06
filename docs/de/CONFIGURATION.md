@@ -1196,6 +1196,7 @@ Schalten Sie optionale Features um, um den Speicherverbrauch zu senken oder die 
 | `show_scenes` | `true` | Die Szenen-Ansicht (`/scenes`) anzeigen, die führende Serienbildfotos in chronologische Szenen für ein Culling in Erzählreihenfolge gruppiert |
 | `show_my_taste` | `true` | Die Sortierung „My Taste“ anzeigen, gestützt auf den gelernten Score des persönlichen Rankers, mit einem Konfidenz-Badge für gelernte Abdeckung / Genauigkeit |
 | `show_social_export` | `true` | Zeigt das editionsbeschränkte Menü **Social-Zuschnitt** (motivbewusste Zuschnitte für Social-Seitenverhältnisse). Siehe [Social-Export](#social-export) |
+| `show_portfolio_export` | `true` | Zeigt die editionsbeschränkte Album-Aktion **Portfolio exportieren** (eigenständige statische HTML-Galerie). Siehe [Portfolio-Export](#portfolio-export) |
 | `show_proofing` | `false` | Client-Proofing für geteilte Alben aktivieren: Ein Freigabelink (plus optionale PIN) erlaubt einem kontolosen Client, Fotos mit einem Herz zu markieren und Kommentare zu hinterlassen, die der Albumbesitzer aus einem editionsbeschränkten Dialog überprüft. Standardmäßig aus. Siehe [Client-Proofing](#client-proofing) |
 
 **Speicheroptimierung:** Wenn `show_similar_button: false` gesetzt wird, verhindert dies, dass numpy geladen wird, und reduziert so den Speicherbedarf des Viewers. Die Funktion für ähnliche Fotos berechnet die Kosinusähnlichkeit der CLIP-Embeddings, was numpy erfordert.
@@ -1735,6 +1736,28 @@ Zuschneide-Vorlagen für Social-Media-Seitenverhältnisse mit Motiverkennung (`G
 | `jpeg_quality` | `92` | JPEG-Qualität des exportierten Zuschnitts |
 
 Gesteuert durch `viewer.features.show_social_export` (Standard `true`). Die Spalte `photos.subject_bbox` wird vom Saliency-Durchlauf beim Scannen und von `--recompute-saliency` geschrieben; vor ihrer Einführung gescannte Zeilen greifen automatisch auf den Gesichts- oder zentrierten Zuschnitt zurück.
+
+## Portfolio-Export
+
+Exportieren Sie ein Album als eigenständige statische HTML-Galerie, die eine Fotografin auf jedem Webhoster ablegen kann — ohne externes Werkzeug (thumbsup/sigal) (`POST /api/albums/{album_id}/export-portfolio`, editionsbeschränkt). Das erzeugte Verzeichnis enthält `index.html` (ein responsives, rein per CSS umgesetztes Miniaturraster plus eine eingebettete Vanilla-JS-Lightbox mit **null** externen/CDN-Verweisen — vollständig offline), einen Ordner `assets/` mit fortlaufend benannten JPEGs (kein Bibliothekspfad wird preisgegeben) und eine `manifest.json`. Jedes Foto nutzt das **Original** auf der Festplatte (auf `max_edge` verkleinert), wenn es lesbar ist, und greift auf das gespeicherte 640-px-Thumbnail zurück, wenn das Original nicht erreichbar ist (offline Netzlaufwerke); die verwendete Quelle wird pro Foto im Manifest festgehalten. Die Erzeugung ist deterministisch und idempotent — ein erneuter Export überschreibt nur seine eigenen Dateien.
+
+```json
+{
+  "portfolio": {
+    "max_photos": 500,
+    "max_edge": 2048,
+    "jpeg_quality": 88
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|-------------|----------|--------------|
+| `max_photos` | `500` | Größere Alben werden mit einem 400 abgelehnt (der Export ist synchron) |
+| `max_edge` | `2048` | Obergrenze der langen Kante (px) für exportierte Originale; die Anfrage kann sie überschreiben (auf 256–8000 begrenzt) |
+| `jpeg_quality` | `88` | JPEG-Qualität der exportierten Bilder |
+
+Das `target_dir` durchläuft dieselbe Allowlist wie die Kopier-/Verschiebe-Export-Endpunkte (`viewer.export.allowed_target_dirs` plus die Scan-Verzeichnisse). Gesteuert durch `viewer.features.show_portfolio_export` (Standard `true`).
 
 ## Junk Sweep
 

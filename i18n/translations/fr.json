@@ -1579,7 +1579,8 @@
     "type_smart": "Intelligent",
     "invalid_share_link": "Lien de partage invalide",
     "share_link_revoked": "Ce lien de partage est invalide ou a été révoqué.",
-    "load_error": "Impossible de charger l'album."
+    "load_error": "Impossible de charger l'album.",
+    "portfolio": "Exporter le portfolio"
   },
   "critique": {
     "overlay_show": "Afficher la superposition",
@@ -2213,5 +2214,16 @@
       "faces": "cadré sur les visages",
       "center": "recadrage centré"
     }
+  },
+  "portfolio": {
+    "title": "Exporter le portfolio",
+    "description": "Exportez cet album sous forme de site web statique autonome, hébergeable partout.",
+    "gallery_title": "Titre de la galerie",
+    "target_dir": "Dossier cible",
+    "include_captions": "Inclure les légendes",
+    "export": "Exporter",
+    "cancel": "Annuler",
+    "done": "Portfolio exporté : {count} photos",
+    "error": "Échec de l’export du portfolio"
   }
 }

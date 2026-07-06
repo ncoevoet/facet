@@ -1196,6 +1196,7 @@ Attiva o disattiva le funzionalità opzionali per ridurre l'uso della memoria o 
 | `show_scenes` | `true` | Mostra la vista Scene (`/scenes`) che raggruppa le foto principali delle raffiche in scene cronologiche per la selezione in ordine narrativo |
 | `show_my_taste` | `true` | Mostra l'ordinamento "My Taste" basato sul punteggio appreso del ranker personale, con un badge di confidenza per copertura/accuratezza apprese |
 | `show_social_export` | `true` | Mostra il menu **Ritaglio social** (solo edizione): ritagli consapevoli del soggetto per i rapporti d'aspetto dei social. Vedi [Esportazione social](#esportazione-social) |
+| `show_portfolio_export` | `true` | Mostra l'azione dell'album **Esporta portfolio** (solo edizione): galleria HTML statica autonoma. Vedi [Esportazione portfolio](#esportazione-portfolio) |
 | `show_proofing` | `false` | Abilita la revisione del cliente sugli album condivisi: un collegamento di condivisione (più un PIN facoltativo) consente a un cliente senza account di mettere un cuore alle foto e lasciare commenti, che il proprietario dell'album esamina da una finestra di dialogo in modalità di modifica. Disattivata per impostazione predefinita. Vedi [Revisione del cliente](#revisione-del-cliente) |
 
 **Ottimizzazione della memoria:** impostare `show_similar_button: false` impedisce il caricamento di numpy, riducendo l'ingombro di memoria del viewer. La funzionalità delle foto simili calcola la similarità coseno degli embedding CLIP, che richiede numpy.
@@ -1735,6 +1736,28 @@ Ritagli consapevoli del soggetto per i rapporti d'aspetto dei social (`GET /api/
 | `jpeg_quality` | `92` | Qualità JPEG del ritaglio esportato |
 
 Controllato da `viewer.features.show_social_export` (predefinito `true`). La colonna `photos.subject_bbox` è scritta dalla passata di salienza in fase di scansione e da `--recompute-saliency`; le righe scansionate prima della sua introduzione ripiegano automaticamente sul ritaglio per volti o centrato.
+
+## Esportazione portfolio
+
+Esporta un album come galleria HTML statica e autonoma che un fotografo può caricare su qualsiasi hosting web — senza strumenti esterni (thumbsup/sigal) (`POST /api/albums/{album_id}/export-portfolio`, solo edizione). La directory generata contiene `index.html` (una griglia di miniature responsive solo in CSS più una lightbox vanilla-JS integrata, con **zero** riferimenti esterni/CDN — completamente offline), una cartella `assets/` di JPEG con nomi sequenziali (nessun percorso della libreria viene divulgato) e un `manifest.json`. Ogni foto usa l'**originale** su disco (ridotto a `max_edge`) quando è leggibile e ripiega sulla miniatura da 640 px memorizzata quando l'originale è irraggiungibile (condivisioni di rete offline); la sorgente usata è registrata per foto nel manifest. La generazione è deterministica e idempotente — una riesportazione riscrive solo i propri file.
+
+```json
+{
+  "portfolio": {
+    "max_photos": 500,
+    "max_edge": 2048,
+    "jpeg_quality": 88
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|--------------|-------------|-------------|
+| `max_photos` | `500` | Gli album più grandi vengono rifiutati con un 400 (l'esportazione è sincrona) |
+| `max_edge` | `2048` | Limite del lato lungo (px) per gli originali esportati; la richiesta può sovrascriverlo (limitato 256–8000) |
+| `jpeg_quality` | `88` | Qualità JPEG delle immagini esportate |
+
+Il `target_dir` passa attraverso la stessa allow-list degli endpoint di esportazione copia/spostamento (`viewer.export.allowed_target_dirs` più le directory di scansione). Controllato da `viewer.features.show_portfolio_export` (predefinito `true`).
 
 ## Junk Sweep
 

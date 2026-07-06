@@ -2159,6 +2159,11 @@
     "default_strictness": 50,
     "highlights_min": 8.0
   },
+  "portfolio": {
+    "max_photos": 500,
+    "max_edge": 2048,
+    "jpeg_quality": 88
+  },
   "social_export": {
     "presets": {
       "square": {
@@ -3254,7 +3259,8 @@
       "show_junk_sweep": true,
       "show_scan_button": false,
       "show_saliency_overlay": true,
-      "show_social_export": true
+      "show_social_export": true,
+      "show_portfolio_export": true
     },
     "allowed_origins": [
       "http://localhost:4200",

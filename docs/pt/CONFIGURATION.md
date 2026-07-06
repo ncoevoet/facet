@@ -1196,6 +1196,7 @@ Ative/desative recursos opcionais para reduzir o uso de memória ou simplificar 
 | `show_scenes` | `true` | Mostra a visualização de Cenas (`/scenes`) que agrupa fotos principais de rajada em cenas cronológicas para seleção em ordem narrativa |
 | `show_my_taste` | `true` | Mostra a ordenação "My Taste", baseada na pontuação aprendida do ranqueador pessoal, com um selo de confiança de cobertura/acurácia aprendida |
 | `show_social_export` | `true` | Mostra o menu **Recorte social** (somente edição): recortes com reconhecimento do sujeito para proporções de redes sociais. Veja [Exportação social](#exportação-social) |
+| `show_portfolio_export` | `true` | Mostra a ação de álbum **Exportar portefólio** (somente edição): galeria HTML estática autónoma. Veja [Exportação de portefólio](#exportação-de-portefólio) |
 | `show_proofing` | `false` | Ativa a aprovação de cliente em álbuns compartilhados: um link de compartilhamento (mais um PIN opcional) permite que um cliente sem conta curta fotos e deixe comentários, que o dono do álbum revisa em um diálogo restrito à edição. Desativado por padrão. Veja [Aprovação de Cliente](#aprovação-de-cliente) |
 
 **Otimização de memória:** Definir `show_similar_button: false` evita que o numpy seja carregado, reduzindo o consumo de memória do visualizador. O recurso de fotos similares calcula a similaridade de cosseno dos embeddings CLIP, o que requer numpy.
@@ -1735,6 +1736,28 @@ Recortes com reconhecimento do sujeito para proporções de redes sociais (`GET 
 | `jpeg_quality` | `92` | Qualidade JPEG do recorte exportado |
 
 Controlado por `viewer.features.show_social_export` (padrão `true`). A coluna `photos.subject_bbox` é escrita pela passagem de saliência na varredura e por `--recompute-saliency`; linhas varridas antes de existir recorrem automaticamente ao recorte por rostos ou centralizado.
+
+## Exportação de portefólio
+
+Exporte um álbum como uma galeria HTML estática e autónoma que um fotógrafo pode colocar em qualquer alojamento web — sem ferramenta externa (thumbsup/sigal) (`POST /api/albums/{album_id}/export-portfolio`, somente edição). O diretório gerado contém `index.html` (uma grelha de miniaturas responsiva apenas em CSS mais uma lightbox vanilla-JS integrada, com **zero** referências externas/CDN — totalmente offline), uma pasta `assets/` de JPEG com nomes sequenciais (nenhum caminho da biblioteca é divulgado) e um `manifest.json`. Cada foto usa o **original** em disco (reduzido para `max_edge`) quando legível e recorre à miniatura de 640 px armazenada quando o original está inacessível (partilhas de rede offline); a origem utilizada é registada por foto no manifesto. A geração é determinista e idempotente — uma reexportação reescreve apenas os seus próprios ficheiros.
+
+```json
+{
+  "portfolio": {
+    "max_photos": 500,
+    "max_edge": 2048,
+    "jpeg_quality": 88
+  }
+}
+```
+
+| Definição | Padrão | Descrição |
+|-----------|--------|-----------|
+| `max_photos` | `500` | Álbuns maiores são recusados com um 400 (a exportação é síncrona) |
+| `max_edge` | `2048` | Limite do lado maior (px) para os originais exportados; o pedido pode substituí-lo (limitado 256–8000) |
+| `jpeg_quality` | `88` | Qualidade JPEG das imagens exportadas |
+
+O `target_dir` passa pela mesma lista de permissões que os endpoints de exportação copiar/mover (`viewer.export.allowed_target_dirs` mais os diretórios de varredura). Controlado por `viewer.features.show_portfolio_export` (padrão `true`).
 
 ## Junk Sweep
 

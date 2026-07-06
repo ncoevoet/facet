@@ -1577,7 +1577,8 @@
     "type_smart": "Smart",
     "invalid_share_link": "Invalid share link",
     "share_link_revoked": "This share link is invalid or has been revoked.",
-    "load_error": "Failed to load album."
+    "load_error": "Failed to load album.",
+    "portfolio": "Export portfolio"
   },
   "critique": {
     "overlay_show": "Show overlay",
@@ -2211,5 +2212,16 @@
       "faces": "framed on faces",
       "center": "center crop"
     }
+  },
+  "portfolio": {
+    "title": "Export portfolio",
+    "description": "Export this album as a self-contained static website you can host anywhere.",
+    "gallery_title": "Gallery title",
+    "target_dir": "Target folder",
+    "include_captions": "Include captions",
+    "export": "Export",
+    "cancel": "Cancel",
+    "done": "Portfolio exported: {count} photos",
+    "error": "Portfolio export failed"
   }
 }

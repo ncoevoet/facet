@@ -1582,6 +1582,7 @@ export const I18N = {
     invalid_share_link: "albums.invalid_share_link",
     share_link_revoked: "albums.share_link_revoked",
     load_error: "albums.load_error",
+    portfolio: "albums.portfolio",
   },
   critique: {
     overlay_show: "critique.overlay_show",
@@ -2215,5 +2216,16 @@ export const I18N = {
       faces: "social_export.source.faces",
       center: "social_export.source.center",
     },
+  },
+  portfolio: {
+    title: "portfolio.title",
+    description: "portfolio.description",
+    gallery_title: "portfolio.gallery_title",
+    target_dir: "portfolio.target_dir",
+    include_captions: "portfolio.include_captions",
+    export: "portfolio.export",
+    cancel: "portfolio.cancel",
+    done: "portfolio.done",
+    error: "portfolio.error",
   },
 } as const;

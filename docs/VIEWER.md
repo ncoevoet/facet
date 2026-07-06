@@ -301,6 +301,10 @@ Create albums and add photos from the gallery using multi-select. Albums support
 
 Save a combination of filters (camera, tag, person, date range, score thresholds, etc.) as a smart album. Smart albums dynamically update as new photos match the saved filter criteria. The filter combination is stored as JSON in `smart_filter_json`.
 
+### Portfolio Export
+
+When `viewer.features.show_portfolio_export` is `true` (default) and edition is unlocked, each manual album card gains an **Export portfolio** action. It opens a small dialog (gallery title, target folder, include-captions toggle) and renders the album into a self-contained static HTML gallery — the thumbsup/sigal use case, but native, with no external tool dependency. The output directory holds `index.html` (a responsive CSS-only thumbnail grid with a built-in vanilla-JS lightbox — **zero** external/CDN references, so it works fully offline), an `assets/` folder of sequentially-named JPEGs (no library paths leaked), and a `manifest.json` recording counts and per-photo sources. Each photo prefers the on-disk **original** (downscaled to `portfolio.max_edge`, EXIF orientation applied) and falls back to the stored 640px thumbnail when the original is unreachable (offline network shares). The endpoint is `POST /api/albums/{album_id}/export-portfolio` (edition-gated); the `target_dir` is validated against the same allow-list (`viewer.export.allowed_target_dirs` plus the scan directories) as the copy/move export endpoints, and albums over `portfolio.max_photos` (default 500) are refused. Re-exporting the same album is idempotent — only the export's own files are rewritten. See [Portfolio Export configuration](CONFIGURATION.md#portfolio-export).
+
 API: see the [API Endpoints](#api-endpoints) section below.
 
 Controlled by `viewer.features.show_albums` (default: `true`).

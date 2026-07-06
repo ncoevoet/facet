@@ -1196,6 +1196,7 @@ Activez ou désactivez des fonctionnalités optionnelles pour réduire l'utilisa
 | `show_scenes` | `true` | Afficher la vue Scènes (`/scenes`) qui regroupe les photos de tête de rafale en scènes chronologiques pour un tri dans l'ordre du récit |
 | `show_my_taste` | `true` | Afficher le tri « My Taste » fondé sur le score appris du classeur personnel, avec un badge de confiance couverture-apprise / précision |
 | `show_social_export` | `true` | Affiche le menu **Recadrage social** (réservé à l'édition) : recadrages sensibles au sujet pour les formats des réseaux sociaux. Voir [Export social](#export-social) |
+| `show_portfolio_export` | `true` | Affiche l'action d'album **Exporter le portfolio** (réservée à l'édition) : galerie HTML statique autonome. Voir [Export de portfolio](#export-de-portfolio) |
 | `show_proofing` | `false` | Active l'épreuvage client sur les albums partagés : un lien de partage (plus un code PIN facultatif) permet à un client sans compte de mettre un cœur aux photos et de laisser des commentaires, que le propriétaire de l'album examine depuis une boîte de dialogue réservée à l'édition. Désactivé par défaut. Voir [Épreuvage client](#client-proofing) |
 
 **Optimisation mémoire :** définir `show_similar_button: false` empêche le chargement de numpy, réduisant l'empreinte mémoire de la visionneuse. La fonctionnalité de photos similaires calcule la similarité cosinus des embeddings CLIP, ce qui nécessite numpy.
@@ -1735,6 +1736,28 @@ Recadrages sensibles au sujet pour les formats des réseaux sociaux (`GET /api/p
 | `jpeg_quality` | `92` | Qualité JPEG du recadrage exporté |
 
 Contrôlé par `viewer.features.show_social_export` (par défaut `true`). La colonne `photos.subject_bbox` est écrite par la passe de saillance au scan et par `--recompute-saliency` ; les lignes scannées avant son existence se rabattent automatiquement sur le recadrage par visages ou centré.
+
+## Export de portfolio
+
+Exportez un album sous forme de galerie HTML statique autonome qu'un photographe peut déposer sur n'importe quel hébergeur web — sans outil externe (thumbsup/sigal) requis (`POST /api/albums/{album_id}/export-portfolio`, réservé à l'édition). Le répertoire généré contient `index.html` (une grille de vignettes responsive en CSS pur plus une visionneuse vanilla-JS intégrée, avec **zéro** référence externe/CDN — entièrement hors ligne), un dossier `assets/` de JPEG nommés séquentiellement (aucun chemin de bibliothèque divulgué) et un `manifest.json`. Chaque photo utilise l'**original** sur disque (réduit à `max_edge`) lorsqu'il est lisible et se rabat sur la vignette 640 px stockée lorsque l'original est inaccessible (partages réseau hors ligne) ; la source utilisée est enregistrée par photo dans le manifeste. La génération est déterministe et idempotente — une réexportation ne réécrit que ses propres fichiers.
+
+```json
+{
+  "portfolio": {
+    "max_photos": 500,
+    "max_edge": 2048,
+    "jpeg_quality": 88
+  }
+}
+```
+
+| Paramètre | Défaut | Description |
+|-----------|--------|-------------|
+| `max_photos` | `500` | Les albums plus grands sont refusés avec une erreur 400 (l'export est synchrone) |
+| `max_edge` | `2048` | Plafond du grand côté (px) pour les originaux exportés ; la requête peut le remplacer (borné 256–8000) |
+| `jpeg_quality` | `88` | Qualité JPEG des images exportées |
+
+Le `target_dir` passe par la même liste d'autorisation que les endpoints d'export copie/déplacement (`viewer.export.allowed_target_dirs` plus les répertoires de scan). Contrôlé par `viewer.features.show_portfolio_export` (par défaut `true`).
 
 ## Nettoyage des indésirables
 
