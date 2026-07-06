@@ -326,3 +326,54 @@ class TestSharing:
         assert "photos" in body
         assert body["total"] == 0
 
+
+class TestAlbumAccessInstallMode:
+    """Install-mode carve-out for album ownership (regression for the
+    no-password legacy-album 403 bug)."""
+
+    def test_legacy_album_readable_in_no_password_mode(self, anonymous_client):
+        """A ``_legacy``-owned album must open on a fully open single-user
+        install, where ``get_optional_user`` yields no user (user_id=None).
+
+        RED against the unfixed code: ``_check_album_access`` denies because
+        ``'_legacy' != None``. GREEN once the check honours the world-readable
+        install carve-out.
+        """
+        album_row = _make_album_row(id=1, user_id="_legacy")
+
+        mock_conn = mock.MagicMock()
+        mock_conn.execute.return_value.fetchone.side_effect = [
+            album_row,  # _check_album_access SELECT
+            (3,),       # photo_count COUNT
+        ]
+
+        with (
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
+            mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+            mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": ""}),
+        ):
+            resp = anonymous_client.get("/api/albums/1")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["id"] == 1
+        assert body["photo_count"] == 3
+
+    def test_foreign_album_denied_in_multi_user_mode(self, regular_client):
+        """Multi-user isolation preserved: user ``u1`` cannot open an album owned
+        by another user. Ownership denial must behave exactly as before the fix.
+        """
+        album_row = _make_album_row(id=2, user_id="someone-else")
+
+        mock_conn = mock.MagicMock()
+        mock_conn.execute.return_value.fetchone.return_value = album_row
+
+        with (
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)),
+            mock.patch("api.db_helpers.is_multi_user_enabled", return_value=True),
+        ):
+            resp = regular_client.get("/api/albums/2")
+
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "Access denied"
+

@@ -615,6 +615,18 @@ async def attach_person_data_async(photos, conn):
 
 # --- MULTI-USER VISIBILITY & PREFERENCES ---
 
+def is_access_controlled_install():
+    """True when the deployment gates who may see photos — multi-user mode, or a
+    single-user viewer password.
+
+    A fully open single-user install (no multi-user, no viewer password) is
+    world-readable, so ownership must never deny access there. Shared by
+    ``get_visibility_clause`` and the album-access check so both honour the same
+    install-mode carve-out.
+    """
+    return is_multi_user_enabled() or bool(VIEWER_CONFIG.get('password', ''))
+
+
 def get_visibility_clause(user_id, table_alias='photos'):
     """Returns (sql_fragment, params) for photo visibility in multi-user mode.
 
@@ -626,7 +638,7 @@ def get_visibility_clause(user_id, table_alias='photos'):
         # No identified user. On a protected deployment — multi-user, or a
         # single-user viewer password — an unauthenticated request must see
         # nothing; only a fully open single-user install is world-readable.
-        if is_multi_user_enabled() or VIEWER_CONFIG.get('password', ''):
+        if is_access_controlled_install():
             return '0=1', []
         return '1=1', []
 
