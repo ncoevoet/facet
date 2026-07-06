@@ -14,7 +14,10 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, require_edition, require_auth
 from api.config import is_multi_user_enabled, _stats_cache
 from api.database import get_async_db, get_db
-from api.db_helpers import update_person_face_count, trigger_auto_retrain, get_visibility_clause
+from api.db_helpers import (
+    update_person_face_count, trigger_auto_retrain, get_visibility_clause,
+    assert_faces_visible, assert_photo_visible,
+)
 from api.types import JUNK_NOT_JUNK
 
 logger = logging.getLogger(__name__)
@@ -153,6 +156,8 @@ def api_assign_face(
             if not face:
                 raise HTTPException(status_code=404, detail="Face not found")
 
+            assert_faces_visible(conn, user.user_id if user else None, [face_id])
+
             if not conn.execute("SELECT 1 FROM persons WHERE id = ?", (body.person_id,)).fetchone():
                 raise HTTPException(status_code=404, detail="Target person not found")
 
@@ -166,6 +171,9 @@ def api_assign_face(
             conn.commit()
 
             return {'success': True}
+        except LookupError:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="Face not found")
         except HTTPException:
             raise
         except sqlite3.Error:
@@ -182,6 +190,8 @@ def api_assign_all_faces(
     """Assign all unassigned faces in a photo to a person."""
     with get_db() as conn:
         try:
+            assert_photo_visible(conn, user.user_id if user else None, body.photo_path)
+
             faces = conn.execute("""
                 SELECT id FROM faces WHERE photo_path = ? AND person_id IS NULL
             """, (body.photo_path,)).fetchall()
@@ -200,6 +210,9 @@ def api_assign_all_faces(
             conn.commit()
 
             return {'success': True, 'assigned_count': len(face_ids)}
+        except LookupError:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="No unassigned faces found")
         except HTTPException:
             raise
         except sqlite3.Error:

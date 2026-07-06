@@ -666,6 +666,50 @@ def person_visibility_exists(user_id, person_col):
     return fragment, vis_params
 
 
+def assert_faces_visible(conn, user_id, face_ids):
+    """Raise ``LookupError`` if any ``face_id`` sits on a photo the caller may not see.
+
+    A no-op outside multi-user mode, where an authenticated viewer sees the whole
+    library. In multi-user mode it enforces the same per-directory isolation as the
+    person/face read surface, so an edition user scoped to a subset of directories
+    cannot pull foreign faces into a person. Raises ``LookupError`` (mapped to 404
+    by callers) rather than 403 so it never leaks the existence of out-of-scope
+    faces, matching the unknown-face response.
+    """
+    if not face_ids or not is_multi_user_enabled():
+        return
+    face_ids = list(dict.fromkeys(face_ids))
+    vis_sql, vis_params = get_visibility_clause(user_id, table_alias='p')
+    placeholders = ",".join("?" * len(face_ids))
+    rows = conn.execute(
+        f"SELECT f.id FROM faces f JOIN photos p ON p.path = f.photo_path "
+        f"WHERE f.id IN ({placeholders}) AND {vis_sql}",
+        [*face_ids, *vis_params],
+    ).fetchall()
+    if len({row[0] for row in rows}) != len(face_ids):
+        raise LookupError("One or more face_ids not found")
+
+
+def assert_photo_visible(conn, user_id, photo_path):
+    """Raise ``LookupError`` if ``photo_path`` is outside the caller's directories.
+
+    The write-side twin of the photo-visibility precheck used by the face read
+    endpoints (``SELECT 1 FROM photos WHERE path = ? AND <visibility>``). A no-op
+    outside multi-user mode; in multi-user mode a foreign path raises
+    ``LookupError`` so callers map it to the same 404 as a nonexistent photo,
+    never leaking existence.
+    """
+    if not is_multi_user_enabled():
+        return
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    row = conn.execute(
+        f"SELECT 1 FROM photos WHERE path = ? AND {vis_sql}",
+        [photo_path, *vis_params],
+    ).fetchone()
+    if not row:
+        raise LookupError("Photo not found")
+
+
 def get_photos_from_clause(user_id=None):
     """Build FROM clause for gallery queries."""
     if user_id and is_multi_user_enabled():

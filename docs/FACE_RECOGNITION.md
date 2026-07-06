@@ -370,6 +370,33 @@ Access via header button or `/persons`:
 - **Delete** - Remove person cluster
 - **Rename** - Click name to edit inline
 
+### Create a Person
+
+Persons no longer come only from clustering — you can name a face the clusterer
+missed straight from the gallery:
+
+1. On a photo card, open the person actions and pick an unassigned face.
+2. In the person picker, choose **Create new person** and type a name.
+3. The face is attached to the new (manually created, `auto_clustered = 0`)
+   person in one call.
+
+Endpoint: `POST /api/persons` (edition-gated), body
+`{ "name": "<name>", "face_ids": [<id>, ...] }`. The name is required (non-empty
+after trimming). Faces that already belong to another person are reassigned, and
+any old person left with no faces is deleted — the same semantics as face
+assignment. In multi-user mode the caller may only attach faces from photos
+inside their own (or shared) directories; a face outside that scope is rejected
+as not found.
+
+### Needs Naming
+
+The Manage Persons page surfaces auto-clustered persons that are worth naming in
+a **Needs naming** section: unnamed clusters (`name IS NULL`,
+`auto_clustered = 1`) with at least `viewer.persons.needs_naming_min_faces`
+faces (default `5`), each with an inline name field so large clusters can be
+named without hunting for them. Served by
+`GET /api/persons/needs_naming?min_faces=N`.
+
 ### Merge Suggestions Page
 
 Access via `/merge-suggestions` or the "Merge Suggestions" button on the Manage Persons page:

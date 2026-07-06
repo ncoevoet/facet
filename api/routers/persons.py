@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, require_edition, require_authenticated
 from api.config import VIEWER_CONFIG, invalidate_stats_cache
 from api.database import get_async_db, get_db
-from api.db_helpers import reassign_faces_to_person, person_visibility_exists
+from api.db_helpers import assert_faces_visible, reassign_faces_to_person, person_visibility_exists
 from db import person_not_hidden_clause
 
 logger = logging.getLogger(__name__)
@@ -417,6 +417,7 @@ def api_create_person(
 
             face_count = 0
             if body.face_ids:
+                assert_faces_visible(conn, user.user_id if user else None, body.face_ids)
                 result = reassign_faces_to_person(conn, person_id, body.face_ids)
                 face_count = result["face_count"]
 
@@ -449,6 +450,7 @@ def api_assign_faces_batch(
             if not target:
                 raise HTTPException(status_code=404, detail="Target person not found")
 
+            assert_faces_visible(conn, user.user_id if user else None, body.face_ids)
             result = reassign_faces_to_person(conn, person_id, body.face_ids)
             face_count = result["face_count"]
             deleted_persons = result["deleted_persons"]
