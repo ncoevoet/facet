@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, require_edition, require_auth
 from api.config import is_multi_user_enabled, _stats_cache
 from api.database import get_async_db, get_db
-from api.db_helpers import update_person_face_count, trigger_auto_retrain
+from api.db_helpers import update_person_face_count, trigger_auto_retrain, get_visibility_clause
 from api.types import JUNK_NOT_JUNK
 
 logger = logging.getLogger(__name__)
@@ -64,15 +64,16 @@ async def api_person_faces(
     user: CurrentUser = Depends(require_auth),
 ):
     """Get all faces belonging to a person."""
+    vis_sql, vis_params = get_visibility_clause(user.user_id if user else None, table_alias='p')
     async with get_async_db() as conn:
-        cur = await conn.execute("""
+        cur = await conn.execute(f"""
             SELECT f.id, f.photo_path, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2
             FROM faces f
             LEFT JOIN photos p ON f.photo_path = p.path
-            WHERE f.person_id = ?
+            WHERE f.person_id = ? AND {vis_sql}
             ORDER BY p.aggregate DESC
             LIMIT 36
-        """, (person_id,))
+        """, [person_id, *vis_params])
         faces = await cur.fetchall()
         await cur.close()
         return {'faces': [dict(f) for f in faces]}
@@ -116,7 +117,16 @@ async def api_photo_faces(
     user: CurrentUser = Depends(require_auth),
 ):
     """Get all faces in a photo with their current person assignment."""
+    vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
     async with get_async_db() as conn:
+        cur = await conn.execute(
+            f"SELECT 1 FROM photos WHERE path = ? AND {vis_sql}", [path, *vis_params]
+        )
+        visible = await cur.fetchone()
+        await cur.close()
+        if not visible:
+            return {'faces': []}
+
         cur = await conn.execute("""
             SELECT f.id, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2,
                    f.person_id, p.name as person_name

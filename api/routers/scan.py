@@ -11,18 +11,22 @@ import sys
 import threading
 import time
 from collections import deque
+from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from api.auth import CurrentUser, decode_access_token, require_superadmin
+from api.auth import CurrentUser, create_access_token, decode_access_token, require_superadmin
 from api.config import VIEWER_CONFIG, FACET_SCRIPT, get_all_scan_directories, get_user_directories, _photo_types_cache, _stats_cache
 from processing.progress import parse_progress_line
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
 logger = logging.getLogger(__name__)
+
+SCAN_STREAM_PURPOSE = 'scan_stream'
+SCAN_STREAM_TOKEN_TTL_SECONDS = 60
 
 # Global scan state (only one scan at a time)
 _scan_lock = threading.Lock()
@@ -141,6 +145,24 @@ def scan_status(
         raise HTTPException(status_code=403, detail="Scan feature not enabled")
 
     return _build_scan_snapshot(lines)
+
+
+@router.get("/stream_token")
+def scan_stream_token(
+    user: CurrentUser = Depends(require_superadmin),
+):
+    """Mint a short-lived, single-purpose token for opening the SSE stream.
+
+    Header-authenticated (superadmin), so the long-lived JWT never travels in a
+    URL. The stream URL then carries only this 60-second token.
+    """
+    if not VIEWER_CONFIG.get('features', {}).get('show_scan_button', False):
+        raise HTTPException(status_code=403, detail="Scan feature not enabled")
+    token = create_access_token(
+        {'sub': user.user_id, 'role': 'superadmin', 'purpose': SCAN_STREAM_PURPOSE},
+        expires_delta=timedelta(seconds=SCAN_STREAM_TOKEN_TTL_SECONDS),
+    )
+    return {'token': token}
 
 
 def _verify_superadmin_token(token: Optional[str]) -> None:

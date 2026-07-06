@@ -647,6 +647,25 @@ def get_visibility_clause(user_id, table_alias='photos'):
     return f"({' OR '.join(conditions)})", params
 
 
+def person_visibility_exists(user_id, person_col):
+    """Returns (sql_fragment, params) restricting a person to those with at least
+    one face in a photo the user may see.
+
+    Empty (a no-op) outside multi-user mode, where an authenticated user already
+    sees the whole library; in multi-user mode it enforces per-directory
+    isolation on the persons/faces surface. ``person_col`` is a caller-supplied
+    column reference (e.g. ``'p.id'``), never user input.
+    """
+    if not is_multi_user_enabled():
+        return '', []
+    vis_sql, vis_params = get_visibility_clause(user_id, table_alias='pv')
+    fragment = (
+        f"EXISTS (SELECT 1 FROM faces fv JOIN photos pv ON pv.path = fv.photo_path "
+        f"WHERE fv.person_id = {person_col} AND {vis_sql})"
+    )
+    return fragment, vis_params
+
+
 def get_photos_from_clause(user_id=None):
     """Build FROM clause for gallery queries."""
     if user_id and is_multi_user_enabled():

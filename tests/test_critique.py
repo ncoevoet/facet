@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
+from api.auth import CurrentUser, get_optional_user
 
 
 # Columns selected by the critique endpoint (must all exist in the test DB).
@@ -384,6 +385,101 @@ class TestCritiqueEndpoint:
         assert stored[0] == "A lovely landscape."
         assert stored[1] == "Un beau paysage."
 
+
+def _client_for(user):
+    """Build a (TestClient, app) whose get_optional_user yields ``user``."""
+    app = create_app()
+    app.dependency_overrides[get_optional_user] = lambda: user
+    return TestClient(app), app
+
+
+class TestCritiqueVlmEditionGate:
+    """F5': VLM critique generation is edition-only; cached reads stay open."""
+
+    _RULE = {
+        "category": "landscape",
+        "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
+        "aggregate": 7.5, "breakdown": [], "strengths": [], "weaknesses": [],
+        "suggestions": [], "penalties": {},
+    }
+
+    def test_generation_denied_for_non_edition(self, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        vlm_stub = mock.MagicMock(return_value="should not run")
+        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
+        try:
+            with (
+                mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
+                mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
+                mock.patch("api.routers.critique._build_rule_critique", return_value=dict(self._RULE)),
+                mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body.get("vlm_available") is False
+        assert "vlm_critique" not in body
+        vlm_stub.assert_not_called()
+        conn = sqlite3.connect(db)
+        stored = conn.execute(
+            "SELECT vlm_critique FROM photos WHERE path = '/photos/test.jpg'"
+        ).fetchone()[0]
+        conn.close()
+        assert stored is None
+
+    def test_cached_read_open_to_non_edition(self, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        conn = sqlite3.connect(db)
+        conn.execute("UPDATE photos SET vlm_critique = 'Cached.' WHERE path = '/photos/test.jpg'")
+        conn.commit()
+        conn.close()
+        vlm_stub = mock.MagicMock(return_value="should not run")
+        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
+        try:
+            with (
+                mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
+                mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
+                mock.patch("api.routers.critique._build_rule_critique", return_value=dict(self._RULE)),
+                mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        assert resp.json()["vlm_critique"] == "Cached."
+        vlm_stub.assert_not_called()
+
+    def test_generation_allowed_for_edition_admin(self, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        client, app = _client_for(
+            CurrentUser(user_id="admin", role="admin", edition_authenticated=True)
+        )
+        try:
+            with (
+                mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
+                mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
+                mock.patch("api.routers.critique._build_rule_critique", return_value=dict(self._RULE)),
+                mock.patch("api.routers.critique._get_vlm_critique", return_value="Fresh critique."),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        assert resp.json()["vlm_critique"] == "Fresh critique."
 
 
 # ---------------------------------------------------------------------------

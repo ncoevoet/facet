@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.auth import CurrentUser, get_optional_user
+from api.auth import CurrentUser, get_optional_user, is_edition_authenticated
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_async_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
@@ -411,12 +411,12 @@ async def api_critique(
         result = _build_rule_critique(photo)
 
         if mode == 'vlm':
-            await _attach_vlm_critique(conn, photo, result, lang, refresh)
+            await _attach_vlm_critique(conn, photo, result, lang, refresh, user)
 
         return result
 
 
-async def _attach_vlm_critique(conn, photo, result, lang, refresh):
+async def _attach_vlm_critique(conn, photo, result, lang, refresh, user):
     """Attach a cached or freshly generated VLM critique to the rule result."""
     path = photo['path']
     existing_cols = get_existing_columns()
@@ -436,6 +436,10 @@ async def _attach_vlm_critique(conn, photo, result, lang, refresh):
             translated = row['vlm_critique_translated']
 
     if not text:
+        if not is_edition_authenticated(user):
+            result['vlm_available'] = False
+            return
+
         cur = await conn.execute("SELECT thumbnail FROM photos WHERE path = ?", [path])
         row = await cur.fetchone()
         await cur.close()

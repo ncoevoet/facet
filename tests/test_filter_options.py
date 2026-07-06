@@ -167,6 +167,39 @@ class TestPersonsEndpoint:
         cache_mock.assert_not_called()
 
 
+class TestMetricRangesAuth:
+    """F9': /metric_ranges is no longer unauthenticated on a locked deployment."""
+
+    def test_denied_for_unidentified_caller(self, anonymous_client):
+        resp = anonymous_client.get("/api/filter_options/metric_ranges")
+        assert resp.status_code == 401
+
+    def test_allowed_for_authenticated(self, edition_client):
+        resp = edition_client.get("/api/filter_options/metric_ranges")
+        assert resp.status_code == 200
+        assert "ranges" in resp.json()
+
+
+class TestLocationNameAuth:
+    """F9': /location_name no longer serves an open reverse-geocoder."""
+
+    def test_denied_for_unidentified_caller(self, anonymous_client):
+        resp = anonymous_client.get(
+            "/api/filter_options/location_name", params={"lat": 48.8, "lng": 2.3}
+        )
+        assert resp.status_code == 401
+
+    def test_allowed_for_authenticated(self, edition_client):
+        with mock.patch(
+            "analyzers.capsule_generator.geocode_grid", return_value="Paris, France"
+        ):
+            resp = edition_client.get(
+                "/api/filter_options/location_name", params={"lat": 48.8, "lng": 2.3}
+            )
+        assert resp.status_code == 200
+        assert resp.json()["display_name"] == "Paris, France"
+
+
 class TestColorsEndpoint:
     """Tests for /filter_options/colors (Part B color facet)."""
 

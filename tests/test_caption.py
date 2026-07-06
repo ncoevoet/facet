@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
+from api.auth import CurrentUser, get_optional_user
 
 
 _CAPTION_SCHEMA = """
@@ -183,6 +184,80 @@ class TestCaptionEndpoint:
         assert body["source"] == "generated"
         # Caption column treated as absent, so nothing is persisted.
         assert _read_caption(db, "/photos/test.jpg") is None
+
+
+def _client_for(user):
+    """Build a (TestClient, app) whose get_optional_user yields ``user``."""
+    app = create_app()
+    app.dependency_overrides[get_optional_user] = lambda: user
+    return TestClient(app), app
+
+
+class TestCaptionEditionGate:
+    """F5': on-demand VLM generation is edition-only; cached reads stay open."""
+
+    def test_generation_denied_for_non_edition(self, tmp_path):
+        """A regular multi-user caller cannot trigger generation or the DB write."""
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
+        gen = mock.Mock(return_value="new caption")
+        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
+        try:
+            with (
+                mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
+                mock.patch("api.routers.caption.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.caption.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
+                mock.patch("api.routers.caption._generate_caption", gen),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        assert resp.json()["source"] == "edition_required"
+        gen.assert_not_called()
+        assert _read_caption(db, "/photos/test.jpg") is None
+
+    def test_cached_read_open_to_non_edition(self, tmp_path):
+        """A cached caption is still returned to a non-edition caller."""
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": "cached text"}])
+        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
+        try:
+            with (
+                mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
+                mock.patch("api.routers.caption.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.caption.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        assert resp.json() == {"caption": "cached text", "source": "cached"}
+
+    def test_generation_allowed_for_edition_admin(self, tmp_path):
+        """A multi-user admin (edition) still generates and stores the caption."""
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
+        client, app = _client_for(CurrentUser(user_id="admin", role="admin", edition_authenticated=True))
+        try:
+            with (
+                mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
+                mock.patch("api.routers.caption.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.caption.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
+                mock.patch("api.routers.caption._generate_caption", return_value="fresh caption"),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        assert resp.json()["source"] == "generated"
+        assert _read_caption(db, "/photos/test.jpg") == "fresh caption"
 
 
 class TestGenerateCaption:

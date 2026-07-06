@@ -146,6 +146,78 @@ class TestScanStatus:
         assert resp.status_code == 403
 
 
+class TestScanStreamToken:
+    """F8': /stream_token mints a short-lived, single-purpose token so the
+    long-lived superadmin JWT no longer needs to travel in the stream URL."""
+
+    def test_requires_superadmin(self):
+        viewer_cfg = _viewer_config_with_scan()
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
+            mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
+        ):
+            app = create_app()
+            client = TestClient(app, raise_server_exceptions=False)
+            admin = CurrentUser(user_id="a1", role="admin")
+            app.dependency_overrides[require_authenticated] = lambda: admin
+            resp = client.get("/api/scan/stream_token")
+
+        assert resp.status_code == 403
+
+    def test_feature_disabled(self):
+        viewer_cfg = _viewer_config_with_scan(enabled=False)
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
+            mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
+        ):
+            app, client, _ = _make_superadmin_app(viewer_cfg)
+            resp = client.get("/api/scan/stream_token")
+
+        assert resp.status_code == 403
+
+    def test_superadmin_gets_short_lived_purpose_token(self):
+        viewer_cfg = _viewer_config_with_scan()
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
+            mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
+        ):
+            app, client, _ = _make_superadmin_app(viewer_cfg)
+            resp = client.get("/api/scan/stream_token")
+
+        assert resp.status_code == 200
+        from api.auth import decode_access_token
+        from api.routers.scan import SCAN_STREAM_PURPOSE, _verify_superadmin_token
+        token = resp.json()["token"]
+        payload = decode_access_token(token)
+        assert payload["purpose"] == SCAN_STREAM_PURPOSE
+        assert payload["role"] == "superadmin"
+        # The minted token is a valid credential for the stream endpoint.
+        _verify_superadmin_token(token)
+
+
+class TestScanStreamAuth:
+    """GET /api/scan/stream rejects unidentified / non-superadmin callers."""
+
+    def test_missing_token_401(self):
+        viewer_cfg = _viewer_config_with_scan()
+        with mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg):
+            app = create_app()
+            client = TestClient(app, raise_server_exceptions=False)
+            resp = client.get("/api/scan/stream")
+        assert resp.status_code == 401
+
+    def test_garbage_token_403(self):
+        viewer_cfg = _viewer_config_with_scan()
+        with mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg):
+            app = create_app()
+            client = TestClient(app, raise_server_exceptions=False)
+            resp = client.get("/api/scan/stream", params={"token": "garbage"})
+        assert resp.status_code == 403
+
+
 class TestScanDirectories:
     """Tests for GET /api/scan/directories."""
 

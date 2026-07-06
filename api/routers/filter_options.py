@@ -10,7 +10,7 @@ import time
 from typing import Optional
 from fastapi import APIRouter, Depends
 
-from api.auth import CurrentUser, get_optional_user
+from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_async_db, get_db
 from api.db_helpers import is_photo_tags_available, get_visibility_clause
@@ -444,7 +444,10 @@ async def junk_kinds(user: Optional[CurrentUser] = Depends(get_optional_user)):
 
 
 @router.get("/location_name")
-def location_name(lat: float, lng: float):
+def location_name(
+    lat: float, lng: float,
+    user: CurrentUser = Depends(require_authenticated),
+):
     """Reverse geocode coordinates to a place name, using location_names cache.
 
     Stays sync — the underlying ``geocode_grid`` helper is sync and the
@@ -525,7 +528,7 @@ def _compute_metric_ranges():
 
 
 @router.get("/metric_ranges")
-def metric_ranges():
+def metric_ranges(user: CurrentUser = Depends(require_authenticated)):
     """Per-metric observed range and distribution for slider clamping + histograms."""
     from api.config import _get_stats_cached
     return {'ranges': _get_stats_cached('metric_ranges', _compute_metric_ranges)}

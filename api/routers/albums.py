@@ -704,7 +704,9 @@ async def get_shared_album(
         # Verify token matches the stored share_token
         try:
             stored_token = album['share_token']
-            if not stored_token or not hmac.compare_digest(stored_token, token):
+            if not stored_token or not hmac.compare_digest(
+                stored_token.encode('utf-8'), token.encode('utf-8')
+            ):
                 raise HTTPException(status_code=403, detail="Invalid share token")
         except (IndexError, KeyError):
             raise HTTPException(status_code=403, detail="Sharing not available")

@@ -9,7 +9,7 @@ indicator; the model, training and auto-retrain all live elsewhere.
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, get_optional_user
 from api.database import get_db
@@ -32,6 +32,10 @@ async def api_ranker_status(
     snapshot and are ``null`` until the ranker has trained at least once.
     """
     scope = scope or None
+    if scope is not None and not (user and (user.is_superadmin or scope == user.user_id)):
+        raise HTTPException(
+            status_code=403, detail="Cannot read another user's ranker status"
+        )
     with get_db() as conn:
         row = conn.execute(
             "SELECT value FROM stats_cache WHERE key = ?",

@@ -235,6 +235,33 @@ class TestSharing:
         assert resp.status_code == 403
         assert "Invalid share token" in resp.json()["detail"]
 
+    def test_shared_album_non_ascii_token_403_not_500(self, client):
+        """F7': a non-ASCII token is rejected with 403, not a 500 TypeError."""
+        from contextlib import asynccontextmanager
+        album_row = _make_album_row(id=1, share_token="correct-secret-token")
+
+        class _Cursor:
+            async def fetchone(self):
+                return album_row
+            async def fetchall(self):
+                return []
+            async def close(self):
+                pass
+
+        class _Conn:
+            async def execute(self, *a, **kw):
+                return _Cursor()
+
+        @asynccontextmanager
+        async def _async_cm():
+            yield _Conn()
+
+        with mock.patch(f"{_ALBUMS_MODULE}.get_async_db", _async_cm):
+            resp = client.get("/api/shared/album/1", params={"token": "clé-privée-☂"})
+
+        assert resp.status_code == 403
+        assert "Invalid share token" in resp.json()["detail"]
+
 
     def test_shared_album_valid_token(self, client):
         """GET /api/shared/album/1 with correct token returns album data."""

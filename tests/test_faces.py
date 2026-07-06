@@ -167,6 +167,7 @@ class TestPhotoFaces:
         db = str(tmp_path / "photo_faces.db")
         _make_faces_db(
             db,
+            photos=[("/x.jpg", 5.0), ("/other.jpg", 4.0)],
             persons=[(5, "Alice")],
             faces=[
                 {"id": 10, "photo_path": "/x.jpg", "face_index": 1, "person_id": 5,
