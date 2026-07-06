@@ -2698,8 +2698,8 @@
     "pooling": "max",
     "thresholds": {
       "open_clip": {
-        "min_confidence": 0.18,
-        "min_margin": 0.02
+        "min_confidence": 0.2,
+        "min_margin": 0.06
       },
       "transformers": {
         "min_confidence": 0.1,

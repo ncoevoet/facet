@@ -1721,7 +1721,7 @@ Detector zero-shot para "lixo" não fotográfico — capturas de tela, documento
     "prompt_template": "{desc}",
     "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.18, "min_margin": 0.02 },
+      "open_clip": { "min_confidence": 0.2, "min_margin": 0.06 },
       "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
     },
     "kinds": {
@@ -1741,8 +1741,8 @@ Detector zero-shot para "lixo" não fotográfico — capturas de tela, documento
 | `enabled` | `true` | Executa a detecção de lixo durante `--detect-junk` / `--recompute-junk` e ao final da varredura |
 | `prompt_template` | `"{desc}"` | String de formato aplicada a cada prompt (`{desc}` = o prompt); identidade por padrão, já que os prompts são frases completas |
 | `pooling` | `"max"` | Agrupa os cossenos por prompt em uma pontuação por tipo, via `max` (melhor prompt individual, mais discriminante) ou `mean` |
-| `thresholds.<backend>.min_confidence` | open_clip `0.18`, transformers `0.1` | Cosseno mínimo com max-pooling para que o melhor tipo de lixo seja considerado (os cossenos de CLIP/`open_clip` são mais baixos que os de SigLIP/`transformers`, daí um limiar próprio por backend) |
-| `thresholds.<backend>.min_margin` | `0.02` | Quanto o melhor tipo de lixo precisa superar o melhor prompt de contraste `not_junk` antes de a foto ser sinalizada |
+| `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Cosseno mínimo com max-pooling para que o melhor tipo de lixo seja considerado (os cossenos de CLIP/`open_clip` são mais baixos que os de SigLIP/`transformers`, daí um limiar próprio por backend) |
+| `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Quanto o melhor tipo de lixo precisa superar o melhor prompt de contraste `not_junk` antes de a foto ser sinalizada |
 | `kinds` | screenshot/document/receipt/meme/slide | `{tipo: [sinônimos de prompt]}`; adicione, remova ou renomeie tipos livremente — a coluna e a fila do visualizador seguem a configuração |
 | `not_junk_prompts` | 6 prompts fotográficos | Conjunto de contraste que descreve fotografias reais; o filtro que mantém as fotos genuínas fora da fila |
 

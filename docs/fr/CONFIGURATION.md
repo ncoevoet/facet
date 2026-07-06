@@ -1721,7 +1721,7 @@ Détecteur zero-shot pour les fichiers non photographiques « indésirables »
     "prompt_template": "{desc}",
     "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.18, "min_margin": 0.02 },
+      "open_clip": { "min_confidence": 0.2, "min_margin": 0.06 },
       "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
     },
     "kinds": {
@@ -1741,8 +1741,8 @@ Détecteur zero-shot pour les fichiers non photographiques « indésirables »
 | `enabled` | `true` | Exécute la détection d'indésirables pendant `--detect-junk` / `--recompute-junk` et en fin de scan |
 | `prompt_template` | `"{desc}"` | Gabarit de format appliqué à chaque prompt (`{desc}` = le prompt) ; identité par défaut puisque les prompts sont des phrases complètes |
 | `pooling` | `"max"` | Regroupe les cosinus par prompt en un score par type, via `max` (meilleur prompt unique, plus discriminant) ou `mean` |
-| `thresholds.<backend>.min_confidence` | open_clip `0.18`, transformers `0.1` | Cosinus max-pooled minimal pour que le meilleur type d'indésirable soit pris en compte (les cosinus CLIP/`open_clip` sont plus bas que ceux de SigLIP/`transformers`, d'où un seuil propre à chaque backend) |
-| `thresholds.<backend>.min_margin` | `0.02` | Écart minimal que le meilleur type d'indésirable doit creuser sur le meilleur prompt contrastif `not_junk` avant que la photo soit signalée |
+| `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Cosinus max-pooled minimal pour que le meilleur type d'indésirable soit pris en compte (les cosinus CLIP/`open_clip` sont plus bas que ceux de SigLIP/`transformers`, d'où un seuil propre à chaque backend) |
+| `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Écart minimal que le meilleur type d'indésirable doit creuser sur le meilleur prompt contrastif `not_junk` avant que la photo soit signalée |
 | `kinds` | screenshot/document/receipt/meme/slide | `{type: [synonymes de prompt]}` ; ajoutez, retirez ou renommez les types librement — la colonne et la file de la visionneuse suivent la configuration |
 | `not_junk_prompts` | 6 prompts de photographie | Jeu contrastif décrivant de vraies photographies ; le filtre qui garde les photos authentiques hors de la file |
 

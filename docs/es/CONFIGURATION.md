@@ -1721,7 +1721,7 @@ Detector zero-shot para archivos no fotográficos "basura" — capturas de panta
     "prompt_template": "{desc}",
     "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.18, "min_margin": 0.02 },
+      "open_clip": { "min_confidence": 0.2, "min_margin": 0.06 },
       "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
     },
     "kinds": {
@@ -1741,8 +1741,8 @@ Detector zero-shot para archivos no fotográficos "basura" — capturas de panta
 | `enabled` | `true` | Ejecuta la detección de basura durante `--detect-junk` / `--recompute-junk` y al final del escaneo |
 | `prompt_template` | `"{desc}"` | Cadena de formato aplicada a cada prompt (`{desc}` = el prompt); identidad por defecto ya que los prompts son frases completas |
 | `pooling` | `"max"` | Agrupa los cosenos por prompt en una puntuación por tipo, vía `max` (mejor prompt individual, más discriminante) o `mean` |
-| `thresholds.<backend>.min_confidence` | open_clip `0.18`, transformers `0.1` | Coseno máximo agrupado mínimo para que se considere el mejor tipo de basura (los cosenos de CLIP/`open_clip` son más bajos que los de SigLIP/`transformers`, de ahí un umbral propio por backend) |
-| `thresholds.<backend>.min_margin` | `0.02` | Cuánto debe superar el mejor tipo de basura al mejor prompt de contraste `not_junk` antes de que se marque la foto |
+| `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Coseno máximo agrupado mínimo para que se considere el mejor tipo de basura (los cosenos de CLIP/`open_clip` son más bajos que los de SigLIP/`transformers`, de ahí un umbral propio por backend) |
+| `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Cuánto debe superar el mejor tipo de basura al mejor prompt de contraste `not_junk` antes de que se marque la foto |
 | `kinds` | screenshot/document/receipt/meme/slide | `{tipo: [sinónimos de prompt]}`; añade, quita o renombra tipos libremente — la columna y la cola del visor siguen la configuración |
 | `not_junk_prompts` | 6 prompts fotográficos | Conjunto de contraste que describe fotografías reales; el filtro que mantiene las fotos genuinas fuera de la cola |
 

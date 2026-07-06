@@ -1721,7 +1721,7 @@ Rilevatore zero-shot per file non fotografici "spazzatura" — screenshot, docum
     "prompt_template": "{desc}",
     "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.18, "min_margin": 0.02 },
+      "open_clip": { "min_confidence": 0.2, "min_margin": 0.06 },
       "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
     },
     "kinds": {
@@ -1741,8 +1741,8 @@ Rilevatore zero-shot per file non fotografici "spazzatura" — screenshot, docum
 | `enabled` | `true` | Esegue il rilevamento di spazzatura durante `--detect-junk` / `--recompute-junk` e al termine della scansione |
 | `prompt_template` | `"{desc}"` | Stringa di formato applicata a ogni prompt (`{desc}` = il prompt); identità per impostazione predefinita poiché i prompt sono frasi complete |
 | `pooling` | `"max"` | Raggruppa i coseni per prompt in un punteggio per tipo, tramite `max` (miglior prompt singolo, più discriminante) o `mean` |
-| `thresholds.<backend>.min_confidence` | open_clip `0.18`, transformers `0.1` | Coseno max-pooled minimo perché il miglior tipo di spazzatura venga considerato (i coseni CLIP/`open_clip` sono più bassi di quelli SigLIP/`transformers`, da cui una soglia propria per ciascun backend) |
-| `thresholds.<backend>.min_margin` | `0.02` | Quanto il miglior tipo di spazzatura deve superare il miglior prompt di contrasto `not_junk` prima che la foto venga segnalata |
+| `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Coseno max-pooled minimo perché il miglior tipo di spazzatura venga considerato (i coseni CLIP/`open_clip` sono più bassi di quelli SigLIP/`transformers`, da cui una soglia propria per ciascun backend) |
+| `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Quanto il miglior tipo di spazzatura deve superare il miglior prompt di contrasto `not_junk` prima che la foto venga segnalata |
 | `kinds` | screenshot/document/receipt/meme/slide | `{tipo: [sinonimi di prompt]}`; aggiungi, rimuovi o rinomina i tipi liberamente — la colonna e la coda del visualizzatore seguono la configurazione |
 | `not_junk_prompts` | 6 prompt fotografici | Insieme di contrasto che descrive fotografie autentiche; il filtro che tiene le foto genuine fuori dalla coda |
 

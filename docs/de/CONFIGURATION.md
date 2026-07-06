@@ -1721,7 +1721,7 @@ Zero-Shot-Detektor für nicht-fotografischen „Müll" — Screenshots, gescannt
     "prompt_template": "{desc}",
     "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.18, "min_margin": 0.02 },
+      "open_clip": { "min_confidence": 0.2, "min_margin": 0.06 },
       "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
     },
     "kinds": {
@@ -1741,8 +1741,8 @@ Zero-Shot-Detektor für nicht-fotografischen „Müll" — Screenshots, gescannt
 | `enabled` | `true` | Führt die Müllerkennung während `--detect-junk` / `--recompute-junk` und am Scan-Ende aus |
 | `prompt_template` | `"{desc}"` | Formatstring, der auf jeden Prompt angewendet wird (`{desc}` = der Prompt); standardmäßig Identität, da die Prompts vollständige Sätze sind |
 | `pooling` | `"max"` | Poolt die Kosinuswerte pro Prompt zu einem Wert pro Art, via `max` (bester einzelner Prompt, trennschärfer) oder `mean` |
-| `thresholds.<backend>.min_confidence` | open_clip `0.18`, transformers `0.1` | Minimaler max-gepoolter Kosinus, damit die beste Müll-Art berücksichtigt wird (CLIP/`open_clip`-Kosinuswerte liegen niedriger als SigLIP/`transformers`, daher hat jedes Backend eine eigene Schwelle) |
-| `thresholds.<backend>.min_margin` | `0.02` | Wie weit die beste Müll-Art den besten `not_junk`-Kontrast-Prompt schlagen muss, bevor das Foto markiert wird |
+| `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Minimaler max-gepoolter Kosinus, damit die beste Müll-Art berücksichtigt wird (CLIP/`open_clip`-Kosinuswerte liegen niedriger als SigLIP/`transformers`, daher hat jedes Backend eine eigene Schwelle) |
+| `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Wie weit die beste Müll-Art den besten `not_junk`-Kontrast-Prompt schlagen muss, bevor das Foto markiert wird |
 | `kinds` | screenshot/document/receipt/meme/slide | `{art: [Prompt-Synonyme]}`; fügen Sie Arten frei hinzu, entfernen oder benennen Sie sie um — Spalte und Viewer-Warteschlange folgen der Konfiguration |
 | `not_junk_prompts` | 6 Foto-Prompts | Kontrast-Set, das echte Fotografien beschreibt; der Filter, der echte Fotos aus der Warteschlange heraushält |
 

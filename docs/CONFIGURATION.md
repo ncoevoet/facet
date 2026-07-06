@@ -1744,7 +1744,7 @@ Zero-shot detector for non-photo "junk" — screenshots, scanned documents, rece
     "prompt_template": "{desc}",
     "pooling": "max",
     "thresholds": {
-      "open_clip": { "min_confidence": 0.18, "min_margin": 0.02 },
+      "open_clip": { "min_confidence": 0.2, "min_margin": 0.06 },
       "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
     },
     "kinds": {
@@ -1764,8 +1764,8 @@ Zero-shot detector for non-photo "junk" — screenshots, scanned documents, rece
 | `enabled` | `true` | Run junk detection during `--detect-junk` / `--recompute-junk` and at scan end |
 | `prompt_template` | `"{desc}"` | Format string applied to every prompt (`{desc}` = the prompt); identity by default since the prompts are full sentences |
 | `pooling` | `"max"` | Pool the per-prompt cosines back to a kind by `max` (best single prompt, more discriminative) or `mean` |
-| `thresholds.<backend>.min_confidence` | open_clip `0.18`, transformers `0.1` | Minimum max-pooled cosine for the best junk kind to be considered (CLIP/`open_clip` cosines run lower than SigLIP/`transformers`, so each backend has its own gate) |
-| `thresholds.<backend>.min_margin` | `0.02` | How far the best junk kind must beat the best `not_junk` contrast prompt before the photo is flagged |
+| `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Minimum max-pooled cosine for the best junk kind to be considered (CLIP/`open_clip` cosines run lower than SigLIP/`transformers`, so each backend has its own gate) |
+| `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | How far the best junk kind must beat the best `not_junk` contrast prompt before the photo is flagged |
 | `kinds` | screenshot/document/receipt/meme/slide | `{kind: [prompt synonyms]}`; add, remove, or rename kinds freely — the column and viewer queue follow the config |
 | `not_junk_prompts` | 6 photograph prompts | Contrast set describing real photographs; the gate that keeps genuine photos out of the queue |
 

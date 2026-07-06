@@ -593,7 +593,7 @@ For quick reference, here are the actual defaults from the config file:
 | `narrative_moments` | `caption_min_confidence` | `0` (0 = no caption gate) |
 | `junk_sweep` | `enabled` | `true` |
 | `junk_sweep` | `pooling` | `"max"` |
-| `junk_sweep` | `thresholds.open_clip` | `{min_confidence: 0.18, min_margin: 0.02}` |
+| `junk_sweep` | `thresholds.open_clip` | `{min_confidence: 0.2, min_margin: 0.06}` |
 | `junk_sweep` | `thresholds.transformers` | `{min_confidence: 0.1, min_margin: 0.02}` |
 | `auto_cull` | `default_strictness` | `50` |
 | `auto_cull` | `highlights_min` | `8.0` |
