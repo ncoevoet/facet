@@ -1822,6 +1822,30 @@ Tokens are compared constant-time as UTF-8 bytes, so a missing token is a 401 an
 
 A frame token is not a user login: it carries no `user_id` and is checked against the whole library, so in [multi-user mode](#users) it ignores every user's private `directories` and grants read access across all users' photos, not just `shared_directories`. Only issue frame tokens on installs where every configured user is comfortable with that.
 
+## Phone Auto-Upload
+
+A minimal **WebDAV** endpoint under `/dav` so phone auto-upload apps (PhotoSync et al.) can push photos into an **inbox directory** that `facet.py --watch` then scores automatically — the PhotoPrism mobile-sync pattern. Upload-only plumbing: it never touches user sessions or JWTs. Access is HTTP Basic with **shared-device credentials** (`username` / `password`), not a user account. The whole `/dav` tree returns **404 while disabled** — the feature is enabled only when `username`, `password`, and `inbox_dir` are all set. Every operation is confined to `inbox_dir` (traversal / absolute-path / symlink escape refused), and uploads stream to disk atomically with the `max_file_mb` cap.
+
+```json
+{
+  "upload": {
+    "username": "",
+    "password": "",
+    "inbox_dir": "",
+    "max_file_mb": 500
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `username` | `""` | HTTP Basic username (shared device credential). **Empty = feature disabled (404).** |
+| `password` | `""` | HTTP Basic password (shared device credential). **Empty = feature disabled (404).** Use a long random string. |
+| `inbox_dir` | `""` | Absolute path of the upload inbox. **Empty = feature disabled (404).** Point it at one of the scanned directories (or a subdirectory) so `facet.py --watch` scores uploads as they land. Created on demand. |
+| `max_file_mb` | `500` | Per-file size cap (MB); an upload exceeding it aborts with `413` and leaves no partial file. |
+
+Credentials are compared constant-time as UTF-8 bytes; a missing or wrong `Authorization` header is a `401` with `WWW-Authenticate: Basic realm="Facet upload"`. Implemented methods: `OPTIONS`, `PROPFIND` (depth 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD` (`LOCK`/`UNLOCK` are not implemented). See [Web Viewer — Phone Auto-Upload](VIEWER.md#phone-auto-upload) for the PhotoSync recipe and a `curl` smoke test.
+
 ## Junk Sweep
 
 Zero-shot detector for non-photo "junk" — screenshots, scanned documents, receipts, memes, presentation slides — over the **stored image embedding** (no image decode, no per-image model pass; the same shape as narrative moments without the temporal smoothing). Each kind carries a list of text prompts; the photo's embedding is cosine-scored against every prompt and **max-pooled** per kind. A `not_junk` contrast prompt set gates the decision: a photo is only flagged when the best junk kind clears `min_confidence` AND beats the best `not_junk` prompt by `min_margin` — otherwise it is stored as the `not_junk` sentinel (evaluated clean). `NULL` means "not evaluated": `--detect-junk` labels only `NULL` rows (and auto-runs at scan end), while `--recompute-junk` re-evaluates the whole library. Populates `photos.junk_kind`; the viewer's **Junk Sweep** review queue ([VIEWER.md](VIEWER.md#junk-sweep)) reads it.

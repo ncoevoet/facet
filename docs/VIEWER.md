@@ -10,7 +10,7 @@ FastAPI + Angular single-page application for browsing, filtering, and managing 
 - [Person Management](#person-management) · [Scan Trigger (Superadmin)](#scan-trigger-superadmin) · [Semantic Search](#semantic-search) · [Albums](#albums)
 - [AI Critique](#ai-critique) · [AI Captioning](#ai-captioning-gpu-16gb24gb-edition) · [Memories ("On This Day")](#memories-on-this-day) · [Timeline View](#timeline-view) · [Map View](#map-view) · [Capsules](#capsules)
 - [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [Editor Export](#editor-export) · [Culling](#culling) · [Junk Sweep](#junk-sweep) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
-- [EXIF Statistics](#exif-statistics) · [Keyboard Shortcuts](#keyboard-shortcuts-gallery) · [Undo](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile) · [Photo Frame / Kiosk Endpoint](#photo-frame--kiosk-endpoint)
+- [EXIF Statistics](#exif-statistics) · [Keyboard Shortcuts](#keyboard-shortcuts-gallery) · [Undo](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile) · [Photo Frame / Kiosk Endpoint](#photo-frame--kiosk-endpoint) · [Phone Auto-Upload](#phone-auto-upload)
 - [Configuration](#configuration) · [Performance](#performance) · [API Endpoints](#api-endpoints) · [Troubleshooting](#troubleshooting)
 
 > **Feature requirements** are tagged inline: `[GPU]` · `[16gb/24gb]` (VRAM profile) · `[Edition]` (edition password) · `[Superadmin]`. See the [feature matrix](../README.md#feature-availability--requirements).
@@ -746,6 +746,51 @@ camera:
 Add the camera to a Picture Glance / Picture Entity card (or a wall-tablet dashboard) and it becomes a self-updating photo frame.
 
 For an **ImmichFrame-style** consumer that manages its own slideshow, poll `GET /api/frame/photos?token=…&count=30` for the id list, then request each `GET /api/frame/image/{id}?token=…&max_edge=1920` — the ids are stable and the image responses carry a long immutable cache, so a client fetches each photo once and can crossfade between them itself.
+
+## Phone Auto-Upload
+
+A minimal **WebDAV** endpoint under `/dav` lets phone auto-upload apps (PhotoSync, and any client that speaks WebDAV) push photos straight into a Facet **inbox directory**. Point the inbox at one of your scanned directories (or a subdirectory of one) and run `facet.py --watch` on it: every uploaded photo is scored automatically as it lands — the PhotoPrism mobile-sync pattern.
+
+This is **upload-only plumbing** — it never touches user sessions or JWTs. Access is HTTP Basic with **shared-device credentials** configured in the `upload` block (`upload.username` / `upload.password`), **not** a user account. The whole `/dav` tree returns **404 while disabled**: the feature is only enabled when `upload.username`, `upload.password`, and `upload.inbox_dir` are all set. Every operation is confined to `upload.inbox_dir` — traversal, absolute paths, and symlink escapes are refused — and uploads stream to disk atomically, capped at `upload.max_file_mb` (default 500).
+
+Implemented methods: `OPTIONS`, `PROPFIND` (depth 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD`. `LOCK`/`UNLOCK` are not implemented (upload clients treat their absence as a non-locking share).
+
+### Configuration
+
+```json
+"upload": {
+  "username": "phone",
+  "password": "…a-long-random-shared-secret…",
+  "inbox_dir": "/photos/inbox",
+  "max_file_mb": 500
+}
+```
+
+`inbox_dir` should live under a scanned directory so `--watch` picks uploads up:
+
+```bash
+python facet.py /photos --watch
+```
+
+### PhotoSync recipe
+
+1. In PhotoSync, add a **WebDAV** configuration (Configure → Add Configuration → WebDAV).
+2. **URL / Server**: `http://<host>:5000/dav/` (use your Facet host; `https://` if you front it with a reverse proxy).
+3. **Username / Password**: the `upload.username` / `upload.password` you set above.
+4. **Target folder**: leave at the root (`/`) to drop into the inbox, or a subfolder PhotoSync creates via `MKCOL`.
+5. On the Facet host, scan the inbox in watch mode so uploads are scored as they arrive:
+
+   ```bash
+   python facet.py /photos --watch
+   ```
+
+### curl smoke test
+
+```bash
+curl -T photo.jpg -u phone:'…a-long-random-shared-secret…' http://<host>:5000/dav/photo.jpg
+```
+
+A `201 Created` (or `204 No Content` when overwriting) confirms the upload landed in the inbox; `--watch` scores it on the next debounce.
 
 ## Configuration
 

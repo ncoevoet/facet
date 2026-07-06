@@ -1799,6 +1799,30 @@ Os tokens são comparados em tempo constante como bytes UTF-8, por isso um token
 
 Um token de moldura não é um login de usuário: ele não carrega nenhum `user_id` e é verificado contra toda a biblioteca, portanto, no [modo multiusuário](#users), ele ignora os `directories` privados de cada usuário e concede acesso de leitura às fotos de todos os usuários, não apenas a `shared_directories`. Emita tokens de moldura apenas em instalações onde cada usuário configurado esteja confortável com isso.
 
+## Envio automático do telemóvel
+
+Um endpoint **WebDAV** mínimo em `/dav` permite que apps de envio automático do telemóvel (PhotoSync e outras) enviem fotos para uma **pasta de entrada** (inbox) que o `facet.py --watch` pontua depois automaticamente — o padrão de sincronização móvel do PhotoPrism. Apenas infraestrutura de envio: nunca toca em sessões de utilizador nem em JWT. O acesso é HTTP Basic com **credenciais de dispositivo partilhado** (`username` / `password`), não uma conta de utilizador. Toda a árvore `/dav` devolve **404 enquanto estiver desativada** — a funcionalidade só fica ativa quando `username`, `password` e `inbox_dir` estão todos definidos. Cada operação é confinada a `inbox_dir` (traversal / caminhos absolutos / fuga por ligação simbólica são recusados), e os envios são gravados em disco de forma atómica com o limite `max_file_mb`.
+
+```json
+{
+  "upload": {
+    "username": "",
+    "password": "",
+    "inbox_dir": "",
+    "max_file_mb": 500
+  }
+}
+```
+
+| Definição | Padrão | Descrição |
+|-----------|--------|-----------|
+| `username` | `""` | Nome de utilizador HTTP Basic (credencial de dispositivo partilhado). **Vazio = funcionalidade desativada (404).** |
+| `password` | `""` | Palavra-passe HTTP Basic (credencial de dispositivo partilhado). **Vazio = funcionalidade desativada (404).** Use uma cadeia aleatória longa. |
+| `inbox_dir` | `""` | Caminho absoluto da pasta de entrada. **Vazio = funcionalidade desativada (404).** Aponte-a para um dos diretórios analisados (ou um subdiretório) para que o `facet.py --watch` pontue os envios à medida que chegam. Criada a pedido. |
+| `max_file_mb` | `500` | Limite de tamanho por ficheiro (MB); um envio que o exceda é abortado com `413` e não deixa qualquer ficheiro parcial. |
+
+As credenciais são comparadas em tempo constante como bytes UTF-8; um cabeçalho `Authorization` ausente ou incorreto devolve um `401` com `WWW-Authenticate: Basic realm="Facet upload"`. Métodos implementados: `OPTIONS`, `PROPFIND` (profundidade 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD` (`LOCK`/`UNLOCK` não estão implementados). A receita PhotoSync e um teste rápido com `curl` estão descritos na documentação do Visualizador Web.
+
 ## Junk Sweep
 
 Detector zero-shot para "lixo" não fotográfico — capturas de tela, documentos escaneados, recibos, memes, slides de apresentação — sobre o **embedding de imagem armazenado** (sem decodificação de imagem, sem passagem de modelo por imagem; o mesmo formato dos momentos narrativos sem a suavização temporal). Cada tipo carrega uma lista de prompts de texto; o embedding da foto é pontuado por cosseno contra cada prompt e agrupado por **máximo** (max-pooling) por tipo. Um conjunto de prompts de contraste `not_junk` condiciona a decisão: uma foto só é sinalizada quando o melhor tipo de lixo ultrapassa `min_confidence` E supera o melhor prompt `not_junk` por `min_margin` — caso contrário, é armazenada com a sentinela `not_junk` (avaliada, limpa). `NULL` significa "não avaliada": `--detect-junk` rotula apenas as linhas `NULL` (e roda automaticamente ao final da varredura), enquanto `--recompute-junk` reavalia a biblioteca inteira. Preenche `photos.junk_kind`; a fila de revisão **Limpeza de lixo** do visualizador ([VIEWER.md](VIEWER.md#limpeza-de-lixo)) a consome.

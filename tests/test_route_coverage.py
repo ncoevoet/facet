@@ -106,6 +106,7 @@ PARAMETERISED_ROUTES = [
     ('/api/frame/photos', {'token': 'x'}),
     ('/api/frame/next', {'token': 'x'}),
     ('/api/frame/image/1.deadbeef', {'token': 'x'}),
+    ('/dav/nonexistent.jpg', {}),
 ]
 
 # Routes that require superadmin (scan).

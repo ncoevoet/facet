@@ -1799,6 +1799,30 @@ Les jetons sont comparés à temps constant en octets UTF-8 : un jeton manquant 
 
 Un jeton de cadre n'est pas une connexion utilisateur : il ne porte aucun `user_id` et est vérifié par rapport à toute la bibliothèque, donc en [mode multi-utilisateur](#users), il ignore les `directories` privés de chaque utilisateur et accorde un accès en lecture aux photos de tous les utilisateurs, pas seulement aux `shared_directories`. N'émettez des jetons de cadre que sur les installations où chaque utilisateur configuré est à l'aise avec cela.
 
+## Envoi automatique depuis le téléphone
+
+Un endpoint **WebDAV** minimal sous `/dav` permet aux applications d'envoi automatique depuis le téléphone (PhotoSync et autres) de déposer des photos dans un **répertoire de réception** (inbox) que `facet.py --watch` évalue ensuite automatiquement — le modèle de synchronisation mobile de PhotoPrism. Plomberie d'envoi uniquement : n'affecte jamais les sessions utilisateur ni les JWT. L'accès se fait en HTTP Basic avec des **identifiants d'appareil partagé** (`username` / `password`), et non un compte utilisateur. Tout l'arbre `/dav` renvoie **404 tant qu'il est désactivé** — la fonctionnalité n'est active que lorsque `username`, `password` et `inbox_dir` sont tous renseignés. Chaque opération est confinée à `inbox_dir` (traversée / chemin absolu / évasion par lien symbolique refusés), et les envois sont écrits sur disque de façon atomique avec le plafond `max_file_mb`.
+
+```json
+{
+  "upload": {
+    "username": "",
+    "password": "",
+    "inbox_dir": "",
+    "max_file_mb": 500
+  }
+}
+```
+
+| Paramètre | Défaut | Description |
+|-----------|--------|-------------|
+| `username` | `""` | Nom d'utilisateur HTTP Basic (identifiant d'appareil partagé). **Vide = fonctionnalité désactivée (404).** |
+| `password` | `""` | Mot de passe HTTP Basic (identifiant d'appareil partagé). **Vide = fonctionnalité désactivée (404).** Utilisez une chaîne aléatoire longue. |
+| `inbox_dir` | `""` | Chemin absolu du répertoire de réception. **Vide = fonctionnalité désactivée (404).** Pointez-le vers l'un des répertoires scannés (ou un sous-répertoire) pour que `facet.py --watch` évalue les envois à leur arrivée. Créé à la demande. |
+| `max_file_mb` | `500` | Plafond de taille par fichier (Mo) ; un envoi qui le dépasse est interrompu avec un `413` et ne laisse aucun fichier partiel. |
+
+Les identifiants sont comparés à temps constant en octets UTF-8 ; un en-tête `Authorization` manquant ou erroné renvoie un `401` avec `WWW-Authenticate: Basic realm="Facet upload"`. Méthodes implémentées : `OPTIONS`, `PROPFIND` (profondeur 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD` (`LOCK`/`UNLOCK` ne sont pas implémentées). La recette PhotoSync et un test rapide avec `curl` sont décrits dans la documentation du Visualiseur Web.
+
 ## Nettoyage des indésirables
 
 Détecteur zero-shot pour les fichiers non photographiques « indésirables » — captures d'écran, documents scannés, reçus, mèmes, diapositives de présentation — sur l'**embedding d'image stocké** (pas de décodage d'image, pas de passe de modèle par image ; la même architecture que les moments narratifs, sans le lissage temporel). Chaque type porte une liste de prompts textuels ; l'embedding de la photo est noté par cosinus contre chaque prompt puis **max-pooled** par type. Un jeu de prompts contrastifs `not_junk` conditionne la décision : une photo n'est signalée que lorsque le meilleur type d'indésirable franchit `min_confidence` ET dépasse le meilleur prompt `not_junk` de `min_margin` — sinon elle est enregistrée avec la sentinelle `not_junk` (évaluée et propre). `NULL` signifie « non évaluée » : `--detect-junk` n'étiquette que les lignes `NULL` (et s'exécute automatiquement en fin de scan), tandis que `--recompute-junk` réévalue toute la bibliothèque. Alimente `photos.junk_kind` ; la file de revue **Nettoyage des indésirables** de la visionneuse ([VIEWER.md](VIEWER.md#nettoyage-des-indésirables)) la consulte.

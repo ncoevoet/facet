@@ -1799,6 +1799,30 @@ I token vengono confrontati a tempo costante come byte UTF-8, quindi un token ma
 
 Un token di cornice non è un login utente: non porta alcun `user_id` ed è verificato rispetto all'intera libreria, quindi in [modalità multiutente](#users) ignora le `directories` private di ciascun utente e concede accesso in lettura alle foto di tutti gli utenti, non solo a `shared_directories`. Rilascia i token di cornice solo sulle installazioni in cui ogni utente configurato è a suo agio con questo.
 
+## Caricamento automatico dal telefono
+
+Un endpoint **WebDAV** minimale sotto `/dav` consente alle app di caricamento automatico dal telefono (PhotoSync e simili) di inviare foto in una **cartella di ingresso** (inbox) che `facet.py --watch` valuta poi automaticamente — lo schema di sincronizzazione mobile di PhotoPrism. Semplice infrastruttura di caricamento: non tocca mai le sessioni utente né i JWT. L'accesso è HTTP Basic con **credenziali di dispositivo condiviso** (`username` / `password`), non un account utente. L'intero albero `/dav` restituisce **404 finché è disattivato** — la funzione è attiva solo quando `username`, `password` e `inbox_dir` sono tutti impostati. Ogni operazione è confinata a `inbox_dir` (traversal / percorsi assoluti / fuga tramite collegamento simbolico rifiutati), e i caricamenti vengono scritti su disco in modo atomico con il limite `max_file_mb`.
+
+```json
+{
+  "upload": {
+    "username": "",
+    "password": "",
+    "inbox_dir": "",
+    "max_file_mb": 500
+  }
+}
+```
+
+| Impostazione | Predef. | Descrizione |
+|--------------|---------|-------------|
+| `username` | `""` | Nome utente HTTP Basic (credenziale di dispositivo condiviso). **Vuoto = funzione disattivata (404).** |
+| `password` | `""` | Password HTTP Basic (credenziale di dispositivo condiviso). **Vuoto = funzione disattivata (404).** Usa una stringa casuale lunga. |
+| `inbox_dir` | `""` | Percorso assoluto della cartella di ingresso. **Vuoto = funzione disattivata (404).** Puntalo a una delle cartelle scansionate (o a una sottocartella) affinché `facet.py --watch` valuti i caricamenti man mano che arrivano. Creata su richiesta. |
+| `max_file_mb` | `500` | Limite di dimensione per file (MB); un caricamento che lo supera viene interrotto con `413` e non lascia alcun file parziale. |
+
+Le credenziali sono confrontate a tempo costante come byte UTF-8; un'intestazione `Authorization` mancante o errata restituisce un `401` con `WWW-Authenticate: Basic realm="Facet upload"`. Metodi implementati: `OPTIONS`, `PROPFIND` (profondità 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD` (`LOCK`/`UNLOCK` non sono implementati). La ricetta PhotoSync e un test rapido con `curl` sono descritti nella documentazione del Visualizzatore Web.
+
 ## Junk Sweep
 
 Rilevatore zero-shot per file non fotografici "spazzatura" — screenshot, documenti scansionati, ricevute, meme, diapositive di presentazione — sull'**embedding immagine memorizzato** (nessuna decodifica dell'immagine, nessun passaggio del modello per immagine; la stessa struttura dei momenti narrativi senza il livellamento temporale). Ogni tipo porta un elenco di prompt testuali; l'embedding della foto viene valutato per coseno contro ogni prompt e poi **max-pooled** per tipo. Un insieme di prompt di contrasto `not_junk` condiziona la decisione: una foto viene segnalata solo quando il miglior tipo di spazzatura supera `min_confidence` E batte il miglior prompt `not_junk` di `min_margin` — altrimenti viene memorizzata con la sentinella `not_junk` (valutata, pulita). `NULL` significa "non valutata": `--detect-junk` etichetta solo le righe `NULL` (ed è eseguito automaticamente al termine di ogni scansione), mentre `--recompute-junk` rivaluta l'intera libreria. Popola `photos.junk_kind`; la coda di revisione **Junk Sweep** del visualizzatore ([VIEWER.md](VIEWER.md#pulizia-degli-scarti)) la consulta.

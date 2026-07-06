@@ -487,6 +487,8 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Photo Frame / Kiosk:** anonymous, static-token endpoints for login-less kiosk devices (smart photo frames, Home Assistant, ImmichFrame/Immich-Kiosk). `GET /api/frame/photos?token=&count=` → `{photos: [{id, caption?, date_taken?, width, height}]}` where `id` is an opaque signed identifier (the row `rowid` signed with the server secret — **never** a filesystem path). `GET /api/frame/image/{id}?token=&max_edge=` → the photo JPEG (on-disk original downscaled to `frame.max_edge`, falling back to the stored thumbnail when unreachable; long immutable cache). `GET /api/frame/next?token=` → one random curated JPEG per call (`no-store`; the dumb-frame / HA generic-camera case). Auth: `frame.tokens` (opaque strings, compared constant-time as UTF-8 bytes) — empty list → 404 (feature disabled), missing token → 401, wrong/non-ASCII → 403. Curation excludes rejected/junk/blink, honors `min_aggregate`, optional `favorites_only` and `categories` allow-list; `count` capped at `max_count`. Score-weighted random sampling (shuffle of a top-by-score candidate pool). No client UI. Config: `frame` block. See [docs/VIEWER.md](docs/VIEWER.md#photo-frame--kiosk-endpoint).
 
+**Phone Auto-Upload (WebDAV):** a deliberately minimal WebDAV subset under `/dav` (`api/routers/webdav.py`) so phone auto-upload apps (PhotoSync et al.) push photos into an inbox directory that `facet.py --watch` then scores — the PhotoPrism mobile-sync pattern. Methods: `OPTIONS` (advertises `DAV: 1` + `Allow`), `PROPFIND` depth 0/1 (207 multistatus, minimal `xml.etree` propstat), `MKCOL` (201/405/409), `PUT` (streamed to a temp file + `os.replace`, 201 new / 204 overwrite, 413 over `upload.max_file_mb`), `MOVE` (within the share; 201/204, 403 outside), `DELETE` (204), `GET`/`HEAD` (within the share). `LOCK`/`UNLOCK` unimplemented; PROPFIND `infinity` served as depth 1. Auth: HTTP Basic against `upload.username`/`upload.password` (constant-time UTF-8 compare, `WWW-Authenticate: Basic realm="Facet upload"` on 401), never a user session/JWT. The whole tree 404s unless `upload.username`, `upload.password`, and `upload.inbox_dir` are all set. Every path is realpath-contained to `upload.inbox_dir` (traversal / absolute / symlink escape → 403). Config: `upload` block. See [docs/VIEWER.md](docs/VIEWER.md#phone-auto-upload).
+
 **Client Proofing:** `POST /api/shared/album/{id}/session` exchanges a share token (+ optional PIN) for a session; `PUT|GET /api/shared/album/{id}/picks` read/write the client's picks (share-session auth, bounded to album membership); `GET /api/albums/{id}/picks` is the owner view (edition-gated). Picks live in `album_client_picks`, isolated from owner ratings. Gated by `viewer.features.show_proofing` (default `false`).
 
 **Comparison Mode:** Full pairwise comparison workflow — `GET /api/comparison/next_pair`, `POST /api/comparison/submit`, `GET /api/comparison/stats`, `GET /api/comparison/history`, `GET /api/comparison/coverage`, `GET /api/comparison/confidence`, plus weight management via `POST /api/config/update_weights`, `GET /api/config/weight_snapshots`, `POST /api/config/save_snapshot`, `POST /api/config/restore_weights`.
@@ -617,6 +619,10 @@ For quick reference, here are the actual defaults from the config file:
 | `frame` | `max_edge` | `1920` |
 | `frame` | `favorites_only` | `false` |
 | `frame` | `categories` | `[]` (empty = all) |
+| `upload` | `username` | `""` (empty = feature disabled → 404) |
+| `upload` | `password` | `""` (empty = feature disabled → 404) |
+| `upload` | `inbox_dir` | `""` (empty = feature disabled → 404) |
+| `upload` | `max_file_mb` | `500` |
 | `distortion_attributes` | `enabled` | `true` |
 | `skin_tone` | `cast_delta_threshold` | `12.0` |
 | `critique.vlm` | `max_new_tokens` | `320` |

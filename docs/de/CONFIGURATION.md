@@ -1799,6 +1799,30 @@ Tokens werden konstantzeitlich als UTF-8-Bytes verglichen, sodass ein fehlendes 
 
 Ein Rahmen-Token ist keine Benutzeranmeldung: Es trägt keine `user_id` und wird gegen die gesamte Bibliothek geprüft, sodass es im [Mehrbenutzermodus](#users) die privaten `directories` jedes Benutzers ignoriert und Lesezugriff auf die Fotos aller Benutzer gewährt, nicht nur auf `shared_directories`. Geben Sie Rahmen-Token nur auf Installationen aus, bei denen jeder konfigurierte Benutzer damit einverstanden ist.
 
+## Automatischer Upload vom Telefon
+
+Ein minimaler **WebDAV**-Endpunkt unter `/dav`, damit Foto-Auto-Upload-Apps (PhotoSync u. a.) Fotos in ein **Eingangsverzeichnis** (Inbox) hochladen können, das `facet.py --watch` anschließend automatisch bewertet — das Mobil-Sync-Muster von PhotoPrism. Reine Upload-Infrastruktur: berührt niemals Benutzersitzungen oder JWTs. Der Zugriff erfolgt per HTTP Basic mit **Zugangsdaten für gemeinsam genutzte Geräte** (`username` / `password`), nicht mit einem Benutzerkonto. Der gesamte `/dav`-Baum liefert **404, solange die Funktion deaktiviert ist** — sie ist nur aktiv, wenn `username`, `password` und `inbox_dir` alle gesetzt sind. Jede Operation ist auf `inbox_dir` beschränkt (Traversal / absolute Pfade / Symlink-Ausbruch werden abgewiesen), und Uploads werden atomar auf die Festplatte geschrieben, begrenzt durch `max_file_mb`.
+
+```json
+{
+  "upload": {
+    "username": "",
+    "password": "",
+    "inbox_dir": "",
+    "max_file_mb": 500
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|-------------|----------|--------------|
+| `username` | `""` | HTTP-Basic-Benutzername (Zugangsdaten für gemeinsam genutztes Gerät). **Leer = Funktion deaktiviert (404).** |
+| `password` | `""` | HTTP-Basic-Passwort (Zugangsdaten für gemeinsam genutztes Gerät). **Leer = Funktion deaktiviert (404).** Verwenden Sie eine lange Zufallszeichenfolge. |
+| `inbox_dir` | `""` | Absoluter Pfad des Eingangsverzeichnisses. **Leer = Funktion deaktiviert (404).** Richten Sie es auf eines der gescannten Verzeichnisse (oder ein Unterverzeichnis), damit `facet.py --watch` Uploads beim Eintreffen bewertet. Wird bei Bedarf angelegt. |
+| `max_file_mb` | `500` | Größenlimit pro Datei (MB); ein Upload, der es überschreitet, bricht mit `413` ab und hinterlässt keine Teildatei. |
+
+Die Zugangsdaten werden in konstanter Zeit als UTF-8-Bytes verglichen; ein fehlender oder falscher `Authorization`-Header ergibt ein `401` mit `WWW-Authenticate: Basic realm="Facet upload"`. Implementierte Methoden: `OPTIONS`, `PROPFIND` (Tiefe 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD` (`LOCK`/`UNLOCK` sind nicht implementiert). Das PhotoSync-Rezept und ein `curl`-Schnelltest sind in der Web-Viewer-Dokumentation beschrieben.
+
 ## Junk Sweep
 
 Zero-Shot-Detektor für nicht-fotografischen „Müll" — Screenshots, gescannte Dokumente, Belege, Memes, Präsentationsfolien — über das **gespeicherte Bild-Embedding** (kein Bild-Decode, kein Modelldurchlauf pro Bild; dieselbe Form wie bei narrativen Momenten, nur ohne die zeitliche Glättung). Jede Art trägt eine Liste von Text-Prompts; das Embedding des Fotos wird per Kosinus gegen jeden Prompt bewertet und pro Art **max-gepoolt**. Ein `not_junk`-Kontrast-Prompt-Set steuert die Entscheidung: Ein Foto wird nur markiert, wenn die beste Müll-Art `min_confidence` überschreitet UND den besten `not_junk`-Prompt um `min_margin` schlägt — andernfalls wird es mit der Sentinel `not_junk` gespeichert (bewertet, sauber). `NULL` bedeutet „nicht bewertet": `--detect-junk` beschriftet nur `NULL`-Zeilen (und läuft automatisch am Ende jedes Scans), während `--recompute-junk` die gesamte Bibliothek neu bewertet. Füllt `photos.junk_kind`; die **Junk-Sweep**-Review-Warteschlange des Viewers ([VIEWER.md](VIEWER.md#müll-aufräumen)) liest diese Spalte.

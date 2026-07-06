@@ -2173,6 +2173,12 @@
     "favorites_only": false,
     "categories": []
   },
+  "upload": {
+    "username": "",
+    "password": "",
+    "inbox_dir": "",
+    "max_file_mb": 500
+  },
   "social_export": {
     "presets": {
       "square": {

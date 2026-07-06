@@ -1799,6 +1799,30 @@ Los tokens se comparan en tiempo constante como bytes UTF-8, por lo que un token
 
 Un token de marco no es un inicio de sesión de usuario: no lleva ningún `user_id` y se comprueba contra toda la biblioteca, por lo que en [modo multiusuario](#usuarios) ignora los `directories` privados de cada usuario y concede acceso de lectura a las fotos de todos los usuarios, no solo a `shared_directories`. Emita tokens de marco únicamente en instalaciones donde cada usuario configurado esté cómodo con ello.
 
+## Subida automática desde el teléfono
+
+Un endpoint **WebDAV** mínimo bajo `/dav` permite que las apps de subida automática desde el teléfono (PhotoSync y otras) envíen fotos a un **directorio de entrada** (inbox) que `facet.py --watch` puntúa después automáticamente — el patrón de sincronización móvil de PhotoPrism. Fontanería de subida únicamente: nunca toca sesiones de usuario ni JWT. El acceso es HTTP Basic con **credenciales de dispositivo compartido** (`username` / `password`), no una cuenta de usuario. Todo el árbol `/dav` devuelve **404 mientras está desactivado** — la función solo se activa cuando `username`, `password` e `inbox_dir` están todos definidos. Cada operación se confina a `inbox_dir` (se rechazan travesía / rutas absolutas / escape por enlace simbólico), y las subidas se escriben en disco de forma atómica con el límite `max_file_mb`.
+
+```json
+{
+  "upload": {
+    "username": "",
+    "password": "",
+    "inbox_dir": "",
+    "max_file_mb": 500
+  }
+}
+```
+
+| Ajuste | Predet. | Descripción |
+|--------|---------|-------------|
+| `username` | `""` | Usuario de HTTP Basic (credencial de dispositivo compartido). **Vacío = función desactivada (404).** |
+| `password` | `""` | Contraseña de HTTP Basic (credencial de dispositivo compartido). **Vacío = función desactivada (404).** Use una cadena aleatoria larga. |
+| `inbox_dir` | `""` | Ruta absoluta del directorio de entrada. **Vacío = función desactivada (404).** Apúntelo a uno de los directorios escaneados (o un subdirectorio) para que `facet.py --watch` puntúe las subidas según llegan. Se crea bajo demanda. |
+| `max_file_mb` | `500` | Límite de tamaño por archivo (MB); una subida que lo supere se aborta con `413` y no deja ningún archivo parcial. |
+
+Las credenciales se comparan en tiempo constante como bytes UTF-8; un encabezado `Authorization` ausente o incorrecto devuelve un `401` con `WWW-Authenticate: Basic realm="Facet upload"`. Métodos implementados: `OPTIONS`, `PROPFIND` (profundidad 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD` (`LOCK`/`UNLOCK` no están implementados). La receta de PhotoSync y una prueba rápida con `curl` se describen en la documentación del Visor Web.
+
 ## Limpieza de basura
 
 Detector zero-shot para archivos no fotográficos "basura" — capturas de pantalla, documentos escaneados, recibos, memes, diapositivas de presentación — sobre el **embedding de imagen almacenado** (sin decodificar la imagen, sin pasada de modelo por imagen; la misma forma que los momentos narrativos sin el suavizado temporal). Cada tipo lleva una lista de prompts de texto; el embedding de la foto se puntúa por coseno contra cada prompt y se agrupa por **máximo** (`max-pooled`) por tipo. Un conjunto de prompts de contraste `not_junk` condiciona la decisión: una foto solo se marca cuando el mejor tipo de basura supera `min_confidence` Y bate al mejor prompt `not_junk` por `min_margin` — si no, se guarda con el centinela `not_junk` (evaluada, limpia). `NULL` significa "no evaluada": `--detect-junk` etiqueta solo las filas `NULL` (y se ejecuta automáticamente al final de cada escaneo), mientras que `--recompute-junk` reevalúa toda la biblioteca. Rellena `photos.junk_kind`; la cola de revisión **Limpieza de basura** del visor ([VIEWER.md](VIEWER.md#limpieza-de-basura)) la consulta.
