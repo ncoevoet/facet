@@ -2164,6 +2164,15 @@
     "max_edge": 2048,
     "jpeg_quality": 88
   },
+  "frame": {
+    "tokens": [],
+    "count": 20,
+    "max_count": 100,
+    "min_aggregate": 7.0,
+    "max_edge": 1920,
+    "favorites_only": false,
+    "categories": []
+  },
   "social_export": {
     "presets": {
       "square": {

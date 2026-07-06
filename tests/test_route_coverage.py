@@ -103,6 +103,9 @@ PARAMETERISED_ROUTES = [
     ('/api/culling-groups', {'group_by': 'scene'}),
     ('/api/culling-groups', {'group_by': 'burst'}),
     ('/api/culling-groups', {'group_by': 'similar'}),
+    ('/api/frame/photos', {'token': 'x'}),
+    ('/api/frame/next', {'token': 'x'}),
+    ('/api/frame/image/1.deadbeef', {'token': 'x'}),
 ]
 
 # Routes that require superadmin (scan).

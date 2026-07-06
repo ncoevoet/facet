@@ -1767,6 +1767,38 @@ Esporta un album come galleria HTML statica e autonoma che un fotografo può car
 
 Il `target_dir` passa attraverso la stessa allow-list degli endpoint di esportazione copia/spostamento (`viewer.export.allowed_target_dirs` più le directory di scansione). Controllato da `viewer.features.show_portfolio_export` (predefinito `true`).
 
+## Cornice digitale / Chiosco
+
+Distribuisce gli «scatti migliori» curati verso dispositivi in modalità chiosco senza login — cornici digitali smart, dashboard Home Assistant, display in stile ImmichFrame / Immich-Kiosk — tramite tre endpoint anonimi con token statico (`GET /api/frame/photos`, `GET /api/frame/image/{id}`, `GET /api/frame/next`). L'accesso è un **token di cornice** opaco e a lunga durata; un elenco `tokens` vuoto disabilita l'intera funzione (ogni endpoint restituisce 404). Le risposte non contengono mai percorsi di file — ogni foto è indirizzata da un id firmato opaco derivato dal `rowid` della riga.
+
+```json
+{
+  "frame": {
+    "tokens": [],
+    "count": 20,
+    "max_count": 100,
+    "min_aggregate": 7.0,
+    "max_edge": 1920,
+    "favorites_only": false,
+    "categories": []
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|--------------|-------------|-------------|
+| `tokens` | `[]` | Token di cornice opachi (elenco). **Vuoto = funzione disabilitata (404).** Usa stringhe casuali lunghe, una per dispositivo; rimuovine una per revocarla. Generane una con `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `count` | `20` | Numero predefinito di foto restituite da `/api/frame/photos` |
+| `max_count` | `100` | Limite rigido del parametro di query `count` |
+| `min_aggregate` | `7.0` | Punteggio aggregato minimo perché una foto venga curata |
+| `max_edge` | `1920` | Limite del lato lungo (px) dei JPEG serviti; il parametro `max_edge` può abbassarlo ma mai superarlo |
+| `favorites_only` | `false` | Se `true`, vengono curate solo le foto preferite |
+| `categories` | `[]` | Elenco consentito di nomi di categoria (vuoto = tutte) |
+
+I token vengono confrontati a tempo costante come byte UTF-8, quindi un token mancante è 401 e un token errato o non ASCII è 403 (mai 500). La curatela esclude le foto rifiutate, spazzatura (`junk_kind`) e con occhi chiusi, poi applica soglia di punteggio / preferiti / categorie; l'insieme restituito è un campione casuale ponderato per punteggio.
+
+Un token di cornice non è un login utente: non porta alcun `user_id` ed è verificato rispetto all'intera libreria, quindi in [modalità multiutente](#users) ignora le `directories` private di ciascun utente e concede accesso in lettura alle foto di tutti gli utenti, non solo a `shared_directories`. Rilascia i token di cornice solo sulle installazioni in cui ogni utente configurato è a suo agio con questo.
+
 ## Junk Sweep
 
 Rilevatore zero-shot per file non fotografici "spazzatura" — screenshot, documenti scansionati, ricevute, meme, diapositive di presentazione — sull'**embedding immagine memorizzato** (nessuna decodifica dell'immagine, nessun passaggio del modello per immagine; la stessa struttura dei momenti narrativi senza il livellamento temporale). Ogni tipo porta un elenco di prompt testuali; l'embedding della foto viene valutato per coseno contro ogni prompt e poi **max-pooled** per tipo. Un insieme di prompt di contrasto `not_junk` condiziona la decisione: una foto viene segnalata solo quando il miglior tipo di spazzatura supera `min_confidence` E batte il miglior prompt `not_junk` di `min_margin` — altrimenti viene memorizzata con la sentinella `not_junk` (valutata, pulita). `NULL` significa "non valutata": `--detect-junk` etichetta solo le righe `NULL` (ed è eseguito automaticamente al termine di ogni scansione), mentre `--recompute-junk` rivaluta l'intera libreria. Popola `photos.junk_kind`; la coda di revisione **Junk Sweep** del visualizzatore ([VIEWER.md](VIEWER.md#pulizia-degli-scarti)) la consulta.

@@ -1767,6 +1767,38 @@ Exporta un álbum como una galería HTML estática y autónoma que un fotógrafo
 
 El `target_dir` pasa por la misma lista de permitidos que los endpoints de exportación copiar/mover (`viewer.export.allowed_target_dirs` más los directorios de escaneo). Controlado por `viewer.features.show_portfolio_export` (predeterminado `true`).
 
+## Marco de fotos / Quiosco
+
+Sirve las «mejores tomas» curadas a dispositivos de tipo quiosco sin inicio de sesión — marcos de fotos inteligentes, paneles de Home Assistant, pantallas al estilo ImmichFrame / Immich-Kiosk — a través de tres endpoints anónimos con token estático (`GET /api/frame/photos`, `GET /api/frame/image/{id}`, `GET /api/frame/next`). El acceso es un **token de marco** opaco y de larga duración; una lista `tokens` vacía deshabilita toda la función (cada endpoint devuelve 404). Las respuestas nunca contienen rutas de archivos — cada foto se identifica mediante un id firmado opaco derivado del `rowid` de la fila.
+
+```json
+{
+  "frame": {
+    "tokens": [],
+    "count": 20,
+    "max_count": 100,
+    "min_aggregate": 7.0,
+    "max_edge": 1920,
+    "favorites_only": false,
+    "categories": []
+  }
+}
+```
+
+| Ajuste | Predeterminado | Descripción |
+|--------|----------------|-------------|
+| `tokens` | `[]` | Tokens de marco opacos (lista). **Vacío = función deshabilitada (404).** Use cadenas aleatorias largas, una por dispositivo; elimine una para revocarla. Genere una con `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `count` | `20` | Número predeterminado de fotos que devuelve `/api/frame/photos` |
+| `max_count` | `100` | Tope estricto del parámetro de consulta `count` |
+| `min_aggregate` | `7.0` | Puntuación agregada mínima para que una foto se cure |
+| `max_edge` | `1920` | Tope del lado largo (px) de los JPEG servidos; el parámetro `max_edge` puede reducirlo pero nunca superarlo |
+| `favorites_only` | `false` | Si es `true`, solo se curan las fotos favoritas |
+| `categories` | `[]` | Lista blanca de nombres de categorías (vacío = todas) |
+
+Los tokens se comparan en tiempo constante como bytes UTF-8, por lo que un token ausente es 401 y un token incorrecto o no ASCII es 403 (nunca 500). La curación excluye las fotos rechazadas, basura (`junk_kind`) y con parpadeo, y luego aplica el umbral de puntuación / favoritos / categorías; el conjunto devuelto es una muestra aleatoria ponderada por puntuación.
+
+Un token de marco no es un inicio de sesión de usuario: no lleva ningún `user_id` y se comprueba contra toda la biblioteca, por lo que en [modo multiusuario](#usuarios) ignora los `directories` privados de cada usuario y concede acceso de lectura a las fotos de todos los usuarios, no solo a `shared_directories`. Emita tokens de marco únicamente en instalaciones donde cada usuario configurado esté cómodo con ello.
+
 ## Limpieza de basura
 
 Detector zero-shot para archivos no fotográficos "basura" — capturas de pantalla, documentos escaneados, recibos, memes, diapositivas de presentación — sobre el **embedding de imagen almacenado** (sin decodificar la imagen, sin pasada de modelo por imagen; la misma forma que los momentos narrativos sin el suavizado temporal). Cada tipo lleva una lista de prompts de texto; el embedding de la foto se puntúa por coseno contra cada prompt y se agrupa por **máximo** (`max-pooled`) por tipo. Un conjunto de prompts de contraste `not_junk` condiciona la decisión: una foto solo se marca cuando el mejor tipo de basura supera `min_confidence` Y bate al mejor prompt `not_junk` por `min_margin` — si no, se guarda con el centinela `not_junk` (evaluada, limpia). `NULL` significa "no evaluada": `--detect-junk` etiqueta solo las filas `NULL` (y se ejecuta automáticamente al final de cada escaneo), mientras que `--recompute-junk` reevalúa toda la biblioteca. Rellena `photos.junk_kind`; la cola de revisión **Limpieza de basura** del visor ([VIEWER.md](VIEWER.md#limpieza-de-basura)) la consulta.

@@ -1790,6 +1790,38 @@ Export an album as a self-contained static HTML gallery a photographer can drop 
 
 The `target_dir` goes through the exact same allow-list as the copy/move export endpoints (`viewer.export.allowed_target_dirs` plus the scan directories). Gated by `viewer.features.show_portfolio_export` (default `true`). See [Web Viewer — Portfolio export](VIEWER.md#portfolio-export).
 
+## Photo Frame / Kiosk
+
+Serve curated "best shots" to login-less kiosk devices — smart photo frames, Home Assistant dashboards, ImmichFrame / Immich-Kiosk style displays — over three anonymous, static-token endpoints (`GET /api/frame/photos`, `GET /api/frame/image/{id}`, `GET /api/frame/next`). Access is a long-lived opaque **frame token**; an empty `tokens` list disables the whole feature (every endpoint returns 404). Responses never contain filesystem paths — photos are addressed by an opaque signed id derived from the row's `rowid`.
+
+```json
+{
+  "frame": {
+    "tokens": [],
+    "count": 20,
+    "max_count": 100,
+    "min_aggregate": 7.0,
+    "max_edge": 1920,
+    "favorites_only": false,
+    "categories": []
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `tokens` | `[]` | Opaque frame tokens (list). **Empty = feature disabled (404).** Use long random strings, one per device; remove one to revoke it. Generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `count` | `20` | Default number of photos returned by `/api/frame/photos` |
+| `max_count` | `100` | Hard cap on the `count` query parameter |
+| `min_aggregate` | `7.0` | Minimum aggregate score for a photo to be curated |
+| `max_edge` | `1920` | Long-edge cap (px) for served JPEGs; the `max_edge` query parameter may lower it but never raise it above this |
+| `favorites_only` | `false` | When `true`, only favorited photos are curated |
+| `categories` | `[]` | Allow-list of category names (empty = all categories) |
+
+Tokens are compared constant-time as UTF-8 bytes, so a missing token is a 401 and a wrong or non-ASCII token is a 403 (never a 500). Curation excludes rejected, junk (`junk_kind`) and blink photos, then applies the score floor / favorites / categories filters; the returned set is a score-weighted random sample. See [Web Viewer — Photo Frame / Kiosk Endpoint](VIEWER.md#photo-frame--kiosk-endpoint) for the Home Assistant recipe.
+
+A frame token is not a user login: it carries no `user_id` and is checked against the whole library, so in [multi-user mode](#users) it ignores every user's private `directories` and grants read access across all users' photos, not just `shared_directories`. Only issue frame tokens on installs where every configured user is comfortable with that.
+
 ## Junk Sweep
 
 Zero-shot detector for non-photo "junk" — screenshots, scanned documents, receipts, memes, presentation slides — over the **stored image embedding** (no image decode, no per-image model pass; the same shape as narrative moments without the temporal smoothing). Each kind carries a list of text prompts; the photo's embedding is cosine-scored against every prompt and **max-pooled** per kind. A `not_junk` contrast prompt set gates the decision: a photo is only flagged when the best junk kind clears `min_confidence` AND beats the best `not_junk` prompt by `min_margin` — otherwise it is stored as the `not_junk` sentinel (evaluated clean). `NULL` means "not evaluated": `--detect-junk` labels only `NULL` rows (and auto-runs at scan end), while `--recompute-junk` re-evaluates the whole library. Populates `photos.junk_kind`; the viewer's **Junk Sweep** review queue ([VIEWER.md](VIEWER.md#junk-sweep)) reads it.

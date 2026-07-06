@@ -1767,6 +1767,38 @@ Exportez un album sous forme de galerie HTML statique autonome qu'un photographe
 
 Le `target_dir` passe par la même liste d'autorisation que les endpoints d'export copie/déplacement (`viewer.export.allowed_target_dirs` plus les répertoires de scan). Contrôlé par `viewer.features.show_portfolio_export` (par défaut `true`).
 
+## Cadre photo / Kiosque
+
+Diffuse les « meilleures photos » vers des appareils kiosque sans authentification — cadres photo connectés, tableaux de bord Home Assistant, affichages de type ImmichFrame / Immich-Kiosk — via trois endpoints anonymes à jeton statique (`GET /api/frame/photos`, `GET /api/frame/image/{id}`, `GET /api/frame/next`). L'accès repose sur un **jeton de cadre** opaque à longue durée de vie ; une liste `tokens` vide désactive toute la fonctionnalité (chaque endpoint renvoie 404). Les réponses ne contiennent jamais de chemins de fichiers — chaque photo est identifiée par un identifiant signé opaque dérivé du `rowid` de la ligne.
+
+```json
+{
+  "frame": {
+    "tokens": [],
+    "count": 20,
+    "max_count": 100,
+    "min_aggregate": 7.0,
+    "max_edge": 1920,
+    "favorites_only": false,
+    "categories": []
+  }
+}
+```
+
+| Paramètre | Défaut | Description |
+|-----------|--------|-------------|
+| `tokens` | `[]` | Jetons de cadre opaques (liste). **Vide = fonctionnalité désactivée (404).** Utilisez des chaînes aléatoires longues, une par appareil ; supprimez-en une pour la révoquer. Générez-en une avec `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `count` | `20` | Nombre de photos renvoyées par défaut par `/api/frame/photos` |
+| `max_count` | `100` | Plafond strict du paramètre de requête `count` |
+| `min_aggregate` | `7.0` | Score agrégé minimal pour qu'une photo soit sélectionnée |
+| `max_edge` | `1920` | Plafond du côté long (px) des JPEG servis ; le paramètre `max_edge` peut l'abaisser mais jamais le dépasser |
+| `favorites_only` | `false` | Si `true`, seules les photos favorites sont sélectionnées |
+| `categories` | `[]` | Liste blanche de noms de catégories (vide = toutes) |
+
+Les jetons sont comparés à temps constant en octets UTF-8 : un jeton manquant renvoie 401 et un jeton erroné ou non-ASCII renvoie 403 (jamais 500). La sélection exclut les photos rejetées, indésirables (`junk_kind`) et avec clignement, puis applique le seuil de score / favoris / catégories ; l'ensemble renvoyé est un échantillon aléatoire pondéré par le score.
+
+Un jeton de cadre n'est pas une connexion utilisateur : il ne porte aucun `user_id` et est vérifié par rapport à toute la bibliothèque, donc en [mode multi-utilisateur](#users), il ignore les `directories` privés de chaque utilisateur et accorde un accès en lecture aux photos de tous les utilisateurs, pas seulement aux `shared_directories`. N'émettez des jetons de cadre que sur les installations où chaque utilisateur configuré est à l'aise avec cela.
+
 ## Nettoyage des indésirables
 
 Détecteur zero-shot pour les fichiers non photographiques « indésirables » — captures d'écran, documents scannés, reçus, mèmes, diapositives de présentation — sur l'**embedding d'image stocké** (pas de décodage d'image, pas de passe de modèle par image ; la même architecture que les moments narratifs, sans le lissage temporel). Chaque type porte une liste de prompts textuels ; l'embedding de la photo est noté par cosinus contre chaque prompt puis **max-pooled** par type. Un jeu de prompts contrastifs `not_junk` conditionne la décision : une photo n'est signalée que lorsque le meilleur type d'indésirable franchit `min_confidence` ET dépasse le meilleur prompt `not_junk` de `min_margin` — sinon elle est enregistrée avec la sentinelle `not_junk` (évaluée et propre). `NULL` signifie « non évaluée » : `--detect-junk` n'étiquette que les lignes `NULL` (et s'exécute automatiquement en fin de scan), tandis que `--recompute-junk` réévalue toute la bibliothèque. Alimente `photos.junk_kind` ; la file de revue **Nettoyage des indésirables** de la visionneuse ([VIEWER.md](VIEWER.md#nettoyage-des-indésirables)) la consulte.

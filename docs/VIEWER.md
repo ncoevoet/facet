@@ -10,7 +10,7 @@ FastAPI + Angular single-page application for browsing, filtering, and managing 
 - [Person Management](#person-management) · [Scan Trigger (Superadmin)](#scan-trigger-superadmin) · [Semantic Search](#semantic-search) · [Albums](#albums)
 - [AI Critique](#ai-critique) · [AI Captioning](#ai-captioning-gpu-16gb24gb-edition) · [Memories ("On This Day")](#memories-on-this-day) · [Timeline View](#timeline-view) · [Map View](#map-view) · [Capsules](#capsules)
 - [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [Editor Export](#editor-export) · [Culling](#culling) · [Junk Sweep](#junk-sweep) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
-- [EXIF Statistics](#exif-statistics) · [Keyboard Shortcuts](#keyboard-shortcuts-gallery) · [Undo](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
+- [EXIF Statistics](#exif-statistics) · [Keyboard Shortcuts](#keyboard-shortcuts-gallery) · [Undo](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile) · [Photo Frame / Kiosk Endpoint](#photo-frame--kiosk-endpoint)
 - [Configuration](#configuration) · [Performance](#performance) · [API Endpoints](#api-endpoints) · [Troubleshooting](#troubleshooting)
 
 > **Feature requirements** are tagged inline: `[GPU]` · `[16gb/24gb]` (VRAM profile) · `[Edition]` (edition password) · `[Superadmin]`. See the [feature matrix](../README.md#feature-availability--requirements).
@@ -696,6 +696,56 @@ On small screens the bulk-selection bar collapses to the selection count,
 clear, select-all and a single **Actions** button that opens a touch-friendly
 bottom sheet with all bulk operations (favorite, reject, rate, albums, copy,
 download).
+
+## Photo Frame / Kiosk Endpoint
+
+Login-less kiosk devices — smart photo frames, Home Assistant dashboards, ImmichFrame / Immich-Kiosk style displays — can pull Facet's best shots without a user session. There is **no client UI**: kiosks consume the endpoints directly, authenticated by a long-lived opaque **frame token** configured in the `frame` config block (`frame.tokens`, an empty list disables the whole feature and every endpoint returns 404). Tokens are compared constant-time as UTF-8 bytes, so a missing token is a 401 and a wrong or non-ASCII token is a 403 — never a 500.
+
+Curation draws from the whole library: rejected, junk and blink photos are excluded, `frame.min_aggregate` (default 7.0) sets the score floor, and optional `frame.favorites_only` / `frame.categories` narrow it further. Photos are returned by a **score-weighted random sample** (a shuffle of the top-by-score candidate pool), so a frame shows variety among your best shots rather than the same handful every time. Responses **never contain filesystem paths** — each photo is addressed by an opaque signed id (the row's `rowid` signed with the server secret), so a token holder cannot enumerate arbitrary rows or learn where your files live.
+
+| Endpoint | Returns | Cache |
+|----------|---------|-------|
+| `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` capped at `frame.max_count` (default 100), defaults to `frame.count` (20) | — |
+| `GET /api/frame/image/{id}?token=&max_edge=` | the photo JPEG — on-disk original downscaled to `max_edge` (capped by `frame.max_edge`, default 1920), falling back to the stored thumbnail when the original is unreachable | long immutable |
+| `GET /api/frame/next?token=` | one random curated JPEG, different on every call — the dumb-frame / Home Assistant generic-camera case | `no-store` |
+
+### Generating a token
+
+Tokens are opaque strings you invent — use a long random one and treat it like a password:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Add the result to `frame.tokens` in `scoring_config.json` (you can list several — one per device — and revoke one by removing it):
+
+```json
+"frame": {
+  "tokens": ["Xu8w…your-random-token…"],
+  "count": 20,
+  "min_aggregate": 7.0,
+  "max_edge": 1920,
+  "favorites_only": false,
+  "categories": []
+}
+```
+
+### Home Assistant recipe
+
+The single-URL `/api/frame/next` maps directly onto Home Assistant's [generic camera](https://www.home-assistant.io/integrations/generic/) — every refresh pulls a fresh curated shot:
+
+```yaml
+camera:
+  - platform: generic
+    name: Facet Frame
+    still_image_url: "http://facet.local:5000/api/frame/next?token=Xu8w…your-random-token…"
+    verify_ssl: false
+    framerate: 0.05  # refresh every ~20s
+```
+
+Add the camera to a Picture Glance / Picture Entity card (or a wall-tablet dashboard) and it becomes a self-updating photo frame.
+
+For an **ImmichFrame-style** consumer that manages its own slideshow, poll `GET /api/frame/photos?token=…&count=30` for the id list, then request each `GET /api/frame/image/{id}?token=…&max_edge=1920` — the ids are stable and the image responses carry a long immutable cache, so a client fetches each photo once and can crossfade between them itself.
 
 ## Configuration
 

@@ -1767,6 +1767,38 @@ Exportieren Sie ein Album als eigenständige statische HTML-Galerie, die eine Fo
 
 Das `target_dir` durchläuft dieselbe Allowlist wie die Kopier-/Verschiebe-Export-Endpunkte (`viewer.export.allowed_target_dirs` plus die Scan-Verzeichnisse). Gesteuert durch `viewer.features.show_portfolio_export` (Standard `true`).
 
+## Bilderrahmen / Kiosk
+
+Liefert kuratierte „beste Aufnahmen" an anmeldungsfreie Kiosk-Geräte — smarte Bilderrahmen, Home-Assistant-Dashboards, Anzeigen im Stil von ImmichFrame / Immich-Kiosk — über drei anonyme Endpunkte mit statischem Token (`GET /api/frame/photos`, `GET /api/frame/image/{id}`, `GET /api/frame/next`). Der Zugriff erfolgt über ein langlebiges, undurchsichtiges **Rahmen-Token**; eine leere `tokens`-Liste deaktiviert die gesamte Funktion (jeder Endpunkt gibt 404 zurück). Antworten enthalten niemals Dateipfade — jede Foto wird über eine undurchsichtige signierte Kennung adressiert, die aus der `rowid` der Zeile abgeleitet ist.
+
+```json
+{
+  "frame": {
+    "tokens": [],
+    "count": 20,
+    "max_count": 100,
+    "min_aggregate": 7.0,
+    "max_edge": 1920,
+    "favorites_only": false,
+    "categories": []
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|-------------|----------|--------------|
+| `tokens` | `[]` | Undurchsichtige Rahmen-Tokens (Liste). **Leer = Funktion deaktiviert (404).** Verwenden Sie lange Zufallszeichenketten, eine pro Gerät; entfernen Sie eine, um sie zu widerrufen. Erzeugen mit `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `count` | `20` | Standardanzahl der von `/api/frame/photos` zurückgegebenen Fotos |
+| `max_count` | `100` | Harte Obergrenze für den Abfrageparameter `count` |
+| `min_aggregate` | `7.0` | Mindest-Aggregatwert, damit ein Foto kuratiert wird |
+| `max_edge` | `1920` | Obergrenze der langen Kante (px) für ausgelieferte JPEGs; der Parameter `max_edge` kann sie senken, aber nie darüber anheben |
+| `favorites_only` | `false` | Wenn `true`, werden nur favorisierte Fotos kuratiert |
+| `categories` | `[]` | Positivliste von Kategorienamen (leer = alle) |
+
+Tokens werden konstantzeitlich als UTF-8-Bytes verglichen, sodass ein fehlendes Token 401 und ein falsches oder Nicht-ASCII-Token 403 ergibt (nie 500). Die Kuratierung schließt abgelehnte, Junk- (`junk_kind`) und Blinzel-Fotos aus und wendet dann Score-Schwelle / Favoriten / Kategorien an; das zurückgegebene Set ist eine score-gewichtete Zufallsstichprobe.
+
+Ein Rahmen-Token ist keine Benutzeranmeldung: Es trägt keine `user_id` und wird gegen die gesamte Bibliothek geprüft, sodass es im [Mehrbenutzermodus](#users) die privaten `directories` jedes Benutzers ignoriert und Lesezugriff auf die Fotos aller Benutzer gewährt, nicht nur auf `shared_directories`. Geben Sie Rahmen-Token nur auf Installationen aus, bei denen jeder konfigurierte Benutzer damit einverstanden ist.
+
 ## Junk Sweep
 
 Zero-Shot-Detektor für nicht-fotografischen „Müll" — Screenshots, gescannte Dokumente, Belege, Memes, Präsentationsfolien — über das **gespeicherte Bild-Embedding** (kein Bild-Decode, kein Modelldurchlauf pro Bild; dieselbe Form wie bei narrativen Momenten, nur ohne die zeitliche Glättung). Jede Art trägt eine Liste von Text-Prompts; das Embedding des Fotos wird per Kosinus gegen jeden Prompt bewertet und pro Art **max-gepoolt**. Ein `not_junk`-Kontrast-Prompt-Set steuert die Entscheidung: Ein Foto wird nur markiert, wenn die beste Müll-Art `min_confidence` überschreitet UND den besten `not_junk`-Prompt um `min_margin` schlägt — andernfalls wird es mit der Sentinel `not_junk` gespeichert (bewertet, sauber). `NULL` bedeutet „nicht bewertet": `--detect-junk` beschriftet nur `NULL`-Zeilen (und läuft automatisch am Ende jedes Scans), während `--recompute-junk` die gesamte Bibliothek neu bewertet. Füllt `photos.junk_kind`; die **Junk-Sweep**-Review-Warteschlange des Viewers ([VIEWER.md](VIEWER.md#müll-aufräumen)) liest diese Spalte.

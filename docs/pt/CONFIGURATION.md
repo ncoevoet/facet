@@ -1767,6 +1767,38 @@ Exporte um álbum como uma galeria HTML estática e autónoma que um fotógrafo 
 
 O `target_dir` passa pela mesma lista de permissões que os endpoints de exportação copiar/mover (`viewer.export.allowed_target_dirs` mais os diretórios de varredura). Controlado por `viewer.features.show_portfolio_export` (padrão `true`).
 
+## Moldura digital / Quiosque
+
+Serve as «melhores fotos» curadas para dispositivos de quiosque sem início de sessão — molduras digitais inteligentes, painéis do Home Assistant, ecrãs ao estilo ImmichFrame / Immich-Kiosk — através de três endpoints anónimos com token estático (`GET /api/frame/photos`, `GET /api/frame/image/{id}`, `GET /api/frame/next`). O acesso é um **token de moldura** opaco e de longa duração; uma lista `tokens` vazia desativa toda a funcionalidade (cada endpoint devolve 404). As respostas nunca contêm caminhos de ficheiros — cada foto é identificada por um id assinado opaco derivado do `rowid` da linha.
+
+```json
+{
+  "frame": {
+    "tokens": [],
+    "count": 20,
+    "max_count": 100,
+    "min_aggregate": 7.0,
+    "max_edge": 1920,
+    "favorites_only": false,
+    "categories": []
+  }
+}
+```
+
+| Definição | Padrão | Descrição |
+|-----------|--------|-----------|
+| `tokens` | `[]` | Tokens de moldura opacos (lista). **Vazio = funcionalidade desativada (404).** Use cadeias aleatórias longas, uma por dispositivo; remova uma para a revogar. Gere uma com `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `count` | `20` | Número predefinido de fotos devolvidas por `/api/frame/photos` |
+| `max_count` | `100` | Limite máximo do parâmetro de consulta `count` |
+| `min_aggregate` | `7.0` | Pontuação agregada mínima para uma foto ser curada |
+| `max_edge` | `1920` | Limite do lado maior (px) dos JPEG servidos; o parâmetro `max_edge` pode reduzi-lo mas nunca ultrapassá-lo |
+| `favorites_only` | `false` | Se `true`, apenas as fotos favoritas são curadas |
+| `categories` | `[]` | Lista de nomes de categorias permitidas (vazio = todas) |
+
+Os tokens são comparados em tempo constante como bytes UTF-8, por isso um token em falta é 401 e um token errado ou não ASCII é 403 (nunca 500). A curadoria exclui as fotos rejeitadas, lixo (`junk_kind`) e com olhos fechados, e depois aplica o limiar de pontuação / favoritos / categorias; o conjunto devolvido é uma amostra aleatória ponderada pela pontuação.
+
+Um token de moldura não é um login de usuário: ele não carrega nenhum `user_id` e é verificado contra toda a biblioteca, portanto, no [modo multiusuário](#users), ele ignora os `directories` privados de cada usuário e concede acesso de leitura às fotos de todos os usuários, não apenas a `shared_directories`. Emita tokens de moldura apenas em instalações onde cada usuário configurado esteja confortável com isso.
+
 ## Junk Sweep
 
 Detector zero-shot para "lixo" não fotográfico — capturas de tela, documentos escaneados, recibos, memes, slides de apresentação — sobre o **embedding de imagem armazenado** (sem decodificação de imagem, sem passagem de modelo por imagem; o mesmo formato dos momentos narrativos sem a suavização temporal). Cada tipo carrega uma lista de prompts de texto; o embedding da foto é pontuado por cosseno contra cada prompt e agrupado por **máximo** (max-pooling) por tipo. Um conjunto de prompts de contraste `not_junk` condiciona a decisão: uma foto só é sinalizada quando o melhor tipo de lixo ultrapassa `min_confidence` E supera o melhor prompt `not_junk` por `min_margin` — caso contrário, é armazenada com a sentinela `not_junk` (avaliada, limpa). `NULL` significa "não avaliada": `--detect-junk` rotula apenas as linhas `NULL` (e roda automaticamente ao final da varredura), enquanto `--recompute-junk` reavalia a biblioteca inteira. Preenche `photos.junk_kind`; a fila de revisão **Limpeza de lixo** do visualizador ([VIEWER.md](VIEWER.md#limpeza-de-lixo)) a consome.
