@@ -2,6 +2,7 @@ import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
   WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
+  CullPreviewUrlPipe,
   CullingGroup, CullingFace, FaceThresholds,
 } from './burst-culling.pipes';
 
@@ -279,5 +280,14 @@ describe('CategoryIconPipe', () => {
 
   it('never reuses the generic fallback icon for a mapped category', () => {
     expect(Object.values(ICONS)).not.toContain('category');
+  });
+});
+
+describe('CullPreviewUrlPipe', () => {
+  const pipe = new CullPreviewUrlPipe();
+
+  it('builds the cull_preview endpoint URL with encoded path and style', () => {
+    expect(pipe.transform('/a/b c.jpg', 'Velvia look'))
+      .toBe('/api/photo/cull_preview?path=%2Fa%2Fb+c.jpg&style=Velvia+look');
   });
 });

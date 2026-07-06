@@ -285,3 +285,22 @@ export class CullGroupLabelPipe implements PipeTransform {
     return CullGroupLabelPipe.KEYS[kind] ?? '';
   }
 }
+
+/** A configured darktable style for the edited-look cull preview. */
+export interface CullStyle {
+  name: string;
+  label_key: string;
+}
+
+/** Build the cull-preview endpoint URL for a photo rendered through a darktable style. */
+export function cullPreviewUrl(path: string, style: string): string {
+  const params = new URLSearchParams({ path, style });
+  return `/api/photo/cull_preview?${params}`;
+}
+
+@Pipe({ name: 'cullPreviewUrl' })
+export class CullPreviewUrlPipe implements PipeTransform {
+  transform(path: string, style: string): string {
+    return cullPreviewUrl(path, style);
+  }
+}

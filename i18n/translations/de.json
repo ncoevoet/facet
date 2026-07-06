@@ -1863,7 +1863,13 @@
       "scenes": "Szenen",
       "tooltip": "Wählen, welche Art von Gruppen geprüft werden soll"
     },
-    "darkroom_tooltip": "Vollbild-Dunkelkammer öffnen, um Bilder zu vergleichen und auszuwählen"
+    "darkroom_tooltip": "Vollbild-Dunkelkammer öffnen, um Bilder zu vergleichen und auszuwählen",
+    "cull_style": {
+      "tooltip": "Bearbeiteten Look vorschauen",
+      "original": "Original",
+      "loading": "Vorschau wird erstellt",
+      "error": "Bearbeitete Vorschau konnte nicht erstellt werden"
+    }
   },
   "scenes": {
     "title": "Szenen",

@@ -1857,7 +1857,13 @@
       "scenes": "Cenas",
       "tooltip": "Escolha que tipo de grupos rever"
     },
-    "darkroom_tooltip": "Abrir o quarto escuro em ecrã inteiro para comparar e escolher"
+    "darkroom_tooltip": "Abrir o quarto escuro em ecrã inteiro para comparar e escolher",
+    "cull_style": {
+      "tooltip": "Pré-visualizar um visual editado",
+      "original": "Original",
+      "loading": "A gerar a pré-visualização",
+      "error": "Não foi possível gerar a pré-visualização editada"
+    }
   },
   "scenes": {
     "title": "Cenas",

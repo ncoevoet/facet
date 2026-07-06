@@ -1857,7 +1857,13 @@
       "scenes": "Scenes",
       "tooltip": "Choose which kind of near-duplicate groups to review"
     },
-    "darkroom_tooltip": "Open the full-screen darkroom to compare frames and pick the keepers"
+    "darkroom_tooltip": "Open the full-screen darkroom to compare frames and pick the keepers",
+    "cull_style": {
+      "tooltip": "Preview an edited look",
+      "original": "Original",
+      "loading": "Rendering preview",
+      "error": "Could not render the edited preview"
+    }
   },
   "scenes": {
     "title": "Scenes",

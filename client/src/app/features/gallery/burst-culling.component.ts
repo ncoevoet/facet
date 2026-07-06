@@ -30,8 +30,9 @@ import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe,
   FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
-  SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
-  CullingGroup, CullingFace, FaceThresholds,
+  SortIconPipe, CategoryIconPipe, CullProfileIconPipe, CullPreviewUrlPipe,
+  cullPreviewUrl,
+  CullingGroup, CullingFace, FaceThresholds, CullStyle,
 } from './burst-culling.pipes';
 
 interface CullingGroupsResponse {
@@ -151,6 +152,7 @@ interface ShortcutRow {
     SortIconPipe,
     CategoryIconPipe,
     CullProfileIconPipe,
+    CullPreviewUrlPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
   ],
@@ -618,6 +620,25 @@ interface ShortcutRow {
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === '4up'"
                     [matTooltip]="I18N.culling.compare['4up'] | translate"
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
+            @if (cullStyleCapable() && compareMode() === 'single') {
+              <button mat-icon-button [matMenuTriggerFor]="cullStyleMenu"
+                      [class.!text-white]="activeStyle() === ''"
+                      [class.!text-[var(--mat-sys-primary)]]="activeStyle() !== ''"
+                      [matTooltip]="I18N.culling.cull_style.tooltip | translate"
+                      [attr.aria-label]="I18N.culling.cull_style.tooltip | translate">
+                <mat-icon>palette</mat-icon>
+              </button>
+              <mat-menu #cullStyleMenu="matMenu">
+                <button mat-menu-item (click)="selectCullStyle('')">
+                  <span [class.font-bold]="activeStyle() === ''">{{ I18N.culling.cull_style.original | translate }}</span>
+                </button>
+                @for (s of cullStyles(); track s.name) {
+                  <button mat-menu-item (click)="selectCullStyle(s.name)">
+                    <span [class.font-bold]="activeStyle() === s.name">{{ s.label_key | translate }}</span>
+                  </button>
+                }
+              </mat-menu>
+            }
           </div>
           <button mat-icon-button
                   [matTooltip]="I18N.slideshow.fullscreen | translate"
@@ -634,15 +655,23 @@ interface ShortcutRow {
         <!-- Image -->
         @if (lbGroup.photos[lightboxIndex()]; as lbPhoto) {
           @if (compareMode() === 'single') {
-            <app-synced-zoom class="flex-1 min-h-0"
-                             role="presentation"
-                             (click)="$event.stopPropagation()"
-                             (keydown)="$event.stopPropagation()"
-                             [src]="lbPhoto.path | thumbnailUrl:1920"
-                             [fullResSrc]="lbPhoto.path | imageUrl:true"
-                             [zoom]="zoom()"
-                             (zoomChange)="zoom.set($event)"
-                             [alt]="lbPhoto.filename" />
+            <div class="relative flex-1 min-h-0"
+                 role="presentation"
+                 (click)="$event.stopPropagation()"
+                 (keydown)="$event.stopPropagation()">
+              <app-synced-zoom class="w-full h-full"
+                               [src]="(activeStyle() && !previewLoading()) ? (lbPhoto.path | cullPreviewUrl:activeStyle()) : (lbPhoto.path | thumbnailUrl:1920)"
+                               [fullResSrc]="activeStyle() ? null : (lbPhoto.path | imageUrl:true)"
+                               [zoom]="zoom()"
+                               (zoomChange)="zoom.set($event)"
+                               [alt]="lbPhoto.filename" />
+              @if (previewLoading()) {
+                <div class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none"
+                     [attr.aria-label]="I18N.culling.cull_style.loading | translate">
+                  <mat-spinner diameter="40" />
+                </div>
+              }
+            </div>
           } @else {
             <div class="flex-1 grid grid-cols-2 gap-1 overflow-hidden p-1"
                  [class.grid-rows-2]="compareMode() === '4up'"
@@ -923,6 +952,19 @@ export class BurstCullingComponent implements OnDestroy {
   /** True while the darkroom dialog is the document's fullscreen element. */
   protected readonly isFullscreen = signal(false);
 
+  /** Named darktable styles for the edited-look preview (empty = feature hidden). */
+  protected readonly cullStyles = computed<CullStyle[]>(
+    () => (this.store.config()?.['cull_styles'] as CullStyle[] | undefined) ?? [],
+  );
+  /** Whether to expose the style selector: edition rights + at least one style. */
+  protected readonly cullStyleCapable = computed(
+    () => this.auth.isEdition() && this.cullStyles().length > 0,
+  );
+  /** Selected style for this darkroom session ('' = flat Original). Not persisted. */
+  protected readonly activeStyle = signal('');
+  /** True while a developed preview renders (spinner overlay over the flat frame). */
+  protected readonly previewLoading = signal(false);
+
   /** The frames shown in compare mode: N photos from the current index, clamped. */
   protected readonly compareFrames = computed(() => {
     const group = this.lightboxGroup();
@@ -1100,6 +1142,38 @@ export class BurstCullingComponent implements OnDestroy {
       const tpl = this.cullToolbar();
       if (tpl) this.headerSlot.set(tpl);
     });
+    // Render the developed preview whenever the focused single-view frame or the
+    // selected style changes; the spinner shows over the flat frame until it loads.
+    effect(() => {
+      const style = this.activeStyle();
+      const group = this.lightboxGroup();
+      const idx = this.lightboxIndex();
+      const single = this.compareMode() === 'single';
+      const photo = group?.photos[idx];
+      if (!style || !photo || !single) {
+        this.previewLoading.set(false);
+        return;
+      }
+      this.preloadDevelopedPreview(photo.path, style);
+    });
+  }
+
+  /** Preload the developed JPEG for a frame; swap it in on load, revert on error. */
+  private preloadDevelopedPreview(path: string, style: string): void {
+    this.previewLoading.set(true);
+    const img = new Image();
+    img.onload = () => this.previewLoading.set(false);
+    img.onerror = () => {
+      this.previewLoading.set(false);
+      this.activeStyle.set('');
+      this.snackBar.open(this.i18n.t(I18N.culling.cull_style.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+    };
+    img.src = cullPreviewUrl(path, style);
+  }
+
+  /** Pick a darktable style for the darkroom preview ('' = flat Original). */
+  protected selectCullStyle(style: string): void {
+    this.activeStyle.set(style);
   }
 
   /** Update a signal holding a Map by cloning and setting a key. */
@@ -1440,6 +1514,7 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected openLightbox(group: CullingGroup, index: number): void {
     this.zoom.set(FIT_ZOOM);  // never inherit a prior session's zoom/pan
+    this.activeStyle.set('');  // each darkroom session starts on the flat Original
     this.lightboxGroupId.set(this.groupKey(group));
     this.lightboxIndex.set(index);
     const gi = this.visibleGroups().findIndex(g => this.groupKey(g) === this.groupKey(group));

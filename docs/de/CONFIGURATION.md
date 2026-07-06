@@ -1018,7 +1018,10 @@ Anzeige und Verhalten der Web-Galerie.
         "hq": true,
         "width": null,
         "height": null,
-        "extra_args": []
+        "extra_args": [],
+        "cull_styles": [],
+        "preview_max_edge": 1440,
+        "preview_timeout_seconds": 60
       }
     },
     "display": {
@@ -1107,6 +1110,11 @@ Anzeige und Verhalten der Web-Galerie.
 | `darktable.profiles[].style` | *(weglassen)* | Name des darktable-Stils, der beim Export angewendet wird (`--style`) |
 | `darktable.profiles[].apply_custom_presets` | `true` | Bei `false` wird `--apply-custom-presets false` übergeben, sodass nur der explizite `style` gerendert wird (keine automatisch angewandten Presets) |
 | `darktable.profiles[].extra_args` | `[]` | Zusätzliche CLI-Argumente (z. B. `["--style-overwrite"]`) |
+| `darktable.cull_styles` | `[]` | Benannte darktable-Stile, die im Aussortier-Studio als bearbeitete Vorschau angeboten werden (`GET /api/photo/cull_preview`). Leer = die Stilauswahl ist ausgeblendet. Jeder Stil **muss bereits** in der darktable-Konfiguration des Viewer-Benutzers vorhanden sein. Der Name wird unverändert an `--style` übergeben. |
+| `darktable.cull_styles[].name` | *(erforderlich)* | darktable-Stilname (an `--style` übergeben und vom Endpoint validiert) |
+| `darktable.cull_styles[].label_key` | *(name)* | Optionaler i18n-Schlüssel für die Menübeschriftung (Standard: der Stilname) |
+| `darktable.preview_max_edge` | `1440` | Maximale Kantenlänge (px) der Aussortier-Vorschau |
+| `darktable.preview_timeout_seconds` | `60` | darktable-cli-Zeitlimit pro Vorschau-Render |
 | **display** | | |
 | `tags_per_photo` | `4` | Auf Karten angezeigte Tags |
 | `card_width_px` | `168` | Kartenbreite |

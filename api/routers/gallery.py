@@ -1212,6 +1212,7 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Get viewer configuration for Angular client initialization."""
     from api.config import is_multi_user_enabled
     from api.auth import is_edition_enabled, is_edition_authenticated
+    from api.raw_processing import get_cull_styles
     from api.types import SORT_OPTIONS, SORT_OPTIONS_GROUPED, QUALITY_LEVELS, TYPE_LABELS
 
     features = dict(VIEWER_CONFIG.get('features', {}))
@@ -1250,6 +1251,7 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         'features': features,
         'quality_thresholds': VIEWER_CONFIG['quality_thresholds'],
         'social_export': _social_export_presets(),
+        'cull_styles': get_cull_styles(),
         'moment_confidence_min': VIEWER_CONFIG.get('moment_confidence_min', 0),
         'notification_duration_ms': VIEWER_CONFIG.get('notification_duration_ms', 2000),
         'translation_target_language': _FULL_CONFIG.get('translation', {}).get('target_language', ''),

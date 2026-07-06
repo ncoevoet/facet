@@ -1859,7 +1859,13 @@
       "scenes": "Escenas",
       "tooltip": "Elige qué tipo de grupos revisar"
     },
-    "darkroom_tooltip": "Abrir el cuarto oscuro a pantalla completa para comparar y elegir"
+    "darkroom_tooltip": "Abrir el cuarto oscuro a pantalla completa para comparar y elegir",
+    "cull_style": {
+      "tooltip": "Previsualizar un revelado",
+      "original": "Original",
+      "loading": "Generando la vista previa",
+      "error": "No se pudo generar la vista previa revelada"
+    }
   },
   "scenes": {
     "title": "Escenas",

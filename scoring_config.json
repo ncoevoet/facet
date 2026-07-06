@@ -3272,6 +3272,15 @@
     "scan_directories": [],
     "cull": {
       "allow_trash": false
+    },
+    "raw_processor": {
+      "darktable": {
+        "executable": "darktable-cli",
+        "profiles": [],
+        "cull_styles": [],
+        "preview_max_edge": 1440,
+        "preview_timeout_seconds": 60
+      }
     }
   },
   "iqa_extended": {

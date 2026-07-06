@@ -1862,6 +1862,12 @@ export const I18N = {
       tooltip: "culling.group_by.tooltip",
     },
     darkroom_tooltip: "culling.darkroom_tooltip",
+    cull_style: {
+      tooltip: "culling.cull_style.tooltip",
+      original: "culling.cull_style.original",
+      loading: "culling.cull_style.loading",
+      error: "culling.cull_style.error",
+    },
   },
   scenes: {
     title: "scenes.title",

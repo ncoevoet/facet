@@ -130,6 +130,9 @@ def load_viewer_config(config=None):
             'darktable': {
                 'executable': 'darktable-cli',
                 'profiles': [],
+                'cull_styles': [],
+                'preview_max_edge': 1440,
+                'preview_timeout_seconds': 60,
             },
         },
         'display': {'tags_per_photo': 3, 'card_width_px': 168, 'image_width_px': 160, 'image_jpeg_quality': 96},

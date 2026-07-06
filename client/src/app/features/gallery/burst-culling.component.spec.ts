@@ -747,6 +747,56 @@ describe('BurstCullingComponent', () => {
       expect(component['hasMore']()).toBe(true);
     });
   });
+
+  describe('edited-look cull preview', () => {
+    const styles = [{ name: 'velvia', label_key: 'culling.cull_style.styles.velvia' }];
+
+    function build(config: Record<string, unknown> | null, isEdition = true): BurstCullingComponent {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          BurstCullingComponent,
+          { provide: ApiService, useValue: mockApi },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+          { provide: I18nService, useValue: mockI18n },
+          { provide: GalleryStore, useValue: { config: () => config } },
+          { provide: AuthService, useValue: { isEdition: () => isEdition } },
+          { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+        ],
+      });
+      return TestBed.runInInjectionContext(() => new BurstCullingComponent());
+    }
+
+    it('hides the style selector when no styles are configured', () => {
+      component = build({ cull_styles: [] });
+      expect(component['cullStyleCapable']()).toBe(false);
+    });
+
+    it('hides the style selector when the user lacks edition rights', () => {
+      component = build({ cull_styles: styles }, false);
+      expect(component['cullStyleCapable']()).toBe(false);
+    });
+
+    it('shows the style selector with configured styles and edition rights', () => {
+      component = build({ cull_styles: styles });
+      expect(component['cullStyleCapable']()).toBe(true);
+      expect(component['cullStyles']()).toEqual(styles);
+    });
+
+    it('selecting a style updates the active style that drives the preview src swap', () => {
+      component = build({ cull_styles: styles });
+      expect(component['activeStyle']()).toBe('');
+      component['selectCullStyle']('velvia');
+      expect(component['activeStyle']()).toBe('velvia');
+    });
+
+    it('selecting Original clears the active style back to the flat frame', () => {
+      component = build({ cull_styles: styles });
+      component['selectCullStyle']('velvia');
+      component['selectCullStyle']('');
+      expect(component['activeStyle']()).toBe('');
+    });
+  });
 });
 
 // The IsKept/IsDecided/IsConfirmed/IsPassing/PassCountdown pipe tests moved to

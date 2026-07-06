@@ -131,6 +131,8 @@ export interface ViewerConfig {
   social_export?: {
     presets: { key: string; label_key: string; aspect: string }[];
   };
+  /** Named darktable styles for the edited-look cull preview. Empty/absent = feature hidden. */
+  cull_styles?: { name: string; label_key: string }[];
   [key: string]: unknown;
 }
 

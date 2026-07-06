@@ -1859,7 +1859,13 @@
       "scenes": "Scènes",
       "tooltip": "Choisissez le type de groupes à passer en revue"
     },
-    "darkroom_tooltip": "Ouvrir le studio plein écran pour comparer les images et choisir"
+    "darkroom_tooltip": "Ouvrir le studio plein écran pour comparer les images et choisir",
+    "cull_style": {
+      "tooltip": "Prévisualiser un rendu retouché",
+      "original": "Original",
+      "loading": "Génération de l'aperçu",
+      "error": "Impossible de générer l'aperçu retouché"
+    }
   },
   "scenes": {
     "title": "Scènes",

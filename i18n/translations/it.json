@@ -1859,7 +1859,13 @@
       "scenes": "Scene",
       "tooltip": "Scegli quale tipo di gruppi rivedere"
     },
-    "darkroom_tooltip": "Apri la camera oscura a schermo intero per confrontare e scegliere"
+    "darkroom_tooltip": "Apri la camera oscura a schermo intero per confrontare e scegliere",
+    "cull_style": {
+      "tooltip": "Anteprima con stile applicato",
+      "original": "Originale",
+      "loading": "Generazione anteprima",
+      "error": "Impossibile generare l'anteprima elaborata"
+    }
   },
   "scenes": {
     "title": "Scene",

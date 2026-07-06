@@ -1033,7 +1033,10 @@ Web gallery display and behavior.
         "hq": true,
         "width": null,
         "height": null,
-        "extra_args": []
+        "extra_args": [],
+        "cull_styles": [],
+        "preview_max_edge": 1440,
+        "preview_timeout_seconds": 60
       }
     },
     "display": {
@@ -1122,6 +1125,11 @@ Web gallery display and behavior.
 | `darktable.profiles[].style` | *(omit)* | darktable style name applied during export (`--style`) |
 | `darktable.profiles[].apply_custom_presets` | `true` | When `false`, passes `--apply-custom-presets false` so only the explicit `style` renders (not auto-applied presets) |
 | `darktable.profiles[].extra_args` | `[]` | Additional CLI arguments (e.g., `["--style-overwrite"]`) |
+| `darktable.cull_styles` | `[]` | Named darktable styles offered as edited-look previews in the culling darkroom (`GET /api/photo/cull_preview`). Empty = the style selector is hidden. Each style **must already exist** in the darktable configuration of the user running the viewer; the name is passed verbatim to `--style`. |
+| `darktable.cull_styles[].name` | *(required)* | darktable style name (passed to `--style`, and validated by the endpoint) |
+| `darktable.cull_styles[].label_key` | *(name)* | Optional i18n key for the menu label; defaults to the style name |
+| `darktable.preview_max_edge` | `1440` | Max edge (px) the cull preview is rendered to |
+| `darktable.preview_timeout_seconds` | `60` | Per-render darktable-cli timeout for a cull preview |
 | **display** | | |
 | `tags_per_photo` | `4` | Tags shown on cards |
 | `card_width_px` | `168` | Card width |

@@ -1018,7 +1018,10 @@ Visualizzazione e comportamento della galleria web.
         "hq": true,
         "width": null,
         "height": null,
-        "extra_args": []
+        "extra_args": [],
+        "cull_styles": [],
+        "preview_max_edge": 1440,
+        "preview_timeout_seconds": 60
       }
     },
     "display": {
@@ -1107,6 +1110,11 @@ Visualizzazione e comportamento della galleria web.
 | `darktable.profiles[].style` | *(ometti)* | Nome dello stile darktable applicato durante l'esportazione (`--style`) |
 | `darktable.profiles[].apply_custom_presets` | `true` | Quando `false`, passa `--apply-custom-presets false` così solo lo `style` esplicito viene applicato (non i preset auto-applicati) |
 | `darktable.profiles[].extra_args` | `[]` | Argomenti CLI aggiuntivi (es. `["--style-overwrite"]`) |
+| `darktable.cull_styles` | `[]` | Stili darktable con nome offerti come anteprima elaborata nello studio di selezione (`GET /api/photo/cull_preview`). Vuoto = il selettore di stile è nascosto. Ogni stile **deve già esistere** nella configurazione darktable dell'utente che esegue il visualizzatore. Il nome viene passato tale e quale a `--style`. |
+| `darktable.cull_styles[].name` | *(obbligatorio)* | Nome dello stile darktable (passato a `--style` e validato dall'endpoint) |
+| `darktable.cull_styles[].label_key` | *(name)* | Chiave i18n facoltativa per l'etichetta del menu (predefinito: il nome dello stile) |
+| `darktable.preview_max_edge` | `1440` | Bordo massimo (px) del rendering dell'anteprima di selezione |
+| `darktable.preview_timeout_seconds` | `60` | Timeout di darktable-cli per rendering di anteprima |
 | **display** | | |
 | `tags_per_photo` | `4` | Tag mostrati sulle schede |
 | `card_width_px` | `168` | Larghezza della scheda |
