@@ -169,7 +169,11 @@ def _verify_superadmin_token(token: Optional[str]) -> None:
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required")
     payload = decode_access_token(token)
-    if not payload or payload.get('role') != 'superadmin':
+    if (
+        not payload
+        or payload.get('role') != 'superadmin'
+        or payload.get('purpose') != SCAN_STREAM_PURPOSE
+    ):
         raise HTTPException(status_code=403, detail="Superadmin access required")
 
 
@@ -190,12 +194,11 @@ def _build_scan_snapshot(lines: int) -> dict:
 
 @router.get("/stream")
 async def scan_stream(
-    # JWT passed as query param because EventSource cannot set custom headers.
-    # This is a known limitation; the token is validated server-side and the
-    # endpoint is superadmin-only.
     token: Optional[str] = Query(None),
     lines: int = Query(20),
 ):
+    """SSE progress stream. Requires a short-lived scan_stream-purpose token
+    minted by GET /stream_token; the long-lived session JWT is rejected."""
     if not VIEWER_CONFIG.get('features', {}).get('show_scan_button', False):
         raise HTTPException(status_code=403, detail="Scan feature not enabled")
     _verify_superadmin_token(token)

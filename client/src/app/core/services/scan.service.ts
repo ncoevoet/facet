@@ -32,6 +32,7 @@ export class ScanService implements OnDestroy {
 
   private eventSource: EventSource | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private retriedMintOnError = false;
 
   readonly status = signal<ScanStatus>({
     running: false,
@@ -46,7 +47,7 @@ export class ScanService implements OnDestroy {
     await firstValueFrom(
       this.api.post<{ success: boolean }>('/scan/start', { directories }),
     );
-    this.connect();
+    await this.connect();
   }
 
   async loadDirectories(): Promise<ScanDirectory[]> {
@@ -56,11 +57,47 @@ export class ScanService implements OnDestroy {
     return res.directories;
   }
 
-  connect(): void {
+  async connect(): Promise<void> {
     this.disconnect();
-    const token = this.auth.token;
-    if (!token) return;
+    if (!this.auth.token) return;
+    this.retriedMintOnError = false;
+    await this.openStream();
+  }
 
+  disconnect(): void {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    this.stopPolling();
+    this.connected.set(false);
+  }
+
+  ngOnDestroy(): void {
+    this.disconnect();
+  }
+
+  private async openStream(): Promise<void> {
+    const token = await this.mintStreamToken();
+    if (!token) {
+      this.startPolling();
+      return;
+    }
+    this.openEventSource(token);
+  }
+
+  private async mintStreamToken(): Promise<string | null> {
+    try {
+      const res = await firstValueFrom(
+        this.api.get<{ token: string }>('/scan/stream_token'),
+      );
+      return res.token;
+    } catch {
+      return null;
+    }
+  }
+
+  private openEventSource(token: string): void {
     const params = new URLSearchParams({ token, lines: '50' });
     const source = new EventSource(`/api/scan/stream?${params}`);
     this.eventSource = source;
@@ -81,21 +118,13 @@ export class ScanService implements OnDestroy {
 
     source.onerror = () => {
       this.disconnect();
-      this.startPolling();
+      if (this.retriedMintOnError) {
+        this.startPolling();
+        return;
+      }
+      this.retriedMintOnError = true;
+      void this.openStream();
     };
-  }
-
-  disconnect(): void {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
-    }
-    this.stopPolling();
-    this.connected.set(false);
-  }
-
-  ngOnDestroy(): void {
-    this.disconnect();
   }
 
   private startPolling(): void {

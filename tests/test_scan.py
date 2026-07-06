@@ -1,12 +1,14 @@
 """Tests for the scan endpoint (api/routers/scan.py)."""
 
 from collections import deque
+from datetime import timedelta
 from unittest import mock
 
 from fastapi.testclient import TestClient
 
 from api import create_app
-from api.auth import CurrentUser, require_authenticated
+from api.auth import CurrentUser, create_access_token, require_authenticated
+from api.routers.scan import SCAN_STREAM_PURPOSE
 
 _AUTH_MODULE = "api.auth"
 _ROUTER_MODULE = "api.routers.scan"
@@ -215,6 +217,50 @@ class TestScanStreamAuth:
             app = create_app()
             client = TestClient(app, raise_server_exceptions=False)
             resp = client.get("/api/scan/stream", params={"token": "garbage"})
+        assert resp.status_code == 403
+
+    def test_plain_superadmin_jwt_rejected(self):
+        """The long-lived session JWT (no scan_stream purpose) must not work here."""
+        viewer_cfg = _viewer_config_with_scan()
+        token = create_access_token({"sub": "sa1", "role": "superadmin"})
+        with mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg):
+            app = create_app()
+            client = TestClient(app, raise_server_exceptions=False)
+            resp = client.get("/api/scan/stream", params={"token": token})
+        assert resp.status_code == 403
+
+    def test_minted_stream_token_accepted(self):
+        viewer_cfg = _viewer_config_with_scan()
+        mock_state = {
+            'running': False,
+            'process': None,
+            'output_lines': deque(maxlen=500),
+            'started_at': None,
+            'directories': [],
+            'exit_code': None,
+            'progress': None,
+        }
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
+            mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_ROUTER_MODULE}._scan_state", mock_state),
+        ):
+            app, client, _ = _make_superadmin_app(viewer_cfg)
+            token = client.get("/api/scan/stream_token").json()["token"]
+            resp = client.get("/api/scan/stream", params={"token": token})
+        assert resp.status_code == 200
+
+    def test_expired_minted_token_rejected(self):
+        viewer_cfg = _viewer_config_with_scan()
+        token = create_access_token(
+            {"sub": "sa1", "role": "superadmin", "purpose": SCAN_STREAM_PURPOSE},
+            expires_delta=timedelta(seconds=-1),
+        )
+        with mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg):
+            app = create_app()
+            client = TestClient(app, raise_server_exceptions=False)
+            resp = client.get("/api/scan/stream", params={"token": token})
         assert resp.status_code == 403
 
 

@@ -42,6 +42,12 @@ describe('ScanService', () => {
     exit_code: null,
   };
 
+  const flushMint = (token = 'minted-token') => {
+    const req = httpTesting.expectOne('/api/scan/stream_token');
+    expect(req.request.method).toBe('GET');
+    req.flush({ token });
+  };
+
   beforeEach(() => {
     MockEventSource.instances = [];
     originalEventSource = globalThis.EventSource;
@@ -80,33 +86,58 @@ describe('ScanService', () => {
   });
 
   describe('connect()', () => {
-    it('should create an EventSource with token query param', () => {
-      service.connect();
+    it('should mint a stream token then create an EventSource with it', async () => {
+      const connectPromise = service.connect();
+      flushMint('minted-token');
+      await connectPromise;
 
       expect(MockEventSource.instances).toHaveLength(1);
       expect(MockEventSource.instances[0].url).toContain('/api/scan/stream?');
-      expect(MockEventSource.instances[0].url).toContain('token=test-token');
+      expect(MockEventSource.instances[0].url).toContain('token=minted-token');
       expect(MockEventSource.instances[0].url).toContain('lines=50');
       expect(service.connected()).toBe(true);
     });
 
-    it('should not connect when no token is available', () => {
+    it('should not connect when no local token is available', async () => {
       vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
-      service.connect();
+      await service.connect();
 
+      httpTesting.expectNone('/api/scan/stream_token');
       expect(MockEventSource.instances).toHaveLength(0);
       expect(service.connected()).toBe(false);
     });
 
-    it('should update status when receiving a message', () => {
-      service.connect();
+    it('should fall back to polling when minting the stream token fails', async () => {
+      const connectPromise = service.connect();
+      httpTesting
+        .expectOne('/api/scan/stream_token')
+        .flush('mint failed', { status: 403, statusText: 'Forbidden' });
+      await connectPromise;
+
+      expect(MockEventSource.instances).toHaveLength(0);
+      expect(service.connected()).toBe(false);
+
+      const req = httpTesting.expectOne((r) => r.url === '/api/scan/status');
+      req.flush(mockStatus);
+      await Promise.resolve();
+
+      expect(service.status()).toEqual(mockStatus);
+    });
+
+    it('should update status when receiving a message', async () => {
+      const connectPromise = service.connect();
+      flushMint();
+      await connectPromise;
+
       MockEventSource.instances[0].simulateMessage(mockStatus);
 
       expect(service.status()).toEqual(mockStatus);
     });
 
-    it('should disconnect when scan finishes', () => {
-      service.connect();
+    it('should disconnect when scan finishes', async () => {
+      const connectPromise = service.connect();
+      flushMint();
+      await connectPromise;
       const source = MockEventSource.instances[0];
 
       source.simulateMessage({ ...mockStatus, running: false, exit_code: 0 });
@@ -115,41 +146,72 @@ describe('ScanService', () => {
       expect(service.connected()).toBe(false);
     });
 
-    it('should close previous connection when connecting again', () => {
-      service.connect();
+    it('should close previous connection and mint a fresh token when connecting again', async () => {
+      const firstConnect = service.connect();
+      flushMint('token-1');
+      await firstConnect;
       const first = MockEventSource.instances[0];
 
-      service.connect();
+      const secondConnect = service.connect();
+      flushMint('token-2');
+      await secondConnect;
+
       expect(first.closed).toBe(true);
       expect(MockEventSource.instances).toHaveLength(2);
+      expect(MockEventSource.instances[1].url).toContain('token=token-2');
     });
   });
 
-  describe('connect() SSE error fallback', () => {
-    it('should fall back to polling on SSE error', async () => {
-      service.connect();
-      const source = MockEventSource.instances[0];
+  describe('connect() SSE error handling', () => {
+    it('should re-mint the token and reopen the stream on the first error', async () => {
+      const connectPromise = service.connect();
+      flushMint('token-1');
+      await connectPromise;
+      const first = MockEventSource.instances[0];
 
-      source.simulateError();
+      first.simulateError();
 
-      expect(source.closed).toBe(true);
+      expect(first.closed).toBe(true);
       expect(service.connected()).toBe(false);
 
-      await Promise.resolve();
+      flushMint('token-2');
 
-      const req = httpTesting.expectOne((r) => r.url === '/api/scan/status');
-      expect(req.request.params.get('lines')).toBe('50');
+      await vi.waitFor(() => {
+        expect(MockEventSource.instances).toHaveLength(2);
+      });
+      expect(MockEventSource.instances[1].url).toContain('token=token-2');
+      expect(service.connected()).toBe(true);
+    });
+
+    it('should fall back to polling after a second consecutive error', async () => {
+      const connectPromise = service.connect();
+      flushMint('token-1');
+      await connectPromise;
+      MockEventSource.instances[0].simulateError();
+
+      flushMint('token-2');
+
+      await vi.waitFor(() => {
+        expect(MockEventSource.instances).toHaveLength(2);
+      });
+      MockEventSource.instances[1].simulateError();
+
+      const req = await vi.waitFor(() =>
+        httpTesting.expectOne((r) => r.url === '/api/scan/status'),
+      );
       req.flush(mockStatus);
-
       await Promise.resolve();
 
       expect(service.status()).toEqual(mockStatus);
+      httpTesting.expectNone('/api/scan/stream_token');
     });
   });
 
   describe('disconnect()', () => {
-    it('should close the EventSource', () => {
-      service.connect();
+    it('should close the EventSource', async () => {
+      const connectPromise = service.connect();
+      flushMint();
+      await connectPromise;
       const source = MockEventSource.instances[0];
 
       service.disconnect();
@@ -168,6 +230,8 @@ describe('ScanService', () => {
       expect(req.request.body).toEqual({ directories: ['/photos'] });
       req.flush({ success: true });
 
+      await Promise.resolve();
+      flushMint();
       await promise;
 
       expect(MockEventSource.instances).toHaveLength(1);
