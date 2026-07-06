@@ -1195,6 +1195,7 @@ Attiva o disattiva le funzionalità opzionali per ridurre l'uso della memoria o 
 | `show_folders` | `true` | Mostra la navigazione per cartelle della struttura delle directory delle foto |
 | `show_scenes` | `true` | Mostra la vista Scene (`/scenes`) che raggruppa le foto principali delle raffiche in scene cronologiche per la selezione in ordine narrativo |
 | `show_my_taste` | `true` | Mostra l'ordinamento "My Taste" basato sul punteggio appreso del ranker personale, con un badge di confidenza per copertura/accuratezza apprese |
+| `show_social_export` | `true` | Mostra il menu **Ritaglio social** (solo edizione): ritagli consapevoli del soggetto per i rapporti d'aspetto dei social. Vedi [Esportazione social](#esportazione-social) |
 | `show_proofing` | `false` | Abilita la revisione del cliente sugli album condivisi: un collegamento di condivisione (più un PIN facoltativo) consente a un cliente senza account di mettere un cuore alle foto e lasciare commenti, che il proprietario dell'album esamina da una finestra di dialogo in modalità di modifica. Disattivata per impostazione predefinita. Vedi [Revisione del cliente](#revisione-del-cliente) |
 
 **Ottimizzazione della memoria:** impostare `show_similar_button: false` impedisce il caricamento di numpy, riducendo l'ingombro di memoria del viewer. La funzionalità delle foto simili calcola la similarità coseno degli embedding CLIP, che richiede numpy.
@@ -1707,6 +1708,33 @@ Il segnale è **semantico sulla didascalia**: la didascalia AI di ogni foto vien
 > **Costo del backfill delle didascalie.** Gli embedding delle didascalie vengono calcolati una sola volta e memorizzati, quindi il coseno per foto è poi gratuito. Una scansione codifica solo la sua manciata di nuove didascalie (economico, incrementale), ma il primo passaggio completo su una libreria esistente codifica ogni didascalia — un passaggio in avanti dell'encoder testuale per didascalia, veloce su GPU e ~ore su CPU. Esegui `python facet.py --detect-moments` una volta (GPU consigliata) per quel backfill; aggiungi `--limit N` per verificare prima su un campione.
 
 **Scoprire un vocabolario specifico per la libreria.** L'insieme `general` è un'impostazione predefinita sensata, ma puoi proporre un vocabolario adattato alla *tua* libreria con `python facet.py --discover-moments`: raggruppa i vettori `caption_embedding` memorizzati (HDBSCAN), nomina ogni cluster a partire dalle sue didascalie (una parola chiave più le didascalie più vicine al centroide come prompt già pronti) e scrive il risultato come blocco `event_types.discovered` in `scoring_config.discovered.json`. Rivedilo, copia `discovered` in `event_types` sopra, imposta `default_event_type` su `discovered` ed esegui `--recompute-moments` per adottarlo — la scoperta propone, non riscrive mai la configurazione attiva. `--discover-min-cluster-size N` controlla la granularità (più piccolo = momenti più numerosi e fini).
+
+## Esportazione social
+
+Ritagli consapevoli del soggetto per i rapporti d'aspetto dei social (`GET /api/photo/social_crop`, riservato all'edizione). Ogni preset ritaglia l'originale a piena risoluzione verso un rapporto d'aspetto obiettivo e lo inquadra sul soggetto rilevato — il più grande rettangolo di quel rapporto che entra nell'immagine, centrato sul soggetto con un margine e vincolato ai bordi. Il box del soggetto segue una catena di ripiego: il box del soggetto BiRefNet persistito (`photos.subject_bbox`) → l'unione dei box dei volti rilevati → un ritaglio centrato semplice. Vedi [Visualizzatore web — Download](VIEWER.md#download).
+
+```json
+{
+  "social_export": {
+    "presets": {
+      "square":       { "label_key": "social_export.presets.square",       "aspect": "1:1" },
+      "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
+      "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
+    },
+    "subject_margin_percent": 8,
+    "jpeg_quality": 92
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|---------|---------|-------------|
+| `presets.<id>.label_key` | — | Percorso i18n con punti per il nome visualizzato del preset (`social_export.presets.*`) |
+| `presets.<id>.aspect` | — | Rapporto d'aspetto obiettivo come `"l:h"` (es. `1:1`, `4:5`, `9:16`) |
+| `subject_margin_percent` | `8` | Margine attorno al box del soggetto (percentuale della sua dimensione) prima di centrare il ritaglio |
+| `jpeg_quality` | `92` | Qualità JPEG del ritaglio esportato |
+
+Controllato da `viewer.features.show_social_export` (predefinito `true`). La colonna `photos.subject_bbox` è scritta dalla passata di salienza in fase di scansione e da `--recompute-saliency`; le righe scansionate prima della sua introduzione ripiegano automaticamente sul ritaglio per volti o centrato.
 
 ## Junk Sweep
 

@@ -14,6 +14,7 @@ Key features:
 """
 
 import gc
+import json
 import logging
 import time
 from pathlib import Path
@@ -779,6 +780,7 @@ class ChunkedMultiPassProcessor:
                 for key in ('subject_sharpness', 'subject_prominence',
                            'subject_placement', 'bg_separation'):
                     results[path][key] = scores[i].get(key, 5.0)
+                results[path]['subject_bbox'] = scores[i].get('subject_bbox')
         except Exception as e:
             logger.error("BiRefNet saliency pass failed: %s", e)
 
@@ -1067,6 +1069,7 @@ class ChunkedMultiPassProcessor:
                 'subject_prominence': data.get('subject_prominence'),
                 'subject_placement': data.get('subject_placement'),
                 'bg_separation': data.get('bg_separation'),
+                'subject_bbox': json.dumps(data['subject_bbox']) if data.get('subject_bbox') else None,
 
                 # Form facet + Matsuda color harmony (computed in _load_images)
                 'form_symmetry': img_data.get('form', {}).get('form_symmetry'),

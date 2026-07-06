@@ -1195,6 +1195,7 @@ Schalten Sie optionale Features um, um den Speicherverbrauch zu senken oder die 
 | `show_folders` | `true` | Ordnerbasiertes Durchsuchen der Fotoverzeichnisstruktur anzeigen |
 | `show_scenes` | `true` | Die Szenen-Ansicht (`/scenes`) anzeigen, die führende Serienbildfotos in chronologische Szenen für ein Culling in Erzählreihenfolge gruppiert |
 | `show_my_taste` | `true` | Die Sortierung „My Taste“ anzeigen, gestützt auf den gelernten Score des persönlichen Rankers, mit einem Konfidenz-Badge für gelernte Abdeckung / Genauigkeit |
+| `show_social_export` | `true` | Zeigt das editionsbeschränkte Menü **Social-Zuschnitt** (motivbewusste Zuschnitte für Social-Seitenverhältnisse). Siehe [Social-Export](#social-export) |
 | `show_proofing` | `false` | Client-Proofing für geteilte Alben aktivieren: Ein Freigabelink (plus optionale PIN) erlaubt einem kontolosen Client, Fotos mit einem Herz zu markieren und Kommentare zu hinterlassen, die der Albumbesitzer aus einem editionsbeschränkten Dialog überprüft. Standardmäßig aus. Siehe [Client-Proofing](#client-proofing) |
 
 **Speicheroptimierung:** Wenn `show_similar_button: false` gesetzt wird, verhindert dies, dass numpy geladen wird, und reduziert so den Speicherbedarf des Viewers. Die Funktion für ähnliche Fotos berechnet die Kosinusähnlichkeit der CLIP-Embeddings, was numpy erfordert.
@@ -1707,6 +1708,33 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
 > **Kosten des Caption-Backfills.** Bildunterschrift-Embeddings werden einmal berechnet und gespeichert, sodass der Kosinus pro Foto danach kostenlos ist. Ein Scan kodiert nur seine wenigen neuen Bildunterschriften (günstig, inkrementell), aber der erste vollständige Durchlauf über eine bestehende Bibliothek kodiert jede Bildunterschrift — ein Text-Tower-Vorwärtsdurchlauf pro Bildunterschrift, schnell auf GPU und ~Stunden auf CPU. Führen Sie `python facet.py --detect-moments` einmal aus (GPU empfohlen) für diesen Backfill; fügen Sie `--limit N` hinzu, um es zuerst an einer Stichprobe zu prüfen.
 
 **Ein bibliotheksspezifisches Vokabular entdecken.** Das `general`-Set ist ein sinnvoller Standard, aber Sie können mit `python facet.py --discover-moments` ein auf *Ihre* Bibliothek zugeschnittenes Vokabular vorschlagen: Es clustert die gespeicherten `caption_embedding`-Vektoren (HDBSCAN), benennt jedes Cluster anhand seiner Bildunterschriften (ein Schlüsselwort plus die dem Zentroid am nächsten liegenden Bildunterschriften als gebrauchsfertige Prompts) und schreibt das Ergebnis als `event_types.discovered`-Block in `scoring_config.discovered.json`. Überprüfen Sie es, kopieren Sie `discovered` in `event_types` oben, setzen Sie `default_event_type` auf `discovered` und führen Sie `--recompute-moments` aus, um es zu übernehmen — die Entdeckung schlägt vor, sie überschreibt niemals die aktive Konfiguration. `--discover-min-cluster-size N` steuert die Granularität (kleiner = mehr, feinere Momente).
+
+## Social-Export
+
+Zuschneide-Vorlagen für Social-Media-Seitenverhältnisse mit Motiverkennung (`GET /api/photo/social_crop`, editionsbeschränkt). Jede Vorlage schneidet das Original in voller Auflösung auf ein Zielseitenverhältnis und rahmt es um das erkannte Motiv — das größte Rechteck dieses Seitenverhältnisses, das ins Bild passt, zentriert auf dem Motiv mit einem Rand und an den Rändern begrenzt. Die Motivbox folgt einer Fallback-Kette: die gespeicherte BiRefNet-Motivbox (`photos.subject_bbox`) → die Vereinigung der erkannten Gesichtsboxen → ein einfacher zentrierter Zuschnitt. Siehe [Web-Viewer — Download](VIEWER.md#download).
+
+```json
+{
+  "social_export": {
+    "presets": {
+      "square":       { "label_key": "social_export.presets.square",       "aspect": "1:1" },
+      "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
+      "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
+    },
+    "subject_margin_percent": 8,
+    "jpeg_quality": 92
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `presets.<id>.label_key` | — | i18n-Punktpfad für den Anzeigenamen der Vorlage (`social_export.presets.*`) |
+| `presets.<id>.aspect` | — | Zielseitenverhältnis als `"b:h"` (z. B. `1:1`, `4:5`, `9:16`) |
+| `subject_margin_percent` | `8` | Spielraum um die Motivbox (Prozent ihrer Größe), bevor der Zuschnitt zentriert wird |
+| `jpeg_quality` | `92` | JPEG-Qualität des exportierten Zuschnitts |
+
+Gesteuert durch `viewer.features.show_social_export` (Standard `true`). Die Spalte `photos.subject_bbox` wird vom Saliency-Durchlauf beim Scannen und von `--recompute-saliency` geschrieben; vor ihrer Einführung gescannte Zeilen greifen automatisch auf den Gesichts- oder zentrierten Zuschnitt zurück.
 
 ## Junk Sweep
 

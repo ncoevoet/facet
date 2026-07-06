@@ -1195,6 +1195,7 @@ Activa o desactiva funciones opcionales para reducir el uso de memoria o simplif
 | `show_folders` | `true` | Mostrar la exploración basada en carpetas de la estructura de directorios de fotos |
 | `show_scenes` | `true` | Mostrar la vista de Escenas (`/scenes`) que agrupa las fotos principales de ráfaga en escenas cronológicas para un descarte en orden narrativo |
 | `show_my_taste` | `true` | Mostrar la ordenación "Mi gusto" respaldada por la puntuación aprendida del clasificador personal, con una insignia de confianza de cobertura aprendida / precisión |
+| `show_social_export` | `true` | Muestra el menú **Recorte social** (solo edición): recortes con reconocimiento del sujeto para relaciones de aspecto de redes sociales. Consulta [Exportación social](#exportación-social) |
 | `show_proofing` | `false` | Activar la revisión de cliente en los álbumes compartidos: un enlace de compartir (más un PIN opcional) permite que un cliente sin cuenta marque fotos con un corazón y deje comentarios, que el propietario del álbum revisa desde un diálogo restringido a edición. Desactivado por defecto. Consulta [Revisión del cliente](#revisión-del-cliente) |
 
 **Optimización de memoria:** Establecer `show_similar_button: false` evita que se cargue numpy, reduciendo la huella de memoria del visor. La función de fotos similares calcula la similitud coseno de los embeddings CLIP, lo que requiere numpy.
@@ -1707,6 +1708,33 @@ La señal es **semántica de leyenda**: la leyenda de IA de cada foto se codific
 > **Coste del relleno retroactivo de leyendas.** Los embeddings de leyenda se calculan una vez y se almacenan, así que el coseno por foto es gratis después. Un escaneo codifica solo su puñado de leyendas nuevas (económico, incremental), pero el primer pase completo sobre una biblioteca existente codifica cada leyenda — un pase hacia delante por la torre de texto por leyenda, rápido en GPU y ~horas en CPU. Ejecuta `python facet.py --detect-moments` una vez (GPU recomendada) para ese relleno retroactivo; añade `--limit N` para verificar primero en una muestra.
 
 **Descubrir un vocabulario específico de la biblioteca.** El conjunto `general` es un valor por defecto razonable, pero puedes proponer un vocabulario adaptado a *tu* biblioteca con `python facet.py --discover-moments`: agrupa los vectores `caption_embedding` almacenados (HDBSCAN), nombra cada grupo a partir de sus leyendas (una palabra clave más las leyendas más cercanas al centroide como prompts listos para usar) y escribe el resultado como un bloque `event_types.discovered` en `scoring_config.discovered.json`. Revísalo, copia `discovered` en `event_types` de arriba, establece `default_event_type` en `discovered` y ejecuta `--recompute-moments` para adoptarlo — el descubrimiento propone, nunca reescribe la configuración activa. `--discover-min-cluster-size N` controla la granularidad (más pequeño = más momentos, más finos).
+
+## Exportación social
+
+Recortes con reconocimiento del sujeto para relaciones de aspecto de redes sociales (`GET /api/photo/social_crop`, restringido a edición). Cada preajuste recorta el original a resolución completa a una relación de aspecto objetivo y lo encuadra en el sujeto detectado — el mayor rectángulo de esa relación de aspecto que cabe dentro de la imagen, centrado en el sujeto con un margen y ajustado a los bordes. La caja del sujeto sigue una cadena de reserva: la caja de sujeto BiRefNet persistida (`photos.subject_bbox`) → la unión de las cajas de caras detectadas → un recorte centrado simple. Consulta [Visor web — Descarga](VIEWER.md#download).
+
+```json
+{
+  "social_export": {
+    "presets": {
+      "square":       { "label_key": "social_export.presets.square",       "aspect": "1:1" },
+      "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
+      "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
+    },
+    "subject_margin_percent": 8,
+    "jpeg_quality": 92
+  }
+}
+```
+
+| Ajuste | Predeterminado | Descripción |
+|---------|---------|-------------|
+| `presets.<id>.label_key` | — | Ruta de puntos i18n para el nombre visible del preajuste (`social_export.presets.*`) |
+| `presets.<id>.aspect` | — | Relación de aspecto objetivo como `"an:al"` (p. ej. `1:1`, `4:5`, `9:16`) |
+| `subject_margin_percent` | `8` | Margen alrededor de la caja del sujeto (porcentaje de su tamaño) antes de centrar el recorte |
+| `jpeg_quality` | `92` | Calidad JPEG del recorte exportado |
+
+Controlado por `viewer.features.show_social_export` (predeterminado `true`). La columna `photos.subject_bbox` la escribe la pasada de saliencia al escanear y `--recompute-saliency`; las filas escaneadas antes de que existiera recurren automáticamente al recorte por caras o centrado.
 
 ## Limpieza de basura
 

@@ -326,6 +326,7 @@ def create_app() -> FastAPI:
     from api.routers.ranker import router as ranker_router
     from api.routers.scenes import router as scenes_router
     from api.routers.saliency import router as saliency_router
+    from api.routers.social_crop import router as social_crop_router
 
     app.include_router(health_router)
     app.include_router(auth_router)
@@ -355,6 +356,7 @@ def create_app() -> FastAPI:
     app.include_router(ranker_router)
     app.include_router(scenes_router)
     app.include_router(saliency_router)
+    app.include_router(social_crop_router)
 
     # Check for plaintext passwords at startup
     from api.auth import check_legacy_password_warnings

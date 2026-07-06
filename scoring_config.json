@@ -2159,6 +2159,24 @@
     "default_strictness": 50,
     "highlights_min": 8.0
   },
+  "social_export": {
+    "presets": {
+      "square": {
+        "label_key": "social_export.presets.square",
+        "aspect": "1:1"
+      },
+      "portrait_4x5": {
+        "label_key": "social_export.presets.portrait_4x5",
+        "aspect": "4:5"
+      },
+      "story_9x16": {
+        "label_key": "social_export.presets.story_9x16",
+        "aspect": "9:16"
+      }
+    },
+    "subject_margin_percent": 8,
+    "jpeg_quality": 92
+  },
   "cull_profiles": {
     "default": "balanced",
     "profiles": {
@@ -3235,7 +3253,8 @@
       "show_scenes": true,
       "show_junk_sweep": true,
       "show_scan_button": false,
-      "show_saliency_overlay": true
+      "show_saliency_overlay": true,
+      "show_social_export": true
     },
     "allowed_origins": [
       "http://localhost:4200",

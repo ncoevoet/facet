@@ -1210,6 +1210,7 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_folders` | `true` | Show folder-based browsing of the photo directory structure |
 | `show_scenes` | `true` | Show the Scenes view (`/scenes`) that groups burst-lead photos into chronological scenes for story-order culling |
 | `show_my_taste` | `true` | Show the "My Taste" sort backed by the personal ranker's learned score, with a learned-coverage / accuracy confidence badge |
+| `show_social_export` | `true` | Show the edition-only **Social crop** download menu (saliency-aware crops for social aspect presets). See [Social Export](#social-export) |
 | `show_proofing` | `false` | Enable client proofing on shared albums: a share link (plus optional PIN) lets a no-account client heart photos and leave comments, which the album owner reviews from an edition-gated dialog. Off by default. See [Client Proofing](#client-proofing) |
 
 **Memory optimization:** Setting `show_similar_button: false` prevents numpy from being loaded, reducing viewer memory footprint. The similar photos feature computes CLIP embedding cosine similarity which requires numpy.
@@ -1730,6 +1731,33 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 > **Caption backfill cost.** Caption embeddings are computed once and stored, so the per-photo cosine is free afterwards. A scan encodes only its handful of new captions (cheap, incremental), but the first full pass over an existing library encodes every caption — one text-tower forward pass per caption, fast on GPU and ~hours on CPU. Run `python facet.py --detect-moments` once (GPU recommended) for that backfill; add `--limit N` to verify on a sample first.
 
 **Discovering a library-specific vocabulary.** The `general` set is a sensible default, but you can propose a vocabulary fitted to *your* library with `python facet.py --discover-moments`: it clusters the stored `caption_embedding` vectors (HDBSCAN), names each cluster from its captions (a keyword plus the captions nearest the centroid as ready-made prompts), and writes the result as an `event_types.discovered` block to `scoring_config.discovered.json`. Review it, copy `discovered` into `event_types` above, set `default_event_type` to `discovered`, and run `--recompute-moments` to adopt — discovery proposes, it never rewrites the active config. `--discover-min-cluster-size N` controls granularity (smaller = more, finer moments).
+
+## Social Export
+
+Saliency-aware crop presets for social aspect ratios (`GET /api/photo/social_crop`, edition-gated). Each preset crops the full-resolution original to a target aspect and frames it on the detected subject — the largest rectangle of that aspect fitting inside the image, centered on the subject with a margin and clamped at the edges. The subject box follows a fallback chain: the persisted BiRefNet subject box (`photos.subject_bbox`) → the union of detected face boxes → a plain center crop. See [Web Viewer — Download](VIEWER.md#download).
+
+```json
+{
+  "social_export": {
+    "presets": {
+      "square":       { "label_key": "social_export.presets.square",       "aspect": "1:1" },
+      "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
+      "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
+    },
+    "subject_margin_percent": 8,
+    "jpeg_quality": 92
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `presets.<id>.label_key` | — | i18n dot-path for the preset's display name (`social_export.presets.*`) |
+| `presets.<id>.aspect` | — | Target aspect as `"w:h"` (e.g. `1:1`, `4:5`, `9:16`) |
+| `subject_margin_percent` | `8` | Breathing room added around the subject box (percent of its size) before centering the crop |
+| `jpeg_quality` | `92` | JPEG quality of the exported crop |
+
+Gated by `viewer.features.show_social_export` (default `true`). The `photos.subject_bbox` column is written by the saliency pass at scan time and by `--recompute-saliency`; rows scanned before it existed fall back to the face-union or center crop automatically.
 
 ## Junk Sweep
 

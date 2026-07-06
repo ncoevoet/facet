@@ -107,6 +107,7 @@ PHOTOS_COLUMNS = [
     ('subject_prominence', 'REAL'),  # Subject area ratio
     ('subject_placement', 'REAL'),   # Rule-of-thirds score for subject centroid
     ('bg_separation', 'REAL'),       # Subject-background separation quality
+    ('subject_bbox', 'TEXT'),        # JSON [x0,y0,x1,y1] normalized 0..1 subject box (saliency-aware social crop); NULL until saliency runs
 
     # User ratings and flags
     ('star_rating', 'INTEGER DEFAULT 0 CHECK (star_rating >= 0 AND star_rating <= 5)'),

@@ -1080,6 +1080,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 |----------|-------------|
 | `GET /api/download/options` | Available download types for a photo (`path`, optional `is_shared`) |
 | `GET /api/download` | Download a photo (`path`, `type=original\|darktable\|raw`, optional `profile`) |
+| `GET /api/photo/social_crop` | `[Edition]` Download the cropped full-resolution JPEG for a social aspect preset (`path`, `preset`) |
+| `GET /api/photo/social_crop/preview` | `[Edition]` Return just the normalized crop rectangle + framing source for a preset (`path`, `preset`) — no original decode |
 
 **Download types:**
 
@@ -1088,6 +1090,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 - `raw` — Serve the companion RAW file as-is (not available in shared albums).
 
 The `/api/download/options` endpoint detects companion RAW files automatically and returns available options including configured darktable profiles. The viewer uses this to populate a per-photo download menu.
+
+**Saliency-aware social crop.** When `viewer.features.show_social_export` is `true` (default) and edition is unlocked, the photo detail download bar gains a **Social crop** menu listing the configured `social_export.presets` (square 1:1, portrait 4:5, story 9:16 out of the box). Choosing a preset downloads a full-resolution JPEG cropped to that aspect and framed on the detected subject — something Lightroom export presets cannot do. The crop window is the largest rectangle of the target aspect that fits inside the image, centered on the subject with a configurable margin (`social_export.subject_margin_percent`) and clamped at the edges. The subject box comes from a fallback chain: the persisted BiRefNet subject box (`photos.subject_bbox`, written by the saliency pass and `--recompute-saliency`) → the union of detected face boxes → a plain center crop. The `preview` endpoint returns which source drove the crop (`saliency` / `faces` / `center`), shown in the menu tooltip. Original decoding reuses the same RAW (rawpy) and HEIC (pillow-heif) loader as the download path, with EXIF orientation applied before cropping.
 
 ### Editor Export
 

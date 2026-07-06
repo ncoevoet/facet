@@ -29,6 +29,12 @@ import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 import { I18N } from '../../core/i18n/keys';
 
+const SOCIAL_SOURCE_KEYS: Record<string, string> = {
+  saliency: I18N.social_export.source.saliency,
+  faces: I18N.social_export.source.faces,
+  center: I18N.social_export.source.center,
+};
+
 @Component({
   selector: 'app-photo-detail',
   imports: [
@@ -112,6 +118,22 @@ import { I18N } from '../../core/i18n/keys';
             @if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" /> } @else { <mat-icon>download</mat-icon> }
             {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.photo_detail.download | translate) }}
           </button>
+        }
+
+        @if (auth.isEdition() && store.config()?.features?.show_social_export && socialPresets().length) {
+          <button mat-button [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"
+            [matTooltip]="(socialCropTooltipKey() | translate)">
+            <mat-icon>crop</mat-icon>
+            {{ I18N.photo_detail.social_crop | translate }}
+          </button>
+          <mat-menu #socialMenu="matMenu">
+            @for (preset of socialPresets(); track preset.key) {
+              <button mat-menu-item (click)="downloadSocialCrop(p.path, preset.key)">
+                <mat-icon>crop</mat-icon>
+                {{ preset.label_key | translate }}
+              </button>
+            }
+          </mat-menu>
         }
       </div>
 
@@ -489,6 +511,26 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       .catch(() => this.downloadOptions.set([{ type: 'original', label: 'original' }]));
   });
 
+  // Social-export crop presets (from viewer config) + which signal frames the crop
+  protected readonly socialPresets = computed(() => this.store.config()?.social_export?.presets ?? []);
+  protected readonly socialCropSource = signal<string | null>(null);
+  protected readonly socialCropTooltipKey = computed(() => {
+    const source = this.socialCropSource();
+    const key = source ? (SOCIAL_SOURCE_KEYS[source] ?? null) : null;
+    return key ?? I18N.photo_detail.social_crop;
+  });
+  private socialCropSourceEffect = effect(() => {
+    const p = this.photo();
+    const presets = this.socialPresets();
+    if (!p || !this.auth.isEdition() || !this.store.config()?.features?.show_social_export || !presets.length) {
+      this.socialCropSource.set(null);
+      return;
+    }
+    firstValueFrom(this.api.get<{ source: string }>('/photo/social_crop/preview', { path: p.path, preset: presets[0].key }))
+      .then(res => this.socialCropSource.set(res.source))
+      .catch(() => this.socialCropSource.set(null));
+  });
+
   // Location
   protected readonly locationName = signal('');
   private locationNameEffect = effect(() => {
@@ -621,6 +663,19 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       await downloadAll(
         [path],
         p => this.api.downloadUrl(p, type, profile),
+        url => this.api.getRaw(url),
+      );
+    } finally {
+      this.downloading.set(false);
+    }
+  }
+
+  protected async downloadSocialCrop(path: string, preset: string): Promise<void> {
+    this.downloading.set(true);
+    try {
+      await downloadAll(
+        [path],
+        p => `/api/photo/social_crop?path=${encodeURIComponent(p)}&preset=${encodeURIComponent(preset)}`,
         url => this.api.getRaw(url),
       );
     } finally {

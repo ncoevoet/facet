@@ -1195,6 +1195,7 @@ Ative/desative recursos opcionais para reduzir o uso de memória ou simplificar 
 | `show_folders` | `true` | Mostra a navegação por pastas da estrutura de diretórios das fotos |
 | `show_scenes` | `true` | Mostra a visualização de Cenas (`/scenes`) que agrupa fotos principais de rajada em cenas cronológicas para seleção em ordem narrativa |
 | `show_my_taste` | `true` | Mostra a ordenação "My Taste", baseada na pontuação aprendida do ranqueador pessoal, com um selo de confiança de cobertura/acurácia aprendida |
+| `show_social_export` | `true` | Mostra o menu **Recorte social** (somente edição): recortes com reconhecimento do sujeito para proporções de redes sociais. Veja [Exportação social](#exportação-social) |
 | `show_proofing` | `false` | Ativa a aprovação de cliente em álbuns compartilhados: um link de compartilhamento (mais um PIN opcional) permite que um cliente sem conta curta fotos e deixe comentários, que o dono do álbum revisa em um diálogo restrito à edição. Desativado por padrão. Veja [Aprovação de Cliente](#aprovação-de-cliente) |
 
 **Otimização de memória:** Definir `show_similar_button: false` evita que o numpy seja carregado, reduzindo o consumo de memória do visualizador. O recurso de fotos similares calcula a similaridade de cosseno dos embeddings CLIP, o que requer numpy.
@@ -1707,6 +1708,33 @@ O sinal é **semântico de legenda** (caption-semantic): a legenda por IA de cad
 > **Custo do backfill de legendas.** Os embeddings de legenda são computados uma vez e armazenados, então o cosseno por foto é gratuito depois disso. Um escaneamento codifica apenas seu punhado de novas legendas (barato, incremental), mas a primeira passagem completa sobre uma biblioteca existente codifica cada legenda — uma passagem direta pela torre de texto por legenda, rápida na GPU e ~horas na CPU. Execute `python facet.py --detect-moments` uma vez (GPU recomendada) para esse backfill; adicione `--limit N` para verificar primeiro em uma amostra.
 
 **Descobrindo um vocabulário específico da biblioteca.** O conjunto `general` é um padrão sensato, mas você pode propor um vocabulário ajustado à *sua* biblioteca com `python facet.py --discover-moments`: ele agrupa os vetores `caption_embedding` armazenados (HDBSCAN), nomeia cada cluster a partir de suas legendas (uma palavra-chave mais as legendas mais próximas do centroide como prompts prontos) e grava o resultado como um bloco `event_types.discovered` em `scoring_config.discovered.json`. Revise-o, copie `discovered` para `event_types` acima, defina `default_event_type` como `discovered` e execute `--recompute-moments` para adotá-lo — a descoberta propõe, ela nunca reescreve a configuração ativa. `--discover-min-cluster-size N` controla a granularidade (menor = mais momentos, mais finos).
+
+## Exportação social
+
+Recortes com reconhecimento do sujeito para proporções de redes sociais (`GET /api/photo/social_crop`, restrito à edição). Cada predefinição recorta o original em resolução total para uma proporção alvo e o enquadra no sujeito detectado — o maior retângulo dessa proporção que cabe na imagem, centrado no sujeito com uma margem e limitado às bordas. A caixa do sujeito segue uma cadeia de fallback: a caixa de sujeito BiRefNet persistida (`photos.subject_bbox`) → a união das caixas de rostos detectados → um recorte centralizado simples. Veja [Visualizador web — Download](VIEWER.md#download).
+
+```json
+{
+  "social_export": {
+    "presets": {
+      "square":       { "label_key": "social_export.presets.square",       "aspect": "1:1" },
+      "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
+      "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
+    },
+    "subject_margin_percent": 8,
+    "jpeg_quality": 92
+  }
+}
+```
+
+| Configuração | Padrão | Descrição |
+|---------|---------|-------------|
+| `presets.<id>.label_key` | — | Caminho i18n com pontos para o nome exibido da predefinição (`social_export.presets.*`) |
+| `presets.<id>.aspect` | — | Proporção alvo como `"l:a"` (ex.: `1:1`, `4:5`, `9:16`) |
+| `subject_margin_percent` | `8` | Margem ao redor da caixa do sujeito (porcentagem do seu tamanho) antes de centralizar o recorte |
+| `jpeg_quality` | `92` | Qualidade JPEG do recorte exportado |
+
+Controlado por `viewer.features.show_social_export` (padrão `true`). A coluna `photos.subject_bbox` é escrita pela passagem de saliência na varredura e por `--recompute-saliency`; linhas varridas antes de existir recorrem automaticamente ao recorte por rostos ou centralizado.
 
 ## Junk Sweep
 

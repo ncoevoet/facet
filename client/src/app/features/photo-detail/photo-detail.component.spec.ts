@@ -279,6 +279,28 @@ describe('PhotoDetailComponent', () => {
     });
   });
 
+  describe('downloadSocialCrop', () => {
+    it('downloads via the social_crop endpoint for the chosen preset', async () => {
+      createComponent();
+      URL.createObjectURL = vi.fn(() => 'blob:mock');
+      URL.revokeObjectURL = vi.fn();
+      const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation((el) => el);
+      const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation((el) => el);
+
+      const promise = component.downloadSocialCrop('/photos/test.jpg', 'square');
+      expect(component.downloading()).toBe(true);
+
+      await promise;
+      expect(component.downloading()).toBe(false);
+      expect(mockApi.getRaw).toHaveBeenCalledWith(
+        `/api/photo/social_crop?path=${encodeURIComponent('/photos/test.jpg')}&preset=square`,
+      );
+
+      appendSpy.mockRestore();
+      removeSpy.mockRestore();
+    });
+  });
+
   describe('setRating', () => {
     it('should set a new rating via API', async () => {
       mockApi.post.mockReturnValue(of({}));

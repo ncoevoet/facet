@@ -1195,6 +1195,7 @@ Activez ou désactivez des fonctionnalités optionnelles pour réduire l'utilisa
 | `show_folders` | `true` | Afficher le parcours par dossiers de la structure de répertoires photo |
 | `show_scenes` | `true` | Afficher la vue Scènes (`/scenes`) qui regroupe les photos de tête de rafale en scènes chronologiques pour un tri dans l'ordre du récit |
 | `show_my_taste` | `true` | Afficher le tri « My Taste » fondé sur le score appris du classeur personnel, avec un badge de confiance couverture-apprise / précision |
+| `show_social_export` | `true` | Affiche le menu **Recadrage social** (réservé à l'édition) : recadrages sensibles au sujet pour les formats des réseaux sociaux. Voir [Export social](#export-social) |
 | `show_proofing` | `false` | Active l'épreuvage client sur les albums partagés : un lien de partage (plus un code PIN facultatif) permet à un client sans compte de mettre un cœur aux photos et de laisser des commentaires, que le propriétaire de l'album examine depuis une boîte de dialogue réservée à l'édition. Désactivé par défaut. Voir [Épreuvage client](#client-proofing) |
 
 **Optimisation mémoire :** définir `show_similar_button: false` empêche le chargement de numpy, réduisant l'empreinte mémoire de la visionneuse. La fonctionnalité de photos similaires calcule la similarité cosinus des embeddings CLIP, ce qui nécessite numpy.
@@ -1707,6 +1708,33 @@ Le signal repose sur la **sémantique de la légende** : la légende IA de chaq
 > **Coût du remplissage rétroactif des légendes.** Les embeddings de légende sont calculés une seule fois et stockés, si bien que le cosinus par photo est ensuite gratuit. Une analyse n'encode que sa poignée de nouvelles légendes (peu coûteux, incrémental), mais la première passe complète sur une bibliothèque existante encode chaque légende — une passe avant de la tour textuelle par légende, rapide sur GPU et ~quelques heures sur CPU. Exécutez `python facet.py --detect-moments` une fois (GPU recommandé) pour ce remplissage ; ajoutez `--limit N` pour vérifier d'abord sur un échantillon.
 
 **Découvrir un vocabulaire propre à la bibliothèque.** L'ensemble `general` est une valeur par défaut raisonnable, mais vous pouvez proposer un vocabulaire adapté à *votre* bibliothèque avec `python facet.py --discover-moments` : il regroupe les vecteurs `caption_embedding` stockés (HDBSCAN), nomme chaque grappe à partir de ses légendes (un mot-clé plus les légendes les plus proches du centroïde comme prompts prêts à l'emploi), et écrit le résultat sous forme d'un bloc `event_types.discovered` dans `scoring_config.discovered.json`. Examinez-le, copiez `discovered` dans `event_types` ci-dessus, réglez `default_event_type` sur `discovered`, et exécutez `--recompute-moments` pour l'adopter — la découverte propose, elle ne réécrit jamais la configuration active. `--discover-min-cluster-size N` contrôle la granularité (plus petit = plus de moments, plus fins).
+
+## Export social
+
+Recadrages sensibles au sujet pour les formats des réseaux sociaux (`GET /api/photo/social_crop`, réservé à l'édition). Chaque préréglage recadre l'original en pleine résolution vers un format cible et le cadre sur le sujet détecté — le plus grand rectangle de ce format tenant dans l'image, centré sur le sujet avec une marge et borné aux bords. La boîte du sujet suit une chaîne de repli : la boîte de sujet BiRefNet persistée (`photos.subject_bbox`) → l'union des boîtes de visages détectés → un recadrage centré simple. Voir [Visionneuse web — Téléchargement](VIEWER.md#download).
+
+```json
+{
+  "social_export": {
+    "presets": {
+      "square":       { "label_key": "social_export.presets.square",       "aspect": "1:1" },
+      "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
+      "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
+    },
+    "subject_margin_percent": 8,
+    "jpeg_quality": 92
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|---------|-------------|
+| `presets.<id>.label_key` | — | Chemin i18n pour le nom affiché du préréglage (`social_export.presets.*`) |
+| `presets.<id>.aspect` | — | Format cible sous la forme `"l:h"` (p. ex. `1:1`, `4:5`, `9:16`) |
+| `subject_margin_percent` | `8` | Marge autour de la boîte du sujet (pourcentage de sa taille) avant de centrer le recadrage |
+| `jpeg_quality` | `92` | Qualité JPEG du recadrage exporté |
+
+Contrôlé par `viewer.features.show_social_export` (par défaut `true`). La colonne `photos.subject_bbox` est écrite par la passe de saillance au scan et par `--recompute-saliency` ; les lignes scannées avant son existence se rabattent automatiquement sur le recadrage par visages ou centré.
 
 ## Nettoyage des indésirables
 

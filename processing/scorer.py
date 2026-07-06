@@ -2208,6 +2208,7 @@ class Facet:
                 res.setdefault('qalign_score', None)
                 res.setdefault('aesthetic_v25', None)
                 res.setdefault('deqa_score', None)
+                res.setdefault('subject_bbox', None)
                 for form_col in FORM_METRIC_COLUMNS:
                     res.setdefault(form_col, None)
                 conn.execute(_photos_upsert('''
@@ -2226,7 +2227,7 @@ class Facet:
                         quality_score, topiq_score, composition_explanation, scoring_model, composition_pattern,
                         aesthetic_iaa, face_quality_iqa, liqe_score,
                         qalign_score, aesthetic_v25, deqa_score,
-                        subject_sharpness, subject_prominence, subject_placement, bg_separation,
+                        subject_sharpness, subject_prominence, subject_placement, bg_separation, subject_bbox,
                         form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
                         gps_latitude, gps_longitude, scanned_at
                     )
@@ -2245,7 +2246,7 @@ class Facet:
                         :quality_score, :topiq_score, :composition_explanation, :scoring_model, :composition_pattern,
                         :aesthetic_iaa, :face_quality_iqa, :liqe_score,
                         :qalign_score, :aesthetic_v25, :deqa_score,
-                        :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation,
+                        :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation, :subject_bbox,
                         :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
                         :gps_latitude, :gps_longitude, datetime('now')
                     )

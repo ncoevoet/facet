@@ -445,6 +445,8 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Saliency Overlay:** `GET /api/saliency_overlay?path=` returns a translucent BiRefNet heatmap PNG (alpha = saliency) recomputed on demand from the stored 640px thumbnail (the mask is never persisted; the model loads once via `api/model_cache.get_or_load_saliency_scorer`). `GET /api/photo/face_markers?path=` returns per-face boxes + eye centres (normalised 0..1) and `eyes_open_score`/`is_blink` reconstructed from stored 106-point landmarks (no model). Both read-only; the critique dialog's "Show overlay" toggle composites them. Gated by `viewer.features.show_saliency_overlay` (default `true`).
 
+**Saliency-Aware Social Crop:** `GET /api/photo/social_crop?path=&preset=` (edition-gated) returns the CROPPED full-resolution JPEG for a configured social aspect preset (`social_export.presets`, e.g. `square` 1:1, `portrait_4x5`, `story_9x16`), framing the detected subject — something Lightroom export presets cannot do. The crop is the largest rectangle of the target aspect that fits the image, centered on the subject with `social_export.subject_margin_percent` breathing room, clamped at edges (deterministic pure math in `processing/social_crop.py`). Subject box fallback chain: persisted BiRefNet box `photos.subject_bbox` (JSON `[x0,y0,x1,y1]` normalized 0..1, written by the saliency pass + `--recompute-saliency`, extracted in `models/saliency_scorer.bbox_from_mask`) → union of `faces` bboxes → center crop. `GET /api/photo/social_crop/preview?path=&preset=` returns just `{preset, aspect, source: saliency|faces|center, rect}` (normalized) from stored dimensions — no original decode — for the UI overlay/tooltip. Original decode reuses `utils.image_loading.load_image_from_path` (RAW via rawpy, HEIC via pillow-heif, EXIF orientation applied). Config: `social_export` block (`presets`, `subject_margin_percent`, `jpeg_quality`). Gated by `viewer.features.show_social_export` (default `true`). Column: `subject_bbox`.
+
 **Memories:** `GET /api/memories?date=YYYY-MM-DD` — photos taken on the same calendar date in previous years ("On This Day"). The viewer plays the matches as a randomized full-screen diaporama (slideshow) rather than the old grid modal; the nav button tooltip spells this out.
 
 **AI Captioning:** `GET /api/caption?path=<path>` — generate or retrieve AI caption for a photo. Bulk generation via `--generate-captions` CLI.
@@ -567,7 +569,10 @@ For quick reference, here are the actual defaults from the config file:
 | `viewer.features` | `show_rating_controls` | `true` |
 | `viewer.features` | `show_rating_badge` | `true` |
 | `viewer.features` | `show_folders` | `true` |
+| `viewer.features` | `show_social_export` | `true` |
 | `viewer.features` | `show_proofing` | `false` |
+| `social_export` | `subject_margin_percent` | `8` |
+| `social_export` | `jpeg_quality` | `92` |
 | `capsules` | `freshness_hours` | `24` |
 | `capsules` | `reverse_geocoding` | `true` |
 | `capsules` | `min_aggregate` | `6.0` |

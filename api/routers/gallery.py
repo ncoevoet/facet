@@ -1197,6 +1197,16 @@ async def api_similar_photos(
         raise HTTPException(status_code=500, detail='Internal server error')
 
 
+def _social_export_presets() -> dict:
+    """Expose the configured social-export presets to the client menu."""
+    cfg = _FULL_CONFIG.get('social_export', {}) or {}
+    presets = [
+        {'key': key, 'label_key': entry.get('label_key', key), 'aspect': entry.get('aspect', '')}
+        for key, entry in (cfg.get('presets', {}) or {}).items()
+    ]
+    return {'presets': presets}
+
+
 @router.get("/api/config")
 def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Get viewer configuration for Angular client initialization."""
@@ -1221,6 +1231,7 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         features.setdefault('show_my_taste', True)
         features.setdefault('show_scenes', True)
         features.setdefault('show_junk_sweep', True)
+        features.setdefault('show_social_export', True)
 
         # Check if albums table exists
         try:
@@ -1238,6 +1249,7 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         'display': VIEWER_CONFIG['display'],
         'features': features,
         'quality_thresholds': VIEWER_CONFIG['quality_thresholds'],
+        'social_export': _social_export_presets(),
         'moment_confidence_min': VIEWER_CONFIG.get('moment_confidence_min', 0),
         'notification_duration_ms': VIEWER_CONFIG.get('notification_duration_ms', 2000),
         'translation_target_language': _FULL_CONFIG.get('translation', {}).get('target_language', ''),
