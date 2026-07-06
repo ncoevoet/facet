@@ -501,6 +501,8 @@ For each group, pick the keeper(s); confirming rejects the rest. Confirms are de
 
 **My Taste chip.** Every confirm records `source='culling'` comparison rows that train the personal ranker, so the header shows a small "My Taste · N comparisons" chip that updates after each decision — the AI learns your eye as you cull (`GET /api/ranker/status`).
 
+**Genre profiles.** A **Profile** selector in the toolbar applies a genre preset that bundles every culling knob at once — strictness, keeper budget, similarity threshold and the darkroom's eyes-closed / poor-expression face cutoffs — so sports keeps only the sharpest of a burst, weddings keep more eyes-open variants, concerts and wildlife relax the face gates. From the scope's dominant narrative moment the viewer auto-suggests the matching preset as a one-click chip. The choice persists in `localStorage`; nudging any knob by hand reverts the label to "Custom". Presets and the moment→preset mapping live in the [`cull_profiles`](CONFIGURATION.md#genre-aware-culling-profiles) block (`GET /api/culling/profiles`, `GET /api/culling/profiles/suggest`).
+
 ### Auto-cull
 
 A toolbar **Auto-cull** button culls a whole scope in one pass instead of group-by-group. Pick the scope with the granularity/scope controls (all groups, or only bursts / similars / scenes, optionally an album or date window), set a **strictness** — the keeper budget, where higher keeps fewer per group — and preview. Each group keeps its best photo plus everything within the strictness margin (floored at a per-group minimum) and rejects the rest.

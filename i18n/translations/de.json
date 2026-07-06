@@ -1788,6 +1788,17 @@
     "weight_ready_tooltip": "Genügend Vergleiche gesammelt — öffnen Sie Vergleich → Gewichtsvorschläge, um die optimierten Gewichte dieser Kategorie zu prüfen und anzuwenden.",
     "strictness": "Strenge",
     "strictness_tooltip": "Höher behält nur das beste Foto; niedriger behält auch knappe Treffer",
+    "profiles": {
+      "tooltip": "Genre-Vorlage: bündelt Strenge, Behalte-Budget und Gesichtsschwellen",
+      "custom": "Benutzerdefiniert",
+      "suggested": "Vorschlag: {name}",
+      "apply": "Anwenden",
+      "balanced": "Ausgewogen",
+      "wedding": "Hochzeit",
+      "sports": "Sport",
+      "concert": "Konzert",
+      "wildlife": "Tierwelt"
+    },
     "auto_cull": {
       "button": "Auto-Aussortierung",
       "tooltip": "Behält automatisch das beste Foto jeder Gruppe und lehnt den Rest ab",

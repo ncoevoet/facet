@@ -1786,6 +1786,17 @@ export const I18N = {
     weight_ready_tooltip: "culling.weight_ready_tooltip",
     strictness: "culling.strictness",
     strictness_tooltip: "culling.strictness_tooltip",
+    profiles: {
+      tooltip: "culling.profiles.tooltip",
+      custom: "culling.profiles.custom",
+      suggested: "culling.profiles.suggested",
+      apply: "culling.profiles.apply",
+      balanced: "culling.profiles.balanced",
+      wedding: "culling.profiles.wedding",
+      sports: "culling.profiles.sports",
+      concert: "culling.profiles.concert",
+      wildlife: "culling.profiles.wildlife",
+    },
     auto_cull: {
       button: "culling.auto_cull.button",
       tooltip: "culling.auto_cull.tooltip",

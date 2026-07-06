@@ -52,6 +52,21 @@ interface AutoCullResponse {
   preview_truncated: boolean;
 }
 
+/** A genre culling preset (GET /api/culling/profiles) bundling the culling knobs. */
+interface CullProfile {
+  id: string;
+  label_key: string;
+  strictness: number | null;
+  eyes_closed_max: number | null;
+  poor_expression_min: number | null;
+  keep_min_per_group: number;
+  similarity_threshold: number | null;
+}
+interface CullProfilesResponse { profiles: CullProfile[]; default: string; }
+
+/** GET /api/culling/profiles/suggest — dominant-moment preset suggestion for a scope. */
+interface ProfileSuggestion { profile: string | null; moment: string | null; share: number; total: number; }
+
 // Per-user culling toolbar preferences, persisted so the page reopens the way
 // the user left it. The URL query param (deep links / "Cull this scene") still
 // overrides the stored granularity.
@@ -60,6 +75,7 @@ const CULL_SORT_KEY = 'facet_culling_sort';
 const CULL_CATEGORY_KEY = 'facet_culling_category';
 const CULL_FACE_EYES_KEY = 'facet_culling_face_eyes_min';
 const CULL_FACE_SMILE_KEY = 'facet_culling_face_smile_min';
+const CULL_PROFILE_KEY = 'facet_culling_profile';
 
 /** Stored face-panel slider value (0-10); 0 = highlight filter off. */
 function readStoredFaceMin(key: string): number {
@@ -243,6 +259,29 @@ interface ShortcutRow {
                 <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
               </div>
             </mat-menu>
+          }
+          @if (cullProfiles().length > 0) {
+            <button mat-stroked-button [matMenuTriggerFor]="profileMenu"
+                    [class.!text-[var(--mat-sys-primary)]]="selectedProfile() !== ''"
+                    [matTooltip]="I18N.culling.profiles.tooltip | translate" class="!text-xs">
+              <mat-icon class="!text-base">theaters</mat-icon>
+              {{ selectedProfileLabel() | translate }}
+            </button>
+            <mat-menu #profileMenu="matMenu">
+              @for (p of cullProfiles(); track p.id) {
+                <button mat-menu-item (click)="applyProfile(p)">
+                  <span [class.font-bold]="selectedProfile() === p.id">{{ p.label_key | translate }}</span>
+                </button>
+              }
+            </mat-menu>
+            @if (suggestedProfile(); as sp) {
+              <button mat-stroked-button (click)="applySuggestion()" class="!text-xs !border-dashed"
+                      [matTooltip]="I18N.culling.profiles.tooltip | translate"
+                      [attr.aria-label]="I18N.culling.profiles.apply | translate">
+                <mat-icon class="!text-base">auto_awesome</mat-icon>
+                {{ I18N.culling.profiles.suggested | translate:{ name: (sp.label_key | translate) } }}
+              </button>
+            }
           }
           <div class="hidden lg:flex items-center gap-2" [matTooltip]="I18N.culling.strictness_tooltip | translate">
             <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
@@ -833,6 +872,25 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly similarityThreshold = signal(85);
   /** Auto-keep strictness (0-100): higher keeps fewer photos below the best. */
   protected readonly strictness = signal(100);
+
+  /** Genre culling presets (GET /api/culling/profiles). */
+  protected readonly cullProfiles = signal<CullProfile[]>([]);
+  /** Active preset id ('' = custom / none). Persisted; re-applied on open. */
+  protected readonly selectedProfile = signal<string>(localStorage.getItem(CULL_PROFILE_KEY) ?? '');
+  /** Moment-derived preset suggestion for the current scope (null = none). */
+  protected readonly profileSuggestion = signal<ProfileSuggestion | null>(null);
+  /** Label of the active preset, or "Custom" when none matches the current knobs. */
+  protected readonly selectedProfileLabel = computed(() => {
+    const p = this.cullProfiles().find(x => x.id === this.selectedProfile());
+    return p ? p.label_key : I18N.culling.profiles.custom;
+  });
+  /** The suggested preset to offer as a chip — only when it differs from the
+   *  active one and resolves to a known profile. */
+  protected readonly suggestedProfile = computed<CullProfile | null>(() => {
+    const s = this.profileSuggestion();
+    if (!s || !s.profile || s.profile === this.selectedProfile()) return null;
+    return this.cullProfiles().find(x => x.id === s.profile) ?? null;
+  });
   protected readonly excludeRejected = signal(true);
   protected readonly groups = signal<CullingGroup[]>([]);
   protected readonly totalGroups = signal(0);
@@ -1025,6 +1083,8 @@ export class BurstCullingComponent implements OnDestroy {
     if (gb === 'all' || gb === 'burst' || gb === 'similar' || gb === 'scene') this.groupBy.set(gb);
     void this.loadGroups();
     void this.loadAlbums();
+    void this.loadCullProfiles();
+    void this.refreshSuggestion();
     void this.refreshComparisonStats();
     void this.refreshRankerStatus();
     // Keep the keyboard selection in bounds as groups load / get hidden.
@@ -1117,6 +1177,7 @@ export class BurstCullingComponent implements OnDestroy {
     this.scopeScene.set(null);
     void this.router.navigate(['/culling']);
     void this.loadGroups();
+    void this.refreshSuggestion();
   }
 
   /** Non-smart albums for the scope cascade's first level (best-effort). */
@@ -1156,6 +1217,7 @@ export class BurstCullingComponent implements OnDestroy {
     });
     this.selectedGroupIndex.set(0);
     this.resetForReload();
+    void this.refreshSuggestion();
   }
 
   protected scopeWholeLibrary(): void {
@@ -1227,16 +1289,30 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected onThresholdChange(value: number): void {
     this.similarityThreshold.set(value);
+    this.clearProfileSelection();
     this.resetForReload();
   }
 
+  /** Moving a knob by hand drops the preset label — the mix is now custom. */
+  private clearProfileSelection(): void {
+    if (this.selectedProfile()) {
+      this.selectedProfile.set('');
+      localStorage.removeItem(CULL_PROFILE_KEY);
+    }
+  }
+
+  protected onStrictnessChange(value: number): void {
+    this.strictness.set(value);
+    this.clearProfileSelection();
+    this.reselectFromStrictness();
+  }
+
   /**
-   * Re-derive the auto-keep selection for every loaded group from the new
+   * Re-derive the auto-keep selection for every loaded group from the current
    * strictness. Purely client-side over the burst_score values already
    * returned — no backend round-trip. Confirmed groups are left untouched.
    */
-  protected onStrictnessChange(value: number): void {
-    this.strictness.set(value);
+  private reselectFromStrictness(): void {
     const confirmed = this.confirmedGroups();
     const map = new Map<number, Set<string>>();
     for (const group of this.groups()) {
@@ -1249,6 +1325,60 @@ export class BurstCullingComponent implements OnDestroy {
       if (kept.size > 0) map.set(group.group_id, kept);
     }
     this.selectionsMap.set(map);
+  }
+
+  // --- Genre culling profiles (preset selector + moment auto-suggest) ---
+
+  /** Load the genre culling presets; re-apply the persisted one on open. */
+  private async loadCullProfiles(): Promise<void> {
+    try {
+      const data = await firstValueFrom(this.api.get<CullProfilesResponse>('/culling/profiles'));
+      this.cullProfiles.set(data.profiles ?? []);
+      const stored = this.cullProfiles().find(p => p.id === this.selectedProfile());
+      if (stored) this.applyProfile(stored, false);
+      else this.clearProfileSelection();
+    } catch {
+      // Preset selector stays hidden when the list can't load.
+    }
+  }
+
+  /** Re-suggest a preset from the current scope's dominant narrative moment. */
+  private async refreshSuggestion(): Promise<void> {
+    const params: Record<string, string | number | boolean> = { group_by: this.groupBy() };
+    const album = this.scopeAlbum();
+    const from = this.scopeFrom();
+    const to = this.scopeTo();
+    if (album) params['album_id'] = album;
+    if (from) params['date_from'] = from;
+    if (to) params['date_to'] = to;
+    try {
+      this.profileSuggestion.set(
+        await firstValueFrom(this.api.get<ProfileSuggestion>('/culling/profiles/suggest', params)));
+    } catch {
+      this.profileSuggestion.set(null);
+    }
+  }
+
+  /**
+   * Apply a preset: set strictness first (so a reload auto-selects with it) and
+   * the similarity threshold, remember the choice, then re-derive the auto-keep
+   * selection in place — or reload only when the threshold changed the grouping.
+   */
+  protected applyProfile(p: CullProfile, persist = true): void {
+    this.selectedProfile.set(p.id);
+    if (persist) localStorage.setItem(CULL_PROFILE_KEY, p.id);
+    if (p.strictness != null) this.strictness.set(p.strictness);
+    if (p.similarity_threshold != null && p.similarity_threshold !== this.similarityThreshold()) {
+      this.similarityThreshold.set(p.similarity_threshold);
+      this.resetForReload();
+    } else if (p.strictness != null) {
+      this.reselectFromStrictness();
+    }
+  }
+
+  protected applySuggestion(): void {
+    const p = this.suggestedProfile();
+    if (p) this.applyProfile(p);
   }
 
   protected onExcludeRejectedChange(value: boolean): void {
@@ -1387,7 +1517,7 @@ export class BurstCullingComponent implements OnDestroy {
     try {
       const data = await firstValueFrom(
         this.api.post<{ faces_by_path: Record<string, CullingFace[]>; thresholds?: FaceThresholds }>(
-          '/culling-group/faces', { paths: missing.map(p => p.path) },
+          '/culling-group/faces', { paths: missing.map(p => p.path), profile: this.selectedProfile() || undefined },
         ),
       );
       if (data.thresholds) this.faceThresholds.set(data.thresholds);
@@ -1568,6 +1698,8 @@ export class BurstCullingComponent implements OnDestroy {
       dry_run: dryRun,
       highlights_album: highlightsAlbum,
     };
+    const profile = this.selectedProfile();
+    if (profile) body['profile'] = profile;
     const album = this.scopeAlbum();
     if (album) body['album_id'] = Number(album);
     const from = this.scopeFrom();

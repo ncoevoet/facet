@@ -503,6 +503,101 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('cull profiles (genre presets)', () => {
+    const profilesResponse = {
+      profiles: [
+        { id: 'balanced', label_key: 'culling.profiles.balanced', strictness: 50, eyes_closed_max: 4.0, poor_expression_min: 4.0, keep_min_per_group: 1, similarity_threshold: 85 },
+        { id: 'wedding', label_key: 'culling.profiles.wedding', strictness: 35, eyes_closed_max: 5.0, poor_expression_min: 5.0, keep_min_per_group: 2, similarity_threshold: 90 },
+      ],
+      default: 'balanced',
+    };
+
+    it('loads profiles from the API', async () => {
+      mockApi.get.mockReturnValue(of(profilesResponse));
+      await (component as any).loadCullProfiles();
+
+      expect(mockApi.get).toHaveBeenCalledWith('/culling/profiles');
+      expect(component['cullProfiles']()).toEqual(profilesResponse.profiles);
+    });
+
+    it('applyProfile sets strictness and the similarity threshold, and persists the choice', () => {
+      mockApi.get.mockReturnValue(of(mockCullingGroupsResponse));
+      component['applyProfile'](profilesResponse.profiles[1]);
+
+      expect(component['selectedProfile']()).toBe('wedding');
+      expect(component['strictness']()).toBe(35);
+      expect(component['similarityThreshold']()).toBe(90);
+      expect(localStorage.getItem('facet_culling_profile')).toBe('wedding');
+    });
+
+    it('a manual strictness change after selecting a profile reverts the selection to custom', () => {
+      mockApi.get.mockReturnValue(of(mockCullingGroupsResponse));
+      component['applyProfile'](profilesResponse.profiles[1]);
+
+      component['onStrictnessChange'](60);
+
+      expect(component['selectedProfile']()).toBe('');
+      expect(localStorage.getItem('facet_culling_profile')).toBeNull();
+      expect(component['selectedProfileLabel']()).toBe('culling.profiles.custom');
+    });
+
+    it('a manual similarity threshold change after selecting a profile also reverts to custom', () => {
+      mockApi.get.mockReturnValue(of(mockCullingGroupsResponse));
+      component['applyProfile'](profilesResponse.profiles[1]);
+
+      component['onThresholdChange'](75);
+
+      expect(component['selectedProfile']()).toBe('');
+    });
+
+    it('surfaces a moment-derived suggestion that differs from the active selection', async () => {
+      mockApi.get.mockReturnValue(of(profilesResponse));
+      await (component as any).loadCullProfiles();
+      mockApi.get.mockReturnValue(of({ profile: 'wedding', moment: 'ceremony', share: 0.75, total: 4 }));
+      await (component as any).refreshSuggestion();
+
+      expect(component['suggestedProfile']()?.id).toBe('wedding');
+    });
+
+    it('applySuggestion applies the suggested profile', async () => {
+      mockApi.get.mockReturnValue(of(profilesResponse));
+      await (component as any).loadCullProfiles();
+      mockApi.get.mockReturnValue(of({ profile: 'wedding', moment: 'ceremony', share: 0.75, total: 4 }));
+      await (component as any).refreshSuggestion();
+
+      mockApi.get.mockReturnValue(of(mockCullingGroupsResponse));
+      component['applySuggestion']();
+
+      expect(component['selectedProfile']()).toBe('wedding');
+      expect(component['strictness']()).toBe(35);
+    });
+
+    it('restores a persisted profile id from localStorage on a fresh construction', async () => {
+      localStorage.setItem('facet_culling_profile', 'wedding');
+      mockApi.get.mockReturnValue(of(profilesResponse));
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          BurstCullingComponent,
+          { provide: ApiService, useValue: mockApi },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+          { provide: I18nService, useValue: mockI18n },
+          { provide: GalleryStore, useValue: { config: () => null } },
+          { provide: AuthService, useValue: { isEdition: () => true } },
+          { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+        ],
+      });
+      component = TestBed.runInInjectionContext(() => new BurstCullingComponent());
+
+      expect(component['selectedProfile']()).toBe('wedding');
+
+      await (component as any).loadCullProfiles();
+
+      expect(component['strictness']()).toBe(35);
+      expect(component['similarityThreshold']()).toBe(90);
+    });
+  });
+
   describe('skipGroup (pass with countdown)', () => {
     beforeEach(async () => {
       vi.useFakeTimers();

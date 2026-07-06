@@ -66,6 +66,7 @@ class CullingConfirmBody(BaseModel):
 
 class CullingFacesBody(BaseModel):
     paths: list[str]
+    profile: Optional[str] = None
 
 
 class AutoCullBody(BaseModel):
@@ -74,9 +75,10 @@ class AutoCullBody(BaseModel):
     date_from: Optional[str] = None
     date_to: Optional[str] = None
     strictness: Optional[int] = Field(None, ge=0, le=100)
-    min_keep_per_group: int = Field(1, ge=1)
+    min_keep_per_group: Optional[int] = Field(None, ge=1)
     highlights_album: str = ''
     dry_run: bool = True
+    profile: Optional[str] = None
 
 
 # --- Helpers ---
@@ -125,20 +127,51 @@ def _compute_burst_score(photo):
     return score
 
 
-def _get_face_thresholds():
+def _get_face_thresholds(profile=None):
     """Culling face-signal cutoffs from scoring_config face_detection.
 
     Returns (eyes_closed_max, poor_expression_min): eyes_open_score (0-10)
     at/below the former counts as closed, expression/smile (0-10) below the
     latter counts as poor. Exposed to the client via the /culling-group/faces
-    ``thresholds`` object so both sides read one source.
+    ``thresholds`` object so both sides read one source. A named ``profile``
+    (genre preset) overrides the global face_detection cutoffs so the darkroom
+    badges/blink flags reflect the chosen genre (wedding is stricter on eyes,
+    sports/wildlife relax them).
     """
     from api.config import _FULL_CONFIG
     fd = _FULL_CONFIG.get('face_detection', {})
+    eyes_closed_max = float(fd.get('eyes_closed_max', 4.0))
+    poor_expression_min = float(fd.get('poor_expression_min', 4.0))
+    prof = _resolve_cull_profile(profile)
+    if prof:
+        eyes_closed_max = float(prof.get('eyes_closed_max', eyes_closed_max))
+        poor_expression_min = float(prof.get('poor_expression_min', poor_expression_min))
+    return (eyes_closed_max, poor_expression_min)
+
+
+def _get_cull_profiles():
+    """Genre-aware culling presets from scoring_config ``cull_profiles``.
+
+    Returns ``(profiles, default, moment_map)``: ``profiles`` maps a profile id
+    to its knob bundle (strictness / keeper budget / face cutoffs / similarity
+    threshold), ``default`` names the fallback profile, ``moment_map`` maps a
+    narrative_moment value to a profile id for the auto-suggest.
+    """
+    from api.config import _FULL_CONFIG
+    cp = _FULL_CONFIG.get('cull_profiles', {}) or {}
     return (
-        float(fd.get('eyes_closed_max', 4.0)),
-        float(fd.get('poor_expression_min', 4.0)),
+        cp.get('profiles', {}) or {},
+        cp.get('default', ''),
+        cp.get('moment_map', {}) or {},
     )
+
+
+def _resolve_cull_profile(name):
+    """Return the profile knob bundle for ``name``, or None if unknown/empty."""
+    if not name:
+        return None
+    profiles, _, _ = _get_cull_profiles()
+    return profiles.get(name)
 
 
 # Thresholds for deriving a plain-language cull reason from already-loaded
@@ -954,7 +987,7 @@ async def api_culling_group_faces(
     ``thresholds``. Replaces the per-photo ``/api/photo/faces`` fan-out so the
     culling lightbox can show true per-face badges.
     """
-    eyes_closed_max, poor_expression_min = _get_face_thresholds()
+    eyes_closed_max, poor_expression_min = _get_face_thresholds(body.profile)
     thresholds = {'eyes_closed_max': eyes_closed_max, 'poor_expression_min': poor_expression_min}
     paths = [p for p in (body.paths or []) if p]
     if not paths:
@@ -1281,6 +1314,90 @@ def _fill_highlights_album(conn, user_id, album_name, paths):
     return append_album_photos(conn, album_id, paths)
 
 
+@router.get("/api/culling/profiles")
+def list_cull_profiles(user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Genre-aware culling presets for the darkroom toolbar.
+
+    Returns the ordered profile list (each with its strictness, keeper budget,
+    face cutoffs and similarity threshold) plus the default id, so the client can
+    render the preset selector and apply a whole bundle in one click. Read-only.
+    """
+    profiles, default, _ = _get_cull_profiles()
+    items = [{
+        'id': pid,
+        'label_key': p.get('label_key', ''),
+        'strictness': p.get('strictness'),
+        'eyes_closed_max': p.get('eyes_closed_max'),
+        'poor_expression_min': p.get('poor_expression_min'),
+        'keep_min_per_group': p.get('keep_min_per_group', 1),
+        'similarity_threshold': p.get('similarity_threshold'),
+    } for pid, p in profiles.items()]
+    return {'profiles': items, 'default': default}
+
+
+@router.get("/api/culling/profiles/suggest")
+def suggest_cull_profile(
+    group_by: str = Query('all'),
+    album_id: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Suggest a genre culling profile from the scope's dominant narrative moment.
+
+    Tallies ``narrative_moment`` over the visible photos in the scope (album /
+    date window), maps each moment to a profile via ``cull_profiles.moment_map``,
+    and returns the profile with the largest mapped share of labelled photos.
+    ``group_by`` is accepted for symmetry with the culling feed but does not
+    change the tally. Read-only; ``{profile: null}`` when nothing maps.
+    """
+    profiles, _, moment_map = _get_cull_profiles()
+    empty = {'profile': None, 'moment': None, 'share': 0.0, 'total': 0}
+    if not moment_map:
+        return empty
+    user_id = user.user_id if user else None
+    from_clause, from_params = get_photos_from_clause(user_id)
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    album_sql, album_params = album_filter_clause(album_id)
+    time_clauses, time_params = time_window_clauses(date_from, date_to)
+    where = [vis_sql, album_sql,
+             "photos.narrative_moment IS NOT NULL",
+             "photos.narrative_moment != 'other'"] + time_clauses
+    sql = (f"SELECT photos.narrative_moment AS moment, COUNT(*) AS n "
+           f"FROM {from_clause} WHERE {' AND '.join(where)} "
+           f"GROUP BY photos.narrative_moment")
+    params = from_params + vis_params + album_params + time_params
+    try:
+        with get_db() as conn:
+            if album_id is not None:
+                from api.routers.albums import _check_album_access
+                _check_album_access(conn, album_id, user_id)
+            rows = conn.execute(sql, params).fetchall()
+    except sqlite3.Error:
+        return empty
+    total = sum(r['n'] for r in rows)
+    if total == 0:
+        return empty
+    per_profile: dict[str, int] = {}
+    top_moment: dict[str, tuple[str, int]] = {}
+    for r in rows:
+        pid = moment_map.get(r['moment'])
+        if not pid or pid not in profiles:
+            continue
+        per_profile[pid] = per_profile.get(pid, 0) + r['n']
+        if r['n'] > top_moment.get(pid, ('', 0))[1]:
+            top_moment[pid] = (r['moment'], r['n'])
+    if not per_profile:
+        return {**empty, 'total': total}
+    best = max(per_profile, key=lambda k: per_profile[k])
+    return {
+        'profile': best,
+        'moment': top_moment[best][0],
+        'share': round(per_profile[best] / total, 4),
+        'total': total,
+    }
+
+
 @router.post("/api/culling/auto")
 def auto_cull(
     body: AutoCullBody,
@@ -1306,7 +1423,19 @@ def auto_cull(
     threadpool instead of stalling the event loop (like GET /api/burst-groups).
     """
     cfg = _get_auto_cull_config()
-    strictness = body.strictness if body.strictness is not None else cfg['default_strictness']
+    prof = _resolve_cull_profile(body.profile)
+    if body.strictness is not None:
+        strictness = body.strictness
+    elif prof and prof.get('strictness') is not None:
+        strictness = int(prof['strictness'])
+    else:
+        strictness = cfg['default_strictness']
+    if body.min_keep_per_group is not None:
+        min_keep = body.min_keep_per_group
+    elif prof and prof.get('keep_min_per_group') is not None:
+        min_keep = max(1, int(prof['keep_min_per_group']))
+    else:
+        min_keep = 1
     with get_db() as conn:
         try:
             user_id = user.user_id if user else None
@@ -1334,7 +1463,7 @@ def auto_cull(
                 if len(photos) < 2:
                     continue
                 keep, reject = _auto_keep_split(
-                    photos, strictness, body.min_keep_per_group,
+                    photos, strictness, min_keep,
                 )
                 keep_paths = [p['path'] for p in keep]
                 reject_paths = [p['path'] for p in reject]

@@ -1597,6 +1597,39 @@ Selezione automatica con un solo pulsante per la camera oscura di selezione (`PO
 
 `dry_run` è attivo per impostazione predefinita e restituisce un'anteprima di conservazione/scarto per gruppo; l'applicazione registra inoltre righe di confronto `source='culling'` e sollecita un riaddestramento automatico. Vedi [Galleria web — Selezione automatica](VIEWER.md#selezione-automatica).
 
+## Profili di scarto per genere
+
+Preset per genere che raggruppano tutti i controlli di scarto in un clic: lo sport conserva solo la foto più nitida di una lunga raffica, i matrimoni conservano più varianti con gli occhi aperti come priorità, i concerti allentano le soglie occhi/espressione, la fauna selvatica rimuove del tutto il filtro del volto umano. La camera oscura di scarto mostra un selettore di preset e, dal momento narrativo dominante dell'ambito, suggerisce automaticamente il preset corrispondente.
+
+```json
+{
+  "cull_profiles": {
+    "default": "balanced",
+    "profiles": {
+      "balanced": { "label_key": "culling.profiles.balanced", "strictness": 50, "eyes_closed_max": 4.0, "poor_expression_min": 4.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
+      "wedding":  { "label_key": "culling.profiles.wedding",  "strictness": 35, "eyes_closed_max": 5.0, "poor_expression_min": 5.0, "keep_min_per_group": 2, "similarity_threshold": 90 },
+      "sports":   { "label_key": "culling.profiles.sports",   "strictness": 85, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 80 },
+      "concert":  { "label_key": "culling.profiles.concert",  "strictness": 55, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
+      "wildlife": { "label_key": "culling.profiles.wildlife", "strictness": 70, "eyes_closed_max": 0.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 82 }
+    },
+    "moment_map": { "sports": "sports", "concert": "concert", "nature_wildlife": "wildlife", "pets": "wildlife", "ceremony": "wedding", "vows": "wedding", "first_dance": "wedding" }
+  }
+}
+```
+
+| Impostazione | Descrizione |
+|---|---|
+| `default` | Id del profilo applicato quando nessuno è memorizzato lato client |
+| `profiles.<id>.label_key` | Percorso i18n del nome visualizzato del preset (`culling.profiles.*`) |
+| `profiles.<id>.strictness` | Budget di conservazione (0–100) immesso nel margine di auto-scarto quando il preset è attivo |
+| `profiles.<id>.eyes_closed_max` | Punteggio occhi aperti (0–10) al di sotto del quale un volto è considerato chiuso — sovrascrive `face_detection.eyes_closed_max` nei badge del volto |
+| `profiles.<id>.poor_expression_min` | Punteggio espressione/sorriso (0–10) sotto il quale un volto è considerato scarso — sovrascrive `face_detection.poor_expression_min` |
+| `profiles.<id>.keep_min_per_group` | Minimo per gruppo sull'insieme conservato dall'auto-scarto |
+| `profiles.<id>.similarity_threshold` | Soglia di raggruppamento per similarità (percentuale) applicata dalla camera oscura quando il preset è selezionato |
+| `moment_map` | Associa un valore `narrative_moment` a un id di profilo; il momento dominante dell'ambito guida il suggerimento |
+
+Endpoint (in sola lettura): `GET /api/culling/profiles` restituisce l'elenco ordinato dei preset e il predefinito; `GET /api/culling/profiles/suggest?group_by=&album_id=&date_from=&date_to=` conta i `narrative_moment` dell'ambito e restituisce `{profile, moment, share, total}` per il preset più adatto. La richiesta di auto-scarto (`POST /api/culling/auto`) e il batch per volto (`POST /api/culling-group/faces`) accettano un `profile` opzionale; uno `strictness`/`min_keep_per_group` esplicito nella richiesta prevale sempre sul preset.
+
 ## Scenes
 
 Impostazioni per la vista Scene, che raggruppa le foto principali delle raffiche in scene cronologiche (suddivise per intervalli di tempo di scatto) per la selezione in ordine narrativo:

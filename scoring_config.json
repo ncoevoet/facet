@@ -2159,6 +2159,74 @@
     "default_strictness": 50,
     "highlights_min": 8.0
   },
+  "cull_profiles": {
+    "default": "balanced",
+    "profiles": {
+      "balanced": {
+        "label_key": "culling.profiles.balanced",
+        "strictness": 50,
+        "eyes_closed_max": 4.0,
+        "poor_expression_min": 4.0,
+        "keep_min_per_group": 1,
+        "similarity_threshold": 85
+      },
+      "wedding": {
+        "label_key": "culling.profiles.wedding",
+        "strictness": 35,
+        "eyes_closed_max": 5.0,
+        "poor_expression_min": 5.0,
+        "keep_min_per_group": 2,
+        "similarity_threshold": 90
+      },
+      "sports": {
+        "label_key": "culling.profiles.sports",
+        "strictness": 85,
+        "eyes_closed_max": 2.0,
+        "poor_expression_min": 0.0,
+        "keep_min_per_group": 1,
+        "similarity_threshold": 80
+      },
+      "concert": {
+        "label_key": "culling.profiles.concert",
+        "strictness": 55,
+        "eyes_closed_max": 2.0,
+        "poor_expression_min": 0.0,
+        "keep_min_per_group": 1,
+        "similarity_threshold": 85
+      },
+      "wildlife": {
+        "label_key": "culling.profiles.wildlife",
+        "strictness": 70,
+        "eyes_closed_max": 0.0,
+        "poor_expression_min": 0.0,
+        "keep_min_per_group": 1,
+        "similarity_threshold": 82
+      }
+    },
+    "moment_map": {
+      "sports": "sports",
+      "concert": "concert",
+      "nature_wildlife": "wildlife",
+      "pets": "wildlife",
+      "ceremony": "wedding",
+      "getting_ready_bride": "wedding",
+      "getting_ready_groom": "wedding",
+      "ceremony_entrance": "wedding",
+      "vows": "wedding",
+      "ring_exchange": "wedding",
+      "first_kiss": "wedding",
+      "recessional": "wedding",
+      "family_formals": "wedding",
+      "couple_portraits": "wedding",
+      "cocktail_hour": "wedding",
+      "reception_details": "wedding",
+      "dinner_toasts": "wedding",
+      "cake_cutting": "wedding",
+      "first_dance": "wedding",
+      "party_dancing": "wedding",
+      "send_off": "wedding"
+    }
+  },
   "similarity_groups": {
     "default_threshold": 0.85,
     "min_group_size": 2,

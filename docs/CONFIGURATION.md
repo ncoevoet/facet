@@ -1612,6 +1612,39 @@ One-button auto-cull for the culling darkroom (`POST /api/culling/auto`, edition
 
 `dry_run` defaults on and returns a per-group keep/reject preview; an apply additionally records `source='culling'` comparison rows and nudges one auto-retrain. See [Web Viewer — Auto-cull](VIEWER.md#auto-cull).
 
+## Genre-Aware Culling Profiles
+
+Genre presets that bundle every culling knob into one click: sports keeps only the single sharpest of a long burst, weddings keep more variants with eyes-open critical, concerts relax the eye/expression gates, wildlife drops the human-face gate entirely. The culling darkroom shows a preset selector and, from the scope's dominant narrative moment (see [Narrative Moments](SCORING.md)), auto-suggests the matching preset.
+
+```json
+{
+  "cull_profiles": {
+    "default": "balanced",
+    "profiles": {
+      "balanced": { "label_key": "culling.profiles.balanced", "strictness": 50, "eyes_closed_max": 4.0, "poor_expression_min": 4.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
+      "wedding":  { "label_key": "culling.profiles.wedding",  "strictness": 35, "eyes_closed_max": 5.0, "poor_expression_min": 5.0, "keep_min_per_group": 2, "similarity_threshold": 90 },
+      "sports":   { "label_key": "culling.profiles.sports",   "strictness": 85, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 80 },
+      "concert":  { "label_key": "culling.profiles.concert",  "strictness": 55, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
+      "wildlife": { "label_key": "culling.profiles.wildlife", "strictness": 70, "eyes_closed_max": 0.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 82 }
+    },
+    "moment_map": { "sports": "sports", "concert": "concert", "nature_wildlife": "wildlife", "pets": "wildlife", "ceremony": "wedding", "vows": "wedding", "first_dance": "wedding" }
+  }
+}
+```
+
+| Setting | Description |
+|---------|-------------|
+| `default` | Profile id applied when none is stored client-side |
+| `profiles.<id>.label_key` | i18n dot-path for the preset's display name (`culling.profiles.*`) |
+| `profiles.<id>.strictness` | Keeper budget (0–100) fed into the auto-cull margin when this preset is active |
+| `profiles.<id>.eyes_closed_max` | Eyes-open score (0–10) at/below which a face counts as closed — overrides the global `face_detection.eyes_closed_max` in the darkroom face badges |
+| `profiles.<id>.poor_expression_min` | Expression/smile score (0–10) below which a face counts as poor — overrides `face_detection.poor_expression_min` |
+| `profiles.<id>.keep_min_per_group` | Per-group floor on the auto-cull keep set for this preset |
+| `profiles.<id>.similarity_threshold` | Similarity-grouping threshold (percent) the darkroom applies when the preset is selected |
+| `moment_map` | Maps a `narrative_moment` value to a profile id; the scope's dominant mapped moment drives the auto-suggest |
+
+Endpoints (both read-only): `GET /api/culling/profiles` returns the ordered preset list plus the default; `GET /api/culling/profiles/suggest?group_by=&album_id=&date_from=&date_to=` tallies `narrative_moment` over the scope and returns `{profile, moment, share, total}` for the best-matching preset. The auto-cull request (`POST /api/culling/auto`) and the per-face batch (`POST /api/culling-group/faces`) accept an optional `profile` id; an explicit `strictness`/`min_keep_per_group` in the request always wins over the preset.
+
 ## Scenes
 
 Settings for the Scenes view, which groups burst-lead photos into chronological scenes (split by capture-time gaps) for story-order culling:

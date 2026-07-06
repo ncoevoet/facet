@@ -182,6 +182,28 @@ def test_thresholds_come_from_config(client):
     assert all(f["is_blink"] is True for f in body["faces_by_path"]["/a.jpg"])
 
 
+def test_profile_overrides_face_thresholds(client):
+    """A genre profile's face cutoffs override the global face_detection ones so
+    the darkroom badges/blink flags reflect the chosen genre."""
+    conn = _db(_faces())
+    with (
+        mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
+        mock.patch(
+            "api.routers.burst_culling._resolve_cull_profile",
+            return_value={"eyes_closed_max": 6.0, "poor_expression_min": 5.0},
+        ),
+        mock.patch("analyzers.FaceAnalyzer.compute_eyes_open_score", lambda lm: 5.5),
+        mock.patch("analyzers.FaceAnalyzer.compute_expression_score", lambda lm: 5.0),
+        mock.patch("analyzers.FaceAnalyzer.compute_smile_score", lambda lm: 5.0),
+    ):
+        resp = client.post(
+            "/api/culling-group/faces", json={"paths": ["/a.jpg"], "profile": "wedding"})
+    body = resp.json()
+    assert body["thresholds"] == {"eyes_closed_max": 6.0, "poor_expression_min": 5.0}
+    # eyes 5.5 <= the profile's 6.0 cutoff -> blink under this genre profile
+    assert all(f["is_blink"] is True for f in body["faces_by_path"]["/a.jpg"])
+
+
 def test_empty_paths_returns_empty(client):
     resp = client.post("/api/culling-group/faces", json={"paths": []})
     assert resp.status_code == 200

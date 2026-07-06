@@ -1782,6 +1782,17 @@
     "weight_ready_tooltip": "Enough comparisons collected — open Comparison → Weight Suggestions to review and apply the optimized weights for this category.",
     "strictness": "Strictness",
     "strictness_tooltip": "Higher keeps only the single best photo; lower keeps near-ties too",
+    "profiles": {
+      "tooltip": "Genre preset: bundles strictness, keeper budget and face thresholds",
+      "custom": "Custom",
+      "suggested": "Suggested: {name}",
+      "apply": "Apply",
+      "balanced": "Balanced",
+      "wedding": "Wedding",
+      "sports": "Sports",
+      "concert": "Concert",
+      "wildlife": "Wildlife"
+    },
     "auto_cull": {
       "button": "Auto-cull",
       "tooltip": "Automatically keep the best of every group and reject the rest",

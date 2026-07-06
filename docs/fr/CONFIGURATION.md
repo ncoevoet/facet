@@ -1597,6 +1597,39 @@ Tri automatique en un bouton pour la chambre noire de tri (`POST /api/culling/au
 
 `dry_run` est activé par défaut et renvoie un aperçu conservation/rejet par groupe ; une application enregistre en plus des lignes de comparaison `source='culling'` et déclenche un ré-entraînement automatique. Voir [Visionneuse web — Tri automatique](VIEWER.md#auto-cull).
 
+## Profils de tri par genre
+
+Préréglages par genre qui regroupent tous les réglages de tri en un clic : le sport ne garde que la photo la plus nette d'une longue rafale, les mariages conservent plus de variantes avec les yeux ouverts prioritaires, les concerts assouplissent les seuils yeux/expression, l'animalier supprime totalement le filtre de visage humain. La chambre noire de tri affiche un sélecteur de préréglage et, à partir du moment narratif dominant de la portée, suggère automatiquement le préréglage correspondant.
+
+```json
+{
+  "cull_profiles": {
+    "default": "balanced",
+    "profiles": {
+      "balanced": { "label_key": "culling.profiles.balanced", "strictness": 50, "eyes_closed_max": 4.0, "poor_expression_min": 4.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
+      "wedding":  { "label_key": "culling.profiles.wedding",  "strictness": 35, "eyes_closed_max": 5.0, "poor_expression_min": 5.0, "keep_min_per_group": 2, "similarity_threshold": 90 },
+      "sports":   { "label_key": "culling.profiles.sports",   "strictness": 85, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 80 },
+      "concert":  { "label_key": "culling.profiles.concert",  "strictness": 55, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
+      "wildlife": { "label_key": "culling.profiles.wildlife", "strictness": 70, "eyes_closed_max": 0.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 82 }
+    },
+    "moment_map": { "sports": "sports", "concert": "concert", "nature_wildlife": "wildlife", "pets": "wildlife", "ceremony": "wedding", "vows": "wedding", "first_dance": "wedding" }
+  }
+}
+```
+
+| Réglage | Description |
+|---|---|
+| `default` | Id de profil appliqué quand aucun n'est mémorisé côté client |
+| `profiles.<id>.label_key` | Chemin i18n du nom affiché du préréglage (`culling.profiles.*`) |
+| `profiles.<id>.strictness` | Budget de conservation (0–100) injecté dans la marge d'auto-tri quand ce préréglage est actif |
+| `profiles.<id>.eyes_closed_max` | Score yeux ouverts (0–10) en dessous duquel un visage est considéré fermé — remplace `face_detection.eyes_closed_max` dans les badges de visage |
+| `profiles.<id>.poor_expression_min` | Score d'expression/sourire (0–10) en dessous duquel un visage est jugé médiocre — remplace `face_detection.poor_expression_min` |
+| `profiles.<id>.keep_min_per_group` | Plancher par groupe sur l'ensemble conservé par l'auto-tri |
+| `profiles.<id>.similarity_threshold` | Seuil de regroupement par similarité (pourcentage) appliqué quand le préréglage est sélectionné |
+| `moment_map` | Associe une valeur `narrative_moment` à un id de profil ; le moment dominant de la portée pilote la suggestion automatique |
+
+Points d'accès (en lecture seule) : `GET /api/culling/profiles` renvoie la liste ordonnée des préréglages et le défaut ; `GET /api/culling/profiles/suggest?group_by=&album_id=&date_from=&date_to=` compte les `narrative_moment` de la portée et renvoie `{profile, moment, share, total}` pour le préréglage le plus adapté. La requête d'auto-tri (`POST /api/culling/auto`) et le lot par visage (`POST /api/culling-group/faces`) acceptent un `profile` optionnel ; un `strictness`/`min_keep_per_group` explicite dans la requête l'emporte toujours sur le préréglage.
+
 ## Scènes
 
 Réglages pour la vue Scènes, qui regroupe les photos de tête de rafale en scènes chronologiques (séparées par les écarts de temps de capture) pour un tri dans l'ordre du récit :

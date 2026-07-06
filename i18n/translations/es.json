@@ -1784,6 +1784,17 @@
     "weight_ready_tooltip": "Suficientes comparaciones recopiladas — abre Comparación → Sugerencias de pesos para revisar y aplicar los pesos optimizados de esta categoría.",
     "strictness": "Rigor",
     "strictness_tooltip": "Más alto conserva solo la mejor foto; más bajo conserva también los casi empates",
+    "profiles": {
+      "tooltip": "Preajuste por género: agrupa rigor, presupuesto de conservación y umbrales faciales",
+      "custom": "Personalizado",
+      "suggested": "Sugerido: {name}",
+      "apply": "Aplicar",
+      "balanced": "Equilibrado",
+      "wedding": "Boda",
+      "sports": "Deportes",
+      "concert": "Concierto",
+      "wildlife": "Fauna"
+    },
     "auto_cull": {
       "button": "Selección automática",
       "tooltip": "Conserva automáticamente la mejor foto de cada grupo y rechaza el resto",
