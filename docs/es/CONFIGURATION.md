@@ -1599,7 +1599,7 @@ Descarte automático de un botón para el laboratorio de descarte (`POST /api/cu
 
 ## Perfiles de descarte por género
 
-Preajustes por género que agrupan todos los controles de descarte en un clic: deportes conserva solo la foto más nítida de una ráfaga larga, las bodas conservan más variantes con los ojos abiertos como prioridad, los conciertos relajan los umbrales de ojos/expresión, la fauna elimina por completo el filtro de rostro humano. La sala oscura de descarte muestra un selector de preajuste y, a partir del momento narrativo dominante del alcance, sugiere automáticamente el preajuste correspondiente.
+Preajustes por género que agrupan todos los controles de descarte en un clic: deportes conserva solo la foto más nítida de una ráfaga larga, las bodas conservan más variantes con los ojos abiertos como prioridad, los conciertos relajan los umbrales de ojos/expresión, la fauna elimina por completo el filtro de rostro humano. La sala oscura de descarte muestra un selector de preajuste.
 
 ```json
 {
@@ -1611,8 +1611,7 @@ Preajustes por género que agrupan todos los controles de descarte en un clic: d
       "sports":   { "label_key": "culling.profiles.sports",   "strictness": 85, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 80 },
       "concert":  { "label_key": "culling.profiles.concert",  "strictness": 55, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
       "wildlife": { "label_key": "culling.profiles.wildlife", "strictness": 70, "eyes_closed_max": 0.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 82 }
-    },
-    "moment_map": { "sports": "sports", "concert": "concert", "nature_wildlife": "wildlife", "pets": "wildlife", "ceremony": "wedding", "vows": "wedding", "first_dance": "wedding" }
+    }
   }
 }
 ```
@@ -1626,9 +1625,8 @@ Preajustes por género que agrupan todos los controles de descarte en un clic: d
 | `profiles.<id>.poor_expression_min` | Puntuación de expresión/sonrisa (0–10) por debajo de la cual un rostro cuenta como pobre — anula `face_detection.poor_expression_min` |
 | `profiles.<id>.keep_min_per_group` | Mínimo por grupo del conjunto conservado por el auto-descarte |
 | `profiles.<id>.similarity_threshold` | Umbral de agrupación por similitud (porcentaje) que aplica la sala oscura cuando se selecciona el preajuste |
-| `moment_map` | Asigna un valor `narrative_moment` a un id de perfil; el momento dominante del alcance impulsa la sugerencia |
 
-Puntos de acceso (solo lectura): `GET /api/culling/profiles` devuelve la lista ordenada de preajustes y el predeterminado; `GET /api/culling/profiles/suggest?group_by=&album_id=&date_from=&date_to=` cuenta los `narrative_moment` del alcance y devuelve `{profile, moment, share, total}` para el preajuste más adecuado. La solicitud de auto-descarte (`POST /api/culling/auto`) y el lote por rostro (`POST /api/culling-group/faces`) aceptan un `profile` opcional; un `strictness`/`min_keep_per_group` explícito en la solicitud siempre prevalece sobre el preajuste.
+Punto de acceso (solo lectura): `GET /api/culling/profiles` devuelve la lista ordenada de preajustes y el predeterminado. La solicitud de auto-descarte (`POST /api/culling/auto`) y el lote por rostro (`POST /api/culling-group/faces`) aceptan un `profile` opcional; un `strictness`/`min_keep_per_group` explícito en la solicitud siempre prevalece sobre el preajuste.
 
 ## Escenas
 

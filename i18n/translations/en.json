@@ -1582,6 +1582,7 @@
   "critique": {
     "overlay_show": "Show overlay",
     "overlay_hide": "Hide overlay",
+    "overlay_error": "Couldn't load the overlay.",
     "title": "Why This Score?",
     "category_reason": "Category",
     "breakdown": "Score Breakdown",
@@ -1783,10 +1784,7 @@
     "strictness": "Strictness",
     "strictness_tooltip": "Higher keeps only the single best photo; lower keeps near-ties too",
     "profiles": {
-      "tooltip": "Genre preset: bundles strictness, keeper budget and face thresholds",
       "custom": "Custom",
-      "suggested": "Suggested: {name}",
-      "apply": "Apply",
       "balanced": "Balanced",
       "wedding": "Wedding",
       "sports": "Sports",
@@ -1803,8 +1801,7 @@
       "apply": "Reject {rejected} photos",
       "applied": "Auto-cull applied: kept {kept}, rejected {rejected}",
       "error": "Auto-cull failed",
-      "empty": "Nothing to auto-cull in this scope",
-      "better_tooltip": "A better photo exists in this group"
+      "empty": "Nothing to auto-cull in this scope"
     },
     "exit_scene": "Exit scene",
     "scene_complete": "Scene culled — nothing left to review",
@@ -2163,7 +2160,8 @@
   "proofing": {
     "client_picks": "Client picks",
     "no_picks": "No client picks yet.",
-    "picks_count": "{count} picks",
+    "picks_count": "{count} pick",
+    "picks_count_plural": "{count} picks",
     "pick": "Pick this photo",
     "unpick": "Remove pick",
     "comment": "Comment",

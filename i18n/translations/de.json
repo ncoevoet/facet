@@ -1588,6 +1588,7 @@
   "critique": {
     "overlay_show": "Überlagerung anzeigen",
     "overlay_hide": "Überlagerung ausblenden",
+    "overlay_error": "Überlagerung konnte nicht geladen werden.",
     "title": "Warum diese Bewertung?",
     "category_reason": "Kategorie",
     "breakdown": "Bewertungsaufschlusselung",
@@ -1789,10 +1790,7 @@
     "strictness": "Strenge",
     "strictness_tooltip": "Höher behält nur das beste Foto; niedriger behält auch knappe Treffer",
     "profiles": {
-      "tooltip": "Genre-Vorlage: bündelt Strenge, Behalte-Budget und Gesichtsschwellen",
       "custom": "Benutzerdefiniert",
-      "suggested": "Vorschlag: {name}",
-      "apply": "Anwenden",
       "balanced": "Ausgewogen",
       "wedding": "Hochzeit",
       "sports": "Sport",
@@ -1809,8 +1807,7 @@
       "apply": "{rejected} Fotos ablehnen",
       "applied": "Auto-Aussortierung angewendet: {kept} behalten, {rejected} abgelehnt",
       "error": "Auto-Aussortierung fehlgeschlagen",
-      "empty": "In diesem Bereich gibt es nichts automatisch auszusortieren",
-      "better_tooltip": "In dieser Gruppe gibt es ein besseres Foto"
+      "empty": "In diesem Bereich gibt es nichts automatisch auszusortieren"
     },
     "exit_scene": "Szene verlassen",
     "scene_complete": "Szene gesichtet – nichts mehr zu prüfen",
@@ -2169,7 +2166,8 @@
   "proofing": {
     "client_picks": "Kundenauswahl",
     "no_picks": "Noch keine Kundenauswahl.",
-    "picks_count": "{count} Favoriten",
+    "picks_count": "{count} Favorit",
+    "picks_count_plural": "{count} Favoriten",
     "pick": "Dieses Foto auswählen",
     "unpick": "Auswahl entfernen",
     "comment": "Kommentar",

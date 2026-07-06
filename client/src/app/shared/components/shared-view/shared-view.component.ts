@@ -454,7 +454,7 @@ interface SharedFilters {
       @if (proofingActive()) {
         <div class="fixed bottom-14 md:bottom-4 right-4 z-40 flex items-center gap-1.5 rounded-full px-3 py-1.5 bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] shadow-lg text-sm font-medium pointer-events-none">
           <mat-icon class="!text-base !w-4 !h-4 !leading-4">favorite</mat-icon>
-          {{ I18N.proofing.picks_count | translate:{ count: picksCount() } }}
+          {{ (picksCount() === 1 ? I18N.proofing.picks_count : I18N.proofing.picks_count_plural) | translate:{ count: picksCount() } }}
         </div>
       }
 

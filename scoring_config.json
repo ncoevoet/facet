@@ -2202,29 +2202,6 @@
         "keep_min_per_group": 1,
         "similarity_threshold": 82
       }
-    },
-    "moment_map": {
-      "sports": "sports",
-      "concert": "concert",
-      "nature_wildlife": "wildlife",
-      "pets": "wildlife",
-      "ceremony": "wedding",
-      "getting_ready_bride": "wedding",
-      "getting_ready_groom": "wedding",
-      "ceremony_entrance": "wedding",
-      "vows": "wedding",
-      "ring_exchange": "wedding",
-      "first_kiss": "wedding",
-      "recessional": "wedding",
-      "family_formals": "wedding",
-      "couple_portraits": "wedding",
-      "cocktail_hour": "wedding",
-      "reception_details": "wedding",
-      "dinner_toasts": "wedding",
-      "cake_cutting": "wedding",
-      "first_dance": "wedding",
-      "party_dancing": "wedding",
-      "send_off": "wedding"
     }
   },
   "similarity_groups": {

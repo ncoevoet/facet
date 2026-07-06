@@ -47,7 +47,7 @@ interface ClientPicksResponse {
       } @else if (picks().length === 0) {
         <p class="opacity-60 py-4">{{ I18N.proofing.no_picks | translate }}</p>
       } @else {
-        <p class="text-sm opacity-70 mb-2">{{ I18N.proofing.picks_count | translate:{ count: pickedCount() } }}</p>
+        <p class="text-sm opacity-70 mb-2">{{ (pickedCount() === 1 ? I18N.proofing.picks_count : I18N.proofing.picks_count_plural) | translate:{ count: pickedCount() } }}</p>
         <div class="flex flex-col divide-y divide-[var(--mat-sys-outline-variant)]">
           @for (pick of picks(); track pick.path) {
             <div class="flex items-start gap-2 py-2">

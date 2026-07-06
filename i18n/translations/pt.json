@@ -1582,6 +1582,7 @@
   "critique": {
     "overlay_show": "Mostrar sobreposição",
     "overlay_hide": "Ocultar sobreposição",
+    "overlay_error": "Não foi possível carregar a sobreposição.",
     "title": "Por que esta pontuação?",
     "category_reason": "Categoria",
     "breakdown": "Detalhamento da pontuação",
@@ -1783,10 +1784,7 @@
     "strictness": "Rigor",
     "strictness_tooltip": "Mais alto mantém apenas a melhor foto; mais baixo mantém também os quase empates",
     "profiles": {
-      "tooltip": "Predefinição por gênero: agrupa rigor, orçamento de seleção e limiares faciais",
       "custom": "Personalizado",
-      "suggested": "Sugerido: {name}",
-      "apply": "Aplicar",
       "balanced": "Equilibrado",
       "wedding": "Casamento",
       "sports": "Esportes",
@@ -1803,8 +1801,7 @@
       "apply": "Rejeitar {rejected} fotos",
       "applied": "Seleção automática aplicada: {kept} mantidas, {rejected} rejeitadas",
       "error": "Falha na seleção automática",
-      "empty": "Nada para selecionar automaticamente neste escopo",
-      "better_tooltip": "Existe uma foto melhor neste grupo"
+      "empty": "Nada para selecionar automaticamente neste escopo"
     },
     "exit_scene": "Sair da cena",
     "scene_complete": "Cena selecionada — nada mais para revisar",
@@ -2163,7 +2160,8 @@
   "proofing": {
     "client_picks": "Seleções do cliente",
     "no_picks": "Ainda não há seleções do cliente.",
-    "picks_count": "{count} seleções",
+    "picks_count": "{count} seleção",
+    "picks_count_plural": "{count} seleções",
     "pick": "Selecionar esta foto",
     "unpick": "Remover a seleção",
     "comment": "Comentário",

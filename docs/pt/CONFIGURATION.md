@@ -1599,7 +1599,7 @@ Triagem automática de um botão só para o laboratório de triagem (`POST /api/
 
 ## Perfis de seleção por gênero
 
-Predefinições por gênero que agrupam todos os controles de seleção em um clique: esportes mantém apenas a foto mais nítida de uma longa sequência, casamentos mantêm mais variantes com olhos abertos como prioridade, shows relaxam os limiares de olhos/expressão, a vida selvagem remove por completo o filtro de rosto humano. A câmara escura de seleção mostra um seletor de predefinição e, a partir do momento narrativo dominante do escopo, sugere automaticamente a predefinição correspondente.
+Predefinições por gênero que agrupam todos os controles de seleção em um clique: esportes mantém apenas a foto mais nítida de uma longa sequência, casamentos mantêm mais variantes com olhos abertos como prioridade, shows relaxam os limiares de olhos/expressão, a vida selvagem remove por completo o filtro de rosto humano. A câmara escura de seleção mostra um seletor de predefinição.
 
 ```json
 {
@@ -1611,8 +1611,7 @@ Predefinições por gênero que agrupam todos os controles de seleção em um cl
       "sports":   { "label_key": "culling.profiles.sports",   "strictness": 85, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 80 },
       "concert":  { "label_key": "culling.profiles.concert",  "strictness": 55, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
       "wildlife": { "label_key": "culling.profiles.wildlife", "strictness": 70, "eyes_closed_max": 0.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 82 }
-    },
-    "moment_map": { "sports": "sports", "concert": "concert", "nature_wildlife": "wildlife", "pets": "wildlife", "ceremony": "wedding", "vows": "wedding", "first_dance": "wedding" }
+    }
   }
 }
 ```
@@ -1626,9 +1625,8 @@ Predefinições por gênero que agrupam todos os controles de seleção em um cl
 | `profiles.<id>.poor_expression_min` | Pontuação de expressão/sorriso (0–10) abaixo da qual um rosto conta como ruim — substitui `face_detection.poor_expression_min` |
 | `profiles.<id>.keep_min_per_group` | Mínimo por grupo do conjunto mantido pela auto-seleção |
 | `profiles.<id>.similarity_threshold` | Limiar de agrupamento por similaridade (porcentagem) aplicado pela câmara escura quando a predefinição é selecionada |
-| `moment_map` | Mapeia um valor `narrative_moment` para um id de perfil; o momento dominante do escopo orienta a sugestão |
 
-Endpoints (somente leitura): `GET /api/culling/profiles` retorna a lista ordenada de predefinições e o padrão; `GET /api/culling/profiles/suggest?group_by=&album_id=&date_from=&date_to=` conta os `narrative_moment` do escopo e retorna `{profile, moment, share, total}` para a predefinição mais adequada. A requisição de auto-seleção (`POST /api/culling/auto`) e o lote por rosto (`POST /api/culling-group/faces`) aceitam um `profile` opcional; um `strictness`/`min_keep_per_group` explícito na requisição sempre prevalece sobre a predefinição.
+Endpoint (somente leitura): `GET /api/culling/profiles` retorna a lista ordenada de predefinições e o padrão. A requisição de auto-seleção (`POST /api/culling/auto`) e o lote por rosto (`POST /api/culling-group/faces`) aceitam um `profile` opcional; um `strictness`/`min_keep_per_group` explícito na requisição sempre prevalece sobre a predefinição.
 
 ## Scenes
 

@@ -1599,7 +1599,7 @@ Ein-Knopf-Auto-Cull für die Culling-Dunkelkammer (`POST /api/culling/auto`, edi
 
 ## Genre-spezifische Aussortier-Profile
 
-Genre-Vorlagen, die alle Aussortier-Regler in einem Klick bündeln: Sport behält nur das schärfste Bild einer langen Serie, Hochzeiten behalten mehr Varianten mit Priorität auf offenen Augen, Konzerte lockern die Augen-/Ausdruck-Schwellen, Tierwelt entfernt den menschlichen Gesichtsfilter ganz. Die Aussortier-Dunkelkammer zeigt eine Vorlagenauswahl und schlägt aus dem dominanten narrativen Moment des Bereichs automatisch die passende Vorlage vor.
+Genre-Vorlagen, die alle Aussortier-Regler in einem Klick bündeln: Sport behält nur das schärfste Bild einer langen Serie, Hochzeiten behalten mehr Varianten mit Priorität auf offenen Augen, Konzerte lockern die Augen-/Ausdruck-Schwellen, Tierwelt entfernt den menschlichen Gesichtsfilter ganz. Die Aussortier-Dunkelkammer zeigt eine Vorlagenauswahl.
 
 ```json
 {
@@ -1611,8 +1611,7 @@ Genre-Vorlagen, die alle Aussortier-Regler in einem Klick bündeln: Sport behäl
       "sports":   { "label_key": "culling.profiles.sports",   "strictness": 85, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 80 },
       "concert":  { "label_key": "culling.profiles.concert",  "strictness": 55, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
       "wildlife": { "label_key": "culling.profiles.wildlife", "strictness": 70, "eyes_closed_max": 0.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 82 }
-    },
-    "moment_map": { "sports": "sports", "concert": "concert", "nature_wildlife": "wildlife", "pets": "wildlife", "ceremony": "wedding", "vows": "wedding", "first_dance": "wedding" }
+    }
   }
 }
 ```
@@ -1626,9 +1625,8 @@ Genre-Vorlagen, die alle Aussortier-Regler in einem Klick bündeln: Sport behäl
 | `profiles.<id>.poor_expression_min` | Ausdrucks-/Lächeln-Wert (0–10), unter dem ein Gesicht als schlecht gilt — überschreibt `face_detection.poor_expression_min` |
 | `profiles.<id>.keep_min_per_group` | Untergrenze pro Gruppe für die Behalte-Menge der Auto-Aussortierung |
 | `profiles.<id>.similarity_threshold` | Ähnlichkeits-Gruppierungsschwelle (Prozent), die bei aktiver Vorlage angewandt wird |
-| `moment_map` | Ordnet einen `narrative_moment`-Wert einer Profil-ID zu; der dominante Moment des Bereichs steuert den Vorschlag |
 
-Endpunkte (schreibgeschützt): `GET /api/culling/profiles` liefert die geordnete Vorlagenliste und den Standard; `GET /api/culling/profiles/suggest?group_by=&album_id=&date_from=&date_to=` zählt die `narrative_moment` im Bereich und liefert `{profile, moment, share, total}` für die passendste Vorlage. Die Auto-Aussortier-Anfrage (`POST /api/culling/auto`) und der Gesichts-Batch (`POST /api/culling-group/faces`) akzeptieren ein optionales `profile`; ein explizites `strictness`/`min_keep_per_group` in der Anfrage hat immer Vorrang vor der Vorlage.
+Endpunkt (schreibgeschützt): `GET /api/culling/profiles` liefert die geordnete Vorlagenliste und den Standard. Die Auto-Aussortier-Anfrage (`POST /api/culling/auto`) und der Gesichts-Batch (`POST /api/culling-group/faces`) akzeptieren ein optionales `profile`; ein explizites `strictness`/`min_keep_per_group` in der Anfrage hat immer Vorrang vor der Vorlage.
 
 ## Scenes
 

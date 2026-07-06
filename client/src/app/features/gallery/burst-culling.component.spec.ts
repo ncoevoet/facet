@@ -550,28 +550,6 @@ describe('BurstCullingComponent', () => {
       expect(component['selectedProfile']()).toBe('');
     });
 
-    it('surfaces a moment-derived suggestion that differs from the active selection', async () => {
-      mockApi.get.mockReturnValue(of(profilesResponse));
-      await (component as any).loadCullProfiles();
-      mockApi.get.mockReturnValue(of({ profile: 'wedding', moment: 'ceremony', share: 0.75, total: 4 }));
-      await (component as any).refreshSuggestion();
-
-      expect(component['suggestedProfile']()?.id).toBe('wedding');
-    });
-
-    it('applySuggestion applies the suggested profile', async () => {
-      mockApi.get.mockReturnValue(of(profilesResponse));
-      await (component as any).loadCullProfiles();
-      mockApi.get.mockReturnValue(of({ profile: 'wedding', moment: 'ceremony', share: 0.75, total: 4 }));
-      await (component as any).refreshSuggestion();
-
-      mockApi.get.mockReturnValue(of(mockCullingGroupsResponse));
-      component['applySuggestion']();
-
-      expect(component['selectedProfile']()).toBe('wedding');
-      expect(component['strictness']()).toBe(35);
-    });
-
     it('restores a persisted profile id from localStorage on a fresh construction', async () => {
       localStorage.setItem('facet_culling_profile', 'wedding');
       mockApi.get.mockReturnValue(of(profilesResponse));

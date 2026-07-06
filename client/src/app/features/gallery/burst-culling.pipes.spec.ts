@@ -1,7 +1,7 @@
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
-  WeightRemainingPipe, BetterInGroupPipe, CullingGroup, CullingFace, FaceThresholds,
+  WeightRemainingPipe, CullingGroup, CullingFace, FaceThresholds,
 } from './burst-culling.pipes';
 
 const group = (overrides: Partial<CullingGroup> = {}): CullingGroup => ({
@@ -213,23 +213,5 @@ describe('FaceDimmedPipe', () => {
 
   it('dims faces with no signals while a slider is active', () => {
     expect(pipe.transform(face(), 5, 0)).toBe(true);
-  });
-});
-
-describe('BetterInGroupPipe', () => {
-  const pipe = new BetterInGroupPipe();
-
-  it('returns true for a non-best tile (a better photo exists)', () => {
-    expect(pipe.transform('/photo2.jpg', '/photo1.jpg')).toBe(true);
-  });
-
-  it('returns false for the best tile itself', () => {
-    expect(pipe.transform('/photo1.jpg', '/photo1.jpg')).toBe(false);
-  });
-
-  it('returns false when the group has no best_path', () => {
-    expect(pipe.transform('/photo1.jpg', null)).toBe(false);
-    expect(pipe.transform('/photo1.jpg', undefined)).toBe(false);
-    expect(pipe.transform('/photo1.jpg', '')).toBe(false);
   });
 });

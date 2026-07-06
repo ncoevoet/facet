@@ -178,12 +178,63 @@ export class FaceDimmedPipe implements PipeTransform {
   }
 }
 
-/** True when a better photo exists in the group — i.e. this tile is not the
- *  group's auto-best. Drives the inline hint badge on non-best tiles. */
-@Pipe({ name: 'betterInGroup' })
-export class BetterInGroupPipe implements PipeTransform {
-  transform(path: string, bestPath: string | null | undefined): boolean {
-    return !!bestPath && path !== bestPath;
+/** Map a culling sort mode to its Material icon (per-item + trigger). */
+@Pipe({ name: 'sortIcon' })
+export class SortIconPipe implements PipeTransform {
+  private static readonly ICONS: Record<string, string> = {
+    easiest: 'bolt',
+    redundant: 'content_copy',
+    best: 'star',
+    recent: 'schedule',
+    needs_comparisons: 'compare_arrows',
+  };
+
+  transform(mode: string): string {
+    return SortIconPipe.ICONS[mode] ?? 'sort';
+  }
+}
+
+/** Map a content category to its Material icon, with a generic fallback for
+ *  values outside the known vocabulary. */
+@Pipe({ name: 'categoryIcon' })
+export class CategoryIconPipe implements PipeTransform {
+  private static readonly ICONS: Record<string, string> = {
+    portrait: 'person',
+    portrait_bw: 'filter_b_and_w',
+    group_portrait: 'groups',
+    silhouette: 'contrast',
+    art: 'palette',
+    macro: 'zoom_in',
+    astro: 'nights_stay',
+    street: 'directions_walk',
+    aerial: 'flight',
+    concert: 'music_note',
+    night: 'dark_mode',
+    wildlife: 'pets',
+    architecture: 'apartment',
+    food: 'restaurant',
+    landscape: 'landscape',
+  };
+
+  transform(category: string | null | undefined): string {
+    return (category && CategoryIconPipe.ICONS[category]) || 'category';
+  }
+}
+
+/** Map a genre culling profile id to its Material icon; the shipped presets get
+ *  a distinct icon, config-defined custom profiles fall back to the theatre mask. */
+@Pipe({ name: 'cullProfileIcon' })
+export class CullProfileIconPipe implements PipeTransform {
+  private static readonly ICONS: Record<string, string> = {
+    balanced: 'balance',
+    wedding: 'favorite',
+    sports: 'directions_run',
+    concert: 'music_note',
+    wildlife: 'pets',
+  };
+
+  transform(profileId: string | null | undefined): string {
+    return (profileId && CullProfileIconPipe.ICONS[profileId]) || 'theaters';
   }
 }
 

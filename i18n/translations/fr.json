@@ -1005,7 +1005,7 @@
     "gallery_tooltip": "Galerie (double-clic pour réinitialiser les filtres)",
     "stats": "Statistiques",
     "persons": "Personnes",
-    "compare": "Reglage des poids",
+    "compare": "Réglage des poids",
     "albums": "Albums",
     "culling": "Tri",
     "memories": "Souvenirs",
@@ -1239,7 +1239,7 @@
     "urban": "Urbain",
     "aurora": "Aurore",
     "minimalist": "Minimaliste",
-    "vehicle": "Vehicule",
+    "vehicle": "Véhicule",
     "long_exposure": "Longue exposition",
     "vintage": "Vintage",
     "travel": "Voyage",
@@ -1259,7 +1259,7 @@
     "candid": "Spontané"
   },
   "comparison": {
-    "title": "Reglage des poids",
+    "title": "Réglage des poids",
     "category": "Categorie",
     "weights": "Poids",
     "weight_sliders": "Curseurs de poids",
@@ -1584,6 +1584,7 @@
   "critique": {
     "overlay_show": "Afficher la superposition",
     "overlay_hide": "Masquer la superposition",
+    "overlay_error": "Impossible de charger la superposition.",
     "title": "Pourquoi ce score ?",
     "category_reason": "Categorie",
     "breakdown": "Detail du score",
@@ -1785,10 +1786,7 @@
     "strictness": "Rigueur",
     "strictness_tooltip": "Plus élevé ne garde que la meilleure photo ; plus bas garde aussi les quasi-égalités",
     "profiles": {
-      "tooltip": "Préréglage par genre : regroupe rigueur, budget de conservation et seuils de visage",
       "custom": "Personnalisé",
-      "suggested": "Suggéré : {name}",
-      "apply": "Appliquer",
       "balanced": "Équilibré",
       "wedding": "Mariage",
       "sports": "Sport",
@@ -1805,8 +1803,7 @@
       "apply": "Rejeter {rejected} photos",
       "applied": "Sélection automatique appliquée : {kept} gardées, {rejected} rejetées",
       "error": "Échec de la sélection automatique",
-      "empty": "Rien à sélectionner automatiquement dans cette portée",
-      "better_tooltip": "Une meilleure photo existe dans ce groupe"
+      "empty": "Rien à sélectionner automatiquement dans cette portée"
     },
     "exit_scene": "Quitter la scène",
     "scene_complete": "Scène triée — plus rien à examiner",
@@ -2165,7 +2162,8 @@
   "proofing": {
     "client_picks": "Sélections client",
     "no_picks": "Aucune sélection client pour l'instant.",
-    "picks_count": "{count} sélections",
+    "picks_count": "{count} sélection",
+    "picks_count_plural": "{count} sélections",
     "pick": "Sélectionner cette photo",
     "unpick": "Retirer la sélection",
     "comment": "Commentaire",

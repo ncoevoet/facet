@@ -152,17 +152,15 @@ def _get_face_thresholds(profile=None):
 def _get_cull_profiles():
     """Genre-aware culling presets from scoring_config ``cull_profiles``.
 
-    Returns ``(profiles, default, moment_map)``: ``profiles`` maps a profile id
-    to its knob bundle (strictness / keeper budget / face cutoffs / similarity
-    threshold), ``default`` names the fallback profile, ``moment_map`` maps a
-    narrative_moment value to a profile id for the auto-suggest.
+    Returns ``(profiles, default)``: ``profiles`` maps a profile id to its knob
+    bundle (strictness / keeper budget / face cutoffs / similarity threshold),
+    ``default`` names the fallback profile.
     """
     from api.config import _FULL_CONFIG
     cp = _FULL_CONFIG.get('cull_profiles', {}) or {}
     return (
         cp.get('profiles', {}) or {},
         cp.get('default', ''),
-        cp.get('moment_map', {}) or {},
     )
 
 
@@ -170,7 +168,7 @@ def _resolve_cull_profile(name):
     """Return the profile knob bundle for ``name``, or None if unknown/empty."""
     if not name:
         return None
-    profiles, _, _ = _get_cull_profiles()
+    profiles, _ = _get_cull_profiles()
     return profiles.get(name)
 
 
@@ -1322,7 +1320,7 @@ def list_cull_profiles(user: Optional[CurrentUser] = Depends(get_optional_user))
     face cutoffs and similarity threshold) plus the default id, so the client can
     render the preset selector and apply a whole bundle in one click. Read-only.
     """
-    profiles, default, _ = _get_cull_profiles()
+    profiles, default = _get_cull_profiles()
     items = [{
         'id': pid,
         'label_key': p.get('label_key', ''),
@@ -1333,69 +1331,6 @@ def list_cull_profiles(user: Optional[CurrentUser] = Depends(get_optional_user))
         'similarity_threshold': p.get('similarity_threshold'),
     } for pid, p in profiles.items()]
     return {'profiles': items, 'default': default}
-
-
-@router.get("/api/culling/profiles/suggest")
-def suggest_cull_profile(
-    group_by: str = Query('all'),
-    album_id: Optional[int] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    user: Optional[CurrentUser] = Depends(get_optional_user),
-):
-    """Suggest a genre culling profile from the scope's dominant narrative moment.
-
-    Tallies ``narrative_moment`` over the visible photos in the scope (album /
-    date window), maps each moment to a profile via ``cull_profiles.moment_map``,
-    and returns the profile with the largest mapped share of labelled photos.
-    ``group_by`` is accepted for symmetry with the culling feed but does not
-    change the tally. Read-only; ``{profile: null}`` when nothing maps.
-    """
-    profiles, _, moment_map = _get_cull_profiles()
-    empty = {'profile': None, 'moment': None, 'share': 0.0, 'total': 0}
-    if not moment_map:
-        return empty
-    user_id = user.user_id if user else None
-    from_clause, from_params = get_photos_from_clause(user_id)
-    vis_sql, vis_params = get_visibility_clause(user_id)
-    album_sql, album_params = album_filter_clause(album_id)
-    time_clauses, time_params = time_window_clauses(date_from, date_to)
-    where = [vis_sql, album_sql,
-             "photos.narrative_moment IS NOT NULL",
-             "photos.narrative_moment != 'other'"] + time_clauses
-    sql = (f"SELECT photos.narrative_moment AS moment, COUNT(*) AS n "
-           f"FROM {from_clause} WHERE {' AND '.join(where)} "
-           f"GROUP BY photos.narrative_moment")
-    params = from_params + vis_params + album_params + time_params
-    try:
-        with get_db() as conn:
-            if album_id is not None:
-                from api.routers.albums import _check_album_access
-                _check_album_access(conn, album_id, user_id)
-            rows = conn.execute(sql, params).fetchall()
-    except sqlite3.Error:
-        return empty
-    total = sum(r['n'] for r in rows)
-    if total == 0:
-        return empty
-    per_profile: dict[str, int] = {}
-    top_moment: dict[str, tuple[str, int]] = {}
-    for r in rows:
-        pid = moment_map.get(r['moment'])
-        if not pid or pid not in profiles:
-            continue
-        per_profile[pid] = per_profile.get(pid, 0) + r['n']
-        if r['n'] > top_moment.get(pid, ('', 0))[1]:
-            top_moment[pid] = (r['moment'], r['n'])
-    if not per_profile:
-        return {**empty, 'total': total}
-    best = max(per_profile, key=lambda k: per_profile[k])
-    return {
-        'profile': best,
-        'moment': top_moment[best][0],
-        'share': round(per_profile[best] / total, 4),
-        'total': total,
-    }
 
 
 @router.post("/api/culling/auto")

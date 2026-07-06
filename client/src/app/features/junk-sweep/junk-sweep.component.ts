@@ -27,7 +27,7 @@ interface JunkPhoto {
 
 interface PhotosResponse {
   photos: JunkPhoto[];
-  total_count: number;
+  total: number;
   total_pages: number;
   page: number;
   has_more: boolean;
@@ -202,7 +202,7 @@ export class JunkSweepComponent implements OnInit {
       );
       if (gen !== this.loadGeneration) return;
       this.photos.update(list => [...list, ...data.photos]);
-      this.total.set(data.total_count);
+      this.total.set(data.total);
       this.hasMore.set(this.page < data.total_pages);
     } catch {
       if (gen !== this.loadGeneration) return;
@@ -260,6 +260,12 @@ export class JunkSweepComponent implements OnInit {
       this.snack.open(
         this.i18n.t(I18N.junk.rejected_bulk, { count: paths.length }),
         this.i18n.t(I18N.common.dismiss), { duration: 2000 });
+      const removedByKind = new Map<string, number>();
+      for (const p of shown) {
+        if (p.junk_kind) removedByKind.set(p.junk_kind, (removedByKind.get(p.junk_kind) ?? 0) + 1);
+      }
+      this.kinds.update(list =>
+        list.map(k => [k[0], Math.max(0, k[1] - (removedByKind.get(k[0]) ?? 0))] as [string, number]));
       this.page = 1;
       this.photos.set([]);
       await this.load();

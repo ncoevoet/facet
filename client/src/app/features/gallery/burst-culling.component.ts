@@ -30,7 +30,8 @@ import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe,
   FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
-  BetterInGroupPipe, CullingGroup, CullingFace, FaceThresholds,
+  SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
+  CullingGroup, CullingFace, FaceThresholds,
 } from './burst-culling.pipes';
 
 interface CullingGroupsResponse {
@@ -63,9 +64,6 @@ interface CullProfile {
   similarity_threshold: number | null;
 }
 interface CullProfilesResponse { profiles: CullProfile[]; default: string; }
-
-/** GET /api/culling/profiles/suggest — dominant-moment preset suggestion for a scope. */
-interface ProfileSuggestion { profile: string | null; moment: string | null; share: number; total: number; }
 
 // Per-user culling toolbar preferences, persisted so the page reopens the way
 // the user left it. The URL query param (deep links / "Cull this scene") still
@@ -150,7 +148,9 @@ interface ShortcutRow {
     WeightRemainingPipe,
     CullGroupIconPipe,
     CullGroupLabelPipe,
-    BetterInGroupPipe,
+    SortIconPipe,
+    CategoryIconPipe,
+    CullProfileIconPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
   ],
@@ -176,8 +176,44 @@ interface ShortcutRow {
               <mat-icon>arrow_back</mat-icon>
             </button>
           }
-          <!-- Controls ordered by impact: granularity → sort → category →
-               thresholds → exclude → scope → status/loupe/help. -->
+          <!-- Controls ordered by impact: scope → granularity → sort → category →
+               thresholds → exclude → status/loupe/help. -->
+          @if (albums().length > 0) {
+            <button mat-icon-button [matMenuTriggerFor]="scopeMenu"
+                    [class.!text-[var(--mat-sys-primary)]]="scoped()"
+                    [matTooltip]="scopeLabel() ?? (I18N.culling.scope_whole_library | translate)"
+                    [attr.aria-label]="scopeLabel() ?? (I18N.culling.scope_whole_library | translate)">
+              <mat-icon>filter_alt</mat-icon>
+            </button>
+            <mat-menu #scopeMenu="matMenu">
+              <button mat-menu-item (click)="scopeWholeLibrary()">
+                <mat-icon>photo_library</mat-icon>
+                <span>{{ I18N.culling.scope_whole_library | translate }}</span>
+              </button>
+              @for (a of albums(); track a.id) {
+                <button mat-menu-item [matMenuTriggerFor]="sceneMenu" (menuOpened)="loadAlbumScenes(a)">
+                  <mat-icon>photo_album</mat-icon>
+                  <span>{{ a.name }}</span>
+                </button>
+              }
+            </mat-menu>
+            <mat-menu #sceneMenu="matMenu">
+              <button mat-menu-item (click)="scopeAlbumWhole()">
+                <mat-icon>photo_album</mat-icon>
+                <span>{{ I18N.culling.scope_whole_album | translate }}</span>
+              </button>
+              @if (loadingScenes()) {
+                <div class="flex justify-center px-4 py-2"><mat-spinner diameter="18" /></div>
+              } @else {
+                @for (s of expandedScenes(); track s.scene_id) {
+                  <button mat-menu-item (click)="scopeAlbumScene(s)">
+                    <mat-icon>movie_filter</mat-icon>
+                    <span>{{ s.start | sceneDate }} · {{ s.count }}@if (s.moment | momentLabel; as ml) { · {{ ml }}}</span>
+                  </button>
+                }
+              }
+            </mat-menu>
+          }
           <button mat-icon-button [matMenuTriggerFor]="cullGroupByMenu"
                   [class.!text-[var(--mat-sys-primary)]]="groupBy() !== 'all'"
                   [matTooltip]="I18N.culling.group_by.label | translate"
@@ -207,13 +243,14 @@ interface ShortcutRow {
           @if (groupBy() !== 'scene') {
             <button mat-icon-button [matMenuTriggerFor]="cullSortMenu"
                     [class.!text-[var(--mat-sys-primary)]]="sortMode() !== 'easiest'"
-                    [matTooltip]="I18N.culling.sort.label | translate"
-                    [attr.aria-label]="I18N.culling.sort.label | translate">
-              <mat-icon>sort</mat-icon>
+                    [matTooltip]="'culling.sort.' + sortMode() | translate"
+                    [attr.aria-label]="'culling.sort.' + sortMode() | translate">
+              <mat-icon>{{ sortMode() | sortIcon }}</mat-icon>
             </button>
             <mat-menu #cullSortMenu="matMenu">
               @for (m of sortModes; track m) {
                 <button mat-menu-item (click)="onSortChange(m)">
+                  <mat-icon>{{ m | sortIcon }}</mat-icon>
                   <span [class.font-bold]="sortMode() === m">{{ 'culling.sort.' + m | translate }}</span>
                 </button>
               }
@@ -222,16 +259,18 @@ interface ShortcutRow {
           @if (categoryOptions().length > 0) {
             <button mat-icon-button [matMenuTriggerFor]="cullCategoryMenu"
                     [class.!text-[var(--mat-sys-primary)]]="categoryFilter() !== ''"
-                    [matTooltip]="I18N.culling.filter_category | translate"
-                    [attr.aria-label]="I18N.culling.filter_category | translate">
-              <mat-icon>category</mat-icon>
+                    [matTooltip]="categoryFilter() ? (('category_names.' + categoryFilter()) | translate) : (I18N.culling.filter_category | translate)"
+                    [attr.aria-label]="categoryFilter() ? (('category_names.' + categoryFilter()) | translate) : (I18N.culling.filter_category | translate)">
+              <mat-icon>{{ categoryFilter() | categoryIcon }}</mat-icon>
             </button>
             <mat-menu #cullCategoryMenu="matMenu">
               <button mat-menu-item (click)="onCategoryFilterChange('')">
+                <mat-icon>category</mat-icon>
                 <span [class.font-bold]="categoryFilter() === ''">{{ I18N.culling.all_categories | translate }}</span>
               </button>
               @for (c of categoryOptions(); track c) {
                 <button mat-menu-item (click)="onCategoryFilterChange(c)">
+                  <mat-icon>{{ c | categoryIcon }}</mat-icon>
                   <span [class.font-bold]="categoryFilter() === c">{{ 'category_names.' + c | translate }}</span>
                 </button>
               }
@@ -261,31 +300,24 @@ interface ShortcutRow {
             </mat-menu>
           }
           @if (cullProfiles().length > 0) {
-            <button mat-stroked-button [matMenuTriggerFor]="profileMenu"
+            <button mat-icon-button [matMenuTriggerFor]="profileMenu"
                     [class.!text-[var(--mat-sys-primary)]]="selectedProfile() !== ''"
-                    [matTooltip]="I18N.culling.profiles.tooltip | translate" class="!text-xs">
-              <mat-icon class="!text-base">theaters</mat-icon>
-              {{ selectedProfileLabel() | translate }}
+                    [matTooltip]="selectedProfileLabel() | translate"
+                    [attr.aria-label]="selectedProfileLabel() | translate">
+              <mat-icon>{{ selectedProfile() | cullProfileIcon }}</mat-icon>
             </button>
             <mat-menu #profileMenu="matMenu">
               @for (p of cullProfiles(); track p.id) {
                 <button mat-menu-item (click)="applyProfile(p)">
+                  <mat-icon>{{ p.id | cullProfileIcon }}</mat-icon>
                   <span [class.font-bold]="selectedProfile() === p.id">{{ p.label_key | translate }}</span>
                 </button>
               }
             </mat-menu>
-            @if (suggestedProfile(); as sp) {
-              <button mat-stroked-button (click)="applySuggestion()" class="!text-xs !border-dashed"
-                      [matTooltip]="I18N.culling.profiles.tooltip | translate"
-                      [attr.aria-label]="I18N.culling.profiles.apply | translate">
-                <mat-icon class="!text-base">auto_awesome</mat-icon>
-                {{ I18N.culling.profiles.suggested | translate:{ name: (sp.label_key | translate) } }}
-              </button>
-            }
           }
           <div class="hidden lg:flex items-center gap-2" [matTooltip]="I18N.culling.strictness_tooltip | translate">
             <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
-            <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="10" [discrete]="true">
+            <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="5" [discrete]="true">
               <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="I18N.culling.strictness | translate" />
             </mat-slider>
             <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
@@ -298,7 +330,7 @@ interface ShortcutRow {
           <mat-menu #strictnessMenu="matMenu">
             <div class="flex items-center gap-2 px-4 py-3" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
               <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
-              <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="10" [discrete]="true">
+              <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="5" [discrete]="true">
                 <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="I18N.culling.strictness | translate" />
               </mat-slider>
               <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
@@ -311,37 +343,6 @@ interface ShortcutRow {
                   [attr.aria-label]="I18N.culling.exclude_rejected | translate">
             <mat-icon>{{ excludeRejected() ? 'visibility_off' : 'visibility' }}</mat-icon>
           </button>
-          @if (albums().length > 0) {
-            <button mat-stroked-button [matMenuTriggerFor]="scopeMenu"
-                    [matTooltip]="I18N.culling.scope | translate" class="!text-xs">
-              <mat-icon class="!text-base">filter_alt</mat-icon>
-              {{ scopeLabel() ?? (I18N.culling.scope_whole_library | translate) }}
-            </button>
-          }
-          <mat-menu #scopeMenu="matMenu">
-            <button mat-menu-item (click)="scopeWholeLibrary()">
-              {{ I18N.culling.scope_whole_library | translate }}
-            </button>
-            @for (a of albums(); track a.id) {
-              <button mat-menu-item [matMenuTriggerFor]="sceneMenu" (menuOpened)="loadAlbumScenes(a)">
-                {{ a.name }}
-              </button>
-            }
-          </mat-menu>
-          <mat-menu #sceneMenu="matMenu">
-            <button mat-menu-item (click)="scopeAlbumWhole()">
-              {{ I18N.culling.scope_whole_album | translate }}
-            </button>
-            @if (loadingScenes()) {
-              <div class="flex justify-center px-4 py-2"><mat-spinner diameter="18" /></div>
-            } @else {
-              @for (s of expandedScenes(); track s.scene_id) {
-                <button mat-menu-item (click)="scopeAlbumScene(s)">
-                  {{ s.start | sceneDate }} · {{ s.count }}@if (s.moment | momentLabel; as ml) { · {{ ml }}}
-                </button>
-              }
-            }
-          </mat-menu>
           <button mat-icon-button (click)="loupeActive.set(!loupeActive())"
                   [class.!text-[var(--mat-sys-primary)]]="loupeActive()"
                   [attr.aria-pressed]="loupeActive()"
@@ -438,7 +439,7 @@ interface ShortcutRow {
                    [class.pointer-events-none]="(group | isConfirmed:confirmedGroups())"
                    [class.opacity-40]="(group | isConfirmed:confirmedGroups())">
                 @for (photo of group.photos; track photo.path; let pIdx = $index) {
-                  <div class="group/photo relative cursor-pointer rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 h-full max-w-[480px]"
+                  <div class="group/photo relative inline-block cursor-pointer rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0"
                        [class.border-green-500]="photo.path | isKept:selectionsMap():group.group_id"
                        [class.border-red-500]="!(photo.path | isKept:selectionsMap():group.group_id) && (photo.path | isDecided:selectionsMap():group.group_id)"
                        [class.border-transparent]="!(photo.path | isDecided:selectionsMap():group.group_id)"
@@ -454,7 +455,7 @@ interface ShortcutRow {
                          [appLoupe]="photo.path | imageUrl:true"
                          [loupeActive]="loupeActive()"
                          [loupeZoom]="loupeZoom()"
-                         class="h-72 md:h-96 w-auto object-contain" [alt]="photo.filename" loading="lazy" />
+                         class="block h-72 md:h-96 w-auto object-cover" [alt]="photo.filename" loading="lazy" />
                     @if (photo.path === group.best_path) {
                       <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-600 text-white text-xs font-bold">
                         {{ I18N.culling.auto_best | translate }}
@@ -464,21 +465,9 @@ interface ShortcutRow {
                         {{ reason | cullReason }}
                       </div>
                     }
-                    @if (photo.path | betterInGroup:group.best_path) {
-                      <div class="absolute top-9 left-2 w-6 h-6 rounded-full bg-amber-500/90 inline-flex items-center justify-center"
-                           role="img"
-                           [matTooltip]="I18N.culling.auto_cull.better_tooltip | translate"
-                           [attr.aria-label]="I18N.culling.auto_cull.better_tooltip | translate">
-                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">stars</mat-icon>
-                      </div>
-                    }
                     @if (photo.path | isKept:selectionsMap():group.group_id) {
                       <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center">
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">check</mat-icon>
-                      </div>
-                    } @else if (photo.path | isDecided:selectionsMap():group.group_id) {
-                      <div class="absolute inset-0 inline-flex items-center justify-center bg-red-900/30 pointer-events-none">
-                        <mat-icon class="!text-3xl !w-9 !h-9 !leading-9 text-red-300">close</mat-icon>
                       </div>
                     }
                     <div class="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-white text-xs font-medium">
@@ -577,9 +566,11 @@ interface ShortcutRow {
       }
       </div>
 
-      <!-- Sticky footer (small screens only): on lg+ the action moves into the top toolbar -->
+      <!-- Sticky footer (small screens only): on lg+ the action moves into the top toolbar.
+           On small screens the toolbar is fixed to the viewport bottom, so this bar clears
+           its height (max-lg:mb-16) to avoid stacking under the fixed icon bar. -->
       @if (unconfirmedCount() > 0) {
-        <div class="lg:!hidden shrink-0 flex justify-center py-3 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
+        <div class="lg:!hidden shrink-0 flex justify-center py-3 max-lg:mb-16 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
           <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="confirming()" class="!px-6 !rounded-md">
             <mat-icon>done_all</mat-icon>
             {{ I18N.culling.confirm_all | translate }} ({{ unconfirmedCount() }})
@@ -877,19 +868,10 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly cullProfiles = signal<CullProfile[]>([]);
   /** Active preset id ('' = custom / none). Persisted; re-applied on open. */
   protected readonly selectedProfile = signal<string>(localStorage.getItem(CULL_PROFILE_KEY) ?? '');
-  /** Moment-derived preset suggestion for the current scope (null = none). */
-  protected readonly profileSuggestion = signal<ProfileSuggestion | null>(null);
   /** Label of the active preset, or "Custom" when none matches the current knobs. */
   protected readonly selectedProfileLabel = computed(() => {
     const p = this.cullProfiles().find(x => x.id === this.selectedProfile());
     return p ? p.label_key : I18N.culling.profiles.custom;
-  });
-  /** The suggested preset to offer as a chip — only when it differs from the
-   *  active one and resolves to a known profile. */
-  protected readonly suggestedProfile = computed<CullProfile | null>(() => {
-    const s = this.profileSuggestion();
-    if (!s || !s.profile || s.profile === this.selectedProfile()) return null;
-    return this.cullProfiles().find(x => x.id === s.profile) ?? null;
   });
   protected readonly excludeRejected = signal(true);
   protected readonly groups = signal<CullingGroup[]>([]);
@@ -1084,7 +1066,6 @@ export class BurstCullingComponent implements OnDestroy {
     void this.loadGroups();
     void this.loadAlbums();
     void this.loadCullProfiles();
-    void this.refreshSuggestion();
     void this.refreshComparisonStats();
     void this.refreshRankerStatus();
     // Keep the keyboard selection in bounds as groups load / get hidden.
@@ -1177,7 +1158,6 @@ export class BurstCullingComponent implements OnDestroy {
     this.scopeScene.set(null);
     void this.router.navigate(['/culling']);
     void this.loadGroups();
-    void this.refreshSuggestion();
   }
 
   /** Non-smart albums for the scope cascade's first level (best-effort). */
@@ -1217,7 +1197,6 @@ export class BurstCullingComponent implements OnDestroy {
     });
     this.selectedGroupIndex.set(0);
     this.resetForReload();
-    void this.refreshSuggestion();
   }
 
   protected scopeWholeLibrary(): void {
@@ -1342,23 +1321,6 @@ export class BurstCullingComponent implements OnDestroy {
     }
   }
 
-  /** Re-suggest a preset from the current scope's dominant narrative moment. */
-  private async refreshSuggestion(): Promise<void> {
-    const params: Record<string, string | number | boolean> = { group_by: this.groupBy() };
-    const album = this.scopeAlbum();
-    const from = this.scopeFrom();
-    const to = this.scopeTo();
-    if (album) params['album_id'] = album;
-    if (from) params['date_from'] = from;
-    if (to) params['date_to'] = to;
-    try {
-      this.profileSuggestion.set(
-        await firstValueFrom(this.api.get<ProfileSuggestion>('/culling/profiles/suggest', params)));
-    } catch {
-      this.profileSuggestion.set(null);
-    }
-  }
-
   /**
    * Apply a preset: set strictness first (so a reload auto-selects with it) and
    * the similarity threshold, remember the choice, then re-derive the auto-keep
@@ -1374,11 +1336,6 @@ export class BurstCullingComponent implements OnDestroy {
     } else if (p.strictness != null) {
       this.reselectFromStrictness();
     }
-  }
-
-  protected applySuggestion(): void {
-    const p = this.suggestedProfile();
-    if (p) this.applyProfile(p);
   }
 
   protected onExcludeRejectedChange(value: boolean): void {
