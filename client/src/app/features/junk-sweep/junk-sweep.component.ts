@@ -131,16 +131,20 @@ const ANY_KIND = 'any';
               <span class="absolute top-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
                 {{ photo.junk_kind | junkKindLabel }}
               </span>
-              <div class="absolute inset-x-0 bottom-0 flex justify-between gap-1 p-1.5 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                <button mat-flat-button class="!min-w-0 !px-2 !text-xs" (click)="keep(photo)"
-                        [matTooltip]="I18N.junk.keep_hint | translate">
-                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">check</mat-icon>
-                  {{ I18N.junk.keep | translate }}
+              <div class="absolute inset-x-0 bottom-0 flex justify-end items-center gap-1 p-1.5 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-green-400"
+                  [matTooltip]="I18N.junk.keep_hint | translate"
+                  [attr.aria-label]="I18N.junk.keep | translate"
+                  (click)="keep(photo)">
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">check</mat-icon>
                 </button>
-                <button mat-flat-button color="warn" class="!min-w-0 !px-2 !text-xs" (click)="reject(photo)"
-                        [matTooltip]="I18N.junk.reject_hint | translate">
-                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">delete</mat-icon>
-                  {{ I18N.junk.reject | translate }}
+                <button
+                  class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-red-400"
+                  [matTooltip]="I18N.junk.reject_hint | translate"
+                  [attr.aria-label]="I18N.junk.reject | translate"
+                  (click)="reject(photo)">
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">delete</mat-icon>
                 </button>
               </div>
             </div>
