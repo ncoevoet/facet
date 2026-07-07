@@ -251,6 +251,26 @@ class TestMove:
         assert resp.status_code == 403
         assert inbox.is_dir()
 
+    def test_move_overwrite_false_conflict_412(self, client, inbox):
+        client.request("PUT", "/dav/src.jpg", auth=AUTH, content=b"new")
+        client.request("PUT", "/dav/dst.jpg", auth=AUTH, content=b"old")
+        resp = client.request(
+            "MOVE", "/dav/src.jpg", auth=AUTH,
+            headers={
+                "Destination": "http://testserver/dav/dst.jpg",
+                "Overwrite": "F",
+            },
+        )
+        assert resp.status_code == 412
+        assert (inbox / "dst.jpg").read_bytes() == b"old"
+        assert (inbox / "src.jpg").exists()
+
+    def test_move_missing_destination_400(self, client, inbox):
+        client.request("PUT", "/dav/src.jpg", auth=AUTH, content=b"payload")
+        resp = client.request("MOVE", "/dav/src.jpg", auth=AUTH)
+        assert resp.status_code == 400
+        assert (inbox / "src.jpg").exists()
+
 
 # --- DELETE ----------------------------------------------------------------
 
@@ -264,6 +284,14 @@ class TestDelete:
     def test_delete_missing_404(self, client, inbox):
         resp = client.request("DELETE", "/dav/never.jpg", auth=AUTH)
         assert resp.status_code == 404
+
+    def test_delete_removes_directory_recursively(self, client, inbox):
+        client.request("MKCOL", "/dav/album", auth=AUTH)
+        client.request("PUT", "/dav/album/child.jpg", auth=AUTH, content=b"x")
+        resp = client.request("DELETE", "/dav/album", auth=AUTH)
+        assert resp.status_code == 204
+        assert not (inbox / "album").exists()
+        assert not (inbox / "album" / "child.jpg").exists()
 
 
 # --- Containment -----------------------------------------------------------
@@ -298,6 +326,10 @@ class TestContainment:
         resp = client.request("PROPFIND", "/dav/escape2", auth=AUTH, headers={"Depth": "1"})
         assert resp.status_code == 403
 
+    def test_null_byte_path_400(self, client, inbox):
+        resp = client.request("PUT", "/dav/%00evil.jpg", auth=AUTH, content=b"x")
+        assert resp.status_code == 400
+
 
 # --- GET / HEAD ------------------------------------------------------------
 
@@ -318,3 +350,10 @@ class TestGetHead:
     def test_get_missing_404(self, client, inbox):
         resp = client.get("/dav/absent.jpg", auth=AUTH)
         assert resp.status_code == 404
+
+    def test_get_on_collection_405(self, client, inbox):
+        client.request("MKCOL", "/dav/album", auth=AUTH)
+        resp = client.get("/dav/album", auth=AUTH)
+        assert resp.status_code == 405
+        resp = client.request("HEAD", "/dav/album", auth=AUTH)
+        assert resp.status_code == 405
