@@ -1820,6 +1820,8 @@
     "face_eyes_min_tooltip": "Destaca os rostos com uma pontuação de olhos abertos abaixo deste valor",
     "face_smile_min": "Sorriso",
     "face_smile_min_tooltip": "Destaca os rostos com uma pontuação de sorriso abaixo deste valor",
+    "subject_grid_title": "Sujeitos deste grupo",
+    "subject_sharpness": "Nitidez do sujeito (10 = o mais nítido do grupo)",
     "reason": {
       "best": "Melhor do grupo",
       "eyes_closed": "Olhos fechados",

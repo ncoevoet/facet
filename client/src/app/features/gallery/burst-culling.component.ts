@@ -31,8 +31,9 @@ import {
   CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe,
   FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
   SortIconPipe, CategoryIconPipe, CullProfileIconPipe, CullPreviewUrlPipe,
+  SubjectForPathPipe, SubjectRingClassPipe,
   cullPreviewUrl,
-  CullingGroup, CullingFace, FaceThresholds, CullStyle,
+  CullingGroup, CullingFace, CullingSubject, FaceThresholds, CullStyle,
 } from './burst-culling.pipes';
 
 interface CullingGroupsResponse {
@@ -153,6 +154,8 @@ interface ShortcutRow {
     CategoryIconPipe,
     CullProfileIconPipe,
     CullPreviewUrlPipe,
+    SubjectForPathPipe,
+    SubjectRingClassPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
   ],
@@ -787,6 +790,47 @@ interface ShortcutRow {
             </div>
           </div>
         }
+
+        <!-- Subject close-up grid (non-face groups with a saliency subject box) -->
+        @if (subjectStripVisible()) {
+          <div class="border-t border-white/10 px-4 py-3 overflow-x-auto"
+               role="presentation"
+               (click)="$event.stopPropagation()"
+               (keydown)="$event.stopPropagation()">
+            <div class="text-white/50 text-xs mb-2">{{ I18N.culling.subject_grid_title | translate }}</div>
+            <div class="flex gap-3 items-start">
+              @for (photo of lbGroup.photos; track photo.path; let pIdx = $index) {
+                @if (photo.path | subjectForPath:subjectMap(); as subject) {
+                  @if (subject.has_subject) {
+                    <button type="button"
+                            class="flex flex-col items-center gap-1 flex-shrink-0 cursor-zoom-in"
+                            [matTooltip]="I18N.culling.subject_sharpness | translate"
+                            (click)="focusPhotoInLightbox(pIdx)">
+                      <div class="relative">
+                        <img [src]="subject.crop"
+                             class="w-24 h-24 rounded object-cover ring-2 ring-inset"
+                             [ngClass]="subject | subjectRingClass"
+                             [class.!ring-amber-400]="photo.path === lbGroup.photos[lightboxIndex()]?.path"
+                             [alt]="photo.filename" loading="lazy" />
+                        @if (subject.crop_sharpness_score !== null) {
+                          <div class="absolute top-0 right-0 bg-black/60 text-white/80 text-[9px] leading-none px-1 py-0.5 rounded-bl">
+                            {{ subject.crop_sharpness_score | number:'1.0-1' }}
+                          </div>
+                        }
+                        <div class="absolute bottom-1 right-1 px-1 py-0.5 rounded bg-black/70 text-white text-[10px] leading-none">{{ pIdx + 1 }}</div>
+                      </div>
+                      @if (photo.path === lbGroup.best_path) {
+                        <span class="text-green-400 text-[10px] font-bold">{{ I18N.culling.auto_best | translate }}</span>
+                      } @else if (photo.cull_reason; as reason) {
+                        <span class="text-white/60 text-[10px] max-w-[96px] truncate">{{ reason | cullReason }}</span>
+                      }
+                    </button>
+                  }
+                }
+              }
+            </div>
+          </div>
+        }
       </div>
     }
 
@@ -1002,6 +1046,9 @@ export class BurstCullingComponent implements OnDestroy {
   /** Config-driven face-signal cutoffs from the faces response (ring colors + badges). */
   protected readonly faceThresholds = signal<FaceThresholds | null>(null);
 
+  /** photo path -> subject close-up crop, loaded lazily for non-face groups. */
+  protected readonly subjectMap = signal<Map<string, CullingSubject>>(new Map());
+
   /** Face-panel live-highlight sliders (0 = off): faces below the chosen
    *  eyes-open / smile value stay bright while the rest dim. Persisted. */
   protected readonly faceEyesMin = signal(readStoredFaceMin(CULL_FACE_EYES_KEY));
@@ -1024,6 +1071,20 @@ export class BurstCullingComponent implements OnDestroy {
     const map = this.faceMap();
     return group.photos.some(p => (map.get(p.path)?.length ?? 0) > 0);
   });
+
+  /** True when at least one photo in the focused group has a subject close-up. */
+  protected readonly subjectGridHasSubjects = computed(() => {
+    const group = this.lightboxGroup();
+    if (!group) return false;
+    const map = this.subjectMap();
+    return group.photos.some(p => map.get(p.path)?.has_subject === true);
+  });
+
+  /** Show the subject close-up strip only for groups with subjects but no faces,
+   *  so face groups get the face strip and non-face subject groups get this one. */
+  protected readonly subjectStripVisible = computed(
+    () => !this.faceGridHasFaces() && this.subjectGridHasSubjects(),
+  );
 
   /** Groups visible in the UI (excludes hidden groups + honors the category filter). */
   protected readonly visibleGroups = computed(() => {
@@ -1519,7 +1580,15 @@ export class BurstCullingComponent implements OnDestroy {
     this.lightboxIndex.set(index);
     const gi = this.visibleGroups().findIndex(g => this.groupKey(g) === this.groupKey(group));
     if (gi >= 0) this.selectedGroupIndex.set(gi);
-    void this.loadFacesForGroup(group);
+    void this.loadCloseupsForGroup(group);
+  }
+
+  /** Jump the darkroom's main view to a group photo (subject-strip click). */
+  protected focusPhotoInLightbox(index: number): void {
+    const group = this.lightboxGroup();
+    if (!group) return;
+    this.lightboxIndex.set(this.clampIndex(index, group.photos.length));
+    this.zoom.set(FIT_ZOOM);
   }
 
   protected closeLightbox(): void {
@@ -1564,6 +1633,59 @@ export class BurstCullingComponent implements OnDestroy {
       this.faceMap.update(m => {
         const next = new Map(m);
         for (const photo of missing) next.set(photo.path, []);
+        return next;
+      });
+    }
+  }
+
+  /**
+   * Load the close-up strips for a group: faces first, then — only when the
+   * group has no faces — the subject close-ups, so a wildlife/macro/product
+   * burst gets a subject strip while portrait groups keep the face strip and
+   * face-heavy groups never pay for subject crops.
+   */
+  private async loadCloseupsForGroup(group: CullingGroup): Promise<void> {
+    await this.loadFacesForGroup(group);
+    const hasFaces = group.photos.some(p => (this.faceMap().get(p.path)?.length ?? 0) > 0);
+    if (!hasFaces) await this.loadSubjectsForGroup(group);
+  }
+
+  /**
+   * Lazily fetch subject close-up crops for the focused group in one batch call.
+   * Each crop is the stored thumbnail cut to the persisted BiRefNet subject box
+   * with a group-normalized sharpness score. Cached in subjectMap; already-loaded
+   * paths are skipped. Degrades silently: photos without a subject box just don't
+   * appear in the strip.
+   */
+  private async loadSubjectsForGroup(group: CullingGroup): Promise<void> {
+    const missing = group.photos.filter(p => !this.subjectMap().has(p.path));
+    if (missing.length === 0) return;
+    try {
+      const data = await firstValueFrom(
+        this.api.post<{ subjects_by_path: Record<string, CullingSubject> }>(
+          '/culling-group/subjects', { paths: missing.map(p => p.path) },
+        ),
+      );
+      const byPath = data.subjects_by_path ?? {};
+      this.subjectMap.update(m => {
+        const next = new Map(m);
+        for (const photo of missing) {
+          const entry = byPath[photo.path];
+          if (entry) next.set(photo.path, entry);
+          else next.set(photo.path, { path: photo.path, has_subject: false, crop: null,
+            subject_sharpness: null, subject_prominence: null,
+            crop_sharpness: null, crop_sharpness_score: null });
+        }
+        return next;
+      });
+    } catch {
+      this.subjectMap.update(m => {
+        const next = new Map(m);
+        for (const photo of missing) {
+          next.set(photo.path, { path: photo.path, has_subject: false, crop: null,
+            subject_sharpness: null, subject_prominence: null,
+            crop_sharpness: null, crop_sharpness_score: null });
+        }
         return next;
       });
     }

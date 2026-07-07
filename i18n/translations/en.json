@@ -1820,6 +1820,8 @@
     "face_eyes_min_tooltip": "Highlight faces with an eyes-open score below this value",
     "face_smile_min": "Smile",
     "face_smile_min_tooltip": "Highlight faces with a smile score below this value",
+    "subject_grid_title": "Subjects in this group",
+    "subject_sharpness": "Subject sharpness (10 = sharpest in group)",
     "reason": {
       "best": "Best of group",
       "eyes_closed": "Eyes closed",

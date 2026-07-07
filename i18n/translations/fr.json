@@ -1822,6 +1822,8 @@
     "face_eyes_min_tooltip": "Met en évidence les visages dont le score d'yeux ouverts est inférieur à cette valeur",
     "face_smile_min": "Sourire",
     "face_smile_min_tooltip": "Met en évidence les visages dont le score de sourire est inférieur à cette valeur",
+    "subject_grid_title": "Sujets de ce groupe",
+    "subject_sharpness": "Netteté du sujet (10 = le plus net du groupe)",
     "reason": {
       "best": "Meilleure du groupe",
       "eyes_closed": "Yeux fermés",

@@ -1822,6 +1822,8 @@
     "face_eyes_min_tooltip": "Evidenzia i volti con un punteggio occhi aperti inferiore a questo valore",
     "face_smile_min": "Sorriso",
     "face_smile_min_tooltip": "Evidenzia i volti con un punteggio sorriso inferiore a questo valore",
+    "subject_grid_title": "Soggetti di questo gruppo",
+    "subject_sharpness": "Nitidezza del soggetto (10 = il più nitido del gruppo)",
     "reason": {
       "best": "La migliore del gruppo",
       "eyes_closed": "Occhi chiusi",

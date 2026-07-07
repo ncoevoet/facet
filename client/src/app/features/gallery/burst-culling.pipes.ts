@@ -41,6 +41,20 @@ export interface FaceThresholds {
   poor_expression_min: number;
 }
 
+/** A single photo's subject close-up within a culling group
+ *  (from POST /api/culling-group/subjects). One subject per photo. */
+export interface CullingSubject {
+  path: string;
+  has_subject: boolean;
+  /** Base64 data URI of the thumbnail cropped to the subject box, or null. */
+  crop: string | null;
+  subject_sharpness: number | null;
+  subject_prominence: number | null;
+  crop_sharpness: number | null;
+  /** Group-normalized 0..10 sharpness (sharpest crop reads 10). */
+  crop_sharpness_score: number | null;
+}
+
 /** A burst, similar, or scene group surfaced for culling. */
 export interface CullingGroup {
   group_id: number;
@@ -111,6 +125,27 @@ export class CullReasonPipe implements PipeTransform {
 export class FacesForPathPipe implements PipeTransform {
   transform(path: string, faceMap: Map<string, CullingFace[]>): CullingFace[] {
     return faceMap.get(path) ?? [];
+  }
+}
+
+/** Look up the loaded subject close-up for a photo path from the subject map. */
+@Pipe({ name: 'subjectForPath' })
+export class SubjectForPathPipe implements PipeTransform {
+  transform(path: string, subjectMap: Map<string, CullingSubject>): CullingSubject | null {
+    return subjectMap.get(path) ?? null;
+  }
+}
+
+/** Tailwind ring color for a subject crop, ranking by the group-normalized
+ *  sharpness score: green = sharpest tier, amber = mid, red = softest. */
+@Pipe({ name: 'subjectRingClass' })
+export class SubjectRingClassPipe implements PipeTransform {
+  transform(subject: CullingSubject): string {
+    const score = subject.crop_sharpness_score;
+    if (score == null) return 'ring-white/20';
+    if (score >= 8) return 'ring-green-500';
+    if (score >= 5) return 'ring-amber-500';
+    return 'ring-red-500';
   }
 }
 

@@ -797,6 +797,87 @@ describe('BurstCullingComponent', () => {
       expect(component['activeStyle']()).toBe('');
     });
   });
+
+  describe('subject close-up strip (non-face groups)', () => {
+    const wildlifeGroup = {
+      group_id: 3, type: 'similar' as const, reason: '', best_path: '/w1.jpg', count: 2,
+      photos: [
+        { path: '/w1.jpg', filename: 'w1.jpg', aggregate: 8, aesthetic: 7, tech_sharpness: 6, is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8 },
+        { path: '/w2.jpg', filename: 'w2.jpg', aggregate: 7, aesthetic: 6, tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: '2024-01-01', burst_score: 7 },
+      ],
+    };
+    const subjectFor = (path: string, score: number) => ({
+      path, has_subject: true, crop: 'data:image/jpeg;base64,x',
+      subject_sharpness: null, subject_prominence: null,
+      crop_sharpness: score * 10, crop_sharpness_score: score,
+    });
+
+    const routePost = (faces: unknown, subjects: unknown) => {
+      mockApi.post.mockImplementation((url: string) => {
+        if (url === '/culling-group/faces') return of(faces);
+        if (url === '/culling-group/subjects') return of(subjects);
+        return of({});
+      });
+    };
+
+    const focusGroup = () => {
+      component['groups'].set([wildlifeGroup]);
+      component['lightboxGroupId'].set(component['groupKey'](wildlifeGroup));
+    };
+
+    it('loadSubjectsForGroup populates the subject map from the response', async () => {
+      routePost({ faces_by_path: {} }, {
+        subjects_by_path: { '/w1.jpg': subjectFor('/w1.jpg', 10), '/w2.jpg': subjectFor('/w2.jpg', 4) },
+      });
+
+      await (component as any).loadSubjectsForGroup(wildlifeGroup);
+
+      const map = component['subjectMap']();
+      expect(map.get('/w1.jpg')?.has_subject).toBe(true);
+      expect(map.get('/w2.jpg')?.crop_sharpness_score).toBe(4);
+    });
+
+    it('shows the strip for a group with subjects and no faces', async () => {
+      routePost({ faces_by_path: {} }, {
+        subjects_by_path: { '/w1.jpg': subjectFor('/w1.jpg', 10), '/w2.jpg': subjectFor('/w2.jpg', 4) },
+      });
+      focusGroup();
+
+      await (component as any).loadCloseupsForGroup(wildlifeGroup);
+
+      expect(component['subjectStripVisible']()).toBe(true);
+      expect(mockApi.post).toHaveBeenCalledWith('/culling-group/subjects', { paths: ['/w1.jpg', '/w2.jpg'] });
+    });
+
+    it('does not load or show subjects when the group has faces', async () => {
+      routePost({ faces_by_path: { '/w1.jpg': [{ id: 1, face_index: 0 }] } }, { subjects_by_path: {} });
+      focusGroup();
+
+      await (component as any).loadCloseupsForGroup(wildlifeGroup);
+
+      expect(component['subjectStripVisible']()).toBe(false);
+      expect(mockApi.post).not.toHaveBeenCalledWith('/culling-group/subjects', expect.anything());
+    });
+
+    it('records has_subject=false for unreturned paths so the strip stays hidden', async () => {
+      routePost({ faces_by_path: {} }, { subjects_by_path: {} });
+      focusGroup();
+
+      await (component as any).loadCloseupsForGroup(wildlifeGroup);
+
+      expect(component['subjectStripVisible']()).toBe(false);
+      expect(component['subjectMap']().get('/w1.jpg')?.has_subject).toBe(false);
+    });
+
+    it('focusPhotoInLightbox jumps the darkroom to the clicked subject', () => {
+      focusGroup();
+      component['lightboxIndex'].set(0);
+
+      component['focusPhotoInLightbox'](1);
+
+      expect(component['lightboxIndex']()).toBe(1);
+    });
+  });
 });
 
 // The IsKept/IsDecided/IsConfirmed/IsPassing/PassCountdown pipe tests moved to

@@ -6,6 +6,7 @@ Uses precomputed burst_group_id from the database (populated by --recompute-burs
 Groups marked as burst_reviewed=1 are skipped so confirmed decisions persist.
 """
 
+import json
 import logging
 import random
 import sqlite3
@@ -67,6 +68,10 @@ class CullingConfirmBody(BaseModel):
 class CullingFacesBody(BaseModel):
     paths: list[str]
     profile: Optional[str] = None
+
+
+class CullingSubjectsBody(BaseModel):
+    paths: list[str]
 
 
 class AutoCullBody(BaseModel):
@@ -1038,6 +1043,150 @@ async def api_culling_group_faces(
         })
 
     return {'faces_by_path': faces_by_path, 'thresholds': thresholds}
+
+
+# Subject close-up strip: crop each photo's stored thumbnail to its persisted
+# BiRefNet subject box so a burst/similar group of non-face subjects (wildlife,
+# macro, products) can be compared at close-up. Pure read-only; no model runs.
+_SUBJECT_CROP_MARGIN = 0.06          # bbox expansion each side before cropping
+_SUBJECT_CROP_OUTPUT = 256           # longest-edge px of every crop (uniform scale)
+_SUBJECT_CROP_QUALITY = 80
+_SUBJECT_FULLFRAME_MAX_AREA = 0.9    # a box over this frame fraction = no distinct subject
+
+
+def _parse_subject_bbox(raw):
+    """Parse a stored ``subject_bbox`` into a valid normalized ``[x0,y0,x1,y1]``.
+
+    Returns None for a missing / malformed / degenerate box, or one covering
+    more than ``_SUBJECT_FULLFRAME_MAX_AREA`` of the frame — a near-full-frame
+    box means BiRefNet found no subject distinct from the background, so there
+    is nothing to close up on.
+    """
+    if not raw:
+        return None
+    try:
+        box = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(box, (list, tuple)) or len(box) != 4:
+        return None
+    try:
+        x0, y0, x1, y1 = (float(v) for v in box)
+    except (ValueError, TypeError):
+        return None
+    x0, y0 = max(0.0, min(1.0, x0)), max(0.0, min(1.0, y0))
+    x1, y1 = max(0.0, min(1.0, x1)), max(0.0, min(1.0, y1))
+    if x1 <= x0 or y1 <= y0:
+        return None
+    if (x1 - x0) * (y1 - y0) > _SUBJECT_FULLFRAME_MAX_AREA:
+        return None
+    return [x0, y0, x1, y1]
+
+
+def _subject_crop_and_sharpness(thumbnail_bytes, bbox):
+    """Crop a stored thumbnail to ``bbox`` (+ margin), return (data-URI, laplacian var).
+
+    The crop's longest edge is bounded to ``_SUBJECT_CROP_OUTPUT`` so a group's
+    crops compare at a common scale; ``crop_sharpness`` is the Laplacian variance
+    of that bounded crop (CPU, cv2). Returns ``(None, None)`` on any failure.
+    """
+    import base64
+    from io import BytesIO
+
+    import cv2
+    import numpy as np
+    from PIL import Image
+
+    try:
+        img = Image.open(BytesIO(thumbnail_bytes)).convert('RGB')
+    except (OSError, ValueError):
+        return None, None
+    w, h = img.size
+    x0, y0, x1, y1 = bbox
+    mx = (x1 - x0) * _SUBJECT_CROP_MARGIN
+    my = (y1 - y0) * _SUBJECT_CROP_MARGIN
+    px0 = int(max(0.0, x0 - mx) * w)
+    py0 = int(max(0.0, y0 - my) * h)
+    px1 = int(min(1.0, x1 + mx) * w)
+    py1 = int(min(1.0, y1 + my) * h)
+    if px1 <= px0 or py1 <= py0:
+        return None, None
+    crop = img.crop((px0, py0, px1, py1))
+    if max(crop.size) > _SUBJECT_CROP_OUTPUT:
+        crop.thumbnail((_SUBJECT_CROP_OUTPUT, _SUBJECT_CROP_OUTPUT), Image.LANCZOS)
+    gray = cv2.cvtColor(np.asarray(crop), cv2.COLOR_RGB2GRAY)
+    sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    buf = BytesIO()
+    crop.save(buf, format='JPEG', quality=_SUBJECT_CROP_QUALITY)
+    encoded = base64.b64encode(buf.getvalue()).decode('ascii')
+    return f"data:image/jpeg;base64,{encoded}", round(sharpness, 2)
+
+
+@router.post("/api/culling-group/subjects")
+async def api_culling_group_subjects(
+    body: CullingSubjectsBody,
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Per-subject close-up crops for every photo in a culling group, in one call.
+
+    Returns ``{subjects_by_path: {path: {path, has_subject, crop,
+    subject_sharpness, subject_prominence, crop_sharpness, crop_sharpness_score}}}``.
+    Each crop is the stored 640px thumbnail cut to the persisted BiRefNet subject
+    box (``photos.subject_bbox``) with a small margin — the non-face analogue of
+    ``/api/culling-group/faces`` so bursts/similar groups of wildlife/macro/product
+    subjects can be compared at close-up. No model runs at request time: photos
+    with no persisted box (``subject_bbox`` NULL, or a near-full-frame box) return
+    ``has_subject: false`` rather than a faked center crop. ``crop_sharpness`` is
+    the Laplacian variance of the crop; ``crop_sharpness_score`` re-scales it to
+    0..10 within the group so the sharpest frame reads 10.
+    """
+    paths = [p for p in (body.paths or []) if p]
+    if not paths:
+        return {'subjects_by_path': {}}
+
+    user_id = user.user_id if user else None
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    subjects_by_path = {
+        p: {
+            'path': p, 'has_subject': False, 'crop': None,
+            'subject_sharpness': None, 'subject_prominence': None,
+            'crop_sharpness': None, 'crop_sharpness_score': None,
+        }
+        for p in paths
+    }
+    placeholders = ",".join("?" * len(paths))
+    with get_db() as conn:
+        rows = conn.execute(
+            f"SELECT path, thumbnail, subject_bbox, subject_sharpness, subject_prominence "
+            f"FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
+            paths + vis_params,
+        ).fetchall()
+
+    for row in rows:
+        entry = subjects_by_path[row['path']]
+        entry['subject_sharpness'] = row['subject_sharpness']
+        entry['subject_prominence'] = row['subject_prominence']
+        bbox = _parse_subject_bbox(row['subject_bbox'])
+        if bbox is None or row['thumbnail'] is None:
+            continue
+        crop, crop_sharpness = _subject_crop_and_sharpness(row['thumbnail'], bbox)
+        if crop is None:
+            continue
+        entry['has_subject'] = True
+        entry['crop'] = crop
+        entry['crop_sharpness'] = crop_sharpness
+
+    sharps = [
+        e['crop_sharpness'] for e in subjects_by_path.values()
+        if e['has_subject'] and e['crop_sharpness'] is not None
+    ]
+    max_sharp = max(sharps) if sharps else 0.0
+    if max_sharp > 0:
+        for e in subjects_by_path.values():
+            if e['has_subject'] and e['crop_sharpness'] is not None:
+                e['crop_sharpness_score'] = round(10.0 * e['crop_sharpness'] / max_sharp, 2)
+
+    return {'subjects_by_path': subjects_by_path}
 
 
 @router.get("/api/culling-groups")

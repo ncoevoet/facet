@@ -2,9 +2,15 @@ import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
   WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
-  CullPreviewUrlPipe,
-  CullingGroup, CullingFace, FaceThresholds,
+  CullPreviewUrlPipe, SubjectForPathPipe, SubjectRingClassPipe,
+  CullingGroup, CullingFace, CullingSubject, FaceThresholds,
 } from './burst-culling.pipes';
+
+const subject = (overrides: Partial<CullingSubject> = {}): CullingSubject => ({
+  path: '/p.jpg', has_subject: true, crop: 'data:image/jpeg;base64,x',
+  subject_sharpness: null, subject_prominence: null,
+  crop_sharpness: 100, crop_sharpness_score: 10, ...overrides,
+});
 
 const group = (overrides: Partial<CullingGroup> = {}): CullingGroup => ({
   group_id: 1, type: 'burst', reason: '', photos: [], best_path: '', count: 0, ...overrides,
@@ -104,6 +110,40 @@ describe('FacesForPathPipe', () => {
 
   it('returns an empty array for an unknown path', () => {
     expect(pipe.transform('/missing.jpg', new Map())).toEqual([]);
+  });
+});
+
+describe('SubjectForPathPipe', () => {
+  const pipe = new SubjectForPathPipe();
+
+  it('returns the subject for a known path', () => {
+    const s = subject();
+    const map = new Map<string, CullingSubject>([['/p.jpg', s]]);
+    expect(pipe.transform('/p.jpg', map)).toBe(s);
+  });
+
+  it('returns null for an unknown path', () => {
+    expect(pipe.transform('/missing.jpg', new Map())).toBeNull();
+  });
+});
+
+describe('SubjectRingClassPipe', () => {
+  const pipe = new SubjectRingClassPipe();
+
+  it('rings the sharpest tier green', () => {
+    expect(pipe.transform(subject({ crop_sharpness_score: 10 }))).toBe('ring-green-500');
+  });
+
+  it('rings the mid tier amber', () => {
+    expect(pipe.transform(subject({ crop_sharpness_score: 6 }))).toBe('ring-amber-500');
+  });
+
+  it('rings the softest tier red', () => {
+    expect(pipe.transform(subject({ crop_sharpness_score: 2 }))).toBe('ring-red-500');
+  });
+
+  it('is neutral when no score is available', () => {
+    expect(pipe.transform(subject({ crop_sharpness_score: null }))).toBe('ring-white/20');
   });
 });
 

@@ -1826,6 +1826,8 @@
     "face_eyes_min_tooltip": "Hebt Gesichter hervor, deren Augen-offen-Wert unter diesem Wert liegt",
     "face_smile_min": "Lächeln",
     "face_smile_min_tooltip": "Hebt Gesichter hervor, deren Lächeln-Wert unter diesem Wert liegt",
+    "subject_grid_title": "Motive in dieser Gruppe",
+    "subject_sharpness": "Motivschärfe (10 = schärfstes der Gruppe)",
     "reason": {
       "best": "Beste der Gruppe",
       "eyes_closed": "Augen geschlossen",
