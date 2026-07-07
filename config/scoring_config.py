@@ -650,6 +650,11 @@ class ScoringConfig:
         """
         models_config = self.get_model_config()
         profile_name = models_config.get('vram_profile', 'legacy')
+        if profile_name == 'auto':
+            # Resolve 'auto' to the detected profile (in-memory, once) so the
+            # task lookup never falls through to the legacy profile.
+            self.check_vram_profile_compatibility(verbose=False)
+            profile_name = self.get_model_config().get('vram_profile', 'legacy')
         profiles = models_config.get('profiles', {})
         profile = profiles.get(profile_name, profiles.get('legacy', {}))
 
