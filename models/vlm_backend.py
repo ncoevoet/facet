@@ -225,7 +225,11 @@ def create_remote_vlm_tagger(full_config: Optional[dict], scoring_config=None):
     nor a VRAM profile, so the tagger is built with an empty model config and the
     backend attached.
     """
-    backend = create_vlm_backend(full_config)
+    try:
+        backend = create_vlm_backend(full_config)
+    except VLMBackendError as ex:
+        logger.warning("Remote VLM backend misconfigured, falling back to local: %s", ex)
+        return None
     if backend is None:
         return None
     from models.vlm_tagger import VLMTagger

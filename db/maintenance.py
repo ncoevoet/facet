@@ -397,6 +397,61 @@ def cleanup_orphaned_persons(db_path='photo_scores_pro.db', verbose=True):
     return count
 
 
+def _reinsert_faces(dest_conn, face_insert_cols, face_resync_paths, batch_size):
+    face_select_exprs = ', '.join(
+        'zeroblob(0)' if c == 'embedding'
+        else 'NULL' if c == 'landmark_2d_106'
+        else c
+        for c in face_insert_cols
+    )
+    face_col_list = ', '.join(face_insert_cols)
+
+    for i in range(0, len(face_resync_paths), batch_size):
+        batch = face_resync_paths[i:i + batch_size]
+        placeholders = ','.join('?' * len(batch))
+        dest_conn.execute(
+            f"DELETE FROM main.faces WHERE photo_path IN ({placeholders})", batch
+        )
+        dest_conn.execute(
+            f"INSERT OR IGNORE INTO main.faces ({face_col_list}) "
+            f"SELECT {face_select_exprs} FROM src.faces WHERE photo_path IN ({placeholders})",
+            batch
+        )
+    dest_conn.commit()
+
+
+def _downsize_face_thumbnails(dest_conn, face_resync_paths, thumbnail_size, batch_size):
+    from PIL import Image
+
+    face_resized = 0
+    for i in range(0, len(face_resync_paths), batch_size):
+        batch = face_resync_paths[i:i + batch_size]
+        placeholders = ','.join('?' * len(batch))
+        rows = dest_conn.execute(
+            f"SELECT id, face_thumbnail FROM main.faces "
+            f"WHERE photo_path IN ({placeholders}) AND face_thumbnail IS NOT NULL",
+            batch
+        ).fetchall()
+        updates = []
+        for face_id, thumb_bytes in rows:
+            try:
+                img = Image.open(BytesIO(thumb_bytes))
+                if max(img.size) > thumbnail_size:
+                    img.thumbnail((thumbnail_size, thumbnail_size), Image.LANCZOS)
+                    buf = BytesIO()
+                    img.save(buf, format='JPEG', quality=80)
+                    updates.append((buf.getvalue(), face_id))
+                    face_resized += 1
+            except Exception:
+                pass
+        if updates:
+            dest_conn.executemany(
+                "UPDATE main.faces SET face_thumbnail = ? WHERE id = ?", updates
+            )
+            dest_conn.commit()
+    return face_resized
+
+
 def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose):
     """Incrementally sync changes from source_db into the existing viewer database.
 
@@ -554,54 +609,10 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
             ).fetchall()]
 
             if face_resync_paths:
-                face_select_exprs = ', '.join(
-                    'zeroblob(0)' if c == 'embedding'
-                    else 'NULL' if c == 'landmark_2d_106'
-                    else c
-                    for c in face_insert_cols
+                _reinsert_faces(dest_conn, face_insert_cols, face_resync_paths, batch_size)
+                face_resized = _downsize_face_thumbnails(
+                    dest_conn, face_resync_paths, thumbnail_size, batch_size
                 )
-                face_col_list = ', '.join(face_insert_cols)
-
-                for i in range(0, len(face_resync_paths), batch_size):
-                    batch = face_resync_paths[i:i + batch_size]
-                    placeholders = ','.join('?' * len(batch))
-                    dest_conn.execute(
-                        f"DELETE FROM main.faces WHERE photo_path IN ({placeholders})", batch
-                    )
-                    dest_conn.execute(
-                        f"INSERT OR IGNORE INTO main.faces ({face_col_list}) "
-                        f"SELECT {face_select_exprs} FROM src.faces WHERE photo_path IN ({placeholders})",
-                        batch
-                    )
-                dest_conn.commit()
-
-                face_resized = 0
-                for i in range(0, len(face_resync_paths), batch_size):
-                    batch = face_resync_paths[i:i + batch_size]
-                    placeholders = ','.join('?' * len(batch))
-                    rows = dest_conn.execute(
-                        f"SELECT id, face_thumbnail FROM main.faces "
-                        f"WHERE photo_path IN ({placeholders}) AND face_thumbnail IS NOT NULL",
-                        batch
-                    ).fetchall()
-                    updates = []
-                    for face_id, thumb_bytes in rows:
-                        try:
-                            img = Image.open(BytesIO(thumb_bytes))
-                            if max(img.size) > thumbnail_size:
-                                img.thumbnail((thumbnail_size, thumbnail_size), Image.LANCZOS)
-                                buf = BytesIO()
-                                img.save(buf, format='JPEG', quality=80)
-                                updates.append((buf.getvalue(), face_id))
-                                face_resized += 1
-                        except Exception:
-                            pass
-                    if updates:
-                        dest_conn.executemany(
-                            "UPDATE main.faces SET face_thumbnail = ? WHERE id = ?", updates
-                        )
-                        dest_conn.commit()
-
                 if verbose:
                     logger.info("  Resynced faces for %d photos, downsized %d face thumbnails",
                                 len(face_resync_paths), face_resized)

@@ -9,7 +9,6 @@ scan_runs row is recorded 'interrupted'.
 """
 
 import sys
-from pathlib import Path
 
 import pytest
 from PIL import Image

@@ -13,8 +13,8 @@ smoothing layer.
 
 import numpy as np
 
+from models.prompt_scorer import build_prompt_matrix, pooled_cosine
 from models.tagger import encode_text_prompts
-from utils.embedding import bytes_to_normalized_embedding
 
 NOT_JUNK = 'not_junk'
 
@@ -43,20 +43,9 @@ class JunkClassifier:
         vocab[NOT_JUNK] = config.get_junk_not_junk_prompts()
         self.labels = self.kinds + [NOT_JUNK]
 
-        vectors, label_idx = [], []
-        for li, label in enumerate(self.labels):
-            prompts = [template.format(desc=d) for d in vocab.get(label, [])]
-            if not prompts:
-                continue
-            emb = encode_text_prompts(clip_model, model_name, backend, device, prompts)
-            emb = emb.detach().cpu().numpy().astype(np.float32)
-            for row in emb:
-                vectors.append(row)
-                label_idx.append(li)
-        self.prompt_matrix = (
-            np.stack(vectors) if vectors else np.zeros((0, embedding_dim), np.float32)
-        )
-        self.prompt_label_idx = np.asarray(label_idx, dtype=np.int64)
+        self.prompt_matrix, self.prompt_label_idx = build_prompt_matrix(
+            encode_text_prompts, clip_model, model_name, backend, device,
+            embedding_dim, self.labels, vocab, template)
 
     def score_vector(self, embedding_bytes):
         """Per-label pooled cosine of the image embedding vs the prompt matrix.
@@ -64,26 +53,12 @@ class JunkClassifier:
         Pools the per-prompt cosines back to a label with ``self.pooling``
         (``max`` — the single best prompt, the default and more discriminative —
         or ``mean``). Returns an ndarray aligned to ``self.labels`` (the junk
-        kinds then ``not_junk``). The dimension check, zero-norm guard and L2
-        normalization are delegated to the shared ``bytes_to_normalized_embedding``
-        helper, so a missing, zero, or mismatched-dimension embedding (mixed
-        CLIP-768 / SigLIP-1152 DB) yields None.
+        kinds then ``not_junk``); a missing, zero, or mismatched-dimension
+        embedding (mixed CLIP-768 / SigLIP-1152 DB) yields None.
         """
-        if self.prompt_matrix.shape[0] == 0:
-            return None
-        unit = bytes_to_normalized_embedding(embedding_bytes, self.prompt_matrix.shape[1])
-        if unit is None:
-            return None
-        per_prompt = self.prompt_matrix @ unit
-        if self.pooling == 'mean':
-            sims = np.zeros(len(self.labels), dtype=np.float32)
-            counts = np.zeros(len(self.labels), dtype=np.float32)
-            np.add.at(sims, self.prompt_label_idx, per_prompt)
-            np.add.at(counts, self.prompt_label_idx, 1.0)
-            return np.divide(sims, counts, out=np.full_like(sims, -1.0), where=counts > 0)
-        sims = np.full(len(self.labels), -1.0, dtype=np.float32)
-        np.maximum.at(sims, self.prompt_label_idx, per_prompt)
-        return sims
+        return pooled_cosine(
+            self.prompt_matrix, self.prompt_label_idx, len(self.labels),
+            self.pooling, embedding_bytes)
 
     def scores(self, embedding_bytes):
         """Raw pooled cosine per label as a dict (debug / dry-run)."""

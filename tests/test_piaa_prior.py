@@ -14,7 +14,6 @@ import sqlite3
 import numpy as np
 import pytest
 
-from db import get_connection
 from db.schema import init_database
 from models.piaa_prior import PiaaPrior, prior_path, save_prior
 from optimization import personal_ranker as pr

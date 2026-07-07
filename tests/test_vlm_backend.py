@@ -7,7 +7,6 @@ delegation, and the resolve_vlm_config un-gate on low-VRAM profiles.
 
 import base64
 import json
-from io import BytesIO
 from unittest import mock
 
 import pytest
@@ -182,6 +181,10 @@ class _StubBackend(vb.VLMBackend):
 class TestRemoteTagger:
     def test_create_remote_tagger_local_is_none(self):
         assert vb.create_remote_vlm_tagger({}, None) is None
+
+    def test_create_remote_tagger_misconfigured_returns_none(self):
+        assert vb.create_remote_vlm_tagger(
+            {"vlm_backend": {"type": "ollama", "ollama": {"base_url": "http://h:1"}}}, None) is None
 
     def test_create_remote_tagger_builds_backed_tagger(self):
         tagger = vb.create_remote_vlm_tagger(

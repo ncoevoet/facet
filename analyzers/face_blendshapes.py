@@ -17,6 +17,8 @@ import os
 import threading
 import urllib.request
 
+from utils.image_transforms import padded_face_bbox
+
 logger = logging.getLogger("facet.face_blendshapes")
 
 MODEL_URL = (
@@ -71,12 +73,7 @@ def crop_face_region(img_cv, bbox, padding=CROP_PADDING):
     Returns ``None`` for a degenerate region so the caller falls back to the
     geometric scores.
     """
-    h, w = img_cv.shape[:2]
-    x1, y1, x2, y2 = [int(v) for v in bbox]
-    pad_x = int((x2 - x1) * padding)
-    pad_y = int((y2 - y1) * padding)
-    x1, y1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
-    x2, y2 = min(w, x2 + pad_x), min(h, y2 + pad_y)
+    x1, y1, x2, y2 = padded_face_bbox(img_cv.shape, bbox, padding)
     crop = img_cv[y1:y2, x1:x2]
     return crop if crop.size else None
 

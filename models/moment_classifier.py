@@ -15,8 +15,8 @@ import json
 
 import numpy as np
 
+from models.prompt_scorer import build_prompt_matrix, pooled_cosine
 from models.tagger import encode_text_prompts
-from utils.embedding import bytes_to_normalized_embedding
 
 OTHER = 'other'
 
@@ -54,22 +54,9 @@ class MomentClassifier:
         self.moments = list(vocab.keys())
         self._index = {m: i for i, m in enumerate(self.moments)}
 
-        # One row per prompt (not per moment): scoring max-pools the per-prompt
-        # cosines back to a moment via ``prompt_moment_idx``.
-        vectors, prompt_moment_idx = [], []
-        for mi, moment in enumerate(self.moments):
-            prompts = [template.format(desc=d) for d in vocab[moment]]
-            if not prompts:
-                continue
-            emb = encode_text_prompts(clip_model, model_name, backend, device, prompts)
-            emb = emb.detach().cpu().numpy().astype(np.float32)
-            for row in emb:
-                vectors.append(row)
-                prompt_moment_idx.append(mi)
-        self.prompt_matrix = (
-            np.stack(vectors) if vectors else np.zeros((0, embedding_dim), np.float32)
-        )
-        self.prompt_moment_idx = np.asarray(prompt_moment_idx, dtype=np.int64)
+        self.prompt_matrix, self.prompt_moment_idx = build_prompt_matrix(
+            encode_text_prompts, clip_model, model_name, backend, device,
+            embedding_dim, self.moments, vocab, template)
 
     def score_vector(self, embedding_bytes):
         """Per-moment pooled cosine of the embedding vs the prompt matrix.
@@ -77,27 +64,13 @@ class MomentClassifier:
         Pools the per-prompt cosines back to a moment with ``self.pooling``
         (``max`` — the single best prompt, the default and more discriminative —
         or ``mean``). Signal-agnostic: works for a caption text embedding or an
-        image embedding (both live in the shared CLIP space). The dimension
-        check, zero-norm guard and L2 normalization are delegated to the shared
-        ``bytes_to_normalized_embedding`` helper, so a missing, zero, or
-        mismatched-dimension embedding (mixed CLIP-768 / SigLIP-1152 DB) yields
-        None.
+        image embedding (both live in the shared CLIP space); a missing, zero,
+        or mismatched-dimension embedding (mixed CLIP-768 / SigLIP-1152 DB)
+        yields None.
         """
-        if self.prompt_matrix.shape[0] == 0:
-            return None
-        unit = bytes_to_normalized_embedding(embedding_bytes, self.prompt_matrix.shape[1])
-        if unit is None:
-            return None
-        per_prompt = self.prompt_matrix @ unit        # (P,)
-        if self.pooling == 'mean':
-            sims = np.zeros(len(self.moments), dtype=np.float32)
-            counts = np.zeros(len(self.moments), dtype=np.float32)
-            np.add.at(sims, self.prompt_moment_idx, per_prompt)
-            np.add.at(counts, self.prompt_moment_idx, 1.0)
-            return np.divide(sims, counts, out=np.full_like(sims, -1.0), where=counts > 0)
-        sims = np.full(len(self.moments), -1.0, dtype=np.float32)
-        np.maximum.at(sims, self.prompt_moment_idx, per_prompt)
-        return sims
+        return pooled_cosine(
+            self.prompt_matrix, self.prompt_moment_idx, len(self.moments),
+            self.pooling, embedding_bytes)
 
     def scores(self, embedding_bytes):
         """Raw max-pooled cosine per moment as a dict (debug / dry-run)."""

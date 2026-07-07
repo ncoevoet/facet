@@ -105,6 +105,7 @@ logger = logging.getLogger("facet.scorer")
 from utils import (
     get_tag_params, detect_silhouette, tags_to_string, RAW_EXTENSIONS,
 )
+from utils.image_transforms import generate_photo_thumbnail
 
 # Lazy imports for image processing modules
 cv2 = None
@@ -2130,11 +2131,7 @@ class Facet:
 
     def save_photo(self, res, pil_img):
         """Generates a thumbnail and saves the full result to SQLite."""
-        thumb = pil_img.copy()
-        thumb.thumbnail((640, 640), Image.Resampling.LANCZOS)
-        buf = BytesIO()
-        thumb.save(buf, format="JPEG", quality=80)
-        res['thumbnail'] = buf.getvalue()
+        res['thumbnail'] = generate_photo_thumbnail(pil_img)
 
         # Form facet columns default to NULL for callers that did not compute
         # them (named-param INSERT needs every key).
@@ -2216,11 +2213,7 @@ class Facet:
 
         # Phase 1: Pre-generate thumbnails (CPU work, no DB lock held)
         for res, pil_img in results_with_images:
-            thumb = pil_img.copy()
-            thumb.thumbnail((640, 640), Image.Resampling.LANCZOS)
-            buf = BytesIO()
-            thumb.save(buf, format="JPEG", quality=80)
-            res['thumbnail'] = buf.getvalue()
+            res['thumbnail'] = generate_photo_thumbnail(pil_img)
 
         # Phase 2: Collect all face records for batch insert (including thumbnails,
         # landmarks and per-face quality signals — shared upsert: see db.schema)
@@ -2344,11 +2337,7 @@ class Facet:
         new_paths = self.filter_unscanned_paths([res['path'] for res, _, _ in batch])
         for res, pil_img, _ in batch:
             if res['path'] in new_paths:
-                thumb = pil_img.copy()
-                thumb.thumbnail((640, 640), Image.Resampling.LANCZOS)
-                buf = BytesIO()
-                thumb.save(buf, format="JPEG", quality=80)
-                res['thumbnail'] = buf.getvalue()
+                res['thumbnail'] = generate_photo_thumbnail(pil_img)
             else:
                 res['thumbnail'] = None
 

@@ -970,9 +970,8 @@ class ChunkedMultiPassProcessor:
             data['color_score'] = color_score
             data['exposure_score'] = exposure_score
 
-    def _save_results(self, results: Dict, images: Dict):
-        """Save processing results to database with all required fields."""
-        batch = []
+    def _iter_saveable(self, results: Dict, images: Dict):
+        """Yield (path, data) for result rows that pass the shared save guards."""
         for path, data in results.items():
             if path not in images:
                 continue
@@ -982,13 +981,36 @@ class ChunkedMultiPassProcessor:
                 if self.on_error:
                     self.on_error(path, 'save', 'no model produced results for this photo')
                 continue
+            yield path, data
 
+    def _base_record(self, path, img_data: Dict) -> Dict:
+        """Build the shared identity + EXIF record common to full and partial saves."""
+        exif = img_data.get('exif', {})
+        return {
+            'path': str(Path(path).resolve()),
+            'filename': Path(path).name,
+            'image_width': img_data['width'],
+            'image_height': img_data['height'],
+            'date_taken': exif.get('date_taken'),
+            'camera_model': exif.get('camera_model'),
+            'lens_model': exif.get('lens_model'),
+            'iso': exif.get('iso'),
+            'f_stop': exif.get('f_stop'),
+            'shutter_speed': exif.get('shutter_speed'),
+            'focal_length': exif.get('focal_length'),
+            'focal_length_35mm': exif.get('focal_length_35mm'),
+            'gps_latitude': exif.get('gps_latitude'),
+            'gps_longitude': exif.get('gps_longitude'),
+        }
+
+    def _save_results(self, results: Dict, images: Dict):
+        """Save processing results to database with all required fields."""
+        batch = []
+        for path, data in self._iter_saveable(results, images):
             img_data = images[path]
             pil_img = img_data['pil']
-            img_h, img_w = img_data['height'], img_data['width']
 
             # Get pre-computed data from image loading phase
-            exif = img_data.get('exif', {})
             sharpness = img_data.get('sharpness', {})
             color = img_data.get('color', {})
             histogram = img_data.get('histogram', {})
@@ -998,24 +1020,8 @@ class ChunkedMultiPassProcessor:
             contrast = img_data.get('contrast', {})
 
             result = {
-                # Core fields
-                'path': str(Path(path).resolve()),
-                'filename': Path(path).name,
+                **self._base_record(path, img_data),
                 'category': data.get('category', 'default'),
-                'image_width': img_w,
-                'image_height': img_h,
-
-                # EXIF fields
-                'date_taken': exif.get('date_taken'),
-                'camera_model': exif.get('camera_model'),
-                'lens_model': exif.get('lens_model'),
-                'iso': exif.get('iso'),
-                'f_stop': exif.get('f_stop'),
-                'shutter_speed': exif.get('shutter_speed'),
-                'focal_length': exif.get('focal_length'),
-                'focal_length_35mm': exif.get('focal_length_35mm'),
-                'gps_latitude': exif.get('gps_latitude'),
-                'gps_longitude': exif.get('gps_longitude'),
 
                 # Scoring fields
                 'aesthetic': data.get('aesthetic', 5.0),
@@ -1111,16 +1117,7 @@ class ChunkedMultiPassProcessor:
         refresh_faces = 'insightface' in executed_models
 
         batch = []
-        for path, data in results.items():
-            if path not in images:
-                continue
-            if data.get(SCAN_FAILED_KEY):
-                continue
-            if not data:
-                if self.on_error:
-                    self.on_error(path, 'save', 'no model produced results for this photo')
-                continue
-
+        for path, data in self._iter_saveable(results, images):
             computed = {}
             face_details = []
             for key, value in data.items():
@@ -1138,22 +1135,8 @@ class ChunkedMultiPassProcessor:
                 continue
 
             img_data = images[path]
-            exif = img_data.get('exif', {})
             res = {
-                'path': str(Path(path).resolve()),
-                'filename': Path(path).name,
-                'image_width': img_data['width'],
-                'image_height': img_data['height'],
-                'date_taken': exif.get('date_taken'),
-                'camera_model': exif.get('camera_model'),
-                'lens_model': exif.get('lens_model'),
-                'iso': exif.get('iso'),
-                'f_stop': exif.get('f_stop'),
-                'shutter_speed': exif.get('shutter_speed'),
-                'focal_length': exif.get('focal_length'),
-                'focal_length_35mm': exif.get('focal_length_35mm'),
-                'gps_latitude': exif.get('gps_latitude'),
-                'gps_longitude': exif.get('gps_longitude'),
+                **self._base_record(path, img_data),
                 'phash': img_data.get('phash'),
                 'config_version': self.scorer.config.version_hash,
                 'face_details': face_details,

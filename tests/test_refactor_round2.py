@@ -509,9 +509,11 @@ class TestMultiPassPathAlias:
         module_source = inspect.getsource(mod)
         # Top-level import exists
         assert "from pathlib import Path" in module_source
-        # No local alias inside _save_results
-        method_source = inspect.getsource(mod.ChunkedMultiPassProcessor._save_results)
+        # Path is used from the module-level import (in the shared identity-record
+        # builder), not re-imported locally
+        method_source = inspect.getsource(mod.ChunkedMultiPassProcessor._base_record)
         assert "Path(" in method_source
+        assert "import" not in method_source
 
 
 # ---------------------------------------------------------------------------
