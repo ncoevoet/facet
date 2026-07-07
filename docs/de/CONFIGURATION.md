@@ -1720,7 +1720,7 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
 
 ## Social-Export
 
-Zuschneide-Vorlagen für Social-Media-Seitenverhältnisse mit Motiverkennung (`GET /api/photo/social_crop`, editionsbeschränkt). Jede Vorlage schneidet das Original in voller Auflösung auf ein Zielseitenverhältnis und rahmt es um das erkannte Motiv — das größte Rechteck dieses Seitenverhältnisses, das ins Bild passt, zentriert auf dem Motiv mit einem Rand und an den Rändern begrenzt. Die Motivbox folgt einer Fallback-Kette: die gespeicherte BiRefNet-Motivbox (`photos.subject_bbox`) → die Vereinigung der erkannten Gesichtsboxen → ein einfacher zentrierter Zuschnitt. Siehe [Web-Viewer — Download](VIEWER.md#download).
+Zuschneide-Vorlagen für Social-Media-Seitenverhältnisse mit Motiverkennung (`GET /api/photo/social_crop`, editionsbeschränkt). Jede Vorlage schneidet das Original in voller Auflösung auf ein Zielseitenverhältnis und rahmt es um das erkannte Motiv — das größte Rechteck dieses Seitenverhältnisses, das ins Bild passt, zentriert auf dem Motiv und an den Rändern begrenzt. Die Motivbox folgt einer Fallback-Kette: die gespeicherte BiRefNet-Motivbox (`photos.subject_bbox`) → die Vereinigung der erkannten Gesichtsboxen → ein einfacher zentrierter Zuschnitt. Siehe [Web-Viewer — Download](VIEWER.md#download).
 
 ```json
 {
@@ -1730,7 +1730,6 @@ Zuschneide-Vorlagen für Social-Media-Seitenverhältnisse mit Motiverkennung (`G
       "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
       "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
     },
-    "subject_margin_percent": 8,
     "jpeg_quality": 92
   }
 }
@@ -1740,7 +1739,6 @@ Zuschneide-Vorlagen für Social-Media-Seitenverhältnisse mit Motiverkennung (`G
 |---------|---------|-------------|
 | `presets.<id>.label_key` | — | i18n-Punktpfad für den Anzeigenamen der Vorlage (`social_export.presets.*`) |
 | `presets.<id>.aspect` | — | Zielseitenverhältnis als `"b:h"` (z. B. `1:1`, `4:5`, `9:16`) |
-| `subject_margin_percent` | `8` | Spielraum um die Motivbox (Prozent ihrer Größe), bevor der Zuschnitt zentriert wird |
 | `jpeg_quality` | `92` | JPEG-Qualität des exportierten Zuschnitts |
 
 Gesteuert durch `viewer.features.show_social_export` (Standard `true`). Die Spalte `photos.subject_bbox` wird vom Saliency-Durchlauf beim Scannen und von `--recompute-saliency` geschrieben; vor ihrer Einführung gescannte Zeilen greifen automatisch auf den Gesichts- oder zentrierten Zuschnitt zurück.

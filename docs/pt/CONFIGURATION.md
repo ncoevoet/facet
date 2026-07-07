@@ -1720,7 +1720,7 @@ O sinal é **semântico de legenda** (caption-semantic): a legenda por IA de cad
 
 ## Exportação social
 
-Recortes com reconhecimento do sujeito para proporções de redes sociais (`GET /api/photo/social_crop`, restrito à edição). Cada predefinição recorta o original em resolução total para uma proporção alvo e o enquadra no sujeito detectado — o maior retângulo dessa proporção que cabe na imagem, centrado no sujeito com uma margem e limitado às bordas. A caixa do sujeito segue uma cadeia de fallback: a caixa de sujeito BiRefNet persistida (`photos.subject_bbox`) → a união das caixas de rostos detectados → um recorte centralizado simples. Veja [Visualizador web — Download](VIEWER.md#download).
+Recortes com reconhecimento do sujeito para proporções de redes sociais (`GET /api/photo/social_crop`, restrito à edição). Cada predefinição recorta o original em resolução total para uma proporção alvo e o enquadra no sujeito detectado — o maior retângulo dessa proporção que cabe na imagem, centrado no sujeito e limitado às bordas. A caixa do sujeito segue uma cadeia de fallback: a caixa de sujeito BiRefNet persistida (`photos.subject_bbox`) → a união das caixas de rostos detectados → um recorte centralizado simples. Veja [Visualizador web — Download](VIEWER.md#download).
 
 ```json
 {
@@ -1730,7 +1730,6 @@ Recortes com reconhecimento do sujeito para proporções de redes sociais (`GET 
       "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
       "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
     },
-    "subject_margin_percent": 8,
     "jpeg_quality": 92
   }
 }
@@ -1740,7 +1739,6 @@ Recortes com reconhecimento do sujeito para proporções de redes sociais (`GET 
 |---------|---------|-------------|
 | `presets.<id>.label_key` | — | Caminho i18n com pontos para o nome exibido da predefinição (`social_export.presets.*`) |
 | `presets.<id>.aspect` | — | Proporção alvo como `"l:a"` (ex.: `1:1`, `4:5`, `9:16`) |
-| `subject_margin_percent` | `8` | Margem ao redor da caixa do sujeito (porcentagem do seu tamanho) antes de centralizar o recorte |
 | `jpeg_quality` | `92` | Qualidade JPEG do recorte exportado |
 
 Controlado por `viewer.features.show_social_export` (padrão `true`). A coluna `photos.subject_bbox` é escrita pela passagem de saliência na varredura e por `--recompute-saliency`; linhas varridas antes de existir recorrem automaticamente ao recorte por rostos ou centralizado.

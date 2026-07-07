@@ -1743,7 +1743,7 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 
 ## Social Export
 
-Saliency-aware crop presets for social aspect ratios (`GET /api/photo/social_crop`, edition-gated). Each preset crops the full-resolution original to a target aspect and frames it on the detected subject — the largest rectangle of that aspect fitting inside the image, centered on the subject with a margin and clamped at the edges. The subject box follows a fallback chain: the persisted BiRefNet subject box (`photos.subject_bbox`) → the union of detected face boxes → a plain center crop. See [Web Viewer — Download](VIEWER.md#download).
+Saliency-aware crop presets for social aspect ratios (`GET /api/photo/social_crop`, edition-gated). Each preset crops the full-resolution original to a target aspect and frames it on the detected subject — the largest rectangle of that aspect fitting inside the image, centered on the subject and clamped at the edges. The subject box follows a fallback chain: the persisted BiRefNet subject box (`photos.subject_bbox`) → the union of detected face boxes → a plain center crop. See [Web Viewer — Download](VIEWER.md#download).
 
 ```json
 {
@@ -1753,7 +1753,6 @@ Saliency-aware crop presets for social aspect ratios (`GET /api/photo/social_cro
       "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
       "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
     },
-    "subject_margin_percent": 8,
     "jpeg_quality": 92
   }
 }
@@ -1763,7 +1762,6 @@ Saliency-aware crop presets for social aspect ratios (`GET /api/photo/social_cro
 |---------|---------|-------------|
 | `presets.<id>.label_key` | — | i18n dot-path for the preset's display name (`social_export.presets.*`) |
 | `presets.<id>.aspect` | — | Target aspect as `"w:h"` (e.g. `1:1`, `4:5`, `9:16`) |
-| `subject_margin_percent` | `8` | Breathing room added around the subject box (percent of its size) before centering the crop |
 | `jpeg_quality` | `92` | JPEG quality of the exported crop |
 
 Gated by `viewer.features.show_social_export` (default `true`). The `photos.subject_bbox` column is written by the saliency pass at scan time and by `--recompute-saliency`; rows scanned before it existed fall back to the face-union or center crop automatically.

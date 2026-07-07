@@ -1720,7 +1720,7 @@ Il segnale è **semantico sulla didascalia**: la didascalia AI di ogni foto vien
 
 ## Esportazione social
 
-Ritagli consapevoli del soggetto per i rapporti d'aspetto dei social (`GET /api/photo/social_crop`, riservato all'edizione). Ogni preset ritaglia l'originale a piena risoluzione verso un rapporto d'aspetto obiettivo e lo inquadra sul soggetto rilevato — il più grande rettangolo di quel rapporto che entra nell'immagine, centrato sul soggetto con un margine e vincolato ai bordi. Il box del soggetto segue una catena di ripiego: il box del soggetto BiRefNet persistito (`photos.subject_bbox`) → l'unione dei box dei volti rilevati → un ritaglio centrato semplice. Vedi [Visualizzatore web — Download](VIEWER.md#download).
+Ritagli consapevoli del soggetto per i rapporti d'aspetto dei social (`GET /api/photo/social_crop`, riservato all'edizione). Ogni preset ritaglia l'originale a piena risoluzione verso un rapporto d'aspetto obiettivo e lo inquadra sul soggetto rilevato — il più grande rettangolo di quel rapporto che entra nell'immagine, centrato sul soggetto e vincolato ai bordi. Il box del soggetto segue una catena di ripiego: il box del soggetto BiRefNet persistito (`photos.subject_bbox`) → l'unione dei box dei volti rilevati → un ritaglio centrato semplice. Vedi [Visualizzatore web — Download](VIEWER.md#download).
 
 ```json
 {
@@ -1730,7 +1730,6 @@ Ritagli consapevoli del soggetto per i rapporti d'aspetto dei social (`GET /api/
       "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
       "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
     },
-    "subject_margin_percent": 8,
     "jpeg_quality": 92
   }
 }
@@ -1740,7 +1739,6 @@ Ritagli consapevoli del soggetto per i rapporti d'aspetto dei social (`GET /api/
 |---------|---------|-------------|
 | `presets.<id>.label_key` | — | Percorso i18n con punti per il nome visualizzato del preset (`social_export.presets.*`) |
 | `presets.<id>.aspect` | — | Rapporto d'aspetto obiettivo come `"l:h"` (es. `1:1`, `4:5`, `9:16`) |
-| `subject_margin_percent` | `8` | Margine attorno al box del soggetto (percentuale della sua dimensione) prima di centrare il ritaglio |
 | `jpeg_quality` | `92` | Qualità JPEG del ritaglio esportato |
 
 Controllato da `viewer.features.show_social_export` (predefinito `true`). La colonna `photos.subject_bbox` è scritta dalla passata di salienza in fase di scansione e da `--recompute-saliency`; le righe scansionate prima della sua introduzione ripiegano automaticamente sul ritaglio per volti o centrato.

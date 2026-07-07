@@ -1720,7 +1720,7 @@ La señal es **semántica de leyenda**: la leyenda de IA de cada foto se codific
 
 ## Exportación social
 
-Recortes con reconocimiento del sujeto para relaciones de aspecto de redes sociales (`GET /api/photo/social_crop`, restringido a edición). Cada preajuste recorta el original a resolución completa a una relación de aspecto objetivo y lo encuadra en el sujeto detectado — el mayor rectángulo de esa relación de aspecto que cabe dentro de la imagen, centrado en el sujeto con un margen y ajustado a los bordes. La caja del sujeto sigue una cadena de reserva: la caja de sujeto BiRefNet persistida (`photos.subject_bbox`) → la unión de las cajas de caras detectadas → un recorte centrado simple. Consulta [Visor web — Descarga](VIEWER.md#download).
+Recortes con reconocimiento del sujeto para relaciones de aspecto de redes sociales (`GET /api/photo/social_crop`, restringido a edición). Cada preajuste recorta el original a resolución completa a una relación de aspecto objetivo y lo encuadra en el sujeto detectado — el mayor rectángulo de esa relación de aspecto que cabe dentro de la imagen, centrado en el sujeto y ajustado a los bordes. La caja del sujeto sigue una cadena de reserva: la caja de sujeto BiRefNet persistida (`photos.subject_bbox`) → la unión de las cajas de caras detectadas → un recorte centrado simple. Consulta [Visor web — Descarga](VIEWER.md#download).
 
 ```json
 {
@@ -1730,7 +1730,6 @@ Recortes con reconocimiento del sujeto para relaciones de aspecto de redes socia
       "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
       "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
     },
-    "subject_margin_percent": 8,
     "jpeg_quality": 92
   }
 }
@@ -1740,7 +1739,6 @@ Recortes con reconocimiento del sujeto para relaciones de aspecto de redes socia
 |---------|---------|-------------|
 | `presets.<id>.label_key` | — | Ruta de puntos i18n para el nombre visible del preajuste (`social_export.presets.*`) |
 | `presets.<id>.aspect` | — | Relación de aspecto objetivo como `"an:al"` (p. ej. `1:1`, `4:5`, `9:16`) |
-| `subject_margin_percent` | `8` | Margen alrededor de la caja del sujeto (porcentaje de su tamaño) antes de centrar el recorte |
 | `jpeg_quality` | `92` | Calidad JPEG del recorte exportado |
 
 Controlado por `viewer.features.show_social_export` (predeterminado `true`). La columna `photos.subject_bbox` la escribe la pasada de saliencia al escanear y `--recompute-saliency`; las filas escaneadas antes de que existiera recurren automáticamente al recorte por caras o centrado.
