@@ -772,7 +772,8 @@ Configuration:
     comp_group.add_argument('--recompute-composition-gpu', action='store_true',
                         help='Recompute composition scores using SAMP-Net neural network (requires GPU)')
     comp_group.add_argument('--recompute-saliency', action='store_true',
-                        help='Recompute subject saliency metrics using BiRefNet (requires GPU)')
+                        help='Recompute subject saliency metrics using BiRefNet from stored thumbnails '
+                             '(requires GPU; skips photos that already have subject_bbox unless --force)')
 
     # Weight optimization
     weight_group = parser.add_argument_group('Weight optimization')
@@ -1295,28 +1296,93 @@ Configuration:
         scorer.rescan_samp_composition(batch_size=batch_size)
         exit()
 
-    # Recompute saliency metrics using BiRefNet (requires GPU)
+    # Recompute saliency metrics using BiRefNet from stored thumbnails (requires GPU)
     if args.recompute_saliency:
-        from models.model_manager import ModelManager
-        from processing.multi_pass import run_single_pass
+        import io
+        import numpy as np
+        import cv2
+        from PIL import Image
+        from models.saliency_scorer import SaliencyScorer
+
+        init_database(args.db)  # Ensure subject_bbox column exists
 
         config = ScoringConfig(args.config)
-        config.check_vram_profile_compatibility(verbose=True)
+        saliency_config = config.get_model_config().get('saliency', {})
+        scorer_model = SaliencyScorer(
+            model_name=saliency_config.get('model', SaliencyScorer.DEFAULT_MODEL),
+            resolution=saliency_config.get('resolution', SaliencyScorer.DEFAULT_RESOLUTION),
+            mask_threshold=saliency_config.get('mask_threshold', SaliencyScorer.DEFAULT_MASK_THRESHOLD),
+            min_subject_pixels=saliency_config.get('min_subject_pixels', SaliencyScorer.DEFAULT_MIN_SUBJECT_PIXELS),
+        )
 
-        scorer = Facet(db_path=args.db, config_path=args.config, multi_pass=True)
-        model_manager = ModelManager(config)
-
+        # Source stored thumbnails, not originals: the recompute must work with
+        # the library volume offline, and the API saliency overlay already
+        # derives its mask from the same 640px thumbnail.
+        where = "thumbnail IS NOT NULL"
+        if not args.force:
+            where += " AND subject_bbox IS NULL"
         with get_connection(args.db) as conn:
-            cursor = conn.execute("SELECT path FROM photos")
-            paths = [row['path'] for row in cursor.fetchall()]
+            paths = [row['path'] for row in conn.execute(
+                f"SELECT path FROM photos WHERE {where}"
+            ).fetchall()]
 
         if not paths:
-            logger.info("No photos in database.")
+            logger.info("No photos need saliency recompute (use --force to redo all).")
             exit()
 
-        logger.info("Recomputing saliency for %d photos...", len(paths))
-        processed = run_single_pass(paths, 'saliency', scorer, model_manager)
-        logger.info("Recomputed saliency for %d photos.", processed)
+        scorer_model.load()
+        logger.info("Recomputing saliency for %d photos from stored thumbnails...", len(paths))
+
+        batch_size = config.get_processing_settings().get('gpu_batch_size', 16)
+        updated = 0
+
+        def _flush_saliency_batch(conn, batch_paths, batch_pil, batch_cv):
+            scores = scorer_model.score_batch(batch_pil, batch_cv)
+            for i, path in enumerate(batch_paths):
+                s = scores[i]
+                conn.execute(
+                    "UPDATE photos SET subject_sharpness = ?, subject_prominence = ?, "
+                    "subject_placement = ?, bg_separation = ?, subject_bbox = ? "
+                    "WHERE path = ?",
+                    (s.get('subject_sharpness', 5.0), s.get('subject_prominence', 0.0),
+                     s.get('subject_placement', 5.0), s.get('bg_separation', 5.0),
+                     json.dumps(s['subject_bbox']) if s.get('subject_bbox') else None,
+                     path),
+                )
+            return len(batch_paths)
+
+        # Fetch each thumbnail BLOB on demand (a fetchall would hold the whole
+        # library's thumbnails in RAM) and commit in RECOMPUTE_COMMIT_BATCH steps.
+        with get_connection(args.db) as read_conn, get_connection(args.db) as conn:
+            batch_paths, batch_pil, batch_cv = [], [], []
+            pending = 0
+            for path in tqdm(paths, desc="Saliency"):
+                row = read_conn.execute(
+                    "SELECT thumbnail FROM photos WHERE path = ?", (path,)
+                ).fetchone()
+                blob = row['thumbnail'] if row else None
+                if not blob:
+                    continue
+                try:
+                    pil_img = Image.open(io.BytesIO(blob)).convert('RGB')
+                except Exception:
+                    continue
+                batch_paths.append(path)
+                batch_pil.append(pil_img)
+                batch_cv.append(cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR))
+                if len(batch_paths) >= batch_size:
+                    updated += _flush_saliency_batch(conn, batch_paths, batch_pil, batch_cv)
+                    pending += len(batch_paths)
+                    batch_paths, batch_pil, batch_cv = [], [], []
+                    if pending >= RECOMPUTE_COMMIT_BATCH:
+                        conn.commit()
+                        pending = 0
+            if batch_paths:
+                updated += _flush_saliency_batch(conn, batch_paths, batch_pil, batch_cv)
+            conn.commit()
+
+        scorer_model.unload()
+        logger.info("Recomputed saliency for %d photos.", updated)
         logger.info("Run --recompute-average to update aggregate scores with saliency metrics.")
         exit()
 

@@ -152,7 +152,7 @@ python facet.py --generate-captions          # Generate AI captions for uncaptio
 python facet.py --extract-gps                # Extract GPS coordinates from EXIF into database
 
 # Saliency commands
-python facet.py --recompute-saliency  # Recompute subject saliency metrics (BiRefNet, GPU)
+python facet.py --recompute-saliency  # Recompute subject saliency metrics from stored thumbnails (BiRefNet, GPU; --force to redo all)
 
 # Composition commands
 python facet.py --recompute-composition-cpu  # Rule-based (CPU only, fast)
