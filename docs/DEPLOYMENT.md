@@ -335,7 +335,7 @@ First run downloads the profile's models into the named volumes; reset them with
   untested releases. (Example this guards against: transformers 5.3+ changed
   Qwen3.5 vision batching and broke the VLM tagger; `kornia`, required by
   BiRefNet, is not pulled in by transformers and must be pinned.) Regenerate after
-  an intentional upgrade: `docker compose ... exec facet pip freeze | grep -ivE '^(torch|torchvision|nvidia-|triton)' > requirements.lock.txt`.
+  an intentional upgrade: `docker compose ... exec facet pip freeze --all | grep -ivE '^(pip|wheel|torch|torchvision|nvidia-|triton)' > requirements.lock.txt`.
 - **GPU face clustering baked in.** RAPIDS cuML (`cuml-cu12`) ships in the image,
   so the GPU profiles (8gb/16gb/24gb) cluster faces on the GPU (HDBSCAN via
   `face_clustering.use_gpu="auto"`); the legacy profile — and any host with no CUDA
