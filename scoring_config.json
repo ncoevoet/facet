@@ -2784,6 +2784,11 @@
   "skin_tone": {
     "cast_delta_threshold": 12.0
   },
+  "piaa_prior": {
+    "enabled": false,
+    "shrinkage_k": 10,
+    "models_dir": "pretrained_models"
+  },
   "capsules": {
     "min_aggregate": 6.0,
     "max_photos_per_capsule": 40,
