@@ -36,6 +36,9 @@ router = APIRouter(tags=["cull_preview"])
 CACHE_SUBDIR = os.path.join(".facet_cache", "cull_previews")
 _CACHE_CONTROL = "private, max-age=3600"
 
+_CULL_CACHE_MAX_BYTES = 500 * 1024 * 1024
+_CULL_CACHE_MAX_AGE_SECONDS = 30 * 24 * 3600
+
 
 def _get_darktable_config() -> dict:
     return (VIEWER_CONFIG.get("raw_processor", {}) or {}).get("darktable", {}) or {}
@@ -55,6 +58,54 @@ def _cache_path(disk_path: str, mtime: float, style: str, max_edge: int) -> str:
     return os.path.join(_cull_cache_dir(), digest + ".jpg")
 
 
+def _trim_cache(cache_dir: str) -> None:
+    """Evict expired then over-budget entries (mtime-LRU) after a cache write.
+
+    Mirrors the companion-RAW cache bounds in ``api.raw_processing``: drop
+    files older than ``_CULL_CACHE_MAX_AGE_SECONDS``, then remove the oldest
+    until the total is under ``_CULL_CACHE_MAX_BYTES``. Files that vanish
+    mid-scan (a concurrent request) are skipped.
+    """
+    import time
+
+    try:
+        names = os.listdir(cache_dir)
+    except OSError:
+        return
+
+    now = time.time()
+    entries = []
+    for name in names:
+        if not name.endswith(".jpg"):
+            continue
+        fpath = os.path.join(cache_dir, name)
+        try:
+            stat = os.stat(fpath)
+        except OSError:
+            continue
+        if now - stat.st_mtime > _CULL_CACHE_MAX_AGE_SECONDS:
+            try:
+                os.unlink(fpath)
+            except OSError:
+                pass
+            continue
+        entries.append((stat.st_mtime, stat.st_size, fpath))
+
+    total = sum(size for _mtime, size, _fpath in entries)
+    if total <= _CULL_CACHE_MAX_BYTES:
+        return
+
+    entries.sort(key=lambda entry: entry[0])
+    for _mtime, size, fpath in entries:
+        if total <= _CULL_CACHE_MAX_BYTES:
+            break
+        try:
+            os.unlink(fpath)
+            total -= size
+        except OSError:
+            pass
+
+
 def _write_cache(cache_path: str, data: bytes) -> bool:
     """Write ``data`` to ``cache_path`` atomically; return ``False`` on any I/O error."""
     try:
@@ -68,6 +119,7 @@ def _write_cache(cache_path: str, data: bytes) -> bool:
         finally:
             if os.path.exists(tmp):
                 os.unlink(tmp)
+        _trim_cache(cache_dir)
         return True
     except OSError:
         logger.warning("Failed to write cull-preview cache at %s", cache_path, exc_info=True)

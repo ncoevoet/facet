@@ -52,45 +52,45 @@ class TestParseAspect:
 
 class TestComputeCropRect:
     def test_exact_fit_returns_whole_image(self):
-        assert compute_crop_rect(1000, 1000, 1, 1, [0, 0, 1, 1], 0.08) == (0, 0, 1000, 1000)
+        assert compute_crop_rect(1000, 1000, 1, 1, [0, 0, 1, 1]) == (0, 0, 1000, 1000)
 
     def test_aspect_matches_image_aspect(self):
         # 16:9 target on a 1600x900 image -> whole frame.
         assert compute_crop_rect(1600, 900, 16, 9) == (0, 0, 1600, 900)
 
     def test_subject_at_corner_clamps_inside(self):
-        rect = compute_crop_rect(1000, 1000, 4, 5, [0.0, 0.0, 0.1, 0.1], 0.08)
+        rect = compute_crop_rect(1000, 1000, 4, 5, [0.0, 0.0, 0.1, 0.1])
         assert rect == (0, 0, 800, 1000)
         assert _inside(rect, 1000, 1000)
         assert _aspect(rect) == pytest.approx(0.8, abs=0.01)
 
     def test_subject_larger_than_crop_centers(self):
         # Whole-frame subject can't fit a 9:16 crop; window centers on it.
-        rect = compute_crop_rect(1000, 1000, 9, 16, [0, 0, 1, 1], 0.0)
+        rect = compute_crop_rect(1000, 1000, 9, 16, [0, 0, 1, 1])
         assert _inside(rect, 1000, 1000)
         assert _aspect(rect) == pytest.approx(9 / 16, abs=0.01)
         cx = (rect[0] + rect[2]) / 2
         assert cx == pytest.approx(500, abs=1)
 
     def test_extreme_panorama(self):
-        rect = compute_crop_rect(4000, 1000, 9, 16, [0.45, 0.4, 0.55, 0.6], 0.08)
+        rect = compute_crop_rect(4000, 1000, 9, 16, [0.45, 0.4, 0.55, 0.6])
         assert _inside(rect, 4000, 1000)
         assert rect[3] - rect[1] == 1000  # full height
         assert _aspect(rect) == pytest.approx(9 / 16, abs=0.01)
 
     def test_tall_image_wide_target(self):
-        rect = compute_crop_rect(1000, 4000, 16, 9, [0.4, 0.45, 0.6, 0.55], 0.08)
+        rect = compute_crop_rect(1000, 4000, 16, 9, [0.4, 0.45, 0.6, 0.55])
         assert _inside(rect, 1000, 4000)
         assert rect[2] - rect[0] == 1000  # full width
         assert _aspect(rect) == pytest.approx(16 / 9, abs=0.01)
 
     def test_center_fallback_when_no_subject(self):
-        rect = compute_crop_rect(2000, 1000, 1, 1, None, 0.08)
+        rect = compute_crop_rect(2000, 1000, 1, 1, None)
         assert rect == (500, 0, 1500, 1000)
 
     def test_subject_framed_off_center(self):
         # Subject on the left third pulls the square crop left, still inside.
-        rect = compute_crop_rect(2000, 1000, 1, 1, [0.1, 0.4, 0.2, 0.6], 0.08)
+        rect = compute_crop_rect(2000, 1000, 1, 1, [0.1, 0.4, 0.2, 0.6])
         assert _inside(rect, 2000, 1000)
         assert rect[3] - rect[1] == 1000
         assert rect[0] < 500  # pulled left of the plain center crop

@@ -193,6 +193,35 @@ class TestCullPreviewRenderAndCache:
         assert len(cached) == 2  # distinct cache entries per mtime
 
 
+class TestCullPreviewCacheEviction:
+    def test_write_trims_oldest_over_budget(self, tmp_path, monkeypatch):
+        from api.routers import cull_preview
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        monkeypatch.setattr(cull_preview, "_CULL_CACHE_MAX_BYTES", 4096)
+
+        seeded = []
+        now = os.path.getmtime(str(cache_dir))
+        for i in range(4):
+            fp = cache_dir / f"seed{i}.jpg"
+            fp.write_bytes(b"x" * 2048)
+            mtime = now - (400 - i * 100)
+            os.utime(str(fp), (mtime, mtime))
+            seeded.append(fp)
+
+        assert cull_preview._write_cache(str(cache_dir / "new.jpg"), b"y" * 2048) is True
+
+        remaining = {f for f in os.listdir(str(cache_dir)) if f.endswith(".jpg")}
+        assert "new.jpg" in remaining
+        assert seeded[3].name in remaining
+        assert seeded[0].name not in remaining
+        assert seeded[1].name not in remaining
+        assert seeded[2].name not in remaining
+        total = sum(os.path.getsize(str(cache_dir / f)) for f in remaining)
+        assert total <= cull_preview._CULL_CACHE_MAX_BYTES
+
+
 @pytest.mark.skipif(shutil.which("darktable-cli") is None,
                     reason="darktable-cli not installed")
 def test_integration_real_cli_renders_bounded_jpeg(tmp_path):

@@ -28,32 +28,31 @@ router = APIRouter(tags=["thumbnails"])
 _thumbnail_cache_size = VIEWER_CONFIG.get('performance', {}).get('thumbnail_cache_size', 2000)
 
 
-def _face_visible(face_id: int, user: Optional[CurrentUser]) -> bool:
-    """True when ``face_id`` belongs to a photo the caller may see."""
+def _face_join_visible(column: str, value: int, user: Optional[CurrentUser]) -> bool:
+    """True when a ``faces`` row matching ``{column} = value`` belongs to a photo the caller may see.
+
+    ``column`` is a caller-supplied column reference (e.g. ``'f.id'``), never user input.
+    """
     vis_sql, vis_params = get_visibility_clause(
         user.user_id if user else None, table_alias='p'
     )
     with get_db() as conn:
         row = conn.execute(
             f"SELECT 1 FROM faces f JOIN photos p ON p.path = f.photo_path "
-            f"WHERE f.id = ? AND {vis_sql}",
-            [face_id, *vis_params],
+            f"WHERE {column} = ? AND {vis_sql} LIMIT 1",
+            [value, *vis_params],
         ).fetchone()
     return row is not None
+
+
+def _face_visible(face_id: int, user: Optional[CurrentUser]) -> bool:
+    """True when ``face_id`` belongs to a photo the caller may see."""
+    return _face_join_visible('f.id', face_id, user)
 
 
 def _person_visible(person_id: int, user: Optional[CurrentUser]) -> bool:
     """True when ``person_id`` has at least one face in a photo the caller may see."""
-    vis_sql, vis_params = get_visibility_clause(
-        user.user_id if user else None, table_alias='p'
-    )
-    with get_db() as conn:
-        row = conn.execute(
-            f"SELECT 1 FROM faces f JOIN photos p ON p.path = f.photo_path "
-            f"WHERE f.person_id = ? AND {vis_sql} LIMIT 1",
-            [person_id, *vis_params],
-        ).fetchone()
-    return row is not None
+    return _face_join_visible('f.person_id', person_id, user)
 
 
 def _cached_image_response(image_bytes: bytes, request: Request) -> Response:

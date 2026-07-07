@@ -12,9 +12,9 @@ The response surfaces which source drove the crop.
 """
 
 import io
-import json
 import logging
 import os
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -24,6 +24,7 @@ from api.auth import CurrentUser, require_edition
 from api.config import VIEWER_CONFIG
 from api.database import get_db
 from api.db_helpers import get_visibility_clause
+from api.subject_bbox import parse_subject_bbox
 from api.path_validation import resolve_photo_disk_path
 from processing.social_crop import compute_crop_rect, parse_aspect
 
@@ -34,6 +35,18 @@ router = APIRouter(tags=["social_crop"])
 SOURCE_SALIENCY = "saliency"
 SOURCE_FACES = "faces"
 SOURCE_CENTER = "center"
+
+_DISPOSITION_UNSAFE = re.compile(r'[\x00-\x1f\x7f"\\]')
+
+
+def _safe_disposition_stem(stem: str) -> str:
+    """Strip characters that would malform a quoted Content-Disposition filename.
+
+    Replaces double-quote, backslash and control characters with ``_`` so a
+    hostile DB basename cannot inject header syntax; normal filenames are
+    returned unchanged.
+    """
+    return _DISPOSITION_UNSAFE.sub("_", stem)
 
 
 def _require_social_export_enabled():
@@ -56,10 +69,6 @@ def _preset_aspect(preset: str):
         return parse_aspect(entry["aspect"])
     except (KeyError, ValueError):
         raise HTTPException(status_code=400, detail=f"Invalid preset: {preset}") from None
-
-
-def _margin_frac() -> float:
-    return float(_social_export_config().get("subject_margin_percent", 8)) / 100.0
 
 
 def _lookup_photo(path: str, user: Optional[CurrentUser]):
@@ -88,14 +97,9 @@ def _resolve_subject(row, faces):
     ``subject_norm`` is a normalized ``[x0, y0, x1, y1]`` box, or None for the
     center-crop fallback.
     """
-    raw = row["subject_bbox"]
-    if raw:
-        try:
-            box = json.loads(raw)
-            if isinstance(box, (list, tuple)) and len(box) == 4:
-                return [float(v) for v in box], SOURCE_SALIENCY
-        except (ValueError, TypeError):
-            pass
+    box = parse_subject_bbox(row["subject_bbox"])
+    if box is not None:
+        return box, SOURCE_SALIENCY
 
     width = row["image_width"] or 0
     height = row["image_height"] or 0
@@ -135,7 +139,7 @@ def api_social_crop_preview(
 
     subject_norm, source = _resolve_subject(row, faces)
     x0, y0, x1, y1 = compute_crop_rect(
-        width, height, aspect_w, aspect_h, subject_norm, _margin_frac()
+        width, height, aspect_w, aspect_h, subject_norm
     )
     return {
         "preset": preset,
@@ -173,7 +177,7 @@ def api_social_crop(
     width, height = pil_img.size
     subject_norm, _source = _resolve_subject(row, faces)
     x0, y0, x1, y1 = compute_crop_rect(
-        width, height, aspect_w, aspect_h, subject_norm, _margin_frac()
+        width, height, aspect_w, aspect_h, subject_norm
     )
     cropped = pil_img.crop((x0, y0, x1, y1))
 
@@ -182,7 +186,7 @@ def api_social_crop(
     cropped.save(buf, format="JPEG", quality=quality)
     buf.seek(0)
 
-    stem = os.path.splitext(os.path.basename(row["path"]))[0]
+    stem = _safe_disposition_stem(os.path.splitext(os.path.basename(row["path"]))[0])
     download_name = f"{stem}_{preset}.jpg"
     return StreamingResponse(
         buf,

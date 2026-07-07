@@ -2,10 +2,9 @@
 
 Given the original image dimensions, a target aspect ratio and an optional
 normalized subject box, ``compute_crop_rect`` returns the largest crop window of
-that aspect that fits fully inside the image, positioned to best contain the
-subject (expanded by a margin) and centered on the subject, clamped at the
-edges. When the padded subject is larger than the maximal crop it cannot fit
-fully; the window then covers as much as possible centered on the subject.
+that aspect that fits fully inside the image, centered on the subject and
+clamped at the edges. When the subject is larger than the maximal crop it cannot
+fit fully; the window then covers as much as possible centered on the subject.
 
 Pure geometry: no model, no image decode, fully deterministic and unit-tested.
 """
@@ -37,7 +36,6 @@ def compute_crop_rect(
     aspect_w: float,
     aspect_h: float,
     subject_norm: Optional[Sequence[float]] = None,
-    margin_frac: float = 0.0,
 ) -> Tuple[int, int, int, int]:
     """Return the pixel crop rectangle ``(x0, y0, x1, y1)`` for a target aspect.
 
@@ -46,8 +44,6 @@ def compute_crop_rect(
         aspect_w, aspect_h: Target aspect ratio components (width:height).
         subject_norm: Optional ``[x0, y0, x1, y1]`` subject box normalized 0..1.
             None centers the crop on the image (center-crop fallback).
-        margin_frac: Fraction of the subject box size added as breathing room on
-            each side before centering (e.g. 0.08 for an 8% margin).
 
     Returns:
         Integer ``(x0, y0, x1, y1)`` with ``0 <= x0 < x1 <= img_w`` and
@@ -74,10 +70,8 @@ def compute_crop_rect(
         sy0 = min(subject_norm[1], subject_norm[3]) * img_h
         sx1 = max(subject_norm[0], subject_norm[2]) * img_w
         sy1 = max(subject_norm[1], subject_norm[3]) * img_h
-        pad_w = (sx1 - sx0) * margin_frac
-        pad_h = (sy1 - sy0) * margin_frac
-        center_x = (sx0 - pad_w + sx1 + pad_w) / 2
-        center_y = (sy0 - pad_h + sy1 + pad_h) / 2
+        center_x = (sx0 + sx1) / 2
+        center_y = (sy0 + sy1) / 2
     else:
         center_x = img_w / 2
         center_y = img_h / 2
