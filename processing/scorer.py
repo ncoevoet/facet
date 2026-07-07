@@ -48,6 +48,39 @@ def _photos_upsert(insert_sql):
     base = _re.sub(r'INSERT\s+OR\s+REPLACE\s+INTO\s+photos', 'INSERT INTO photos', insert_sql, flags=_re.I)
     return f"{base}\nON CONFLICT(path) DO UPDATE SET {updates}"
 
+
+# Identity/EXIF columns inserted for a genuinely new file but never updated on
+# conflict, so a restricted pass on an existing row leaves them (and scanned_at,
+# thumbnail) alone.
+_PARTIAL_CORE_COLUMNS = (
+    'path', 'filename', 'image_width', 'image_height', 'date_taken',
+    'camera_model', 'lens_model', 'iso', 'f_stop', 'shutter_speed',
+    'focal_length', 'focal_length_35mm', 'gps_latitude', 'gps_longitude',
+    'phash', 'config_version', 'thumbnail',
+)
+
+
+@functools.lru_cache(maxsize=64)
+def _photos_partial_upsert(computed_columns):
+    """Build a partial UPSERT that writes ONLY the columns a restricted pass computed.
+
+    A ``--pass X`` / ``--recompute-*`` backfill runs one model, so only its
+    columns should change. New identity/EXIF, ``thumbnail`` and ``scanned_at``
+    are inserted for a genuinely new file but excluded from the conflict update,
+    so an existing row keeps everything the pass did not touch — no reset of
+    ``scanned_at`` (``--force-since`` reads it), no thumbnail re-encode, no NULLing
+    of another pass's data.
+    """
+    insert_cols = list(_PARTIAL_CORE_COLUMNS) + list(computed_columns)
+    placeholders = [f":{c}" for c in insert_cols] + ["datetime('now')"]
+    all_cols = insert_cols + ['scanned_at']
+    updates = ', '.join(f"{c}=excluded.{c}" for c in computed_columns)
+    return (
+        f"INSERT INTO photos ({', '.join(all_cols)}) "
+        f"VALUES ({', '.join(placeholders)}) "
+        f"ON CONFLICT(path) DO UPDATE SET {updates}"
+    )
+
 # Optional tqdm for progress bars
 try:
     from tqdm import tqdm
@@ -2294,6 +2327,57 @@ class Facet:
     # ============================================
     # PARTIAL UPDATE METHODS (for multi-pass mode)
     # ============================================
+
+    def save_photos_partial(self, batch, refresh_faces):
+        """Persist a restricted single-pass chunk, updating only its own columns.
+
+        ``batch`` is a list of ``(res, pil_img, computed_columns)`` where
+        ``computed_columns`` names the DB columns the executed pass produced.
+        Only those columns are written on an existing row. A thumbnail is
+        generated only for a genuinely new file. ``refresh_faces`` gates the
+        faces delete+reinsert so a non-face pass keeps person assignments,
+        thumbnails and landmarks intact.
+        """
+        if not batch:
+            return
+
+        new_paths = self.filter_unscanned_paths([res['path'] for res, _, _ in batch])
+        for res, pil_img, _ in batch:
+            if res['path'] in new_paths:
+                thumb = pil_img.copy()
+                thumb.thumbnail((640, 640), Image.Resampling.LANCZOS)
+                buf = BytesIO()
+                thumb.save(buf, format="JPEG", quality=80)
+                res['thumbnail'] = buf.getvalue()
+            else:
+                res['thumbnail'] = None
+
+        face_records = []
+        if refresh_faces:
+            for res, _, _ in batch:
+                for face in res.get('face_details', []):
+                    if face.get('embedding'):
+                        face_records.append(face_upsert_row(res['path'], face))
+
+        with get_connection(self.db_path, row_factory=False) as conn:
+            for res, _, computed_columns in batch:
+                conn.execute(_photos_partial_upsert(computed_columns), res)
+
+            if refresh_faces:
+                conn.executemany(
+                    "DELETE FROM faces WHERE photo_path = ?",
+                    [(res['path'],) for res, _, _ in batch],
+                )
+                if face_records:
+                    conn.executemany(FACES_UPSERT_SQL, face_records)
+
+            sync_vec_batch(conn, [
+                (res['path'], res['clip_embedding'])
+                for res, _, computed_columns in batch
+                if 'clip_embedding' in computed_columns and res.get('clip_embedding')
+            ])
+
+            conn.commit()
 
     def update_quality_scores(self, results):
         """

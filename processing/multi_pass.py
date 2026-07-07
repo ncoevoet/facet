@@ -130,6 +130,11 @@ class ChunkedMultiPassProcessor:
         self.available_vram = model_manager.detect_vram()
         self.pass_groups = None
 
+        # Restricted single-pass mode (run_single_pass): only one model runs, so
+        # the chunk save must update only that pass's columns instead of the full
+        # aggregate + save, which would reset every uncomputed column to a default.
+        self.restricted = False
+
         # Metrics
         self.metrics = {
             'images_processed': 0,
@@ -456,11 +461,14 @@ class ChunkedMultiPassProcessor:
         if failed_stages:
             self._record_chunk_pass_failure(images, results, failed_stages)
 
-        # Compute aggregate scores (CPU pass) - needs images for technical metrics
-        self._compute_aggregates(results, images)
+        if self.restricted:
+            self._save_results_restricted(results, images)
+        else:
+            # Compute aggregate scores (CPU pass) - needs images for technical metrics
+            self._compute_aggregates(results, images)
 
-        # Save results to database
-        self._save_results(results, images)
+            # Save results to database
+            self._save_results(results, images)
 
         # Free memory
         del images
@@ -1092,6 +1100,71 @@ class ChunkedMultiPassProcessor:
             self.scorer.save_photos_batch(batch)
             self.scorer.commit()
 
+    def _save_results_restricted(self, results: Dict, images: Dict):
+        """Save a single restricted pass, updating only the columns it computed.
+
+        Skips the aggregate + full save so a --pass / --recompute-* backfill over
+        an already-scored library never overwrites another pass's columns with
+        defaults. Faces are refreshed only when the insightface pass ran.
+        """
+        executed_models = {m for group in self.pass_groups for m in group}
+        refresh_faces = 'insightface' in executed_models
+
+        batch = []
+        for path, data in results.items():
+            if path not in images:
+                continue
+            if data.get(SCAN_FAILED_KEY):
+                continue
+            if not data:
+                if self.on_error:
+                    self.on_error(path, 'save', 'no model produced results for this photo')
+                continue
+
+            computed = {}
+            face_details = []
+            for key, value in data.items():
+                if key == SCAN_FAILED_KEY:
+                    continue
+                if key == 'face_details':
+                    face_details = value
+                    continue
+                if key == 'subject_bbox':
+                    computed['subject_bbox'] = json.dumps(value) if value else None
+                    continue
+                computed[key] = value
+
+            if not computed:
+                continue
+
+            img_data = images[path]
+            exif = img_data.get('exif', {})
+            res = {
+                'path': str(Path(path).resolve()),
+                'filename': Path(path).name,
+                'image_width': img_data['width'],
+                'image_height': img_data['height'],
+                'date_taken': exif.get('date_taken'),
+                'camera_model': exif.get('camera_model'),
+                'lens_model': exif.get('lens_model'),
+                'iso': exif.get('iso'),
+                'f_stop': exif.get('f_stop'),
+                'shutter_speed': exif.get('shutter_speed'),
+                'focal_length': exif.get('focal_length'),
+                'focal_length_35mm': exif.get('focal_length_35mm'),
+                'gps_latitude': exif.get('gps_latitude'),
+                'gps_longitude': exif.get('gps_longitude'),
+                'phash': img_data.get('phash'),
+                'config_version': self.scorer.config.version_hash,
+                'face_details': face_details,
+            }
+            res.update(computed)
+            batch.append((res, img_data['pil'], tuple(sorted(computed.keys()))))
+
+        if batch:
+            self.scorer.save_photos_partial(batch, refresh_faces)
+            self.scorer.commit()
+
     def _handle_oom(self, model_name: str):
         """Handle out-of-memory error by trying fallback models."""
         fallbacks = {
@@ -1209,6 +1282,7 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
 
     processor = ChunkedMultiPassProcessor(scorer, model_manager, scorer.config.config)
     processor.pass_groups = [[model_name]]
+    processor.restricted = True
 
     logger.info("Running single pass: %s (model: %s)", pass_name, model_name)
     metrics = processor.process_directory(paths)
