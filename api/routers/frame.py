@@ -17,10 +17,11 @@ import logging
 from io import BytesIO
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Header, HTTPException, Query, Response
 
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
+from api.types import JUNK_NOT_JUNK
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ _JPEG_QUALITY = 88
 _POOL_MULTIPLIER = 8
 _SIG_LEN = 16
 _ID_SEP = "."
+_BEARER_SCHEME = "bearer"
 
 _META_COLS = "rowid, caption, date_taken, image_width, image_height"
 _RENDER_COLS = "rowid, path, thumbnail, image_width, image_height"
@@ -71,6 +73,24 @@ def _require_token(token: str, cfg: dict) -> None:
     provided = token.encode("utf-8")
     if not any(hmac.compare_digest(t.encode("utf-8"), provided) for t in tokens):
         raise HTTPException(status_code=403, detail="Invalid token")
+
+
+def _resolve_token(query_token: str, header_token: Optional[str],
+                   authorization: Optional[str]) -> str:
+    """Prefer a header-borne token over the ``?token=`` query param.
+
+    Passing the long-lived frame token in a header (``X-Frame-Token`` or
+    ``Authorization: Bearer <token>``) keeps it out of access logs and the
+    Referer header. The query param stays supported so dumb ``<img>`` / kiosk
+    clients that cannot set headers keep working.
+    """
+    if header_token:
+        return header_token
+    if authorization:
+        scheme, _, param = authorization.partition(" ")
+        if scheme.lower() == _BEARER_SCHEME and param.strip():
+            return param.strip()
+    return query_token
 
 
 def _sign_rowid(rowid: int) -> str:
@@ -112,12 +132,12 @@ def _curation_clause(cfg: dict):
     """Build the WHERE fragment + params for the curated candidate set."""
     clauses = [
         "(is_rejected IS NULL OR is_rejected = 0)",
-        "(junk_kind IS NULL OR junk_kind = 'not_junk')",
+        "(junk_kind IS NULL OR junk_kind = ?)",
         "(is_blink IS NULL OR is_blink = 0)",
         "aggregate IS NOT NULL",
         "aggregate >= ?",
     ]
-    params = [float(cfg.get("min_aggregate", _DEFAULT_MIN_AGGREGATE))]
+    params = [JUNK_NOT_JUNK, float(cfg.get("min_aggregate", _DEFAULT_MIN_AGGREGATE))]
     if cfg.get("favorites_only", _DEFAULT_FAVORITES_ONLY):
         clauses.append("is_favorite = 1")
     categories = [c for c in (cfg.get("categories") or []) if isinstance(c, str) and c]
@@ -174,9 +194,7 @@ def _render_jpeg(path: str, thumbnail: Optional[bytes], max_edge: int) -> Option
     try:
         real_disk = resolve_photo_disk_path(path)
         pil, _ = load_image_from_path(real_disk)
-    except HTTPException:
-        pil = None
-    except (OSError, ValueError):
+    except (HTTPException, OSError, ValueError):
         pil = None
     if pil is None and thumbnail:
         try:
@@ -192,10 +210,12 @@ def _render_jpeg(path: str, thumbnail: Optional[bytes], max_edge: int) -> Option
 def frame_photos(
     token: str = Query(""),
     count: Optional[int] = Query(None),
+    x_frame_token: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
 ):
     """Return a curated batch of photos as opaque ids + display metadata."""
     cfg = _frame_config()
-    _require_token(token, cfg)
+    _require_token(_resolve_token(token, x_frame_token, authorization), cfg)
     rows = _sample(cfg, _clamp_count(count, cfg), _META_COLS)
     photos = []
     for row in rows:
@@ -217,10 +237,12 @@ def frame_image(
     photo_id: str,
     token: str = Query(""),
     max_edge: Optional[int] = Query(None),
+    x_frame_token: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
 ):
     """Serve a single curated photo JPEG addressed by its opaque signed id."""
     cfg = _frame_config()
-    _require_token(token, cfg)
+    _require_token(_resolve_token(token, x_frame_token, authorization), cfg)
     rowid = _resolve_id(photo_id)
     if rowid is None:
         raise HTTPException(status_code=404, detail="Unknown photo")
@@ -240,10 +262,12 @@ def frame_image(
 def frame_next(
     token: str = Query(""),
     max_edge: Optional[int] = Query(None),
+    x_frame_token: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
 ):
     """Serve one random curated photo JPEG (dumb-frame / HA generic-camera case)."""
     cfg = _frame_config()
-    _require_token(token, cfg)
+    _require_token(_resolve_token(token, x_frame_token, authorization), cfg)
     rows = _sample(cfg, 1, _RENDER_COLS)
     if not rows:
         raise HTTPException(status_code=404, detail="No photos available")

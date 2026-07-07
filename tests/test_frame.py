@@ -44,6 +44,9 @@ _THUMB = _jpeg_bytes()
 # category allow-list, keeping the sampled set deterministic.
 _CAT_A = "frametest_a"
 _CAT_B = "frametest_b"
+# A third private category scoping the single unrenderable row (below), so
+# /api/frame/next sees it as the only curated candidate.
+_CAT_C = "frametest_c"
 
 # (name, aggregate, is_rejected, junk_kind, is_blink, is_favorite, category)
 _SEED = [
@@ -116,6 +119,34 @@ def seed():
     yield ids
     conn = _connect()
     conn.execute(f"DELETE FROM photos WHERE path LIKE '{PREFIX}%'")
+    conn.commit()
+    conn.close()
+
+
+@pytest.fixture()
+def unrenderable_seed():
+    """Seed a single curated row with NULL thumbnail + a non-existent original.
+
+    ``_render_jpeg`` can neither decode the (missing) original nor fall back to a
+    stored thumbnail, so it returns ``None`` — exercising the "Image unavailable"
+    404. Scoped to its own private category (``_CAT_C``) so a test can make it the
+    only curated candidate for ``/api/frame/next``. Yields the signed id.
+    """
+    path = f"{PREFIX}broken.jpg"
+    conn = _connect()
+    conn.execute(
+        "INSERT INTO photos (path, filename, aggregate, is_rejected, junk_kind, "
+        "is_blink, is_favorite, category, image_width, image_height, thumbnail) "
+        "VALUES (?, ?, ?, 0, NULL, 0, 0, ?, 64, 48, NULL)",
+        (path, "broken.jpg", 9.0, _CAT_C),
+    )
+    conn.commit()
+    row = conn.execute("SELECT rowid FROM photos WHERE path = ?", (path,)).fetchone()
+    signed = _sign_rowid(row["rowid"])
+    conn.close()
+    yield signed
+    conn = _connect()
+    conn.execute("DELETE FROM photos WHERE path = ?", (path,))
     conn.commit()
     conn.close()
 
@@ -273,3 +304,52 @@ class TestNext:
     def test_next_404_when_no_curated_photos(self, client, frame_cfg):
         resp = client.get("/api/frame/next", params={"token": TOKEN})
         assert resp.status_code == 404
+
+    def test_next_404_when_only_curated_row_unrenderable(
+        self, client, frame_cfg, unrenderable_seed
+    ):
+        frame_cfg["categories"] = [_CAT_C]
+        resp = client.get("/api/frame/next", params={"token": TOKEN})
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Image unavailable"
+
+
+# --- Unrenderable image ----------------------------------------------------
+
+class TestUnrenderable:
+    def test_image_404_when_original_missing_and_no_thumbnail(
+        self, client, frame_cfg, unrenderable_seed
+    ):
+        resp = client.get(
+            f"/api/frame/image/{unrenderable_seed}", params={"token": TOKEN}
+        )
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Image unavailable"
+
+
+# --- Header-borne token ----------------------------------------------------
+
+class TestHeaderAuth:
+    def test_x_frame_token_header_accepted(self, client, frame_cfg, seed):
+        resp = client.get("/api/frame/photos", headers={"X-Frame-Token": TOKEN})
+        assert resp.status_code == 200
+
+    def test_authorization_bearer_accepted(self, client, frame_cfg, seed):
+        resp = client.get(
+            "/api/frame/photos", headers={"Authorization": f"Bearer {TOKEN}"}
+        )
+        assert resp.status_code == 200
+
+    def test_wrong_header_token_403(self, client, frame_cfg, seed):
+        resp = client.get(
+            "/api/frame/photos", headers={"X-Frame-Token": "not-a-configured-token"}
+        )
+        assert resp.status_code == 403
+
+    def test_header_preferred_over_query_param(self, client, frame_cfg, seed):
+        resp = client.get(
+            "/api/frame/photos",
+            params={"token": "not-a-configured-token"},
+            headers={"X-Frame-Token": TOKEN},
+        )
+        assert resp.status_code == 200
