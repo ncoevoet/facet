@@ -120,7 +120,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           </button>
         }
 
-        @if (auth.isEdition() && store.config()?.features?.show_social_export && socialPresets().length) {
+        @if (socialExportEnabled()) {
           <button mat-button [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"
             [matTooltip]="(socialCropTooltipKey() | translate)">
             <mat-icon>crop</mat-icon>
@@ -513,6 +513,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   // Social-export crop presets (from viewer config) + which signal frames the crop
   protected readonly socialPresets = computed(() => this.store.config()?.social_export?.presets ?? []);
+  protected readonly socialExportEnabled = computed(() =>
+    this.auth.isEdition() && !!this.store.config()?.features?.show_social_export && this.socialPresets().length > 0,
+  );
   protected readonly socialCropSource = signal<string | null>(null);
   protected readonly socialCropTooltipKey = computed(() => {
     const source = this.socialCropSource();
@@ -522,13 +525,14 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private socialCropSourceEffect = effect(() => {
     const p = this.photo();
     const presets = this.socialPresets();
-    if (!p || !this.auth.isEdition() || !this.store.config()?.features?.show_social_export || !presets.length) {
+    if (!p || !this.socialExportEnabled()) {
       this.socialCropSource.set(null);
       return;
     }
-    firstValueFrom(this.api.get<{ source: string }>('/photo/social_crop/preview', { path: p.path, preset: presets[0].key }))
-      .then(res => this.socialCropSource.set(res.source))
-      .catch(() => this.socialCropSource.set(null));
+    const requestedPath = p.path;
+    firstValueFrom(this.api.get<{ source: string }>('/photo/social_crop/preview', { path: requestedPath, preset: presets[0].key }))
+      .then(res => { if (this.photo()?.path === requestedPath) this.socialCropSource.set(res.source); })
+      .catch(() => { if (this.photo()?.path === requestedPath) this.socialCropSource.set(null); });
   });
 
   // Location

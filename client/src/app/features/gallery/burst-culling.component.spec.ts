@@ -798,6 +798,71 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('developed preview staleness guard (F8)', () => {
+    const grp = {
+      group_id: 1, type: 'burst' as const, reason: '', best_path: '/photo1.jpg', count: 2,
+      photos: [
+        { path: '/photo1.jpg', filename: 'photo1.jpg', aggregate: 8, aesthetic: 7, tech_sharpness: 6, is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8 },
+        { path: '/photo2.jpg', filename: 'photo2.jpg', aggregate: 7, aesthetic: 6, tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: '2024-01-01', burst_score: 7 },
+      ],
+    };
+
+    const focus = (idx: number, style: string) => {
+      component['groups'].set([grp]);
+      component['lightboxGroupId'].set(component['groupKey'](grp));
+      component['lightboxIndex'].set(idx);
+      component['activeStyle'].set(style);
+    };
+
+    it('detaches the previous in-flight image handlers before spawning a new one', () => {
+      focus(0, 'velvia');
+      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      const first = component['previewImg']!;
+      expect(first).toBeTruthy();
+
+      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+
+      expect(first.onload).toBeNull();
+      expect(first.onerror).toBeNull();
+      expect(component['previewImg']).not.toBe(first);
+    });
+
+    it('onerror reverts the style and toasts for the frame still shown', () => {
+      focus(0, 'velvia');
+      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      mockSnackBar.open.mockClear();
+
+      component['previewImg']!.onerror!(new Event('error'));
+
+      expect(component['activeStyle']()).toBe('');
+      expect(component['previewLoading']()).toBe(false);
+      expect(mockSnackBar.open).toHaveBeenCalled();
+    });
+
+    it('a stale onerror (user navigated away) neither reverts the style nor toasts', () => {
+      focus(0, 'velvia');
+      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      component['lightboxIndex'].set(1);
+      mockSnackBar.open.mockClear();
+
+      component['previewImg']!.onerror!(new Event('error'));
+
+      expect(component['activeStyle']()).toBe('velvia');
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it('a stale onload (style changed under it) does not clear the spinner', () => {
+      focus(0, 'velvia');
+      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      component['activeStyle'].set('portra');
+      component['previewLoading'].set(true);
+
+      component['previewImg']!.onload!(new Event('load'));
+
+      expect(component['previewLoading']()).toBe(true);
+    });
+  });
+
   describe('subject close-up strip (non-face groups)', () => {
     const wildlifeGroup = {
       group_id: 3, type: 'similar' as const, reason: '', best_path: '/w1.jpg', count: 2,

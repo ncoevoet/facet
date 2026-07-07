@@ -250,7 +250,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       this.hasMore.set(this.page < data.total_pages);
     } catch {
       if (gen !== this.loadGeneration) return;
-      this.snack.open(this.i18n.t(I18N.junk.load_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
+      this.notifyError();
     } finally {
       if (gen === this.loadGeneration) this.loading.set(false);
     }
@@ -267,10 +267,10 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     this.removeLocal(photo);
     try {
       await firstValueFrom(this.api.post('/photo/clear_junk', { photo_path: photo.path }));
-      this.snack.open(this.i18n.t(I18N.junk.kept), this.i18n.t(I18N.common.dismiss), { duration: 1500 });
+      this.notify(I18N.junk.kept, 1500);
     } catch {
       this.restoreLocal(photo);
-      this.snack.open(this.i18n.t(I18N.junk.load_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
+      this.notifyError();
     }
   }
 
@@ -279,10 +279,10 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     this.removeLocal(photo);
     try {
       await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: [photo.path] }));
-      this.snack.open(this.i18n.t(I18N.junk.rejected), this.i18n.t(I18N.common.dismiss), { duration: 1500 });
+      this.notify(I18N.junk.rejected, 1500);
     } catch {
       this.restoreLocal(photo);
-      this.snack.open(this.i18n.t(I18N.junk.load_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
+      this.notifyError();
     }
   }
 
@@ -301,9 +301,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     const paths = shown.map(p => p.path);
     try {
       await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: paths }));
-      this.snack.open(
-        this.i18n.t(I18N.junk.rejected_bulk, { count: paths.length }),
-        this.i18n.t(I18N.common.dismiss), { duration: 2000 });
+      this.notify(I18N.junk.rejected_bulk, 2000, { count: paths.length });
       const removedByKind = new Map<string, number>();
       for (const p of shown) {
         if (p.junk_kind) removedByKind.set(p.junk_kind, (removedByKind.get(p.junk_kind) ?? 0) + 1);
@@ -314,8 +312,16 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       this.photos.set([]);
       await this.load();
     } catch {
-      this.snack.open(this.i18n.t(I18N.junk.load_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
+      this.notifyError();
     }
+  }
+
+  private notify(key: string, duration: number, vars?: Record<string, string | number>): void {
+    this.snack.open(this.i18n.t(key, vars), this.i18n.t(I18N.common.dismiss), { duration });
+  }
+
+  private notifyError(): void {
+    this.notify(I18N.junk.load_error, 3000);
   }
 
   private removeLocal(photo: JunkPhoto): void {

@@ -205,6 +205,33 @@ describe('ScanService', () => {
       expect(service.status()).toEqual(mockStatus);
       httpTesting.expectNone('/api/scan/stream_token');
     });
+
+    it('should re-mint again on a later error after the reopened stream recovered', async () => {
+      const connectPromise = service.connect();
+      flushMint('token-1');
+      await connectPromise;
+
+      MockEventSource.instances[0].simulateError();
+
+      flushMint('token-2');
+      await vi.waitFor(() => {
+        expect(MockEventSource.instances).toHaveLength(2);
+      });
+
+      MockEventSource.instances[1].simulateMessage(mockStatus);
+      expect(service.status()).toEqual(mockStatus);
+
+      MockEventSource.instances[1].simulateError();
+
+      flushMint('token-3');
+      await vi.waitFor(() => {
+        expect(MockEventSource.instances).toHaveLength(3);
+      });
+      expect(MockEventSource.instances[2].url).toContain('token=token-3');
+      expect(service.connected()).toBe(true);
+
+      httpTesting.expectNone((r) => r.url === '/api/scan/status');
+    });
   });
 
   describe('disconnect()', () => {

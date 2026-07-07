@@ -33,7 +33,7 @@ import {
   SortIconPipe, CategoryIconPipe, CullProfileIconPipe, CullPreviewUrlPipe,
   SubjectForPathPipe, SubjectRingClassPipe,
   cullPreviewUrl,
-  CullingGroup, CullingFace, CullingSubject, FaceThresholds, CullStyle,
+  CullingGroup, CullingPhoto, CullingFace, CullingSubject, FaceThresholds, CullStyle,
 } from './burst-culling.pipes';
 
 interface CullingGroupsResponse {
@@ -450,7 +450,12 @@ interface ShortcutRow {
                        [class.border-transparent]="!(photo.path | isDecided:selectionsMap():group.group_id)"
                        role="button"
                        tabindex="0"
-                       [attr.aria-label]="photo.filename"
+                       [attr.aria-label]="photo.filename + ', ' + (
+                         (photo.path | isKept:selectionsMap():group.group_id)
+                           ? (I18N.culling.lightbox.kept | translate)
+                           : (photo.path | isDecided:selectionsMap():group.group_id)
+                             ? (I18N.culling.lightbox.rejected | translate)
+                             : (I18N.culling.lightbox.undecided | translate))"
                        [attr.aria-pressed]="photo.path | isKept:selectionsMap():group.group_id"
                        (click)="toggleSelection(photo.path, group)"
                        (keydown.enter)="toggleSelection(photo.path, group); $event.stopPropagation()"
@@ -473,6 +478,10 @@ interface ShortcutRow {
                     @if (photo.path | isKept:selectionsMap():group.group_id) {
                       <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center">
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">check</mat-icon>
+                      </div>
+                    } @else if (photo.path | isDecided:selectionsMap():group.group_id) {
+                      <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-600 inline-flex items-center justify-center">
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">close</mat-icon>
                       </div>
                     }
                     <div class="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-white text-xs font-medium">
@@ -1008,6 +1017,8 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly activeStyle = signal('');
   /** True while a developed preview renders (spinner overlay over the flat frame). */
   protected readonly previewLoading = signal(false);
+  /** In-flight developed-preview image, so its handlers can be detached when a newer frame supersedes it. */
+  private previewImg: HTMLImageElement | null = null;
 
   /** The frames shown in compare mode: N photos from the current index, clamped. */
   protected readonly compareFrames = computed(() => {
@@ -1222,9 +1233,21 @@ export class BurstCullingComponent implements OnDestroy {
   /** Preload the developed JPEG for a frame; swap it in on load, revert on error. */
   private preloadDevelopedPreview(path: string, style: string): void {
     this.previewLoading.set(true);
+    if (this.previewImg) {
+      this.previewImg.onload = null;
+      this.previewImg.onerror = null;
+    }
     const img = new Image();
-    img.onload = () => this.previewLoading.set(false);
+    this.previewImg = img;
+    const isStale = () =>
+      path !== this.lightboxGroup()?.photos[this.lightboxIndex()]?.path
+      || style !== this.activeStyle();
+    img.onload = () => {
+      if (isStale()) return;
+      this.previewLoading.set(false);
+    };
     img.onerror = () => {
+      if (isStale()) return;
       this.previewLoading.set(false);
       this.activeStyle.set('');
       this.snackBar.open(this.i18n.t(I18N.culling.cull_style.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
@@ -1666,29 +1689,28 @@ export class BurstCullingComponent implements OnDestroy {
           '/culling-group/subjects', { paths: missing.map(p => p.path) },
         ),
       );
-      const byPath = data.subjects_by_path ?? {};
-      this.subjectMap.update(m => {
-        const next = new Map(m);
-        for (const photo of missing) {
-          const entry = byPath[photo.path];
-          if (entry) next.set(photo.path, entry);
-          else next.set(photo.path, { path: photo.path, has_subject: false, crop: null,
-            subject_sharpness: null, subject_prominence: null,
-            crop_sharpness: null, crop_sharpness_score: null });
-        }
-        return next;
-      });
+      this.applySubjects(missing, data.subjects_by_path ?? {});
     } catch {
-      this.subjectMap.update(m => {
-        const next = new Map(m);
-        for (const photo of missing) {
-          next.set(photo.path, { path: photo.path, has_subject: false, crop: null,
-            subject_sharpness: null, subject_prominence: null,
-            crop_sharpness: null, crop_sharpness_score: null });
-        }
-        return next;
-      });
+      this.applySubjects(missing);
     }
+  }
+
+  /** A subject entry with no crop, so a photo without a subject box stays out of the strip. */
+  private emptySubject(path: string): CullingSubject {
+    return { path, has_subject: false, crop: null,
+      subject_sharpness: null, subject_prominence: null,
+      crop_sharpness: null, crop_sharpness_score: null };
+  }
+
+  /** Merge fetched subject crops into subjectMap, filling unreturned paths with an empty entry. */
+  private applySubjects(missing: CullingPhoto[], byPath: Record<string, CullingSubject> = {}): void {
+    this.subjectMap.update(m => {
+      const next = new Map(m);
+      for (const photo of missing) {
+        next.set(photo.path, byPath[photo.path] ?? this.emptySubject(photo.path));
+      }
+      return next;
+    });
   }
 
   private clampIndex(value: number, max: number): number {

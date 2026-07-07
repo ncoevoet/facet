@@ -110,6 +110,7 @@ export class ScanService implements OnDestroy {
       } catch {
         return;
       }
+      this.retriedMintOnError = false;
       this.status.set(data);
       if (!data.running) {
         this.disconnect();

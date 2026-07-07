@@ -37,6 +37,7 @@ import {
 import { PhotoCardComponent } from '../photo-card/photo-card.component';
 import { SlideshowComponent } from '../../../features/gallery/slideshow.component';
 import { InfiniteScrollDirective } from '../../directives/infinite-scroll.directive';
+import { PluralKeyPipe } from '../../pipes/plural-key.pipe';
 import { I18N } from '../../../core/i18n/keys';
 
 interface SortOption {
@@ -108,7 +109,7 @@ interface SharedFilters {
     MatIconModule, MatButtonModule, MatProgressSpinnerModule, MatMenuModule,
     MatSelectModule, MatFormFieldModule, MatSnackBarModule, MatTooltipModule,
     MatSliderModule, MatSidenavModule, MatExpansionModule, MatInputModule, MatCheckboxModule, MatDatepickerModule,
-    TranslatePipe, FilterDisplayPipe, SortGroupKeyPipe,
+    TranslatePipe, FilterDisplayPipe, SortGroupKeyPipe, PluralKeyPipe,
     PhotoCardComponent, SlideshowComponent, InfiniteScrollDirective,
   ],
   template: `
@@ -454,7 +455,7 @@ interface SharedFilters {
       @if (proofingActive()) {
         <div class="fixed bottom-14 md:bottom-4 right-4 z-40 flex items-center gap-1.5 rounded-full px-3 py-1.5 bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] shadow-lg text-sm font-medium pointer-events-none">
           <mat-icon class="!text-base !w-4 !h-4 !leading-4">favorite</mat-icon>
-          {{ (picksCount() === 1 ? I18N.proofing.picks_count : I18N.proofing.picks_count_plural) | translate:{ count: picksCount() } }}
+          {{ picksCount() | pluralKey:I18N.proofing.picks_count:I18N.proofing.picks_count_plural | translate:{ count: picksCount() } }}
         </div>
       }
 
