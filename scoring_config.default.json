@@ -1985,6 +1985,88 @@
     "weight_sharpness": 0.2,
     "weight_blink": 0.15
   },
+  "portfolio": {
+    "max_photos": 500,
+    "max_edge": 2048,
+    "jpeg_quality": 88
+  },
+  "frame": {
+    "tokens": [],
+    "count": 20,
+    "max_count": 100,
+    "min_aggregate": 7.0,
+    "max_edge": 1920,
+    "favorites_only": false,
+    "categories": []
+  },
+  "upload": {
+    "username": "",
+    "password": "",
+    "inbox_dir": "",
+    "max_file_mb": 500
+  },
+  "social_export": {
+    "presets": {
+      "square": {
+        "label_key": "social_export.presets.square",
+        "aspect": "1:1"
+      },
+      "portrait_4x5": {
+        "label_key": "social_export.presets.portrait_4x5",
+        "aspect": "4:5"
+      },
+      "story_9x16": {
+        "label_key": "social_export.presets.story_9x16",
+        "aspect": "9:16"
+      }
+    },
+    "jpeg_quality": 92
+  },
+  "cull_profiles": {
+    "default": "balanced",
+    "profiles": {
+      "balanced": {
+        "label_key": "culling.profiles.balanced",
+        "strictness": 50,
+        "eyes_closed_max": 4.0,
+        "poor_expression_min": 4.0,
+        "keep_min_per_group": 1,
+        "similarity_threshold": 85
+      },
+      "wedding": {
+        "label_key": "culling.profiles.wedding",
+        "strictness": 35,
+        "eyes_closed_max": 5.0,
+        "poor_expression_min": 5.0,
+        "keep_min_per_group": 2,
+        "similarity_threshold": 90
+      },
+      "sports": {
+        "label_key": "culling.profiles.sports",
+        "strictness": 85,
+        "eyes_closed_max": 2.0,
+        "poor_expression_min": 0.0,
+        "keep_min_per_group": 1,
+        "similarity_threshold": 80
+      },
+      "concert": {
+        "label_key": "culling.profiles.concert",
+        "strictness": 55,
+        "eyes_closed_max": 2.0,
+        "poor_expression_min": 0.0,
+        "keep_min_per_group": 1,
+        "similarity_threshold": 85
+      },
+      "wildlife": {
+        "label_key": "culling.profiles.wildlife",
+        "strictness": 70,
+        "eyes_closed_max": 0.0,
+        "poor_expression_min": 0.0,
+        "keep_min_per_group": 1,
+        "similarity_threshold": 82
+      }
+    }
+  },
   "similarity_groups": {
     "default_threshold": 0.85,
     "min_group_size": 2,
@@ -2449,6 +2531,70 @@
         ]
       }
     }
+  },
+  "junk_sweep": {
+    "enabled": true,
+    "prompt_template": "{desc}",
+    "pooling": "max",
+    "thresholds": {
+      "open_clip": {
+        "min_confidence": 0.2,
+        "min_margin": 0.06
+      },
+      "transformers": {
+        "min_confidence": 0.1,
+        "min_margin": 0.02
+      }
+    },
+    "kinds": {
+      "screenshot": [
+        "a screenshot of a phone user interface",
+        "a screenshot of a computer screen",
+        "a screen capture of a mobile app",
+        "a screenshot of a web page",
+        "a screenshot of a chat conversation"
+      ],
+      "document": [
+        "a scanned document",
+        "a page of printed text",
+        "a scanned paper document",
+        "a photo of a printed page",
+        "a page from a book"
+      ],
+      "receipt": [
+        "a close-up photo of a paper receipt",
+        "a thermal paper cash register receipt",
+        "a scanned invoice",
+        "a utility bill with payment amounts"
+      ],
+      "meme": [
+        "a meme with overlaid text",
+        "an internet meme",
+        "a funny image with a caption",
+        "a reaction image with bold text"
+      ],
+      "slide": [
+        "a presentation slide",
+        "a powerpoint slide",
+        "a lecture slide with bullet points",
+        "a slide with a chart and text"
+      ]
+    },
+    "not_junk_prompts": [
+      "a natural photograph",
+      "a candid photo of people",
+      "a landscape photograph",
+      "a portrait of a person",
+      "a photo of a real scene",
+      "an ordinary snapshot",
+      "a menu with prices in a restaurant or shop",
+      "a close-up photo of a product package"
+    ]
+  },
+  "piaa_prior": {
+    "enabled": false,
+    "shrinkage_k": 10,
+    "models_dir": "pretrained_models"
   },
   "capsules": {
     "min_aggregate": 6.0,
@@ -2991,6 +3137,20 @@
   },
   "translation": {
     "target_language": "fr"
+  },
+  "vlm_backend": {
+    "type": "local",
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "model": "qwen2.5vl:7b",
+      "timeout_seconds": 120
+    },
+    "openai_compatible": {
+      "base_url": "http://localhost:1234/v1",
+      "api_key": "",
+      "model": "qwen2.5-vl-7b",
+      "timeout_seconds": 120
+    }
   },
   "performance": {
     "mmap_size_mb": 2048,
