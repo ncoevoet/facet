@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { signal } from '@angular/core';
-import { NEVER } from 'rxjs';
+import { Provider, signal } from '@angular/core';
+import { NEVER, Subject } from 'rxjs';
 import { App } from './app';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './features/gallery/gallery.store';
 import { AuthService } from './core/services/auth.service';
@@ -11,8 +11,11 @@ import { ThemeService } from './core/services/theme.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { SwUpdate } from '@angular/service-worker';
+import { I18N } from './core/i18n/keys';
 
-function createApp(routerUrl = '/') {
+function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
   const filtersSignal = signal<GalleryFilters>({ ...DEFAULT_FILTERS });
   const personsSignal = signal<{ id: number; name: string | null }[]>([]);
   const compareCategorySig = signal('');
@@ -40,6 +43,7 @@ function createApp(routerUrl = '/') {
       { provide: MatDialog, useValue: { open: vi.fn() } },
       { provide: ApiService, useValue: { get: vi.fn(() => NEVER), post: vi.fn(() => NEVER) } },
       { provide: ThemeService, useValue: { theme: signal(''), darkMode: signal(true), THEMES: [], setTheme: vi.fn(), toggleDarkMode: vi.fn(), accentColor: signal('#ff6600'), complementaryColor: signal('#0099ff') } },
+      ...extraProviders,
     ],
   });
 
@@ -282,6 +286,41 @@ describe('App', () => {
       (app as any).resetAllFilters();
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/']);
       expect(mockStore.resetFilters).toHaveBeenCalled();
+    });
+  });
+
+  describe('service worker update toast', () => {
+    function withSw(isEnabled: boolean) {
+      const versionUpdates = new Subject<unknown>();
+      const onAction = vi.fn(() => new Subject<void>());
+      const open = vi.fn(() => ({ onAction }));
+      const { app } = createApp('/', [
+        { provide: SwUpdate, useValue: { isEnabled, versionUpdates } },
+        { provide: MatSnackBar, useValue: { open } },
+      ]);
+      return { app, versionUpdates, open, onAction };
+    }
+
+    it('opens a reload snackbar and wires its action on VERSION_READY', () => {
+      const { app, versionUpdates, open, onAction } = withSw(true);
+      (app as any).setupUpdateNotifications();
+      versionUpdates.next({ type: 'VERSION_READY' });
+      expect(open).toHaveBeenCalledWith(I18N.pwa.update_available, I18N.pwa.reload);
+      expect(onAction).toHaveBeenCalled();
+    });
+
+    it('ignores version events other than VERSION_READY', () => {
+      const { app, versionUpdates, open } = withSw(true);
+      (app as any).setupUpdateNotifications();
+      versionUpdates.next({ type: 'VERSION_DETECTED' });
+      expect(open).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the service worker is disabled', () => {
+      const { app, versionUpdates, open } = withSw(false);
+      (app as any).setupUpdateNotifications();
+      versionUpdates.next({ type: 'VERSION_READY' });
+      expect(open).not.toHaveBeenCalled();
     });
   });
 });

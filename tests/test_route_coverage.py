@@ -236,3 +236,13 @@ class TestAngularSpaShell:
         assert resp.status_code in (200, 204, 301, 302, 304, 307, 308, 404), (
             f"{path} -> {resp.status_code}"
         )
+
+    @pytest.mark.parametrize('path', ['/ngsw.json', '/ngsw-worker.js'])
+    def test_service_worker_files_are_no_cache(self, client, path):
+        resp = client.get(path)
+        if resp.status_code == 404:
+            pytest.skip('client dist not built in this environment')
+        assert resp.status_code == 200, f"{path} -> {resp.status_code}"
+        assert 'no-cache' in resp.headers.get('cache-control', ''), (
+            f"{path} cache-control={resp.headers.get('cache-control')!r}"
+        )
