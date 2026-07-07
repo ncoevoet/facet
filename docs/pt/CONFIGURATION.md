@@ -1840,7 +1840,7 @@ Detector zero-shot para "lixo" não fotográfico — capturas de tela, documento
     "kinds": {
       "screenshot": ["a screenshot of a phone user interface", "..."],
       "document": ["a scanned document", "..."],
-      "receipt": ["a photo of a receipt", "..."],
+      "receipt": ["a close-up photo of a paper receipt", "..."],
       "meme": ["a meme with overlaid text", "..."],
       "slide": ["a presentation slide", "..."]
     },
@@ -1857,7 +1857,7 @@ Detector zero-shot para "lixo" não fotográfico — capturas de tela, documento
 | `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Cosseno mínimo com max-pooling para que o melhor tipo de lixo seja considerado (os cossenos de CLIP/`open_clip` são mais baixos que os de SigLIP/`transformers`, daí um limiar próprio por backend) |
 | `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Quanto o melhor tipo de lixo precisa superar o melhor prompt de contraste `not_junk` antes de a foto ser sinalizada |
 | `kinds` | screenshot/document/receipt/meme/slide | `{tipo: [sinônimos de prompt]}`; adicione, remova ou renomeie tipos livremente — a coluna e a fila do visualizador seguem a configuração |
-| `not_junk_prompts` | 6 prompts fotográficos | Conjunto de contraste que descreve fotografias reais; o filtro que mantém as fotos genuínas fora da fila |
+| `not_junk_prompts` | 8 prompts fotográficos | Conjunto de contraste que descreve fotografias reais; o filtro que mantém as fotos genuínas fora da fila |
 
 ## VLM Backend
 
@@ -1897,7 +1897,7 @@ O backend compartilhado alimenta a legendagem (`--generate-captions` e o endpoin
 
 ## AI Critique
 
-Configuração de prompt para a crítica com VLM (perfis 16gb/24gb). A crítica injeta o detalhamento completo de regras, penalidades e EXIF em um prompt em escada configurável, apresenta a resposta como Observação / Avaliação / Sugestões e a armazena em cache por foto em `photos.vlm_critique` (traduzida sob demanda para `vlm_critique_translated`). Ela roda sobre a miniatura armazenada, então arquivos RAW são criticados corretamente em vez de falharem silenciosamente; `refresh` regenera.
+Configuração de prompt para a crítica com VLM (perfis 16gb/24gb). A crítica injeta o detalhamento completo de regras, penalidades e EXIF em um prompt em escada configurável, apresenta a resposta como Observação / Avaliação / Sugestões e a armazena em cache por foto em `photos.vlm_critique` (traduzida sob demanda para `vlm_critique_translated`). Ela roda sobre a miniatura armazenada, então arquivos RAW são criticados corretamente em vez de falharem silenciosamente; `refresh` regenera. A escada padrão segue a estrutura de quatro habilidades do AesBench (perceber → sentir → julgar → aconselhar): sua Avaliação dá um breve veredito sobre composição, cor e luz, foco/PdC e execução técnica, e sujeito e momento, cada um confrontado com as métricas injetadas em vez de repetir os números.
 
 ```json
 {
