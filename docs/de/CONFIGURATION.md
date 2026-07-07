@@ -1840,7 +1840,7 @@ Zero-Shot-Detektor für nicht-fotografischen „Müll" — Screenshots, gescannt
     "kinds": {
       "screenshot": ["a screenshot of a phone user interface", "..."],
       "document": ["a scanned document", "..."],
-      "receipt": ["a photo of a receipt", "..."],
+      "receipt": ["a close-up photo of a paper receipt", "..."],
       "meme": ["a meme with overlaid text", "..."],
       "slide": ["a presentation slide", "..."]
     },
@@ -1857,7 +1857,7 @@ Zero-Shot-Detektor für nicht-fotografischen „Müll" — Screenshots, gescannt
 | `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Minimaler max-gepoolter Kosinus, damit die beste Müll-Art berücksichtigt wird (CLIP/`open_clip`-Kosinuswerte liegen niedriger als SigLIP/`transformers`, daher hat jedes Backend eine eigene Schwelle) |
 | `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Wie weit die beste Müll-Art den besten `not_junk`-Kontrast-Prompt schlagen muss, bevor das Foto markiert wird |
 | `kinds` | screenshot/document/receipt/meme/slide | `{art: [Prompt-Synonyme]}`; fügen Sie Arten frei hinzu, entfernen oder benennen Sie sie um — Spalte und Viewer-Warteschlange folgen der Konfiguration |
-| `not_junk_prompts` | 6 Foto-Prompts | Kontrast-Set, das echte Fotografien beschreibt; der Filter, der echte Fotos aus der Warteschlange heraushält |
+| `not_junk_prompts` | 8 Foto-Prompts | Kontrast-Set, das echte Fotografien beschreibt; der Filter, der echte Fotos aus der Warteschlange heraushält |
 
 ## VLM Backend
 

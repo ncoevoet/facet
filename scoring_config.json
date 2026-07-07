@@ -2737,10 +2737,10 @@
         "a page from a book"
       ],
       "receipt": [
-        "a photo of a receipt",
-        "a shopping receipt",
+        "a close-up photo of a paper receipt",
+        "a thermal paper cash register receipt",
         "a scanned invoice",
-        "a restaurant bill"
+        "a utility bill with payment amounts"
       ],
       "meme": [
         "a meme with overlaid text",
@@ -2761,7 +2761,9 @@
       "a landscape photograph",
       "a portrait of a person",
       "a photo of a real scene",
-      "an ordinary snapshot"
+      "an ordinary snapshot",
+      "a menu with prices in a restaurant or shop",
+      "a close-up photo of a product package"
     ]
   },
   "distortion_attributes": {

@@ -1840,7 +1840,7 @@ Détecteur zero-shot pour les fichiers non photographiques « indésirables »
     "kinds": {
       "screenshot": ["a screenshot of a phone user interface", "..."],
       "document": ["a scanned document", "..."],
-      "receipt": ["a photo of a receipt", "..."],
+      "receipt": ["a close-up photo of a paper receipt", "..."],
       "meme": ["a meme with overlaid text", "..."],
       "slide": ["a presentation slide", "..."]
     },
@@ -1857,7 +1857,7 @@ Détecteur zero-shot pour les fichiers non photographiques « indésirables »
 | `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Cosinus max-pooled minimal pour que le meilleur type d'indésirable soit pris en compte (les cosinus CLIP/`open_clip` sont plus bas que ceux de SigLIP/`transformers`, d'où un seuil propre à chaque backend) |
 | `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Écart minimal que le meilleur type d'indésirable doit creuser sur le meilleur prompt contrastif `not_junk` avant que la photo soit signalée |
 | `kinds` | screenshot/document/receipt/meme/slide | `{type: [synonymes de prompt]}` ; ajoutez, retirez ou renommez les types librement — la colonne et la file de la visionneuse suivent la configuration |
-| `not_junk_prompts` | 6 prompts de photographie | Jeu contrastif décrivant de vraies photographies ; le filtre qui garde les photos authentiques hors de la file |
+| `not_junk_prompts` | 8 prompts de photographie | Jeu contrastif décrivant de vraies photographies ; le filtre qui garde les photos authentiques hors de la file |
 
 ## Backend VLM
 

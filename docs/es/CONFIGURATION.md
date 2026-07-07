@@ -1840,7 +1840,7 @@ Detector zero-shot para archivos no fotográficos "basura" — capturas de panta
     "kinds": {
       "screenshot": ["a screenshot of a phone user interface", "..."],
       "document": ["a scanned document", "..."],
-      "receipt": ["a photo of a receipt", "..."],
+      "receipt": ["a close-up photo of a paper receipt", "..."],
       "meme": ["a meme with overlaid text", "..."],
       "slide": ["a presentation slide", "..."]
     },
@@ -1857,7 +1857,7 @@ Detector zero-shot para archivos no fotográficos "basura" — capturas de panta
 | `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Coseno máximo agrupado mínimo para que se considere el mejor tipo de basura (los cosenos de CLIP/`open_clip` son más bajos que los de SigLIP/`transformers`, de ahí un umbral propio por backend) |
 | `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Cuánto debe superar el mejor tipo de basura al mejor prompt de contraste `not_junk` antes de que se marque la foto |
 | `kinds` | screenshot/document/receipt/meme/slide | `{tipo: [sinónimos de prompt]}`; añade, quita o renombra tipos libremente — la columna y la cola del visor siguen la configuración |
-| `not_junk_prompts` | 6 prompts fotográficos | Conjunto de contraste que describe fotografías reales; el filtro que mantiene las fotos genuinas fuera de la cola |
+| `not_junk_prompts` | 8 prompts fotográficos | Conjunto de contraste que describe fotografías reales; el filtro que mantiene las fotos genuinas fuera de la cola |
 
 ## Backend VLM
 

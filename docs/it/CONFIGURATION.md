@@ -1840,7 +1840,7 @@ Rilevatore zero-shot per file non fotografici "spazzatura" — screenshot, docum
     "kinds": {
       "screenshot": ["a screenshot of a phone user interface", "..."],
       "document": ["a scanned document", "..."],
-      "receipt": ["a photo of a receipt", "..."],
+      "receipt": ["a close-up photo of a paper receipt", "..."],
       "meme": ["a meme with overlaid text", "..."],
       "slide": ["a presentation slide", "..."]
     },
@@ -1857,7 +1857,7 @@ Rilevatore zero-shot per file non fotografici "spazzatura" — screenshot, docum
 | `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Coseno max-pooled minimo perché il miglior tipo di spazzatura venga considerato (i coseni CLIP/`open_clip` sono più bassi di quelli SigLIP/`transformers`, da cui una soglia propria per ciascun backend) |
 | `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Quanto il miglior tipo di spazzatura deve superare il miglior prompt di contrasto `not_junk` prima che la foto venga segnalata |
 | `kinds` | screenshot/document/receipt/meme/slide | `{tipo: [sinonimi di prompt]}`; aggiungi, rimuovi o rinomina i tipi liberamente — la colonna e la coda del visualizzatore seguono la configurazione |
-| `not_junk_prompts` | 6 prompt fotografici | Insieme di contrasto che descrive fotografie autentiche; il filtro che tiene le foto genuine fuori dalla coda |
+| `not_junk_prompts` | 8 prompt fotografici | Insieme di contrasto che descrive fotografie autentiche; il filtro che tiene le foto genuine fuori dalla coda |
 
 ## VLM Backend
 

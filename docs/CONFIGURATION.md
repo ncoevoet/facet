@@ -1863,7 +1863,7 @@ Zero-shot detector for non-photo "junk" — screenshots, scanned documents, rece
     "kinds": {
       "screenshot": ["a screenshot of a phone user interface", "..."],
       "document": ["a scanned document", "..."],
-      "receipt": ["a photo of a receipt", "..."],
+      "receipt": ["a close-up photo of a paper receipt", "..."],
       "meme": ["a meme with overlaid text", "..."],
       "slide": ["a presentation slide", "..."]
     },
@@ -1880,7 +1880,7 @@ Zero-shot detector for non-photo "junk" — screenshots, scanned documents, rece
 | `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Minimum max-pooled cosine for the best junk kind to be considered (CLIP/`open_clip` cosines run lower than SigLIP/`transformers`, so each backend has its own gate) |
 | `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | How far the best junk kind must beat the best `not_junk` contrast prompt before the photo is flagged |
 | `kinds` | screenshot/document/receipt/meme/slide | `{kind: [prompt synonyms]}`; add, remove, or rename kinds freely — the column and viewer queue follow the config |
-| `not_junk_prompts` | 6 photograph prompts | Contrast set describing real photographs; the gate that keeps genuine photos out of the queue |
+| `not_junk_prompts` | 8 photograph prompts | Contrast set describing real photographs; the gate that keeps genuine photos out of the queue |
 
 ## AI Critique
 
