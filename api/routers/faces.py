@@ -469,6 +469,7 @@ def api_clear_junk(
     """
     with get_db() as conn:
         try:
+            assert_photo_visible(conn, user.user_id if user else None, body.photo_path)
             row = conn.execute("SELECT 1 FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Photo not found")
@@ -476,6 +477,9 @@ def api_clear_junk(
             conn.commit()
             _stats_cache.clear()
             return {'success': True, 'junk_kind': None}
+        except LookupError:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="Photo not found")
         except HTTPException:
             raise
         except sqlite3.Error:

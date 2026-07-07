@@ -7,7 +7,7 @@ own directories, while single-user access is unchanged.
 """
 
 import sqlite3
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from unittest import mock
 
 import aiosqlite
@@ -15,7 +15,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
-from api.auth import CurrentUser, require_auth
+from api.auth import CurrentUser, require_auth, require_edition
+from api.types import JUNK_NOT_JUNK
 
 _HELPERS = "api.db_helpers"
 
@@ -23,7 +24,7 @@ ALICE_PHOTO = "/photos/alice/a.jpg"
 BOB_PHOTO = "/photos/bob/b.jpg"
 
 _SCHEMA = """
-    CREATE TABLE photos (path TEXT PRIMARY KEY, aggregate REAL);
+    CREATE TABLE photos (path TEXT PRIMARY KEY, aggregate REAL, junk_kind TEXT);
     CREATE TABLE persons (id INTEGER PRIMARY KEY, name TEXT);
     CREATE TABLE faces (id INTEGER PRIMARY KEY, photo_path TEXT, face_index INTEGER,
                         person_id INTEGER, bbox_x1 REAL, bbox_y1 REAL,
@@ -36,8 +37,8 @@ def db_path(tmp_path):
     path = str(tmp_path / "faces_vis.db")
     conn = sqlite3.connect(path)
     conn.executescript(_SCHEMA)
-    conn.executemany("INSERT INTO photos VALUES (?, ?)",
-                     [(ALICE_PHOTO, 9.0), (BOB_PHOTO, 3.0)])
+    conn.executemany("INSERT INTO photos VALUES (?, ?, ?)",
+                     [(ALICE_PHOTO, 9.0, "screenshot"), (BOB_PHOTO, 3.0, "screenshot")])
     conn.executemany("INSERT INTO persons VALUES (?, ?)", [(1, "Alice"), (2, "Bob")])
     conn.executemany(
         "INSERT INTO faces VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -61,12 +62,26 @@ def _async_factory(db_path):
     return factory
 
 
+def _sync_factory(db_path):
+    @contextmanager
+    def factory():
+        c = sqlite3.connect(db_path)
+        c.row_factory = sqlite3.Row
+        try:
+            yield c
+        finally:
+            c.close()
+    return factory
+
+
 def _client(db_path, user):
     dirs = {"alice": ["/photos/alice"], "bob": ["/photos/bob"]}
     app = create_app()
     app.dependency_overrides[require_auth] = lambda: user
+    app.dependency_overrides[require_edition] = lambda: user
     patches = [
         mock.patch("api.routers.faces.get_async_db", _async_factory(db_path)),
+        mock.patch("api.routers.faces.get_db", _sync_factory(db_path)),
         mock.patch(f"{_HELPERS}.is_multi_user_enabled", return_value=True),
         mock.patch(f"{_HELPERS}.get_user_directories",
                    side_effect=lambda uid: dirs.get(uid, [])),
@@ -125,3 +140,34 @@ class TestPersonFacesIsolation:
             _teardown(app, patches)
         assert resp.status_code == 200
         assert [f["id"] for f in resp.json()["faces"]] == [1]
+
+
+def _read_junk_kind(db_path, path):
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute("SELECT junk_kind FROM photos WHERE path = ?", (path,)).fetchone()
+    finally:
+        conn.close()
+    return row[0] if row else None
+
+
+class TestClearJunkIsolation:
+    def test_foreign_path_returns_404_and_leaves_junk(self, db_path):
+        alice = CurrentUser(user_id="alice", role="user")
+        client, app, patches = _client(db_path, alice)
+        try:
+            resp = client.post("/api/photo/clear_junk", json={"photo_path": BOB_PHOTO})
+        finally:
+            _teardown(app, patches)
+        assert resp.status_code == 404
+        assert _read_junk_kind(db_path, BOB_PHOTO) == "screenshot"
+
+    def test_own_path_clears_junk(self, db_path):
+        alice = CurrentUser(user_id="alice", role="user")
+        client, app, patches = _client(db_path, alice)
+        try:
+            resp = client.post("/api/photo/clear_junk", json={"photo_path": ALICE_PHOTO})
+        finally:
+            _teardown(app, patches)
+        assert resp.status_code == 200
+        assert _read_junk_kind(db_path, ALICE_PHOTO) == JUNK_NOT_JUNK
