@@ -610,6 +610,7 @@ For quick reference, here are the actual defaults from the config file:
 | `junk_sweep` | `pooling` | `"max"` |
 | `junk_sweep` | `thresholds.open_clip` | `{min_confidence: 0.2, min_margin: 0.06}` |
 | `junk_sweep` | `thresholds.transformers` | `{min_confidence: 0.1, min_margin: 0.02}` |
+| `piaa_prior` | `enabled` | `false` (personal-ranker cold-start prior blend; validation-gated — the 2026-07-07 offline experiment failed the ship criterion, keep off; see `.claude/specs/piaa-cold-start-design.md`) |
 | `auto_cull` | `default_strictness` | `50` |
 | `auto_cull` | `highlights_min` | `8.0` |
 | `frame` | `tokens` | `[]` (empty = feature disabled → 404) |
