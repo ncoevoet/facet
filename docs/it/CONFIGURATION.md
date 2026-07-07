@@ -1897,7 +1897,7 @@ Il backend condiviso guida la generazione delle didascalie (`--generate-captions
 
 ## AI Critique
 
-Configurazione del prompt per la critica basata su VLM (profili 16gb/24gb). La critica inserisce la scomposizione completa delle regole, le penalità e l'EXIF in un prompt a scala configurabile, presenta la risposta come Osservazione / Valutazione / Suggerimenti e la memorizza nella cache per foto in `photos.vlm_critique` (tradotta su richiesta in `vlm_critique_translated`). Viene eseguita sulla miniatura memorizzata, così i file RAW vengono criticati correttamente invece di fallire silenziosamente; `refresh` la rigenera.
+Configurazione del prompt per la critica basata su VLM (profili 16gb/24gb). La critica inserisce la scomposizione completa delle regole, le penalità e l'EXIF in un prompt a scala configurabile, presenta la risposta come Osservazione / Valutazione / Suggerimenti e la memorizza nella cache per foto in `photos.vlm_critique` (tradotta su richiesta in `vlm_critique_translated`). Viene eseguita sulla miniatura memorizzata, così i file RAW vengono criticati correttamente invece di fallire silenziosamente; `refresh` la rigenera. La scala predefinita segue la struttura a quattro abilità di AesBench (percepire → provare → giudicare → consigliare): la sua Valutazione fornisce un breve verdetto su composizione, colore & luce, messa a fuoco/PdC & esecuzione tecnica, e soggetto & momento, ciascuno confrontato con le metriche iniettate anziché ripetere i numeri.
 
 ```json
 {

@@ -1897,7 +1897,7 @@ El backend compartido impulsa el subtitulado (`--generate-captions` y el endpoin
 
 ## Crítica con IA
 
-Configuración de prompt para la crítica basada en VLM (perfiles 16gb/24gb). La crítica inyecta el desglose completo de reglas, las penalizaciones y el EXIF en un prompt escalonado configurable, presenta la respuesta como Observación / Evaluación / Sugerencias y la almacena en caché por foto en `photos.vlm_critique` (traducida bajo demanda a `vlm_critique_translated`). Se ejecuta sobre la miniatura almacenada, de modo que los archivos RAW se critican correctamente en lugar de fallar en silencio; `refresh` la regenera.
+Configuración de prompt para la crítica basada en VLM (perfiles 16gb/24gb). La crítica inyecta el desglose completo de reglas, las penalizaciones y el EXIF en un prompt escalonado configurable, presenta la respuesta como Observación / Evaluación / Sugerencias y la almacena en caché por foto en `photos.vlm_critique` (traducida bajo demanda a `vlm_critique_translated`). Se ejecuta sobre la miniatura almacenada, de modo que los archivos RAW se critican correctamente en lugar de fallar en silencio; `refresh` la regenera. La escala por defecto sigue la estructura de cuatro capacidades de AesBench (percibir → sentir → juzgar → aconsejar): su Evaluación da un breve veredicto sobre composición, color y luz, enfoque/PdC y ejecución técnica, y sujeto y momento, cada uno contrastado con las métricas inyectadas en lugar de repetir los números.
 
 ```json
 {

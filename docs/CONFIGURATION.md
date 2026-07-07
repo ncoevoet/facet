@@ -1884,7 +1884,7 @@ Zero-shot detector for non-photo "junk" — screenshots, scanned documents, rece
 
 ## AI Critique
 
-Prompt configuration for the VLM-powered critique (16gb/24gb profiles). The critique injects the full rule breakdown, penalties and EXIF into a configurable ladder prompt, renders the reply as Observation / Assessment / Suggestions, and caches it per photo in `photos.vlm_critique` (translated on demand into `vlm_critique_translated`). It runs against the stored thumbnail, so RAW files critique correctly instead of failing silently; `refresh` regenerates.
+Prompt configuration for the VLM-powered critique (16gb/24gb profiles). The critique injects the full rule breakdown, penalties and EXIF into a configurable ladder prompt, renders the reply as Observation / Assessment / Suggestions, and caches it per photo in `photos.vlm_critique` (translated on demand into `vlm_critique_translated`). It runs against the stored thumbnail, so RAW files critique correctly instead of failing silently; `refresh` regenerates. The default ladder follows the AesBench four-ability structure (perceive → feel → judge → advise): its Assessment gives a short verdict on composition, color & light, focus/DOF & technical execution, and subject & moment, each reconciled against the injected metrics rather than restating the numbers.
 
 ```json
 {

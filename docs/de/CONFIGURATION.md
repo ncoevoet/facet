@@ -1897,7 +1897,7 @@ Das gemeinsame Backend steuert die Bildbeschreibung (`--generate-captions` und d
 
 ## AI Critique
 
-Prompt-Konfiguration für die VLM-gestützte Kritik (16gb/24gb-Profile). Die Kritik fügt die vollständige Regelaufschlüsselung, Strafen und EXIF in einen konfigurierbaren Leiter-Prompt ein, rendert die Antwort als Observation / Assessment / Suggestions und speichert sie pro Foto in `photos.vlm_critique` (bei Bedarf übersetzt in `vlm_critique_translated`). Sie läuft gegen das gespeicherte Thumbnail, sodass RAW-Dateien korrekt kritisiert werden, statt still zu scheitern; `refresh` regeneriert.
+Prompt-Konfiguration für die VLM-gestützte Kritik (16gb/24gb-Profile). Die Kritik fügt die vollständige Regelaufschlüsselung, Strafen und EXIF in einen konfigurierbaren Leiter-Prompt ein, rendert die Antwort als Observation / Assessment / Suggestions und speichert sie pro Foto in `photos.vlm_critique` (bei Bedarf übersetzt in `vlm_critique_translated`). Sie läuft gegen das gespeicherte Thumbnail, sodass RAW-Dateien korrekt kritisiert werden, statt still zu scheitern; `refresh` regeneriert. Die Standard-Leiter folgt der Vier-Fähigkeiten-Struktur von AesBench (wahrnehmen → fühlen → urteilen → beraten): Ihr Assessment gibt ein kurzes Urteil zu Komposition, Farbe & Licht, Fokus/Schärfentiefe & technischer Ausführung sowie Motiv & Moment ab, jeweils mit den eingespeisten Metriken abgeglichen, statt die Zahlen zu wiederholen.
 
 ```json
 {

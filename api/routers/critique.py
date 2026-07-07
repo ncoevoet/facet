@@ -478,17 +478,24 @@ async def _attach_vlm_critique(conn, photo, result, lang, refresh, user):
 
 
 _DEFAULT_VLM_PROMPT = (
-    "You are an experienced photography critic reviewing a {category} photo "
-    "that scored {aggregate}/10 overall.\n"
+    "You are an expert photography critic reviewing a {category} photograph "
+    "that Facet's metrics scored {aggregate}/10 overall.\n"
     "Measured metrics (0-10):\n{breakdown}\n"
     "{penalties}"
     "Camera settings: {exif}.\n\n"
-    "Look at the photo and write exactly three short titled sections.\n"
-    "Observation: one factual sentence describing subject and framing.\n"
-    "Assessment: 2-3 sentences on what works and what fails, grounded in what "
-    "is visible in the photo and consistent with the measurements.\n"
-    "Suggestions: 2-3 concrete, actionable improvements (shooting or editing). "
-    "Do not repeat the numbers; interpret them."
+    "Judge the picture from what you actually see. Treat the metrics as context "
+    "to confirm or contradict from the pixels, never restate the numbers. First "
+    "perceive the scene, then register the feeling it evokes, then judge it, then "
+    "advise. Write exactly three titled sections in compact prose, no bullet "
+    "lists:\n"
+    "Observation: one or two sentences naming the subject, the moment and the "
+    "framing you see.\n"
+    "Assessment: three to four sentences giving a short verdict on each of "
+    "composition, color & light, focus/depth-of-field & technical execution, and "
+    "subject & moment; say where the pixels back the metrics or contradict them, "
+    "and what the image makes a viewer feel.\n"
+    "Suggestions: at most three concrete fixes for the weakest dimensions above, "
+    "mixing shooting and editing advice."
 )
 
 
