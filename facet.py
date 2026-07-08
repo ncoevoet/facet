@@ -1397,13 +1397,14 @@ Configuration:
         scorer_model = PyIQAScorer('topiq')
         scorer_model.load()
 
+        # Fetch paths up front but each thumbnail BLOB on demand — a fetchall
+        # of the BLOBs holds the whole library's thumbnails in RAM (OOM at 100k+).
         with get_connection(args.db) as conn:
-            cursor = conn.execute(
-                "SELECT path, thumbnail FROM photos WHERE thumbnail IS NOT NULL"
-            )
-            rows = list(cursor.fetchall())
+            paths = [row['path'] for row in conn.execute(
+                "SELECT path FROM photos WHERE thumbnail IS NOT NULL"
+            ).fetchall()]
 
-        logger.info("Scoring %d photos with TOPIQ...", len(rows))
+        logger.info("Scoring %d photos with TOPIQ...", len(paths))
         updated = 0
         batch_paths = []
         batch_images = []
@@ -1418,9 +1419,12 @@ Configuration:
                 )
             return len(scores)
 
-        with get_connection(args.db) as conn:
-            for row in tqdm(rows, desc="TOPIQ scoring"):
-                thumbnail_blob = row['thumbnail']
+        with get_connection(args.db) as read_conn, get_connection(args.db) as conn:
+            for path in tqdm(paths, desc="TOPIQ scoring"):
+                row = read_conn.execute(
+                    "SELECT thumbnail FROM photos WHERE path = ?", (path,)
+                ).fetchone()
+                thumbnail_blob = row['thumbnail'] if row else None
                 if not thumbnail_blob:
                     continue
 
@@ -1435,7 +1439,7 @@ Configuration:
                 img_rgb = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
                 pil_img = Image.fromarray(img_rgb)
 
-                batch_paths.append(row['path'])
+                batch_paths.append(path)
                 batch_images.append(pil_img)
 
                 if len(batch_images) >= batch_size:
