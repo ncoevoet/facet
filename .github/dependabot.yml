@@ -16,9 +16,11 @@ updates:
     ignore:
       # transformers 5.3+ changed Qwen3.5 vision-token handling and breaks the
       # batched VLM tagger; 5.2.x is the validated ceiling (see requirements.txt).
+      # Block minor+major so only 5.2.x patches are proposed (group-safe form).
       - dependency-name: "transformers"
-        versions:
-          - ">=5.3"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
 
   # ---- Angular client (client/: package.json + package-lock.json) ----
   - package-ecosystem: "npm"
