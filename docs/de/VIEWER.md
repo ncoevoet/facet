@@ -9,7 +9,7 @@ FastAPI + Angular Single-Page-Application zum Durchsuchen, Filtern und Verwalten
 - [Galerie starten](#galerie-starten) · [Authentifizierung](#authentifizierung) · [Filteroptionen](#filteroptionen) · [Sortierung](#sortierung) · [Galeriefunktionen](#galeriefunktionen)
 - [Personenverwaltung](#personenverwaltung) · [Scan auslösen (Superadmin)](#scan-auslösen-superadmin) · [Semantische Suche](#semantische-suche) · [Alben](#alben)
 - [KI-Kritik](#ki-kritik) · [KI-Bildbeschreibung](#ki-bildbeschreibung-gpu-16gb24gb-edition) · [Erinnerungen ("Heute vor Jahren")](#erinnerungen-heute-vor-jahren) · [Zeitleisten-Ansicht](#zeitleisten-ansicht) · [Kartenansicht](#kartenansicht) · [Kapseln](#kapseln)
-- [Ordner-Ansicht](#ordner-ansicht) · [GPS-Filterdialog](#gps-filterdialog) · [Zusammenführungsvorschläge](#zusammenführungsvorschläge) · [Editor-Export](#editor-export) · [Auswahl](#auswahl) · [Paarweiser Vergleichsmodus](#paarweiser-vergleichsmodus)
+- [Ordner-Ansicht](#ordner-ansicht) · [GPS-Filterdialog](#gps-filterdialog) · [Zusammenführungsvorschläge](#zusammenführungsvorschläge) · [Editor-Export](#editor-export) · [Auswahl](#auswahl) · [Müll aufräumen](#müll-aufräumen) · [Paarweiser Vergleichsmodus](#paarweiser-vergleichsmodus)
 - [EXIF-Statistiken](#exif-statistiken) · [Tastenkürzel](#tastenkürzel-galerie) · [Rückgängig](#rückgängig) · [Progressive Web App](#progressive-web-app) · [Mobil](#mobil)
 - [Konfiguration](#konfiguration) · [Performance](#performance) · [API-Endpunkte](#api-endpunkte) · [Fehlerbehebung](#fehlerbehebung)
 
@@ -518,6 +518,8 @@ In der Lightbox der Serienbild-/Ähnlichkeitsauswahl trägt jedes erkannte Gesic
 
 Das **Gesichts-Panel** der Dunkelkammer färbt jeden Gesichtsausschnitt anhand seiner kontinuierlichen Augen-offen- und Lächel-Scores grün / orange / rot und fügt Live-Schwellenwert-Schieberegler für **Augen** und **Lächeln** hinzu, sodass Sie unmittelbar abstimmen können, was als Blinzeln oder schwacher Ausdruck zählt. Die Grenzwerte sind die Konfigurationsschlüssel `face_detection.eyes_closed_max` und `face_detection.poor_expression_min` (beide Standard `4.0`); die Schieberegler beginnen dort.
 
+**Motiv-Nahaufnahme-Leiste (Gruppen ohne Gesicht).** Für Serien / ähnliche Gruppen, deren Fotos kein markantes Gesicht haben — Tierwelt, Makro, Produkte, Vögel — zeigt die Dunkelkammer stattdessen eine **Motiv**-Leiste: das Hauptmotiv jedes Bildes, aus der persistierten BiRefNet-Motivbox zugeschnitten und nebeneinander ausgerichtet, um das eigentliche Motiv in Nahaufnahme zu vergleichen (die „AI Close-Up"-Idee von Zoner, nativ). Jeder Ausschnitt trägt ein gruppennormiertes Schärfe-Abzeichen (10 = das schärfste Motiv der Gruppe) und einen farbigen Ring (grün / bernstein / rot), damit das gestochen scharfe Bild heraussticht; ein Klick auf einen Ausschnitt bringt die Hauptansicht auf dieses Foto. Die Ausschnitte werden ohne Modelllauf aus der gespeicherten Miniatur geschnitten (`POST /api/culling-group/subjects`) und erscheinen nur, wenn eine Gruppe Motive, aber keine Gesichter hat. Das wird erst aktiv, sobald Fotos eine Motivbox tragen: Führen Sie `python facet.py --recompute-saliency` (GPU) aus, um eine bestehende Bibliothek nachzufüllen — bis dahin erscheint die Leiste einfach nicht.
+
 **Synchronisierter Vergleich (2-fach / 4-fach).** Der Lightbox-Header hat die Schaltflächen Einzeln / Vergleich 2 / Vergleich 4. Im Vergleichsmodus teilen sich die Bereiche eine gemeinsame Schwenk-/Zoom-Transformation, sodass Mausrad-Zoom oder Ziehen-Schwenken in einem beliebigen Bereich alle auf denselben Bildausschnitt bewegt — die Art, das schärfste Bild einer Serie zu wählen, indem man tatsächlich die Pixel begutachtet. Doppelklick schaltet zwischen Einpassen ↔ Zoom um; jenseits der Einpassen-Skalierung tauscht jeder Bereich faul sein 1920px-Vorschaubild gegen die vollauflösende `/image`-Quelle, damit der Blick gestochen scharf ist. Keine Backend-Änderung — beide Bildrouten existieren bereits. (Touch-Pinch ist noch nicht verdrahtet; verwenden Sie am Desktop das Mausrad.)
 
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
@@ -547,6 +549,22 @@ Momente erscheinen als Szenentitel und als Galerie-Filter (`GET /api/photos?narr
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 Gesteuert über `viewer.features.show_scenes` (Standard: `true`). Siehe [Konfiguration — Szenen](CONFIGURATION.md#scenes) für `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` und `adaptive_k`.
+
+## Müll aufräumen
+
+Eine schnelle Review-Warteschlange für den nicht-fotografischen „Müll", der sich in einer Hobby-Bibliothek ansammelt — Screenshots, gescannte Dokumente, Belege, Memes und Präsentationsfolien. Die Erkennung ist Zero-Shot über die gespeicherten Bild-Embeddings (siehe [Konfiguration — Junk Sweep](CONFIGURATION.md#junk-sweep)); führen Sie `python facet.py --detect-junk` aus (oder lassen Sie es am Ende jedes Scans automatisch laufen), um `junk_kind` zu befüllen.
+
+Öffnen Sie sie über die Navigationsschaltfläche **Aufräumen** (die Route `/junk`, nur im Bearbeitungsmodus). Die Seite verwendet erneut das Galerie-Raster und zeigt jeden markierten Kandidaten:
+
+- **Filter-Chips nach Art** — „Alle Arten" plus ein Chip pro erkannter Art mit ihrer Anzahl (aus `GET /api/filter_options/junk_kinds`). Klicken, um die Warteschlange auf eine Art einzugrenzen.
+- **Behalten** (pro Foto) — löscht das Müll-Label, sodass das Foto die Warteschlange **dauerhaft** verlässt: Es wird als bewertet-sauber markiert (`not_junk`) und nie wieder von einem späteren `--detect-junk` markiert.
+- **Verwerfen** (pro Foto) — markiert das Foto als abgelehnt über dieselbe Ablehnungs-Logik wie überall sonst (nichts wird von der Festplatte gelöscht).
+- **Alle angezeigten verwerfen** — ein Sammel-Verwerfen aller aktuell geladenen Kandidaten, hinter einem Bestätigungsdialog.
+- **Lupe** — drücken Sie **`Z`** (oder die Symbolleisten-Umschaltfläche) für eine Hover-Lupe im Photo-Mechanic-Stil, um feinen Text vor der Entscheidung zu lesen.
+
+Müll-Fotos werden **nicht** aus der normalen Galerie ausgeblendet — sie bleiben sichtbar, bis Sie danach filtern. Filtern Sie jede Galerieansicht mit `?junk_kind=<art>` (exakt) oder `?junk_kind=any` (jeglicher Müll, ohne die Sentinel `not_junk`).
+
+Gesteuert über `viewer.features.show_junk_sweep` (Standard: `true`).
 
 ## Paarweiser Vergleichsmodus
 
@@ -1001,6 +1019,8 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `POST /api/culling/auto` | `[Edition]` Ein-Knopf-Auto-Cull für einen ganzen Geltungsbereich. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (Standard `true`) liefert die Behalte-/Ablehnen-Vorschau pro Gruppe, ein Anwenden lehnt den Rest ab und erfasst Culling-Paare |
 | `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen offen/geschlossen, Ausdruck, Konfidenz) für eine Gruppe, in einem Batch |
 | `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos (schreibgeschütztes Durchsuchen) |
+| `GET /api/filter_options/junk_kinds` | Erkannte Müll-Arten mit Anzahl (ohne die Sentinel `not_junk`) für die Junk-Sweep-Chips |
+| `POST /api/photo/clear_junk` | `[Edition]` Behält einen Müll-Kandidaten — setzt dessen `junk_kind` auf `not_junk`, sodass er die Warteschlange dauerhaft verlässt. Body `{photo_path}` |
 
 ### Scan
 

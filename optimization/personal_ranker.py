@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 import numpy as np
 
 from db import DEFAULT_DB_PATH, get_connection
+from models.piaa_prior import DEFAULT_MODELS_DIR, PiaaPrior
 from optimization.weight_optimizer import WeightOptimizer
 from utils.embedding import bytes_to_normalized_embedding
 
@@ -36,6 +37,24 @@ MIN_COMPARISONS = 30
 DEFAULT_MIN_IMPROVEMENT_PP = 2.0
 DEFAULT_C = 1.0          # inverse L2 strength for the rank-smoothing penalty
 DEFAULT_CV_FOLDS = 5
+DEFAULT_SHRINKAGE_K = 10  # PIAA blend: lambda(n) = n / (n + k)
+
+
+def _load_piaa_config(config_path):
+    """Read the ``piaa_prior`` block. Missing file/block -> disabled (flag off)."""
+    try:
+        with open(config_path) as f:
+            block = json.load(f).get('piaa_prior', {})
+    except Exception:
+        return {'enabled': False}
+    return block if isinstance(block, dict) else {'enabled': False}
+
+
+def _lambda_n(n, k):
+    """Cold-start blend weight: 0 at n=0, monotone -> 1 as n grows. k = shrinkage constant."""
+    if n <= 0:
+        return 0.0
+    return float(n) / (float(n) + float(k))
 
 # stats_cache key prefix for the latest per-scope train metrics, read by the
 # /api/ranker/status endpoint to surface a "My Taste" confidence indicator.
@@ -60,6 +79,10 @@ def _persist_ranker_metrics(db_path, category, user_id, result):
         'cv_accuracy': result.get('cv_accuracy'),
         'baseline_accuracy': result.get('baseline_accuracy'),
         'improvement_pp': result.get('improvement_pp'),
+        # PIAA: records which prior (if any) produced this scope's scores so a
+        # prior re-fit can invalidate stale learned_scores.
+        'mode': result.get('mode', 'personal'),
+        'prior_version': result.get('prior_version'),
         'updated_at': datetime.now(timezone.utc).isoformat(),
     }
     try:
@@ -106,7 +129,8 @@ def _load_embeddings_and_aggregate(conn, paths):
     return out
 
 
-def build_ranker_dataset(conn, optimizer, category=None, sources=None):
+def build_ranker_dataset(conn, optimizer, category=None, sources=None, user_id=None,
+                         prior_models_dir=None):
     """Build the pairwise training dataset: difference vectors + labels + weights.
 
     Reuses ``optimizer._fetch_comparison_data`` for the per-photo metric vectors,
@@ -115,6 +139,14 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None):
     embedding or its embedding dimension differs from the dominant dimension
     (mixed CLIP-768 / SigLIP-1152 DBs train per-dim, on the majority).
 
+    ``user_id`` scopes the comparisons to one user's rows plus legacy NULL rows
+    (None = the global pooled default).
+
+    ``prior_models_dir`` (None = disabled, the prior-free default) loads the PIAA
+    cold-start prior for the dominant dim; when found the result also carries the
+    prior object and the per-pair prior logit offset ``prior_diff`` used to fit
+    the personal delta regularized toward the prior.
+
     Returns a dict with:
         diff        (n, F)  feature_a - feature_b
         y           (n,)    1 if 'a' won, 0 if 'b' won (ties excluded)
@@ -122,9 +154,11 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None):
         agg_a, agg_b (n,)   aggregates, for the baseline comparator
         col_std     (F,)    per-column std (feature scaler, for inference)
         emb_dim, n_metrics, n_pairs
+        prior       PiaaPrior or None
+        prior_diff  (n,) prior mixed score(a) - score(b), or None
     """
     comparisons, X_a, X_b, winners, row_weights = optimizer._fetch_comparison_data(
-        conn, category=category, include_ties=False, sources=sources
+        conn, category=category, include_ties=False, sources=sources, user_id=user_id
     )
     if not comparisons:
         return None
@@ -140,7 +174,10 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None):
     from collections import Counter
     emb_dim = Counter(dims).most_common(1)[0][0]
 
+    prior = PiaaPrior.load(emb_dim, prior_models_dir) if prior_models_dir is not None else None
+
     feats_a, feats_b, y, weights, agg_a, agg_b = [], [], [], [], [], []
+    prior_a, prior_b = [], []
     dropped = 0
     for i, c in enumerate(comparisons):
         ea, aa, mca = emb_agg.get(c['photo_a'], (None, None, 0.0))
@@ -155,6 +192,9 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None):
         weights.append(float(row_weights[i]))
         agg_a.append(aa if aa is not None else 0.0)
         agg_b.append(ab if ab is not None else 0.0)
+        if prior is not None:
+            prior_a.append(prior.mixed_score(ea))
+            prior_b.append(prior.mixed_score(eb))
 
     if not feats_a:
         return None
@@ -170,6 +210,9 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None):
     col_std = np.concatenate([Fa, Fb], axis=0).std(axis=0)
     col_std[col_std < 1e-6] = 1e-6
 
+    prior_diff = (np.asarray(prior_a, dtype=np.float64) - np.asarray(prior_b, dtype=np.float64)
+                  if prior is not None else None)
+
     return {
         'diff': diff / col_std,
         'y': np.asarray(y, dtype=np.int64),
@@ -180,6 +223,8 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None):
         'emb_dim': emb_dim,
         'n_metrics': X_a.shape[1],
         'n_pairs': len(y),
+        'prior': prior,
+        'prior_diff': prior_diff,
     }
 
 
@@ -201,6 +246,33 @@ def _fit_logistic(diff, y, weights, C):
     )
     clf.fit(X, yy, sample_weight=ww)
     return clf.coef_[0]
+
+
+def _fit_logistic_offset(diff, y, weights, C, offset):
+    """Pairwise-logistic delta with a fixed per-pair prior logit offset.
+
+    Fits ``delta`` so ``sign(offset + delta·diff)`` predicts the winner, with an
+    L2 penalty (strength ``1/C``) on ``delta`` — the personal head regularized
+    *toward* the prior (``delta = 0`` is pure prior). Symmetrized like
+    ``_fit_logistic``. Deterministic: fixed zero start, L-BFGS-B.
+    """
+    from scipy.optimize import minimize
+    X = np.concatenate([diff, -diff], axis=0)
+    yy = np.concatenate([y, 1 - y]).astype(np.float64)
+    off = np.concatenate([offset, -offset])
+    ww = np.concatenate([weights, weights])
+    lam = 1.0 / C
+
+    def objective(d):
+        z = off + X @ d
+        loss = np.where(yy == 1.0, np.logaddexp(0.0, -z), np.logaddexp(0.0, z))
+        prob = 1.0 / (1.0 + np.exp(-z))
+        grad = X.T @ (ww * (prob - yy)) + lam * d
+        return float((ww * loss).sum() + 0.5 * lam * float(d @ d)), grad
+
+    res = minimize(objective, np.zeros(X.shape[1]), jac=True, method='L-BFGS-B',
+                   options={'maxiter': 2000})
+    return res.x
 
 
 def _pairwise_accuracy(w, diff, y):
@@ -248,11 +320,18 @@ def train_ranker(db_path=DEFAULT_DB_PATH, category=None, user_id=None,
     ``force``), returns ``{'error': ...}`` / ``{'gated': True, ...}`` and writes
     nothing.
     """
+    piaa = _load_piaa_config(config_path)
+    prior_enabled = bool(piaa.get('enabled', False))
+    prior_models_dir = piaa.get('models_dir', DEFAULT_MODELS_DIR) if prior_enabled else None
+
     optimizer = WeightOptimizer(db_path, config_path)
     with get_connection(db_path) as conn:
-        data = build_ranker_dataset(conn, optimizer, category=category, sources=sources)
+        data = build_ranker_dataset(conn, optimizer, category=category, sources=sources,
+                                    user_id=user_id, prior_models_dir=prior_models_dir)
 
     if data is None or data['n_pairs'] < MIN_COMPARISONS:
+        if prior_enabled:
+            return _train_prior_only(db_path, piaa, category, user_id, data, write)
         n = 0 if data is None else data['n_pairs']
         return {'error': f'insufficient comparisons: {n} < {MIN_COMPARISONS}', 'n_pairs': n}
 
@@ -263,6 +342,9 @@ def train_ranker(db_path=DEFAULT_DB_PATH, category=None, user_id=None,
     w = _fit_logistic(diff, y, weights, C)
     train_acc = _pairwise_accuracy(w, diff, y) * 100.0
     improvement = cv_acc - baseline
+
+    prior = data.get('prior')
+    use_blend = prior_enabled and prior is not None and data.get('prior_diff') is not None
 
     result = {
         'n_pairs': data['n_pairs'],
@@ -278,7 +360,15 @@ def train_ranker(db_path=DEFAULT_DB_PATH, category=None, user_id=None,
 
     if improvement < min_improvement_pp and not force:
         result['gated'] = True
-        result['written'] = 0
+        # The CV gate governs divergence from the prior, not whether we write:
+        # a gated user with the prior on keeps prior-only scores, not nothing.
+        if use_blend and write:
+            result['written'] = _write_prior_scores(
+                db_path, prior, data['emb_dim'], category, user_id, data['n_pairs'])
+            result['mode'] = 'prior_only'
+            result['prior_version'] = prior.version
+        else:
+            result['written'] = 0
         logger.info(
             "Ranker gated: held-out %.1f%% vs aggregate baseline %.1f%% "
             "(+%.1f pp < %.1f pp threshold). Use force=True to write anyway.",
@@ -291,8 +381,18 @@ def train_ranker(db_path=DEFAULT_DB_PATH, category=None, user_id=None,
         result['written'] = 0
         return result
 
-    written = _write_learned_scores(db_path, w, data['col_std'], data['emb_dim'],
-                                    optimizer, category, user_id, data['n_pairs'])
+    if use_blend:
+        lam = _lambda_n(data['n_pairs'], float(piaa.get('shrinkage_k', DEFAULT_SHRINKAGE_K)))
+        delta = _fit_logistic_offset(diff, y, weights, C, data['prior_diff'])
+        written = _write_blended_scores(db_path, prior, delta, data['col_std'],
+                                        data['emb_dim'], optimizer, category, user_id,
+                                        data['n_pairs'], lam)
+        result['mode'] = 'blend'
+        result['prior_version'] = prior.version
+        result['lambda'] = round(lam, 4)
+    else:
+        written = _write_learned_scores(db_path, w, data['col_std'], data['emb_dim'],
+                                        optimizer, category, user_id, data['n_pairs'])
     result['gated'] = False
     result['written'] = written
     _persist_ranker_metrics(db_path, category, user_id, result)
@@ -301,38 +401,43 @@ def train_ranker(db_path=DEFAULT_DB_PATH, category=None, user_id=None,
     return result
 
 
-def _write_learned_scores(db_path, w, col_std, emb_dim, optimizer, category, user_id, n_pairs):
-    """Score every embedded photo and write percentile-normalized learned_scores.
+def _scaled_feature(row, emb, optimizer, category, col_std):
+    """The ranker inference feature [embedding ⊕ metric/10 ⊕ moment_conf] / col_std."""
+    mv = np.asarray(optimizer._metric_vector(row, category), dtype=np.float64) / 10.0
+    mc = row.get('narrative_moment_confidence')
+    mc = float(mc) if mc is not None else 0.0
+    return np.concatenate([emb, mv, [mc]]) / col_std
 
-    Clears stale rows for this (category, user) scope first, then inserts the raw
-    score percentile-normalized to 0-10. Photos without an embedding of the
-    trained dimension get no row (NULL → opt-in sort skips them).
+
+def _collect_scored(db_path, emb_dim, raw_fn):
+    """Return [(path, raw_score)] for every photo whose embedding matches emb_dim.
+
+    ``raw_fn(row, emb)`` computes the un-normalized head output; percentile
+    normalization happens once, later, in ``_persist_scores`` — the PIAA blend
+    is applied HERE, on the raw scores, never after the rank/percentile step.
     """
     with get_connection(db_path) as conn:
-        cur = conn.execute("SELECT * FROM photos WHERE clip_embedding IS NOT NULL")
-        rows = [dict(r) for r in cur.fetchall()]
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM photos WHERE clip_embedding IS NOT NULL").fetchall()]
+    scored = []
+    for row in rows:
+        emb = bytes_to_normalized_embedding(row['clip_embedding'])
+        if emb is None or emb.shape[0] != emb_dim:
+            continue
+        scored.append((row['path'], float(raw_fn(row, emb))))
+    return scored
 
-        scored = []
-        for row in rows:
-            emb = bytes_to_normalized_embedding(row['clip_embedding'])
-            if emb is None or emb.shape[0] != emb_dim:
-                continue
-            mv = np.asarray(optimizer._metric_vector(row, category), dtype=np.float64) / 10.0
-            mc = row.get('narrative_moment_confidence')
-            mc = float(mc) if mc is not None else 0.0
-            feat = np.concatenate([emb, mv, [mc]]) / col_std
-            scored.append((row['path'], float(feat @ w)))
 
-        if not scored:
-            return 0
-
-        raw = np.array([s for _, s in scored])
-        order = np.argsort(np.argsort(raw))  # rank 0..n-1
-        denom = max(1, len(raw) - 1)
-        normalized = 10.0 * order / denom
-
-        now = datetime.now(timezone.utc).isoformat()
-        # Clear stale rows for this scope, then insert fresh.
+def _persist_scores(db_path, scored, category, user_id, n_pairs):
+    """Percentile-normalize raw scores to 0-10 and write the (category, user) scope."""
+    if not scored:
+        return 0
+    raw = np.array([s for _, s in scored])
+    order = np.argsort(np.argsort(raw))  # rank 0..n-1
+    denom = max(1, len(raw) - 1)
+    normalized = 10.0 * order / denom
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection(db_path) as conn:
         if user_id is None:
             conn.execute("DELETE FROM learned_scores WHERE category IS ? AND user_id IS NULL", (category,))
         else:
@@ -349,13 +454,77 @@ def _write_learned_scores(db_path, w, col_std, emb_dim, optimizer, category, use
         if category is None and user_id is None:
             # Mirror the global ranker score into photos.learned_score so the
             # gallery "My Taste" sort reads an indexed column (idx_learned_score)
-            # instead of a per-row correlated subquery into learned_scores. Write
-            # straight from the in-memory scores: clear the previously-set rows,
-            # then set the freshly scored ones by primary key.
+            # instead of a per-row correlated subquery into learned_scores.
             conn.execute("UPDATE photos SET learned_score = NULL WHERE learned_score IS NOT NULL")
             conn.executemany(
                 "UPDATE photos SET learned_score = ? WHERE path = ?",
                 [(float(normalized[i]), path) for i, (path, _) in enumerate(scored)],
             )
         conn.commit()
-        return len(scored)
+    return len(scored)
+
+
+def _write_learned_scores(db_path, w, col_std, emb_dim, optimizer, category, user_id, n_pairs):
+    """Score every embedded photo with the personal head and write learned_scores.
+
+    Photos without an embedding of the trained dimension get no row (NULL → the
+    opt-in sort skips them).
+    """
+    def raw_fn(row, emb):
+        return _scaled_feature(row, emb, optimizer, category, col_std) @ w
+    return _persist_scores(db_path, _collect_scored(db_path, emb_dim, raw_fn),
+                           category, user_id, n_pairs)
+
+
+def _write_prior_scores(db_path, prior, emb_dim, category, user_id, n_pairs):
+    """Cold-start prior-only learned_scores: percentile-normalized prior head output."""
+    return _persist_scores(
+        db_path, _collect_scored(db_path, emb_dim, lambda row, emb: prior.mixed_score(emb)),
+        category, user_id, n_pairs,
+    )
+
+
+def _write_blended_scores(db_path, prior, delta, col_std, emb_dim, optimizer,
+                          category, user_id, n_pairs, lam):
+    """Blend learned_scores: raw ``prior + lambda(n)·delta`` then a single percentile step."""
+    def raw_fn(row, emb):
+        feat = _scaled_feature(row, emb, optimizer, category, col_std)
+        return prior.mixed_score(emb) + lam * float(feat @ delta)
+    return _persist_scores(db_path, _collect_scored(db_path, emb_dim, raw_fn),
+                           category, user_id, n_pairs)
+
+
+def _dominant_photo_dim(db_path):
+    """Most common embedding dimension across stored photos (byte length / 4), or None."""
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT length(clip_embedding) AS blob_len, COUNT(*) AS c FROM photos "
+            "WHERE clip_embedding IS NOT NULL GROUP BY blob_len ORDER BY c DESC LIMIT 1"
+        ).fetchone()
+    if not row or not row['blob_len']:
+        return None
+    return int(row['blob_len']) // 4
+
+
+def _train_prior_only(db_path, piaa, category, user_id, data, write):
+    """Below MIN_COMPARISONS with the flag on: write prior-only scores, never nothing."""
+    models_dir = piaa.get('models_dir', DEFAULT_MODELS_DIR)
+    if data is not None and data.get('prior') is not None:
+        prior, emb_dim, n = data['prior'], data['emb_dim'], data['n_pairs']
+    else:
+        emb_dim = _dominant_photo_dim(db_path)
+        prior = PiaaPrior.load(emb_dim, models_dir) if emb_dim else None
+        n = 0 if data is None else data['n_pairs']
+    if prior is None:
+        return {'error': f'no PIAA prior for dim {emb_dim}; cold start unavailable',
+                'n_pairs': n}
+    written = _write_prior_scores(db_path, prior, emb_dim, category, user_id, n) if write else 0
+    result = {
+        'n_pairs': n, 'emb_dim': emb_dim, 'mode': 'prior_only',
+        'prior_version': prior.version, 'gated': False, 'written': written,
+        'category': category, 'user_id': user_id,
+    }
+    _persist_ranker_metrics(db_path, category, user_id, result)
+    logger.info("PIAA cold start: wrote %d prior-only learned_scores (prior %s, n=%d)",
+                written, prior.version, n)
+    return result

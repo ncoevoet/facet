@@ -9,7 +9,7 @@ indicator; the model, training and auto-retrain all live elsewhere.
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, get_optional_user
 from api.database import get_db
@@ -19,22 +19,37 @@ router = APIRouter(tags=["ranker"])
 
 
 @router.get("/api/ranker/status")
-async def api_ranker_status(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Training status for the global pooled personal ranker ("My Taste").
+async def api_ranker_status(
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+    scope: Optional[str] = Query(None, alias="user"),
+):
+    """Training status for the personal ranker ("My Taste").
 
-    ``coverage`` is the share of embedded photos that carry a global-scope
-    ``learned_score`` (the sort the gallery exposes). The accuracy fields come
-    from the last train's ``stats_cache`` snapshot and are ``null`` until the
-    ranker has trained at least once.
+    Defaults to the global pooled scope; pass ``?user=<id>`` to read a user's
+    per-user snapshot instead. ``coverage`` is the share of embedded photos that
+    carry a ``learned_score`` in the requested scope (the sort the gallery
+    exposes). The accuracy fields come from the last train's ``stats_cache``
+    snapshot and are ``null`` until the ranker has trained at least once.
     """
+    scope = scope or None
+    if scope is not None and not (user and (user.is_superadmin or scope == user.user_id)):
+        raise HTTPException(
+            status_code=403, detail="Cannot read another user's ranker status"
+        )
     with get_db() as conn:
         row = conn.execute(
             "SELECT value FROM stats_cache WHERE key = ?",
-            (ranker_metrics_key(None, None),),
+            (ranker_metrics_key(scope, None),),
         ).fetchone()
-        scored = conn.execute(
-            "SELECT COUNT(*) FROM learned_scores WHERE user_id IS NULL AND category IS NULL"
-        ).fetchone()[0]
+        if scope is None:
+            scored = conn.execute(
+                "SELECT COUNT(*) FROM learned_scores WHERE user_id IS NULL AND category IS NULL"
+            ).fetchone()[0]
+        else:
+            scored = conn.execute(
+                "SELECT COUNT(*) FROM learned_scores WHERE user_id = ? AND category IS NULL",
+                (scope,),
+            ).fetchone()[0]
         embedded = conn.execute(
             "SELECT COUNT(*) FROM photos WHERE clip_embedding IS NOT NULL"
         ).fetchone()[0]

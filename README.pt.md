@@ -37,6 +37,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 - **Detecção de rajadas** — agrupa disparos em sequência rápida e seleciona automaticamente o melhor com base em nitidez, qualidade e detecção de piscadas
 - **Grupos de similaridade** — encontra fotos visualmente semelhantes em toda a biblioteca, independentemente de quando foram capturadas
 - **Cenas** — agrupa uma sessão em "cenas" cronológicas por intervalos do horário de captura, para que você selecione na ordem da narrativa; toque para marcar e confirme para rejeitar
+- **Limpeza de lixo** — detecção zero-shot de arquivos não fotográficos supérfluos (capturas de tela, documentos, recibos, memes, slides) com uma fila de revisão rápida: mantenha ou rejeite cada candidato, ou rejeite todos de uma vez
 - **Selos de seleção por rosto** — o visualizador de seleção exibe selos por rosto indicando olhos abertos/fechados, expressão e confiança da detecção, em vez de apenas um único indicador de piscada no nível da foto
 - **Detecção de piscadas** — sinaliza fotos com olhos fechados para ocultar ou rejeitar com um clique
 - **Detecção de duplicatas** — identifica imagens quase idênticas por meio de hashing perceptual
@@ -145,7 +146,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 
 ## O que você precisa
 
-A maior parte do Facet roda em **qualquer máquina (CPU)** — pontuação, detecção de rostos, seleção, a galeria, busca, álbuns e exportação de metadados funcionam sem GPU. Uma **GPU** (com o perfil `16gb` ou `24gb`) libera os modelos mais robustos: pontuação estética TOPIQ, embeddings SigLIP 2, marcação por VLM, legendas e crítica por IA, e saliência do sujeito. No visualizador, as ações de edição (classificações, rostos, seleção) exigem a **senha de edição**, e acionar escaneamentos exige a função **superadmin**.
+A maior parte do Facet roda em **qualquer máquina (CPU)** — pontuação, detecção de rostos, seleção, a galeria, busca, álbuns e exportação de metadados funcionam sem GPU. Uma **GPU** (com o perfil `16gb` ou `24gb`) libera os modelos mais robustos: pontuação estética TOPIQ, embeddings SigLIP 2, marcação por VLM, legendas e crítica por IA, e saliência do sujeito. Sem GPU local? Aponte a marcação/as legendas/a crítica por VLM para um servidor **Ollama** ou **compatível com OpenAI** remoto via `vlm_backend` no `scoring_config.json` — esses recursos passam a funcionar também nos perfis de CPU `legacy`/`8gb`. No visualizador, as ações de edição (classificações, rostos, seleção) exigem a **senha de edição**, e acionar escaneamentos exige a função **superadmin**.
 
 → Requisitos completos por recurso (GPU, perfil de VRAM, pacotes opcionais, autenticação): **[Instalação › Requisitos de recursos](docs/INSTALLATION.md#feature-requirements)**.
 
@@ -250,6 +251,7 @@ Execute `python facet.py --doctor` para diagnosticar problemas de GPU. Veja [Ins
 | [Pontuação](docs/SCORING.md) | Categorias, pesos, guia de ajuste |
 | [Reconhecimento Facial](docs/FACE_RECOGNITION.md) | Fluxo de trabalho de rostos, agrupamento, gerenciamento de pessoas |
 | [Visualizador](docs/VIEWER.md) | Recursos e uso da galeria web |
+| [Interoperabilidade](docs/pt/INTEROP.md) | Trocar classificações/tags com Lightroom, Capture One, digiKam, darktable |
 | [Implantação](docs/DEPLOYMENT.md) | Implantação em produção (Synology NAS, Linux, Docker) |
 | [Contribuindo](CONTRIBUTING.md) | Configuração de desenvolvimento, arquitetura, estilo de código |
 

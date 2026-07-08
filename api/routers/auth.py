@@ -5,13 +5,14 @@ Handles login, logout, edition auth, and auth status.
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from api.auth import (
     create_access_token, verify_password, verify_legacy_password,
     upgrade_legacy_password, _login_limiter,
     CurrentUser, get_optional_user, require_authenticated,
     is_edition_enabled, is_edition_authenticated,
+    set_auth_cookie, clear_auth_cookie,
 )
 from api.config import (
     VIEWER_CONFIG, is_multi_user_enabled, get_user_config
@@ -24,7 +25,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(body: LoginRequest, request: Request):
+def login(body: LoginRequest, request: Request, response: Response):
     """Authenticate and receive a JWT token.
 
     In multi-user mode: requires username + password.
@@ -48,6 +49,7 @@ def login(body: LoginRequest, request: Request):
             'display_name': user.get('display_name', body.username),
             'edition': user.get('role', 'user') in ('admin', 'superadmin'),
         })
+        set_auth_cookie(response, token)
         return LoginResponse(
             access_token=token,
             user={
@@ -62,6 +64,7 @@ def login(body: LoginRequest, request: Request):
         if not password:
             # No password required — return a token for no-auth mode
             token = create_access_token({'sub': '_anonymous', 'role': 'user'})
+            set_auth_cookie(response, token)
             return LoginResponse(access_token=token)
 
         if not verify_legacy_password(body.password, password):
@@ -72,11 +75,12 @@ def login(body: LoginRequest, request: Request):
         upgrade_legacy_password('password', body.password)
 
         token = create_access_token({'sub': '_legacy', 'role': 'user'})
+        set_auth_cookie(response, token)
         return LoginResponse(access_token=token)
 
 
 @router.post("/edition/login", response_model=LoginResponse)
-def edition_login(body: EditionLoginRequest, request: Request):
+def edition_login(body: EditionLoginRequest, request: Request, response: Response):
     """Authenticate for edition mode (legacy single-user only)."""
     client_ip = request.client.host if request.client else "unknown"
     if not _login_limiter.is_allowed(client_ip):
@@ -97,18 +101,27 @@ def edition_login(body: EditionLoginRequest, request: Request):
         'role': 'user',
         'edition': True,
     })
+    set_auth_cookie(response, token)
     return LoginResponse(access_token=token)
 
 
 @router.post("/edition/logout", response_model=LoginResponse)
-def edition_logout(user: CurrentUser = Depends(require_authenticated)):
+def edition_logout(response: Response, user: CurrentUser = Depends(require_authenticated)):
     """Drop edition privileges and return a non-edition token."""
     token = create_access_token({
         'sub': user.user_id or '_legacy',
         'role': user.role,
         'display_name': user.display_name,
     })
+    set_auth_cookie(response, token)
     return LoginResponse(access_token=token)
+
+
+@router.post("/logout")
+def logout(response: Response):
+    """Clear the HttpOnly auth cookie (the client drops its Bearer token)."""
+    clear_auth_cookie(response)
+    return {"ok": True}
 
 
 @router.get("/status", response_model=AuthStatusResponse)

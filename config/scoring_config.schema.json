@@ -42,6 +42,12 @@
     "distortion_attributes": { "type": "object" },
     "skin_tone": { "type": "object" },
     "immich": { "type": "object" },
+    "vlm_backend": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["local", "ollama", "openai_compatible"] }
+      }
+    },
     "xmp_export": { "type": "object" }
   }
 }

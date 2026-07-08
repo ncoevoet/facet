@@ -1016,7 +1016,8 @@
     "timeline": "Zeitleiste",
     "folders": "Ordner",
     "map": "Karte",
-    "capsules": "Kapseln"
+    "capsules": "Kapseln",
+    "junk_sweep": "Aufräumen"
   },
   "auth": {
     "logout": "Abmelden",
@@ -1582,11 +1583,13 @@
     "type_smart": "Intelligent",
     "invalid_share_link": "Ungültiger Freigabelink",
     "share_link_revoked": "Dieser Freigabelink ist ungültig oder wurde widerrufen.",
-    "load_error": "Album konnte nicht geladen werden."
+    "load_error": "Album konnte nicht geladen werden.",
+    "portfolio": "Portfolio exportieren"
   },
   "critique": {
     "overlay_show": "Überlagerung anzeigen",
     "overlay_hide": "Überlagerung ausblenden",
+    "overlay_error": "Überlagerung konnte nicht geladen werden.",
     "title": "Warum diese Bewertung?",
     "category_reason": "Kategorie",
     "breakdown": "Bewertungsaufschlusselung",
@@ -1787,6 +1790,14 @@
     "weight_ready_tooltip": "Genügend Vergleiche gesammelt — öffnen Sie Vergleich → Gewichtsvorschläge, um die optimierten Gewichte dieser Kategorie zu prüfen und anzuwenden.",
     "strictness": "Strenge",
     "strictness_tooltip": "Höher behält nur das beste Foto; niedriger behält auch knappe Treffer",
+    "profiles": {
+      "custom": "Benutzerdefiniert",
+      "balanced": "Ausgewogen",
+      "wedding": "Hochzeit",
+      "sports": "Sport",
+      "concert": "Konzert",
+      "wildlife": "Tierwelt"
+    },
     "auto_cull": {
       "button": "Auto-Aussortierung",
       "tooltip": "Behält automatisch das beste Foto jeder Gruppe und lehnt den Rest ab",
@@ -1797,8 +1808,7 @@
       "apply": "{rejected} Fotos ablehnen",
       "applied": "Auto-Aussortierung angewendet: {kept} behalten, {rejected} abgelehnt",
       "error": "Auto-Aussortierung fehlgeschlagen",
-      "empty": "In diesem Bereich gibt es nichts automatisch auszusortieren",
-      "better_tooltip": "In dieser Gruppe gibt es ein besseres Foto"
+      "empty": "In diesem Bereich gibt es nichts automatisch auszusortieren"
     },
     "exit_scene": "Szene verlassen",
     "scene_complete": "Szene gesichtet – nichts mehr zu prüfen",
@@ -1816,6 +1826,8 @@
     "face_eyes_min_tooltip": "Hebt Gesichter hervor, deren Augen-offen-Wert unter diesem Wert liegt",
     "face_smile_min": "Lächeln",
     "face_smile_min_tooltip": "Hebt Gesichter hervor, deren Lächeln-Wert unter diesem Wert liegt",
+    "subject_grid_title": "Motive in dieser Gruppe",
+    "subject_sharpness": "Motivschärfe (10 = schärfstes der Gruppe)",
     "reason": {
       "best": "Beste der Gruppe",
       "eyes_closed": "Augen geschlossen",
@@ -1853,7 +1865,13 @@
       "scenes": "Szenen",
       "tooltip": "Wählen, welche Art von Gruppen geprüft werden soll"
     },
-    "darkroom_tooltip": "Vollbild-Dunkelkammer öffnen, um Bilder zu vergleichen und auszuwählen"
+    "darkroom_tooltip": "Vollbild-Dunkelkammer öffnen, um Bilder zu vergleichen und auszuwählen",
+    "cull_style": {
+      "tooltip": "Bearbeiteten Look vorschauen",
+      "original": "Original",
+      "loading": "Vorschau wird erstellt",
+      "error": "Bearbeitete Vorschau konnte nicht erstellt werden"
+    }
   },
   "scenes": {
     "title": "Szenen",
@@ -2084,7 +2102,8 @@
     "edit_location": "Standort bearbeiten",
     "add_location": "Standort hinzufügen",
     "gps_click_to_place": "Klicken Sie auf die Karte, um eine Markierung zu setzen",
-    "gps_clear": "Standort entfernen"
+    "gps_clear": "Standort entfernen",
+    "social_crop": "Social-Zuschnitt"
   },
   "download": {
     "type_original": "Original",
@@ -2157,7 +2176,8 @@
   "proofing": {
     "client_picks": "Kundenauswahl",
     "no_picks": "Noch keine Kundenauswahl.",
-    "picks_count": "{count} Favoriten",
+    "picks_count": "{count} Favorit",
+    "picks_count_plural": "{count} Favoriten",
     "pick": "Dieses Foto auswählen",
     "unpick": "Auswahl entfernen",
     "comment": "Kommentar",
@@ -2170,5 +2190,52 @@
     "start": "Starten",
     "skip": "Überspringen",
     "save_error": "Ihre Auswahl konnte nicht gespeichert werden."
+  },
+  "junk": {
+    "help": "Überprüfen Sie Nicht-Foto-Dateien in Ihrer Bibliothek — Screenshots, Dokumente, Belege, Memes und Folien. Behalten Sie, was Sie möchten, und verwerfen Sie den Rest.",
+    "empty": "Kein Müll erkannt. Führen Sie „python facet.py --detect-junk“ aus, um Ihre Bibliothek zu scannen.",
+    "all_kinds": "Alle Arten",
+    "keep": "Behalten",
+    "keep_hint": "Dieses Foto behalten (entfernt es aus der Warteschlange)",
+    "reject": "Verwerfen",
+    "reject_hint": "Dieses Foto verwerfen",
+    "reject_all": "Alle angezeigten verwerfen: {count}",
+    "confirm_reject_all_title": "Alle angezeigten verwerfen",
+    "confirm_reject_all_message": "Die {count} angezeigten Fotos verwerfen?",
+    "kept": "Foto behalten",
+    "rejected": "Foto verworfen",
+    "rejected_bulk": "{count} Fotos verworfen",
+    "load_more": "Mehr laden",
+    "load_error": "Müll-Kandidaten konnten nicht geladen werden",
+    "kinds": {
+      "screenshot": "Screenshots",
+      "document": "Dokumente",
+      "receipt": "Belege",
+      "meme": "Memes",
+      "slide": "Folien"
+    }
+  },
+  "social_export": {
+    "presets": {
+      "square": "Quadratisch (1:1)",
+      "portrait_4x5": "Hochformat (4:5)",
+      "story_9x16": "Story (9:16)"
+    },
+    "source": {
+      "saliency": "auf Motiv ausgerichtet",
+      "faces": "auf Gesichter ausgerichtet",
+      "center": "zentrierter Zuschnitt"
+    }
+  },
+  "portfolio": {
+    "title": "Portfolio exportieren",
+    "description": "Exportieren Sie dieses Album als eigenständige statische Website, die Sie überall hosten können.",
+    "gallery_title": "Galerietitel",
+    "target_dir": "Zielordner",
+    "include_captions": "Bildunterschriften einbeziehen",
+    "export": "Exportieren",
+    "cancel": "Abbrechen",
+    "done": "Portfolio exportiert: {count} Fotos",
+    "error": "Portfolio-Export fehlgeschlagen"
   }
 }

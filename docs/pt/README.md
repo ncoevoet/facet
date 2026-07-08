@@ -40,6 +40,7 @@ python viewer.py
 | [Pontuação](SCORING.md) | Categorias, pesos, guia de ajuste |
 | [Reconhecimento Facial](FACE_RECOGNITION.md) | Fluxo de trabalho de rostos, agrupamento, gerenciamento de pessoas |
 | [Visualizador](VIEWER.md) | Recursos e uso da galeria web |
+| [Interoperabilidade](INTEROP.md) | Trocar classificações/tags com Lightroom, Capture One, digiKam, darktable |
 | [Implantação](DEPLOYMENT.md) | Implantação em produção (Synology NAS, Linux, Docker) |
 
 ## Perfis de VRAM

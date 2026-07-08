@@ -116,6 +116,8 @@ export interface ViewerConfig {
     show_folders: boolean;
     show_my_taste?: boolean;
     show_scenes?: boolean;
+    show_junk_sweep?: boolean;
+    show_social_export?: boolean;
   };
   quality_thresholds: {
     good: number;
@@ -125,6 +127,12 @@ export interface ViewerConfig {
   };
   /** Min narrative-moment posterior below which a moment label is shown dimmed + "(uncertain)". 0 = never dim. */
   moment_confidence_min?: number;
+  /** Social-export crop presets surfaced to the download menu. */
+  social_export?: {
+    presets: { key: string; label_key: string; aspect: string }[];
+  };
+  /** Named darktable styles for the edited-look cull preview. Empty/absent = feature hidden. */
+  cull_styles?: { name: string; label_key: string }[];
   [key: string]: unknown;
 }
 

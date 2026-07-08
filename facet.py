@@ -74,6 +74,18 @@ def _autotune_superadmin_allowed(config, username):
     return isinstance(urec, dict) and urec.get('role') == 'superadmin'
 
 
+def _resolve_cli_user(config, username):
+    """Resolve a --user username to its stored user_id (the username itself).
+
+    The DB user_id columns hold the username verbatim (TEXT), so resolution is
+    validation: return the username when it is a configured user, else None so
+    the caller can fail with a clean error.
+    """
+    users = config.get('users', {})
+    urec = users.get(username) if username else None
+    return username if isinstance(urec, dict) else None
+
+
 def _print_scan_summary(db_path, todo_list, raw_paired_skipped):
     """Print a table of what landed in the DB from this scan.
 
@@ -156,7 +168,10 @@ def _log_scan_db_destination(db_path: str):
         )
 
 
-def _commit_in_chunks(conn, sql, rows, size=500):
+RECOMPUTE_COMMIT_BATCH = 500
+
+
+def _commit_in_chunks(conn, sql, rows, size=RECOMPUTE_COMMIT_BATCH):
     """Run ``conn.executemany(sql, ...)`` over ``rows`` in committed batches."""
     for k in range(0, len(rows), size):
         conn.executemany(sql, rows[k:k + size])
@@ -221,17 +236,20 @@ def _moment_vlm_tiebreak(db_path, config, model_manager, candidates, moments):
     asks the VLM to pick one label from the moment vocabulary or ``other``.
     """
     from models.moment_classifier import OTHER
+    from models.vlm_backend import create_remote_vlm_tagger
     from PIL import Image
     import io
 
-    vlm_key = _MOMENT_VLM_KEYS.get(config.get_model_for_task('tagging'))
-    if not vlm_key:
-        logger.info("VLM moment tie-break skipped: active profile has no VLM tagger")
-        return {}
-    vlm = model_manager.load_model_only(vlm_key)
+    vlm = create_remote_vlm_tagger(config.config, config)
     if vlm is None:
-        logger.warning("VLM moment tie-break skipped: tagger failed to load")
-        return {}
+        vlm_key = _MOMENT_VLM_KEYS.get(config.get_model_for_task('tagging'))
+        if not vlm_key:
+            logger.info("VLM moment tie-break skipped: active profile has no VLM tagger")
+            return {}
+        vlm = model_manager.load_model_only(vlm_key)
+        if vlm is None:
+            logger.warning("VLM moment tie-break skipped: tagger failed to load")
+            return {}
 
     label_for = {m: m.replace('_', ' ') for m in moments}
     key_for = {human.lower(): m for m, human in label_for.items()}
@@ -436,6 +454,91 @@ def run_moment_detection(db_path, config, model_manager=None, only_missing=True,
     return {'labeled': len(updates), 'spread': spread}
 
 
+def run_junk_detection(db_path, config, model_manager=None, only_missing=True,
+                       dry_run=False, verbose_count=0, limit=None):
+    """Flag non-photo junk via zero-shot CLIP over the stored image embeddings.
+
+    Scores each photo's stored image embedding against per-kind prompts
+    (screenshot/document/receipt/meme/slide) gated by a ``not_junk`` contrast
+    set (see ``models/junk_classifier.py``). Clean photos are persisted as the
+    ``not_junk`` sentinel (like moments' ``other``) so ``--detect-junk`` scopes
+    to genuinely unevaluated rows (``junk_kind IS NULL``) and never re-loads the
+    whole clean library. Free after the first pass — no image decode, no
+    per-image model. Reuses ``model_manager`` (and its RAM-cached CLIP) when
+    given; otherwise loads its own. Returns a summary dict.
+    """
+    from collections import Counter
+    from models.model_manager import ModelManager
+    from models.junk_classifier import JunkClassifier, NOT_JUNK
+
+    if not config.get_junk_sweep_config().get('enabled', False):
+        return {'skipped': 'disabled'}
+
+    owns_manager = model_manager is None
+    if owns_manager:
+        config.check_vram_profile_compatibility(verbose=True)
+        model_manager = ModelManager(config)
+    clip = model_manager.load_model_only('clip')
+    if not clip:
+        if owns_manager:
+            model_manager.unload_all()
+        return {'skipped': 'no_model'}
+
+    classifier = JunkClassifier(
+        clip_model=clip['model'], device=model_manager.device, config=config,
+        model_name=clip['model_name'], backend=clip['backend'],
+        embedding_dim=clip['embedding_dim'],
+    )
+
+    where = "clip_embedding IS NOT NULL"
+    if only_missing:
+        where += " AND junk_kind IS NULL"
+    limit_sql = f" LIMIT {int(limit)}" if limit else ""
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT path, clip_embedding FROM photos WHERE {where}{limit_sql}"
+        ).fetchall()
+
+    if not rows:
+        if owns_manager:
+            model_manager.unload_all()
+        return {'labeled': 0, 'junk_count': 0, 'spread': {}}
+
+    spread = Counter()
+    updates = []
+    verbose_left = verbose_count
+    for row in tqdm(rows, desc="Junk (score)"):
+        kind, _conf = classifier.classify(row['clip_embedding'])
+        if kind is None:
+            continue
+        spread[kind] += 1
+        updates.append((kind, row['path']))
+        if verbose_left > 0:
+            scores = classifier.scores(row['clip_embedding'])
+            if scores:
+                top3 = sorted(scores.items(), key=lambda kv: -kv[1])[:3]
+                logger.info("  %s -> %s (%s)", row['path'], kind,
+                            ", ".join(f"{k}={v:.3f}" for k, v in top3))
+                verbose_left -= 1
+
+    if updates and not dry_run:
+        with get_connection(db_path) as conn:
+            _commit_in_chunks(
+                conn, "UPDATE photos SET junk_kind = ? WHERE path = ?", updates)
+
+    if owns_manager:
+        model_manager.unload_all()
+
+    junk_count = sum(n for k, n in spread.items() if k != NOT_JUNK)
+    labeled = sum(spread.values())
+    return {
+        'labeled': 0 if dry_run else labeled,
+        'would_label': labeled if dry_run else 0,
+        'junk_count': junk_count,
+        'spread': dict(spread.most_common()),
+    }
+
+
 def main():
     import argparse
 
@@ -564,6 +667,10 @@ Configuration:
                         help='Label each photo with its narrative moment (zero-shot CLIP + temporal smoothing); skips already-labeled photos')
     db_group.add_argument('--recompute-moments', action='store_true',
                         help='Re-label narrative moments for the whole library (re-smooths the full timeline)')
+    db_group.add_argument('--detect-junk', action='store_true',
+                        help='Flag non-photo junk (screenshots, documents, receipts, memes, slides) via zero-shot CLIP over stored embeddings; skips already-evaluated photos')
+    db_group.add_argument('--recompute-junk', action='store_true',
+                        help='Re-evaluate junk_kind for the whole library')
     db_group.add_argument('--limit', type=int, default=None, metavar='N',
                         help='Cap --detect-moments / --recompute-moments to the first N photos (verification / incremental)')
     db_group.add_argument('--discover-moments', action='store_true',
@@ -665,7 +772,8 @@ Configuration:
     comp_group.add_argument('--recompute-composition-gpu', action='store_true',
                         help='Recompute composition scores using SAMP-Net neural network (requires GPU)')
     comp_group.add_argument('--recompute-saliency', action='store_true',
-                        help='Recompute subject saliency metrics using BiRefNet (requires GPU)')
+                        help='Recompute subject saliency metrics using BiRefNet from stored thumbnails '
+                             '(requires GPU; skips photos that already have subject_bbox unless --force)')
 
     # Weight optimization
     weight_group = parser.add_argument_group('Weight optimization')
@@ -683,7 +791,8 @@ Configuration:
     weight_group.add_argument('--train-ranker', action='store_true',
                         help='Train the personal ranker over [embedding + scores] and write '
                              'learned_scores (gated on held-out k-fold accuracy vs the aggregate '
-                             'baseline; use --train-ranker-force to write regardless)')
+                             'baseline; use --train-ranker-force to write regardless; pass --user '
+                             'in multi-user mode to scope to one user)')
     weight_group.add_argument('--train-ranker-force', action='store_true',
                         help='Write learned_scores even if the ranker accuracy gate is not met')
     weight_group.add_argument('--ranker-category', type=str, metavar='CATEGORY',
@@ -725,7 +834,9 @@ Configuration:
                              'photos the user has not manually rated (overrides xmp_export config for this run)')
     export_group.add_argument('--user', type=str, default=None, metavar='USERNAME',
                         help='With --import-sidecars/--export-sidecars/--immich-sync in multi-user mode: '
-                             "read/write that user's ratings (user_preferences) instead of the global columns")
+                             "read/write that user's ratings (user_preferences) instead of the global columns. "
+                             'With --train-ranker: scope the personal ranker to that user (own + legacy '
+                             'comparisons -> per-user learned_scores)')
     export_group.add_argument('--immich-sync', action='store_true',
                         help='Push ratings/favorites to the configured Immich server via its REST API '
                              '(one-way; needs the "immich" config block; honors --user and --dry-run)')
@@ -852,11 +963,23 @@ Configuration:
     # Train the personal ranker -> learned_scores (lightweight - no GPU needed)
     if args.train_ranker:
         from optimization import train_ranker
+        config_path = args.config or 'scoring_config.json'
+        user_id = None
+        if args.user:
+            cfg = ScoringConfig(config_path, validate=False)
+            user_id = _resolve_cli_user(cfg.config, args.user)
+            if user_id is None:
+                logger.error(
+                    "Unknown --user '%s': not a configured user. Add them with "
+                    "'python database.py --add-user %s --role user' first.",
+                    args.user, args.user)
+                exit(1)
         init_database(args.db)
         result = train_ranker(
             db_path=args.db or DEFAULT_DB_PATH,
             category=args.ranker_category,
-            config_path=args.config or 'scoring_config.json',
+            user_id=user_id,
+            config_path=config_path,
             force=args.train_ranker_force,
         )
         if 'error' in result:
@@ -1173,28 +1296,93 @@ Configuration:
         scorer.rescan_samp_composition(batch_size=batch_size)
         exit()
 
-    # Recompute saliency metrics using BiRefNet (requires GPU)
+    # Recompute saliency metrics using BiRefNet from stored thumbnails (requires GPU)
     if args.recompute_saliency:
-        from models.model_manager import ModelManager
-        from processing.multi_pass import run_single_pass
+        import io
+        import numpy as np
+        import cv2
+        from PIL import Image
+        from models.saliency_scorer import SaliencyScorer
+
+        init_database(args.db)  # Ensure subject_bbox column exists
 
         config = ScoringConfig(args.config)
-        config.check_vram_profile_compatibility(verbose=True)
+        saliency_config = config.get_model_config().get('saliency', {})
+        scorer_model = SaliencyScorer(
+            model_name=saliency_config.get('model', SaliencyScorer.DEFAULT_MODEL),
+            resolution=saliency_config.get('resolution', SaliencyScorer.DEFAULT_RESOLUTION),
+            mask_threshold=saliency_config.get('mask_threshold', SaliencyScorer.DEFAULT_MASK_THRESHOLD),
+            min_subject_pixels=saliency_config.get('min_subject_pixels', SaliencyScorer.DEFAULT_MIN_SUBJECT_PIXELS),
+        )
 
-        scorer = Facet(db_path=args.db, config_path=args.config, multi_pass=True)
-        model_manager = ModelManager(config)
-
+        # Source stored thumbnails, not originals: the recompute must work with
+        # the library volume offline, and the API saliency overlay already
+        # derives its mask from the same 640px thumbnail.
+        where = "thumbnail IS NOT NULL"
+        if not args.force:
+            where += " AND subject_bbox IS NULL"
         with get_connection(args.db) as conn:
-            cursor = conn.execute("SELECT path FROM photos")
-            paths = [row['path'] for row in cursor.fetchall()]
+            paths = [row['path'] for row in conn.execute(
+                f"SELECT path FROM photos WHERE {where}"
+            ).fetchall()]
 
         if not paths:
-            logger.info("No photos in database.")
+            logger.info("No photos need saliency recompute (use --force to redo all).")
             exit()
 
-        logger.info("Recomputing saliency for %d photos...", len(paths))
-        processed = run_single_pass(paths, 'saliency', scorer, model_manager)
-        logger.info("Recomputed saliency for %d photos.", processed)
+        scorer_model.load()
+        logger.info("Recomputing saliency for %d photos from stored thumbnails...", len(paths))
+
+        batch_size = config.get_processing_settings().get('gpu_batch_size', 16)
+        updated = 0
+
+        def _flush_saliency_batch(conn, batch_paths, batch_pil, batch_cv):
+            scores = scorer_model.score_batch(batch_pil, batch_cv)
+            for i, path in enumerate(batch_paths):
+                s = scores[i]
+                conn.execute(
+                    "UPDATE photos SET subject_sharpness = ?, subject_prominence = ?, "
+                    "subject_placement = ?, bg_separation = ?, subject_bbox = ? "
+                    "WHERE path = ?",
+                    (s.get('subject_sharpness', 5.0), s.get('subject_prominence', 0.0),
+                     s.get('subject_placement', 5.0), s.get('bg_separation', 5.0),
+                     json.dumps(s['subject_bbox']) if s.get('subject_bbox') else None,
+                     path),
+                )
+            return len(batch_paths)
+
+        # Fetch each thumbnail BLOB on demand (a fetchall would hold the whole
+        # library's thumbnails in RAM) and commit in RECOMPUTE_COMMIT_BATCH steps.
+        with get_connection(args.db) as read_conn, get_connection(args.db) as conn:
+            batch_paths, batch_pil, batch_cv = [], [], []
+            pending = 0
+            for path in tqdm(paths, desc="Saliency"):
+                row = read_conn.execute(
+                    "SELECT thumbnail FROM photos WHERE path = ?", (path,)
+                ).fetchone()
+                blob = row['thumbnail'] if row else None
+                if not blob:
+                    continue
+                try:
+                    pil_img = Image.open(io.BytesIO(blob)).convert('RGB')
+                except Exception:
+                    continue
+                batch_paths.append(path)
+                batch_pil.append(pil_img)
+                batch_cv.append(cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR))
+                if len(batch_paths) >= batch_size:
+                    updated += _flush_saliency_batch(conn, batch_paths, batch_pil, batch_cv)
+                    pending += len(batch_paths)
+                    batch_paths, batch_pil, batch_cv = [], [], []
+                    if pending >= RECOMPUTE_COMMIT_BATCH:
+                        conn.commit()
+                        pending = 0
+            if batch_paths:
+                updated += _flush_saliency_batch(conn, batch_paths, batch_pil, batch_cv)
+            conn.commit()
+
+        scorer_model.unload()
+        logger.info("Recomputed saliency for %d photos.", updated)
         logger.info("Run --recompute-average to update aggregate scores with saliency metrics.")
         exit()
 
@@ -1209,13 +1397,14 @@ Configuration:
         scorer_model = PyIQAScorer('topiq')
         scorer_model.load()
 
+        # Fetch paths up front but each thumbnail BLOB on demand — a fetchall
+        # of the BLOBs holds the whole library's thumbnails in RAM (OOM at 100k+).
         with get_connection(args.db) as conn:
-            cursor = conn.execute(
-                "SELECT path, thumbnail FROM photos WHERE thumbnail IS NOT NULL"
-            )
-            rows = list(cursor.fetchall())
+            paths = [row['path'] for row in conn.execute(
+                "SELECT path FROM photos WHERE thumbnail IS NOT NULL"
+            ).fetchall()]
 
-        logger.info("Scoring %d photos with TOPIQ...", len(rows))
+        logger.info("Scoring %d photos with TOPIQ...", len(paths))
         updated = 0
         batch_paths = []
         batch_images = []
@@ -1230,9 +1419,12 @@ Configuration:
                 )
             return len(scores)
 
-        with get_connection(args.db) as conn:
-            for row in tqdm(rows, desc="TOPIQ scoring"):
-                thumbnail_blob = row['thumbnail']
+        with get_connection(args.db) as read_conn, get_connection(args.db) as conn:
+            for path in tqdm(paths, desc="TOPIQ scoring"):
+                row = read_conn.execute(
+                    "SELECT thumbnail FROM photos WHERE path = ?", (path,)
+                ).fetchone()
+                thumbnail_blob = row['thumbnail'] if row else None
                 if not thumbnail_blob:
                     continue
 
@@ -1247,7 +1439,7 @@ Configuration:
                 img_rgb = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
                 pil_img = Image.fromarray(img_rgb)
 
-                batch_paths.append(row['path'])
+                batch_paths.append(path)
                 batch_images.append(pil_img)
 
                 if len(batch_images) >= batch_size:
@@ -1287,6 +1479,7 @@ Configuration:
                 "SELECT path FROM photos WHERE thumbnail IS NOT NULL"
             ).fetchall()]
         counted = 0
+        pending = 0
         with get_connection(args.db) as read_conn, get_connection(args.db) as conn:
             for path in tqdm(paths, desc=desc):
                 row = read_conn.execute(
@@ -1305,6 +1498,10 @@ Configuration:
                     f"UPDATE photos SET {set_sql} WHERE path = ?",
                     (*updates.values(), path),
                 )
+                pending += 1
+                if pending >= RECOMPUTE_COMMIT_BATCH:
+                    conn.commit()
+                    pending = 0
                 if is_counted:
                     counted += 1
             conn.commit()
@@ -1496,20 +1693,24 @@ Configuration:
         import io
 
         config = ScoringConfig(args.config)
-        models_config = config.get_model_config()
-        tag_model = config.get_model_for_task('tagging')
-        model_key_map = {
-            'qwen3-vl-2b': 'qwen3_vl_2b',
-            'qwen2.5-vl-7b': 'qwen2_5_vl_7b',
-            'qwen3.5-2b': 'qwen3_5_2b',
-            'qwen3.5-4b': 'qwen3_5_4b',
-        }
-        config_key = model_key_map.get(tag_model)
-        if not config_key or config_key not in models_config:
-            logger.error("VLM tagger not available for profile %s (tagging_model=%s)",
-                         models_config.get('vram_profile', 'legacy'), tag_model)
-            sys.exit(1)
-        vlm = VLMTagger(models_config[config_key], config)
+        from models.vlm_backend import create_remote_vlm_tagger
+
+        vlm = create_remote_vlm_tagger(config.config, config)
+        if vlm is None:
+            models_config = config.get_model_config()
+            tag_model = config.get_model_for_task('tagging')
+            model_key_map = {
+                'qwen3-vl-2b': 'qwen3_vl_2b',
+                'qwen2.5-vl-7b': 'qwen2_5_vl_7b',
+                'qwen3.5-2b': 'qwen3_5_2b',
+                'qwen3.5-4b': 'qwen3_5_4b',
+            }
+            config_key = model_key_map.get(tag_model)
+            if not config_key or config_key not in models_config:
+                logger.error("VLM tagger not available for profile %s (tagging_model=%s)",
+                             models_config.get('vram_profile', 'legacy'), tag_model)
+                sys.exit(1)
+            vlm = VLMTagger(models_config[config_key], config)
 
         with get_connection(args.db) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(photos)").fetchall()}
@@ -1682,16 +1883,10 @@ Configuration:
     # Recompute tags using VLM model (loads images from disk)
     if args.recompute_tags_vlm:
         from models.model_manager import ModelManager
+        from models.vlm_backend import create_remote_vlm_tagger
         from processing.multi_pass import tagging_model_to_key
 
         config = ScoringConfig(args.config)
-        config.check_vram_profile_compatibility(verbose=True)
-
-        # Use configured VLM or default to qwen3-vl-2b
-        tag_model = config.get_model_for_task('tagging')
-        model_key = tagging_model_to_key(tag_model, 'qwen3_vl_tagger')
-
-        model_manager = ModelManager(config)
 
         # Get all photos from database
         init_database(args.db)
@@ -1699,12 +1894,20 @@ Configuration:
             cursor = conn.execute("SELECT path FROM photos")
             photos = cursor.fetchall()
 
-        logger.info("Re-tagging %d photos using VLM (%s)...", len(photos), model_key)
-
-        tagger = model_manager.load_model_only(model_key)
-        if not tagger:
-            logger.error("Failed to load VLM tagger")
-            exit(1)
+        tagger = create_remote_vlm_tagger(config.config, config)
+        model_manager = None
+        if tagger is not None:
+            logger.info("Re-tagging %d photos using remote VLM backend...", len(photos))
+        else:
+            config.check_vram_profile_compatibility(verbose=True)
+            tag_model = config.get_model_for_task('tagging')
+            model_key = tagging_model_to_key(tag_model, 'qwen3_vl_tagger')
+            model_manager = ModelManager(config)
+            logger.info("Re-tagging %d photos using VLM (%s)...", len(photos), model_key)
+            tagger = model_manager.load_model_only(model_key)
+            if not tagger:
+                logger.error("Failed to load VLM tagger")
+                exit(1)
 
         from utils import load_image_from_path, tags_to_string
         tagging_settings = config.get_tagging_settings()
@@ -1736,10 +1939,10 @@ Configuration:
                             (tags, path)
                         )
                         updated += 1
+                conn.commit()
 
-            conn.commit()
-
-        model_manager.unload_all()
+        if model_manager is not None:
+            model_manager.unload_all()
         logger.info("Updated tags for %d photos", updated)
         exit()
 
@@ -1905,6 +2108,33 @@ Configuration:
                         result.get('would_label', 0))
         else:
             logger.info("Labeled %d photos with narrative moments", result.get('labeled', 0))
+        exit()
+
+    if args.detect_junk or args.recompute_junk:
+        init_database(args.db)  # ensure junk_kind column exists
+        config = ScoringConfig(args.config)
+        if not config.get_junk_sweep_config().get('enabled', False):
+            logger.error("junk_sweep is disabled in scoring_config.json; nothing to do.")
+            exit(0)
+        logger.info("Detecting junk photos (screenshots, documents, receipts, memes, slides)")
+        result = run_junk_detection(
+            args.db, config,
+            only_missing=args.detect_junk and not args.recompute_junk,
+            dry_run=args.dry_run,
+            verbose_count=args.dry_run_count if args.verbose else 0,
+            limit=args.limit,
+        )
+        if result.get('skipped'):
+            logger.error("Junk detection skipped: %s", result['skipped'])
+            exit(1)
+        spread = ", ".join(f"{k}={n}" for k, n in result.get('spread', {}).items())
+        logger.info("Junk spread: %s", spread or "(none)")
+        if args.dry_run:
+            logger.info("Dry-run: %d photos would be evaluated (%d junk); no writes.",
+                        result.get('would_label', 0), result.get('junk_count', 0))
+        else:
+            logger.info("Evaluated %d photos, flagged %d as junk",
+                        result.get('labeled', 0), result.get('junk_count', 0))
         exit()
 
     if args.discover_moments:
@@ -2443,8 +2673,10 @@ Configuration:
                 processor.process_files(todo_paths)
 
     except KeyboardInterrupt:
-        logger.info("Interrupted.")
+        logger.info("Interrupted; skipping post-processing. Re-run to finalize.")
+        scorer.commit()
         scan_run.finish('interrupted')
+        return
     except Exception:
         scan_run.finish('failed')
         raise
@@ -2488,6 +2720,21 @@ Configuration:
                 logger.info("Labeled %d new photos with narrative moments.", result['labeled'])
         except Exception:
             logger.warning("Narrative-moment detection failed (non-fatal)", exc_info=True)
+
+    # 8. Junk sweep — cheap cosine over the same embeddings, so flag non-photo
+    # junk (screenshots/documents/receipts/memes/slides) on newly-scanned
+    # photos automatically. No-ops when junk_sweep is disabled.
+    if scorer.config.get_junk_sweep_config().get('enabled', False):
+        emit_progress('junk', force=True)
+        try:
+            result = run_junk_detection(
+                scorer.db_path, scorer.config,
+                model_manager=getattr(scorer, 'model_manager', None), only_missing=True,
+            )
+            if result.get('junk_count'):
+                logger.info("Flagged %d new photos as junk.", result['junk_count'])
+        except Exception:
+            logger.warning("Junk detection failed (non-fatal)", exc_info=True)
 
     _print_scan_summary(scorer.db_path, todo_list, raw_paired_skipped)
 

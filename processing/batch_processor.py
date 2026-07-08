@@ -25,6 +25,8 @@ from utils import (
 from processing.resource_monitor import ResourceMonitor, HAS_PSUTIL
 from processing.metrics_reporter import MetricsReporter
 
+QUEUE_PUT_TIMEOUT_SECONDS = 0.2
+
 class BatchProcessor:
     """
     Producer-consumer pattern for batched GPU inference.
@@ -175,16 +177,40 @@ class BatchProcessor:
         except Exception as e:
             return {'path': str(photo_path), 'error': str(e)}
 
+    def _put_with_stop(self, item):
+        """Bounded put that rechecks stop_event on each timeout.
+
+        A plain blocking put() on the bounded queue never releases once the
+        consumer (GPU thread) dies; the timeout+recheck lets a producer observe
+        stop_event and exit instead of deadlocking the join.
+        """
+        while not self.stop_event.is_set():
+            try:
+                self.image_queue.put(item, timeout=QUEUE_PUT_TIMEOUT_SECONDS)
+                return True
+            except queue.Full:
+                continue
+        return False
+
+    def _drain_image_queue(self):
+        """Empty the image queue so any producer blocked on a full put releases."""
+        while True:
+            try:
+                self.image_queue.get_nowait()
+            except queue.Empty:
+                return
+
     def _worker_thread(self, photo_paths):
         """Worker thread that loads images and puts them in the queue."""
         for path in photo_paths:
             if self.stop_event.is_set():
                 break
             result = self._load_image(path)
-            self.image_queue.put(result)
+            if not self._put_with_stop(result):
+                return
 
         # Signal end of this worker's contribution
-        self.image_queue.put(None)
+        self._put_with_stop(None)
 
     def _gpu_thread(self, total_images, pbar, num_workers=None):
         """GPU thread that processes batches of images.
@@ -197,6 +223,8 @@ class BatchProcessor:
         workers_done = 0
 
         while workers_done < num_workers:
+            if self.stop_event.is_set():
+                break
             try:
                 item = self.image_queue.get(timeout=0.2)
             except queue.Empty:
@@ -226,7 +254,7 @@ class BatchProcessor:
                 batch = []
 
         # Process remaining images
-        if batch:
+        if batch and not self.stop_event.is_set():
             self._process_batch(batch)
             pbar.update(len(batch))
             with self._metrics_lock:
@@ -456,15 +484,17 @@ class BatchProcessor:
         # Start resource monitor (mandatory auto-tuning)
         self.resource_monitor.start()
 
+        self.stop_event.clear()
         self._start_exif_prefetch(photo_paths)
 
+        workers = []
+        gpu_thread = None
         try:
             # Split work among workers
             chunk_size = (total + self.num_workers - 1) // self.num_workers
             chunks = [photo_paths[i:i + chunk_size] for i in range(0, total, chunk_size)]
 
             # Start worker threads
-            workers = []
             for chunk in chunks:
                 t = threading.Thread(target=self._worker_thread, args=(chunk,))
                 t.start()
@@ -514,17 +544,13 @@ class BatchProcessor:
                                 "GPU thread exited before all results (%d/%d processed); aborting wait",
                                 processed, total,
                             )
+                            self.stop_event.set()
                             break
                         continue
 
                 # Save any remaining items
                 if pending_saves:
                     self.scorer.save_photos_batch(pending_saves)
-
-                # Wait for threads
-                gpu_thread.join()
-                for w in workers:
-                    w.join()
 
             # Finalize metrics
             self.metrics['elapsed_time'] = time.time() - start_time
@@ -537,7 +563,12 @@ class BatchProcessor:
                 )
 
         finally:
-            # Stop resource monitor and EXIF prefetch
+            self.stop_event.set()
+            self._drain_image_queue()
+            if gpu_thread is not None:
+                gpu_thread.join()
+            for w in workers:
+                w.join()
             self.resource_monitor.stop()
             self._stop_exif_prefetch()
 
@@ -602,8 +633,11 @@ class BatchProcessor:
         # Start resource monitor (mandatory auto-tuning)
         self.resource_monitor.start()
 
+        self.stop_event.clear()
         self._start_exif_prefetch(all_paths)
 
+        workers = []
+        gpu_thread = None
         try:
             # Pre-partition among workers to avoid lock contention
             chunk_size = (len(all_paths) + self.num_workers - 1) // self.num_workers
@@ -614,7 +648,6 @@ class BatchProcessor:
             self.metrics['start_time'] = start_time
 
             # Start worker threads, each with its own pre-assigned paths
-            workers = []
             for chunk in worker_chunks:
                 t = threading.Thread(target=self._worker_thread, args=(chunk,))
                 t.start()
@@ -667,17 +700,13 @@ class BatchProcessor:
                                 "GPU thread exited before all results (%d/%d processed); aborting wait",
                                 processed, total_count,
                             )
+                            self.stop_event.set()
                             break
                         continue
 
                 # Save any remaining items
                 if pending_saves:
                     self.scorer.save_photos_batch(pending_saves)
-
-                # Wait for threads
-                gpu_thread.join()
-                for w in workers:
-                    w.join()
 
             # Finalize metrics
             self.metrics['elapsed_time'] = time.time() - start_time
@@ -690,7 +719,12 @@ class BatchProcessor:
                 )
 
         finally:
-            # Stop resource monitor and EXIF prefetch
+            self.stop_event.set()
+            self._drain_image_queue()
+            if gpu_thread is not None:
+                gpu_thread.join()
+            for w in workers:
+                w.join()
             self.resource_monitor.stop()
             self._stop_exif_prefetch()
 
@@ -716,6 +750,8 @@ class BatchProcessor:
         images_since_tuning = 0
 
         while workers_done < num_workers:
+            if self.stop_event.is_set():
+                break
             try:
                 item = self.image_queue.get(timeout=0.2)
             except queue.Empty:
@@ -754,7 +790,7 @@ class BatchProcessor:
                 batch = []
 
         # Process remaining images
-        if batch:
+        if batch and not self.stop_event.is_set():
             self._process_batch(batch)
             pbar.update(len(batch))
             with self._metrics_lock:

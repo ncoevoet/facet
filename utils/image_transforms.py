@@ -36,6 +36,26 @@ def generate_photo_thumbnail(pil_img, size=640, quality=80):
     return buf.getvalue()
 
 
+def padded_face_bbox(shape, bbox, padding):
+    """Clamp a padded face bounding box to image bounds.
+
+    Args:
+        shape: Image ``(height, width[, ...])`` tuple (e.g. ``img.shape``)
+        bbox: Face bounding box [x1, y1, x2, y2]
+        padding: Padding ratio around face
+
+    Returns:
+        tuple: (x1, y1, x2, y2) integer pixel coordinates clamped to the image
+    """
+    h, w = shape[:2]
+    x1, y1, x2, y2 = [int(v) for v in bbox]
+    pad_x = int((x2 - x1) * padding)
+    pad_y = int((y2 - y1) * padding)
+    x1, y1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
+    x2, y2 = min(w, x2 + pad_x), min(h, y2 + pad_y)
+    return x1, y1, x2, y2
+
+
 def crop_face_with_padding(img, bbox, padding=0.3, size=128, quality=85, use_cv2=True):
     """
     Crop face region from image with padding and resize to thumbnail.
@@ -57,13 +77,8 @@ def crop_face_with_padding(img, bbox, padding=0.3, size=128, quality=85, use_cv2
         if use_cv2:
             # OpenCV path (from analyzers.py)
             cv2 = _ensure_cv2()
-            h, w = img.shape[:2]
 
-            # Add padding around face
-            face_w, face_h = x2 - x1, y2 - y1
-            pad_x, pad_y = int(face_w * padding), int(face_h * padding)
-            x1, y1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
-            x2, y2 = min(w, x2 + pad_x), min(h, y2 + pad_y)
+            x1, y1, x2, y2 = padded_face_bbox(img.shape, bbox, padding)
 
             # Crop from image
             face_crop = img[y1:y2, x1:x2]

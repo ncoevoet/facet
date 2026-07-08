@@ -58,9 +58,16 @@ def resolve_vlm_config():
     """Resolve the active profile's VLM tagger model config dict, or None.
 
     Returns None when the active profile (after 'auto' resolution) does not
-    use a VLM tagger or its model config lacks a model_path.
+    use a VLM tagger or its model config lacks a model_path. A configured remote
+    ``vlm_backend`` (ollama / openai_compatible) short-circuits to a truthy config
+    regardless of the VRAM profile, so captioning and critique work on
+    legacy/8gb — ``get_or_load_vlm_tagger`` then builds the remote-backed tagger.
     """
     from api.config import _FULL_CONFIG
+    from models.vlm_backend import BACKEND_LOCAL, vlm_backend_type
+
+    if vlm_backend_type(_FULL_CONFIG) != BACKEND_LOCAL:
+        return _FULL_CONFIG.get('vlm_backend', {})
 
     models_config = _FULL_CONFIG.get('models', {})
     profile = models_config.get('profiles', {}).get(resolve_vram_profile(), {})
@@ -134,7 +141,15 @@ def get_or_load_vlm_tagger(vlm_config):
         if _vlm_tagger is not None:
             return _vlm_tagger
 
+        from api.config import _FULL_CONFIG
+        from models.vlm_backend import create_vlm_backend
         from models.vlm_tagger import VLMTagger
+
+        backend = create_vlm_backend(_FULL_CONFIG)
+        if backend is not None:
+            _vlm_tagger = VLMTagger({}, backend=backend)
+            logger.info("Remote VLM backend attached and cached for API use")
+            return _vlm_tagger
 
         tagger = VLMTagger(vlm_config)
         tagger.load()

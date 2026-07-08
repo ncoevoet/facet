@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # stripped, since the CUDA base image already provides them. This makes the image
 # "sticky": it does not float to newer, untested releases (e.g. transformers 5.3+
 # broke the Qwen3.5 batched tagger). Regenerate the lock from a good build with:
-#   docker compose ... exec facet pip freeze | grep -ivE '^(torch|torchvision|nvidia-|triton)' > requirements.lock.txt
+#   docker compose ... exec facet pip freeze --all | grep -ivE '^(pip|wheel|torch|torchvision|nvidia-|triton)' > requirements.lock.txt
 # The optional extended-IQA tier (scoring_config.json "iqa_extended") is OFF by
 # default and intentionally NOT installed here (see docs/CONFIGURATION.md).
 COPY requirements.lock.txt .

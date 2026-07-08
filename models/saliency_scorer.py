@@ -20,6 +20,30 @@ torch = None
 cv2 = None
 
 
+def bbox_from_mask(mask, min_subject_pixels: int = 50):
+    """Extract the subject bounding box from a binary saliency mask.
+
+    Args:
+        mask: Binary mask (H, W) with foreground pixels > 128.
+        min_subject_pixels: Minimum foreground pixel count to report a box.
+
+    Returns:
+        ``[x0, y0, x1, y1]`` normalized to 0..1 (rounded to 4 decimals), or None
+        when the mask holds fewer than ``min_subject_pixels`` foreground pixels.
+    """
+    h, w = mask.shape[:2]
+    if h == 0 or w == 0:
+        return None
+    ys, xs = np.nonzero(mask > 128)
+    if xs.size < min_subject_pixels:
+        return None
+    x0 = float(xs.min()) / w
+    y0 = float(ys.min()) / h
+    x1 = float(xs.max() + 1) / w
+    y1 = float(ys.max() + 1) / h
+    return [round(x0, 4), round(y0, 4), round(min(x1, 1.0), 4), round(min(y1, 1.0), 4)]
+
+
 def _ensure_imports():
     global torch, cv2
     if torch is None:
@@ -208,6 +232,7 @@ class SaliencyScorer:
                 'subject_prominence': 0.0,
                 'subject_placement': 5.0,
                 'bg_separation': 5.0,
+                'subject_bbox': None,
             }
 
         # Convert to grayscale for Laplacian
@@ -259,6 +284,7 @@ class SaliencyScorer:
             'subject_prominence': round(prominence_score, 2),
             'subject_placement': round(subject_placement, 2),
             'bg_separation': round(bg_separation, 2),
+            'subject_bbox': bbox_from_mask(mask, self.min_subject_pixels),
         }
 
     def _compute_placement_score(self, mask, h, w):
@@ -316,6 +342,7 @@ class SaliencyScorer:
             'subject_prominence': 0.0,
             'subject_placement': 5.0,
             'bg_separation': 5.0,
+            'subject_bbox': None,
         }
 
         # Batch mask generation (single GPU forward pass per sub-batch)

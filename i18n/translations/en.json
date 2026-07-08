@@ -1012,7 +1012,8 @@
     "timeline": "Timeline",
     "folders": "Folders",
     "map": "Map",
-    "capsules": "Capsules"
+    "capsules": "Capsules",
+    "junk_sweep": "Junk Sweep"
   },
   "auth": {
     "logout": "Log out",
@@ -1576,11 +1577,13 @@
     "type_smart": "Smart",
     "invalid_share_link": "Invalid share link",
     "share_link_revoked": "This share link is invalid or has been revoked.",
-    "load_error": "Failed to load album."
+    "load_error": "Failed to load album.",
+    "portfolio": "Export portfolio"
   },
   "critique": {
     "overlay_show": "Show overlay",
     "overlay_hide": "Hide overlay",
+    "overlay_error": "Couldn't load the overlay.",
     "title": "Why This Score?",
     "category_reason": "Category",
     "breakdown": "Score Breakdown",
@@ -1781,6 +1784,14 @@
     "weight_ready_tooltip": "Enough comparisons collected — open Comparison → Weight Suggestions to review and apply the optimized weights for this category.",
     "strictness": "Strictness",
     "strictness_tooltip": "Higher keeps only the single best photo; lower keeps near-ties too",
+    "profiles": {
+      "custom": "Custom",
+      "balanced": "Balanced",
+      "wedding": "Wedding",
+      "sports": "Sports",
+      "concert": "Concert",
+      "wildlife": "Wildlife"
+    },
     "auto_cull": {
       "button": "Auto-cull",
       "tooltip": "Automatically keep the best of every group and reject the rest",
@@ -1791,8 +1802,7 @@
       "apply": "Reject {rejected} photos",
       "applied": "Auto-cull applied: kept {kept}, rejected {rejected}",
       "error": "Auto-cull failed",
-      "empty": "Nothing to auto-cull in this scope",
-      "better_tooltip": "A better photo exists in this group"
+      "empty": "Nothing to auto-cull in this scope"
     },
     "exit_scene": "Exit scene",
     "scene_complete": "Scene culled — nothing left to review",
@@ -1810,6 +1820,8 @@
     "face_eyes_min_tooltip": "Highlight faces with an eyes-open score below this value",
     "face_smile_min": "Smile",
     "face_smile_min_tooltip": "Highlight faces with a smile score below this value",
+    "subject_grid_title": "Subjects in this group",
+    "subject_sharpness": "Subject sharpness (10 = sharpest in group)",
     "reason": {
       "best": "Best of group",
       "eyes_closed": "Eyes closed",
@@ -1847,7 +1859,13 @@
       "scenes": "Scenes",
       "tooltip": "Choose which kind of near-duplicate groups to review"
     },
-    "darkroom_tooltip": "Open the full-screen darkroom to compare frames and pick the keepers"
+    "darkroom_tooltip": "Open the full-screen darkroom to compare frames and pick the keepers",
+    "cull_style": {
+      "tooltip": "Preview an edited look",
+      "original": "Original",
+      "loading": "Rendering preview",
+      "error": "Could not render the edited preview"
+    }
   },
   "scenes": {
     "title": "Scenes",
@@ -2078,7 +2096,8 @@
     "caption_edit_title": "Edit Caption",
     "caption_error": "Failed to generate caption",
     "translating_caption": "Translating...",
-    "location": "Location"
+    "location": "Location",
+    "social_crop": "Social crop"
   },
   "download": {
     "type_original": "Original",
@@ -2151,7 +2170,8 @@
   "proofing": {
     "client_picks": "Client picks",
     "no_picks": "No client picks yet.",
-    "picks_count": "{count} picks",
+    "picks_count": "{count} pick",
+    "picks_count_plural": "{count} picks",
     "pick": "Pick this photo",
     "unpick": "Remove pick",
     "comment": "Comment",
@@ -2164,5 +2184,52 @@
     "start": "Start",
     "skip": "Skip",
     "save_error": "Could not save your pick."
+  },
+  "junk": {
+    "help": "Review non-photo files found in your library — screenshots, documents, receipts, memes and slides. Keep the ones you want; reject the rest.",
+    "empty": "No junk detected. Run \"python facet.py --detect-junk\" to scan your library.",
+    "all_kinds": "All kinds",
+    "keep": "Keep",
+    "keep_hint": "Keep this photo (removes it from the queue)",
+    "reject": "Reject",
+    "reject_hint": "Reject this photo",
+    "reject_all": "Reject all shown: {count}",
+    "confirm_reject_all_title": "Reject all shown",
+    "confirm_reject_all_message": "Reject the {count} photos shown here?",
+    "kept": "Photo kept",
+    "rejected": "Photo rejected",
+    "rejected_bulk": "Rejected {count} photos",
+    "load_more": "Load more",
+    "load_error": "Failed to load junk candidates",
+    "kinds": {
+      "screenshot": "Screenshots",
+      "document": "Documents",
+      "receipt": "Receipts",
+      "meme": "Memes",
+      "slide": "Slides"
+    }
+  },
+  "social_export": {
+    "presets": {
+      "square": "Square (1:1)",
+      "portrait_4x5": "Portrait (4:5)",
+      "story_9x16": "Story (9:16)"
+    },
+    "source": {
+      "saliency": "framed on subject",
+      "faces": "framed on faces",
+      "center": "center crop"
+    }
+  },
+  "portfolio": {
+    "title": "Export portfolio",
+    "description": "Export this album as a self-contained static website you can host anywhere.",
+    "gallery_title": "Gallery title",
+    "target_dir": "Target folder",
+    "include_captions": "Include captions",
+    "export": "Export",
+    "cancel": "Cancel",
+    "done": "Portfolio exported: {count} photos",
+    "error": "Portfolio export failed"
   }
 }

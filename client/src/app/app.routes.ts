@@ -44,6 +44,12 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'junk',
+    loadComponent: () =>
+      import('./features/junk-sweep/junk-sweep.component').then(m => m.JunkSweepComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: 'stats',
     loadComponent: () =>
       import('./features/stats/stats.component').then(m => m.StatsComponent),

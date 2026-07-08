@@ -326,6 +326,11 @@ def create_app() -> FastAPI:
     from api.routers.ranker import router as ranker_router
     from api.routers.scenes import router as scenes_router
     from api.routers.saliency import router as saliency_router
+    from api.routers.social_crop import router as social_crop_router
+    from api.routers.portfolio import router as portfolio_router
+    from api.routers.cull_preview import router as cull_preview_router
+    from api.routers.frame import router as frame_router
+    from api.routers.webdav import router as webdav_router
 
     app.include_router(health_router)
     app.include_router(auth_router)
@@ -355,6 +360,11 @@ def create_app() -> FastAPI:
     app.include_router(ranker_router)
     app.include_router(scenes_router)
     app.include_router(saliency_router)
+    app.include_router(social_crop_router)
+    app.include_router(portfolio_router)
+    app.include_router(cull_preview_router)
+    app.include_router(frame_router)
+    app.include_router(webdav_router)
 
     # Check for plaintext passwords at startup
     from api.auth import check_legacy_password_warnings
@@ -369,6 +379,18 @@ def create_app() -> FastAPI:
     client_dist = os.path.join(_project_root, 'client', 'dist', 'client', 'browser')
     if os.path.isdir(client_dist):
         index_html = os.path.join(client_dist, 'index.html')
+        client_dist_real = os.path.realpath(client_dist)
+
+        # The service-worker control files and the app shell must revalidate on
+        # every request; a heuristically cached ngsw.json / ngsw-worker.js leaves
+        # an installed PWA stuck on a stale build.
+        spa_no_cache_files = frozenset(
+            {'ngsw-worker.js', 'ngsw.json', 'safety-worker.js', 'worker-basic.min.js', 'index.html'}
+        )
+
+        def _serve_spa_file(file_path):
+            headers = {'Cache-Control': 'no-cache'} if os.path.basename(file_path) in spa_no_cache_files else None
+            return FileResponse(file_path, headers=headers)
 
         # Serve static assets (JS, CSS, images) from the dist directory
         app.mount("/assets", StaticFiles(directory=os.path.join(client_dist, "assets")), name="assets") if os.path.isdir(os.path.join(client_dist, "assets")) else None
@@ -378,11 +400,11 @@ def create_app() -> FastAPI:
         async def spa_fallback(path: str):
             # Serve static files if they exist (JS chunks, CSS, etc.)
             resolved = os.path.realpath(os.path.join(client_dist, path))
-            if not resolved.startswith(os.path.realpath(client_dist) + os.sep):
-                return FileResponse(index_html)
+            if not resolved.startswith(client_dist_real + os.sep):
+                return _serve_spa_file(index_html)
             if os.path.isfile(resolved):
-                return FileResponse(resolved)
+                return _serve_spa_file(resolved)
             # Otherwise return index.html for client-side routing
-            return FileResponse(index_html)
+            return _serve_spa_file(index_html)
 
     return app

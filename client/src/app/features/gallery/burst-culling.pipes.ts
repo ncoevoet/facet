@@ -41,6 +41,20 @@ export interface FaceThresholds {
   poor_expression_min: number;
 }
 
+/** A single photo's subject close-up within a culling group
+ *  (from POST /api/culling-group/subjects). One subject per photo. */
+export interface CullingSubject {
+  path: string;
+  has_subject: boolean;
+  /** Base64 data URI of the thumbnail cropped to the subject box, or null. */
+  crop: string | null;
+  subject_sharpness: number | null;
+  subject_prominence: number | null;
+  crop_sharpness: number | null;
+  /** Group-normalized 0..10 sharpness (sharpest crop reads 10). */
+  crop_sharpness_score: number | null;
+}
+
 /** A burst, similar, or scene group surfaced for culling. */
 export interface CullingGroup {
   group_id: number;
@@ -114,6 +128,27 @@ export class FacesForPathPipe implements PipeTransform {
   }
 }
 
+/** Look up the loaded subject close-up for a photo path from the subject map. */
+@Pipe({ name: 'subjectForPath' })
+export class SubjectForPathPipe implements PipeTransform {
+  transform(path: string, subjectMap: Map<string, CullingSubject>): CullingSubject | null {
+    return subjectMap.get(path) ?? null;
+  }
+}
+
+/** Tailwind ring color for a subject crop, ranking by the group-normalized
+ *  sharpness score: green = sharpest tier, amber = mid, red = softest. */
+@Pipe({ name: 'subjectRingClass' })
+export class SubjectRingClassPipe implements PipeTransform {
+  transform(subject: CullingSubject): string {
+    const score = subject.crop_sharpness_score;
+    if (score == null) return 'ring-white/20';
+    if (score >= 8) return 'ring-green-500';
+    if (score >= 5) return 'ring-amber-500';
+    return 'ring-red-500';
+  }
+}
+
 /** Per-category comparison count + threshold, for the weight-tuning progress chip. */
 export interface WeightStats {
   category_breakdown?: { category: string; count: number }[];
@@ -178,12 +213,82 @@ export class FaceDimmedPipe implements PipeTransform {
   }
 }
 
-/** True when a better photo exists in the group — i.e. this tile is not the
- *  group's auto-best. Drives the inline hint badge on non-best tiles. */
-@Pipe({ name: 'betterInGroup' })
-export class BetterInGroupPipe implements PipeTransform {
-  transform(path: string, bestPath: string | null | undefined): boolean {
-    return !!bestPath && path !== bestPath;
+/** Map a culling sort mode to its Material icon (per-item + trigger). */
+@Pipe({ name: 'sortIcon' })
+export class SortIconPipe implements PipeTransform {
+  private static readonly ICONS: Record<string, string> = {
+    easiest: 'bolt',
+    redundant: 'content_copy',
+    best: 'star',
+    recent: 'schedule',
+    needs_comparisons: 'compare_arrows',
+  };
+
+  transform(mode: string): string {
+    return SortIconPipe.ICONS[mode] ?? 'sort';
+  }
+}
+
+/** Map a content category to its Material icon, with a generic fallback for
+ *  values outside the known vocabulary. */
+@Pipe({ name: 'categoryIcon' })
+export class CategoryIconPipe implements PipeTransform {
+  private static readonly ICONS: Record<string, string> = {
+    portrait: 'person',
+    portrait_bw: 'filter_b_and_w',
+    group_portrait: 'groups',
+    human_others: 'people',
+    silhouette: 'contrast',
+    candid: 'mood',
+    art: 'palette',
+    abstract: 'blur_on',
+    macro: 'zoom_in',
+    astro: 'nights_stay',
+    street: 'directions_walk',
+    aerial: 'flight',
+    concert: 'music_note',
+    night: 'dark_mode',
+    wildlife: 'pets',
+    architecture: 'apartment',
+    urban: 'location_city',
+    food: 'restaurant',
+    landscape: 'landscape',
+    sports: 'sports_soccer',
+    vehicle: 'directions_car',
+    travel: 'luggage',
+    fashion: 'checkroom',
+    long_exposure: 'shutter_speed',
+    cinematic: 'movie',
+    vintage: 'filter_vintage',
+    dramatic: 'flare',
+    monochrome: 'tonality',
+    weather: 'cloud',
+    golden_hour: 'wb_twilight',
+    blue_hour: 'bedtime',
+    product: 'inventory_2',
+    minimalist: 'crop_din',
+    default: 'image',
+  };
+
+  transform(category: string | null | undefined): string {
+    return (category && CategoryIconPipe.ICONS[category]) || 'category';
+  }
+}
+
+/** Map a genre culling profile id to its Material icon; the shipped presets get
+ *  a distinct icon, config-defined custom profiles fall back to the theatre mask. */
+@Pipe({ name: 'cullProfileIcon' })
+export class CullProfileIconPipe implements PipeTransform {
+  private static readonly ICONS: Record<string, string> = {
+    balanced: 'balance',
+    wedding: 'favorite',
+    sports: 'directions_run',
+    concert: 'music_note',
+    wildlife: 'pets',
+  };
+
+  transform(profileId: string | null | undefined): string {
+    return (profileId && CullProfileIconPipe.ICONS[profileId]) || 'theaters';
   }
 }
 
@@ -213,5 +318,24 @@ export class CullGroupLabelPipe implements PipeTransform {
 
   transform(kind: string): string {
     return CullGroupLabelPipe.KEYS[kind] ?? '';
+  }
+}
+
+/** A configured darktable style for the edited-look cull preview. */
+export interface CullStyle {
+  name: string;
+  label_key: string;
+}
+
+/** Build the cull-preview endpoint URL for a photo rendered through a darktable style. */
+export function cullPreviewUrl(path: string, style: string): string {
+  const params = new URLSearchParams({ path, style });
+  return `/api/photo/cull_preview?${params}`;
+}
+
+@Pipe({ name: 'cullPreviewUrl' })
+export class CullPreviewUrlPipe implements PipeTransform {
+  transform(path: string, style: string): string {
+    return cullPreviewUrl(path, style);
   }
 }

@@ -22,6 +22,7 @@ from api.db_helpers import (
     get_visibility_clause, get_photos_from_clause,
     build_photo_select_columns, sanitize_float_values,
     split_photo_tags, attach_person_data_async, format_date, paginate,
+    is_access_controlled_install,
 )
 from api.types import VALID_SORT_COLS, SORT_OPTIONS_GROUPED, normalize_params
 
@@ -68,11 +69,18 @@ def _get_user_id(user):
 
 
 def _check_album_access(conn, album_id, user_id):
-    """Fetch album and verify ownership. Returns album row or raises 404/403."""
+    """Fetch album and verify ownership. Returns album row or raises 404/403.
+
+    On a fully open single-user install (no multi-user, no viewer password) the
+    library is world-readable, so album ownership must not deny access — legacy
+    albums owned by ``_legacy`` stay reachable when ``get_optional_user`` yields
+    no user. When the install IS access-controlled the ownership check is
+    unchanged.
+    """
     album = conn.execute("SELECT * FROM albums WHERE id = ?", (album_id,)).fetchone()
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
-    if album['user_id'] and album['user_id'] != user_id:
+    if is_access_controlled_install() and album['user_id'] and album['user_id'] != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     return album
 
@@ -84,7 +92,7 @@ async def _check_album_access_async(conn, album_id, user_id):
     await cur.close()
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
-    if album['user_id'] and album['user_id'] != user_id:
+    if is_access_controlled_install() and album['user_id'] and album['user_id'] != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     return album
 
@@ -704,7 +712,9 @@ async def get_shared_album(
         # Verify token matches the stored share_token
         try:
             stored_token = album['share_token']
-            if not stored_token or not hmac.compare_digest(stored_token, token):
+            if not stored_token or not hmac.compare_digest(
+                stored_token.encode('utf-8'), token.encode('utf-8')
+            ):
                 raise HTTPException(status_code=403, detail="Invalid share token")
         except (IndexError, KeyError):
             raise HTTPException(status_code=403, detail="Sharing not available")

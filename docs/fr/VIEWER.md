@@ -9,7 +9,7 @@ Application monopage FastAPI + Angular pour parcourir, filtrer et gérer les pho
 - [Démarrer la visionneuse](#démarrer-la-visionneuse) · [Authentification](#authentification) · [Options de filtrage](#options-de-filtrage) · [Tri](#tri) · [Fonctionnalités de la galerie](#fonctionnalités-de-la-galerie)
 - [Gestion des personnes](#gestion-des-personnes) · [Déclenchement d'un scan (Superadmin)](#déclenchement-dun-scan-superadmin) · [Recherche sémantique](#recherche-sémantique) · [Albums](#albums)
 - [Critique IA](#critique-ia) · [Légendage IA](#légendage-ia-gpu-16gb24gb-edition) · [Souvenirs (« Ce jour-là »)](#souvenirs--ce-jour-là-) · [Vue Chronologie](#vue-chronologie) · [Vue Carte](#vue-carte) · [Capsules](#capsules)
-- [Vue Dossiers](#vue-dossiers) · [Boîte de dialogue Filtre GPS](#boîte-de-dialogue-filtre-gps) · [Suggestions de fusion](#suggestions-de-fusion) · [Export vers éditeur](#export-vers-éditeur) · [Tri sélectif](#tri-sélectif) · [Mode de comparaison par paires](#mode-de-comparaison-par-paires)
+- [Vue Dossiers](#vue-dossiers) · [Boîte de dialogue Filtre GPS](#boîte-de-dialogue-filtre-gps) · [Suggestions de fusion](#suggestions-de-fusion) · [Export vers éditeur](#export-vers-éditeur) · [Tri sélectif](#tri-sélectif) · [Nettoyage des indésirables](#nettoyage-des-indésirables) · [Mode de comparaison par paires](#mode-de-comparaison-par-paires)
 - [Statistiques EXIF](#statistiques-exif) · [Raccourcis clavier](#raccourcis-clavier-galerie) · [Annuler](#annuler) · [Application web progressive](#application-web-progressive) · [Mobile](#mobile)
 - [Configuration](#configuration) · [Performances](#performances) · [Points d'accès API](#points-daccès-api) · [Dépannage](#dépannage)
 
@@ -518,6 +518,8 @@ Dans la visionneuse plein écran de tri de rafale/similaires, chaque visage dét
 
 Le **panneau des visages** de la chambre noire code chaque recadrage de visage en vert / orange / rouge à partir de ses scores continus d'ouverture des yeux et de sourire, et ajoute des curseurs de seuil **yeux** et **sourire** en direct pour ajuster à la volée ce qui compte comme un clignement ou une expression faible. Les seuils sont les clés de configuration `face_detection.eyes_closed_max` et `face_detection.poor_expression_min` (toutes deux à `4.0` par défaut) ; les curseurs y démarrent.
 
+**Bande de gros plan du sujet (groupes sans visage).** Pour les rafales / groupes similaires dont les photos n'ont pas de visage marquant — faune, macro, produits, oiseaux — la chambre noire affiche plutôt une bande **sujet** : le sujet clé de chaque image, recadré à partir de la boîte de sujet BiRefNet persistée et aligné côte à côte pour comparer le sujet réel en gros plan (l'idée « AI Close-Up » de Zoner, en natif). Chaque recadrage porte un badge de netteté normalisé sur le groupe (10 = le sujet le plus net du groupe) et un anneau coloré (vert / ambre / rouge) pour faire ressortir l'image parfaitement nette ; cliquer sur un recadrage amène la vue principale sur cette photo. Les recadrages sont découpés dans la vignette stockée sans aucun modèle (`POST /api/culling-group/subjects`) et n'apparaissent que lorsqu'un groupe a des sujets mais pas de visages. Cela ne s'active qu'une fois que les photos portent une boîte de sujet : lancez `python facet.py --recompute-saliency` (GPU) pour la remplir sur une bibliothèque existante — d'ici là, la bande ne s'affiche tout simplement pas.
+
 **Comparaison synchronisée (2-up / 4-up).** L'en-tête de la visionneuse plein écran comporte des boutons Single / Compare 2 / Compare 4. En mode comparaison, les volets partagent une seule transformation panoramique/zoom, de sorte que le zoom à la molette ou le panoramique par glissement sur n'importe quel volet les déplace tous vers le cadrage identique — le moyen de choisir l'image la plus nette d'une rafale en examinant vraiment les pixels. Le double-clic bascule ajusté ↔ zoom ; au-delà de l'échelle d'ajustement, chaque volet remplace paresseusement sa vignette 1920px par la source `/image` pleine résolution pour que l'examen soit net. Pas de changement côté backend — les deux routes d'image existent déjà. (Le pincement tactile n'est pas encore câblé ; utilisez la molette sur le bureau.)
 
 API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
@@ -547,6 +549,22 @@ Les moments apparaissent comme titres de scène et comme filtre de galerie (`GET
 API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
 
 Contrôlé par `viewer.features.show_scenes` (par défaut : `true`). Voir [Configuration — Scenes](CONFIGURATION.md#scenes) pour `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` et `adaptive_k`.
+
+## Nettoyage des indésirables
+
+Une file de revue rapide pour les fichiers non photographiques « indésirables » qui s'accumulent dans une bibliothèque d'amateur — captures d'écran, documents scannés, reçus, mèmes et diapositives de présentation. La détection est zero-shot sur les embeddings d'image stockés (voir [Configuration — Nettoyage des indésirables](CONFIGURATION.md#nettoyage-des-indésirables)) ; exécutez `python facet.py --detect-junk` (ou laissez-le s'exécuter automatiquement en fin de scan) pour peupler `junk_kind`.
+
+Ouvrez-la depuis le bouton de navigation **Nettoyage** (la route `/junk`, réservée à l'édition). La page réutilise la grille de la galerie et affiche chaque candidat signalé :
+
+- **Puces de filtre par type** — « Tous les types » plus une puce par type détecté avec son compte (depuis `GET /api/filter_options/junk_kinds`). Cliquez pour restreindre la file à un seul type.
+- **Conserver** (par photo) — efface l'étiquette d'indésirable pour que la photo quitte la file **définitivement** : elle est marquée comme évaluée-propre (`not_junk`) et n'est plus jamais signalée par un `--detect-junk` ultérieur.
+- **Rejeter** (par photo) — marque la photo comme rejetée en utilisant la même plomberie de rejet que partout ailleurs (rien n'est supprimé du disque).
+- **Tout rejeter** — un rejet groupé de tous les candidats actuellement chargés, derrière une boîte de dialogue de confirmation.
+- **Loupe** — appuyez sur **`Z`** (ou le bouton de la barre d'outils) pour une loupe au survol façon Photo Mechanic, afin de lire le texte fin avant de décider.
+
+Les photos indésirables ne sont **pas** masquées de la galerie normale — elles restent visibles jusqu'à ce que vous filtriez pour les voir. Filtrez n'importe quelle vue de galerie avec `?junk_kind=<type>` (exact) ou `?junk_kind=any` (tout indésirable, exclut la sentinelle `not_junk`).
+
+Contrôlé par `viewer.features.show_junk_sweep` (par défaut : `true`).
 
 ## Mode de comparaison par paires
 
@@ -1001,6 +1019,8 @@ La documentation interactive de l'API est disponible à `/api/docs` (Swagger UI)
 | `POST /api/culling/auto` | `[Edition]` Tri automatique en un bouton pour toute une portée. Corps `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}` ; `dry_run` (par défaut `true`) renvoie l'aperçu conservation/rejet par groupe, une application rejette le reste et enregistre les paires de tri |
 | `POST /api/culling-group/faces` | Badges par visage (yeux ouverts/fermés, expression, confiance) pour un groupe, en un seul lot |
 | `GET /api/scenes` | Scènes chronologiques de photos leaders de rafale (consultation en lecture seule) |
+| `GET /api/filter_options/junk_kinds` | Types d'indésirables détectés avec leur compte (exclut la sentinelle `not_junk`) pour les puces du Nettoyage des indésirables |
+| `POST /api/photo/clear_junk` | `[Edition]` Conserve un candidat indésirable — remet son `junk_kind` à `not_junk` afin qu'il quitte la file définitivement. Corps `{photo_path}` |
 
 ### Scan
 

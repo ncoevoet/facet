@@ -14,7 +14,11 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, require_edition, require_auth
 from api.config import is_multi_user_enabled, _stats_cache
 from api.database import get_async_db, get_db
-from api.db_helpers import update_person_face_count, trigger_auto_retrain
+from api.db_helpers import (
+    update_person_face_count, trigger_auto_retrain, get_visibility_clause,
+    assert_faces_visible, assert_photo_visible,
+)
+from api.types import JUNK_NOT_JUNK
 
 logger = logging.getLogger(__name__)
 
@@ -63,15 +67,16 @@ async def api_person_faces(
     user: CurrentUser = Depends(require_auth),
 ):
     """Get all faces belonging to a person."""
+    vis_sql, vis_params = get_visibility_clause(user.user_id if user else None, table_alias='p')
     async with get_async_db() as conn:
-        cur = await conn.execute("""
+        cur = await conn.execute(f"""
             SELECT f.id, f.photo_path, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2
             FROM faces f
             LEFT JOIN photos p ON f.photo_path = p.path
-            WHERE f.person_id = ?
+            WHERE f.person_id = ? AND {vis_sql}
             ORDER BY p.aggregate DESC
             LIMIT 36
-        """, (person_id,))
+        """, [person_id, *vis_params])
         faces = await cur.fetchall()
         await cur.close()
         return {'faces': [dict(f) for f in faces]}
@@ -115,7 +120,16 @@ async def api_photo_faces(
     user: CurrentUser = Depends(require_auth),
 ):
     """Get all faces in a photo with their current person assignment."""
+    vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
     async with get_async_db() as conn:
+        cur = await conn.execute(
+            f"SELECT 1 FROM photos WHERE path = ? AND {vis_sql}", [path, *vis_params]
+        )
+        visible = await cur.fetchone()
+        await cur.close()
+        if not visible:
+            return {'faces': []}
+
         cur = await conn.execute("""
             SELECT f.id, f.face_index, f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2,
                    f.person_id, p.name as person_name
@@ -142,6 +156,8 @@ def api_assign_face(
             if not face:
                 raise HTTPException(status_code=404, detail="Face not found")
 
+            assert_faces_visible(conn, user.user_id if user else None, [face_id])
+
             if not conn.execute("SELECT 1 FROM persons WHERE id = ?", (body.person_id,)).fetchone():
                 raise HTTPException(status_code=404, detail="Target person not found")
 
@@ -155,6 +171,9 @@ def api_assign_face(
             conn.commit()
 
             return {'success': True}
+        except LookupError:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="Face not found")
         except HTTPException:
             raise
         except sqlite3.Error:
@@ -171,6 +190,8 @@ def api_assign_all_faces(
     """Assign all unassigned faces in a photo to a person."""
     with get_db() as conn:
         try:
+            assert_photo_visible(conn, user.user_id if user else None, body.photo_path)
+
             faces = conn.execute("""
                 SELECT id FROM faces WHERE photo_path = ? AND person_id IS NULL
             """, (body.photo_path,)).fetchall()
@@ -189,6 +210,9 @@ def api_assign_all_faces(
             conn.commit()
 
             return {'success': True, 'assigned_count': len(face_ids)}
+        except LookupError:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="No unassigned faces found")
         except HTTPException:
             raise
         except sqlite3.Error:
@@ -428,6 +452,38 @@ def api_toggle_rejected(
             raise
         except sqlite3.Error:
             logger.exception("Database error toggling rejected for photo %s", body.photo_path)
+            conn.rollback()
+            raise HTTPException(status_code=500, detail='Internal server error')
+
+
+@router.post("/api/photo/clear_junk")
+def api_clear_junk(
+    body: TogglePhotoRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Keep a junk-sweep candidate: mark it evaluated-clean so it leaves the queue.
+
+    Sets junk_kind to the 'not_junk' sentinel (not NULL) so --detect-junk does
+    not re-flag it on the next run. junk_kind is a global column (not per-user),
+    so this is edition-gated like the batch actions.
+    """
+    with get_db() as conn:
+        try:
+            assert_photo_visible(conn, user.user_id if user else None, body.photo_path)
+            row = conn.execute("SELECT 1 FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Photo not found")
+            conn.execute("UPDATE photos SET junk_kind = ? WHERE path = ?", (JUNK_NOT_JUNK, body.photo_path))
+            conn.commit()
+            _stats_cache.clear()
+            return {'success': True, 'junk_kind': None}
+        except LookupError:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="Photo not found")
+        except HTTPException:
+            raise
+        except sqlite3.Error:
+            logger.exception("Database error clearing junk for photo %s", body.photo_path)
             conn.rollback()
             raise HTTPException(status_code=500, detail='Internal server error')
 

@@ -503,6 +503,79 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('cull profiles (genre presets)', () => {
+    const profilesResponse = {
+      profiles: [
+        { id: 'balanced', label_key: 'culling.profiles.balanced', strictness: 50, eyes_closed_max: 4.0, poor_expression_min: 4.0, keep_min_per_group: 1, similarity_threshold: 85 },
+        { id: 'wedding', label_key: 'culling.profiles.wedding', strictness: 35, eyes_closed_max: 5.0, poor_expression_min: 5.0, keep_min_per_group: 2, similarity_threshold: 90 },
+      ],
+      default: 'balanced',
+    };
+
+    it('loads profiles from the API', async () => {
+      mockApi.get.mockReturnValue(of(profilesResponse));
+      await (component as any).loadCullProfiles();
+
+      expect(mockApi.get).toHaveBeenCalledWith('/culling/profiles');
+      expect(component['cullProfiles']()).toEqual(profilesResponse.profiles);
+    });
+
+    it('applyProfile sets strictness and the similarity threshold, and persists the choice', () => {
+      mockApi.get.mockReturnValue(of(mockCullingGroupsResponse));
+      component['applyProfile'](profilesResponse.profiles[1]);
+
+      expect(component['selectedProfile']()).toBe('wedding');
+      expect(component['strictness']()).toBe(35);
+      expect(component['similarityThreshold']()).toBe(90);
+      expect(localStorage.getItem('facet_culling_profile')).toBe('wedding');
+    });
+
+    it('a manual strictness change after selecting a profile reverts the selection to custom', () => {
+      mockApi.get.mockReturnValue(of(mockCullingGroupsResponse));
+      component['applyProfile'](profilesResponse.profiles[1]);
+
+      component['onStrictnessChange'](60);
+
+      expect(component['selectedProfile']()).toBe('');
+      expect(localStorage.getItem('facet_culling_profile')).toBeNull();
+      expect(component['selectedProfileLabel']()).toBe('culling.profiles.custom');
+    });
+
+    it('a manual similarity threshold change after selecting a profile also reverts to custom', () => {
+      mockApi.get.mockReturnValue(of(mockCullingGroupsResponse));
+      component['applyProfile'](profilesResponse.profiles[1]);
+
+      component['onThresholdChange'](75);
+
+      expect(component['selectedProfile']()).toBe('');
+    });
+
+    it('restores a persisted profile id from localStorage on a fresh construction', async () => {
+      localStorage.setItem('facet_culling_profile', 'wedding');
+      mockApi.get.mockReturnValue(of(profilesResponse));
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          BurstCullingComponent,
+          { provide: ApiService, useValue: mockApi },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+          { provide: I18nService, useValue: mockI18n },
+          { provide: GalleryStore, useValue: { config: () => null } },
+          { provide: AuthService, useValue: { isEdition: () => true } },
+          { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+        ],
+      });
+      component = TestBed.runInInjectionContext(() => new BurstCullingComponent());
+
+      expect(component['selectedProfile']()).toBe('wedding');
+
+      await (component as any).loadCullProfiles();
+
+      expect(component['strictness']()).toBe(35);
+      expect(component['similarityThreshold']()).toBe(90);
+    });
+  });
+
   describe('skipGroup (pass with countdown)', () => {
     beforeEach(async () => {
       vi.useFakeTimers();
@@ -672,6 +745,202 @@ describe('BurstCullingComponent', () => {
     it('should return true when more pages exist', () => {
       component['totalPages'].set(2);
       expect(component['hasMore']()).toBe(true);
+    });
+  });
+
+  describe('edited-look cull preview', () => {
+    const styles = [{ name: 'velvia', label_key: 'culling.cull_style.styles.velvia' }];
+
+    function build(config: Record<string, unknown> | null, isEdition = true): BurstCullingComponent {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          BurstCullingComponent,
+          { provide: ApiService, useValue: mockApi },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+          { provide: I18nService, useValue: mockI18n },
+          { provide: GalleryStore, useValue: { config: () => config } },
+          { provide: AuthService, useValue: { isEdition: () => isEdition } },
+          { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+        ],
+      });
+      return TestBed.runInInjectionContext(() => new BurstCullingComponent());
+    }
+
+    it('hides the style selector when no styles are configured', () => {
+      component = build({ cull_styles: [] });
+      expect(component['cullStyleCapable']()).toBe(false);
+    });
+
+    it('hides the style selector when the user lacks edition rights', () => {
+      component = build({ cull_styles: styles }, false);
+      expect(component['cullStyleCapable']()).toBe(false);
+    });
+
+    it('shows the style selector with configured styles and edition rights', () => {
+      component = build({ cull_styles: styles });
+      expect(component['cullStyleCapable']()).toBe(true);
+      expect(component['cullStyles']()).toEqual(styles);
+    });
+
+    it('selecting a style updates the active style that drives the preview src swap', () => {
+      component = build({ cull_styles: styles });
+      expect(component['activeStyle']()).toBe('');
+      component['selectCullStyle']('velvia');
+      expect(component['activeStyle']()).toBe('velvia');
+    });
+
+    it('selecting Original clears the active style back to the flat frame', () => {
+      component = build({ cull_styles: styles });
+      component['selectCullStyle']('velvia');
+      component['selectCullStyle']('');
+      expect(component['activeStyle']()).toBe('');
+    });
+  });
+
+  describe('developed preview staleness guard (F8)', () => {
+    const grp = {
+      group_id: 1, type: 'burst' as const, reason: '', best_path: '/photo1.jpg', count: 2,
+      photos: [
+        { path: '/photo1.jpg', filename: 'photo1.jpg', aggregate: 8, aesthetic: 7, tech_sharpness: 6, is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8 },
+        { path: '/photo2.jpg', filename: 'photo2.jpg', aggregate: 7, aesthetic: 6, tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: '2024-01-01', burst_score: 7 },
+      ],
+    };
+
+    const focus = (idx: number, style: string) => {
+      component['groups'].set([grp]);
+      component['lightboxGroupId'].set(component['groupKey'](grp));
+      component['lightboxIndex'].set(idx);
+      component['activeStyle'].set(style);
+    };
+
+    it('detaches the previous in-flight image handlers before spawning a new one', () => {
+      focus(0, 'velvia');
+      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      const first = component['previewImg']!;
+      expect(first).toBeTruthy();
+
+      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+
+      expect(first.onload).toBeNull();
+      expect(first.onerror).toBeNull();
+      expect(component['previewImg']).not.toBe(first);
+    });
+
+    it('onerror reverts the style and toasts for the frame still shown', () => {
+      focus(0, 'velvia');
+      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      mockSnackBar.open.mockClear();
+
+      component['previewImg']!.onerror!(new Event('error'));
+
+      expect(component['activeStyle']()).toBe('');
+      expect(component['previewLoading']()).toBe(false);
+      expect(mockSnackBar.open).toHaveBeenCalled();
+    });
+
+    it('a stale onerror (user navigated away) neither reverts the style nor toasts', () => {
+      focus(0, 'velvia');
+      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      component['lightboxIndex'].set(1);
+      mockSnackBar.open.mockClear();
+
+      component['previewImg']!.onerror!(new Event('error'));
+
+      expect(component['activeStyle']()).toBe('velvia');
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    it('a stale onload (style changed under it) does not clear the spinner', () => {
+      focus(0, 'velvia');
+      (component as any).preloadDevelopedPreview('/photo1.jpg', 'velvia');
+      component['activeStyle'].set('portra');
+      component['previewLoading'].set(true);
+
+      component['previewImg']!.onload!(new Event('load'));
+
+      expect(component['previewLoading']()).toBe(true);
+    });
+  });
+
+  describe('subject close-up strip (non-face groups)', () => {
+    const wildlifeGroup = {
+      group_id: 3, type: 'similar' as const, reason: '', best_path: '/w1.jpg', count: 2,
+      photos: [
+        { path: '/w1.jpg', filename: 'w1.jpg', aggregate: 8, aesthetic: 7, tech_sharpness: 6, is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8 },
+        { path: '/w2.jpg', filename: 'w2.jpg', aggregate: 7, aesthetic: 6, tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: '2024-01-01', burst_score: 7 },
+      ],
+    };
+    const subjectFor = (path: string, score: number) => ({
+      path, has_subject: true, crop: 'data:image/jpeg;base64,x',
+      subject_sharpness: null, subject_prominence: null,
+      crop_sharpness: score * 10, crop_sharpness_score: score,
+    });
+
+    const routePost = (faces: unknown, subjects: unknown) => {
+      mockApi.post.mockImplementation((url: string) => {
+        if (url === '/culling-group/faces') return of(faces);
+        if (url === '/culling-group/subjects') return of(subjects);
+        return of({});
+      });
+    };
+
+    const focusGroup = () => {
+      component['groups'].set([wildlifeGroup]);
+      component['lightboxGroupId'].set(component['groupKey'](wildlifeGroup));
+    };
+
+    it('loadSubjectsForGroup populates the subject map from the response', async () => {
+      routePost({ faces_by_path: {} }, {
+        subjects_by_path: { '/w1.jpg': subjectFor('/w1.jpg', 10), '/w2.jpg': subjectFor('/w2.jpg', 4) },
+      });
+
+      await (component as any).loadSubjectsForGroup(wildlifeGroup);
+
+      const map = component['subjectMap']();
+      expect(map.get('/w1.jpg')?.has_subject).toBe(true);
+      expect(map.get('/w2.jpg')?.crop_sharpness_score).toBe(4);
+    });
+
+    it('shows the strip for a group with subjects and no faces', async () => {
+      routePost({ faces_by_path: {} }, {
+        subjects_by_path: { '/w1.jpg': subjectFor('/w1.jpg', 10), '/w2.jpg': subjectFor('/w2.jpg', 4) },
+      });
+      focusGroup();
+
+      await (component as any).loadCloseupsForGroup(wildlifeGroup);
+
+      expect(component['subjectStripVisible']()).toBe(true);
+      expect(mockApi.post).toHaveBeenCalledWith('/culling-group/subjects', { paths: ['/w1.jpg', '/w2.jpg'] });
+    });
+
+    it('does not load or show subjects when the group has faces', async () => {
+      routePost({ faces_by_path: { '/w1.jpg': [{ id: 1, face_index: 0 }] } }, { subjects_by_path: {} });
+      focusGroup();
+
+      await (component as any).loadCloseupsForGroup(wildlifeGroup);
+
+      expect(component['subjectStripVisible']()).toBe(false);
+      expect(mockApi.post).not.toHaveBeenCalledWith('/culling-group/subjects', expect.anything());
+    });
+
+    it('records has_subject=false for unreturned paths so the strip stays hidden', async () => {
+      routePost({ faces_by_path: {} }, { subjects_by_path: {} });
+      focusGroup();
+
+      await (component as any).loadCloseupsForGroup(wildlifeGroup);
+
+      expect(component['subjectStripVisible']()).toBe(false);
+      expect(component['subjectMap']().get('/w1.jpg')?.has_subject).toBe(false);
+    });
+
+    it('focusPhotoInLightbox jumps the darkroom to the clicked subject', () => {
+      focusGroup();
+      component['lightboxIndex'].set(0);
+
+      component['focusPhotoInLightbox'](1);
+
+      expect(component['lightboxIndex']()).toBe(1);
     });
   });
 });

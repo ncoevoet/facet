@@ -103,6 +103,10 @@ PARAMETERISED_ROUTES = [
     ('/api/culling-groups', {'group_by': 'scene'}),
     ('/api/culling-groups', {'group_by': 'burst'}),
     ('/api/culling-groups', {'group_by': 'similar'}),
+    ('/api/frame/photos', {'token': 'x'}),
+    ('/api/frame/next', {'token': 'x'}),
+    ('/api/frame/image/1.deadbeef', {'token': 'x'}),
+    ('/dav/nonexistent.jpg', {}),
 ]
 
 # Routes that require superadmin (scan).
@@ -231,4 +235,14 @@ class TestAngularSpaShell:
         # or 404 (dist not built in this env) are all "not a backend crash".
         assert resp.status_code in (200, 204, 301, 302, 304, 307, 308, 404), (
             f"{path} -> {resp.status_code}"
+        )
+
+    @pytest.mark.parametrize('path', ['/ngsw.json', '/ngsw-worker.js'])
+    def test_service_worker_files_are_no_cache(self, client, path):
+        resp = client.get(path)
+        if resp.status_code == 404:
+            pytest.skip('client dist not built in this environment')
+        assert resp.status_code == 200, f"{path} -> {resp.status_code}"
+        assert 'no-cache' in resp.headers.get('cache-control', ''), (
+            f"{path} cache-control={resp.headers.get('cache-control')!r}"
         )

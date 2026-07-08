@@ -18,6 +18,7 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
 import { CreateAlbumDialogComponent } from './create-album-dialog.component';
 import { EditAlbumDialogComponent } from './edit-album-dialog.component';
 import { ClientPicksDialogComponent, ClientPicksDialogData } from './client-picks-dialog.component';
+import { PortfolioExportDialogComponent, PortfolioExportDialogData } from './portfolio-export-dialog.component';
 import { AlbumsFiltersService } from './albums-filters.service';
 import { ShareDialogComponent, ShareDialogData } from '../../shared/components/share-dialog/share-dialog.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
@@ -136,6 +137,13 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
                         (click)="openScoped($event, '/culling', album)">
                   <mat-icon class="opacity-60">auto_delete</mat-icon>
                 </button>
+                @if (!album.is_smart && portfolioEnabled()) {
+                  <button mat-icon-button
+                          [matTooltip]="I18N.albums.portfolio | translate"
+                          (click)="exportPortfolio($event, album)">
+                    <mat-icon class="opacity-60">web</mat-icon>
+                  </button>
+                }
                 <button mat-icon-button
                         [matTooltip]="I18N.albums.edit | translate"
                         (click)="editAlbum($event, album)">
@@ -186,6 +194,7 @@ export class AlbumsComponent {
 
   protected readonly hasMore = computed(() => this.albums().length < this.total());
   protected readonly proofingEnabled = computed(() => this.auth.hasFeature('show_proofing'));
+  protected readonly portfolioEnabled = computed(() => this.auth.hasFeature('show_portfolio_export'));
 
   constructor() {
     this.pageHelp.setDescription(I18N.albums.help);
@@ -291,6 +300,15 @@ export class AlbumsComponent {
     await firstValueFrom(this.albumService.delete(album.id));
     this.albums.update(list => list.filter(a => a.id !== album.id));
     this.total.update(t => t - 1);
+  }
+
+  protected exportPortfolio(event: Event, album: Album): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dialog.open(PortfolioExportDialogComponent, {
+      data: { albumId: album.id, albumName: album.name } satisfies PortfolioExportDialogData,
+      width: '460px',
+    });
   }
 
   protected openClientPicks(event: Event, album: Album): void {

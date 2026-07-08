@@ -9,11 +9,11 @@ FastAPI + Angular single-page application for browsing, filtering, and managing 
 - [Starting the Viewer](#starting-the-viewer) · [Authentication](#authentication) · [Filtering Options](#filtering-options) · [Sorting](#sorting) · [Gallery Features](#gallery-features)
 - [Person Management](#person-management) · [Scan Trigger (Superadmin)](#scan-trigger-superadmin) · [Semantic Search](#semantic-search) · [Albums](#albums)
 - [AI Critique](#ai-critique) · [AI Captioning](#ai-captioning-gpu-16gb24gb-edition) · [Memories ("On This Day")](#memories-on-this-day) · [Timeline View](#timeline-view) · [Map View](#map-view) · [Capsules](#capsules)
-- [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [Editor Export](#editor-export) · [Culling](#culling) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
-- [EXIF Statistics](#exif-statistics) · [Keyboard Shortcuts](#keyboard-shortcuts-gallery) · [Undo](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
+- [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [Editor Export](#editor-export) · [Culling](#culling) · [Junk Sweep](#junk-sweep) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
+- [EXIF Statistics](#exif-statistics) · [Keyboard Shortcuts](#keyboard-shortcuts-gallery) · [Undo](#undo) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile) · [Photo Frame / Kiosk Endpoint](#photo-frame--kiosk-endpoint) · [Phone Auto-Upload](#phone-auto-upload)
 - [Configuration](#configuration) · [Performance](#performance) · [API Endpoints](#api-endpoints) · [Troubleshooting](#troubleshooting)
 
-> **Feature requirements** are tagged inline: `[GPU]` · `[16gb/24gb]` (VRAM profile) · `[Edition]` (edition password) · `[Superadmin]`. See the [feature matrix](../README.md#feature-availability--requirements).
+> **Feature requirements** are tagged inline: `[GPU]` · `[16gb/24gb]` (VRAM profile) · `[Edition]` (edition password) · `[Superadmin]`. See the [feature matrix](INSTALLATION.md#feature-requirements).
 
 ## Starting the Viewer
 
@@ -61,6 +61,8 @@ Optional password protection via config:
 ```
 
 When set, users must authenticate before accessing the viewer. An optional `edition_password` grants access to person management and comparison mode.
+
+Login also mirrors the session token in an `HttpOnly` `SameSite=Lax` cookie so browser-native requests that cannot carry an `Authorization` header — `<img>` tags loading thumbnails, the scan progress stream — authenticate on locked deployments. The cookie is honored for read-only requests (GET/HEAD) only; every state-changing call still requires the Bearer token, so it adds no CSRF surface. Logging out calls `POST /api/auth/logout`, which clears the cookie.
 
 ### Multi-User Mode
 
@@ -301,6 +303,10 @@ Create albums and add photos from the gallery using multi-select. Albums support
 
 Save a combination of filters (camera, tag, person, date range, score thresholds, etc.) as a smart album. Smart albums dynamically update as new photos match the saved filter criteria. The filter combination is stored as JSON in `smart_filter_json`.
 
+### Portfolio Export
+
+When `viewer.features.show_portfolio_export` is `true` (default) and edition is unlocked, each manual album card gains an **Export portfolio** action. It opens a small dialog (gallery title, target folder, include-captions toggle) and renders the album into a self-contained static HTML gallery — the thumbsup/sigal use case, but native, with no external tool dependency. The output directory holds `index.html` (a responsive CSS-only thumbnail grid with a built-in vanilla-JS lightbox — **zero** external/CDN references, so it works fully offline), an `assets/` folder of sequentially-named JPEGs (no library paths leaked), and a `manifest.json` recording counts and per-photo sources. Each photo prefers the on-disk **original** (downscaled to `portfolio.max_edge`, EXIF orientation applied) and falls back to the stored 640px thumbnail when the original is unreachable (offline network shares). The endpoint is `POST /api/albums/{album_id}/export-portfolio` (edition-gated); the `target_dir` is validated against the same allow-list (`viewer.export.allowed_target_dirs` plus the scan directories) as the copy/move export endpoints, and albums over `portfolio.max_photos` (default 500) are refused. Re-exporting the same album is idempotent — only the export's own files are rewritten. See [Portfolio Export configuration](CONFIGURATION.md#portfolio-export).
+
 API: see the [API Endpoints](#api-endpoints) section below.
 
 Controlled by `viewer.features.show_albums` (default: `true`).
@@ -501,6 +507,8 @@ For each group, pick the keeper(s); confirming rejects the rest. Confirms are de
 
 **My Taste chip.** Every confirm records `source='culling'` comparison rows that train the personal ranker, so the header shows a small "My Taste · N comparisons" chip that updates after each decision — the AI learns your eye as you cull (`GET /api/ranker/status`).
 
+**Genre profiles.** A **Profile** selector in the toolbar applies a genre preset that bundles every culling knob at once — strictness, keeper budget, similarity threshold and the darkroom's eyes-closed / poor-expression face cutoffs — so sports keeps only the sharpest of a burst, weddings keep more eyes-open variants, concerts and wildlife relax the face gates. The choice persists in `localStorage`; nudging any knob by hand reverts the label to "Custom". Presets live in the [`cull_profiles`](CONFIGURATION.md#genre-aware-culling-profiles) block (`GET /api/culling/profiles`).
+
 ### Auto-cull
 
 A toolbar **Auto-cull** button culls a whole scope in one pass instead of group-by-group. Pick the scope with the granularity/scope controls (all groups, or only bursts / similars / scenes, optionally an album or date window), set a **strictness** — the keeper budget, where higher keeps fewer per group — and preview. Each group keeps its best photo plus everything within the strictness margin (floored at a per-group minimum) and rejects the rest.
@@ -521,7 +529,11 @@ In the burst/similar culling lightbox, each detected face carries its own badges
 
 The darkroom's **face panel** colour-codes each face crop green / orange / red from its continuous eyes-open and smile scores, and adds live **eyes** and **smile** threshold sliders so you can tune what counts as a blink or a weak expression on the fly. The cut-offs are the config keys `face_detection.eyes_closed_max` and `face_detection.poor_expression_min` (both default `4.0`); the sliders start there.
 
+**Subject close-up strip (non-face groups).** For bursts / similar groups whose photos have no significant faces — wildlife, macro, products, birds — the darkroom shows a **subject** strip instead: the key subject of every frame, cropped from the persisted BiRefNet subject box and lined up side by side so you can compare the actual subject at close-up (the Zoner "AI Close-Up" idea, native). Each crop carries a group-normalized sharpness badge (10 = the sharpest subject in the group) and a coloured ring (green / amber / red) so the tack-sharp frame stands out; clicking a crop jumps the main view to that photo. The crops are cut from the stored thumbnail with no model run (`POST /api/culling-group/subjects`) and appear only when a group has subjects but no faces. This lights up only once photos carry a subject box: run `python facet.py --recompute-saliency` (GPU) to backfill an existing library — until then the strip simply doesn't appear.
+
 **Synced compare (2-up / 4-up).** The lightbox header has Single / Compare 2 / Compare 4 buttons. In compare mode the panes share one pan/zoom transform, so scroll-wheel zoom or drag-pan on any pane moves them all to the identical crop — the way to pick the sharpest frame of a burst by actually peeping pixels. Double-click toggles fit ↔ zoom; past the fit scale each pane lazily swaps its 1920px thumbnail for the full-resolution `/image` source so the peek is crisp. No backend change — both image routes already exist. (Touch-pinch is not yet wired; use the wheel on desktop.)
+
+**Edited-look preview.** In single view the darkroom header gains a **palette** menu listing "Original" plus each configured darktable style, so you can cull on the *developed* look instead of the flat RAW preview — the way to judge a shot the way it will actually be delivered. Picking a style renders the original through darktable-cli (`--style`, bounded to `preview_max_edge`) and swaps it into the main image, with a spinner while it renders and a snackbar + revert to Original on failure. The chosen style persists across the frames of the current group and resets when you reopen the darkroom (per-session, never saved). The control only appears when at least one style is configured **and** darktable-cli resolves; the styles must already exist in the darktable configuration of the user running the viewer. Rendered previews are cached on disk (keyed by source mtime, style and max edge), so re-viewing a frame is instant. Endpoint: `GET /api/photo/cull_preview?path=&style=` (edition-gated); configure via [`raw_processor.darktable.cull_styles`](CONFIGURATION.md#raw_processor).
 
 API: see the [API Endpoints](#api-endpoints) section below.
 
@@ -550,6 +562,22 @@ Moments surface as scene titles and as a gallery filter (`GET /api/photos?narrat
 API: see the [API Endpoints](#api-endpoints) section below.
 
 Controlled by `viewer.features.show_scenes` (default: `true`). See [Configuration — Scenes](CONFIGURATION.md#scenes) for `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive`, and `adaptive_k`.
+
+## Junk Sweep
+
+A fast review queue for the non-photo "junk" that piles up in a hobbyist library — screenshots, scanned documents, receipts, memes, and presentation slides. Detection is zero-shot over the stored image embeddings (see [Configuration — Junk Sweep](CONFIGURATION.md#junk-sweep)); run `python facet.py --detect-junk` (or let it auto-run at the end of each scan) to populate `junk_kind`.
+
+Open it from the **Junk Sweep** nav button (the `/junk` route, edition-only). The page reuses the gallery grid and shows every flagged candidate:
+
+- **Kind filter chips** — "All kinds" plus one chip per detected kind with its count (from `GET /api/filter_options/junk_kinds`). Click to narrow the queue to one kind.
+- **Keep** (per photo) — clears the junk label so the photo leaves the queue **permanently**: it is marked evaluated-clean (`not_junk`) and is never re-flagged by a later `--detect-junk`.
+- **Reject** (per photo) — flags the photo as rejected using the same reject plumbing as everywhere else (nothing is deleted from disk).
+- **Reject all shown** — a bulk reject of every candidate currently loaded, behind a confirmation dialog.
+- **Loupe** — press **`Z`** (or the toolbar toggle) for a Photo-Mechanic-style hover magnifier to read fine text before deciding.
+
+Junk photos are **not** hidden from the normal gallery — they stay visible until you filter for them. Filter any gallery view with `?junk_kind=<kind>` (exact) or `?junk_kind=any` (any junk, excludes the `not_junk` sentinel).
+
+Controlled by `viewer.features.show_junk_sweep` (default: `true`).
 
 ## Pairwise Comparison Mode
 
@@ -672,6 +700,101 @@ On small screens the bulk-selection bar collapses to the selection count,
 clear, select-all and a single **Actions** button that opens a touch-friendly
 bottom sheet with all bulk operations (favorite, reject, rate, albums, copy,
 download).
+
+## Photo Frame / Kiosk Endpoint
+
+Login-less kiosk devices — smart photo frames, Home Assistant dashboards, ImmichFrame / Immich-Kiosk style displays — can pull Facet's best shots without a user session. There is **no client UI**: kiosks consume the endpoints directly, authenticated by a long-lived opaque **frame token** configured in the `frame` config block (`frame.tokens`, an empty list disables the whole feature and every endpoint returns 404). Tokens are compared constant-time as UTF-8 bytes, so a missing token is a 401 and a wrong or non-ASCII token is a 403 — never a 500.
+
+Curation draws from the whole library: rejected, junk and blink photos are excluded, `frame.min_aggregate` (default 7.0) sets the score floor, and optional `frame.favorites_only` / `frame.categories` narrow it further. Photos are returned by a **score-weighted random sample** (a shuffle of the top-by-score candidate pool), so a frame shows variety among your best shots rather than the same handful every time. Responses **never contain filesystem paths** — each photo is addressed by an opaque signed id (the row's `rowid` signed with the server secret), so a token holder cannot enumerate arbitrary rows or learn where your files live.
+
+| Endpoint | Returns | Cache |
+|----------|---------|-------|
+| `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` capped at `frame.max_count` (default 100), defaults to `frame.count` (20) | — |
+| `GET /api/frame/image/{id}?token=&max_edge=` | the photo JPEG — on-disk original downscaled to `max_edge` (capped by `frame.max_edge`, default 1920), falling back to the stored thumbnail when the original is unreachable | long immutable |
+| `GET /api/frame/next?token=` | one random curated JPEG, different on every call — the dumb-frame / Home Assistant generic-camera case | `no-store` |
+
+### Generating a token
+
+Tokens are opaque strings you invent — use a long random one and treat it like a password:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Add the result to `frame.tokens` in `scoring_config.json` (you can list several — one per device — and revoke one by removing it):
+
+```json
+"frame": {
+  "tokens": ["Xu8w…your-random-token…"],
+  "count": 20,
+  "min_aggregate": 7.0,
+  "max_edge": 1920,
+  "favorites_only": false,
+  "categories": []
+}
+```
+
+### Home Assistant recipe
+
+The single-URL `/api/frame/next` maps directly onto Home Assistant's [generic camera](https://www.home-assistant.io/integrations/generic/) — every refresh pulls a fresh curated shot:
+
+```yaml
+camera:
+  - platform: generic
+    name: Facet Frame
+    still_image_url: "http://facet.local:5000/api/frame/next?token=Xu8w…your-random-token…"
+    verify_ssl: false
+    framerate: 0.05  # refresh every ~20s
+```
+
+Add the camera to a Picture Glance / Picture Entity card (or a wall-tablet dashboard) and it becomes a self-updating photo frame.
+
+For an **ImmichFrame-style** consumer that manages its own slideshow, poll `GET /api/frame/photos?token=…&count=30` for the id list, then request each `GET /api/frame/image/{id}?token=…&max_edge=1920` — the ids are stable and the image responses carry a long immutable cache, so a client fetches each photo once and can crossfade between them itself.
+
+## Phone Auto-Upload
+
+A minimal **WebDAV** endpoint under `/dav` lets phone auto-upload apps (PhotoSync, and any client that speaks WebDAV) push photos straight into a Facet **inbox directory**. Point the inbox at one of your scanned directories (or a subdirectory of one) and run `facet.py --watch` on it: every uploaded photo is scored automatically as it lands — the PhotoPrism mobile-sync pattern.
+
+This is **upload-only plumbing** — it never touches user sessions or JWTs. Access is HTTP Basic with **shared-device credentials** configured in the `upload` block (`upload.username` / `upload.password`), **not** a user account. The whole `/dav` tree returns **404 while disabled**: the feature is only enabled when `upload.username`, `upload.password`, and `upload.inbox_dir` are all set. Every operation is confined to `upload.inbox_dir` — traversal, absolute paths, and symlink escapes are refused — and uploads stream to disk atomically, capped at `upload.max_file_mb` (default 500).
+
+Implemented methods: `OPTIONS`, `PROPFIND` (depth 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD`. `LOCK`/`UNLOCK` are not implemented (upload clients treat their absence as a non-locking share).
+
+### Configuration
+
+```json
+"upload": {
+  "username": "phone",
+  "password": "…a-long-random-shared-secret…",
+  "inbox_dir": "/photos/inbox",
+  "max_file_mb": 500
+}
+```
+
+`inbox_dir` should live under a scanned directory so `--watch` picks uploads up:
+
+```bash
+python facet.py /photos --watch
+```
+
+### PhotoSync recipe
+
+1. In PhotoSync, add a **WebDAV** configuration (Configure → Add Configuration → WebDAV).
+2. **URL / Server**: `http://<host>:5000/dav/` (use your Facet host; `https://` if you front it with a reverse proxy).
+3. **Username / Password**: the `upload.username` / `upload.password` you set above.
+4. **Target folder**: leave at the root (`/`) to drop into the inbox, or a subfolder PhotoSync creates via `MKCOL`.
+5. On the Facet host, scan the inbox in watch mode so uploads are scored as they arrive:
+
+   ```bash
+   python facet.py /photos --watch
+   ```
+
+### curl smoke test
+
+```bash
+curl -T photo.jpg -u phone:'…a-long-random-shared-secret…' http://<host>:5000/dav/photo.jpg
+```
+
+A `201 Created` (or `204 No Content` when overwriting) confirms the upload landed in the inbox; `--watch` scores it on the next debounce.
 
 ## Configuration
 
@@ -1003,7 +1126,11 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `POST /api/culling-groups/confirm` | Confirm culling selections (burst, similar, or scene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` records the scene-cull comparison rows |
 | `POST /api/culling/auto` | `[Edition]` One-button auto-cull for a whole scope. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (default `true`) returns the per-group keep/reject preview, an apply rejects the rest and records culling pairs |
 | `POST /api/culling-group/faces` | Per-face badges (eyes open/closed, expression, confidence) for a group, in one batch |
+| `POST /api/culling-group/subjects` | Subject close-up crops (from the persisted BiRefNet subject box) + group-normalized sharpness for a non-face group, in one batch. `has_subject:false` when a photo has no box / a near-full-frame box (no model runs) |
+| `GET /api/photo/cull_preview?path=&style=` | `[Edition]` Render a photo's original through a configured darktable style (`--style`, bounded to `preview_max_edge`) for the darkroom's edited-look preview. Disk-cached; 400 on unknown style, 503 when darktable-cli is unavailable, 502 on render failure/timeout |
 | `GET /api/scenes` | Chronological scenes of burst-lead photos (read-only browse) |
+| `GET /api/filter_options/junk_kinds` | Detected junk kinds with counts (excludes the `not_junk` sentinel) for the Junk Sweep chips |
+| `POST /api/photo/clear_junk` | `[Edition]` Keep a junk candidate — clears its `junk_kind` to `not_junk` so it leaves the queue permanently. Body `{photo_path}` |
 
 ### Scan
 
@@ -1060,6 +1187,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 |----------|-------------|
 | `GET /api/download/options` | Available download types for a photo (`path`, optional `is_shared`) |
 | `GET /api/download` | Download a photo (`path`, `type=original\|darktable\|raw`, optional `profile`) |
+| `GET /api/photo/social_crop` | `[Edition]` Download the cropped full-resolution JPEG for a social aspect preset (`path`, `preset`) |
+| `GET /api/photo/social_crop/preview` | `[Edition]` Return just the normalized crop rectangle + framing source for a preset (`path`, `preset`) — no original decode |
 
 **Download types:**
 
@@ -1068,6 +1197,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 - `raw` — Serve the companion RAW file as-is (not available in shared albums).
 
 The `/api/download/options` endpoint detects companion RAW files automatically and returns available options including configured darktable profiles. The viewer uses this to populate a per-photo download menu.
+
+**Saliency-aware social crop.** When `viewer.features.show_social_export` is `true` (default) and edition is unlocked, the photo detail download bar gains a **Social crop** menu listing the configured `social_export.presets` (square 1:1, portrait 4:5, story 9:16 out of the box). Choosing a preset downloads a full-resolution JPEG cropped to that aspect and framed on the detected subject — something Lightroom export presets cannot do. The crop window is the largest rectangle of the target aspect that fits inside the image, centered on the subject and clamped at the edges. The subject box comes from a fallback chain: the persisted BiRefNet subject box (`photos.subject_bbox`, written by the saliency pass and `--recompute-saliency`) → the union of detected face boxes → a plain center crop. The `preview` endpoint returns which source drove the crop (`saliency` / `faces` / `center`), shown in the menu tooltip. Original decoding reuses the same RAW (rawpy) and HEIC (pillow-heif) loader as the download path, with EXIF orientation applied before cropping.
 
 ### Editor Export
 

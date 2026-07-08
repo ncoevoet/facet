@@ -10,7 +10,7 @@ import time
 from typing import Optional
 from fastapi import APIRouter, Depends
 
-from api.auth import CurrentUser, get_optional_user
+from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_async_db, get_db
 from api.db_helpers import is_photo_tags_available, get_visibility_clause
@@ -418,8 +418,36 @@ async def narrative_moments(user: Optional[CurrentUser] = Depends(get_optional_u
     return await _cached_filter_query('narrative_moments', 'narrative_moments', query)
 
 
+@router.get("/junk_kinds")
+async def junk_kinds(user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Lazy-load junk-kind options with counts (excludes the 'not_junk' sentinel)."""
+    from api.types import JUNK_NOT_JUNK
+    vis, vp = _vis_where(user)
+
+    async def query(conn):
+        try:
+            rows = await _fetch_all(
+                conn,
+                f"""
+                SELECT junk_kind, COUNT(*) as cnt FROM photos
+                WHERE junk_kind IS NOT NULL AND junk_kind != ?{vis}
+                GROUP BY junk_kind ORDER BY cnt DESC
+                """,
+                [JUNK_NOT_JUNK, *vp],
+            )
+            return [(r[0], r[1]) for r in rows]
+        except sqlite3.Error:
+            logger.exception("Failed to query junk_kinds")
+            return []
+
+    return await _cached_filter_query('junk_kinds', 'junk_kinds', query)
+
+
 @router.get("/location_name")
-def location_name(lat: float, lng: float):
+def location_name(
+    lat: float, lng: float,
+    user: CurrentUser = Depends(require_authenticated),
+):
     """Reverse geocode coordinates to a place name, using location_names cache.
 
     Stays sync — the underlying ``geocode_grid`` helper is sync and the
@@ -500,7 +528,7 @@ def _compute_metric_ranges():
 
 
 @router.get("/metric_ranges")
-def metric_ranges():
+def metric_ranges(user: CurrentUser = Depends(require_authenticated)):
     """Per-metric observed range and distribution for slider clamping + histograms."""
     from api.config import _get_stats_cached
     return {'ranges': _get_stats_cached('metric_ranges', _compute_metric_ranges)}

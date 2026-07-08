@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
+from api.auth import CurrentUser, get_optional_user
 
 
 # Columns selected by the critique endpoint (must all exist in the test DB).
@@ -385,6 +386,101 @@ class TestCritiqueEndpoint:
         assert stored[1] == "Un beau paysage."
 
 
+def _client_for(user):
+    """Build a (TestClient, app) whose get_optional_user yields ``user``."""
+    app = create_app()
+    app.dependency_overrides[get_optional_user] = lambda: user
+    return TestClient(app), app
+
+
+class TestCritiqueVlmEditionGate:
+    """F5': VLM critique generation is edition-only; cached reads stay open."""
+
+    _RULE = {
+        "category": "landscape",
+        "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
+        "aggregate": 7.5, "breakdown": [], "strengths": [], "weaknesses": [],
+        "suggestions": [], "penalties": {},
+    }
+
+    def test_generation_denied_for_non_edition(self, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        vlm_stub = mock.MagicMock(return_value="should not run")
+        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
+        try:
+            with (
+                mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
+                mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
+                mock.patch("api.routers.critique._build_rule_critique", return_value=dict(self._RULE)),
+                mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body.get("vlm_available") is False
+        assert "vlm_critique" not in body
+        vlm_stub.assert_not_called()
+        conn = sqlite3.connect(db)
+        stored = conn.execute(
+            "SELECT vlm_critique FROM photos WHERE path = '/photos/test.jpg'"
+        ).fetchone()[0]
+        conn.close()
+        assert stored is None
+
+    def test_cached_read_open_to_non_edition(self, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        conn = sqlite3.connect(db)
+        conn.execute("UPDATE photos SET vlm_critique = 'Cached.' WHERE path = '/photos/test.jpg'")
+        conn.commit()
+        conn.close()
+        vlm_stub = mock.MagicMock(return_value="should not run")
+        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
+        try:
+            with (
+                mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
+                mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
+                mock.patch("api.routers.critique._build_rule_critique", return_value=dict(self._RULE)),
+                mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        assert resp.json()["vlm_critique"] == "Cached."
+        vlm_stub.assert_not_called()
+
+    def test_generation_allowed_for_edition_admin(self, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        client, app = _client_for(
+            CurrentUser(user_id="admin", role="admin", edition_authenticated=True)
+        )
+        try:
+            with (
+                mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
+                mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
+                mock.patch("api.routers.critique._build_rule_critique", return_value=dict(self._RULE)),
+                mock.patch("api.routers.critique._get_vlm_critique", return_value="Fresh critique."),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        assert resp.json()["vlm_critique"] == "Fresh critique."
+
 
 # ---------------------------------------------------------------------------
 # Direct _build_rule_critique tests (mock ScoringConfig)
@@ -688,3 +784,104 @@ class TestBuildVlmPrompt:
 
         assert "no per-metric data available" in prompt
         assert "Camera settings: unknown." in prompt
+
+    def test_default_prompt_is_laddered_and_multidimensional(self):
+        """The shipped default prompt asks for the AesBench four-ability ladder,
+        keeps the 3-section wire format, covers the four aesthetic dimensions and
+        instructs the model to reconcile the pixels with the injected metrics."""
+        from api.routers.critique import _build_vlm_prompt
+
+        rule = {
+            "category": "portrait",
+            "aggregate": 6.4,
+            "breakdown": [
+                {"metric": "Composition", "metric_key": "comp_score", "value": 5.0, "weight": 0.2, "contribution": 1.0},
+            ],
+            "penalties": {},
+        }
+        prompt = _build_vlm_prompt(rule, _make_photo()).lower()
+
+        for section in ("observation:", "assessment:", "suggestions:"):
+            assert section in prompt
+
+        assert "perceive" in prompt
+        assert "feel" in prompt
+
+        for dimension in ("composition", "color & light", "focus", "subject & moment"):
+            assert dimension in prompt
+
+        assert "confirm or contradict" in prompt
+        assert "never restate the numbers" in prompt
+
+        assert "composition: 5.0" in prompt
+
+
+class TestGetVlmCritique:
+    """_get_vlm_critique plumbing: the configured token budget reaches the model
+    and a new-structure reply passes through verbatim (no server-side parsing)."""
+
+    _RULE = {"category": "portrait", "aggregate": 6.4, "breakdown": [], "penalties": {}}
+
+    _NEW_FORMAT_REPLY = (
+        "Observation: A backlit portrait of a child on a beach at golden hour, "
+        "framed slightly left of center.\n"
+        "Assessment: Composition leans on a clean rule-of-thirds placement and the "
+        "warm light flatters the skin, matching the metrics; focus is soft on the "
+        "eyes, contradicting the sharpness score; the moment feels tender.\n"
+        "Suggestions: Nail focus on the near eye; add a touch of fill or a reflector; "
+        "in editing, lift shadows and add local contrast on the face."
+    )
+
+    def _patches(self, crit, tagger, full_config):
+        return (
+            mock.patch.object(crit, "VIEWER_CONFIG", {"features": {"show_vlm_critique": True}}),
+            mock.patch.object(crit, "resolve_vlm_config", return_value={"model_path": "/m"}),
+            mock.patch.object(crit, "get_or_load_vlm_tagger", return_value=tagger),
+            mock.patch.object(crit, "_load_critique_image", return_value=object()),
+            mock.patch.object(crit, "_FULL_CONFIG", full_config),
+        )
+
+    def test_max_new_tokens_plumbed_to_generate(self):
+        from api.routers import critique as crit
+
+        tagger = mock.MagicMock()
+        tagger.generate.return_value = self._NEW_FORMAT_REPLY
+        p = self._patches(crit, tagger, {"critique": {"vlm": {"max_new_tokens": 384}}})
+
+        with p[0], p[1], p[2], p[3], p[4]:
+            out = crit._get_vlm_critique(_make_photo(), dict(self._RULE), b"thumb")
+
+        assert out == self._NEW_FORMAT_REPLY
+        assert tagger.generate.call_count == 1
+        _, kwargs = tagger.generate.call_args
+        assert kwargs["max_new_tokens"] == 384
+
+    def test_default_token_budget_when_unset(self):
+        """Absent config, the code default token budget (320) is used."""
+        from api.routers import critique as crit
+
+        tagger = mock.MagicMock()
+        tagger.generate.return_value = self._NEW_FORMAT_REPLY
+        p = self._patches(crit, tagger, {})  # no critique block -> fall back to 320
+
+        with p[0], p[1], p[2], p[3], p[4]:
+            crit._get_vlm_critique(_make_photo(), dict(self._RULE), b"thumb")
+
+        _, kwargs = tagger.generate.call_args
+        assert kwargs["max_new_tokens"] == 320
+
+    def test_new_structure_reply_passes_through_verbatim(self):
+        """The 3-section reply is returned unchanged (client renders it as-is);
+        there is no server-side re-parsing that could drop a section."""
+        from api.routers import critique as crit
+
+        tagger = mock.MagicMock()
+        tagger.generate.return_value = "  " + self._NEW_FORMAT_REPLY + "  "
+        p = self._patches(crit, tagger, {"critique": {"vlm": {"max_new_tokens": 320}}})
+
+        with p[0], p[1], p[2], p[3], p[4]:
+            out = crit._get_vlm_critique(_make_photo(), dict(self._RULE), b"thumb")
+
+        assert out == self._NEW_FORMAT_REPLY
+        for section in ("Observation:", "Assessment:", "Suggestions:"):
+            assert section in out

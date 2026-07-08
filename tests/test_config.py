@@ -37,6 +37,32 @@ class TestScoringConfigLoads:
 
 
 # ---------------------------------------------------------------------------
+# get_model_for_task
+# ---------------------------------------------------------------------------
+
+
+class TestGetModelForTask:
+    """get_model_for_task resolves 'auto' instead of falling back to legacy."""
+
+    def test_auto_profile_resolves_before_task_lookup(self):
+        """With vram_profile='auto', the task model must come from the detected
+        profile, not silently from legacy (whose tagger is 'clip')."""
+        from unittest import mock
+
+        config = ScoringConfig(config_path=CONFIG_PATH)
+        config.config.setdefault("models", {})["vram_profile"] = "auto"
+        with mock.patch.object(
+            ScoringConfig, "suggest_vram_profile",
+            return_value=("16gb", 15.8, "detected"),
+        ):
+            tag_model = config.get_model_for_task("tagging")
+        expected = config.get_model_config()["profiles"]["16gb"]["tagging_model"]
+        assert tag_model == expected
+        # Resolution is persisted in memory — no repeat detection needed.
+        assert config.get_model_config().get("vram_profile") == "16gb"
+
+
+# ---------------------------------------------------------------------------
 # get_weights
 # ---------------------------------------------------------------------------
 

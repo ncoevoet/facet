@@ -3,7 +3,7 @@
 # which scanned 49 photos with 0 errors (tags + aesthetic + saliency all populated).
 # torch/torchvision + nvidia-*/triton are intentionally omitted — the CUDA base image
 # (pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime) already provides them.
-# Regenerate: docker compose ... exec facet pip freeze | (filter base-image pkgs)
+# Regenerate: docker compose ... exec facet pip freeze --all | (filter base-image pkgs)
 absl-py==2.4.0
 accelerate==1.14.0
 addict==2.4.0
@@ -108,6 +108,7 @@ scikit-image==0.26.0
 scikit-learn==1.9.0
 scipy==1.17.1
 sentencepiece==0.2.1
+setuptools==80.10.2
 shellingham==1.5.4
 six==1.17.0
 sortedcontainers==2.4.0

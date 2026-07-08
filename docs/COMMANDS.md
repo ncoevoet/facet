@@ -4,7 +4,7 @@
 
 [Scanning](#scanning) · [Preview & Export](#preview--export) · [Recompute Operations](#recompute-operations) · [Face Recognition](#face-recognition) · [Thumbnail Management](#thumbnail-management) · [Diagnostics](#diagnostics) · [Model Information](#model-information) · [Weight Optimization](#weight-optimization-pairwise-comparison) · [Configuration](#configuration) · [Tagging](#tagging) · [Database Validation](#database-validation) · [Database Maintenance](#database-maintenance) · [Web Viewer](#web-viewer) · [Common Workflows](#common-workflows)
 
-> Requirement tags used below: `[GPU]` · `[8gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (VRAM profile). See the [feature matrix](../README.md#feature-availability--requirements).
+> Requirement tags used below: `[GPU]` · `[8gb/16gb/24gb]` / `[16gb/24gb]` / `[24gb]` (VRAM profile). See the [feature matrix](INSTALLATION.md#feature-requirements).
 
 ## Scanning
 
@@ -108,7 +108,9 @@ These commands update specific metrics, derive new data (AI captions, GPS, embed
 | `python facet.py --detect-moments` | Label new photos with their narrative moment (caption-semantic, zero-shot + temporal smoothing; auto-runs at the end of every scan). Encodes each new caption once into `caption_embedding`, then cosine over stored vectors — the first full backfill over an existing library is GPU-recommended; add `--limit N` to verify on a sample. When `narrative_moments.vlm_tiebreak.enabled` is set (16gb/24gb profiles), low-posterior / low-margin frames are re-classified by the profile VLM |
 | `python facet.py --recompute-moments` | Re-label narrative moments for the whole library (re-smooths the full timeline). Add `--dry-run --verbose` to preview the top-3 moments per photo without writing. Also honours the `narrative_moments.vlm_tiebreak` VLM re-classification of low-confidence frames when enabled (16gb/24gb) |
 | `python facet.py --discover-moments` | Propose a library-specific moment vocabulary by clustering the stored caption embeddings (HDBSCAN) and naming each cluster from its captions. Writes `scoring_config.discovered.json` for review — never rewrites the active config. Run `--detect-moments` first to populate `caption_embedding`; tune granularity with `--discover-min-cluster-size N` |
-| `python facet.py --recompute-saliency` | `[GPU]` Recompute subject saliency metrics (BiRefNet_dynamic). Saliency is enabled on all profiles (legacy runs it on CPU, slower); GPU strongly recommended |
+| `python facet.py --detect-junk` | Flag non-photo junk (screenshots, documents, receipts, memes, slides) in new/unevaluated photos via zero-shot CLIP over stored embeddings; auto-runs at the end of every scan. Clean photos are marked `not_junk` so re-runs never re-scan them; add `--dry-run --verbose` to preview per-photo scores without writing |
+| `python facet.py --recompute-junk` | Re-evaluate `junk_kind` for the whole library (all photos with a stored embedding) |
+| `python facet.py --recompute-saliency` | `[GPU]` Recompute subject saliency metrics (BiRefNet_dynamic) from stored thumbnails — works with the library volume offline. Skips photos that already have `subject_bbox` (resumable); `--force` redoes all. Saliency is enabled on all profiles (legacy runs it on CPU, slower); GPU strongly recommended |
 | `python facet.py --recompute-composition-cpu` | Recompute composition, rule-based (CPU, any profile) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Recompute composition with SAMP-Net |
 | `python facet.py --recompute-iqa` | `[GPU]` Recompute supplementary IQA metrics (TOPIQ IAA, NR-Face, LIQE) from stored thumbnails. Enabled on all profiles (legacy runs on CPU, slower); GPU strongly recommended |
@@ -239,6 +241,7 @@ Reports Python version, PyTorch/CUDA build, GPU detection and driver, VRAM profi
 | `python facet.py --train-ranker` | Train the personal ranker over [embedding + scores] and write learned_scores (gated on held-out k-fold accuracy vs the aggregate baseline) |
 | `python facet.py --train-ranker --ranker-category portrait` | Train the ranker on one category only |
 | `python facet.py --train-ranker --train-ranker-force` | Write learned_scores even if the accuracy gate is not met |
+| `python facet.py --train-ranker --user alice` | Restrict training to that user's own comparisons (plus legacy pre-multi-user rows), writing that user's own learned_scores (multi-user mode) |
 | `python facet.py --report-unreviewed-bursts` | Report how many burst groups remain unreviewed (read-only) |
 | `python facet.py --eval-iqa-srcc` | Report Spearman SRCC of each IQA/aesthetic metric vs your star ratings (read-only) |
 | `python facet.py --mine-insights` | Data-mining report: label inventory, metric-label correlations, category distribution, percentile drift, comparison health |

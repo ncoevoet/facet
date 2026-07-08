@@ -1012,7 +1012,8 @@
     "timeline": "Cronologia",
     "folders": "Cartelle",
     "map": "Mappa",
-    "capsules": "Capsule"
+    "capsules": "Capsule",
+    "junk_sweep": "Pulizia"
   },
   "auth": {
     "logout": "Esci",
@@ -1578,11 +1579,13 @@
     "type_smart": "Intelligente",
     "invalid_share_link": "Link di condivisione non valido",
     "share_link_revoked": "Questo link di condivisione non è valido o è stato revocato.",
-    "load_error": "Impossibile caricare l'album."
+    "load_error": "Impossibile caricare l'album.",
+    "portfolio": "Esporta portfolio"
   },
   "critique": {
     "overlay_show": "Mostra sovrapposizione",
     "overlay_hide": "Nascondi sovrapposizione",
+    "overlay_error": "Impossibile caricare la sovrapposizione.",
     "title": "Perche questo punteggio?",
     "category_reason": "Categoria",
     "breakdown": "Dettaglio punteggio",
@@ -1783,6 +1786,14 @@
     "weight_ready_tooltip": "Confronti sufficienti raccolti — apri Confronto → Suggerimenti di pesi per rivedere e applicare i pesi ottimizzati di questa categoria.",
     "strictness": "Rigore",
     "strictness_tooltip": "Più alto conserva solo la foto migliore; più basso conserva anche i quasi pari",
+    "profiles": {
+      "custom": "Personalizzato",
+      "balanced": "Bilanciato",
+      "wedding": "Matrimonio",
+      "sports": "Sport",
+      "concert": "Concerto",
+      "wildlife": "Fauna selvatica"
+    },
     "auto_cull": {
       "button": "Selezione automatica",
       "tooltip": "Conserva automaticamente la foto migliore di ogni gruppo e rifiuta il resto",
@@ -1793,8 +1804,7 @@
       "apply": "Rifiuta {rejected} foto",
       "applied": "Selezione automatica applicata: {kept} conservate, {rejected} rifiutate",
       "error": "Selezione automatica non riuscita",
-      "empty": "Niente da selezionare automaticamente in questo ambito",
-      "better_tooltip": "In questo gruppo esiste una foto migliore"
+      "empty": "Niente da selezionare automaticamente in questo ambito"
     },
     "exit_scene": "Esci dalla scena",
     "scene_complete": "Scena selezionata — niente altro da rivedere",
@@ -1812,6 +1822,8 @@
     "face_eyes_min_tooltip": "Evidenzia i volti con un punteggio occhi aperti inferiore a questo valore",
     "face_smile_min": "Sorriso",
     "face_smile_min_tooltip": "Evidenzia i volti con un punteggio sorriso inferiore a questo valore",
+    "subject_grid_title": "Soggetti di questo gruppo",
+    "subject_sharpness": "Nitidezza del soggetto (10 = il più nitido del gruppo)",
     "reason": {
       "best": "La migliore del gruppo",
       "eyes_closed": "Occhi chiusi",
@@ -1849,7 +1861,13 @@
       "scenes": "Scene",
       "tooltip": "Scegli quale tipo di gruppi rivedere"
     },
-    "darkroom_tooltip": "Apri la camera oscura a schermo intero per confrontare e scegliere"
+    "darkroom_tooltip": "Apri la camera oscura a schermo intero per confrontare e scegliere",
+    "cull_style": {
+      "tooltip": "Anteprima con stile applicato",
+      "original": "Originale",
+      "loading": "Generazione anteprima",
+      "error": "Impossibile generare l'anteprima elaborata"
+    }
   },
   "scenes": {
     "title": "Scene",
@@ -2080,7 +2098,8 @@
     "caption_edit_title": "Modifica didascalia",
     "caption_error": "Generazione della didascalia non riuscita",
     "translating_caption": "Traduzione in corso...",
-    "location": "Posizione"
+    "location": "Posizione",
+    "social_crop": "Ritaglio social"
   },
   "download": {
     "type_original": "Originale",
@@ -2153,7 +2172,8 @@
   "proofing": {
     "client_picks": "Selezioni del cliente",
     "no_picks": "Nessuna selezione del cliente per ora.",
-    "picks_count": "{count} selezioni",
+    "picks_count": "{count} selezione",
+    "picks_count_plural": "{count} selezioni",
     "pick": "Seleziona questa foto",
     "unpick": "Rimuovi la selezione",
     "comment": "Commento",
@@ -2166,5 +2186,52 @@
     "start": "Inizia",
     "skip": "Salta",
     "save_error": "Impossibile salvare la selezione."
+  },
+  "junk": {
+    "help": "Esamina i file non fotografici rilevati nella tua libreria: screenshot, documenti, ricevute, meme e diapositive. Conserva quelli che vuoi, rifiuta gli altri.",
+    "empty": "Nessuno scarto rilevato. Esegui «python facet.py --detect-junk» per analizzare la libreria.",
+    "all_kinds": "Tutti i tipi",
+    "keep": "Conserva",
+    "keep_hint": "Conserva questa foto (la rimuove dalla coda)",
+    "reject": "Rifiuta",
+    "reject_hint": "Rifiuta questa foto",
+    "reject_all": "Rifiuta tutto: {count}",
+    "confirm_reject_all_title": "Rifiuta tutto",
+    "confirm_reject_all_message": "Rifiutare le {count} foto mostrate?",
+    "kept": "Foto conservata",
+    "rejected": "Foto rifiutata",
+    "rejected_bulk": "{count} foto rifiutate",
+    "load_more": "Carica altro",
+    "load_error": "Impossibile caricare i candidati",
+    "kinds": {
+      "screenshot": "Screenshot",
+      "document": "Documenti",
+      "receipt": "Ricevute",
+      "meme": "Meme",
+      "slide": "Diapositive"
+    }
+  },
+  "social_export": {
+    "presets": {
+      "square": "Quadrato (1:1)",
+      "portrait_4x5": "Ritratto (4:5)",
+      "story_9x16": "Storia (9:16)"
+    },
+    "source": {
+      "saliency": "inquadrato sul soggetto",
+      "faces": "inquadrato sui volti",
+      "center": "ritaglio centrato"
+    }
+  },
+  "portfolio": {
+    "title": "Esporta portfolio",
+    "description": "Esporta questo album come sito web statico autonomo, ospitabile ovunque.",
+    "gallery_title": "Titolo della galleria",
+    "target_dir": "Cartella di destinazione",
+    "include_captions": "Includi didascalie",
+    "export": "Esporta",
+    "cancel": "Annulla",
+    "done": "Portfolio esportato: {count} foto",
+    "error": "Esportazione del portfolio non riuscita"
   }
 }

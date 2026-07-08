@@ -9,7 +9,7 @@ Applicazione a pagina singola FastAPI + Angular per sfogliare, filtrare e gestir
 - [Avvio della galleria](#avvio-della-galleria) · [Autenticazione](#autenticazione) · [Opzioni di filtraggio](#opzioni-di-filtraggio) · [Ordinamento](#ordinamento) · [Funzionalità della galleria](#funzionalità-della-galleria)
 - [Gestione delle persone](#gestione-delle-persone) · [Avvio scansione (Superadmin)](#avvio-scansione-superadmin) · [Ricerca semantica](#ricerca-semantica) · [Album](#album)
 - [Critica IA](#critica-ia) · [Didascalie IA](#didascalie-ia-gpu-16gb24gb-edition) · [Ricordi ("In questo giorno")](#ricordi-in-questo-giorno) · [Vista cronologia](#vista-cronologia) · [Vista mappa](#vista-mappa) · [Capsule](#capsule)
-- [Vista cartelle](#vista-cartelle) · [Finestra filtro GPS](#finestra-filtro-gps) · [Suggerimenti di unione](#suggerimenti-di-unione) · [Esportazione per editor](#esportazione-per-editor) · [Selezione](#selezione) · [Modalità di confronto a coppie](#modalità-di-confronto-a-coppie)
+- [Vista cartelle](#vista-cartelle) · [Finestra filtro GPS](#finestra-filtro-gps) · [Suggerimenti di unione](#suggerimenti-di-unione) · [Esportazione per editor](#esportazione-per-editor) · [Selezione](#selezione) · [Pulizia degli scarti](#pulizia-degli-scarti) · [Modalità di confronto a coppie](#modalità-di-confronto-a-coppie)
 - [Statistiche EXIF](#statistiche-exif) · [Scorciatoie da tastiera](#scorciatoie-da-tastiera-galleria) · [Annulla](#annulla) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
 - [Configurazione](#configurazione) · [Prestazioni](#prestazioni) · [Endpoint API](#endpoint-api) · [Risoluzione dei problemi](#risoluzione-dei-problemi)
 
@@ -518,6 +518,8 @@ Nel lightbox di selezione delle raffiche/foto simili, ogni volto rilevato porta 
 
 Il **pannello dei volti** della camera oscura assegna a ogni ritaglio di volto un codice colore verde / arancione / rosso in base ai suoi punteggi continui di occhi aperti e sorriso, e aggiunge cursori di soglia **occhi** e **sorriso** in tempo reale così da poter regolare al volo cosa conti come occhi chiusi o come espressione debole. I valori di taglio sono le chiavi di configurazione `face_detection.eyes_closed_max` e `face_detection.poor_expression_min` (entrambe predefinite a `4.0`); i cursori partono da lì.
 
+**Striscia di primo piano del soggetto (gruppi senza volti).** Per raffiche / gruppi simili le cui foto non hanno volti rilevanti — fauna, macro, prodotti, uccelli — la camera oscura mostra invece una striscia **soggetto**: il soggetto chiave di ogni fotogramma, ritagliato dalla box del soggetto BiRefNet persistita e allineato fianco a fianco per confrontare il soggetto reale in primo piano (l'idea «AI Close-Up» di Zoner, in modo nativo). Ogni ritaglio porta un badge di nitidezza normalizzato sul gruppo (10 = il soggetto più nitido del gruppo) e un anello colorato (verde / ambra / rosso) così che il fotogramma perfettamente nitido risalti; cliccando un ritaglio la vista principale passa a quella foto. I ritagli sono tagliati dalla miniatura memorizzata senza alcun modello (`POST /api/culling-group/subjects`) e compaiono solo quando un gruppo ha soggetti ma non volti. Si attiva solo quando le foto portano una box del soggetto: esegui `python facet.py --recompute-saliency` (GPU) per riempirla su una libreria esistente — fino ad allora la striscia semplicemente non compare.
+
 **Confronto sincronizzato (2-up / 4-up).** L'intestazione del lightbox ha i pulsanti Singolo / Confronta 2 / Confronta 4. In modalità di confronto i riquadri condividono un'unica trasformazione di pan/zoom, così lo zoom con la rotellina o il trascinamento su un riquadro qualsiasi sposta tutti gli altri sullo stesso identico ritaglio — il modo per scegliere il fotogramma più nitido di una raffica esaminando davvero i pixel. Il doppio clic alterna adatta ↔ zoom; oltre la scala di adattamento ogni riquadro sostituisce in modo lazy la sua miniatura da 1920px con la sorgente `/image` a piena risoluzione, così l'ingrandimento resta nitido. Nessuna modifica al backend — entrambe le rotte dell'immagine esistono già. (Il pinch tattile non è ancora collegato; sul desktop usa la rotellina.)
 
 API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
@@ -547,6 +549,22 @@ I momenti emergono come titoli di scena e come filtro della galleria (`GET /api/
 API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 Controllato da `viewer.features.show_scenes` (predefinito: `true`). Vedi [Configurazione — Scene](CONFIGURATION.md#scenes) per `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` e `adaptive_k`.
+
+## Pulizia degli scarti
+
+Una coda di revisione rapida per gli scarti non fotografici che si accumulano in una libreria amatoriale — screenshot, documenti scansionati, ricevute, meme e diapositive di presentazione. Il rilevamento è zero-shot sugli embedding immagine memorizzati (vedi [Configurazione — Junk Sweep](CONFIGURATION.md#junk-sweep)); esegui `python facet.py --detect-junk` (o lascia che venga eseguito automaticamente alla fine di ogni scansione) per popolare `junk_kind`.
+
+Aprila dal pulsante di navigazione **Pulizia** (la rotta `/junk`, riservata alla modifica). La pagina riutilizza la griglia della galleria e mostra ogni candidato segnalato:
+
+- **Chip di filtro per tipo** — "Tutti i tipi" più un chip per ogni tipo rilevato con il suo conteggio (da `GET /api/filter_options/junk_kinds`). Clicca per restringere la coda a un solo tipo.
+- **Conserva** (per foto) — cancella l'etichetta di scarto così la foto lascia la coda **permanentemente**: viene marcata come valutata-pulita (`not_junk`) e non viene mai più segnalata da un successivo `--detect-junk`.
+- **Rifiuta** (per foto) — segna la foto come rifiutata usando lo stesso meccanismo di rifiuto usato ovunque altrove (nulla viene eliminato dal disco).
+- **Rifiuta tutto** — un rifiuto in blocco di tutti i candidati attualmente caricati, dietro una finestra di conferma.
+- **Lente** — premi **`Z`** (o l'interruttore nella barra degli strumenti) per una lente d'ingrandimento al passaggio del mouse in stile Photo Mechanic, per leggere il testo fine prima di decidere.
+
+Le foto scarto **non** vengono nascoste dalla galleria normale — restano visibili finché non le filtri. Filtra qualsiasi vista della galleria con `?junk_kind=<tipo>` (esatto) o `?junk_kind=any` (qualsiasi scarto, esclude la sentinella `not_junk`).
+
+Controllato da `viewer.features.show_junk_sweep` (predefinito: `true`).
 
 ## Modalità di confronto a coppie
 
@@ -1000,6 +1018,8 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | `POST /api/culling/auto` | `[Edition]` Selezione automatica con un solo pulsante per un intero ambito. Corpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (predefinito `true`) restituisce l'anteprima di conservazione/scarto per gruppo, l'applicazione scarta il resto e registra le coppie di selezione |
 | `POST /api/culling-group/faces` | Badge per volto (occhi aperti/chiusi, espressione, confidenza) per un gruppo, in un'unica chiamata batch |
 | `GET /api/scenes` | Scene cronologiche delle foto guida delle raffiche (consultazione in sola lettura) |
+| `GET /api/filter_options/junk_kinds` | Tipi di scarto rilevati con conteggio (esclude la sentinella `not_junk`) per i chip di Pulizia degli scarti |
+| `POST /api/photo/clear_junk` | `[Edition]` Conserva un candidato scarto — riporta il suo `junk_kind` a `not_junk` così lascia la coda permanentemente. Corpo `{photo_path}` |
 
 ### Scansione
 

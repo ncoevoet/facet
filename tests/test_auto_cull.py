@@ -522,3 +522,54 @@ class TestConfigDefaults:
 def test_invalid_body_rejected(edition_client, field, value):
     resp = edition_client.post("/api/culling/auto", json={field: value})
     assert resp.status_code == 422
+
+
+class TestCullProfiles:
+    """Genre-aware profiles feed strictness + keeper budget into the split,
+    with the explicit body always winning over the profile."""
+
+    def test_profile_supplies_strictness_and_keep_min(self, edition_client):
+        conn = _db()
+        with mock.patch(
+            "api.routers.burst_culling._resolve_cull_profile",
+            return_value={"strictness": 100, "keep_min_per_group": 2},
+        ):
+            resp, _ = _post(edition_client, conn, {"group_by": "burst", "profile": "wedding"})
+        preview = {p["group_id"]: p for p in resp.json()["preview"]}
+        # strictness 100 keeps only the best, keep_min 2 floors each group to two.
+        assert preview[1]["keep_paths"] == ["/g1a.jpg", "/g1b.jpg"]
+        assert preview[2]["keep_paths"] == ["/g2a.jpg", "/g2b.jpg"]
+
+    def test_explicit_body_overrides_profile(self, edition_client):
+        conn = _db()
+        with mock.patch(
+            "api.routers.burst_culling._resolve_cull_profile",
+            return_value={"strictness": 100, "keep_min_per_group": 3},
+        ):
+            resp, _ = _post(edition_client, conn, {
+                "group_by": "burst", "profile": "wedding",
+                "strictness": 0, "min_keep_per_group": 1,
+            })
+        preview = {p["group_id"]: p for p in resp.json()["preview"]}
+        # explicit 0/1 win over the profile's 100/3: margin 5 keeps a+b, rejects c.
+        assert preview[1]["keep_paths"] == ["/g1a.jpg", "/g1b.jpg"]
+        assert preview[1]["reject_paths"] == ["/g1c.jpg"]
+
+    def test_unknown_profile_falls_back_to_config_default(self, edition_client):
+        conn = _db()
+        resp, _ = _post(edition_client, conn, {"group_by": "burst", "profile": "does-not-exist"})
+        body = resp.json()
+        # An unresolved profile behaves exactly like no profile (config default 50).
+        assert body["kept"] == 4 and body["rejected"] == 1
+
+
+class TestProfileEndpoints:
+    def test_list_returns_the_shipped_presets(self, edition_client):
+        conn = _db()
+        with mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)):
+            resp = edition_client.get("/api/culling/profiles")
+        assert resp.status_code == 200
+        body = resp.json()
+        ids = {p["id"] for p in body["profiles"]}
+        assert {"balanced", "wedding", "sports", "concert", "wildlife"} <= ids
+        assert body["default"] == "balanced"

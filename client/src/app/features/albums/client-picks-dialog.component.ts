@@ -8,7 +8,9 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
 import { SceneDatePipe } from '../scenes/scenes.pipes';
+import { basename, copyLines } from '../../shared/utils/clipboard';
 import { I18N } from '../../core/i18n/keys';
 
 export interface ClientPicksDialogData {
@@ -34,7 +36,7 @@ interface ClientPicksResponse {
   standalone: true,
   imports: [
     MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
-    TranslatePipe, SceneDatePipe,
+    TranslatePipe, PluralKeyPipe, SceneDatePipe,
   ],
   template: `
     <h2 mat-dialog-title class="truncate">{{ I18N.proofing.client_picks | translate }} — {{ data.albumName }}</h2>
@@ -46,7 +48,7 @@ interface ClientPicksResponse {
       } @else if (picks().length === 0) {
         <p class="opacity-60 py-4">{{ I18N.proofing.no_picks | translate }}</p>
       } @else {
-        <p class="text-sm opacity-70 mb-2">{{ I18N.proofing.picks_count | translate:{ count: pickedCount() } }}</p>
+        <p class="text-sm opacity-70 mb-2">{{ pickedCount() | pluralKey:I18N.proofing.picks_count:I18N.proofing.picks_count_plural | translate:{ count: pickedCount() } }}</p>
         <div class="flex flex-col divide-y divide-[var(--mat-sys-outline-variant)]">
           @for (pick of picks(); track pick.path) {
             <div class="flex items-start gap-2 py-2">
@@ -99,7 +101,7 @@ export class ClientPicksDialogComponent implements OnInit {
       );
       this.picks.set(res.picks.map(pick => ({
         ...pick,
-        filename: pick.path.split(/[\\/]/).pop() ?? pick.path,
+        filename: basename(pick.path),
       })));
     } catch {
       this.picks.set([]);
@@ -111,9 +113,8 @@ export class ClientPicksDialogComponent implements OnInit {
   protected copyFilenames(): void {
     const filenames = this.picks()
       .filter(pick => pick.picked)
-      .map(pick => pick.filename)
-      .join('\n');
-    navigator.clipboard.writeText(filenames).then(() => {
+      .map(pick => pick.filename);
+    copyLines(filenames).then(() => {
       this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
     });
   }

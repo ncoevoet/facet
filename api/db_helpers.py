@@ -174,6 +174,7 @@ PHOTO_OPTIONAL_COLS = [
     'dominant_hue', 'color_temp',
     'form_symmetry', 'form_balance', 'form_edge_entropy', 'form_fractal', 'color_harmony',
     'narrative_moment', 'narrative_moment_confidence',
+    'junk_kind',
 ]
 
 
@@ -614,6 +615,18 @@ async def attach_person_data_async(photos, conn):
 
 # --- MULTI-USER VISIBILITY & PREFERENCES ---
 
+def is_access_controlled_install():
+    """True when the deployment gates who may see photos — multi-user mode, or a
+    single-user viewer password.
+
+    A fully open single-user install (no multi-user, no viewer password) is
+    world-readable, so ownership must never deny access there. Shared by
+    ``get_visibility_clause`` and the album-access check so both honour the same
+    install-mode carve-out.
+    """
+    return is_multi_user_enabled() or bool(VIEWER_CONFIG.get('password', ''))
+
+
 def get_visibility_clause(user_id, table_alias='photos'):
     """Returns (sql_fragment, params) for photo visibility in multi-user mode.
 
@@ -625,7 +638,7 @@ def get_visibility_clause(user_id, table_alias='photos'):
         # No identified user. On a protected deployment — multi-user, or a
         # single-user viewer password — an unauthenticated request must see
         # nothing; only a fully open single-user install is world-readable.
-        if is_multi_user_enabled() or VIEWER_CONFIG.get('password', ''):
+        if is_access_controlled_install():
             return '0=1', []
         return '1=1', []
 
@@ -644,6 +657,69 @@ def get_visibility_clause(user_id, table_alias='photos'):
         params.append(prefix + '%')
 
     return f"({' OR '.join(conditions)})", params
+
+
+def person_visibility_exists(user_id, person_col):
+    """Returns (sql_fragment, params) restricting a person to those with at least
+    one face in a photo the user may see.
+
+    Empty (a no-op) outside multi-user mode, where an authenticated user already
+    sees the whole library; in multi-user mode it enforces per-directory
+    isolation on the persons/faces surface. ``person_col`` is a caller-supplied
+    column reference (e.g. ``'p.id'``), never user input.
+    """
+    if not is_multi_user_enabled():
+        return '', []
+    vis_sql, vis_params = get_visibility_clause(user_id, table_alias='pv')
+    fragment = (
+        f"EXISTS (SELECT 1 FROM faces fv JOIN photos pv ON pv.path = fv.photo_path "
+        f"WHERE fv.person_id = {person_col} AND {vis_sql})"
+    )
+    return fragment, vis_params
+
+
+def assert_faces_visible(conn, user_id, face_ids):
+    """Raise ``LookupError`` if any ``face_id`` sits on a photo the caller may not see.
+
+    A no-op outside multi-user mode, where an authenticated viewer sees the whole
+    library. In multi-user mode it enforces the same per-directory isolation as the
+    person/face read surface, so an edition user scoped to a subset of directories
+    cannot pull foreign faces into a person. Raises ``LookupError`` (mapped to 404
+    by callers) rather than 403 so it never leaks the existence of out-of-scope
+    faces, matching the unknown-face response.
+    """
+    if not face_ids or not is_multi_user_enabled():
+        return
+    face_ids = list(dict.fromkeys(face_ids))
+    vis_sql, vis_params = get_visibility_clause(user_id, table_alias='p')
+    placeholders = ",".join("?" * len(face_ids))
+    rows = conn.execute(
+        f"SELECT f.id FROM faces f JOIN photos p ON p.path = f.photo_path "
+        f"WHERE f.id IN ({placeholders}) AND {vis_sql}",
+        [*face_ids, *vis_params],
+    ).fetchall()
+    if len({row[0] for row in rows}) != len(face_ids):
+        raise LookupError("One or more face_ids not found")
+
+
+def assert_photo_visible(conn, user_id, photo_path):
+    """Raise ``LookupError`` if ``photo_path`` is outside the caller's directories.
+
+    The write-side twin of the photo-visibility precheck used by the face read
+    endpoints (``SELECT 1 FROM photos WHERE path = ? AND <visibility>``). A no-op
+    outside multi-user mode; in multi-user mode a foreign path raises
+    ``LookupError`` so callers map it to the same 404 as a nonexistent photo,
+    never leaking existence.
+    """
+    if not is_multi_user_enabled():
+        return
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    row = conn.execute(
+        f"SELECT 1 FROM photos WHERE path = ? AND {vis_sql}",
+        [photo_path, *vis_params],
+    ).fetchone()
+    if not row:
+        raise LookupError("Photo not found")
 
 
 def get_photos_from_clause(user_id=None):

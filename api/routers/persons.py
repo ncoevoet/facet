@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, require_edition, require_authenticated
 from api.config import VIEWER_CONFIG, invalidate_stats_cache
 from api.database import get_async_db, get_db
-from api.db_helpers import reassign_faces_to_person
+from api.db_helpers import assert_faces_visible, reassign_faces_to_person, person_visibility_exists
 from db import person_not_hidden_clause
 
 logger = logging.getLogger(__name__)
@@ -100,6 +100,10 @@ async def list_persons(
         else:
             where_parts.append("p.name LIKE ?")
             params.append(f"%{term}%")
+    vis_fragment, vis_params = person_visibility_exists(user.user_id if user else None, 'p.id')
+    if vis_fragment:
+        where_parts.append(vis_fragment)
+        params.extend(vis_params)
     where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
     async with get_async_db() as conn:
@@ -373,14 +377,16 @@ async def api_persons_needs_naming(
         except (TypeError, ValueError):
             min_faces = 5
 
+    vis_fragment, vis_params = person_visibility_exists(user.user_id if user else None, 'p.id')
+    extra = f" AND {vis_fragment}" if vis_fragment else ""
     async with get_async_db() as conn:
-        cur = await conn.execute("""
+        cur = await conn.execute(f"""
             SELECT p.id, p.name, p.representative_face_id, p.face_count,
                    CASE WHEN p.face_thumbnail IS NOT NULL THEN 1 ELSE 0 END as face_thumbnail
             FROM persons p
-            WHERE p.name IS NULL AND p.auto_clustered = 1 AND p.face_count >= ?
+            WHERE p.name IS NULL AND p.auto_clustered = 1 AND p.face_count >= ?{extra}
             ORDER BY p.face_count DESC, p.id
-        """, (min_faces,))
+        """, [min_faces, *vis_params])
         rows = await cur.fetchall()
         await cur.close()
 
@@ -411,6 +417,7 @@ def api_create_person(
 
             face_count = 0
             if body.face_ids:
+                assert_faces_visible(conn, user.user_id if user else None, body.face_ids)
                 result = reassign_faces_to_person(conn, person_id, body.face_ids)
                 face_count = result["face_count"]
 
@@ -443,6 +450,7 @@ def api_assign_faces_batch(
             if not target:
                 raise HTTPException(status_code=404, detail="Target person not found")
 
+            assert_faces_visible(conn, user.user_id if user else None, body.face_ids)
             result = reassign_faces_to_person(conn, person_id, body.face_ids)
             face_count = result["face_count"]
             deleted_persons = result["deleted_persons"]

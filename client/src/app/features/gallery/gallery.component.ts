@@ -36,6 +36,7 @@ import { UndoService } from '../../core/services/undo.service';
 import { AuthService } from '../../core/services/auth.service';
 import { useDesktopSignal } from '../../shared/utils/media-query';
 import { downloadAll } from '../../shared/utils/download';
+import { basename, copyLines } from '../../shared/utils/clipboard';
 import { I18nService } from '../../core/services/i18n.service';
 import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -825,10 +826,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   protected copyPaths(): void {
-    const filenames = [...this.selectedPaths()]
-      .map(p => p.split(/[\\/]/).pop() ?? p)
-      .join('\n');
-    navigator.clipboard.writeText(filenames).then(() => {
+    const filenames = [...this.selectedPaths()].map(basename);
+    copyLines(filenames).then(() => {
       this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
     });
   }

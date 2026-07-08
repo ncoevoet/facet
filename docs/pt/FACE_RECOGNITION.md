@@ -199,6 +199,73 @@ python facet.py --recompute-blinks
 
 Processa apenas fotos com rostos, sem necessidade de GPU.
 
+## Sinais de expressão por rosto (olhos abertos + sorriso)
+
+Cada linha de rosto armazena dois sinais contínuos em escala 0-10 usados pelo painel de rostos da
+seleção e pelos agregados em nível de foto: `eyes_open_score` (10 = totalmente aberto, 0 =
+totalmente fechado) e `smile_score` (5 = neutro, 10 = sorriso amplo, 0 = carranca).
+
+Dois mecanismos os produzem, na mesma escala 0-10:
+
+1. **Geometria (sempre disponível).** Derivado dos 106 pontos de referência do InsightFace
+   armazenados: o Eye Aspect Ratio para olhos abertos, a elevação dos cantos da boca para o
+   sorriso. Geometria pura, então `--recompute-face-signals` pode recalculá-los a partir dos pontos
+   de referência armazenados sem pixels e sem GPU.
+2. **Blendshapes do MediaPipe (opcional, baseado em aparência).** Durante a varredura / extração de
+   rostos, um recorte generoso de cada rosto passa pelo MediaPipe Face Landmarker, cujos blendshapes
+   no estilo ARKit (`eyeBlink*`, `mouthSmile*`, `mouthFrown*`) mapeiam para as mesmas escalas. A
+   aparência supera a geometria de pontos de referência em olhos fechados, sorrisos sutis e cabeças
+   fora de eixo, então quando um rosto é pontuado pelo MediaPipe, ele **substitui** o valor
+   geométrico. Se o MediaPipe ou seu pacote de modelo estiverem ausentes, ou o recorte do rosto for
+   pequeno demais / não detectado, o valor geométrico é mantido — o comportamento é idêntico a uma
+   instalação somente com geometria.
+
+### Instalando o MediaPipe
+
+O MediaPipe é opcional e **deve** ser instalado sem seu `opencv-contrib-python` empacotado, que
+instalaria um segundo namespace `cv2` ao lado do `opencv-python` do Facet:
+
+```bash
+pip install mediapipe==0.10.35 --no-deps
+pip install absl-py flatbuffers
+```
+
+Nunca execute um simples `pip install mediapipe`.
+
+### Pacote de modelo
+
+O pacote `face_landmarker.task` (~3,6 MiB, Apache-2.0) é baixado automaticamente no primeiro uso
+para `pretrained_models/face_landmarker.task`. Se a máquina estiver offline, baixe-o manualmente em
+`https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task`
+e coloque-o nesse caminho. Um download com falha registra um aviso uma única vez e recorre às
+pontuações geométricas.
+
+### Configuração
+
+```json
+{
+  "face_detection": {
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
+  }
+}
+```
+
+- `enabled` (padrão `true`): usa as pontuações de blendshape sempre que o MediaPipe e o pacote de
+  modelo estiverem disponíveis; caso contrário, o retorno geométrico é executado automaticamente.
+  Defina como `false` para forçar apenas geometria.
+- `min_crop_size` (padrão `192`): rostos cujo recorte com margem seja menor que este valor (px,
+  lado mais curto) recorrem à geometria em vez de ampliar um rosto minúsculo.
+
+### Recálculo
+
+`--recompute-face-signals` recalcula os sinais por rosto apenas a partir dos pontos de referência
+armazenados — é **somente geometria** e não executa o MediaPipe (nenhum pixel é lido). Para
+atualizar as pontuações baseadas em aparência, reextraia os rostos (`--extract-faces-gpu-force`)
+para que os recortes em resolução total sejam reanalisados.
+
 ## Miniaturas de rostos
 
 As miniaturas são armazenadas no banco de dados para exibição rápida.
@@ -300,6 +367,31 @@ Acesse pelo botão no cabeçalho ou por `/persons`:
 - **Ocultar** - Exclua um cluster da lista, dos filtros e das sugestões de mesclagem
 - **Excluir** - Remova o cluster de pessoa
 - **Renomear** - Clique no nome para editar diretamente
+
+### Criar uma pessoa
+
+As pessoas não vêm mais apenas do agrupamento — você pode nomear um rosto que o agrupador não
+capturou diretamente pela galeria:
+
+1. Em um cartão de foto, abra as ações de pessoa e escolha um rosto não atribuído.
+2. No seletor de pessoa, escolha **Criar nova pessoa** e digite um nome.
+3. O rosto é vinculado à nova pessoa (criada manualmente, `auto_clustered = 0`) em uma única
+   chamada.
+
+Endpoint: `POST /api/persons` (somente edição), corpo
+`{ "name": "<nome>", "face_ids": [<id>, ...] }`. O nome é obrigatório (não vazio após remover
+espaços). Rostos que já pertencem a outra pessoa são reatribuídos, e qualquer pessoa antiga que
+fique sem rostos é excluída — a mesma semântica da atribuição de rosto. No modo multiusuário, quem
+chama só pode vincular rostos de fotos dentro dos próprios diretórios (ou compartilhados); um rosto
+fora desse escopo é rejeitado como não encontrado.
+
+### Precisa de nome
+
+A página Gerenciar pessoas mostra as pessoas agrupadas automaticamente que valem a pena nomear em
+uma seção **Precisa de nome**: clusters sem nome (`name IS NULL`, `auto_clustered = 1`) com pelo
+menos `viewer.persons.needs_naming_min_faces` rostos (padrão `5`), cada um com um campo de nome em
+linha para que clusters grandes possam ser nomeados sem precisar procurá-los. Servido por
+`GET /api/persons/needs_naming?min_faces=N`.
 
 ### Página Sugestões de mesclagem
 

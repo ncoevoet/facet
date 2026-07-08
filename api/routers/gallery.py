@@ -26,7 +26,8 @@ from api.db_helpers import (
 )
 from api.top_picks import get_top_picks_score_sql, get_top_picks_threshold
 from api.types import (
-    VALID_SORT_COLS, TYPE_FILTERS, normalize_params, get_photo_types
+    VALID_SORT_COLS, TYPE_FILTERS, normalize_params, get_photo_types,
+    JUNK_ANY, JUNK_NOT_JUNK,
 )
 
 router = APIRouter(tags=["gallery"])
@@ -222,6 +223,14 @@ def _apply_text_filters(where_clauses, sql_params, params, conn):
     if params.get('narrative_moment'):
         where_clauses.append("narrative_moment = ?")
         sql_params.append(params['narrative_moment'])
+
+    if params.get('junk_kind'):
+        if params['junk_kind'] == JUNK_ANY:
+            where_clauses.append("junk_kind IS NOT NULL AND junk_kind != ?")
+            sql_params.append(JUNK_NOT_JUNK)
+        else:
+            where_clauses.append("junk_kind = ?")
+            sql_params.append(params['junk_kind'])
 
     if params.get('is_silhouette') == '1':
         where_clauses.append("is_silhouette = 1")
@@ -1188,11 +1197,22 @@ async def api_similar_photos(
         raise HTTPException(status_code=500, detail='Internal server error')
 
 
+def _social_export_presets() -> dict:
+    """Expose the configured social-export presets to the client menu."""
+    cfg = _FULL_CONFIG.get('social_export', {}) or {}
+    presets = [
+        {'key': key, 'label_key': entry.get('label_key', key), 'aspect': entry.get('aspect', '')}
+        for key, entry in (cfg.get('presets', {}) or {}).items()
+    ]
+    return {'presets': presets}
+
+
 @router.get("/api/config")
 def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Get viewer configuration for Angular client initialization."""
     from api.config import is_multi_user_enabled
     from api.auth import is_edition_enabled, is_edition_authenticated
+    from api.raw_processing import get_cull_styles
     from api.types import SORT_OPTIONS, SORT_OPTIONS_GROUPED, QUALITY_LEVELS, TYPE_LABELS
 
     features = dict(VIEWER_CONFIG.get('features', {}))
@@ -1211,6 +1231,8 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         features.setdefault('show_folders', True)
         features.setdefault('show_my_taste', True)
         features.setdefault('show_scenes', True)
+        features.setdefault('show_junk_sweep', True)
+        features.setdefault('show_social_export', True)
 
         # Check if albums table exists
         try:
@@ -1228,6 +1250,8 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         'display': VIEWER_CONFIG['display'],
         'features': features,
         'quality_thresholds': VIEWER_CONFIG['quality_thresholds'],
+        'social_export': _social_export_presets(),
+        'cull_styles': get_cull_styles(),
         'moment_confidence_min': VIEWER_CONFIG.get('moment_confidence_min', 0),
         'notification_duration_ms': VIEWER_CONFIG.get('notification_duration_ms', 2000),
         'translation_target_language': _FULL_CONFIG.get('translation', {}).get('target_language', ''),

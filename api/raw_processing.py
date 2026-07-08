@@ -20,6 +20,10 @@ from api.config import VIEWER_CONFIG
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_DARKTABLE_TIMEOUT_SECONDS = 120
+DEFAULT_CULL_PREVIEW_MAX_EDGE = 1440
+DEFAULT_CULL_PREVIEW_TIMEOUT_SECONDS = 60
+
 
 def _get_raw_config() -> dict:
     """Read raw_processor config at call time (survives config reloads)."""
@@ -97,6 +101,49 @@ def get_darktable_profiles() -> list[str]:
     raw_config = _get_raw_config()
     profiles = raw_config.get('darktable', {}).get('profiles', [])
     return [p['name'] for p in profiles if 'name' in p]
+
+
+def get_cull_styles() -> list[dict]:
+    """Configured cull styles (``name`` + ``label_key``) for the client capability.
+
+    Returns an empty list when the darktable-cli executable is not found, so the
+    viewer never advertises the edited-look preview when it cannot render.
+    """
+    if not is_darktable_available():
+        return []
+    styles = _get_raw_config().get('darktable', {}).get('cull_styles', [])
+    out = []
+    for entry in styles:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get('name')
+        if name:
+            out.append({'name': name, 'label_key': entry.get('label_key', name)})
+    return out
+
+
+def get_cull_style_names() -> list[str]:
+    """Raw configured cull-style names, for endpoint validation.
+
+    Not gated on binary availability: an unknown style is a 400 and an
+    unavailable binary is a 503, and the endpoint distinguishes them.
+    """
+    styles = _get_raw_config().get('darktable', {}).get('cull_styles', [])
+    return [e['name'] for e in styles if isinstance(e, dict) and e.get('name')]
+
+
+def render_cull_preview(file_path: str, style: str, max_edge: int, quality: int,
+                        timeout: int) -> bytes:
+    """Render an original through a named darktable style, bounded to ``max_edge``.
+
+    Reuses the download path's darktable-cli machinery (executable resolution,
+    UNC path handling, XMP sidecar, temp file, error mapping) via a synthetic
+    single-style profile. Raises ``RuntimeError`` on CLI failure or a missing
+    binary, and ``subprocess.TimeoutExpired`` when the render exceeds ``timeout``.
+    """
+    dt_config = _get_raw_config().get('darktable', {})
+    profile = {'style': style, 'width': max_edge, 'height': max_edge, 'hq': True}
+    return _convert_darktable(file_path, quality, dt_config, profile, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -189,12 +236,16 @@ def _darktable_path(path: str) -> str:
 def _build_darktable_cmd(resolved, dt_input, xmp_arg, dt_output, quality, profile):
     """Assemble the darktable-cli argument list for a profile (pure, no I/O).
 
-    Positional args are ``<input> <xmp> <output>`` (``xmp`` may be ``''``); the
-    rest are profile flags: ``--hq``, ``--width``/``--height``, ``extra_args``,
-    an optional ``--style`` and ``--apply-custom-presets false``, then JPEG
-    quality via the core conf.
+    Positional args are ``<input> [<xmp>] <output>``; an empty ``xmp_arg`` is
+    omitted entirely (darktable-cli rejects an empty XMP positional with
+    "can't open XMP file"). The rest are profile flags: ``--hq``,
+    ``--width``/``--height``, ``extra_args``, an optional ``--style`` and
+    ``--apply-custom-presets false``, then JPEG quality via the core conf.
     """
-    cmd: list[str] = [resolved, dt_input, xmp_arg, dt_output]
+    cmd: list[str] = [resolved, dt_input]
+    if xmp_arg:
+        cmd.append(xmp_arg)
+    cmd.append(dt_output)
 
     if profile.get('hq', True):
         cmd.extend(['--hq', 'true'])
@@ -225,7 +276,8 @@ def _build_darktable_cmd(resolved, dt_input, xmp_arg, dt_output, quality, profil
     return cmd
 
 
-def _convert_darktable(file_path: str, quality: int, dt_config: dict, profile: dict) -> bytes:
+def _convert_darktable(file_path: str, quality: int, dt_config: dict, profile: dict,
+                       timeout: int = DEFAULT_DARKTABLE_TIMEOUT_SECONDS) -> bytes:
     """Convert via darktable-cli using profile-specific settings."""
     executable = dt_config.get('executable', 'darktable-cli')
 
@@ -254,7 +306,7 @@ def _convert_darktable(file_path: str, quality: int, dt_config: dict, profile: d
             cmd,
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=timeout,
         )
 
         if result.returncode != 0:
@@ -273,7 +325,8 @@ def _convert_darktable(file_path: str, quality: int, dt_config: dict, profile: d
             os.unlink(tmp_output)
 
 
-async def _convert_darktable_async(file_path: str, quality: int, dt_config: dict, profile: dict) -> bytes:
+async def _convert_darktable_async(file_path: str, quality: int, dt_config: dict, profile: dict,
+                                   timeout: int = DEFAULT_DARKTABLE_TIMEOUT_SECONDS) -> bytes:
     """Async version of _convert_darktable.
 
     Uses ``asyncio.to_thread`` to run the blocking darktable-cli subprocess
@@ -281,4 +334,4 @@ async def _convert_darktable_async(file_path: str, quality: int, dt_config: dict
     ``asyncio.create_subprocess_exec`` on Windows when the event loop is not
     a ``ProactorEventLoop``.
     """
-    return await asyncio.to_thread(_convert_darktable, file_path, quality, dt_config, profile)
+    return await asyncio.to_thread(_convert_darktable, file_path, quality, dt_config, profile, timeout)

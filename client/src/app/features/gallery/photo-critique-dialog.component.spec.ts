@@ -1,7 +1,11 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { I18nService } from '../../core/services/i18n.service';
-import { MismatchReasonPipe } from './photo-critique-dialog.component';
+import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
+import { MismatchReasonPipe, PhotoCritiqueDialogComponent } from './photo-critique-dialog.component';
 
 describe('MismatchReasonPipe', () => {
   let pipe: MismatchReasonPipe;
@@ -96,5 +100,33 @@ describe('MismatchReasonPipe', () => {
         actual: '0',
       });
     });
+  });
+});
+
+describe('PhotoCritiqueDialogComponent overlay error handling', () => {
+  it('reverts the overlay toggle and notifies when the overlay image fails to load', () => {
+    const mockApi = { get: vi.fn() };
+    const mockAuth = { hasFeature: vi.fn(() => true) };
+    const mockI18n = { t: vi.fn((key: string) => key), locale: vi.fn(() => 'en') };
+    const mockSnack = { open: vi.fn() };
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        PhotoCritiqueDialogComponent,
+        { provide: ApiService, useValue: mockApi },
+        { provide: AuthService, useValue: mockAuth },
+        { provide: I18nService, useValue: mockI18n },
+        { provide: MatSnackBar, useValue: mockSnack },
+        { provide: MAT_DIALOG_DATA, useValue: { photoPath: '/p/x.jpg', vlmAvailable: false } },
+      ],
+    });
+    const component: any = TestBed.inject(PhotoCritiqueDialogComponent);
+    component.overlayOn.set(true);
+
+    component.onOverlayError();
+
+    expect(component.overlayOn()).toBe(false);
+    expect(mockSnack.open).toHaveBeenCalled();
   });
 });

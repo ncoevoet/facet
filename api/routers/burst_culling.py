@@ -6,6 +6,7 @@ Uses precomputed burst_group_id from the database (populated by --recompute-burs
 Groups marked as burst_reviewed=1 are skipped so confirmed decisions persist.
 """
 
+import asyncio
 import logging
 import random
 import sqlite3
@@ -19,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_db
+from api.subject_bbox import parse_subject_bbox
 from api.db_helpers import (
     get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
     trigger_auto_retrain, set_photos_rejected, album_filter_clause, time_window_clauses,
@@ -66,6 +68,11 @@ class CullingConfirmBody(BaseModel):
 
 class CullingFacesBody(BaseModel):
     paths: list[str]
+    profile: Optional[str] = None
+
+
+class CullingSubjectsBody(BaseModel):
+    paths: list[str]
 
 
 class AutoCullBody(BaseModel):
@@ -74,9 +81,10 @@ class AutoCullBody(BaseModel):
     date_from: Optional[str] = None
     date_to: Optional[str] = None
     strictness: Optional[int] = Field(None, ge=0, le=100)
-    min_keep_per_group: int = Field(1, ge=1)
+    min_keep_per_group: Optional[int] = Field(None, ge=1)
     highlights_album: str = ''
     dry_run: bool = True
+    profile: Optional[str] = None
 
 
 # --- Helpers ---
@@ -125,20 +133,49 @@ def _compute_burst_score(photo):
     return score
 
 
-def _get_face_thresholds():
+def _get_face_thresholds(profile=None):
     """Culling face-signal cutoffs from scoring_config face_detection.
 
     Returns (eyes_closed_max, poor_expression_min): eyes_open_score (0-10)
     at/below the former counts as closed, expression/smile (0-10) below the
     latter counts as poor. Exposed to the client via the /culling-group/faces
-    ``thresholds`` object so both sides read one source.
+    ``thresholds`` object so both sides read one source. A named ``profile``
+    (genre preset) overrides the global face_detection cutoffs so the darkroom
+    badges/blink flags reflect the chosen genre (wedding is stricter on eyes,
+    sports/wildlife relax them).
     """
     from api.config import _FULL_CONFIG
     fd = _FULL_CONFIG.get('face_detection', {})
+    eyes_closed_max = float(fd.get('eyes_closed_max', 4.0))
+    poor_expression_min = float(fd.get('poor_expression_min', 4.0))
+    prof = _resolve_cull_profile(profile)
+    if prof:
+        eyes_closed_max = float(prof.get('eyes_closed_max', eyes_closed_max))
+        poor_expression_min = float(prof.get('poor_expression_min', poor_expression_min))
+    return (eyes_closed_max, poor_expression_min)
+
+
+def _get_cull_profiles():
+    """Genre-aware culling presets from scoring_config ``cull_profiles``.
+
+    Returns ``(profiles, default)``: ``profiles`` maps a profile id to its knob
+    bundle (strictness / keeper budget / face cutoffs / similarity threshold),
+    ``default`` names the fallback profile.
+    """
+    from api.config import _FULL_CONFIG
+    cp = _FULL_CONFIG.get('cull_profiles', {}) or {}
     return (
-        float(fd.get('eyes_closed_max', 4.0)),
-        float(fd.get('poor_expression_min', 4.0)),
+        cp.get('profiles', {}) or {},
+        cp.get('default', ''),
     )
+
+
+def _resolve_cull_profile(name):
+    """Return the profile knob bundle for ``name``, or None if unknown/empty."""
+    if not name:
+        return None
+    profiles, _ = _get_cull_profiles()
+    return profiles.get(name)
 
 
 # Thresholds for deriving a plain-language cull reason from already-loaded
@@ -954,19 +991,14 @@ async def api_culling_group_faces(
     ``thresholds``. Replaces the per-photo ``/api/photo/faces`` fan-out so the
     culling lightbox can show true per-face badges.
     """
-    eyes_closed_max, poor_expression_min = _get_face_thresholds()
+    eyes_closed_max, poor_expression_min = _get_face_thresholds(body.profile)
     thresholds = {'eyes_closed_max': eyes_closed_max, 'poor_expression_min': poor_expression_min}
     paths = [p for p in (body.paths or []) if p]
     if not paths:
         return {'faces_by_path': {}, 'thresholds': thresholds}
 
-    import numpy as np
-
-    from analyzers import FaceAnalyzer
-
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
-    faces_by_path: dict[str, list] = {p: [] for p in paths}
     placeholders = ",".join("?" * len(paths))
     with get_db() as conn:
         rows = conn.execute(
@@ -978,35 +1010,172 @@ async def api_culling_group_faces(
             paths + vis_params,
         ).fetchall()
 
-    for row in rows:
-        eyes = row['eyes_open_score']
-        smile = row['smile_score']
-        expr = None
-        blob = row['landmark_2d_106']
-        if blob is not None:
-            try:
-                landmarks = np.frombuffer(blob, dtype=np.float32).reshape(106, 2)
-            except (ValueError, TypeError):
-                landmarks = None
-            if landmarks is not None:
-                expr = FaceAnalyzer.compute_expression_score(landmarks)
-                if eyes is None:
-                    eyes = FaceAnalyzer.compute_eyes_open_score(landmarks)
-                if smile is None:
-                    smile = FaceAnalyzer.compute_smile_score(landmarks)
-        faces_by_path[row['photo_path']].append({
-            'id': row['id'],
-            'face_index': row['face_index'],
-            'bbox_x1': row['bbox_x1'], 'bbox_y1': row['bbox_y1'],
-            'bbox_x2': row['bbox_x2'], 'bbox_y2': row['bbox_y2'],
-            'confidence': row['confidence'],
-            'eyes_open_score': eyes,
-            'smile_score': smile,
-            'expression_score': expr,
-            'is_blink': eyes is not None and eyes <= eyes_closed_max,
-        })
+    row_data = [
+        (r['photo_path'], r['id'], r['face_index'],
+         r['bbox_x1'], r['bbox_y1'], r['bbox_x2'], r['bbox_y2'],
+         r['confidence'], r['landmark_2d_106'],
+         r['eyes_open_score'], r['smile_score'])
+        for r in rows
+    ]
 
+    def _build_faces():
+        import numpy as np
+
+        from analyzers import FaceAnalyzer
+
+        faces_by_path: dict[str, list] = {p: [] for p in paths}
+        for (photo_path, face_id, face_index, bbox_x1, bbox_y1, bbox_x2, bbox_y2,
+             confidence, blob, eyes, smile) in row_data:
+            expr = None
+            if blob is not None:
+                try:
+                    landmarks = np.frombuffer(blob, dtype=np.float32).reshape(106, 2)
+                except (ValueError, TypeError):
+                    landmarks = None
+                if landmarks is not None:
+                    expr = FaceAnalyzer.compute_expression_score(landmarks)
+                    if eyes is None:
+                        eyes = FaceAnalyzer.compute_eyes_open_score(landmarks)
+                    if smile is None:
+                        smile = FaceAnalyzer.compute_smile_score(landmarks)
+            faces_by_path[photo_path].append({
+                'id': face_id,
+                'face_index': face_index,
+                'bbox_x1': bbox_x1, 'bbox_y1': bbox_y1,
+                'bbox_x2': bbox_x2, 'bbox_y2': bbox_y2,
+                'confidence': confidence,
+                'eyes_open_score': eyes,
+                'smile_score': smile,
+                'expression_score': expr,
+                'is_blink': eyes is not None and eyes <= eyes_closed_max,
+            })
+        return faces_by_path
+
+    faces_by_path = await asyncio.to_thread(_build_faces)
     return {'faces_by_path': faces_by_path, 'thresholds': thresholds}
+
+
+# Subject close-up strip: crop each photo's stored thumbnail to its persisted
+# BiRefNet subject box so a burst/similar group of non-face subjects (wildlife,
+# macro, products) can be compared at close-up. Pure read-only; no model runs.
+_SUBJECT_CROP_MARGIN = 0.06          # bbox expansion each side before cropping
+_SUBJECT_CROP_OUTPUT = 256           # longest-edge px of every crop (uniform scale)
+_SUBJECT_CROP_QUALITY = 80
+
+
+def _subject_crop_and_sharpness(thumbnail_bytes, bbox):
+    """Crop a stored thumbnail to ``bbox`` (+ margin), return (data-URI, laplacian var).
+
+    The crop's longest edge is bounded to ``_SUBJECT_CROP_OUTPUT`` so a group's
+    crops compare at a common scale; ``crop_sharpness`` is the Laplacian variance
+    of that bounded crop (CPU, cv2). Returns ``(None, None)`` on any failure.
+    """
+    import base64
+    from io import BytesIO
+
+    import cv2
+    import numpy as np
+    from PIL import Image
+
+    try:
+        img = Image.open(BytesIO(thumbnail_bytes)).convert('RGB')
+    except (OSError, ValueError):
+        return None, None
+    w, h = img.size
+    x0, y0, x1, y1 = bbox
+    mx = (x1 - x0) * _SUBJECT_CROP_MARGIN
+    my = (y1 - y0) * _SUBJECT_CROP_MARGIN
+    px0 = int(max(0.0, x0 - mx) * w)
+    py0 = int(max(0.0, y0 - my) * h)
+    px1 = int(min(1.0, x1 + mx) * w)
+    py1 = int(min(1.0, y1 + my) * h)
+    if px1 <= px0 or py1 <= py0:
+        return None, None
+    crop = img.crop((px0, py0, px1, py1))
+    if max(crop.size) > _SUBJECT_CROP_OUTPUT:
+        crop.thumbnail((_SUBJECT_CROP_OUTPUT, _SUBJECT_CROP_OUTPUT), Image.LANCZOS)
+    gray = cv2.cvtColor(np.asarray(crop), cv2.COLOR_RGB2GRAY)
+    sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    buf = BytesIO()
+    crop.save(buf, format='JPEG', quality=_SUBJECT_CROP_QUALITY)
+    encoded = base64.b64encode(buf.getvalue()).decode('ascii')
+    return f"data:image/jpeg;base64,{encoded}", round(sharpness, 2)
+
+
+@router.post("/api/culling-group/subjects")
+async def api_culling_group_subjects(
+    body: CullingSubjectsBody,
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Per-subject close-up crops for every photo in a culling group, in one call.
+
+    Returns ``{subjects_by_path: {path: {path, has_subject, crop,
+    subject_sharpness, subject_prominence, crop_sharpness, crop_sharpness_score}}}``.
+    Each crop is the stored 640px thumbnail cut to the persisted BiRefNet subject
+    box (``photos.subject_bbox``) with a small margin — the non-face analogue of
+    ``/api/culling-group/faces`` so bursts/similar groups of wildlife/macro/product
+    subjects can be compared at close-up. No model runs at request time: photos
+    with no persisted box (``subject_bbox`` NULL, or a near-full-frame box) return
+    ``has_subject: false`` rather than a faked center crop. ``crop_sharpness`` is
+    the Laplacian variance of the crop; ``crop_sharpness_score`` re-scales it to
+    0..10 within the group so the sharpest frame reads 10.
+    """
+    paths = [p for p in (body.paths or []) if p]
+    if not paths:
+        return {'subjects_by_path': {}}
+
+    user_id = user.user_id if user else None
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    placeholders = ",".join("?" * len(paths))
+    with get_db() as conn:
+        rows = conn.execute(
+            f"SELECT path, thumbnail, subject_bbox, subject_sharpness, subject_prominence "
+            f"FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
+            paths + vis_params,
+        ).fetchall()
+
+    row_data = [
+        (row['path'], row['thumbnail'], row['subject_bbox'],
+         row['subject_sharpness'], row['subject_prominence'])
+        for row in rows
+    ]
+
+    def _build_subjects():
+        subjects_by_path = {
+            p: {
+                'path': p, 'has_subject': False, 'crop': None,
+                'subject_sharpness': None, 'subject_prominence': None,
+                'crop_sharpness': None, 'crop_sharpness_score': None,
+            }
+            for p in paths
+        }
+        for path, thumbnail, subject_bbox, subject_sharpness, subject_prominence in row_data:
+            entry = subjects_by_path[path]
+            entry['subject_sharpness'] = subject_sharpness
+            entry['subject_prominence'] = subject_prominence
+            bbox = parse_subject_bbox(subject_bbox)
+            if bbox is None or thumbnail is None:
+                continue
+            crop, crop_sharpness = _subject_crop_and_sharpness(thumbnail, bbox)
+            if crop is None:
+                continue
+            entry['has_subject'] = True
+            entry['crop'] = crop
+            entry['crop_sharpness'] = crop_sharpness
+
+        sharps = [
+            e['crop_sharpness'] for e in subjects_by_path.values()
+            if e['has_subject'] and e['crop_sharpness'] is not None
+        ]
+        max_sharp = max(sharps) if sharps else 0.0
+        if max_sharp > 0:
+            for e in subjects_by_path.values():
+                if e['has_subject'] and e['crop_sharpness'] is not None:
+                    e['crop_sharpness_score'] = round(10.0 * e['crop_sharpness'] / max_sharp, 2)
+        return subjects_by_path
+
+    subjects_by_path = await asyncio.to_thread(_build_subjects)
+    return {'subjects_by_path': subjects_by_path}
 
 
 @router.get("/api/culling-groups")
@@ -1281,6 +1450,27 @@ def _fill_highlights_album(conn, user_id, album_name, paths):
     return append_album_photos(conn, album_id, paths)
 
 
+@router.get("/api/culling/profiles")
+def list_cull_profiles(user: Optional[CurrentUser] = Depends(get_optional_user)):
+    """Genre-aware culling presets for the darkroom toolbar.
+
+    Returns the ordered profile list (each with its strictness, keeper budget,
+    face cutoffs and similarity threshold) plus the default id, so the client can
+    render the preset selector and apply a whole bundle in one click. Read-only.
+    """
+    profiles, default = _get_cull_profiles()
+    items = [{
+        'id': pid,
+        'label_key': p.get('label_key', ''),
+        'strictness': p.get('strictness'),
+        'eyes_closed_max': p.get('eyes_closed_max'),
+        'poor_expression_min': p.get('poor_expression_min'),
+        'keep_min_per_group': p.get('keep_min_per_group', 1),
+        'similarity_threshold': p.get('similarity_threshold'),
+    } for pid, p in profiles.items()]
+    return {'profiles': items, 'default': default}
+
+
 @router.post("/api/culling/auto")
 def auto_cull(
     body: AutoCullBody,
@@ -1306,7 +1496,19 @@ def auto_cull(
     threadpool instead of stalling the event loop (like GET /api/burst-groups).
     """
     cfg = _get_auto_cull_config()
-    strictness = body.strictness if body.strictness is not None else cfg['default_strictness']
+    prof = _resolve_cull_profile(body.profile)
+    if body.strictness is not None:
+        strictness = body.strictness
+    elif prof and prof.get('strictness') is not None:
+        strictness = int(prof['strictness'])
+    else:
+        strictness = cfg['default_strictness']
+    if body.min_keep_per_group is not None:
+        min_keep = body.min_keep_per_group
+    elif prof and prof.get('keep_min_per_group') is not None:
+        min_keep = max(1, int(prof['keep_min_per_group']))
+    else:
+        min_keep = 1
     with get_db() as conn:
         try:
             user_id = user.user_id if user else None
@@ -1334,7 +1536,7 @@ def auto_cull(
                 if len(photos) < 2:
                     continue
                 keep, reject = _auto_keep_split(
-                    photos, strictness, body.min_keep_per_group,
+                    photos, strictness, min_keep,
                 )
                 keep_paths = [p['path'] for p in keep]
                 reject_paths = [p['path'] for p in reject]

@@ -151,7 +151,10 @@ def test_album_scope_denies_non_owner():
     conn = _db()
     conn.execute("INSERT INTO albums (id, user_id) VALUES (2, 'userB')")
     conn.commit()
-    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+    with (
+        mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])),
+        mock.patch("api.db_helpers.is_multi_user_enabled", return_value=True),
+    ):
         with pytest.raises(HTTPException) as ei:
             compute_scenes(conn, user_id="userA", album_id=2)
     assert ei.value.status_code == 403

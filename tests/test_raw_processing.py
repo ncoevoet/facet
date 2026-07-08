@@ -53,3 +53,10 @@ class TestBuildDarktableCmd:
 
     def test_hq_default_true(self):
         assert _flag_value(_cmd({}), "--hq") == "true"
+
+    def test_empty_xmp_positional_omitted(self):
+        # darktable-cli rejects an empty XMP positional ("can't open XMP file"),
+        # so an absent sidecar must drop the positional, not pass "".
+        cmd = _build_darktable_cmd("/usr/bin/darktable-cli", "in.cr2", "", "out.jpg", 96, {})
+        assert cmd[:3] == ["/usr/bin/darktable-cli", "in.cr2", "out.jpg"]
+        assert "" not in cmd

@@ -48,6 +48,39 @@ def _photos_upsert(insert_sql):
     base = _re.sub(r'INSERT\s+OR\s+REPLACE\s+INTO\s+photos', 'INSERT INTO photos', insert_sql, flags=_re.I)
     return f"{base}\nON CONFLICT(path) DO UPDATE SET {updates}"
 
+
+# Identity/EXIF columns inserted for a genuinely new file but never updated on
+# conflict, so a restricted pass on an existing row leaves them (and scanned_at,
+# thumbnail) alone.
+_PARTIAL_CORE_COLUMNS = (
+    'path', 'filename', 'image_width', 'image_height', 'date_taken',
+    'camera_model', 'lens_model', 'iso', 'f_stop', 'shutter_speed',
+    'focal_length', 'focal_length_35mm', 'gps_latitude', 'gps_longitude',
+    'phash', 'config_version', 'thumbnail',
+)
+
+
+@functools.lru_cache(maxsize=64)
+def _photos_partial_upsert(computed_columns):
+    """Build a partial UPSERT that writes ONLY the columns a restricted pass computed.
+
+    A ``--pass X`` / ``--recompute-*`` backfill runs one model, so only its
+    columns should change. New identity/EXIF, ``thumbnail`` and ``scanned_at``
+    are inserted for a genuinely new file but excluded from the conflict update,
+    so an existing row keeps everything the pass did not touch — no reset of
+    ``scanned_at`` (``--force-since`` reads it), no thumbnail re-encode, no NULLing
+    of another pass's data.
+    """
+    insert_cols = list(_PARTIAL_CORE_COLUMNS) + list(computed_columns)
+    placeholders = [f":{c}" for c in insert_cols] + ["datetime('now')"]
+    all_cols = insert_cols + ['scanned_at']
+    updates = ', '.join(f"{c}=excluded.{c}" for c in computed_columns)
+    return (
+        f"INSERT INTO photos ({', '.join(all_cols)}) "
+        f"VALUES ({', '.join(placeholders)}) "
+        f"ON CONFLICT(path) DO UPDATE SET {updates}"
+    )
+
 # Optional tqdm for progress bars
 try:
     from tqdm import tqdm
@@ -72,6 +105,7 @@ logger = logging.getLogger("facet.scorer")
 from utils import (
     get_tag_params, detect_silhouette, tags_to_string, RAW_EXTENSIONS,
 )
+from utils.image_transforms import generate_photo_thumbnail
 
 # Lazy imports for image processing modules
 cv2 = None
@@ -696,6 +730,7 @@ class Facet:
             # Initialize face analyzer with config settings
             face_settings = self.config.get_face_detection_settings()
             face_proc_settings = self.config.get_face_processing_settings()
+            blendshape_settings = face_settings.get('blendshapes', {})
             self.face_analyzer = FaceAnalyzer(
                 self.device,
                 min_confidence=face_settings.get('min_confidence_percent', 70) / 100,
@@ -705,6 +740,8 @@ class Facet:
                 blink_ear_threshold=face_settings.get('blink_ear_threshold', 0.21),
                 min_faces_for_group=face_settings.get('min_faces_for_group', 4),
                 enable_3d_landmarks=face_settings.get('enable_3d_landmarks', False),
+                enable_blendshapes=blendshape_settings.get('enabled', True),
+                blendshape_min_crop=blendshape_settings.get('min_crop_size', 192),
             )
             self.tech_analyzer = TechnicalAnalyzer()
 
@@ -1777,6 +1814,7 @@ class Facet:
                             (result['comp_score'], result['pattern'], batched_paths[i])
                         )
                         updated += 1
+                    conn.commit()
                     batched_paths = []
                     batched_images = []
 
@@ -1791,8 +1829,7 @@ class Facet:
                         (result['comp_score'], result['pattern'], batched_paths[i])
                     )
                     updated += 1
-
-            conn.commit()
+                conn.commit()
 
         logger.info("Updated SAMP-Net composition scores for %s photos", updated)
         if decode_failed > 0:
@@ -2094,11 +2131,7 @@ class Facet:
 
     def save_photo(self, res, pil_img):
         """Generates a thumbnail and saves the full result to SQLite."""
-        thumb = pil_img.copy()
-        thumb.thumbnail((640, 640), Image.Resampling.LANCZOS)
-        buf = BytesIO()
-        thumb.save(buf, format="JPEG", quality=80)
-        res['thumbnail'] = buf.getvalue()
+        res['thumbnail'] = generate_photo_thumbnail(pil_img)
 
         # Form facet columns default to NULL for callers that did not compute
         # them (named-param INSERT needs every key).
@@ -2180,11 +2213,7 @@ class Facet:
 
         # Phase 1: Pre-generate thumbnails (CPU work, no DB lock held)
         for res, pil_img in results_with_images:
-            thumb = pil_img.copy()
-            thumb.thumbnail((640, 640), Image.Resampling.LANCZOS)
-            buf = BytesIO()
-            thumb.save(buf, format="JPEG", quality=80)
-            res['thumbnail'] = buf.getvalue()
+            res['thumbnail'] = generate_photo_thumbnail(pil_img)
 
         # Phase 2: Collect all face records for batch insert (including thumbnails,
         # landmarks and per-face quality signals — shared upsert: see db.schema)
@@ -2205,6 +2234,7 @@ class Facet:
                 res.setdefault('qalign_score', None)
                 res.setdefault('aesthetic_v25', None)
                 res.setdefault('deqa_score', None)
+                res.setdefault('subject_bbox', None)
                 for form_col in FORM_METRIC_COLUMNS:
                     res.setdefault(form_col, None)
                 conn.execute(_photos_upsert('''
@@ -2223,7 +2253,7 @@ class Facet:
                         quality_score, topiq_score, composition_explanation, scoring_model, composition_pattern,
                         aesthetic_iaa, face_quality_iqa, liqe_score,
                         qalign_score, aesthetic_v25, deqa_score,
-                        subject_sharpness, subject_prominence, subject_placement, bg_separation,
+                        subject_sharpness, subject_prominence, subject_placement, bg_separation, subject_bbox,
                         form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
                         gps_latitude, gps_longitude, scanned_at
                     )
@@ -2242,7 +2272,7 @@ class Facet:
                         :quality_score, :topiq_score, :composition_explanation, :scoring_model, :composition_pattern,
                         :aesthetic_iaa, :face_quality_iqa, :liqe_score,
                         :qalign_score, :aesthetic_v25, :deqa_score,
-                        :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation,
+                        :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation, :subject_bbox,
                         :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
                         :gps_latitude, :gps_longitude, datetime('now')
                     )
@@ -2290,6 +2320,53 @@ class Facet:
     # ============================================
     # PARTIAL UPDATE METHODS (for multi-pass mode)
     # ============================================
+
+    def save_photos_partial(self, batch, refresh_faces):
+        """Persist a restricted single-pass chunk, updating only its own columns.
+
+        ``batch`` is a list of ``(res, pil_img, computed_columns)`` where
+        ``computed_columns`` names the DB columns the executed pass produced.
+        Only those columns are written on an existing row. A thumbnail is
+        generated only for a genuinely new file. ``refresh_faces`` gates the
+        faces delete+reinsert so a non-face pass keeps person assignments,
+        thumbnails and landmarks intact.
+        """
+        if not batch:
+            return
+
+        new_paths = self.filter_unscanned_paths([res['path'] for res, _, _ in batch])
+        for res, pil_img, _ in batch:
+            if res['path'] in new_paths:
+                res['thumbnail'] = generate_photo_thumbnail(pil_img)
+            else:
+                res['thumbnail'] = None
+
+        face_records = []
+        if refresh_faces:
+            for res, _, _ in batch:
+                for face in res.get('face_details', []):
+                    if face.get('embedding'):
+                        face_records.append(face_upsert_row(res['path'], face))
+
+        with get_connection(self.db_path, row_factory=False) as conn:
+            for res, _, computed_columns in batch:
+                conn.execute(_photos_partial_upsert(computed_columns), res)
+
+            if refresh_faces:
+                conn.executemany(
+                    "DELETE FROM faces WHERE photo_path = ?",
+                    [(res['path'],) for res, _, _ in batch],
+                )
+                if face_records:
+                    conn.executemany(FACES_UPSERT_SQL, face_records)
+
+            sync_vec_batch(conn, [
+                (res['path'], res['clip_embedding'])
+                for res, _, computed_columns in batch
+                if 'clip_embedding' in computed_columns and res.get('clip_embedding')
+            ])
+
+            conn.commit()
 
     def update_quality_scores(self, results):
         """

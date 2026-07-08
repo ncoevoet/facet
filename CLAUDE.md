@@ -46,6 +46,7 @@ Facet is a multi-dimensional photo analysis engine that examines every facet of 
 - [docs/SCORING.md](docs/SCORING.md) - Category system and weight tuning
 - [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) - Face workflow and clustering
 - [docs/VIEWER.md](docs/VIEWER.md) - Web gallery features
+- [docs/INTEROP.md](docs/INTEROP.md) - Round-tripping ratings/tags with Lightroom, Capture One, digiKam, darktable
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Production deployment (Synology NAS, Linux, Docker)
 
 ## Commands
@@ -99,6 +100,10 @@ python facet.py --immich-test            # Check Immich connectivity + API key
 # Narrative moments (zero-shot CLIP + temporal smoothing; cheap — cosine over stored embeddings)
 python facet.py --detect-moments        # Label new photos with their narrative moment (auto-runs at end of each scan)
 python facet.py --recompute-moments     # Re-label the whole library (re-smooths the full timeline)
+
+# Junk sweep (zero-shot non-photo detection: screenshots/documents/receipts/memes/slides; cosine over stored embeddings)
+python facet.py --detect-junk           # Flag junk in new/unevaluated photos (auto-runs at end of each scan)
+python facet.py --recompute-junk        # Re-evaluate junk_kind for the whole library
 python facet.py --discover-moments      # Propose a library-specific moment vocabulary (cluster caption embeddings → scoring_config.discovered.json for review)
 
 # List available models and VRAM requirements
@@ -147,7 +152,7 @@ python facet.py --generate-captions          # Generate AI captions for uncaptio
 python facet.py --extract-gps                # Extract GPS coordinates from EXIF into database
 
 # Saliency commands
-python facet.py --recompute-saliency  # Recompute subject saliency metrics (BiRefNet, GPU)
+python facet.py --recompute-saliency  # Recompute subject saliency metrics from stored thumbnails (BiRefNet, GPU; --force to redo all)
 
 # Composition commands
 python facet.py --recompute-composition-cpu  # Rule-based (CPU only, fast)
@@ -221,6 +226,8 @@ For GPU face clustering (optional): `cuml`, `cupy` (requires conda + CUDA)
 For vector search (optional): `sqlite-vec>=0.1.6` (enables KNN search in SQLite, replaces in-memory NumPy cache)
 
 For the extended IQA tier (optional, `scoring_config.json` `iqa_extended`, OFF by default): `aesthetic-predictor-v2-5` (for `aesthetic_v25`) and `bitsandbytes>=0.43.0` (for `qalign` 4-/8-bit). Install via `pip install -e .[iqa-extended]`. Q-Align ships with `pyiqa`; DeQA-Score loads via `transformers`.
+
+For appearance-based per-face eyes/smile (optional, `scoring_config.json` `face_detection.blendshapes`, ON when installed): `mediapipe==0.10.35`. MUST be installed as `pip install mediapipe==0.10.35 --no-deps` then `pip install absl-py flatbuffers` — NEVER a plain `pip install mediapipe`, whose bundled `opencv-contrib-python` would double-install the `cv2` namespace against Facet's `opencv-python`. Degrades silently to the landmark-geometry scores when absent. Model bundle `face_landmarker.task` (~3.6 MiB) auto-downloads to `pretrained_models/`. See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md).
 
 External tool: `exiftool` (command-line, optional — `exifread` fallback handles all RAW formats)
 
@@ -352,7 +359,7 @@ SQLite table `photos` with columns:
 
 **User Actions:** star_rating, is_favorite, is_rejected
 
-**AI/Content:** caption (VLM-generated text description), caption_translated, caption_embedding (BLOB; text-tower embedding of the caption — the caption-semantic moment signal), narrative_moment (zero-shot scene/activity moment, e.g. `beach`/`celebration`/`other`), narrative_moment_confidence, vlm_critique, vlm_critique_translated (VLM critique cache)
+**AI/Content:** caption (VLM-generated text description), caption_translated, caption_embedding (BLOB; text-tower embedding of the caption — the caption-semantic moment signal), narrative_moment (zero-shot scene/activity moment, e.g. `beach`/`celebration`/`other`), narrative_moment_confidence, junk_kind (zero-shot non-photo junk: `screenshot`/`document`/`receipt`/`meme`/`slide`, `not_junk` = evaluated clean, NULL = not evaluated), vlm_critique, vlm_critique_translated (VLM critique cache)
 
 **Location:** gps_latitude, gps_longitude
 
@@ -438,6 +445,8 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Saliency Overlay:** `GET /api/saliency_overlay?path=` returns a translucent BiRefNet heatmap PNG (alpha = saliency) recomputed on demand from the stored 640px thumbnail (the mask is never persisted; the model loads once via `api/model_cache.get_or_load_saliency_scorer`). `GET /api/photo/face_markers?path=` returns per-face boxes + eye centres (normalised 0..1) and `eyes_open_score`/`is_blink` reconstructed from stored 106-point landmarks (no model). Both read-only; the critique dialog's "Show overlay" toggle composites them. Gated by `viewer.features.show_saliency_overlay` (default `true`).
 
+**Saliency-Aware Social Crop:** `GET /api/photo/social_crop?path=&preset=` (edition-gated) returns the CROPPED full-resolution JPEG for a configured social aspect preset (`social_export.presets`, e.g. `square` 1:1, `portrait_4x5`, `story_9x16`), framing the detected subject — something Lightroom export presets cannot do. The crop is the largest rectangle of the target aspect that fits the image, centered on the subject, clamped at edges (deterministic pure math in `processing/social_crop.py`). Subject box fallback chain: persisted BiRefNet box `photos.subject_bbox` (JSON `[x0,y0,x1,y1]` normalized 0..1, written by the saliency pass + `--recompute-saliency`, extracted in `models/saliency_scorer.bbox_from_mask`) → union of `faces` bboxes → center crop. `GET /api/photo/social_crop/preview?path=&preset=` returns just `{preset, aspect, source: saliency|faces|center, rect}` (normalized) from stored dimensions — no original decode — for the UI overlay/tooltip. Original decode reuses `utils.image_loading.load_image_from_path` (RAW via rawpy, HEIC via pillow-heif, EXIF orientation applied). Config: `social_export` block (`presets`, `jpeg_quality`). Gated by `viewer.features.show_social_export` (default `true`). Column: `subject_bbox`.
+
 **Memories:** `GET /api/memories?date=YYYY-MM-DD` — photos taken on the same calendar date in previous years ("On This Day"). The viewer plays the matches as a randomized full-screen diaporama (slideshow) rather than the old grid modal; the nav button tooltip spells this out.
 
 **AI Captioning:** `GET /api/caption?path=<path>` — generate or retrieve AI caption for a photo. Bulk generation via `--generate-captions` CLI.
@@ -452,11 +461,13 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Capsules:** `GET /api/capsules?page=&per_page=&refresh=&date_from=&date_to=` — curated photo diaporamas grouped by theme. The page header carries an intro line explaining its purpose (curated diaporamas grouped by theme/place/people/time; click a capsule to play it). `GET /api/capsules/{id}/photos` — photos for a capsule. `POST /api/capsules/{id}/save-album` — save capsule as album. Angular route: `/capsules`. Capsule types: journey (GPS trips with reverse geocoding), faces_of, seasonal, golden, color_story, this_week, location, person_pair, seeded, progress, color_palette, rare_pair, favorites, plus dimension-based: year, month, week, camera, lens, tag, day_of_week, composition, focal_range, category, time_of_day, star_rating, and cross-dimensional combos. Slideshow supports themed transitions (crossfade, slide, zoom, kenburns) per capsule type. Cache TTL configurable via `capsules.freshness_hours` (default: 24).
 
-**Burst Culling:** `GET /api/burst-groups`, `POST /api/burst-groups/select`, `GET /api/culling-groups?group_by=all|burst|similar|scene`, `POST /api/culling-groups/confirm` — burst, similar, and scene group culling workflow. `group_by` (default `all` = merged burst+similar, unchanged for existing callers) selects the grouping; `group_by=scene` serves chronological scene groups from `compute_scenes` (the `sort` param is ignored in scene mode), each with `type:'scene'` plus `start`/`end`/`moment`/`moment_confidence`. `POST /api/culling-groups/confirm` is the unified confirm for every group type — scene culling passes `{group_id, type:'scene', paths, keep_paths}` (handled by `apply_scene_cull()` in `api/routers/scenes.py`), rejecting non-kept photos and recording `source='culling'` comparison rows. `POST /api/culling-group/faces` (body `{paths}`) returns per-face crops + metrics (`eyes_open_score`, `expression_score`, `confidence`, `is_blink`) for every photo in a group in one batch call, recomputed from stored 106-point landmarks — powers the per-face badges in the culling lightbox.
+**Burst Culling:** `GET /api/burst-groups`, `POST /api/burst-groups/select`, `GET /api/culling-groups?group_by=all|burst|similar|scene`, `POST /api/culling-groups/confirm` — burst, similar, and scene group culling workflow. `group_by` (default `all` = merged burst+similar, unchanged for existing callers) selects the grouping; `group_by=scene` serves chronological scene groups from `compute_scenes` (the `sort` param is ignored in scene mode), each with `type:'scene'` plus `start`/`end`/`moment`/`moment_confidence`. `POST /api/culling-groups/confirm` is the unified confirm for every group type — scene culling passes `{group_id, type:'scene', paths, keep_paths}` (handled by `apply_scene_cull()` in `api/routers/scenes.py`), rejecting non-kept photos and recording `source='culling'` comparison rows. `POST /api/culling-group/faces` (body `{paths}`) returns per-face crops + metrics (`eyes_open_score`, `expression_score`, `confidence`, `is_blink`) for every photo in a group in one batch call, recomputed from stored 106-point landmarks — powers the per-face badges in the culling lightbox. `GET /api/photo/cull_preview?path=&style=` (edition-gated) renders a photo's original through a configured darktable style (`--style`, bounded to `raw_processor.darktable.preview_max_edge`) so the darkroom's single view can cull on the developed look; it reuses the download path's darktable-cli machinery and disk-caches rendered JPEGs (keyed by source mtime, style, max edge) under `<db_dir>/.facet_cache/cull_previews/`. `style` is validated against `raw_processor.darktable.cull_styles` (400 otherwise); darktable-cli missing → 503, unreadable original → 404, render error/timeout → 502. The configured styles are surfaced in `GET /api/config` (`cull_styles`, only when non-empty AND the executable resolves) so the palette control hides when unavailable.
 
 **Scenes View:** `GET /api/scenes?page=&per_page=&album_id=&date_from=&date_to=` groups burst leads into chronological "scenes" by an adaptive capture-time gap (`scenes.gap_minutes` floor, widened by `adaptive_k × median`), sub-splitting any run over `scenes.max_scene_size` (cache-only, 1h TTL in `stats_cache`); optional `album_id`/`date_from`/`date_to` scope it (this read-only endpoint and `compute_scenes` are unchanged). The Scenes page (`/scenes`) is now a **read-only** browse for all authenticated users (grid + hover loupe + date/moment headers + album scope picker); its former per-photo reject grid and bulk confirm have been removed, and there is no dedicated `POST /api/scenes/confirm` — scene culling runs through the unified `POST /api/culling-groups/confirm` (see Burst Culling). The only entry to the browse is the per-album **Display scenes of this album** action (visible to all authenticated users); the Scenes entry has been removed from the main nav. An edition-only **Cull this scene** button deep-links into the culling surface in scene granularity (`/culling?group_by=scene&album=&from=&to=`), which edition users also reach via the Culling nav's granularity selector. Gated by `viewer.features.show_scenes`. When `narrative_moment` is populated (see below) each scene is named by its dominant moment and (with `scenes.split_on_moment_change`) sub-split where the moment changes.
 
 **Narrative Moments:** zero-shot layered classifier that labels each photo's scene/activity moment with a library-agnostic **general** vocabulary (e.g. `beach`, `celebration`, `cityscape`, `children`, `nature_wildlife`, `concert`, …, or `other`; `wedding` ships as an opt-in `event_type`) — something Narrative Select / AfterShoot don't do. **Caption-semantic**: each caption is encoded once with the text tower and stored in `caption_embedding`; the moment is the best **max-pooled** cosine of that caption embedding vs per-moment text prompts (`models/moment_classifier.py` L0), with the stored image embedding as the fallback when no caption (each signal has its own `other`-gate thresholds — caption cosines run ~2.4× higher). config-driven L1 face/tag priors (`priors.rules`, vocabulary-agnostic `{kind, when, boost}`; tag rules down-weighted on the caption signal via `caption_tag_scale`; per-`event_types` rule overrides) break near-ties; `models/moment_smoothing.py` L2 Viterbi (stay-heavy, no forward bias — the agnostic vocab has no canonical order) and a forward-backward posterior as the stored per-frame confidence (`narrative_moment_confidence`; neutral `0.5` for `other`); an optional, now-implemented L3 Qwen VLM tie-breaker (`vlm_tiebreak.enabled`, default off) re-classifies only low-posterior / low-margin frames on 16gb/24gb profiles during `--detect-moments` / `--recompute-moments`. Config: `narrative_moments` block (`enabled`, `default_event_type`, `pooling`, per-`event_types` prompt vocabulary, per-signal/per-backend `thresholds`, `priors`, `transitions`, `vlm_tiebreak` (`{enabled, min_confidence, min_margin}`), `caption_min_confidence`). Caption embeddings are stored once so re-labelling is a free cosine (no image decode, no per-image model pass); `--detect-moments` auto-runs at the end of every scan (encoding only new captions), the first full backfill over an existing library is a manual `--detect-moments` (GPU recommended; `--limit N` to sample), and `--recompute-moments` re-labels the whole library. Filter the gallery via `GET /api/photos?narrative_moment=` and the `GET /api/filter_options/narrative_moments` dropdown. Columns: `caption_embedding`, `narrative_moment`, `narrative_moment_confidence`. **Confidence consumers:** the stored `narrative_moment_confidence` posterior drives confidence dimming (labels render dimmed with an "(uncertain)" suffix below `viewer.moment_confidence_min`, default `0` = never dim — in the Scenes header, the Culling scene-group header, and the gallery tooltip, which also shows the confidence %), a "Moment Confidence" sort option (NULLs sink) and a `min_moment_confidence` / `max_moment_confidence` gallery range filter (a new sidebar "Moments" section), a caption gate (`narrative_moments.caption_min_confidence`, default `0` = no gate; when > 0, `--generate-captions` and the on-demand caption endpoint skip unlabelled / `other` / below-threshold photos), and is fed as an auto-normalized input feature to the personal ranker and optionally blended into capsule MMR selection via `capsules.mmr_moment_weight` (default `0.0` = unchanged). **Data-driven vocab (opt-in):** `--discover-moments` (`models/moment_discovery.py`) clusters the stored `caption_embedding` vectors (HDBSCAN), names each cluster from its captions (TF-IDF keyword + centroid-nearest captions as prompts), and writes a proposed `event_types.discovered` block to `scoring_config.discovered.json` for review — it never rewrites the active config (`--discover-min-cluster-size N` tunes granularity).
+
+**Junk Sweep:** zero-shot detector that flags non-photo "junk" (screenshots, scanned documents, receipts, memes, presentation slides) by cosine of the **stored image embedding** vs per-kind text prompts, **max-pooled** per kind (`models/junk_classifier.py`), gated by a `not_junk` contrast prompt set — a photo is only flagged when the best junk kind clears `min_confidence` AND beats the best contrast prompt by `min_margin`. No image decode, no per-image model pass (mirrors moments without the temporal smoothing). Clean photos are persisted as the `not_junk` sentinel (like moments' `other`) so `--detect-junk` scopes to genuinely unevaluated rows (`junk_kind IS NULL`) and never re-loads the whole clean library; `--detect-junk` auto-runs at the end of every scan, and `--recompute-junk` re-evaluates the whole library. Config: `junk_sweep` block (`enabled`, `prompt_template`, `pooling`, per-`kinds` prompt lists, `not_junk_prompts`, per-backend `thresholds` `{open_clip|transformers: {min_confidence, min_margin}}`). Column: `junk_kind`. The viewer's **Junk sweep** review queue (`/junk`, nav gated by `viewer.features.show_junk_sweep` + edition) reuses the gallery grid: filter chips per kind (from `GET /api/filter_options/junk_kinds`), per-photo **Keep** (`POST /api/photo/clear_junk` sets `junk_kind='not_junk'` so the photo leaves the queue permanently and is never re-flagged) / **Reject** (existing `POST /api/photos/batch_reject`), and a bulk **Reject all shown**. Filter the gallery via `GET /api/photos?junk_kind=<kind>` (exact) or `junk_kind=any` (any junk, excludes `not_junk`); the default gallery is unchanged (junk stays visible until the user filters). Gated by `viewer.features.show_junk_sweep` (default `true`).
 
 **Personal Ranker ("My Taste"):** `GET /api/ranker/status` returns the global pooled ranker's training status — `trained`, `comparison_count`, `coverage` (share of embedded photos with a `learned_score`), `cv_accuracy`, `baseline_accuracy`, `improvement_pp` — from the `stats_cache` snapshot written by `train_ranker`. Powers the "My Taste" sort confidence badge. Gated by `viewer.features.show_my_taste`.
 
@@ -470,7 +481,13 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Cull to folder:** `POST /api/cull/apply` (edition-gated) physically acts on a culling decision — `copy_keeps` (additive), `move_rejects`, or `trash_rejects` (OS-trash via optional `send2trash`, gated behind `viewer.cull.allow_trash`). `dry_run` defaults true (returns the resolved `would_copy/would_move/would_trash` lists for a preview with no I/O); destructive actions require an explicit `dry_run=false`. The op is bounded server-side to the action's reject state (per-user `is_rejected`): `copy_keeps` acts only on non-rejected photos, `move_rejects`/`trash_rejects` only on rejected ones, so a buggy client can never act outside the user's reject set — the mismatch count is returned as `excluded_by_state`. Destinations go through the same validated `viewer.export.allowed_target_dirs` + scan-dir allow-list as album export; `include_companions` (opt-in, default off — a rejected JPEG must not silently destroy its untouched companion RAW/sidecar) extends the action to the sibling RAW/XMP so a moved shot stays whole. After a real move/trash, run `database.py --cleanup-missing-photos`. `processing.xmp_export.write_metadata(..., embed_original=False)` is sidecar-only by default; embedding is opt-in (this endpoint and the `--export-sidecars --embed-originals` CLI). Keyword lists are read-merged (union), so external Lightroom/darktable keywords are preserved. The CLI `--export-sidecars` / `--import-sidecars` default to the global rating columns; pass `--user <name>` in multi-user mode to read/write that user's `user_preferences` ratings instead (keywords stay global).
 
+**Static Portfolio Export:** `POST /api/albums/{album_id}/export-portfolio` (edition-gated) renders an album into a self-contained static HTML gallery (the thumbsup/sigal use case, native — no external tool) inside a caller-provided `target_dir`. Body `{target_dir, title?, max_edge?, include_captions?}`. The generator (`processing/portfolio_export.py`, pure Python) writes `index.html` (responsive CSS-only grid + inline vanilla-JS lightbox with ZERO external/CDN references — fully offline), an `assets/` folder of sequentially-named JPEGs (no library paths leaked), and a `manifest.json` (counts + per-photo source). Each photo prefers the on-disk ORIGINAL (downscaled to `portfolio.max_edge`, EXIF orientation applied, via `utils.image_loading.load_image_from_path`) and falls back to the stored 640px thumbnail BLOB when the original is unreachable — the source is recorded per photo. `target_dir` is validated by the same `_validate_target_dir_required` allow-list (`viewer.export.allowed_target_dirs` + scan dirs) as cull/album export; album access uses the shared `_check_album_access`; albums over `portfolio.max_photos` (default 500) are refused with a 400. Generation is deterministic and idempotent (rewrites only its own files). Response `{exported, from_original, from_thumbnail, output_dir}`. Config: `portfolio` block. Gated by `viewer.features.show_portfolio_export` (default `true`). See [docs/VIEWER.md](docs/VIEWER.md).
+
 **AI Auto-cull:** `POST /api/culling/auto` (edition-gated) — one-shot cull of a scope (`group_by=all|burst|similar|scene`, optional `album_id`/date range) keeping the best photo per group within a strictness margin. `dry_run` defaults true (returns a per-group preview with no writes); optional Highlights album collects the kept picks. Config: `auto_cull` block.
+
+**Photo Frame / Kiosk:** anonymous, static-token endpoints for login-less kiosk devices (smart photo frames, Home Assistant, ImmichFrame/Immich-Kiosk). `GET /api/frame/photos?token=&count=` → `{photos: [{id, caption?, date_taken?, width, height}]}` where `id` is an opaque signed identifier (the row `rowid` signed with the server secret — **never** a filesystem path). `GET /api/frame/image/{id}?token=&max_edge=` → the photo JPEG (on-disk original downscaled to `frame.max_edge`, falling back to the stored thumbnail when unreachable; long immutable cache). `GET /api/frame/next?token=` → one random curated JPEG per call (`no-store`; the dumb-frame / HA generic-camera case). Auth: `frame.tokens` (opaque strings, compared constant-time as UTF-8 bytes) — empty list → 404 (feature disabled), missing token → 401, wrong/non-ASCII → 403. Curation excludes rejected/junk/blink, honors `min_aggregate`, optional `favorites_only` and `categories` allow-list; `count` capped at `max_count`. Score-weighted random sampling (shuffle of a top-by-score candidate pool). No client UI. Config: `frame` block. See [docs/VIEWER.md](docs/VIEWER.md#photo-frame--kiosk-endpoint).
+
+**Phone Auto-Upload (WebDAV):** a deliberately minimal WebDAV subset under `/dav` (`api/routers/webdav.py`) so phone auto-upload apps (PhotoSync et al.) push photos into an inbox directory that `facet.py --watch` then scores — the PhotoPrism mobile-sync pattern. Methods: `OPTIONS` (advertises `DAV: 1` + `Allow`), `PROPFIND` depth 0/1 (207 multistatus, minimal `xml.etree` propstat), `MKCOL` (201/405/409), `PUT` (streamed to a temp file + `os.replace`, 201 new / 204 overwrite, 413 over `upload.max_file_mb`), `MOVE` (within the share; 201/204, 403 outside), `DELETE` (204), `GET`/`HEAD` (within the share). `LOCK`/`UNLOCK` unimplemented; PROPFIND `infinity` served as depth 1. Auth: HTTP Basic against `upload.username`/`upload.password` (constant-time UTF-8 compare, `WWW-Authenticate: Basic realm="Facet upload"` on 401), never a user session/JWT. The whole tree 404s unless `upload.username`, `upload.password`, and `upload.inbox_dir` are all set. Every path is realpath-contained to `upload.inbox_dir` (traversal / absolute / symlink escape → 403). Config: `upload` block. See [docs/VIEWER.md](docs/VIEWER.md#phone-auto-upload).
 
 **Client Proofing:** `POST /api/shared/album/{id}/session` exchanges a share token (+ optional PIN) for a session; `PUT|GET /api/shared/album/{id}/picks` read/write the client's picks (share-session auth, bounded to album membership); `GET /api/albums/{id}/picks` is the owner view (edition-gated). Picks live in `album_client_picks`, isolated from owner ratings. Gated by `viewer.features.show_proofing` (default `false`).
 
@@ -516,6 +533,8 @@ For quick reference, here are the actual defaults from the config file:
 | `face_detection` | `min_faces_for_group` | `4` |
 | `face_detection` | `eyes_closed_max` | `4.0` |
 | `face_detection` | `poor_expression_min` | `4.0` |
+| `face_detection.blendshapes` | `enabled` | `true` (appearance-based eyes/smile via MediaPipe when installed; else geometry fallback) |
+| `face_detection.blendshapes` | `min_crop_size` | `192` |
 | `processing` | `load_workers` | `num_workers` (multi-pass chunk loader threads, cap 8) |
 | `processing` | `raw_decode_concurrency` | `0` (auto: 1-4 from CPU/RAM; `1` = serialized) |
 | `processing` | `raw_decode_timeout_seconds` | `120` (`0` = disabled) |
@@ -550,12 +569,19 @@ For quick reference, here are the actual defaults from the config file:
 | `viewer.features` | `show_capsules` | `true` |
 | `viewer.features` | `show_my_taste` | `true` |
 | `viewer.features` | `show_scenes` | `true` |
+| `viewer.features` | `show_junk_sweep` | `true` |
 | `viewer.features` | `show_similar_button` | `true` |
 | `viewer.features` | `show_merge_suggestions` | `true` |
 | `viewer.features` | `show_rating_controls` | `true` |
 | `viewer.features` | `show_rating_badge` | `true` |
 | `viewer.features` | `show_folders` | `true` |
+| `viewer.features` | `show_social_export` | `true` |
+| `viewer.features` | `show_portfolio_export` | `true` |
 | `viewer.features` | `show_proofing` | `false` |
+| `social_export` | `jpeg_quality` | `92` |
+| `portfolio` | `max_photos` | `500` |
+| `portfolio` | `max_edge` | `2048` |
+| `portfolio` | `jpeg_quality` | `88` |
 | `capsules` | `freshness_hours` | `24` |
 | `capsules` | `reverse_geocoding` | `true` |
 | `capsules` | `min_aggregate` | `6.0` |
@@ -579,14 +605,34 @@ For quick reference, here are the actual defaults from the config file:
 | `narrative_moments` | `vlm_tiebreak.enabled` | `false` |
 | `narrative_moments` | `vlm_tiebreak.min_confidence` | `0.0` |
 | `narrative_moments` | `caption_min_confidence` | `0` (0 = no caption gate) |
+| `junk_sweep` | `enabled` | `true` |
+| `junk_sweep` | `pooling` | `"max"` |
+| `junk_sweep` | `thresholds.open_clip` | `{min_confidence: 0.2, min_margin: 0.06}` |
+| `junk_sweep` | `thresholds.transformers` | `{min_confidence: 0.1, min_margin: 0.02}` |
+| `piaa_prior` | `enabled` | `false` (personal-ranker cold-start prior blend; validation-gated — the 2026-07-07 offline experiment failed the ship criterion, keep off; see `.claude/specs/piaa-cold-start-design.md`) |
 | `auto_cull` | `default_strictness` | `50` |
 | `auto_cull` | `highlights_min` | `8.0` |
+| `frame` | `tokens` | `[]` (empty = feature disabled → 404) |
+| `frame` | `count` | `20` |
+| `frame` | `max_count` | `100` |
+| `frame` | `min_aggregate` | `7.0` |
+| `frame` | `max_edge` | `1920` |
+| `frame` | `favorites_only` | `false` |
+| `frame` | `categories` | `[]` (empty = all) |
+| `upload` | `username` | `""` (empty = feature disabled → 404) |
+| `upload` | `password` | `""` (empty = feature disabled → 404) |
+| `upload` | `inbox_dir` | `""` (empty = feature disabled → 404) |
+| `upload` | `max_file_mb` | `500` |
 | `distortion_attributes` | `enabled` | `true` |
 | `skin_tone` | `cast_delta_threshold` | `12.0` |
 | `critique.vlm` | `max_new_tokens` | `320` |
+| `vlm_backend` | `type` | `"local"` (`local` \| `ollama` \| `openai_compatible`; remote un-gates VLM on legacy/8gb) |
 | `immich` | `url` | `""` (empty = disabled) |
 | `viewer.proofing` | `session_minutes` | `1440` |
 | `translation` | `target_language` | `"fr"` (supported: fr/de/es/it/pt) |
 | `viewer.raw_processor` | `darktable.executable` | `"darktable-cli"` |
 | `viewer.raw_processor` | `darktable.profiles` | `[]` (array of `{name, hq, width, height, extra_args}`) |
+| `viewer.raw_processor` | `darktable.cull_styles` | `[]` (array of `{name, label_key?}`; edited-look cull preview; empty = hidden) |
+| `viewer.raw_processor` | `darktable.preview_max_edge` | `1440` |
+| `viewer.raw_processor` | `darktable.preview_timeout_seconds` | `60` |
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete reference.

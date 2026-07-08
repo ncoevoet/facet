@@ -226,19 +226,33 @@ describe('AuthService', () => {
   });
 
   describe('logout()', () => {
+    // logout() fires a fire-and-forget POST to clear the HttpOnly auth cookie.
+    const flushLogout = () =>
+      httpTesting.expectOne('/api/auth/logout').flush({ ok: true });
+
+    it('should clear the server auth cookie', () => {
+      service.logout();
+      const req = httpTesting.expectOne('/api/auth/logout');
+      expect(req.request.method).toBe('POST');
+      req.flush({ ok: true });
+    });
+
     it('should remove token from localStorage', () => {
       service.logout();
+      flushLogout();
       expect(removeItemSpy).toHaveBeenCalledWith('facet_token');
     });
 
     it('should set status to null', () => {
       service.status.set(mockStatus);
       service.logout();
+      flushLogout();
       expect(service.status()).toBeNull();
     });
 
     it('should navigate to /login', () => {
       service.logout();
+      flushLogout();
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/login']);
     });
   });

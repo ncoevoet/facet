@@ -750,7 +750,11 @@ InsightFace-Einstellungen zur Gesichtserkennung.
     "min_faces_for_group": 4,
     "enable_3d_landmarks": false,
     "eyes_closed_max": 4.0,
-    "poor_expression_min": 4.0
+    "poor_expression_min": 4.0,
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
   }
 }
 ```
@@ -764,6 +768,8 @@ InsightFace-Einstellungen zur Gesichtserkennung.
 | `enable_3d_landmarks` | `false` | Optionale Überschreibung (in der ausgelieferten Datei nicht vorhanden; Code-Standard `false`). Lädt das InsightFace-Modul `landmark_3d_68` für die Extraktion der Kopfhaltung (yaw/pitch/roll). Kostet ~5MB zusätzliche ONNX-Gewichte. Derzeit nur informativ; künftige Profil-/Silhouetten-Verfeinerungen werden dies auslesen. |
 | `eyes_closed_max` | `4.0` | Augen-offen-Score pro Gesicht (0–10), bei oder unter dem die Culling-Dunkelkammer ein Gesicht als blinzelnd markiert. Steuert die roten/orangen/grünen Gesichtsringe und den Augen-Schwellenwert-Schieberegler (von einer fest codierten Konstante verschoben) |
 | `poor_expression_min` | `4.0` | Lächel-/Ausdrucks-Score pro Gesicht (0–10), unter dem die Dunkelkammer einen schwachen Ausdruck markiert. Steuert den Ausdrucks-Gesichtsring und den Schieberegler (von einer fest codierten Konstante verschoben) |
+| `blendshapes.enabled` | `true` | Verwendet erscheinungsbasierte MediaPipe-Blendshape-Scores für `eyes_open_score` / `smile_score` pro Gesicht, wenn MediaPipe und das `face_landmarker.task`-Bündel verfügbar sind; bei `true` ersetzen sie die Landmark-Geometrie-Scores, andernfalls läuft automatisch der Geometrie-Fallback. Optionale Abhängigkeit — installieren mit `pip install mediapipe==0.10.35 --no-deps` (niemals ein einfaches `pip install mediapipe`). Siehe [FACE_RECOGNITION.md](FACE_RECOGNITION.md#ausdruckssignale-pro-gesicht-augen-offen--lächeln). |
+| `blendshapes.min_crop_size` | `192` | Gesichter, deren gepolsterter Ausschnitt kleiner als dieser Wert ist (px, kürzere Seite), fallen auf den geometrischen Score zurück, statt ein winziges Gesicht hochzuskalieren |
 
 ---
 
@@ -1012,7 +1018,10 @@ Anzeige und Verhalten der Web-Galerie.
         "hq": true,
         "width": null,
         "height": null,
-        "extra_args": []
+        "extra_args": [],
+        "cull_styles": [],
+        "preview_max_edge": 1440,
+        "preview_timeout_seconds": 60
       }
     },
     "display": {
@@ -1101,6 +1110,11 @@ Anzeige und Verhalten der Web-Galerie.
 | `darktable.profiles[].style` | *(weglassen)* | Name des darktable-Stils, der beim Export angewendet wird (`--style`) |
 | `darktable.profiles[].apply_custom_presets` | `true` | Bei `false` wird `--apply-custom-presets false` übergeben, sodass nur der explizite `style` gerendert wird (keine automatisch angewandten Presets) |
 | `darktable.profiles[].extra_args` | `[]` | Zusätzliche CLI-Argumente (z. B. `["--style-overwrite"]`) |
+| `darktable.cull_styles` | `[]` | Benannte darktable-Stile, die im Aussortier-Studio als bearbeitete Vorschau angeboten werden (`GET /api/photo/cull_preview`). Leer = die Stilauswahl ist ausgeblendet. Jeder Stil **muss bereits** in der darktable-Konfiguration des Viewer-Benutzers vorhanden sein. Der Name wird unverändert an `--style` übergeben. |
+| `darktable.cull_styles[].name` | *(erforderlich)* | darktable-Stilname (an `--style` übergeben und vom Endpoint validiert) |
+| `darktable.cull_styles[].label_key` | *(name)* | Optionaler i18n-Schlüssel für die Menübeschriftung (Standard: der Stilname) |
+| `darktable.preview_max_edge` | `1440` | Maximale Kantenlänge (px) der Aussortier-Vorschau |
+| `darktable.preview_timeout_seconds` | `60` | darktable-cli-Zeitlimit pro Vorschau-Render |
 | **display** | | |
 | `tags_per_photo` | `4` | Auf Karten angezeigte Tags |
 | `card_width_px` | `168` | Kartenbreite |
@@ -1189,6 +1203,8 @@ Schalten Sie optionale Features um, um den Speicherverbrauch zu senken oder die 
 | `show_folders` | `true` | Ordnerbasiertes Durchsuchen der Fotoverzeichnisstruktur anzeigen |
 | `show_scenes` | `true` | Die Szenen-Ansicht (`/scenes`) anzeigen, die führende Serienbildfotos in chronologische Szenen für ein Culling in Erzählreihenfolge gruppiert |
 | `show_my_taste` | `true` | Die Sortierung „My Taste“ anzeigen, gestützt auf den gelernten Score des persönlichen Rankers, mit einem Konfidenz-Badge für gelernte Abdeckung / Genauigkeit |
+| `show_social_export` | `true` | Zeigt das editionsbeschränkte Menü **Social-Zuschnitt** (motivbewusste Zuschnitte für Social-Seitenverhältnisse). Siehe [Social-Export](#social-export) |
+| `show_portfolio_export` | `true` | Zeigt die editionsbeschränkte Album-Aktion **Portfolio exportieren** (eigenständige statische HTML-Galerie). Siehe [Portfolio-Export](#portfolio-export) |
 | `show_proofing` | `false` | Client-Proofing für geteilte Alben aktivieren: Ein Freigabelink (plus optionale PIN) erlaubt einem kontolosen Client, Fotos mit einem Herz zu markieren und Kommentare zu hinterlassen, die der Albumbesitzer aus einem editionsbeschränkten Dialog überprüft. Standardmäßig aus. Siehe [Client-Proofing](#client-proofing) |
 
 **Speicheroptimierung:** Wenn `show_similar_button: false` gesetzt wird, verhindert dies, dass numpy geladen wird, und reduziert so den Speicherbedarf des Viewers. Die Funktion für ähnliche Fotos berechnet die Kosinusähnlichkeit der CLIP-Embeddings, was numpy erfordert.
@@ -1591,6 +1607,37 @@ Ein-Knopf-Auto-Cull für die Culling-Dunkelkammer (`POST /api/culling/auto`, edi
 
 `dry_run` ist standardmäßig aktiv und liefert eine Behalte-/Ablehnen-Vorschau pro Gruppe; ein Anwenden zeichnet zusätzlich `source='culling'`-Vergleichszeilen auf und stößt ein automatisches Nachtrainieren an. Siehe [Web-Viewer — Auto-Cull](VIEWER.md#auto-cull).
 
+## Genre-spezifische Aussortier-Profile
+
+Genre-Vorlagen, die alle Aussortier-Regler in einem Klick bündeln: Sport behält nur das schärfste Bild einer langen Serie, Hochzeiten behalten mehr Varianten mit Priorität auf offenen Augen, Konzerte lockern die Augen-/Ausdruck-Schwellen, Tierwelt entfernt den menschlichen Gesichtsfilter ganz. Die Aussortier-Dunkelkammer zeigt eine Vorlagenauswahl.
+
+```json
+{
+  "cull_profiles": {
+    "default": "balanced",
+    "profiles": {
+      "balanced": { "label_key": "culling.profiles.balanced", "strictness": 50, "eyes_closed_max": 4.0, "poor_expression_min": 4.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
+      "wedding":  { "label_key": "culling.profiles.wedding",  "strictness": 35, "eyes_closed_max": 5.0, "poor_expression_min": 5.0, "keep_min_per_group": 2, "similarity_threshold": 90 },
+      "sports":   { "label_key": "culling.profiles.sports",   "strictness": 85, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 80 },
+      "concert":  { "label_key": "culling.profiles.concert",  "strictness": 55, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
+      "wildlife": { "label_key": "culling.profiles.wildlife", "strictness": 70, "eyes_closed_max": 0.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 82 }
+    }
+  }
+}
+```
+
+| Einstellung | Beschreibung |
+|---|---|
+| `default` | Profil-ID, wenn clientseitig keine gespeichert ist |
+| `profiles.<id>.label_key` | i18n-Pfad für den Anzeigenamen der Vorlage (`culling.profiles.*`) |
+| `profiles.<id>.strictness` | Behalte-Budget (0–100), das in die Auto-Aussortier-Marge einfließt, wenn diese Vorlage aktiv ist |
+| `profiles.<id>.eyes_closed_max` | Augen-offen-Wert (0–10), ab dem ein Gesicht als geschlossen gilt — überschreibt `face_detection.eyes_closed_max` in den Gesichts-Badges |
+| `profiles.<id>.poor_expression_min` | Ausdrucks-/Lächeln-Wert (0–10), unter dem ein Gesicht als schlecht gilt — überschreibt `face_detection.poor_expression_min` |
+| `profiles.<id>.keep_min_per_group` | Untergrenze pro Gruppe für die Behalte-Menge der Auto-Aussortierung |
+| `profiles.<id>.similarity_threshold` | Ähnlichkeits-Gruppierungsschwelle (Prozent), die bei aktiver Vorlage angewandt wird |
+
+Endpunkt (schreibgeschützt): `GET /api/culling/profiles` liefert die geordnete Vorlagenliste und den Standard. Die Auto-Aussortier-Anfrage (`POST /api/culling/auto`) und der Gesichts-Batch (`POST /api/culling-group/faces`) akzeptieren ein optionales `profile`; ein explizites `strictness`/`min_keep_per_group` in der Anfrage hat immer Vorrang vor der Vorlage.
+
 ## Scenes
 
 Einstellungen für die Szenen-Ansicht, die führende Serienbildfotos in chronologische Szenen gruppiert (aufgeteilt nach Aufnahmezeit-Lücken) für ein Culling in Erzählreihenfolge:
@@ -1671,9 +1718,184 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
 
 **Ein bibliotheksspezifisches Vokabular entdecken.** Das `general`-Set ist ein sinnvoller Standard, aber Sie können mit `python facet.py --discover-moments` ein auf *Ihre* Bibliothek zugeschnittenes Vokabular vorschlagen: Es clustert die gespeicherten `caption_embedding`-Vektoren (HDBSCAN), benennt jedes Cluster anhand seiner Bildunterschriften (ein Schlüsselwort plus die dem Zentroid am nächsten liegenden Bildunterschriften als gebrauchsfertige Prompts) und schreibt das Ergebnis als `event_types.discovered`-Block in `scoring_config.discovered.json`. Überprüfen Sie es, kopieren Sie `discovered` in `event_types` oben, setzen Sie `default_event_type` auf `discovered` und führen Sie `--recompute-moments` aus, um es zu übernehmen — die Entdeckung schlägt vor, sie überschreibt niemals die aktive Konfiguration. `--discover-min-cluster-size N` steuert die Granularität (kleiner = mehr, feinere Momente).
 
+## Social-Export
+
+Zuschneide-Vorlagen für Social-Media-Seitenverhältnisse mit Motiverkennung (`GET /api/photo/social_crop`, editionsbeschränkt). Jede Vorlage schneidet das Original in voller Auflösung auf ein Zielseitenverhältnis und rahmt es um das erkannte Motiv — das größte Rechteck dieses Seitenverhältnisses, das ins Bild passt, zentriert auf dem Motiv und an den Rändern begrenzt. Die Motivbox folgt einer Fallback-Kette: die gespeicherte BiRefNet-Motivbox (`photos.subject_bbox`) → die Vereinigung der erkannten Gesichtsboxen → ein einfacher zentrierter Zuschnitt. Siehe [Web-Viewer — Download](VIEWER.md#download).
+
+```json
+{
+  "social_export": {
+    "presets": {
+      "square":       { "label_key": "social_export.presets.square",       "aspect": "1:1" },
+      "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
+      "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
+    },
+    "jpeg_quality": 92
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `presets.<id>.label_key` | — | i18n-Punktpfad für den Anzeigenamen der Vorlage (`social_export.presets.*`) |
+| `presets.<id>.aspect` | — | Zielseitenverhältnis als `"b:h"` (z. B. `1:1`, `4:5`, `9:16`) |
+| `jpeg_quality` | `92` | JPEG-Qualität des exportierten Zuschnitts |
+
+Gesteuert durch `viewer.features.show_social_export` (Standard `true`). Die Spalte `photos.subject_bbox` wird vom Saliency-Durchlauf beim Scannen und von `--recompute-saliency` geschrieben; vor ihrer Einführung gescannte Zeilen greifen automatisch auf den Gesichts- oder zentrierten Zuschnitt zurück.
+
+## Portfolio-Export
+
+Exportieren Sie ein Album als eigenständige statische HTML-Galerie, die eine Fotografin auf jedem Webhoster ablegen kann — ohne externes Werkzeug (thumbsup/sigal) (`POST /api/albums/{album_id}/export-portfolio`, editionsbeschränkt). Das erzeugte Verzeichnis enthält `index.html` (ein responsives, rein per CSS umgesetztes Miniaturraster plus eine eingebettete Vanilla-JS-Lightbox mit **null** externen/CDN-Verweisen — vollständig offline), einen Ordner `assets/` mit fortlaufend benannten JPEGs (kein Bibliothekspfad wird preisgegeben) und eine `manifest.json`. Jedes Foto nutzt das **Original** auf der Festplatte (auf `max_edge` verkleinert), wenn es lesbar ist, und greift auf das gespeicherte 640-px-Thumbnail zurück, wenn das Original nicht erreichbar ist (offline Netzlaufwerke); die verwendete Quelle wird pro Foto im Manifest festgehalten. Die Erzeugung ist deterministisch und idempotent — ein erneuter Export überschreibt nur seine eigenen Dateien.
+
+```json
+{
+  "portfolio": {
+    "max_photos": 500,
+    "max_edge": 2048,
+    "jpeg_quality": 88
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|-------------|----------|--------------|
+| `max_photos` | `500` | Größere Alben werden mit einem 400 abgelehnt (der Export ist synchron) |
+| `max_edge` | `2048` | Obergrenze der langen Kante (px) für exportierte Originale; die Anfrage kann sie überschreiben (auf 256–8000 begrenzt) |
+| `jpeg_quality` | `88` | JPEG-Qualität der exportierten Bilder |
+
+Das `target_dir` durchläuft dieselbe Allowlist wie die Kopier-/Verschiebe-Export-Endpunkte (`viewer.export.allowed_target_dirs` plus die Scan-Verzeichnisse). Gesteuert durch `viewer.features.show_portfolio_export` (Standard `true`).
+
+## Bilderrahmen / Kiosk
+
+Liefert kuratierte „beste Aufnahmen" an anmeldungsfreie Kiosk-Geräte — smarte Bilderrahmen, Home-Assistant-Dashboards, Anzeigen im Stil von ImmichFrame / Immich-Kiosk — über drei anonyme Endpunkte mit statischem Token (`GET /api/frame/photos`, `GET /api/frame/image/{id}`, `GET /api/frame/next`). Der Zugriff erfolgt über ein langlebiges, undurchsichtiges **Rahmen-Token**; eine leere `tokens`-Liste deaktiviert die gesamte Funktion (jeder Endpunkt gibt 404 zurück). Antworten enthalten niemals Dateipfade — jede Foto wird über eine undurchsichtige signierte Kennung adressiert, die aus der `rowid` der Zeile abgeleitet ist.
+
+```json
+{
+  "frame": {
+    "tokens": [],
+    "count": 20,
+    "max_count": 100,
+    "min_aggregate": 7.0,
+    "max_edge": 1920,
+    "favorites_only": false,
+    "categories": []
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|-------------|----------|--------------|
+| `tokens` | `[]` | Undurchsichtige Rahmen-Tokens (Liste). **Leer = Funktion deaktiviert (404).** Verwenden Sie lange Zufallszeichenketten, eine pro Gerät; entfernen Sie eine, um sie zu widerrufen. Erzeugen mit `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `count` | `20` | Standardanzahl der von `/api/frame/photos` zurückgegebenen Fotos |
+| `max_count` | `100` | Harte Obergrenze für den Abfrageparameter `count` |
+| `min_aggregate` | `7.0` | Mindest-Aggregatwert, damit ein Foto kuratiert wird |
+| `max_edge` | `1920` | Obergrenze der langen Kante (px) für ausgelieferte JPEGs; der Parameter `max_edge` kann sie senken, aber nie darüber anheben |
+| `favorites_only` | `false` | Wenn `true`, werden nur favorisierte Fotos kuratiert |
+| `categories` | `[]` | Positivliste von Kategorienamen (leer = alle) |
+
+Tokens werden konstantzeitlich als UTF-8-Bytes verglichen, sodass ein fehlendes Token 401 und ein falsches oder Nicht-ASCII-Token 403 ergibt (nie 500). Die Kuratierung schließt abgelehnte, Junk- (`junk_kind`) und Blinzel-Fotos aus und wendet dann Score-Schwelle / Favoriten / Kategorien an; das zurückgegebene Set ist eine score-gewichtete Zufallsstichprobe.
+
+Ein Rahmen-Token ist keine Benutzeranmeldung: Es trägt keine `user_id` und wird gegen die gesamte Bibliothek geprüft, sodass es im [Mehrbenutzermodus](#users) die privaten `directories` jedes Benutzers ignoriert und Lesezugriff auf die Fotos aller Benutzer gewährt, nicht nur auf `shared_directories`. Geben Sie Rahmen-Token nur auf Installationen aus, bei denen jeder konfigurierte Benutzer damit einverstanden ist.
+
+## Automatischer Upload vom Telefon
+
+Ein minimaler **WebDAV**-Endpunkt unter `/dav`, damit Foto-Auto-Upload-Apps (PhotoSync u. a.) Fotos in ein **Eingangsverzeichnis** (Inbox) hochladen können, das `facet.py --watch` anschließend automatisch bewertet — das Mobil-Sync-Muster von PhotoPrism. Reine Upload-Infrastruktur: berührt niemals Benutzersitzungen oder JWTs. Der Zugriff erfolgt per HTTP Basic mit **Zugangsdaten für gemeinsam genutzte Geräte** (`username` / `password`), nicht mit einem Benutzerkonto. Der gesamte `/dav`-Baum liefert **404, solange die Funktion deaktiviert ist** — sie ist nur aktiv, wenn `username`, `password` und `inbox_dir` alle gesetzt sind. Jede Operation ist auf `inbox_dir` beschränkt (Traversal / absolute Pfade / Symlink-Ausbruch werden abgewiesen), und Uploads werden atomar auf die Festplatte geschrieben, begrenzt durch `max_file_mb`.
+
+```json
+{
+  "upload": {
+    "username": "",
+    "password": "",
+    "inbox_dir": "",
+    "max_file_mb": 500
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|-------------|----------|--------------|
+| `username` | `""` | HTTP-Basic-Benutzername (Zugangsdaten für gemeinsam genutztes Gerät). **Leer = Funktion deaktiviert (404).** |
+| `password` | `""` | HTTP-Basic-Passwort (Zugangsdaten für gemeinsam genutztes Gerät). **Leer = Funktion deaktiviert (404).** Verwenden Sie eine lange Zufallszeichenfolge. |
+| `inbox_dir` | `""` | Absoluter Pfad des Eingangsverzeichnisses. **Leer = Funktion deaktiviert (404).** Richten Sie es auf eines der gescannten Verzeichnisse (oder ein Unterverzeichnis), damit `facet.py --watch` Uploads beim Eintreffen bewertet. Wird bei Bedarf angelegt. |
+| `max_file_mb` | `500` | Größenlimit pro Datei (MB); ein Upload, der es überschreitet, bricht mit `413` ab und hinterlässt keine Teildatei. |
+
+Die Zugangsdaten werden in konstanter Zeit als UTF-8-Bytes verglichen; ein fehlender oder falscher `Authorization`-Header ergibt ein `401` mit `WWW-Authenticate: Basic realm="Facet upload"`. Implementierte Methoden: `OPTIONS`, `PROPFIND` (Tiefe 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD` (`LOCK`/`UNLOCK` sind nicht implementiert). Das PhotoSync-Rezept und ein `curl`-Schnelltest sind in der Web-Viewer-Dokumentation beschrieben.
+
+## Junk Sweep
+
+Zero-Shot-Detektor für nicht-fotografischen „Müll" — Screenshots, gescannte Dokumente, Belege, Memes, Präsentationsfolien — über das **gespeicherte Bild-Embedding** (kein Bild-Decode, kein Modelldurchlauf pro Bild; dieselbe Form wie bei narrativen Momenten, nur ohne die zeitliche Glättung). Jede Art trägt eine Liste von Text-Prompts; das Embedding des Fotos wird per Kosinus gegen jeden Prompt bewertet und pro Art **max-gepoolt**. Ein `not_junk`-Kontrast-Prompt-Set steuert die Entscheidung: Ein Foto wird nur markiert, wenn die beste Müll-Art `min_confidence` überschreitet UND den besten `not_junk`-Prompt um `min_margin` schlägt — andernfalls wird es mit der Sentinel `not_junk` gespeichert (bewertet, sauber). `NULL` bedeutet „nicht bewertet": `--detect-junk` beschriftet nur `NULL`-Zeilen (und läuft automatisch am Ende jedes Scans), während `--recompute-junk` die gesamte Bibliothek neu bewertet. Füllt `photos.junk_kind`; die **Junk-Sweep**-Review-Warteschlange des Viewers ([VIEWER.md](VIEWER.md#müll-aufräumen)) liest diese Spalte.
+
+```json
+{
+  "junk_sweep": {
+    "enabled": true,
+    "prompt_template": "{desc}",
+    "pooling": "max",
+    "thresholds": {
+      "open_clip": { "min_confidence": 0.2, "min_margin": 0.06 },
+      "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
+    },
+    "kinds": {
+      "screenshot": ["a screenshot of a phone user interface", "..."],
+      "document": ["a scanned document", "..."],
+      "receipt": ["a close-up photo of a paper receipt", "..."],
+      "meme": ["a meme with overlaid text", "..."],
+      "slide": ["a presentation slide", "..."]
+    },
+    "not_junk_prompts": ["a natural photograph", "a candid photo of people", "..."]
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `enabled` | `true` | Führt die Müllerkennung während `--detect-junk` / `--recompute-junk` und am Scan-Ende aus |
+| `prompt_template` | `"{desc}"` | Formatstring, der auf jeden Prompt angewendet wird (`{desc}` = der Prompt); standardmäßig Identität, da die Prompts vollständige Sätze sind |
+| `pooling` | `"max"` | Poolt die Kosinuswerte pro Prompt zu einem Wert pro Art, via `max` (bester einzelner Prompt, trennschärfer) oder `mean` |
+| `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Minimaler max-gepoolter Kosinus, damit die beste Müll-Art berücksichtigt wird (CLIP/`open_clip`-Kosinuswerte liegen niedriger als SigLIP/`transformers`, daher hat jedes Backend eine eigene Schwelle) |
+| `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | Wie weit die beste Müll-Art den besten `not_junk`-Kontrast-Prompt schlagen muss, bevor das Foto markiert wird |
+| `kinds` | screenshot/document/receipt/meme/slide | `{art: [Prompt-Synonyme]}`; fügen Sie Arten frei hinzu, entfernen oder benennen Sie sie um — Spalte und Viewer-Warteschlange folgen der Konfiguration |
+| `not_junk_prompts` | 8 Foto-Prompts | Kontrast-Set, das echte Fotografien beschreibt; der Filter, der echte Fotos aus der Warteschlange heraushält |
+
+## VLM Backend
+
+Wählt, wo das Vision-Language-Modell für Bildunterschriften/Tags läuft. `local` (Standard) verwendet den In-Process-transformers-Qwen-Pfad, der mit den VRAM-Profilen 16gb/24gb ausgeliefert wird — keine Änderung für bestehende Installationen. Die beiden entfernten Backends verweisen Facet auf einen externen Server, sodass Bildbeschreibung und VLM-Tagging auf den **legacy/8gb-Profilen ohne lokales VLM** funktionieren: Wenn ein entferntes Backend ausgewählt ist, hängen die VLM-Funktionen nicht mehr vom VRAM-Profil ab.
+
+```json
+{
+  "vlm_backend": {
+    "type": "local",
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "model": "qwen2.5vl:7b",
+      "timeout_seconds": 120
+    },
+    "openai_compatible": {
+      "base_url": "http://localhost:1234/v1",
+      "api_key": "",
+      "model": "qwen2.5-vl-7b",
+      "timeout_seconds": 120
+    }
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `type` | `"local"` | Backend: `local` (In-Process-transformers-Qwen), `ollama` (native Ollama-REST-API) oder `openai_compatible` (beliebiger OpenAI-Chat-Completions-Endpunkt — LM Studio, vLLM, OpenRouter) |
+| `ollama.base_url` | `"http://localhost:11434"` | Basis-URL des Ollama-Servers; das Bild wird als Base64 an `POST /api/generate` gesendet |
+| `ollama.model` | `"qwen2.5vl:7b"` | Ollama-Modell-Tag (muss ein Vision-Modell sein, das auf dem Server bereits geladen wurde) |
+| `ollama.timeout_seconds` | `120` | Timeout pro Anfrage für Ollama-Aufrufe |
+| `openai_compatible.base_url` | `"http://localhost:1234/v1"` | OpenAI-kompatible Basis-URL **einschließlich des `/v1`-Suffixes**; Anfragen gehen an `{base_url}/chat/completions`, mit dem Bild als `image_url`-Daten-URI |
+| `openai_compatible.api_key` | `""` | Bearer-Token, gesendet als `Authorization: Bearer <schlüssel>`; für schlüssellose lokale Server leer lassen |
+| `openai_compatible.model` | `"qwen2.5-vl-7b"` | An den Endpunkt übergebener Modellname |
+| `openai_compatible.timeout_seconds` | `120` | Timeout pro Anfrage für OpenAI-kompatible Aufrufe |
+
+Das gemeinsame Backend steuert die Bildbeschreibung (`--generate-captions` und den On-Demand-Endpunkt `/api/caption`), die VLM-Kritik (`/api/critique?mode=vlm`), das VLM-Re-Tagging (`--recompute-tags-vlm`) und den VLM-Tie-Breaker für narrative Momente. Ein Fehlschlag einer entfernten Anfrage wird als Fehler pro Foto protokolliert (leere Tags / keine Bildunterschrift) und lässt den Lauf nie abstürzen. Das In-Scan-Tagging verwendet weiterhin den eigenen Tagger des Profils; führen Sie `--recompute-tags-vlm` aus, um ein entferntes Backend auf eine bestehende Bibliothek anzuwenden.
+
 ## AI Critique
 
-Prompt-Konfiguration für die VLM-gestützte Kritik (16gb/24gb-Profile). Die Kritik fügt die vollständige Regelaufschlüsselung, Strafen und EXIF in einen konfigurierbaren Leiter-Prompt ein, rendert die Antwort als Observation / Assessment / Suggestions und speichert sie pro Foto in `photos.vlm_critique` (bei Bedarf übersetzt in `vlm_critique_translated`). Sie läuft gegen das gespeicherte Thumbnail, sodass RAW-Dateien korrekt kritisiert werden, statt still zu scheitern; `refresh` regeneriert.
+Prompt-Konfiguration für die VLM-gestützte Kritik (16gb/24gb-Profile). Die Kritik fügt die vollständige Regelaufschlüsselung, Strafen und EXIF in einen konfigurierbaren Leiter-Prompt ein, rendert die Antwort als Observation / Assessment / Suggestions und speichert sie pro Foto in `photos.vlm_critique` (bei Bedarf übersetzt in `vlm_critique_translated`). Sie läuft gegen das gespeicherte Thumbnail, sodass RAW-Dateien korrekt kritisiert werden, statt still zu scheitern; `refresh` regeneriert. Die Standard-Leiter folgt der Vier-Fähigkeiten-Struktur von AesBench (wahrnehmen → fühlen → urteilen → beraten): Ihr Assessment gibt ein kurzes Urteil zu Komposition, Farbe & Licht, Fokus/Schärfentiefe & technischer Ausführung sowie Motiv & Moment ab, jeweils mit den eingespeisten Metriken abgeglichen, statt die Zahlen zu wiederholen.
 
 ```json
 {

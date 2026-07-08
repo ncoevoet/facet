@@ -14,6 +14,7 @@ Key features:
 """
 
 import gc
+import json
 import logging
 import time
 from pathlib import Path
@@ -22,6 +23,11 @@ from typing import List, Dict, Any
 from tqdm import tqdm
 
 logger = logging.getLogger("facet.multi_pass")
+
+# Marks a chunk photo whose required model pass failed, so it is recorded in
+# scan_failures and excluded from the save rather than stamped scanned-complete
+# with neutral default scores.
+SCAN_FAILED_KEY = '_scan_failed'
 
 # Lazy imports
 torch = None
@@ -123,6 +129,11 @@ class ChunkedMultiPassProcessor:
         _ensure_imports()
         self.available_vram = model_manager.detect_vram()
         self.pass_groups = None
+
+        # Restricted single-pass mode (run_single_pass): only one model runs, so
+        # the chunk save must update only that pass's columns instead of the full
+        # aggregate + save, which would reset every uncomputed column to a default.
+        self.restricted = False
 
         # Metrics
         self.metrics = {
@@ -387,6 +398,7 @@ class ChunkedMultiPassProcessor:
 
         # Track results for each photo
         results = {path: {} for path in paths}
+        failed_stages = []
 
         # Supplementary/optional models — load failures skip rather than abort
         supplementary = set(self.model_manager.get_active_profile().get('supplementary_pyiqa', []))
@@ -427,8 +439,13 @@ class ChunkedMultiPassProcessor:
             for model_name, model in loaded_models.items():
                 try:
                     self._run_model_pass(model_name, model, images, results)
-                except torch.cuda.OutOfMemoryError:
-                    logger.error("OOM during %s inference, skipping...", model_name)
+                except Exception as ex:
+                    if model_name in supplementary:
+                        logger.error("Supplementary %s inference failed, skipping: %s", model_name, ex)
+                    else:
+                        logger.error("Required %s inference failed for chunk, marking retryable: %s",
+                                     model_name, ex)
+                        failed_stages.append(model_name)
 
             self.metrics['inference_time'] += time.time() - infer_start
             self.metrics['passes_executed'] += 1
@@ -441,17 +458,37 @@ class ChunkedMultiPassProcessor:
                 self.model_manager.unload_model(model_name)
             self.metrics['model_unload_time'] += time.time() - unload_start
 
-        # Compute aggregate scores (CPU pass) - needs images for technical metrics
-        self._compute_aggregates(results, images)
+        if failed_stages:
+            self._record_chunk_pass_failure(images, results, failed_stages)
 
-        # Save results to database
-        self._save_results(results, images)
+        if self.restricted:
+            self._save_results_restricted(results, images)
+        else:
+            # Compute aggregate scores (CPU pass) - needs images for technical metrics
+            self._compute_aggregates(results, images)
+
+            # Save results to database
+            self._save_results(results, images)
 
         # Free memory
         del images
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+
+    def _record_chunk_pass_failure(self, images: Dict, results: Dict, failed_stages: List[str]):
+        """Record every image in a chunk whose required model pass failed.
+
+        The chunk lacks foundational outputs (e.g. the embedding/aesthetic pass),
+        so the photos are recorded in scan_failures (retryable via --retry-failed)
+        and marked for exclusion from the save instead of being stamped
+        scanned-complete with neutral default scores.
+        """
+        stage = "+".join(failed_stages)
+        for path in images:
+            results[path][SCAN_FAILED_KEY] = stage
+            if self.on_error:
+                self.on_error(path, stage, f"required model pass failed: {stage}")
 
     def _load_images(self, paths: List[str]) -> Dict[str, Dict]:
         """
@@ -751,6 +788,7 @@ class ChunkedMultiPassProcessor:
                 for key in ('subject_sharpness', 'subject_prominence',
                            'subject_placement', 'bg_separation'):
                     results[path][key] = scores[i].get(key, 5.0)
+                results[path]['subject_bbox'] = scores[i].get('subject_bbox')
         except Exception as e:
             logger.error("BiRefNet saliency pass failed: %s", e)
 
@@ -803,7 +841,7 @@ class ChunkedMultiPassProcessor:
         from utils import detect_silhouette
 
         for path, data in results.items():
-            if not data or path not in images:
+            if not data or path not in images or data.get(SCAN_FAILED_KEY):
                 continue
 
             img_data = images[path]
@@ -932,19 +970,47 @@ class ChunkedMultiPassProcessor:
             data['color_score'] = color_score
             data['exposure_score'] = exposure_score
 
+    def _iter_saveable(self, results: Dict, images: Dict):
+        """Yield (path, data) for result rows that pass the shared save guards."""
+        for path, data in results.items():
+            if path not in images:
+                continue
+            if data.get(SCAN_FAILED_KEY):
+                continue
+            if not data:
+                if self.on_error:
+                    self.on_error(path, 'save', 'no model produced results for this photo')
+                continue
+            yield path, data
+
+    def _base_record(self, path, img_data: Dict) -> Dict:
+        """Build the shared identity + EXIF record common to full and partial saves."""
+        exif = img_data.get('exif', {})
+        return {
+            'path': str(Path(path).resolve()),
+            'filename': Path(path).name,
+            'image_width': img_data['width'],
+            'image_height': img_data['height'],
+            'date_taken': exif.get('date_taken'),
+            'camera_model': exif.get('camera_model'),
+            'lens_model': exif.get('lens_model'),
+            'iso': exif.get('iso'),
+            'f_stop': exif.get('f_stop'),
+            'shutter_speed': exif.get('shutter_speed'),
+            'focal_length': exif.get('focal_length'),
+            'focal_length_35mm': exif.get('focal_length_35mm'),
+            'gps_latitude': exif.get('gps_latitude'),
+            'gps_longitude': exif.get('gps_longitude'),
+        }
+
     def _save_results(self, results: Dict, images: Dict):
         """Save processing results to database with all required fields."""
         batch = []
-        for path, data in results.items():
-            if not data or path not in images:
-                continue
-
+        for path, data in self._iter_saveable(results, images):
             img_data = images[path]
             pil_img = img_data['pil']
-            img_h, img_w = img_data['height'], img_data['width']
 
             # Get pre-computed data from image loading phase
-            exif = img_data.get('exif', {})
             sharpness = img_data.get('sharpness', {})
             color = img_data.get('color', {})
             histogram = img_data.get('histogram', {})
@@ -954,24 +1020,8 @@ class ChunkedMultiPassProcessor:
             contrast = img_data.get('contrast', {})
 
             result = {
-                # Core fields
-                'path': str(Path(path).resolve()),
-                'filename': Path(path).name,
+                **self._base_record(path, img_data),
                 'category': data.get('category', 'default'),
-                'image_width': img_w,
-                'image_height': img_h,
-
-                # EXIF fields
-                'date_taken': exif.get('date_taken'),
-                'camera_model': exif.get('camera_model'),
-                'lens_model': exif.get('lens_model'),
-                'iso': exif.get('iso'),
-                'f_stop': exif.get('f_stop'),
-                'shutter_speed': exif.get('shutter_speed'),
-                'focal_length': exif.get('focal_length'),
-                'focal_length_35mm': exif.get('focal_length_35mm'),
-                'gps_latitude': exif.get('gps_latitude'),
-                'gps_longitude': exif.get('gps_longitude'),
 
                 # Scoring fields
                 'aesthetic': data.get('aesthetic', 5.0),
@@ -1033,6 +1083,7 @@ class ChunkedMultiPassProcessor:
                 'subject_prominence': data.get('subject_prominence'),
                 'subject_placement': data.get('subject_placement'),
                 'bg_separation': data.get('bg_separation'),
+                'subject_bbox': json.dumps(data['subject_bbox']) if data.get('subject_bbox') else None,
 
                 # Form facet + Matsuda color harmony (computed in _load_images)
                 'form_symmetry': img_data.get('form', {}).get('form_symmetry'),
@@ -1053,6 +1104,48 @@ class ChunkedMultiPassProcessor:
 
         if batch:
             self.scorer.save_photos_batch(batch)
+            self.scorer.commit()
+
+    def _save_results_restricted(self, results: Dict, images: Dict):
+        """Save a single restricted pass, updating only the columns it computed.
+
+        Skips the aggregate + full save so a --pass / --recompute-* backfill over
+        an already-scored library never overwrites another pass's columns with
+        defaults. Faces are refreshed only when the insightface pass ran.
+        """
+        executed_models = {m for group in self.pass_groups for m in group}
+        refresh_faces = 'insightface' in executed_models
+
+        batch = []
+        for path, data in self._iter_saveable(results, images):
+            computed = {}
+            face_details = []
+            for key, value in data.items():
+                if key == SCAN_FAILED_KEY:
+                    continue
+                if key == 'face_details':
+                    face_details = value
+                    continue
+                if key == 'subject_bbox':
+                    computed['subject_bbox'] = json.dumps(value) if value else None
+                    continue
+                computed[key] = value
+
+            if not computed:
+                continue
+
+            img_data = images[path]
+            res = {
+                **self._base_record(path, img_data),
+                'phash': img_data.get('phash'),
+                'config_version': self.scorer.config.version_hash,
+                'face_details': face_details,
+            }
+            res.update(computed)
+            batch.append((res, img_data['pil'], tuple(sorted(computed.keys()))))
+
+        if batch:
+            self.scorer.save_photos_partial(batch, refresh_faces)
             self.scorer.commit()
 
     def _handle_oom(self, model_name: str):
@@ -1172,6 +1265,7 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
 
     processor = ChunkedMultiPassProcessor(scorer, model_manager, scorer.config.config)
     processor.pass_groups = [[model_name]]
+    processor.restricted = True
 
     logger.info("Running single pass: %s (model: %s)", pass_name, model_name)
     metrics = processor.process_directory(paths)

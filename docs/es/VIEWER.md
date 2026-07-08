@@ -9,7 +9,7 @@ Aplicación de página única (SPA) basada en FastAPI + Angular para explorar, f
 - [Iniciar el visor](#iniciar-el-visor) · [Autenticación](#autenticación) · [Opciones de filtrado](#opciones-de-filtrado) · [Ordenación](#ordenación) · [Funciones de la galería](#funciones-de-la-galería)
 - [Gestión de personas](#gestión-de-personas) · [Activador de escaneo (superadmin)](#activador-de-escaneo-superadmin) · [Búsqueda semántica](#búsqueda-semántica) · [Álbumes](#álbumes)
 - [Crítica con IA](#crítica-con-ia) · [Subtitulado con IA](#subtitulado-con-ia-gpu-16gb24gb-edition) · [Recuerdos ("En este día")](#recuerdos-en-este-día) · [Vista de línea de tiempo](#vista-de-línea-de-tiempo) · [Vista de mapa](#vista-de-mapa) · [Cápsulas](#cápsulas)
-- [Vista de carpetas](#vista-de-carpetas) · [Diálogo de filtro GPS](#diálogo-de-filtro-gps) · [Sugerencias de fusión](#sugerencias-de-fusión) · [Exportación al editor](#exportación-al-editor) · [Descarte](#descarte) · [Modo de comparación por pares](#modo-de-comparación-por-pares)
+- [Vista de carpetas](#vista-de-carpetas) · [Diálogo de filtro GPS](#diálogo-de-filtro-gps) · [Sugerencias de fusión](#sugerencias-de-fusión) · [Exportación al editor](#exportación-al-editor) · [Descarte](#descarte) · [Limpieza de basura](#limpieza-de-basura) · [Modo de comparación por pares](#modo-de-comparación-por-pares)
 - [Estadísticas EXIF](#estadísticas-exif) · [Atajos de teclado](#atajos-de-teclado-galería) · [Deshacer](#deshacer) · [Aplicación web progresiva](#aplicación-web-progresiva) · [Móvil](#móvil)
 - [Configuración](#configuración) · [Rendimiento](#rendimiento) · [Endpoints de la API](#endpoints-de-la-api) · [Solución de problemas](#solución-de-problemas)
 
@@ -517,6 +517,8 @@ En la caja de luz de descarte por ráfaga/similar, cada cara detectada lleva sus
 
 El **panel de caras** del laboratorio codifica por color cada recorte de cara en verde / naranja / rojo a partir de sus puntuaciones continuas de ojos abiertos y sonrisa, y añade controles deslizantes de umbral de **ojos** y **sonrisa** en vivo para que puedas ajustar sobre la marcha qué cuenta como un parpadeo o una expresión débil. Los umbrales son las claves de configuración `face_detection.eyes_closed_max` y `face_detection.poor_expression_min` (ambas con valor por defecto `4.0`); los controles deslizantes parten de ahí.
 
+**Tira de primer plano del sujeto (grupos sin caras).** Para ráfagas / grupos similares cuyas fotos no tienen caras relevantes — fauna, macro, productos, aves — el laboratorio muestra en su lugar una tira de **sujeto**: el sujeto clave de cada fotograma, recortado de la caja de sujeto BiRefNet persistida y alineado lado a lado para comparar el sujeto real en primer plano (la idea «AI Close-Up» de Zoner, de forma nativa). Cada recorte lleva una insignia de nitidez normalizada al grupo (10 = el sujeto más nítido del grupo) y un anillo de color (verde / ámbar / rojo) para que resalte el fotograma perfectamente nítido; al hacer clic en un recorte, la vista principal salta a esa foto. Los recortes se cortan de la miniatura almacenada sin ejecutar ningún modelo (`POST /api/culling-group/subjects`) y solo aparecen cuando un grupo tiene sujetos pero no caras. Esto solo se activa una vez que las fotos llevan una caja de sujeto: ejecuta `python facet.py --recompute-saliency` (GPU) para rellenarla en una biblioteca existente — hasta entonces, la tira simplemente no aparece.
+
 **Comparación sincronizada (2-up / 4-up).** La cabecera de la caja de luz tiene botones Única / Comparar 2 / Comparar 4. En modo de comparación, los paneles comparten una única transformación de panorámica/zoom, de modo que el zoom con la rueda del ratón o el arrastre de panorámica en cualquier panel los mueve todos al recorte idéntico: la forma de elegir el fotograma más nítido de una ráfaga inspeccionando realmente los píxeles. Al hacer doble clic se alterna ajustar ↔ zoom; más allá de la escala de ajuste, cada panel cambia de forma diferida su miniatura de 1920px por la fuente `/image` a resolución completa para que la inspección sea nítida. Sin cambios en el backend: ambas rutas de imagen ya existen. (El pellizco táctil aún no está implementado; usa la rueda en escritorio.)
 
 API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
@@ -546,6 +548,22 @@ Los momentos aparecen como títulos de escena y como filtro de galería (`GET /a
 API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
 
 Controlado por `viewer.features.show_scenes` (predeterminado: `true`). Consulta [Configuración — Escenas](CONFIGURATION.md#scenes) para `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` y `adaptive_k`.
+
+## Limpieza de basura
+
+Una cola de revisión rápida para la basura no fotográfica que se acumula en una biblioteca de aficionado — capturas de pantalla, documentos escaneados, recibos, memes y diapositivas de presentación. La detección es zero-shot sobre los embeddings de imagen almacenados (ver [Configuración — Limpieza de basura](CONFIGURATION.md#limpieza-de-basura)); ejecuta `python facet.py --detect-junk` (o deja que se ejecute automáticamente al final de cada escaneo) para poblar `junk_kind`.
+
+Ábrela desde el botón de navegación **Limpieza** (la ruta `/junk`, solo de edición). La página reutiliza la cuadrícula de la galería y muestra cada candidato marcado:
+
+- **Chips de filtro por tipo** — "Todos los tipos" más un chip por cada tipo detectado con su recuento (desde `GET /api/filter_options/junk_kinds`). Haz clic para acotar la cola a un solo tipo.
+- **Conservar** (por foto) — borra la etiqueta de basura para que la foto salga de la cola **de forma permanente**: se marca como evaluada-limpia (`not_junk`) y nunca vuelve a marcarse por un `--detect-junk` posterior.
+- **Rechazar** (por foto) — marca la foto como rechazada usando el mismo mecanismo de rechazo que en el resto de la aplicación (nada se borra del disco).
+- **Rechazar todo lo mostrado** — un rechazo masivo de todos los candidatos actualmente cargados, tras un diálogo de confirmación.
+- **Lupa** — pulsa **`Z`** (o el interruptor de la barra de herramientas) para una lupa al pasar el cursor al estilo Photo Mechanic, para leer texto fino antes de decidir.
+
+Las fotos de basura **no** se ocultan de la galería normal — permanecen visibles hasta que filtres por ellas. Filtra cualquier vista de galería con `?junk_kind=<tipo>` (exacto) o `?junk_kind=any` (cualquier basura, excluye el centinela `not_junk`).
+
+Controlado por `viewer.features.show_junk_sweep` (predeterminado: `true`).
 
 ## Modo de comparación por pares
 
@@ -999,6 +1017,8 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `POST /api/culling/auto` | `[Edition]` Descarte automático de un botón para todo un ámbito. Cuerpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (predeterminado `true`) devuelve la vista previa de conservar/descartar por grupo, una aplicación descarta el resto y registra pares de descarte |
 | `POST /api/culling-group/faces` | Insignias por cara (ojos abiertos/cerrados, expresión, confianza) de un grupo, en un solo lote |
 | `GET /api/scenes` | Escenas cronológicas de fotos líderes de ráfaga (exploración de solo lectura) |
+| `GET /api/filter_options/junk_kinds` | Tipos de basura detectados con su recuento (excluye el centinela `not_junk`) para los chips de Limpieza de basura |
+| `POST /api/photo/clear_junk` | `[Edition]` Conserva un candidato de basura — restablece su `junk_kind` a `not_junk` para que salga de la cola de forma permanente. Cuerpo `{photo_path}` |
 
 ### Escaneo
 

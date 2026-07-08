@@ -4,6 +4,7 @@ import { MatDialogModule, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -193,7 +194,7 @@ export class DistortionLabelPipe implements PipeTransform {
           <div class="relative mb-4 rounded-lg overflow-hidden bg-black/20">
             <img [src]="data.photoPath | thumbnailUrl:1280" class="block w-full" alt="" />
             @if (overlayOn()) {
-              <img [src]="overlayUrl()" class="absolute inset-0 w-full h-full opacity-60 mix-blend-multiply" alt="" />
+              <img [src]="overlayUrl()" (error)="onOverlayError()" class="absolute inset-0 w-full h-full opacity-60 mix-blend-multiply" alt="" />
               <svg class="absolute inset-0 w-full h-full" viewBox="0 0 1 1" preserveAspectRatio="none">
                 @for (f of faceMarkers(); track $index) {
                   @if (f.bbox; as b) {
@@ -354,6 +355,7 @@ export class PhotoCritiqueDialogComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
+  private readonly snack = inject(MatSnackBar);
   protected readonly data = inject<{ photoPath: string; vlmAvailable: boolean }>(MAT_DIALOG_DATA);
 
   protected readonly loading = signal(true);
@@ -380,6 +382,11 @@ export class PhotoCritiqueDialogComponent implements OnInit {
         // Face boxes are an optional embellishment; the heatmap still shows.
       }
     }
+  }
+
+  protected onOverlayError(): void {
+    this.overlayOn.set(false);
+    this.snack.open(this.i18n.t(I18N.critique.overlay_error), this.i18n.t(I18N.common.dismiss), { duration: 3000 });
   }
   protected readonly hasPenalties = computed(() => {
     const c = this.critique();

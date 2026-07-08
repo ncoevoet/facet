@@ -15,8 +15,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 
 from api.auth import CurrentUser, get_optional_user
-from api.config import VIEWER_CONFIG, is_multi_user_enabled, get_user_directories
+from api.config import VIEWER_CONFIG
 from api.database import get_db, get_db_connection
+from api.db_helpers import get_visibility_clause
 from api.path_validation import resolve_photo_disk_path
 from utils.image_loading import RAW_EXTENSIONS, HEIF_EXTENSIONS
 
@@ -27,19 +28,31 @@ router = APIRouter(tags=["thumbnails"])
 _thumbnail_cache_size = VIEWER_CONFIG.get('performance', {}).get('thumbnail_cache_size', 2000)
 
 
-def _check_path_visibility(photo_path: str, user: Optional[CurrentUser]) -> bool:
-    """Return True if the current user can access this photo path."""
-    if not is_multi_user_enabled():
-        return True
-    if not user or not user.user_id:
-        return False
-    dirs = get_user_directories(user.user_id)
-    resolved = os.path.realpath(photo_path)
-    for d in dirs:
-        prefix = os.path.realpath(d.rstrip('/\\')) + '/'
-        if resolved.startswith(prefix):
-            return True
-    return False
+def _face_join_visible(column: str, value: int, user: Optional[CurrentUser]) -> bool:
+    """True when a ``faces`` row matching ``{column} = value`` belongs to a photo the caller may see.
+
+    ``column`` is a caller-supplied column reference (e.g. ``'f.id'``), never user input.
+    """
+    vis_sql, vis_params = get_visibility_clause(
+        user.user_id if user else None, table_alias='p'
+    )
+    with get_db() as conn:
+        row = conn.execute(
+            f"SELECT 1 FROM faces f JOIN photos p ON p.path = f.photo_path "
+            f"WHERE {column} = ? AND {vis_sql} LIMIT 1",
+            [value, *vis_params],
+        ).fetchone()
+    return row is not None
+
+
+def _face_visible(face_id: int, user: Optional[CurrentUser]) -> bool:
+    """True when ``face_id`` belongs to a photo the caller may see."""
+    return _face_join_visible('f.id', face_id, user)
+
+
+def _person_visible(person_id: int, user: Optional[CurrentUser]) -> bool:
+    """True when ``person_id`` has at least one face in a photo the caller may see."""
+    return _face_join_visible('f.person_id', person_id, user)
 
 
 def _cached_image_response(image_bytes: bytes, request: Request) -> Response:
@@ -121,11 +134,12 @@ def get_thumbnail(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Get photo thumbnail."""
-    if not _check_path_visibility(path, user):
-        return Response(content="Not found", status_code=404)
-
+    vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
     with get_db() as conn:
-        row = conn.execute("SELECT thumbnail FROM photos WHERE path = ?", (path,)).fetchone()
+        row = conn.execute(
+            f"SELECT thumbnail FROM photos WHERE path = ? AND {vis_sql}",
+            [path, *vis_params],
+        ).fetchone()
 
     if row and row['thumbnail']:
         if size and 0 < size < 640:
@@ -222,7 +236,7 @@ def face_thumbnail(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return cropped face thumbnail."""
-    if is_multi_user_enabled() and (user is None or not user.is_authenticated):
+    if not _face_visible(face_id, user):
         return Response(content="Not found", status_code=404)
     face_bytes, etag = _get_face_thumbnail_data(face_id)
     if face_bytes is None:
@@ -237,7 +251,7 @@ def person_thumbnail(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return stored face thumbnail for a person."""
-    if is_multi_user_enabled() and (user is None or not user.is_authenticated):
+    if not _person_visible(person_id, user):
         return Response(content="Not found", status_code=404)
     with get_db() as conn:
         person = conn.execute("""
@@ -278,12 +292,12 @@ def image(
     convert. The loupe in Scenes/Culling uses this so it degrades to the embedded
     thumbnail rather than going blank.
     """
-    if not _check_path_visibility(path, user):
-        return Response(content="Not found", status_code=404)
-
-    # Verify the path exists in the database to prevent path traversal
+    vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
     with get_db() as conn:
-        row = conn.execute("SELECT path FROM photos WHERE path = ?", (path,)).fetchone()
+        row = conn.execute(
+            f"SELECT path FROM photos WHERE path = ? AND {vis_sql}",
+            [path, *vis_params],
+        ).fetchone()
     if not row:
         return Response(content="Not found", status_code=404)
 

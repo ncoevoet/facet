@@ -9,7 +9,7 @@ Aplicação de página única em FastAPI + Angular para navegar, filtrar e geren
 - [Iniciando o Visualizador](#iniciando-o-visualizador) · [Autenticação](#autenticação) · [Opções de Filtragem](#opções-de-filtragem) · [Ordenação](#ordenação) · [Recursos da Galeria](#recursos-da-galeria)
 - [Gerenciamento de Pessoas](#gerenciamento-de-pessoas) · [Disparo de Varredura (Superadmin)](#disparo-de-varredura-superadmin) · [Busca Semântica](#busca-semântica) · [Álbuns](#álbuns)
 - [Crítica por IA](#crítica-por-ia) · [Legendagem por IA](#legendagem-por-ia-gpu-16gb24gb-edition) · [Memórias ("Neste Dia")](#memórias-neste-dia) · [Visão de Linha do Tempo](#visão-de-linha-do-tempo) · [Visão de Mapa](#visão-de-mapa) · [Cápsulas](#cápsulas)
-- [Visão de Pastas](#visão-de-pastas) · [Diálogo de Filtro por GPS](#diálogo-de-filtro-por-gps) · [Sugestões de Mesclagem](#sugestões-de-mesclagem) · [Exportação para Editor](#exportação-para-editor) · [Triagem](#triagem) · [Modo de Comparação Pareada](#modo-de-comparação-pareada)
+- [Visão de Pastas](#visão-de-pastas) · [Diálogo de Filtro por GPS](#diálogo-de-filtro-por-gps) · [Sugestões de Mesclagem](#sugestões-de-mesclagem) · [Exportação para Editor](#exportação-para-editor) · [Triagem](#triagem) · [Limpeza de lixo](#limpeza-de-lixo) · [Modo de Comparação Pareada](#modo-de-comparação-pareada)
 - [Estatísticas EXIF](#estatísticas-exif) · [Atalhos de Teclado](#atalhos-de-teclado-galeria) · [Desfazer](#desfazer) · [Progressive Web App](#progressive-web-app) · [Mobile](#mobile)
 - [Configuração](#configuração) · [Desempenho](#desempenho) · [Endpoints da API](#endpoints-da-api) · [Solução de Problemas](#solução-de-problemas)
 
@@ -517,6 +517,8 @@ Na lightbox de triagem de sequência/semelhantes, cada rosto detectado carrega s
 
 O **painel de rostos** do laboratório colore cada recorte de rosto em verde / laranja / vermelho a partir de suas pontuações contínuas de olhos-abertos e sorriso, e adiciona controles deslizantes de limiar de **olhos** e **sorriso** ao vivo para que você ajuste na hora o que conta como uma piscada ou uma expressão fraca. Os limites são as chaves de configuração `face_detection.eyes_closed_max` e `face_detection.poor_expression_min` (ambas com padrão `4.0`); os controles deslizantes começam nesses valores.
 
+**Faixa de close-up do assunto (grupos sem rostos).** Para sequências / grupos de semelhantes cujas fotos não têm rostos significativos — vida selvagem, macro, produtos, pássaros — o laboratório mostra uma faixa de **assunto** em vez disso: o assunto principal de cada quadro, recortado da caixa de assunto BiRefNet persistida e alinhado lado a lado para que você compare o próprio assunto em close-up (a ideia "AI Close-Up" do Zoner, nativa). Cada recorte carrega um selo de nitidez normalizado no grupo (10 = o assunto mais nítido do grupo) e um anel colorido (verde / âmbar / vermelho) para que o quadro mais nítido se destaque; clicar em um recorte leva a visualização principal para essa foto. Os recortes são cortados da miniatura armazenada sem executar nenhum modelo (`POST /api/culling-group/subjects`) e aparecem apenas quando um grupo tem assuntos mas não tem rostos. Isso só se ativa quando as fotos carregam uma caixa de assunto: execute `python facet.py --recompute-saliency` (GPU) para preencher uma biblioteca existente — até lá a faixa simplesmente não aparece.
+
 **Comparação sincronizada (2-up / 4-up).** O cabeçalho da lightbox tem botões Único / Comparar 2 / Comparar 4. No modo de comparação, os painéis compartilham uma única transformação de panorâmica/zoom, então o zoom com roda do mouse ou panorâmica com arrasto em qualquer painel move todos para o recorte idêntico — a forma de escolher o quadro mais nítido de uma sequência inspecionando pixels de verdade. O duplo clique alterna ajuste ↔ zoom; além da escala de ajuste, cada painel troca preguiçosamente sua miniatura de 1920px pela fonte `/image` em resolução total, para que a inspeção fique nítida. Sem mudança no backend — ambas as rotas de imagem já existem. (O pinçar por toque ainda não está implementado; use a roda no desktop.)
 
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
@@ -546,6 +548,22 @@ Os momentos surgem como títulos de cenas e como um filtro de galeria (`GET /api
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
 Controlado por `viewer.features.show_scenes` (padrão: `true`). Veja [Configuração — Cenas](CONFIGURATION.md#scenes) para `gap_minutes`, `min_size`, `max_photos`, `max_scene_size`, `adaptive` e `adaptive_k`.
+
+## Limpeza de lixo
+
+Uma fila de revisão rápida para o "lixo" não fotográfico que se acumula em uma biblioteca amadora — capturas de tela, documentos escaneados, recibos, memes e slides de apresentação. A detecção é zero-shot sobre os embeddings de imagem armazenados (veja [Configuração — Junk Sweep](CONFIGURATION.md#junk-sweep)); execute `python facet.py --detect-junk` (ou deixe-o rodar automaticamente ao final de cada varredura) para preencher `junk_kind`.
+
+Abra-a pelo botão de navegação **Limpeza** (a rota `/junk`, somente edição). A página reutiliza a grade da galeria e exibe cada candidato sinalizado:
+
+- **Chips de filtro por tipo** — "Todos os tipos" mais um chip por tipo detectado com sua contagem (de `GET /api/filter_options/junk_kinds`). Clique para restringir a fila a um único tipo.
+- **Manter** (por foto) — limpa o rótulo de lixo para que a foto saia da fila **permanentemente**: ela é marcada como avaliada-limpa (`not_junk`) e nunca mais é sinalizada por um `--detect-junk` posterior.
+- **Rejeitar** (por foto) — marca a foto como rejeitada usando o mesmo mecanismo de rejeição de todo o resto (nada é excluído do disco).
+- **Rejeitar tudo** — uma rejeição em lote de todos os candidatos atualmente carregados, atrás de um diálogo de confirmação.
+- **Lupa** — pressione **`Z`** (ou o botão da barra de ferramentas) para uma lupa flutuante no estilo Photo Mechanic, para ler texto fino antes de decidir.
+
+As fotos de lixo **não** são ocultadas da galeria normal — elas permanecem visíveis até você filtrar por elas. Filtre qualquer visão da galeria com `?junk_kind=<tipo>` (exato) ou `?junk_kind=any` (qualquer lixo, exclui a sentinela `not_junk`).
+
+Controlado por `viewer.features.show_junk_sweep` (padrão: `true`).
 
 ## Modo de Comparação Pareada
 
@@ -999,7 +1017,10 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `POST /api/culling-groups/confirm` | Confirma as seleções de triagem (sequência, semelhantes ou cena). Corpo `{group_id, type, paths, keep_paths}`; `type:'scene'` registra as linhas de comparação de triagem de cena |
 | `POST /api/culling/auto` | `[Edition]` Triagem automática de um botão só para um escopo inteiro. Corpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (padrão `true`) retorna a prévia de manter/rejeitar por grupo, uma aplicação rejeita o resto e registra pares de triagem |
 | `POST /api/culling-group/faces` | Selos por rosto (olhos abertos/fechados, expressão, confiança) para um grupo, em um único lote |
+| `POST /api/culling-group/subjects` | Recortes de close-up do assunto (da caixa de assunto BiRefNet persistida) + nitidez normalizada no grupo para um grupo sem rostos, em um único lote. `has_subject:false` quando a foto não tem caixa / tem uma caixa quase de quadro inteiro (nenhum modelo é executado) |
 | `GET /api/scenes` | Cenas cronológicas de fotos líderes de sequência (navegação somente leitura) |
+| `GET /api/filter_options/junk_kinds` | Tipos de lixo detectados com contagem (exclui a sentinela `not_junk`) para os chips da Limpeza de lixo |
+| `POST /api/photo/clear_junk` | `[Edition]` Mantém um candidato a lixo — redefine seu `junk_kind` para `not_junk` para que ele saia da fila permanentemente. Corpo `{photo_path}` |
 
 ### Varredura
 

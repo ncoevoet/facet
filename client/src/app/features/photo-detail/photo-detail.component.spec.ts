@@ -2,7 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Location } from '@angular/common';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { signal } from '@angular/core';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -27,7 +27,7 @@ describe('PhotoDetailComponent', () => {
   let mockRouter: { navigate: Mock };
   let mockLocation: { back: Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: Mock } } };
-  let mockAuth: { isEdition: ReturnType<typeof signal> };
+  let mockAuth: { isEdition: ReturnType<typeof signal>; downloadProfiles: ReturnType<typeof signal> };
 
   const samplePhoto = {
     path: '/photos/test.jpg',
@@ -69,7 +69,7 @@ describe('PhotoDetailComponent', () => {
         { provide: Location, useValue: mockLocation },
         { provide: ActivatedRoute, useValue: mockRoute },
         { provide: AuthService, useValue: mockAuth },
-        { provide: I18nService, useValue: { t: (k: string) => k } },
+        { provide: I18nService, useValue: { t: (k: string) => k, locale: () => 'en' } },
       ],
     });
     component = TestBed.inject(PhotoDetailComponent);
@@ -94,7 +94,7 @@ describe('PhotoDetailComponent', () => {
         queryParamMap: { get: vi.fn((key: string) => key === 'path' ? '/photos/test.jpg' : null) },
       },
     };
-    mockAuth = { isEdition: signal(true) };
+    mockAuth = { isEdition: signal(true), downloadProfiles: signal([]) };
   });
 
   it('should create', () => {
@@ -279,6 +279,28 @@ describe('PhotoDetailComponent', () => {
     });
   });
 
+  describe('downloadSocialCrop', () => {
+    it('downloads via the social_crop endpoint for the chosen preset', async () => {
+      createComponent();
+      URL.createObjectURL = vi.fn(() => 'blob:mock');
+      URL.revokeObjectURL = vi.fn();
+      const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation((el) => el);
+      const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation((el) => el);
+
+      const promise = component.downloadSocialCrop('/photos/test.jpg', 'square');
+      expect(component.downloading()).toBe(true);
+
+      await promise;
+      expect(component.downloading()).toBe(false);
+      expect(mockApi.getRaw).toHaveBeenCalledWith(
+        `/api/photo/social_crop?path=${encodeURIComponent('/photos/test.jpg')}&preset=square`,
+      );
+
+      appendSpy.mockRestore();
+      removeSpy.mockRestore();
+    });
+  });
+
   describe('setRating', () => {
     it('should set a new rating via API', async () => {
       mockApi.post.mockReturnValue(of({}));
@@ -373,6 +395,64 @@ describe('PhotoDetailComponent', () => {
       await component.toggleRejected('/photos/test.jpg');
 
       expect(mockApi.post).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('socialExportEnabled', () => {
+    const withPreset = { features: { show_social_export: true }, social_export: { presets: [{ key: 'square', label_key: 'social.square' }] } };
+
+    it('is true only when edition, feature flag, and presets all hold', () => {
+      createComponent();
+      component.store.config.set(withPreset);
+      mockAuth.isEdition.set(true);
+      expect(component.socialExportEnabled()).toBe(true);
+
+      mockAuth.isEdition.set(false);
+      expect(component.socialExportEnabled()).toBe(false);
+
+      mockAuth.isEdition.set(true);
+      component.store.config.set({ features: { show_social_export: false }, social_export: { presets: [{ key: 'square', label_key: 'social.square' }] } });
+      expect(component.socialExportEnabled()).toBe(false);
+
+      component.store.config.set({ features: { show_social_export: true }, social_export: { presets: [] } });
+      expect(component.socialExportEnabled()).toBe(false);
+    });
+  });
+
+  describe('social crop preview race guard', () => {
+    it('ignores a stale preview response after navigating to another photo', async () => {
+      const photoA = { ...samplePhoto, path: '/photos/a.jpg' };
+      const photoB = { ...samplePhoto, path: '/photos/b.jpg' };
+      const previewSubjects: Subject<{ source: string }>[] = [];
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/social_crop/preview') {
+          const subject = new Subject<{ source: string }>();
+          previewSubjects.push(subject);
+          return subject.asObservable();
+        }
+        if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
+        return of(samplePhoto);
+      });
+
+      createComponent();
+      component.store.config.set({ features: { show_social_export: true }, social_export: { presets: [{ key: 'square', label_key: 'social.square' }] } });
+
+      component.photo.set(photoA);
+      TestBed.flushEffects();
+      component.photo.set(photoB);
+      TestBed.flushEffects();
+
+      expect(previewSubjects.length).toBe(2);
+
+      // Current photo (B) resolves first and wins.
+      previewSubjects[1].next({ source: 'faces' });
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      expect(component.socialCropSource()).toBe('faces');
+
+      // Stale response for A arrives late and must NOT clobber B's source.
+      previewSubjects[0].next({ source: 'saliency' });
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      expect(component.socialCropSource()).toBe('faces');
     });
   });
 });

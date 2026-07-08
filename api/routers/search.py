@@ -122,8 +122,24 @@ async def _check_vec_available(conn):
         return False
 
 
+def _stored_embedding_dim() -> Optional[int]:
+    """Majority embedding dimension stored in the database (None if empty)."""
+    from api.database import get_db
+
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT LENGTH(clip_embedding) FROM photos "
+                "WHERE clip_embedding IS NOT NULL "
+                "GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 1"
+            ).fetchone()
+    except sqlite3.Error:
+        return None
+    return row[0] // 4 if row and row[0] else None
+
+
 def _load_text_encoder():
-    """Load and cache the text encoder matching the VRAM profile."""
+    """Load and cache the text encoder matching the stored embeddings."""
     global _text_encoder
     if _text_encoder is not None:
         return _text_encoder
@@ -134,6 +150,32 @@ def _load_text_encoder():
     config = ScoringConfig(validate=False)
     config.check_vram_profile_compatibility(verbose=False)
     clip_config = config.get_clip_config()
+
+    # A library may be embedded under a different profile than the box
+    # resolves today (e.g. a CLIP-768 library on a 16gb/SigLIP box). Query
+    # vectors must live in the stored embedding space, so when the dimensions
+    # disagree pick the model block that matches the database instead.
+    stored_dim = _stored_embedding_dim()
+    if stored_dim and clip_config.get('embedding_dim') != stored_dim:
+        model_config = config.get_model_config()
+        match = next(
+            (block for block in model_config.values()
+             if isinstance(block, dict) and block.get('embedding_dim') == stored_dim),
+            None,
+        )
+        if match:
+            logger.info(
+                "Stored embeddings are %d-dim; encoding search queries with %s "
+                "instead of the profile's %s",
+                stored_dim, match.get('model_name'), clip_config.get('model_name'),
+            )
+            clip_config = match
+        else:
+            logger.warning(
+                "Stored embeddings are %d-dim but no configured model block "
+                "matches; semantic search will likely return nothing",
+                stored_dim,
+            )
 
     from utils.device import get_device
     device = get_device()

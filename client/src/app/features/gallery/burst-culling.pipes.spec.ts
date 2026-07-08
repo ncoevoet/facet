@@ -1,8 +1,16 @@
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
-  WeightRemainingPipe, BetterInGroupPipe, CullingGroup, CullingFace, FaceThresholds,
+  WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
+  CullPreviewUrlPipe, SubjectForPathPipe, SubjectRingClassPipe,
+  CullingGroup, CullingFace, CullingSubject, FaceThresholds,
 } from './burst-culling.pipes';
+
+const subject = (overrides: Partial<CullingSubject> = {}): CullingSubject => ({
+  path: '/p.jpg', has_subject: true, crop: 'data:image/jpeg;base64,x',
+  subject_sharpness: null, subject_prominence: null,
+  crop_sharpness: 100, crop_sharpness_score: 10, ...overrides,
+});
 
 const group = (overrides: Partial<CullingGroup> = {}): CullingGroup => ({
   group_id: 1, type: 'burst', reason: '', photos: [], best_path: '', count: 0, ...overrides,
@@ -102,6 +110,40 @@ describe('FacesForPathPipe', () => {
 
   it('returns an empty array for an unknown path', () => {
     expect(pipe.transform('/missing.jpg', new Map())).toEqual([]);
+  });
+});
+
+describe('SubjectForPathPipe', () => {
+  const pipe = new SubjectForPathPipe();
+
+  it('returns the subject for a known path', () => {
+    const s = subject();
+    const map = new Map<string, CullingSubject>([['/p.jpg', s]]);
+    expect(pipe.transform('/p.jpg', map)).toBe(s);
+  });
+
+  it('returns null for an unknown path', () => {
+    expect(pipe.transform('/missing.jpg', new Map())).toBeNull();
+  });
+});
+
+describe('SubjectRingClassPipe', () => {
+  const pipe = new SubjectRingClassPipe();
+
+  it('rings the sharpest tier green', () => {
+    expect(pipe.transform(subject({ crop_sharpness_score: 10 }))).toBe('ring-green-500');
+  });
+
+  it('rings the mid tier amber', () => {
+    expect(pipe.transform(subject({ crop_sharpness_score: 6 }))).toBe('ring-amber-500');
+  });
+
+  it('rings the softest tier red', () => {
+    expect(pipe.transform(subject({ crop_sharpness_score: 2 }))).toBe('ring-red-500');
+  });
+
+  it('is neutral when no score is available', () => {
+    expect(pipe.transform(subject({ crop_sharpness_score: null }))).toBe('ring-white/20');
   });
 });
 
@@ -216,20 +258,76 @@ describe('FaceDimmedPipe', () => {
   });
 });
 
-describe('BetterInGroupPipe', () => {
-  const pipe = new BetterInGroupPipe();
+describe('SortIconPipe', () => {
+  const pipe = new SortIconPipe();
 
-  it('returns true for a non-best tile (a better photo exists)', () => {
-    expect(pipe.transform('/photo2.jpg', '/photo1.jpg')).toBe(true);
+  it('maps each known sort mode to its icon', () => {
+    expect(pipe.transform('easiest')).toBe('bolt');
+    expect(pipe.transform('redundant')).toBe('content_copy');
+    expect(pipe.transform('best')).toBe('star');
+    expect(pipe.transform('recent')).toBe('schedule');
+    expect(pipe.transform('needs_comparisons')).toBe('compare_arrows');
   });
 
-  it('returns false for the best tile itself', () => {
-    expect(pipe.transform('/photo1.jpg', '/photo1.jpg')).toBe(false);
+  it('falls back to the generic sort icon for an unknown mode', () => {
+    expect(pipe.transform('whatever')).toBe('sort');
+  });
+});
+
+describe('CullProfileIconPipe', () => {
+  const pipe = new CullProfileIconPipe();
+
+  it('maps each shipped profile to its icon', () => {
+    expect(pipe.transform('balanced')).toBe('balance');
+    expect(pipe.transform('wedding')).toBe('favorite');
+    expect(pipe.transform('sports')).toBe('directions_run');
+    expect(pipe.transform('concert')).toBe('music_note');
+    expect(pipe.transform('wildlife')).toBe('pets');
   });
 
-  it('returns false when the group has no best_path', () => {
-    expect(pipe.transform('/photo1.jpg', null)).toBe(false);
-    expect(pipe.transform('/photo1.jpg', undefined)).toBe(false);
-    expect(pipe.transform('/photo1.jpg', '')).toBe(false);
+  it('falls back to the theatre mask for unknown / empty profiles', () => {
+    expect(pipe.transform('custom_preset')).toBe('theaters');
+    expect(pipe.transform('')).toBe('theaters');
+    expect(pipe.transform(null)).toBe('theaters');
+    expect(pipe.transform(undefined)).toBe('theaters');
+  });
+});
+
+describe('CategoryIconPipe', () => {
+  const pipe = new CategoryIconPipe();
+  const ICONS = (CategoryIconPipe as unknown as { ICONS: Record<string, string> }).ICONS;
+
+  it('maps known categories to sensible distinct icons', () => {
+    expect(pipe.transform('portrait')).toBe('person');
+    expect(pipe.transform('landscape')).toBe('landscape');
+    expect(pipe.transform('sports')).toBe('sports_soccer');
+    expect(pipe.transform('golden_hour')).toBe('wb_twilight');
+    expect(pipe.transform('urban')).toBe('location_city');
+    expect(pipe.transform('human_others')).toBe('people');
+  });
+
+  it('falls back to the generic category icon for unknown / empty values', () => {
+    expect(pipe.transform('user_defined_genre')).toBe('category');
+    expect(pipe.transform('')).toBe('category');
+    expect(pipe.transform(null)).toBe('category');
+    expect(pipe.transform(undefined)).toBe('category');
+  });
+
+  it('assigns a pairwise-distinct icon to every mapped category', () => {
+    const icons = Object.values(ICONS);
+    expect(new Set(icons).size).toBe(icons.length);
+  });
+
+  it('never reuses the generic fallback icon for a mapped category', () => {
+    expect(Object.values(ICONS)).not.toContain('category');
+  });
+});
+
+describe('CullPreviewUrlPipe', () => {
+  const pipe = new CullPreviewUrlPipe();
+
+  it('builds the cull_preview endpoint URL with encoded path and style', () => {
+    expect(pipe.transform('/a/b c.jpg', 'Velvia look'))
+      .toBe('/api/photo/cull_preview?path=%2Fa%2Fb+c.jpg&style=Velvia+look');
   });
 });

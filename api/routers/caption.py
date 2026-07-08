@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from api.auth import CurrentUser, get_optional_user, require_edition
+from api.auth import CurrentUser, get_optional_user, require_edition, is_edition_authenticated
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_async_db, get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
@@ -127,6 +127,9 @@ async def api_caption(
             mconf = mrow['narrative_moment_confidence'] if mrow else None
             if not moment or moment == 'other' or mconf is None or mconf < caption_min_conf:
                 return {"caption": None, "source": "gated"}
+
+        if not is_edition_authenticated(user):
+            return {"caption": None, "source": "edition_required"}
 
         # Try to generate via VLM. Generation is a blocking GPU/CPU call —
         # offload it from the event loop.

@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
+from api.auth import CurrentUser, get_optional_user
 
 
 _CAPTION_SCHEMA = """
@@ -185,37 +186,127 @@ class TestCaptionEndpoint:
         assert _read_caption(db, "/photos/test.jpg") is None
 
 
+def _client_for(user):
+    """Build a (TestClient, app) whose get_optional_user yields ``user``."""
+    app = create_app()
+    app.dependency_overrides[get_optional_user] = lambda: user
+    return TestClient(app), app
+
+
+class TestCaptionEditionGate:
+    """F5': on-demand VLM generation is edition-only; cached reads stay open."""
+
+    def test_generation_denied_for_non_edition(self, tmp_path):
+        """A regular multi-user caller cannot trigger generation or the DB write."""
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
+        gen = mock.Mock(return_value="new caption")
+        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
+        try:
+            with (
+                mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
+                mock.patch("api.routers.caption.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.caption.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
+                mock.patch("api.routers.caption._generate_caption", gen),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        assert resp.json()["source"] == "edition_required"
+        gen.assert_not_called()
+        assert _read_caption(db, "/photos/test.jpg") is None
+
+    def test_cached_read_open_to_non_edition(self, tmp_path):
+        """A cached caption is still returned to a non-edition caller."""
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": "cached text"}])
+        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
+        try:
+            with (
+                mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
+                mock.patch("api.routers.caption.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.caption.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        assert resp.json() == {"caption": "cached text", "source": "cached"}
+
+    def test_generation_allowed_for_edition_admin(self, tmp_path):
+        """A multi-user admin (edition) still generates and stores the caption."""
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
+        client, app = _client_for(CurrentUser(user_id="admin", role="admin", edition_authenticated=True))
+        try:
+            with (
+                mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
+                mock.patch("api.routers.caption.get_async_db", _async_conn_factory(db)),
+                mock.patch("api.routers.caption.get_visibility_clause", _fake_vis),
+                mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
+                mock.patch("api.routers.caption._generate_caption", return_value="fresh caption"),
+                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
+            ):
+                resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code == 200
+        assert resp.json()["source"] == "generated"
+        assert _read_caption(db, "/photos/test.jpg") == "fresh caption"
+
+
 class TestGenerateCaption:
     """Tests for the _generate_caption helper."""
+
+    # resolve_vlm_config lives in api.model_cache and reads api.config._FULL_CONFIG
+    # via a function-level import — patch THAT module, not the router's stale
+    # import, or the tests only pass on boxes whose detected profile has no VLM.
 
     def test_returns_none_for_legacy_profile(self):
         from api.routers.caption import _generate_caption
 
-        with mock.patch("api.routers.caption._FULL_CONFIG", {"models": {"vram_profile": "legacy"}}):
+        cfg = {"models": {"vram_profile": "legacy",
+                          "profiles": {"legacy": {"tagging_model": "clip"}}}}
+        with mock.patch("api.config._FULL_CONFIG", cfg):
             result = _generate_caption("/photos/test.jpg")
         assert result is None
 
     def test_returns_none_for_8gb_profile(self):
         from api.routers.caption import _generate_caption
 
-        with mock.patch("api.routers.caption._FULL_CONFIG", {"models": {"vram_profile": "8gb"}}):
+        cfg = {"models": {"vram_profile": "8gb",
+                          "profiles": {"8gb": {"tagging_model": "clip"}}}}
+        with mock.patch("api.config._FULL_CONFIG", cfg):
             result = _generate_caption("/photos/test.jpg")
         assert result is None
 
-    def test_returns_none_when_no_model_name(self):
+    def test_returns_none_when_no_model_path(self):
         from api.routers.caption import _generate_caption
 
-        with mock.patch("api.routers.caption._FULL_CONFIG", {
-            "models": {"vram_profile": "16gb", "vlm_tagger": {"model_name": ""}}
-        }):
+        cfg = {"models": {"vram_profile": "16gb",
+                          "profiles": {"16gb": {"tagging_model": "qwen3.5-2b"}},
+                          "qwen3_5_2b": {}}}
+        with mock.patch("api.config._FULL_CONFIG", cfg):
             result = _generate_caption("/photos/test.jpg")
         assert result is None
 
     def test_returns_none_on_exception(self):
         from api.routers.caption import _generate_caption
 
-        with mock.patch("api.routers.caption._FULL_CONFIG", {
-            "models": {"vram_profile": "16gb", "vlm_tagger": {"model_name": "test-model"}}
-        }), mock.patch("api.routers.caption.get_or_load_vlm_tagger", side_effect=RuntimeError("GPU OOM")):
+        cfg = {"models": {"vram_profile": "16gb",
+                          "profiles": {"16gb": {"tagging_model": "qwen3.5-2b"}},
+                          "qwen3_5_2b": {"model_path": "Qwen/Qwen3.5-2B"}}}
+        with (
+            mock.patch("api.config._FULL_CONFIG", cfg),
+            mock.patch("api.routers.caption.resolve_photo_disk_path",
+                       return_value="/photos/test.jpg"),
+            mock.patch("api.routers.caption.get_or_load_vlm_tagger",
+                       side_effect=RuntimeError("GPU OOM")),
+        ):
             result = _generate_caption("/photos/test.jpg")
         assert result is None

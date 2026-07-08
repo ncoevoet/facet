@@ -89,6 +89,9 @@ export class AuthService {
 
   /** Logout and navigate to login */
   logout(): void {
+    // Clear the server-side HttpOnly auth cookie (image/GET fallback auth);
+    // fire-and-forget — local state is dropped regardless.
+    this.http.post('/api/auth/logout', {}).subscribe({ error: () => undefined });
     localStorage.removeItem(this.TOKEN_KEY);
     this.status.set(null);
     this.clearThumbnailCaches();

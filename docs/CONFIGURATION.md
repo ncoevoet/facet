@@ -758,7 +758,11 @@ InsightFace face detection settings.
     "min_faces_for_group": 4,
     "enable_3d_landmarks": false,
     "eyes_closed_max": 4.0,
-    "poor_expression_min": 4.0
+    "poor_expression_min": 4.0,
+    "blendshapes": {
+      "enabled": true,
+      "min_crop_size": 192
+    }
   }
 }
 ```
@@ -772,6 +776,8 @@ InsightFace face detection settings.
 | `enable_3d_landmarks` | `false` | Optional override (absent from the shipped file; code default `false`). Load InsightFace `landmark_3d_68` module for head-pose extraction (yaw/pitch/roll). Costs ~5MB extra ONNX weights. Currently informational; future profile/silhouette refinements will read this. |
 | `eyes_closed_max` | `4.0` | Per-face eyes-open score (0–10) at or below which the culling darkroom flags a face as blinking. Drives the red/orange/green face rings and the eyes threshold slider (moved from a hardcoded constant) |
 | `poor_expression_min` | `4.0` | Per-face smile/expression score (0–10) below which the darkroom flags a weak expression. Drives the expression face ring and slider (moved from a hardcoded constant) |
+| `blendshapes.enabled` | `true` | Use appearance-based MediaPipe blendshape scores for per-face `eyes_open_score` / `smile_score` when MediaPipe and the `face_landmarker.task` bundle are available; when true they replace the landmark-geometry scores, otherwise the geometry fallback runs automatically. Optional dependency — install with `pip install mediapipe==0.10.35 --no-deps` (never a plain `pip install mediapipe`). See [FACE_RECOGNITION.md](FACE_RECOGNITION.md#per-face-expression-signals-eyes-open--smile). |
+| `blendshapes.min_crop_size` | `192` | Faces whose padded crop is smaller than this (px, shorter side) fall back to the geometric score rather than upscale a tiny face |
 
 ---
 
@@ -1027,7 +1033,10 @@ Web gallery display and behavior.
         "hq": true,
         "width": null,
         "height": null,
-        "extra_args": []
+        "extra_args": [],
+        "cull_styles": [],
+        "preview_max_edge": 1440,
+        "preview_timeout_seconds": 60
       }
     },
     "display": {
@@ -1116,6 +1125,11 @@ Web gallery display and behavior.
 | `darktable.profiles[].style` | *(omit)* | darktable style name applied during export (`--style`) |
 | `darktable.profiles[].apply_custom_presets` | `true` | When `false`, passes `--apply-custom-presets false` so only the explicit `style` renders (not auto-applied presets) |
 | `darktable.profiles[].extra_args` | `[]` | Additional CLI arguments (e.g., `["--style-overwrite"]`) |
+| `darktable.cull_styles` | `[]` | Named darktable styles offered as edited-look previews in the culling darkroom (`GET /api/photo/cull_preview`). Empty = the style selector is hidden. Each style **must already exist** in the darktable configuration of the user running the viewer; the name is passed verbatim to `--style`. |
+| `darktable.cull_styles[].name` | *(required)* | darktable style name (passed to `--style`, and validated by the endpoint) |
+| `darktable.cull_styles[].label_key` | *(name)* | Optional i18n key for the menu label; defaults to the style name |
+| `darktable.preview_max_edge` | `1440` | Max edge (px) the cull preview is rendered to |
+| `darktable.preview_timeout_seconds` | `60` | Per-render darktable-cli timeout for a cull preview |
 | **display** | | |
 | `tags_per_photo` | `4` | Tags shown on cards |
 | `card_width_px` | `168` | Card width |
@@ -1204,6 +1218,8 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_folders` | `true` | Show folder-based browsing of the photo directory structure |
 | `show_scenes` | `true` | Show the Scenes view (`/scenes`) that groups burst-lead photos into chronological scenes for story-order culling |
 | `show_my_taste` | `true` | Show the "My Taste" sort backed by the personal ranker's learned score, with a learned-coverage / accuracy confidence badge |
+| `show_social_export` | `true` | Show the edition-only **Social crop** download menu (saliency-aware crops for social aspect presets). See [Social Export](#social-export) |
+| `show_portfolio_export` | `true` | Show the edition-only **Export portfolio** album action (self-contained static HTML gallery). See [Portfolio Export](#portfolio-export) |
 | `show_proofing` | `false` | Enable client proofing on shared albums: a share link (plus optional PIN) lets a no-account client heart photos and leave comments, which the album owner reviews from an edition-gated dialog. Off by default. See [Client Proofing](#client-proofing) |
 
 **Memory optimization:** Setting `show_similar_button: false` prevents numpy from being loaded, reducing viewer memory footprint. The similar photos feature computes CLIP embedding cosine similarity which requires numpy.
@@ -1606,6 +1622,37 @@ One-button auto-cull for the culling darkroom (`POST /api/culling/auto`, edition
 
 `dry_run` defaults on and returns a per-group keep/reject preview; an apply additionally records `source='culling'` comparison rows and nudges one auto-retrain. See [Web Viewer — Auto-cull](VIEWER.md#auto-cull).
 
+## Genre-Aware Culling Profiles
+
+Genre presets that bundle every culling knob into one click: sports keeps only the single sharpest of a long burst, weddings keep more variants with eyes-open critical, concerts relax the eye/expression gates, wildlife drops the human-face gate entirely. The culling darkroom shows a preset selector.
+
+```json
+{
+  "cull_profiles": {
+    "default": "balanced",
+    "profiles": {
+      "balanced": { "label_key": "culling.profiles.balanced", "strictness": 50, "eyes_closed_max": 4.0, "poor_expression_min": 4.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
+      "wedding":  { "label_key": "culling.profiles.wedding",  "strictness": 35, "eyes_closed_max": 5.0, "poor_expression_min": 5.0, "keep_min_per_group": 2, "similarity_threshold": 90 },
+      "sports":   { "label_key": "culling.profiles.sports",   "strictness": 85, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 80 },
+      "concert":  { "label_key": "culling.profiles.concert",  "strictness": 55, "eyes_closed_max": 2.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 85 },
+      "wildlife": { "label_key": "culling.profiles.wildlife", "strictness": 70, "eyes_closed_max": 0.0, "poor_expression_min": 0.0, "keep_min_per_group": 1, "similarity_threshold": 82 }
+    }
+  }
+}
+```
+
+| Setting | Description |
+|---------|-------------|
+| `default` | Profile id applied when none is stored client-side |
+| `profiles.<id>.label_key` | i18n dot-path for the preset's display name (`culling.profiles.*`) |
+| `profiles.<id>.strictness` | Keeper budget (0–100) fed into the auto-cull margin when this preset is active |
+| `profiles.<id>.eyes_closed_max` | Eyes-open score (0–10) at/below which a face counts as closed — overrides the global `face_detection.eyes_closed_max` in the darkroom face badges |
+| `profiles.<id>.poor_expression_min` | Expression/smile score (0–10) below which a face counts as poor — overrides `face_detection.poor_expression_min` |
+| `profiles.<id>.keep_min_per_group` | Per-group floor on the auto-cull keep set for this preset |
+| `profiles.<id>.similarity_threshold` | Similarity-grouping threshold (percent) the darkroom applies when the preset is selected |
+
+Endpoint (read-only): `GET /api/culling/profiles` returns the ordered preset list plus the default. The auto-cull request (`POST /api/culling/auto`) and the per-face batch (`POST /api/culling-group/faces`) accept an optional `profile` id; an explicit `strictness`/`min_keep_per_group` in the request always wins over the preset.
+
 ## Scenes
 
 Settings for the Scenes view, which groups burst-lead photos into chronological scenes (split by capture-time gaps) for story-order culling:
@@ -1694,9 +1741,148 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 
 **Discovering a library-specific vocabulary.** The `general` set is a sensible default, but you can propose a vocabulary fitted to *your* library with `python facet.py --discover-moments`: it clusters the stored `caption_embedding` vectors (HDBSCAN), names each cluster from its captions (a keyword plus the captions nearest the centroid as ready-made prompts), and writes the result as an `event_types.discovered` block to `scoring_config.discovered.json`. Review it, copy `discovered` into `event_types` above, set `default_event_type` to `discovered`, and run `--recompute-moments` to adopt — discovery proposes, it never rewrites the active config. `--discover-min-cluster-size N` controls granularity (smaller = more, finer moments).
 
+## Social Export
+
+Saliency-aware crop presets for social aspect ratios (`GET /api/photo/social_crop`, edition-gated). Each preset crops the full-resolution original to a target aspect and frames it on the detected subject — the largest rectangle of that aspect fitting inside the image, centered on the subject and clamped at the edges. The subject box follows a fallback chain: the persisted BiRefNet subject box (`photos.subject_bbox`) → the union of detected face boxes → a plain center crop. See [Web Viewer — Download](VIEWER.md#download).
+
+```json
+{
+  "social_export": {
+    "presets": {
+      "square":       { "label_key": "social_export.presets.square",       "aspect": "1:1" },
+      "portrait_4x5": { "label_key": "social_export.presets.portrait_4x5", "aspect": "4:5" },
+      "story_9x16":   { "label_key": "social_export.presets.story_9x16",   "aspect": "9:16" }
+    },
+    "jpeg_quality": 92
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `presets.<id>.label_key` | — | i18n dot-path for the preset's display name (`social_export.presets.*`) |
+| `presets.<id>.aspect` | — | Target aspect as `"w:h"` (e.g. `1:1`, `4:5`, `9:16`) |
+| `jpeg_quality` | `92` | JPEG quality of the exported crop |
+
+Gated by `viewer.features.show_social_export` (default `true`). The `photos.subject_bbox` column is written by the saliency pass at scan time and by `--recompute-saliency`; rows scanned before it existed fall back to the face-union or center crop automatically.
+
+## Portfolio Export
+
+Export an album as a self-contained static HTML gallery a photographer can drop on any web host — no external tool (thumbsup/sigal) required (`POST /api/albums/{album_id}/export-portfolio`, edition-gated). The generated directory holds `index.html` (a responsive CSS-only thumbnail grid plus an inline vanilla-JS lightbox with **zero** external/CDN references — fully offline), an `assets/` folder of sequentially-named JPEGs (no library paths leaked), and a `manifest.json`. Each photo uses the on-disk **original** (downscaled to `max_edge`) when readable and falls back to the stored 640px thumbnail BLOB when the original is unreachable (offline network shares); the source used is recorded per photo in the manifest. Generation is deterministic and idempotent — a re-export rewrites only its own files.
+
+```json
+{
+  "portfolio": {
+    "max_photos": 500,
+    "max_edge": 2048,
+    "jpeg_quality": 88
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `max_photos` | `500` | Albums larger than this are refused with a 400 (the export is synchronous) |
+| `max_edge` | `2048` | Long-edge cap (px) for exported originals; the request may override it (clamped 256–8000) |
+| `jpeg_quality` | `88` | JPEG quality of the exported images |
+
+The `target_dir` goes through the exact same allow-list as the copy/move export endpoints (`viewer.export.allowed_target_dirs` plus the scan directories). Gated by `viewer.features.show_portfolio_export` (default `true`). See [Web Viewer — Portfolio export](VIEWER.md#portfolio-export).
+
+## Photo Frame / Kiosk
+
+Serve curated "best shots" to login-less kiosk devices — smart photo frames, Home Assistant dashboards, ImmichFrame / Immich-Kiosk style displays — over three anonymous, static-token endpoints (`GET /api/frame/photos`, `GET /api/frame/image/{id}`, `GET /api/frame/next`). Access is a long-lived opaque **frame token**; an empty `tokens` list disables the whole feature (every endpoint returns 404). Responses never contain filesystem paths — photos are addressed by an opaque signed id derived from the row's `rowid`.
+
+```json
+{
+  "frame": {
+    "tokens": [],
+    "count": 20,
+    "max_count": 100,
+    "min_aggregate": 7.0,
+    "max_edge": 1920,
+    "favorites_only": false,
+    "categories": []
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `tokens` | `[]` | Opaque frame tokens (list). **Empty = feature disabled (404).** Use long random strings, one per device; remove one to revoke it. Generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `count` | `20` | Default number of photos returned by `/api/frame/photos` |
+| `max_count` | `100` | Hard cap on the `count` query parameter |
+| `min_aggregate` | `7.0` | Minimum aggregate score for a photo to be curated |
+| `max_edge` | `1920` | Long-edge cap (px) for served JPEGs; the `max_edge` query parameter may lower it but never raise it above this |
+| `favorites_only` | `false` | When `true`, only favorited photos are curated |
+| `categories` | `[]` | Allow-list of category names (empty = all categories) |
+
+Tokens are compared constant-time as UTF-8 bytes, so a missing token is a 401 and a wrong or non-ASCII token is a 403 (never a 500). Curation excludes rejected, junk (`junk_kind`) and blink photos, then applies the score floor / favorites / categories filters; the returned set is a score-weighted random sample. See [Web Viewer — Photo Frame / Kiosk Endpoint](VIEWER.md#photo-frame--kiosk-endpoint) for the Home Assistant recipe.
+
+A frame token is not a user login: it carries no `user_id` and is checked against the whole library, so in [multi-user mode](#users) it ignores every user's private `directories` and grants read access across all users' photos, not just `shared_directories`. Only issue frame tokens on installs where every configured user is comfortable with that.
+
+## Phone Auto-Upload
+
+A minimal **WebDAV** endpoint under `/dav` so phone auto-upload apps (PhotoSync et al.) can push photos into an **inbox directory** that `facet.py --watch` then scores automatically — the PhotoPrism mobile-sync pattern. Upload-only plumbing: it never touches user sessions or JWTs. Access is HTTP Basic with **shared-device credentials** (`username` / `password`), not a user account. The whole `/dav` tree returns **404 while disabled** — the feature is enabled only when `username`, `password`, and `inbox_dir` are all set. Every operation is confined to `inbox_dir` (traversal / absolute-path / symlink escape refused), and uploads stream to disk atomically with the `max_file_mb` cap.
+
+```json
+{
+  "upload": {
+    "username": "",
+    "password": "",
+    "inbox_dir": "",
+    "max_file_mb": 500
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `username` | `""` | HTTP Basic username (shared device credential). **Empty = feature disabled (404).** |
+| `password` | `""` | HTTP Basic password (shared device credential). **Empty = feature disabled (404).** Use a long random string. |
+| `inbox_dir` | `""` | Absolute path of the upload inbox. **Empty = feature disabled (404).** Point it at one of the scanned directories (or a subdirectory) so `facet.py --watch` scores uploads as they land. Created on demand. |
+| `max_file_mb` | `500` | Per-file size cap (MB); an upload exceeding it aborts with `413` and leaves no partial file. |
+
+Credentials are compared constant-time as UTF-8 bytes; a missing or wrong `Authorization` header is a `401` with `WWW-Authenticate: Basic realm="Facet upload"`. Implemented methods: `OPTIONS`, `PROPFIND` (depth 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD` (`LOCK`/`UNLOCK` are not implemented). See [Web Viewer — Phone Auto-Upload](VIEWER.md#phone-auto-upload) for the PhotoSync recipe and a `curl` smoke test.
+
+## Junk Sweep
+
+Zero-shot detector for non-photo "junk" — screenshots, scanned documents, receipts, memes, presentation slides — over the **stored image embedding** (no image decode, no per-image model pass; the same shape as narrative moments without the temporal smoothing). Each kind carries a list of text prompts; the photo's embedding is cosine-scored against every prompt and **max-pooled** per kind. A `not_junk` contrast prompt set gates the decision: a photo is only flagged when the best junk kind clears `min_confidence` AND beats the best `not_junk` prompt by `min_margin` — otherwise it is stored as the `not_junk` sentinel (evaluated clean). `NULL` means "not evaluated": `--detect-junk` labels only `NULL` rows (and auto-runs at scan end), while `--recompute-junk` re-evaluates the whole library. Populates `photos.junk_kind`; the viewer's **Junk Sweep** review queue ([VIEWER.md](VIEWER.md#junk-sweep)) reads it.
+
+```json
+{
+  "junk_sweep": {
+    "enabled": true,
+    "prompt_template": "{desc}",
+    "pooling": "max",
+    "thresholds": {
+      "open_clip": { "min_confidence": 0.2, "min_margin": 0.06 },
+      "transformers": { "min_confidence": 0.1, "min_margin": 0.02 }
+    },
+    "kinds": {
+      "screenshot": ["a screenshot of a phone user interface", "..."],
+      "document": ["a scanned document", "..."],
+      "receipt": ["a close-up photo of a paper receipt", "..."],
+      "meme": ["a meme with overlaid text", "..."],
+      "slide": ["a presentation slide", "..."]
+    },
+    "not_junk_prompts": ["a natural photograph", "a candid photo of people", "..."]
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Run junk detection during `--detect-junk` / `--recompute-junk` and at scan end |
+| `prompt_template` | `"{desc}"` | Format string applied to every prompt (`{desc}` = the prompt); identity by default since the prompts are full sentences |
+| `pooling` | `"max"` | Pool the per-prompt cosines back to a kind by `max` (best single prompt, more discriminative) or `mean` |
+| `thresholds.<backend>.min_confidence` | open_clip `0.2`, transformers `0.1` | Minimum max-pooled cosine for the best junk kind to be considered (CLIP/`open_clip` cosines run lower than SigLIP/`transformers`, so each backend has its own gate) |
+| `thresholds.<backend>.min_margin` | open_clip `0.06`, transformers `0.02` | How far the best junk kind must beat the best `not_junk` contrast prompt before the photo is flagged |
+| `kinds` | screenshot/document/receipt/meme/slide | `{kind: [prompt synonyms]}`; add, remove, or rename kinds freely — the column and viewer queue follow the config |
+| `not_junk_prompts` | 8 photograph prompts | Contrast set describing real photographs; the gate that keeps genuine photos out of the queue |
+
 ## AI Critique
 
-Prompt configuration for the VLM-powered critique (16gb/24gb profiles). The critique injects the full rule breakdown, penalties and EXIF into a configurable ladder prompt, renders the reply as Observation / Assessment / Suggestions, and caches it per photo in `photos.vlm_critique` (translated on demand into `vlm_critique_translated`). It runs against the stored thumbnail, so RAW files critique correctly instead of failing silently; `refresh` regenerates.
+Prompt configuration for the VLM-powered critique (16gb/24gb profiles). The critique injects the full rule breakdown, penalties and EXIF into a configurable ladder prompt, renders the reply as Observation / Assessment / Suggestions, and caches it per photo in `photos.vlm_critique` (translated on demand into `vlm_critique_translated`). It runs against the stored thumbnail, so RAW files critique correctly instead of failing silently; `refresh` regenerates. The default ladder follows the AesBench four-ability structure (perceive → feel → judge → advise): its Assessment gives a short verdict on composition, color & light, focus/DOF & technical execution, and subject & moment, each reconciled against the injected metrics rather than restating the numbers.
 
 ```json
 {
@@ -1713,6 +1899,42 @@ Prompt configuration for the VLM-powered critique (16gb/24gb profiles). The crit
 | `critique.vlm.max_new_tokens` | `320` | Token budget for the structured VLM critique generation |
 
 See [Web Viewer — AI Critique](VIEWER.md#ai-critique).
+
+## VLM Backend
+
+Selects where the caption/tag vision-language model runs. `local` (default) uses the in-process transformers Qwen path bundled with the 16gb/24gb VRAM profiles — no change for existing installs. The two remote backends point Facet at an external server so captioning and VLM tagging work on the **legacy/8gb profiles that ship no local VLM**: when a remote backend is selected the VLM features are no longer gated on the VRAM profile.
+
+```json
+{
+  "vlm_backend": {
+    "type": "local",
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "model": "qwen2.5vl:7b",
+      "timeout_seconds": 120
+    },
+    "openai_compatible": {
+      "base_url": "http://localhost:1234/v1",
+      "api_key": "",
+      "model": "qwen2.5-vl-7b",
+      "timeout_seconds": 120
+    }
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `type` | `"local"` | Backend: `local` (in-process transformers Qwen), `ollama` (Ollama native REST API), or `openai_compatible` (any OpenAI chat-completions endpoint — LM Studio, vLLM, OpenRouter) |
+| `ollama.base_url` | `"http://localhost:11434"` | Ollama server base URL; the image is sent as base64 to `POST /api/generate` |
+| `ollama.model` | `"qwen2.5vl:7b"` | Ollama model tag (must be a vision model already pulled on the server) |
+| `ollama.timeout_seconds` | `120` | Per-request timeout for Ollama calls |
+| `openai_compatible.base_url` | `"http://localhost:1234/v1"` | OpenAI-compatible base URL **including the `/v1` suffix**; requests go to `{base_url}/chat/completions` with the image as an `image_url` data URI |
+| `openai_compatible.api_key` | `""` | Bearer token sent as `Authorization: Bearer <key>`; leave empty for keyless local servers |
+| `openai_compatible.model` | `"qwen2.5-vl-7b"` | Model name passed to the endpoint |
+| `openai_compatible.timeout_seconds` | `120` | Per-request timeout for OpenAI-compatible calls |
+
+The shared backend drives captioning (`--generate-captions` and the on-demand `/api/caption`), the VLM critique (`/api/critique?mode=vlm`), VLM re-tagging (`--recompute-tags-vlm`), and the narrative-moment VLM tie-breaker. A remote request failure is surfaced as a per-photo failure (logged, empty tags / no caption) and never crashes the run. In-scan tagging still uses the profile's own tagger; run `--recompute-tags-vlm` to apply a remote backend to an existing library.
 
 ## Distortion Attributes
 

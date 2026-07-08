@@ -58,16 +58,19 @@ class VLMTagger:
     - Qwen3/Qwen3.5 support max_pixels on the processor
     """
 
-    def __init__(self, model_config: Dict[str, Any], scoring_config=None):
+    def __init__(self, model_config: Dict[str, Any], scoring_config=None, backend=None):
         """
         Initialize the VLM tagger.
 
         Args:
             model_config: Dict with model settings (model_path, torch_dtype, etc.)
             scoring_config: Optional ScoringConfig instance for loading vocabulary
+            backend: Optional remote VLMBackend. When set, generate()/tag_*()
+                delegate to it and the local transformers model is never loaded.
         """
         self.model_config = model_config
         self.scoring_config = scoring_config
+        self.backend = backend
         self.model = None
         self.processor = None
         from utils.device import get_device
@@ -160,6 +163,8 @@ Tags:"""
 
     def load(self):
         """Load the model (deferred until first use)."""
+        if self.backend is not None:
+            return
         if self.model is not None:
             return
 
@@ -208,6 +213,8 @@ Tags:"""
 
     def unload(self):
         """Free VRAM by unloading the model."""
+        if self.backend is not None:
+            return
         if self.model is not None:
             self.model.cpu()
             del self.model
@@ -232,13 +239,18 @@ Tags:"""
         Returns:
             List of tag names
         """
+        prompt = self._build_prompt()
+        max_new_tokens = self.model_config.get('max_new_tokens', 100)
+
+        if self.backend is not None:
+            return self._parse_tags(
+                self.backend.generate(image, prompt, max_new_tokens), max_tags
+            )
+
         if self.model is None:
             self.load()
 
         _ensure_imports()
-
-        prompt = self._build_prompt()
-        max_new_tokens = self.model_config.get('max_new_tokens', 100)
 
         messages = [
             {
@@ -292,6 +304,9 @@ Tags:"""
 
     def generate(self, image: 'PIL.Image.Image', prompt: str, max_new_tokens: int = 200) -> str:
         """Generate free-form text response for an image with a custom prompt."""
+        if self.backend is not None:
+            return self.backend.generate(image, prompt, max_new_tokens)
+
         if self.model is None:
             self.load()
 
@@ -360,6 +375,9 @@ Tags:"""
         Returns:
             List of tag lists, one per image
         """
+        if self.backend is not None:
+            return self._tag_batch_remote(images, max_tags)
+
         if self.model is None:
             self.load()
 
@@ -382,6 +400,21 @@ Tags:"""
                         torch.cuda.empty_cache()
                         results.append([])
 
+        return results
+
+    def _tag_batch_remote(self, images: List[PIL.Image.Image], max_tags: int) -> List[List[str]]:
+        """Tag a batch through the remote backend, one image per request.
+
+        Remote backends have no native batching; a failing image records empty
+        tags and the run continues instead of crashing the whole batch.
+        """
+        results = []
+        for image in images:
+            try:
+                results.append(self.tag_image(image, max_tags))
+            except Exception as ex:
+                logger.warning("Remote VLM tagging failed for one image: %s", ex)
+                results.append([])
         return results
 
     def _tag_sub_batch(self, images: List[PIL.Image.Image], max_tags: int) -> List[List[str]]:
@@ -585,6 +618,9 @@ Tags:"""
         Returns:
             Dict mapping tag names to confidence scores in [0, 1]
         """
+        if self.backend is not None:
+            return {tag: 1.0 for tag in self.tag_image(image, max_tags)}
+
         if self.model is None:
             self.load()
 

@@ -1012,7 +1012,8 @@
     "timeline": "Línea de tiempo",
     "folders": "Carpetas",
     "map": "Mapa",
-    "capsules": "Cápsulas"
+    "capsules": "Cápsulas",
+    "junk_sweep": "Limpieza"
   },
   "auth": {
     "logout": "Cerrar sesión",
@@ -1578,11 +1579,13 @@
     "type_smart": "Inteligente",
     "invalid_share_link": "Enlace de compartir no válido",
     "share_link_revoked": "Este enlace de compartir no es válido o ha sido revocado.",
-    "load_error": "No se pudo cargar el álbum."
+    "load_error": "No se pudo cargar el álbum.",
+    "portfolio": "Exportar portafolio"
   },
   "critique": {
     "overlay_show": "Mostrar superposición",
     "overlay_hide": "Ocultar superposición",
+    "overlay_error": "No se pudo cargar la superposición.",
     "title": "Por que esta puntuación?",
     "category_reason": "Categoria",
     "breakdown": "Desglose de puntuación",
@@ -1783,6 +1786,14 @@
     "weight_ready_tooltip": "Suficientes comparaciones recopiladas — abre Comparación → Sugerencias de pesos para revisar y aplicar los pesos optimizados de esta categoría.",
     "strictness": "Rigor",
     "strictness_tooltip": "Más alto conserva solo la mejor foto; más bajo conserva también los casi empates",
+    "profiles": {
+      "custom": "Personalizado",
+      "balanced": "Equilibrado",
+      "wedding": "Boda",
+      "sports": "Deportes",
+      "concert": "Concierto",
+      "wildlife": "Fauna"
+    },
     "auto_cull": {
       "button": "Selección automática",
       "tooltip": "Conserva automáticamente la mejor foto de cada grupo y rechaza el resto",
@@ -1793,8 +1804,7 @@
       "apply": "Rechazar {rejected} fotos",
       "applied": "Selección automática aplicada: {kept} conservadas, {rejected} rechazadas",
       "error": "La selección automática ha fallado",
-      "empty": "Nada que seleccionar automáticamente en este alcance",
-      "better_tooltip": "Existe una foto mejor en este grupo"
+      "empty": "Nada que seleccionar automáticamente en este alcance"
     },
     "exit_scene": "Salir de la escena",
     "scene_complete": "Escena depurada: nada más que revisar",
@@ -1812,6 +1822,8 @@
     "face_eyes_min_tooltip": "Resalta los rostros con una puntuación de ojos abiertos inferior a este valor",
     "face_smile_min": "Sonrisa",
     "face_smile_min_tooltip": "Resalta los rostros con una puntuación de sonrisa inferior a este valor",
+    "subject_grid_title": "Sujetos de este grupo",
+    "subject_sharpness": "Nitidez del sujeto (10 = el más nítido del grupo)",
     "reason": {
       "best": "La mejor del grupo",
       "eyes_closed": "Ojos cerrados",
@@ -1849,7 +1861,13 @@
       "scenes": "Escenas",
       "tooltip": "Elige qué tipo de grupos revisar"
     },
-    "darkroom_tooltip": "Abrir el cuarto oscuro a pantalla completa para comparar y elegir"
+    "darkroom_tooltip": "Abrir el cuarto oscuro a pantalla completa para comparar y elegir",
+    "cull_style": {
+      "tooltip": "Previsualizar un revelado",
+      "original": "Original",
+      "loading": "Generando la vista previa",
+      "error": "No se pudo generar la vista previa revelada"
+    }
   },
   "scenes": {
     "title": "Escenas",
@@ -2080,7 +2098,8 @@
     "edit_location": "Editar ubicación",
     "add_location": "Añadir ubicación",
     "gps_click_to_place": "Haz clic en el mapa para colocar un marcador",
-    "gps_clear": "Borrar ubicación"
+    "gps_clear": "Borrar ubicación",
+    "social_crop": "Recorte social"
   },
   "download": {
     "type_original": "Original",
@@ -2153,7 +2172,8 @@
   "proofing": {
     "client_picks": "Selecciones del cliente",
     "no_picks": "Aún no hay selecciones del cliente.",
-    "picks_count": "{count} selecciones",
+    "picks_count": "{count} selección",
+    "picks_count_plural": "{count} selecciones",
     "pick": "Seleccionar esta foto",
     "unpick": "Quitar la selección",
     "comment": "Comentario",
@@ -2166,5 +2186,52 @@
     "start": "Empezar",
     "skip": "Omitir",
     "save_error": "No se pudo guardar tu selección."
+  },
+  "junk": {
+    "help": "Revisa los archivos que no son fotos detectados en tu biblioteca: capturas de pantalla, documentos, recibos, memes y diapositivas. Conserva los que quieras y rechaza el resto.",
+    "empty": "No se detectó basura. Ejecuta «python facet.py --detect-junk» para analizar tu biblioteca.",
+    "all_kinds": "Todos los tipos",
+    "keep": "Conservar",
+    "keep_hint": "Conservar esta foto (la quita de la cola)",
+    "reject": "Rechazar",
+    "reject_hint": "Rechazar esta foto",
+    "reject_all": "Rechazar todo lo mostrado: {count}",
+    "confirm_reject_all_title": "Rechazar todo lo mostrado",
+    "confirm_reject_all_message": "¿Rechazar las {count} fotos mostradas?",
+    "kept": "Foto conservada",
+    "rejected": "Foto rechazada",
+    "rejected_bulk": "{count} fotos rechazadas",
+    "load_more": "Cargar más",
+    "load_error": "No se pudieron cargar los candidatos",
+    "kinds": {
+      "screenshot": "Capturas de pantalla",
+      "document": "Documentos",
+      "receipt": "Recibos",
+      "meme": "Memes",
+      "slide": "Diapositivas"
+    }
+  },
+  "social_export": {
+    "presets": {
+      "square": "Cuadrado (1:1)",
+      "portrait_4x5": "Retrato (4:5)",
+      "story_9x16": "Historia (9:16)"
+    },
+    "source": {
+      "saliency": "encuadrado en el sujeto",
+      "faces": "encuadrado en las caras",
+      "center": "recorte centrado"
+    }
+  },
+  "portfolio": {
+    "title": "Exportar portafolio",
+    "description": "Exporta este álbum como un sitio web estático autónomo que puedes alojar en cualquier lugar.",
+    "gallery_title": "Título de la galería",
+    "target_dir": "Carpeta de destino",
+    "include_captions": "Incluir descripciones",
+    "export": "Exportar",
+    "cancel": "Cancelar",
+    "done": "Portafolio exportado: {count} fotos",
+    "error": "Error al exportar el portafolio"
   }
 }
