@@ -1,5 +1,5 @@
 # ---- Stage 1: Build Angular client ----
-FROM node:22-alpine AS client-build
+FROM node:26-alpine AS client-build
 
 WORKDIR /app/client
 COPY client/package.json ./
