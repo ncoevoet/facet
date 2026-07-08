@@ -266,9 +266,12 @@ def _validate_target_dir(target_dir):
             status_code=403,
             detail="Copy/symlink export is disabled — configure viewer.export.allowed_target_dirs",
         )
-    if not any(real == r or real.startswith(r + os.sep) for r in roots):
-        raise HTTPException(status_code=403, detail="target_dir is not an allowed export location")
-    return real
+    # Explicit loop rather than any(...): the direct startswith comparison is
+    # the containment-guard shape static analysis recognizes as a sanitizer.
+    for root in roots:
+        if real == root or real.startswith(root + os.sep):
+            return real
+    raise HTTPException(status_code=403, detail="target_dir is not an allowed export location")
 
 
 def _contained_dest(target_dir, filename):
