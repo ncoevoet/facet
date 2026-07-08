@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from api.config import (
@@ -46,6 +46,29 @@ def decode_access_token(token: str) -> Optional[dict]:
         return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
     except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
         return None
+
+
+AUTH_COOKIE_NAME = 'facet_auth'
+
+
+def set_auth_cookie(response, token: str) -> None:
+    """Mirror the freshest JWT in an HttpOnly cookie.
+
+    Browser-native requests that cannot carry an Authorization header
+    (<img> tags, EventSource) would otherwise be anonymous and see nothing
+    on a locked deployment. The cookie is honored only for safe methods
+    (see get_optional_user), so state-changing routes stay Bearer-only.
+    """
+    response.set_cookie(
+        AUTH_COOKIE_NAME, token,
+        max_age=JWT_EXPIRY_HOURS * 3600,
+        httponly=True, samesite='lax', path='/',
+    )
+
+
+def clear_auth_cookie(response) -> None:
+    """Remove the auth cookie (logout)."""
+    response.delete_cookie(AUTH_COOKIE_NAME, path='/')
 
 
 # --- USER INFO FROM TOKEN ---
@@ -86,17 +109,27 @@ class CurrentUser:
 # --- DEPENDENCY INJECTION ---
 
 async def get_optional_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> Optional[CurrentUser]:
     """Extract user from JWT token if present, without requiring auth."""
-    if credentials is None:
-        # No password mode — everyone is authenticated
+    bearer = credentials.credentials if credentials else None
+    token = bearer
+    if token is None and request.method in ('GET', 'HEAD'):
+        # <img> and EventSource requests cannot carry the Authorization
+        # header; fall back to the HttpOnly login cookie for safe methods
+        # only, so state-changing routes stay Bearer-only (no CSRF surface).
+        token = request.cookies.get(AUTH_COOKIE_NAME)
+
+    payload = decode_access_token(token) if token else None
+    if payload is None:
+        if bearer is not None:
+            # An explicit bad/expired Bearer keeps failing loudly.
+            return None
+        # No password mode — everyone is authenticated (a stale cookie
+        # must not lock an open install out).
         if not is_multi_user_enabled() and not VIEWER_CONFIG.get('password', ''):
             return CurrentUser()
-        return None
-
-    payload = decode_access_token(credentials.credentials)
-    if payload is None:
         return None
 
     # Share-client (proofing) tokens grant access ONLY through

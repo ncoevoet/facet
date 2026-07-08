@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from api import create_app
 from api.auth import (
+    AUTH_COOKIE_NAME,
     create_access_token,
     decode_access_token,
     hash_password,
@@ -224,6 +225,71 @@ class TestLegacyPasswordMode:
                 client.post("/api/auth/login", json={"password": "wrong"})
             resp = client.post("/api/auth/login", json={"password": "wrong"})
             assert resp.status_code == 429
+
+
+# ---------------------------------------------------------------------------
+# HttpOnly auth cookie (image/GET fallback on locked deployments)
+# ---------------------------------------------------------------------------
+
+
+class TestAuthCookie:
+    """Login mirrors the JWT in an HttpOnly cookie; GETs accept it, POSTs don't."""
+
+    @pytest.fixture(autouse=True)
+    def _patch(self):
+        viewer_cfg = {"password": "correct-pw", "edition_password": "", "features": {}}
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch("api.auth.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
+            mock.patch("api.auth.is_multi_user_enabled", return_value=False),
+            mock.patch(f"{_AUTH_MODULE}._login_limiter", _fresh_limiter()),
+            mock.patch(f"{_AUTH_MODULE}.upgrade_legacy_password"),
+        ):
+            yield
+
+    @pytest.fixture()
+    def client(self):
+        return _make_client()
+
+    def test_login_sets_httponly_cookie(self, client):
+        resp = client.post("/api/auth/login", json={"password": "correct-pw"})
+        assert resp.status_code == 200
+        set_cookie = resp.headers.get("set-cookie", "")
+        assert AUTH_COOKIE_NAME in set_cookie
+        assert "HttpOnly" in set_cookie
+
+    def test_cookie_authenticates_get(self, client):
+        """An <img>-style request (cookie only, no Bearer) is authenticated."""
+        token = create_access_token({"sub": "_legacy", "role": "user"})
+        client.cookies.set(AUTH_COOKIE_NAME, token)
+        resp = client.get("/api/auth/status")
+        assert resp.status_code == 200
+        assert resp.json()["authenticated"] is True
+
+    def test_anonymous_get_stays_anonymous(self, client):
+        resp = client.get("/api/auth/status")
+        assert resp.status_code == 200
+        assert resp.json()["authenticated"] is False
+
+    def test_cookie_does_not_authenticate_post(self, client):
+        """State-changing routes stay Bearer-only (no CSRF surface)."""
+        token = create_access_token({"sub": "_legacy", "role": "user", "edition": True})
+        client.cookies.set(AUTH_COOKIE_NAME, token)
+        resp = client.post("/api/auth/edition/logout")
+        assert resp.status_code == 401
+
+    def test_invalid_cookie_is_anonymous_not_500(self, client):
+        client.cookies.set(AUTH_COOKIE_NAME, "not-a-jwt")
+        resp = client.get("/api/auth/status")
+        assert resp.status_code == 200
+        assert resp.json()["authenticated"] is False
+
+    def test_logout_expires_cookie(self, client):
+        resp = client.post("/api/auth/logout")
+        assert resp.status_code == 200
+        set_cookie = resp.headers.get("set-cookie", "")
+        assert AUTH_COOKIE_NAME in set_cookie
 
 
 # ---------------------------------------------------------------------------
