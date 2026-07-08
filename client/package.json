@@ -33,7 +33,7 @@
     "@angular/material": "21.2.14",
     "@angular/platform-browser": "21.2.16",
     "@angular/router": "21.2.16",
-    "@angular/service-worker": "21.2.16",
+    "@angular/service-worker": "21.2.17",
     "@types/leaflet": "1.9.21",
     "chart.js": "4.5.1",
     "chartjs-adapter-date-fns": "3.0.0",
