@@ -263,34 +263,50 @@ class TestCaptionEditionGate:
 class TestGenerateCaption:
     """Tests for the _generate_caption helper."""
 
+    # resolve_vlm_config lives in api.model_cache and reads api.config._FULL_CONFIG
+    # via a function-level import — patch THAT module, not the router's stale
+    # import, or the tests only pass on boxes whose detected profile has no VLM.
+
     def test_returns_none_for_legacy_profile(self):
         from api.routers.caption import _generate_caption
 
-        with mock.patch("api.routers.caption._FULL_CONFIG", {"models": {"vram_profile": "legacy"}}):
+        cfg = {"models": {"vram_profile": "legacy",
+                          "profiles": {"legacy": {"tagging_model": "clip"}}}}
+        with mock.patch("api.config._FULL_CONFIG", cfg):
             result = _generate_caption("/photos/test.jpg")
         assert result is None
 
     def test_returns_none_for_8gb_profile(self):
         from api.routers.caption import _generate_caption
 
-        with mock.patch("api.routers.caption._FULL_CONFIG", {"models": {"vram_profile": "8gb"}}):
+        cfg = {"models": {"vram_profile": "8gb",
+                          "profiles": {"8gb": {"tagging_model": "clip"}}}}
+        with mock.patch("api.config._FULL_CONFIG", cfg):
             result = _generate_caption("/photos/test.jpg")
         assert result is None
 
-    def test_returns_none_when_no_model_name(self):
+    def test_returns_none_when_no_model_path(self):
         from api.routers.caption import _generate_caption
 
-        with mock.patch("api.routers.caption._FULL_CONFIG", {
-            "models": {"vram_profile": "16gb", "vlm_tagger": {"model_name": ""}}
-        }):
+        cfg = {"models": {"vram_profile": "16gb",
+                          "profiles": {"16gb": {"tagging_model": "qwen3.5-2b"}},
+                          "qwen3_5_2b": {}}}
+        with mock.patch("api.config._FULL_CONFIG", cfg):
             result = _generate_caption("/photos/test.jpg")
         assert result is None
 
     def test_returns_none_on_exception(self):
         from api.routers.caption import _generate_caption
 
-        with mock.patch("api.routers.caption._FULL_CONFIG", {
-            "models": {"vram_profile": "16gb", "vlm_tagger": {"model_name": "test-model"}}
-        }), mock.patch("api.routers.caption.get_or_load_vlm_tagger", side_effect=RuntimeError("GPU OOM")):
+        cfg = {"models": {"vram_profile": "16gb",
+                          "profiles": {"16gb": {"tagging_model": "qwen3.5-2b"}},
+                          "qwen3_5_2b": {"model_path": "Qwen/Qwen3.5-2B"}}}
+        with (
+            mock.patch("api.config._FULL_CONFIG", cfg),
+            mock.patch("api.routers.caption.resolve_photo_disk_path",
+                       return_value="/photos/test.jpg"),
+            mock.patch("api.routers.caption.get_or_load_vlm_tagger",
+                       side_effect=RuntimeError("GPU OOM")),
+        ):
             result = _generate_caption("/photos/test.jpg")
         assert result is None
