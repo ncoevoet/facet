@@ -4,6 +4,17 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.7.1] "Clarity" — 2026-07-08
+
+### Added
+- **Animated walkthrough on the README and landing page**: a fully-blurred tour of every viewer page — gallery, per-photo scoring, culling, capsules, timeline, map, stats and the rest — replaces the static hero mosaic across the English and five translated READMEs and the GitHub Pages landing.
+
+### Changed
+- The landing page no longer names competitor apps in its feature copy (all six languages), and its hero border is sized to the demo instead of framing it in a wider box.
+
+### Fixed
+- **Cached counts now refresh after external database writes**: the Junk Sweep page could report "No junk detected" even when junk existed — once `--detect-junk` populated `junk_kind` from a separate process, the gallery COUNT cache kept serving the value computed while the column was still NULL (the page's default `junk_kind=any` + `hide_rejected` request) for up to its 5-minute TTL, while a specific-kind chip used a different cache key and returned fresh rows. `PRAGMA data_version` cannot detect this because the viewer opens a fresh aiosqlite connection per request and that pragma resets to a baseline on every open, so the count and hidden-aggregate caches are now keyed on the database file's size and mtime (and its `-wal`) — a value any process's commit moves. This also stops gallery totals and pagination from lagging for up to five minutes after the viewer's own writes (rejects, ratings) or a `--recompute-*` run.
+
 ## [1.7.0] "Bokeh" — 2026-07-08
 
 ### Added
