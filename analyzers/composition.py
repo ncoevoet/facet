@@ -228,8 +228,8 @@ class CompositionAnalyzer:
         total_score = 0
         valid_lines = 0
 
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
+        # Newer OpenCV builds return (N, 4) instead of (N, 1, 4)
+        for x1, y1, x2, y2 in lines.reshape(-1, 4):
             length = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
             # Calculate angle from horizontal (0-90 degrees)

@@ -12,6 +12,9 @@ import numpy as np
 import pytest
 
 pytest.importorskip("cv2")
+# rescan_samp_composition imports models.samp_net, which needs torch — absent
+# from the minimal CI test job; skip the whole module there (runs locally).
+pytest.importorskip("torch")
 import cv2  # noqa: E402
 
 from db import get_connection  # noqa: E402
