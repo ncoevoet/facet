@@ -76,7 +76,7 @@ onnx==1.22.0
 onnxruntime==1.27.0
 openai-clip==1.0.1
 opencv-python-headless==4.13.0.92
-opencv-python==4.13.0.92
+opencv-python==5.0.0.93
 open_clip_torch==3.3.0
 optree==0.14.0
 pandas==3.0.3
