@@ -44,7 +44,7 @@
   },
   "devDependencies": {
     "@angular/build": "21.2.14",
-    "@angular/cli": "21.2.14",
+    "@angular/cli": "22.0.5",
     "@angular/compiler-cli": "21.2.16",
     "@angular/platform-browser-dynamic": "21.2.16",
     "@tailwindcss/postcss": "4.3.2",
