@@ -6,6 +6,7 @@ Database helper functions for the FastAPI API server.
 import hashlib
 import logging
 import math
+import os
 import sqlite3
 import struct
 import time
@@ -18,6 +19,7 @@ from api.config import (
     is_multi_user_enabled, get_user_directories, _FULL_CONFIG, VIEWER_CONFIG,
 )
 from api.database import get_db_connection
+from db import DEFAULT_DB_PATH
 
 logger = logging.getLogger("facet.api.db_helpers")
 
@@ -361,9 +363,28 @@ def _count_cache_store(cache_key, count):
                 del _count_cache[k]
 
 
+def _db_change_token():
+    """Cross-process DB-mutation marker for count-cache keys.
+
+    A per-request connection cannot use ``PRAGMA data_version`` (it resets to a
+    baseline on every open), so the on-disk size+mtime of the database and its
+    ``-wal`` is used instead: any commit from any process — including the
+    ``--detect-junk`` / ``--recompute-*`` CLI — moves one of them and invalidates
+    stale counts.
+    """
+    parts = []
+    for suffix in ("", "-wal"):
+        try:
+            st = os.stat(f"{DEFAULT_DB_PATH}{suffix}")
+            parts.append(f"{st.st_size}:{st.st_mtime_ns}")
+        except OSError:
+            parts.append("-")
+    return "|".join(parts)
+
+
 def get_cached_count(conn, where_str, sql_params, from_clause="photos"):
     """Cache COUNT results to avoid repeated full-table scans."""
-    cache_key = hashlib.sha256(f"{from_clause}:{where_str}:{tuple(sql_params)}".encode()).hexdigest()
+    cache_key = hashlib.sha256(f"{from_clause}:{where_str}:{tuple(sql_params)}:{_db_change_token()}".encode()).hexdigest()
     cached = _count_cache_lookup(cache_key)
     if cached is not None:
         return cached
@@ -376,7 +397,7 @@ def get_cached_count(conn, where_str, sql_params, from_clause="photos"):
 
 async def get_cached_count_async(conn, where_str, sql_params, from_clause="photos"):
     """Async variant of get_cached_count for aiosqlite paths."""
-    cache_key = hashlib.sha256(f"{from_clause}:{where_str}:{tuple(sql_params)}".encode()).hexdigest()
+    cache_key = hashlib.sha256(f"{from_clause}:{where_str}:{tuple(sql_params)}:{_db_change_token()}".encode()).hexdigest()
     cached = _count_cache_lookup(cache_key)
     if cached is not None:
         return cached
@@ -398,7 +419,7 @@ async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_c
     infinite-scroll fetch.
     """
     cache_key = "hs:" + hashlib.sha256(
-        f"{from_clause}:{where_str}:{tuple(sql_params)}".encode()
+        f"{from_clause}:{where_str}:{tuple(sql_params)}:{_db_change_token()}".encode()
     ).hexdigest()
     cached = _count_cache_lookup(cache_key)
     if cached is not None:
