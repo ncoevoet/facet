@@ -39,7 +39,7 @@ insightface>=0.7.0
 pyiqa>=0.1.11
 # pyiqa's liqe/clipiqa archs depend on PyPI openai-clip, which still imports
 # pkg_resources at runtime (LIQE/CLIPIQA); setuptools 81 removed pkg_resources.
-setuptools<81
+setuptools<84
 
 # Extended IQA tier (OPTIONAL, OFF by default — see docs/CONFIGURATION.md
 # "Extended IQA tier"). Enabled per-metric via scoring_config.json "iqa_extended".
