@@ -21,6 +21,10 @@ updates:
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-major"
+      # Majors are a deliberate, verified upgrade — never auto-propose them.
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   # ---- Angular client (client/: package.json + package-lock.json) ----
   - package-ecosystem: "npm"
@@ -46,12 +50,10 @@ updates:
           - "minor"
           - "patch"
     ignore:
-      # Angular framework majors are a deliberate, coordinated migration — a lone
-      # @angular/* major breaks lockstep peer resolution, so never auto-propose them.
-      - dependency-name: "@angular*"
-        update-types:
-          - "version-update:semver-major"
-      - dependency-name: "angular-eslint"
+      # Majors are a deliberate, verified upgrade — never auto-propose them. Covers
+      # the Angular 21->22 framework migration (a lone @angular/* major breaks
+      # lockstep peer resolution) and typescript (pinned <6.0 by Angular's peers).
+      - dependency-name: "*"
         update-types:
           - "version-update:semver-major"
 
@@ -78,8 +80,8 @@ updates:
     ignore:
       # CUDA/cudnn/torch combo is hand-matched to the GPU stack — never auto-bump.
       - dependency-name: "pytorch/pytorch"
-      # node major bumps are a deliberate build-image decision — keep the major
-      # pinned, take only alpine patch/minor rebuilds.
-      - dependency-name: "node"
+      # Base-image majors are a deliberate build decision — keep majors pinned,
+      # take only patch/minor rebuilds (e.g. alpine security rebuilds of node).
+      - dependency-name: "*"
         update-types:
           - "version-update:semver-major"
