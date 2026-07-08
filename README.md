@@ -50,8 +50,12 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **Burst detection** — groups rapid-fire shots and auto-selects the best one based on sharpness, quality, and blink detection
 - **Similarity groups** — finds visually similar photos across the library, regardless of when they were taken
 - **Scenes** — groups a shoot into chronological "scenes" by capture-time gaps, so you cull in story order; tap to mark and confirm to reject
+- **Auto-cull** — one button culls a whole scope (all groups, or bursts / similars / scenes only, optionally narrowed to an album or date window) with a dry-run preview, a keeper budget, and an optional Highlights album
+- **Genre profiles** — sports / wedding / concert / wildlife presets bundle strictness, keeper budget, similarity threshold and face gates in a single pick
+- **Edited-look preview** `[Edition]` — render a photo through a named darktable style inside the culling darkroom, so you cull on the developed look instead of the flat RAW preview
+- **Subject close-ups** — no-face groups (wildlife, macro, product) compare by an auto-cropped subject strip with group-normalized sharpness badges
 - **Junk sweep** — zero-shot detection of non-photo clutter (screenshots, documents, receipts, memes, slides) with a fast review queue: keep or reject each candidate, or reject all at once
-- **Per-face culling badges** — the culling lightbox shows per-face eyes open/closed, expression, and detection-confidence badges, not just a single photo-level blink flag
+- **Per-face culling badges** — the culling lightbox shows per-face eyes open/closed, expression, and detection-confidence badges, not just a single photo-level blink flag; optional MediaPipe blendshapes sharpen the eyes/smile reads
 - **Blink detection** — flags closed-eye shots to hide or reject in one click
 - **Duplicate detection** — identifies near-identical images via perceptual hashing
 
@@ -69,6 +73,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **Map** — geotagged photos on an interactive map with marker clustering
 - **Capsules** — themed slideshows: journeys with place names, golden collection, seasonal palettes, photos of a person, and more
 - **Folders** — browse by directory structure with breadcrumb navigation and cover photos
+- **Narrative moments** — zero-shot scene/activity labels (beach, celebration, concert, …) name your scenes, filter and sort the gallery, and feed capsule selection
 - **Memories** — "On This Day": photos from the same date in previous years
 - **Slideshow** — full-screen mode with themed transitions, auto-chaining between capsules, and keyboard controls
 
@@ -136,6 +141,11 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 ### Share
 
 - **Album sharing** — generate shareable links for any album, no login required for recipients. Revoke access at any time.
+- **Client proofing** — a shared album can run in proofing mode: clients heart photos and leave comments with just the link (plus an optional PIN), fully isolated from your own ratings
+- **Phone auto-upload** — point PhotoSync or any WebDAV app at the built-in `/dav` inbox; `--watch` scores new shots as they arrive
+- **Photo frames & kiosks** — a token-guarded endpoint feeds your curated best shots to smart photo frames and Home Assistant dashboards
+- **Portfolio export** `[Edition]` — render an album into a self-contained static HTML gallery (no CDN references, works offline) you can drop on any web host
+- **Social crops** `[Edition]` — full-resolution exports framed on the detected subject for square, portrait and story aspect presets
 - **Photo download** — download individual photos or selections from the gallery
 - **Export** — export all scores to CSV or JSON for external analysis
 
@@ -176,13 +186,13 @@ Facet scores, ranks, and culls a local photo library and serves a gallery to bro
 
 **Probably not for you if you want:**
 
-- a turnkey, mobile, cloud-backed Google Photos replacement with automatic phone backup;
+- a turnkey, mobile, cloud-backed Google Photos replacement — though phone auto-upload into a watched inbox is built in over WebDAV (PhotoSync recipe in the docs);
 - RAW editing or develop — Facet scores and organizes, it does not edit;
 - a zero-setup desktop app — it needs Python, and the best models need a GPU.
 
 **How it relates to other tools**
 
-- Self-hosted libraries (Immich, PhotoPrism) focus on organizing, search, and backup. Facet adds quality scoring, ranking, and a culling workflow they don't, but it has no mobile app or built-in backup/sync.
+- Self-hosted libraries (Immich, PhotoPrism) focus on organizing, search, and backup. Facet adds quality scoring, ranking, and a culling workflow they don't, but it has no mobile app or cloud backup (phone auto-upload over WebDAV is built in, and ratings can sync to Immich).
 - AI culling apps (Aftershoot, Narrative, FilterPixel) are polished commercial cullers, often with editing built in. Facet is free, local, broader (gallery, search, faces), and its scoring is tunable — but it is a single-developer project without their support or RAW editing.
 - Editors and catalogs (Lightroom, darktable, digiKam) develop and manage photos. Facet complements them through the XMP metadata interop above rather than replacing them.
 
