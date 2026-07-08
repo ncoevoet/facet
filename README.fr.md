@@ -11,7 +11,7 @@ Facet est un moteur local d'analyse et de tri de photos. Il évalue chaque image
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 <p align="center">
-  <img src="docs/screenshots/hero-mosaic.jpg" alt="Facet — galerie en mosaïque des Meilleurs choix" width="100%">
+  <img src="docs/screenshots/walkthrough.gif" alt="Facet en action — galerie, notation par photo, tri, capsules, chronologie, carte et statistiques" width="100%">
 </p>
 
 ## Fonctionnement

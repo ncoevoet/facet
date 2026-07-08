@@ -11,7 +11,7 @@ O Facet é um mecanismo local de análise e seleção de fotos. Ele pontua cada 
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 <p align="center">
-  <img src="docs/screenshots/hero-mosaic.jpg" alt="Facet — galeria em mosaico de Melhores Escolhas" width="100%">
+  <img src="docs/screenshots/walkthrough.gif" alt="Facet em ação — galeria, pontuação por foto, seleção, cápsulas, linha do tempo, mapa e estatísticas" width="100%">
 </p>
 
 ## Como Funciona

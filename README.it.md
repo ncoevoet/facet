@@ -11,7 +11,7 @@ Facet è un motore locale di analisi e selezione delle foto. Assegna a ogni imma
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 <p align="center">
-  <img src="docs/screenshots/hero-mosaic.jpg" alt="Facet — galleria a mosaico delle Migliori scelte" width="100%">
+  <img src="docs/screenshots/walkthrough.gif" alt="Facet in azione — galleria, punteggio per foto, selezione, capsule, cronologia, mappa e statistiche" width="100%">
 </p>
 
 ## Come funziona

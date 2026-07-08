@@ -77,7 +77,8 @@
     .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 26px; }
     .badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 34px; }
     .badges img { display: inline-block; height: 20px; }
-    .hero-shot { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+    .hero-shot { display: inline-block; max-width: 100%; line-height: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
+    .hero-shot img { display: block; max-width: 100%; height: auto; }
 
     section { padding: 56px 0; }
     section h2 { font-size: clamp(26px, 4vw, 34px); margin: 0 0 10px; letter-spacing: -0.01em; text-align: center; }
@@ -179,7 +180,7 @@
       <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Docker-9aa4b2" alt="Platforms">
     </div>
     <div class="hero-shot">
-      <img src="screenshots/hero-mosaic.jpg" alt="Facet Top Picks mosaic gallery">
+      <img src="screenshots/walkthrough.gif" alt="Facet in action — gallery, per-photo scoring, culling, capsules, timeline, map, and stats" loading="lazy">
     </div>
   </div>
 
@@ -190,7 +191,7 @@
       <div class="card">
         <span class="tag" data-i18n="tools.c1.tag">Self-hosted gallery</span>
         <h3 data-i18n="tools.c1.h3">Browse &amp; explore</h3>
-        <p data-i18n="tools.c1.p">Everything Immich and PhotoPrism give you for organizing — plus the quality scoring and ranking they don't.</p>
+        <p data-i18n="tools.c1.p">A full self-hosted gallery to organize and explore your whole library — plus the quality scoring and ranking most galleries leave out.</p>
         <ul>
           <li data-i18n="tools.c1.li1">Search in plain words — "sunset on the beach" finds the photo</li>
           <li data-i18n="tools.c1.li2">Recognizes people and suggests who to merge</li>
@@ -201,7 +202,7 @@
       <div id="culling" class="card">
         <span class="tag" data-i18n="tools.c2.tag">Culling workflow</span>
         <h3 data-i18n="tools.c2.h3">Score &amp; cull</h3>
-        <p data-i18n="tools.c2.p">A free, local alternative to Aftershoot, Narrative and FilterPixel — with scoring that learns your taste.</p>
+        <p data-i18n="tools.c2.p">A free, fully local culling workflow — with scoring that learns your taste.</p>
         <ul>
           <li data-i18n="tools.c2.li1">Rates every photo and picks the keepers</li>
           <li data-i18n="tools.c2.li2">Groups bursts, look-alikes &amp; scenes, flags the best of each</li>
@@ -336,14 +337,14 @@ python viewer.py</pre>
         "tools.sub": "Une galerie privée pour parcourir et explorer toute votre photothèque — et un flux de tri pour ne garder que les clichés qui sortent du lot.",
         "tools.c1.tag": "Galerie auto-hébergée",
         "tools.c1.h3": "Parcourir et explorer",
-        "tools.c1.p": "Tout ce qu'Immich et PhotoPrism offrent pour organiser — plus la notation de la qualité et le classement qu'ils n'ont pas.",
+        "tools.c1.p": "Une galerie auto-hébergée complète pour organiser et explorer toute votre photothèque — plus la notation de la qualité et le classement que la plupart des galeries n'ont pas.",
         "tools.c1.li1": "Recherche en mots simples — « coucher de soleil sur la plage » trouve la photo",
         "tools.c1.li2": "Reconnaît les personnes et suggère lesquelles fusionner",
         "tools.c1.li3": "Chronologie, carte, dossiers, albums et diaporamas thématiques",
         "tools.c1.li4": "Reste rapide même avec plus de 100 000 photos",
         "tools.c2.tag": "Flux de tri",
         "tools.c2.h3": "Noter et trier",
-        "tools.c2.p": "Une alternative gratuite et locale à Aftershoot, Narrative et FilterPixel — avec une notation qui apprend vos goûts.",
+        "tools.c2.p": "Un flux de tri gratuit et entièrement local — avec une notation qui apprend vos goûts.",
         "tools.c2.li1": "Note chaque photo et sélectionne celles à garder",
         "tools.c2.li2": "Regroupe rafales, sosies et scènes, signale la meilleure de chaque",
         "tools.c2.li3": "Badges de clignement et d'expression par visage",
@@ -413,14 +414,14 @@ python viewer.py</pre>
         "tools.sub": "Eine private Galerie zum Durchstöbern und Erkunden Ihrer gesamten Sammlung — und ein Auswahl-Workflow, der nur die herausragenden Aufnahmen behält.",
         "tools.c1.tag": "Selbst gehostete Galerie",
         "tools.c1.h3": "Durchstöbern und erkunden",
-        "tools.c1.p": "Alles, was Immich und PhotoPrism zum Organisieren bieten — plus die Qualitätsbewertung und das Ranking, die ihnen fehlen.",
+        "tools.c1.p": "Eine vollständige selbst-gehostete Galerie zum Organisieren und Erkunden Ihrer gesamten Mediathek — plus die Qualitätsbewertung und das Ranking, die den meisten Galerien fehlen.",
         "tools.c1.li1": "Suche mit einfachen Worten — „Sonnenuntergang am Strand“ findet das Foto",
         "tools.c1.li2": "Erkennt Personen und schlägt vor, welche zusammenzuführen sind",
         "tools.c1.li3": "Zeitleiste, Karte, Ordner, Alben und thematische Diashows",
         "tools.c1.li4": "Bleibt schnell, selbst bei über 100.000 Fotos",
         "tools.c2.tag": "Auswahl-Workflow",
         "tools.c2.h3": "Bewerten und aussortieren",
-        "tools.c2.p": "Eine kostenlose, lokale Alternative zu Aftershoot, Narrative und FilterPixel — mit einer Bewertung, die Ihren Geschmack lernt.",
+        "tools.c2.p": "Ein kostenloser, vollständig lokaler Auswahl-Workflow — mit einer Bewertung, die Ihren Geschmack lernt.",
         "tools.c2.li1": "Bewertet jedes Foto und wählt die Behaltenswerten aus",
         "tools.c2.li2": "Gruppiert Serien, Ähnliche und Szenen und markiert jeweils das beste Bild",
         "tools.c2.li3": "Badges für Blinzeln und Ausdruck pro Gesicht",
@@ -490,14 +491,14 @@ python viewer.py</pre>
         "tools.sub": "Una galleria privata per sfogliare ed esplorare tutta la tua libreria — e un flusso di selezione per tenere solo gli scatti che brillano.",
         "tools.c1.tag": "Galleria self-hosted",
         "tools.c1.h3": "Sfoglia ed esplora",
-        "tools.c1.p": "Tutto ciò che Immich e PhotoPrism offrono per organizzare — più la valutazione della qualità e la classifica che loro non hanno.",
+        "tools.c1.p": "Una galleria self-hosted completa per organizzare ed esplorare tutta la tua libreria — più la valutazione della qualità e la classifica che la maggior parte delle gallerie non ha.",
         "tools.c1.li1": "Ricerca a parole tue — « tramonto sulla spiaggia » trova la foto",
         "tools.c1.li2": "Riconosce le persone e suggerisce quali unire",
         "tools.c1.li3": "Cronologia, mappa, cartelle, album e presentazioni a tema",
         "tools.c1.li4": "Resta veloce anche con oltre 100.000 foto",
         "tools.c2.tag": "Flusso di selezione",
         "tools.c2.h3": "Valuta e seleziona",
-        "tools.c2.p": "Un'alternativa gratuita e locale ad Aftershoot, Narrative e FilterPixel — con una valutazione che impara i tuoi gusti.",
+        "tools.c2.p": "Un flusso di selezione gratuito e completamente locale — con una valutazione che impara i tuoi gusti.",
         "tools.c2.li1": "Valuta ogni foto e sceglie quelle da tenere",
         "tools.c2.li2": "Raggruppa raffiche, sosia e scene, segnalando la migliore di ciascuna",
         "tools.c2.li3": "Badge di ammiccamento ed espressione per ogni volto",
@@ -567,14 +568,14 @@ python viewer.py</pre>
         "tools.sub": "Una galería privada para explorar y recorrer toda tu biblioteca — y un flujo de selección para conservar solo las tomas que destacan.",
         "tools.c1.tag": "Galería autoalojada",
         "tools.c1.h3": "Explorar y recorrer",
-        "tools.c1.p": "Todo lo que Immich y PhotoPrism ofrecen para organizar — más la puntuación de calidad y la clasificación que ellos no tienen.",
+        "tools.c1.p": "Una galería autoalojada completa para organizar y explorar toda tu biblioteca — más la puntuación de calidad y la clasificación que la mayoría de las galerías no tienen.",
         "tools.c1.li1": "Búsqueda con palabras sencillas — «atardecer en la playa» encuentra la foto",
         "tools.c1.li2": "Reconoce a las personas y sugiere cuáles fusionar",
         "tools.c1.li3": "Línea de tiempo, mapa, carpetas, álbumes y pases de diapositivas temáticos",
         "tools.c1.li4": "Sigue siendo rápida incluso con más de 100 000 fotos",
         "tools.c2.tag": "Flujo de selección",
         "tools.c2.h3": "Puntuar y depurar",
-        "tools.c2.p": "Una alternativa gratuita y local a Aftershoot, Narrative y FilterPixel — con una puntuación que aprende tu gusto.",
+        "tools.c2.p": "Un flujo de selección gratuito y totalmente local — con una puntuación que aprende tu gusto.",
         "tools.c2.li1": "Puntúa cada foto y elige las que conservar",
         "tools.c2.li2": "Agrupa ráfagas, similares y escenas, y marca la mejor de cada una",
         "tools.c2.li3": "Insignias de parpadeo y expresión por cada rostro",
@@ -644,14 +645,14 @@ python viewer.py</pre>
         "tools.sub": "Uma galeria privada para navegar e explorar toda a sua biblioteca — e um fluxo de seleção para manter apenas as fotos que se destacam.",
         "tools.c1.tag": "Galeria auto-hospedada",
         "tools.c1.h3": "Navegar e explorar",
-        "tools.c1.p": "Tudo o que o Immich e o PhotoPrism oferecem para organizar — mais a avaliação de qualidade e a classificação que eles não têm.",
+        "tools.c1.p": "Uma galeria auto-hospedada completa para organizar e explorar toda a sua biblioteca — mais a avaliação de qualidade e a classificação que a maioria das galerias não tem.",
         "tools.c1.li1": "Pesquisa com palavras simples — “pôr do sol na praia” encontra a foto",
         "tools.c1.li2": "Reconhece pessoas e sugere quais mesclar",
         "tools.c1.li3": "Linha do tempo, mapa, pastas, álbuns e apresentações temáticas",
         "tools.c1.li4": "Continua rápida mesmo com mais de 100.000 fotos",
         "tools.c2.tag": "Fluxo de seleção",
         "tools.c2.h3": "Avaliar e selecionar",
-        "tools.c2.p": "Uma alternativa gratuita e local ao Aftershoot, Narrative e FilterPixel — com avaliação que aprende o seu gosto.",
+        "tools.c2.p": "Um fluxo de seleção gratuito e totalmente local — com avaliação que aprende o seu gosto.",
         "tools.c2.li1": "Avalia cada foto e escolhe as que valem a pena manter",
         "tools.c2.li2": "Agrupa rajadas, semelhantes e cenas, destacando a melhor de cada",
         "tools.c2.li3": "Selos de piscar de olhos e expressão por rosto",

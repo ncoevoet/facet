@@ -11,7 +11,7 @@ Facet ist eine lokale Engine zur Fotoanalyse und Bildauswahl. Sie bewertet jedes
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 <p align="center">
-  <img src="docs/screenshots/hero-mosaic.jpg" alt="Facet — Mosaik-Galerie mit der besten Auswahl" width="100%">
+  <img src="docs/screenshots/walkthrough.gif" alt="Facet in Aktion — Galerie, Bewertung pro Foto, Auswahl, Kapseln, Zeitleiste, Karte und Statistiken" width="100%">
 </p>
 
 ## Funktionsweise
