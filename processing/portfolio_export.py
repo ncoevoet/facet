@@ -41,6 +41,22 @@ MANIFEST_FILE_NAME = "manifest.json"
 ASSET_PREFIX = "photo"
 
 
+def _contained(root, *parts):
+    """Join ``parts`` under ``root`` and require the result to stay inside it.
+
+    Defense-in-depth behind the API-level ``allowed_target_dirs`` validation:
+    every path this module writes is normalized and refused if it resolves
+    outside the export directory (e.g. through a symlinked subpath).
+    """
+    root_real = os.path.realpath(root)
+    if not parts:
+        return root_real
+    candidate = os.path.realpath(os.path.join(root_real, *parts))
+    if candidate != root_real and not candidate.startswith(root_real + os.sep):
+        raise ValueError("path escapes the export directory")
+    return candidate
+
+
 @dataclass
 class PortfolioOptions:
     """Rendering options for a portfolio export."""
@@ -75,7 +91,8 @@ def export_portfolio(photos, output_dir, options):
         dict with ``exported``, ``from_original``, ``from_thumbnail`` and
         ``output_dir``.
     """
-    assets_dir = os.path.join(output_dir, ASSETS_DIR_NAME)
+    output_dir = _contained(output_dir)
+    assets_dir = _contained(output_dir, ASSETS_DIR_NAME)
     os.makedirs(output_dir, exist_ok=True)
     shutil.rmtree(assets_dir, ignore_errors=True)
     os.makedirs(assets_dir, exist_ok=True)
@@ -91,7 +108,7 @@ def export_portfolio(photos, output_dir, options):
         seq = len(entries) + 1
         asset_name = f"{ASSET_PREFIX}-{seq:04d}.jpg"
         image.save(
-            os.path.join(assets_dir, asset_name),
+            _contained(assets_dir, asset_name),
             format="JPEG",
             quality=options.jpeg_quality,
         )
@@ -160,12 +177,12 @@ def _write_manifest(output_dir, entries, options, from_original, from_thumbnail)
             for e in entries
         ],
     }
-    with open(os.path.join(output_dir, MANIFEST_FILE_NAME), "w", encoding="utf-8") as fh:
+    with open(_contained(output_dir, MANIFEST_FILE_NAME), "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, ensure_ascii=False, indent=2, sort_keys=True)
 
 
 def _write_index(output_dir, entries, options):
-    with open(os.path.join(output_dir, INDEX_FILE_NAME), "w", encoding="utf-8") as fh:
+    with open(_contained(output_dir, INDEX_FILE_NAME), "w", encoding="utf-8") as fh:
         fh.write(_render_html(entries, options))
 
 
