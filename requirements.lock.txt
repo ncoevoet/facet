@@ -35,7 +35,7 @@ filterpy==1.4.5
 flatbuffers==25.12.19
 fonttools==4.63.0
 frozenlist==1.8.0
-fsspec==2024.12.0
+fsspec==2026.6.0
 ftfy==6.3.1
 future==1.0.0
 grpcio==1.81.1
