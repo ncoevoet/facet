@@ -62,7 +62,7 @@ dependencies = [
 vlm = [
     # Upper-bounded to match requirements.txt: transformers 5.3+ breaks the batched
     # VLM tagger (Qwen3.5 vision-token handling); 5.2.x is the validated ceiling.
-    "transformers>=5.0.0,<5.3",
+    "transformers>=5.0.0,<5.6",
     "accelerate>=0.25.0",
 ]
 saliency = [
