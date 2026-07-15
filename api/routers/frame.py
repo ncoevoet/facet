@@ -246,9 +246,11 @@ def frame_image(
     rowid = _resolve_id(photo_id)
     if rowid is None:
         raise HTTPException(status_code=404, detail="Unknown photo")
+    where, params = _curation_clause(cfg)
     with get_db() as conn:
         row = conn.execute(
-            "SELECT path, thumbnail FROM photos WHERE rowid = ?", (rowid,)
+            f"SELECT path, thumbnail FROM photos WHERE rowid = ? AND {where}",
+            (rowid, *params),
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Unknown photo")

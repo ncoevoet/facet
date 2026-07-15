@@ -290,6 +290,31 @@ class TestImage:
         resp = client.get(f"/api/frame/image/{rowid}.café", params={"token": TOKEN})
         assert resp.status_code == 404
 
+    def test_image_404_when_rejected_after_id_issued(self, client, frame_cfg, seed):
+        photo_id = seed["good"]
+        conn = _connect()
+        conn.execute(
+            "UPDATE photos SET is_rejected = 1 WHERE path = ?", (f"{PREFIX}good.jpg",)
+        )
+        conn.commit()
+        conn.close()
+        resp = client.get(f"/api/frame/image/{photo_id}", params={"token": TOKEN})
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Unknown photo"
+
+    def test_image_404_when_flagged_junk_after_id_issued(self, client, frame_cfg, seed):
+        photo_id = seed["good"]
+        conn = _connect()
+        conn.execute(
+            "UPDATE photos SET junk_kind = ? WHERE path = ?",
+            ("screenshot", f"{PREFIX}good.jpg"),
+        )
+        conn.commit()
+        conn.close()
+        resp = client.get(f"/api/frame/image/{photo_id}", params={"token": TOKEN})
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Unknown photo"
+
 
 # --- Next ------------------------------------------------------------------
 
@@ -320,6 +345,7 @@ class TestUnrenderable:
     def test_image_404_when_original_missing_and_no_thumbnail(
         self, client, frame_cfg, unrenderable_seed
     ):
+        frame_cfg["categories"] = [_CAT_C]
         resp = client.get(
             f"/api/frame/image/{unrenderable_seed}", params={"token": TOKEN}
         )
