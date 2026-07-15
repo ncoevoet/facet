@@ -38,14 +38,14 @@ frozenlist==1.8.0
 fsspec==2024.12.0
 ftfy==6.3.1
 future==1.0.0
-grpcio==1.81.1
+grpcio==1.82.1
 h11==0.16.0
 hdbscan==0.8.44
 hf-xet==1.5.1
 httpcore==1.0.9
 httpx==0.28.1
 huggingface_hub==1.22.0
-hypothesis==6.156.3
+hypothesis==6.156.4
 identify==2.6.19
 ImageHash==4.3.2
 ImageIO==2.37.3
@@ -95,7 +95,7 @@ pytest-asyncio==1.4.0
 pytest-timeout==2.4.0
 pytest==9.1.1
 python-dateutil==2.9.0.post0
-python-discovery==1.4.3
+python-discovery==1.4.4
 python-etcd==0.4.5
 PyWavelets==1.9.0
 rawpy==0.27.0
