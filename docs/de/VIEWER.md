@@ -504,6 +504,8 @@ Eine **Auto-Cull**-Schaltfläche in der Symbolleiste sortiert einen ganzen Geltu
 
 Die Vorschau ist ein **Probelauf** (nichts wird geschrieben): Sie zeigt die Behalte-/Ablehnen-Aufteilung pro Gruppe. Bestätigen zum Anwenden — Ablehnungen werden erfasst und trainieren, wie jedes Aussortieren, „Mein Geschmack"; ein optionales **Highlights**-Album sammelt idempotent das beste Foto jeder Gruppe, das mindestens `auto_cull.highlights_min` erreicht. Ein Hinweis-Badge „besseres Foto in dieser Gruppe" markiert Gruppen, in denen Auto-Cull ein anderes Bild als das aktuelle Leitfoto behalten würde. `POST /api/culling/auto`; konfiguriert über den [`auto_cull`](CONFIGURATION.md#auto-cull)-Block.
 
+Wenn ein Keeper-Ranking-Head trainiert ist, wählt `POST /api/culling/auto` den Behalte-Kandidaten jeder Gruppe nach `keeper_prob`, sobald er seine Genauigkeitsschwelle erreicht — andernfalls ist die Ausgabe bit-identisch mit der Heuristik.
+
 ### Vollbild
 
 Drücken Sie **`F`** (oder den Header-Umschalter), um die Fullscreen-API des Browsers anzusteuern und randlos zu prüfen — die Dunkelkammer füllt den Bildschirm ohne App-Bedienelemente. Die Taste ist in der Tastenkürzel-Legende der Dunkelkammer aufgeführt; drücken Sie `F` oder `Esc` zum Verlassen.
@@ -1014,10 +1016,11 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `POST /api/burst-groups/select` | Behaltefotos aus einer Serienbildgruppe auswählen |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Gruppen visuell ähnlicher Fotos |
 | `POST /api/similar-groups/select` | Behaltefotos aus einer Ähnlichkeitsgruppe auswählen |
-| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Serienbild-/Ähnlichkeits-/Szenengruppen für die Auswahl. `group_by` (Standard `all`) wählt kombinierte Serienbild+Ähnlichkeit, nur Serienbild, nur Ähnlichkeit oder chronologische Szenengruppen (Szenengruppen ergänzen `type`/`start`/`end`/`moment`/`moment_confidence`; der `sort`-Parameter wird im Szenenmodus ignoriert). `exclude_rejected` (Standard `true`) blendet Fotos mit `is_rejected=1` aus; Gruppen mit weniger als 2 verbleibenden Fotos werden verworfen |
+| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Serienbild-/Ähnlichkeits-/Szenengruppen für die Auswahl. `group_by` (Standard `all`) wählt kombinierte Serienbild+Ähnlichkeit, nur Serienbild, nur Ähnlichkeit oder chronologische Szenengruppen (Szenengruppen ergänzen `type`/`start`/`end`/`moment`/`moment_confidence`; der `sort`-Parameter wird im Szenenmodus ignoriert). `exclude_rejected` (Standard `true`) blendet Fotos mit `is_rejected=1` aus; Gruppen mit weniger als 2 verbleibenden Fotos werden verworfen. Wenn ein Keeper-Ranking-Head trainiert ist, trägt jedes Foto zusätzlich `keeper_prob` und jede Gruppe `keeper_best_path` |
 | `POST /api/culling-groups/confirm` | Auswahlentscheidungen bestätigen (Serienbild, Ähnlichkeit oder Szene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` erfasst die Szenen-Auswahl-Vergleichszeilen |
 | `POST /api/culling/auto` | `[Edition]` Ein-Knopf-Auto-Cull für einen ganzen Geltungsbereich. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (Standard `true`) liefert die Behalte-/Ablehnen-Vorschau pro Gruppe, ein Anwenden lehnt den Rest ab und erfasst Culling-Paare |
 | `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen offen/geschlossen, Ausdruck, Konfidenz) für eine Gruppe, in einem Batch |
+| `POST /api/photos/keeper_hints` | Pro-Foto-Hinweise „besseres Foto in dieser Gruppe existiert" für das Galerie-/Lightbox-Badge, gruppiert nach `burst_group_id`. Body `{paths}`; liefert `{path: {has_better, best_path, keeper_prob}}`. Modellabhängig — liefert `{}`, wenn kein Keeper-Ranking-Head trainiert ist |
 | `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos (schreibgeschütztes Durchsuchen) |
 | `GET /api/filter_options/junk_kinds` | Erkannte Müll-Arten mit Anzahl (ohne die Sentinel `not_junk`) für die Junk-Sweep-Chips |
 | `POST /api/photo/clear_junk` | `[Edition]` Behält einen Müll-Kandidaten — setzt dessen `junk_kind` auf `not_junk`, sodass er die Warteschlange dauerhaft verlässt. Body `{photo_path}` |

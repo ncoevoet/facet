@@ -111,6 +111,22 @@ def _run_retrain(db_path, scope):
                 "Auto-retrain (scope=%s) wrote %s learned_scores (held-out %.1f%%).",
                 scope, result.get("written"), result.get("cv_accuracy", 0.0),
             )
+        # Culling confirms accumulate source='culling' pairs; refresh the keeper
+        # head on the same trigger (best-effort — its own gate is intact).
+        try:
+            from optimization.keeper_head import train_keeper_head
+            kr = train_keeper_head(db_path=db_path, user_id=scope)
+            if kr.get("error"):
+                logger.info("Auto-retrain keeper (scope=%s) skipped: %s", scope, kr["error"])
+            elif kr.get("gated"):
+                logger.info("Auto-retrain keeper (scope=%s) gated (no improvement).", scope)
+            else:
+                logger.info(
+                    "Auto-retrain keeper (scope=%s) wrote head (held-out %.1f%%).",
+                    scope, kr.get("cv_accuracy", 0.0),
+                )
+        except Exception:  # noqa: BLE001 — keeper refresh must not break the ranker path
+            logger.warning("Auto-retrain keeper (scope=%s) failed", scope, exc_info=True)
     except Exception:  # noqa: BLE001 — background worker must never propagate
         logger.warning("Auto-retrain (scope=%s) failed", scope, exc_info=True)
     finally:

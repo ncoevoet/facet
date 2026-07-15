@@ -158,4 +158,71 @@ describe('PhotoCardComponent', () => {
       expect(spy).toHaveBeenCalledWith(expect.objectContaining({ star: 1 }));
     });
   });
+
+  describe('keeper hint badge', () => {
+    function getTile(): HTMLElement {
+      return fixture.nativeElement.querySelector('div[role="button"]') as HTMLElement;
+    }
+
+    function hasKeeperIcon(): boolean {
+      const icons = Array.from(fixture.nativeElement.querySelectorAll('mat-icon')) as HTMLElement[];
+      return icons.some(icon => icon.textContent?.trim() === 'arrow_circle_up');
+    }
+
+    it('renders the badge when keeper_hint.has_better is true', () => {
+      fixture.componentInstance.photo.set(
+        makePhoto({ keeper_hint: { has_better: true, best_path: '/other.jpg', keeper_prob: 0.2 } }),
+      );
+      fixture.detectChanges();
+
+      expect(hasKeeperIcon()).toBe(true);
+    });
+
+    it('does not render the badge when keeper_hint.has_better is false', () => {
+      fixture.componentInstance.photo.set(
+        makePhoto({ keeper_hint: { has_better: false, best_path: null, keeper_prob: 0.1 } }),
+      );
+      fixture.detectChanges();
+
+      expect(hasKeeperIcon()).toBe(false);
+    });
+
+    it('does not render the badge when keeper_hint is undefined', () => {
+      fixture.componentInstance.photo.set(makePhoto());
+      fixture.detectChanges();
+
+      expect(hasKeeperIcon()).toBe(false);
+    });
+
+    it('includes the better-shot text in the tile aria-label when has_better is true', () => {
+      fixture.componentInstance.photo.set(
+        makePhoto({
+          filename: 'shot.jpg',
+          keeper_hint: { has_better: true, best_path: '/other.jpg', keeper_prob: 0.2 },
+        }),
+      );
+      fixture.detectChanges();
+
+      expect(getTile().getAttribute('aria-label')).toBe('shot.jpg, culling.reason.better_shot');
+    });
+
+    it('omits the better-shot text from the tile aria-label when has_better is false', () => {
+      fixture.componentInstance.photo.set(
+        makePhoto({
+          filename: 'shot.jpg',
+          keeper_hint: { has_better: false, best_path: null, keeper_prob: 0.1 },
+        }),
+      );
+      fixture.detectChanges();
+
+      expect(getTile().getAttribute('aria-label')).toBe('shot.jpg');
+    });
+
+    it('omits the better-shot text from the tile aria-label when keeper_hint is undefined', () => {
+      fixture.componentInstance.photo.set(makePhoto({ filename: 'shot.jpg' }));
+      fixture.detectChanges();
+
+      expect(getTile().getAttribute('aria-label')).toBe('shot.jpg');
+    });
+  });
 });

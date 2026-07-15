@@ -1,3 +1,10 @@
+/** "A better shot exists in this group" hint from the learned keeper head. */
+export interface KeeperHint {
+  has_better: boolean;
+  best_path: string | null;
+  keeper_prob: number | null;
+}
+
 export interface Photo {
   path: string;
   filename: string;
@@ -80,6 +87,7 @@ export interface Photo {
   star_rating: number | null;
   is_favorite: boolean | null;
   is_rejected: boolean | null;
+  keeper_hint?: KeeperHint | null;
   similarity?: number;
   caption?: string;
   caption_translated?: string;

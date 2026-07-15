@@ -24,10 +24,12 @@ from api.subject_bbox import parse_subject_bbox
 from api.db_helpers import (
     get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
     trigger_auto_retrain, set_photos_rejected, album_filter_clause, time_window_clauses,
+    select_in_chunks,
 )
 from api.similarity_groups import compute_similarity_groups
 from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBody
 from comparison.comparison_manager import record_culling_pairs
+from processing.burst_score import burst_weights_from_config, compute_burst_score
 from utils.date_utils import parse_date
 
 logger = logging.getLogger(__name__)
@@ -75,6 +77,10 @@ class CullingSubjectsBody(BaseModel):
     paths: list[str]
 
 
+class KeeperHintsBody(BaseModel):
+    paths: list[str] = Field(max_length=1000)
+
+
 class AutoCullBody(BaseModel):
     group_by: Literal['all', 'burst', 'similar', 'scene'] = 'all'
     album_id: Optional[int] = None
@@ -97,40 +103,138 @@ def _get_burst_weights():
     configured; when a photo has faces, they let open-eyes / composed-expression
     frames win near-ties within a burst.
     """
-    try:
-        from api.config import _FULL_CONFIG
-        bs = _FULL_CONFIG.get('burst_scoring', {})
-        return (
-            bs.get('weight_aggregate', 0.4),
-            bs.get('weight_aesthetic', 0.25),
-            bs.get('weight_sharpness', 0.2),
-            bs.get('weight_blink', 0.15),
-            bs.get('weight_eyes', 0.0),
-            bs.get('weight_expression', 0.0),
-        )
-    except (KeyError, TypeError, ValueError):
-        return (0.4, 0.25, 0.2, 0.15, 0.0, 0.0)
+    from api.config import _FULL_CONFIG
+    return burst_weights_from_config(_FULL_CONFIG.get('burst_scoring', {}))
 
 
 def _compute_burst_score(photo):
     """Compute burst culling score for ranking photos within a group."""
-    w_agg, w_aes, w_sharp, w_blink, w_eyes, w_expr = _get_burst_weights()
-    aggregate = photo.get('aggregate') or 0
-    aesthetic = photo.get('aesthetic') or 0
-    sharpness = photo.get('tech_sharpness') or 0
-    is_blink = photo.get('is_blink') or 0
-    blink_score = 0 if is_blink else 10
-    score = (aggregate * w_agg + aesthetic * w_aes
-             + sharpness * w_sharp + blink_score * w_blink)
-    # Eyes/expression only apply to photos with faces; default weights are 0.
-    if (photo.get('face_count') or 0) > 0:
-        eyes = photo.get('eyes_open_score')
-        expr = photo.get('expression_score')
-        if eyes is not None:
-            score += eyes * w_eyes
-        if expr is not None:
-            score += expr * w_expr
-    return score
+    return compute_burst_score(photo, _get_burst_weights())
+
+
+_keeper_optimizer_instance = None
+
+_KEEPER_SKIP_COLS = ('thumbnail', 'histogram_data', 'caption_embedding')
+_keeper_photo_cols_cache = None
+
+
+def _keeper_optimizer():
+    """Lazily-built WeightOptimizer for keeper feature construction (shared).
+
+    Pinned to the API server's own config file (``api.config._CONFIG_PATH``) so
+    the metric vectors built at inference match the config the server scores on;
+    its db_path is unused for feature construction (only ``cfg`` is read).
+    """
+    global _keeper_optimizer_instance
+    if _keeper_optimizer_instance is None:
+        from db import DEFAULT_DB_PATH
+        from api.config import _CONFIG_PATH
+        from optimization.weight_optimizer import WeightOptimizer
+        _keeper_optimizer_instance = WeightOptimizer(DEFAULT_DB_PATH, _CONFIG_PATH)
+    return _keeper_optimizer_instance
+
+
+def _keeper_head_for(conn, user_id):
+    """Load the keeper head for this scope (user → global fallback), or None."""
+    from optimization.keeper_head import load_keeper_head
+    head = load_keeper_head(conn, user_id, None)
+    if head is None and user_id:
+        head = load_keeper_head(conn, None, None)
+    return head
+
+
+def _keeper_photo_cols(conn):
+    """Photo columns needed for keeper feature construction — every column except
+    the heavy BLOBs the feature builder never reads (thumbnail, histogram_data,
+    caption_embedding), so the per-group fetch skips tens of KB per row.
+
+    Each name is ``photos.``-qualified so the same list is safe to select over a
+    ``photos LEFT JOIN user_preferences`` (multi-user rejected filtering) where a
+    bare ``is_rejected`` / ``star_rating`` / ``is_favorite`` would be ambiguous.
+    """
+    global _keeper_photo_cols_cache
+    if _keeper_photo_cols_cache is None:
+        names = [r[1] for r in conn.execute("PRAGMA table_info(photos)")]
+        _keeper_photo_cols_cache = ', '.join(
+            f"photos.{n}" for n in names if n not in _KEEPER_SKIP_COLS)
+    return _keeper_photo_cols_cache
+
+
+def _keeper_rows(conn, paths):
+    """Photo rows (dicts) for a set of paths, chunked for SQLite limits.
+
+    Projects out the heavy unused BLOBs (see ``_keeper_photo_cols``).
+    """
+    cols = _keeper_photo_cols(conn)
+    return [dict(r) for r in select_in_chunks(
+        conn, f"SELECT {cols} FROM photos WHERE path IN ({{placeholders}})", paths)]
+
+
+def _for_each_group_probs(conn, groups, user_id, apply):
+    """Load the keeper head once and call ``apply(group, photos, probs)`` for each
+    group with a within-group keeper distribution. No-op without a trained head,
+    and per-group when < 2 members match the head's embedding dim — so with no
+    head, auto-cull output is byte-identical to the heuristic.
+    """
+    from optimization.keeper_head import keeper_probs_for_group
+    head = _keeper_head_for(conn, user_id)
+    if head is None:
+        return
+    optimizer = _keeper_optimizer()
+    for group in groups:
+        photos = group.get('photos') or []
+        probs = keeper_probs_for_group(
+            head, optimizer, _keeper_rows(conn, [p['path'] for p in photos]))
+        if probs:
+            apply(group, photos, probs)
+
+
+def _apply_keeper_scores(conn, groups, user_id):
+    """Overwrite each group photo's burst_score from the keeper head when trained.
+
+    The head's within-group softmax is rescaled *relative to the group's best*
+    (``10 * prob / max_prob``, so the best is always 10.0) rather than used
+    directly: a raw ``10 * softmax`` shrinks with group size (a uniform group of
+    N sits at 10/N), silently de-calibrating ``_auto_keep_split``'s absolute
+    strictness margin on larger groups. The best-relative form is group-size
+    independent, so the margin math stays calibrated; with no head, auto-cull
+    output is byte-identical to the heuristic.
+
+    The pre-keeper heuristic score is preserved under ``heuristic_burst_score``
+    so absolute-quality gates (the Highlights ``highlights_min`` threshold) keep
+    reading real quality — the rescaled best is always 10.0 and would otherwise
+    pass any threshold. See ``_highlight_quality``.
+    """
+    def apply(group, photos, probs):
+        p_max = max(probs.values())
+        for p in photos:
+            if p['path'] in probs:
+                p.setdefault('heuristic_burst_score', p.get('burst_score'))
+                p['burst_score'] = 10.0 * probs[p['path']] / p_max
+    _for_each_group_probs(conn, groups, user_id, apply)
+
+
+def _highlight_quality(photo):
+    """Absolute-quality score for the Highlights ``highlights_min`` gate.
+
+    When a keeper head rescaled ``burst_score`` (best-relative, always 10.0 for
+    the group's best), that value no longer reflects absolute quality, so the
+    gate must read the preserved heuristic score. Falls back to ``burst_score``
+    when no keeper rescaling happened (no head, or < 2 matching members).
+    """
+    hs = photo.get('heuristic_burst_score')
+    return (hs if hs is not None else photo.get('burst_score')) or 0
+
+
+def attach_keeper_probs(conn, groups, user_id):
+    """Annotate each group's photos with keeper_prob and the group's
+    keeper_best_path when a trained head exists; zero cost otherwise.
+    """
+    def apply(group, photos, probs):
+        group['keeper_best_path'] = max(probs, key=probs.get)
+        for p in photos:
+            p['keeper_prob'] = probs.get(p['path'])
+    _for_each_group_probs(conn, groups, user_id, apply)
 
 
 def _get_face_thresholds(profile=None):
@@ -1276,6 +1380,7 @@ async def api_culling_groups(
             total_groups = len(all_groups)
             total_pages, offset = paginate(total_groups, page, per_page)
             page_groups = all_groups[offset:offset + per_page]
+            attach_keeper_probs(conn, page_groups, user_id)
 
             return {
                 'groups': page_groups,
@@ -1287,6 +1392,69 @@ async def api_culling_groups(
         except sqlite3.Error:
             logger.exception("Failed to fetch culling groups")
             raise HTTPException(status_code=500, detail='Internal server error')
+
+
+@router.post("/api/photos/keeper_hints")
+def keeper_hints(
+    body: KeeperHintsBody,
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Per-photo "a better shot exists in this burst" hints for gallery/lightbox.
+
+    Groups the requested paths by their burst_group_id, computes the within-group
+    keeper probability, and flags a photo when a same-burst sibling scores higher.
+    Head-gated: returns {} when no keeper head is trained, so the UI renders
+    nothing. Lazy (like /api/filter_options/*) — the default gallery pays nothing.
+    """
+    if not body.paths:
+        return {}
+    with get_db() as conn:
+        user_id = user.user_id if user else None
+        head = _keeper_head_for(conn, user_id)
+        if head is None:
+            return {}
+        from optimization.keeper_head import keeper_probs_for_group
+        optimizer = _keeper_optimizer()
+        vis_sql, vis_params = get_visibility_clause(user_id)
+        req = {
+            r['path']: r['burst_group_id']
+            for r in select_in_chunks(
+                conn,
+                f"SELECT path, burst_group_id FROM photos "
+                f"WHERE path IN ({{placeholders}}) AND {vis_sql}",
+                body.paths, after=vis_params,
+            )
+        }
+        group_ids = [g for g in set(req.values()) if g is not None]
+        hints = {}
+        if not group_ids:
+            return hints
+        from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
+        rows_by_group = {}
+        for r in select_in_chunks(
+                conn,
+                f"SELECT {_keeper_photo_cols(conn)} FROM {from_clause} "
+                f"WHERE burst_group_id IN ({{placeholders}}) AND {vis_sql} "
+                f"AND {is_rejected_col} = 0",
+                group_ids, before=from_params, after=vis_params):
+            row = dict(r)
+            rows_by_group.setdefault(row['burst_group_id'], []).append(row)
+        for gid, rows in rows_by_group.items():
+            probs = keeper_probs_for_group(head, optimizer, rows)
+            if not probs:
+                continue
+            best = max(probs, key=probs.get)
+            best_prob = probs[best]
+            for path, g in req.items():
+                if g != gid or path not in probs:
+                    continue
+                better = probs[path] < best_prob - 1e-9
+                hints[path] = {
+                    'has_better': better,
+                    'best_path': best if better else None,
+                    'keeper_prob': probs[path],
+                }
+        return hints
 
 
 @router.post("/api/culling-groups/confirm")
@@ -1405,7 +1573,9 @@ def _collect_auto_cull_groups(conn, user_id, group_by, album_id, date_from, date
                     exclude_rejected=True, max_per_group=max_per_group,
                     album_id=album_id, date_from=date_from, date_to=date_to,
                 )
-    return [g for g in groups if len(g.get('photos') or []) >= 2]
+    groups = [g for g in groups if len(g.get('photos') or []) >= 2]
+    _apply_keeper_scores(conn, groups, user_id)
+    return groups
 
 
 def _apply_auto_cull_group(conn, group, keep_paths, reject_paths, user_id, vis_sql, vis_params):
@@ -1545,7 +1715,7 @@ def auto_cull(
                 processed += 1
                 kept += len(keep_paths)
                 rejected += len(reject_paths)
-                if body.highlights_album and (keep[0].get('burst_score') or 0) >= cfg['highlights_min']:
+                if body.highlights_album and _highlight_quality(keep[0]) >= cfg['highlights_min']:
                     highlight_paths.append(keep_paths[0])
                 if len(preview) < _AUTO_CULL_PREVIEW_CAP:
                     preview.append({

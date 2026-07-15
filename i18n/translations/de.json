@@ -1835,7 +1835,8 @@
       "expression": "Schwächerer Ausdruck",
       "lower_aesthetic": "Geringere Ästhetik",
       "lower_overall": "Geringere Gesamtwertung",
-      "near_duplicate": "Beinahe-Duplikat"
+      "near_duplicate": "Beinahe-Duplikat",
+      "better_shot": "Ein besseres Foto existiert in dieser Gruppe"
     },
     "lightbox": {
       "navigate": "Navigieren",

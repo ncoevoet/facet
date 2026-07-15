@@ -225,3 +225,59 @@ def test_gated_result_logged_and_lock_released(db_path):
         t.join(timeout=5)
     train.assert_called_once()
     assert ar._retrain_running is False
+
+
+# --- keeper-head refresh on the same retrain trigger ------------------------ #
+
+def test_keeper_head_refreshed_on_retrain_with_scope(db_path):
+    """The keeper head trains on the SAME dispatch, scoped to the retrain's user."""
+    done = threading.Event()
+    captured = {}
+
+    def ok_ranker(db_path=None, user_id=None, **kwargs):
+        return {"gated": False, "written": 3, "cv_accuracy": 88.0}
+
+    def fake_keeper(db_path=None, user_id=None, **kwargs):
+        captured["db_path"] = db_path
+        captured["user_id"] = user_id
+        done.set()
+        return {"gated": False, "written": 1, "cv_accuracy": 90.0}
+
+    with (
+        mock.patch("optimization.personal_ranker.train_ranker", side_effect=ok_ranker),
+        mock.patch("optimization.keeper_head.train_keeper_head", side_effect=fake_keeper) as keeper,
+    ):
+        assert ar.maybe_retrain(db_path, user_id="alice", added=30, threshold=25) is True
+        assert done.wait(timeout=5), "train_keeper_head was not invoked on the background thread"
+
+    for t in list(ar._active_threads):
+        t.join(timeout=5)
+    keeper.assert_called_once()
+    assert captured["user_id"] == "alice"
+    assert captured["db_path"] == db_path
+    assert ar._retrain_running is False
+
+
+def test_keeper_refresh_failure_does_not_block_ranker(db_path):
+    """A keeper-head refresh that raises must not fail the ranker path or leak the lock."""
+    ranker_done = threading.Event()
+
+    def ok_ranker(db_path=None, user_id=None, **kwargs):
+        ranker_done.set()
+        return {"gated": False, "written": 2, "cv_accuracy": 88.0}
+
+    def boom_keeper(db_path=None, user_id=None, **kwargs):
+        raise RuntimeError("keeper training blew up")
+
+    with (
+        mock.patch("optimization.personal_ranker.train_ranker", side_effect=ok_ranker) as ranker,
+        mock.patch("optimization.keeper_head.train_keeper_head", side_effect=boom_keeper) as keeper,
+    ):
+        assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25) is True
+
+    for t in list(ar._active_threads):
+        t.join(timeout=5)
+    ranker.assert_called_once()
+    keeper.assert_called_once()
+    assert ranker_done.is_set()
+    assert ar._retrain_running is False

@@ -1831,7 +1831,8 @@
       "expression": "Espressione più debole",
       "lower_aesthetic": "Estetica inferiore",
       "lower_overall": "Punteggio complessivo inferiore",
-      "near_duplicate": "Quasi duplicata"
+      "near_duplicate": "Quasi duplicata",
+      "better_shot": "Esiste uno scatto migliore in questo gruppo"
     },
     "lightbox": {
       "navigate": "Naviga",

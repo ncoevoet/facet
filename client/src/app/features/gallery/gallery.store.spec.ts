@@ -393,6 +393,47 @@ describe('GalleryStore', () => {
     });
   });
 
+  describe('fetchKeeperHints (via loadPhotos)', () => {
+    it('posts the loaded photo paths to /photos/keeper_hints and patches the matching photo', async () => {
+      const response = makePhotosResponse({
+        photos: [makePhoto({ path: '/a.jpg', filename: 'a.jpg' }), makePhoto({ path: '/b.jpg', filename: 'b.jpg' })],
+        total: 2,
+      });
+      apiGet.mockReturnValue(of(response));
+      apiPost.mockReturnValue(of({ '/a.jpg': { has_better: true, best_path: '/b.jpg', keeper_prob: 0.4 } }));
+
+      await store.loadPhotos();
+
+      await vi.waitFor(() =>
+        expect(apiPost).toHaveBeenCalledWith('/photos/keeper_hints', { paths: ['/a.jpg', '/b.jpg'] }),
+      );
+      await vi.waitFor(() =>
+        expect(store.photos().find(p => p.path === '/a.jpg')?.keeper_hint).toEqual({
+          has_better: true, best_path: '/b.jpg', keeper_prob: 0.4,
+        }),
+      );
+      expect(store.photos().find(p => p.path === '/b.jpg')?.keeper_hint).toBeUndefined();
+    });
+
+    it('leaves photos untouched when the keeper-hints request fails', async () => {
+      const response = makePhotosResponse({
+        photos: [makePhoto({ path: '/a.jpg', filename: 'a.jpg' })],
+        total: 1,
+      });
+      apiGet.mockReturnValue(of(response));
+      apiPost.mockReturnValue(throwError(() => new Error('boom')));
+
+      await store.loadPhotos();
+
+      await vi.waitFor(() =>
+        expect(apiPost).toHaveBeenCalledWith('/photos/keeper_hints', { paths: ['/a.jpg'] }),
+      );
+      expect(store.loading()).toBe(false);
+      expect(store.photos()).toEqual(response.photos);
+      expect(store.photos()[0].keeper_hint).toBeUndefined();
+    });
+  });
+
   describe('nextPage()', () => {
     it('should increment page and append photos', async () => {
       const existingPhotos = [makePhoto({ filename: 'a.jpg' })];

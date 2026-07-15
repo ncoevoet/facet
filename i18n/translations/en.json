@@ -1829,7 +1829,8 @@
       "expression": "Weaker expression",
       "lower_aesthetic": "Lower aesthetic",
       "lower_overall": "Lower overall",
-      "near_duplicate": "Near-duplicate"
+      "near_duplicate": "Near-duplicate",
+      "better_shot": "A better shot exists in this group"
     },
     "lightbox": {
       "navigate": "Navigate",

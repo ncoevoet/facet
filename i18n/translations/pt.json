@@ -1829,7 +1829,8 @@
       "expression": "Expressão mais fraca",
       "lower_aesthetic": "Estética inferior",
       "lower_overall": "Inferior no geral",
-      "near_duplicate": "Quase duplicada"
+      "near_duplicate": "Quase duplicada",
+      "better_shot": "Existe uma foto melhor neste grupo"
     },
     "lightbox": {
       "navigate": "Navegar",

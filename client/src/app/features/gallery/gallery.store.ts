@@ -6,7 +6,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { Photo } from '../../shared/models/photo.model';
+import { Photo, KeeperHint } from '../../shared/models/photo.model';
 import { I18N } from '../../core/i18n/keys';
 import {
   type GalleryFilters, type GalleryMode, type TooltipMode, type DisplayOptions,
@@ -384,6 +384,7 @@ export class GalleryStore {
       this.hiddenSummary.set(
         res.hidden_summary ?? { total: 0, blinks: 0, bursts: 0, duplicates: 0 },
       );
+      void this.fetchKeeperHints(res.photos.map(p => p.path));
     } catch {
       if (seq !== this._loadSeq) return;
       // Network error — restore previous state
@@ -423,6 +424,7 @@ export class GalleryStore {
         if (res.hidden_summary) {
           this.hiddenSummary.set(res.hidden_summary);
         }
+        void this.fetchKeeperHints(res.photos.map(p => p.path));
       }
     } catch {
       if (seq !== this._loadSeq) return;
@@ -608,6 +610,23 @@ export class GalleryStore {
     this.photos.update(photos =>
       photos.map(p => p.path === path ? { ...p, ...partial } : p),
     );
+  }
+
+  /** Fetch "a better shot exists in this group" hints and merge them in.
+   *  Head-gated server-side: returns {} (a no-op) when no keeper head is
+   *  trained, so the default gallery pays nothing. Best-effort, fire-and-forget. */
+  private async fetchKeeperHints(paths: string[]): Promise<void> {
+    if (!paths.length) return;
+    try {
+      const hints = await firstValueFrom(
+        this.api.post<Record<string, KeeperHint>>('/photos/keeper_hints', { paths }),
+      );
+      for (const [path, hint] of Object.entries(hints)) {
+        this.patchPhoto(path, { keeper_hint: hint });
+      }
+    } catch {
+      // Best-effort: leave photos without hints on failure.
+    }
   }
 
   /** Patch many photos at once. */

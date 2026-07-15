@@ -242,6 +242,8 @@ Berichtet die Python-Version, den PyTorch/CUDA-Build, die GPU-Erkennung und den 
 | `python facet.py --train-ranker --ranker-category portrait` | Den Ranker nur auf einer Kategorie trainieren |
 | `python facet.py --train-ranker --train-ranker-force` | learned_scores schreiben, auch wenn die Genauigkeitsschwelle nicht erreicht wird |
 | `python facet.py --train-ranker --user alice` | Training auf die eigenen Vergleiche dieses Benutzers beschränken (plus Alt-Zeilen von vor dem Mehrbenutzermodus) und dessen eigene learned_scores schreiben (Mehrbenutzermodus) |
+| `python facet.py --train-keeper` | Den gelernten **Keeper-Ranking-Head** über Ihre Culling-Entscheidungen (`source='culling'`-Paare) trainieren und ihn nur persistieren, wenn er bei der ausgelassenen k-fachen Genauigkeit die Auto-Cull-Heuristikauswahl schlägt. Verbessert die Auto-Cull-Auswahl und das „besseres Foto in dieser Gruppe existiert"-Badge. Fällt auf die Heuristik zurück, bis genug Culling-Paare vorliegen. Läuft, wie `--train-ranker`, automatisch nach Auswahlbestätigungen |
+| `python facet.py --train-keeper --train-keeper-force` | Den Keeper-Ranking-Head persistieren, auch wenn seine Genauigkeitsschwelle nicht erreicht wird (berücksichtigt auch `--ranker-category` und `--user`) |
 | `python facet.py --report-unreviewed-bursts` | Berichten, wie viele Serienbild-Gruppen ungeprüft bleiben (nur lesend) |
 | `python facet.py --eval-iqa-srcc` | Spearman-SRCC jeder IQA-/Ästhetik-Metrik gegenüber Ihren Sternebewertungen berichten (nur lesend) |
 | `python facet.py --mine-insights` | Data-Mining-Bericht: Label-Inventar, Metrik-Label-Korrelationen, Kategorienverteilung, Perzentil-Drift, Vergleichsgesundheit |

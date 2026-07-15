@@ -10,3 +10,4 @@ from optimization.weight_optimizer import (
     run_weight_optimization,
 )
 from optimization.personal_ranker import train_ranker
+from optimization.keeper_head import train_keeper_head

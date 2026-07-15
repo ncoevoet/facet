@@ -455,6 +455,28 @@ def paginate(total: int, page: int, per_page: int) -> tuple[int, int]:
     return total_pages, offset
 
 
+def select_in_chunks(conn, sql_format, keys, before=(), after=(), chunk=900):
+    """Yield rows for a ``... IN (<keys>) ...`` query, chunked under SQLite's
+    variable limit.
+
+    ``sql_format`` is a format string carrying a single ``{placeholders}`` field,
+    filled with the ``?`` list for each chunk of ``keys``. Per-chunk bind
+    parameters are ``before`` (binds appearing before the IN list, e.g. a JOIN
+    ``ON up.user_id = ?``) + the chunk keys + ``after`` (binds after the IN list,
+    e.g. a visibility clause). Consolidates the copy-pasted 900-key IN loop.
+    """
+    keys = list(keys)
+    before = list(before)
+    after = list(after)
+    for start in range(0, len(keys), chunk):
+        piece = keys[start:start + chunk]
+        placeholders = ','.join('?' * len(piece))
+        yield from conn.execute(
+            sql_format.format(placeholders=placeholders),
+            before + piece + after,
+        )
+
+
 def sanitize_float_values(data):
     """Replace NaN/Infinity with None in a list of dicts."""
     for item in data:

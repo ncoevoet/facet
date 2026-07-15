@@ -86,6 +86,21 @@ def _resolve_cli_user(config, username):
     return username if isinstance(urec, dict) else None
 
 
+def _resolve_trainer_cli_context(args):
+    config_path = args.config or 'scoring_config.json'
+    user_id = None
+    if args.user:
+        cfg = ScoringConfig(config_path, validate=False)
+        user_id = _resolve_cli_user(cfg.config, args.user)
+        if user_id is None:
+            logger.error(
+                "Unknown --user '%s': not a configured user. Add them with "
+                "'python database.py --add-user %s --role user' first.",
+                args.user, args.user)
+            exit(1)
+    return config_path, user_id
+
+
 def _print_scan_summary(db_path, todo_list, raw_paired_skipped):
     """Print a table of what landed in the DB from this scan.
 
@@ -796,7 +811,15 @@ Configuration:
     weight_group.add_argument('--train-ranker-force', action='store_true',
                         help='Write learned_scores even if the ranker accuracy gate is not met')
     weight_group.add_argument('--ranker-category', type=str, metavar='CATEGORY',
-                        help='Restrict --train-ranker to one category (default: pool all)')
+                        help='Restrict --train-ranker / --train-keeper to one category (default: pool all)')
+    weight_group.add_argument('--train-keeper', action='store_true',
+                        help='Train the keeper-ranking head over culling decisions '
+                             '(source=culling pairs) and persist it only if it beats the '
+                             'auto-cull heuristic on held-out k-fold accuracy; use '
+                             '--train-keeper-force to persist regardless; pass --user in '
+                             'multi-user mode to scope to one user')
+    weight_group.add_argument('--train-keeper-force', action='store_true',
+                        help='Persist the keeper head even if its accuracy gate is not met')
     weight_group.add_argument('--report-unreviewed-bursts', action='store_true',
                         help='Report how many burst groups remain unreviewed (read-only)')
     weight_group.add_argument('--eval-iqa-srcc', action='store_true',
@@ -963,17 +986,7 @@ Configuration:
     # Train the personal ranker -> learned_scores (lightweight - no GPU needed)
     if args.train_ranker:
         from optimization import train_ranker
-        config_path = args.config or 'scoring_config.json'
-        user_id = None
-        if args.user:
-            cfg = ScoringConfig(config_path, validate=False)
-            user_id = _resolve_cli_user(cfg.config, args.user)
-            if user_id is None:
-                logger.error(
-                    "Unknown --user '%s': not a configured user. Add them with "
-                    "'python database.py --add-user %s --role user' first.",
-                    args.user, args.user)
-                exit(1)
+        config_path, user_id = _resolve_trainer_cli_context(args)
         init_database(args.db)
         result = train_ranker(
             db_path=args.db or DEFAULT_DB_PATH,
@@ -988,6 +1001,27 @@ Configuration:
             logger.info("Ranker: held-out %.1f%% vs aggregate baseline %.1f%% (%+.1f pp); %s %d learned_scores",
                         result['cv_accuracy'], result['baseline_accuracy'], result['improvement_pp'],
                         'gated, wrote' if result.get('gated') else 'wrote', result.get('written', 0))
+        exit()
+
+    # Train the learned keeper-ranking head -> stats_cache snapshot (no GPU needed)
+    if args.train_keeper:
+        from optimization import train_keeper_head
+        config_path, user_id = _resolve_trainer_cli_context(args)
+        init_database(args.db)
+        result = train_keeper_head(
+            db_path=args.db or DEFAULT_DB_PATH,
+            category=args.ranker_category,
+            user_id=user_id,
+            config_path=config_path,
+            force=args.train_keeper_force,
+        )
+        if 'error' in result:
+            logger.warning("Keeper head not trained: %s", result['error'])
+        else:
+            logger.info("Keeper head: held-out %.1f%% vs heuristic baseline %.1f%% (%+.1f pp); %s",
+                        result['cv_accuracy'], result['baseline_accuracy'], result['improvement_pp'],
+                        'written' if result.get('written')
+                        else ('gated, not written' if result.get('gated') else 'not written'))
         exit()
 
     # Evaluate IQA metric SRCC vs star ratings (read-only, no GPU)

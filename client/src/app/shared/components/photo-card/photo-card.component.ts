@@ -51,7 +51,7 @@ interface AppConfig {
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
       [class.md:hover:ring-2]="!isSelected()"
       [class.md:hover:ring-[var(--mat-sys-outline-variant)]]="!isSelected()"
-      [attr.aria-label]="photo().filename"
+      [attr.aria-label]="photo().keeper_hint?.has_better ? photo().filename + ', ' + (I18N.culling.reason.better_shot | translate) : photo().filename"
       [attr.aria-pressed]="isSelected()"
       (click)="onSelect($event)"
       (keydown.enter)="onKeyOpen($event)"
@@ -89,6 +89,13 @@ interface AppConfig {
           <div class="absolute bottom-1.5 left-3 z-20 pointer-events-none flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 transition-opacity md:group-hover/img:opacity-0"
                [attr.aria-label]="I18N.rating.rejected_badge | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md" aria-hidden="true">thumb_down</mat-icon>
+          </div>
+        }
+
+        <!-- Keeper hint: a better shot exists in this group (learned keeper head) -->
+        @if (photo().keeper_hint?.has_better) {
+          <div class="absolute top-1.5 left-3 z-20 pointer-events-none flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 transition-opacity md:group-hover/img:opacity-0">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-amber-300 drop-shadow-md" aria-hidden="true">arrow_circle_up</mat-icon>
           </div>
         }
 

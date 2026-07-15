@@ -129,8 +129,28 @@ def _load_embeddings_and_aggregate(conn, paths):
     return out
 
 
+def _load_burst_scores(conn, paths, weights):
+    """{path: heuristic burst score} — the keeper head's baseline comparator.
+
+    Reads the same photos columns the auto-cull heuristic scores on (including
+    the per-photo eyes_open_score / expression_score, which the burst fetcher
+    also reads from photos), so the gate compares the keeper head against the
+    exact heuristic pick.
+    """
+    from processing.burst_score import compute_burst_score
+    from api.db_helpers import select_in_chunks
+    cols = ("path, aggregate, aesthetic, tech_sharpness, is_blink, face_count, "
+            "eyes_open_score, expression_score")
+    out = {}
+    for r in select_in_chunks(
+            conn, f"SELECT {cols} FROM photos WHERE path IN ({{placeholders}})", paths):
+        out[r['path']] = compute_burst_score(dict(r), weights)
+    return out
+
+
 def build_ranker_dataset(conn, optimizer, category=None, sources=None, user_id=None,
-                         prior_models_dir=None):
+                         prior_models_dir=None, with_heuristic=False,
+                         heuristic_weights=None):
     """Build the pairwise training dataset: difference vectors + labels + weights.
 
     Reuses ``optimizer._fetch_comparison_data`` for the per-photo metric vectors,
@@ -165,6 +185,9 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None, user_id=N
 
     paths = {c['photo_a'] for c in comparisons} | {c['photo_b'] for c in comparisons}
     emb_agg = _load_embeddings_and_aggregate(conn, paths)
+    from processing.burst_score import DEFAULT_BURST_WEIGHTS
+    heur = (_load_burst_scores(conn, paths, heuristic_weights or DEFAULT_BURST_WEIGHTS)
+            if with_heuristic else None)
 
     # Dominant embedding dimension among involved photos.
     dims = [e.shape[0] for (e, _, _) in emb_agg.values() if e is not None]
@@ -178,6 +201,7 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None, user_id=N
 
     feats_a, feats_b, y, weights, agg_a, agg_b = [], [], [], [], [], []
     prior_a, prior_b = [], []
+    heur_a, heur_b = [], []
     dropped = 0
     for i, c in enumerate(comparisons):
         ea, aa, mca = emb_agg.get(c['photo_a'], (None, None, 0.0))
@@ -195,6 +219,9 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None, user_id=N
         if prior is not None:
             prior_a.append(prior.mixed_score(ea))
             prior_b.append(prior.mixed_score(eb))
+        if heur is not None:
+            heur_a.append(heur.get(c['photo_a'], 0.0))
+            heur_b.append(heur.get(c['photo_b'], 0.0))
 
     if not feats_a:
         return None
@@ -225,6 +252,8 @@ def build_ranker_dataset(conn, optimizer, category=None, sources=None, user_id=N
         'n_pairs': len(y),
         'prior': prior,
         'prior_diff': prior_diff,
+        'heur_a': np.asarray(heur_a, dtype=np.float64) if with_heuristic else None,
+        'heur_b': np.asarray(heur_b, dtype=np.float64) if with_heuristic else None,
     }
 
 

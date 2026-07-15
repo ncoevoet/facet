@@ -9,7 +9,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
-import { Photo } from '../../shared/models/photo.model';
+import { Photo, KeeperHint } from '../../shared/models/photo.model';
 import { AuthService } from '../../core/services/auth.service';
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.directive';
@@ -177,6 +177,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             <div class="flex items-center gap-2 mt-1">
               @if (p.category) {
                 <span class="px-2 py-0.5 bg-[var(--mat-sys-primary-container)] text-[var(--mat-sys-on-primary-container)] rounded-full text-xs font-medium">{{ p.category | categoryLabel }}</span>
+              }
+              @if (keeperHint()?.has_better) {
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-black/60 text-amber-300 rounded-full text-xs font-medium"
+                      [attr.aria-label]="I18N.culling.reason.better_shot | translate">
+                  <mat-icon class="!text-sm !w-4 !h-4 !leading-4" aria-hidden="true">arrow_circle_up</mat-icon>
+                  {{ I18N.culling.reason.better_shot | translate }}
+                </span>
               }
               <span class="text-[var(--mat-sys-primary)] font-semibold ml-auto">{{ p.aggregate | fixed:1 }}</span>
             </div>
@@ -533,6 +540,17 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     firstValueFrom(this.api.get<{ source: string }>('/photo/social_crop/preview', { path: requestedPath, preset: presets[0].key }))
       .then(res => { if (this.photo()?.path === requestedPath) this.socialCropSource.set(res.source); })
       .catch(() => { if (this.photo()?.path === requestedPath) this.socialCropSource.set(null); });
+  });
+
+  protected readonly keeperHint = signal<KeeperHint | null>(null);
+  private keeperHintEffect = effect(() => {
+    const p = this.photo();
+    this.keeperHint.set(null);
+    if (!p) return;
+    const requestedPath = p.path;
+    firstValueFrom(this.api.post<Record<string, KeeperHint>>('/photos/keeper_hints', { paths: [requestedPath] }))
+      .then(hints => { if (this.photo()?.path === requestedPath) this.keeperHint.set(hints[requestedPath] ?? null); })
+      .catch(() => { if (this.photo()?.path === requestedPath) this.keeperHint.set(null); });
   });
 
   // Location

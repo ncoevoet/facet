@@ -1831,7 +1831,8 @@
       "expression": "Expression moins bonne",
       "lower_aesthetic": "Esthétique moindre",
       "lower_overall": "Note globale moindre",
-      "near_duplicate": "Quasi-doublon"
+      "near_duplicate": "Quasi-doublon",
+      "better_shot": "Une meilleure photo existe dans ce groupe"
     },
     "lightbox": {
       "navigate": "Naviguer",

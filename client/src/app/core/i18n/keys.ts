@@ -1834,6 +1834,7 @@ export const I18N = {
       lower_aesthetic: "culling.reason.lower_aesthetic",
       lower_overall: "culling.reason.lower_overall",
       near_duplicate: "culling.reason.near_duplicate",
+      better_shot: "culling.reason.better_shot",
     },
     lightbox: {
       navigate: "culling.lightbox.navigate",

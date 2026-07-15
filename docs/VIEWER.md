@@ -515,6 +515,8 @@ A toolbar **Auto-cull** button culls a whole scope in one pass instead of group-
 
 The preview is a **dry run** (nothing is written): it shows the per-group keep/reject split. Confirm to apply — rejections are recorded and, like every cull, train "My Taste"; an optional **Highlights** album idempotently collects each group's best photo scoring at least `auto_cull.highlights_min`. A "better photo in this group" hint badge flags groups where auto-cull would keep a different frame than the current lead. `POST /api/culling/auto`; configured via the [`auto_cull`](CONFIGURATION.md#auto-cull) block.
 
+When a keeper-ranking head is trained, `POST /api/culling/auto` picks each group's keeper by `keeper_prob` once it clears its accuracy gate — otherwise the output is byte-identical to the heuristic pick.
+
 ### Fullscreen
 
 Press **`F`** (or the header toggle) to drive the browser Fullscreen API and review edge-to-edge — the darkroom fills the screen with no app chrome. The key is listed in the darkroom's shortcut legend; press `F` or `Esc` to exit.
@@ -1122,11 +1124,12 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `POST /api/burst-groups/select` | Select keepers from a burst group |
 | `GET /api/similar-groups?threshold=&page=&per_page=` | Groups of visually similar photos |
 | `POST /api/similar-groups/select` | Select keepers from a similar group |
-| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Burst/similar/scene groups for culling. `group_by` (default `all`) selects merged burst+similar, burst-only, similar-only, or chronological scene groups (scene groups add `type`/`start`/`end`/`moment`/`moment_confidence`; the `sort` param is ignored in scene mode). `exclude_rejected` (default `true`) hides photos with `is_rejected=1`; groups with fewer than 2 remaining photos are dropped |
+| `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Burst/similar/scene groups for culling. `group_by` (default `all`) selects merged burst+similar, burst-only, similar-only, or chronological scene groups (scene groups add `type`/`start`/`end`/`moment`/`moment_confidence`; the `sort` param is ignored in scene mode). `exclude_rejected` (default `true`) hides photos with `is_rejected=1`; groups with fewer than 2 remaining photos are dropped. When a keeper-ranking head is trained, each photo also carries `keeper_prob` and each group carries `keeper_best_path` |
 | `POST /api/culling-groups/confirm` | Confirm culling selections (burst, similar, or scene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` records the scene-cull comparison rows |
 | `POST /api/culling/auto` | `[Edition]` One-button auto-cull for a whole scope. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (default `true`) returns the per-group keep/reject preview, an apply rejects the rest and records culling pairs |
 | `POST /api/culling-group/faces` | Per-face badges (eyes open/closed, expression, confidence) for a group, in one batch |
 | `POST /api/culling-group/subjects` | Subject close-up crops (from the persisted BiRefNet subject box) + group-normalized sharpness for a non-face group, in one batch. `has_subject:false` when a photo has no box / a near-full-frame box (no model runs) |
+| `POST /api/photos/keeper_hints` | Per-photo "a better shot exists in this group" hints for the gallery/lightbox badge, grouped by `burst_group_id`. Body `{paths}`; returns `{path: {has_better, best_path, keeper_prob}}`. Head-gated — returns `{}` when no keeper-ranking head is trained |
 | `GET /api/photo/cull_preview?path=&style=` | `[Edition]` Render a photo's original through a configured darktable style (`--style`, bounded to `preview_max_edge`) for the darkroom's edited-look preview. Disk-cached; 400 on unknown style, 503 when darktable-cli is unavailable, 502 on render failure/timeout |
 | `GET /api/scenes` | Chronological scenes of burst-lead photos (read-only browse) |
 | `GET /api/filter_options/junk_kinds` | Detected junk kinds with counts (excludes the `not_junk` sentinel) for the Junk Sweep chips |

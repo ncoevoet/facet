@@ -242,6 +242,8 @@ Riporta la versione di Python, la build PyTorch/CUDA, il rilevamento della GPU e
 | `python facet.py --train-ranker --ranker-category portrait` | Addestra il ranker solo su una categoria |
 | `python facet.py --train-ranker --train-ranker-force` | Scrive learned_scores anche se il vincolo di accuratezza non è soddisfatto |
 | `python facet.py --train-ranker --user alice` | Limita l'addestramento ai confronti propri di questo utente (più le righe ereditate da prima del multiutente), scrivendo i learned_scores propri di questo utente (modalità multiutente) |
+| `python facet.py --train-keeper` | Addestra il **keeper-ranking head** appreso sulle tue decisioni di selezione (coppie `source='culling'`) e lo persiste solo se batte la scelta euristica della selezione automatica in accuratezza k-fold sui dati esclusi. Migliora le scelte di selezione automatica e alimenta il badge "esiste una foto migliore in questo gruppo". Ricade sull'euristica finché non si accumulano abbastanza coppie di selezione. Viene eseguito automaticamente, come `--train-ranker`, dopo le conferme di selezione |
+| `python facet.py --train-keeper --train-keeper-force` | Persiste il keeper-ranking head anche se il suo vincolo di accuratezza non è soddisfatto (rispetta anche `--ranker-category` e `--user`) |
 | `python facet.py --report-unreviewed-bursts` | Riporta quanti gruppi di raffica restano da esaminare (sola lettura) |
 | `python facet.py --eval-iqa-srcc` | Riporta lo Spearman SRCC di ogni metrica IQA/estetica rispetto alle tue valutazioni a stelle (sola lettura) |
 | `python facet.py --mine-insights` | Report di data-mining: inventario delle etichette, correlazioni metrica-etichetta, distribuzione delle categorie, deriva dei percentili, salute dei confronti |
