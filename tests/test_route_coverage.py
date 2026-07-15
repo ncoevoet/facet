@@ -246,3 +246,20 @@ class TestAngularSpaShell:
         assert 'no-cache' in resp.headers.get('cache-control', ''), (
             f"{path} cache-control={resp.headers.get('cache-control')!r}"
         )
+
+    def test_unmatched_api_route_returns_json_404(self, client):
+        resp = client.get('/api/definitely-not-a-route')
+        assert resp.status_code == 404, f"-> {resp.status_code}"
+        assert resp.headers.get('content-type', '').startswith('application/json'), (
+            f"content-type={resp.headers.get('content-type')!r}"
+        )
+        assert resp.json().get('detail') == 'Not Found'
+
+    def test_client_route_serves_index_html(self, client):
+        resp = client.get('/gallery', follow_redirects=False)
+        if resp.status_code == 404:
+            pytest.skip('client dist not built in this environment')
+        assert resp.status_code == 200, f"-> {resp.status_code}"
+        assert 'text/html' in resp.headers.get('content-type', ''), (
+            f"content-type={resp.headers.get('content-type')!r}"
+        )

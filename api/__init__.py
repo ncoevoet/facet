@@ -23,7 +23,7 @@ warnings.filterwarnings(
     message=r".*estimate.*deprecated.*", module=r"insightface\..*",
 )
 
-from fastapi import FastAPI, Request  # noqa: E402
+from fastapi import FastAPI, HTTPException, Request  # noqa: E402
 from fastapi.encoders import jsonable_encoder  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
@@ -398,6 +398,8 @@ def create_app() -> FastAPI:
         # SPA catch-all: return index.html for any non-API route
         @app.get("/{path:path}", include_in_schema=False)
         async def spa_fallback(path: str):
+            if path == "api" or path.startswith("api/"):
+                raise HTTPException(status_code=404)
             # Serve static files if they exist (JS chunks, CSS, etc.)
             resolved = os.path.realpath(os.path.join(client_dist, path))
             if not resolved.startswith(client_dist_real + os.sep):
