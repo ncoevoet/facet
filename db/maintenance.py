@@ -653,6 +653,40 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
             count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_tags").fetchone()[0]
             logger.info("  Synced %d photo_tags", count)
 
+    # --- Sync user_preferences (multi-user per-user ratings) ---
+    # Mirror the photos rating-preservation logic (F30): a per-user rating set on
+    # the viewer deployment survives re-export, while scan-side ratings still reach
+    # (user, photo) pairs the viewer has not rated. Rows for deleted photos cascade
+    # out with the photos delete above (FK ON DELETE CASCADE, foreign_keys=ON).
+    if 'user_preferences' in dest_tables and 'user_preferences' in src_tables:
+        src_pref_cols = [r[1] for r in dest_conn.execute("PRAGMA src.table_info(user_preferences)").fetchall()]
+        dest_pref_col_set = {r[1] for r in dest_conn.execute("PRAGMA main.table_info(user_preferences)").fetchall()}
+        common_pref_cols = [c for c in src_pref_cols if c in dest_pref_col_set]
+        pref_rating_cols = [c for c in common_pref_cols if c not in ('user_id', 'photo_path')]
+        pref_match = ("sp.user_id = main.user_preferences.user_id "
+                      "AND sp.photo_path = main.user_preferences.photo_path")
+        if pref_rating_cols:
+            set_clause = ', '.join(
+                f"{c} = CASE WHEN main.user_preferences.{c} IS NOT NULL AND main.user_preferences.{c} != 0 "
+                f"THEN main.user_preferences.{c} "
+                f"ELSE (SELECT sp.{c} FROM src.user_preferences sp WHERE {pref_match}) END"
+                for c in pref_rating_cols
+            )
+            dest_conn.execute(
+                f"UPDATE main.user_preferences SET {set_clause} "
+                f"WHERE EXISTS (SELECT 1 FROM src.user_preferences sp WHERE {pref_match})"
+            )
+        if common_pref_cols:
+            col_list = ', '.join(common_pref_cols)
+            dest_conn.execute(
+                f"INSERT OR IGNORE INTO main.user_preferences ({col_list}) "
+                f"SELECT {col_list} FROM src.user_preferences"
+            )
+        dest_conn.commit()
+        if verbose:
+            count = dest_conn.execute("SELECT COUNT(*) FROM main.user_preferences").fetchone()[0]
+            logger.info("  Synced user preferences (%d rows)", count)
+
     # --- Clear stats_cache (viewer regenerates on demand) ---
     if 'stats_cache' in dest_tables:
         dest_conn.execute("DELETE FROM main.stats_cache")

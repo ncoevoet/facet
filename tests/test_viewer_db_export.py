@@ -16,6 +16,7 @@ from db.schema import init_database
 
 _A = '/photos/a.jpg'
 _B = '/photos/b.jpg'
+_USER = 'alice'
 
 
 def _thumb_bytes(color=(120, 60, 30)):
@@ -103,6 +104,93 @@ def test_incremental_export_syncs_faces_for_existing_photos(tmp_path):
     n = vconn.execute("SELECT COUNT(*) FROM faces WHERE photo_path = ?", (_A,)).fetchone()[0]
     vconn.close()
     assert n == 1
+
+
+def test_export_includes_user_preferences(tmp_path):
+    src = str(tmp_path / 'scan.db')
+    out = str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+
+    sconn = sqlite3.connect(src)
+    sconn.execute(
+        "INSERT INTO user_preferences (user_id, photo_path, star_rating, is_favorite, is_rejected) "
+        "VALUES (?, ?, 5, 1, 0)",
+        (_USER, _A),
+    )
+    sconn.commit()
+    sconn.close()
+
+    export_viewer_db(src, out, thumbnail_size=320, verbose=False)
+
+    vconn = sqlite3.connect(out)
+    row = vconn.execute(
+        "SELECT star_rating, is_favorite, is_rejected FROM user_preferences "
+        "WHERE user_id = ? AND photo_path = ?",
+        (_USER, _A),
+    ).fetchone()
+    vconn.close()
+    assert row == (5, 1, 0)
+
+
+def test_incremental_export_propagates_user_preferences_when_viewer_unrated(tmp_path):
+    src = str(tmp_path / 'scan.db')
+    out = str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    export_viewer_db(src, out, thumbnail_size=320, verbose=False)
+
+    sconn = sqlite3.connect(src)
+    sconn.execute(
+        "INSERT INTO user_preferences (user_id, photo_path, star_rating) VALUES (?, ?, 4)",
+        (_USER, _B),
+    )
+    sconn.commit()
+    sconn.close()
+
+    export_viewer_db(src, out, thumbnail_size=320, verbose=False)
+
+    vconn = sqlite3.connect(out)
+    star = vconn.execute(
+        "SELECT star_rating FROM user_preferences WHERE user_id = ? AND photo_path = ?",
+        (_USER, _B),
+    ).fetchone()[0]
+    vconn.close()
+    assert star == 4
+
+
+def test_incremental_export_preserves_viewer_user_preferences(tmp_path):
+    src = str(tmp_path / 'scan.db')
+    out = str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+
+    sconn = sqlite3.connect(src)
+    sconn.execute(
+        "INSERT INTO user_preferences (user_id, photo_path, star_rating) VALUES (?, ?, 3)",
+        (_USER, _A),
+    )
+    sconn.commit()
+    sconn.close()
+    export_viewer_db(src, out, thumbnail_size=320, verbose=False)
+
+    vconn = sqlite3.connect(out)
+    vconn.execute(
+        "UPDATE user_preferences SET star_rating = 5, is_favorite = 1 "
+        "WHERE user_id = ? AND photo_path = ?",
+        (_USER, _A),
+    )
+    vconn.commit()
+    vconn.close()
+
+    export_viewer_db(src, out, thumbnail_size=320, verbose=False)
+
+    vconn = sqlite3.connect(out)
+    star, fav = vconn.execute(
+        "SELECT star_rating, is_favorite FROM user_preferences "
+        "WHERE user_id = ? AND photo_path = ?",
+        (_USER, _A),
+    ).fetchone()
+    vconn.close()
+    assert star == 5
+    assert fav == 1
 
 
 if __name__ == '__main__':
