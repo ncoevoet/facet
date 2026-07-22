@@ -11,7 +11,9 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from analyzers.form_facet import FORM_METRIC_COLUMNS, compute_form_metrics
+from concurrent.futures import ThreadPoolExecutor
+
+from analyzers.form_facet import FORM_METRIC_COLUMNS, compute_form_metrics, warmup
 
 
 def _to_image(arr):
@@ -135,3 +137,26 @@ def test_working_size_consistency_across_input_resolutions():
     for col in FORM_METRIC_COLUMNS:
         assert large[col] is not None and thumb[col] is not None, col
         assert large[col] == pytest.approx(thumb[col], abs=1.0), col
+
+
+def test_warmup_is_idempotent():
+    warmup()
+    warmup()
+
+
+def test_concurrent_color_harmony_does_not_deadlock():
+    """Regression guard for issue #55.
+
+    Several worker threads compute form metrics (hence KMeans) at once. warmup()
+    pre-initializes the native thread pools and _color_harmony serializes the fit
+    under a lock, so the concurrent KMeans path completes instead of deadlocking
+    in libgomp init. The deadlock is a race, so this is a functional smoke guard
+    (it times out loudly rather than deterministically reproducing the hang).
+    """
+    warmup()
+    images = [_hue_stripes([0, 72, 144, 216, 288]) for _ in range(8)]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = [pool.submit(compute_form_metrics, img) for img in images]
+        results = [f.result(timeout=60) for f in futures]
+    for metrics in results:
+        assert metrics["color_harmony"] is not None

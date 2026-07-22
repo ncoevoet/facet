@@ -512,7 +512,7 @@ class ChunkedMultiPassProcessor:
         from pathlib import Path
         from utils import load_image_from_path
         from analyzers import TechnicalAnalyzer, ImageCache
-        from analyzers.form_facet import compute_form_metrics
+        from analyzers.form_facet import compute_form_metrics, warmup
 
         # Get a TechnicalAnalyzer instance (stateless, so we can create one)
         tech_analyzer = TechnicalAnalyzer()
@@ -595,6 +595,9 @@ class ChunkedMultiPassProcessor:
         # bounded separately by the decode semaphore in utils.image_loading
         images = {}
         if self.load_workers > 1 and len(paths) > 1:
+            # Force KMeans' native thread-pool init single-threaded before the
+            # worker pool starts, else concurrent first-time init deadlocks (#55)
+            warmup()
             with ThreadPoolExecutor(
                 max_workers=self.load_workers, thread_name_prefix='imgload'
             ) as pool:
