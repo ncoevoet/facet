@@ -26,10 +26,19 @@ in ``processing.scorer.build_metric_vector``).
 """
 
 import logging
+import threading
 
 import numpy as np
 
 logger = logging.getLogger("facet.form_facet")
+
+# sklearn KMeans lazily initializes OpenMP/BLAS thread pools (via threadpoolctl /
+# libgomp) on its first fit. Doing that init concurrently from several worker
+# threads deadlocks in the native thread-pool synchronization (issue #55). The
+# lock serializes the fit_predict step, and warmup() forces the one-time init to
+# happen single-threaded before any worker pool starts.
+_KM_LOCK = threading.Lock()
+_WARMED = False
 
 FORM_METRIC_COLUMNS = (
     'form_symmetry', 'form_balance', 'form_edge_entropy', 'form_fractal',
@@ -203,7 +212,8 @@ def _color_harmony(hsv):
     from sklearn.cluster import KMeans
 
     km = KMeans(n_clusters=_KMEANS_CLUSTERS, n_init=4, random_state=0)
-    labels = km.fit_predict(points, sample_weight=sample_weights)
+    with _KM_LOCK:
+        labels = km.fit_predict(points, sample_weight=sample_weights)
     centers = km.cluster_centers_
     cluster_hues = np.rad2deg(np.arctan2(centers[:, 1], centers[:, 0])) % 360.0
     cluster_weights = np.array([
@@ -214,6 +224,31 @@ def _color_harmony(hsv):
         return None
     best = _template_fit_distance(cluster_hues[keep], cluster_weights[keep])
     return round(10.0 * (1.0 - min(1.0, best / _MAX_TEMPLATE_DISTANCE_DEG)), 2)
+
+
+def warmup():
+    """Force sklearn KMeans' one-time OpenMP/BLAS init on the calling thread.
+
+    Idempotent and never raises. Call once on the main thread before launching a
+    worker pool that computes form metrics: it runs a tiny real KMeans fit so the
+    native thread-pool init (threadpoolctl / libgomp) completes single-threaded,
+    avoiding the concurrent-init deadlock of issue #55.
+    """
+    global _WARMED
+    with _KM_LOCK:
+        if _WARMED:
+            return
+        try:
+            from sklearn.cluster import KMeans
+
+            angles = np.linspace(0.0, 2.0 * np.pi, 32, endpoint=False)
+            points = np.column_stack([np.cos(angles), np.sin(angles)])
+            KMeans(
+                n_clusters=_KMEANS_CLUSTERS, n_init=4, random_state=0
+            ).fit_predict(points, sample_weight=np.ones(points.shape[0]))
+        except Exception:
+            logger.debug("KMeans warmup failed", exc_info=True)
+        _WARMED = True
 
 
 def compute_form_metrics(pil_image):
