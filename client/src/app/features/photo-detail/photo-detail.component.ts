@@ -28,6 +28,7 @@ import { GalleryStore } from '../gallery/gallery.store';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 import { I18N } from '../../core/i18n/keys';
+import { isTypingContext } from '../../shared/utils/keyboard';
 
 const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   saliency: I18N.social_export.source.saliency,
@@ -513,9 +514,10 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       this.downloadOptions.set([{ type: 'original', label: 'original' }]);
       return;
     }
-    firstValueFrom(this.api.get<{ options: DownloadOption[] }>('/download/options', { path: p.path }))
-      .then(res => this.downloadOptions.set(res.options))
-      .catch(() => this.downloadOptions.set([{ type: 'original', label: 'original' }]));
+    const requestedPath = p.path;
+    firstValueFrom(this.api.get<{ options: DownloadOption[] }>('/download/options', { path: requestedPath }))
+      .then(res => { if (this.photo()?.path === requestedPath) this.downloadOptions.set(res.options); })
+      .catch(() => { if (this.photo()?.path === requestedPath) this.downloadOptions.set([{ type: 'original', label: 'original' }]); });
   });
 
   // Social-export crop presets (from viewer config) + which signal frames the crop
@@ -561,11 +563,12 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       this.locationName.set('');
       return;
     }
+    const requestedPath = p.path;
     firstValueFrom(this.api.get<{ display_name: string }>('/filter_options/location_name', {
       lat: String(p.gps_latitude), lng: String(p.gps_longitude),
     }))
-      .then(res => this.locationName.set(res.display_name || ''))
-      .catch(() => this.locationName.set(''));
+      .then(res => { if (this.photo()?.path === requestedPath) this.locationName.set(res.display_name || ''); })
+      .catch(() => { if (this.photo()?.path === requestedPath) this.locationName.set(''); });
   });
 
   private readonly locationMapContainer = viewChild<ElementRef<HTMLDivElement>>('locationMapContainer');
@@ -651,13 +654,15 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     this.location.back();
   }
 
-  @HostListener('document:keydown.arrowleft')
-  protected prevPhoto(): void {
+  @HostListener('document:keydown.arrowleft', ['$event'])
+  protected prevPhoto(event: Event): void {
+    if (isTypingContext(event)) return;
     this.navigateAdjacentPhoto(-1);
   }
 
-  @HostListener('document:keydown.arrowright')
-  protected nextPhoto(): void {
+  @HostListener('document:keydown.arrowright', ['$event'])
+  protected nextPhoto(event: Event): void {
+    if (isTypingContext(event)) return;
     this.navigateAdjacentPhoto(1);
   }
 

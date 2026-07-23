@@ -535,6 +535,7 @@ export class ComparisonWeightsTabComponent {
       const data = await firstValueFrom(
         this.api.get<CategoryWeights>('/comparison/category_weights', { category: cat }),
       );
+      if (this.compareFilters.selectedCategory() !== cat) return;
       this.weights.set({ ...data.weights });
       this.savedWeights.set({ ...data.weights });
       this.modifiers.set({ ...(data.modifiers ?? {}) });

@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSelectModule } from '@angular/material/select';
@@ -928,16 +928,24 @@ export class GalleryFilterSidebarComponent {
   }
 
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  private albumsLoaded = false;
 
   constructor() {
-    if (this.store.config()?.features?.show_albums) {
-      firstValueFrom(this.albumService.list()).then(res =>
-        this.albums.set(res.albums),
-      ).catch(() => {});
-    }
+    effect(() => {
+      if (this.store.config()?.features?.show_albums && !this.albumsLoaded) {
+        this.albumsLoaded = true;
+        this.refreshAlbums();
+      }
+    });
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimeout) clearTimeout(this.searchTimeout);
     });
+  }
+
+  private refreshAlbums(): void {
+    firstValueFrom(this.albumService.list()).then(res =>
+      this.albums.set(res.albums),
+    ).catch(() => {});
   }
 
   onSidebarSearchChange(event: Event): void {
@@ -994,9 +1002,7 @@ export class GalleryFilterSidebarComponent {
     });
     ref.afterClosed().subscribe(result => {
       if (result) {
-        firstValueFrom(this.albumService.list()).then(res =>
-          this.albums.set(res.albums),
-        ).catch(() => {});
+        this.refreshAlbums();
       }
     });
   }

@@ -237,16 +237,25 @@ export class GalleryStore {
     return f.gps_lat && f.gps_lng ? `${f.gps_lat},${f.gps_lng}` : '';
   });
 
+  private _gpsLocationSeq = 0;
+
   private gpsLocationEffect = effect(() => {
     const coords = this.gpsCoords();
+    const seq = ++this._gpsLocationSeq;
     if (!coords) {
       this.gpsLocationName.set('');
       return;
     }
     const [lat, lng] = coords.split(',');
     firstValueFrom(this.api.get<{ display_name: string }>('/filter_options/location_name', { lat, lng }))
-      .then(res => this.gpsLocationName.set(res.display_name || `${(+lat).toFixed(2)}, ${(+lng).toFixed(2)}`))
-      .catch(() => this.gpsLocationName.set(`${(+lat).toFixed(2)}, ${(+lng).toFixed(2)}`));
+      .then(res => {
+        if (seq !== this._gpsLocationSeq) return;
+        this.gpsLocationName.set(res.display_name || `${(+lat).toFixed(2)}, ${(+lng).toFixed(2)}`);
+      })
+      .catch(() => {
+        if (seq !== this._gpsLocationSeq) return;
+        this.gpsLocationName.set(`${(+lat).toFixed(2)}, ${(+lng).toFixed(2)}`);
+      });
   });
 
   // --- Computed ---
@@ -452,12 +461,15 @@ export class GalleryStore {
     if (key === 'favorites_only' && value) extra.hide_rejected = false;
     // Reload person dropdown when person filter is cleared (was seeded with filtered subset)
     const wasPersonFiltered = !!this.filters().person_id;
-    this.filters.update(current => ({ ...current, [key]: value, ...extra, page: 1 }));
+    const isDisplayOnly = GalleryStore.DISPLAY_ONLY_KEYS.has(key);
+    this.filters.update(current => ({
+      ...current, [key]: value, ...extra, ...(isDisplayOnly ? {} : { page: 1 }),
+    }));
     if ((DISPLAY_OPTION_KEYS as string[]).includes(key as string)) {
       saveDisplayOptionsToStorage(this.filters());
     }
     this.syncUrl();
-    if (!GalleryStore.DISPLAY_ONLY_KEYS.has(key)) {
+    if (!isDisplayOnly) {
       this.cancelRangeLoad();
       await this.loadPhotos();
     }
@@ -766,7 +778,12 @@ export class GalleryStore {
   async selectBottomPercent(
     keepPercent: number,
   ): Promise<{ total: number; keep: number; cut: number; truncated: boolean; paths: string[] } | null> {
-    const params = buildApiParams(this.filters(), this.currentAlbum()?.is_smart ?? false);
+    const f = this.filters();
+    if (f.similar_to || f.semanticQuery) {
+      this.notifyActionFailed();
+      return null;
+    }
+    const params = buildApiParams(f, this.currentAlbum()?.is_smart ?? false);
     try {
       const res = await firstValueFrom(
         this.api.get<{ total: number; keep: number; cut: number; truncated: boolean; paths: string[] }>(

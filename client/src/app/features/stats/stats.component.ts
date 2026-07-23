@@ -292,7 +292,6 @@ export class StatsComponent {
   private chartRefs = new Map<string, ElementRef<HTMLCanvasElement>>();
 
   // Canvas refs
-  protected readonly categoriesCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoriesCanvas');
   protected readonly scoreCanvas = viewChild<ElementRef<HTMLCanvasElement>>('scoreCanvas');
   protected readonly categoryScoreProfileCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryScoreProfileCanvas');
   protected readonly categoryMetricCanvas = viewChild<ElementRef<HTMLCanvasElement>>('categoryMetricCanvas');
@@ -359,10 +358,7 @@ export class StatsComponent {
       const from = this.statsFilters.dateFrom();
       const to = this.statsFilters.dateTo();
        
-      const qp: any = {};
-      if (cat) qp.category = cat;
-      if (from) qp.date_from = from;
-      if (to) qp.date_to = to;
+      const qp: any = { category: cat || null, date_from: from || null, date_to: to || null };
       this.router.navigate([], { queryParams: qp, queryParamsHandling: 'merge', replaceUrl: true });
     });
 
@@ -385,11 +381,6 @@ export class StatsComponent {
     });
 
     // Chart effects — canvas refs must be tracked so charts render on tab switch
-    effect(() => {
-      const cats = this.categoryStats();
-      const color = this.themeService.complementaryColor();
-      this.buildHorizontalBar('categories', this.categoriesCanvas(), cats.map(c => this.translateCategory(c.category)), cats.map(c => c.count), color);
-    });
     effect(() => {
       const bins = this.scoreBins();
       const accent = this.themeService.accentColor();
@@ -427,13 +418,18 @@ export class StatsComponent {
     return params;
   }
 
+  private readonly loadSeq: Record<string, number> = {};
+  private nextLoadSeq(key: string): number { return (this.loadSeq[key] = (this.loadSeq[key] ?? 0) + 1); }
+  private isLatestLoadSeq(key: string, seq: number): boolean { return this.loadSeq[key] === seq; }
+
   async loadAll(): Promise<void> {
+    const seq = this.nextLoadSeq('overview');
     this.loading.set(true);
     try {
       const overview = await firstValueFrom(this.api.get<StatsOverviewData>('/stats/overview', this.filterParams));
-      this.statsFilters.overview.set(overview);
+      if (this.isLatestLoadSeq('overview', seq)) this.statsFilters.overview.set(overview);
     } catch { /* empty */ }
-    finally { this.loading.set(false); }
+    finally { if (this.isLatestLoadSeq('overview', seq)) this.loading.set(false); }
 
     this.loadGear();
     this.loadCategories();
@@ -461,38 +457,44 @@ export class StatsComponent {
   }
 
   async loadGear(): Promise<void> {
+    const seq = this.nextLoadSeq('gear');
     this.gearLoading.set(true);
     try {
       const data = await firstValueFrom(this.api.get<GearApiResponse>('/stats/gear', this.filterParams));
-      this.cameras.set((data.cameras ?? []).map(c => this.mapGearItem(c as unknown as Record<string, unknown>)));
-      this.lenses.set((data.lenses ?? []).map(l => this.mapGearItem(l as unknown as Record<string, unknown>)));
-      this.combos.set((data.combos ?? []).map(c => this.mapGearItem(c as unknown as Record<string, unknown>)));
+      if (this.isLatestLoadSeq('gear', seq)) {
+        this.cameras.set((data.cameras ?? []).map(c => this.mapGearItem(c as unknown as Record<string, unknown>)));
+        this.lenses.set((data.lenses ?? []).map(l => this.mapGearItem(l as unknown as Record<string, unknown>)));
+        this.combos.set((data.combos ?? []).map(c => this.mapGearItem(c as unknown as Record<string, unknown>)));
+      }
     } catch { /* empty */ }
-    finally { this.gearLoading.set(false); }
+    finally { if (this.isLatestLoadSeq('gear', seq)) this.gearLoading.set(false); }
   }
 
   async loadCategories(): Promise<void> {
+    const seq = this.nextLoadSeq('categories');
     this.categoriesLoading.set(true);
     try {
       const data = await firstValueFrom(this.api.get<CategoryStat[]>('/stats/categories', this.filterParams));
-      this.categoryStats.set(data);
+      if (this.isLatestLoadSeq('categories', seq)) this.categoryStats.set(data);
     } catch { /* empty */ }
-    finally { this.categoriesLoading.set(false); }
+    finally { if (this.isLatestLoadSeq('categories', seq)) this.categoriesLoading.set(false); }
   }
 
   async loadScoreDistribution(): Promise<void> {
+    const seq = this.nextLoadSeq('scoreDistribution');
     this.scoreLoading.set(true);
     try {
       const data = await firstValueFrom(this.api.get<ScoreBin[]>('/stats/score_distribution', this.filterParams));
-      this.scoreBins.set(data);
+      if (this.isLatestLoadSeq('scoreDistribution', seq)) this.scoreBins.set(data);
     } catch { /* empty */ }
-    finally { this.scoreLoading.set(false); }
+    finally { if (this.isLatestLoadSeq('scoreDistribution', seq)) this.scoreLoading.set(false); }
   }
 
   async loadTopCameras(): Promise<void> {
+    const seq = this.nextLoadSeq('topCameras');
     try {
       const data = await firstValueFrom(this.api.get<TopCamera[]>('/stats/top_cameras', this.filterParams));
-      this.topCameras.set(data);
+      if (this.isLatestLoadSeq('topCameras', seq)) this.topCameras.set(data);
     } catch { /* empty */ }
   }
 
@@ -513,7 +515,7 @@ export class StatsComponent {
   }
 
   private buildHorizontalBar(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {
-    if (!ref || data.length === 0) return;
+    if (!ref || data.length === 0) { this.destroyChart(id); return; }
     // Skip rebuild if same canvas ref and chart already exists — just update data
     const existing = this.charts.get(id);
     if (existing && this.chartRefs.get(id) === ref) {
@@ -556,7 +558,7 @@ export class StatsComponent {
     labels: string[],
     datasets: { label: string; data: number[]; color: string }[],
   ): void {
-    if (!ref || labels.length === 0) return;
+    if (!ref || labels.length === 0) { this.destroyChart(id); return; }
     const existing = this.charts.get(id);
     if (existing && this.chartRefs.get(id) === ref) {
       existing.data.labels = labels;
@@ -600,7 +602,7 @@ export class StatsComponent {
   }
 
   private buildVerticalBar(id: string, ref: ElementRef<HTMLCanvasElement> | undefined, labels: string[], data: number[], color: string): void {
-    if (!ref || data.length === 0) return;
+    if (!ref || data.length === 0) { this.destroyChart(id); return; }
     const existing = this.charts.get(id);
     if (existing && this.chartRefs.get(id) === ref) {
       existing.data.labels = labels;

@@ -48,16 +48,23 @@ export abstract class PhotoDetailBase {
       return;
     }
     this.translatingCaption.set(true);
+    const requestPath = p.path;
+    const isStale = () => this.photo()?.path !== requestPath || this.i18n.locale() !== locale;
     firstValueFrom(this.api.get<{ caption: string; lang?: string }>('/caption', { path: p.path, lang: locale }))
       .then(res => {
+        if (isStale()) return;
         if (res.lang) {
           this.translatedCaption.set(res.caption);
         } else {
           this.translatedCaption.set(null);
         }
       })
-      .catch(() => this.translatedCaption.set(null))
-      .finally(() => this.translatingCaption.set(false));
+      .catch(() => {
+        if (!isStale()) this.translatedCaption.set(null);
+      })
+      .finally(() => {
+        if (!isStale()) this.translatingCaption.set(false);
+      });
   });
 
   protected onFullImageLoad(): void {

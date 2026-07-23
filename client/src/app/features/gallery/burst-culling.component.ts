@@ -1182,12 +1182,28 @@ export class BurstCullingComponent implements OnDestroy {
     void this.loadCullProfiles();
     void this.refreshComparisonStats();
     void this.refreshRankerStatus();
-    // Keep the keyboard selection in bounds as groups load / get hidden.
+    // Keep the keyboard selection in bounds as groups load / get hidden, preserving
+    // the identity of the highlighted group when an earlier one drops out of the list.
+    let previousVisibleKeys: string[] = [];
     effect(() => {
-      const count = this.visibleGroups().length;
-      if (count === 0) return;
-      const clamped = Math.min(this.selectedGroupIndex(), count - 1);
-      if (clamped !== this.selectedGroupIndex()) this.selectedGroupIndex.set(clamped);
+      const groups = this.visibleGroups();
+      const count = groups.length;
+      if (count === 0) { previousVisibleKeys = []; return; }
+      const idx = this.selectedGroupIndex();
+      const currentKeys = groups.map(g => this.groupKey(g));
+      const groupsChanged = currentKeys.length !== previousVisibleKeys.length
+        || currentKeys.some((k, i) => k !== previousVisibleKeys[i]);
+      if (groupsChanged && previousVisibleKeys[idx] !== undefined) {
+        const newIdx = currentKeys.indexOf(previousVisibleKeys[idx]);
+        if (newIdx >= 0 && newIdx !== idx) {
+          previousVisibleKeys = currentKeys;
+          this.selectedGroupIndex.set(newIdx);
+          return;
+        }
+      }
+      previousVisibleKeys = currentKeys;
+      const clamped = Math.min(idx, count - 1);
+      if (clamped !== idx) this.selectedGroupIndex.set(clamped);
     });
     // Scroll the keyboard-selected group into view (mirrors gallery.focusCard).
     effect(() => {
@@ -1826,8 +1842,8 @@ export class BurstCullingComponent implements OnDestroy {
     if (group) {
       // Darkroom: confirm the open group and jump into the next one.
       event.preventDefault();
+      if (!this.confirmGroup(group)) return;
       const next = this.nextUnconfirmedGroupAfter(group);
-      this.confirmGroup(group);
       if (next) {
         this.openLightbox(next, 0);
         this.lightboxDialog()?.nativeElement.focus();
@@ -1841,8 +1857,8 @@ export class BurstCullingComponent implements OnDestroy {
     const selected = this.visibleGroups()[this.selectedGroupIndex()];
     if (!selected) return;
     event.preventDefault();
+    if (!this.confirmGroup(selected)) return;
     const next = this.nextUnconfirmedGroupAfter(selected);
-    void this.confirmGroup(selected);
     if (next) {
       const gi = this.visibleGroups().findIndex(g => this.groupKey(g) === this.groupKey(next));
       if (gi >= 0) this.selectedGroupIndex.set(gi);
@@ -1952,9 +1968,9 @@ export class BurstCullingComponent implements OnDestroy {
     this.updateMapSignal(this.selectionsMap, group.group_id, new Set([path]));
   }
 
-  protected confirmGroup(group: CullingGroup): void {
+  protected confirmGroup(group: CullingGroup): boolean {
     const kept = this.selectionsMap().get(group.group_id);
-    if (!kept || kept.size === 0) return;
+    if (!kept || kept.size === 0) return false;
 
     // Grey the group and start the cancellable cooldown; the commit + close only
     // happen when it elapses, so Cancel within the window fully reverts it.
@@ -1968,13 +1984,17 @@ export class BurstCullingComponent implements OnDestroy {
         paths: group.photos.map(p => p.path),
         keep_paths: keepPaths,
       }))
-        .then(() => { void this.refreshComparisonStats(); void this.refreshRankerStatus(); })
+        .then(() => {
+          this.addToSetSignal(this.hiddenGroups, key);
+          void this.refreshComparisonStats();
+          void this.refreshRankerStatus();
+        })
         .catch(() => {
           this.unconfirmGroup(key);
           this.snackBar.open(this.i18n.t(I18N.culling.error_confirming), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
         });
-      this.addToSetSignal(this.hiddenGroups, key);
     }, true);
+    return true;
   }
 
   private unconfirmGroup(key: string): void {
@@ -2084,11 +2104,17 @@ export class BurstCullingComponent implements OnDestroy {
             keep_paths: [...kept],
           }));
         }));
+        this.confirmedGroups.update(s => {
+          const next = new Set(s);
+          for (const g of batch) next.add(this.groupKey(g));
+          return next;
+        });
       }
 
+      const skipped = remaining.filter(g => !toConfirm.includes(g));
       this.confirmedGroups.update(s => {
         const next = new Set(s);
-        for (const g of remaining) next.add(this.groupKey(g));
+        for (const g of skipped) next.add(this.groupKey(g));
         return next;
       });
       this.snackBar.open(this.i18n.t(I18N.culling.confirmed), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
