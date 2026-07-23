@@ -290,10 +290,9 @@ def _apply_color_quality_filters(where_clauses, sql_params, params):
 
 def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id):
     """Apply visibility, top picks, aggregate minimum, and hide blinks/bursts/duplicates."""
-    if user_id:
-        vis_sql, vis_params = get_visibility_clause(user_id)
-        where_clauses.append(vis_sql)
-        sql_params.extend(vis_params)
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    where_clauses.append(vis_sql)
+    sql_params.extend(vis_params)
 
     if params.get('min_aggregate'):
         try:

@@ -178,6 +178,26 @@ class TestGalleryPhotos:
         assert data["total"] == 5
         assert data["has_more"] is True
 
+    def test_anonymous_on_access_controlled_install_sees_no_photos(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        photos = [_photo(f"/p{i}.jpg", "2024:06:15 12:00:00") for i in range(5)]
+        _make_db(db_path, photos)
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
+            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": "secret"}),
+            mock.patch("api.db_helpers.is_multi_user_enabled", lambda: False),
+            mock.patch.dict("api.config._count_cache", {}, clear=True),
+        ):
+            resp = TestClient(app).get("/api/photos?page=1&per_page=50")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["photos"] == []
+        assert data["total"] == 0
+
     def test_sort_by_aesthetic_desc(self, tmp_path):
         db_path = str(tmp_path / "test.db")
         _make_db(db_path, [
