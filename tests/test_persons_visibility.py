@@ -7,7 +7,7 @@ photo within the caller's directories.
 """
 
 import sqlite3
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from unittest import mock
 
 import aiosqlite
@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
-from api.auth import CurrentUser, require_authenticated
+from api.auth import CurrentUser, require_authenticated, require_edition
 
 _HELPERS = "api.db_helpers"
 
@@ -113,6 +113,93 @@ class TestPersonsListIsolation:
         assert resp.status_code == 200
         ids = {p["id"] for p in resp.json()["persons"]}
         assert ids == {2, 4}
+
+
+def _sync_factory(db_path):
+    @contextmanager
+    def factory():
+        c = sqlite3.connect(db_path)
+        c.row_factory = sqlite3.Row
+        try:
+            yield c
+        finally:
+            c.close()
+    return factory
+
+
+def _write_client(db_path, user):
+    dirs = {"alice": ["/photos/alice"], "bob": ["/photos/bob"]}
+    app = create_app()
+    app.dependency_overrides[require_edition] = lambda: user
+    patches = [
+        mock.patch("api.routers.persons.get_db", _sync_factory(db_path)),
+        mock.patch(f"{_HELPERS}.is_multi_user_enabled", return_value=True),
+        mock.patch(f"{_HELPERS}.get_user_directories",
+                   side_effect=lambda uid: dirs.get(uid, [])),
+    ]
+    for p in patches:
+        p.start()
+    return TestClient(app), app, patches
+
+
+def _person_exists(db_path, person_id):
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute("SELECT 1 FROM persons WHERE id = ?", (person_id,)).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+class TestPersonsWriteIsolation:
+    def test_alice_cannot_delete_bobs_person(self, db_path):
+        alice = CurrentUser(user_id="alice", role="admin")
+        client, app, patches = _write_client(db_path, alice)
+        try:
+            resp = client.post("/api/persons/2/delete")
+        finally:
+            _teardown(app, patches)
+        assert resp.status_code == 404
+        assert _person_exists(db_path, 2)
+
+    def test_alice_can_delete_own_person(self, db_path):
+        alice = CurrentUser(user_id="alice", role="admin")
+        client, app, patches = _write_client(db_path, alice)
+        try:
+            resp = client.post("/api/persons/1/delete")
+        finally:
+            _teardown(app, patches)
+        assert resp.status_code == 200
+        assert not _person_exists(db_path, 1)
+
+    def test_alice_cannot_rename_bobs_person(self, db_path):
+        alice = CurrentUser(user_id="alice", role="admin")
+        client, app, patches = _write_client(db_path, alice)
+        try:
+            resp = client.post("/api/persons/2/rename", json={"name": "Mallory"})
+        finally:
+            _teardown(app, patches)
+        assert resp.status_code == 404
+
+    def test_alice_cannot_merge_across_directories(self, db_path):
+        alice = CurrentUser(user_id="alice", role="admin")
+        client, app, patches = _write_client(db_path, alice)
+        try:
+            resp = client.post("/api/persons/merge/1/2")
+        finally:
+            _teardown(app, patches)
+        assert resp.status_code == 404
+        assert _person_exists(db_path, 1)
+        assert _person_exists(db_path, 2)
+
+    def test_alice_cannot_hide_bobs_person(self, db_path):
+        alice = CurrentUser(user_id="alice", role="admin")
+        client, app, patches = _write_client(db_path, alice)
+        try:
+            resp = client.post("/api/persons/2/hide")
+        finally:
+            _teardown(app, patches)
+        assert resp.status_code == 404
 
 
 class TestNeedsNamingIsolation:

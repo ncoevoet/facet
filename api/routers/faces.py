@@ -16,7 +16,7 @@ from api.config import is_multi_user_enabled, _stats_cache
 from api.database import get_async_db, get_db
 from api.db_helpers import (
     update_person_face_count, trigger_auto_retrain, get_visibility_clause,
-    assert_faces_visible, assert_photo_visible,
+    assert_faces_visible, assert_photo_visible, repair_stale_representative,
 )
 from api.types import JUNK_NOT_JUNK
 
@@ -166,6 +166,7 @@ def api_assign_face(
 
             if old_person_id:
                 update_person_face_count(conn, old_person_id)
+                repair_stale_representative(conn, old_person_id)
             update_person_face_count(conn, body.person_id)
 
             conn.commit()

@@ -356,3 +356,53 @@ class TestAssignFace:
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
+
+    def test_assign_face_repairs_stale_representative(self, tmp_path):
+        db = str(tmp_path / "assign_rep.db")
+        conn = sqlite3.connect(db, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript("""
+            CREATE TABLE photos (path TEXT PRIMARY KEY);
+            CREATE TABLE persons (
+                id INTEGER PRIMARY KEY, name TEXT,
+                representative_face_id INTEGER, face_thumbnail BLOB, face_count INTEGER
+            );
+            CREATE TABLE faces (
+                id INTEGER PRIMARY KEY, photo_path TEXT, person_id INTEGER,
+                confidence REAL, face_thumbnail BLOB
+            );
+        """)
+        conn.execute("INSERT INTO photos (path) VALUES ('/a.jpg')")
+        conn.execute(
+            "INSERT INTO persons (id, name, representative_face_id, face_thumbnail, face_count) "
+            "VALUES (1, 'Alice', 10, ?, 2)", (b'F1thumb',)
+        )
+        conn.execute("INSERT INTO persons (id, name, face_count) VALUES (2, 'Bob', 0)")
+        conn.execute(
+            "INSERT INTO faces (id, photo_path, person_id, confidence, face_thumbnail) "
+            "VALUES (10, '/a.jpg', 1, 0.9, ?)", (b'F1thumb',)
+        )
+        conn.execute(
+            "INSERT INTO faces (id, photo_path, person_id, confidence, face_thumbnail) "
+            "VALUES (11, '/a.jpg', 1, 0.8, ?)", (b'F2thumb',)
+        )
+        conn.commit()
+
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "", "features": {}}),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
+            mock.patch("api.routers.faces.is_multi_user_enabled", return_value=False),
+        ):
+            app, client = _make_app_and_client()
+            user = CurrentUser(user_id="u1", role="admin", edition_authenticated=True)
+            _override_auth_user(app, user)
+            with mock.patch("api.routers.faces.get_db", _cm(conn)):
+                resp = client.post("/api/face/10/assign", json={"person_id": 2})
+
+        assert resp.status_code == 200
+        alice = conn.execute(
+            "SELECT representative_face_id, face_thumbnail FROM persons WHERE id = 1"
+        ).fetchone()
+        assert alice["representative_face_id"] == 11
+        assert alice["face_thumbnail"] == b'F2thumb'
+        conn.close()

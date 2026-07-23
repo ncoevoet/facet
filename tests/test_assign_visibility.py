@@ -250,3 +250,76 @@ class TestAssignFacesBatchVisibility:
             assert body["face_count"] == 2
         finally:
             _cleanup([9503])
+
+    def test_foreign_person_target_denied(self, edition_client):
+        try:
+            conn = _db()
+            _seed_person(conn, 9504, "Foreign")
+            _seed_faces(conn, [FOREIGN_PREFIX + "e.jpg"], person_id=9504)
+            own = _seed_faces(conn, [OWN_PREFIX + "e.jpg"])
+            conn.commit()
+            conn.close()
+
+            resp = _post_as_scoped_user(
+                edition_client,
+                "/api/persons/9504/assign_faces",
+                {"face_ids": own},
+            )
+
+            assert resp.status_code == 404
+            conn = _db()
+            owner = conn.execute(
+                "SELECT person_id FROM faces WHERE id = ?", (own[0],)
+            ).fetchone()["person_id"]
+            conn.close()
+            assert owner is None
+        finally:
+            _cleanup([9504])
+
+
+class TestSplitPersonVisibility:
+    def test_foreign_source_denied(self, edition_client):
+        try:
+            conn = _db()
+            _seed_person(conn, 9505, "Foreign")
+            foreign = _seed_faces(conn, [FOREIGN_PREFIX + "s.jpg"], person_id=9505)
+            conn.commit()
+            conn.close()
+
+            resp = _post_as_scoped_user(
+                edition_client,
+                "/api/persons/9505/split",
+                {"face_ids": foreign},
+            )
+
+            assert resp.status_code == 404
+            conn = _db()
+            owner = conn.execute(
+                "SELECT person_id FROM faces WHERE id = ?", (foreign[0],)
+            ).fetchone()["person_id"]
+            conn.close()
+            assert owner == 9505
+        finally:
+            _cleanup([9505])
+
+    def test_own_source_allowed(self, edition_client):
+        new_id = None
+        try:
+            conn = _db()
+            _seed_person(conn, 9506, "Owned")
+            own = _seed_faces(
+                conn, [OWN_PREFIX + "s1.jpg", OWN_PREFIX + "s2.jpg"], person_id=9506
+            )
+            conn.commit()
+            conn.close()
+
+            resp = _post_as_scoped_user(
+                edition_client,
+                "/api/persons/9506/split",
+                {"face_ids": [own[0]], "name": "Split"},
+            )
+
+            assert resp.status_code == 200, resp.text
+            new_id = resp.json()["new_person_id"]
+        finally:
+            _cleanup([9506, new_id] if new_id else [9506])
