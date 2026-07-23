@@ -540,8 +540,7 @@ class ScoringConfig:
             'clustering_algorithm': 'boruvka_balltree',
             'leaf_size': 40,
             'use_gpu': 'auto',
-            'merge_threshold': 0.6,
-            'chunk_size': 10000
+            'merge_threshold': 0.6
         })
 
     def get_face_processing_settings(self):

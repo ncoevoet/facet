@@ -106,8 +106,7 @@ Im Web-Viewer:
     "clustering_algorithm": "best",
     "leaf_size": 40,
     "use_gpu": "auto",
-    "merge_threshold": 0.6,
-    "chunk_size": 10000
+    "merge_threshold": 0.6
   }
 }
 ```

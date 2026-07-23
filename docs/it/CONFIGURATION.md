@@ -787,8 +787,7 @@ Clustering HDBSCAN per il riconoscimento dei volti.
     "clustering_algorithm": "best",
     "leaf_size": 40,
     "use_gpu": "auto",
-    "merge_threshold": 0.6,
-    "chunk_size": 10000
+    "merge_threshold": 0.6
   }
 }
 ```
@@ -803,7 +802,6 @@ Clustering HDBSCAN per il riconoscimento dei volti.
 | `leaf_size` | `40` | Dimensione delle foglie dell'albero (solo CPU) |
 | `use_gpu` | `"auto"` | Modalità GPU: `auto`, `always`, `never` |
 | `merge_threshold` | `0.6` | Similarità del centroide per la corrispondenza |
-| `chunk_size` | `10000` | Dimensione del blocco di elaborazione |
 
 **Algoritmi di clustering:**
 

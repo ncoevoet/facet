@@ -60,7 +60,7 @@ class FaceClusterer:
     def __init__(self, db_path, min_faces=2, min_samples=None, auto_merge_distance=0.15,
                  algorithm='boruvka_balltree', leaf_size=40, use_gpu='auto',
                  merge_threshold=0.6,
-                 use_db_thumbnails=True, chunk_size=10000,
+                 use_db_thumbnails=True,
                  face_thumbnail_size=128, face_thumbnail_quality=85):
         """
         Initialize the face clusterer.
@@ -77,7 +77,6 @@ class FaceClusterer:
             use_gpu: GPU clustering mode - 'auto' (use if available), 'always', or 'never'
             use_db_thumbnails: If True, use cached thumbnails from database instead of loading
                               original images when generating fallback thumbnails (faster for RAW/NFS)
-            chunk_size: Number of faces to process per chunk for memory efficiency (default 10000)
             face_thumbnail_size: Size for face thumbnails (default 128)
             face_thumbnail_quality: JPEG quality for face thumbnails (default 85)
         """
@@ -93,7 +92,6 @@ class FaceClusterer:
         self.use_gpu = use_gpu
         self.merge_threshold = merge_threshold
         self.use_db_thumbnails = use_db_thumbnails
-        self.chunk_size = chunk_size
         self.face_thumbnail_size = face_thumbnail_size
         self.face_thumbnail_quality = face_thumbnail_quality
         self._cuml_available = None  # Lazy check
@@ -344,6 +342,38 @@ class FaceClusterer:
             logger.info("  Preserving %s named person(s)", len(existing_persons))
         return existing_persons
 
+    def _preserved_face_assignments(self, conn, existing_persons):
+        """Capture the current face->person map for faces of preserved persons.
+
+        Incremental and named-only clustering clear every face's ``person_id``
+        before rebuilding clusters. Faces that HDBSCAN relabels as noise (-1)
+        this run are never placed in any cluster, so without this snapshot they
+        would be silently orphaned from a person that is otherwise being kept.
+        """
+        if not existing_persons:
+            return {}
+        preserved_ids = set(existing_persons.keys())
+        rows = conn.execute(
+            "SELECT id, person_id FROM faces WHERE person_id IS NOT NULL"
+        ).fetchall()
+        return {face_id: person_id for face_id, person_id in rows if person_id in preserved_ids}
+
+    def _restore_noise_faces(self, conn, face_to_cluster, preserved_assignments):
+        """Re-attach noise (label -1) faces to their previously preserved person.
+
+        Returns the number of faces restored.
+        """
+        if not preserved_assignments:
+            return 0
+        restored = 0
+        for face_id, label in face_to_cluster.items():
+            if label < 0:
+                person_id = preserved_assignments.get(face_id)
+                if person_id is not None:
+                    conn.execute("UPDATE faces SET person_id = ? WHERE id = ?", (person_id, face_id))
+                    restored += 1
+        return restored
+
     def _update_person_centroids(self, conn, person_ids):
         """Recompute face counts and centroids for existing persons.
 
@@ -397,6 +427,7 @@ class FaceClusterer:
 
             # Load existing persons based on mode
             existing_persons = self._load_existing_persons(conn, force, preserve_named_only)
+            preserved_assignments = self._preserved_face_assignments(conn, existing_persons)
 
             if force:
                 # Full reset - delete everything
@@ -517,6 +548,10 @@ class FaceClusterer:
                     # Commit every 10% to allow interruption
                     if (j + 1) % thumb_chunk_size == 0:
                         conn.commit()
+
+            restored_noise = self._restore_noise_faces(conn, face_to_cluster, preserved_assignments)
+            if restored_noise:
+                logger.info("  Restored %s face(s) reclassified as noise to their preserved person(s)", restored_noise)
 
             # Update face counts and centroids for existing persons
             if existing_persons:
@@ -720,7 +755,6 @@ def run_face_clustering(db_path, config, force=False, preserve_named_only=False)
         use_gpu=use_gpu,
         merge_threshold=cluster_settings.get('merge_threshold', 0.6),
         use_db_thumbnails=face_processing.get('use_db_thumbnails', True),
-        chunk_size=cluster_settings.get('chunk_size', 10000),
         face_thumbnail_size=face_processing.get('face_thumbnail_size', 128),
         face_thumbnail_quality=face_processing.get('face_thumbnail_quality', 85)
     )

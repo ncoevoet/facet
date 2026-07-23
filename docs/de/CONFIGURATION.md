@@ -787,8 +787,7 @@ HDBSCAN-Clustering für die Gesichtserkennung.
     "clustering_algorithm": "best",
     "leaf_size": 40,
     "use_gpu": "auto",
-    "merge_threshold": 0.6,
-    "chunk_size": 10000
+    "merge_threshold": 0.6
   }
 }
 ```
@@ -803,7 +802,6 @@ HDBSCAN-Clustering für die Gesichtserkennung.
 | `leaf_size` | `40` | Blattgröße des Baums (nur CPU) |
 | `use_gpu` | `"auto"` | GPU-Modus: `auto`, `always`, `never` |
 | `merge_threshold` | `0.6` | Zentroid-Ähnlichkeit für die Zuordnung |
-| `chunk_size` | `10000` | Chunkgröße der Verarbeitung |
 
 **Clustering-Algorithmen:**
 
