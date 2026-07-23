@@ -21,6 +21,15 @@ updates:
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-major"
+      # Transitive sub-dependencies whose version is dictated by a parent's exact
+      # pin/range: pydantic-core by pydantic, mpmath by sympy, tokenizers by
+      # transformers. Bumping them on their own in requirements.lock.txt makes the
+      # lock unresolvable (`pip install -r requirements.lock.txt` fails outright,
+      # breaking the Docker build) — the whole #59 group was uninstallable for this
+      # reason. Let the parent bump carry them; add any new offender the same way.
+      - dependency-name: "pydantic-core"
+      - dependency-name: "mpmath"
+      - dependency-name: "tokenizers"
       # Majors are a deliberate, verified upgrade — never auto-propose them.
       - dependency-name: "*"
         update-types:
