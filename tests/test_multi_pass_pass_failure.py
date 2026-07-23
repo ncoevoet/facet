@@ -93,3 +93,34 @@ def test_required_pass_failure_records_and_excludes(tmp_path, monkeypatch):
     # The chunk's photos are recorded and retryable via --retry-failed.
     failed = set(get_failed_paths(db_path, "last"))
     assert failed == set(paths)
+
+
+@pytest.mark.timeout(30)
+def test_required_model_load_failure_records_instead_of_aborting(tmp_path, monkeypatch):
+    db_path = str(tmp_path / "scan.db")
+    init_database(db_path)
+    scan_run = ScanRun.start(db_path, "multi-pass", {"directories": []}, 2)
+
+    scorer = _StubScorer()
+
+    class _OomModelManager(_StubModelManager):
+        def load_model_only(self, name):
+            return None if name == "clip" else object()
+
+    proc = ChunkedMultiPassProcessor(scorer, _OomModelManager(), {},
+                                     on_error=scan_run.record_failure)
+    proc.pass_groups = [["insightface"], ["clip"]]
+
+    paths = [str(tmp_path / "a.jpg"), str(tmp_path / "b.jpg")]
+
+    monkeypatch.setattr(proc, "_load_images", lambda p: {x: _img_data() for x in p})
+    monkeypatch.setattr(proc, "_run_model_pass", lambda *a, **k: None)
+
+    proc._process_chunk(paths, 0, 1)  # a real OOM surfaces as load returning None
+    scan_run.finish("interrupted")
+
+    # Load failure of a required model degrades to a retryable failure, never a
+    # RuntimeError that aborts the whole scan, and never a neutral-default save.
+    assert scorer.saved == []
+    failed = set(get_failed_paths(db_path, "last"))
+    assert failed == set(paths)

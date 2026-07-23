@@ -450,6 +450,14 @@ class BatchProcessor:
                     'scoring_model': scoring_model,
                     # SAMP-Net composition pattern
                     'composition_pattern': composition_pattern,
+                    'topiq_score': None,
+                    'aesthetic_iaa': None,
+                    'face_quality_iqa': None,
+                    'liqe_score': None,
+                    'subject_sharpness': None,
+                    'subject_prominence': None,
+                    'subject_placement': None,
+                    'bg_separation': None,
                     # Face details for face recognition (stored by save_photo)
                     'face_details': face_res.get('face_details', []),
                 }

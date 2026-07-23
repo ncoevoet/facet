@@ -140,6 +140,27 @@ class TestDecodeTimeout:
         with pytest.raises(RuntimeError, match="storage likely stalled"):
             load_image_from_path(str(raw_path))
 
+    def test_queue_wait_excluded_from_timeout(self, tmp_path, monkeypatch):
+        raw_path = tmp_path / "queued.cr2"
+        raw_path.write_bytes(b"fake")
+        monkeypatch.setitem(sys.modules, "rawpy", _stub_rawpy(delay=0.3))
+        image_loading._abandoned_decodes = 0
+        configure_raw_decoding(concurrency=1, timeout_seconds=0.5)
+
+        results = {}
+
+        def _load(key):
+            results[key] = load_image_from_path(str(raw_path))
+
+        threads = [threading.Thread(target=_load, args=(k,)) for k in ("a", "b")]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert results["a"][0] is not None and results["b"][0] is not None
+        assert image_loading._abandoned_decodes == 0
+
     def test_fast_decode_succeeds_within_timeout(self, tmp_path, monkeypatch):
         raw_path = tmp_path / "fast.arw"
         raw_path.write_bytes(b"fake")

@@ -453,12 +453,17 @@ Tags:"""
             )
             texts.append(text)
 
-        inputs = self.processor(
-            text=texts,
-            images=images,
-            return_tensors="pt",
-            padding=True,
-        )
+        original_padding_side = self.processor.tokenizer.padding_side
+        self.processor.tokenizer.padding_side = "left"
+        try:
+            inputs = self.processor(
+                text=texts,
+                images=images,
+                return_tensors="pt",
+                padding=True,
+            )
+        finally:
+            self.processor.tokenizer.padding_side = original_padding_side
         inputs = {k: v.to(self.model.device) if hasattr(v, 'to') else v
                   for k, v in inputs.items()}
 

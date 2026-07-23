@@ -53,9 +53,11 @@ def _auto_decode_concurrency():
     return limit
 
 
-# Hung RAW decodes (stalled NAS I/O) cannot be killed; timed-out decode
-# threads are abandoned and keep their semaphore slot until they finish.
-# After _ABANDON_BUDGET abandonments the scan fails fast instead of wedging.
+# Hung RAW decodes (stalled NAS I/O) cannot be killed; a decode that exceeds
+# the timeout after it has actually started is abandoned and keeps its
+# semaphore slot until it finishes. When every slot is wedged by such hung
+# decodes the scan fails fast instead of blocking forever. _ABANDON_BUDGET is
+# the extra executor headroom that lets fresh decodes run past lingering ones.
 _ABANDON_BUDGET = 2
 
 _decode_concurrency = _auto_decode_concurrency()
@@ -63,6 +65,7 @@ _raw_semaphore = threading.BoundedSemaphore(_decode_concurrency)
 _decode_timeout = 0.0  # 0 = disabled; scanners opt in via configure_raw_decoding()
 _decode_executor = None
 _abandoned_decodes = 0
+_hung_decodes = 0
 _state_lock = threading.Lock()
 
 
@@ -75,11 +78,12 @@ def configure_raw_decoding(concurrency=None, timeout_seconds=None):
         timeout_seconds: Abandon a decode after this many seconds
                          (None = keep current, 0 = disabled)
     """
-    global _decode_concurrency, _raw_semaphore, _decode_timeout, _decode_executor
+    global _decode_concurrency, _raw_semaphore, _decode_timeout, _decode_executor, _hung_decodes
     with _state_lock:
         if concurrency:
             _decode_concurrency = max(1, int(concurrency))
             _raw_semaphore = threading.BoundedSemaphore(_decode_concurrency)
+            _hung_decodes = 0
             if _decode_executor is not None:
                 _decode_executor.shutdown(wait=False)
                 _decode_executor = None
@@ -102,12 +106,18 @@ def _get_decode_executor():
         return _decode_executor
 
 
-def _decode_raw(photo, use_thumbnail):
-    """Decode a RAW file to a PIL image. Runs under the decode semaphore."""
+def _decode_raw(photo, use_thumbnail, started_event=None):
+    """Decode a RAW file to a PIL image. Runs under the decode semaphore.
+
+    started_event, when supplied, is set the moment the semaphore is acquired
+    so the caller can time only the decode, never the queue wait for a slot.
+    """
     import rawpy
     Image, ImageOps = _ensure_pil()
     pil_img = None
     with _raw_semaphore:
+        if started_event is not None:
+            started_event.set()
         if use_thumbnail:
             # Try thumbnail extraction first (faster, lower quality)
             with rawpy.imread(str(photo)) as raw:
@@ -134,29 +144,47 @@ def _decode_raw(photo, use_thumbnail):
     return pil_img
 
 
-def _decode_raw_with_timeout(photo, use_thumbnail):
-    """Decode a RAW file, abandoning the attempt after the configured timeout.
+def _on_hung_decode_done(_future):
+    """Drop the hung-slot count once an abandoned decode finally returns."""
+    global _hung_decodes
+    with _state_lock:
+        _hung_decodes = max(0, _hung_decodes - 1)
 
-    Raises RuntimeError once the abandonment budget is exhausted - at that
-    point the storage is almost certainly stalled and continuing would wedge
-    every decode slot.
+
+def _decode_raw_with_timeout(photo, use_thumbnail):
+    """Decode a RAW file, timing only the decode itself.
+
+    The wait for a free decode slot (semaphore/executor queueing) is excluded
+    from the timeout, so legitimate congestion is never mistaken for a stall.
+    Once a decode has started it must finish within the timeout or it is
+    abandoned, keeping its slot until it eventually returns. When every slot is
+    wedged by such hung decodes the scan fails fast instead of blocking forever.
     """
-    global _abandoned_decodes
-    future = _get_decode_executor().submit(_decode_raw, photo, use_thumbnail)
+    global _abandoned_decodes, _hung_decodes
+    started = threading.Event()
+    future = _get_decode_executor().submit(_decode_raw, photo, use_thumbnail, started)
+    while not started.wait(timeout=_decode_timeout):
+        if future.done():
+            break
+        with _state_lock:
+            hung = _hung_decodes
+            concurrency = _decode_concurrency
+        if hung >= concurrency:
+            raise RuntimeError(
+                f"{hung} RAW decode slots hung - storage likely stalled"
+            )
     try:
         return future.result(timeout=_decode_timeout)
     except FuturesTimeoutError:
         with _state_lock:
             _abandoned_decodes += 1
+            _hung_decodes += 1
             abandoned = _abandoned_decodes
         logger.error(
-            "RAW decode timed out after %.0fs (%d/%d abandoned): %s",
-            _decode_timeout, abandoned, _ABANDON_BUDGET, photo,
+            "RAW decode timed out after %.0fs (%d hung): %s",
+            _decode_timeout, abandoned, photo,
         )
-        if abandoned > _ABANDON_BUDGET:
-            raise RuntimeError(
-                f"{abandoned} RAW decodes hung - storage likely stalled"
-            ) from None
+        future.add_done_callback(_on_hung_decode_done)
         return None
 
 

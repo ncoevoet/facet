@@ -417,20 +417,17 @@ class ChunkedMultiPassProcessor:
                     # Reuse scorer's face_analyzer to avoid loading a duplicate (~2GB)
                     loaded_models[model_name] = self.scorer.face_analyzer
                     continue
-                try:
-                    model = self.model_manager.load_model_only(model_name)
-                    if model is None:
-                        if model_name in supplementary:
-                            logger.warning("Supplementary model '%s' failed to load, skipping.", model_name)
-                            continue
-                        raise RuntimeError(
-                            f"Required model '{model_name}' failed to load. "
-                            f"Cannot continue processing."
-                        )
-                    loaded_models[model_name] = model
-                except torch.cuda.OutOfMemoryError:
-                    logger.error("OOM loading %s, trying fallback...", model_name)
-                    self._handle_oom(model_name)
+                model = self.model_manager.load_model_only(model_name)
+                if model is None:
+                    if model_name in supplementary:
+                        logger.warning("Supplementary model '%s' failed to load, skipping.", model_name)
+                        continue
+                    logger.error(
+                        "Required model '%s' failed to load (likely OOM); recording "
+                        "chunk for retry via --retry-failed instead of aborting.", model_name)
+                    failed_stages.append(model_name)
+                    continue
+                loaded_models[model_name] = model
 
             self.metrics['model_load_time'] += time.time() - load_start
 
@@ -1147,30 +1144,6 @@ class ChunkedMultiPassProcessor:
         if batch:
             self.scorer.save_photos_partial(batch, refresh_faces)
             self.scorer.commit()
-
-    def _handle_oom(self, model_name: str):
-        """Handle out-of-memory error by trying fallback models."""
-        fallbacks = {
-            'vlm_tagger': 'qwen3_vl_tagger',
-            'qwen3_vl_tagger': 'clip',
-            'qwen3_5_4b_tagger': 'qwen3_5_tagger',
-            'qwen3_5_tagger': 'clip',
-            'clipiqa+': 'topiq',      # CLIP-IQA+ -> TOPIQ
-            'musiq': 'topiq',
-            'hyperiqa': 'topiq',
-            'dbcnn': 'topiq',
-            'topiq': 'clip_aesthetic',  # Final fallback
-        }
-
-        if model_name in fallbacks:
-            fallback = fallbacks[model_name]
-            logger.warning("Falling back to %s", fallback)
-            # Update pass groups to use fallback
-            for group in self.pass_groups:
-                if model_name in group:
-                    idx = group.index(model_name)
-                    group[idx] = fallback
-                    break
 
     def _print_summary(self):
         """Print processing summary."""

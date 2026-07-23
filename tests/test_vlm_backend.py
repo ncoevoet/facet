@@ -242,3 +242,65 @@ class TestResolveVlmConfigUngate:
         with mock.patch("api.config._FULL_CONFIG", _LEGACY_REMOTE), \
                 mock.patch("api.model_cache._resolved_profile", None):
             assert resolve_vlm_config()
+
+
+# --- Qwen2.5-VL batched generation must left-pad for correct decoding ------
+
+class _FakeTokenizer:
+    def __init__(self):
+        self.pad_token_id = 0
+        self.padding_side = "right"
+
+
+class _FakeQwen25Processor:
+    def __init__(self, captured_padding_sides, seq_len, batch_size):
+        self.tokenizer = _FakeTokenizer()
+        self._captured = captured_padding_sides
+        self._seq_len = seq_len
+        self._batch_size = batch_size
+
+    def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
+        return "prompt text"
+
+    def __call__(self, text, images, return_tensors, padding):
+        import torch
+        self._captured.append(self.tokenizer.padding_side)
+        return {
+            "input_ids": torch.zeros((self._batch_size, self._seq_len), dtype=torch.long),
+            "attention_mask": torch.ones((self._batch_size, self._seq_len), dtype=torch.long),
+        }
+
+    def decode(self, ids, skip_special_tokens=True):
+        return "cat, dog"
+
+
+class _FakeQwen25Model:
+    device = "cpu"
+
+    def __init__(self, seq_len, batch_size, new_tokens):
+        self._seq_len = seq_len
+        self._batch_size = batch_size
+        self._new_tokens = new_tokens
+
+    def generate(self, **kwargs):
+        import torch
+        return torch.zeros((self._batch_size, self._seq_len + self._new_tokens), dtype=torch.long)
+
+
+class TestBatchQwen25Padding:
+    def test_batches_with_left_padding(self):
+        from models.vlm_tagger import VLMTagger, _ensure_imports
+
+        _ensure_imports()
+        captured_padding_sides = []
+        seq_len, batch_size, new_tokens = 8, 2, 3
+        tagger = VLMTagger({"family": "qwen2_5"}, None)
+        tagger.processor = _FakeQwen25Processor(captured_padding_sides, seq_len, batch_size)
+        tagger.model = _FakeQwen25Model(seq_len, batch_size, new_tokens)
+
+        results = tagger._batch_qwen2_5(
+            [_image(), _image()], prompt="Tags:", max_new_tokens=new_tokens, max_tags=5)
+
+        assert captured_padding_sides == ["left"]
+        assert tagger.processor.tokenizer.padding_side == "right"
+        assert results == [["cat", "dog"], ["cat", "dog"]]

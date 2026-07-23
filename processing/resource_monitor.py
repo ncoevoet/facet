@@ -107,6 +107,9 @@ class ResourceMonitor:
     - RAM chunk size (multi-pass): Reduced when system RAM exceeds limit
     """
 
+    MAX_MEMORY_WAIT_SECONDS = 10
+    MEMORY_RECOVERY_TARGET_PERCENT = 75
+
     def __init__(self, batch_processor, config=None, multi_pass_processor=None):
         """
         Initialize the resource monitor.
@@ -331,12 +334,11 @@ class ResourceMonitor:
             self.processor.batch_size = new_batch
             logger.warning("Batch size reduced: %d -> %d", current_batch, new_batch)
 
-        # Wait for memory to drop
         wait_count = 0
-        while wait_count < 10:  # Max 10 seconds wait
-            time.sleep(1)
-            mem = psutil.virtual_memory()
-            if mem.percent < 75:
+        while wait_count < self.MAX_MEMORY_WAIT_SECONDS:
+            if self.stop_event.wait(1):
+                return
+            if psutil.virtual_memory().percent < self.MEMORY_RECOVERY_TARGET_PERCENT:
                 break
             wait_count += 1
 
