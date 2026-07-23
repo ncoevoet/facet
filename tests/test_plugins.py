@@ -214,6 +214,19 @@ class TestPluginManagerTestWebhook:
         assert result["ok"] is False
         assert "scheme" in result["error"].lower()
 
+    def test_dns_resolution_failure_returns_error_dict(self):
+        import socket
+        from unittest import mock
+
+        mgr = PluginManager(config=None)
+        with mock.patch(
+            "socket.getaddrinfo",
+            side_effect=socket.gaierror("Name or service not known"),
+        ):
+            result = mgr.test_webhook("http://no-such-host.example.invalid/hook")
+        assert result["ok"] is False
+        assert "resolve" in result["error"].lower()
+
 
 class TestPluginManagerDiscovery:
     def test_discovers_plugin_with_event_handler(self, tmp_path):

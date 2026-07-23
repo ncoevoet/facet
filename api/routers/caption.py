@@ -183,11 +183,13 @@ def _generate_caption(photo_path: str) -> Optional[str]:
     disk_path = resolve_photo_disk_path(photo_path)
 
     try:
-        from PIL import Image
+        from utils.image_loading import load_image_from_path
 
         tagger = get_or_load_vlm_tagger(vlm_config)
 
-        img = Image.open(disk_path).convert('RGB')
+        img, _ = load_image_from_path(disk_path, use_thumbnail=True)
+        if img is None:
+            return None
         img.thumbnail((640, 640))
 
         with vlm_generate_lock:

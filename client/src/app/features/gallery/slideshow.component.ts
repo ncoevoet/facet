@@ -368,6 +368,9 @@ export class SlideshowComponent implements OnDestroy {
   /** Track the previous maxPortraitsPerSlide to detect regrouping. */
   private prevMaxPortraits = 0;
 
+  /** True once ngOnDestroy has run — guards pending async work from mutating a destroyed component. */
+  private destroyed = false;
+
   constructor() {
     // Watch for slides to become available (handles async photo loading)
     effect(() => {
@@ -380,6 +383,11 @@ export class SlideshowComponent implements OnDestroy {
         this.layerASlide.set(slide);
         this.layerAOpacity.set(1);
         this.frontLayer.set('a');
+        untracked(() => {
+          const kbPatterns = this.pickKenBurnsPatterns(slide.photos.length);
+          this.initKenBurns(this.layerAImgTransforms, this.layerAImgTransitions, kbPatterns);
+          this.animateKenBurns(this.layerAImgTransforms, this.layerAImgTransitions, kbPatterns);
+        });
       }
     });
 
@@ -485,6 +493,8 @@ export class SlideshowComponent implements OnDestroy {
     if (this.boundOrientationHandler) {
       screen.orientation?.removeEventListener('change', this.boundOrientationHandler);
     }
+    this.destroyed = true;
+    this.store.slideshowActive.set(false);
   }
 
   private updateViewportDimensions(): void {
@@ -591,6 +601,7 @@ export class SlideshowComponent implements OnDestroy {
     );
 
     Promise.all(preloadPromises).then(() => {
+      if (this.destroyed) return;
       this.currentSlideIndex.set(slideIndex);
       this.slideIndexChanged.emit(slideIndex);
       this.crossfadeTo(slide).then(() => {

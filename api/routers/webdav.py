@@ -265,6 +265,8 @@ async def dav_move(request: Request, subpath: str = ""):
     dest = _resolve(root, _parse_destination(request.headers.get("destination", "")))
     if dest == root:
         raise HTTPException(status_code=403, detail="Invalid destination")
+    if dest == src:
+        raise HTTPException(status_code=403, detail="Source and destination are the same")
     if not os.path.isdir(os.path.dirname(dest)):
         raise HTTPException(status_code=409, detail="Destination parent missing")
     dest_existed = os.path.exists(dest)

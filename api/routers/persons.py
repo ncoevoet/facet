@@ -70,6 +70,50 @@ class SplitPersonRequest(BaseModel):
     name: Optional[str] = None
 
 
+# --- Visibility guard ---
+
+def _assert_person_visible(conn, user_id, person_id):
+    """Raise 404 when ``person_id`` has no face on a photo the caller may see.
+
+    A no-op outside multi-user mode. In multi-user mode it enforces the same
+    per-directory isolation as the persons read surface so a directory-scoped
+    edition user cannot rename, merge, delete or hide a person whose faces all
+    live outside their directories. Returns 404 (never 403) so it never leaks
+    the existence of an out-of-scope person, matching the read endpoints.
+    """
+    fragment, params = person_visibility_exists(user_id, 'p.id')
+    if not fragment:
+        return
+    row = conn.execute(
+        f"SELECT 1 FROM persons p WHERE p.id = ? AND {fragment}",
+        [person_id, *params],
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+
+def _assert_person_assignable(conn, user_id, person_id):
+    """Guard an assign *target*: allow an empty person (one being populated), but
+    reject a non-empty person with no face in the caller's directories, so a
+    directory-scoped edition user cannot inject faces into a cluster they cannot
+    see. A no-op outside multi-user mode. Returns 404 (never 403) to avoid leaking
+    the existence of an out-of-scope person.
+    """
+    fragment, params = person_visibility_exists(user_id, 'p.id')
+    if not fragment:
+        return
+    if not conn.execute(
+        "SELECT 1 FROM faces WHERE person_id = ? LIMIT 1", (person_id,)
+    ).fetchone():
+        return
+    row = conn.execute(
+        f"SELECT 1 FROM persons p WHERE p.id = ? AND {fragment}",
+        [person_id, *params],
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+
 # --- Endpoints ---
 
 @router.get("/api/persons")
@@ -144,6 +188,7 @@ def rename_person(
     """Rename a person (set or update their name)."""
     name = body.name.strip()
     with get_db() as conn:
+        _assert_person_visible(conn, user.user_id if user else None, person_id)
         conn.execute("UPDATE persons SET name = ? WHERE id = ?", (name or None, person_id))
         conn.commit()
     invalidate_stats_cache()
@@ -156,7 +201,7 @@ def merge_persons_json(
     user: CurrentUser = Depends(require_edition),
 ):
     """Merge source person into target person (JSON body)."""
-    return _do_merge(body.source_id, body.target_id)
+    return _do_merge(body.source_id, body.target_id, user.user_id if user else None)
 
 
 @router.post("/api/persons/merge/{source_id}/{target_id}")
@@ -166,16 +211,18 @@ def merge_persons(
     user: CurrentUser = Depends(require_edition),
 ):
     """Merge source person into target person (path params)."""
-    return _do_merge(source_id, target_id)
+    return _do_merge(source_id, target_id, user.user_id if user else None)
 
 
-def _do_merge(source_id: int, target_id: int):
+def _do_merge(source_id: int, target_id: int, user_id):
     """Shared merge logic."""
     if source_id == target_id:
         raise HTTPException(status_code=400, detail="Cannot merge a person into itself")
 
     with get_db() as conn:
         try:
+            _assert_person_visible(conn, user_id, source_id)
+            _assert_person_visible(conn, user_id, target_id)
             # 1. Move all faces from source to target
             conn.execute("UPDATE faces SET person_id = ? WHERE person_id = ?",
                          (target_id, source_id))
@@ -245,8 +292,13 @@ def merge_persons_batch(
     if not groups:
         raise HTTPException(status_code=400, detail="No valid merges")
 
+    user_id = user.user_id if user else None
     with get_db() as conn:
         try:
+            for target_id, source_ids in groups.items():
+                _assert_person_visible(conn, user_id, target_id)
+                for source_id in source_ids:
+                    _assert_person_visible(conn, user_id, source_id)
             merged_total = 0
             for target_id, source_ids in groups.items():
                 ids = sorted(source_ids)
@@ -315,6 +367,7 @@ def delete_person(
     """Delete a person and unassign all their faces."""
     with get_db() as conn:
         try:
+            _assert_person_visible(conn, user.user_id if user else None, person_id)
             # 1. Unassign all faces from this person (set person_id to NULL)
             conn.execute("UPDATE faces SET person_id = NULL WHERE person_id = ?", (person_id,))
 
@@ -340,8 +393,11 @@ def delete_persons_batch(
     if not body.person_ids:
         raise HTTPException(status_code=400, detail="No person_ids provided")
 
+    user_id = user.user_id if user else None
     with get_db() as conn:
         try:
+            for person_id in body.person_ids:
+                _assert_person_visible(conn, user_id, person_id)
             placeholders = ",".join("?" * len(body.person_ids))
             # 1. Unassign all faces from these persons
             conn.execute(
@@ -450,6 +506,7 @@ def api_assign_faces_batch(
             if not target:
                 raise HTTPException(status_code=404, detail="Target person not found")
 
+            _assert_person_assignable(conn, user.user_id if user else None, person_id)
             assert_faces_visible(conn, user.user_id if user else None, body.face_ids)
             result = reassign_faces_to_person(conn, person_id, body.face_ids)
             face_count = result["face_count"]
@@ -493,6 +550,7 @@ def api_split_person(
 
     with get_db() as conn:
         try:
+            _assert_person_visible(conn, user.user_id if user else None, person_id)
             placeholders = ",".join("?" * len(face_ids))
             rows = conn.execute(
                 f"SELECT id FROM faces WHERE id IN ({placeholders}) AND person_id = ?",
@@ -550,7 +608,7 @@ def api_hide_person(
     user: CurrentUser = Depends(require_edition),
 ):
     """Hide a person cluster from the persons list, filters, and merge suggestions."""
-    return _set_person_hidden(person_id, True)
+    return _set_person_hidden(person_id, True, user.user_id if user else None)
 
 
 @router.post("/api/persons/{person_id}/unhide")
@@ -559,13 +617,14 @@ def api_unhide_person(
     user: CurrentUser = Depends(require_edition),
 ):
     """Unhide a previously hidden person cluster."""
-    return _set_person_hidden(person_id, False)
+    return _set_person_hidden(person_id, False, user.user_id if user else None)
 
 
-def _set_person_hidden(person_id: int, hidden: bool):
+def _set_person_hidden(person_id: int, hidden: bool, user_id):
     """Shared hide/unhide logic: flip the is_hidden flag on a person row."""
     with get_db() as conn:
         try:
+            _assert_person_visible(conn, user_id, person_id)
             conn.execute(
                 "UPDATE persons SET is_hidden = ? WHERE id = ?",
                 (1 if hidden else 0, person_id),

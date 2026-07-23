@@ -7,12 +7,12 @@
 from __future__ import annotations
 
 import asyncio
-import functools
 import logging
 import os
 import shutil
 import subprocess
 import tempfile
+import time
 from io import BytesIO
 from pathlib import Path
 
@@ -81,13 +81,24 @@ async def convert_raw_darktable_async(file_path: str, profile_name: str, quality
     return await _convert_darktable_async(file_path, quality, dt_config, profile)
 
 
-@functools.lru_cache(maxsize=1)
+_DARKTABLE_AVAILABLE_TTL_SECONDS = 60
+_darktable_available_cache: tuple[float, str, bool] | None = None
+
+
 def is_darktable_available() -> bool:
     """Check whether the configured darktable-cli executable exists."""
+    global _darktable_available_cache
     dt_config = _get_raw_config().get('darktable', {})
     executable = dt_config.get('executable', 'darktable-cli')
+    now = time.monotonic()
+    if (_darktable_available_cache is not None
+            and _darktable_available_cache[1] == executable
+            and (now - _darktable_available_cache[0]) < _DARKTABLE_AVAILABLE_TTL_SECONDS):
+        return _darktable_available_cache[2]
     resolved = shutil.which(executable) if not os.path.isabs(executable) else executable
-    return bool(resolved and os.path.isfile(resolved))
+    available = bool(resolved and os.path.isfile(resolved))
+    _darktable_available_cache = (now, executable, available)
+    return available
 
 
 def get_darktable_profiles() -> list[str]:

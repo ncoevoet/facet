@@ -85,9 +85,9 @@ def dt_config(monkeypatch):
         }
     }
     monkeypatch.setitem(config.VIEWER_CONFIG, "raw_processor", cfg)
-    raw_processing.is_darktable_available.cache_clear()
+    raw_processing._darktable_available_cache = None
     yield cfg
-    raw_processing.is_darktable_available.cache_clear()
+    raw_processing._darktable_available_cache = None
 
 
 def _fake_dt_run(recorder):

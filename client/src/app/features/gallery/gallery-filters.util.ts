@@ -160,7 +160,7 @@ export interface FilterDefaults {
 /** Keys excluded when building smart album filter JSON (display-only, ephemeral, or handled separately). */
 export const SMART_ALBUM_EXCLUDE_KEYS = new Set([
   'page', 'per_page', 'semanticQuery', 'album_id',
-  'similarity_mode', 'min_similarity',
+  'similar_to', 'similarity_mode', 'min_similarity',
   'hide_details', 'tooltip_mode', 'hide_blinks', 'hide_bursts',
   'hide_duplicates', 'hide_rejected',
   'gps_lat', 'gps_lng', 'gps_radius_km',

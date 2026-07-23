@@ -178,7 +178,7 @@ def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = RETRAIN_THR
                     _write_counter(conn, scope, 0)
                 else:
                     _write_counter(conn, scope, pending)
-            conn.commit()
+                conn.commit()
 
             if not dispatch:
                 return False

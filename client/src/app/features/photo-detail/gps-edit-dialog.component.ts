@@ -92,9 +92,10 @@ export class GpsEditDialogComponent {
     }
 
     this.map.on('click', (e: L.LeafletMouseEvent) => {
-      this.selectedLat.set(e.latlng.lat);
-      this.selectedLng.set(e.latlng.lng);
-      this.placeMarker(e.latlng.lat, e.latlng.lng);
+      const wrapped = e.latlng.wrap();
+      this.selectedLat.set(wrapped.lat);
+      this.selectedLng.set(wrapped.lng);
+      this.placeMarker(wrapped.lat, wrapped.lng);
     });
   }
 

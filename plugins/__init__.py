@@ -407,7 +407,11 @@ class PluginManager:
             raise ValueError("No hostname in URL")
 
         resolved_ip: str | None = None
-        for info in socket.getaddrinfo(hostname, parsed.port or 80):
+        try:
+            addr_infos = socket.getaddrinfo(hostname, parsed.port or 80)
+        except socket.gaierror as exc:
+            raise ValueError("DNS resolution failed") from exc
+        for info in addr_infos:
             addr = ipaddress.ip_address(info[4][0])
             if addr.is_private or addr.is_loopback or addr.is_link_local:
                 raise ValueError(f"URL resolves to private address: {addr}")

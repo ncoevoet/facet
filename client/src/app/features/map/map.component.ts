@@ -118,6 +118,7 @@ export class MapComponent implements OnInit, OnDestroy {
   private moveEndHandler: (() => void) | null = null;
   private initTimeout: ReturnType<typeof setTimeout> | null = null;
   private moveEndDebounce: ReturnType<typeof setTimeout> | null = null;
+  private loadMarkersRequestId = 0;
 
   // Reload markers when date filters change
   private dateFilterEffect = effect(() => {
@@ -181,6 +182,8 @@ export class MapComponent implements OnInit, OnDestroy {
   private async loadMarkers(): Promise<void> {
     if (!this.map) return;
 
+    const requestId = ++this.loadMarkersRequestId;
+
     const bounds = this.map.getBounds();
     const zoom = this.map.getZoom();
     const boundsStr = [
@@ -202,6 +205,8 @@ export class MapComponent implements OnInit, OnDestroy {
       const data = await firstValueFrom(
         this.api.get<MapResponse>('/photos/map', params),
       );
+
+      if (requestId !== this.loadMarkersRequestId) return;
 
       this.markersLayer.clearLayers();
 
@@ -274,7 +279,9 @@ export class MapComponent implements OnInit, OnDestroy {
     } catch (err) {
       console.error('Failed to load map data', err);
     } finally {
-      this.loading.set(false);
+      if (requestId === this.loadMarkersRequestId) {
+        this.loading.set(false);
+      }
     }
   }
 }

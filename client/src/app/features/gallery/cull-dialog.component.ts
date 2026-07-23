@@ -13,6 +13,14 @@ import { I18N } from '../../core/i18n/keys';
 
 type CullAction = 'copy_keeps' | 'trash_rejects' | 'move_rejects';
 
+interface CullRequest {
+  paths: string[];
+  action: CullAction;
+  target_dir: string | null;
+  include_companions: boolean;
+  dry_run: boolean;
+}
+
 interface CullResponse {
   would_copy?: string[];
   would_move?: string[];
@@ -116,7 +124,7 @@ export class CullDialogComponent {
     this.preview.set(null);
   }
 
-  private body(dryRun: boolean) {
+  private body(dryRun: boolean): CullRequest {
     return {
       paths: this.data.paths,
       action: this.action(),
@@ -126,10 +134,21 @@ export class CullDialogComponent {
     };
   }
 
+  private matchesCurrentForm(requested: CullRequest): boolean {
+    const current = this.body(true);
+    return requested.action === current.action
+      && requested.target_dir === current.target_dir
+      && requested.include_companions === current.include_companions;
+  }
+
   async runPreview(): Promise<void> {
     this.busy.set(true);
+    const requested = this.body(true);
     try {
-      const res = await firstValueFrom(this.api.post<CullResponse>('/cull/apply', this.body(true)));
+      const res = await firstValueFrom(this.api.post<CullResponse>('/cull/apply', requested));
+      if (!this.matchesCurrentForm(requested)) {
+        return;
+      }
       const affected = res.would_copy ?? res.would_move ?? res.would_trash ?? [];
       this.preview.set({ affected, skipped: res.skipped ?? [], excluded: res.excluded_by_state ?? 0 });
     } catch {

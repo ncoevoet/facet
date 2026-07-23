@@ -123,7 +123,7 @@ Chart.register(...registerables);
               <mat-icon class="mr-2">bookmark</mat-icon>
               {{ I18N.comparison.snapshots | translate }}
             </ng-template>
-            <app-comparison-snapshots-tab #snapshotsTabEl (restored)="weightsTab()?.loadWeights()" />
+            <app-comparison-snapshots-tab #snapshotsTabEl (restored)="onSnapshotRestored()" />
           </mat-tab>
 
           <!-- A/B Compare tab -->
@@ -243,5 +243,12 @@ export class ComparisonComponent {
   protected onWeightsApplied(merged: Record<string, number>): void {
     const tab = this.weightsTab();
     if (tab) tab.weights.set(merged);
+  }
+
+  protected onSnapshotRestored(): void {
+    const tab = this.weightsTab();
+    if (!tab) return;
+    void tab.loadWeights();
+    void tab.loadWeightImpact();
   }
 }

@@ -404,7 +404,8 @@ def build_metric_matrix(rows: list[dict]) -> tuple[np.ndarray, np.ndarray, list[
         if non_null / len(vals) >= 0.5:
             available_cols.append(col)
 
-    X = np.array([[r.get(col) or 5.0 for col in available_cols] for r in rows], dtype=np.float64)
+    default_value = 5.0
+    X = np.array([[r.get(col) if r.get(col) is not None else default_value for col in available_cols] for r in rows], dtype=np.float64)
     y = np.array([r['mos'] for r in rows], dtype=np.float64)
     return X, y, available_cols
 

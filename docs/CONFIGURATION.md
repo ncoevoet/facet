@@ -795,8 +795,7 @@ HDBSCAN clustering for face recognition.
     "clustering_algorithm": "best",
     "leaf_size": 40,
     "use_gpu": "auto",
-    "merge_threshold": 0.6,
-    "chunk_size": 10000
+    "merge_threshold": 0.6
   }
 }
 ```
@@ -811,7 +810,6 @@ HDBSCAN clustering for face recognition.
 | `leaf_size` | `40` | Tree leaf size (CPU only) |
 | `use_gpu` | `"auto"` | GPU mode: `auto`, `always`, `never` (see notes below) |
 | `merge_threshold` | `0.6` | Centroid similarity for matching |
-| `chunk_size` | `10000` | Processing chunk size |
 
 **GPU clustering notes (`use_gpu`):**
 

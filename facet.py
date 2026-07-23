@@ -1305,7 +1305,7 @@ Configuration:
             logger.info("Upgrade complete — all %d steps succeeded.", len(steps))
         logger.info("Captions and VLM tags are NOT part of --upgrade-db (heavy).")
         logger.info("Run them explicitly with --generate-captions / --recompute-tags-vlm if desired.")
-        exit()
+        sys.exit(1 if failures else 0)
 
     # Extract faces mode (needs GPU for face analysis)
     if args.extract_faces_gpu_incremental or args.extract_faces_gpu_force:
@@ -1855,7 +1855,7 @@ Configuration:
         exit()
 
     # Backfill GPS coordinates from EXIF
-    if args.extract_gps:
+    if args.extract_gps or args.rescan_gps:
         from exiftool.exiftool_batch import get_exif_batch
 
         with get_connection(args.db) as conn:
@@ -1864,17 +1864,20 @@ Configuration:
                 print("Error: GPS columns not found. Run 'python database.py' to migrate the schema first.")
                 sys.exit(1)
 
-            # Re-scans photos without GPS each run (idempotent). Photos lacking
-            # GPS EXIF data remain NULL and will be re-checked on subsequent runs,
-            # but the exiftool lookup is fast and this command is run manually.
-            rows = conn.execute(
-                "SELECT path FROM photos WHERE gps_latitude IS NULL"
-            ).fetchall()
+            if args.rescan_gps:
+                rows = conn.execute("SELECT path FROM photos").fetchall()
+            else:
+                # Re-scans photos without GPS each run (idempotent). Photos lacking
+                # GPS EXIF data remain NULL and will be re-checked on subsequent runs,
+                # but the exiftool lookup is fast and this command is run manually.
+                rows = conn.execute(
+                    "SELECT path FROM photos WHERE gps_latitude IS NULL"
+                ).fetchall()
             paths = [r['path'] for r in rows]
-            logger.info("Extracting GPS for %d photos...", len(paths))
+            logger.info("%s GPS for %d photos...", "Rescanning" if args.rescan_gps else "Extracting", len(paths))
             exif_data = get_exif_batch(paths)
             updated = 0
-            for path, exif in tqdm(exif_data.items(), desc="GPS extraction"):
+            for path, exif in tqdm(exif_data.items(), desc="GPS rescan" if args.rescan_gps else "GPS extraction"):
                 lat = exif.get('gps_latitude')
                 lng = exif.get('gps_longitude')
                 if lat is not None and lng is not None:
@@ -2716,6 +2719,15 @@ Configuration:
         raise
     else:
         scan_run.finish('completed')
+        if args.retry_failed and todo_list:
+            retried_paths = [str(f.resolve()) for f in todo_list]
+            with get_connection(scorer.db_path) as conn:
+                placeholders = ','.join('?' * len(retried_paths))
+                conn.execute(
+                    f"DELETE FROM scan_failures WHERE path IN ({placeholders}) AND scan_run_id != ?",
+                    retried_paths + [scan_run.run_id],
+                )
+                conn.commit()
 
     # 3. Finalization
     scorer.commit()

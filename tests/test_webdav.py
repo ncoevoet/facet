@@ -271,6 +271,15 @@ class TestMove:
         assert resp.status_code == 400
         assert (inbox / "src.jpg").exists()
 
+    def test_move_to_same_path_refused_403(self, client, inbox):
+        client.request("PUT", "/dav/src.jpg", auth=AUTH, content=b"payload")
+        resp = client.request(
+            "MOVE", "/dav/src.jpg", auth=AUTH,
+            headers={"Destination": "http://testserver/dav/src.jpg"},
+        )
+        assert resp.status_code == 403
+        assert (inbox / "src.jpg").read_bytes() == b"payload"
+
 
 # --- DELETE ----------------------------------------------------------------
 

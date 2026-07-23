@@ -522,6 +522,40 @@ def update_person_face_count(conn, person_id):
     """, (person_id, person_id))
 
 
+def repair_stale_representative(conn, person_id):
+    """Replace a person's representative face when it no longer belongs to them.
+
+    Moving a face away from its person leaves that person's representative_face_id
+    and face_thumbnail pointing at a face now owned by someone else. Pick the
+    highest-confidence remaining face as the new representative, or clear both
+    columns when the person has no faces left.
+    """
+    person = conn.execute(
+        "SELECT representative_face_id FROM persons WHERE id = ?", (person_id,)
+    ).fetchone()
+    if not person:
+        return
+    rep_id = person['representative_face_id']
+    if rep_id is not None and conn.execute(
+        "SELECT 1 FROM faces WHERE id = ? AND person_id = ?", (rep_id, person_id)
+    ).fetchone():
+        return
+    replacement = conn.execute(
+        "SELECT id, face_thumbnail FROM faces WHERE person_id = ? ORDER BY confidence DESC LIMIT 1",
+        (person_id,)
+    ).fetchone()
+    if replacement:
+        conn.execute(
+            "UPDATE persons SET representative_face_id = ?, face_thumbnail = ? WHERE id = ?",
+            (replacement['id'], replacement['face_thumbnail'], person_id)
+        )
+    else:
+        conn.execute(
+            "UPDATE persons SET representative_face_id = NULL, face_thumbnail = NULL WHERE id = ?",
+            (person_id,)
+        )
+
+
 def reassign_faces_to_person(conn, person_id, face_ids):
     """Reassign a set of faces to ``person_id``; auto-delete emptied old persons.
 
@@ -569,6 +603,8 @@ def reassign_faces_to_person(conn, person_id, face_ids):
         if row and row[0] == 0:
             conn.execute("DELETE FROM persons WHERE id = ?", (old_id,))
             deleted_persons.append(old_id)
+        else:
+            repair_stale_representative(conn, old_id)
 
     row = conn.execute(
         "SELECT face_count FROM persons WHERE id = ?", (person_id,)

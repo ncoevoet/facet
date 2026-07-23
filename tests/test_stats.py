@@ -396,6 +396,19 @@ class TestOverview:
         data = resp.json()
         assert data["total_photos"] == 0
 
+    def test_overview_anonymous_sees_nothing_on_protected_install(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_stats_db(db_path, [
+            _photo("/a.jpg", aggregate=8.0),
+            _photo("/b.jpg", aggregate=6.0),
+        ])
+        app = _create_app_no_auth()
+        with _stats_mocks(db_path), \
+                mock.patch.dict("api.db_helpers.VIEWER_CONFIG", {"password": "secret"}):
+            resp = TestClient(app).get("/api/stats/overview")
+        assert resp.status_code == 200
+        assert resp.json()["total_photos"] == 0
+
 
 # ---------------------------------------------------------------------------
 # TestGear / TestSettings / TestTimeline

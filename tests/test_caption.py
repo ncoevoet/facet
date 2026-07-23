@@ -310,3 +310,26 @@ class TestGenerateCaption:
         ):
             result = _generate_caption("/photos/test.jpg")
         assert result is None
+
+    def test_decodes_raw_via_shared_loader(self):
+        from PIL import Image
+        from api.routers.caption import _generate_caption
+
+        cfg = {"models": {"vram_profile": "16gb",
+                          "profiles": {"16gb": {"tagging_model": "qwen3.5-2b"}},
+                          "qwen3_5_2b": {"model_path": "Qwen/Qwen3.5-2B"}}}
+        raw_img = Image.new("RGB", (800, 600))
+        tagger = mock.Mock()
+        tagger.generate.return_value = "  A serene mountain lake  "
+        with (
+            mock.patch("api.config._FULL_CONFIG", cfg),
+            mock.patch("api.routers.caption.resolve_photo_disk_path",
+                       return_value="/photos/test.cr2"),
+            mock.patch("api.routers.caption.get_or_load_vlm_tagger",
+                       return_value=tagger),
+            mock.patch("utils.image_loading.load_image_from_path",
+                       return_value=(raw_img, None)) as mock_load,
+        ):
+            result = _generate_caption("/photos/test.cr2")
+        assert result == "A serene mountain lake"
+        mock_load.assert_called_once()

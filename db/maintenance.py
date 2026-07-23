@@ -18,6 +18,8 @@ _PATH_PRESENT = 'present'
 _PATH_DELETED = 'deleted'
 _PATH_INACCESSIBLE = 'inaccessible'
 
+_MIN_BACKUPS_TO_KEEP = 1
+
 
 def _classify_missing_path(path):
     """Classify a stored photo path as present, genuinely deleted, or merely
@@ -172,6 +174,12 @@ def backup_database(db_path='photo_scores_pro.db', keep=3, dest_dir=None, verbos
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database not found: {db_path}")
 
+    if keep < _MIN_BACKUPS_TO_KEEP:
+        raise ValueError(
+            f"keep must be at least {_MIN_BACKUPS_TO_KEEP} (got {keep}); a lower value "
+            "would rotate away the snapshot this call just wrote"
+        )
+
     source_size = os.path.getsize(db_path)
     base_dir = dest_dir or os.path.dirname(os.path.abspath(db_path))
     os.makedirs(base_dir, exist_ok=True)
@@ -216,8 +224,9 @@ def cleanup_missing_photos(db_path='photo_scores_pro.db', dry_run=False, force=F
 
     Cascading foreign keys clean up faces, tags, comparisons, learned scores
     and per-user preferences. Stores without a cascade are cleaned explicitly
-    so no orphans remain: album memberships (album_photos), album covers, and
-    the sqlite-vec index (photos_vec).
+    so no orphans remain: album memberships (album_photos), client proofing
+    picks (album_client_picks), album covers, and the sqlite-vec index
+    (photos_vec).
 
     Args:
         db_path: Path to SQLite database
@@ -310,6 +319,8 @@ def cleanup_missing_photos(db_path='photo_scores_pro.db', dry_run=False, force=F
         cursor.executemany("DELETE FROM photos WHERE path = ?", params)
         # album_photos.photo_path has no ON DELETE CASCADE — drop memberships explicitly.
         cursor.executemany("DELETE FROM album_photos WHERE photo_path = ?", params)
+        # album_client_picks cascades on album_id only, not photo_path — drop picks explicitly.
+        cursor.executemany("DELETE FROM album_client_picks WHERE photo_path = ?", params)
         # An album cover may point at a now-deleted photo.
         cursor.executemany("UPDATE albums SET cover_photo_path = NULL WHERE cover_photo_path = ?", params)
 

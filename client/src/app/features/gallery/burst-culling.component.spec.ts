@@ -233,11 +233,11 @@ describe('BurstCullingComponent', () => {
       expect(mockApi.post).not.toHaveBeenCalled();
     });
 
-    it('commits the selected paths and hides the group after the cooldown', () => {
+    it('commits the selected paths and hides the group after the cooldown', async () => {
       const group = component['groups']()[0];
       component['confirmGroup'](group);
 
-      vi.advanceTimersByTime(7000);
+      await vi.advanceTimersByTimeAsync(7000);
 
       expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/confirm', {
         group_id: 1,

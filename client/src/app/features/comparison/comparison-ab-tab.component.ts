@@ -344,6 +344,7 @@ export class ComparisonAbTabComponent {
       const data = await firstValueFrom(
         this.api.get<PairResponse>('/comparison/next_pair', { category: cat, strategy: this.strategy() }),
       );
+      if (this.compareFilters.selectedCategory() !== cat) return;
       if (data.error) {
         this.pairA.set(null);
         this.pairB.set(null);

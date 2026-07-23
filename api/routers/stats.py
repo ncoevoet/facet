@@ -76,12 +76,12 @@ _WEIGHT_COLUMNS = {
 def _vis_where(user: Optional[CurrentUser]):
     """Return (where_clause_with_AND_prefix, params) for visibility filtering.
 
-    Returns ('', []) in legacy mode. In multi-user mode returns
-    (' AND <visibility>', [params...]) suitable for appending to an existing WHERE.
+    Returns ('', []) on a fully open install. On an access-controlled deployment
+    (multi-user, or a single-user viewer password) an unauthenticated request
+    resolves to (' AND 0=1', []) so it sees nothing; ``get_visibility_clause``
+    owns that carve-out, so this must never short-circuit before calling it.
     """
     user_id = user.user_id if user else None
-    if not user_id:
-        return '', []
     vis_sql, vis_params = get_visibility_clause(user_id)
     if vis_sql == '1=1':
         return '', []

@@ -85,6 +85,58 @@ def test_load_embeddings_warns_on_mixed_space(tmp_path, caplog):
     assert any("adaface_test" in m for m in messages)
 
 
+def _unit_embedding():
+    vec = np.zeros(512, dtype=np.float32)
+    vec[0] = 1.0
+    return vec
+
+
+def test_incremental_noise_face_stays_with_named_person(tmp_path):
+    """A named person's face relabelled as HDBSCAN noise is not orphaned."""
+    db = str(tmp_path / "noise.db")
+    init_database(db)
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("INSERT INTO photos(path) VALUES ('p/alice.jpg')")
+    vec = _unit_embedding()
+    emb = vec.tobytes()
+    cur = conn.execute(
+        "INSERT INTO persons(name, face_count, centroid, auto_clustered) "
+        "VALUES ('Alice', 2, ?, 0)",
+        (emb,),
+    )
+    alice_id = cur.lastrowid
+    face_ids = []
+    for idx in range(2):
+        c = conn.execute(
+            "INSERT INTO faces(photo_path, face_index, embedding, embedding_model, person_id) "
+            "VALUES ('p/alice.jpg', ?, ?, ?, ?)",
+            (idx, emb, ACTIVE_EMBEDDING_MODEL, alice_id),
+        )
+        face_ids.append(c.lastrowid)
+    conn.execute(
+        "UPDATE persons SET representative_face_id = ? WHERE id = ?",
+        (face_ids[0], alice_id),
+    )
+    conn.commit()
+    conn.close()
+
+    clusterer = FaceClusterer(db)
+    embeddings = np.array([vec, vec], dtype=np.float32)
+    face_to_cluster = {face_ids[0]: 0, face_ids[1]: -1}
+    clusterer._update_database(face_to_cluster, embeddings, face_ids, force=False)
+
+    conn = sqlite3.connect(db)
+    rows = dict(conn.execute("SELECT id, person_id FROM faces").fetchall())
+    face_count = conn.execute(
+        "SELECT face_count FROM persons WHERE id = ?", (alice_id,)
+    ).fetchone()[0]
+    conn.close()
+    assert rows[face_ids[1]] == alice_id
+    assert rows[face_ids[0]] == alice_id
+    assert face_count == 2
+
+
 def test_migration_backfills_existing_faces(tmp_path):
     """Adding embedding_model to an old faces table backfills rows to the default."""
     db = str(tmp_path / "m.db")

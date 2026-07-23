@@ -202,6 +202,7 @@ export class ComparisonSuggestionsTabComponent {
         firstValueFrom(this.api.get<CategoryWeights>('/comparison/category_weights', { category })),
         this.fetchTopPhotos(category),
       ]);
+      if (this.compareFilters.selectedCategory() !== category) return;
       this.learnedWeights.set(lw);
       this.categoryConfig.set(config);
       this.topBefore.set(top);

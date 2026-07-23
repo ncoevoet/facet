@@ -787,8 +787,7 @@ Agrupación HDBSCAN para el reconocimiento de rostros.
     "clustering_algorithm": "best",
     "leaf_size": 40,
     "use_gpu": "auto",
-    "merge_threshold": 0.6,
-    "chunk_size": 10000
+    "merge_threshold": 0.6
   }
 }
 ```
@@ -803,7 +802,6 @@ Agrupación HDBSCAN para el reconocimiento de rostros.
 | `leaf_size` | `40` | Tamaño de hoja del árbol (solo CPU) |
 | `use_gpu` | `"auto"` | Modo GPU: `auto`, `always`, `never` |
 | `merge_threshold` | `0.6` | Similitud de centroide para emparejar |
-| `chunk_size` | `10000` | Tamaño del fragmento de procesamiento |
 
 **Algoritmos de agrupación:**
 

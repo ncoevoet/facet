@@ -5,6 +5,9 @@ needed — so the profile flags (style, apply-custom-presets, sizing) are verifi
 deterministically in CI.
 """
 
+import sys
+
+from api import raw_processing
 from api.raw_processing import _build_darktable_cmd
 
 
@@ -60,3 +63,30 @@ class TestBuildDarktableCmd:
         cmd = _build_darktable_cmd("/usr/bin/darktable-cli", "in.cr2", "", "out.jpg", 96, {})
         assert cmd[:3] == ["/usr/bin/darktable-cli", "in.cr2", "out.jpg"]
         assert "" not in cmd
+
+
+class TestIsDarktableAvailable:
+    def setup_method(self):
+        raw_processing._darktable_available_cache = None
+
+    def teardown_method(self):
+        raw_processing._darktable_available_cache = None
+
+    def test_reflects_executable_change_without_restart(self, monkeypatch):
+        monkeypatch.setitem(
+            raw_processing.VIEWER_CONFIG, "raw_processor",
+            {"darktable": {"executable": "/no/such/darktable-cli"}})
+        assert raw_processing.is_darktable_available() is False
+
+        monkeypatch.setitem(
+            raw_processing.VIEWER_CONFIG, "raw_processor",
+            {"darktable": {"executable": sys.executable}})
+        assert raw_processing.is_darktable_available() is True
+
+    def test_ttl_expiry_picks_up_config_fix_on_same_executable(self, monkeypatch):
+        monkeypatch.setitem(
+            raw_processing.VIEWER_CONFIG, "raw_processor",
+            {"darktable": {"executable": sys.executable}})
+        import time
+        raw_processing._darktable_available_cache = (time.monotonic() - 1000, sys.executable, False)
+        assert raw_processing.is_darktable_available() is True
