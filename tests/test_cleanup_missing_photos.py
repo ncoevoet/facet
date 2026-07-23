@@ -87,5 +87,32 @@ def test_force_removes_inaccessible_paths(tmp_path):
     assert _paths_in_db(db) == set()
 
 
+def test_client_picks_removed_for_deleted_photo(tmp_path):
+    present = tmp_path / 'present.jpg'
+    present.write_bytes(b'x')
+    deleted = tmp_path / 'deleted.jpg'
+    db = str(tmp_path / 'scores.db')
+    _make_db(db, [str(present), str(deleted)])
+
+    conn = sqlite3.connect(db)
+    conn.execute("INSERT INTO albums (name) VALUES ('proof')")
+    album_id = conn.execute("SELECT id FROM albums").fetchone()[0]
+    conn.executemany(
+        "INSERT INTO album_client_picks (album_id, photo_path) VALUES (?, ?)",
+        [(album_id, str(present)), (album_id, str(deleted))],
+    )
+    conn.commit()
+    conn.close()
+
+    removed = cleanup_missing_photos(db, dry_run=False, force=False, verbose=False)
+
+    conn = sqlite3.connect(db)
+    remaining_picks = {r[0] for r in conn.execute("SELECT photo_path FROM album_client_picks").fetchall()}
+    conn.close()
+    assert removed == 1
+    assert str(deleted) not in remaining_picks
+    assert str(present) in remaining_picks
+
+
 if __name__ == '__main__':
     raise SystemExit(pytest.main([__file__, '-v']))

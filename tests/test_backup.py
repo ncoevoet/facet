@@ -62,6 +62,16 @@ class TestBackupDatabase:
         with pytest.raises(FileNotFoundError):
             backup_database(str(tmp_path / "nope.db"), verbose=False)
 
+    def test_keep_below_one_is_rejected_and_leaves_no_backup(self, tmp_path):
+        db = tmp_path / "photo_scores_pro.db"
+        _make_db(str(db), 4)
+
+        with pytest.raises(ValueError, match="keep must be at least"):
+            backup_database(str(db), keep=0, verbose=False)
+
+        assert glob.glob(str(db) + ".backup-*") == []
+        assert os.path.exists(db)
+
     def test_refuses_when_insufficient_space(self, tmp_path):
         db = tmp_path / "photo_scores_pro.db"
         _make_db(str(db), 3)

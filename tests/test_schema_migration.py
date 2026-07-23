@@ -59,3 +59,29 @@ class TestSchemaMigrationLadder:
         first = _user_version(db)
         init_database(db)
         assert first == _user_version(db) == SCHEMA_VERSION
+
+    def test_pre_fts_db_gets_fts_rebuilt_on_init(self, tmp_path):
+        db = str(tmp_path / "prefts.db")
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "CREATE TABLE photos (path TEXT PRIMARY KEY, filename TEXT, "
+            "caption TEXT, aesthetic REAL, aggregate REAL)"
+        )
+        conn.execute(
+            "INSERT INTO photos (path, filename, caption, aesthetic, aggregate) "
+            "VALUES ('/a.jpg', 'a.jpg', 'a red bicycle', 5.0, 6.0)"
+        )
+        conn.execute("PRAGMA user_version = 0")
+        conn.commit()
+        conn.close()
+
+        init_database(db)
+
+        conn = sqlite3.connect(db)
+        try:
+            matched = conn.execute(
+                "SELECT path FROM photos_fts WHERE photos_fts MATCH 'bicycle'"
+            ).fetchall()
+        finally:
+            conn.close()
+        assert matched == [('/a.jpg',)]
