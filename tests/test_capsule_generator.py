@@ -98,6 +98,10 @@ class TestPickCoverPhoto:
         paths = ["a", "b", "c", "d", "e"]
         assert _pick_cover_photo(paths, "cap1") == _pick_cover_photo(paths, "cap1")
 
+    def test_zero_freshness_seconds_does_not_raise(self):
+        paths = ["a", "b", "c", "d", "e"]
+        assert _pick_cover_photo(paths, "cap1", freshness_seconds=0) in paths
+
 
 class TestSortCapsules:
     def test_preserves_all_capsules(self):

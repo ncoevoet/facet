@@ -100,12 +100,30 @@ def _pick_cover_photo(paths, capsule_id, top_n=5, freshness_seconds=86400, capsu
     if not paths:
         return ""
     candidates = paths[:min(top_n, len(paths))]
-    if capsule_config and capsule_config.get("_shuffle"):
+    if (capsule_config and capsule_config.get("_shuffle")) or freshness_seconds <= 0:
         rng = random.Random()
     else:
         rotation_seed = int(time.time() // freshness_seconds)
         rng = random.Random(f"{rotation_seed}:{capsule_id}")
     return rng.choice(candidates)
+
+
+def _apply_date_range(vis_sql, vis_params, capsule_config, date_column):
+    """Extend a visibility clause with the requested date range, if any.
+
+    Mirrors the date filtering `generate_all_capsules` applies to the shared
+    `vis` clause, for generators that must rebuild their own aliased clause.
+    """
+    from api.db_helpers import to_exif_date
+    date_from = capsule_config.get("_date_from")
+    date_to = capsule_config.get("_date_to")
+    if date_from:
+        vis_sql += f" AND {date_column} >= ?"
+        vis_params.append(to_exif_date(date_from))
+    if date_to:
+        vis_sql += f" AND {date_column} <= ?"
+        vis_params.append(to_exif_date(date_to) + " 23:59:59")
+    return vis_sql, vis_params
 
 
 def _init_geocode_cache(conn):
@@ -298,7 +316,7 @@ def generate_all_capsules(conn, config=None, user_id=None, date_from=None, date_
     """
     if config is None:
         config = {}
-    capsule_config = {**config.get("capsules", {}), "_shuffle": shuffle}
+    capsule_config = {**config.get("capsules", {}), "_shuffle": shuffle, "_date_from": date_from, "_date_to": date_to}
     min_aggregate = capsule_config.get("min_aggregate", 6.0)
 
     # Initialize geocoding cache if enabled
@@ -632,6 +650,7 @@ def _generate_faces_of(conn, capsule_config, min_aggregate, vis, user_id):
     vis_sql += (" AND (ph.is_burst_lead = 1 OR ph.is_burst_lead IS NULL)"
                 " AND (ph.is_duplicate_lead = 1 OR ph.is_duplicate_lead IS NULL"
                 " OR ph.duplicate_group_id IS NULL)")
+    vis_sql, vis_params = _apply_date_range(vis_sql, vis_params, capsule_config, "ph.date_taken")
 
     rows = conn.execute(
         f"""SELECT p.id, p.name, p.face_count,
@@ -1084,6 +1103,7 @@ def _generate_person_pairs(conn, capsule_config, min_aggregate, vis, user_id):
     vis_sql += (" AND (ph.is_burst_lead = 1 OR ph.is_burst_lead IS NULL)"
                 " AND (ph.is_duplicate_lead = 1 OR ph.is_duplicate_lead IS NULL"
                 " OR ph.duplicate_group_id IS NULL)")
+    vis_sql, vis_params = _apply_date_range(vis_sql, vis_params, capsule_config, "ph.date_taken")
 
     pairs = _fetch_person_pairs(conn, min_aggregate, vis_sql, vis_params, max_photos)
 
@@ -1129,7 +1149,7 @@ def _generate_seeded(conn, capsule_config, min_aggregate, vis, user_id):
         seed_lifetime_minutes = freshness_hours * 60
 
     # Local RNG with time-bucketed seed for stability (avoids mutating global state)
-    if capsule_config.get("_shuffle"):
+    if capsule_config.get("_shuffle") or seed_lifetime_minutes <= 0:
         rng = random.Random()
     else:
         rng = random.Random(int(time.time() // (seed_lifetime_minutes * 60)))
@@ -1533,6 +1553,7 @@ def _generate_rare_pairs(conn, capsule_config, min_aggregate, vis, user_id):
     vis_sql += (" AND (ph.is_burst_lead = 1 OR ph.is_burst_lead IS NULL)"
                 " AND (ph.is_duplicate_lead = 1 OR ph.is_duplicate_lead IS NULL"
                 " OR ph.duplicate_group_id IS NULL)")
+    vis_sql, vis_params = _apply_date_range(vis_sql, vis_params, capsule_config, "ph.date_taken")
 
     pairs = _fetch_person_pairs(conn, min_score, vis_sql, vis_params, max_photos)
 
