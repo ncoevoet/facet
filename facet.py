@@ -2722,10 +2722,9 @@ Configuration:
         if args.retry_failed and todo_list:
             retried_paths = [str(f.resolve()) for f in todo_list]
             with get_connection(scorer.db_path) as conn:
-                placeholders = ','.join('?' * len(retried_paths))
-                conn.execute(
-                    f"DELETE FROM scan_failures WHERE path IN ({placeholders}) AND scan_run_id != ?",
-                    retried_paths + [scan_run.run_id],
+                conn.executemany(
+                    "DELETE FROM scan_failures WHERE path = ? AND scan_run_id != ?",
+                    [(p, scan_run.run_id) for p in retried_paths],
                 )
                 conn.commit()
 
