@@ -3,7 +3,12 @@ import time
 from types import SimpleNamespace
 from unittest import mock
 
-from processing.resource_monitor import ResourceMonitor
+import pytest
+
+pytest.importorskip("torch")
+pytest.importorskip("psutil")
+
+from processing.resource_monitor import ResourceMonitor  # noqa: E402
 
 
 class _FakeMemory:

@@ -289,6 +289,7 @@ class _FakeQwen25Model:
 
 class TestBatchQwen25Padding:
     def test_batches_with_left_padding(self):
+        pytest.importorskip("torch")
         from models.vlm_tagger import VLMTagger, _ensure_imports
 
         _ensure_imports()
