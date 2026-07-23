@@ -95,6 +95,12 @@ class TestVerifyLegacyPassword:
     def test_empty_stored_returns_false(self):
         assert not verify_legacy_password("anything", "")
 
+    def test_non_ascii_plaintext_match(self):
+        assert verify_legacy_password("café123", "café123")
+
+    def test_non_ascii_plaintext_no_match(self):
+        assert not verify_legacy_password("wrongpass", "café123")
+
     def test_is_hashed_detection(self):
         h = hash_password("test")
         assert _is_hashed(h)

@@ -295,7 +295,7 @@ def verify_legacy_password(candidate: str, stored: str) -> bool:
         return False
     if _is_hashed(stored):
         return verify_password(candidate, stored)
-    return hmac.compare_digest(candidate, stored)
+    return hmac.compare_digest(candidate.encode('utf-8'), stored.encode('utf-8'))
 
 
 def upgrade_legacy_password(config_key: str, plaintext: str):
