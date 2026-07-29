@@ -51,7 +51,7 @@
     "angular-eslint": "21.4.0",
     "eslint": "9.39.5",
     "jsdom": "29.1.1",
-    "postcss": "8.5.22",
+    "postcss": "8.5.25",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.65.0",
