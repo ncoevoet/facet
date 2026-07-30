@@ -4,6 +4,15 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.7.2] "Éclat" — 2026-07-30
+
+### Fixed
+- **Gallery no longer blocks on slow filter options** (#65): `ngOnInit` awaited every filter-option request before requesting photos, so a single hung endpoint left the grid on "No photos found / 0 photos" forever while the dropdowns loaded fine. Photos now load first and the options fill in behind, each with a 20 s timeout so a slow endpoint degrades one dropdown instead of the whole page.
+- **`/api/filter_options/metric_ranges` no longer scans the photos table** (#66): asking for MIN/MAX of all 38 metric columns in one statement (plus a strided histogram sample) forced full table scans that dragged every inline thumbnail BLOB through the page cache — 55+ minutes on a 120k-photo / 11 GB library. Every aggregate and histogram now runs per column over its covering index (four missing metric indexes added; a regression test fails on any bare `photos` scan), and the result is persisted in the `stats_cache` table — precomputed offline by `database.py --refresh-stats` and surviving restarts. Cold call measured at ~1.5 s on a 126k-photo / 15 GB library.
+- **Stats cache stampede on cache misses** (#67): the shipped `viewer.cache_ttl_seconds` of 60 was shorter than the computation it caches (so the cache never served a hit), and a miss let every concurrent request start its own full-library computation — 11 simultaneous table scans were observed from ordinary page reloads. The shipped TTL is now 3600 s, and both cache surfaces share a per-key single-flight guard: one leader computes, callers holding an expired entry get it served stale immediately, and waiters park on the leader without blocking the event loop.
+- **"Hide bursts" no longer hides photos that belong to no burst** (#68): a photo left with `is_burst_lead = 0` and no `burst_group_id` — the state an interrupted scan produces when burst post-processing never ran — was silently hidden and miscounted as a hidden burst. The predicate now carries the same singleton guard as the duplicates clause, applied consistently across the gallery, hidden-count banner, stats cache, scenes, similarity groups and capsules.
+- **A failed photo load is surfaced instead of silently restoring the previous list** (#69): when `/api/photos` failed, the gallery reinstated the previous view's photos with no error — indistinguishable from a broken filter. The grid now stays empty with a dedicated error state and Retry button (distinct from "No photos found"), and a failed infinite-scroll page announces itself with a snackbar; strings ship in all six languages.
+
 ## [1.7.1] "Clarity" — 2026-07-08
 
 ### Added
