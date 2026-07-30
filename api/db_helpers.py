@@ -84,9 +84,30 @@ def format_date(date_str):
 
 
 # --- SQL FRAGMENT CONSTANTS ---
+def hide_bursts_sql(table_alias: str = '') -> str:
+    """WHERE fragment keeping only photos that hide-bursts must not hide.
+
+    ``burst_group_id IS NULL`` means the photo belongs to no burst at all, so it
+    is always visible: an interrupted scan whose burst post-processing never ran
+    leaves ``is_burst_lead = 0`` on standalone photos, and without this guard
+    they would vanish from the gallery.
+    """
+    p = f"{table_alias}." if table_alias else ""
+    return f"({p}is_burst_lead = 1 OR {p}is_burst_lead IS NULL OR {p}burst_group_id IS NULL)"
+
+
+def hide_duplicates_sql(table_alias: str = '') -> str:
+    """WHERE fragment keeping only photos that hide-duplicates must not hide."""
+    p = f"{table_alias}." if table_alias else ""
+    return (f"({p}is_duplicate_lead = 1 OR {p}is_duplicate_lead IS NULL"
+            f" OR {p}duplicate_group_id IS NULL)")
+
+
 HIDE_BLINKS_SQL = "(is_blink = 0 OR is_blink IS NULL)"
-HIDE_BURSTS_SQL = "(is_burst_lead = 1 OR is_burst_lead IS NULL)"
-HIDE_DUPLICATES_SQL = "(is_duplicate_lead = 1 OR is_duplicate_lead IS NULL OR duplicate_group_id IS NULL)"
+HIDE_BURSTS_SQL = hide_bursts_sql()
+HIDE_DUPLICATES_SQL = hide_duplicates_sql()
+HIDDEN_BURST_SQL = "(is_burst_lead = 0 AND burst_group_id IS NOT NULL)"
+HIDDEN_DUPLICATE_SQL = "(is_duplicate_lead = 0 AND duplicate_group_id IS NOT NULL)"
 
 
 DATE_FILTER_EXPR = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
@@ -427,9 +448,8 @@ async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_c
     cursor = await conn.execute(
         "SELECT COUNT(*) AS unhidden, "
         "SUM(CASE WHEN is_blink = 1 THEN 1 ELSE 0 END) AS blinks, "
-        "SUM(CASE WHEN is_burst_lead = 0 THEN 1 ELSE 0 END) AS bursts, "
-        "SUM(CASE WHEN is_duplicate_lead = 0 AND duplicate_group_id IS NOT NULL "
-        "THEN 1 ELSE 0 END) AS duplicates "
+        f"SUM(CASE WHEN {HIDDEN_BURST_SQL} THEN 1 ELSE 0 END) AS bursts, "
+        f"SUM(CASE WHEN {HIDDEN_DUPLICATE_SQL} THEN 1 ELSE 0 END) AS duplicates "
         f"FROM {from_clause}{where_str}",
         sql_params,
     )

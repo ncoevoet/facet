@@ -25,6 +25,8 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
     Returns:
         Dict of cached statistics
     """
+    from api.db_helpers import HIDE_BURSTS_SQL
+
     with get_connection(db_path) as conn:
         # Ensure stats_cache table exists
         conn.execute(_build_create_table_sql('stats_cache', STATS_CACHE_COLUMNS))
@@ -51,15 +53,15 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
             _cache_stat(conn, 'count_hide_blinks', hide_blinks_count, now)
 
             hide_bursts_count = conn.execute(
-                "SELECT COUNT(*) FROM photos WHERE is_burst_lead = 1 OR is_burst_lead IS NULL"
+                f"SELECT COUNT(*) FROM photos WHERE {HIDE_BURSTS_SQL}"
             ).fetchone()[0]
             stats['count_hide_bursts'] = hide_bursts_count
             _cache_stat(conn, 'count_hide_bursts', hide_bursts_count, now)
 
             hide_both_count = conn.execute(
-                """SELECT COUNT(*) FROM photos
+                f"""SELECT COUNT(*) FROM photos
                    WHERE (is_blink = 0 OR is_blink IS NULL)
-                   AND (is_burst_lead = 1 OR is_burst_lead IS NULL)"""
+                   AND {HIDE_BURSTS_SQL}"""
             ).fetchone()[0]
             stats['count_hide_both'] = hide_both_count
             _cache_stat(conn, 'count_hide_both', hide_both_count, now)

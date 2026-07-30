@@ -51,7 +51,9 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
     Returns:
         List of groups, each: { paths: [...], best_path: str, count: int }
     """
-    from api.db_helpers import get_visibility_clause, album_filter_clause, time_window_clauses
+    from api.db_helpers import (
+        get_visibility_clause, album_filter_clause, time_window_clauses, HIDE_BURSTS_SQL,
+    )
 
     sg_config = _get_similarity_config()
     if threshold is None:
@@ -88,7 +90,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         # init_database() migration (api/__init__.py:lifespan).
         where = [
             "clip_embedding IS NOT NULL",
-            "(is_burst_lead = 1 OR is_burst_lead IS NULL)",
+            HIDE_BURSTS_SQL,
             "(similarity_reviewed IS NULL OR similarity_reviewed = 0)",
             vis_sql,
             album_sql,

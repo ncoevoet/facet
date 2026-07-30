@@ -645,11 +645,9 @@ def _generate_faces_of(conn, capsule_config, min_aggregate, vis, user_id):
     max_photos = capsule_config.get("max_photos_per_capsule", 40)
 
     # Cannot use pre-computed `vis` here: photos table is aliased as `ph` in the JOIN
-    from api.db_helpers import get_visibility_clause
+    from api.db_helpers import get_visibility_clause, hide_bursts_sql, hide_duplicates_sql
     vis_sql, vis_params = get_visibility_clause(user_id, table_alias='ph')
-    vis_sql += (" AND (ph.is_burst_lead = 1 OR ph.is_burst_lead IS NULL)"
-                " AND (ph.is_duplicate_lead = 1 OR ph.is_duplicate_lead IS NULL"
-                " OR ph.duplicate_group_id IS NULL)")
+    vis_sql += f" AND {hide_bursts_sql('ph')} AND {hide_duplicates_sql('ph')}"
     vis_sql, vis_params = _apply_date_range(vis_sql, vis_params, capsule_config, "ph.date_taken")
 
     rows = conn.execute(
@@ -1098,11 +1096,9 @@ def _generate_person_pairs(conn, capsule_config, min_aggregate, vis, user_id):
     min_photos = cfg.get("min_photos", 8)
     max_photos = capsule_config.get("max_photos_per_capsule", 40)
 
-    from api.db_helpers import get_visibility_clause
+    from api.db_helpers import get_visibility_clause, hide_bursts_sql, hide_duplicates_sql
     vis_sql, vis_params = get_visibility_clause(user_id, table_alias='ph')
-    vis_sql += (" AND (ph.is_burst_lead = 1 OR ph.is_burst_lead IS NULL)"
-                " AND (ph.is_duplicate_lead = 1 OR ph.is_duplicate_lead IS NULL"
-                " OR ph.duplicate_group_id IS NULL)")
+    vis_sql += f" AND {hide_bursts_sql('ph')} AND {hide_duplicates_sql('ph')}"
     vis_sql, vis_params = _apply_date_range(vis_sql, vis_params, capsule_config, "ph.date_taken")
 
     pairs = _fetch_person_pairs(conn, min_aggregate, vis_sql, vis_params, max_photos)
@@ -1548,11 +1544,9 @@ def _generate_rare_pairs(conn, capsule_config, min_aggregate, vis, user_id):
     min_photos = cfg.get("min_photos", 3)
     max_photos = capsule_config.get("max_photos_per_capsule", 40)
 
-    from api.db_helpers import get_visibility_clause
+    from api.db_helpers import get_visibility_clause, hide_bursts_sql, hide_duplicates_sql
     vis_sql, vis_params = get_visibility_clause(user_id, table_alias='ph')
-    vis_sql += (" AND (ph.is_burst_lead = 1 OR ph.is_burst_lead IS NULL)"
-                " AND (ph.is_duplicate_lead = 1 OR ph.is_duplicate_lead IS NULL"
-                " OR ph.duplicate_group_id IS NULL)")
+    vis_sql += f" AND {hide_bursts_sql('ph')} AND {hide_duplicates_sql('ph')}"
     vis_sql, vis_params = _apply_date_range(vis_sql, vis_params, capsule_config, "ph.date_taken")
 
     pairs = _fetch_person_pairs(conn, min_score, vis_sql, vis_params, max_photos)

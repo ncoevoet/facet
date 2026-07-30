@@ -29,7 +29,9 @@ _PHOTOS_SCHEMA = """
         eye_sharpness REAL, face_sharpness REAL, face_ratio REAL,
         tech_sharpness REAL, color_score REAL, exposure_score REAL,
         comp_score REAL, isolation_bonus REAL, is_blink INTEGER,
-        phash TEXT, is_burst_lead INTEGER, aggregate REAL,
+        phash TEXT, is_burst_lead INTEGER, burst_group_id INTEGER,
+        is_duplicate_lead INTEGER, duplicate_group_id INTEGER,
+        aggregate REAL,
         category TEXT, image_width INTEGER, image_height INTEGER,
         tags TEXT, composition_pattern TEXT, person_id INTEGER,
         is_monochrome INTEGER, dynamic_range_stops REAL,
@@ -145,7 +147,8 @@ _TEST_PHOTOS_COLUMNS = {
     "aesthetic", "face_count", "face_quality", "eye_sharpness",
     "face_sharpness", "face_ratio", "tech_sharpness", "color_score",
     "exposure_score", "comp_score", "isolation_bonus", "is_blink",
-    "phash", "is_burst_lead", "aggregate", "category", "image_width",
+    "phash", "is_burst_lead", "burst_group_id", "is_duplicate_lead",
+    "duplicate_group_id", "aggregate", "category", "image_width",
     "image_height", "tags", "composition_pattern", "person_id",
     "is_monochrome", "dynamic_range_stops", "noise_sigma", "contrast_score",
     "star_rating", "is_favorite", "is_rejected",
@@ -307,6 +310,57 @@ class TestGalleryPhotos:
         ):
             resp = TestClient(app).get("/api/photos?page=1&per_page=9999")
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Hide Bursts
+# ---------------------------------------------------------------------------
+
+class TestGalleryHideBursts:
+    """GET /api/photos?hide_bursts=1 — only real burst members are hidden.
+
+    Regression for issue #68: an interrupted scan whose burst post-processing
+    never ran leaves is_burst_lead = 0 with burst_group_id NULL on photos that
+    belong to no burst; those must stay visible and uncounted.
+    """
+
+    _PHOTOS = [
+        _photo("/orphan.jpg", "2024:06:15 12:00:00", is_burst_lead=0, burst_group_id=None),
+        _photo("/lead.jpg", "2024:06:15 12:00:01", is_burst_lead=1, burst_group_id=1),
+        _photo("/member.jpg", "2024:06:15 12:00:02", is_burst_lead=0, burst_group_id=1),
+    ]
+
+    def _fetch(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, self._PHOTOS)
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
+            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch.dict("api.config._count_cache", {}, clear=True),
+        ):
+            resp = TestClient(app).get("/api/photos?page=1&hide_bursts=1")
+        assert resp.status_code == 200
+        return resp.json()
+
+    def test_photo_without_burst_group_stays_visible(self, tmp_path):
+        data = self._fetch(tmp_path)
+        paths = {p["path"] for p in data["photos"]}
+        assert "/orphan.jpg" in paths
+        assert "/lead.jpg" in paths
+
+    def test_real_burst_member_is_hidden(self, tmp_path):
+        data = self._fetch(tmp_path)
+        paths = {p["path"] for p in data["photos"]}
+        assert "/member.jpg" not in paths
+        assert data["total"] == 2
+
+    def test_photo_without_burst_group_is_not_counted_as_hidden(self, tmp_path):
+        data = self._fetch(tmp_path)
+        assert data["hidden_summary"]["bursts"] == 1
+        assert data["hidden_summary"]["total"] == 1
 
 
 # ---------------------------------------------------------------------------

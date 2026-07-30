@@ -20,7 +20,8 @@ from api.routers.scenes import compute_scenes
 _SCHEMA = """
     CREATE TABLE photos (
         path TEXT PRIMARY KEY, filename TEXT, aggregate REAL, date_taken TEXT,
-        is_burst_lead INTEGER, is_rejected INTEGER, category TEXT
+        is_burst_lead INTEGER, burst_group_id INTEGER,
+        is_rejected INTEGER, category TEXT
     );
     CREATE TABLE album_photos (
         id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT
@@ -55,7 +56,9 @@ def _db():
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
-    conn.executemany("INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?)", _PHOTOS)
+    conn.executemany(
+        "INSERT INTO photos (path, filename, aggregate, date_taken, is_burst_lead, "
+        "is_rejected, category) VALUES (?, ?, ?, ?, ?, ?, ?)", _PHOTOS)
     conn.commit()
     return conn
 
@@ -92,7 +95,9 @@ def _seconds_apart_db(n, step_seconds=30):
         ss = total % 60
         rows.append((f"/c{i}.jpg", f"c{i}.jpg", 5.0 + (i % 5),
                      f"2024:06:15 {hh:02d}:{mm:02d}:{ss:02d}", 1, 0, None))
-    conn.executemany("INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
+    conn.executemany(
+        "INSERT INTO photos (path, filename, aggregate, date_taken, is_burst_lead, "
+        "is_rejected, category) VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
     conn.commit()
     return conn
 
@@ -197,7 +202,8 @@ def test_time_window_scopes_scenes():
 _MOMENT_SCHEMA = """
     CREATE TABLE photos (
         path TEXT PRIMARY KEY, filename TEXT, aggregate REAL, date_taken TEXT,
-        is_burst_lead INTEGER, is_rejected INTEGER, category TEXT,
+        is_burst_lead INTEGER, burst_group_id INTEGER,
+        is_rejected INTEGER, category TEXT,
         narrative_moment TEXT, narrative_moment_confidence REAL
     );
     CREATE TABLE album_photos (id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT);

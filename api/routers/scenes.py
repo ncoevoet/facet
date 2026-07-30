@@ -20,7 +20,7 @@ from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_db
 from api.db_helpers import (
     get_visibility_clause, trigger_auto_retrain, set_photos_rejected,
-    album_filter_clause, time_window_clauses,
+    album_filter_clause, time_window_clauses, HIDE_BURSTS_SQL,
 )
 from comparison.comparison_manager import record_culling_pairs
 from utils.date_utils import parse_date
@@ -206,7 +206,7 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
         select_cols += ", narrative_moment, narrative_moment_confidence"
     where = [
         "date_taken IS NOT NULL",
-        "(is_burst_lead = 1 OR is_burst_lead IS NULL)",
+        HIDE_BURSTS_SQL,
         "(is_rejected IS NULL OR is_rejected = 0)",
         vis_sql,
         album_sql,

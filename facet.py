@@ -123,7 +123,8 @@ def _print_scan_summary(db_path, todo_list, raw_paired_skipped):
                     f"""SELECT
                         COUNT(*) AS scored,
                         COALESCE(SUM(CASE WHEN is_blink = 1 THEN 1 ELSE 0 END), 0) AS blinks,
-                        COALESCE(SUM(CASE WHEN is_burst_lead = 0 THEN 1 ELSE 0 END), 0) AS bursts_non_lead,
+                        COALESCE(SUM(CASE WHEN is_burst_lead = 0
+                                  AND burst_group_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS bursts_non_lead,
                         COALESCE(SUM(CASE WHEN is_duplicate_lead = 0
                                   AND duplicate_group_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS duplicates_non_lead
                     FROM photos WHERE path IN ({placeholders})""",

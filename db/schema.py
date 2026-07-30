@@ -324,8 +324,9 @@ INDEXES = [
     # full-sorts 126k+ rows (~1.5s/page). Standalone (not a (is_burst_lead, …)
     # composite) so the planner scans it in sort order and residual-filters the
     # hide predicates: hide-bursts is "(is_burst_lead = 1 OR is_burst_lead IS
-    # NULL)", whose OR triggers a MULTI-INDEX OR that defeats a composite's
-    # equality seek. Includes path so the DESC order_by needs no temp B-tree.
+    # NULL OR burst_group_id IS NULL)", whose ORs trigger a MULTI-INDEX OR that
+    # defeats a composite's equality seek. Includes path so the DESC order_by
+    # needs no temp B-tree.
     ('idx_moment_confidence', 'photos', 'narrative_moment_confidence DESC, path'),
     # "My Taste" (personal ranker) sort. The global learned_score is denormalized
     # into photos.learned_score so this sort reads an index instead of a per-row
