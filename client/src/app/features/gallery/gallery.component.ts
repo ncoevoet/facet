@@ -738,9 +738,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
         this.store.filters.update(current => ({ ...current, album_id: albumId }));
       }
     }
-    await Promise.all([this.store.loadFilterOptions(), this.store.loadTypeCounts()]);
+    // Photos first — a slow filter-option endpoint must never hold back the grid
     await this.store.loadPhotos();
     this.store.initializing.set(false);
+    void Promise.all([this.store.loadFilterOptions(), this.store.loadTypeCounts()]);
     // IntersectionObserver fires too early before DOM paint — defer recheck
     requestAnimationFrame(() => setTimeout(() => this.scrollDirective()?.recheck()));
     if (this.store.config()?.features?.show_albums) {

@@ -1,7 +1,7 @@
 import { Injectable, inject, signal, computed, effect, untracked } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlbumService, Album } from '../../core/services/album.service';
@@ -19,6 +19,8 @@ import {
 // Re-export the filter types/consts so existing importers of gallery.store keep working.
 export type { GalleryFilters, GalleryMode, TooltipMode, DisplayOptions };
 export { DEFAULT_FILTERS, SMART_ALBUM_EXCLUDE_KEYS };
+
+export const FILTER_OPTIONS_TIMEOUT_MS = 20000;
 
 // --- API response types ---
 
@@ -569,10 +571,16 @@ export class GalleryStore {
     try { localStorage.setItem('facet_virtual_scroll', enabled ? 'on' : 'off'); } catch { /* ignore */ }
   }
 
+  /** Fetch a filter-option endpoint, giving up after FILTER_OPTIONS_TIMEOUT_MS. */
+  private fetchFilterOption<T>(path: string, params?: Record<string, string | number | boolean>): Promise<T> {
+    const request = params ? this.api.get<T>(path, params) : this.api.get<T>(path);
+    return firstValueFrom(request.pipe(timeout(FILTER_OPTIONS_TIMEOUT_MS)));
+  }
+
   /** Load type counts (for the type toggle bar) */
   async loadTypeCounts(): Promise<void> {
     try {
-      const res = await firstValueFrom(this.api.get<{types: TypeCount[]}>('/type_counts'));
+      const res = await this.fetchFilterOption<{types: TypeCount[]}>('/type_counts');
       this.types.set(res.types.filter(t => t.id).sort((a, b) => b.count - a.count));
     } catch {
       this.types.set([]);
@@ -582,15 +590,15 @@ export class GalleryStore {
   /** Load all filter dropdown options in parallel */
   async loadFilterOptions(): Promise<void> {
     const [camerasRes, lensesRes, tagsRes, personsRes, patternsRes, colorsRes, rangesRes] = await Promise.all([
-      firstValueFrom(this.api.get<{cameras: [string, number][]}>('/filter_options/cameras')).catch(() => ({cameras: []})),
-      firstValueFrom(this.api.get<{lenses: [string, number][]}>('/filter_options/lenses')).catch(() => ({lenses: []})),
-      firstValueFrom(this.api.get<{tags: [string, number][]}>('/filter_options/tags')).catch(() => ({tags: []})),
-      firstValueFrom(this.api.get<{persons: [number, string | null, number][]}>('/filter_options/persons',
-        this.filters().person_id ? { ids: this.filters().person_id } : undefined)).catch(() => ({persons: []})),
-      firstValueFrom(this.api.get<{patterns: [string, number][]}>('/filter_options/patterns')).catch(() => ({patterns: []})),
-      firstValueFrom(this.api.get<{temps: [string, number][]; hue_buckets: [string, number][]}>('/filter_options/colors'))
+      this.fetchFilterOption<{cameras: [string, number][]}>('/filter_options/cameras').catch(() => ({cameras: []})),
+      this.fetchFilterOption<{lenses: [string, number][]}>('/filter_options/lenses').catch(() => ({lenses: []})),
+      this.fetchFilterOption<{tags: [string, number][]}>('/filter_options/tags').catch(() => ({tags: []})),
+      this.fetchFilterOption<{persons: [number, string | null, number][]}>('/filter_options/persons',
+        this.filters().person_id ? { ids: this.filters().person_id } : undefined).catch(() => ({persons: []})),
+      this.fetchFilterOption<{patterns: [string, number][]}>('/filter_options/patterns').catch(() => ({patterns: []})),
+      this.fetchFilterOption<{temps: [string, number][]; hue_buckets: [string, number][]}>('/filter_options/colors')
         .catch(() => ({temps: [], hue_buckets: []})),
-      firstValueFrom(this.api.get<{ranges: Record<string, MetricRange>}>('/filter_options/metric_ranges')).catch(() => ({ranges: {}})),
+      this.fetchFilterOption<{ranges: Record<string, MetricRange>}>('/filter_options/metric_ranges').catch(() => ({ranges: {}})),
     ]);
     this.cameras.set((camerasRes.cameras ?? []).map(([value, count]: [string, number]) => ({value, count})));
     this.lenses.set((lensesRes.lenses ?? []).map(([value, count]: [string, number]) => ({value, count})));

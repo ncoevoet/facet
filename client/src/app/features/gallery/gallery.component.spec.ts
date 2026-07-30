@@ -233,7 +233,7 @@ describe('GalleryComponent', () => {
       );
     });
 
-    it('should call loadPhotos after loadFilterOptions and loadTypeCounts', async () => {
+    it('should call loadPhotos before loadFilterOptions and loadTypeCounts', async () => {
       const callOrder: string[] = [];
       mockStore.loadConfig.mockImplementation(() => {
         callOrder.push('loadConfig');
@@ -254,12 +254,26 @@ describe('GalleryComponent', () => {
 
       await component.ngOnInit();
 
-      expect(callOrder.indexOf('loadPhotos')).toBeGreaterThan(
+      expect(callOrder.indexOf('loadPhotos')).toBeLessThan(
         callOrder.indexOf('loadFilterOptions'),
       );
-      expect(callOrder.indexOf('loadPhotos')).toBeGreaterThan(
+      expect(callOrder.indexOf('loadPhotos')).toBeLessThan(
         callOrder.indexOf('loadTypeCounts'),
       );
+    });
+
+    it('should show photos and stop initializing when a filter-option request never resolves', async () => {
+      mockStore.loadFilterOptions.mockImplementation(() => new Promise<void>(() => {}));
+      mockStore.loadPhotos.mockImplementation(() => {
+        mockStore.photos.set([{ path: '/a.jpg' }]);
+        return Promise.resolve();
+      });
+
+      await component.ngOnInit();
+
+      expect(mockStore.loadPhotos).toHaveBeenCalled();
+      expect(mockStore.photos()).toHaveLength(1);
+      expect(mockStore.initializing()).toBe(false);
     });
   });
 });

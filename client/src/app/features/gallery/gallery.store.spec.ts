@@ -2,7 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlbumService } from '../../core/services/album.service';
@@ -10,6 +10,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import {
   GalleryStore,
   DEFAULT_FILTERS,
+  FILTER_OPTIONS_TIMEOUT_MS,
   PhotosResponse,
   ViewerConfig,
   TypeCount,
@@ -711,6 +712,22 @@ describe('GalleryStore', () => {
 
       expect(store.types()).toEqual([]);
     });
+
+    it('should set empty array when the request never responds', async () => {
+      store.types.set([{ id: 'old', label: 'Old', count: 1 }]);
+      apiGet.mockReturnValue(NEVER);
+
+      vi.useFakeTimers();
+      try {
+        const pending = store.loadTypeCounts();
+        await vi.advanceTimersByTimeAsync(FILTER_OPTIONS_TIMEOUT_MS + 1);
+        await pending;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(store.types()).toEqual([]);
+    });
   });
 
   describe('loadFilterOptions()', () => {
@@ -760,6 +777,45 @@ describe('GalleryStore', () => {
       expect(store.tags()).toEqual([]);
       expect(store.persons()).toEqual([]);
       expect(store.patterns()).toEqual([]);
+    });
+
+    it('should time out a hung endpoint and still populate the other dropdowns', async () => {
+      apiGet.mockImplementation((path: string) => {
+        switch (path) {
+          case '/filter_options/cameras':
+            return of({ cameras: [['Canon EOS R5', 50]] });
+          case '/filter_options/lenses':
+            return of({ lenses: [['RF 50mm', 30]] });
+          case '/filter_options/tags':
+            return of({ tags: [['landscape', 20]] });
+          case '/filter_options/persons':
+            return of({ persons: [[1, 'Alice', 15]] });
+          case '/filter_options/patterns':
+            return of({ patterns: [['rule_of_thirds', 40]] });
+          case '/filter_options/colors':
+            return of({ temps: [['warm', 12]], hue_buckets: [['blue', 8]] });
+          default:
+            return NEVER;
+        }
+      });
+
+      vi.useFakeTimers();
+      try {
+        const pending = store.loadFilterOptions();
+        await vi.advanceTimersByTimeAsync(FILTER_OPTIONS_TIMEOUT_MS + 1);
+        await pending;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(store.metricRanges()).toEqual({});
+      expect(store.cameras()).toEqual([{ value: 'Canon EOS R5', count: 50 }]);
+      expect(store.lenses()).toEqual([{ value: 'RF 50mm', count: 30 }]);
+      expect(store.tags()).toEqual([{ value: 'landscape', count: 20 }]);
+      expect(store.persons()).toEqual([{ id: 1, name: 'Alice', face_count: 15 }]);
+      expect(store.patterns()).toEqual([{ value: 'rule_of_thirds', count: 40 }]);
+      expect(store.colorTemps()).toEqual([{ value: 'warm', count: 12 }]);
+      expect(store.hueBuckets()).toEqual([{ value: 'blue', count: 8 }]);
     });
   });
 
