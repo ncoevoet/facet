@@ -176,9 +176,9 @@ export class GalleryStore {
   // --- View snapshot for back-navigation restoration ---
   readonly viewSnapshot = signal<{ scrollTop: number; albumId: string | null; filterKey: string } | null>(null);
 
-  /** Cheap equality token for the current query state. */
-  filterKey(): string {
-    return JSON.stringify(buildApiParams(this.filters(), this.currentAlbum()?.is_smart ?? false));
+  /** Cheap equality token for the current query state (or an explicit candidate filter set). */
+  filterKey(f: GalleryFilters = this.filters()): string {
+    return JSON.stringify(buildApiParams(f, this.currentAlbum()?.is_smart ?? false));
   }
 
   // --- Selection state (store-level so it survives navigation and is visible to services) ---

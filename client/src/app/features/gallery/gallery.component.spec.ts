@@ -6,6 +6,7 @@ import { of } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './gallery.store';
+import { buildApiParams } from './gallery-filters.util';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -21,6 +22,7 @@ describe('GalleryComponent', () => {
   let mockApi: { thumbnailUrl: Mock };
   let mockAuth: Record<string, unknown>;
   let mockI18n: { t: Mock };
+  let routeMock: { snapshot: { paramMap: { get: Mock }; queryParams: Record<string, string> } };
 
   beforeEach(() => {
     mockStore = {
@@ -65,7 +67,7 @@ describe('GalleryComponent', () => {
       restoreSelection: vi.fn(),
       restoreSnapshot: vi.fn(() => Promise.resolve()),
       viewSnapshot: signal(null),
-      filterKey: vi.fn(() => '{}'),
+      filterKey: vi.fn((f?: GalleryFilters) => JSON.stringify(buildApiParams(f ?? mockStore.filters(), false))),
       hiddenSummary: signal({ total: 0, blinks: 0, bursts: 0, duplicates: 0 }),
       updateFilters: vi.fn(() => Promise.resolve()),
       setRating: vi.fn(),
@@ -84,6 +86,8 @@ describe('GalleryComponent', () => {
       t: vi.fn((key: string) => key),
     };
 
+    routeMock = { snapshot: { paramMap: { get: vi.fn(() => null) }, queryParams: {} } };
+
     TestBed.configureTestingModule({
       providers: [
         { provide: GalleryStore, useValue: mockStore },
@@ -91,7 +95,7 @@ describe('GalleryComponent', () => {
         { provide: AuthService, useValue: mockAuth },
         { provide: I18nService, useValue: mockI18n },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), get: vi.fn(() => of({})) } },
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: vi.fn(() => null) } } } },
+        { provide: ActivatedRoute, useValue: routeMock },
         { provide: MatDialog, useValue: { open: vi.fn() } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
       ],
@@ -261,6 +265,30 @@ describe('GalleryComponent', () => {
       expect(callOrder.indexOf('loadPhotos')).toBeLessThan(
         callOrder.indexOf('loadTypeCounts'),
       );
+    });
+
+    it('reloads instead of restoring when the URL carries different query params (issue #70)', async () => {
+      mockStore.photos.set([{ path: '/a.jpg' }]);
+      mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey() });
+      routeMock.snapshot.queryParams = {
+        date_from: '2026-01-01', date_to: '2026-01-01', sort: 'date_taken', sort_direction: 'DESC',
+      };
+
+      await component.ngOnInit();
+
+      expect(mockStore.loadConfig).toHaveBeenCalled();
+      expect(mockStore.loadPhotos).toHaveBeenCalled();
+    });
+
+    it('restores the previous view when the URL matches the snapshot', async () => {
+      mockStore.photos.set([{ path: '/a.jpg' }]);
+      mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey() });
+
+      await component.ngOnInit();
+
+      expect(mockStore.loadConfig).not.toHaveBeenCalled();
+      expect(mockStore.loadPhotos).not.toHaveBeenCalled();
+      expect(mockStore.loadTypeCounts).toHaveBeenCalled();
     });
 
     it('should show photos and stop initializing when a filter-option request never resolves', async () => {

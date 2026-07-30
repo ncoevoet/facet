@@ -50,6 +50,7 @@ import { PhotoSkeletonComponent } from '../../shared/components/photo-skeleton/p
 import {
   GalleryRow, buildGridRows, buildMosaicRows, gridColumnCount, totalRowsHeight, windowRange,
 } from './gallery-rows.util';
+import { applyQueryParams } from './gallery-filters.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
 import { ExportEditorDialogComponent } from './export-editor-dialog.component';
@@ -792,7 +793,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.store.viewSnapshot.set(null);
     if (!snap || !this.store.photos().length) return false;
     if (snap.albumId !== this.route.snapshot.paramMap.get('albumId')) return false;
-    if (snap.filterKey !== this.store.filterKey()) return false;
+    const candidate = applyQueryParams(this.store.filters(), this.route.snapshot.queryParams);
+    if (snap.filterKey !== this.store.filterKey(candidate)) return false;
     afterNextRender(() => {
       this.scrollContent()?.scrollTo({ top: snap.scrollTop });
       requestAnimationFrame(() => setTimeout(() => this.scrollDirective()?.recheck()));
