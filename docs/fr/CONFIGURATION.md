@@ -1069,7 +1069,7 @@ Affichage et comportement de la galerie web.
       "type": "",
       "gallery_mode": "mosaic"
     },
-    "cache_ttl_seconds": 60,
+    "cache_ttl_seconds": 3600,
     "notification_duration_ms": 2000,
     "moment_confidence_min": 0,
     "path_mapping": {}
@@ -1153,7 +1153,7 @@ Affichage et comportement de la galerie web.
 | `security_headers.content_security_policy` | _(valeur par défaut compatible SPA)_ | Valeur de l'en-tête Content-Security-Policy. Par défaut, une politique autorisant les ressources propres de la SPA (script/style de thème inline, Google Fonts, tuiles OpenStreetMap, API de même origine). Mettre `""` pour désactiver, ou fournir une politique plus stricte. |
 | `security_headers.hsts` | `false` | Envoyer `Strict-Transport-Security`. À activer uniquement lorsque la visionneuse est servie en HTTPS. |
 | **Autres** | | |
-| `cache_ttl_seconds` | `60` | TTL du cache de requêtes |
+| `cache_ttl_seconds` | `3600` | TTL des caches de statistiques/requêtes en mémoire. Le calcul des statistiques sur toute la bibliothèque peut prendre plusieurs minutes, donc un TTL plus court que ce calcul empêche tout succès de cache |
 | `notification_duration_ms` | `2000` | Durée des notifications toast |
 | `moment_confidence_min` | `0` | En dessous de ce postérieur `narrative_moment_confidence` stocké (0–1), les libellés de moment sont affichés atténués avec un suffixe « (uncertain) » dans l'en-tête Scènes, l'en-tête du groupe de scène du tri (Culling) et l'infobulle photo de la galerie. `0` = jamais atténué |
 

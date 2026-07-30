@@ -3090,7 +3090,7 @@
       "http://localhost:4200",
       "http://localhost:5000"
     ],
-    "cache_ttl_seconds": 60,
+    "cache_ttl_seconds": 3600,
     "notification_duration_ms": 2000,
     "path_mapping": {},
     "raw_processor": {

@@ -1069,7 +1069,7 @@ Visualizzazione e comportamento della galleria web.
       "type": "",
       "gallery_mode": "mosaic"
     },
-    "cache_ttl_seconds": 60,
+    "cache_ttl_seconds": 3600,
     "notification_duration_ms": 2000,
     "moment_confidence_min": 0,
     "path_mapping": {}
@@ -1153,7 +1153,7 @@ Visualizzazione e comportamento della galleria web.
 | `security_headers.content_security_policy` | _(predefinito sicuro per la SPA)_ | Valore dell'header Content-Security-Policy. Per impostazione predefinita una policy che consente le risorse della SPA (script/stile di tema inline, Google Fonts, tile OpenStreetMap, API same-origin). Imposta `""` per disabilitare, oppure fornisci una policy più restrittiva. |
 | `security_headers.hsts` | `false` | Invia `Strict-Transport-Security`. Abilita solo quando il viewer è servito via HTTPS. |
 | **Altro** | | |
-| `cache_ttl_seconds` | `60` | TTL della cache delle query |
+| `cache_ttl_seconds` | `3600` | TTL delle cache in memoria di statistiche/query. Il calcolo delle statistiche sull'intera libreria può richiedere minuti, quindi un TTL più breve del calcolo impedisce qualsiasi hit della cache |
 | `notification_duration_ms` | `2000` | Durata del toast |
 | `moment_confidence_min` | `0` | Al di sotto di questo posterior `narrative_moment_confidence` memorizzato (0–1), le etichette dei momenti vengono mostrate attenuate con un suffisso "(uncertain)" nell'intestazione delle Scene, nell'intestazione del gruppo di scena della selezione e nel tooltip della foto in galleria. `0` = non attenuare mai |
 

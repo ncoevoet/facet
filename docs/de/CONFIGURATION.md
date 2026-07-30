@@ -1069,7 +1069,7 @@ Anzeige und Verhalten der Web-Galerie.
       "type": "",
       "gallery_mode": "mosaic"
     },
-    "cache_ttl_seconds": 60,
+    "cache_ttl_seconds": 3600,
     "notification_duration_ms": 2000,
     "moment_confidence_min": 0,
     "path_mapping": {}
@@ -1153,7 +1153,7 @@ Anzeige und Verhalten der Web-Galerie.
 | `security_headers.content_security_policy` | _(SPA-sicherer Standard)_ | Wert des Content-Security-Policy-Headers. Standardmäßig eine Policy, die die eigenen Ressourcen der SPA erlaubt (Inline-Theme-Skript/-Stil, Google Fonts, OpenStreetMap-Kacheln, Same-Origin-API). Auf `""` setzen zum Deaktivieren oder eine strengere Policy angeben. |
 | `security_headers.hsts` | `false` | `Strict-Transport-Security` senden. Nur aktivieren, wenn der Viewer über HTTPS ausgeliefert wird. |
 | **Sonstiges** | | |
-| `cache_ttl_seconds` | `60` | TTL des Abfrage-Caches |
+| `cache_ttl_seconds` | `3600` | TTL der In-Memory-Statistik-/Abfrage-Caches. Die Statistikberechnung über die gesamte Bibliothek kann Minuten dauern, daher liefert der Cache bei einer kürzeren TTL als die Berechnung nie einen Treffer |
 | `notification_duration_ms` | `2000` | Dauer der Toast-Benachrichtigung |
 | `moment_confidence_min` | `0` | Unterhalb dieser gespeicherten `narrative_moment_confidence`-Posteriori (0–1) werden Moment-Labels abgeblendet und mit dem Suffix „(uncertain)“ im Szenen-Header, im Culling-Szenengruppen-Header und im Galerie-Foto-Tooltip dargestellt. `0` = nie abblenden |
 

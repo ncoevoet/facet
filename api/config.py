@@ -3,6 +3,7 @@ Configuration loading for the FastAPI API server.
 
 """
 
+import asyncio
 import logging
 import os
 import json
@@ -284,6 +285,9 @@ PHOTO_TAGS_CACHE_TTL = 300  # seconds — recheck every 5 min
 # Cache for stats API responses
 _stats_cache = {}  # key -> {'data': ..., 'expires': float}
 _stats_cache_lock = threading.Lock()
+_stats_inflight = {}  # key -> _StatsFlight, shared by the sync and async surfaces
+_stats_cache_generation = 0
+_STATS_FLIGHT_POLL_SECONDS = 0.02
 
 
 def _sanitize_stats(obj):
@@ -297,35 +301,139 @@ def _sanitize_stats(obj):
     return obj
 
 
-def _get_stats_cached(cache_key, compute_fn):
-    now = time.time()
+class _StatsFlight:
+    """One in-flight ``compute_fn`` run, shared by every caller of its key.
+
+    ``done`` is a :class:`threading.Event` rather than an ``asyncio`` one so a
+    leader on either surface can release waiters on the other: the sync path
+    blocks on it from a threadpool thread, the async path polls ``is_set()``
+    between ``asyncio.sleep`` calls and never blocks the event loop.
+    """
+
+    __slots__ = ('done', 'data', 'error', 'generation')
+
+    def __init__(self, generation):
+        self.done = threading.Event()
+        self.data = None
+        self.error = None
+        self.generation = generation
+
+
+def _lookup_or_claim_stats(cache_key):
+    """Resolve a key against the stats cache and the single-flight registry.
+
+    Returns one of ``('hit', data)`` for a live entry, ``('stale', data)`` when
+    a computation is already running and an expired entry can be served
+    without waiting, ``('lead', flight)`` when the caller must run
+    ``compute_fn`` itself, or ``('wait', flight)`` when it must wait for
+    another caller's run because nothing is cached.
+
+    ``_stats_cache_lock`` is only held for these dict operations — never
+    across a compute or a wait — so this can never deadlock.
+    """
     with _stats_cache_lock:
         cached = _stats_cache.get(cache_key)
-        if cached and now < cached['expires']:
-            return cached['data']
-    data = _sanitize_stats(compute_fn())
+        if cached and time.time() < cached['expires']:
+            return 'hit', cached['data']
+        flight = _stats_inflight.get(cache_key)
+        if flight is None:
+            flight = _StatsFlight(_stats_cache_generation)
+            _stats_inflight[cache_key] = flight
+            return 'lead', flight
+        if cached is not None:
+            return 'stale', cached['data']
+        return 'wait', flight
+
+
+def _finish_stats_flight(cache_key, flight, data, error):
+    """Publish a leader's outcome: store it, deregister the flight, wake waiters.
+
+    A result computed across an :func:`invalidate_stats_cache` call is handed
+    to the waiters but not stored — its generation no longer matches, so the
+    next caller recomputes instead of serving pre-invalidation data for a
+    whole TTL.
+    """
     with _stats_cache_lock:
-        _stats_cache[cache_key] = {'data': data, 'expires': now + VIEWER_CONFIG['cache_ttl_seconds']}
+        if error is None and flight.generation == _stats_cache_generation:
+            _stats_cache[cache_key] = {
+                'data': data,
+                'expires': time.time() + VIEWER_CONFIG['cache_ttl_seconds'],
+            }
+        if _stats_inflight.get(cache_key) is flight:
+            del _stats_inflight[cache_key]
+    flight.data = data
+    flight.error = error
+    flight.done.set()
+
+
+def _run_stats_flight(cache_key, flight, compute_fn):
+    """Run ``compute_fn`` as the leader of ``flight`` and publish the outcome."""
+    try:
+        data = _sanitize_stats(compute_fn())
+    except BaseException as ex:
+        _finish_stats_flight(cache_key, flight, None, ex)
+        raise
+    _finish_stats_flight(cache_key, flight, data, None)
     return data
+
+
+def _get_stats_cached(cache_key, compute_fn):
+    """Return cached stats for ``cache_key``, computing them at most once.
+
+    Concurrent callers of a cold key elect a single leader to run
+    ``compute_fn``; the rest either serve an expired entry immediately or
+    block on the leader. A waiter whose leader failed retries once — it then
+    becomes the new leader or joins a fresh flight, so one cancelled request
+    does not fail every other waiter. The sync surface runs in FastAPI's
+    threadpool, so blocking on the event is safe here.
+    """
+    flight = None
+    for _ in range(2):
+        state, payload = _lookup_or_claim_stats(cache_key)
+        if state in ('hit', 'stale'):
+            return payload
+        if state == 'lead':
+            return _run_stats_flight(cache_key, payload, compute_fn)
+        flight = payload
+        flight.done.wait()
+        if flight.error is None:
+            return flight.data
+    raise flight.error
+
+
+async def _await_stats_flight(flight):
+    """Wait for another caller's computation without blocking the event loop."""
+    while not flight.done.is_set():
+        await asyncio.sleep(_STATS_FLIGHT_POLL_SECONDS)
 
 
 async def _get_stats_cached_async(cache_key, compute_fn):
     """Async sibling of :func:`_get_stats_cached`.
 
     ``compute_fn`` is an ``async`` callable (it awaits an aiosqlite connection
-    for its DB reads). The cache dict, lock, TTL, and NaN/Inf sanitization are
-    shared with the sync path, so a key written by either surface is readable
-    by the other.
+    for its DB reads). The cache dict, lock, TTL, single-flight registry and
+    NaN/Inf sanitization are shared with the sync path, so a key written by
+    either surface is readable by the other and a leader on one surface
+    releases waiters on both.
     """
-    now = time.time()
-    with _stats_cache_lock:
-        cached = _stats_cache.get(cache_key)
-        if cached and now < cached['expires']:
-            return cached['data']
-    data = _sanitize_stats(await compute_fn())
-    with _stats_cache_lock:
-        _stats_cache[cache_key] = {'data': data, 'expires': now + VIEWER_CONFIG['cache_ttl_seconds']}
-    return data
+    flight = None
+    for _ in range(2):
+        state, payload = _lookup_or_claim_stats(cache_key)
+        if state in ('hit', 'stale'):
+            return payload
+        if state == 'lead':
+            try:
+                data = _sanitize_stats(await compute_fn())
+            except BaseException as ex:
+                _finish_stats_flight(cache_key, payload, None, ex)
+                raise
+            _finish_stats_flight(cache_key, payload, data, None)
+            return data
+        flight = payload
+        await _await_stats_flight(flight)
+        if flight.error is None:
+            return flight.data
+    raise flight.error
 
 
 def invalidate_stats_cache():
@@ -336,9 +444,16 @@ def invalidate_stats_cache():
     under the lock," and bare ``.clear()`` calls mix locked-readers with
     unlocked-writers. dict.clear() is GIL-atomic so there's no corruption
     today, but the consistency matters if anyone later adds iteration.
+
+    In-flight computations are left running (dropping them would let the next
+    caller start a duplicate scan) but are bumped out of the current
+    generation, so their results are delivered to their waiters without being
+    cached.
     """
+    global _stats_cache_generation
     with _stats_cache_lock:
         _stats_cache.clear()
+        _stats_cache_generation += 1
 
 # --- CORRELATION QUERY WHITELISTS ---
 CORRELATION_X_AXES = {

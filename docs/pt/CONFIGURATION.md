@@ -1069,7 +1069,7 @@ Exibição e comportamento da galeria web.
       "type": "",
       "gallery_mode": "mosaic"
     },
-    "cache_ttl_seconds": 60,
+    "cache_ttl_seconds": 3600,
     "notification_duration_ms": 2000,
     "moment_confidence_min": 0,
     "path_mapping": {}
@@ -1153,7 +1153,7 @@ Exibição e comportamento da galeria web.
 | `security_headers.content_security_policy` | _(padrão seguro para SPA)_ | Valor do cabeçalho Content-Security-Policy. Por padrão, uma política que permite os recursos próprios da SPA (script/estilo de tema inline, Google Fonts, tiles do OpenStreetMap, API de mesma origem). Defina como `""` para desativar, ou forneça uma política mais estrita. |
 | `security_headers.hsts` | `false` | Envia `Strict-Transport-Security`. Habilite apenas quando o visualizador for servido por HTTPS. |
 | **Outros** | | |
-| `cache_ttl_seconds` | `60` | TTL do cache de consultas |
+| `cache_ttl_seconds` | `3600` | TTL dos caches em memória de estatísticas/consultas. O cálculo de estatísticas sobre toda a biblioteca pode demorar minutos, portanto um TTL mais curto do que o cálculo impede qualquer acerto de cache |
 | `notification_duration_ms` | `2000` | Duração do toast |
 | `moment_confidence_min` | `0` | Abaixo deste posterior de `narrative_moment_confidence` armazenado (0–1), os rótulos de momento são renderizados esmaecidos com um sufixo "(incerto)" no cabeçalho de Cenas, no cabeçalho de grupo de cena da Triagem e na dica da foto na galeria. `0` = nunca esmaecer |
 

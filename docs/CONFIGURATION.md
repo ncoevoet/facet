@@ -1084,7 +1084,7 @@ Web gallery display and behavior.
       "type": "",
       "gallery_mode": "mosaic"
     },
-    "cache_ttl_seconds": 60,
+    "cache_ttl_seconds": 3600,
     "notification_duration_ms": 2000,
     "moment_confidence_min": 0,
     "path_mapping": {}
@@ -1168,7 +1168,7 @@ Web gallery display and behavior.
 | `security_headers.content_security_policy` | _(SPA-safe default)_ | Content-Security-Policy header value. Defaults to a policy permitting the SPA's own resources (inline theme script/style, Google Fonts, OpenStreetMap tiles, same-origin API). Set to `""` to disable, or supply a stricter policy. |
 | `security_headers.hsts` | `false` | Send `Strict-Transport-Security`. Enable only when the viewer is served over HTTPS. |
 | **Other** | | |
-| `cache_ttl_seconds` | `60` | Query cache TTL |
+| `cache_ttl_seconds` | `3600` | TTL of the in-memory stats/query caches. A full-library stats computation can take minutes, so a TTL shorter than the computation means the cache never serves a hit |
 | `notification_duration_ms` | `2000` | Toast duration |
 | `moment_confidence_min` | `0` | Below this stored `narrative_moment_confidence` posterior (0–1), moment labels render dimmed with an "(uncertain)" suffix in the Scenes header, the Culling scene-group header, and the gallery photo tooltip. `0` = never dim |
 

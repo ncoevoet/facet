@@ -1069,7 +1069,7 @@ Visualización y comportamiento de la galería web.
       "type": "",
       "gallery_mode": "mosaic"
     },
-    "cache_ttl_seconds": 60,
+    "cache_ttl_seconds": 3600,
     "notification_duration_ms": 2000,
     "moment_confidence_min": 0,
     "path_mapping": {}
@@ -1153,7 +1153,7 @@ Visualización y comportamiento de la galería web.
 | `security_headers.content_security_policy` | _(valor por defecto seguro para SPA)_ | Valor de la cabecera Content-Security-Policy. Por defecto es una política que permite los recursos propios de la SPA (script/estilo de tema en línea, Google Fonts, teselas de OpenStreetMap, API del mismo origen). Establécelo en `""` para desactivarlo, o proporciona una política más estricta. |
 | `security_headers.hsts` | `false` | Enviar `Strict-Transport-Security`. Actívalo solo cuando el visor se sirve por HTTPS. |
 | **Otros** | | |
-| `cache_ttl_seconds` | `60` | TTL de la caché de consultas |
+| `cache_ttl_seconds` | `3600` | TTL de las cachés en memoria de estadísticas/consultas. El cálculo de estadísticas sobre toda la biblioteca puede tardar minutos, por lo que un TTL más corto que el cálculo impide cualquier acierto de caché |
 | `notification_duration_ms` | `2000` | Duración del aviso emergente |
 | `moment_confidence_min` | `0` | Por debajo de este posterior `narrative_moment_confidence` almacenado (0-1), las etiquetas de momento se muestran atenuadas con un sufijo "(incierto)" en la cabecera de Escenas, la cabecera de grupo de escena del Descarte y el tooltip de foto de la galería. `0` = nunca atenuar |
 
