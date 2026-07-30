@@ -353,8 +353,20 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
           </div>
         }
 
+        <!-- Load error state -->
+        @if (!store.loading() && store.loadError()) {
+          <div class="flex flex-col items-center justify-center gap-4 p-16" role="alert">
+            <mat-icon class="!text-6xl !w-16 !h-16 text-[var(--mat-sys-error)]">cloud_off</mat-icon>
+            <p class="text-lg text-center">{{ I18N.gallery.load_error.message | translate }}</p>
+            <button mat-flat-button color="primary" (click)="store.loadPhotos()">
+              <mat-icon>refresh</mat-icon>
+              {{ I18N.gallery.load_error.retry | translate }}
+            </button>
+          </div>
+        }
+
         <!-- Empty state -->
-        @if (!store.loading() && store.photos().length === 0 && store.total() === 0) {
+        @if (!store.loading() && !store.loadError() && store.photos().length === 0 && store.total() === 0) {
           <div class="flex flex-col items-center justify-center gap-4 p-16 opacity-60">
             <mat-icon class="!text-6xl !w-16 !h-16">photo_library</mat-icon>
             <p class="text-lg">{{ I18N.gallery.no_photos | translate }}</p>

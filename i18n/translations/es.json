@@ -1046,6 +1046,11 @@
     "semantic_search_placeholder": "atardecer en la playa...",
     "photo_count": "{count} fotos",
     "no_photos": "No se encontraron fotos",
+    "load_error": {
+      "message": "No se pudieron cargar las fotos — el servidor no respondió",
+      "retry": "Reintentar",
+      "page_failed": "No se pudieron cargar más fotos — desplácese de nuevo para reintentar"
+    },
     "camera": "Cámara",
     "lens": "Objetivo",
     "tag": "Etiqueta",

@@ -157,6 +157,9 @@ export class GalleryStore {
   readonly photos = signal<Photo[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
+  /** Set when the current photo request failed; the grid stays empty rather than
+   *  silently reinstating the previous view's photos. Cleared on every new load. */
+  readonly loadError = signal(false);
   private _loadSeq = 0;
   readonly hasMore = signal(false);
   readonly config = signal<ViewerConfig | null>(null);
@@ -354,10 +357,8 @@ export class GalleryStore {
     // Always load from page 1 — only nextPage() uses page > 1
     this.filters.update(current => ({ ...current, page: 1 }));
     const seq = ++this._loadSeq;
-    const prevPhotos = this.photos();
-    const prevTotal = this.total();
-    const prevHasMore = this.hasMore();
     this.photos.set([]);
+    this.loadError.set(false);
     this.loading.set(true);
     try {
       const f = this.filters();
@@ -398,10 +399,9 @@ export class GalleryStore {
       void this.fetchKeeperHints(res.photos.map(p => p.path));
     } catch {
       if (seq !== this._loadSeq) return;
-      // Network error — restore previous state
-      this.photos.set(prevPhotos);
-      this.total.set(prevTotal);
-      this.hasMore.set(prevHasMore);
+      this.total.set(0);
+      this.hasMore.set(false);
+      this.loadError.set(true);
     } finally {
       if (seq === this._loadSeq) {
         this.loading.set(false);
@@ -441,6 +441,7 @@ export class GalleryStore {
       if (seq !== this._loadSeq) return;
       // Revert page increment on error
       this.filters.update(current => ({ ...current, page: f.page }));
+      this.snackBar.open(this.i18n.t(I18N.gallery.load_error.page_failed), '', { duration: 3000 });
     } finally {
       if (seq === this._loadSeq) {
         this.loading.set(false);

@@ -1050,6 +1050,11 @@
     "semantic_search_placeholder": "Sonnenuntergang am Strand...",
     "photo_count": "{count} Fotos",
     "no_photos": "Keine Fotos gefunden",
+    "load_error": {
+      "message": "Fotos konnten nicht geladen werden — der Server hat nicht geantwortet",
+      "retry": "Erneut versuchen",
+      "page_failed": "Weitere Fotos konnten nicht geladen werden — erneut scrollen, um es zu wiederholen"
+    },
     "camera": "Kamera",
     "lens": "Objektiv",
     "tag": "Tag",

@@ -1046,6 +1046,11 @@
     "semantic_search_placeholder": "coucher de soleil à la plage...",
     "photo_count": "{count} photos",
     "no_photos": "Aucune photo trouvée",
+    "load_error": {
+      "message": "Impossible de charger les photos : le serveur n'a pas répondu",
+      "retry": "Réessayer",
+      "page_failed": "Impossible de charger plus de photos : faites défiler à nouveau pour réessayer"
+    },
     "camera": "Appareil",
     "lens": "Objectif",
     "tag": "Tag",

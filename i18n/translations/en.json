@@ -1046,6 +1046,11 @@
     "semantic_search_placeholder": "sunset at the beach...",
     "photo_count": "{count} photos",
     "no_photos": "No photos found",
+    "load_error": {
+      "message": "Couldn't load photos — the server didn't respond",
+      "retry": "Retry",
+      "page_failed": "Couldn't load more photos — scroll again to retry"
+    },
     "camera": "Camera",
     "lens": "Lens",
     "tag": "Tag",

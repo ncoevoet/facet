@@ -1050,6 +1050,11 @@ export const I18N = {
     semantic_search_placeholder: "gallery.semantic_search_placeholder",
     photo_count: "gallery.photo_count",
     no_photos: "gallery.no_photos",
+    load_error: {
+      message: "gallery.load_error.message",
+      retry: "gallery.load_error.retry",
+      page_failed: "gallery.load_error.page_failed",
+    },
     camera: "gallery.camera",
     lens: "gallery.lens",
     tag: "gallery.tag",

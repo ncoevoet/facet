@@ -1046,6 +1046,11 @@
     "semantic_search_placeholder": "tramonto in spiaggia...",
     "photo_count": "{count} foto",
     "no_photos": "Nessuna foto trovata",
+    "load_error": {
+      "message": "Impossibile caricare le foto — il server non ha risposto",
+      "retry": "Riprova",
+      "page_failed": "Impossibile caricare altre foto — scorrere di nuovo per riprovare"
+    },
     "camera": "Fotocamera",
     "lens": "Obiettivo",
     "tag": "Tag",

@@ -2,7 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { NEVER, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlbumService } from '../../core/services/album.service';
@@ -340,7 +340,7 @@ describe('GalleryStore', () => {
       expect(apiGet).toHaveBeenCalledWith('/photos', expect.objectContaining({ page: 1, per_page: 64 }));
     });
 
-    it('should keep current state on error and clear loading', async () => {
+    it('should surface the error and NOT restore the previous photos on failure', async () => {
       // Set initial state
       store.photos.set([makePhoto({ filename: 'existing.jpg' })]);
       store.total.set(50);
@@ -351,10 +351,82 @@ describe('GalleryStore', () => {
       await store.loadPhotos();
 
       expect(store.loading()).toBe(false);
-      expect(store.photos().length).toBe(1);
-      expect(store.photos()[0].filename).toBe('existing.jpg');
-      expect(store.total()).toBe(50);
-      expect(store.hasMore()).toBe(true);
+      expect(store.photos()).toEqual([]);
+      expect(store.total()).toBe(0);
+      expect(store.hasMore()).toBe(false);
+      expect(store.loadError()).toBe(true);
+    });
+
+    it('should surface the error when the similar-photos branch fails', async () => {
+      store.filters.set({ ...DEFAULT_FILTERS, similar_to: '/a.jpg' });
+      apiGet.mockReturnValue(throwError(() => new Error('Network error')));
+
+      await store.loadPhotos();
+
+      expect(apiGet).toHaveBeenCalledWith(
+        `/similar_photos/${encodeURIComponent('/a.jpg')}`, expect.any(Object),
+      );
+      expect(store.photos()).toEqual([]);
+      expect(store.loadError()).toBe(true);
+      expect(store.loading()).toBe(false);
+    });
+
+    it('should surface the error when the semantic-search branch fails', async () => {
+      store.filters.set({ ...DEFAULT_FILTERS, semanticQuery: 'sunset' });
+      apiGet.mockReturnValue(throwError(() => new Error('Network error')));
+
+      await store.loadPhotos();
+
+      expect(apiGet).toHaveBeenCalledWith('/search', expect.objectContaining({ q: 'sunset' }));
+      expect(store.photos()).toEqual([]);
+      expect(store.loadError()).toBe(true);
+      expect(store.loading()).toBe(false);
+    });
+
+    it('should clear the error when a retried load succeeds', async () => {
+      apiGet.mockReturnValue(throwError(() => new Error('Network error')));
+      await store.loadPhotos();
+      expect(store.loadError()).toBe(true);
+
+      const response = makePhotosResponse({ photos: [makePhoto({ filename: 'retried.jpg' })], total: 1 });
+      apiGet.mockReturnValue(of(response));
+
+      await store.loadPhotos();
+
+      expect(apiGet).toHaveBeenCalledTimes(2);
+      expect(store.loadError()).toBe(false);
+      expect(store.photos()).toEqual(response.photos);
+      expect(store.total()).toBe(1);
+    });
+
+    it('should clear a previous error at the start of a new load', async () => {
+      apiGet.mockReturnValue(throwError(() => new Error('Network error')));
+      await store.loadPhotos();
+      expect(store.loadError()).toBe(true);
+
+      apiGet.mockReturnValue(NEVER);
+      void store.loadPhotos();
+
+      expect(store.loadError()).toBe(false);
+      expect(store.loading()).toBe(true);
+    });
+
+    it('should ignore a superseded load failure', async () => {
+      const pending = new Subject<PhotosResponse>();
+      apiGet.mockReturnValueOnce(pending.asObservable());
+      const stale = store.loadPhotos();
+
+      const response = makePhotosResponse({ photos: [makePhoto({ filename: 'fresh.jpg' })], total: 1 });
+      apiGet.mockReturnValue(of(response));
+      await store.loadPhotos();
+
+      pending.error(new Error('Network error'));
+      await stale;
+
+      expect(store.loadError()).toBe(false);
+      expect(store.photos()).toEqual(response.photos);
+      expect(store.total()).toBe(1);
+      expect(store.loading()).toBe(false);
     });
 
     it('should pass non-empty filter values as API params', async () => {
@@ -484,6 +556,21 @@ describe('GalleryStore', () => {
 
       expect(store.filters().page).toBe(3);
       expect(store.loading()).toBe(false);
+    });
+
+    it('should notify on error and keep the already-loaded photos', async () => {
+      const existingPhotos = [makePhoto({ filename: 'a.jpg' })];
+      store.photos.set(existingPhotos);
+      store.hasMore.set(true);
+
+      apiGet.mockReturnValue(throwError(() => new Error('Network error')));
+
+      await store.nextPage();
+
+      expect(snackOpen).toHaveBeenCalledWith('gallery.load_error.page_failed', '', expect.anything());
+      expect(store.photos()).toEqual(existingPhotos);
+      expect(store.loadError()).toBe(false);
+      expect(store.hasMore()).toBe(true);
     });
   });
 

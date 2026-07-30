@@ -1046,6 +1046,11 @@
     "semantic_search_placeholder": "pôr do sol na praia...",
     "photo_count": "{count} fotos",
     "no_photos": "Nenhuma foto encontrada",
+    "load_error": {
+      "message": "Não foi possível carregar as fotos — o servidor não respondeu",
+      "retry": "Tentar novamente",
+      "page_failed": "Não foi possível carregar mais fotos — role novamente para tentar de novo"
+    },
     "camera": "Câmera",
     "lens": "Lente",
     "tag": "Tag",

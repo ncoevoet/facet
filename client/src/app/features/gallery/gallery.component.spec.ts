@@ -33,6 +33,7 @@ describe('GalleryComponent', () => {
       photos: signal([]),
       total: signal(0),
       loading: signal(false),
+      loadError: signal(false),
       hasMore: signal(false),
       cameras: signal([]),
       lenses: signal([]),
