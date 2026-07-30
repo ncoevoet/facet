@@ -5,6 +5,7 @@ Filter options router — lazy-loaded dropdown options.
 
 import json
 import logging
+import math
 import sqlite3
 import time
 from typing import Optional
@@ -461,74 +462,128 @@ def location_name(
         return {"display_name": name}
 
 
-# Max rows materialized for the metric histograms (exact min/max come from SQL,
-# so this only bounds the sparkline sample, never the slider bounds).
-_METRIC_RANGE_SAMPLE_CAP = 50000
+# Sparkline resolution for the metric histograms in the filter sidebar.
+_METRIC_RANGE_BINS = 20
+# Key and freshness of the persisted result. Matches the in-process stats TTL
+# and the scenes cache (api/routers/scenes.py), so the DB row only exists to
+# carry the work across a restart.
+_METRIC_RANGES_KEY = 'metric_ranges'
+_METRIC_RANGES_TTL_SECONDS = 3600
 
 
-def _compute_metric_ranges():
+def _metric_bounds(conn, column):
+    """Exact observed ``(min, max)`` for one metric column, ``None`` if all NULL.
+
+    Each aggregate is its own statement so SQLite applies the MIN/MAX
+    optimization over that column's covering index. Asking for all 38 metrics in
+    a single aggregate leaves the planner one index to pick, so it scans
+    ``photos`` instead — and with thumbnails stored inline that drags every BLOB
+    overflow page through the cache (55+ minutes on a 120k-photo library).
+    """
+    v_min = conn.execute(f"SELECT MIN({column}) FROM photos").fetchone()[0]
+    v_max = conn.execute(f"SELECT MAX({column}) FROM photos").fetchone()[0]
+    if v_min is None or v_max is None:
+        return None
+    v_min, v_max = float(v_min), float(v_max)
+    if math.isfinite(v_min) and math.isfinite(v_max):
+        return v_min, v_max
+    # A stored infinity (e.g. an unparsable EXIF aperture) would collapse every
+    # bucket onto one edge, so re-read the bounds over the finite values only.
+    row = conn.execute(
+        f"SELECT MIN({column}), MAX({column}) FROM photos "
+        f"WHERE {column} > ? AND {column} < ?",
+        (float('-inf'), float('inf')),
+    ).fetchone()
+    return (float(row[0]), float(row[1])) if row[0] is not None else None
+
+
+def _metric_buckets(conn, column, v_min, v_max):
+    """Value histogram for one metric column, bucketed by SQL over its index.
+
+    Counting in SQL keeps the scan on the covering index; materializing the
+    values in Python instead pulls whole ``photos`` rows, thumbnail BLOB
+    included. Bucket edges are approximate by design — the sparkline is a UI
+    hint, while the bounds above stay exact. Values outside ``[v_min, v_max]``
+    (a stored infinity) clamp onto the end buckets instead of being dropped.
+    """
+    if v_max <= v_min:
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM photos WHERE {column} IS NOT NULL"
+        ).fetchone()[0]
+        return [int(total)]
+    rows = conn.execute(
+        f"""
+        SELECT MAX(0, MIN(?, CAST(({column} - ?) * ? / ? AS INTEGER))) AS bucket,
+               COUNT(*)
+        FROM photos WHERE {column} IS NOT NULL
+        GROUP BY bucket
+        """,
+        (_METRIC_RANGE_BINS - 1, v_min, _METRIC_RANGE_BINS, v_max - v_min),
+    ).fetchall()
+    buckets = [0] * _METRIC_RANGE_BINS
+    for bucket, count in rows:
+        buckets[int(bucket)] = int(count)
+    return buckets
+
+
+def compute_metric_ranges(conn):
     """Observed min/max and a value histogram per numeric metric column.
 
     Powers data-driven slider bounds (clamping) and the distribution sparkline
-    in the gallery filter sidebar. Bounds are exact (SQL MIN/MAX); the histogram
-    is from a bounded sample. Cached; values are global (not visibility-filtered)
-    since they are only a UI hint.
+    in the gallery filter sidebar. Values are global (not visibility-filtered)
+    since they are only a UI hint. Every statement is scoped to a single column
+    so it rides that column's covering index and never touches row data; also
+    called offline by ``database.py --refresh-stats``.
     """
-    import numpy as np
     from api.routers.gallery import SCORE_RANGE_COLUMNS, EXIF_RANGE_COLUMNS
 
-    metrics = SCORE_RANGE_COLUMNS + EXIF_RANGE_COLUMNS
-    columns = [m[0] for m in metrics]  # hardcoded column names — safe to interpolate
-    n_bins = 20
-    # Histograms are sparkline hints, so a bounded, evenly-spaced sample is enough.
-    # Exact min/max still come from a SQL aggregate (cheap, no row materialization),
-    # so slider bounds stay precise while memory stays O(sample), not O(table).
-    sample_cap = _METRIC_RANGE_SAMPLE_CAP
-    with get_db() as conn:
-        total = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
-        if not total:
-            return {}
-        agg_select = ', '.join(f"MIN({c}), MAX({c})" for c in columns)
-        agg = conn.execute(f"SELECT {agg_select} FROM photos").fetchone()
-        stride = max(1, -(-total // sample_cap))  # ceil(total / sample_cap)
-        if stride > 1:
-            cur = conn.execute(
-                f"SELECT {', '.join(columns)} FROM photos WHERE rowid % {stride} = 0"
-            )
-        else:
-            cur = conn.execute(f"SELECT {', '.join(columns)} FROM photos")
-        rows = cur.fetchall()
-
-    if not rows:
-        return {}
-    # NULL -> nan; slice per column instead of re-iterating rows per metric.
-    matrix = np.array(rows, dtype=float)
-
     result = {}
-    for idx, (_column, min_key, _max_key, _is_float) in enumerate(metrics):
-        v_min, v_max = agg[idx * 2], agg[idx * 2 + 1]
-        if v_min is None or v_max is None:
+    # Column names come from the hardcoded registry — safe to interpolate.
+    for column, min_key, _max_key, _is_float in SCORE_RANGE_COLUMNS + EXIF_RANGE_COLUMNS:
+        bounds = _metric_bounds(conn, column)
+        if bounds is None:
             continue
-        v_min, v_max = float(v_min), float(v_max)
-        values = matrix[:, idx]
-        values = values[np.isfinite(values)]
-        # A non-finite SQL MIN/MAX (e.g. inf from a bad EXIF aperture parse) would
-        # make np.histogram reject the range; fall back to the finite sample bounds.
-        if not np.isfinite(v_min):
-            v_min = float(values.min()) if values.size else 0.0
-        if not np.isfinite(v_max):
-            v_max = float(values.max()) if values.size else v_min
-        if v_max <= v_min:
-            buckets = [int(values.size)]
-        else:
-            counts, _edges = np.histogram(values, bins=n_bins, range=(v_min, v_max))
-            buckets = [int(c) for c in counts]
-        result[min_key] = {'min': v_min, 'max': v_max, 'buckets': buckets}
+        v_min, v_max = bounds
+        result[min_key] = {
+            'min': v_min,
+            'max': v_max,
+            'buckets': _metric_buckets(conn, column, v_min, v_max),
+        }
     return result
+
+
+def _compute_metric_ranges():
+    """Serve the metric ranges from ``stats_cache``, recomputing when stale.
+
+    The persisted row backs the in-process cache so a restart does not re-walk
+    every metric index; ``database.py --refresh-stats`` writes the same row
+    offline.
+    """
+    with get_db() as conn:
+        cached = conn.execute(
+            "SELECT value, updated_at FROM stats_cache WHERE key = ?",
+            (_METRIC_RANGES_KEY,),
+        ).fetchone()
+        if cached and (time.time() - cached[1]) < _METRIC_RANGES_TTL_SECONDS:
+            try:
+                return json.loads(cached[0])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        ranges = compute_metric_ranges(conn)
+        # An unscanned library has nothing worth persisting, and pinning the
+        # empty result would keep the sidebar blank for a whole TTL after the
+        # first scan lands.
+        if ranges:
+            conn.execute(
+                "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+                (_METRIC_RANGES_KEY, json.dumps(ranges), time.time()),
+            )
+            conn.commit()
+        return ranges
 
 
 @router.get("/metric_ranges")
 def metric_ranges(user: CurrentUser = Depends(require_authenticated)):
     """Per-metric observed range and distribution for slider clamping + histograms."""
     from api.config import _get_stats_cached
-    return {'ranges': _get_stats_cached('metric_ranges', _compute_metric_ranges)}
+    return {'ranges': _get_stats_cached(_METRIC_RANGES_KEY, _compute_metric_ranges)}

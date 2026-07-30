@@ -383,7 +383,7 @@ SQLite table `photos` with columns:
 - `user_preferences(user_id, photo_path, star_rating, is_favorite, is_rejected)` - Per-user photo ratings (multi-user mode)
 - `scan_runs(id, started_at, finished_at, status, mode, args_json, total_files, processed_files, failed_files)` - One row per scan invocation (status: running/completed/interrupted/failed; powers `--resume`)
 - `scan_failures(scan_run_id, path, stage, error, timestamp)` - Per-file scan errors (powers `--retry-failed`)
-- `stats_cache(key, value, updated_at)` - Precomputed statistics with TTL (also holds the persisted percentile snapshot for drift tracking)
+- `stats_cache(key, value, updated_at)` - Precomputed statistics with TTL (also holds the persisted percentile snapshot for drift tracking and the `metric_ranges` filter-sidebar bounds/histograms)
 - `photos_fts(path, caption, tags)` - FTS5 virtual table for BM25-ranked text search on captions/tags (content-sync with `photos`)
 - `photos_vec(path, embedding)` - sqlite-vec virtual table for KNN vector search on CLIP/SigLIP embeddings (requires `sqlite-vec`)
 
@@ -397,6 +397,7 @@ For large databases (50k+ photos), the following optimizations are available:
 - Person counts for face recognition filter
 - Category and composition pattern counts
 - Filtered counts (hide blinks, hide bursts)
+- Gallery filter-sidebar metric ranges and sparkline histograms (`metric_ranges`, 1h TTL)
 
 The cache is stored in the `stats_cache` table with a 5-minute TTL. Run `--stats-info` to check cache freshness.
 

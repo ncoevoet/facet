@@ -292,9 +292,13 @@ INDEXES = [
     # these, filtering on a metric walks the full idx_aggregate (126k+ rows)
     # because the planner has no usable index for the predicate.
     ('idx_quality_score', 'photos', 'quality_score'),
+    ('idx_topiq_score', 'photos', 'topiq_score'),
     ('idx_aesthetic_iaa', 'photos', 'aesthetic_iaa'),
     ('idx_face_quality_iqa', 'photos', 'face_quality_iqa'),
     ('idx_liqe_score', 'photos', 'liqe_score'),
+    ('idx_qalign_score', 'photos', 'qalign_score'),
+    ('idx_aesthetic_v25', 'photos', 'aesthetic_v25'),
+    ('idx_deqa_score', 'photos', 'deqa_score'),
     ('idx_eye_sharpness', 'photos', 'eye_sharpness'),
     ('idx_face_sharpness', 'photos', 'face_sharpness'),
     ('idx_face_confidence', 'photos', 'face_confidence'),

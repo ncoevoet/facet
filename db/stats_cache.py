@@ -210,6 +210,20 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
         except sqlite3.OperationalError:
             pass
 
+        # 11. Metric ranges + sparkline histograms for the gallery filter sidebar.
+        # Precomputing offline keeps the first sidebar open off the critical path:
+        # the endpoint walks one covering index per metric column, which is cheap
+        # but not free on a large library.
+        try:
+            from api.routers.filter_options import compute_metric_ranges
+            metric_ranges = compute_metric_ranges(conn)
+            stats['metric_ranges'] = metric_ranges
+            _cache_stat(conn, 'metric_ranges', json.dumps(metric_ranges), now)
+            if verbose:
+                logger.info("  Metric ranges: %d", len(metric_ranges))
+        except sqlite3.OperationalError:
+            pass
+
         conn.commit()
 
     if verbose:
