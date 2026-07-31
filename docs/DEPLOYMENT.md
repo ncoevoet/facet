@@ -194,15 +194,24 @@ Pair with a Let's Encrypt certificate from DSM > Control Panel > Security > Cert
 
 Plus-series NAS supports Docker (Container Manager).
 
-The repository ships a `Dockerfile`, `docker-compose.yml`, and `docker-compose.gpu.yml` at the root. The image bundles the full scoring + viewer stack on a CUDA PyTorch base, builds the Angular client, and exposes port 5000. The viewer runs in CPU mode by default; the GPU override is opt-in.
+### Pulling the published image
+
+`docker-compose.yml` and `docker-compose.gpu.yml` carry an `image:` key alongside `build: .`, so `docker compose up` **pulls** a pre-built image from GHCR instead of building the ~3.3 GB CPU stack (or the ~21 GB CUDA stack) locally:
 
 ```bash
-# Viewer only (CPU)
+# Viewer only (CPU) — pulls ghcr.io/ncoevoet/facet:latest
 docker compose up -d
 
-# With NVIDIA GPU for scoring (requires the NVIDIA Container Toolkit)
+# With NVIDIA GPU for scoring (requires the NVIDIA Container Toolkit) —
+# pulls ghcr.io/ncoevoet/facet:latest-cuda
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
+
+`docker compose build` (or `up --build`) still builds from the `Dockerfile` in this repo for local hacking — the `build:` key stays underneath `image:` for exactly that. The per-profile overlays (`docker-compose.{8gb,16gb,24gb}.yml`) also pull `:latest-cuda`, since all three are GPU profiles; `docker-compose.legacy.yml` (CPU) pulls the base `:latest`.
+
+**Two published tags, one Dockerfile.** `ghcr.io/ncoevoet/facet:latest` is a slim CPU-only build (no CUDA runtime, no RAPIDS cuML — face clustering falls back to CPU HDBSCAN). `ghcr.io/ncoevoet/facet:latest-cuda` is the full CUDA + cuML stack described throughout this doc, unchanged from a local `docker build .`. Both come from the same `Dockerfile`, parametrized by build args (`BASE_IMAGE`, `STRIP_TORCH`, `INSTALL_CUML`) set per variant in `.github/workflows/docker-publish.yml`. Versioned tags (`:1.7.2`, `:1.7`, `:1.7.2-cuda`, `:1.7-cuda`, …) are published alongside `latest`/`latest-cuda` on every `vX.Y.Z` git tag.
+
+> **First publish only:** a new GHCR package defaults to **private**. After the first `docker-publish` workflow run, an owner must flip `ghcr.io/ncoevoet/facet` to **public** (package Settings → Change visibility) — otherwise a fresh clone's `docker compose up` fails to pull with a 401.
 
 A sanitized `scoring_config.default.json` is **baked into the image** as the active config (empty secrets, `vram_profile: auto`, all profiles at their full feature set), so it runs with zero host setup. To customize (weights, viewer password, categories), `cp scoring_config.default.json scoring_config.json`, edit it, and uncomment the config mount in `docker-compose.yml`. Note: the image bundles `exiftool` but **not** darktable, so the config's default `darktable-cli` executable is absent — the optional RAW/darktable-profile download in the viewer stays inert unless you extend the image with (or mount) a `darktable-cli` binary. Scoring, tagging, faces and everything else work regardless. Deploy knobs live in `.env` (copy `.env.example`): `FACET_VRAM_PROFILE`, `PHOTOS_DIR`, `PORT`, and `DB_PATH` (default `/app/data/photo_scores_pro.db`) — the base compose is templated with these. Model caches live in Docker-managed named volumes (`facet-hf-cache`, `facet-insightface`, `facet-pretrained`) so the image is self-contained and the models survive restarts. Select a VRAM profile without editing any config via the per-profile overrides (`docker-compose.{legacy,8gb,16gb}.yml`, which set `FACET_VRAM_PROFILE`) or the generic `docker-compose.gpu.yml`.
 
@@ -349,8 +358,23 @@ First run downloads the profile's models into the named volumes; reset them with
 
 ### Image size & model downloads
 
-The image is large — **~21 GB — but it contains no model weights.** That size is
-all runtime dependencies, dominated by the GPU stack:
+Two variants publish from the same `Dockerfile` — **neither contains model weights**:
+
+| Image | Measured size | Base |
+|-------|------|------|
+| `ghcr.io/ncoevoet/facet:latest` (CPU) | ~3.3 GB | `python:3.12-slim` + CPU-wheel PyTorch |
+| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | ~21 GB | CUDA PyTorch + RAPIDS cuML |
+
+**CPU image** — the headline size for most users, dominated by the ML dependency stack rather than PyTorch itself:
+
+| Layer | Size |
+|-------|------|
+| Python ML deps (opencv, transformers, insightface, pyiqa, scipy, hdbscan, …) | ~1.9 GB |
+| PyTorch + torchvision (CPU wheels) | ~960 MB |
+| System libs (`libgl1`, `libglib2.0-0`, `exiftool`, `gosu`) | ~288 MB |
+| Base OS (`python:3.12-slim`) + app code | ~150 MB |
+
+**CUDA image** — unchanged from the single image this repo published before, still dominated by the GPU stack:
 
 | Layer | Size |
 |-------|------|

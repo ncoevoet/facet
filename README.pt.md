@@ -180,13 +180,13 @@ A pontuação estética é baseada em modelos e aproximada; espere ajustar os pe
 ### Docker (recomendado)
 
 ```bash
-docker compose up
+docker compose up      # baixa ghcr.io/ncoevoet/facet:latest — sem build local
 # Open http://localhost:5000
 ```
 
-Isso roda em modo CPU — nenhuma GPU é necessária para navegar e servir uma biblioteca existente. Monte o diretório de suas fotos no `docker-compose.yml`.
+`docker compose up` baixa a imagem CPU publicada em vez de construir a stack localmente; `docker compose build` continua construindo a partir deste repositório para alterações locais. Isso roda em modo CPU — nenhuma GPU é necessária para navegar e servir uma biblioteca existente. Monte o diretório de suas fotos no `docker-compose.yml`.
 
-**Aceleração por GPU** (opcional) requer uma GPU NVIDIA e o [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Habilite-a com o arquivo de override:
+**Aceleração por GPU** (opcional) requer uma GPU NVIDIA e o [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Habilite-a com o arquivo de override (baixa a imagem `:latest-cuda`):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
