@@ -626,6 +626,8 @@ Nessuna delle due leve rivaluta da sola le foto. Dopo aver riordinato le priorit
 
 Per riassegnare la categoria di una foto dalla vista di confronto: modifica il badge della categoria, seleziona una categoria di destinazione, esegui "Analizza conflitti filtri" per vedere quali filtri la escludono, quindi applica la sovrascrittura. La sovrascrittura viene convalidata rispetto ai nomi di categoria configurati (`POST /api/comparison/override_category`) e ora persiste nella tabella satellite `photo_scoring_overrides` — a differenza di prima, sopravvive al ricalcolo successivo invece di essere scartata silenziosamente, e la foto mantiene la categoria assegnata manualmente finché non viene rimossa esplicitamente (`POST /api/comparison/clear_category_override`).
 
+Le stesse due azioni sono disponibili nella lightbox della foto sotto **Imposta categoria di punteggio…** / **Rimuovi sovrascrittura** (modalità edizione), accanto a un pannello richiudibile **perché questa foto non è in un'altra categoria?**. Scegli lì una categoria di destinazione e il pannello riporta quali filtri escludono attualmente la foto e cosa dovrebbe diventare ciascuno — per esempio «Aumentare shutter_speed_max da 0,02 a 0,033». È il modo più rapido per scoprire che una categoria è irraggiungibile per una data foto anziché semplicemente scavalcata, cosa che il solo riordino non può correggere. Si basa su `POST /api/comparison/suggest_filters`.
+
 ## Statistiche EXIF
 
 La pagina Statistiche (`/stats`) fornisce analisi su 5 schede. Usa i selettori **categoria** e **intervallo di date** nella barra degli strumenti per filtrare tutti i grafici su un sottoinsieme specifico della tua libreria.

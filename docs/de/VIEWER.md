@@ -626,6 +626,8 @@ Keiner der beiden Hebel bewertet Fotos von sich aus neu. Nach dem Neuordnen von 
 
 Um die Kategorie eines Fotos aus der Vergleichsansicht neu zuzuweisen: Bearbeiten Sie das Kategorieabzeichen, wählen Sie eine Zielkategorie, führen Sie „Filterkonflikte analysieren" aus, um zu sehen, welche Filter es ausschließen, und wenden Sie dann die Überschreibung an. Die Überschreibung wird gegen die konfigurierten Kategorienamen validiert (`POST /api/comparison/override_category`) und wird nun in der separaten Tabelle `photo_scoring_overrides` gespeichert – anders als zuvor übersteht sie die nächste Neuberechnung, statt stillschweigend verworfen zu werden, und das Foto behält die manuell zugewiesene Kategorie, bis sie explizit zurückgesetzt wird (`POST /api/comparison/clear_category_override`).
 
+Dieselben zwei Aktionen stehen in der Foto-Lightbox unter **Bewertungskategorie festlegen…** / **Überschreibung entfernen** zur Verfügung (Edition), zusammen mit einem aufklappbaren Bereich **Warum gehört dieses Foto nicht zu einer anderen Kategorie?**. Wählen Sie dort eine Zielkategorie, und der Bereich zeigt, welche Filter das Foto derzeit ausschließen und welchen Wert jeder annehmen müsste – zum Beispiel „shutter_speed_max von 0,02 auf 0,033 erhöhen“. So lässt sich am schnellsten feststellen, ob eine Kategorie für ein Foto unerreichbar ist statt nur überstimmt – was sich durch Umsortieren allein nicht beheben lässt. Dahinter steht `POST /api/comparison/suggest_filters`.
+
 ## EXIF-Statistiken
 
 Die Statistik-Seite (`/stats`) bietet Auswertungen über 5 Tabs. Verwenden Sie die Selektoren für **Kategorie** und **Zeitraum** in der Symbolleiste, um alle Diagramme auf eine bestimmte Teilmenge Ihrer Bibliothek zu filtern.

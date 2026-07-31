@@ -625,6 +625,8 @@ Nenhuma das duas alavancas repontua fotos por si só. Após reordenar prioridade
 
 Para reatribuir a categoria de uma foto a partir da visão de comparação: edite o selo de categoria, selecione uma categoria de destino, execute "Analisar Conflitos de Filtro" para ver quais filtros a excluem, depois aplique a substituição. A substituição é validada contra os nomes de categoria configurados (`POST /api/comparison/override_category`) e agora persiste na tabela auxiliar `photo_scoring_overrides` — diferente de antes, ela sobrevive ao próximo recálculo em vez de ser descartada silenciosamente, e a foto mantém a categoria atribuída manualmente até que seja explicitamente removida (`POST /api/comparison/clear_category_override`).
 
+As mesmas duas ações estão disponíveis na lightbox da foto em **Definir categoria de pontuação…** / **Remover substituição** (modo edição), ao lado de um painel recolhível **por que esta foto não está em outra categoria?**. Escolha ali uma categoria de destino e o painel informa quais filtros excluem atualmente a foto e no que cada um teria de se tornar — por exemplo «Aumentar shutter_speed_max de 0,02 para 0,033». É a maneira mais rápida de descobrir que uma categoria é inalcançável para uma foto específica em vez de apenas superada em prioridade, algo que reordenar sozinho não corrige. É baseado em `POST /api/comparison/suggest_filters`.
+
 ## Estatísticas EXIF
 
 A página de Estatísticas (`/stats`) fornece análises em 5 abas. Use os seletores de **categoria** e **intervalo de datas** na barra de ferramentas para filtrar todos os gráficos para um subconjunto específico da sua biblioteca.

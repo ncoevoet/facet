@@ -625,6 +625,8 @@ Ninguna de las dos palancas vuelve a puntuar las fotos por sí sola. Tras reorde
 
 Para reasignar la categoría de una foto desde la vista de comparación: edita la insignia de categoría, selecciona una categoría de destino, ejecuta "Analizar conflictos de filtro" para ver qué filtros la excluyen, y luego aplica la anulación. La anulación se valida contra los nombres de categoría configurados (`POST /api/comparison/override_category`) y ahora persiste en la tabla auxiliar `photo_scoring_overrides` — a diferencia de antes, sobrevive al siguiente recálculo en lugar de descartarse en silencio, y la foto conserva la categoría asignada manualmente hasta que se borra explícitamente (`POST /api/comparison/clear_category_override`).
 
+Las mismas dos acciones están disponibles en el visor de fotos en **Establecer categoría de puntuación…** / **Borrar anulación** (modo edición), junto a un panel plegable **¿por qué esta foto no está en otra categoría?**. Selecciona ahí una categoría de destino y el panel indica qué filtros excluyen actualmente la foto y en qué debería convertirse cada uno — por ejemplo «Subir shutter_speed_max de 0,02 a 0,033». Es la forma más rápida de descubrir que una categoría es inalcanzable para una foto concreta en lugar de estar simplemente superada en prioridad, algo que reordenar por sí solo no puede corregir. Se apoya en `POST /api/comparison/suggest_filters`.
+
 ## Estadísticas EXIF
 
 La página de estadísticas (`/stats`) proporciona análisis en 5 pestañas. Usa los selectores de **categoría** y **rango de fechas** de la barra de herramientas para filtrar todos los gráficos a un subconjunto específico de tu biblioteca.

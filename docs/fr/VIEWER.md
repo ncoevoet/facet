@@ -626,6 +626,8 @@ Aucun des deux leviers ne renote les photos par lui-même. Après avoir réorgan
 
 Pour réaffecter la catégorie d'une photo depuis la vue de comparaison : éditez le badge de catégorie, sélectionnez une catégorie cible, lancez « Analyser les conflits de filtres » pour voir quels filtres l'excluent, puis appliquez le remplacement. Le remplacement est validé par rapport aux noms de catégorie configurés (`POST /api/comparison/override_category`) et est désormais conservé dans la table annexe `photo_scoring_overrides` — contrairement à avant, il survit au prochain recalcul au lieu d'être silencieusement perdu, et la photo conserve la catégorie attribuée manuellement jusqu'à ce qu'elle soit explicitement réinitialisée (`POST /api/comparison/clear_category_override`).
 
+Les deux mêmes actions sont disponibles dans la visionneuse photo sous **Définir la catégorie de notation…** / **Supprimer le remplacement** (mode édition), aux côtés d'un panneau repliable **pourquoi cette photo n'est-elle pas dans une autre catégorie ?**. Choisissez-y une catégorie cible et le panneau indique quels filtres excluent actuellement la photo et ce que chacun devrait devenir — par exemple « Augmenter shutter_speed_max de 0,02 à 0,033 ». C'est le moyen le plus rapide de découvrir qu'une catégorie est inaccessible pour une photo donnée plutôt que simplement devancée, ce qu'un réordonnancement seul ne peut pas corriger. Ce panneau s'appuie sur `POST /api/comparison/suggest_filters`.
+
 ## Statistiques EXIF
 
 La page Statistiques (`/stats`) fournit des analyses réparties sur 5 onglets. Utilisez les sélecteurs **catégorie** et **plage de dates** dans la barre d'outils pour filtrer tous les graphiques sur un sous-ensemble spécifique de votre bibliothèque.

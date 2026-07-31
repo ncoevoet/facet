@@ -639,6 +639,8 @@ Neither lever rescores photos by itself. After reordering priorities, assigning 
 
 To reassign a photo's category from the comparison view: edit the category badge, select a target category, run "Analyze Filter Conflicts" to see which filters exclude it, then apply the override. The override is validated against the configured category names (`POST /api/comparison/override_category`) and now persists in the `photo_scoring_overrides` side table — unlike before, it survives the next recompute instead of being silently discarded, and the photo keeps the manually assigned category until it is explicitly cleared (`POST /api/comparison/clear_category_override`).
 
+The same two actions are available in the photo lightbox under **Set scoring category…** / **Clear override** (edition-gated), alongside a collapsible **why isn't this a different category?** panel. Pick a target category there and the panel reports which filters currently exclude the photo and what each one would have to become — for example *"Raise shutter_speed_max from 0.02 to 0.033"*. This is the quickest way to find out that a category is unreachable for a given photo rather than merely out-ranked, which reordering alone cannot fix. It is backed by `POST /api/comparison/suggest_filters`.
+
 ## EXIF Statistics
 
 The Stats page (`/stats`) provides analytics across 5 tabs. Use the **category** and **date range** selectors in the toolbar to filter all charts to a specific subset of your library.
