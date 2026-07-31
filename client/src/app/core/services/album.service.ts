@@ -12,9 +12,22 @@ export interface Album {
   is_smart: boolean;
   is_shared: boolean;
   smart_filter_json: string | null;
+  scoring_context: string | null;
   photo_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface AlbumScoringContextResult {
+  updated: number;
+  conflicts: number;
+}
+
+export interface AlbumSuggestedContext {
+  suggested: string | null;
+  moment: string | null;
+  share: number;
+  counts: Record<string, number>;
 }
 
 export interface AlbumPhotosResponse {
@@ -81,6 +94,16 @@ export class AlbumService {
 
   getShared(albumId: number, token: string): Observable<{ album: Album; photos: Photo[]; total: number }> {
     return this.api.get(`/shared/album/${albumId}`, { token });
+  }
+
+  /** Set the album's scoring context; materializes it onto member photos (last-write-wins). */
+  setScoringContext(albumId: number, scoringContext: string): Observable<AlbumScoringContextResult> {
+    return this.api.put(`/albums/${albumId}/scoring_context`, { scoring_context: scoringContext });
+  }
+
+  /** Suggest a scoring context from the album's dominant narrative moment. Writes nothing. */
+  getSuggestedContext(albumId: number): Observable<AlbumSuggestedContext> {
+    return this.api.get(`/albums/${albumId}/suggested_context`);
   }
 
 }

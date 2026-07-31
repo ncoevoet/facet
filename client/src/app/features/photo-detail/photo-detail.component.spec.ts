@@ -2,7 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Location } from '@angular/common';
-import { of, Subject } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { signal } from '@angular/core';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -453,6 +453,58 @@ describe('PhotoDetailComponent', () => {
       previewSubjects[0].next({ source: 'saliency' });
       await new Promise<void>(resolve => setTimeout(resolve, 0));
       expect(component.socialCropSource()).toBe('faces');
+    });
+  });
+
+  describe('clearCategoryOverride', () => {
+    it('posts to the clear_category_override endpoint', async () => {
+      mockApi.post.mockReturnValue(of({ success: true, path: '/photos/test.jpg' }));
+      createComponent();
+      component.photo.set(samplePhoto);
+
+      await component.clearCategoryOverride(samplePhoto);
+
+      expect(mockApi.post).toHaveBeenCalledWith('/comparison/clear_category_override', { path: '/photos/test.jpg' });
+    });
+
+    it('does not throw when the API call fails', async () => {
+      mockApi.post.mockReturnValue(throwError(() => new Error('boom')));
+      createComponent();
+      component.photo.set(samplePhoto);
+
+      await expect(component.clearCategoryOverride(samplePhoto)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('toggleExplainer', () => {
+    it('opens the panel and lazily loads the category list once', () => {
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/config/category_priorities') {
+          return of({ categories: [{ name: 'portrait' }, { name: 'sports' }] });
+        }
+        return of(samplePhoto);
+      });
+      createComponent();
+
+      component.toggleExplainer();
+
+      expect(component.explainerOpen()).toBe(true);
+      expect(mockApi.get).toHaveBeenCalledWith('/config/category_priorities');
+    });
+
+    it('closes without refetching categories', () => {
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/config/category_priorities') return of({ categories: [{ name: 'portrait' }] });
+        return of(samplePhoto);
+      });
+      createComponent();
+
+      component.toggleExplainer();
+      mockApi.get.mockClear();
+      component.toggleExplainer();
+
+      expect(component.explainerOpen()).toBe(false);
+      expect(mockApi.get).not.toHaveBeenCalledWith('/config/category_priorities');
     });
   });
 });

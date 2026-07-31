@@ -19,6 +19,7 @@ import { ComparisonWeightsTabComponent } from './comparison-weights-tab.componen
 import { ComparisonSnapshotsTabComponent } from './comparison-snapshots-tab.component';
 import { ComparisonAbTabComponent } from './comparison-ab-tab.component';
 import { ComparisonSuggestionsTabComponent } from './comparison-suggestions-tab.component';
+import { ComparisonPriorityTabComponent } from './comparison-priority-tab.component';
 import { I18N } from '../../core/i18n/keys';
 
 Chart.register(...registerables);
@@ -37,6 +38,7 @@ Chart.register(...registerables);
     ComparisonSnapshotsTabComponent,
     ComparisonAbTabComponent,
     ComparisonSuggestionsTabComponent,
+    ComparisonPriorityTabComponent,
   ],
   template: `
     <div class="p-4 md:p-6 max-w-screen-2xl mx-auto">
@@ -155,6 +157,15 @@ Chart.register(...registerables);
             </ng-template>
             <app-comparison-weights-tab #weightsTabEl />
           </mat-tab>
+
+          <!-- Scoring context tab -->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <mat-icon class="mr-2">low_priority</mat-icon>
+              {{ I18N.comparison.context.tab_label | translate }}
+            </ng-template>
+            <app-comparison-priority-tab #priorityTabEl />
+          </mat-tab>
         </mat-tab-group>
       }
     </div>
@@ -174,9 +185,10 @@ export class ComparisonComponent {
   protected readonly snapshotsTab = viewChild<ComparisonSnapshotsTabComponent>('snapshotsTabEl');
   protected readonly abTab = viewChild<ComparisonAbTabComponent>('abTabEl');
   protected readonly suggestionsTab = viewChild<ComparisonSuggestionsTabComponent>('suggestionsTabEl');
+  protected readonly priorityTab = viewChild<ComparisonPriorityTabComponent>('priorityTabEl');
   protected readonly compareToolbar = viewChild<TemplateRef<unknown>>('compareToolbar');
 
-  /** Active tab (0 Snapshots, 1 Compare, 2 Suggestions, 3 Weights) — drives the contextual top bar. */
+  /** Active tab (0 Snapshots, 1 Compare, 2 Suggestions, 3 Weights, 4 Scoring context) — drives the contextual top bar. */
   protected readonly selectedTabIndex = signal(0);
 
   /** Total comparisons (all sources) + threshold, to gate the Weight Suggestions tab. */
@@ -237,6 +249,9 @@ export class ComparisonComponent {
     this.selectedTabIndex.set(index);
     if (index === 1 && !this.abTab()?.pairA() && !this.abTab()?.pairLoading()) {
       void this.abTab()?.loadNextPair();
+    }
+    if (index === 4) {
+      this.priorityTab()?.activateOverlap();
     }
   }
 

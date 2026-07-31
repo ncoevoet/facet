@@ -19,6 +19,7 @@ import { CreateAlbumDialogComponent } from './create-album-dialog.component';
 import { EditAlbumDialogComponent } from './edit-album-dialog.component';
 import { ClientPicksDialogComponent, ClientPicksDialogData } from './client-picks-dialog.component';
 import { PortfolioExportDialogComponent, PortfolioExportDialogData } from './portfolio-export-dialog.component';
+import { AlbumScoringContextDialogComponent, AlbumScoringContextDialogData } from './album-scoring-context-dialog.component';
 import { AlbumsFiltersService } from './albums-filters.service';
 import { ShareDialogComponent, ShareDialogData } from '../../shared/components/share-dialog/share-dialog.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
@@ -142,6 +143,13 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
                           [matTooltip]="I18N.albums.portfolio | translate"
                           (click)="exportPortfolio($event, album)">
                     <mat-icon class="opacity-60">web</mat-icon>
+                  </button>
+                }
+                @if (!album.is_smart) {
+                  <button mat-icon-button
+                          [matTooltip]="I18N.albums.scoring_context.action | translate"
+                          (click)="openScoringContext($event, album)">
+                    <mat-icon class="opacity-60">tune</mat-icon>
                   </button>
                 }
                 <button mat-icon-button
@@ -300,6 +308,19 @@ export class AlbumsComponent {
     await firstValueFrom(this.albumService.delete(album.id));
     this.albums.update(list => list.filter(a => a.id !== album.id));
     this.total.update(t => t - 1);
+  }
+
+  protected async openScoringContext(event: Event, album: Album): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    const newContext = await firstValueFrom(this.dialog.open(AlbumScoringContextDialogComponent, {
+      data: { albumId: album.id, albumName: album.name, currentContext: album.scoring_context } satisfies AlbumScoringContextDialogData,
+      width: '95vw',
+      maxWidth: '32rem',
+    }).afterClosed());
+    if (newContext) {
+      this.albums.update(list => list.map(a => a.id === album.id ? { ...a, scoring_context: newContext } : a));
+    }
   }
 
   protected exportPortfolio(event: Event, album: Album): void {
