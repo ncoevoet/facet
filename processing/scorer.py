@@ -5,6 +5,7 @@ Facet class and supporting functions extracted from facet.py.
 """
 import os
 import sys
+import time
 import sqlite3
 
 # Ensure the script's directory is in Python path for local imports
@@ -1400,6 +1401,7 @@ class Facet:
             overrides = get_photo_scoring_overrides(conn)
 
             emit_progress('recompute', 0, row_count, force=True)
+            recompute_t0 = time.time()
             for i, row in enumerate(tqdm(rows, desc="Updating DB")):
                 row_dict = dict(row)
                 photo_override = overrides.get(row_dict['path'], {})
@@ -1502,7 +1504,10 @@ class Facet:
                         ) from e
                     raise
 
-                emit_progress('recompute', i + 1, row_count)
+                processed = i + 1
+                elapsed = time.time() - recompute_t0
+                emit_progress('recompute', processed, row_count,
+                              eta_seconds=(row_count - processed) * elapsed / processed)
 
             conn.commit()
 
