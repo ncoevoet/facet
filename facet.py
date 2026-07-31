@@ -5,6 +5,7 @@ Facet - AI-powered photo quality assessment system.
 CLI entry point. The scoring engine is in processing/scorer.py.
 """
 import os
+import signal
 import sys
 import time
 
@@ -553,6 +554,118 @@ def run_junk_detection(db_path, config, model_manager=None, only_missing=True,
         'junk_count': junk_count,
         'spread': dict(spread.most_common()),
     }
+
+
+LIBRARY_LOCK_DIRNAME = '.facet_cache'
+LIBRARY_LOCK_FILENAME = 'library.lock'
+JOB_ORIGIN_ENV_VAR = 'FACET_JOB_ORIGIN'
+
+
+class LibraryLockError(RuntimeError):
+    """Raised when another process already holds the library-rewrite lock."""
+
+
+def _library_lock_path(db_path):
+    db_dir = os.path.dirname(os.path.abspath(db_path))
+    return os.path.join(db_dir, LIBRARY_LOCK_DIRNAME, LIBRARY_LOCK_FILENAME)
+
+
+def _pid_is_alive(pid):
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _read_live_holder(lock_path):
+    try:
+        with open(lock_path) as f:
+            info = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return info if _pid_is_alive(info.get('pid')) else None
+
+
+def library_job_holder(db_path):
+    """Info about the live process holding the library lock, or None."""
+    return _read_live_holder(_library_lock_path(db_path))
+
+
+def library_job_conflict_message(holder):
+    return (
+        f"A {holder['kind']} is already running (pid {holder['pid']}, "
+        f"started from {holder['origin']})."
+    )
+
+
+class LibraryLock:
+    """Cross-process mutex for jobs that rewrite the whole ``photos`` table.
+
+    ``--recompute-average`` batches ~126k UPDATEs into one long transaction
+    (``processing/scorer.py: update_all_aggregates``); a second writer that
+    lands mid-transaction blocks for ``busy_timeout`` and then dies with
+    ``sqlite3.OperationalError``. Backed by a PID-stamped file next to the DB
+    (``<db_dir>/.facet_cache/library.lock``, the cache-dir convention from
+    ``api/routers/cull_preview.py``) rather than the ``scan_runs`` table, so a
+    crashed holder is detected immediately via OS PID liveness instead of a
+    multi-minute heartbeat timeout -- and the recompute loop never has to be
+    taught to send heartbeats mid-transaction.
+    """
+
+    def __init__(self, db_path, kind):
+        self.lock_path = _library_lock_path(db_path)
+        self.kind = kind
+        self.origin = os.environ.get(JOB_ORIGIN_ENV_VAR, 'cli')
+        self._held = False
+        self._prev_sigterm_handler = None
+
+    def acquire(self):
+        os.makedirs(os.path.dirname(self.lock_path), exist_ok=True)
+        for _attempt in range(2):
+            try:
+                fd = os.open(self.lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            except FileExistsError:
+                holder = _read_live_holder(self.lock_path)
+                if holder is not None:
+                    raise LibraryLockError(library_job_conflict_message(holder))
+                try:
+                    os.remove(self.lock_path)
+                except OSError:
+                    pass
+                continue
+            with os.fdopen(fd, 'w') as f:
+                json.dump(
+                    {'pid': os.getpid(), 'kind': self.kind, 'origin': self.origin,
+                     'started_at': time.time()},
+                    f,
+                )
+            self._held = True
+            self._prev_sigterm_handler = signal.signal(signal.SIGTERM, signal.default_int_handler)
+            return self
+        raise LibraryLockError("Could not acquire the library lock (contended).")
+
+    def release(self):
+        if self._held:
+            signal.signal(signal.SIGTERM, self._prev_sigterm_handler)
+            try:
+                os.remove(self.lock_path)
+            except OSError:
+                pass
+            self._held = False
+
+    def __enter__(self):
+        return self.acquire()
+
+    def __exit__(self, exc_type, exc, tb):
+        self.release()
+        return False
 
 
 def main():
@@ -2198,34 +2311,43 @@ Configuration:
 
     # Recompute average scores (lightweight - no GPU needed)
     if args.recompute_average or args.recompute_category:
-        scorer = Facet(db_path=args.db, config_path=args.config, lightweight=True)
-        normalizer = None
-        norm_settings = scorer.config.get_normalization_settings()
-        if norm_settings.get('method') == 'percentile':
-            logger.info("Computing percentiles for normalization...")
-            per_category = norm_settings.get('per_category', False)
-            category_min_samples = norm_settings.get('category_min_samples', 50)
-            normalizer = PercentileNormalizer(
-                scorer.db_path,
-                target_percentile=norm_settings.get('percentile_target', 95),
-                per_category=per_category,
-                category_min_samples=category_min_samples
-            )
-            normalizer.compute_percentiles()
+        from processing.scan_state import scan_in_progress
+        if scan_in_progress(args.db):
+            logger.error("A scan appears to be running; wait for it to finish before recomputing.")
+            exit(1)
+        try:
+            with LibraryLock(args.db, kind='recompute'):
+                scorer = Facet(db_path=args.db, config_path=args.config, lightweight=True)
+                normalizer = None
+                norm_settings = scorer.config.get_normalization_settings()
+                if norm_settings.get('method') == 'percentile':
+                    logger.info("Computing percentiles for normalization...")
+                    per_category = norm_settings.get('per_category', False)
+                    category_min_samples = norm_settings.get('category_min_samples', 50)
+                    normalizer = PercentileNormalizer(
+                        scorer.db_path,
+                        target_percentile=norm_settings.get('percentile_target', 95),
+                        per_category=per_category,
+                        category_min_samples=category_min_samples
+                    )
+                    normalizer.compute_percentiles()
 
-        scorer.update_all_aggregates(
-            use_embeddings=True,
-            normalizer=normalizer,
-            category_filter=args.recompute_category,
-        )
-        if normalizer is not None:
-            with get_connection(scorer.db_path, row_factory=False) as conn:
-                normalizer.save_to_stats_cache(conn)
-                conn.commit()
-            logger.info("Persisted percentile snapshot for drift tracking")
-        if not args.recompute_category:
-            process_bursts(scorer.db_path, scorer.config.config_path)
-        logger.info("Recalculation done.")
+                scorer.update_all_aggregates(
+                    use_embeddings=True,
+                    normalizer=normalizer,
+                    category_filter=args.recompute_category,
+                )
+                if normalizer is not None:
+                    with get_connection(scorer.db_path, row_factory=False) as conn:
+                        normalizer.save_to_stats_cache(conn)
+                        conn.commit()
+                    logger.info("Persisted percentile snapshot for drift tracking")
+                if not args.recompute_category:
+                    process_bursts(scorer.db_path, scorer.config.config_path)
+                logger.info("Recalculation done.")
+        except LibraryLockError as e:
+            logger.error(str(e))
+            exit(1)
         exit()
 
     # Import XMP sidecars back into the DB (lightweight - no GPU needed)
@@ -2575,6 +2697,18 @@ Configuration:
                          "finishes, or wait %ds for its heartbeat to go stale.", stale_seconds)
             exit(1)
         logger.warning("A scan appears to be running concurrently; starting a separate run.")
+
+    # A recompute holds one long write transaction across the whole photos
+    # table (see LibraryLock); starting a scan into it risks the same
+    # SQLITE_BUSY crash, so refuse outright rather than warn.
+    recompute_holder = library_job_holder(args.db)
+    if recompute_holder is not None:
+        logger.error(
+            "A %s is currently running (pid %s, started from %s); wait for it to finish "
+            "before scanning.",
+            recompute_holder['kind'], recompute_holder['pid'], recompute_holder['origin'],
+        )
+        exit(1)
 
     scan_mode = (f"pass:{args.single_pass_name}" if args.single_pass_name
                  else 'single-pass' if args.single_pass else 'multi-pass')

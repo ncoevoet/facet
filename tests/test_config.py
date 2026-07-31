@@ -305,6 +305,105 @@ class TestScoringContexts:
         second_names = [name for name, _ in scoring_config.resolve_context_order("landscape")]
         assert first_names == second_names
 
+    def test_validate_categories_passes_for_shipped_scoring_contexts(self, scoring_config):
+        """The shipped scoring_contexts block raises no validation issues."""
+        ok, issues = scoring_config.validate_categories(verbose=False)
+        assert ok is True
+        assert not any(issue.startswith("scoring_contexts.") for issue in issues)
+
+
+class TestValidateCategoriesScoringContexts:
+    """validate_categories() reports config mistakes in scoring_contexts rather
+    than silently dropping them (typo'd names, promote/excluded overlaps, and
+    suggest_from_moments entries that don't exist)."""
+
+    _CATEGORIES = [
+        {"name": "silhouette", "priority": 10, "filters": {}},
+        {"name": "sports", "priority": 20, "filters": {}},
+        {"name": "wildlife", "priority": 30, "filters": {}},
+        {"name": "default", "priority": 999, "filters": {}},
+    ]
+
+    def _config_with(self, tmp_path, scoring_contexts, narrative_moments=None):
+        config_path = tmp_path / "scoring_config.json"
+        config = {
+            "categories": self._CATEGORIES,
+            "scoring_contexts": scoring_contexts,
+            "narrative_moments": narrative_moments or {
+                "default_event_type": "general",
+                "event_types": {"general": {"sports": [], "nature_wildlife": []}},
+            },
+        }
+        config_path.write_text(json.dumps(config))
+        return ScoringConfig(config_path=str(config_path), validate=False)
+
+    def test_unknown_promote_name_is_reported(self, tmp_path):
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": ["wildlfe", "sports"], "excluded": [],
+                    "suggest_from_moments": []},
+        })
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any("promote references unknown category 'wildlfe'" in i for i in issues)
+
+    def test_unknown_excluded_name_is_reported(self, tmp_path):
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": [], "excluded": ["silhouete"],
+                    "suggest_from_moments": []},
+        })
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any("excluded references unknown category 'silhouete'" in i for i in issues)
+
+    def test_name_in_both_promote_and_excluded_is_reported(self, tmp_path):
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": ["sports"], "excluded": ["sports"],
+                    "suggest_from_moments": []},
+        })
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any(
+            "'sports' is listed in both promote and excluded" in i and "excluded wins" in i
+            for i in issues
+        )
+
+    def test_unknown_suggest_from_moments_entry_is_reported(self, tmp_path):
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": [], "excluded": [],
+                    "suggest_from_moments": ["not_a_real_moment"]},
+        })
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any(
+            "suggest_from_moments references unknown moment 'not_a_real_moment'" in i
+            for i in issues
+        )
+
+    def test_valid_context_reports_nothing(self, tmp_path):
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": ["sports"], "excluded": ["silhouette"],
+                    "suggest_from_moments": ["sports"]},
+        })
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is True
+        assert issues == []
+
+    def test_typo_does_not_silently_change_resolved_order(self, tmp_path):
+        """The adversarial repro: typo'd promote/excluded names are dropped by
+        resolve_context_order with no error — validate_categories is what
+        surfaces the mistake."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": ["wildlfe", "Wildlife", "sports"],
+                    "excluded": ["silhouete"], "suggest_from_moments": []},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert order[0] == "sports"
+        assert "silhouette" in order
+
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert len(issues) >= 3
+
 
 class TestResolveContextOrderEdgeCases:
     """resolve_context_order edge cases, isolated from the real scoring_config.json

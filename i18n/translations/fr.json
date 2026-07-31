@@ -1471,6 +1471,7 @@
       "recompute_now": "Recalculer maintenant",
       "recompute_progress": "{current} / {total} photos",
       "recompute_done": "Recalcul terminé",
+      "recompute_failed": "Le recalcul a échoué — les scores sont toujours obsolètes",
       "recompute_conflict": "Une tâche est déjà en cours. Réessayez une fois qu'elle sera terminée.",
       "error_recompute": "Échec du démarrage du recalcul",
       "explainer_title": "Pourquoi cette photo n'est-elle pas classée dans cette catégorie ?",

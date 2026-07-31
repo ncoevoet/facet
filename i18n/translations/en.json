@@ -1469,6 +1469,7 @@
       "recompute_now": "Recompute now",
       "recompute_progress": "{current} / {total} photos",
       "recompute_done": "Recompute complete",
+      "recompute_failed": "Recompute failed — scores are still out of date",
       "recompute_conflict": "A job is already running. Try again once it finishes.",
       "error_recompute": "Failed to start recompute",
       "explainer_title": "Why isn't this photo classified as this category?",

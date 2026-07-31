@@ -547,10 +547,17 @@ def delete_album(
     album_id: int,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Delete an album and its photo associations."""
+    """Delete an album and its photo associations.
+
+    ``photo_scoring_overrides`` has no FK to ``albums``, so deleting the
+    album alone would leave every member permanently stamped with its
+    scoring context. Clear only the overrides this album set (``source =
+    'album:<id>'``) before dropping the album's own rows.
+    """
     with get_db() as conn:
         user_id = _get_user_id(user)
         _check_album_access(conn, album_id, user_id)
+        _clear_album_context_overrides(conn, album_id)
         conn.execute("DELETE FROM album_photos WHERE album_id = ?", (album_id,))
         conn.execute("DELETE FROM albums WHERE id = ?", (album_id,))
         conn.commit()
@@ -571,6 +578,68 @@ def _apply_album_scoring_context(conn, album_id, paths):
     from db.scoring_overrides import set_photo_scoring_override
     for path in _existing_photo_paths(conn, paths):
         set_photo_scoring_override(conn, path, scoring_context=context, source=f'album:{album_id}')
+
+
+def _resolve_album_member_paths(conn, album_row):
+    """Resolve an album's CURRENT member photo paths, sync.
+
+    Smart albums carry no rows in ``album_photos`` — membership is computed
+    at read time from ``smart_filter_json``. This mirrors the smart branch of
+    ``_fetch_album_photos`` (owner-scoped visibility, saved filters via
+    ``_build_gallery_where``) rather than reimplementing filter evaluation,
+    just without pagination since callers here need every match. Regular
+    albums read ``album_photos`` directly, unchanged.
+
+    Either way this is a snapshot of membership NOW: a caller that
+    materializes something onto these paths (e.g. a scoring context) is
+    stamping today's members, not subscribing to the filter — photos that
+    start matching a smart filter later are not included.
+    """
+    if album_row['is_smart'] and album_row['smart_filter_json']:
+        from api.routers.gallery import _build_gallery_where
+        owner_id = album_row['user_id']
+        saved_filters = _normalize_smart_filters(json.loads(album_row['smart_filter_json']))
+        where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=owner_id)
+        from_clause, from_params = get_photos_from_clause(owner_id)
+        where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        rows = conn.execute(
+            f"SELECT path FROM {from_clause}{where_str}", from_params + sql_params
+        ).fetchall()
+        return [r['path'] for r in rows]
+
+    rows = conn.execute(
+        "SELECT photo_path FROM album_photos WHERE album_id = ?", (album_row['id'],)
+    ).fetchall()
+    return [r['photo_path'] for r in rows]
+
+
+def _clear_album_context_overrides(conn, album_id, paths=None):
+    """Undo this album's scoring_context stamp on ``paths`` (or every member
+    this album stamped, when ``paths`` is None).
+
+    Scoped strictly to rows whose ``source`` is exactly this album's
+    (``album:<id>``, written by ``set_album_scoring_context`` /
+    ``_apply_album_scoring_context``) so a photo's own manual override, or a
+    context a different album set, is never touched. Returns the count
+    cleared.
+    """
+    from db.scoring_overrides import clear_photo_scoring_override
+
+    source = f'album:{album_id}'
+    query = "SELECT photo_path FROM photo_scoring_overrides WHERE source = ? AND scoring_context IS NOT NULL"
+    params = [source]
+    if paths is not None:
+        if not paths:
+            return 0
+        placeholders = ','.join('?' * len(paths))
+        query += f" AND photo_path IN ({placeholders})"
+        params.extend(paths)
+
+    rows = conn.execute(query, params).fetchall()
+    cleared_paths = [r['photo_path'] for r in rows]
+    for path in cleared_paths:
+        clear_photo_scoring_override(conn, path, field='scoring_context')
+    return len(cleared_paths)
 
 
 def _existing_photo_paths(conn, paths):
@@ -648,7 +717,12 @@ def remove_photos_from_album(
     body: AlbumPhotosRequest,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Remove photos from an album (batch)."""
+    """Remove photos from an album (batch).
+
+    Also undoes this album's scoring_context stamp on exactly the removed
+    photos (``source = 'album:<id>'`` only) — remaining members keep it, and
+    a photo's own manual override is never touched.
+    """
     if not body.photo_paths:
         raise HTTPException(status_code=400, detail="photo_paths must not be empty")
     with get_db() as conn:
@@ -660,6 +734,7 @@ def remove_photos_from_album(
             f"DELETE FROM album_photos WHERE album_id = ? AND photo_path IN ({placeholders})",
             [album_id] + body.photo_paths
         )
+        _clear_album_context_overrides(conn, album_id, paths=body.photo_paths)
         conn.execute("UPDATE albums SET updated_at = datetime('now') WHERE id = ?", (album_id,))
         conn.commit()
 
@@ -702,11 +777,21 @@ def set_album_scoring_context(
     body: AlbumScoringContextRequest,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Set the album's scoring context and materialize it onto member photos.
+    """Set the album's scoring context and materialize it onto CURRENT member photos.
 
-    Last-write-wins on member photos that already carry a different context;
-    ``conflicts`` counts how many so the UI can warn before the caller commits
-    to the change.
+    Smart albums have no rows in ``album_photos`` — membership is resolved
+    the same way the read endpoint resolves it (``_resolve_album_member_paths``,
+    mirroring ``_fetch_album_photos``'s smart branch) rather than reading the
+    (always-empty, for a smart album) join table directly. Either way,
+    membership is captured NOW: photos that start matching a smart filter
+    later do not retroactively inherit the context, and ``updated`` reports
+    the real number of photos actually written, which is 0 (flagged via
+    ``warning``) when a smart album currently matches nothing.
+
+    ``conflicts`` counts members whose scoring_context differed from the new
+    value, read immediately before this call overwrites them — informational,
+    not a dry-run preview: the change is already applied by the time the
+    caller sees the count, since this endpoint has no separate commit step.
     """
     from config import ScoringConfig
     from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
@@ -717,17 +802,15 @@ def set_album_scoring_context(
 
     with get_db() as conn:
         user_id = _get_user_id(user)
-        _check_album_access(conn, album_id, user_id)
+        album = _check_album_access(conn, album_id, user_id)
 
         conn.execute(
             "UPDATE albums SET scoring_context = ?, updated_at = datetime('now') WHERE id = ?",
             (body.scoring_context, album_id),
         )
 
-        rows = conn.execute(
-            "SELECT photo_path FROM album_photos WHERE album_id = ?", (album_id,)
-        ).fetchall()
-        paths = _existing_photo_paths(conn, [r['photo_path'] for r in rows])
+        member_paths = _resolve_album_member_paths(conn, album)
+        paths = _existing_photo_paths(conn, member_paths)
 
         existing = get_photo_scoring_overrides(conn, paths=paths)
         conflicts = sum(
@@ -741,7 +824,39 @@ def set_album_scoring_context(
 
         conn.commit()
 
-    return {'updated': len(paths), 'conflicts': conflicts}
+    result = {'updated': len(paths), 'conflicts': conflicts}
+    if bool(album['is_smart']) and not paths:
+        result['warning'] = 'Smart album currently matches no photos; nothing was updated.'
+    return result
+
+
+@router.delete("/api/albums/{album_id}/scoring_context")
+def clear_album_scoring_context(
+    album_id: int,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Clear the album's scoring context and undo it on the members it set.
+
+    A scoring context assigned via ``PUT .../scoring_context`` had no way to
+    be unset: the album's own ``scoring_context`` stayed stamped forever
+    (deleting the album or removing photos left ``photo_scoring_overrides``
+    untouched, since that table carries no FK to ``albums``). Only overrides
+    whose ``source`` is exactly this album's (``album:<id>``) are cleared, so
+    a member's own manual override, or a context a different album set, is
+    left untouched.
+    """
+    with get_db() as conn:
+        user_id = _get_user_id(user)
+        _check_album_access(conn, album_id, user_id)
+
+        conn.execute(
+            "UPDATE albums SET scoring_context = NULL, updated_at = datetime('now') WHERE id = ?",
+            (album_id,),
+        )
+        cleared = _clear_album_context_overrides(conn, album_id)
+        conn.commit()
+
+    return {'ok': True, 'cleared': cleared}
 
 
 @router.get("/api/albums/{album_id}/suggested_context")

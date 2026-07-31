@@ -86,17 +86,46 @@ def _validate_priority_order(order, current_names):
         raise HTTPException(status_code=400, detail=f"Unknown categories in order: {', '.join(unknown)}")
 
 
+def _validate_existing_priorities(by_name, current_names):
+    """Raise ``HTTPException(400)`` naming categories whose stored ``priority``
+    cannot express the requested order.
+
+    Two cases: a missing (``None``) priority crashes the ``sorted()`` call
+    below with a ``TypeError`` — ``validate_categories`` merely logs that as a
+    tolerated issue, so it is reachable here. A priority value shared by more
+    than one category is preserved verbatim by the positional reassignment,
+    so a pre-existing collision silently produces the wrong order instead of
+    the one requested — reject it instead of writing an unrepresentable config.
+    """
+    missing = sorted(name for name in current_names if by_name[name].get('priority') is None)
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Missing priority for categories: {', '.join(missing)}")
+
+    priority_counts = Counter(by_name[name]['priority'] for name in current_names)
+    colliding_priorities = {priority for priority, count in priority_counts.items() if count > 1}
+    if colliding_priorities:
+        offending = sorted(name for name in current_names if by_name[name]['priority'] in colliding_priorities)
+        raise HTTPException(status_code=400, detail=f"Duplicate priority values on categories: {', '.join(offending)}")
+
+
 def update_category_priorities(config_path, order):
     """Permute category ``priority`` values onto ``order`` and persist to disk.
 
     ``order`` must be a set-equal permutation of the current non-``default``
-    category names; raises ``HTTPException(400)`` naming what's wrong
-    otherwise. The existing priority values are collected, sorted ascending,
-    and reassigned positionally onto ``order`` — the multiset of priorities is
-    unchanged and uniqueness (required by ``validate_categories``) is
-    guaranteed by construction. ``default`` keeps its own priority untouched.
-    Always takes a timestamped loose backup before writing (priorities aren't
-    covered by the weights snapshot table) and returns its path.
+    category names, once any ``default`` entries in ``order`` are dropped —
+    ``GET /api/config/category_priorities`` includes ``default``, and it is
+    pinned last regardless of what's submitted, so echoing GET's output back
+    verbatim is accepted rather than rejected as an unknown category.
+
+    Raises ``HTTPException(400)`` naming what's wrong: an order that isn't a
+    permutation of the current names, or existing priorities that can't
+    express the requested order (missing or duplicated — see
+    ``_validate_existing_priorities``). The existing priority values are then
+    collected, sorted ascending, and reassigned positionally onto ``order`` —
+    the multiset of priorities is unchanged. ``default`` keeps its own
+    priority untouched. Always takes a timestamped loose backup before
+    writing (priorities aren't covered by the weights snapshot table) and
+    returns its path.
     """
     config_path = str(config_path)
     with _CONFIG_WRITE_LOCK:
@@ -107,9 +136,12 @@ def update_category_priorities(config_path, order):
         by_name = {c.get('name'): c for c in categories}
         current_names = [name for name in by_name if name != DEFAULT_CATEGORY_NAME]
 
-        _validate_priority_order(order, current_names)
+        order = [name for name in order if name != DEFAULT_CATEGORY_NAME]
 
-        priorities = sorted(by_name[name].get('priority') for name in current_names)
+        _validate_priority_order(order, current_names)
+        _validate_existing_priorities(by_name, current_names)
+
+        priorities = sorted(by_name[name]['priority'] for name in current_names)
         for name, priority in zip(order, priorities):
             by_name[name]['priority'] = priority
 

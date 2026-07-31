@@ -1103,6 +1103,8 @@ class ScoringConfig:
         - Weights sum to 100%
         - Priority is set and unique
         - Filters use valid keys
+        - scoring_contexts reference real category names and narrative moments,
+          and don't list the same category in both promote and excluded
 
         Args:
             verbose: If True, print validation issues
@@ -1143,6 +1145,40 @@ class ScoringConfig:
             # Check tag_match_mode
             if filters.get('tag_match_mode') not in (None, 'any', 'all'):
                 issues.append(f"{name}: invalid tag_match_mode '{filters.get('tag_match_mode')}'")
+
+        category_names = {cat.get('name') for cat in self.get_categories()}
+        moment_names = set(self.get_narrative_moment_vocabulary())
+        event_type = self.get_active_event_type()
+
+        for context_name, context_def in self.get_scoring_contexts().items():
+            if not isinstance(context_def, dict):
+                continue
+            promote = context_def.get('promote') or []
+            excluded = context_def.get('excluded') or []
+
+            for name in promote:
+                if name not in category_names:
+                    issues.append(
+                        f"scoring_contexts.{context_name}: promote references unknown category '{name}'"
+                    )
+            for name in excluded:
+                if name not in category_names:
+                    issues.append(
+                        f"scoring_contexts.{context_name}: excluded references unknown category '{name}'"
+                    )
+
+            for name in sorted(set(promote) & set(excluded)):
+                issues.append(
+                    f"scoring_contexts.{context_name}: '{name}' is listed in both promote and excluded "
+                    f"(excluded wins — the promote entry is dropped)"
+                )
+
+            for moment in context_def.get('suggest_from_moments') or []:
+                if moment not in moment_names:
+                    issues.append(
+                        f"scoring_contexts.{context_name}: suggest_from_moments references unknown moment "
+                        f"'{moment}' (not in narrative_moments.event_types.{event_type})"
+                    )
 
         if verbose:
             for issue in issues:

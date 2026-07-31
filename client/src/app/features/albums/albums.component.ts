@@ -317,6 +317,7 @@ export class AlbumsComponent {
       data: { albumId: album.id, albumName: album.name, currentContext: album.scoring_context } satisfies AlbumScoringContextDialogData,
       width: '95vw',
       maxWidth: '32rem',
+      disableClose: true,
     }).afterClosed());
     if (newContext) {
       this.albums.update(list => list.map(a => a.id === album.id ? { ...a, scoring_context: newContext } : a));

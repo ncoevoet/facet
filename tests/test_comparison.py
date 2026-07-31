@@ -782,26 +782,105 @@ class TestClearCategoryOverride:
         assert resp.status_code == 404
 
     def test_clears_override(self):
+        photo_row = {
+            "tags": "sunset, beach", "face_count": 0, "face_ratio": 0.0,
+            "is_silhouette": 0, "is_group_portrait": 0, "is_monochrome": 0,
+            "mean_luminance": 0.5, "iso": 100, "shutter_speed": "1/500",
+            "focal_length": 35.0, "f_stop": 8.0, "category": "motorsport",
+        }
         conn_mock = mock.MagicMock()
-        conn_mock.execute.return_value.fetchone.return_value = ("/a.jpg",)
+        conn_mock.execute.return_value.fetchone.return_value = photo_row
 
         mock_clear = mock.MagicMock()
-        fake_scoring_overrides_module = mock.MagicMock(clear_photo_scoring_override=mock_clear)
+        mock_get_overrides = mock.MagicMock(return_value={"/a.jpg": {"scoring_context": None, "category_override": None}})
+        fake_scoring_overrides_module = mock.MagicMock(
+            clear_photo_scoring_override=mock_clear,
+            get_photo_scoring_overrides=mock_get_overrides,
+        )
+
+        mock_config = mock.MagicMock()
+        mock_config.determine_category.return_value = "landscape"
 
         app, client = _make_app_and_client()
         _override_auth(app, _edition_user())
 
         with (
             mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
-            mock.patch.dict("sys.modules", {"db.scoring_overrides": fake_scoring_overrides_module}),
+            mock.patch.dict("sys.modules", {
+                "db.scoring_overrides": fake_scoring_overrides_module,
+                "config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config),
+            }),
         ):
             resp = client.post(self.ENDPOINT, json={"path": "/a.jpg"})
 
         assert resp.status_code == 200
-        assert resp.json()["success"] is True
+        data = resp.json()
+        assert data["success"] is True
+        assert data["old_category"] == "motorsport"
+        assert data["new_category"] == "landscape"
 
         mock_clear.assert_called_once()
         args, kwargs = mock_clear.call_args
         assert args[1] == "/a.jpg"
         assert kwargs["field"] == "category_override"
+
+        # The recomputation reuses ScoringConfig.determine_category rather
+        # than reimplementing filter evaluation, honoring any remaining
+        # per-photo scoring_context override.
+        mock_config.determine_category.assert_called_once()
+        det_args, det_kwargs = mock_config.determine_category.call_args
+        assert det_args[0]["tags"] == "sunset, beach"
+        assert det_args[0]["shutter_speed"] == "1/500"
+        assert det_kwargs["context"] is None
+
+        # photos.category is rewritten immediately, mirroring override_category.
+        update_calls = [
+            c for c in conn_mock.execute.call_args_list
+            if c.args and isinstance(c.args[0], str) and "UPDATE photos SET category" in c.args[0]
+        ]
+        assert len(update_calls) == 1
+        assert update_calls[0].args[1][0] == "landscape"
+
         conn_mock.commit.assert_called_once()
+
+    def test_clear_honors_remaining_scoring_context_override(self):
+        """The photo's scoring_context override (independent of the cleared
+        category_override) must still steer recomputation -- clearing the
+        category pin should not also silently drop a sticky context."""
+        photo_row = {
+            "tags": "", "face_count": 0, "face_ratio": 0.0,
+            "is_silhouette": 0, "is_group_portrait": 0, "is_monochrome": 0,
+            "mean_luminance": 0.5, "iso": None, "shutter_speed": None,
+            "focal_length": None, "f_stop": None, "category": "motorsport",
+        }
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value.fetchone.return_value = photo_row
+
+        mock_get_overrides = mock.MagicMock(
+            return_value={"/a.jpg": {"scoring_context": "action_stage", "category_override": None}}
+        )
+        fake_scoring_overrides_module = mock.MagicMock(
+            clear_photo_scoring_override=mock.MagicMock(),
+            get_photo_scoring_overrides=mock_get_overrides,
+        )
+
+        mock_config = mock.MagicMock()
+        mock_config.determine_category.return_value = "sports"
+
+        app, client = _make_app_and_client()
+        _override_auth(app, _edition_user())
+
+        with (
+            mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
+            mock.patch.dict("sys.modules", {
+                "db.scoring_overrides": fake_scoring_overrides_module,
+                "config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config),
+            }),
+        ):
+            resp = client.post(self.ENDPOINT, json={"path": "/a.jpg"})
+
+        assert resp.status_code == 200
+        assert resp.json()["new_category"] == "sports"
+
+        det_kwargs = mock_config.determine_category.call_args.kwargs
+        assert det_kwargs["context"] == "action_stage"

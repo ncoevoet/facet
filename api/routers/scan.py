@@ -6,6 +6,7 @@ Scan router — trigger and monitor photo scanning.
 import asyncio
 import json
 import logging
+import os
 import subprocess
 import sys
 import threading
@@ -43,6 +44,46 @@ _scan_state = {
     'exit_code': None,
     'progress': None,
 }
+
+
+def _library_job_conflict_detail():
+    """Message naming the process cross-process-locking the DB, or None.
+
+    Checks the ``facet.LibraryLock`` file next to the DB, which any
+    ``--recompute-average``/``--recompute-category`` run (CLI or a subprocess
+    spawned by this router) holds for its whole run -- so this catches a
+    recompute already running from a terminal, not just another viewer tab.
+    """
+    from db.connection import DEFAULT_DB_PATH
+    from facet import library_job_conflict_message, library_job_holder
+
+    holder = library_job_holder(DEFAULT_DB_PATH)
+    return library_job_conflict_message(holder) if holder else None
+
+
+def _recompute_conflict_detail():
+    """Like ``_library_job_conflict_detail`` but also refuses on a live scan.
+
+    ``scan_runs`` already tracks a scan's liveness cross-process (heartbeat,
+    used by ``--resume``); reused here so a recompute never starts its long
+    single-transaction rewrite while a scan is still writing the DB.
+    """
+    conflict = _library_job_conflict_detail()
+    if conflict:
+        return conflict
+    from db.connection import DEFAULT_DB_PATH
+    from processing.scan_state import scan_in_progress
+
+    if scan_in_progress(DEFAULT_DB_PATH):
+        return "A scan is already running from the command line."
+    return None
+
+
+def _cross_process_job_env():
+    """Subprocess env marking a spawned job as viewer-origin for LibraryLock."""
+    from facet import JOB_ORIGIN_ENV_VAR
+
+    return {**os.environ, JOB_ORIGIN_ENV_VAR: 'viewer'}
 
 
 def _read_scan_output(proc):
@@ -91,6 +132,11 @@ def start_scan(
             _scan_lock.release()
             raise HTTPException(status_code=409, detail="A scan is already running")
 
+        conflict = _library_job_conflict_detail()
+        if conflict:
+            _scan_lock.release()
+            raise HTTPException(status_code=409, detail=conflict)
+
         directories = body.directories
 
         all_configured = set(get_all_scan_directories())
@@ -113,6 +159,7 @@ def start_scan(
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            env=_cross_process_job_env(),
         )
 
         _scan_state['running'] = True
@@ -285,10 +332,14 @@ def start_recompute(
     """Trigger a full-library aggregate recompute as a background subprocess.
 
     Reuses the scan job machinery (``_scan_lock``, ``_scan_state``,
-    ``_read_scan_output``) so a scan and a recompute stay mutually exclusive --
-    both write the ``photos`` table. The argv is fixed and entirely
-    server-origin, so unlike ``/start`` it is edition-gated rather than
-    superadmin-only.
+    ``_read_scan_output``) so a scan and a recompute stay mutually exclusive
+    *within this process*. Cross-process (a CLI ``--recompute-average`` or
+    scan running from a terminal) is caught by ``_recompute_conflict_detail``,
+    which checks ``facet.LibraryLock`` -- the subprocess spawned below holds
+    that same lock for its whole run, marked ``origin=viewer`` via
+    ``_cross_process_job_env`` so the conflict message names where it came
+    from. The argv is fixed and entirely server-origin, so unlike ``/start``
+    it is edition-gated rather than superadmin-only.
 
     ``confirm`` is required rather than decorative: a body-less POST is a CORS
     "simple request" and never preflights, so any page the user happens to open
@@ -306,6 +357,10 @@ def start_recompute(
         if _scan_state['running']:
             raise HTTPException(status_code=409, detail="A job is already running")
 
+        conflict = _recompute_conflict_detail()
+        if conflict:
+            raise HTTPException(status_code=409, detail=conflict)
+
         cmd = [sys.executable, FACET_SCRIPT, '--recompute-average', '--config', str(_CONFIG_PATH)]
 
         proc = subprocess.Popen(
@@ -314,6 +369,7 @@ def start_recompute(
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            env=_cross_process_job_env(),
         )
 
         _scan_state['running'] = True

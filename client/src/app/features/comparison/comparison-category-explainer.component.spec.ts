@@ -1,6 +1,6 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { ComparisonCategoryExplainerComponent } from './comparison-category-explainer.component';
 
@@ -35,6 +35,8 @@ describe('ComparisonCategoryExplainerComponent', () => {
     });
 
     it('calls suggest_filters with path and target_category', async () => {
+      component.path = () => '/a.jpg';
+      component.targetCategory = () => 'sports';
       mockApi.post.mockReturnValue(of({
         current_category: 'silhouette',
         target_category: 'sports',
@@ -49,6 +51,8 @@ describe('ComparisonCategoryExplainerComponent', () => {
     });
 
     it('stores the response in result', async () => {
+      component.path = () => '/a.jpg';
+      component.targetCategory = () => 'sports';
       const response = {
         current_category: 'silhouette',
         target_category: 'sports',
@@ -64,6 +68,8 @@ describe('ComparisonCategoryExplainerComponent', () => {
     });
 
     it('sets loading false after completion', async () => {
+      component.path = () => '/a.jpg';
+      component.targetCategory = () => 'sports';
       mockApi.post.mockReturnValue(of({ current_category: 'a', target_category: 'b', conflicts: [], suggestions: [], no_conflicts: true }));
 
       await component.load('/a.jpg', 'sports');
@@ -72,6 +78,8 @@ describe('ComparisonCategoryExplainerComponent', () => {
     });
 
     it('sets error and clears result on failure', async () => {
+      component.path = () => '/a.jpg';
+      component.targetCategory = () => 'sports';
       component.result.set({ current_category: 'a', target_category: 'b', conflicts: [], suggestions: [], no_conflicts: true });
       mockApi.post.mockReturnValue(throwError(() => new Error('fail')));
 
@@ -79,6 +87,35 @@ describe('ComparisonCategoryExplainerComponent', () => {
 
       expect(component.error()).toBe(true);
       expect(component.result()).toBeNull();
+      expect(component.loading()).toBe(false);
+    });
+
+    // Defect 2: holding ArrowRight in photo detail re-sets the `photo` input on the
+    // same mounted instance, so a slow response for the PREVIOUS photo/category can
+    // land after a newer request already resolved. The stale response must never
+    // overwrite the fresh result.
+    it('discards a stale response that resolves after a newer request has already applied', async () => {
+      const staleResponse = new Subject<{ current_category: string; target_category: string; conflicts: unknown[]; suggestions: unknown[]; no_conflicts: boolean }>();
+      mockApi.post.mockImplementationOnce(() => staleResponse.asObservable());
+      mockApi.post.mockImplementationOnce(() => of({
+        current_category: 'b_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true,
+      }));
+
+      // The input has already moved on to photo B by the time both requests are in flight.
+      component.path = () => '/b.jpg';
+      component.targetCategory = () => 'sports';
+
+      const stalePending = component.load('/a.jpg', 'sports');
+      await component.load('/b.jpg', 'sports');
+
+      expect(component.result()?.current_category).toBe('b_current');
+      expect(component.loading()).toBe(false);
+
+      staleResponse.next({ current_category: 'a_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true });
+      staleResponse.complete();
+      await stalePending;
+
+      expect(component.result()?.current_category).toBe('b_current');
       expect(component.loading()).toBe(false);
     });
   });

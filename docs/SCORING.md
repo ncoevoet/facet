@@ -41,7 +41,7 @@ Other tag-based categories include `aerial`, `food`, `sports`, `vehicle`, `trave
 
 The priority order above is global — every photo evaluates against the same list. A **scoring context** is a named *delta* over that base order: it promotes a short list of categories to the front and excludes others outright, without renumbering anything. `default` (empty `promote`/`excluded`) is the no-op context, so nothing changes for a photo unless a context is explicitly assigned to it.
 
-**Effective order** = `promote` (in the order given) → the global priority order with the promoted and excluded names removed → `default` last. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) computes and memoizes this once per context name.
+**Effective order** = `promote` (in the order given) → the global priority order with the promoted and excluded names removed → `default` last. A name listed in both `promote` and `excluded` is dropped entirely — `excluded` wins. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) computes and memoizes this once per context name.
 
 Shipped presets (plain, user-editable JSON — see [Scoring Contexts](CONFIGURATION.md#scoring-contexts) for the full field reference):
 
@@ -55,7 +55,7 @@ Shipped presets (plain, user-editable JSON — see [Scoring Contexts](CONFIGURAT
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — |
 | `motorsport` | `sports`, `vehicle` | `silhouette` |
 
-A context is assigned per album (`PUT /api/albums/{id}/scoring_context`, which materializes it onto every member photo) or, for a single stubborn photo, applied as a sticky category override (`POST /api/comparison/override_category`). Both levers persist in a `photo_scoring_overrides` side table rather than as columns on `photos` — `save_photo`/`save_photos_batch` write photo rows with `INSERT OR REPLACE`, which would silently wipe a new column on that row at the next rescan. Setting one lever leaves the other untouched, and either can be cleared independently. **Neither takes effect on already-scored photos until a recompute** — `python facet.py --recompute-average`, or `POST /api/scan/recompute` from the viewer.
+A context is assigned per album (`PUT /api/albums/{id}/scoring_context`, which materializes it onto every photo that is currently a member — a one-time snapshot, not a live subscription for a smart album, see [Assigning a context](CONFIGURATION.md#scoring-contexts)) or, for a single stubborn photo, applied as a sticky category override (`POST /api/comparison/override_category`). Both levers persist in a `photo_scoring_overrides` side table rather than as columns on `photos` — `save_photo`/`save_photos_batch` write photo rows with `INSERT OR REPLACE`, which would silently wipe a new column on that row at the next rescan. Setting one lever leaves the other untouched, and either can be cleared independently. **Neither takes effect on already-scored photos until a recompute** — `python facet.py --recompute-average`, or `POST /api/scan/recompute` from the viewer (guarded cross-process against a second scan/recompute running at once — see [Changing priorities requires a recompute](CONFIGURATION.md#reordering-the-global-priority)). If `normalization.per_category` is enabled, run the recompute twice — see [Normalization](CONFIGURATION.md#normalization) for why the first pass normalizes against each photo's old category.
 
 ### The missing-EXIF trap
 

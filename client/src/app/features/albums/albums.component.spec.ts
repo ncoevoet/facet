@@ -69,4 +69,23 @@ describe('AlbumsComponent', () => {
     expect(internals().albums().some((a: { id: number }) => a.id === 1)).toBe(false);
     expect(internals().total()).toBe(4);
   });
+
+  // Defect 4: the dialog must be opened with disableClose so ESC/backdrop dismissal
+  // can't bypass its own close()/persisted-context logic and diverge from what the
+  // server actually stored. This also pins that a context returned from the dialog
+  // is applied to the in-memory album list.
+  it('openScoringContext opens the dialog with disableClose and applies the returned context', async () => {
+    await internals().loadAlbums(true);
+    const album = internals().albums()[0];
+    const event = { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as Event;
+    mockDialog.open.mockReturnValueOnce({ afterClosed: () => of('party_event') });
+
+    await internals().openScoringContext(event, album);
+
+    expect(mockDialog.open).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ disableClose: true }),
+    );
+    expect(internals().albums().find((a: { id: number }) => a.id === album.id)?.scoring_context).toBe('party_event');
+  });
 });

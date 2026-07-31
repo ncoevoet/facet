@@ -1475,6 +1475,7 @@
       "recompute_now": "Jetzt neu berechnen",
       "recompute_progress": "{current} / {total} Fotos",
       "recompute_done": "Neuberechnung abgeschlossen",
+      "recompute_failed": "Neuberechnung fehlgeschlagen – die Bewertungen sind weiterhin veraltet",
       "recompute_conflict": "Es läuft bereits ein Auftrag. Versuchen Sie es erneut, sobald er abgeschlossen ist.",
       "error_recompute": "Fehler beim Starten der Neuberechnung",
       "explainer_title": "Warum ist dieses Foto nicht in diese Kategorie eingestuft?",

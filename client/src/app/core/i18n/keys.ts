@@ -1473,6 +1473,7 @@ export const I18N = {
       recompute_now: "comparison.context.recompute_now",
       recompute_progress: "comparison.context.recompute_progress",
       recompute_done: "comparison.context.recompute_done",
+      recompute_failed: "comparison.context.recompute_failed",
       recompute_conflict: "comparison.context.recompute_conflict",
       error_recompute: "comparison.context.error_recompute",
       explainer_title: "comparison.context.explainer_title",

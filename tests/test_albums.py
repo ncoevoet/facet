@@ -489,6 +489,273 @@ class TestAlbumScoringContext:
         conn_mock.commit.assert_called_once()
 
 
+class TestAlbumScoringContextConflictsComputedBeforeOverwrite:
+    """DEFECT 6 regression: ``conflicts`` must be counted from member
+    override state read BEFORE this call overwrites it, not after. The old
+    docstring implied a dry-run preview the caller could cancel; it's
+    actually reported alongside an already-applied change (no separate
+    commit step) -- but the read must still precede the write it counts
+    against, or the number would be meaningless."""
+
+    ENDPOINT = "/api/albums/1/scoring_context"
+
+    def test_existing_overrides_are_read_before_any_write(self, client):
+        album_row = _make_album_row(id=1)
+
+        mock_config = mock.MagicMock()
+        mock_config.get_scoring_contexts.return_value = {"default": {}, "action_stage": {}}
+
+        conn_mock = mock.MagicMock()
+        photo_rows = [{"photo_path": "/a.jpg"}]
+
+        def _execute(sql, *args):
+            cursor = mock.MagicMock()
+            cursor.fetchone.return_value = album_row
+            cursor.fetchall.return_value = photo_rows
+            if "FROM photos WHERE path IN" in sql:
+                cursor.__iter__.return_value = iter([(r["photo_path"],) for r in photo_rows])
+            return cursor
+
+        conn_mock.execute.side_effect = _execute
+
+        call_order = []
+
+        def _get_overrides(*a, **k):
+            call_order.append("get")
+            return {"/a.jpg": {"scoring_context": "old_context", "category_override": None}}
+
+        def _set_override(*a, **k):
+            call_order.append("set")
+
+        mock_get_overrides = mock.MagicMock(side_effect=_get_overrides)
+        mock_set_override = mock.MagicMock(side_effect=_set_override)
+        fake_module = mock.MagicMock(
+            get_photo_scoring_overrides=mock_get_overrides,
+            set_photo_scoring_override=mock_set_override,
+        )
+
+        with (
+            mock.patch.dict("sys.modules", {
+                "config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config),
+                "db.scoring_overrides": fake_module,
+            }),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn_mock)),
+        ):
+            resp = client.put(self.ENDPOINT, json={"scoring_context": "action_stage"})
+
+        assert resp.status_code == 200
+        assert resp.json()["conflicts"] == 1
+        assert call_order == ["get", "set"]
+
+
+class TestAlbumScoringContextSmartAlbum:
+    """DEFECT 1 regression: smart albums have no rows in ``album_photos`` --
+    membership is computed at read time from ``smart_filter_json``. Before
+    the fix, PUT .../scoring_context read only ``album_photos`` and silently
+    materialized onto zero photos for every smart album, a 200 OK
+    indistinguishable from success.
+
+    These call the router function directly (not through ``client``): a
+    real ``sqlite3.Connection`` created in the test thread cannot cross into
+    TestClient's request threadpool (``sqlite3.ProgrammingError``), and a
+    real, schema-initialised DB is what actually exercises
+    ``_build_gallery_where`` -- the whole point of this regression."""
+
+    ENDPOINT_ARGS = (1,)
+
+    @staticmethod
+    def _init_db(tmp_path, smart_filter_json):
+        from db.connection import get_connection
+        from db.schema import init_database
+
+        db_path = str(tmp_path / "smart_scoring.db")
+        init_database(db_path)
+        with get_connection(db_path) as conn:
+            conn.execute(
+                "INSERT INTO albums (id, name, is_smart, smart_filter_json) VALUES (1, 'Wildlife', 1, ?)",
+                (smart_filter_json,),
+            )
+            conn.execute(
+                "INSERT INTO photos (path, category) VALUES "
+                "('/w1.jpg', 'wildlife'), ('/w2.jpg', 'wildlife'), ('/other.jpg', 'landscape')"
+            )
+            conn.commit()
+        return db_path
+
+    def test_materializes_onto_resolved_smart_album_members(self, tmp_path):
+        from db.connection import get_connection
+        from db.scoring_overrides import get_photo_scoring_overrides
+        from api.routers.albums import set_album_scoring_context, AlbumScoringContextRequest
+
+        db_path = self._init_db(tmp_path, '{"category": "wildlife"}')
+
+        mock_config = mock.MagicMock()
+        mock_config.get_scoring_contexts.return_value = {"default": {}, "action_stage": {}}
+
+        with get_connection(db_path) as conn:
+            with (
+                mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+                mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)),
+                mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+                mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": ""}),
+            ):
+                result = set_album_scoring_context(
+                    1, AlbumScoringContextRequest(scoring_context="action_stage"), _EDITION_USER
+                )
+
+            assert result["updated"] == 2
+            assert result["conflicts"] == 0
+            assert "warning" not in result
+
+            overrides = get_photo_scoring_overrides(conn, paths=["/w1.jpg", "/w2.jpg", "/other.jpg"])
+        assert overrides["/w1.jpg"]["scoring_context"] == "action_stage"
+        assert overrides["/w2.jpg"]["scoring_context"] == "action_stage"
+        assert "/other.jpg" not in overrides
+
+    def test_warns_instead_of_implying_success_when_smart_album_matches_nothing(self, tmp_path):
+        from db.connection import get_connection
+        from api.routers.albums import set_album_scoring_context, AlbumScoringContextRequest
+
+        db_path = self._init_db(tmp_path, '{"category": "does_not_exist"}')
+
+        mock_config = mock.MagicMock()
+        mock_config.get_scoring_contexts.return_value = {"default": {}, "action_stage": {}}
+
+        with get_connection(db_path) as conn:
+            with (
+                mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+                mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)),
+                mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+                mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": ""}),
+            ):
+                result = set_album_scoring_context(
+                    1, AlbumScoringContextRequest(scoring_context="action_stage"), _EDITION_USER
+                )
+
+        assert result["updated"] == 0
+        assert "warning" in result
+
+
+class TestAlbumScoringContextClear:
+    """DEFECT 2 regression: an album scoring context previously could never
+    be undone -- DELETE .../scoring_context must clear the album's own field
+    AND undo it on exactly the members THIS album stamped
+    (``source == 'album:<id>'``), leaving manual overrides untouched."""
+
+    ENDPOINT = "/api/albums/1/scoring_context"
+
+    def test_requires_edition_403(self, regular_client):
+        resp = regular_client.delete(self.ENDPOINT)
+        assert resp.status_code == 403
+
+    def test_anonymous_401(self, anonymous_client):
+        resp = anonymous_client.delete(self.ENDPOINT)
+        assert resp.status_code == 401
+
+    def test_clears_album_context_and_only_its_own_member_overrides(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
+        from api.routers.albums import clear_album_scoring_context
+
+        db_path = str(tmp_path / "clear_scoring.db")
+        init_database(db_path)
+
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO albums (id, name, scoring_context) VALUES (1, 'Trip', 'motorsport')")
+            conn.execute("INSERT INTO photos (path) VALUES ('/a.jpg'), ('/b.jpg'), ('/manual.jpg')")
+            set_photo_scoring_override(conn, '/a.jpg', scoring_context='motorsport', source='album:1')
+            set_photo_scoring_override(conn, '/b.jpg', scoring_context='motorsport', source='album:1')
+            set_photo_scoring_override(conn, '/manual.jpg', scoring_context='portrait_session', source='manual')
+            conn.commit()
+
+        with get_connection(db_path) as conn:
+            with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)):
+                result = clear_album_scoring_context(1, _EDITION_USER)
+
+            assert result["ok"] is True
+            assert result["cleared"] == 2
+
+            album = conn.execute("SELECT scoring_context FROM albums WHERE id = 1").fetchone()
+            assert album["scoring_context"] is None
+
+            overrides = get_photo_scoring_overrides(conn, paths=["/a.jpg", "/b.jpg", "/manual.jpg"])
+        # Both fields on /a.jpg and /b.jpg are now NULL -> the override row is deleted entirely.
+        assert "/a.jpg" not in overrides
+        assert "/b.jpg" not in overrides
+        assert overrides["/manual.jpg"]["scoring_context"] == "portrait_session"
+
+
+class TestDeleteAlbumClearsScoringOverrides:
+    """DEFECT 2 regression: deleting an album must undo its scoring_context
+    stamp on the members it set -- otherwise every member stays stamped
+    forever, since ``photo_scoring_overrides`` carries no FK to ``albums``."""
+
+    def test_delete_clears_only_this_albums_overrides(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
+        from api.routers.albums import delete_album
+
+        db_path = str(tmp_path / "delete_scoring.db")
+        init_database(db_path)
+
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO albums (id, name, scoring_context) VALUES (1, 'Trip', 'motorsport')")
+            conn.execute("INSERT INTO albums (id, name, scoring_context) VALUES (2, 'Other', 'astro')")
+            conn.execute("INSERT INTO photos (path) VALUES ('/a.jpg'), ('/shared.jpg'), ('/manual.jpg')")
+            set_photo_scoring_override(conn, '/a.jpg', scoring_context='motorsport', source='album:1')
+            set_photo_scoring_override(conn, '/shared.jpg', scoring_context='astro', source='album:2')
+            set_photo_scoring_override(conn, '/manual.jpg', scoring_context='portrait_session', source='manual')
+            conn.commit()
+
+        with get_connection(db_path) as conn:
+            with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)):
+                result = delete_album(1, _EDITION_USER)
+
+            assert result["ok"] is True
+
+            overrides = get_photo_scoring_overrides(conn, paths=["/a.jpg", "/shared.jpg", "/manual.jpg"])
+        assert "/a.jpg" not in overrides
+        assert overrides["/shared.jpg"]["scoring_context"] == "astro"
+        assert overrides["/manual.jpg"]["scoring_context"] == "portrait_session"
+
+
+class TestRemovePhotosFromAlbumClearsScoringOverrides:
+    """DEFECT 2 regression: removing photos from an album must undo this
+    album's stamp on exactly the removed photos; photos that stay in the
+    album keep the context."""
+
+    def test_remove_clears_only_removed_photos_overrides(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
+        from api.routers.albums import remove_photos_from_album, AlbumPhotosRequest
+
+        db_path = str(tmp_path / "remove_scoring.db")
+        init_database(db_path)
+
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO albums (id, name, scoring_context) VALUES (1, 'Trip', 'motorsport')")
+            conn.execute("INSERT INTO photos (path) VALUES ('/a.jpg'), ('/b.jpg')")
+            conn.execute(
+                "INSERT INTO album_photos (album_id, photo_path, position) VALUES (1, '/a.jpg', 0), (1, '/b.jpg', 1)"
+            )
+            set_photo_scoring_override(conn, '/a.jpg', scoring_context='motorsport', source='album:1')
+            set_photo_scoring_override(conn, '/b.jpg', scoring_context='motorsport', source='album:1')
+            conn.commit()
+
+        with get_connection(db_path) as conn:
+            with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)):
+                result = remove_photos_from_album(1, AlbumPhotosRequest(photo_paths=["/a.jpg"]), _EDITION_USER)
+
+            assert result["ok"] is True
+
+            overrides = get_photo_scoring_overrides(conn, paths=["/a.jpg", "/b.jpg"])
+        assert "/a.jpg" not in overrides
+        assert overrides["/b.jpg"]["scoring_context"] == "motorsport"
+
+
 class TestAlbumSuggestedContext:
     """Tests for GET /api/albums/{id}/suggested_context."""
 

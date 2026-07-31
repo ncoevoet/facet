@@ -1,5 +1,10 @@
 """Tests for the scan endpoint (api/routers/scan.py)."""
 
+import json
+import os
+import signal
+import subprocess
+import sys
 from collections import deque
 from datetime import timedelta
 from unittest import mock
@@ -434,3 +439,209 @@ class TestRecomputeStatus:
         assert data["kind"] == "recompute"
         assert data["progress"]["current"] == 10
         assert data["exit_code"] is None
+
+
+class TestLibraryLock:
+    """``facet.LibraryLock`` -- the cross-process mutex that keeps a
+    recompute's single long transaction from colliding with another
+    recompute or a scan (see facet.py, api/routers/scan.py)."""
+
+    def test_second_acquire_is_refused_while_first_holds_it(self, tmp_path):
+        from facet import LibraryLock, LibraryLockError
+
+        db_path = str(tmp_path / "photos.db")
+        first = LibraryLock(db_path, kind="recompute")
+        first.acquire()
+        try:
+            with pytest.raises(LibraryLockError):
+                LibraryLock(db_path, kind="recompute").acquire()
+        finally:
+            first.release()
+
+    def test_conflict_message_names_kind_pid_and_origin(self, tmp_path, monkeypatch):
+        from facet import JOB_ORIGIN_ENV_VAR, LibraryLock, LibraryLockError
+
+        monkeypatch.setenv(JOB_ORIGIN_ENV_VAR, "viewer")
+        db_path = str(tmp_path / "photos.db")
+        first = LibraryLock(db_path, kind="recompute")
+        first.acquire()
+        try:
+            with pytest.raises(LibraryLockError) as exc_info:
+                LibraryLock(db_path, kind="recompute").acquire()
+        finally:
+            first.release()
+
+        message = str(exc_info.value)
+        assert "recompute" in message
+        assert "viewer" in message
+        assert str(os.getpid()) in message
+
+    def test_stale_lock_from_a_dead_pid_self_heals(self, tmp_path):
+        """A holder that crashed without releasing must not wedge the lock
+        forever: the next acquire steals it once the recorded PID is dead."""
+        from facet import LibraryLock, _library_lock_path
+
+        db_path = str(tmp_path / "photos.db")
+        dead_proc = subprocess.Popen([sys.executable, "-c", "pass"])
+        dead_proc.wait()
+
+        lock_path = _library_lock_path(db_path)
+        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+        with open(lock_path, "w") as f:
+            json.dump(
+                {"pid": dead_proc.pid, "kind": "recompute", "origin": "cli", "started_at": 0},
+                f,
+            )
+
+        lock = LibraryLock(db_path, kind="recompute")
+        lock.acquire()
+        assert os.path.exists(lock_path)
+        lock.release()
+        assert not os.path.exists(lock_path)
+
+    def test_release_on_exception_frees_the_lock(self, tmp_path):
+        from facet import LibraryLock, _library_lock_path
+
+        db_path = str(tmp_path / "photos.db")
+        with pytest.raises(RuntimeError):
+            with LibraryLock(db_path, kind="recompute"):
+                raise RuntimeError("boom")
+
+        assert not os.path.exists(_library_lock_path(db_path))
+
+    def test_release_on_sigterm_frees_the_lock(self, tmp_path):
+        from facet import LibraryLock, _library_lock_path
+
+        db_path = str(tmp_path / "photos.db")
+        with pytest.raises(KeyboardInterrupt):
+            with LibraryLock(db_path, kind="recompute"):
+                os.kill(os.getpid(), signal.SIGTERM)
+
+        assert not os.path.exists(_library_lock_path(db_path))
+
+    def test_sigterm_handler_is_restored_after_release(self, tmp_path):
+        from facet import LibraryLock
+
+        db_path = str(tmp_path / "photos.db")
+        previous_handler = signal.getsignal(signal.SIGTERM)
+        lock = LibraryLock(db_path, kind="recompute")
+        lock.acquire()
+        assert signal.getsignal(signal.SIGTERM) is signal.default_int_handler
+        lock.release()
+        assert signal.getsignal(signal.SIGTERM) is previous_handler
+
+    def test_holder_is_none_when_no_lock_file(self, tmp_path):
+        from facet import library_job_holder
+
+        db_path = str(tmp_path / "photos.db")
+        assert library_job_holder(db_path) is None
+
+    def test_holder_reports_live_process_info(self, tmp_path):
+        from facet import LibraryLock, library_job_holder
+
+        db_path = str(tmp_path / "photos.db")
+        lock = LibraryLock(db_path, kind="scan")
+        lock.acquire()
+        try:
+            holder = library_job_holder(db_path)
+            assert holder["pid"] == os.getpid()
+            assert holder["kind"] == "scan"
+            assert holder["origin"] == "cli"
+        finally:
+            lock.release()
+
+
+class TestCrossProcessLibraryLock:
+    """The viewer endpoints refuse a second job when a CLI-run recompute (or
+    scan, for /recompute) already holds ``facet.LibraryLock`` -- proving the
+    fix is visible cross-process, not just within the viewer's own state."""
+
+    @pytest.fixture(autouse=True)
+    def _cleanup_lock_file(self):
+        from db.connection import DEFAULT_DB_PATH
+        from facet import _library_lock_path
+
+        lock_path = _library_lock_path(DEFAULT_DB_PATH)
+        yield
+        if os.path.exists(lock_path):
+            os.remove(lock_path)
+
+    @pytest.fixture(autouse=True)
+    def _reset_scan_state(self):
+        from api.routers.scan import _scan_state
+
+        original = dict(_scan_state)
+        yield
+        _scan_state.clear()
+        _scan_state.update(original)
+
+    def _write_live_lock(self, kind="recompute", origin="cli"):
+        from db.connection import DEFAULT_DB_PATH
+        from facet import _library_lock_path
+
+        lock_path = _library_lock_path(DEFAULT_DB_PATH)
+        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+        with open(lock_path, "w") as f:
+            json.dump(
+                {"pid": os.getpid(), "kind": kind, "origin": origin, "started_at": 0}, f,
+            )
+
+    def test_recompute_refused_when_a_cli_recompute_holds_the_lock(self, edition_client):
+        self._write_live_lock(kind="recompute", origin="cli")
+
+        resp = edition_client.post("/api/scan/recompute", json={"confirm": True})
+
+        assert resp.status_code == 409
+        detail = resp.json()["detail"]
+        assert "recompute" in detail
+        assert "cli" in detail
+
+    def test_scan_refused_when_a_recompute_holds_the_lock(self):
+        self._write_live_lock(kind="recompute", origin="viewer")
+        viewer_cfg = _viewer_config_with_scan()
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
+            mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
+        ):
+            app, client, _ = _make_superadmin_app(viewer_cfg)
+            resp = client.post("/api/scan/start", json={"directories": ["/photos"]})
+
+        assert resp.status_code == 409
+        detail = resp.json()["detail"]
+        assert "recompute" in detail
+        assert "viewer" in detail
+
+    def test_recompute_refused_when_a_cli_scan_is_in_progress(self, edition_client):
+        from db.connection import DEFAULT_DB_PATH, get_connection
+
+        with get_connection(DEFAULT_DB_PATH, row_factory=False) as conn:
+            conn.execute(
+                "INSERT INTO scan_runs (mode, args_json, total_files, heartbeat_at) "
+                "VALUES ('multi-pass', '{}', 0, datetime('now'))"
+            )
+            conn.commit()
+        try:
+            resp = edition_client.post("/api/scan/recompute", json={"confirm": True})
+            assert resp.status_code == 409
+            assert "scan" in resp.json()["detail"].lower()
+        finally:
+            with get_connection(DEFAULT_DB_PATH, row_factory=False) as conn:
+                conn.execute("DELETE FROM scan_runs")
+                conn.commit()
+
+    def test_recompute_spawns_subprocess_with_viewer_origin_env(self, edition_client):
+        from api.routers import scan as scan_router
+        from facet import JOB_ORIGIN_ENV_VAR
+
+        mock_proc = mock.MagicMock()
+        mock_proc.pid = 4242
+        mock_proc.stdout = iter([])
+        mock_proc.wait.return_value = 0
+
+        with mock.patch.object(scan_router.subprocess, "Popen", return_value=mock_proc) as mock_popen:
+            resp = edition_client.post("/api/scan/recompute", json={"confirm": True})
+
+        assert resp.status_code == 200
+        env = mock_popen.call_args.kwargs["env"]
+        assert env[JOB_ORIGIN_ENV_VAR] == "viewer"

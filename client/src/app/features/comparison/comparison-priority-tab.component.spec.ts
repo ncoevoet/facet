@@ -428,6 +428,37 @@ describe('ComparisonPriorityTabComponent', () => {
 
       expect(component.recomputeMessageKey()).toBe(I18N.comparison.context.error_recompute);
     });
+
+    // Defect 1: a subprocess that exits non-zero must NOT be reported as a successful
+    // recompute — the stale banner has to stay up (the scores really are stale) and an
+    // error must surface, mirroring AlbumScoringContextDialogComponent.pollRecomputeStatus.
+    it('keeps the stale banner and surfaces an error when the job exits non-zero', async () => {
+      component.stale.set(true);
+      mockApi.post.mockReturnValue(of({ success: true }));
+      mockApi.get.mockReturnValue(of({ running: false, kind: 'recompute', progress: null, exit_code: 1 }));
+
+      await component.startRecompute();
+      await flush();
+
+      expect(component.stale()).toBe(true);
+      expect(component.recomputing()).toBe(false);
+      expect(component.recomputeMessageKey()).toBe(I18N.comparison.context.recompute_failed);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    // Defect 5: a second click before the first POST resolves must not overwrite the
+    // stored interval handle (which would leak the first one forever).
+    it('ignores a second call while a recompute is already starting/running (re-entrancy guard)', async () => {
+      mockApi.post.mockReturnValue(of({ success: true }));
+      mockApi.get.mockReturnValue(of({ running: false, kind: 'recompute', progress: null, exit_code: 0 }));
+
+      const first = component.startRecompute();
+      const second = component.startRecompute();
+      await Promise.all([first, second]);
+      await flush();
+
+      expect(mockApi.post).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('recomputeProgressPercent', () => {

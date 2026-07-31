@@ -1149,13 +1149,30 @@ def api_comparison_override_category(
     }
 
 
+_CATEGORY_METRIC_COLUMNS = (
+    'tags', 'face_count', 'face_ratio', 'is_silhouette', 'is_group_portrait',
+    'is_monochrome', 'mean_luminance', 'iso', 'shutter_speed', 'focal_length', 'f_stop',
+    'category',
+)
+
+
 @router.post("/api/comparison/clear_category_override")
 def api_comparison_clear_category_override(
     body: ClearCategoryOverrideBody,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Remove a photo's manual category override; filters decide again on the next recompute."""
-    from db.scoring_overrides import clear_photo_scoring_override
+    """Remove a photo's manual category override and recompute its category.
+
+    Mirrors ``override_category``, which writes ``photos.category``
+    immediately: clearing the override without also recomputing would leave
+    the gallery, type filters and stats showing the stale overridden category
+    until a full ``--recompute-average``. Delegates to
+    ``ScoringConfig.determine_category`` — the same category-determination
+    path ``processing.scorer.Facet._determine_photo_category`` calls — rather
+    than reimplementing filter evaluation here.
+    """
+    from config import ScoringConfig
+    from db.scoring_overrides import clear_photo_scoring_override, get_photo_scoring_overrides
 
     if not body.path:
         raise HTTPException(status_code=400, detail='Missing path')
@@ -1164,16 +1181,42 @@ def api_comparison_clear_category_override(
     vis_sql, vis_params = get_visibility_clause(user_id)
 
     with get_db() as conn:
-        row = conn.execute(f"SELECT path FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
+        row = conn.execute(
+            f"SELECT {', '.join(_CATEGORY_METRIC_COLUMNS)} FROM photos WHERE path = ? AND {vis_sql}",
+            [body.path] + vis_params,
+        ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail='Photo not found')
+        metrics = dict(row)
+        old_category = metrics.get('category')
 
         clear_photo_scoring_override(conn, body.path, field='category_override')
+
+        remaining = get_photo_scoring_overrides(conn, paths=[body.path])
+        scoring_context = remaining.get(body.path, {}).get('scoring_context')
+
+        photo_data = {
+            'tags': metrics.get('tags') or '',
+            'face_count': metrics.get('face_count') or 0,
+            'face_ratio': metrics.get('face_ratio') or 0,
+            'is_silhouette': metrics.get('is_silhouette'),
+            'is_group_portrait': metrics.get('is_group_portrait'),
+            'is_monochrome': metrics.get('is_monochrome'),
+            'mean_luminance': metrics.get('mean_luminance') if metrics.get('mean_luminance') is not None else 0.5,
+            'iso': metrics.get('iso'),
+            'shutter_speed': metrics.get('shutter_speed'),
+            'focal_length': metrics.get('focal_length'),
+            'f_stop': metrics.get('f_stop'),
+        }
+        config = ScoringConfig(validate=False)
+        new_category = config.determine_category(photo_data, context=scoring_context)
+
+        conn.execute(f"UPDATE photos SET category = ? WHERE path = ? AND {vis_sql}", [new_category, body.path] + vis_params)
         conn.commit()
 
     _stats_cache.clear()
 
-    return {'success': True, 'path': body.path}
+    return {'success': True, 'path': body.path, 'old_category': old_category, 'new_category': new_category}
 
 
 @router.get("/api/comparison/history")

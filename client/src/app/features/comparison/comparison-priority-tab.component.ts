@@ -509,14 +509,16 @@ export class ComparisonPriorityTabComponent {
   }
 
   async startRecompute(): Promise<void> {
+    if (this.recomputing()) return;
+    this.recomputing.set(true);
     this.recomputeMessageKey.set(null);
+    this.recomputeStatus.set(null);
     try {
       await firstValueFrom(this.api.post('/scan/recompute', { confirm: true }));
-      this.recomputing.set(true);
-      this.recomputeStatus.set(null);
       void this.pollRecomputeStatus();
       this.recomputePollTimer = setInterval(() => void this.pollRecomputeStatus(), 1500);
     } catch (err) {
+      this.recomputing.set(false);
       if (err instanceof HttpErrorResponse && err.status === 409) {
         this.recomputeMessageKey.set(I18N.comparison.context.recompute_conflict);
       } else {
@@ -532,8 +534,12 @@ export class ComparisonPriorityTabComponent {
       if (!status.running) {
         this.stopRecomputePolling();
         this.recomputing.set(false);
-        this.stale.set(false);
-        this.snackBar.open(this.i18n.t(I18N.comparison.context.recompute_done), '', { duration: 4000 });
+        if (status.exit_code === 0) {
+          this.stale.set(false);
+          this.snackBar.open(this.i18n.t(I18N.comparison.context.recompute_done), '', { duration: 4000 });
+        } else {
+          this.recomputeMessageKey.set(I18N.comparison.context.recompute_failed);
+        }
       }
     } catch {
       this.stopRecomputePolling();

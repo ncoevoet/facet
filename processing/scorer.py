@@ -1005,8 +1005,13 @@ class Facet:
                 return float(val) if -100 <= val <= 100 else default
             return default
 
+        if cfg is None:
+            # Fallback if no config (shouldn't happen in practice)
+            from config import ScoringConfig
+            cfg = ScoringConfig(validate=False)
+
         category_override = m.get('category_override')
-        if category_override and cfg:
+        if category_override:
             known_categories = {c['name'] for c in cfg.get_categories()}
             if category_override in known_categories:
                 return category_override
@@ -1028,13 +1033,7 @@ class Facet:
         scoring_context = m.get('scoring_context')
 
         # Delegate to config-driven category determination
-        if cfg:
-            return cfg.determine_category(photo_data, context=scoring_context)
-
-        # Fallback if no config (shouldn't happen in practice)
-        from config import ScoringConfig
-        fallback_cfg = ScoringConfig(validate=False)
-        return fallback_cfg.determine_category(photo_data, context=scoring_context)
+        return cfg.determine_category(photo_data, context=scoring_context)
 
     def calculate_aggregate_logic(self, m, config=None):
         """
@@ -1209,6 +1208,9 @@ class Facet:
             # 6. Get EXIF data first so we can use it in scoring
             exif_data = self.get_exif_data(metadata_source)
 
+            resolved_path = str(Path(metadata_source).resolve())
+            photo_override = get_photo_scoring_overrides(self.db_path, paths=[resolved_path]).get(resolved_path, {})
+
             # 7. Generate semantic tags from CLIP embedding
             tags = None
             if self.tagger is not None and clip_embedding is not None:
@@ -1261,6 +1263,8 @@ class Facet:
                 # EXIF data for ISO/aperture adjustments
                 'iso': exif_data.get('iso'),
                 'f_stop': exif_data.get('f_stop'),
+                'scoring_context': photo_override.get('scoring_context'),
+                'category_override': photo_override.get('category_override'),
             }
 
             # Calculate final aggregate score and category using the centralized logic
@@ -1268,7 +1272,7 @@ class Facet:
 
             # 9. Prepare the final row for the database with raw data
             res = {
-                'path': str(Path(metadata_source).resolve()),
+                'path': resolved_path,
                 'filename': Path(metadata_source).name,
                 'category': category,
                 'image_width': img_w,

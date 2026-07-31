@@ -66,12 +66,32 @@ describe('AlbumScoringContextDialogComponent', () => {
     expect(component.selectedContext()).toBe('party_event');
   });
 
-  it('falls back to a minimal context list when loading fails', async () => {
+  // Defect 3: the suggestion is optional and its failure must never blow away the
+  // real context list nor the current selection — previously one `catch` around
+  // `Promise.all([contexts, suggested])` replaced the whole list with a single
+  // fabricated entry whenever ONLY the suggestion call failed.
+  it('keeps the real context list and just clears the suggestion when only the suggestion call fails', async () => {
     build();
     getSuggestedContext.mockReturnValueOnce(throwError(() => new Error('boom')));
     await component.ngOnInit();
 
+    expect(component.contexts()).toEqual(CONTEXTS.contexts);
+    expect(component.suggestion()).toBeNull();
+    expect(component.selectedContext()).toBe('default');
+    expect(component.loading()).toBe(false);
+  });
+
+  it('falls back to a minimal context list when the contexts call itself fails, independently of the suggestion', async () => {
+    build();
+    get.mockImplementation((url: string) => {
+      if (url === '/config/scoring_contexts') return throwError(() => new Error('boom'));
+      if (url === '/scan/recompute_status') return of({ running: false, kind: 'recompute', progress: null, exit_code: 0 });
+      return of({});
+    });
+    await component.ngOnInit();
+
     expect(component.contexts()).toEqual([{ name: 'default', label_key: expect.any(String) }]);
+    expect(component.suggestion()).toEqual({ suggested: null, moment: null, share: 0, counts: {} });
     expect(component.loading()).toBe(false);
   });
 
@@ -123,7 +143,7 @@ describe('AlbumScoringContextDialogComponent', () => {
     expect(component.recomputeError()).toBe('busy');
   });
 
-  it('close() returns the selected context once photos were updated, else null', async () => {
+  it('close() returns the persisted context after a successful save, else null before any save', async () => {
     build();
     await component.ngOnInit();
     component.selectedContext.set('party_event');
@@ -134,5 +154,38 @@ describe('AlbumScoringContextDialogComponent', () => {
     await component.save();
     component.close();
     expect(dialogClose).toHaveBeenCalledWith('party_event');
+  });
+
+  // Defect 4: the server sets albums.scoring_context unconditionally on a successful
+  // save (e.g. an empty album, or one where every member was filtered out still gets
+  // `updated: 0`). The dialog must report what was actually persisted, not gate on
+  // `updatedCount() > 0` -- otherwise the caller keeps stale state and a re-open
+  // preselects the wrong context.
+  it('close() returns the persisted context even when the server reports zero updated photos', async () => {
+    build();
+    setScoringContext.mockReturnValueOnce(of({ updated: 0, conflicts: 0 }));
+    await component.ngOnInit();
+    component.selectedContext.set('party_event');
+
+    await component.save();
+
+    expect(component.updatedCount()).toBe(0);
+    component.close();
+    expect(dialogClose).toHaveBeenCalledWith('party_event');
+  });
+
+  // Defect 5: a second click on "Recompute now" before the first POST resolves must
+  // not overwrite the stored interval handle (which would leak the first one forever).
+  it('recompute() ignores a second call while already recomputing (re-entrancy guard)', async () => {
+    build();
+    await component.ngOnInit();
+    await component.save();
+
+    const first = component.recompute();
+    const second = component.recompute();
+    await Promise.all([first, second]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(post).toHaveBeenCalledTimes(1);
   });
 });

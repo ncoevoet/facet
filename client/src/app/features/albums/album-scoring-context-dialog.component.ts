@@ -158,6 +158,7 @@ export class AlbumScoringContextDialogComponent implements OnInit {
   protected readonly phase = signal<Phase>('select');
   protected readonly updatedCount = signal(0);
   protected readonly conflicts = signal(0);
+  private persistedContext: string | null = null;
   protected readonly recomputeError = signal<'busy' | 'failed' | null>(null);
   protected readonly recomputeProgress = signal<RecomputeProgress | null>(null);
 
@@ -183,28 +184,34 @@ export class AlbumScoringContextDialogComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.loading.set(true);
+    const contextsPromise = firstValueFrom(this.api.get<{ contexts: ScoringContextOption[] }>('/config/scoring_contexts'));
+    const suggestionPromise = firstValueFrom(this.albumService.getSuggestedContext(this.data.albumId));
+
     try {
-      const [contextsRes, suggestion] = await Promise.all([
-        firstValueFrom(this.api.get<{ contexts: ScoringContextOption[] }>('/config/scoring_contexts')),
-        firstValueFrom(this.albumService.getSuggestedContext(this.data.albumId)),
-      ]);
-      this.contexts.set(contextsRes.contexts);
-      this.suggestion.set(suggestion);
+      this.contexts.set((await contextsPromise).contexts);
     } catch {
       this.contexts.set([{ name: DEFAULT_CONTEXT, label_key: I18N.albums.scoring_context.label }]);
       this.snackBar.open(this.i18n.t(I18N.notifications.connection_error), '', { duration: 3000 });
-    } finally {
-      this.loading.set(false);
     }
+
+    try {
+      this.suggestion.set(await suggestionPromise);
+    } catch {
+      this.suggestion.set(null);
+    }
+
+    this.loading.set(false);
   }
 
   protected async save(): Promise<void> {
     if (this.phase() === 'saving') return;
     this.phase.set('saving');
+    const context = this.selectedContext();
     try {
-      const res = await firstValueFrom(this.albumService.setScoringContext(this.data.albumId, this.selectedContext()));
+      const res = await firstValueFrom(this.albumService.setScoringContext(this.data.albumId, context));
       this.updatedCount.set(res.updated);
       this.conflicts.set(res.conflicts);
+      this.persistedContext = context;
       this.phase.set('saved');
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
@@ -213,14 +220,16 @@ export class AlbumScoringContextDialogComponent implements OnInit {
   }
 
   protected async recompute(): Promise<void> {
+    if (this.phase() !== 'saved') return;
+    this.phase.set('recomputing');
     this.recomputeError.set(null);
     try {
       await firstValueFrom(this.api.post('/scan/recompute', { confirm: true }));
     } catch (err: unknown) {
+      this.phase.set('saved');
       this.recomputeError.set(err instanceof HttpErrorResponse && err.status === 409 ? 'busy' : 'failed');
       return;
     }
-    this.phase.set('recomputing');
     this.pollTimer = setInterval(() => this.pollRecomputeStatus(), 1000);
     this.pollRecomputeStatus();
   }
@@ -247,6 +256,6 @@ export class AlbumScoringContextDialogComponent implements OnInit {
   }
 
   protected close(): void {
-    this.dialogRef.close(this.updatedCount() > 0 ? this.selectedContext() : null);
+    this.dialogRef.close(this.persistedContext);
   }
 }

@@ -338,6 +338,14 @@ class TestDeterminePhotoCategory:
         category = scorer._determine_photo_category(overridden, scorer.config)
         assert category == 'sports'
 
+    def test_category_override_wins_even_when_cfg_is_none(self, scorer):
+        # Regression: the old `if category_override and cfg:` guard silently
+        # dropped an explicit override on the "shouldn't happen" cfg=None
+        # fallback branch, letting filter evaluation win instead.
+        photo = {'tags': '', 'face_count': 1, 'face_ratio': 0.05, 'is_silhouette': 1, 'category_override': 'sports'}
+        category = scorer._determine_photo_category(photo, None)
+        assert category == 'sports'
+
     def test_unknown_category_override_falls_through_to_filters(self, scorer):
         photo = {
             'tags': '', 'face_count': 1, 'face_ratio': 0.05, 'is_silhouette': 1,
@@ -460,3 +468,88 @@ class TestUpdateAllAggregatesHonorsOverride:
 
         assert overridden_category == 'sports'
         assert overridden_aggregate != baseline_aggregate
+
+
+# ---------------------------------------------------------------------------
+# score_photo_from_pil — the --dry-run preview path honors the sticky override
+# ---------------------------------------------------------------------------
+
+class TestScorePhotoFromPilHonorsOverride:
+    """Regression test: score_photo_from_pil (reached via process_single_photo,
+    the --dry-run preview path) never looked up photo_scoring_overrides, so a
+    dry-run preview could show a category a real scan would not have produced
+    for a photo with a sticky category_override/scoring_context.
+    """
+
+    def test_scoring_context_and_category_override_reach_calculate_aggregate_logic(self, tmp_path):
+        from unittest import mock
+
+        import cv2
+        import numpy as np
+        from PIL import Image as PILImage
+
+        from config import ScoringConfig
+        from db import init_database, get_connection
+        from db.scoring_overrides import set_photo_scoring_override
+        from processing.scorer import Facet, _load_image_modules
+
+        _load_image_modules()
+
+        db_path = str(tmp_path / 'dryrun.db')
+        init_database(db_path)
+        photo_path = tmp_path / 'a.jpg'
+        PILImage.new('RGB', (32, 32), color=(120, 130, 140)).save(photo_path)
+        resolved_path = str(photo_path.resolve())
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO photos (path) VALUES (?)", (resolved_path,))
+            conn.commit()
+        set_photo_scoring_override(
+            db_path, resolved_path, category_override='sports', scoring_context='action_stage'
+        )
+
+        recorded_metrics = {}
+        original_calculate = Facet.calculate_aggregate_logic
+
+        def spy_calculate(self, m, config=None):
+            recorded_metrics.update(m)
+            return original_calculate(self, m, config)
+
+        face_res = {
+            'face_count': 0, 'face_area': 0, 'face_quality': 0, 'eye_sharpness': 0,
+            'face_sharpness': 0, 'bbox': None, 'is_blink': 0, 'face_details': [],
+            'max_face_confidence': 0, 'is_group_portrait': 0, 'raw_eye_sharpness': 0,
+        }
+
+        scorer = Facet.__new__(Facet)
+        scorer.db_path = db_path
+        scorer.config = ScoringConfig()
+        scorer.tagger = None
+        scorer.samp_scorer = None
+        scorer.vlm_composition = None
+        scorer.tech_analyzer = mock.MagicMock()
+        scorer.tech_analyzer.get_sharpness_data.return_value = {'normalized': 7.0, 'raw_variance': 100.0}
+        scorer.tech_analyzer.get_color_harmony_data.return_value = {'normalized': 7.0, 'raw_entropy': 5.0}
+        scorer.tech_analyzer.get_histogram_data.return_value = {
+            'exposure_score': 7.0, 'shadow_clipped': 0, 'highlight_clipped': 0,
+            'spread': 10.0, 'mean_luminance': 0.5, 'bimodality': 1.0,
+            'histogram_bytes': b'\x00' * (256 * 4),
+        }
+        scorer.tech_analyzer.detect_monochrome.return_value = {'is_monochrome': 0, 'mean_saturation': 0.5}
+        scorer.tech_analyzer.get_dynamic_range.return_value = {'dynamic_range_stops': 8.0}
+        scorer.tech_analyzer.get_noise_estimate.return_value = {'noise_sigma': 1.0}
+        scorer.tech_analyzer.get_contrast_score.return_value = {'contrast_score': 5.0}
+        scorer.face_analyzer = mock.MagicMock()
+        scorer.face_analyzer.analyze_faces.return_value = face_res
+        scorer.get_aesthetic_and_quality = lambda pil_img: (7.0, None, 5.0, 'clip-mlp')
+        scorer.get_exif_data = lambda path: {'iso': None, 'f_stop': None}
+        scorer.calculate_aggregate_logic = spy_calculate.__get__(scorer, Facet)
+
+        pil_img = PILImage.open(photo_path).convert('RGB')
+        img_cv = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+
+        res = scorer.score_photo_from_pil(pil_img, img_cv, str(photo_path))
+
+        assert res is not None
+        assert recorded_metrics['scoring_context'] == 'action_stage'
+        assert recorded_metrics['category_override'] == 'sports'
+        assert res['category'] == 'sports'

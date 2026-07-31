@@ -151,16 +151,19 @@ export class ComparisonCategoryExplainerComponent {
     }
     this.loading.set(true);
     this.error.set(false);
+    const isStale = () => this.path() !== path || this.targetCategory() !== targetCategory;
     try {
       const data = await firstValueFrom(
         this.api.post<SuggestFiltersResponse>('/comparison/suggest_filters', { path, target_category: targetCategory }),
       );
+      if (isStale()) return;
       this.result.set(data);
     } catch {
+      if (isStale()) return;
       this.error.set(true);
       this.result.set(null);
     } finally {
-      this.loading.set(false);
+      if (!isStale()) this.loading.set(false);
     }
   }
 }

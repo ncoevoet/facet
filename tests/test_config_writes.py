@@ -1,5 +1,6 @@
 """Tests for api/config_writes.py — the locked category priority writer."""
 
+import json
 import shutil
 import threading
 from pathlib import Path
@@ -110,6 +111,62 @@ class TestUpdateCategoryPriorities:
 
         with pytest.raises(HTTPException):
             update_category_priorities(config_copy, order)
+        assert config_copy.read_text() == original_contents
+
+    def test_default_in_submitted_order_is_ignored(self, config_copy):
+        """DEFECT 5 regression: GET includes 'default' in the evaluation
+        order it returns, but POST's validation excludes it from the current
+        names -- echoing GET's output back verbatim used to 400 as an
+        'unknown category'. 'default' is pinned last regardless, so it must
+        be accepted and ignored rather than rejected."""
+        reversed_order = list(reversed(_non_default_names(config_copy)))
+        order_with_default = reversed_order + ["default"]
+
+        update_category_priorities(config_copy, order_with_default)
+
+        cfg = ScoringConfig(str(config_copy), validate=False)
+        result_names = [c["name"] for c in cfg.get_categories() if c["name"] != "default"]
+        assert result_names == reversed_order
+
+    def test_missing_priority_raises_400_instead_of_crashing(self, config_copy):
+        """DEFECT 4a regression: a category with a None priority previously
+        crashed ``sorted()`` with an opaque TypeError instead of a clean 400.
+        ``validate_categories`` tolerates a missing priority as a logged
+        issue, not a hard error, so this state is reachable in practice."""
+        data = json.loads(config_copy.read_text())
+        target = next(c for c in data["categories"] if c["name"] != "default")
+        del target["priority"]
+        config_copy.write_text(json.dumps(data))
+
+        order = _non_default_names(config_copy)
+
+        with pytest.raises(HTTPException) as exc_info:
+            update_category_priorities(config_copy, order)
+        assert exc_info.value.status_code == 400
+        assert "priority" in exc_info.value.detail.lower()
+        assert target["name"] in exc_info.value.detail
+
+    def test_duplicate_existing_priority_raises_400_instead_of_silently_misordering(self, config_copy):
+        """DEFECT 4b regression: the docstring claimed priority uniqueness is
+        'guaranteed by construction', which is false -- the multiset of
+        existing priorities is preserved verbatim, so a pre-existing
+        collision (e.g. 'astro' colliding with 'art') makes a full reversal
+        return 200 OK while silently producing the wrong order. Reject it up
+        front instead of writing a config that can't express the request."""
+        data = json.loads(config_copy.read_text())
+        non_default = [c for c in data["categories"] if c["name"] != "default"]
+        non_default[1]["priority"] = non_default[0]["priority"]
+        config_copy.write_text(json.dumps(data))
+        original_contents = config_copy.read_text()
+
+        order = list(reversed(_non_default_names(config_copy)))
+
+        with pytest.raises(HTTPException) as exc_info:
+            update_category_priorities(config_copy, order)
+        assert exc_info.value.status_code == 400
+        assert "duplicate" in exc_info.value.detail.lower()
+        assert non_default[0]["name"] in exc_info.value.detail
+        assert non_default[1]["name"] in exc_info.value.detail
         assert config_copy.read_text() == original_contents
 
 
