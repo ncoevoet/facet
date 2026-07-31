@@ -4,6 +4,7 @@ from collections import deque
 from datetime import timedelta
 from unittest import mock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
@@ -301,3 +302,104 @@ class TestScanDirectories:
             resp = client.get("/api/scan/directories")
 
         assert resp.status_code == 403
+
+
+class TestRecompute:
+    """Tests for POST /api/scan/recompute.
+
+    Uses the shared ``edition_client`` / ``regular_client`` / ``anonymous_client``
+    fixtures from ``tests/conftest.py`` for RBAC, per the project rule against
+    ``mock.patch`` on auth dependencies.
+    """
+
+    ENDPOINT = "/api/scan/recompute"
+
+    @pytest.fixture(autouse=True)
+    def _reset_scan_state(self):
+        from api.routers.scan import _scan_state
+        original = dict(_scan_state)
+        yield
+        _scan_state.clear()
+        _scan_state.update(original)
+
+    def test_requires_edition_403(self, regular_client):
+        resp = regular_client.post(self.ENDPOINT)
+        assert resp.status_code == 403
+
+    def test_anonymous_401(self, anonymous_client):
+        resp = anonymous_client.post(self.ENDPOINT)
+        assert resp.status_code == 401
+
+    def test_conflict_when_a_job_is_running(self, edition_client):
+        from api.routers.scan import _scan_state
+        _scan_state['running'] = True
+
+        resp = edition_client.post(self.ENDPOINT)
+
+        assert resp.status_code == 409
+
+    def test_starts_recompute_with_fixed_server_origin_argv(self, edition_client):
+        from api.routers import scan as scan_router
+
+        mock_proc = mock.MagicMock()
+        mock_proc.pid = 4242
+        mock_proc.stdout = iter([])
+        mock_proc.wait.return_value = 0
+
+        with mock.patch.object(scan_router.subprocess, "Popen", return_value=mock_proc) as mock_popen:
+            resp = edition_client.post(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["pid"] == 4242
+
+        cmd = mock_popen.call_args[0][0]
+        assert cmd[0] == scan_router.sys.executable
+        assert scan_router.FACET_SCRIPT in cmd
+        assert "--recompute-average" in cmd
+        assert "--config" in cmd
+
+        assert scan_router._scan_state["kind"] == scan_router.JOB_KIND_RECOMPUTE
+
+
+class TestRecomputeStatus:
+    """Tests for GET /api/scan/recompute_status."""
+
+    ENDPOINT = "/api/scan/recompute_status"
+
+    @pytest.fixture(autouse=True)
+    def _reset_scan_state(self):
+        from api.routers.scan import _scan_state
+        original = dict(_scan_state)
+        yield
+        _scan_state.clear()
+        _scan_state.update(original)
+
+    def test_requires_edition_403(self, regular_client):
+        resp = regular_client.get(self.ENDPOINT)
+        assert resp.status_code == 403
+
+    def test_anonymous_401(self, anonymous_client):
+        resp = anonymous_client.get(self.ENDPOINT)
+        assert resp.status_code == 401
+
+    def test_returns_only_the_minimal_fields(self, edition_client):
+        from api.routers.scan import _scan_state
+        _scan_state.update({
+            'running': True,
+            'kind': 'recompute',
+            'progress': {'phase': 'recompute', 'current': 10, 'total': 100},
+            'exit_code': None,
+            'output_lines': deque(['a log line the recompute status must not leak'], maxlen=500),
+        })
+
+        resp = edition_client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert set(data.keys()) == {"running", "kind", "progress", "exit_code"}
+        assert data["running"] is True
+        assert data["kind"] == "recompute"
+        assert data["progress"]["current"] == 10
+        assert data["exit_code"] is None

@@ -18,8 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from api.auth import CurrentUser, create_access_token, decode_access_token, require_superadmin
-from api.config import VIEWER_CONFIG, FACET_SCRIPT, get_all_scan_directories, get_user_directories, _photo_types_cache, _stats_cache
+from api.auth import CurrentUser, create_access_token, decode_access_token, require_edition, require_superadmin
+from api.config import VIEWER_CONFIG, FACET_SCRIPT, _CONFIG_PATH, get_all_scan_directories, get_user_directories, _photo_types_cache, _stats_cache
 from processing.progress import parse_progress_line
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
@@ -28,10 +28,14 @@ logger = logging.getLogger(__name__)
 SCAN_STREAM_PURPOSE = 'scan_stream'
 SCAN_STREAM_TOKEN_TTL_SECONDS = 60
 
-# Global scan state (only one scan at a time)
+JOB_KIND_SCAN = 'scan'
+JOB_KIND_RECOMPUTE = 'recompute'
+
+# Global scan state (only one scan or recompute job at a time)
 _scan_lock = threading.Lock()
 _scan_state = {
     'running': False,
+    'kind': None,
     'process': None,
     'output_lines': deque(maxlen=500),
     'started_at': None,
@@ -108,6 +112,7 @@ def start_scan(
         )
 
         _scan_state['running'] = True
+        _scan_state['kind'] = JOB_KIND_SCAN
         _scan_state['process'] = proc
         _scan_state['output_lines'] = deque(maxlen=500)
         _scan_state['started_at'] = time.time()
@@ -265,4 +270,79 @@ def scan_directories(
             {'path': d, 'owner': 'shared' if d not in user_dirs else user.user_id}
             for d in all_dirs
         ]
+    }
+
+
+@router.post("/recompute")
+def start_recompute(
+    user: CurrentUser = Depends(require_edition),
+):
+    """Trigger a full-library aggregate recompute as a background subprocess.
+
+    Reuses the scan job machinery (``_scan_lock``, ``_scan_state``,
+    ``_read_scan_output``) so a scan and a recompute stay mutually exclusive --
+    both write the ``photos`` table. The argv is fixed and entirely
+    server-origin; unlike ``/start`` it takes no request input, so it is
+    edition-gated rather than superadmin-only.
+    """
+    if not _scan_lock.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail="A job is already running")
+
+    try:
+        if _scan_state['running']:
+            _scan_lock.release()
+            raise HTTPException(status_code=409, detail="A job is already running")
+
+        cmd = [sys.executable, FACET_SCRIPT, '--recompute-average', '--config', str(_CONFIG_PATH)]
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        _scan_state['running'] = True
+        _scan_state['kind'] = JOB_KIND_RECOMPUTE
+        _scan_state['process'] = proc
+        _scan_state['output_lines'] = deque(maxlen=500)
+        _scan_state['started_at'] = time.time()
+        _scan_state['directories'] = []
+        _scan_state['exit_code'] = None
+        _scan_state['progress'] = None
+
+        reader = threading.Thread(target=_read_scan_output, args=(proc,), daemon=True)
+        reader.start()
+
+        _scan_lock.release()
+        return {
+            'success': True,
+            'message': 'Recompute started',
+            'pid': proc.pid,
+        }
+
+    except HTTPException:
+        raise
+    except (subprocess.SubprocessError, OSError):
+        logger.exception("Recompute failed to start")
+        _scan_state['running'] = False
+        _scan_lock.release()
+        raise HTTPException(status_code=500, detail='Recompute failed to start')
+
+
+@router.get("/recompute_status")
+def recompute_status(
+    user: CurrentUser = Depends(require_edition),
+):
+    """Poll recompute progress.
+
+    Deliberately excludes ``output_lines`` -- the superadmin-only log stream
+    served by ``/status`` and ``/stream`` is not widened to edition users.
+    """
+    return {
+        'running': _scan_state['running'],
+        'kind': _scan_state.get('kind'),
+        'progress': _scan_state.get('progress'),
+        'exit_code': _scan_state['exit_code'],
     }

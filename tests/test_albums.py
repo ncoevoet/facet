@@ -377,3 +377,165 @@ class TestAlbumAccessInstallMode:
         assert resp.status_code == 403
         assert resp.json()["detail"] == "Access denied"
 
+
+class TestAlbumSerializerScoringContext:
+    """``_album_to_dict`` surfaces the album's scoring context."""
+
+    def test_scoring_context_included_when_present(self, client):
+        row = _make_album_row(id=1)
+        row["scoring_context"] = "action_stage"
+
+        mock_conn = mock.MagicMock()
+        mock_conn.execute.return_value.fetchone.side_effect = [row, (2,)]
+
+        with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)):
+            resp = client.get("/api/albums/1")
+
+        assert resp.status_code == 200
+        assert resp.json()["scoring_context"] == "action_stage"
+
+    def test_scoring_context_defaults_none_when_column_absent(self, client):
+        row = _make_album_row(id=1)  # no 'scoring_context' key -- pre-migration row shape
+
+        mock_conn = mock.MagicMock()
+        mock_conn.execute.return_value.fetchone.side_effect = [row, (0,)]
+
+        with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)):
+            resp = client.get("/api/albums/1")
+
+        assert resp.status_code == 200
+        assert resp.json()["scoring_context"] is None
+
+
+class TestAlbumScoringContext:
+    """Tests for PUT /api/albums/{id}/scoring_context."""
+
+    ENDPOINT = "/api/albums/1/scoring_context"
+
+    def test_requires_edition_403(self, regular_client):
+        resp = regular_client.put(self.ENDPOINT, json={"scoring_context": "action_stage"})
+        assert resp.status_code == 403
+
+    def test_anonymous_401(self, anonymous_client):
+        resp = anonymous_client.put(self.ENDPOINT, json={"scoring_context": "action_stage"})
+        assert resp.status_code == 401
+
+    def test_unknown_context_400(self, client):
+        mock_config = mock.MagicMock()
+        mock_config.get_scoring_contexts.return_value = {"default": {}, "action_stage": {}}
+
+        with mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}):
+            resp = client.put(self.ENDPOINT, json={"scoring_context": "not_a_context"})
+
+        assert resp.status_code == 400
+
+    def test_materializes_context_and_counts_conflicts(self, client):
+        album_row = _make_album_row(id=1)
+
+        mock_config = mock.MagicMock()
+        mock_config.get_scoring_contexts.return_value = {"default": {}, "action_stage": {}}
+
+        conn_mock = mock.MagicMock()
+        photo_rows = [{"photo_path": "/a.jpg"}, {"photo_path": "/b.jpg"}, {"photo_path": "/c.jpg"}]
+        conn_mock.execute.return_value.fetchone.return_value = album_row
+        conn_mock.execute.return_value.fetchall.return_value = photo_rows
+
+        mock_get_overrides = mock.MagicMock(return_value={
+            "/a.jpg": {"scoring_context": "portrait_session", "category_override": None},
+            "/b.jpg": {"scoring_context": None, "category_override": None},
+            # /c.jpg has no existing override row at all
+        })
+        mock_set_override = mock.MagicMock()
+        fake_module = mock.MagicMock(
+            get_photo_scoring_overrides=mock_get_overrides,
+            set_photo_scoring_override=mock_set_override,
+        )
+
+        with (
+            mock.patch.dict("sys.modules", {
+                "config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config),
+                "db.scoring_overrides": fake_module,
+            }),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn_mock)),
+        ):
+            resp = client.put(self.ENDPOINT, json={"scoring_context": "action_stage"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["updated"] == 3
+        # Only /a.jpg carried a different, non-null context -> exactly one conflict.
+        assert data["conflicts"] == 1
+
+        assert mock_set_override.call_count == 3
+        for call in mock_set_override.call_args_list:
+            assert call.kwargs["scoring_context"] == "action_stage"
+            assert call.kwargs["source"] == "album:1"
+
+        update_calls = [
+            c for c in conn_mock.execute.call_args_list
+            if c.args and isinstance(c.args[0], str) and "UPDATE albums SET scoring_context" in c.args[0]
+        ]
+        assert len(update_calls) == 1
+        assert update_calls[0].args[1][0] == "action_stage"
+
+        conn_mock.commit.assert_called_once()
+
+
+class TestAlbumSuggestedContext:
+    """Tests for GET /api/albums/{id}/suggested_context."""
+
+    ENDPOINT = "/api/albums/1/suggested_context"
+
+    def test_writes_nothing_and_suggests_from_dominant_moment(self, client):
+        album_row = _make_album_row(id=1)
+
+        mock_config = mock.MagicMock()
+        mock_config.get_scoring_contexts.return_value = {
+            "default": {"suggest_from_moments": []},
+            "action_stage": {"suggest_from_moments": ["sports_action"]},
+        }
+
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value.fetchone.return_value = album_row
+        conn_mock.execute.return_value.fetchall.return_value = [
+            {"narrative_moment": "sports_action", "cnt": 8},
+            {"narrative_moment": "celebration", "cnt": 2},
+        ]
+
+        with (
+            mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn_mock)),
+        ):
+            resp = client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["suggested"] == "action_stage"
+        assert data["moment"] == "sports_action"
+        assert data["share"] == 0.8
+        assert data["counts"] == {"sports_action": 8, "celebration": 2}
+
+        # Suggestion only -- must not write anything.
+        conn_mock.commit.assert_not_called()
+        write_calls = [
+            c for c in conn_mock.execute.call_args_list
+            if c.args and isinstance(c.args[0], str) and c.args[0].strip().upper().startswith(("UPDATE", "INSERT", "DELETE"))
+        ]
+        assert write_calls == []
+
+    def test_no_moments_returns_none(self, client):
+        album_row = _make_album_row(id=1)
+
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value.fetchone.return_value = album_row
+        conn_mock.execute.return_value.fetchall.return_value = []
+
+        with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn_mock)):
+            resp = client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["suggested"] is None
+        assert data["moment"] is None
+        assert data["share"] == 0.0
+

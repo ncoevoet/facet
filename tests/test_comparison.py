@@ -492,3 +492,316 @@ class TestComparisonDelete:
         resp = client.post(self.ENDPOINT, json={"id": 1})
 
         assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# TestCategoryPriorities
+# ---------------------------------------------------------------------------
+
+class TestCategoryPriorities:
+    """GET/POST /api/config/category_priorities"""
+
+    ENDPOINT = "/api/config/category_priorities"
+
+    def test_get_anonymous_401(self):
+        # No-password legacy mode auto-authenticates anonymous callers, so a
+        # true 401 needs multi-user mode (matches tests/test_rbac.py).
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        with mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True):
+            resp = client.get(self.ENDPOINT)
+        assert resp.status_code == 401
+
+    def test_get_requires_edition_403(self):
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _regular_user())
+        resp = client.get(self.ENDPOINT)
+        assert resp.status_code == 403
+
+    def test_get_returns_evaluation_order(self):
+        mock_config = mock.MagicMock()
+        mock_config.get_categories.return_value = [
+            {"name": "silhouette", "priority": 42, "filters": {"is_silhouette": True}},
+            {"name": "sports", "priority": 71, "filters": {"shutter_speed_max": 0.02}},
+            {"name": "default", "priority": 999, "filters": {}},
+        ]
+
+        app, client = _make_app_and_client()
+        _override_auth(app, _edition_user())
+
+        with mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}):
+            resp = client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert [c["name"] for c in data["categories"]] == ["silhouette", "sports", "default"]
+        assert data["categories"][0]["priority"] == 42
+
+    def test_post_anonymous_401(self):
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        with mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True):
+            resp = client.post(self.ENDPOINT, json={"order": ["sports", "silhouette"]})
+        assert resp.status_code == 401
+
+    def test_post_requires_edition_403(self):
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _regular_user())
+        resp = client.post(self.ENDPOINT, json={"order": ["sports", "silhouette"]})
+        assert resp.status_code == 403
+
+    def test_post_calls_writer_reloads_and_clears_cache(self):
+        app, client = _make_app_and_client()
+        _override_auth(app, _edition_user())
+
+        mock_stats_cache = mock.MagicMock()
+        with (
+            mock.patch(
+                "api.config_writes.update_category_priorities",
+                return_value="/tmp/scoring_config.json.backup.20260731",
+                create=True,
+            ) as mock_writer,
+            mock.patch(f"{_ROUTER_MODULE}.reload_config") as mock_reload,
+            mock.patch(f"{_ROUTER_MODULE}._stats_cache", mock_stats_cache),
+        ):
+            resp = client.post(self.ENDPOINT, json={"order": ["sports", "silhouette", "default"]})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["backup"] == "/tmp/scoring_config.json.backup.20260731"
+
+        mock_writer.assert_called_once()
+        call_args = mock_writer.call_args[0]
+        assert call_args[1] == ["sports", "silhouette", "default"]
+        mock_reload.assert_called_once()
+        mock_stats_cache.clear.assert_called_once()
+
+    def test_post_bad_order_returns_400(self):
+        from fastapi import HTTPException
+
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _edition_user())
+
+        with mock.patch(
+            "api.config_writes.update_category_priorities",
+            side_effect=HTTPException(status_code=400, detail="order must be a permutation of existing categories"),
+            create=True,
+        ):
+            resp = client.post(self.ENDPOINT, json={"order": ["not_a_real_category"]})
+
+        assert resp.status_code == 400
+
+    def test_priority_round_trip(self):
+        """POSTing an order, then GETting, reflects the same evaluation order."""
+        app, client = _make_app_and_client()
+        _override_auth(app, _edition_user())
+
+        new_order = [
+            {"name": "sports", "priority": 42, "filters": {}},
+            {"name": "silhouette", "priority": 71, "filters": {}},
+        ]
+        mock_config = mock.MagicMock()
+        mock_config.get_categories.return_value = new_order
+
+        with (
+            mock.patch("api.config_writes.update_category_priorities", return_value=None, create=True),
+            mock.patch(f"{_ROUTER_MODULE}.reload_config"),
+            mock.patch(f"{_ROUTER_MODULE}._stats_cache"),
+            mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+        ):
+            post_resp = client.post(self.ENDPOINT, json={"order": ["sports", "silhouette"]})
+            get_resp = client.get(self.ENDPOINT)
+
+        assert post_resp.status_code == 200
+        assert get_resp.status_code == 200
+        assert [c["name"] for c in get_resp.json()["categories"]] == ["sports", "silhouette"]
+
+
+# ---------------------------------------------------------------------------
+# TestScoringContextsEndpoint
+# ---------------------------------------------------------------------------
+
+class TestScoringContextsEndpoint:
+    """GET /api/config/scoring_contexts"""
+
+    ENDPOINT = "/api/config/scoring_contexts"
+
+    def test_returns_configured_contexts_with_effective_order(self):
+        mock_config = mock.MagicMock()
+        mock_config.get_scoring_contexts.return_value = {
+            "default": {"label_key": "ctx.default", "promote": [], "excluded": [], "suggest_from_moments": []},
+            "action_stage": {
+                "label_key": "ctx.action_stage",
+                "promote": ["sports"],
+                "excluded": ["silhouette"],
+                "suggest_from_moments": ["sports_action"],
+            },
+        }
+        mock_config.resolve_context_order.side_effect = lambda name: (
+            [("sports", object()), ("default", object())] if name == "action_stage"
+            else [("silhouette", object()), ("sports", object()), ("default", object())]
+        )
+
+        app, client = _make_app_and_client()
+
+        with mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}):
+            resp = client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        contexts = {c["name"]: c for c in resp.json()["contexts"]}
+        assert contexts["action_stage"]["excluded"] == ["silhouette"]
+        assert contexts["action_stage"]["effective_order"] == ["sports", "default"]
+        assert contexts["default"]["effective_order"][0] == "silhouette"
+
+
+# ---------------------------------------------------------------------------
+# TestOverrideCategory (reworked: sticky side-table override)
+# ---------------------------------------------------------------------------
+
+class TestOverrideCategory:
+    """POST /api/comparison/override_category"""
+
+    ENDPOINT = "/api/comparison/override_category"
+
+    def test_requires_edition_403(self):
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _regular_user())
+        resp = client.post(self.ENDPOINT, json={"path": "/a.jpg", "category": "sports"})
+        assert resp.status_code == 403
+
+    def test_anonymous_401(self):
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        with mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True):
+            resp = client.post(self.ENDPOINT, json={"path": "/a.jpg", "category": "sports"})
+        assert resp.status_code == 401
+
+    def test_unknown_category_400(self):
+        mock_config = mock.MagicMock()
+        mock_config.get_categories.return_value = [{"name": "portrait"}, {"name": "landscape"}]
+
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _edition_user())
+
+        with mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}):
+            resp = client.post(self.ENDPOINT, json={"path": "/a.jpg", "category": "not_a_category"})
+
+        assert resp.status_code == 400
+
+    def test_photo_not_found_404(self):
+        mock_config = mock.MagicMock()
+        mock_config.get_categories.return_value = [{"name": "sports"}]
+
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value.fetchone.return_value = None
+
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _edition_user())
+
+        with (
+            mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+            mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
+        ):
+            resp = client.post(self.ENDPOINT, json={"path": "/missing.jpg", "category": "sports"})
+
+        assert resp.status_code == 404
+
+    def test_valid_category_writes_side_table_and_photos_category(self):
+        mock_config = mock.MagicMock()
+        mock_config.get_categories.return_value = [{"name": "portrait"}, {"name": "sports"}]
+
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value.fetchone.return_value = ("silhouette",)
+
+        mock_set_override = mock.MagicMock()
+        fake_scoring_overrides_module = mock.MagicMock(set_photo_scoring_override=mock_set_override)
+
+        app, client = _make_app_and_client()
+        _override_auth(app, _edition_user())
+
+        with (
+            mock.patch.dict("sys.modules", {
+                "config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config),
+                "db.scoring_overrides": fake_scoring_overrides_module,
+            }),
+            mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
+        ):
+            resp = client.post(self.ENDPOINT, json={"path": "/a.jpg", "category": "sports"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["old_category"] == "silhouette"
+        assert data["new_category"] == "sports"
+
+        # Side-table override was written as a manual, sticky override.
+        mock_set_override.assert_called_once()
+        _, kwargs = mock_set_override.call_args
+        assert kwargs["category_override"] == "sports"
+        assert kwargs["source"] == "manual"
+
+        # photos.category was updated immediately (before any recompute).
+        update_calls = [
+            c for c in conn_mock.execute.call_args_list
+            if c.args and isinstance(c.args[0], str) and "UPDATE photos SET category" in c.args[0]
+        ]
+        assert len(update_calls) == 1
+        assert update_calls[0].args[1][0] == "sports"
+
+        conn_mock.commit.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# TestClearCategoryOverride
+# ---------------------------------------------------------------------------
+
+class TestClearCategoryOverride:
+    """POST /api/comparison/clear_category_override"""
+
+    ENDPOINT = "/api/comparison/clear_category_override"
+
+    def test_requires_edition_403(self):
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _regular_user())
+        resp = client.post(self.ENDPOINT, json={"path": "/a.jpg"})
+        assert resp.status_code == 403
+
+    def test_anonymous_401(self):
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        with mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True):
+            resp = client.post(self.ENDPOINT, json={"path": "/a.jpg"})
+        assert resp.status_code == 401
+
+    def test_photo_not_found_404(self):
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value.fetchone.return_value = None
+
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _edition_user())
+
+        with mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)):
+            resp = client.post(self.ENDPOINT, json={"path": "/missing.jpg"})
+
+        assert resp.status_code == 404
+
+    def test_clears_override(self):
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value.fetchone.return_value = ("/a.jpg",)
+
+        mock_clear = mock.MagicMock()
+        fake_scoring_overrides_module = mock.MagicMock(clear_photo_scoring_override=mock_clear)
+
+        app, client = _make_app_and_client()
+        _override_auth(app, _edition_user())
+
+        with (
+            mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
+            mock.patch.dict("sys.modules", {"db.scoring_overrides": fake_scoring_overrides_module}),
+        ):
+            resp = client.post(self.ENDPOINT, json={"path": "/a.jpg"})
+
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+        mock_clear.assert_called_once()
+        args, kwargs = mock_clear.call_args
+        assert args[1] == "/a.jpg"
+        assert kwargs["field"] == "category_override"
+        conn_mock.commit.assert_called_once()

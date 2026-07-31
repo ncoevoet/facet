@@ -51,6 +51,10 @@ class AlbumPhotosRequest(BaseModel):
     photo_paths: list[str]
 
 
+class AlbumScoringContextRequest(BaseModel):
+    scoring_context: str
+
+
 # --- Helpers ---
 
 def _normalize_smart_filters(filters):
@@ -113,6 +117,10 @@ def _album_to_dict(album):
         result['is_shared'] = bool(album['share_token'])
     except (IndexError, KeyError):
         result['is_shared'] = False
+    try:
+        result['scoring_context'] = album['scoring_context']
+    except (IndexError, KeyError):
+        result['scoring_context'] = None
     return result
 
 
@@ -549,6 +557,22 @@ def delete_album(
         return {'ok': True}
 
 
+def _apply_album_scoring_context(conn, album_id, paths):
+    """Materialize the album's declared scoring context onto ``paths``.
+
+    A no-op when the album carries no context. Called from
+    ``append_album_photos`` so photos added after ``PUT .../scoring_context``
+    inherit it too, not just the members present at assignment time.
+    """
+    row = conn.execute("SELECT scoring_context FROM albums WHERE id = ?", (album_id,)).fetchone()
+    context = row['scoring_context'] if row else None
+    if not context:
+        return
+    from db.scoring_overrides import set_photo_scoring_override
+    for path in paths:
+        set_photo_scoring_override(conn, path, scoring_context=context, source=f'album:{album_id}')
+
+
 def append_album_photos(conn, album_id, paths):
     """Append ``paths`` to an album at MAX(position)+1, idempotently.
 
@@ -576,6 +600,7 @@ def append_album_photos(conn, album_id, paths):
         "updated_at = datetime('now') WHERE id = ?",
         (paths[0], album_id)
     )
+    _apply_album_scoring_context(conn, album_id, paths)
     return added
 
 
@@ -653,6 +678,104 @@ async def get_album_photos(
         sort_dir = 'ASC' if qp.get('sort_direction', 'ASC') == 'ASC' else 'DESC'
 
         return await _fetch_album_photos(conn, album, user_id, page, per_page, sort, sort_dir)
+
+
+@router.put("/api/albums/{album_id}/scoring_context")
+def set_album_scoring_context(
+    album_id: int,
+    body: AlbumScoringContextRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Set the album's scoring context and materialize it onto member photos.
+
+    Last-write-wins on member photos that already carry a different context;
+    ``conflicts`` counts how many so the UI can warn before the caller commits
+    to the change.
+    """
+    from config import ScoringConfig
+    from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
+
+    config = ScoringConfig(validate=False)
+    if body.scoring_context not in config.get_scoring_contexts():
+        raise HTTPException(status_code=400, detail=f'Unknown scoring context: {body.scoring_context}')
+
+    with get_db() as conn:
+        user_id = _get_user_id(user)
+        _check_album_access(conn, album_id, user_id)
+
+        conn.execute(
+            "UPDATE albums SET scoring_context = ?, updated_at = datetime('now') WHERE id = ?",
+            (body.scoring_context, album_id),
+        )
+
+        rows = conn.execute(
+            "SELECT photo_path FROM album_photos WHERE album_id = ?", (album_id,)
+        ).fetchall()
+        paths = [r['photo_path'] for r in rows]
+
+        existing = get_photo_scoring_overrides(conn, paths=paths)
+        conflicts = sum(
+            1 for p in paths
+            if existing.get(p, {}).get('scoring_context') not in (None, body.scoring_context)
+        )
+
+        source = f'album:{album_id}'
+        for path in paths:
+            set_photo_scoring_override(conn, path, scoring_context=body.scoring_context, source=source, created_by=user_id)
+
+        conn.commit()
+
+    return {'updated': len(paths), 'conflicts': conflicts}
+
+
+@router.get("/api/albums/{album_id}/suggested_context")
+def get_album_suggested_context(
+    album_id: int,
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Suggest a scoring context from the album's dominant narrative moment.
+
+    Suggestion only — writes nothing; the caller confirms via
+    ``PUT .../scoring_context``.
+    """
+    from config import ScoringConfig
+
+    with get_db() as conn:
+        user_id = _get_user_id(user)
+        _check_album_access(conn, album_id, user_id)
+
+        rows = conn.execute(
+            "SELECT photos.narrative_moment, COUNT(*) as cnt FROM album_photos ap "
+            "JOIN photos ON photos.path = ap.photo_path "
+            "WHERE ap.album_id = ? AND photos.narrative_moment IS NOT NULL AND photos.narrative_moment != '' "
+            "GROUP BY photos.narrative_moment ORDER BY cnt DESC",
+            (album_id,),
+        ).fetchall()
+
+    counts = {r['narrative_moment']: r['cnt'] for r in rows}
+    total = sum(counts.values())
+
+    if not total:
+        return {'suggested': None, 'moment': None, 'share': 0.0, 'counts': {}}
+
+    dominant_moment, dominant_count = max(counts.items(), key=lambda kv: kv[1])
+    share = dominant_count / total
+
+    config = ScoringConfig(validate=False)
+    suggested = next(
+        (
+            name for name, context_cfg in config.get_scoring_contexts().items()
+            if dominant_moment in context_cfg.get('suggest_from_moments', [])
+        ),
+        None,
+    )
+
+    return {
+        'suggested': suggested,
+        'moment': dominant_moment,
+        'share': round(share, 4),
+        'counts': counts,
+    }
 
 
 # --- Sharing endpoints ---

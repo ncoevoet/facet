@@ -128,6 +128,14 @@ class OverrideCategoryBody(BaseModel):
     category: str
 
 
+class ClearCategoryOverrideBody(BaseModel):
+    path: str
+
+
+class CategoryPrioritiesBody(BaseModel):
+    order: list[str]
+
+
 class SaveSnapshotBody(BaseModel):
     category: str = 'others'
     description: str = ''
@@ -464,6 +472,82 @@ async def api_update_weights(
     except Exception:
         logger.exception("Failed to update weights")
         raise HTTPException(status_code=500, detail='Failed to update weights')
+
+
+@router.get("/api/config/category_priorities")
+def api_get_category_priorities(
+    user: Optional[CurrentUser] = Depends(require_edition),
+):
+    """List categories in current evaluation (priority) order."""
+    from config import ScoringConfig
+
+    config = ScoringConfig(validate=False)
+    return {
+        'categories': [
+            {
+                'name': cat['name'],
+                'priority': cat.get('priority', 100),
+                'filters': cat.get('filters', {}),
+            }
+            for cat in config.get_categories()
+        ],
+    }
+
+
+@router.post("/api/config/category_priorities")
+def api_update_category_priorities(
+    body: CategoryPrioritiesBody,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Reorder category evaluation priority."""
+    from api.config_writes import update_category_priorities
+
+    try:
+        backup_path = update_category_priorities(str(_CONFIG_PATH), body.order)
+
+        reload_config()
+        _stats_cache.clear()
+
+        return {
+            'success': True,
+            'message': 'Category priorities updated',
+            'backup': backup_path,
+        }
+
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail='Config file not found')
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail='Invalid JSON in config')
+    except Exception:
+        logger.exception("Failed to update category priorities")
+        raise HTTPException(status_code=500, detail='Failed to update category priorities')
+
+
+@router.get("/api/config/scoring_contexts")
+def api_get_scoring_contexts(
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """List configured scoring contexts with each one's effective category order."""
+    from config import ScoringConfig
+
+    config = ScoringConfig(validate=False)
+    contexts = config.get_scoring_contexts()
+
+    return {
+        'contexts': [
+            {
+                'name': name,
+                'label_key': context_cfg.get('label_key'),
+                'promote': context_cfg.get('promote', []),
+                'excluded': context_cfg.get('excluded', []),
+                'suggest_from_moments': context_cfg.get('suggest_from_moments', []),
+                'effective_order': [cat_name for cat_name, _ in config.resolve_context_order(name)],
+            }
+            for name, context_cfg in contexts.items()
+        ],
+    }
 
 
 @router.get("/api/comparison/stats")
@@ -1017,9 +1101,23 @@ def api_comparison_override_category(
     body: OverrideCategoryBody,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Manually override a photo's category."""
+    """Manually override a photo's category.
+
+    The override is stored in ``photo_scoring_overrides`` so it survives the
+    next ``--recompute-average`` (which would otherwise reassign the category
+    from filters alone). ``photos.category`` is also written immediately so
+    the gallery reflects the change before any recompute runs.
+    """
+    from config import ScoringConfig
+    from db.scoring_overrides import set_photo_scoring_override
+
     if not body.path or not body.category:
         raise HTTPException(status_code=400, detail='Missing path or category')
+
+    config = ScoringConfig(validate=False)
+    valid_names = {cat['name'] for cat in config.get_categories()}
+    if body.category not in valid_names:
+        raise HTTPException(status_code=400, detail=f'Unknown category: {body.category}')
 
     # Verify photo exists and user has visibility
     user_id = user.user_id if user else None
@@ -1032,7 +1130,12 @@ def api_comparison_override_category(
 
         old_category = row[0]
 
-        # Update the category
+        set_photo_scoring_override(
+            conn, body.path,
+            category_override=body.category,
+            source='manual',
+            created_by=user_id,
+        )
         conn.execute(f"UPDATE photos SET category = ? WHERE path = ? AND {vis_sql}", [body.category, body.path] + vis_params)
         conn.commit()
 
@@ -1044,6 +1147,33 @@ def api_comparison_override_category(
         'old_category': old_category,
         'new_category': body.category,
     }
+
+
+@router.post("/api/comparison/clear_category_override")
+def api_comparison_clear_category_override(
+    body: ClearCategoryOverrideBody,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Remove a photo's manual category override; filters decide again on the next recompute."""
+    from db.scoring_overrides import clear_photo_scoring_override
+
+    if not body.path:
+        raise HTTPException(status_code=400, detail='Missing path')
+
+    user_id = user.user_id if user else None
+    vis_sql, vis_params = get_visibility_clause(user_id)
+
+    with get_db() as conn:
+        row = conn.execute(f"SELECT path FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail='Photo not found')
+
+        clear_photo_scoring_override(conn, body.path, field='category_override')
+        conn.commit()
+
+    _stats_cache.clear()
+
+    return {'success': True, 'path': body.path}
 
 
 @router.get("/api/comparison/history")
