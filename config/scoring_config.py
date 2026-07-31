@@ -20,6 +20,12 @@ from config.category_filter import (
 # This preserves targeted changes from recommendations
 NORMALIZATION_TOLERANCE = 5  # +/- 5% tolerance (95-105%)
 
+# Name of the scoring_contexts preset used when no context (or an unknown one) is requested
+DEFAULT_CONTEXT_NAME = "default"
+
+# Name of the catch-all category (priority 999, empty filters) — always evaluated last
+DEFAULT_CATEGORY_NAME = "default"
+
 
 def _calc_stats(values):
     """Calculate statistical summary for a list of values.
@@ -62,6 +68,7 @@ class ScoringConfig:
     def __init__(self, config_path=None, validate=True):
         self.config_path = config_path or 'scoring_config.json'
         self.config = self._load_config()
+        self._context_order_cache = {}
         self.version_hash = self._compute_version_hash()
         if validate:
             for schema_error in self.validate_schema():
@@ -949,7 +956,7 @@ class ScoringConfig:
                 return cat
         return {}
 
-    def get_categories(self):
+    def _priority_sorted_categories(self):
         """Get list of category configurations sorted by priority.
 
         Returns:
@@ -959,25 +966,106 @@ class ScoringConfig:
         categories = self.config.get('categories', [])
         return sorted(categories, key=lambda c: c.get('priority', 100))
 
-    def determine_category(self, photo_data: dict) -> str:
+    def get_categories(self, context=None):
+        """Get category configurations, optionally reordered by a scoring context.
+
+        Args:
+            context: Scoring context name (see ``get_scoring_contexts``), or None
+                for the plain global priority order.
+
+        Returns:
+            List of category config dicts. With no context, sorted by priority
+            (lower = higher priority) — identical to prior behaviour. With a
+            context, the delta-adjusted order from ``resolve_context_order``.
+        """
+        if context is None:
+            return self._priority_sorted_categories()
+        return [self.get_category_config(name) for name, _ in self.resolve_context_order(context)]
+
+    def get_scoring_contexts(self):
+        """Return the ``scoring_contexts`` config block.
+
+        Returns:
+            Dict mapping context name to ``{label_key, promote, excluded,
+            suggest_from_moments}``. Empty dict when the block is absent.
+        """
+        contexts = self.config.get('scoring_contexts', {})
+        return contexts if isinstance(contexts, dict) else {}
+
+    def resolve_context_order(self, context=None):
+        """Resolve the memoized, delta-adjusted category evaluation order for a context.
+
+        Effective order = the context's ``promote`` names (in the order given)
+        → the global priority order minus promoted and excluded names →
+        ``default`` last (untouched by promote/excluded). An unknown or
+        unconfigured context name falls back to the ``default`` preset and logs
+        a warning. Result is memoized per context name for the lifetime of this
+        instance.
+
+        Args:
+            context: Scoring context name, or None for the ``default`` preset.
+
+        Returns:
+            List of ``(category_name, CategoryFilter)`` tuples.
+        """
+        cache_key = context or DEFAULT_CONTEXT_NAME
+        if cache_key in self._context_order_cache:
+            return self._context_order_cache[cache_key]
+
+        contexts = self.get_scoring_contexts()
+        context_def = contexts.get(context)
+        if context_def is None:
+            if context:
+                logger.warning("Unknown scoring context %r, falling back to default order", context)
+            context_def = contexts.get(DEFAULT_CONTEXT_NAME, {})
+
+        promote = context_def.get('promote') or []
+        excluded = set(context_def.get('excluded') or [])
+
+        by_name = {c.get('name'): c for c in self.config.get('categories', [])}
+
+        ordered = []
+        seen = set()
+        for name in promote:
+            category = by_name.get(name)
+            if category is None or name == DEFAULT_CATEGORY_NAME or name in excluded or name in seen:
+                continue
+            ordered.append(category)
+            seen.add(name)
+
+        for category in self._priority_sorted_categories():
+            name = category.get('name')
+            if name == DEFAULT_CATEGORY_NAME or name in excluded or name in seen:
+                continue
+            ordered.append(category)
+            seen.add(name)
+
+        default_category = by_name.get(DEFAULT_CATEGORY_NAME)
+        if default_category is not None:
+            ordered.append(default_category)
+
+        result = [(c['name'], CategoryFilter(c.get('filters', {}))) for c in ordered]
+        self._context_order_cache[cache_key] = result
+        return result
+
+    def determine_category(self, photo_data: dict, context: str | None = None) -> str:
         """Determine which category a photo belongs to using config-driven filters.
 
-        Evaluates categories in priority order, returns first match.
+        Evaluates categories in the context's effective order, returns first match.
 
         Args:
             photo_data: Dict with photo metrics. Expected keys:
                 - tags: comma-separated string
                 - face_count, face_ratio, is_silhouette, is_group_portrait, is_monochrome
                 - mean_luminance, iso, shutter_speed, focal_length, f_stop
+            context: Scoring context name, or None for the global priority order.
 
         Returns:
             Category name string (e.g., 'portrait', 'default')
         """
-        for category in self.get_categories():
-            filter_config = category.get('filters', {})
-            category_filter = CategoryFilter(filter_config)
+        for name, category_filter in self.resolve_context_order(context):
             if category_filter.matches(photo_data):
-                return category['name']
+                return name
 
         return self.config.get('viewer', {}).get('default_category', 'default')
 

@@ -218,6 +218,94 @@ class TestDetermineCategory:
 
 
 # ---------------------------------------------------------------------------
+# scoring contexts (get_scoring_contexts / resolve_context_order / determine_category context)
+# ---------------------------------------------------------------------------
+
+
+class TestScoringContexts:
+    """Scoring contexts reorder/exclude categories on top of the base priority order."""
+
+    def _silhouette_sports_photo(self, **overrides):
+        photo = {
+            "tags": "athlete, competition, fashion, sports",
+            "face_count": 1,
+            "face_ratio": 0.15,
+            "is_silhouette": 1,
+            "is_group_portrait": 0,
+            "is_monochrome": 0,
+            "mean_luminance": 0.2,
+            "iso": None,
+            "shutter_speed": None,
+            "focal_length": None,
+            "f_stop": None,
+        }
+        photo.update(overrides)
+        return photo
+
+    def test_silhouette_wins_under_default(self, scoring_config):
+        """A silhouette-flagged, sports-tagged photo is 'silhouette' with no context."""
+        assert scoring_config.determine_category(self._silhouette_sports_photo()) == "silhouette"
+
+    def test_action_stage_excludes_silhouette(self, scoring_config):
+        """The same photo never resolves to 'silhouette' under action_stage."""
+        result = scoring_config.determine_category(self._silhouette_sports_photo(), context="action_stage")
+        assert result != "silhouette"
+
+    def test_action_stage_promotes_sports_when_it_actually_matches(self, scoring_config):
+        """With a valid shutter speed, action_stage promotes 'sports' ahead of 'silhouette'."""
+        photo = self._silhouette_sports_photo(shutter_speed="1/500")
+        assert scoring_config.determine_category(photo, context="action_stage") == "sports"
+
+    def test_unknown_context_falls_back_to_default_order(self, scoring_config):
+        """An unconfigured context name behaves exactly like no context at all."""
+        photo = self._silhouette_sports_photo()
+        default_result = scoring_config.determine_category(photo)
+        fallback_result = scoring_config.determine_category(photo, context="not_a_real_context")
+        assert fallback_result == default_result
+
+    def test_get_categories_with_no_context_is_unchanged(self, scoring_config):
+        """get_categories() with no argument keeps the plain priority-sorted list."""
+        categories = scoring_config.get_categories()
+        priorities = [c.get("priority", 100) for c in categories]
+        assert priorities == sorted(priorities)
+        assert categories[-1]["name"] == "default"
+
+    def test_get_scoring_contexts_includes_shipped_presets(self, scoring_config):
+        """The shipped presets are all present with the required keys."""
+        contexts = scoring_config.get_scoring_contexts()
+        expected_keys = {"label_key", "promote", "excluded", "suggest_from_moments"}
+        for name in ("default", "action_stage", "party_event", "portrait_session",
+                     "wildlife", "landscape", "motorsport"):
+            assert name in contexts
+            assert set(contexts[name].keys()) == expected_keys
+
+    def test_context_names_reference_real_categories_and_moments(self, scoring_config):
+        """Every promote/excluded name is a real category; every suggested moment is real."""
+        category_names = {c["name"] for c in scoring_config.get_categories()}
+        moment_names = set(
+            scoring_config.config.get("narrative_moments", {})
+            .get("event_types", {}).get("general", {}).keys()
+        )
+        for context in scoring_config.get_scoring_contexts().values():
+            for name in context["promote"] + context["excluded"]:
+                assert name in category_names
+            for moment in context["suggest_from_moments"]:
+                assert moment in moment_names
+
+    def test_resolve_context_order_is_memoized(self, scoring_config):
+        """Repeated calls for the same context return the identical cached result."""
+        first = scoring_config.resolve_context_order("action_stage")
+        second = scoring_config.resolve_context_order("action_stage")
+        assert first is second
+
+    def test_resolve_context_order_is_consistent_across_calls(self, scoring_config):
+        """The resolved order is stable (same names, same sequence) across calls."""
+        first_names = [name for name, _ in scoring_config.resolve_context_order("landscape")]
+        second_names = [name for name, _ in scoring_config.resolve_context_order("landscape")]
+        assert first_names == second_names
+
+
+# ---------------------------------------------------------------------------
 # get_categories
 # ---------------------------------------------------------------------------
 

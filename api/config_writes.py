@@ -12,13 +12,18 @@ import logging
 import os
 import shutil
 import tempfile
+import threading
+from collections import Counter
 from datetime import datetime
 
 from fastapi import HTTPException
 
+from config.scoring_config import DEFAULT_CATEGORY_NAME
 from db import record_weight_snapshot
 
 logger = logging.getLogger(__name__)
+
+_CONFIG_WRITE_LOCK = threading.Lock()
 
 
 def record_category_snapshot(category, weights, created_by, get_db):
@@ -29,6 +34,72 @@ def record_category_snapshot(category, weights, created_by, get_db):
             conn.commit()
     except Exception:
         logger.warning("Could not record weight snapshot for %s", category, exc_info=True)
+
+
+def _atomic_write_config(config_path, config):
+    """Write ``config`` to ``config_path`` atomically via mkstemp + os.replace."""
+    dir_name = os.path.dirname(config_path)
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(config, f, indent=2)
+        os.replace(tmp_path, config_path)
+    except Exception:
+        os.unlink(tmp_path)
+        raise
+
+
+def _validate_priority_order(order, current_names):
+    """Raise ``HTTPException(400)`` naming what's wrong unless ``order`` is a
+    set-equal permutation of ``current_names``."""
+    duplicates = sorted(name for name, count in Counter(order).items() if count > 1)
+    if duplicates:
+        raise HTTPException(status_code=400, detail=f"Duplicate categories in order: {', '.join(duplicates)}")
+
+    current_set = set(current_names)
+    order_set = set(order)
+    missing = sorted(current_set - order_set)
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Missing categories in order: {', '.join(missing)}")
+
+    unknown = sorted(order_set - current_set)
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown categories in order: {', '.join(unknown)}")
+
+
+def update_category_priorities(config_path, order):
+    """Permute category ``priority`` values onto ``order`` and persist to disk.
+
+    ``order`` must be a set-equal permutation of the current non-``default``
+    category names; raises ``HTTPException(400)`` naming what's wrong
+    otherwise. The existing priority values are collected, sorted ascending,
+    and reassigned positionally onto ``order`` — the multiset of priorities is
+    unchanged and uniqueness (required by ``validate_categories``) is
+    guaranteed by construction. ``default`` keeps its own priority untouched.
+    Always takes a timestamped loose backup before writing (priorities aren't
+    covered by the weights snapshot table) and returns its path.
+    """
+    config_path = str(config_path)
+    with _CONFIG_WRITE_LOCK:
+        with open(config_path) as f:
+            config = json.load(f)
+
+        categories = config.get('categories', [])
+        by_name = {c.get('name'): c for c in categories}
+        current_names = [name for name in by_name if name != DEFAULT_CATEGORY_NAME]
+
+        _validate_priority_order(order, current_names)
+
+        priorities = sorted(by_name[name].get('priority') for name in current_names)
+        for name, priority in zip(order, priorities):
+            by_name[name]['priority'] = priority
+
+        backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        shutil.copy2(config_path, backup_path)
+
+        _atomic_write_config(config_path, config)
+
+    return backup_path
 
 
 def update_category_weights(config_path, category, snapshot_tag, get_db, *,
@@ -43,39 +114,31 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
     them. ``modifiers`` and ``filters`` are set only when not None.
     """
     config_path = str(config_path)
-    with open(config_path) as f:
-        config = json.load(f)
+    with _CONFIG_WRITE_LOCK:
+        with open(config_path) as f:
+            config = json.load(f)
 
-    target = next((c for c in config.get('categories', []) if c.get('name') == category), None)
-    if target is None:
-        raise HTTPException(status_code=404, detail=not_found_detail)
+        target = next((c for c in config.get('categories', []) if c.get('name') == category), None)
+        if target is None:
+            raise HTTPException(status_code=404, detail=not_found_detail)
 
-    record_category_snapshot(category, dict(target.get('weights', {})), snapshot_tag, get_db)
+        record_category_snapshot(category, dict(target.get('weights', {})), snapshot_tag, get_db)
 
-    backup_path = None
-    if backup:
-        backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        shutil.copy2(config_path, backup_path)
+        backup_path = None
+        if backup:
+            backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            shutil.copy2(config_path, backup_path)
 
-    if weights is not None:
-        if replace_weights:
-            target['weights'] = weights
-        else:
-            target.setdefault('weights', {}).update(weights)
-    if modifiers is not None:
-        target['modifiers'] = modifiers
-    if filters is not None:
-        target['filters'] = filters
+        if weights is not None:
+            if replace_weights:
+                target['weights'] = weights
+            else:
+                target.setdefault('weights', {}).update(weights)
+        if modifiers is not None:
+            target['modifiers'] = modifiers
+        if filters is not None:
+            target['filters'] = filters
 
-    # Atomic write: write to temp file in the same directory then rename
-    dir_name = os.path.dirname(config_path)
-    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
-    try:
-        with os.fdopen(fd, 'w') as f:
-            json.dump(config, f, indent=2)
-        os.replace(tmp_path, config_path)
-    except Exception:
-        os.unlink(tmp_path)
-        raise
+        _atomic_write_config(config_path, config)
 
     return backup_path
