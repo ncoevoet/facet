@@ -325,3 +325,114 @@ class TestDeterminePhotoCategory:
         photo = {'face_count': b'\x00', 'face_ratio': b'\x01'}
         category = scorer._determine_photo_category(photo, scorer.config)
         assert isinstance(category, str)
+
+    def test_category_override_wins_over_matching_filters(self, scorer):
+        # This photo's filters resolve to 'silhouette' (is_silhouette + a
+        # face present), matching the Reddit report's dance-photo bug: a
+        # sticky category_override must win over filter evaluation.
+        photo = {'tags': '', 'face_count': 1, 'face_ratio': 0.05, 'is_silhouette': 1}
+        baseline = scorer._determine_photo_category(photo, scorer.config)
+        assert baseline == 'silhouette'
+
+        overridden = dict(photo, category_override='sports')
+        category = scorer._determine_photo_category(overridden, scorer.config)
+        assert category == 'sports'
+
+    def test_unknown_category_override_falls_through_to_filters(self, scorer):
+        photo = {
+            'tags': '', 'face_count': 1, 'face_ratio': 0.05, 'is_silhouette': 1,
+            'category_override': 'not_a_real_category',
+        }
+        category = scorer._determine_photo_category(photo, scorer.config)
+        assert category == 'silhouette'
+
+    def test_scoring_context_passed_through_to_determine_category(self, scorer):
+        class SpyConfig:
+            def __init__(self):
+                self.contexts_seen = []
+
+            def get_categories(self):
+                return [{'name': 'default'}]
+
+            def determine_category(self, photo_data, context=None):
+                self.contexts_seen.append(context)
+                return 'default'
+
+        spy = SpyConfig()
+        photo = {'tags': '', 'face_count': 0, 'face_ratio': 0.0, 'scoring_context': 'action_stage'}
+        category = scorer._determine_photo_category(photo, spy)
+        assert category == 'default'
+        assert spy.contexts_seen == ['action_stage']
+
+
+# ---------------------------------------------------------------------------
+# update_all_aggregates — sticky override survives a recompute
+# ---------------------------------------------------------------------------
+
+class TestUpdateAllAggregatesHonorsOverride:
+    """Regression test for the bug this feature fixes: a per-photo category
+    override used to be silently dropped on every --recompute-average pass
+    because update_all_aggregates never looked at photo_scoring_overrides.
+    """
+
+    # A photo whose filters resolve to 'silhouette' (is_silhouette + a face
+    # present) — the same shape as the Reddit report's dance-photo bug.
+    _RECALC_COLUMNS = {
+        'aesthetic': 7.0, 'face_count': 1, 'face_quality': 5.0, 'eye_sharpness': 5.0,
+        'face_sharpness': 5.0, 'face_ratio': 0.05, 'tech_sharpness': 7.0,
+        'color_score': 7.0, 'exposure_score': 7.0, 'comp_score': 6.0,
+        'isolation_bonus': 1.0, 'is_blink': 0, 'iso': 100, 'f_stop': 8.0,
+        'shadow_clipped': 0, 'highlight_clipped': 0, 'is_silhouette': 1,
+        'histogram_spread': 0.0, 'is_monochrome': 0, 'contrast_score': 5.0,
+        'tags': '', 'leading_lines_score': 0.0, 'histogram_bimodality': 1.0,
+        'raw_sharpness_variance': 100.0, 'raw_color_entropy': 5.0,
+        'raw_eye_sharpness': 5.0, 'shutter_speed': '1/50', 'is_group_portrait': 0,
+        'mean_luminance': 0.5, 'scoring_model': 'clip-mlp', 'quality_score': 5.0,
+        'noise_sigma': 1.0, 'mean_saturation': 0.5, 'power_point_score': 5.0,
+        'dynamic_range_stops': 8.0, 'topiq_score': 5.0, 'aesthetic_iaa': 5.0,
+        'face_quality_iqa': 5.0, 'liqe_score': 5.0, 'subject_sharpness': 5.0,
+        'subject_prominence': 5.0, 'subject_placement': 5.0, 'bg_separation': 5.0,
+    }
+    _PATH = '/dance/a.jpg'
+
+    @pytest.fixture
+    def facet_with_photo(self, tmp_path):
+        from db import init_database, get_connection
+        from processing.scorer import Facet
+
+        db_path = str(tmp_path / 'sticky.db')
+        init_database(db_path)
+        columns = ['path'] + list(self._RECALC_COLUMNS.keys())
+        values = [self._PATH] + list(self._RECALC_COLUMNS.values())
+        placeholders = ','.join('?' * len(columns))
+        with get_connection(db_path, row_factory=False) as conn:
+            conn.execute(
+                f"INSERT INTO photos ({','.join(columns)}) VALUES ({placeholders})",
+                values,
+            )
+            conn.commit()
+        return Facet(db_path=db_path, lightweight=True)
+
+    def test_override_survives_recompute_and_changes_the_aggregate(self, facet_with_photo):
+        from db import get_connection
+        from db.scoring_overrides import set_photo_scoring_override
+
+        facet = facet_with_photo
+
+        facet.update_all_aggregates(use_embeddings=False)
+        with get_connection(facet.db_path, row_factory=False) as conn:
+            baseline_category, baseline_aggregate = conn.execute(
+                "SELECT category, aggregate FROM photos WHERE path = ?", (self._PATH,)
+            ).fetchone()
+        assert baseline_category == 'silhouette'
+
+        set_photo_scoring_override(facet.db_path, self._PATH, category_override='sports', source='manual')
+
+        facet.update_all_aggregates(use_embeddings=False)
+        with get_connection(facet.db_path, row_factory=False) as conn:
+            overridden_category, overridden_aggregate = conn.execute(
+                "SELECT category, aggregate FROM photos WHERE path = ?", (self._PATH,)
+            ).fetchone()
+
+        assert overridden_category == 'sports'
+        assert overridden_aggregate != baseline_aggregate

@@ -18,6 +18,7 @@ torch = pytest.importorskip("torch")
 pytest.importorskip("cv2")
 
 from config.scoring_config import ScoringConfig  # noqa: E402
+from db.schema import init_database  # noqa: E402
 from processing.batch_processor import BatchProcessor  # noqa: E402
 
 
@@ -75,7 +76,7 @@ class _FakeFaceAnalyzer:
 class FakeScorer:
     """Minimal stand-in for Facet exposing only what BatchProcessor touches."""
 
-    def __init__(self, fail_inference=False, fail_face_paths=None):
+    def __init__(self, tmp_path, fail_inference=False, fail_face_paths=None):
         self.uses_transformers_backend = True  # skip CLIP preprocess
         self.device = "cpu"
         self.tagger = None
@@ -86,6 +87,8 @@ class FakeScorer:
         self._fail_face_paths = set(fail_face_paths or [])
         self.saved = []
         self.committed = False
+        self.db_path = str(tmp_path / "fake_scorer.db")
+        init_database(self.db_path)
 
     def get_aesthetic_and_quality_batch(self, pil_images, clip_inputs):
         if self._fail_inference:
@@ -121,7 +124,7 @@ class TestBatchProcessorE2E:
     @pytest.mark.timeout(30)
     def test_all_paths_saved_and_committed(self, tmp_path):
         paths = _tiny_jpegs(tmp_path, 5)
-        scorer = FakeScorer()
+        scorer = FakeScorer(tmp_path)
         proc = _make_processor(scorer)
         proc.process_files(paths, show_metrics=False)
 
@@ -134,7 +137,7 @@ class TestBatchProcessorE2E:
     def test_error_isolation_one_bad_image(self, tmp_path):
         # img_1 is the 32x32 sentinel; the stubbed face analyzer raises on it.
         paths = _tiny_jpegs(tmp_path, 4, sentinel_index=1)
-        scorer = FakeScorer()
+        scorer = FakeScorer(tmp_path)
         scorer.face_analyzer = _FakeFaceAnalyzer(raise_on_size=32)
         errors = []
         proc = _make_processor(scorer, on_error=lambda p, stage, e: errors.append((p, stage)))
@@ -150,7 +153,7 @@ class TestBatchProcessorE2E:
     @pytest.mark.timeout(30)
     def test_inference_failure_drains_without_hanging(self, tmp_path):
         paths = _tiny_jpegs(tmp_path, 4)
-        scorer = FakeScorer(fail_inference=True)
+        scorer = FakeScorer(tmp_path, fail_inference=True)
         errors = []
         proc = _make_processor(scorer, on_error=lambda p, stage, e: errors.append((p, stage)))
 
@@ -172,11 +175,11 @@ def _bounded_processor(scorer, **kwargs):
 
 class TestBatchProcessorStopEvent:
     @pytest.mark.timeout(15)
-    def test_worker_releases_on_stop_event_without_drain(self, monkeypatch):
+    def test_worker_releases_on_stop_event_without_drain(self, monkeypatch, tmp_path):
         # A producer blocked on the bounded put() must observe stop_event and
         # exit even when nothing drains the queue. The pre-fix blocking put()
         # never rechecks stop_event, so this hangs until the timeout (RED).
-        scorer = FakeScorer()
+        scorer = FakeScorer(tmp_path)
         proc = _bounded_processor(scorer)
         assert proc.image_queue.maxsize == 1
         monkeypatch.setattr(proc, "_load_image", lambda path: {"path": path})
@@ -199,7 +202,7 @@ class TestBatchProcessorStopEvent:
         # queue. Pre-fix, process_files joins that blocked worker forever (RED);
         # the stop_event.set() + drain in the abort/finally path releases it.
         paths = _tiny_jpegs(tmp_path, 20)
-        scorer = FakeScorer()
+        scorer = FakeScorer(tmp_path)
         proc = _bounded_processor(scorer)
 
         def boom(batch):
@@ -215,7 +218,7 @@ class TestBatchProcessorStopEvent:
         # and GPU threads promptly. Pre-fix they keep grinding through the whole
         # worklist in the background, so inference calls keep growing (RED).
         paths = _tiny_jpegs(tmp_path, 40)
-        scorer = FakeScorer()
+        scorer = FakeScorer(tmp_path)
 
         def interrupt_save(pending):
             raise KeyboardInterrupt()
