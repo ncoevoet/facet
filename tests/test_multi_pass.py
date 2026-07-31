@@ -145,3 +145,68 @@ class TestTaggingModelRouting:
         proc._pass_vlm_tagger = mock.MagicMock()
         proc._run_model_pass(selected[0], model=None, images={}, results={})
         assert proc._pass_vlm_tagger.called
+
+
+class _SpyScorer:
+    """Records the metrics dict handed to calculate_aggregate_logic."""
+
+    def __init__(self, db_path):
+        self.db_path = db_path
+        self.calls = []
+
+    def calculate_aggregate_logic(self, metrics):
+        self.calls.append(metrics)
+        return 7.5, 'spy-category'
+
+
+class TestComputeAggregatesHonorsOverride:
+    """_compute_aggregates loads the sticky per-photo scoring_context /
+    category_override once per chunk and merges it into the metrics dict
+    handed to calculate_aggregate_logic -- the actual scan-time path (as
+    opposed to --recompute-average) that must not silently drop it."""
+
+    def test_scoring_context_and_category_override_reach_calculate_aggregate_logic(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import set_photo_scoring_override
+
+        db_path = str(tmp_path / "chunk.db")
+        init_database(db_path)
+        photo_path = str((tmp_path / "a.jpg").resolve())
+
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO photos (path) VALUES (?)", (photo_path,))
+            conn.commit()
+        set_photo_scoring_override(
+            db_path, photo_path, category_override='sports', scoring_context='action_stage'
+        )
+
+        scorer = _SpyScorer(db_path)
+        with mock.patch("processing.multi_pass._ensure_imports"):
+            proc = ChunkedMultiPassProcessor(scorer=scorer, model_manager=_FakeModelManager(), config={})
+
+        # comp_score/power_point_score/leading_lines_score are pre-populated so
+        # the CompositionAnalyzer branches (which need a real cv2 image) never
+        # fire -- this test is only about the override merge.
+        results = {
+            photo_path: {
+                'aesthetic': 7.0, 'comp_score': 5.0, 'power_point_score': 5.0,
+                'leading_lines_score': 0.0, 'face_count': 0, 'tags': '',
+            },
+        }
+        images = {
+            photo_path: {
+                'cv': None, 'height': 100, 'width': 100,
+                'sharpness': {}, 'color': {}, 'histogram': {}, 'mono': {},
+                'noise': {}, 'contrast': {}, 'form': {}, 'exif': {},
+            },
+        }
+
+        proc._compute_aggregates(results, images)
+
+        assert len(scorer.calls) == 1
+        metrics = scorer.calls[0]
+        assert metrics['scoring_context'] == 'action_stage'
+        assert metrics['category_override'] == 'sports'
+        assert results[photo_path]['category'] == 'spy-category'
+        assert results[photo_path]['aggregate'] == 7.5

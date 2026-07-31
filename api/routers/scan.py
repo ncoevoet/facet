@@ -70,6 +70,10 @@ class ScanStartRequest(BaseModel):
     directories: list[str] = []
 
 
+class RecomputeRequest(BaseModel):
+    confirm: bool
+
+
 @router.post("/start")
 def start_scan(
     body: ScanStartRequest,
@@ -275,6 +279,7 @@ def scan_directories(
 
 @router.post("/recompute")
 def start_recompute(
+    body: RecomputeRequest,
     user: CurrentUser = Depends(require_edition),
 ):
     """Trigger a full-library aggregate recompute as a background subprocess.
@@ -282,15 +287,23 @@ def start_recompute(
     Reuses the scan job machinery (``_scan_lock``, ``_scan_state``,
     ``_read_scan_output``) so a scan and a recompute stay mutually exclusive --
     both write the ``photos`` table. The argv is fixed and entirely
-    server-origin; unlike ``/start`` it takes no request input, so it is
-    edition-gated rather than superadmin-only.
+    server-origin, so unlike ``/start`` it is edition-gated rather than
+    superadmin-only.
+
+    ``confirm`` is required rather than decorative: a body-less POST is a CORS
+    "simple request" and never preflights, so any page the user happens to open
+    could otherwise start a multi-hour rewrite of the whole photos table on a
+    password-less install. Requiring a JSON body forces the preflight that the
+    other write endpoints get for free.
     """
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="Recompute must be explicitly confirmed")
+
     if not _scan_lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="A job is already running")
 
     try:
         if _scan_state['running']:
-            _scan_lock.release()
             raise HTTPException(status_code=409, detail="A job is already running")
 
         cmd = [sys.executable, FACET_SCRIPT, '--recompute-average', '--config', str(_CONFIG_PATH)]
@@ -315,7 +328,6 @@ def start_recompute(
         reader = threading.Thread(target=_read_scan_output, args=(proc,), daemon=True)
         reader.start()
 
-        _scan_lock.release()
         return {
             'success': True,
             'message': 'Recompute started',
@@ -324,11 +336,12 @@ def start_recompute(
 
     except HTTPException:
         raise
-    except (subprocess.SubprocessError, OSError):
+    except Exception:
         logger.exception("Recompute failed to start")
         _scan_state['running'] = False
-        _scan_lock.release()
         raise HTTPException(status_code=500, detail='Recompute failed to start')
+    finally:
+        _scan_lock.release()
 
 
 @router.get("/recompute_status")

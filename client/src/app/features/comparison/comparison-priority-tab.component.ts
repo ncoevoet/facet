@@ -511,7 +511,7 @@ export class ComparisonPriorityTabComponent {
   async startRecompute(): Promise<void> {
     this.recomputeMessageKey.set(null);
     try {
-      await firstValueFrom(this.api.post('/scan/recompute'));
+      await firstValueFrom(this.api.post('/scan/recompute', { confirm: true }));
       this.recomputing.set(true);
       this.recomputeStatus.set(null);
       void this.pollRecomputeStatus();

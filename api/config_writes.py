@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 _CONFIG_WRITE_LOCK = threading.Lock()
 
+MAX_CONFIG_BACKUPS = 20
+
 
 def record_category_snapshot(category, weights, created_by, get_db):
     """Best-effort weights snapshot before a config write; never blocks the write."""
@@ -47,6 +49,23 @@ def _atomic_write_config(config_path, config):
     except Exception:
         os.unlink(tmp_path)
         raise
+
+
+def _prune_config_backups(config_path, keep=MAX_CONFIG_BACKUPS):
+    """Keep only the ``keep`` most recent timestamped backups of ``config_path``.
+
+    Every priority write drops an 88 KB backup and the filename is second-
+    granular, so an unattended caller in a loop would fill the disk. Pruning
+    keeps the safety net without the unbounded growth.
+    """
+    directory = os.path.dirname(config_path) or '.'
+    prefix = os.path.basename(config_path) + '.backup.'
+    backups = sorted(f for f in os.listdir(directory) if f.startswith(prefix))
+    for stale in backups[:-keep] if keep else backups:
+        try:
+            os.unlink(os.path.join(directory, stale))
+        except OSError:
+            logger.warning("Could not prune config backup %s", stale, exc_info=True)
 
 
 def _validate_priority_order(order, current_names):
@@ -96,6 +115,7 @@ def update_category_priorities(config_path, order):
 
         backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         shutil.copy2(config_path, backup_path)
+        _prune_config_backups(config_path)
 
         _atomic_write_config(config_path, config)
 

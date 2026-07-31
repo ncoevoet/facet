@@ -364,6 +364,30 @@ class TestDeterminePhotoCategory:
         assert category == 'default'
         assert spy.contexts_seen == ['action_stage']
 
+    def test_category_override_wins_over_scoring_context(self, scorer):
+        # A valid category_override must short-circuit before scoring_context is
+        # ever consulted -- the spy's determine_category (which reads context)
+        # must not be called at all.
+        class SpyConfig:
+            def __init__(self):
+                self.contexts_seen = []
+
+            def get_categories(self):
+                return [{'name': 'default'}, {'name': 'sports'}]
+
+            def determine_category(self, photo_data, context=None):
+                self.contexts_seen.append(context)
+                return 'default'
+
+        spy = SpyConfig()
+        photo = {
+            'tags': '', 'face_count': 0, 'face_ratio': 0.0,
+            'category_override': 'sports', 'scoring_context': 'action_stage',
+        }
+        category = scorer._determine_photo_category(photo, spy)
+        assert category == 'sports'
+        assert spy.contexts_seen == []
+
 
 # ---------------------------------------------------------------------------
 # update_all_aggregates — sticky override survives a recompute

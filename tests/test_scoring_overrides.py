@@ -119,3 +119,14 @@ class TestGetSetClearOverride:
             conn.commit()
         overrides = get_photo_scoring_overrides(db_path)
         assert overrides['/a.jpg']['category_override'] == 'sports'
+
+    def test_clear_with_open_connection_lets_caller_own_the_commit(self, db_path):
+        set_photo_scoring_override(
+            db_path, '/a.jpg', category_override='sports', scoring_context='action_stage'
+        )
+        with get_connection(db_path) as conn:
+            clear_photo_scoring_override(conn, '/a.jpg', field='category_override')
+            conn.commit()
+        overrides = get_photo_scoring_overrides(db_path)
+        assert overrides['/a.jpg']['category_override'] is None
+        assert overrides['/a.jpg']['scoring_context'] == 'action_stage'

@@ -569,8 +569,24 @@ def _apply_album_scoring_context(conn, album_id, paths):
     if not context:
         return
     from db.scoring_overrides import set_photo_scoring_override
-    for path in paths:
+    for path in _existing_photo_paths(conn, paths):
         set_photo_scoring_override(conn, path, scoring_context=context, source=f'album:{album_id}')
+
+
+def _existing_photo_paths(conn, paths):
+    """Keep only the paths that exist in ``photos``, preserving order.
+
+    ``album_photos`` carries no foreign key, so a member can name a row that
+    was never scanned or has since been cleaned up. ``photo_scoring_overrides``
+    does have one, so writing an override for such a path raises IntegrityError
+    and rolls back the whole assignment.
+    """
+    if not paths:
+        return []
+    placeholders = ','.join('?' * len(paths))
+    known = {r[0] for r in conn.execute(
+        f"SELECT path FROM photos WHERE path IN ({placeholders})", list(paths))}
+    return [p for p in paths if p in known]
 
 
 def append_album_photos(conn, album_id, paths):
@@ -711,7 +727,7 @@ def set_album_scoring_context(
         rows = conn.execute(
             "SELECT photo_path FROM album_photos WHERE album_id = ?", (album_id,)
         ).fetchall()
-        paths = [r['photo_path'] for r in rows]
+        paths = _existing_photo_paths(conn, [r['photo_path'] for r in rows])
 
         existing = get_photo_scoring_overrides(conn, paths=paths)
         conflicts = sum(

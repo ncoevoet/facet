@@ -437,8 +437,16 @@ class TestAlbumScoringContext:
 
         conn_mock = mock.MagicMock()
         photo_rows = [{"photo_path": "/a.jpg"}, {"photo_path": "/b.jpg"}, {"photo_path": "/c.jpg"}]
-        conn_mock.execute.return_value.fetchone.return_value = album_row
-        conn_mock.execute.return_value.fetchall.return_value = photo_rows
+
+        def _execute(sql, *args):
+            cursor = mock.MagicMock()
+            cursor.fetchone.return_value = album_row
+            cursor.fetchall.return_value = photo_rows
+            if "FROM photos WHERE path IN" in sql:
+                cursor.__iter__.return_value = iter([(r["photo_path"],) for r in photo_rows])
+            return cursor
+
+        conn_mock.execute.side_effect = _execute
 
         mock_get_overrides = mock.MagicMock(return_value={
             "/a.jpg": {"scoring_context": "portrait_session", "category_override": None},
@@ -538,4 +546,62 @@ class TestAlbumSuggestedContext:
         assert data["suggested"] is None
         assert data["moment"] is None
         assert data["share"] == 0.0
+
+
+class TestAlbumContextMaterializesOntoLaterPhotos:
+    """Real-DB test (no mocked connection): append_album_photos calls
+    _apply_album_scoring_context internally, so photos added to an album
+    AFTER its scoring_context was set inherit that context too, not just the
+    members present when PUT .../scoring_context ran."""
+
+    def test_photos_appended_later_inherit_the_album_context(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import get_photo_scoring_overrides
+        from api.routers.albums import append_album_photos
+
+        db_path = str(tmp_path / "albums.db")
+        init_database(db_path)
+
+        with get_connection(db_path) as conn:
+            conn.execute(
+                "INSERT INTO albums (id, name, scoring_context) VALUES (1, 'Trip', 'action_stage')"
+            )
+            conn.execute("INSERT INTO photos (path) VALUES ('/a.jpg'), ('/b.jpg')")
+            conn.commit()
+
+            append_album_photos(conn, 1, ['/a.jpg'])
+            conn.commit()
+
+        before = get_photo_scoring_overrides(db_path, paths=['/a.jpg', '/b.jpg'])
+        assert before.get('/a.jpg', {}).get('scoring_context') == 'action_stage'
+        assert '/b.jpg' not in before
+
+        with get_connection(db_path) as conn:
+            append_album_photos(conn, 1, ['/b.jpg'])
+            conn.commit()
+
+        after = get_photo_scoring_overrides(db_path, paths=['/a.jpg', '/b.jpg'])
+        assert after['/a.jpg']['scoring_context'] == 'action_stage'
+        assert after['/b.jpg']['scoring_context'] == 'action_stage'
+
+    def test_append_is_a_noop_when_the_album_carries_no_context(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import get_photo_scoring_overrides
+        from api.routers.albums import append_album_photos
+
+        db_path = str(tmp_path / "albums.db")
+        init_database(db_path)
+
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO albums (id, name) VALUES (1, 'No Context')")
+            conn.execute("INSERT INTO photos (path) VALUES ('/a.jpg')")
+            conn.commit()
+
+            append_album_photos(conn, 1, ['/a.jpg'])
+            conn.commit()
+
+        overrides = get_photo_scoring_overrides(db_path, paths=['/a.jpg'])
+        assert overrides == {}
 

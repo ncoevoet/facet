@@ -215,7 +215,7 @@ export class AlbumScoringContextDialogComponent implements OnInit {
   protected async recompute(): Promise<void> {
     this.recomputeError.set(null);
     try {
-      await firstValueFrom(this.api.post('/scan/recompute', {}));
+      await firstValueFrom(this.api.post('/scan/recompute', { confirm: true }));
     } catch (err: unknown) {
       this.recomputeError.set(err instanceof HttpErrorResponse && err.status === 409 ? 'busy' : 'failed');
       return;

@@ -107,7 +107,7 @@ describe('AlbumScoringContextDialogComponent', () => {
     await component.recompute();
     await new Promise(resolve => setTimeout(resolve, 0));
 
-    expect(post).toHaveBeenCalledWith('/scan/recompute', {});
+    expect(post).toHaveBeenCalledWith('/scan/recompute', { confirm: true });
     expect(component.phase()).toBe('recompute_done');
   });
 

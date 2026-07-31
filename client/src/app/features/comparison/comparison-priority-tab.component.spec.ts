@@ -407,7 +407,7 @@ describe('ComparisonPriorityTabComponent', () => {
       await component.startRecompute();
       await flush();
 
-      expect(mockApi.post).toHaveBeenCalledWith('/scan/recompute');
+      expect(mockApi.post).toHaveBeenCalledWith('/scan/recompute', { confirm: true });
       expect(component.recomputing()).toBe(false);
       expect(component.stale()).toBe(false);
     });

@@ -1,5 +1,6 @@
 """Tests for the core config module (ScoringConfig, CategoryFilter, determine_category)."""
 
+import json
 import os
 
 import pytest
@@ -303,6 +304,80 @@ class TestScoringContexts:
         first_names = [name for name, _ in scoring_config.resolve_context_order("landscape")]
         second_names = [name for name, _ in scoring_config.resolve_context_order("landscape")]
         assert first_names == second_names
+
+
+class TestResolveContextOrderEdgeCases:
+    """resolve_context_order edge cases, isolated from the real scoring_config.json
+    with a small fabricated category set so promote/excluded interactions can be
+    pinned down exactly."""
+
+    _CATEGORIES = [
+        {"name": "silhouette", "priority": 10, "filters": {}},
+        {"name": "sports", "priority": 20, "filters": {}},
+        {"name": "wildlife", "priority": 30, "filters": {}},
+        {"name": "default", "priority": 999, "filters": {}},
+    ]
+
+    def _config_with(self, tmp_path, scoring_contexts):
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": self._CATEGORIES,
+            "scoring_contexts": scoring_contexts,
+        }))
+        return ScoringConfig(config_path=str(config_path), validate=False)
+
+    def test_name_in_both_promote_and_excluded_is_dropped_entirely(self, tmp_path):
+        """excluded wins: a name listed in both never appears in the order at all."""
+        cfg = self._config_with(tmp_path, {
+            "conflict": {"promote": ["sports"], "excluded": ["sports"]},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("conflict")]
+        assert "sports" not in order
+        assert set(order) == {"silhouette", "wildlife", "default"}
+
+    def test_promote_name_that_does_not_exist_is_ignored(self, tmp_path):
+        """A promote entry naming a nonexistent category is dropped, not crashed on."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"promote": ["not_a_real_category"], "excluded": []},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert "not_a_real_category" not in order
+        assert set(order) == {"silhouette", "sports", "wildlife", "default"}
+
+    def test_excluded_name_that_does_not_exist_is_harmless(self, tmp_path):
+        """An excluded entry naming a nonexistent category changes nothing."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"promote": [], "excluded": ["not_a_real_category"]},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert set(order) == {"silhouette", "sports", "wildlife", "default"}
+
+    def test_default_named_in_promote_is_still_evaluated_last(self, tmp_path):
+        """'default' can never be promoted ahead of the rest, even if listed."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"promote": ["default", "wildlife"], "excluded": []},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert order[0] == "wildlife"
+        assert order[-1] == "default"
+
+    def test_default_named_in_excluded_is_still_evaluated_last(self, tmp_path):
+        """'default' can never be excluded — it always stays, always last."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"promote": [], "excluded": ["default"]},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert order[-1] == "default"
+        assert set(order) == {"silhouette", "sports", "wildlife", "default"}
+
+    def test_duplicate_promote_names_produce_one_entry(self, tmp_path):
+        """A name repeated in promote is only placed once, at its first occurrence."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"promote": ["wildlife", "sports", "wildlife"], "excluded": []},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert order.count("wildlife") == 1
+        assert order[:2] == ["wildlife", "sports"]
 
 
 # ---------------------------------------------------------------------------

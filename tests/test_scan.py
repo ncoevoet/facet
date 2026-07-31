@@ -330,11 +330,42 @@ class TestRecompute:
         resp = anonymous_client.post(self.ENDPOINT)
         assert resp.status_code == 401
 
+    def test_bodyless_post_is_rejected_without_spawning(self, edition_client):
+        """A body-less POST is a CORS simple request and never preflights, so it
+        would let any page the user opens start a full-library rewrite."""
+        from api.routers import scan as scan_router
+
+        with mock.patch.object(scan_router.subprocess, "Popen") as mock_popen:
+            resp = edition_client.post(self.ENDPOINT)
+
+        assert resp.status_code == 422
+        mock_popen.assert_not_called()
+
+    def test_confirm_false_is_rejected_without_spawning(self, edition_client):
+        from api.routers import scan as scan_router
+
+        with mock.patch.object(scan_router.subprocess, "Popen") as mock_popen:
+            resp = edition_client.post(self.ENDPOINT, json={"confirm": False})
+
+        assert resp.status_code == 400
+        mock_popen.assert_not_called()
+
+    def test_lock_is_released_when_spawn_fails(self, edition_client):
+        """An unexpected error must not leave the shared job lock held, which
+        would wedge every later scan and recompute behind a permanent 409."""
+        from api.routers import scan as scan_router
+
+        with mock.patch.object(scan_router.subprocess, "Popen", side_effect=RuntimeError("boom")):
+            resp = edition_client.post(self.ENDPOINT, json={"confirm": True})
+
+        assert resp.status_code == 500
+        assert not scan_router._scan_lock.locked()
+
     def test_conflict_when_a_job_is_running(self, edition_client):
         from api.routers.scan import _scan_state
         _scan_state['running'] = True
 
-        resp = edition_client.post(self.ENDPOINT)
+        resp = edition_client.post(self.ENDPOINT, json={"confirm": True})
 
         assert resp.status_code == 409
 
@@ -347,7 +378,7 @@ class TestRecompute:
         mock_proc.wait.return_value = 0
 
         with mock.patch.object(scan_router.subprocess, "Popen", return_value=mock_proc) as mock_popen:
-            resp = edition_client.post(self.ENDPOINT)
+            resp = edition_client.post(self.ENDPOINT, json={"confirm": True})
 
         assert resp.status_code == 200
         data = resp.json()
