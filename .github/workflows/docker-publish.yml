@@ -65,6 +65,10 @@ jobs:
         with:
           context: .
           push: true
+          # x86_64 only, stated explicitly rather than inherited from the runner.
+          # arm64 would have to cross-build under QEMU, which for a multi-GB ML
+          # image costs hours per tag, and the CUDA variant is amd64-only anyway.
+          platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
