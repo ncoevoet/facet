@@ -14,6 +14,81 @@ async function flush(): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 0));
 }
 
+type DropEvent = Parameters<ComparisonPriorityTabComponent['drop']>[0];
+
+/**
+ * Builds a realistic CdkDragDrop-shaped event (all fields the real directive emits),
+ * without needing an actual mouse/pointer sequence — `drop()` only reads
+ * `previousIndex`/`currentIndex`, but the surrounding fields are included so the event
+ * shape matches what `(cdkDropListDropped)` really binds.
+ */
+function makeDropEvent(previousIndex: number, currentIndex: number): DropEvent {
+  return {
+    previousIndex,
+    currentIndex,
+    item: {},
+    container: {},
+    previousContainer: {},
+    isPointerOverContainer: true,
+    distance: { x: 0, y: 0 },
+    dropPoint: { x: 0, y: 0 },
+    event: new MouseEvent('mouseup'),
+  } as unknown as DropEvent;
+}
+
+// Mirrors the real category priority order in scoring_config.json (sorted ascending by
+// `priority`, `default` pinned last at 999) so the reorder is exercised against the
+// actual 33-category shape, not a toy 2-item list.
+const CATEGORIES_LARGE = [
+  { name: 'art', priority: 8, filters: {} },
+  { name: 'astro', priority: 10, filters: {} },
+  { name: 'concert', priority: 15, filters: {} },
+  { name: 'group_portrait', priority: 35, filters: {} },
+  { name: 'silhouette', priority: 42, filters: {} },
+  { name: 'fashion', priority: 43, filters: {} },
+  { name: 'portrait', priority: 45, filters: {} },
+  { name: 'portrait_bw', priority: 46, filters: {} },
+  { name: 'candid', priority: 47, filters: {} },
+  { name: 'macro', priority: 55, filters: {} },
+  { name: 'aerial', priority: 60, filters: {} },
+  { name: 'wildlife', priority: 65, filters: {} },
+  { name: 'food', priority: 70, filters: {} },
+  { name: 'sports', priority: 71, filters: {} },
+  { name: 'vehicle', priority: 72, filters: {} },
+  { name: 'travel', priority: 73, filters: {} },
+  { name: 'product', priority: 74, filters: {} },
+  { name: 'architecture', priority: 76, filters: {} },
+  { name: 'urban', priority: 78, filters: {} },
+  { name: 'blue_hour', priority: 79, filters: {} },
+  { name: 'long_exposure', priority: 80, filters: {} },
+  { name: 'golden_hour', priority: 81, filters: {} },
+  { name: 'cinematic', priority: 82, filters: {} },
+  { name: 'vintage', priority: 83, filters: {} },
+  { name: 'abstract', priority: 84, filters: {} },
+  { name: 'night', priority: 85, filters: {} },
+  { name: 'minimalist', priority: 86, filters: {} },
+  { name: 'dramatic', priority: 87, filters: {} },
+  { name: 'monochrome', priority: 88, filters: {} },
+  { name: 'weather', priority: 89, filters: {} },
+  { name: 'street', priority: 95, filters: {} },
+  { name: 'human_others', priority: 96, filters: {} },
+  { name: 'landscape', priority: 100, filters: {} },
+  { name: 'default', priority: 999, filters: {} },
+];
+
+// sports sits at index 13, silhouette at index 4, in the 33-entry non-default list.
+const SPORTS_INDEX = 13;
+const SILHOUETTE_INDEX = 4;
+const LAST_NON_DEFAULT_INDEX = CATEGORIES_LARGE.length - 2; // 32: excludes 'default'
+
+const EXPECTED_ORDER_AFTER_SPORTS_MOVE = [
+  'art', 'astro', 'concert', 'group_portrait', 'sports', 'silhouette', 'fashion',
+  'portrait', 'portrait_bw', 'candid', 'macro', 'aerial', 'wildlife', 'food',
+  'vehicle', 'travel', 'product', 'architecture', 'urban', 'blue_hour',
+  'long_exposure', 'golden_hour', 'cinematic', 'vintage', 'abstract', 'night',
+  'minimalist', 'dramatic', 'monochrome', 'weather', 'street', 'human_others', 'landscape',
+];
+
 describe('CategoryFilterSummaryPipe', () => {
   const pipe = new CategoryFilterSummaryPipe();
 
@@ -409,6 +484,123 @@ describe('ComparisonPriorityTabComponent', () => {
     it('recompute is disabled while a job is running', () => {
       component.recomputing.set(true);
       expect(component.recomputeDisabled()).toBe(true);
+    });
+  });
+
+  // Drives the CDK drop handler directly with a synthesized CdkDragDrop event, bypassing
+  // the real pointer/mouse drag sequence entirely (jsdom + CDP synthetic mouse events
+  // cannot reliably trigger Angular CDK's drag-drop pointer machinery). This exercises
+  // exactly the same code path `(cdkDropListDropped)="drop($event)"` invokes in the
+  // template — the only thing NOT covered is the physical mouse gesture itself.
+  describe('drop — realistic reorder against the full scoring_config.json priority order', () => {
+    beforeEach(async () => {
+      mockApi.get.mockReturnValue(of({ categories: CATEGORIES_LARGE }));
+      await component.loadCategories();
+    });
+
+    it('loads the full 33-entry non-default order', () => {
+      expect(component.orderedCategories()).toHaveLength(LAST_NON_DEFAULT_INDEX + 1);
+      expect(component.orderedCategories()[SPORTS_INDEX].name).toBe('sports');
+      expect(component.orderedCategories()[SILHOUETTE_INDEX].name).toBe('silhouette');
+    });
+
+    it('moving sports from index 13 to index 4 places it immediately before silhouette and shifts the rest', () => {
+      component.drop(makeDropEvent(SPORTS_INDEX, SILHOUETTE_INDEX));
+
+      const names = component.orderedCategories().map(c => c.name);
+      expect(names).toEqual(EXPECTED_ORDER_AFTER_SPORTS_MOVE);
+      expect(names[SILHOUETTE_INDEX]).toBe('sports');
+      expect(names[SILHOUETTE_INDEX + 1]).toBe('silhouette');
+      expect(names).toHaveLength(LAST_NON_DEFAULT_INDEX + 1);
+    });
+
+    it('moving an item downward (silhouette to just after sports) shifts the intervening items the other way', () => {
+      component.drop(makeDropEvent(SILHOUETTE_INDEX, SPORTS_INDEX));
+
+      const names = component.orderedCategories().map(c => c.name);
+      expect(names[SPORTS_INDEX - 1]).toBe('sports');
+      expect(names[SPORTS_INDEX]).toBe('silhouette');
+      expect(names).toHaveLength(LAST_NON_DEFAULT_INDEX + 1);
+    });
+  });
+
+  describe('drop — pinned "default" category can never be displaced', () => {
+    beforeEach(async () => {
+      mockApi.get.mockReturnValue(of({ categories: CATEGORIES_LARGE }));
+      await component.loadCategories();
+    });
+
+    it('dropping exactly onto the default row (currentIndex === length) clamps to the last real slot', () => {
+      component.drop(makeDropEvent(0, component.orderedCategories().length));
+
+      const names = component.orderedCategories().map(c => c.name);
+      expect(names).toHaveLength(LAST_NON_DEFAULT_INDEX + 1);
+      expect(names[LAST_NON_DEFAULT_INDEX]).toBe('art');
+      expect(names).not.toContain('default');
+    });
+
+    it('dropping far past the default row clamps the same way, never appending or losing entries', () => {
+      component.drop(makeDropEvent(0, 1000));
+
+      const names = component.orderedCategories().map(c => c.name);
+      expect(names).toHaveLength(LAST_NON_DEFAULT_INDEX + 1);
+      expect(names[LAST_NON_DEFAULT_INDEX]).toBe('art');
+      expect(names).not.toContain('default');
+    });
+
+    it('never mutates the default category entry itself', () => {
+      const before = component.defaultCategory();
+
+      component.drop(makeDropEvent(0, component.orderedCategories().length));
+      component.drop(makeDropEvent(SPORTS_INDEX, 5000));
+
+      expect(component.defaultCategory()).toEqual(before);
+    });
+
+    it('a drop attempted with currentIndex beyond the list still reports a real order change (Save should enable)', () => {
+      component.drop(makeDropEvent(0, component.orderedCategories().length));
+      expect(component.hasOrderChanges()).toBe(true);
+    });
+  });
+
+  describe('Save button enablement lifecycle (disabled -> enabled -> disabled after reset)', () => {
+    beforeEach(async () => {
+      mockApi.get.mockReturnValue(of({ categories: CATEGORIES_LARGE }));
+      await component.loadCategories();
+    });
+
+    it('flips disabled -> enabled on reorder, then back to disabled after resetOrder()', () => {
+      expect(component.saveDisabled()).toBe(true);
+
+      component.drop(makeDropEvent(SPORTS_INDEX, SILHOUETTE_INDEX));
+      expect(component.saveDisabled()).toBe(false);
+
+      component.resetOrder();
+      expect(component.saveDisabled()).toBe(true);
+      expect(component.orderedCategories().map(c => c.name)).toEqual(
+        CATEGORIES_LARGE.filter(c => c.name !== 'default').map(c => c.name),
+      );
+    });
+  });
+
+  describe('saveOrder — payload for a realistic reorder', () => {
+    beforeEach(async () => {
+      mockApi.get.mockReturnValue(of({ categories: CATEGORIES_LARGE }));
+      await component.loadCategories();
+    });
+
+    it('POSTs the full ordered name list, excluding the pinned default, in the new order', async () => {
+      component.drop(makeDropEvent(SPORTS_INDEX, SILHOUETTE_INDEX));
+      mockApi.get.mockReturnValue(of({ categories: CATEGORIES_LARGE }));
+
+      await component.saveOrder();
+
+      expect(mockApi.post).toHaveBeenCalledWith('/config/category_priorities', {
+        order: EXPECTED_ORDER_AFTER_SPORTS_MOVE,
+      });
+      const [, body] = mockApi.post.mock.calls[0] as [string, { order: string[] }];
+      expect(body.order).not.toContain('default');
+      expect(body.order).toHaveLength(LAST_NON_DEFAULT_INDEX + 1);
     });
   });
 });
