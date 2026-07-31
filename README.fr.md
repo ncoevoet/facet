@@ -94,6 +94,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 - **Statistiques** — tableaux de bord sur l'utilisation du matériel, la répartition par catégorie, la chronologie de prise de vue et les corrélations entre métriques
 - **Critique IA** — détail du score montrant la contribution de chaque métrique ; évaluation en langage naturel par VLM `[GPU]` `[16gb/24gb]`
 - **Réglage des poids** — éditeur de poids par catégorie avec aperçu du score en direct. La comparaison A/B de photos apprend de vos choix et suggère des poids optimisés.
+- **Contextes de notation** — contrôlez *quelle* catégorie note une photo, indépendamment des curseurs de poids qui n'ajustent que la catégorie déjà choisie : réorganisez la priorité globale des catégories, appliquez un contexte nommé (Action/Scène, Séance portrait, Faune, …) par album, ou fixez un remplacement de catégorie par photo qui survit à chaque recalcul.
 - **Tri « Mon goût »** — triez la galerie selon le score appris du classeur personnel, avec un badge de confiance indiquant la couverture apprise et la précision sur données de validation
 - **Apprentissage à partir des étiquettes** — les décisions de tri, les notes (étoiles), les favoris et les rejets alimentent l'optimiseur de poids (`--sync-label-comparisons`, `--mine-insights`)
 - **Instantanés** — enregistrez, restaurez et comparez des configurations de poids

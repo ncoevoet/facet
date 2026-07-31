@@ -200,13 +200,24 @@ NAS der Plus-Serie unterstützen Docker (Container Manager).
 
 Das Repository liefert eine `Dockerfile`, `docker-compose.yml` und `docker-compose.gpu.yml` im Stammverzeichnis. Das Image bündelt den vollständigen Bewertungs- + Viewer-Stack auf einer CUDA-PyTorch-Basis, erstellt den Angular-Client und stellt Port 5000 bereit. Der Viewer läuft standardmäßig im CPU-Modus; die GPU-Überschreibung muss aktiv hinzugeschaltet werden.
 
+### Das veröffentlichte Image herunterladen (Pull)
+
+`docker-compose.yml` und `docker-compose.gpu.yml` tragen neben `build: .` einen `image:`-Schlüssel, sodass `docker compose up` ein vorgefertigtes Image von GHCR **zieht** (pull), statt den ca. 3,3-GB-CPU-Stack (bzw. den ca. 21-GB-CUDA-Stack) lokal zu bauen:
+
 ```bash
-# Nur Viewer (CPU)
+# Nur Viewer (CPU) — zieht ghcr.io/ncoevoet/facet:latest
 docker compose up -d
 
-# Mit NVIDIA-GPU zur Bewertung (erfordert das NVIDIA Container Toolkit)
+# Mit NVIDIA-GPU zur Bewertung (erfordert das NVIDIA Container Toolkit) —
+# zieht ghcr.io/ncoevoet/facet:latest-cuda
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
+
+`docker compose build` (oder `up --build`) baut weiterhin aus dem `Dockerfile` in diesem Repository für lokales Experimentieren – genau dafür bleibt der `build:`-Schlüssel unterhalb von `image:` erhalten. Die profilspezifischen Overlays (`docker-compose.{8gb,16gb,24gb}.yml`) ziehen ebenfalls `:latest-cuda`, da alle drei GPU-Profile sind; `docker-compose.legacy.yml` (CPU) zieht das Basis-Image `:latest`.
+
+**Zwei veröffentlichte Tags, ein Dockerfile.** `ghcr.io/ncoevoet/facet:latest` ist ein schlanker, reiner CPU-Build (keine CUDA-Laufzeitumgebung, kein RAPIDS cuML – die Gesichts-Clusterbildung fällt auf CPU-HDBSCAN zurück). `ghcr.io/ncoevoet/facet:latest-cuda` ist der vollständige CUDA-+-cuML-Stack, wie er im gesamten Dokument beschrieben wird, unverändert gegenüber einem lokalen `docker build .`. Beide stammen aus demselben `Dockerfile`, parametrisiert über Build-Argumente (`BASE_IMAGE`, `STRIP_TORCH`, `INSTALL_CUML`), die pro Variante in `.github/workflows/docker-publish.yml` gesetzt werden. Versionierte Tags (`:1.7.2`, `:1.7`, `:1.7.2-cuda`, `:1.7-cuda`, …) werden bei jedem `vX.Y.Z`-Git-Tag zusätzlich zu `latest`/`latest-cuda` veröffentlicht.
+
+> **Nur bei der ersten Veröffentlichung:** Ein neues GHCR-Paket ist standardmäßig **privat**. Nach dem ersten Lauf des `docker-publish`-Workflows muss ein Owner `ghcr.io/ncoevoet/facet` auf **öffentlich** umstellen (Paket-Einstellungen → Change visibility) – andernfalls schlägt `docker compose up` bei einem frischen Klon mit einem 401-Fehler beim Pull fehl.
 
 `scoring_config.json` wird als Volume eingehängt (nicht ins Image eingebacken), sodass Sie es auf dem Host bearbeiten und neu starten können. Der Datenbankpfad wird durch `DB_PATH` festgelegt (Standard `/app/data/photo_scores_pro.db`). Modell-Caches bleiben unter `./model-cache/` erhalten, sodass sie Neustarts überdauern.
 

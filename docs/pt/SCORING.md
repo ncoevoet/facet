@@ -7,7 +7,7 @@ As fotos são classificadas em uma categoria e, em seguida, pontuadas com os pes
 ## Como a Pontuação Funciona
 
 1. **Detecção de Categoria** - A foto é analisada quanto ao conteúdo (rostos, tags, dados EXIF)
-2. **Avaliação de Filtros** - As categorias são avaliadas em ordem de prioridade até que uma corresponda
+2. **Avaliação de Filtros** - As categorias são avaliadas em ordem de prioridade até que uma corresponda (um *contexto de pontuação* pode promover/excluir categorias por álbum ou foto sem alterar a ordem base — veja [Contextos de Pontuação](#contextos-de-pontuação))
 3. **Aplicação de Pesos** - Pesos específicos da categoria são aplicados às métricas
 4. **Aplicação de Modificadores** - Bônus, penalidades e flags de comportamento são aplicados
 5. **Pontuação Final** - Soma ponderada limitada ao intervalo de 0 a 10
@@ -36,6 +36,40 @@ As fotos são classificadas em uma categoria e, em seguida, pontuadas com os pes
 | 999 | `default` | Fallback (sem filtro) |
 
 Outras categorias baseadas em tags incluem `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` e `weather`.
+
+## Contextos de Pontuação
+
+A ordem de prioridade acima é global — toda foto é avaliada contra a mesma lista. Um **contexto de pontuação** é um *delta* nomeado sobre essa ordem base: ele promove uma lista curta de categorias para o início e exclui outras completamente, sem renumerar nada. `default` (`promote`/`excluded` vazios) é o contexto neutro (no-op), então nada muda para uma foto a menos que um contexto seja explicitamente atribuído a ela.
+
+**Ordem efetiva** = `promote` (na ordem informada) → a ordem de prioridade global com os nomes promovidos e excluídos removidos → `default` por último. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) calcula e armazena em cache esse resultado uma vez por nome de contexto.
+
+Presets fornecidos (JSON simples, editável pelo usuário — veja [Contextos de Pontuação](CONFIGURATION.md#contextos-de-pontuação) para a referência completa dos campos):
+
+| Contexto | Promove | Exclui |
+|---------|----------|----------|
+| `default` | — | — |
+| `action_stage` | `sports`, `concert`, `candid` | `silhouette` |
+| `party_event` | `group_portrait`, `candid`, `food` | — |
+| `portrait_session` | `portrait`, `portrait_bw`, `fashion` | — |
+| `wildlife` | `wildlife` | — |
+| `landscape` | `landscape`, `golden_hour`, `blue_hour` | — |
+| `motorsport` | `sports`, `vehicle` | `silhouette` |
+
+Um contexto é atribuído por álbum (`PUT /api/albums/{id}/scoring_context`, que o materializa em cada foto membro) ou, para uma única foto teimosa, aplicado como uma substituição de categoria persistente (`POST /api/comparison/override_category`). Ambas as alavancas persistem em uma tabela auxiliar `photo_scoring_overrides`, em vez de como colunas em `photos` — `save_photo`/`save_photos_batch` gravam linhas de foto com `INSERT OR REPLACE`, o que apagaria silenciosamente uma nova coluna nessa linha na próxima nova varredura. Definir uma alavanca não afeta a outra, e cada uma pode ser removida independentemente. **Nenhuma das duas entra em vigor em fotos já pontuadas até um recálculo** — `python facet.py --recompute-average`, ou `POST /api/scan/recompute` a partir do visualizador.
+
+### A Armadilha dos Dados EXIF Ausentes
+
+Reordenar — seja editando a prioridade global, seja promovendo via um contexto — só muda qual categoria é *tentada primeiro*. Isso não pode fazer os filtros de uma categoria corresponderem a uma foto que de outra forma não corresponderiam. `config/category_filter.py:122-128` falha um filtro de intervalo numérico completamente sempre que o valor subjacente da foto está ausente ou não pode ser interpretado, em vez de pular apenas esse limite — um valor ausente e um valor fora do intervalo são tratados de forma idêntica, e a categoria é descartada de qualquer forma.
+
+Concretamente: `sports` (prioridade 71) carrega `shutter_speed_max: 0.02`. Um quadro de dança fotografado mais lento que 1/50s, ou sem nenhuma velocidade do obturador EXIF legível, falha nesse filtro não importa onde `sports` esteja na ordem de avaliação — mesmo promovida para o início por um contexto como `action_stage`. A foto cai para o que corresponder em seguida, tipicamente `fashion` (prioridade 43, marcada com a tag `fashion`, tem rosto) ou `silhouette` (prioridade 42, contraluz com rosto). **Esta é a coisa mais útil a verificar quando uma foto cai em uma categoria inesperada:** antes de reordenar ou promover qualquer coisa, confirme que os filtros numéricos da categoria de destino realmente conseguem corresponder aos dados EXIF armazenados da foto, não apenas às suas tags.
+
+### Reordenando a Prioridade Global
+
+`GET/POST /api/config/category_priorities` (protegido por edition) lê e reescreve a ordem base sobre a qual todo contexto aplica seu delta. `POST` recebe `{"order": [name, ...]}` — uma permutação com o mesmo conjunto de todo nome de categoria não-`default` — e **permuta os valores de prioridade existentes para a nova ordem** em vez de renumerar (10/20/30/…): o multiconjunto de prioridades permanece inalterado, então os números na tabela acima continuam significativos e a unicidade se mantém por construção. `default` (prioridade 999) fica fixado por último e é excluído da reordenação. Toda gravação faz primeiro uma cópia com timestamp `.backup.<timestamp>` de `scoring_config.json`; este gravador e o editor de pesos (`update_category_weights`) agora compartilham um único lock, já que o antigo read-modify-write sem proteção permitia que um salvamento concorrente de cada um descartasse silenciosamente as mudanças do outro.
+
+Reordenar, por si só, não altera a `category` armazenada de nenhuma foto — execute um recálculo depois (`--recompute-average` ou `POST /api/scan/recompute`) para aplicar a mudança.
+
+**Limitação conhecida:** `api/types.py` monta a lista suspensa de tipo/filtro da galeria a partir de `ScoringConfig.get_categories()` uma única vez, no momento da importação. Uma reordenação de prioridade é aplicada imediatamente para a correspondência real de categorias (toda chamada de pontuação e recálculo relê a configuração do disco), mas a lista suspensa de tipo da galeria mantém sua ordem antiga até o processo do visualizador ser reiniciado. A filtragem em si não é afetada — reordenar não adiciona nem remove nomes de categoria.
 
 ## Definição de Categoria
 

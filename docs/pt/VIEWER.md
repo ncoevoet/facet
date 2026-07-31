@@ -270,6 +270,8 @@ Quando `viewer.features.show_scan_button` é `true` e o usuário tem o papel `su
 
 Isso é útil quando o visualizador é executado na mesma máquina que tem acesso à GPU para pontuação.
 
+Um gatilho relacionado, porém separado, `POST /api/scan/recompute`, reutiliza o mesmo lock de job para repontuar fotos existentes no local (sem novos arquivos) — veja [Prioridade de Categoria e Contextos de Pontuação](#prioridade-de-categoria-e-contextos-de-pontuação). Diferente deste botão de varredura exclusivo para superadmin, ele é protegido por edition.
+
 ## Busca Semântica
 
 Busca híbrida combinando a similaridade de embedding CLIP/SigLIP (70%) com a correspondência de texto FTS5 BM25 em legendas e tags (30%). Digite uma consulta como "pôr do sol sobre montanhas" ou "criança brincando na neve" e o visualizador retorna fotos correspondentes ranqueadas pela pontuação combinada.
@@ -300,6 +302,10 @@ Salve uma combinação de filtros (câmera, tag, pessoa, intervalo de datas, lim
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
 Controlado por `viewer.features.show_albums` (padrão: `true`).
+
+### Contexto de Pontuação
+
+Cada álbum pode carregar um contexto de pontuação que decide qual categoria vence para suas fotos membro, independentemente da ordem de prioridade global — veja [Configuração — Contextos de Pontuação](CONFIGURATION.md#contextos-de-pontuação). `PUT /api/albums/{id}/scoring_context` (protegido por edition) o define e materializa o mesmo contexto em cada foto membro atual; `conflicts` na resposta conta os membros que já carregavam um contexto diferente, para que quem chama possa avisar antes de confirmar a mudança. Fotos adicionadas ao álbum posteriormente herdam seu contexto automaticamente. `GET /api/albums/{id}/suggested_context` propõe um a partir do `narrative_moment` dominante detectado no álbum (via a lista `suggest_from_moments` de cada contexto), com uma confiança `share` — ele não grava nada; a atribuição acima ainda precisa ser confirmada explicitamente. Um recálculo (`POST /api/scan/recompute`) é necessário para que o novo contexto realmente altere a categoria armazenada de qualquer foto.
 
 ### Compartilhamento de Fotos
 
@@ -606,9 +612,18 @@ Editor de pesos manual: um controle deslizante por métrica para a categoria sel
 
 Salve os pesos atuais como um instantâneo nomeado e restaure qualquer instantâneo anterior.
 
+### Prioridade de Categoria e Contextos de Pontuação
+
+As categorias são avaliadas em ordem crescente de `priority` e a primeira correspondência de filtro vence — veja [Pontuação — Avaliação de Filtros](SCORING.md#como-a-pontuação-funciona) e [Configuração — Contextos de Pontuação](CONFIGURATION.md#contextos-de-pontuação) para o modelo completo. Duas alavancas protegidas por edition gerenciam isso sem editar `scoring_config.json` manualmente:
+
+- **Prioridade global** — `GET/POST /api/config/category_priorities` lista e reordena a ordem de avaliação base. `POST` recebe uma lista ordenada completa de nomes de categoria e permuta os valores de prioridade existentes sobre ela, de modo que o multiconjunto (e sua unicidade) seja preservado em vez de renumerado.
+- **Contextos de pontuação** — `GET /api/config/scoring_contexts` lista os presets configurados (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) junto com a ordem efetiva resolvida de cada um. Um contexto promove algumas categorias para o início e exclui outras completamente sem alterar a ordem global, e é atribuído por álbum (veja [Contexto de Pontuação](#contexto-de-pontuação) em Álbuns) ou por foto via a substituição de categoria abaixo.
+
+Nenhuma das duas alavancas repontua fotos por si só. Após reordenar prioridades, atribuir um contexto ou definir uma substituição por foto, dispare um recálculo (`POST /api/scan/recompute`, protegido por edition — compartilha o lock do job de varredura, então não pode rodar junto com uma varredura de diretório) e consulte `GET /api/scan/recompute_status` para `{running, kind, progress, exit_code}`.
+
 ### Substituição de Categoria
 
-Para reatribuir a categoria de uma foto a partir da visão de comparação: edite o selo de categoria, selecione uma categoria de destino, execute "Analisar Conflitos de Filtro" para ver quais filtros a excluem, depois aplique a substituição.
+Para reatribuir a categoria de uma foto a partir da visão de comparação: edite o selo de categoria, selecione uma categoria de destino, execute "Analisar Conflitos de Filtro" para ver quais filtros a excluem, depois aplique a substituição. A substituição é validada contra os nomes de categoria configurados (`POST /api/comparison/override_category`) e agora persiste na tabela auxiliar `photo_scoring_overrides` — diferente de antes, ela sobrevive ao próximo recálculo em vez de ser descartada silenciosamente, e a foto mantém a categoria atribuída manualmente até que seja explicitamente removida (`POST /api/comparison/clear_category_override`).
 
 ## Estatísticas EXIF
 
@@ -935,6 +950,8 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `GET /api/albums/{id}/photos` | Lista as fotos do álbum (paginado) |
 | `POST /api/albums/{id}/photos` | Adiciona fotos ao álbum |
 | `DELETE /api/albums/{id}/photos` | Remove fotos do álbum |
+| `PUT /api/albums/{id}/scoring_context` | `[Edition]` Define o contexto de pontuação do álbum; materializa-o nas fotos membro, retorna `{updated, conflicts}` |
+| `GET /api/albums/{id}/suggested_context` | Sugere um contexto de pontuação a partir do `narrative_moment` dominante do álbum (apenas sugestão, não grava nada) |
 | `POST /api/albums/{id}/share` | Gera um token de compartilhamento |
 | `DELETE /api/albums/{id}/share` | Revoga o token de compartilhamento |
 | `GET /api/shared/album/{id}?token=` | Visualiza o álbum compartilhado (sem autenticação) |
@@ -1004,7 +1021,8 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `GET /api/comparison/learned_weights` | Pesos sugeridos a partir de comparações |
 | `POST /api/comparison/preview_score` | Prévia com pesos personalizados |
 | `POST /api/comparison/suggest_filters` | Analisa conflitos de filtro |
-| `POST /api/comparison/override_category` | Substitui a categoria da foto |
+| `POST /api/comparison/override_category` | `[Edition]` Define uma substituição de categoria persistente por foto (validada contra os nomes de categoria configurados; sobrevive ao próximo recálculo) |
+| `POST /api/comparison/clear_category_override` | `[Edition]` Remove a substituição de categoria de uma foto; a avaliação de filtros decide novamente no próximo recálculo |
 | `POST /api/recalculate` | Recalcula as pontuações com os pesos atuais |
 
 ### Triagem de Sequências
@@ -1033,6 +1051,8 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `GET /api/scan/status` | Verifica o progresso da varredura (`progress` estruturado: `{phase, current, total, eta_seconds}`) |
 | `GET /api/scan/stream?token=<jwt>` | `[Superadmin]` Progresso em tempo real via Server-Sent Events; o token é passado como parâmetro de consulta (a API `EventSource` não pode definir cabeçalhos), com fallback automático para polling de `/status` |
 | `GET /api/scan/directories` | Lista os diretórios de varredura configurados |
+| `POST /api/scan/recompute` | `[Edition]` Dispara um recálculo de agregados de toda a biblioteca (`--recompute-average`) como um job em segundo plano; compartilha o lock do job de varredura, então não pode rodar junto com uma varredura de diretório. Diferente de `/start`, seu argv é fixo no servidor e não recebe entrada da requisição, então não exige superadmin |
+| `GET /api/scan/recompute_status` | `[Edition]` Consulta o progresso do recálculo: `{running, kind, progress, exit_code}` — omite o fluxo de log `output_lines`, exclusivo de superadmin, que `/status` retorna |
 
 ### Gerenciamento de Rostos
 
@@ -1061,6 +1081,9 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `GET /api/config/weight_snapshots` | Lista os instantâneos de pesos salvos |
 | `POST /api/config/save_snapshot` | Salva os pesos atuais como instantâneo |
 | `POST /api/config/restore_weights` | Restaura os pesos de um instantâneo |
+| `GET /api/config/category_priorities` | `[Edition]` Lista as categorias na ordem de prioridade (avaliação) atual |
+| `POST /api/config/category_priorities` | `[Edition]` Reordena a prioridade de avaliação de categorias; permuta os valores de prioridade existentes para a nova ordem em vez de renumerar |
+| `GET /api/config/scoring_contexts` | Lista os contextos de pontuação configurados, cada um com sua ordem efetiva de categorias resolvida |
 
 ### Sugestões de Mesclagem
 

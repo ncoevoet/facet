@@ -9,6 +9,7 @@ Tous les réglages se trouvent dans `scoring_config.json`. Après modification, 
 - [Utilisateurs](#users)
 - [Analyse](#scanning)
 - [Catégories](#categories)
+- [Contextes de notation](#contextes-de-notation)
 - [Notation](#scoring)
 - [Seuils](#thresholds)
 - [Composition](#composition)
@@ -140,6 +141,66 @@ Chaque catégorie possède :
 - `tags` - Vocabulaire CLIP pour la correspondance par étiquettes
 
 > **Poids de forme et d'harmonie colorimétrique.** Le bloc `weights` de chaque catégorie porte cinq clés de métriques explicables — `symmetry_percent`, `balance_percent`, `edge_entropy_percent`, `fractal_percent` et `color_harmony_percent` — renseignées par `--recompute-form`. Elles sont livrées à `0` dans chaque catégorie, si bien que les agrégats restent identiques au bit près jusqu'à ce que vous en pondériez une (relancez alors `--recompute-average`). La somme des poids d'une catégorie doit toujours faire 100.
+
+---
+
+## Contextes de notation
+
+Un contexte de notation est un **delta** nommé appliqué à l'ordre de priorité global des `categories` ci-dessus — il promeut une courte liste de catégories en tête et en exclut d'autres purement et simplement, en laissant tout le reste dans son ordre de priorité existant. Il existe parce que la priorité est globale et partagée, mais la catégorie qui *devrait* l'emporter varie selon la séance photo : une photo de danse à contre-jour taguée `sports` est captée par `silhouette` (priorité 42) bien avant que `sports` (priorité 71) ne soit atteinte, et les curseurs de poids ne peuvent rien y faire — ils régissent la façon dont la catégorie *sélectionnée* est notée, pas laquelle est sélectionnée.
+
+```json
+{
+  "scoring_contexts": {
+    "default": {
+      "label_key": "comparison.context.default",
+      "promote": [],
+      "excluded": [],
+      "suggest_from_moments": []
+    },
+    "action_stage": {
+      "label_key": "comparison.context.action_stage",
+      "promote": ["sports", "concert", "candid"],
+      "excluded": ["silhouette"],
+      "suggest_from_moments": ["sports", "concert", "nightlife"]
+    }
+  }
+}
+```
+
+| Champ | Description |
+|-------|-------------|
+| `label_key` | Clé i18n pour le nom d'affichage du contexte |
+| `promote` | Noms de catégorie déplacés en tête de l'ordre d'évaluation, dans l'ordre donné |
+| `excluded` | Noms de catégorie entièrement retirés de l'évaluation (jamais retenus sous ce contexte) |
+| `suggest_from_moments` | Valeurs `narrative_moment` qui suggèrent ce contexte pour un album — lues par `GET /api/albums/{id}/suggested_context` (voir [VIEWER.md](VIEWER.md)) |
+
+**Ordre effectif** = `promote` (dans l'ordre) → l'ordre de priorité global moins les noms promus et exclus → `default` (la catégorie de repli, priorité 999) en dernier. `default` elle-même ne peut jamais être promue ni exclue. Ne passer aucun contexte, ou un nom de contexte inconnu, retombe sur le simple ordre de priorité global (avec un avertissement journalisé pour un nom inconnu) ; la liste résolue `[(category_name, CategoryFilter)]` est mise en cache par nom de contexte pour la durée de vie de la configuration chargée (`ScoringConfig.resolve_context_order`).
+
+Préréglages livrés par défaut — du JSON simple et modifiable par l'utilisateur ; `default` est un delta vide, si bien que le comportement existant reste inchangé tant qu'un contexte n'est pas explicitement attribué :
+
+| Contexte | Promeut | Exclut | Suggéré à partir des moments |
+|---------|----------|----------|------------------------|
+| `default` | — | — | — |
+| `action_stage` | `sports`, `concert`, `candid` | `silhouette` | `sports`, `concert`, `nightlife` |
+| `party_event` | `group_portrait`, `candid`, `food` | — | `celebration`, `group_gathering`, `dining` |
+| `portrait_session` | `portrait`, `portrait_bw`, `fashion` | — | `portrait`, `children` |
+| `wildlife` | `wildlife` | — | `nature_wildlife`, `pets` |
+| `landscape` | `landscape`, `golden_hour`, `blue_hour` | — | `scenic_landscape`, `mountains`, `snow_winter` |
+| `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
+
+### Assigner un contexte
+
+Un contexte de notation s'attribue **par album** via `PUT /api/albums/{id}/scoring_context` (réservé au mode édition), qui écrit la colonne `scoring_context` de l'album et matérialise la même valeur dans `photo_scoring_overrides.scoring_context` pour chaque membre actuel — le compteur `conflicts` de la réponse indique combien de membres portaient déjà un contexte différent (le dernier enregistrement l'emporte ; c'est à l'appelant de décider d'avertir ou non avant de valider). Les photos ajoutées à l'album par la suite héritent automatiquement de son contexte (`append_album_photos`). `GET /api/albums/{id}/suggested_context` propose un contexte à partir du `narrative_moment` dominant de l'album, mappé via `suggest_from_moments`, accompagné du `share` (part) du moment dominant dans l'album — cet appel n'écrit rien ; l'attribution ci-dessus doit toujours être appelée explicitement.
+
+Pour une photo isolée récalcitrante, un **remplacement de catégorie** est l'échappatoire — non pas un contexte, mais une attribution directe de catégorie : `POST /api/comparison/override_category` (réservé au mode édition) valide le nom de catégorie par rapport à la configuration et l'enregistre dans `photo_scoring_overrides.category_override` ; `POST /api/comparison/clear_category_override` le supprime, laissant de nouveau l'évaluation des filtres décider au prochain recalcul.
+
+Les deux leviers sont conservés dans une seule table annexe, `photo_scoring_overrides(photo_path PK, scoring_context, category_override, source, created_at, created_by)`, plutôt que comme des colonnes de `photos` — `save_photo`/`save_photos_batch` écrivent les lignes de photo avec `INSERT OR REPLACE` (`processing/scorer.py`), ce qui supprimerait silencieusement toute nouvelle colonne de cette ligne au prochain rescan. `Facet._determine_photo_category` de `processing/scorer.py` est le point de passage unique qui résout les deux, aussi bien sur le chemin de scan que sur `--recompute-average` : un `category_override` valide l'emporte purement et simplement ; sinon, `ScoringConfig.determine_category(photo_data, context=scoring_context)` évalue l'ordre effectif du contexte. Un filtre numérique échoue toujours lorsque la valeur EXIF sous-jacente est manquante ou ininterprétable, quel que soit le contexte — voir [Notation — le piège des données EXIF manquantes](SCORING.md#le-piège-des-données-exif-manquantes) pour le cas `sports`/`shutter_speed_max` que la seule promotion ne peut pas corriger.
+
+### Réorganiser la priorité globale
+
+`GET|POST /api/config/category_priorities` (réservé au mode édition) lit et réécrit l'ordre de base sur lequel chaque contexte applique son delta. `POST` prend `{"order": [name, ...]}` — une permutation à ensemble égal de tous les noms de catégorie hors `default` — et **permute le multi-ensemble de priorités existant selon le nouvel ordre** plutôt que de le renuméroter (p. ex. 10/20/30) : cela garde les nombres de priorité documentés pertinents et garantit l'unicité par construction. `default` (priorité 999) reste fixé en dernière position et n'est pas concerné par la réorganisation. Chaque écriture prend d'abord une copie horodatée `.backup.<timestamp>` de `scoring_config.json`, et cet écrivain partage un verrou avec l'éditeur de poids (`update_category_weights`) — la précédente lecture-modification-écriture non protégée permettait à un enregistrement concurrent de l'un d'écraser silencieusement les modifications de l'autre.
+
+**Modifier les priorités nécessite un recalcul.** La réorganisation elle-même ne touche la `category` stockée d'aucune photo — lancez `python facet.py --recompute-average`, ou déclenchez `POST /api/scan/recompute` depuis la visionneuse (réservé au mode édition ; partage le verrou de tâche de scan, il ne peut donc pas s'exécuter en même temps qu'un scan de répertoire) puis interrogez `GET /api/scan/recompute_status`. `update_all_aggregates` émet des lignes `@FACET_PROGRESS` (auparavant réservées à `tqdm`), ce qui permet d'alimenter une barre de progression.
 
 ---
 

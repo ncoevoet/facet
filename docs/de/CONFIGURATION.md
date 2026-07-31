@@ -9,6 +9,7 @@ Alle Einstellungen befinden sich in `scoring_config.json`. Führen Sie nach eine
 - [Benutzer](#users)
 - [Scannen](#scanning)
 - [Kategorien](#categories)
+- [Bewertungskontexte](#bewertungskontexte)
 - [Bewertung](#scoring)
 - [Schwellenwerte](#thresholds)
 - [Komposition](#composition)
@@ -140,6 +141,66 @@ Jede Kategorie hat:
 - `tags` - CLIP-Vokabular für tagbasierte Zuordnung
 
 > **Form- & Farbharmonie-Gewichte.** Der `weights`-Block jeder Kategorie trägt fünf erklärbare Metrik-Schlüssel — `symmetry_percent`, `balance_percent`, `edge_entropy_percent`, `fractal_percent` und `color_harmony_percent` — befüllt durch `--recompute-form`. Sie werden in jeder Kategorie mit `0` ausgeliefert, sodass Aggregate byte-identisch bleiben, bis Sie einem ein Gewicht geben (führen Sie dann `--recompute-average` erneut aus). Die Gewichte innerhalb einer Kategorie müssen weiterhin in Summe 100 ergeben.
+
+---
+
+## Bewertungskontexte
+
+Ein Bewertungskontext ist ein benanntes **Delta** über der oben beschriebenen globalen `categories`-Prioritätsreihenfolge – er zieht eine kurze Liste von Kategorien an den Anfang und schließt andere vollständig aus, während alles andere in seiner bestehenden Prioritätsreihenfolge bleibt. Er existiert, weil die Priorität global und gemeinsam genutzt wird, aber welche Kategorie *gewinnen sollte*, hängt vom jeweiligen Shooting ab: Eine gegenlichtige Tanzaufnahme mit dem Tag `sports` wird von `silhouette` (Priorität 42) erfasst, lange bevor `sports` (Priorität 71) überhaupt erreicht wird – und die Gewichtsregler können das nicht beheben, denn sie bestimmen, wie die *ausgewählte* Kategorie bewertet, nicht welche ausgewählt wird.
+
+```json
+{
+  "scoring_contexts": {
+    "default": {
+      "label_key": "comparison.context.default",
+      "promote": [],
+      "excluded": [],
+      "suggest_from_moments": []
+    },
+    "action_stage": {
+      "label_key": "comparison.context.action_stage",
+      "promote": ["sports", "concert", "candid"],
+      "excluded": ["silhouette"],
+      "suggest_from_moments": ["sports", "concert", "nightlife"]
+    }
+  }
+}
+```
+
+| Feld | Beschreibung |
+|-------|-------------|
+| `label_key` | i18n-Schlüssel für den Anzeigenamen des Kontexts |
+| `promote` | Kategorienamen, die in der angegebenen Reihenfolge an den Anfang der Auswertungsreihenfolge gestellt werden |
+| `excluded` | Kategorienamen, die vollständig von der Auswertung ausgeschlossen werden (unter diesem Kontext nie zugeordnet) |
+| `suggest_from_moments` | `narrative_moment`-Werte, die diesen Kontext für ein Album nahelegen – ausgelesen von `GET /api/albums/{id}/suggested_context` (siehe [VIEWER.md](VIEWER.md)) |
+
+**Effektive Reihenfolge** = `promote` (in dieser Reihenfolge) → die globale Prioritätsreihenfolge abzüglich der vorgezogenen und ausgeschlossenen Namen → `default` (die Auffangkategorie, Priorität 999) zuletzt. `default` selbst kann nie vorgezogen oder ausgeschlossen werden. Wird kein Kontext oder ein unbekannter Kontextname übergeben, greift die einfache globale Prioritätsreihenfolge (und bei einem unbekannten Namen wird eine Warnung protokolliert); die aufgelöste Liste `[(category_name, CategoryFilter)]` wird pro Kontextname für die Lebensdauer der geladenen Konfiguration zwischengespeichert (`ScoringConfig.resolve_context_order`).
+
+Mitgelieferte Voreinstellungen – allesamt einfaches, benutzerbearbeitbares JSON; `default` ist ein leeres Delta, sodass sich am bestehenden Verhalten nichts ändert, solange kein Kontext explizit zugewiesen wird:
+
+| Context | Promotes | Excludes | Suggested from moments |
+|---------|----------|----------|------------------------|
+| `default` | – | – | – |
+| `action_stage` | `sports`, `concert`, `candid` | `silhouette` | `sports`, `concert`, `nightlife` |
+| `party_event` | `group_portrait`, `candid`, `food` | – | `celebration`, `group_gathering`, `dining` |
+| `portrait_session` | `portrait`, `portrait_bw`, `fashion` | – | `portrait`, `children` |
+| `wildlife` | `wildlife` | – | `nature_wildlife`, `pets` |
+| `landscape` | `landscape`, `golden_hour`, `blue_hour` | – | `scenic_landscape`, `mountains`, `snow_winter` |
+| `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
+
+### Einen Kontext zuweisen
+
+Ein Bewertungskontext wird **pro Album** über `PUT /api/albums/{id}/scoring_context` (Edition-geschützt) zugewiesen, was die `scoring_context`-Spalte des Albums schreibt und denselben Wert in `photo_scoring_overrides.scoring_context` für jedes aktuelle Mitglied überträgt – der `conflicts`-Zähler in der Antwort gibt an, wie viele Mitglieder bereits einen abweichenden Kontext trugen (letzter Schreibvorgang gewinnt; der Aufrufer entscheidet, ob vor dem Übernehmen gewarnt wird). Fotos, die später zum Album hinzugefügt werden, übernehmen dessen Kontext automatisch (`append_album_photos`). `GET /api/albums/{id}/suggested_context` schlägt einen Kontext anhand des dominanten `narrative_moment` des Albums vor, abgebildet über `suggest_from_moments`, zusammen mit dem `share`-Anteil des dominanten Moments am Album – dabei wird nichts geschrieben; die obige Zuweisung muss weiterhin explizit aufgerufen werden.
+
+Für ein einzelnes hartnäckiges Foto ist eine **Kategorieüberschreibung** der Notausgang – kein Kontext, sondern eine direkte Kategoriezuweisung: `POST /api/comparison/override_category` (Edition-geschützt) validiert den Kategorienamen gegen die Konfiguration und trägt ihn in `photo_scoring_overrides.category_override` ein; `POST /api/comparison/clear_category_override` entfernt sie wieder, sodass die Filterauswertung bei der nächsten Neuberechnung erneut entscheidet.
+
+Beide Hebel werden in einer einzigen separaten Tabelle gespeichert, `photo_scoring_overrides(photo_path PK, scoring_context, category_override, source, created_at, created_by)`, statt als Spalten auf `photos` – `save_photo`/`save_photos_batch` schreiben Fotozeilen mit `INSERT OR REPLACE` (`processing/scorer.py`), was jede neue Spalte auf dieser Zeile beim nächsten erneuten Scan stillschweigend verwerfen würde. `Facet._determine_photo_category` in `processing/scorer.py` ist die einzige Stelle, die beide auflöst, sowohl beim Scan-Pfad als auch bei `--recompute-average`: Ein gültiger `category_override` gewinnt uneingeschränkt; andernfalls wertet `ScoringConfig.determine_category(photo_data, context=scoring_context)` die effektive Reihenfolge des Kontexts aus. Ein numerischer Filter scheitert unabhängig vom Kontext weiterhin, wenn der zugrunde liegende EXIF-Wert fehlt oder nicht auswertbar ist – siehe [Bewertung – die Falle fehlender EXIF-Daten](SCORING.md#die-falle-fehlender-exif-daten) für den Fall `sports`/`shutter_speed_max`, den ein bloßes Vorziehen nicht beheben kann.
+
+### Die globale Priorität neu ordnen
+
+`GET|POST /api/config/category_priorities` (Edition-geschützt) liest und schreibt die Basisreihenfolge, gegen die jeder Kontext sein Delta bildet. `POST` erwartet `{"order": [name, ...]}` – eine mengengleiche Permutation aller Kategorienamen außer `default` – und **permutiert die vorhandene Prioritäts-Multimenge auf die neue Reihenfolge**, statt neu durchzunummerieren (z. B. 10/20/30): Dadurch bleiben die dokumentierten Prioritätszahlen aussagekräftig, und die Eindeutigkeit ist konstruktionsbedingt garantiert. `default` (Priorität 999) ist fest am Ende verankert und von der Neuordnung ausgeschlossen. Jeder Schreibvorgang legt zunächst eine zeitgestempelte Kopie `.backup.<timestamp>` von `scoring_config.json` an, und dieser Writer teilt sich eine Sperre mit dem Gewichtseditor (`update_category_weights`) – das vorherige ungeschützte Read-Modify-Write konnte dazu führen, dass ein gleichzeitiges Speichern der beiden die Änderungen des jeweils anderen stillschweigend verwarf.
+
+**Das Ändern von Prioritäten erfordert eine Neuberechnung.** Die Neuordnung selbst verändert nicht die gespeicherte `category` eines Fotos – führen Sie `python facet.py --recompute-average` aus oder lösen Sie `POST /api/scan/recompute` über den Viewer aus (Edition-geschützt; teilt sich die Scan-Job-Sperre und kann daher nicht parallel zu einem Verzeichnis-Scan laufen) und fragen Sie `GET /api/scan/recompute_status` ab. `update_all_aggregates` gibt `@FACET_PROGRESS`-Zeilen aus (zuvor nur über `tqdm`), sodass dies einen Fortschrittsbalken antreiben kann.
 
 ---
 

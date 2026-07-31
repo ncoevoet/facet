@@ -99,6 +99,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **Statistics** — dashboards for equipment usage, category breakdown, shooting timeline, and metric correlations
 - **AI critique** — score breakdown showing each metric's contribution; VLM natural-language assessment `[GPU]` `[16gb/24gb]`
 - **Weight tuning** — per-category weight editor with live score preview. A/B photo comparison learns from your choices and suggests optimized weights.
+- **Scoring contexts** — control *which* category a photo is scored as, separately from the weight sliders that only tune the category once it's picked: reorder the global category priority, apply a named context (Action/Stage, Portrait Session, Wildlife, …) per album, or set a sticky per-photo category override that survives every recompute.
 - **My Taste sort** — sort the gallery by the personal ranker's learned score, with a confidence badge showing learned coverage and held-out accuracy
 - **Learning from labels** — culling decisions, star ratings, favorites, and rejections feed the weight optimizer (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — save, restore, and compare weight configurations

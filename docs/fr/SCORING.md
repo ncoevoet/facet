@@ -7,7 +7,7 @@ Les photos sont classées dans une catégorie, puis notées avec les poids de ce
 ## Fonctionnement du scoring
 
 1. **Détection de la catégorie** - La photo est analysée pour son contenu (visages, tags, données EXIF)
-2. **Évaluation des filtres** - Les catégories sont évaluées par ordre de priorité jusqu'à ce qu'une corresponde
+2. **Évaluation des filtres** - Les catégories sont évaluées par ordre de priorité jusqu'à ce qu'une corresponde (un *contexte de notation* peut promouvoir/exclure des catégories par album ou par photo sans modifier l'ordre de base — voir [Contextes de notation](#contextes-de-notation))
 3. **Application des poids** - Les poids spécifiques à la catégorie sont appliqués aux métriques
 4. **Application des modificateurs** - Bonus, pénalités et indicateurs de comportement appliqués
 5. **Score final** - Somme pondérée bornée à la plage 0-10
@@ -36,6 +36,40 @@ Les photos sont classées dans une catégorie, puis notées avec les poids de ce
 | 999 | `default` | Repli (aucun filtre) |
 
 Les autres catégories basées sur les tags incluent `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` et `weather`.
+
+## Contextes de notation
+
+L'ordre de priorité ci-dessus est global : chaque photo est évaluée par rapport à la même liste. Un **contexte de notation** est un *delta* nommé appliqué à cet ordre de base : il promeut une courte liste de catégories en tête et en exclut d'autres purement et simplement, sans renuméroter quoi que ce soit. `default` (avec `promote`/`excluded` vides) est le contexte neutre, si bien que rien ne change pour une photo tant qu'un contexte ne lui est pas explicitement attribué.
+
+**Ordre effectif** = `promote` (dans l'ordre donné) → l'ordre de priorité global, moins les noms promus et exclus → `default` en dernier. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) calcule et met ce résultat en cache une fois par nom de contexte.
+
+Préréglages livrés par défaut (du JSON simple, modifiable par l'utilisateur — voir [Contextes de notation](CONFIGURATION.md#contextes-de-notation) pour la référence complète des champs) :
+
+| Contexte | Promeut | Exclut |
+|---------|----------|----------|
+| `default` | — | — |
+| `action_stage` | `sports`, `concert`, `candid` | `silhouette` |
+| `party_event` | `group_portrait`, `candid`, `food` | — |
+| `portrait_session` | `portrait`, `portrait_bw`, `fashion` | — |
+| `wildlife` | `wildlife` | — |
+| `landscape` | `landscape`, `golden_hour`, `blue_hour` | — |
+| `motorsport` | `sports`, `vehicle` | `silhouette` |
+
+Un contexte s'attribue par album (`PUT /api/albums/{id}/scoring_context`, qui le matérialise sur chaque photo membre) ou, pour une photo isolée récalcitrante, s'applique comme un remplacement de catégorie persistant (`POST /api/comparison/override_category`). Les deux leviers sont conservés dans une table annexe `photo_scoring_overrides` plutôt que comme des colonnes de `photos` — `save_photo`/`save_photos_batch` écrivent les lignes de photo avec `INSERT OR REPLACE`, ce qui effacerait silencieusement une nouvelle colonne de cette ligne au prochain rescan. Activer un levier laisse l'autre intact, et chacun peut être réinitialisé indépendamment. **Aucun des deux ne prend effet sur des photos déjà notées avant un recalcul** — `python facet.py --recompute-average`, ou `POST /api/scan/recompute` depuis la visionneuse.
+
+### Le piège des données EXIF manquantes
+
+Réorganiser — que ce soit en modifiant la priorité globale ou en promouvant via un contexte — ne change que la catégorie *essayée en premier*. Cela ne peut pas faire correspondre les filtres d'une catégorie à une photo qu'ils ne matcheraient pas autrement. `config/category_filter.py:122-128` fait échouer purement et simplement un filtre de plage numérique dès que la valeur sous-jacente de la photo est manquante ou ininterprétable, plutôt que de simplement ignorer cette borne — une valeur manquante et une valeur hors plage sont traitées de façon identique, et la catégorie est écartée dans les deux cas.
+
+Concrètement : `sports` (priorité 71) porte `shutter_speed_max: 0.02`. Une photo de danse prise à une vitesse plus lente que 1/50s, ou sans vitesse d'obturation EXIF lisible du tout, échoue à ce filtre quel que soit l'endroit où `sports` se trouve dans l'ordre d'évaluation — même promue tout en tête par un contexte comme `action_stage`. La photo retombe alors sur la première catégorie suivante qui correspond, typiquement `fashion` (priorité 43, taguée `fashion`, contient un visage) ou `silhouette` (priorité 42, contre-jour avec un visage). **C'est le tout premier réflexe à avoir lorsqu'une photo atterrit dans une catégorie inattendue :** avant de réorganiser ou de promouvoir quoi que ce soit, vérifiez que les filtres numériques de la catégorie visée peuvent réellement correspondre aux données EXIF stockées de la photo, pas seulement à ses tags.
+
+### Réorganiser la priorité globale
+
+`GET/POST /api/config/category_priorities` (réservé au mode édition) lit et réécrit l'ordre de base sur lequel chaque contexte applique son delta. `POST` prend `{"order": [name, ...]}` — une permutation à ensemble égal de tous les noms de catégorie hors `default` — et **permute les valeurs de priorité existantes selon le nouvel ordre** plutôt que de les renuméroter (10/20/30/…) : le multi-ensemble des priorités reste inchangé, si bien que les nombres du tableau ci-dessus restent pertinents et que l'unicité est garantie par construction. `default` (priorité 999) reste fixé en dernière position et n'est pas concerné par la réorganisation. Chaque écriture prend d'abord une copie horodatée `.backup.<timestamp>` de `scoring_config.json` ; cet écrivain et l'éditeur de poids (`update_category_weights`) partagent désormais un même verrou, car la précédente lecture-modification-écriture non protégée permettait à un enregistrement concurrent de l'un d'écraser silencieusement les modifications de l'autre.
+
+Réorganiser ne touche par lui-même la `category` stockée d'aucune photo — lancez un recalcul ensuite (`--recompute-average` ou `POST /api/scan/recompute`) pour l'appliquer.
+
+**Limitation connue :** `api/types.py` construit la liste déroulante de type/filtre de la galerie à partir de `ScoringConfig.get_categories()` une seule fois, à l'import. Une réorganisation de priorité est prise en compte immédiatement pour la correspondance de catégorie proprement dite (chaque appel de notation et de recalcul relit la configuration depuis le disque), mais le menu déroulant de type de la galerie conserve son ancien ordre jusqu'au redémarrage du processus de la visionneuse. Le filtrage lui-même n'est pas affecté — la réorganisation n'ajoute ni ne retire aucun nom de catégorie.
 
 ## Définition d'une catégorie
 

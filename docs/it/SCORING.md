@@ -7,7 +7,7 @@ Le foto vengono classificate in una categoria e poi valutate con i pesi di quell
 ## Come funziona il punteggio
 
 1. **Rilevamento della categoria** - La foto viene analizzata per il contenuto (volti, tag, dati EXIF)
-2. **Valutazione dei filtri** - Le categorie vengono valutate in ordine di priorità finché una non corrisponde
+2. **Valutazione dei filtri** - Le categorie vengono valutate in ordine di priorità finché una non corrisponde (un *contesto di punteggio* può promuovere/escludere categorie per album o foto senza modificare l'ordine di base — vedi [Contesti di punteggio](#contesti-di-punteggio))
 3. **Applicazione dei pesi** - I pesi specifici della categoria vengono applicati alle metriche
 4. **Applicazione dei modificatori** - Bonus, penalità e flag di comportamento vengono applicati
 5. **Punteggio finale** - Somma ponderata limitata all'intervallo 0-10
@@ -36,6 +36,40 @@ Le foto vengono classificate in una categoria e poi valutate con i pesi di quell
 | 999 | `default` | Ripiego (nessun filtro) |
 
 Altre categorie basate sui tag includono `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` e `weather`.
+
+## Contesti di punteggio
+
+L'ordine di priorità sopra descritto è globale: ogni foto viene valutata rispetto allo stesso elenco. Un **contesto di punteggio** è un *delta* con nome applicato a quell'ordine di base: promuove in testa un breve elenco di categorie ed esclude del tutto le altre, senza rinumerare nulla. `default` (con `promote`/`excluded` vuoti) è il contesto no-op, quindi per una foto non cambia nulla finché non le viene assegnato esplicitamente un contesto.
+
+**Ordine effettivo** = `promote` (nell'ordine indicato) → l'ordine di priorità globale con i nomi promossi ed esclusi rimossi → `default` per ultimo. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) calcola questo ordine e lo memorizza in cache (memoize) una sola volta per nome di contesto.
+
+Preset forniti di serie (semplice JSON modificabile dall'utente — vedi [Contesti di punteggio](CONFIGURATION.md#contesti-di-punteggio) per il riferimento completo dei campi):
+
+| Contesto | Promuove | Esclude |
+|---------|----------|----------|
+| `default` | — | — |
+| `action_stage` | `sports`, `concert`, `candid` | `silhouette` |
+| `party_event` | `group_portrait`, `candid`, `food` | — |
+| `portrait_session` | `portrait`, `portrait_bw`, `fashion` | — |
+| `wildlife` | `wildlife` | — |
+| `landscape` | `landscape`, `golden_hour`, `blue_hour` | — |
+| `motorsport` | `sports`, `vehicle` | `silhouette` |
+
+Un contesto si assegna per album (`PUT /api/albums/{id}/scoring_context`, che lo materializza su ogni foto membro) oppure, per una singola foto ostinata, si applica come sovrascrittura di categoria persistente (`POST /api/comparison/override_category`). Entrambe le leve persistono in una tabella satellite `photo_scoring_overrides` anziché come colonne su `photos` — `save_photo`/`save_photos_batch` scrivono le righe delle foto con `INSERT OR REPLACE`, il che cancellerebbe silenziosamente una nuova colonna su quella riga alla scansione successiva. Impostare una leva lascia l'altra invariata, ed entrambe possono essere azzerate indipendentemente. **Nessuna delle due ha effetto sulle foto già valutate finché non viene eseguito un ricalcolo** — `python facet.py --recompute-average`, oppure `POST /api/scan/recompute` dal viewer.
+
+### La trappola dei dati EXIF mancanti
+
+Riordinare — sia modificando la priorità globale sia promuovendo tramite un contesto — cambia solo quale categoria viene *provata per prima*. Non può far sì che i filtri di una categoria corrispondano a una foto che altrimenti non corrisponderebbero. `config/category_filter.py:122-128` fa fallire del tutto un filtro di intervallo numerico ogni volta che il valore sottostante della foto è mancante o non interpretabile, invece di saltare solo quel limite — un valore mancante e un valore fuori intervallo vengono trattati allo stesso modo, e la categoria viene comunque scartata.
+
+In concreto: `sports` (priorità 71) porta `shutter_speed_max: 0.02`. Un fotogramma di danza scattato più lento di 1/50s, o senza alcun tempo di posa EXIF leggibile, fa fallire quel filtro indipendentemente da dove si trovi `sports` nell'ordine di valutazione — anche se promossa in prima posizione da un contesto come `action_stage`. La foto scivola verso la prima categoria successiva che corrisponde, tipicamente `fashion` (priorità 43, taggata `fashion`, ha un volto) o `silhouette` (priorità 42, controluce con un volto). **Questa è la cosa più utile da controllare quando una foto finisce in una categoria inattesa:** prima di riordinare o promuovere qualsiasi cosa, verifica che i filtri numerici della categoria di destinazione possano effettivamente corrispondere ai dati EXIF memorizzati della foto, non solo ai suoi tag.
+
+### Riordinare la priorità globale
+
+`GET/POST /api/config/category_priorities` (riservato alla modalità di modifica) legge e riscrive l'ordine di base rispetto al quale ogni contesto applica il proprio delta. `POST` accetta `{"order": [name, ...]}` — una permutazione con lo stesso insieme di ogni nome di categoria diverso da `default` — e **permuta i valori di priorità esistenti sul nuovo ordine** invece di rinumerare (10/20/30/…): il multiset delle priorità resta invariato, quindi i numeri nella tabella qui sopra restano significativi e l'unicità è garantita per costruzione. `default` (priorità 999) resta fissata all'ultimo posto ed è esclusa dal riordino. Ogni scrittura crea prima una copia con timestamp `.backup.<timestamp>` di `scoring_config.json`; questo writer e l'editor dei pesi (`update_category_weights`) condividono ora un unico lock, poiché la precedente lettura-modifica-scrittura non protetta permetteva a un salvataggio concorrente dell'uno di scartare silenziosamente le modifiche dell'altro.
+
+Il riordino da solo non tocca la `category` memorizzata di alcuna foto — esegui poi un ricalcolo (`--recompute-average` oppure `POST /api/scan/recompute`) per applicarlo.
+
+**Limitazione nota:** `api/types.py` costruisce l'elenco a discesa del tipo/filtro della galleria da `ScoringConfig.get_categories()` una sola volta, all'importazione. Un riordino della priorità viene recepito immediatamente per l'effettiva corrispondenza delle categorie (ogni chiamata di punteggio e di ricalcolo rilegge la configurazione dal disco), ma il menu a discesa del tipo nella galleria mantiene il vecchio ordinamento finché il processo del viewer non viene riavviato. Il filtraggio in sé non è interessato — il riordino non aggiunge né rimuove alcun nome di categoria.
 
 ## Definizione di una categoria
 
