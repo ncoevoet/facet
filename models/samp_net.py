@@ -23,7 +23,10 @@ from PIL import Image
 logger = logging.getLogger("facet.samp_net")
 
 
-def _adaptive_avg_pool2d(input_tensor, output_size):
+def _adaptive_avg_pool2d(
+    input_tensor: torch.Tensor,
+    output_size: int | tuple[int, int],
+) -> torch.Tensor:
     """MPS-safe adaptive average pooling.
 
     PyTorch's Metal kernel currently rejects non-divisible input/output sizes.

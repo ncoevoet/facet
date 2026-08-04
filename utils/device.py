@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from typing import Any
 
 # Let PyTorch execute individual unsupported MPS operators on CPU.  This must be
 # set before torch initialises its MPS backend, so keep it in this lightweight
@@ -80,7 +81,7 @@ def get_device() -> str:
     return "cpu"
 
 
-def is_device_available(device: str, *, torch_module=None) -> bool:
+def is_device_available(device: str, *, torch_module: Any | None = None) -> bool:
     """Return whether a torch device can be used on this machine."""
     device_type = str(device).split(":", 1)[0].lower()
     if device_type == "cpu":
