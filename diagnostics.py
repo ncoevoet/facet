@@ -42,6 +42,9 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
     config_path = config_path or 'scoring_config.json'
     db_path = db_path or 'photo_scores_pro.db'
     simulating = simulate_gpu is not None
+    torch = None
+    selected_device = None
+    has_mps = False
 
     if simulating:
         vram_str = f", {simulate_vram:.0f}GB VRAM" if simulate_vram else ""
@@ -68,10 +71,14 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
     else:
         try:
             import torch
+            from utils.device import get_device, mps_available
+            has_mps = mps_available()
             _ok("torch", torch.__version__)
             cuda_version = torch.version.cuda or "None (CPU-only build)"
             if torch.version.cuda:
                 _ok("CUDA (compiled)", cuda_version)
+            elif has_mps:
+                _info("CUDA (compiled)", "not applicable on Apple Metal")
             else:
                 _warn("CUDA (compiled)", cuda_version)
 
@@ -83,16 +90,24 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
 
             if torch.cuda.is_available():
                 _ok("torch.cuda.is_available()", "True")
+            elif has_mps:
+                _info("torch.cuda.is_available()", "False (using MPS)")
             else:
                 _warn("torch.cuda.is_available()", "False")
 
-            # Apple Silicon MPS — detected but not yet routed at runtime (issue #7).
-            from utils.device import mps_available
-            if mps_available():
-                _info("Apple Silicon (MPS)", "available (not used at runtime — see issue #7)")
+            if has_mps:
+                _ok("Apple Silicon (MPS)", "available")
             else:
-                hint = " — Facet runs on CPU on this Mac" if sys.platform == "darwin" else ""
+                hint = " — Facet will run on CPU on this Mac" if sys.platform == "darwin" else ""
                 _info("Apple Silicon (MPS)", f"not available{hint}")
+            try:
+                selected_device = get_device()
+                _ok("Facet runtime device", selected_device)
+                if selected_device == 'mps':
+                    fallback = os.environ.get('PYTORCH_ENABLE_MPS_FALLBACK', '0')
+                    _info("MPS operator fallback", "enabled" if fallback == '1' else "disabled")
+            except (RuntimeError, ValueError) as e:
+                _warn("Facet runtime device", str(e))
         except ImportError:
             _warn("torch", "NOT INSTALLED")
             logger.warning("  Install PyTorch: pip install torch torchvision")
@@ -114,6 +129,12 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
             logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128")
             logger.warning("  For older GPUs (pre-Blackwell), cu124 may also work:")
             logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124")
+    elif torch is not None and selected_device == 'mps':
+        _section("GPU")
+        _ok("Device", "Apple Metal Performance Shaders (MPS)")
+        _info("Memory", "unified with system RAM")
+        _info("InsightFace", "ONNX Runtime CPU provider")
+
     elif torch is not None and torch.cuda.is_available():
         _section("GPU")
         name = torch.cuda.get_device_name(0)
@@ -144,7 +165,7 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
             _warn("torch.compile", f"disabled — {compile_reason}; eager CUDA inference")
             logger.warning("    This is expected and fine in minimal Docker images; torch.compile is auto-disabled.")
 
-    elif torch is not None:
+    elif torch is not None and not has_mps:
         _section("GPU Troubleshooting")
         # Check if nvidia-smi sees a GPU even though PyTorch can't use it
         try:

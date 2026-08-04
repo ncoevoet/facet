@@ -48,13 +48,23 @@ class FaceAnalyzer:
             with open(os.devnull, 'w') as devnull:
                 _stdout, sys.stdout = sys.stdout, devnull
                 try:
+                    # InsightFace uses ONNX Runtime, whose Python package does
+                    # not expose PyTorch's MPS backend. Keep it on CPU on Macs.
+                    providers = (
+                        ['CUDAExecutionProvider', 'CPUExecutionProvider']
+                        if device == 'cuda'
+                        else ['CPUExecutionProvider']
+                    )
                     self.face_app = FaceAnalysis(
                         name='buffalo_l',
                         root='~/.insightface',
                         allowed_modules=allowed,
-                        providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+                        providers=providers
                     )
-                    self.face_app.prepare(ctx_id=0, det_size=(640, 640))
+                    self.face_app.prepare(
+                        ctx_id=0 if device == 'cuda' else -1,
+                        det_size=(640, 640),
+                    )
                 finally:
                     sys.stdout = _stdout
             self.available = True

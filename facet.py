@@ -11,6 +11,9 @@ import time
 # Suppress noisy third-party library output
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "0")
+# Allow unsupported PyTorch MPS operators to run on CPU.  Set this before any
+# dependency has a chance to import torch.
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 import warnings
 warnings.filterwarnings("ignore", message=".*unauthenticated requests.*")
 # scikit-image 0.26 deprecated SimilarityTransform.estimate() but InsightFace

@@ -697,14 +697,34 @@ class ScoringConfig:
 
         if vram_gb is None:
             try:
+                from utils.device import mps_available
+                has_mps = mps_available()
+            except Exception:
+                has_mps = False
+            force_cpu = os.environ.get('FACET_DEVICE', 'auto').strip().lower() == 'cpu'
+            try:
                 import psutil
                 ram_gb = psutil.virtual_memory().total / (1024**3)
-                if ram_gb >= 8:
+                if has_mps and not force_cpu:
+                    msg = (
+                        f"Apple Metal (MPS) detected, {ram_gb:.0f}GB unified memory - "
+                        "legacy profile (Torch models accelerated; InsightFace on CPU)"
+                    )
+                elif has_mps:
+                    msg = (
+                        f"Apple Metal (MPS) available, {ram_gb:.0f}GB RAM - "
+                        "legacy profile (FACET_DEVICE=cpu)"
+                    )
+                elif ram_gb >= 8:
                     msg = f"No GPU detected, {ram_gb:.0f}GB RAM - legacy profile (TOPIQ + SAMP-Net on CPU)"
                 else:
                     msg = f"No GPU detected, {ram_gb:.0f}GB RAM - legacy profile (limited CPU mode)"
             except Exception:
-                msg = "No GPU detected, using legacy (CPU-only) profile"
+                msg = (
+                    "Apple Metal (MPS) detected, using legacy profile"
+                    if has_mps and not force_cpu else
+                    "No GPU detected, using legacy (CPU-only) profile"
+                )
             msg += "\n  Tip: run 'python facet.py --doctor' for GPU setup diagnostics"
             return 'legacy', None, msg
 
@@ -752,13 +772,22 @@ class ScoringConfig:
             return True, suggested_profile, msg
 
         if vram_gb is None:
+            try:
+                from utils.device import mps_available
+                has_mps = (
+                    mps_available()
+                    and os.environ.get('FACET_DEVICE', 'auto').strip().lower() != 'cpu'
+                )
+            except Exception:
+                has_mps = False
             if current_profile != 'legacy':
                 if verbose:
-                    logger.warning("No GPU detected but profile '%s' is configured", current_profile)
+                    accelerator = "MPS" if has_mps else "No GPU"
+                    logger.warning("%s does not support VRAM profile '%s'", accelerator, current_profile)
                     logger.warning("  Consider setting vram_profile to 'legacy' or 'auto' in scoring_config.json")
                     logger.warning("  Tip: run 'python facet.py --doctor' for GPU setup diagnostics")
-                return False, 'legacy', "No GPU detected"
-            return True, current_profile, "OK (CPU mode)"
+                return False, 'legacy', "MPS requires the legacy profile" if has_mps else "No GPU detected"
+            return True, current_profile, "OK (MPS mode)" if has_mps else "OK (CPU mode)"
 
         # Define VRAM requirements for each profile
         profile_requirements = {
@@ -1071,5 +1100,3 @@ class ScoringConfig:
             List of category name strings
         """
         return [cat['name'] for cat in self.get_categories()]
-
-

@@ -194,7 +194,8 @@ class PyIQAScorer:
             self.model = None
 
         self._loaded = False
-        torch.cuda.empty_cache()
+        from utils.device import clear_device_cache
+        clear_device_cache(self.device)
         logger.info("  %s unloaded", self.model_name)
 
     # Max long edge for inference (prevents OOM on CPU with high-res images).

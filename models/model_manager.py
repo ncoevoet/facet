@@ -51,9 +51,9 @@ class ModelManager:
             config: ScoringConfig instance with model settings
         """
         self.config = config
-        _ensure_torch()
         from utils.device import get_device
         self.device = get_device()
+        _ensure_torch()
         self.models = {}
         self.profile = None
 
@@ -325,8 +325,8 @@ class ModelManager:
                         v.cpu()
             del model
 
-        _torch = _ensure_torch()
-        _torch.cuda.empty_cache()
+        from utils.device import clear_device_cache
+        clear_device_cache(self.device)
 
     def _can_cache_to_ram(self, model_name: str) -> bool:
         """Check if a model can be cached to CPU RAM between passes.
@@ -431,7 +431,8 @@ class ModelManager:
             del model
             import gc
             gc.collect()
-            _ensure_torch().cuda.empty_cache()
+            from utils.device import clear_device_cache
+            clear_device_cache(self.device)
             return None
 
     def evict_cpu_cache(self):
@@ -537,7 +538,12 @@ class ModelManager:
             with open(os.devnull, 'w') as devnull:
                 _stdout, sys.stdout = sys.stdout, devnull
                 try:
-                    app = FaceAnalysis(providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
+                    providers = (
+                        ['CUDAExecutionProvider', 'CPUExecutionProvider']
+                        if self.device == 'cuda'
+                        else ['CPUExecutionProvider']
+                    )
+                    app = FaceAnalysis(providers=providers)
                     app.prepare(ctx_id=0 if self.device == 'cuda' else -1, det_size=(640, 640))
                 finally:
                     sys.stdout = _stdout
@@ -720,13 +726,22 @@ class ModelManager:
 
         import gc
         gc.collect()
-        _torch = _ensure_torch()
-        _torch.cuda.empty_cache()
+        from utils.device import clear_device_cache
+        clear_device_cache(self.device)
         logger.info("All models unloaded")
 
     def get_vram_usage(self) -> str:
         """Get current VRAM usage estimate."""
         _torch = _ensure_torch()
+        if self.device == 'mps':
+            mps = getattr(_torch, 'mps', None)
+            current_allocated = getattr(mps, 'current_allocated_memory', None)
+            driver_allocated = getattr(mps, 'driver_allocated_memory', None)
+            if callable(current_allocated) and callable(driver_allocated):
+                allocated = current_allocated() / 1024**3
+                driver = driver_allocated() / 1024**3
+                return f"Allocated: {allocated:.2f}GB, Driver: {driver:.2f}GB"
+            return "N/A (MPS memory metrics unavailable)"
         if not _torch.cuda.is_available():
             return "N/A (CPU mode)"
 

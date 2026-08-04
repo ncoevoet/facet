@@ -18,6 +18,13 @@ python facet.py --doctor # verify your setup
 
 `install.sh` creates the venv, detects GPU/CUDA, installs PyTorch with the matching index URL, the right ONNX Runtime variant, the rest of the dependencies, and builds the Angular frontend.
 
+On Apple Silicon, the installer uses PyTorch's native macOS wheel and Facet
+automatically selects the Metal (`mps`) backend. The `legacy` model profile is
+used because Apple unified memory is not CUDA VRAM. Torch-based CLIP, SAMP-Net,
+PyIQA, and saliency work can use MPS; InsightFace uses ONNX Runtime on CPU.
+Set `FACET_DEVICE=cpu` to disable acceleration or `FACET_DEVICE=mps` to require
+MPS (and fail clearly if it is unavailable).
+
 **Options:**
 | Flag | Effect |
 |------|--------|
@@ -82,6 +89,21 @@ pip install -r requirements.txt
 > **Hitting dependency errors?** See [Troubleshooting Dependency Conflicts](#troubleshooting-dependency-conflicts) below.
 
 ### GPU Setup
+
+#### Apple Silicon (Metal/MPS)
+
+No separate GPU package is required. Install with `bash install.sh`, then verify
+that `python facet.py --doctor` reports `Facet runtime device: mps`. Facet enables
+PyTorch's unsupported-operator CPU fallback by default. To compare performance:
+
+```bash
+FACET_DEVICE=cpu python facet.py /path/to/photos --pass embeddings --force
+FACET_DEVICE=mps python facet.py /path/to/photos --pass embeddings --force
+```
+
+InsightFace face detection remains on CPU because it is an ONNX Runtime model,
+not a PyTorch model. CUDA-only `16gb` and `24gb` profiles are not selected on
+MPS; use `legacy` or `auto`.
 
 #### PyTorch with CUDA
 
