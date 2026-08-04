@@ -7,7 +7,7 @@ diffs are mechanical.
 Example::
 
     venv/bin/python scripts/bench/scoring_throughput.py \\
-        --photos /path/to/sample-1000 --pass embeddings --force
+        --photos /path/to/sample-1000 --pass embeddings --device mps --force
 
 Note: this *does* modify the scoring database (the whole point is to measure
 real scoring). Always run against a throwaway DB (``--db /tmp/bench.db``) or a
@@ -146,6 +146,7 @@ def run_facet(args: argparse.Namespace) -> dict[str, Any]:
 
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
+    env["FACET_DEVICE"] = args.device
 
     started = time.perf_counter()
     proc = subprocess.Popen(
@@ -176,6 +177,7 @@ def run_facet(args: argparse.Namespace) -> dict[str, Any]:
         "returncode": proc.returncode,
         "elapsed_s": round(elapsed_s, 2),
         "photo_count": photo_count,
+        "device": args.device,
         "photos_per_sec": round(photos_per_sec, 3),
         "peak_rss_mb": round(tracker.peak_rss_mb, 1),
         "peak_vram_mb": round(tracker.peak_vram_mb, 1),
@@ -191,6 +193,12 @@ def parse_args() -> argparse.Namespace:
         dest="pass_",
         default=None,
         help="Run a single pass (quality, embeddings, tags, faces, ...)",
+    )
+    p.add_argument(
+        "--device",
+        choices=("auto", "cpu", "cuda", "mps"),
+        default="auto",
+        help="Set FACET_DEVICE for the benchmark subprocess",
     )
     p.add_argument(
         "--force", action="store_true", help="Re-scan photos already in the DB"
@@ -227,6 +235,7 @@ def main() -> int:
         "args": {
             "photos": str(args.photos),
             "pass": args.pass_,
+            "device": args.device,
             "force": args.force,
             "single_pass": args.single_pass,
             "db": str(args.db) if args.db else None,
@@ -236,7 +245,7 @@ def main() -> int:
     out_path = bench.results_path(args.label)
     out_path.write_text(json.dumps(payload, indent=2))
     print(
-        f"\nphotos={result['photo_count']} "
+        f"\ndevice={result['device']} photos={result['photo_count']} "
         f"elapsed={result['elapsed_s']}s "
         f"throughput={result['photos_per_sec']} photos/sec "
         f"peak_rss={result['peak_rss_mb']}MB "

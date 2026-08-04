@@ -22,6 +22,39 @@ from PIL import Image
 
 logger = logging.getLogger("facet.samp_net")
 
+
+def _adaptive_avg_pool2d(input_tensor, output_size):
+    """MPS-safe adaptive average pooling.
+
+    PyTorch's Metal kernel currently rejects non-divisible input/output sizes.
+    SAMP-Net intentionally pools its usual 7x7 feature map to 2x2, 3x3, 4x4,
+    and 8x8. Reproduce PyTorch's adaptive pooling bins with native tensor means
+    for those shapes, keeping the work on Metal and autograd semantics intact.
+    """
+    if isinstance(output_size, int):
+        output_size = (output_size, output_size)
+    out_h, out_w = output_size
+    in_h, in_w = input_tensor.shape[-2:]
+    if (
+        input_tensor.device.type != 'mps'
+        or (in_h % out_h == 0 and in_w % out_w == 0)
+    ):
+        return F.adaptive_avg_pool2d(input_tensor, output_size)
+
+    rows = []
+    for row in range(out_h):
+        h_start = row * in_h // out_h
+        h_end = ((row + 1) * in_h + out_h - 1) // out_h
+        columns = []
+        for col in range(out_w):
+            w_start = col * in_w // out_w
+            w_end = ((col + 1) * in_w + out_w - 1) // out_w
+            columns.append(
+                input_tensor[..., h_start:h_end, w_start:w_end].mean(dim=(-2, -1))
+            )
+        rows.append(torch.stack(columns, dim=-1))
+    return torch.stack(rows, dim=-2)
+
 # 8 composition patterns based on spatial pooling strategies
 COMPOSITION_PATTERNS = [
     'global',           # 0: Global average pooling
@@ -352,7 +385,8 @@ class SaliencyDetector:
     """
 
     def __init__(self, device='cuda', weights_path='pretrained_models/u2netp.pth'):
-        self.device = device if torch.cuda.is_available() else 'cpu'
+        from utils.device import is_device_available
+        self.device = device if is_device_available(device, torch_module=torch) else 'cpu'
         self.weights_path = weights_path
         self.model = None
         self._initialized = False
@@ -504,9 +538,9 @@ class SAMPPModule(nn.Module):
         else:
             # Global pooled features (512 each)
             global_max = F.adaptive_max_pool2d(feature_map, 1).view(B, -1)
-            global_avg = F.adaptive_avg_pool2d(feature_map, 1).view(B, -1)
+            global_avg = _adaptive_avg_pool2d(feature_map, 1).view(B, -1)
             # Downsample saliency to fixed size for consistent feature count
-            sal_small = F.adaptive_avg_pool2d(saliency, (4, 4)).view(B, -1)  # 16 values
+            sal_small = _adaptive_avg_pool2d(saliency, (4, 4)).view(B, -1)  # 16 values
 
         if pattern_idx in [0, 1, 4]:  # 2-region patterns (horizontal, vertical, center)
             # Split into 2 regions
@@ -522,9 +556,9 @@ class SAMPPModule(nn.Module):
                 r2 = feature_map
 
             r1_max = F.adaptive_max_pool2d(r1, 1).view(B, -1)
-            r1_avg = F.adaptive_avg_pool2d(r1, 1).view(B, -1)
+            r1_avg = _adaptive_avg_pool2d(r1, 1).view(B, -1)
             r2_max = F.adaptive_max_pool2d(r2, 1).view(B, -1)
-            r2_avg = F.adaptive_avg_pool2d(r2, 1).view(B, -1)
+            r2_avg = _adaptive_avg_pool2d(r2, 1).view(B, -1)
 
             # Base features: 512*4 + 16 = 2064
             feat = torch.cat([r1_max, r1_avg, r2_max, r2_avg, sal_small], dim=1)
@@ -532,9 +566,9 @@ class SAMPPModule(nn.Module):
         elif pattern_idx in [2, 3]:  # Diagonal patterns (need 2746)
             # More features for diagonal patterns
             r1_max = F.adaptive_max_pool2d(feature_map[:, :, :H//2, :], 1).view(B, -1)
-            r1_avg = F.adaptive_avg_pool2d(feature_map[:, :, :H//2, :], 1).view(B, -1)
+            r1_avg = _adaptive_avg_pool2d(feature_map[:, :, :H//2, :], 1).view(B, -1)
             r2_max = F.adaptive_max_pool2d(feature_map[:, :, H//2:, :], 1).view(B, -1)
-            r2_avg = F.adaptive_avg_pool2d(feature_map[:, :, H//2:, :], 1).view(B, -1)
+            r2_avg = _adaptive_avg_pool2d(feature_map[:, :, H//2:, :], 1).view(B, -1)
             center = F.adaptive_max_pool2d(feature_map[:, :, H//4:3*H//4, W//4:3*W//4], 1).view(B, -1)
 
             # Base features: 512*5 + 16 = 2576
@@ -545,10 +579,10 @@ class SAMPPModule(nn.Module):
             q2 = F.adaptive_max_pool2d(feature_map[:, :, :H//2, W//2:], 1).view(B, -1)
             q3 = F.adaptive_max_pool2d(feature_map[:, :, H//2:, :W//2], 1).view(B, -1)
             q4 = F.adaptive_max_pool2d(feature_map[:, :, H//2:, W//2:], 1).view(B, -1)
-            q1a = F.adaptive_avg_pool2d(feature_map[:, :, :H//2, :W//2], 1).view(B, -1)
-            q2a = F.adaptive_avg_pool2d(feature_map[:, :, :H//2, W//2:], 1).view(B, -1)
-            q3a = F.adaptive_avg_pool2d(feature_map[:, :, H//2:, :W//2], 1).view(B, -1)
-            q4a = F.adaptive_avg_pool2d(feature_map[:, :, H//2:, W//2:], 1).view(B, -1)
+            q1a = _adaptive_avg_pool2d(feature_map[:, :, :H//2, :W//2], 1).view(B, -1)
+            q2a = _adaptive_avg_pool2d(feature_map[:, :, :H//2, W//2:], 1).view(B, -1)
+            q3a = _adaptive_avg_pool2d(feature_map[:, :, H//2:, :W//2], 1).view(B, -1)
+            q4a = _adaptive_avg_pool2d(feature_map[:, :, H//2:, W//2:], 1).view(B, -1)
             center = F.adaptive_max_pool2d(feature_map[:, :, H//4:3*H//4, W//4:3*W//4], 1).view(B, -1)
 
             # Base features: 512*9 + 16 = 4624
@@ -567,18 +601,18 @@ class SAMPPModule(nn.Module):
 
         elif pattern_idx == 7:  # Global pattern (need 7524)
             # More comprehensive features for global pattern
-            sal_large = F.adaptive_avg_pool2d(saliency, (8, 8)).view(B, -1)  # 64 values
+            sal_large = _adaptive_avg_pool2d(saliency, (8, 8)).view(B, -1)  # 64 values
 
             # Multiple pooling at different scales
             feats = [global_max, global_avg]
             for scale in [2, 3, 4]:
-                pooled = F.adaptive_avg_pool2d(feature_map, scale)
+                pooled = _adaptive_avg_pool2d(feature_map, scale)
                 feats.append(pooled.view(B, -1))
 
             # Saliency-weighted global
             sal_weight = F.interpolate(saliency, size=(H, W), mode='bilinear', align_corners=False)
             weighted = feature_map * sal_weight
-            feats.append(F.adaptive_avg_pool2d(weighted, 1).view(B, -1))
+            feats.append(_adaptive_avg_pool2d(weighted, 1).view(B, -1))
 
             # Base: 512 + 512 + 512*4 + 512*9 + 512*16 + 512 + 64 = large
             feat = torch.cat(feats + [sal_large], dim=1)
@@ -626,8 +660,8 @@ class SAMPPModule(nn.Module):
         # Precompute shared features once (15-25% speedup)
         shared_features = {
             'global_max': F.adaptive_max_pool2d(feature_map, 1).view(B, -1),
-            'global_avg': F.adaptive_avg_pool2d(feature_map, 1).view(B, -1),
-            'sal_small': F.adaptive_avg_pool2d(saliency_resized, (4, 4)).view(B, -1),
+            'global_avg': _adaptive_avg_pool2d(feature_map, 1).view(B, -1),
+            'sal_small': _adaptive_avg_pool2d(saliency_resized, (4, 4)).view(B, -1),
         }
 
         # Collect pattern features
@@ -820,9 +854,10 @@ class SAMPNetScorer:
 
         Args:
             model_path: Path to SAMP-Net weights. If None, uses default.
-            device: 'cuda' or 'cpu'
+            device: 'cuda', 'mps', or 'cpu'
         """
-        self.device = device if torch.cuda.is_available() else 'cpu'
+        from utils.device import is_device_available
+        self.device = device if is_device_available(device, torch_module=torch) else 'cpu'
         self.model_path = model_path or 'pretrained_models/samp_net.pth'
 
         # Image preprocessing (224x224 for SAMP-Net)
