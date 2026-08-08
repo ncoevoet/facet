@@ -25,6 +25,10 @@ services:
       - DB_PATH=${DB_PATH:-/app/data/photo_scores_pro.db}
       # Pick the VRAM profile without editing any JSON (auto|legacy|8gb|16gb|24gb).
       - FACET_VRAM_PROFILE=${FACET_VRAM_PROFILE:-auto}
+      # Personal-ranker auto-retrain: how much new signal arms a retrain, and how
+      # long you must be idle before it runs. Empty = the config's auto_retrain block.
+      - FACET_RETRAIN_THRESHOLD=${FACET_RETRAIN_THRESHOLD:-}
+      - FACET_RETRAIN_IDLE_S=${FACET_RETRAIN_IDLE_S:-}
     # GPU acceleration is opt-in. The default config runs in CPU mode so
     # `docker compose up` works on any machine. To enable an NVIDIA GPU
     # (requires the NVIDIA Container Toolkit), add the override file:

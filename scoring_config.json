@@ -2788,6 +2788,10 @@
     "shrinkage_k": 10,
     "models_dir": "pretrained_models"
   },
+  "auto_retrain": {
+    "threshold": 25,
+    "idle_seconds": 60
+  },
   "capsules": {
     "min_aggregate": 6.0,
     "max_photos_per_capsule": 40,

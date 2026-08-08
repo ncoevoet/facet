@@ -3,13 +3,18 @@ Database helper functions for the FastAPI API server.
 
 """
 
+import functools
 import hashlib
 import logging
 import math
 import os
+import random
 import sqlite3
 import struct
 import time
+
+from fastapi import HTTPException
+
 from config import ScoringConfig
 
 from api.config import (
@@ -22,6 +27,62 @@ from api.database import get_db_connection
 from db import DEFAULT_DB_PATH
 
 logger = logging.getLogger("facet.api.db_helpers")
+
+# Interactive write retry. SQLite allows one writer per database file, so a
+# background writer holding the lock (ranker retrain, rating-comparison sync,
+# WAL checkpoint, an out-of-process scan) makes a concurrent user write wait out
+# busy_timeout and fail. These bursts are short, so a few backed-off retries turn
+# a hard error into a slightly slower success.
+RETRY_ATTEMPTS = 4
+RETRY_BASE_DELAY = 0.05
+
+
+def is_locked_error(ex) -> bool:
+    """True for a transient SQLite busy/locked error, not a real fault.
+
+    Lets callers tell "come back in a moment" apart from a genuine schema or
+    constraint failure, which must still surface as a 500.
+    """
+    if not isinstance(ex, sqlite3.OperationalError):
+        return False
+    message = str(ex).lower()
+    return 'locked' in message or 'busy' in message
+
+
+def retry_on_locked(attempts=RETRY_ATTEMPTS, base_delay=RETRY_BASE_DELAY):
+    """Retry a write handler while SQLite reports the database busy/locked.
+
+    Retries the WHOLE handler rather than just the commit: these handlers read
+    the current value before writing the new one (toggles), so a retry has to
+    re-read or it would persist a decision made against stale state. Anything
+    that is not a lock error propagates untouched on the first raise. Exhausting
+    the attempts yields 503 + Retry-After — the write is still possible, the
+    server is merely busy, so it is not a 500.
+    """
+    def decorate(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            for attempt in range(attempts):
+                try:
+                    return fn(*args, **kwargs)
+                except sqlite3.OperationalError as ex:
+                    if not is_locked_error(ex):
+                        raise
+                    if attempt == attempts - 1:
+                        logger.warning(
+                            "%s still blocked by a database lock after %d attempts",
+                            fn.__name__, attempts,
+                        )
+                        raise HTTPException(
+                            status_code=503,
+                            detail='Database is busy, please retry',
+                            headers={'Retry-After': '1'},
+                        ) from ex
+                    # Exponential backoff, jittered so parallel writers from the
+                    # same burst don't line up and collide again in lockstep.
+                    time.sleep(base_delay * (2 ** attempt) * (0.5 + random.random()))
+        return wrapper
+    return decorate
 
 
 def trigger_auto_retrain(db_path, user_id, added=1, conn=None):

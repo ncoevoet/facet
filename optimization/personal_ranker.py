@@ -39,6 +39,17 @@ DEFAULT_C = 1.0          # inverse L2 strength for the rank-smoothing penalty
 DEFAULT_CV_FOLDS = 5
 DEFAULT_SHRINKAGE_K = 10  # PIAA blend: lambda(n) = n / (n + k)
 
+# photos BLOB columns the ranker never reads. Excluded from the inference scan
+# because thumbnail alone averages ~46 KB/row — several GB of a full library
+# materialized, then discarded, on a background thread inside the viewer.
+_UNUSED_BLOB_COLS = frozenset({'thumbnail', 'histogram_data', 'caption_embedding'})
+
+# Rows per write transaction. The inference pass rewrites a row per photo; doing
+# that in one transaction holds SQLite's single write lock for the whole run, so
+# an interactive rating write waits out busy_timeout and fails. Committing in
+# slices releases the lock between them.
+_WRITE_CHUNK = 2000
+
 
 def _load_piaa_config(config_path):
     """Read the ``piaa_prior`` block. Missing file/block -> disabled (flag off)."""
@@ -438,27 +449,81 @@ def _scaled_feature(row, emb, optimizer, category, col_std):
     return np.concatenate([emb, mv, [mc]]) / col_std
 
 
+def _scoring_columns(conn):
+    """Every ``photos`` column except the BLOBs the ranker never reads.
+
+    An exclude-list rather than an allow-list: the feature builder reads ~26
+    columns via build_metric_vector AND whatever columns the user's category
+    filters name (ScoringConfig.determine_category), so an allow-list would
+    silently drop a column the moment a filter referenced a new one.
+    """
+    return [r[1] for r in conn.execute("PRAGMA table_info(photos)")
+            if r[1] not in _UNUSED_BLOB_COLS]
+
+
 def _collect_scored(db_path, emb_dim, raw_fn):
     """Return [(path, raw_score)] for every photo whose embedding matches emb_dim.
 
     ``raw_fn(row, emb)`` computes the un-normalized head output; percentile
     normalization happens once, later, in ``_persist_scores`` — the PIAA blend
     is applied HERE, on the raw scores, never after the rank/percentile step.
+
+    Rows are streamed off the cursor rather than fetched into a list: a full
+    library's thumbnails alone are several GB, and this runs on a background
+    thread inside the viewer process.
     """
-    with get_connection(db_path) as conn:
-        rows = [dict(r) for r in conn.execute(
-            "SELECT * FROM photos WHERE clip_embedding IS NOT NULL").fetchall()]
     scored = []
-    for row in rows:
-        emb = bytes_to_normalized_embedding(row['clip_embedding'])
-        if emb is None or emb.shape[0] != emb_dim:
-            continue
-        scored.append((row['path'], float(raw_fn(row, emb))))
+    with get_connection(db_path) as conn:
+        cols = ", ".join(_scoring_columns(conn))
+        for r in conn.execute(f"SELECT {cols} FROM photos WHERE clip_embedding IS NOT NULL"):
+            row = dict(r)
+            emb = bytes_to_normalized_embedding(row['clip_embedding'])
+            if emb is None or emb.shape[0] != emb_dim:
+                continue
+            scored.append((row['path'], float(raw_fn(row, emb))))
     return scored
 
 
+def _mirror_learned_score(conn):
+    """Copy the global learned_scores into photos.learned_score, in rowid slices.
+
+    The gallery "My Taste" sort reads the denormalized column so it hits
+    idx_learned_score instead of a per-row correlated subquery. The correlated
+    SELECT is a primary-key probe (learned_scores.photo_path is the PK), and it
+    yields NULL for photos that no longer have a score — so one statement both
+    clears stale values and writes new ones, replacing a full-table NULL sweep
+    plus a per-photo UPDATE.
+
+    The subquery repeats the caller's global-scope predicate. photo_path is the
+    whole primary key, so a photo carries at most one row across every scope; an
+    unmatched per-user row left over from another scope's training must mirror as
+    NULL, not leak into the global column.
+    """
+    top = conn.execute("SELECT MAX(rowid) FROM photos").fetchone()[0]
+    if top is None:
+        return
+    for start in range(1, top + 1, _WRITE_CHUNK):
+        conn.execute(
+            """UPDATE photos SET learned_score = (
+                   SELECT ls.learned_score FROM learned_scores ls
+                   WHERE ls.photo_path = photos.path
+                     AND ls.category IS NULL AND ls.user_id IS NULL)
+               WHERE rowid BETWEEN ? AND ?""",
+            (start, start + _WRITE_CHUNK - 1),
+        )
+        conn.commit()
+
+
 def _persist_scores(db_path, scored, category, user_id, n_pairs):
-    """Percentile-normalize raw scores to 0-10 and write the (category, user) scope."""
+    """Percentile-normalize raw scores to 0-10 and write the (category, user) scope.
+
+    Committed in _WRITE_CHUNK slices rather than one transaction: this runs on a
+    background thread while the user is still rating, and SQLite's write lock is
+    per database file, so one long transaction times out interactive writes. The
+    cost is that a concurrent "My Taste" sort can observe a partially rebuilt
+    table for a few seconds (missing rows read NULL and sink) — acceptable for an
+    opt-in alternate sort, unlike failing the user's saves.
+    """
     if not scored:
         return 0
     raw = np.array([s for _, s in scored])
@@ -471,25 +536,20 @@ def _persist_scores(db_path, scored, category, user_id, n_pairs):
             conn.execute("DELETE FROM learned_scores WHERE category IS ? AND user_id IS NULL", (category,))
         else:
             conn.execute("DELETE FROM learned_scores WHERE category IS ? AND user_id = ?", (category, user_id))
-        conn.executemany(
-            """INSERT OR REPLACE INTO learned_scores
-               (photo_path, learned_score, comparison_count, category, updated_at, user_id)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            [
-                (path, float(normalized[i]), n_pairs, category, now, user_id)
-                for i, (path, _) in enumerate(scored)
-            ],
-        )
-        if category is None and user_id is None:
-            # Mirror the global ranker score into photos.learned_score so the
-            # gallery "My Taste" sort reads an indexed column (idx_learned_score)
-            # instead of a per-row correlated subquery into learned_scores.
-            conn.execute("UPDATE photos SET learned_score = NULL WHERE learned_score IS NOT NULL")
-            conn.executemany(
-                "UPDATE photos SET learned_score = ? WHERE path = ?",
-                [(float(normalized[i]), path) for i, (path, _) in enumerate(scored)],
-            )
         conn.commit()
+        for start in range(0, len(scored), _WRITE_CHUNK):
+            conn.executemany(
+                """INSERT OR REPLACE INTO learned_scores
+                   (photo_path, learned_score, comparison_count, category, updated_at, user_id)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                [
+                    (path, float(normalized[start + i]), n_pairs, category, now, user_id)
+                    for i, (path, _) in enumerate(scored[start:start + _WRITE_CHUNK])
+                ],
+            )
+            conn.commit()
+        if category is None and user_id is None:
+            _mirror_learned_score(conn)
     return len(scored)
 
 

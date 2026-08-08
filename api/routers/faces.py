@@ -17,6 +17,7 @@ from api.database import get_async_db, get_db
 from api.db_helpers import (
     update_person_face_count, trigger_auto_retrain, get_visibility_clause,
     assert_faces_visible, assert_photo_visible, repair_stale_representative,
+    is_locked_error, retry_on_locked,
 )
 from api.types import JUNK_NOT_JUNK
 
@@ -336,6 +337,7 @@ def flush_rating_comparisons():
 
 
 @router.post("/api/photo/set_rating")
+@retry_on_locked()
 def api_set_rating(
     body: SetRatingRequest,
     user: CurrentUser = Depends(require_auth),
@@ -355,13 +357,16 @@ def api_set_rating(
             _stats_cache.clear()
             _mint_rating_comparisons(user.user_id)
             return {'success': True, 'rating': body.rating}
-        except sqlite3.Error:
-            logger.exception("Database error setting rating for photo %s", body.photo_path)
+        except sqlite3.Error as ex:
             conn.rollback()
+            if is_locked_error(ex):
+                raise
+            logger.exception("Database error setting rating for photo %s", body.photo_path)
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/photo/toggle_favorite")
+@retry_on_locked()
 def api_toggle_favorite(
     body: TogglePhotoRequest,
     user: CurrentUser = Depends(require_auth),
@@ -403,13 +408,16 @@ def api_toggle_favorite(
             return {'success': True, 'is_favorite': new_value == 1, 'is_rejected': False if new_value == 1 else None}
         except HTTPException:
             raise
-        except sqlite3.Error:
-            logger.exception("Database error toggling favorite for photo %s", body.photo_path)
+        except sqlite3.Error as ex:
             conn.rollback()
+            if is_locked_error(ex):
+                raise
+            logger.exception("Database error toggling favorite for photo %s", body.photo_path)
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/photo/toggle_rejected")
+@retry_on_locked()
 def api_toggle_rejected(
     body: TogglePhotoRequest,
     user: CurrentUser = Depends(require_auth),
@@ -451,13 +459,16 @@ def api_toggle_rejected(
             return {'success': True, 'is_rejected': new_value == 1, 'star_rating': 0 if new_value == 1 else None, 'is_favorite': False if new_value == 1 else None}
         except HTTPException:
             raise
-        except sqlite3.Error:
-            logger.exception("Database error toggling rejected for photo %s", body.photo_path)
+        except sqlite3.Error as ex:
             conn.rollback()
+            if is_locked_error(ex):
+                raise
+            logger.exception("Database error toggling rejected for photo %s", body.photo_path)
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
 @router.post("/api/photo/clear_junk")
+@retry_on_locked()
 def api_clear_junk(
     body: TogglePhotoRequest,
     user: CurrentUser = Depends(require_edition),
@@ -483,12 +494,15 @@ def api_clear_junk(
             raise HTTPException(status_code=404, detail="Photo not found")
         except HTTPException:
             raise
-        except sqlite3.Error:
-            logger.exception("Database error clearing junk for photo %s", body.photo_path)
+        except sqlite3.Error as ex:
             conn.rollback()
+            if is_locked_error(ex):
+                raise
+            logger.exception("Database error clearing junk for photo %s", body.photo_path)
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
+@retry_on_locked()
 def _batch_update(
     photo_paths: list[str],
     user: CurrentUser,
@@ -512,9 +526,11 @@ def _batch_update(
             return {'success': True, 'count': len(photo_paths)}
         except HTTPException:
             raise
-        except sqlite3.Error:
-            logger.exception("Database error in batch update")
+        except sqlite3.Error as ex:
             conn.rollback()
+            if is_locked_error(ex):
+                raise
+            logger.exception("Database error in batch update")
             raise HTTPException(status_code=500, detail='Internal server error')
 
 

@@ -1605,6 +1605,41 @@ Selezione automatica con un solo pulsante per la camera oscura di selezione (`PO
 
 `dry_run` è attivo per impostazione predefinita e restituisce un'anteprima di conservazione/scarto per gruppo; l'applicazione registra inoltre righe di confronto `source='culling'` e sollecita un riaddestramento automatico. Vedi [Galleria web — Selezione automatica](VIEWER.md#selezione-automatica).
 
+## Riaddestramento automatico
+
+Controlla quando il ranker personale («I miei gusti») si riaddestra. Ogni conferma di scarto e ogni modifica di valutazione incrementa un contatore per utente di «nuovi confronti dall'ultimo addestramento»; il superamento di `threshold` arma un timer di inattività, e il riaddestramento parte solo dopo `idle_seconds` senza attività da parte tua.
+
+La finestra di inattività è cruciale: il riaddestramento riscrive una riga per foto, e SQLite ammette un solo scrittore per file di database. Avviarlo nel mezzo di una raffica lo metterebbe in competizione con le tue stesse scritture di valutazione — è esattamente così che un lungo riaddestramento faceva fallire le azioni di valutazione. Attendere una pausa separa i due.
+
+```json
+{
+  "auto_retrain": {
+    "threshold": 25,
+    "idle_seconds": 60
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|---------|---------|-------------|
+| `threshold` | `25` | Nuovi confronti che un utente deve accumulare prima che un riaddestramento venga armato. Aumentalo se valuti lotti molto grandi e vuoi ammortizzare il costo dell'addestramento (CPU, da secondi a minuti) su più segnale |
+| `idle_seconds` | `60` | Secondi senza attività di valutazione/scarto necessari prima che il riaddestramento armato parta davvero. Ogni nuova azione posticipa il timer. `0` avvia immediatamente (comportamento precedente alla 1.7.3) |
+
+Entrambi sono sovrascrivibili a runtime tramite variabili d'ambiente, che hanno la precedenza sui valori JSON — utile con Docker, dove la configurazione è spesso integrata nell'immagine:
+
+```bash
+FACET_RETRAIN_THRESHOLD=100 FACET_RETRAIN_IDLE_S=300 python viewer.py
+```
+
+| Variabile | Sovrascrive |
+|-----------|-------------|
+| `FACET_RETRAIN_THRESHOLD` | `auto_retrain.threshold` |
+| `FACET_RETRAIN_IDLE_S` | `auto_retrain.idle_seconds` |
+
+Un valore non interpretabile ricade sull'impostazione JSON, e un blocco assente o malformato ricade sui valori predefiniti integrati, così un errore di battitura degrada al comportamento di fabbrica invece di disattivare il riaddestramento automatico. Entrambi i valori vengono letti una sola volta all'avvio — modificarli richiede un riavvio.
+
+Il riaddestramento mantiene il suo controllo di convalida incrociata su dati riservati: un'esecuzione che non batte il riferimento attuale non scrive nulla.
+
 ## Profili di scarto per genere
 
 Preset per genere che raggruppano tutti i controlli di scarto in un clic: lo sport conserva solo la foto più nitida di una lunga raffica, i matrimoni conservano più varianti con gli occhi aperti come priorità, i concerti allentano le soglie occhi/espressione, la fauna selvatica rimuove del tutto il filtro del volto umano. La camera oscura di scarto mostra un selettore di preset.

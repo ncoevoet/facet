@@ -1605,6 +1605,41 @@ Descarte automático de un botón para el laboratorio de descarte (`POST /api/cu
 
 `dry_run` está activado por defecto y devuelve una vista previa de conservar/descartar por grupo; una aplicación registra además filas de comparación con `source='culling'` e impulsa un reentrenamiento automático. Consulta [Galería web — Descarte automático](VIEWER.md#auto-cull).
 
+## Reentrenamiento automático
+
+Controla cuándo se reentrena el clasificador personal («Mi gusto»). Cada confirmación de descarte y cada cambio de valoración incrementa un contador por usuario de «nuevas comparaciones desde el último entrenamiento»; superar `threshold` arma un temporizador de inactividad, y el reentrenamiento solo arranca tras `idle_seconds` sin actividad tuya.
+
+La ventana de inactividad es clave: el reentrenamiento reescribe una fila por foto, y SQLite solo admite un escritor por archivo de base de datos. Lanzarlo en mitad de una ráfaga lo pondría a competir con tus propias escrituras de valoración — exactamente así es como un reentrenamiento largo hacía fallar las acciones de valoración. Esperar a una pausa separa ambos.
+
+```json
+{
+  "auto_retrain": {
+    "threshold": 25,
+    "idle_seconds": 60
+  }
+}
+```
+
+| Ajuste | Por defecto | Descripción |
+|---------|---------|-------------|
+| `threshold` | `25` | Nuevas comparaciones que un usuario debe acumular antes de armar un reentrenamiento. Aumenta el valor si valoras lotes muy grandes y quieres amortizar el coste del entrenamiento (CPU, de segundos a minutos) sobre más señal |
+| `idle_seconds` | `60` | Segundos sin actividad de valoración/descarte necesarios antes de que el reentrenamiento armado arranque realmente. Cada nueva acción retrasa el temporizador. `0` lo lanza de inmediato (comportamiento anterior a 1.7.3) |
+
+Ambos se pueden sobrescribir en tiempo de ejecución mediante variables de entorno, que tienen prioridad sobre los valores JSON — útil en Docker, donde la configuración suele venir incrustada en la imagen:
+
+```bash
+FACET_RETRAIN_THRESHOLD=100 FACET_RETRAIN_IDLE_S=300 python viewer.py
+```
+
+| Variable | Sobrescribe |
+|----------|-------------|
+| `FACET_RETRAIN_THRESHOLD` | `auto_retrain.threshold` |
+| `FACET_RETRAIN_IDLE_S` | `auto_retrain.idle_seconds` |
+
+Un valor no interpretable recae en el ajuste JSON, y un bloque ausente o mal formado recae en los valores por defecto integrados, de modo que una errata degrada al comportamiento de fábrica en lugar de desactivar el reentrenamiento automático. Ambos valores se leen una sola vez al arrancar — cambiarlos requiere un reinicio.
+
+El reentrenamiento conserva su verificación por validación cruzada sobre datos reservados: una ejecución que no supera la referencia actual no escribe nada.
+
 ## Perfiles de descarte por género
 
 Preajustes por género que agrupan todos los controles de descarte en un clic: deportes conserva solo la foto más nítida de una ráfaga larga, las bodas conservan más variantes con los ojos abiertos como prioridad, los conciertos relajan los umbrales de ojos/expresión, la fauna elimina por completo el filtro de rostro humano. La sala oscura de descarte muestra un selector de preajuste.

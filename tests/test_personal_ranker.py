@@ -165,3 +165,166 @@ def test_force_writes_despite_gate(ranker_db):
     assert result['gated'] is False
     assert result['written'] > 0
     assert _learned_count(ranker_db) > 0
+
+
+# --- inference scan: narrow columns, streamed rows (issue #76) ---
+
+def test_scoring_columns_exclude_unused_blobs(ranker_db):
+    """The inference scan must not pull thumbnails it never reads.
+
+    Regression: _collect_scored ran SELECT * and materialized every row, so a
+    ~126k-photo library dragged ~5.9 GB of thumbnail BLOBs into RAM on a
+    background thread inside the viewer process.
+    """
+    conn = sqlite3.connect(ranker_db)
+    try:
+        cols = pr._scoring_columns(conn)
+        all_cols = {r[1] for r in conn.execute("PRAGMA table_info(photos)")}
+    finally:
+        conn.close()
+
+    assert 'thumbnail' not in cols
+    assert 'histogram_data' not in cols
+    assert 'caption_embedding' not in cols
+    # Everything else survives: the feature builder reads config-driven columns,
+    # so an allow-list would silently drop one the moment a filter named it.
+    assert set(cols) == all_cols - set(pr._UNUSED_BLOB_COLS)
+    assert 'clip_embedding' in cols, "the embedding IS the feature"
+
+
+def test_collect_scored_matches_a_select_star_scan(ranker_db):
+    """Narrowing the column list must not change a single score."""
+    _seed_photos(ranker_db, n=25)
+
+    def raw_fn(row, emb):
+        return float(emb[0]) + float(row['aggregate'] or 0.0)
+
+    narrow = pr._collect_scored(ranker_db, emb_dim=16, raw_fn=raw_fn)
+
+    conn = sqlite3.connect(ranker_db)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM photos WHERE clip_embedding IS NOT NULL")]
+    finally:
+        conn.close()
+    from utils.embedding import bytes_to_normalized_embedding
+    expected = [(r['path'], float(raw_fn(r, bytes_to_normalized_embedding(r['clip_embedding']))))
+                for r in rows]
+
+    assert narrow == expected
+
+
+# --- write path: chunked commits (issue #76) ---
+
+def _scored_rows(n):
+    return [(f'/r/p{i:03d}.jpg', float(i)) for i in range(n)]
+
+
+def test_persist_scores_commits_in_chunks(ranker_db, monkeypatch):
+    """One transaction over the whole library holds SQLite's write lock.
+
+    Regression: DELETE + N inserts + a full-table NULL sweep + N per-row updates
+    committed once, so an interactive rating write waited out busy_timeout and
+    500'd. Committing in slices releases the lock between them.
+    """
+    _seed_photos(ranker_db, n=12)
+    monkeypatch.setattr(pr, "_WRITE_CHUNK", 3)
+
+    commits = {"n": 0}
+    real_connection = pr.get_connection
+
+    from contextlib import contextmanager
+
+    class _CountingConn:
+        """sqlite3.Connection.commit is read-only, so proxy the connection."""
+
+        def __init__(self, conn):
+            self._conn = conn
+
+        def __getattr__(self, name):
+            return getattr(self._conn, name)
+
+        def commit(self):
+            commits["n"] += 1
+            return self._conn.commit()
+
+    @contextmanager
+    def counting_connection(db_path, *args, **kwargs):
+        with real_connection(db_path, *args, **kwargs) as conn:
+            yield _CountingConn(conn)
+
+    monkeypatch.setattr(pr, "get_connection", counting_connection)
+    written = pr._persist_scores(ranker_db, _scored_rows(12), None, None, n_pairs=7)
+
+    assert written == 12
+    # 1 delete + 4 insert slices + at least one mirror slice.
+    assert commits["n"] >= 6, f"expected several commits, got {commits['n']}"
+
+
+def test_persist_scores_result_matches_a_single_transaction(ranker_db):
+    """Chunking is a locking change only — the stored rows must be identical."""
+    _seed_photos(ranker_db, n=12)
+    scored = _scored_rows(12)
+    pr._persist_scores(ranker_db, scored, None, None, n_pairs=7)
+
+    conn = sqlite3.connect(ranker_db)
+    try:
+        stored = dict(conn.execute(
+            "SELECT photo_path, learned_score FROM learned_scores").fetchall())
+        mirrored = dict(conn.execute(
+            "SELECT path, learned_score FROM photos WHERE learned_score IS NOT NULL").fetchall())
+    finally:
+        conn.close()
+
+    # Percentile-normalized 0..10 over the rank order, exactly as before.
+    expected = {path: 10.0 * i / 11 for i, (path, _) in enumerate(scored)}
+    assert stored == pytest.approx(expected)
+    assert mirrored == pytest.approx(expected)
+
+
+def test_mirror_clears_scores_photos_no_longer_have(ranker_db):
+    """The set-based mirror replaces a full-table NULL sweep — it must still clear."""
+    _seed_photos(ranker_db, n=12)
+    pr._persist_scores(ranker_db, _scored_rows(12), None, None, n_pairs=7)
+    # Second run scores only half the library; the rest must go back to NULL.
+    pr._persist_scores(ranker_db, _scored_rows(6), None, None, n_pairs=7)
+
+    conn = sqlite3.connect(ranker_db)
+    try:
+        non_null = conn.execute(
+            "SELECT COUNT(*) FROM photos WHERE learned_score IS NOT NULL").fetchone()[0]
+    finally:
+        conn.close()
+    assert non_null == 6, "photos dropped from the ranker must not keep a stale score"
+
+
+def test_mirror_ignores_rows_from_another_scope(ranker_db):
+    """A per-user row must not leak into the global photos.learned_score.
+
+    photo_path is the whole primary key of learned_scores, so a photo carries at
+    most one row across all scopes. The global mirror therefore has to repeat the
+    (category IS NULL AND user_id IS NULL) predicate, or a leftover per-user row
+    would be mirrored as if it were the global score.
+    """
+    _seed_photos(ranker_db, n=12)
+    conn = sqlite3.connect(ranker_db)
+    try:
+        conn.execute(
+            "INSERT INTO learned_scores (photo_path, learned_score, comparison_count, "
+            "category, updated_at, user_id) VALUES (?, 9.9, 1, NULL, 'now', 'alice')",
+            ('/r/p011.jpg',))
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Global training scores only the first 6 photos; p011 stays alice-only.
+    pr._persist_scores(ranker_db, _scored_rows(6), None, None, n_pairs=7)
+
+    conn = sqlite3.connect(ranker_db)
+    try:
+        leaked = conn.execute(
+            "SELECT learned_score FROM photos WHERE path = ?", ('/r/p011.jpg',)).fetchone()[0]
+    finally:
+        conn.close()
+    assert leaked is None, "another scope's score leaked into the global mirror"
