@@ -43,7 +43,7 @@ El orden de prioridad anterior es global — todas las fotos se evalúan contra 
 
 **Orden efectivo** = `promote` (en el orden dado) → el orden de prioridad global con los nombres promovidos y excluidos eliminados → `default` al final. Un nombre que aparece a la vez en `promote` y en `excluded` se elimina por completo — gana `excluded`. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) calcula y memoiza esto una vez por nombre de contexto.
 
-Preajustes incluidos (JSON plano y editable por el usuario — consulta [Contextos de puntuación](CONFIGURATION.md#contextos-de-puntuación) para la referencia completa de campos):
+Preajustes incluidos — editables desde la pestaña **Contexto de puntuación** del visor (`PUT /api/config/scoring_contexts/{name}`, restringido al modo edición) o directamente en el JSON; consulta [Contextos de puntuación](CONFIGURATION.md#contextos-de-puntuación) para la referencia completa de campos:
 
 | Contexto | Promueve | Excluye |
 |---------|----------|----------|
@@ -54,6 +54,8 @@ Preajustes incluidos (JSON plano y editable por el usuario — consulta [Context
 | `wildlife` | `wildlife` | — |
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — |
 | `motorsport` | `sports`, `vehicle` | `silhouette` |
+
+Solo el *delta* es editable — arrastra la cabeza promovida al orden que quieras, alterna la exclusión de una categoría — nunca un orden completo independiente por contexto: las categorías no promovidas siempre conservan el orden de prioridad global, así que una categoría añadida más tarde nunca puede faltar en silencio en seis listas separadas. Consulta [Editar un contexto](CONFIGURATION.md#editar-un-contexto) para las reglas de validación.
 
 Un contexto se asigna por álbum (`PUT /api/albums/{id}/scoring_context`, que lo materializa en cada foto que es miembro en ese momento — para un álbum inteligente, una instantánea, no una suscripción, consulta [Contextos de puntuación](CONFIGURATION.md#contextos-de-puntuación)) o, para una foto concreta y difícil, se aplica como una anulación de categoría persistente (`POST /api/comparison/override_category`). Ambas palancas persisten en una tabla auxiliar `photo_scoring_overrides` en lugar de como columnas en `photos` — `save_photo`/`save_photos_batch` escriben las filas de foto con `INSERT OR REPLACE`, lo que borraría en silencio cualquier columna nueva de esa fila en el siguiente reescaneo. Establecer una palanca deja la otra intacta, y cada una se puede borrar de forma independiente. **Ninguna de las dos surte efecto en fotos ya puntuadas hasta un recálculo** — `python facet.py --recompute-average`, o `POST /api/scan/recompute` desde el visor (protegido entre procesos frente a que se ejecuten dos a la vez — consulta [Cambiar las prioridades requiere un recálculo](CONFIGURATION.md#reordenar-la-prioridad-global)). Si `normalization.per_category` está activado, ejecuta el recálculo dos veces — consulta [Normalización](CONFIGURATION.md#normalización) para saber por qué el primer pase normaliza frente a la categoría anterior de cada foto.
 

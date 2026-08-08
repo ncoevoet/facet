@@ -176,7 +176,7 @@ Un contexte de notation est un **delta** nommé appliqué à l'ordre de priorit�
 
 **Ordre effectif** = `promote` (dans l'ordre) → l'ordre de priorité global moins les noms promus et exclus → `default` (la catégorie de repli, priorité 999) en dernier. Un nom présent à la fois dans `promote` et dans `excluded` est entièrement retiré de l'ordre — c'est `excluded` qui l'emporte, l'entrée `promote` n'est pas honorée. `default` elle-même ne peut jamais être promue ni exclue. Ne passer aucun contexte, ou un nom de contexte inconnu, retombe sur le simple ordre de priorité global (avec un avertissement journalisé pour un nom inconnu) ; la liste résolue `[(category_name, CategoryFilter)]` est mise en cache par nom de contexte pour la durée de vie de la configuration chargée (`ScoringConfig.resolve_context_order`). `python facet.py --validate-categories` signale (sans faire échouer le chargement) tout nom `promote`/`excluded` qui ne correspond à aucune catégorie réelle, tout nom présent dans les deux, ainsi que toute entrée `suggest_from_moments` qui n'est pas une clé de `narrative_moments.event_types.<default_event_type>` — une faute de frappe dans l'un de ces champs échoue sinon silencieusement.
 
-Préréglages livrés par défaut — du JSON simple et modifiable par l'utilisateur ; `default` est un delta vide, si bien que le comportement existant reste inchangé tant qu'un contexte n'est pas explicitement attribué :
+Préréglages livrés par défaut — `default` est un delta vide, si bien que le comportement existant reste inchangé tant qu'un contexte n'est pas explicitement attribué :
 
 | Contexte | Promeut | Exclut | Suggéré à partir des moments |
 |---------|----------|----------|------------------------|
@@ -187,6 +187,14 @@ Préréglages livrés par défaut — du JSON simple et modifiable par l'utilisa
 | `wildlife` | `wildlife` | — | `nature_wildlife`, `pets` |
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — | `scenic_landscape`, `mountains`, `snow_winter` |
 | `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
+
+### Modifier un contexte
+
+`PUT /api/config/scoring_contexts/{name}` (réservé au mode édition) réécrit le delta d'un seul contexte depuis l'onglet **Contexte de notation** de la visionneuse — faites glisser la tête promue dans l'ordre voulu, cliquez sur une catégorie pour basculer son exclusion, enregistrez. Le corps est `{"promote": [nom, ...], "excluded": [nom, ...]}`. Seuls ces deux champs sont modifiables : `label_key` et `suggest_from_moments` restent exactement tels quels, et tous les autres contextes sont laissés intacts. **L'interface ne propose délibérément que l'édition du delta** — un contexte ne porte jamais d'ordre complet autonome, si bien que les catégories non promues conservent toujours l'ordre de priorité global et qu'une catégorie ajoutée plus tard ne peut jamais manquer silencieusement dans six listes distinctes.
+
+L'écriture est rejetée par un 400 nommant le fautif lorsque le contexte n'existe pas, lorsqu'une entrée de `promote`/`excluded` ne correspond à aucune catégorie existante, lorsque `default` apparaît dans l'une des deux listes (c'est la catégorie de repli épinglée : elle ne peut être ni promue ni exclue), ou lorsque `promote` répète un nom (son ordre est signifiant, un doublon serait donc ambigu). Lister la même catégorie dans **les deux** listes reste accepté — `excluded` l'emporte et l'entrée `promote` est abandonnée, exactement comme documenté ci-dessus — et un doublon à l'intérieur d'`excluded` est fusionné plutôt que rejeté, puisqu'il s'agit d'un ensemble. Chaque écriture prend la même copie de sauvegarde horodatée et élaguée `.backup.<timestamp>` et prend le même verrou que les writers de priorité et de poids, si bien que des enregistrements de configuration concurrents ne peuvent pas s'annuler mutuellement. `resolve_context_order` met son résultat en cache par instance de `ScoringConfig`, et chaque lecteur en construit une nouvelle à chaque requête : il n'y a donc aucun cache d'ordre à invalider après une écriture.
+
+Comme une réorganisation des priorités, modifier un contexte ne touche pas en soi la `category` stockée d'une photo — lancez un recalcul ensuite (voir [Modifier les priorités nécessite un recalcul](#réorganiser-la-priorité-globale)) ; l'onglet propose un bouton **Recalculer maintenant** précisément pour cela.
 
 ### Assigner un contexte
 

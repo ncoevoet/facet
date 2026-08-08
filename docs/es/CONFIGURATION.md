@@ -176,7 +176,7 @@ Un contexto de puntuación es un **delta** con nombre sobre el orden de priorida
 
 **Orden efectivo** = `promote` (en orden) → el orden de prioridad global menos los nombres promovidos y excluidos → `default` (la categoría comodín, prioridad 999) al final. Un nombre que aparece a la vez en `promote` y en `excluded` se elimina por completo del orden — gana `excluded`, la entrada de `promote` no se respeta. `default` en sí nunca se puede promover ni excluir. No pasar ningún contexto, o pasar un nombre de contexto desconocido, recurre al orden de prioridad global sin más (y registra una advertencia para un nombre desconocido); la lista resuelta `[(category_name, CategoryFilter)]` se memoiza por nombre de contexto durante toda la vida de la configuración cargada (`ScoringConfig.resolve_context_order`). `python facet.py --validate-categories` informa (sin hacer fallar la carga) de cualquier nombre `promote`/`excluded` que no corresponda a una categoría real, de cualquier nombre presente en ambos, y de cualquier entrada `suggest_from_moments` que no sea una clave de `narrative_moments.event_types.<default_event_type>` — de lo contrario, una errata en cualquiera de estos campos falla en silencio.
 
-Preajustes incluidos — todos JSON plano y editable por el usuario; `default` es un delta vacío, así que el comportamiento existente no cambia a menos que se asigne explícitamente un contexto:
+Preajustes incluidos — `default` es un delta vacío, así que el comportamiento existente no cambia a menos que se asigne explícitamente un contexto:
 
 | Contexto | Promueve | Excluye | Sugerido a partir de momentos |
 |---------|----------|----------|------------------------|
@@ -187,6 +187,14 @@ Preajustes incluidos — todos JSON plano y editable por el usuario; `default` e
 | `wildlife` | `wildlife` | — | `nature_wildlife`, `pets` |
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — | `scenic_landscape`, `mountains`, `snow_winter` |
 | `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
+
+### Editar un contexto
+
+`PUT /api/config/scoring_contexts/{name}` (restringido al modo edición) reescribe el delta de un único contexto desde la pestaña **Contexto de puntuación** del visor: arrastra la cabeza promovida al orden que quieras, haz clic en una categoría para alternar su exclusión y guarda. El cuerpo es `{"promote": [nombre, ...], "excluded": [nombre, ...]}`. Solo esos dos campos son editables: `label_key` y `suggest_from_moments` se dejan exactamente como estaban, y ningún otro contexto se toca. **La interfaz ofrece deliberadamente solo la edición del delta**: un contexto nunca lleva un orden completo independiente, así que las categorías no promovidas siempre conservan el orden de prioridad global y una categoría añadida más tarde nunca puede faltar en silencio en seis listas separadas.
+
+La escritura se rechaza con un 400 que nombra al culpable cuando el contexto no existe, cuando una entrada de `promote`/`excluded` no es una categoría existente, cuando `default` aparece en cualquiera de las dos listas (es la categoría comodín fijada al final y no puede promoverse ni excluirse) o cuando `promote` repite un nombre (su orden es significativo, así que una repetición sería ambigua). Listar la misma categoría en **ambas** listas sigue aceptándose — `excluded` gana y la entrada de `promote` se descarta, exactamente como se documenta arriba — y una repetición dentro de `excluded` se colapsa en lugar de rechazarse, ya que es un conjunto. Cada escritura toma la misma copia de seguridad `.backup.<timestamp>` con marca de tiempo y podada, y toma el mismo bloqueo que los escritores de prioridades y de pesos, de modo que guardados de configuración concurrentes no pueden anularse entre sí. `resolve_context_order` memoriza su resultado por instancia de `ScoringConfig` y cada lector construye una nueva en cada petición, así que no hay ninguna caché de orden que invalidar tras una escritura.
+
+Igual que un reordenamiento de prioridades, editar un contexto no toca por sí mismo la `category` almacenada de ninguna foto: ejecuta un recálculo después (consulta [Cambiar las prioridades requiere un recálculo](#reordenar-la-prioridad-global)); la pestaña ofrece un botón **Recalcular ahora** precisamente para eso.
 
 ### Asignar un contexto
 

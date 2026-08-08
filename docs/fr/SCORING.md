@@ -43,7 +43,7 @@ L'ordre de priorité ci-dessus est global : chaque photo est évaluée par rapp
 
 **Ordre effectif** = `promote` (dans l'ordre donné) → l'ordre de priorité global, moins les noms promus et exclus → `default` en dernier. Un nom présent à la fois dans `promote` et dans `excluded` est entièrement retiré — c'est `excluded` qui l'emporte. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) calcule et met ce résultat en cache une fois par nom de contexte.
 
-Préréglages livrés par défaut (du JSON simple, modifiable par l'utilisateur — voir [Contextes de notation](CONFIGURATION.md#contextes-de-notation) pour la référence complète des champs) :
+Préréglages livrés par défaut — modifiables depuis l'onglet **Contexte de notation** de la visionneuse (`PUT /api/config/scoring_contexts/{name}`, réservé au mode édition) ou directement dans le JSON ; voir [Contextes de notation](CONFIGURATION.md#contextes-de-notation) pour la référence complète des champs :
 
 | Contexte | Promeut | Exclut |
 |---------|----------|----------|
@@ -54,6 +54,8 @@ Préréglages livrés par défaut (du JSON simple, modifiable par l'utilisateur 
 | `wildlife` | `wildlife` | — |
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — |
 | `motorsport` | `sports`, `vehicle` | `silhouette` |
+
+Seul le *delta* est modifiable — faites glisser la tête promue dans l'ordre voulu, basculez l'exclusion d'une catégorie — jamais un ordre complet autonome par contexte : les catégories non promues conservent toujours l'ordre de priorité global, si bien qu'une catégorie ajoutée plus tard ne peut jamais manquer silencieusement dans six listes distinctes. Voir [Modifier un contexte](CONFIGURATION.md#modifier-un-contexte) pour les règles de validation.
 
 Un contexte s'attribue par album (`PUT /api/albums/{id}/scoring_context`, qui le matérialise sur chaque photo membre à cet instant — un instantané, pas un abonnement, pour un album intelligent, voir [Contextes de notation](CONFIGURATION.md#contextes-de-notation)) ou, pour une photo isolée récalcitrante, s'applique comme un remplacement de catégorie persistant (`POST /api/comparison/override_category`). Les deux leviers sont conservés dans une table annexe `photo_scoring_overrides` plutôt que comme des colonnes de `photos` — `save_photo`/`save_photos_batch` écrivent les lignes de photo avec `INSERT OR REPLACE`, ce qui effacerait silencieusement une nouvelle colonne de cette ligne au prochain rescan. Activer un levier laisse l'autre intact, et chacun peut être réinitialisé indépendamment. **Aucun des deux ne prend effet sur des photos déjà notées avant un recalcul** — `python facet.py --recompute-average`, ou `POST /api/scan/recompute` depuis la visionneuse (protégé au niveau inter-processus contre l'exécution simultanée de deux instances — voir [Modifier les priorités nécessite un recalcul](CONFIGURATION.md#réorganiser-la-priorité-globale)). Si `normalization.per_category` est activé, relancez le recalcul deux fois — voir [Normalisation](CONFIGURATION.md#normalisation) pour comprendre pourquoi la première passe normalise par rapport à l'ancienne catégorie de chaque photo.
 

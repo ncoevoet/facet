@@ -71,6 +71,11 @@ interface FilterSummaryEntry {
   text: string;
 }
 
+interface ExclusionChip {
+  name: string;
+  excluded: boolean;
+}
+
 const BOOLEAN_SUMMARY_KEYS = ['has_face', 'is_silhouette', 'is_group_portrait', 'is_monochrome'] as const;
 const RANGE_SUMMARY_KEYS = ['face_ratio', 'face_count', 'iso', 'shutter_speed', 'focal_length', 'f_stop', 'luminance'] as const;
 
@@ -213,33 +218,75 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
           </mat-card-content>
         </mat-card>
       } @else if (selectedContextEntry(); as ctx) {
-        <!-- Named context: read-only delta (no write endpoint exists yet) -->
+        <!-- Named context: editable delta (promoted head order + exclusions) -->
         <mat-card>
-          <mat-card-content class="!py-3">
-            <div class="flex items-center gap-2 text-sm text-gray-400">
-              <mat-icon class="!text-base !w-4 !h-4">info</mat-icon>
-              {{ I18N.comparison.context.read_only_hint | translate }}
+          <mat-card-header class="!flex !items-start">
+            <div class="flex-1">
+              <mat-card-title>{{ ctx.label_key | translate }}</mat-card-title>
+              <mat-card-subtitle>{{ I18N.comparison.context.delta_description | translate }}</mat-card-subtitle>
             </div>
-          </mat-card-content>
+            <div class="flex gap-1 shrink-0">
+              <button mat-icon-button
+                [disabled]="!hasContextChanges() || savingContext()"
+                (click)="resetContextDraft()"
+                [matTooltip]="I18N.comparison.reset | translate"
+                [attr.aria-label]="I18N.comparison.reset | translate">
+                <mat-icon>refresh</mat-icon>
+              </button>
+              <button mat-icon-button
+                [disabled]="contextSaveDisabled()"
+                (click)="saveContext()"
+                [matTooltip]="I18N.comparison.save | translate"
+                [attr.aria-label]="I18N.comparison.save | translate">
+                @if (savingContext()) {
+                  <mat-spinner diameter="20" />
+                } @else {
+                  <mat-icon>save</mat-icon>
+                }
+              </button>
+            </div>
+          </mat-card-header>
         </mat-card>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <mat-card>
             <mat-card-header>
               <mat-card-title>{{ I18N.comparison.context.promote_title | translate }}</mat-card-title>
+              <mat-card-subtitle>{{ I18N.comparison.context.promote_description | translate }}</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content class="!pt-4">
-              @if (ctx.promote.length > 0) {
-                <div class="flex flex-col gap-1.5">
-                  @for (name of ctx.promote; track name; let i = $index) {
-                    <div class="flex items-center gap-3 rounded-lg border border-[var(--mat-sys-outline-variant)] px-3 py-2 opacity-90">
+              @if (draftPromote().length > 0) {
+                <div cdkDropList class="flex flex-col gap-1.5" (cdkDropListDropped)="dropPromoted($event)">
+                  @for (name of draftPromote(); track name; let i = $index) {
+                    <div cdkDrag class="flex items-center gap-3 rounded-lg border border-[var(--mat-sys-outline-variant)] px-3 py-2 bg-[var(--mat-sys-surface-container)]">
+                      <mat-icon cdkDragHandle class="text-gray-400 cursor-move shrink-0">drag_indicator</mat-icon>
                       <span class="w-8 shrink-0 text-xs font-mono text-gray-400">{{ i + 1 }}</span>
-                      <span class="text-sm">{{ ('category_names.' + name) | translate }}</span>
+                      <span class="flex-1 text-sm">{{ ('category_names.' + name) | translate }}</span>
+                      <button mat-icon-button class="shrink-0"
+                        (click)="unpromoteCategory(name)"
+                        [matTooltip]="I18N.comparison.context.remove_promotion | translate"
+                        [attr.aria-label]="I18N.comparison.context.remove_promotion | translate">
+                        <mat-icon>close</mat-icon>
+                      </button>
                     </div>
                   }
                 </div>
               } @else {
                 <p class="text-sm text-gray-500">{{ I18N.comparison.context.no_promotions | translate }}</p>
+              }
+              @if (promotableCategories().length > 0) {
+                <div class="mt-4 pt-3 border-t border-[var(--mat-sys-outline-variant)]">
+                  <h4 class="text-xs uppercase tracking-wide text-gray-500 mb-2">{{ I18N.comparison.context.add_promotion | translate }}</h4>
+                  <div class="flex flex-wrap gap-2">
+                    @for (name of promotableCategories(); track name) {
+                      <button type="button"
+                        class="px-2 py-1 rounded-full text-xs border border-[var(--mat-sys-outline-variant)] text-gray-400 hover:text-gray-200"
+                        (click)="promoteCategory(name)">
+                        {{ ('category_names.' + name) | translate }}
+                      </button>
+                    }
+                  </div>
+                </div>
               }
             </mat-card-content>
           </mat-card>
@@ -247,18 +294,23 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
           <mat-card>
             <mat-card-header>
               <mat-card-title>{{ I18N.comparison.context.excluded_title | translate }}</mat-card-title>
+              <mat-card-subtitle>{{ I18N.comparison.context.excluded_description | translate }}</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content class="!pt-4">
-              @if (ctx.excluded.length > 0) {
-                <div class="flex flex-wrap gap-2">
-                  @for (name of ctx.excluded; track name) {
-                    <span class="px-2 py-1 rounded-full text-xs bg-red-500/10 text-red-400 border border-red-500/30">
-                      {{ ('category_names.' + name) | translate }}
-                    </span>
-                  }
-                </div>
-              } @else {
-                <p class="text-sm text-gray-500">{{ I18N.comparison.context.no_exclusions | translate }}</p>
+              <div class="flex flex-wrap gap-2">
+                @for (chip of exclusionChips(); track chip.name) {
+                  <button type="button"
+                    [class]="chip.excluded
+                      ? 'px-2 py-1 rounded-full text-xs border border-red-500/30 bg-red-500/10 text-red-400'
+                      : 'px-2 py-1 rounded-full text-xs border border-[var(--mat-sys-outline-variant)] text-gray-400 hover:text-gray-200'"
+                    [attr.aria-pressed]="chip.excluded"
+                    (click)="toggleExcluded(chip.name)">
+                    {{ ('category_names.' + chip.name) | translate }}
+                  </button>
+                }
+              </div>
+              @if (draftExcluded().length === 0) {
+                <p class="mt-3 text-sm text-gray-500">{{ I18N.comparison.context.no_exclusions | translate }}</p>
               }
             </mat-card-content>
           </mat-card>
@@ -270,7 +322,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
           </mat-card-header>
           <mat-card-content class="!pt-4">
             <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-400">
-              @for (name of ctx.effective_order; track name; let i = $index; let last = $last) {
+              @for (name of contextEffectiveOrder(); track name; let i = $index; let last = $last) {
                 <span>{{ i + 1 }}.&nbsp;{{ ('category_names.' + name) | translate }}</span>
                 @if (!last) { <span class="text-gray-600">&rarr;</span> }
               }
@@ -398,6 +450,10 @@ export class ComparisonPriorityTabComponent {
   readonly categoriesLoading = signal(false);
   readonly saving = signal(false);
 
+  readonly draftPromote = signal<string[]>([]);
+  readonly draftExcluded = signal<string[]>([]);
+  readonly savingContext = signal(false);
+
   readonly overlap = signal<CategoryOverlapResponse | null>(null);
   readonly overlapLoading = signal(false);
   readonly overlapLoaded = signal(false);
@@ -420,6 +476,42 @@ export class ComparisonPriorityTabComponent {
   );
   readonly saveDisabled = computed(() =>
     this.saving() || !this.hasOrderChanges() || !this.auth.isEdition(),
+  );
+  readonly nonDefaultCategoryNames = computed(() =>
+    this.categories().filter(c => c.name !== DEFAULT_CATEGORY_NAME).map(c => c.name),
+  );
+  readonly promotableCategories = computed(() => {
+    const promoted = new Set(this.draftPromote());
+    return this.nonDefaultCategoryNames().filter(name => !promoted.has(name));
+  });
+  readonly exclusionChips = computed<ExclusionChip[]>(() => {
+    const excluded = new Set(this.draftExcluded());
+    return this.nonDefaultCategoryNames().map(name => ({ name, excluded: excluded.has(name) }));
+  });
+  /**
+   * Mirrors `ScoringConfig.resolve_context_order`: the promoted head (minus anything
+   * also excluded) → the global priority order minus promoted and excluded → the pinned
+   * `default` last. Computed from the DRAFT delta so the resulting order stays visible
+   * while editing; falls back to the server's saved order when the global priority list
+   * isn't loaded.
+   */
+  readonly contextEffectiveOrder = computed(() => {
+    const globalNames = this.nonDefaultCategoryNames();
+    if (globalNames.length === 0) return this.selectedContextEntry()?.effective_order ?? [];
+    const excluded = new Set(this.draftExcluded());
+    const promoted = this.draftPromote().filter(name => !excluded.has(name));
+    const promotedSet = new Set(promoted);
+    const rest = globalNames.filter(name => !excluded.has(name) && !promotedSet.has(name));
+    return [...promoted, ...rest, DEFAULT_CATEGORY_NAME];
+  });
+  readonly hasContextChanges = computed(() => {
+    const ctx = this.selectedContextEntry();
+    if (!ctx) return false;
+    return JSON.stringify(this.draftPromote()) !== JSON.stringify(ctx.promote)
+      || JSON.stringify(this.draftExcluded()) !== JSON.stringify(ctx.excluded);
+  });
+  readonly contextSaveDisabled = computed(() =>
+    this.savingContext() || !this.hasContextChanges() || !this.auth.isEdition(),
   );
   readonly recomputeDisabled = computed(() =>
     this.recomputing() || !this.auth.isEdition(),
@@ -453,6 +545,35 @@ export class ComparisonPriorityTabComponent {
 
   selectContext(name: string): void {
     this.selectedContext.set(name);
+    this.resetContextDraft();
+  }
+
+  resetContextDraft(): void {
+    const ctx = this.selectedContextEntry();
+    this.draftPromote.set([...(ctx?.promote ?? [])]);
+    this.draftExcluded.set([...(ctx?.excluded ?? [])]);
+  }
+
+  dropPromoted(event: CdkDragDrop<string[]>): void {
+    const arr = [...this.draftPromote()];
+    moveItemInArray(arr, event.previousIndex, event.currentIndex);
+    this.draftPromote.set(arr);
+  }
+
+  promoteCategory(name: string): void {
+    if (this.draftPromote().includes(name)) return;
+    this.draftPromote.set([...this.draftPromote(), name]);
+  }
+
+  unpromoteCategory(name: string): void {
+    this.draftPromote.set(this.draftPromote().filter(n => n !== name));
+  }
+
+  toggleExcluded(name: string): void {
+    const current = this.draftExcluded();
+    this.draftExcluded.set(
+      current.includes(name) ? current.filter(n => n !== name) : [...current, name],
+    );
   }
 
   drop(event: CdkDragDrop<CategoryPriorityEntry[]>): void {
@@ -475,8 +596,31 @@ export class ComparisonPriorityTabComponent {
         this.api.get<{ contexts: ScoringContextEntry[] }>('/config/scoring_contexts'),
       );
       this.contexts.set(data.contexts ?? []);
+      this.resetContextDraft();
     } catch {
       this.snackBar.open(this.i18n.t(I18N.comparison.context.error_loading_contexts), '', { duration: 4000 });
+    }
+  }
+
+  async saveContext(): Promise<void> {
+    const ctx = this.selectedContextEntry();
+    if (!ctx || !this.hasContextChanges()) return;
+    this.savingContext.set(true);
+    try {
+      await firstValueFrom(
+        this.api.put(`/config/scoring_contexts/${ctx.name}`, {
+          promote: this.draftPromote(),
+          excluded: this.draftExcluded(),
+        }),
+      );
+      this.stale.set(true);
+      this.recomputeMessageKey.set(null);
+      this.snackBar.open(this.i18n.t(I18N.comparison.context.context_saved), '', { duration: 3000 });
+      await this.loadContexts();
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.comparison.context.error_saving_context), '', { duration: 4000 });
+    } finally {
+      this.savingContext.set(false);
     }
   }
 

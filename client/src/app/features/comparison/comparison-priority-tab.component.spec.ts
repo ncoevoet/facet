@@ -15,14 +15,16 @@ async function flush(): Promise<void> {
 }
 
 type DropEvent = Parameters<ComparisonPriorityTabComponent['drop']>[0];
+type PromotedDropEvent = Parameters<ComparisonPriorityTabComponent['dropPromoted']>[0];
 
 /**
  * Builds a realistic CdkDragDrop-shaped event (all fields the real directive emits),
- * without needing an actual mouse/pointer sequence — `drop()` only reads
+ * without needing an actual mouse/pointer sequence — the drop handlers only read
  * `previousIndex`/`currentIndex`, but the surrounding fields are included so the event
- * shape matches what `(cdkDropListDropped)` really binds.
+ * shape matches what `(cdkDropListDropped)` really binds. The intersection return type
+ * lets the same helper feed both drop lists (categories and promoted names).
  */
-function makeDropEvent(previousIndex: number, currentIndex: number): DropEvent {
+function makeDropEvent(previousIndex: number, currentIndex: number): DropEvent & PromotedDropEvent {
   return {
     previousIndex,
     currentIndex,
@@ -33,7 +35,7 @@ function makeDropEvent(previousIndex: number, currentIndex: number): DropEvent {
     distance: { x: 0, y: 0 },
     dropPoint: { x: 0, y: 0 },
     event: new MouseEvent('mouseup'),
-  } as unknown as DropEvent;
+  } as unknown as DropEvent & PromotedDropEvent;
 }
 
 // Mirrors the real category priority order in scoring_config.json (sorted ascending by
@@ -143,9 +145,25 @@ describe('CategoryFilterSummaryPipe', () => {
   });
 });
 
+// Mirrors the shipped `scoring_contexts` presets, expressed against CATEGORIES_LARGE
+// so the delta editor is exercised against the real 33-category order.
+const CONTEXTS_LARGE = [
+  { name: 'default', label_key: 'comparison.context.default', promote: [], excluded: [], suggest_from_moments: [], effective_order: [] },
+  {
+    name: 'action_stage', label_key: 'comparison.context.action_stage',
+    promote: ['sports', 'concert', 'candid'], excluded: ['silhouette'],
+    suggest_from_moments: ['sports'], effective_order: ['sports', 'concert', 'candid', 'default'],
+  },
+  {
+    name: 'wildlife', label_key: 'comparison.context.wildlife',
+    promote: ['wildlife'], excluded: [],
+    suggest_from_moments: ['nature_wildlife'], effective_order: ['wildlife', 'default'],
+  },
+];
+
 describe('ComparisonPriorityTabComponent', () => {
   let component: ComparisonPriorityTabComponent;
-  let mockApi: { get: Mock; post: Mock };
+  let mockApi: { get: Mock; post: Mock; put: Mock };
   let mockSnackBar: { open: Mock };
   let mockI18n: { t: Mock };
   let mockAuth: { isEdition: ReturnType<typeof signal<boolean>> };
@@ -165,6 +183,7 @@ describe('ComparisonPriorityTabComponent', () => {
     mockApi = {
       get: vi.fn(() => of({})),
       post: vi.fn(() => of({})),
+      put: vi.fn(() => of({})),
     };
     mockSnackBar = { open: vi.fn() };
     mockI18n = { t: vi.fn((key: string) => key) };
@@ -260,6 +279,168 @@ describe('ComparisonPriorityTabComponent', () => {
     it('reorders the draggable list', () => {
       component.drop({ previousIndex: 0, currentIndex: 1 } as never);
       expect(component.orderedCategories().map(c => c.name)).toEqual(['silhouette', 'sports']);
+    });
+  });
+
+  // The named-context delta editor: promote order + exclusions, saved through
+  // PUT /api/config/scoring_contexts/{name}. Only the delta is editable — the
+  // non-promoted categories always keep the global priority order.
+  describe('scoring context delta editing', () => {
+    beforeEach(async () => {
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/config/scoring_contexts') return of({ contexts: CONTEXTS_LARGE });
+        return of({ categories: CATEGORIES_LARGE });
+      });
+      await component.loadCategories();
+      await component.loadContexts();
+      component.selectContext('action_stage');
+    });
+
+    it('seeds the draft from the selected context', () => {
+      expect(component.draftPromote()).toEqual(['sports', 'concert', 'candid']);
+      expect(component.draftExcluded()).toEqual(['silhouette']);
+    });
+
+    it('reports no pending changes right after selecting a context', () => {
+      expect(component.hasContextChanges()).toBe(false);
+      expect(component.contextSaveDisabled()).toBe(true);
+    });
+
+    it('re-seeds the draft when switching contexts', () => {
+      component.selectContext('wildlife');
+      expect(component.draftPromote()).toEqual(['wildlife']);
+      expect(component.draftExcluded()).toEqual([]);
+    });
+
+    it('reorders the promoted head by drag', () => {
+      component.dropPromoted(makeDropEvent(2, 0));
+
+      expect(component.draftPromote()).toEqual(['candid', 'sports', 'concert']);
+      expect(component.hasContextChanges()).toBe(true);
+    });
+
+    it('adds a category to the promoted head', () => {
+      component.promoteCategory('wildlife');
+      expect(component.draftPromote()).toEqual(['sports', 'concert', 'candid', 'wildlife']);
+    });
+
+    it('never promotes the same category twice', () => {
+      component.promoteCategory('sports');
+      expect(component.draftPromote()).toEqual(['sports', 'concert', 'candid']);
+    });
+
+    it('removes a category from the promoted head', () => {
+      component.unpromoteCategory('concert');
+      expect(component.draftPromote()).toEqual(['sports', 'candid']);
+    });
+
+    it('offers only the not-yet-promoted, non-default categories for promotion', () => {
+      const promotable = component.promotableCategories();
+      expect(promotable).not.toContain('sports');
+      expect(promotable).not.toContain('default');
+      expect(promotable).toContain('wildlife');
+      expect(promotable).toHaveLength(LAST_NON_DEFAULT_INDEX + 1 - 3);
+    });
+
+    it('toggles a category into the exclusion set', () => {
+      component.toggleExcluded('macro');
+      expect(component.draftExcluded()).toEqual(['silhouette', 'macro']);
+      expect(component.hasContextChanges()).toBe(true);
+    });
+
+    it('toggles a category back out of the exclusion set', () => {
+      component.toggleExcluded('silhouette');
+      expect(component.draftExcluded()).toEqual([]);
+    });
+
+    it('flags each exclusion chip with its current membership', () => {
+      const chips = component.exclusionChips();
+      expect(chips.find(c => c.name === 'silhouette')?.excluded).toBe(true);
+      expect(chips.find(c => c.name === 'macro')?.excluded).toBe(false);
+      expect(chips.map(c => c.name)).not.toContain('default');
+    });
+
+    it('resetContextDraft discards pending edits', () => {
+      component.toggleExcluded('macro');
+      component.dropPromoted(makeDropEvent(0, 2));
+
+      component.resetContextDraft();
+
+      expect(component.draftPromote()).toEqual(['sports', 'concert', 'candid']);
+      expect(component.draftExcluded()).toEqual(['silhouette']);
+      expect(component.hasContextChanges()).toBe(false);
+    });
+
+    it('previews the effective order as promoted head → global order minus excluded → default', () => {
+      const order = component.contextEffectiveOrder();
+
+      expect(order.slice(0, 3)).toEqual(['sports', 'concert', 'candid']);
+      expect(order).not.toContain('silhouette');
+      expect(order[order.length - 1]).toBe('default');
+      // 33 non-default categories, 1 excluded, plus the pinned default.
+      expect(order).toHaveLength(LAST_NON_DEFAULT_INDEX + 1 - 1 + 1);
+    });
+
+    it('the effective-order preview follows an unsaved edit', () => {
+      component.dropPromoted(makeDropEvent(2, 0));
+      component.toggleExcluded('macro');
+
+      const order = component.contextEffectiveOrder();
+      expect(order.slice(0, 3)).toEqual(['candid', 'sports', 'concert']);
+      expect(order).not.toContain('macro');
+    });
+
+    it('a category both promoted and excluded is dropped from the preview (excluded wins)', () => {
+      component.toggleExcluded('sports');
+
+      expect(component.draftPromote()).toContain('sports');
+      expect(component.contextEffectiveOrder()).not.toContain('sports');
+    });
+
+    it('does not PUT without changes', async () => {
+      mockApi.put.mockClear();
+      await component.saveContext();
+      expect(mockApi.put).not.toHaveBeenCalled();
+    });
+
+    it('PUTs the edited delta to the selected context', async () => {
+      component.dropPromoted(makeDropEvent(2, 0));
+      component.toggleExcluded('macro');
+
+      await component.saveContext();
+
+      expect(mockApi.put).toHaveBeenCalledWith('/config/scoring_contexts/action_stage', {
+        promote: ['candid', 'sports', 'concert'],
+        excluded: ['silhouette', 'macro'],
+      });
+    });
+
+    it('marks scores stale and clears the recompute message on success', async () => {
+      component.toggleExcluded('macro');
+      component.recomputeMessageKey.set('some.key');
+
+      await component.saveContext();
+
+      expect(component.stale()).toBe(true);
+      expect(component.recomputeMessageKey()).toBeNull();
+      expect(component.savingContext()).toBe(false);
+    });
+
+    it('shows a snackbar and does not mark stale on error', async () => {
+      component.toggleExcluded('macro');
+      mockApi.put.mockReturnValue(throwError(() => new Error('fail')));
+
+      await component.saveContext();
+
+      expect(mockSnackBar.open).toHaveBeenCalled();
+      expect(component.stale()).toBe(false);
+      expect(component.savingContext()).toBe(false);
+    });
+
+    it('save stays disabled without edition even with pending changes', () => {
+      component.toggleExcluded('macro');
+      mockAuth.isEdition.set(false);
+      expect(component.contextSaveDisabled()).toBe(true);
     });
   });
 
@@ -796,6 +977,20 @@ describe('ComparisonPriorityTabComponent — rendering (D2/D6)', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('8 min');
+  });
+
+  // The named-context branch used to render a single "can't be edited from the UI"
+  // hint. It now renders the real delta editor, so the promote drag list and the
+  // exclusion chips have to be in the DOM for a named context.
+  it('renders the editable delta (promote drag list + exclusion chips) for a named context', async () => {
+    await render();
+    component.selectContext('action_stage');
+    fixture.detectChanges();
+
+    const dragHandles = fixture.nativeElement.querySelectorAll('[cdkdraghandle], [cdkDragHandle]');
+    expect(dragHandles.length).toBe(component.draftPromote().length);
+    expect(fixture.nativeElement.textContent).toContain(I18N.comparison.context.delta_description);
+    expect(fixture.nativeElement.textContent).toContain(I18N.comparison.context.excluded_title);
   });
 
   it('D2: renders nothing extra when the backend has not reported an ETA yet', async () => {

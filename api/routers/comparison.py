@@ -137,6 +137,11 @@ class CategoryPrioritiesBody(BaseModel):
     order: list[str]
 
 
+class ScoringContextBody(BaseModel):
+    promote: list[str] = []
+    excluded: list[str] = []
+
+
 class SaveSnapshotBody(BaseModel):
     category: str = 'others'
     description: str = ''
@@ -549,6 +554,45 @@ def api_get_scoring_contexts(
             for name, context_cfg in contexts.items()
         ],
     }
+
+
+@router.put("/api/config/scoring_contexts/{name}")
+def api_update_scoring_context(
+    name: str,
+    body: ScoringContextBody,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Rewrite one scoring context's promote/excluded delta.
+
+    Only the delta is editable — the non-promoted categories keep the global
+    priority order that ``POST /api/config/category_priorities`` owns.
+    ``resolve_context_order`` memoizes per ``ScoringConfig`` instance and every
+    reader builds a fresh one per request, so the rewritten delta is picked up
+    without any cache to invalidate here.
+    """
+    from api.config_writes import update_scoring_context
+
+    try:
+        backup_path = update_scoring_context(str(_CONFIG_PATH), name, body.promote, body.excluded)
+
+        reload_config()
+        _stats_cache.clear()
+
+        return {
+            'success': True,
+            'message': f'Scoring context "{name}" updated',
+            'backup': backup_path,
+        }
+
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail='Config file not found')
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail='Invalid JSON in config')
+    except Exception:
+        logger.exception("Failed to update scoring context %s", name)
+        raise HTTPException(status_code=500, detail='Failed to update scoring context')
 
 
 @router.get("/api/comparison/stats")

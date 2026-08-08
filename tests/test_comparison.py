@@ -6,6 +6,7 @@ Uses mock-based approach (no real DB). Follows patterns from test_faces.py.
 
 import json
 from contextlib import contextmanager
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -16,6 +17,7 @@ from api.auth import CurrentUser, require_authenticated
 
 _AUTH_MODULE = "api.auth"
 _ROUTER_MODULE = "api.routers.comparison"
+_REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "scoring_config.json"
 
 # edition_password must be set so require_edition rejects non-admin users
 _VIEWER_CONFIG = {
@@ -651,6 +653,125 @@ class TestScoringContextsEndpoint:
         assert contexts["action_stage"]["excluded"] == ["silhouette"]
         assert contexts["action_stage"]["effective_order"] == ["sports", "default"]
         assert contexts["default"]["effective_order"][0] == "silhouette"
+
+
+# ---------------------------------------------------------------------------
+# TestUpdateScoringContext
+# ---------------------------------------------------------------------------
+
+class TestUpdateScoringContext:
+    """PUT /api/config/scoring_contexts/{name}"""
+
+    CONTEXT = "action_stage"
+    ENDPOINT = f"/api/config/scoring_contexts/{CONTEXT}"
+    BODY = {"promote": ["sports"], "excluded": ["silhouette"]}
+
+    def test_anonymous_401(self):
+        # No-password legacy mode auto-authenticates anonymous callers, so a
+        # true 401 needs multi-user mode (matches tests/test_rbac.py).
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        with mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True):
+            resp = client.put(self.ENDPOINT, json=self.BODY)
+        assert resp.status_code == 401
+
+    def test_requires_edition_403(self):
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _regular_user())
+        resp = client.put(self.ENDPOINT, json=self.BODY)
+        assert resp.status_code == 403
+
+    def test_calls_writer_reloads_and_clears_cache(self):
+        app, client = _make_app_and_client()
+        _override_auth(app, _edition_user())
+
+        mock_stats_cache = mock.MagicMock()
+        with (
+            mock.patch(
+                "api.config_writes.update_scoring_context",
+                return_value="/tmp/scoring_config.json.backup.20260808",
+                create=True,
+            ) as mock_writer,
+            mock.patch(f"{_ROUTER_MODULE}.reload_config") as mock_reload,
+            mock.patch(f"{_ROUTER_MODULE}._stats_cache", mock_stats_cache),
+        ):
+            resp = client.put(self.ENDPOINT, json=self.BODY)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["backup"] == "/tmp/scoring_config.json.backup.20260808"
+
+        mock_writer.assert_called_once()
+        _, context, promote, excluded = mock_writer.call_args[0]
+        assert context == self.CONTEXT
+        assert promote == ["sports"]
+        assert excluded == ["silhouette"]
+        mock_reload.assert_called_once()
+        mock_stats_cache.clear.assert_called_once()
+
+    @pytest.mark.parametrize("detail", [
+        "Unknown scoring context: nope",
+        "Unknown categories in promote: not_a_real_category",
+        "'default' cannot appear in excluded: it is the pinned catch-all category",
+        "Duplicate categories in promote: sports",
+    ])
+    def test_writer_rejection_surfaces_as_400(self, detail):
+        from fastapi import HTTPException
+
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _edition_user())
+
+        with mock.patch(
+            "api.config_writes.update_scoring_context",
+            side_effect=HTTPException(status_code=400, detail=detail),
+            create=True,
+        ):
+            resp = client.put(self.ENDPOINT, json=self.BODY)
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == detail
+
+    def test_round_trip_against_a_real_config_copy(self, tmp_path):
+        """PUT then GET reports the new delta -- driven through the real writer
+        and a real ScoringConfig over a disposable copy of the shipped config,
+        so the round trip proves the file write, not a mock."""
+        import shutil
+
+        from config.scoring_config import ScoringConfig
+
+        config_copy = tmp_path / "scoring_config.json"
+        shutil.copy2(_REPO_CONFIG_PATH, config_copy)
+
+        app, client = _make_app_and_client()
+        _override_auth(app, _edition_user())
+
+        config_module = mock.MagicMock(
+            ScoringConfig=lambda *a, **k: ScoringConfig(str(config_copy), validate=False),
+        )
+
+        with (
+            mock.patch(f"{_ROUTER_MODULE}._CONFIG_PATH", config_copy),
+            mock.patch(f"{_ROUTER_MODULE}.reload_config"),
+            mock.patch(f"{_ROUTER_MODULE}._stats_cache"),
+            mock.patch.dict("sys.modules", {"config": config_module}),
+        ):
+            put_resp = client.put(self.ENDPOINT, json={
+                "promote": ["wildlife", "macro"],
+                "excluded": ["portrait"],
+            })
+            get_resp = client.get("/api/config/scoring_contexts")
+
+        assert put_resp.status_code == 200
+        assert get_resp.status_code == 200
+
+        contexts = {c["name"]: c for c in get_resp.json()["contexts"]}
+        updated = contexts[self.CONTEXT]
+        assert updated["promote"] == ["wildlife", "macro"]
+        assert updated["excluded"] == ["portrait"]
+        assert updated["effective_order"][:2] == ["wildlife", "macro"]
+        assert "portrait" not in updated["effective_order"]
+        # The delta is scoped to one context: every other preset is unchanged.
+        assert contexts["motorsport"]["promote"] == ["sports", "vehicle"]
 
 
 # ---------------------------------------------------------------------------

@@ -43,7 +43,7 @@ The priority order above is global — every photo evaluates against the same li
 
 **Effective order** = `promote` (in the order given) → the global priority order with the promoted and excluded names removed → `default` last. A name listed in both `promote` and `excluded` is dropped entirely — `excluded` wins. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) computes and memoizes this once per context name.
 
-Shipped presets (plain, user-editable JSON — see [Scoring Contexts](CONFIGURATION.md#scoring-contexts) for the full field reference):
+Shipped presets — editable from the viewer's **Scoring Context** tab (`PUT /api/config/scoring_contexts/{name}`, edition-gated) or directly in the JSON; see [Scoring Contexts](CONFIGURATION.md#scoring-contexts) for the full field reference:
 
 | Context | Promotes | Excludes |
 |---------|----------|----------|
@@ -54,6 +54,8 @@ Shipped presets (plain, user-editable JSON — see [Scoring Contexts](CONFIGURAT
 | `wildlife` | `wildlife` | — |
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — |
 | `motorsport` | `sports`, `vehicle` | `silhouette` |
+
+Only the *delta* is editable — drag the promoted head into order, toggle a category's exclusion — never a full standalone ordering per context: the non-promoted categories always keep the global priority order, so a category added later can never be silently missing from six separate lists. See [Editing a context](CONFIGURATION.md#editing-a-context) for the validation rules.
 
 A context is assigned per album (`PUT /api/albums/{id}/scoring_context`, which materializes it onto every photo that is currently a member — a one-time snapshot, not a live subscription for a smart album, see [Assigning a context](CONFIGURATION.md#scoring-contexts)) or, for a single stubborn photo, applied as a sticky category override (`POST /api/comparison/override_category`). Both levers persist in a `photo_scoring_overrides` side table rather than as columns on `photos` — `save_photo`/`save_photos_batch` write photo rows with `INSERT OR REPLACE`, which would silently wipe a new column on that row at the next rescan. Setting one lever leaves the other untouched, and either can be cleared independently. **Neither takes effect on already-scored photos until a recompute** — `python facet.py --recompute-average`, or `POST /api/scan/recompute` from the viewer (guarded cross-process against a second scan/recompute running at once — see [Changing priorities requires a recompute](CONFIGURATION.md#reordering-the-global-priority)). If `normalization.per_category` is enabled, run the recompute twice — see [Normalization](CONFIGURATION.md#normalization) for why the first pass normalizes against each photo's old category.
 

@@ -43,7 +43,7 @@ Die obige Prioritätsreihenfolge ist global – jedes Foto wird gegen dieselbe L
 
 **Effektive Reihenfolge** = `promote` (in der angegebenen Reihenfolge) → die globale Prioritätsreihenfolge abzüglich der vorgezogenen und ausgeschlossenen Namen → `default` zuletzt. Ein Name, der sowohl in `promote` als auch in `excluded` steht, wird vollständig entfernt – `excluded` gewinnt. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) berechnet dies einmal pro Kontextname und speichert das Ergebnis zwischen (memoization).
 
-Mitgelieferte Voreinstellungen (einfaches, benutzerbearbeitbares JSON – die vollständige Feldreferenz siehe [Bewertungskontexte](CONFIGURATION.md#bewertungskontexte)):
+Mitgelieferte Voreinstellungen – bearbeitbar über den Tab **Bewertungskontext** des Viewers (`PUT /api/config/scoring_contexts/{name}`, nur im Bearbeitungsmodus) oder direkt im JSON; die vollständige Feldreferenz siehe [Bewertungskontexte](CONFIGURATION.md#bewertungskontexte):
 
 | Context | Promotes | Excludes |
 |---------|----------|----------|
@@ -54,6 +54,8 @@ Mitgelieferte Voreinstellungen (einfaches, benutzerbearbeitbares JSON – die vo
 | `wildlife` | `wildlife` | – |
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | – |
 | `motorsport` | `sports`, `vehicle` | `silhouette` |
+
+Nur das *Delta* ist bearbeitbar — den bevorzugten Kopf in die gewünschte Reihenfolge ziehen, den Ausschluss einer Kategorie umschalten — nie eine vollständige eigenständige Reihenfolge pro Kontext: die nicht bevorzugten Kategorien behalten immer die globale Prioritätsreihenfolge, sodass eine später hinzugefügte Kategorie nie stillschweigend in sechs getrennten Listen fehlen kann. Die Validierungsregeln siehe [Einen Kontext bearbeiten](CONFIGURATION.md#einen-kontext-bearbeiten).
 
 Ein Kontext wird pro Album zugewiesen (`PUT /api/albums/{id}/scoring_context`, was ihn auf jedes Foto überträgt, das gerade Mitglied ist – bei einem intelligenten Album eine Momentaufnahme, kein Abonnement, siehe [Bewertungskontexte](CONFIGURATION.md#bewertungskontexte)) oder, für ein einzelnes hartnäckiges Foto, als dauerhafte Kategorieüberschreibung angewendet (`POST /api/comparison/override_category`). Beide Hebel werden in einer separaten Tabelle `photo_scoring_overrides` gespeichert statt als Spalten auf `photos` – `save_photo`/`save_photos_batch` schreiben Fotozeilen mit `INSERT OR REPLACE`, was eine neue Spalte auf dieser Zeile beim nächsten erneuten Scan stillschweigend löschen würde. Das Setzen des einen Hebels lässt den anderen unberührt, und beide können unabhängig voneinander zurückgesetzt werden. **Keiner der beiden wirkt sich auf bereits bewertete Fotos aus, bevor nicht eine Neuberechnung erfolgt** – `python facet.py --recompute-average` oder `POST /api/scan/recompute` über den Viewer (prozessübergreifend dagegen abgesichert, dass zwei gleichzeitig laufen – siehe [Das Ändern von Prioritäten erfordert eine Neuberechnung](CONFIGURATION.md#die-globale-priorität-neu-ordnen)). Ist `normalization.per_category` aktiviert, führen Sie die Neuberechnung zweimal aus – siehe [Normalization](CONFIGURATION.md#normalization) dafür, warum der erste Durchlauf anhand der alten Kategorie jedes Fotos normalisiert.
 

@@ -176,7 +176,7 @@ A scoring context is a named **delta** over the global `categories` priority ord
 
 **Effective order** = `promote` (in order) → the global priority order minus the promoted and excluded names → `default` (the catch-all category, priority 999) last. A name listed in **both** `promote` and `excluded` is dropped from the order entirely — `excluded` wins, the `promote` entry is not honored. `default` itself can never be promoted or excluded. Passing no context, or an unknown context name, falls back to the plain global priority order (and logs a warning for an unknown name); the resolved `[(category_name, CategoryFilter)]` list is memoized per context name for the lifetime of the loaded config (`ScoringConfig.resolve_context_order`). `python facet.py --validate-categories` reports (without failing the load) any `promote`/`excluded` name that isn't a real category, any name listed in both, and any `suggest_from_moments` entry that isn't a key of `narrative_moments.event_types.<default_event_type>` — a typo in any of these otherwise fails silently.
 
-Shipped presets — all plain, user-editable JSON; `default` is an empty delta, so existing behavior is unchanged unless a context is explicitly assigned:
+Shipped presets — `default` is an empty delta, so existing behavior is unchanged unless a context is explicitly assigned:
 
 | Context | Promotes | Excludes | Suggested from moments |
 |---------|----------|----------|------------------------|
@@ -187,6 +187,14 @@ Shipped presets — all plain, user-editable JSON; `default` is an empty delta, 
 | `wildlife` | `wildlife` | — | `nature_wildlife`, `pets` |
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — | `scenic_landscape`, `mountains`, `snow_winter` |
 | `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
+
+### Editing a context
+
+`PUT /api/config/scoring_contexts/{name}` (edition-gated) rewrites one context's delta from the viewer's **Scoring Context** tab — drag the promoted head into the order you want, click a category to toggle its exclusion, save. Body is `{"promote": [name, ...], "excluded": [name, ...]}`. Only those two fields are editable: `label_key` and `suggest_from_moments` are left exactly as they were, and every other context is untouched. **Editing the delta is deliberately all the UI offers** — a context never carries a standalone full ordering, so the non-promoted categories always keep the global priority order and a category added later can never be silently missing from six separate lists.
+
+The write is rejected with a 400 naming the offender when the context doesn't exist, when a `promote`/`excluded` entry isn't an existing category, when `default` appears in either list (it is the pinned catch-all and can be neither promoted nor excluded), or when `promote` repeats a name (its order is meaningful, so a repeat is ambiguous). Listing the same category in **both** lists is still accepted — `excluded` wins and the `promote` entry is dropped, exactly as documented above — and a repeat inside `excluded` is collapsed rather than rejected, since it is a set. Each write takes the same timestamped, pruned `.backup.<timestamp>` copy and holds the same lock as the priority and weight writers, so concurrent config saves can't drop each other. `resolve_context_order` memoizes per `ScoringConfig` instance and every reader constructs a fresh one per request, so there is no order cache to invalidate after a write.
+
+Like a priority reorder, editing a context does not touch any photo's stored `category` by itself — run a recompute afterward (see [Changing priorities requires a recompute](#reordering-the-global-priority)); the tab offers a **Recompute now** button for exactly this.
 
 ### Assigning a context
 

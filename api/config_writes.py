@@ -158,6 +158,76 @@ def update_category_priorities(config_path, order):
     return backup_path
 
 
+def _validate_context_names(field, names, known_names):
+    """Raise ``HTTPException(400)`` naming the offender unless every entry of
+    ``names`` is a real category other than the pinned ``default`` catch-all."""
+    unknown = sorted(set(names) - known_names)
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown categories in {field}: {', '.join(unknown)}")
+
+    if DEFAULT_CATEGORY_NAME in names:
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{DEFAULT_CATEGORY_NAME}' cannot appear in {field}: it is the pinned catch-all category",
+        )
+
+
+def update_scoring_context(config_path, context, promote, excluded):
+    """Rewrite one scoring context's ``promote``/``excluded`` delta and persist to disk.
+
+    Only the two delta fields are editable: ``label_key`` and
+    ``suggest_from_moments`` are left exactly as they were, and every other
+    context is untouched. The delta model is deliberately preserved — the
+    non-promoted categories keep the global priority order, so no context ever
+    carries a full standalone ordering that would silently omit a category
+    added later.
+
+    Raises ``HTTPException(400)`` naming the offender for an unknown context,
+    an entry that isn't an existing category, ``default`` in either list (it is
+    pinned last and can be neither promoted nor excluded), or a duplicate
+    within ``promote`` (whose order is meaningful, so a repeat is ambiguous).
+    Listing the same category in **both** lists stays accepted — ``excluded``
+    wins and the ``promote`` entry is dropped by
+    ``ScoringConfig.resolve_context_order``, which is the documented behaviour.
+    Duplicates in ``excluded`` are collapsed rather than rejected, since it is
+    a set and a repeat changes nothing.
+
+    Always takes a timestamped loose backup before writing (contexts aren't
+    covered by the weights snapshot table) and returns its path.
+    """
+    config_path = str(config_path)
+    with _CONFIG_WRITE_LOCK:
+        with open(config_path) as f:
+            config = json.load(f)
+
+        contexts = config.get('scoring_contexts', {})
+        if not isinstance(contexts, dict) or context not in contexts:
+            raise HTTPException(status_code=400, detail=f"Unknown scoring context: {context}")
+
+        duplicates = sorted(name for name, count in Counter(promote).items() if count > 1)
+        if duplicates:
+            raise HTTPException(status_code=400, detail=f"Duplicate categories in promote: {', '.join(duplicates)}")
+
+        known_names = {c.get('name') for c in config.get('categories', [])}
+        _validate_context_names('promote', promote, known_names)
+        _validate_context_names('excluded', excluded, known_names)
+
+        target = contexts[context]
+        if not isinstance(target, dict):
+            target = {}
+            contexts[context] = target
+        target['promote'] = list(promote)
+        target['excluded'] = list(dict.fromkeys(excluded))
+
+        backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        shutil.copy2(config_path, backup_path)
+        _prune_config_backups(config_path)
+
+        _atomic_write_config(config_path, config)
+
+    return backup_path
+
+
 def update_category_weights(config_path, category, snapshot_tag, get_db, *,
                             not_found_detail, weights=None, replace_weights=False,
                             modifiers=None, filters=None, backup=False):

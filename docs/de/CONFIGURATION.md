@@ -176,7 +176,7 @@ Ein Bewertungskontext ist ein benanntes **Delta** über der oben beschriebenen g
 
 **Effektive Reihenfolge** = `promote` (in dieser Reihenfolge) → die globale Prioritätsreihenfolge abzüglich der vorgezogenen und ausgeschlossenen Namen → `default` (die Auffangkategorie, Priorität 999) zuletzt. Ein Name, der sowohl in `promote` als auch in `excluded` steht, wird vollständig aus der Reihenfolge entfernt – `excluded` gewinnt, der `promote`-Eintrag wird ignoriert. `default` selbst kann nie vorgezogen oder ausgeschlossen werden. Wird kein Kontext oder ein unbekannter Kontextname übergeben, greift die einfache globale Prioritätsreihenfolge (und bei einem unbekannten Namen wird eine Warnung protokolliert); die aufgelöste Liste `[(category_name, CategoryFilter)]` wird pro Kontextname für die Lebensdauer der geladenen Konfiguration zwischengespeichert (`ScoringConfig.resolve_context_order`). `python facet.py --validate-categories` meldet (ohne den Ladevorgang scheitern zu lassen) jeden `promote`-/`excluded`-Namen, der keiner echten Kategorie entspricht, jeden Namen, der in beiden Listen steht, sowie jeden `suggest_from_moments`-Eintrag, der kein Schlüssel von `narrative_moments.event_types.<default_event_type>` ist – ansonsten scheitert ein Tippfehler in einem dieser Felder lautlos.
 
-Mitgelieferte Voreinstellungen – allesamt einfaches, benutzerbearbeitbares JSON; `default` ist ein leeres Delta, sodass sich am bestehenden Verhalten nichts ändert, solange kein Kontext explizit zugewiesen wird:
+Mitgelieferte Voreinstellungen – `default` ist ein leeres Delta, sodass sich am bestehenden Verhalten nichts ändert, solange kein Kontext explizit zugewiesen wird:
 
 | Context | Promotes | Excludes | Suggested from moments |
 |---------|----------|----------|------------------------|
@@ -187,6 +187,14 @@ Mitgelieferte Voreinstellungen – allesamt einfaches, benutzerbearbeitbares JSO
 | `wildlife` | `wildlife` | – | `nature_wildlife`, `pets` |
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | – | `scenic_landscape`, `mountains`, `snow_winter` |
 | `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
+
+### Einen Kontext bearbeiten
+
+`PUT /api/config/scoring_contexts/{name}` (nur im Bearbeitungsmodus) schreibt das Delta eines einzelnen Kontexts aus dem Tab **Bewertungskontext** des Viewers neu — den bevorzugten Kopf in die gewünschte Reihenfolge ziehen, eine Kategorie anklicken, um ihren Ausschluss umzuschalten, speichern. Der Rumpf lautet `{"promote": [name, ...], "excluded": [name, ...]}`. Nur diese beiden Felder sind bearbeitbar: `label_key` und `suggest_from_moments` bleiben unverändert, und alle anderen Kontexte werden nicht angetastet. **Die Oberfläche bietet bewusst ausschließlich die Bearbeitung des Deltas an** — ein Kontext trägt nie eine vollständige eigenständige Reihenfolge, sodass die nicht bevorzugten Kategorien immer die globale Prioritätsreihenfolge behalten und eine später hinzugefügte Kategorie nie stillschweigend in sechs getrennten Listen fehlen kann.
+
+Der Schreibvorgang wird mit einem 400 abgelehnt, der den Verursacher benennt, wenn der Kontext nicht existiert, wenn ein Eintrag in `promote`/`excluded` keiner vorhandenen Kategorie entspricht, wenn `default` in einer der beiden Listen auftaucht (es ist die fest ans Ende gepinnte Auffangkategorie und kann weder bevorzugt noch ausgeschlossen werden) oder wenn `promote` einen Namen wiederholt (seine Reihenfolge ist bedeutungstragend, eine Wiederholung wäre also mehrdeutig). Dieselbe Kategorie in **beiden** Listen zu führen bleibt zulässig — `excluded` gewinnt und der `promote`-Eintrag wird verworfen, genau wie oben dokumentiert — und eine Wiederholung innerhalb von `excluded` wird zusammengefasst statt abgelehnt, da es sich um eine Menge handelt. Jeder Schreibvorgang legt dieselbe zeitgestempelte, beschnittene `.backup.<timestamp>`-Kopie an und nimmt dieselbe Sperre wie die Prioritäts- und Gewichtungs-Writer, sodass gleichzeitige Konfigurationsspeicherungen einander nicht überschreiben können. `resolve_context_order` speichert sein Ergebnis pro `ScoringConfig`-Instanz zwischen, und jeder Leser erzeugt pro Anfrage eine neue — nach einem Schreibvorgang gibt es also keinen Reihenfolgen-Cache zu invalidieren.
+
+Wie eine Prioritätsumsortierung berührt das Bearbeiten eines Kontexts für sich genommen keine gespeicherte `category` eines Fotos — führen Sie danach eine Neuberechnung aus (siehe [Prioritätsänderungen erfordern eine Neuberechnung](#die-globale-priorität-neu-ordnen)); der Tab bietet genau dafür eine Schaltfläche **Jetzt neu berechnen**.
 
 ### Einen Kontext zuweisen
 
