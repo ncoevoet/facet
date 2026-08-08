@@ -26,6 +26,7 @@ from api.config import (
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
 from api.db_helpers import get_visibility_clause
+from config.category_filter import _to_float
 from db import DEFAULT_DB_PATH, record_weight_snapshot, delete_weight_snapshot
 from api.config_writes import update_category_weights
 from utils.image_loading import RAW_EXTENSIONS
@@ -126,6 +127,19 @@ class SuggestFiltersBody(BaseModel):
 class OverrideCategoryBody(BaseModel):
     path: str
     category: str
+
+
+class ClearCategoryOverrideBody(BaseModel):
+    path: str
+
+
+class CategoryPrioritiesBody(BaseModel):
+    order: list[str]
+
+
+class ScoringContextBody(BaseModel):
+    promote: list[str] = []
+    excluded: list[str] = []
 
 
 class SaveSnapshotBody(BaseModel):
@@ -464,6 +478,121 @@ async def api_update_weights(
     except Exception:
         logger.exception("Failed to update weights")
         raise HTTPException(status_code=500, detail='Failed to update weights')
+
+
+@router.get("/api/config/category_priorities")
+def api_get_category_priorities(
+    user: Optional[CurrentUser] = Depends(require_edition),
+):
+    """List categories in current evaluation (priority) order."""
+    from config import ScoringConfig
+
+    config = ScoringConfig(validate=False)
+    return {
+        'categories': [
+            {
+                'name': cat['name'],
+                'priority': cat.get('priority', 100),
+                'filters': cat.get('filters', {}),
+            }
+            for cat in config.get_categories()
+        ],
+    }
+
+
+@router.post("/api/config/category_priorities")
+def api_update_category_priorities(
+    body: CategoryPrioritiesBody,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Reorder category evaluation priority."""
+    from api.config_writes import update_category_priorities
+
+    try:
+        backup_path = update_category_priorities(str(_CONFIG_PATH), body.order)
+
+        reload_config()
+        _stats_cache.clear()
+
+        return {
+            'success': True,
+            'message': 'Category priorities updated',
+            'backup': backup_path,
+        }
+
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail='Config file not found')
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail='Invalid JSON in config')
+    except Exception:
+        logger.exception("Failed to update category priorities")
+        raise HTTPException(status_code=500, detail='Failed to update category priorities')
+
+
+@router.get("/api/config/scoring_contexts")
+def api_get_scoring_contexts(
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """List configured scoring contexts with each one's effective category order."""
+    from config import ScoringConfig
+
+    config = ScoringConfig(validate=False)
+    contexts = config.get_scoring_contexts()
+
+    return {
+        'contexts': [
+            {
+                'name': name,
+                'label_key': context_cfg.get('label_key'),
+                'promote': context_cfg.get('promote', []),
+                'excluded': context_cfg.get('excluded', []),
+                'suggest_from_moments': context_cfg.get('suggest_from_moments', []),
+                'effective_order': [cat_name for cat_name, _ in config.resolve_context_order(name)],
+            }
+            for name, context_cfg in contexts.items()
+        ],
+    }
+
+
+@router.put("/api/config/scoring_contexts/{name}")
+def api_update_scoring_context(
+    name: str,
+    body: ScoringContextBody,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Rewrite one scoring context's promote/excluded delta.
+
+    Only the delta is editable — the non-promoted categories keep the global
+    priority order that ``POST /api/config/category_priorities`` owns.
+    ``resolve_context_order`` memoizes per ``ScoringConfig`` instance and every
+    reader builds a fresh one per request, so the rewritten delta is picked up
+    without any cache to invalidate here.
+    """
+    from api.config_writes import update_scoring_context
+
+    try:
+        backup_path = update_scoring_context(str(_CONFIG_PATH), name, body.promote, body.excluded)
+
+        reload_config()
+        _stats_cache.clear()
+
+        return {
+            'success': True,
+            'message': f'Scoring context "{name}" updated',
+            'backup': backup_path,
+        }
+
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail='Config file not found')
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail='Invalid JSON in config')
+    except Exception:
+        logger.exception("Failed to update scoring context %s", name)
+        raise HTTPException(status_code=500, detail='Failed to update scoring context')
 
 
 @router.get("/api/comparison/stats")
@@ -813,7 +942,7 @@ def api_comparison_suggest_filters(
         'is_group_portrait': metrics.get('is_group_portrait', 0),
         'is_monochrome': metrics.get('is_monochrome', 0),
         'mean_luminance': metrics.get('mean_luminance', 0.5),
-        'iso': metrics.get('ISO'),
+        'iso': metrics.get('iso'),
         'shutter_speed': metrics.get('shutter_speed'),
         'focal_length': metrics.get('focal_length'),
         'f_stop': metrics.get('f_stop'),
@@ -848,7 +977,11 @@ def api_comparison_suggest_filters(
     for filter_key, (data_key, label) in numeric_mappings.items():
         min_val = target_filters.get(f'{filter_key}_min')
         max_val = target_filters.get(f'{filter_key}_max')
-        actual = photo_data.get(data_key)
+        # Same coercion CategoryFilter._check_numeric applies -- shutter_speed is
+        # stored as a fractional string ('1/250'), and a bare float() on it would
+        # 500 instead of explaining the mismatch (the sports/long_exposure filters
+        # are the only ones that key on it, so this is the one repro that matters).
+        actual = _to_float(photo_data.get(data_key))
 
         if min_val is not None:
             if actual is None:
@@ -1012,28 +1145,77 @@ def api_comparison_suggest_filters(
     }
 
 
+def _recompute_category_and_aggregate(row, *, category_override=None, scoring_context=None):
+    """Resolve a photo's category and aggregate together via the real scoring path.
+
+    Delegates to ``Facet.calculate_aggregate_logic`` -- the same weighted-sum
+    math ``--recompute-average`` runs (it internally resolves the category via
+    ``_determine_photo_category``, honoring ``category_override`` first) --
+    rather than re-deriving either value here. ``row`` must carry every
+    column ``calculate_aggregate_logic`` reads (i.e. a full ``photos`` row).
+    Used by both ``override_category`` and ``clear_category_override`` so a
+    category change never leaves ``aggregate`` disagreeing with the category
+    shown next to it.
+    """
+    from processing.scorer import Facet
+
+    metrics = dict(row)
+    metrics['category_override'] = category_override
+    metrics['scoring_context'] = scoring_context
+
+    scorer = Facet(db_path=DEFAULT_DB_PATH, config_path=str(_CONFIG_PATH), lightweight=True)
+    new_score, category = scorer.calculate_aggregate_logic(metrics)
+    return category, round(new_score, 2)
+
+
 @router.post("/api/comparison/override_category")
 def api_comparison_override_category(
     body: OverrideCategoryBody,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Manually override a photo's category."""
+    """Manually override a photo's category.
+
+    The override is stored in ``photo_scoring_overrides`` so it survives the
+    next ``--recompute-average`` (which would otherwise reassign the category
+    from filters alone). ``photos.category`` AND ``aggregate`` are also
+    written immediately (via ``_recompute_category_and_aggregate``) so the
+    lightbox never shows the new category next to the old score.
+    """
+    from config import ScoringConfig
+    from db.scoring_overrides import set_photo_scoring_override
+
     if not body.path or not body.category:
         raise HTTPException(status_code=400, detail='Missing path or category')
+
+    config = ScoringConfig(validate=False)
+    valid_names = {cat['name'] for cat in config.get_categories()}
+    if body.category not in valid_names:
+        raise HTTPException(status_code=400, detail=f'Unknown category: {body.category}')
 
     # Verify photo exists and user has visibility
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
 
     with get_db() as conn:
-        row = conn.execute(f"SELECT category FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
+        row = conn.execute(f"SELECT * FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail='Photo not found')
 
-        old_category = row[0]
+        old_category = row['category']
 
-        # Update the category
-        conn.execute(f"UPDATE photos SET category = ? WHERE path = ? AND {vis_sql}", [body.category, body.path] + vis_params)
+        set_photo_scoring_override(
+            conn, body.path,
+            category_override=body.category,
+            source='manual',
+            created_by=user_id,
+        )
+
+        new_category, aggregate = _recompute_category_and_aggregate(row, category_override=body.category)
+
+        conn.execute(
+            f"UPDATE photos SET category = ?, aggregate = ? WHERE path = ? AND {vis_sql}",
+            [new_category, aggregate, body.path] + vis_params,
+        )
         conn.commit()
 
     _stats_cache.clear()
@@ -1042,7 +1224,60 @@ def api_comparison_override_category(
         'success': True,
         'path': body.path,
         'old_category': old_category,
-        'new_category': body.category,
+        'new_category': new_category,
+        'aggregate': aggregate,
+    }
+
+
+@router.post("/api/comparison/clear_category_override")
+def api_comparison_clear_category_override(
+    body: ClearCategoryOverrideBody,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Remove a photo's manual category override and recompute its category.
+
+    Mirrors ``override_category``: ``photos.category`` AND ``aggregate`` are
+    rewritten immediately (via ``_recompute_category_and_aggregate``) rather
+    than just the category, so clearing an override never leaves the score
+    disagreeing with the category shown next to it. Honors any remaining
+    per-photo ``scoring_context`` override independently of the cleared
+    ``category_override``.
+    """
+    from db.scoring_overrides import clear_photo_scoring_override, get_photo_scoring_overrides
+
+    if not body.path:
+        raise HTTPException(status_code=400, detail='Missing path')
+
+    user_id = user.user_id if user else None
+    vis_sql, vis_params = get_visibility_clause(user_id)
+
+    with get_db() as conn:
+        row = conn.execute(f"SELECT * FROM photos WHERE path = ? AND {vis_sql}", [body.path] + vis_params).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail='Photo not found')
+        old_category = row['category']
+
+        clear_photo_scoring_override(conn, body.path, field='category_override')
+
+        remaining = get_photo_scoring_overrides(conn, paths=[body.path])
+        scoring_context = remaining.get(body.path, {}).get('scoring_context')
+
+        new_category, aggregate = _recompute_category_and_aggregate(row, scoring_context=scoring_context)
+
+        conn.execute(
+            f"UPDATE photos SET category = ?, aggregate = ? WHERE path = ? AND {vis_sql}",
+            [new_category, aggregate, body.path] + vis_params,
+        )
+        conn.commit()
+
+    _stats_cache.clear()
+
+    return {
+        'success': True,
+        'path': body.path,
+        'old_category': old_category,
+        'new_category': new_category,
+        'aggregate': aggregate,
     }
 
 

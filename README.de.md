@@ -94,6 +94,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 - **Statistiken** — Dashboards für Ausrüstungsnutzung, Kategorieaufschlüsselung, Aufnahme-Zeitverlauf und Metrik-Korrelationen
 - **KI-Kritik** — Wertungsaufschlüsselung, die den Beitrag jeder Metrik zeigt; VLM-Bewertung in natürlicher Sprache `[GPU]` `[16gb/24gb]`
 - **Gewichtungsfeinabstimmung** — Editor für kategoriespezifische Gewichte mit Live-Wertungsvorschau. Der A/B-Fotovergleich lernt aus Ihren Entscheidungen und schlägt optimierte Gewichte vor.
+- **Bewertungskontexte** — legen Sie fest, *welche* Kategorie ein Foto bewertet, unabhängig von den Gewichts-Reglern, die nur die bereits gewählte Kategorie feinabstimmen: die globale Kategoriepriorität neu ordnen, einen benannten Kontext (Action/Bühne, Porträtsitzung, Wildtiere, …) pro Album anwenden, oder eine dauerhafte Kategorieüberschreibung pro Foto setzen, die jede Neuberechnung übersteht.
 - **Sortierung „Mein Geschmack“** — sortieren Sie die Galerie nach der gelernten Wertung des persönlichen Rankers, mit einem Konfidenz-Badge, das die gelernte Abdeckung und die Holdout-Genauigkeit anzeigt
 - **Lernen aus Labels** — Auswahlentscheidungen, Sternebewertungen, Favoriten und Ablehnungen fließen in den Gewichtsoptimierer ein (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — Gewichtskonfigurationen speichern, wiederherstellen und vergleichen
@@ -180,13 +181,13 @@ Die Ästhetikwertung ist modellbasiert und ungefähr; rechnen Sie damit, die Gew
 ### Docker (empfohlen)
 
 ```bash
-docker compose up
+docker compose up      # lädt ghcr.io/ncoevoet/facet:latest — kein lokaler Build
 # http://localhost:5000 öffnen
 ```
 
-Dies läuft im CPU-Modus — es ist keine GPU erforderlich, um eine vorhandene Bibliothek zu durchstöbern und bereitzustellen. Binden Sie Ihr Fotoverzeichnis in `docker-compose.yml` ein.
+`docker compose up` lädt das veröffentlichte CPU-Image, statt den Stack lokal zu bauen; `docker compose build` baut weiterhin aus diesem Repository für lokales Basteln. Dies läuft im CPU-Modus — es ist keine GPU erforderlich, um eine vorhandene Bibliothek zu durchstöbern und bereitzustellen. Binden Sie Ihr Fotoverzeichnis in `docker-compose.yml` ein.
 
-**GPU-Beschleunigung** (optional) erfordert eine NVIDIA-GPU und das [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Aktivieren Sie sie mit der Override-Datei:
+**GPU-Beschleunigung** (optional) erfordert eine NVIDIA-GPU und das [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Aktivieren Sie sie mit der Override-Datei (lädt das `:latest-cuda`-Image):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up

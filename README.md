@@ -99,6 +99,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **Statistics** — dashboards for equipment usage, category breakdown, shooting timeline, and metric correlations
 - **AI critique** — score breakdown showing each metric's contribution; VLM natural-language assessment `[GPU]` `[16gb/24gb]`
 - **Weight tuning** — per-category weight editor with live score preview. A/B photo comparison learns from your choices and suggests optimized weights.
+- **Scoring contexts** — control *which* category a photo is scored as, separately from the weight sliders that only tune the category once it's picked: reorder the global category priority, apply a named context (Action/Stage, Portrait Session, Wildlife, …) per album, or set a sticky per-photo category override that survives every recompute.
 - **My Taste sort** — sort the gallery by the personal ranker's learned score, with a confidence badge showing learned coverage and held-out accuracy
 - **Learning from labels** — culling decisions, star ratings, favorites, and rejections feed the weight optimizer (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — save, restore, and compare weight configurations
@@ -191,13 +192,13 @@ The aesthetic score is model-based and approximate; expect to tune the weights t
 
 ```bash
 cp .env.example .env      # set PHOTOS_DIR + FACET_VRAM_PROFILE (auto-detects the GPU)
-docker compose up -d
+docker compose up -d      # pulls ghcr.io/ncoevoet/facet:latest — no local build
 # Open http://localhost:5000
 ```
 
-One image serves every profile: `FACET_VRAM_PROFILE=auto` detects the GPU (no GPU → CPU `legacy`), model weights download at runtime, and `PHOTOS_DIR` in `.env` points at your photos. The base compose runs CPU-only — no GPU required to browse and serve an existing library.
+`docker compose up` pulls the published slim **CPU** image instead of building the stack locally; `docker compose build` still builds from this repo's `Dockerfile` for local hacking. `FACET_VRAM_PROFILE=auto` detects the GPU (no GPU → CPU `legacy`), model weights download at runtime, and `PHOTOS_DIR` in `.env` points at your photos.
 
-**GPU acceleration** (optional) requires an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Enable it with an override — the generic GPU file or a per-profile overlay (`docker-compose.{legacy,8gb,16gb}.yml`):
+**GPU acceleration** (optional) requires an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Enable it with an override — the generic GPU file (pulls the `:latest-cuda` image) or a per-profile overlay (`docker-compose.{legacy,8gb,16gb}.yml`):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d

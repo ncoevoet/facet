@@ -270,6 +270,8 @@ Cuando `viewer.features.show_scan_button` está en `true` y el usuario tiene el 
 
 Esto resulta útil cuando el visor se ejecuta en la misma máquina que tiene acceso a la GPU para la puntuación.
 
+Un activador relacionado pero independiente, `POST /api/scan/recompute`, reutiliza el mismo bloqueo de trabajo para volver a puntuar las fotos existentes in situ (sin archivos nuevos) — consulta [Prioridad de categorías y contextos de puntuación](#prioridad-de-categorías-y-contextos-de-puntuación). A diferencia de este botón de escaneo exclusivo para superadmin, este requiere el modo de edición.
+
 ## Búsqueda semántica
 
 Búsqueda híbrida que combina la similitud de embeddings de CLIP/SigLIP (70%) con la coincidencia de texto BM25 de FTS5 sobre subtítulos y etiquetas (30%). Escribe una consulta como "sunset over mountains" o "child playing in snow" y el visor devuelve las fotos coincidentes ordenadas por puntuación combinada.
@@ -300,6 +302,10 @@ Guarda una combinación de filtros (cámara, etiqueta, persona, rango de fechas,
 API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
 
 Controlado por `viewer.features.show_albums` (predeterminado: `true`).
+
+### Contexto de puntuación
+
+Cada álbum puede llevar un contexto de puntuación que decide qué categoría gana para sus fotos miembro, independientemente del orden de prioridad global — consulta [Contextos de puntuación](CONFIGURATION.md#contextos-de-puntuación). `PUT /api/albums/{id}/scoring_context` (requiere edición) lo establece y materializa el mismo contexto en cada foto que es miembro **ahora mismo**; `conflicts` en la respuesta cuenta los miembros no manuales que ya llevaban un contexto distinto, `manual_skipped` cuenta los miembros cuya propia anulación manual se dejó intacta (una asignación de álbum nunca convierte silenciosamente la anulación manual de una foto en una procedente del álbum), y `updated` cuenta cuántas se escribieron realmente. Un álbum manual resuelve su pertenencia a partir de sus filas de `album_photos`; un álbum inteligente no tiene ninguna, así que su pertenencia se resuelve en su lugar evaluando su `smart_filter_json` guardado contra la base de datos en vivo. Esa es la **definición de filtro** del álbum, no «lo que la galería estuviera mostrando en ese momento»: ignora deliberadamente las preferencias de visualización de la galería que ocultan parpadeos, ráfagas, duplicadas y rechazadas (globales, conmutables en tiempo de ejecución, y que no forman parte de `smart_filter_json`), así que `updated` puede legítimamente superar el número de fotos que la propia vista de galería del álbum muestra con esos interruptores activados — y devuelve `updated: 0` con un `warning` cuando el filtro no coincide actualmente con nada. En cualquier caso, la marca es una instantánea puntual, no una suscripción en vivo: una foto añadida *después* a un álbum manual sí hereda el contexto automáticamente, pero una foto que coincide *más tarde* con el filtro de un álbum inteligente **no** hereda el contexto retroactivamente — el contexto debe volver a establecerse (`PUT`) para capturar las nuevas coincidencias. `DELETE /api/albums/{id}/scoring_context` (que aparece en el diálogo como una acción «Borrar contexto» distinta de seleccionar el contexto `default`, que marca `default` en lugar de borrar) deshace la marca exactamente en los miembros que este álbum había marcado, sin tocar la anulación manual propia de una foto — y cuando una foto cuya marca se deshace *sigue* siendo miembro de otro álbum que declara su propio contexto, se vuelve a marcar con el contexto de ese otro álbum en lugar de quedar sin puntuar (esta nueva derivación se limita a las fotos concretas que se retiran de un álbum; eliminar o borrar un álbum completo no lo intenta). `GET /api/albums/{id}/suggested_context` propone uno a partir del `narrative_moment` dominante detectado en el álbum (mediante la lista `suggest_from_moments` de cada contexto) con una confianza `share` — no escribe nada; la asignación anterior aún debe confirmarse explícitamente. Se requiere un recálculo (`POST /api/scan/recompute`) para que el nuevo contexto cambie realmente la categoría almacenada de alguna foto.
 
 ### Compartir fotos
 
@@ -606,9 +612,20 @@ Editor manual de pesos: un control deslizante por métrica para la categoría se
 
 Guarda los pesos actuales como una instantánea con nombre y restaura cualquier instantánea anterior.
 
+### Prioridad de categorías y contextos de puntuación
+
+Las categorías se evalúan en orden ascendente de `priority` y gana la primera coincidencia de filtro — consulta [Evaluación de filtros](SCORING.md#cómo-funciona-la-puntuación) y [Contextos de puntuación](CONFIGURATION.md#contextos-de-puntuación) para el modelo completo. Dos palancas que requieren edición gestionan esto sin editar `scoring_config.json` a mano:
+
+- **Prioridad global** — `GET/POST /api/config/category_priorities` lista y reordena el orden de evaluación base. `POST` recibe una lista ordenada completa de nombres de categoría y permuta sobre ella los valores de prioridad existentes, de modo que el multiconjunto (y su unicidad) se conserva en lugar de renumerarse.
+- **Contextos de puntuación** — `GET /api/config/scoring_contexts` lista los preajustes configurados (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) junto con el orden efectivo resuelto de cada uno. Un contexto promueve algunas categorías al frente y excluye otras por completo sin tocar el orden global, y se asigna por álbum (consulta [Contexto de puntuación](#contexto-de-puntuación) en Álbumes) o por foto mediante la anulación de categoría de más abajo.
+
+Ninguna de las dos palancas vuelve a puntuar las fotos por sí sola. Tras reordenar prioridades, asignar un contexto o establecer una anulación por foto, dispara un recálculo (`POST /api/scan/recompute`, requiere edición) y sondea `GET /api/scan/recompute_status` para `{running, kind, progress, exit_code}`. Tanto `/scan/start` como `/scan/recompute` están protegidos entre procesos por `facet.LibraryLock`, no solo por el bloqueo en memoria del visor (consulta [Reordenar la prioridad global](CONFIGURATION.md#reordenar-la-prioridad-global)): si ya hay un recálculo o un escaneo en curso desde una terminal, el visor rechaza un trabajo nuevo con 409, indicando quién lo posee, así que un trabajo por CLI y uno iniciado desde el visor ya no pueden chocar. Si `normalization.per_category` está activado, un solo recálculo tras un cambio que afecta a las categorías no converge del todo — consulta [Normalización](CONFIGURATION.md#normalización).
+
 ### Anulación de categoría
 
-Para reasignar la categoría de una foto desde la vista de comparación: edita la insignia de categoría, selecciona una categoría de destino, ejecuta "Analizar conflictos de filtro" para ver qué filtros la excluyen, y luego aplica la anulación.
+Para reasignar la categoría de una foto desde la vista de comparación: edita la insignia de categoría, selecciona una categoría de destino, ejecuta "Analizar conflictos de filtro" para ver qué filtros la excluyen, y luego aplica la anulación. La anulación se valida contra los nombres de categoría configurados (`POST /api/comparison/override_category`) y ahora persiste en la tabla auxiliar `photo_scoring_overrides` — a diferencia de antes, sobrevive al siguiente recálculo en lugar de descartarse en silencio, y la foto conserva la categoría asignada manualmente hasta que se borra explícitamente (`POST /api/comparison/clear_category_override`).
+
+Las mismas dos acciones están disponibles en el visor de fotos en **Establecer categoría de puntuación…** / **Borrar anulación** (modo edición), junto a un panel plegable **¿por qué esta foto no está en otra categoría?**. Selecciona ahí una categoría de destino y el panel indica qué filtros excluyen actualmente la foto y en qué debería convertirse cada uno — por ejemplo «Subir shutter_speed_max de 0,02 a 0,033». Es la forma más rápida de descubrir que una categoría es inalcanzable para una foto concreta en lugar de estar simplemente superada en prioridad, algo que reordenar por sí solo no puede corregir. Se apoya en `POST /api/comparison/suggest_filters`.
 
 ## Estadísticas EXIF
 
@@ -934,6 +951,9 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `GET /api/albums/{id}/photos` | Listar las fotos de un álbum (paginado) |
 | `POST /api/albums/{id}/photos` | Añadir fotos a un álbum |
 | `DELETE /api/albums/{id}/photos` | Quitar fotos de un álbum |
+| `PUT /api/albums/{id}/scoring_context` | `[Edition]` Establece el contexto de puntuación del álbum; lo materializa en los miembros que coinciden con el filtro del álbum en este momento, omitiendo la anulación manual de cada miembro (los álbumes inteligentes resuelven `smart_filter_json` en vivo), devuelve `{updated, conflicts, manual_skipped}` |
+| `DELETE /api/albums/{id}/scoring_context` | `[Edition]` Borra el contexto de puntuación del álbum y deshace la marca exactamente en los miembros que había marcado, devuelve `{ok, cleared}` |
+| `GET /api/albums/{id}/suggested_context` | Sugiere un contexto de puntuación a partir del `narrative_moment` dominante del álbum (solo sugerencia, no escribe nada) |
 | `POST /api/albums/{id}/share` | Generar un token de compartir |
 | `DELETE /api/albums/{id}/share` | Revocar un token de compartir |
 | `GET /api/shared/album/{id}?token=` | Ver un álbum compartido (sin autenticación) |
@@ -1003,7 +1023,8 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `GET /api/comparison/learned_weights` | Pesos sugeridos a partir de las comparaciones |
 | `POST /api/comparison/preview_score` | Vista previa con pesos personalizados |
 | `POST /api/comparison/suggest_filters` | Analizar conflictos de filtro |
-| `POST /api/comparison/override_category` | Anular la categoría de una foto |
+| `POST /api/comparison/override_category` | `[Edition]` Establece una anulación de categoría persistente por foto (validada contra los nombres de categoría configurados; sobrevive al siguiente recálculo) |
+| `POST /api/comparison/clear_category_override` | `[Edition]` Elimina la anulación de categoría de una foto; la evaluación de filtros decide de nuevo en el siguiente recálculo |
 | `POST /api/recalculate` | Recalcular las puntuaciones con los pesos actuales |
 
 ### Descarte de ráfagas
@@ -1031,6 +1052,8 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `GET /api/scan/status` | Comprobar el progreso del escaneo (estructura `progress`: `{phase, current, total, eta_seconds}`) |
 | `GET /api/scan/stream?token=<jwt>` | `[Superadmin]` Progreso en tiempo real mediante Server-Sent Events; el token se pasa como parámetro de consulta (la API `EventSource` no puede establecer cabeceras), con recurso automático a sondeo de `/status` |
 | `GET /api/scan/directories` | Listar los directorios de escaneo configurados |
+| `POST /api/scan/recompute` | `[Edition]` Dispara un recálculo agregado de toda la biblioteca (`--recompute-average`) como trabajo en segundo plano; protegido entre procesos por `facet.LibraryLock`, así que también rechaza con 409, indicando quién lo posee, si ya hay un escaneo o recálculo en curso desde una terminal, no solo desde otra pestaña del visor. A diferencia de `/start`, sus argumentos están fijados en el servidor y no toma ninguna entrada de la petición, por lo que no necesita superadmin |
+| `GET /api/scan/recompute_status` | `[Edition]` Sondea el progreso del recálculo: `{running, kind, progress, exit_code}` — omite el flujo de registro `output_lines` exclusivo de superadmin que devuelve `/status` |
 
 ### Gestión de caras
 
@@ -1059,6 +1082,9 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `GET /api/config/weight_snapshots` | Listar las instantáneas de pesos guardadas |
 | `POST /api/config/save_snapshot` | Guardar los pesos actuales como instantánea |
 | `POST /api/config/restore_weights` | Restaurar los pesos desde una instantánea |
+| `GET /api/config/category_priorities` | `[Edition]` Lista las categorías en su orden de prioridad (evaluación) actual |
+| `POST /api/config/category_priorities` | `[Edition]` Reordena la prioridad de evaluación de categorías; permuta los valores de prioridad existentes sobre el nuevo orden en lugar de renumerar |
+| `GET /api/config/scoring_contexts` | Lista los contextos de puntuación configurados, cada uno con su orden efectivo de categorías resuelto |
 
 ### Sugerencias de fusión
 

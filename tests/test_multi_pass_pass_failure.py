@@ -36,10 +36,11 @@ class _StubModelManager:
 
 
 class _StubScorer:
-    def __init__(self):
+    def __init__(self, db_path):
         self.config = ScoringConfig("scoring_config.json")
         self.face_analyzer = object()
         self.saved = []
+        self.db_path = db_path
 
     def calculate_aggregate_logic(self, metrics):
         return 7.5, "default"
@@ -67,7 +68,7 @@ def test_required_pass_failure_records_and_excludes(tmp_path, monkeypatch):
     init_database(db_path)
     scan_run = ScanRun.start(db_path, "multi-pass", {"directories": []}, 2)
 
-    scorer = _StubScorer()
+    scorer = _StubScorer(db_path)
     proc = ChunkedMultiPassProcessor(scorer, _StubModelManager(), {},
                                      on_error=scan_run.record_failure)
     proc.pass_groups = [["insightface"], ["clip"]]
@@ -101,7 +102,7 @@ def test_required_model_load_failure_records_instead_of_aborting(tmp_path, monke
     init_database(db_path)
     scan_run = ScanRun.start(db_path, "multi-pass", {"directories": []}, 2)
 
-    scorer = _StubScorer()
+    scorer = _StubScorer(db_path)
 
     class _OomModelManager(_StubModelManager):
         def load_model_only(self, name):

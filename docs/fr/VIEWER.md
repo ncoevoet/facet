@@ -271,6 +271,8 @@ Lorsque `viewer.features.show_scan_button` vaut `true` et que l'utilisateur a le
 
 C'est utile lorsque la visionneuse tourne sur la même machine que celle disposant d'un accès GPU pour le scoring.
 
+Un déclencheur apparenté mais distinct, `POST /api/scan/recompute`, réutilise le même verrou de tâche pour renoter les photos existantes sur place (sans nouveau fichier) — voir [Priorité des catégories et contextes de notation](#priorité-des-catégories-et-contextes-de-notation). Contrairement à ce bouton de scan réservé au superadmin, il est réservé au mode édition.
+
 ## Recherche sémantique
 
 Recherche hybride combinant la similarité des embeddings CLIP/SigLIP (70%) avec la correspondance textuelle FTS5 BM25 sur les légendes et les tags (30%). Tapez une requête comme « sunset over mountains » ou « child playing in snow » et la visionneuse renvoie les photos correspondantes classées par score combiné.
@@ -301,6 +303,10 @@ Enregistrez une combinaison de filtres (appareil, tag, personne, plage de dates,
 API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
 
 Contrôlé par `viewer.features.show_albums` (par défaut : `true`).
+
+### Contexte de notation
+
+Chaque album peut porter un contexte de notation qui détermine quelle catégorie l'emporte pour ses photos membres, indépendamment de l'ordre de priorité global — voir [Contextes de notation](CONFIGURATION.md#contextes-de-notation). `PUT /api/albums/{id}/scoring_context` (réservé au mode édition) le définit et matérialise le même contexte sur chaque photo qui est membre **à cet instant précis** ; `conflicts` dans la réponse compte les membres non manuels qui portaient déjà un contexte différent, `manual_skipped` compte les membres dont le remplacement manuel a été laissé intact (une attribution d'album ne convertit jamais silencieusement le remplacement manuel d'une photo en un contexte venant de l'album), et `updated` compte combien ont réellement été écrites. Un album manuel résout son appartenance à partir de ses lignes `album_photos` ; un album intelligent n'en a aucune, son appartenance est donc résolue en évaluant son `smart_filter_json` enregistré sur la base de données en direct. C'est la **définition de filtre** de l'album, pas « ce que la galerie affichait par hasard » : elle ignore délibérément les préférences d'affichage de la galerie qui masquent les clignements, les rafales, les doublons et les photos rejetées (globales, modifiables en cours d'exécution, et ne faisant pas partie de `smart_filter_json`), si bien que `updated` peut légitimement dépasser le nombre de photos que la propre vue galerie de l'album affiche lorsque ces bascules sont activées — et renvoie `updated: 0` avec un `warning` lorsque le filtre ne correspond actuellement à rien. Dans tous les cas, l'attribution est un instantané ponctuel, pas un abonnement en continu : une photo ajoutée *par la suite* à un album manuel hérite bien automatiquement du contexte, mais une photo qui correspond *plus tard* au filtre d'un album intelligent n'hérite **pas** rétroactivement du contexte — le contexte doit être redéfini (`PUT`) pour capter les nouvelles correspondances. `DELETE /api/albums/{id}/scoring_context` (proposé dans la boîte de dialogue comme une action « Effacer le contexte », distincte du choix du contexte `default`, qui attribue `default` au lieu d'effacer) annule l'attribution exactement sur les membres que cet album avait marqués, sans toucher au remplacement manuel propre à une photo — et lorsqu'une photo ainsi désattribuée est *encore* membre d'un autre album qui déclare lui-même un contexte, elle est réattribuée avec le contexte de cet autre album plutôt que d'être laissée sans catégorie (cette redérivation se limite aux photos précisément retirées d'un album ; la suppression ou l'effacement complet d'un album ne le tente pas). `GET /api/albums/{id}/suggested_context` en propose un à partir du `narrative_moment` dominant détecté de l'album (via la liste `suggest_from_moments` de chaque contexte), avec un niveau de confiance `share` — cet appel n'écrit rien ; l'attribution ci-dessus doit toujours être confirmée explicitement. Un recalcul (`POST /api/scan/recompute`) est nécessaire pour que le nouveau contexte modifie réellement la catégorie stockée d'une photo.
 
 ### Partage de photos
 
@@ -607,9 +613,20 @@ Affiche les poids appris des comparaisons face aux poids actuels, côte à côte
 
 Enregistrez les poids actuels sous forme d'instantané nommé et restaurez n'importe quel instantané antérieur.
 
+### Priorité des catégories et contextes de notation
+
+Les catégories sont évaluées par ordre de `priority` croissant et la première correspondance de filtre l'emporte — voir [Évaluation des filtres](SCORING.md#fonctionnement-du-scoring) et [Contextes de notation](CONFIGURATION.md#contextes-de-notation) pour le modèle complet. Deux leviers réservés au mode édition permettent de gérer cela sans éditer `scoring_config.json` à la main :
+
+- **Priorité globale** — `GET/POST /api/config/category_priorities` liste et réorganise l'ordre d'évaluation de base. `POST` prend une liste ordonnée complète de noms de catégorie et permute les valeurs de priorité existantes selon cet ordre, de sorte que le multi-ensemble (et son unicité) soit préservé plutôt que renuméroté.
+- **Contextes de notation** — `GET /api/config/scoring_contexts` liste les préréglages configurés (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) avec, pour chacun, son ordre effectif résolu. Un contexte promeut certaines catégories en tête et en exclut d'autres purement et simplement sans toucher à l'ordre global, et s'attribue par album (voir [Contexte de notation](#contexte-de-notation) dans la section Albums) ou par photo via le remplacement de catégorie ci-dessous.
+
+Aucun des deux leviers ne renote les photos par lui-même. Après avoir réorganisé les priorités, attribué un contexte, ou défini un remplacement par photo, déclenchez un recalcul (`POST /api/scan/recompute`, réservé au mode édition) puis interrogez `GET /api/scan/recompute_status` pour obtenir `{running, kind, progress, exit_code}`. `/scan/start` comme `/scan/recompute` sont tous deux protégés au niveau inter-processus par `facet.LibraryLock`, pas seulement par le verrou en mémoire de la visionneuse (voir [Réorganiser la priorité globale](CONFIGURATION.md#réorganiser-la-priorité-globale)) : si un recalcul ou un scan est déjà en cours depuis un terminal, la visionneuse refuse toute nouvelle tâche avec un 409 nommant le détenteur — une tâche en ligne de commande et une tâche déclenchée par la visionneuse ne peuvent donc plus entrer en collision. Si `normalization.per_category` est activé, un recalcul unique après un changement affectant les catégories ne converge pas complètement — voir [Normalisation](CONFIGURATION.md#normalisation).
+
 ### Remplacement de catégorie
 
-Pour réaffecter la catégorie d'une photo depuis la vue de comparaison : éditez le badge de catégorie, sélectionnez une catégorie cible, lancez « Analyser les conflits de filtres » pour voir quels filtres l'excluent, puis appliquez le remplacement.
+Pour réaffecter la catégorie d'une photo depuis la vue de comparaison : éditez le badge de catégorie, sélectionnez une catégorie cible, lancez « Analyser les conflits de filtres » pour voir quels filtres l'excluent, puis appliquez le remplacement. Le remplacement est validé par rapport aux noms de catégorie configurés (`POST /api/comparison/override_category`) et est désormais conservé dans la table annexe `photo_scoring_overrides` — contrairement à avant, il survit au prochain recalcul au lieu d'être silencieusement perdu, et la photo conserve la catégorie attribuée manuellement jusqu'à ce qu'elle soit explicitement réinitialisée (`POST /api/comparison/clear_category_override`).
+
+Les deux mêmes actions sont disponibles dans la visionneuse photo sous **Définir la catégorie de notation…** / **Supprimer le remplacement** (mode édition), aux côtés d'un panneau repliable **pourquoi cette photo n'est-elle pas dans une autre catégorie ?**. Choisissez-y une catégorie cible et le panneau indique quels filtres excluent actuellement la photo et ce que chacun devrait devenir — par exemple « Augmenter shutter_speed_max de 0,02 à 0,033 ». C'est le moyen le plus rapide de découvrir qu'une catégorie est inaccessible pour une photo donnée plutôt que simplement devancée, ce qu'un réordonnancement seul ne peut pas corriger. Ce panneau s'appuie sur `POST /api/comparison/suggest_filters`.
 
 ## Statistiques EXIF
 
@@ -936,6 +953,9 @@ La documentation interactive de l'API est disponible à `/api/docs` (Swagger UI)
 | `GET /api/albums/{id}/photos` | Lister les photos d'un album (paginées) |
 | `POST /api/albums/{id}/photos` | Ajouter des photos à un album |
 | `DELETE /api/albums/{id}/photos` | Retirer des photos d'un album |
+| `PUT /api/albums/{id}/scoring_context` | `[Edition]` Définir le contexte de notation de l'album ; le matérialise sur les membres correspondant au filtre de l'album à cet instant, en laissant de côté le remplacement manuel de chaque membre (les albums intelligents résolvent `smart_filter_json` en direct), renvoie `{updated, conflicts, manual_skipped}` |
+| `DELETE /api/albums/{id}/scoring_context` | `[Edition]` Effacer le contexte de notation de l'album et annuler l'attribution sur exactement les membres qu'il avait marqués, renvoie `{ok, cleared}` |
+| `GET /api/albums/{id}/suggested_context` | Suggérer un contexte de notation à partir du `narrative_moment` dominant de l'album (suggestion uniquement, n'écrit rien) |
 | `POST /api/albums/{id}/share` | Générer un jeton de partage |
 | `DELETE /api/albums/{id}/share` | Révoquer un jeton de partage |
 | `GET /api/shared/album/{id}?token=` | Consulter un album partagé (sans authentification) |
@@ -1005,7 +1025,8 @@ La documentation interactive de l'API est disponible à `/api/docs` (Swagger UI)
 | `GET /api/comparison/learned_weights` | Poids suggérés à partir des comparaisons |
 | `POST /api/comparison/preview_score` | Aperçu avec des poids personnalisés |
 | `POST /api/comparison/suggest_filters` | Analyser les conflits de filtres |
-| `POST /api/comparison/override_category` | Remplacer la catégorie d'une photo |
+| `POST /api/comparison/override_category` | `[Edition]` Définir un remplacement de catégorie persistant par photo (validé par rapport aux noms de catégorie configurés ; survit au prochain recalcul) |
+| `POST /api/comparison/clear_category_override` | `[Edition]` Supprimer le remplacement de catégorie d'une photo ; l'évaluation des filtres redécide au prochain recalcul |
 | `POST /api/recalculate` | Recalculer les scores avec les poids actuels |
 
 ### Tri de rafale
@@ -1033,6 +1054,8 @@ La documentation interactive de l'API est disponible à `/api/docs` (Swagger UI)
 | `GET /api/scan/status` | Vérifier la progression du scan (champ structuré `progress` : `{phase, current, total, eta_seconds}`) |
 | `GET /api/scan/stream?token=<jwt>` | `[Superadmin]` Progression en temps réel via Server-Sent Events ; le jeton est passé en paramètre de requête (l'API `EventSource` ne peut pas définir d'en-têtes), avec repli automatique sur le polling de `/status` |
 | `GET /api/scan/directories` | Lister les répertoires de scan configurés |
+| `POST /api/scan/recompute` | `[Edition]` Déclencher un recalcul des agrégats sur toute la bibliothèque (`--recompute-average`) comme tâche en arrière-plan ; protégé au niveau inter-processus par `facet.LibraryLock`, il refuse donc aussi avec un 409 nommant le détenteur si un scan ou un recalcul est déjà en cours depuis un terminal, pas seulement depuis un autre onglet de la visionneuse. Contrairement à `/start`, ses arguments sont fixés côté serveur et n'acceptent aucune entrée de la requête, il ne nécessite donc pas le rôle superadmin |
+| `GET /api/scan/recompute_status` | `[Edition]` Interroger la progression du recalcul : `{running, kind, progress, exit_code}` — omet le flux de journal `output_lines` réservé au superadmin que renvoie `/status` |
 
 ### Gestion des visages
 
@@ -1061,6 +1084,9 @@ La documentation interactive de l'API est disponible à `/api/docs` (Swagger UI)
 | `GET /api/config/weight_snapshots` | Lister les instantanés de poids enregistrés |
 | `POST /api/config/save_snapshot` | Enregistrer les poids actuels comme instantané |
 | `POST /api/config/restore_weights` | Restaurer les poids depuis un instantané |
+| `GET /api/config/category_priorities` | `[Edition]` Lister les catégories dans leur ordre de priorité (évaluation) actuel |
+| `POST /api/config/category_priorities` | `[Edition]` Réorganiser la priorité d'évaluation des catégories ; permute les valeurs de priorité existantes selon le nouvel ordre plutôt que de les renuméroter |
+| `GET /api/config/scoring_contexts` | Lister les contextes de notation configurés, chacun avec son ordre de catégorie effectif résolu |
 
 ### Suggestions de fusion
 

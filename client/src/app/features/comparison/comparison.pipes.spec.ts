@@ -1,4 +1,4 @@
-import { FilterValueFormatPipe, ModifierValueFormatPipe, WeightIconPipe, WeightLabelKeyPipe } from './comparison.pipes';
+import { EtaDurationPipe, FilterValueFormatPipe, ModifierValueFormatPipe, WeightIconPipe, WeightLabelKeyPipe } from './comparison.pipes';
 
 describe('WeightIconPipe', () => {
   const pipe = new WeightIconPipe();
@@ -114,6 +114,31 @@ describe('FilterValueFormatPipe', () => {
 
   it('returns empty string for unknown key', () => {
     expect(pipe.transform(42, 'unknown_field')).toBe('');
+  });
+});
+
+describe('EtaDurationPipe', () => {
+  const pipe = new EtaDurationPipe();
+
+  it('returns empty string for null/undefined', () => {
+    expect(pipe.transform(null)).toBe('');
+    expect(pipe.transform(undefined)).toBe('');
+  });
+
+  it('returns empty string for NaN or negative', () => {
+    expect(pipe.transform(NaN)).toBe('');
+    expect(pipe.transform(-5)).toBe('');
+  });
+
+  it('formats sub-minute durations in seconds', () => {
+    expect(pipe.transform(45)).toBe('45s');
+    expect(pipe.transform(0.4)).toBe('1s');
+  });
+
+  it('formats minute-plus durations rounded to the nearest minute', () => {
+    expect(pipe.transform(480)).toBe('8 min');
+    expect(pipe.transform(75)).toBe('1 min');
+    expect(pipe.transform(60)).toBe('1 min');
   });
 });
 

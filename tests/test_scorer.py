@@ -325,3 +325,293 @@ class TestDeterminePhotoCategory:
         photo = {'face_count': b'\x00', 'face_ratio': b'\x01'}
         category = scorer._determine_photo_category(photo, scorer.config)
         assert isinstance(category, str)
+
+    def test_category_override_wins_over_matching_filters(self, scorer):
+        # This photo's filters resolve to 'silhouette' (is_silhouette + a
+        # face present), matching the Reddit report's dance-photo bug: a
+        # sticky category_override must win over filter evaluation.
+        photo = {'tags': '', 'face_count': 1, 'face_ratio': 0.05, 'is_silhouette': 1}
+        baseline = scorer._determine_photo_category(photo, scorer.config)
+        assert baseline == 'silhouette'
+
+        overridden = dict(photo, category_override='sports')
+        category = scorer._determine_photo_category(overridden, scorer.config)
+        assert category == 'sports'
+
+    def test_category_override_wins_even_when_cfg_is_none(self, scorer):
+        # Regression: the old `if category_override and cfg:` guard silently
+        # dropped an explicit override on the "shouldn't happen" cfg=None
+        # fallback branch, letting filter evaluation win instead.
+        photo = {'tags': '', 'face_count': 1, 'face_ratio': 0.05, 'is_silhouette': 1, 'category_override': 'sports'}
+        category = scorer._determine_photo_category(photo, None)
+        assert category == 'sports'
+
+    def test_unknown_category_override_falls_through_to_filters(self, scorer):
+        photo = {
+            'tags': '', 'face_count': 1, 'face_ratio': 0.05, 'is_silhouette': 1,
+            'category_override': 'not_a_real_category',
+        }
+        category = scorer._determine_photo_category(photo, scorer.config)
+        assert category == 'silhouette'
+
+    def test_scoring_context_passed_through_to_determine_category(self, scorer):
+        class SpyConfig:
+            def __init__(self):
+                self.contexts_seen = []
+
+            def get_categories(self):
+                return [{'name': 'default'}]
+
+            def determine_category(self, photo_data, context=None):
+                self.contexts_seen.append(context)
+                return 'default'
+
+        spy = SpyConfig()
+        photo = {'tags': '', 'face_count': 0, 'face_ratio': 0.0, 'scoring_context': 'action_stage'}
+        category = scorer._determine_photo_category(photo, spy)
+        assert category == 'default'
+        assert spy.contexts_seen == ['action_stage']
+
+    def test_category_override_wins_over_scoring_context(self, scorer):
+        # A valid category_override must short-circuit before scoring_context is
+        # ever consulted -- the spy's determine_category (which reads context)
+        # must not be called at all.
+        class SpyConfig:
+            def __init__(self):
+                self.contexts_seen = []
+
+            def get_categories(self):
+                return [{'name': 'default'}, {'name': 'sports'}]
+
+            def determine_category(self, photo_data, context=None):
+                self.contexts_seen.append(context)
+                return 'default'
+
+        spy = SpyConfig()
+        photo = {
+            'tags': '', 'face_count': 0, 'face_ratio': 0.0,
+            'category_override': 'sports', 'scoring_context': 'action_stage',
+        }
+        category = scorer._determine_photo_category(photo, spy)
+        assert category == 'sports'
+        assert spy.contexts_seen == []
+
+
+# ---------------------------------------------------------------------------
+# update_all_aggregates — sticky override survives a recompute
+# ---------------------------------------------------------------------------
+
+class TestUpdateAllAggregatesHonorsOverride:
+    """Regression test for the bug this feature fixes: a per-photo category
+    override used to be silently dropped on every --recompute-average pass
+    because update_all_aggregates never looked at photo_scoring_overrides.
+    """
+
+    # A photo whose filters resolve to 'silhouette' (is_silhouette + a face
+    # present) — the same shape as the Reddit report's dance-photo bug.
+    _RECALC_COLUMNS = {
+        'aesthetic': 7.0, 'face_count': 1, 'face_quality': 5.0, 'eye_sharpness': 5.0,
+        'face_sharpness': 5.0, 'face_ratio': 0.05, 'tech_sharpness': 7.0,
+        'color_score': 7.0, 'exposure_score': 7.0, 'comp_score': 6.0,
+        'isolation_bonus': 1.0, 'is_blink': 0, 'iso': 100, 'f_stop': 8.0,
+        'shadow_clipped': 0, 'highlight_clipped': 0, 'is_silhouette': 1,
+        'histogram_spread': 0.0, 'is_monochrome': 0, 'contrast_score': 5.0,
+        'tags': '', 'leading_lines_score': 0.0, 'histogram_bimodality': 1.0,
+        'raw_sharpness_variance': 100.0, 'raw_color_entropy': 5.0,
+        'raw_eye_sharpness': 5.0, 'shutter_speed': '1/50', 'is_group_portrait': 0,
+        'mean_luminance': 0.5, 'scoring_model': 'clip-mlp', 'quality_score': 5.0,
+        'noise_sigma': 1.0, 'mean_saturation': 0.5, 'power_point_score': 5.0,
+        'dynamic_range_stops': 8.0, 'topiq_score': 5.0, 'aesthetic_iaa': 5.0,
+        'face_quality_iqa': 5.0, 'liqe_score': 5.0, 'subject_sharpness': 5.0,
+        'subject_prominence': 5.0, 'subject_placement': 5.0, 'bg_separation': 5.0,
+    }
+    _PATH = '/dance/a.jpg'
+
+    @pytest.fixture
+    def facet_with_photo(self, tmp_path):
+        from db import init_database, get_connection
+        from processing.scorer import Facet
+
+        db_path = str(tmp_path / 'sticky.db')
+        init_database(db_path)
+        columns = ['path'] + list(self._RECALC_COLUMNS.keys())
+        values = [self._PATH] + list(self._RECALC_COLUMNS.values())
+        placeholders = ','.join('?' * len(columns))
+        with get_connection(db_path, row_factory=False) as conn:
+            conn.execute(
+                f"INSERT INTO photos ({','.join(columns)}) VALUES ({placeholders})",
+                values,
+            )
+            conn.commit()
+        return Facet(db_path=db_path, lightweight=True)
+
+    def test_override_survives_recompute_and_changes_the_aggregate(self, facet_with_photo):
+        from db import get_connection
+        from db.scoring_overrides import set_photo_scoring_override
+
+        facet = facet_with_photo
+
+        facet.update_all_aggregates(use_embeddings=False)
+        with get_connection(facet.db_path, row_factory=False) as conn:
+            baseline_category, baseline_aggregate = conn.execute(
+                "SELECT category, aggregate FROM photos WHERE path = ?", (self._PATH,)
+            ).fetchone()
+        assert baseline_category == 'silhouette'
+
+        set_photo_scoring_override(facet.db_path, self._PATH, category_override='sports', source='manual')
+
+        facet.update_all_aggregates(use_embeddings=False)
+        with get_connection(facet.db_path, row_factory=False) as conn:
+            overridden_category, overridden_aggregate = conn.execute(
+                "SELECT category, aggregate FROM photos WHERE path = ?", (self._PATH,)
+            ).fetchone()
+
+        assert overridden_category == 'sports'
+        assert overridden_aggregate != baseline_aggregate
+
+
+# ---------------------------------------------------------------------------
+# update_all_aggregates — recalc_cols carries every documented filter field
+# ---------------------------------------------------------------------------
+
+class TestUpdateAllAggregatesCarriesFocalLength:
+    """Regression test: recalc_cols (the SELECT feeding --recompute-average)
+    omitted focal_length, so a category using the documented focal_length_min
+    / focal_length_max filter could never match on the recompute path even
+    though the same field is honored when a photo is first scored — clearing
+    an override could assign one category and the next recompute would
+    silently reassign a different one.
+    """
+
+    _PATH = '/tele/a.jpg'
+    _FOCAL_LENGTH = 400.0
+
+    @pytest.fixture
+    def config_with_focal_length_category(self, tmp_path):
+        import json
+
+        with open('scoring_config.json') as f:
+            config = json.load(f)
+        base_category = next(c for c in config['categories'] if c['name'] == 'macro')
+        telephoto_category = dict(base_category, name='telephoto', priority=0,
+                                   filters={'focal_length_min': 200})
+        config['categories'].append(telephoto_category)
+        config_path = tmp_path / 'scoring_config.json'
+        config_path.write_text(json.dumps(config))
+        return str(config_path)
+
+    @pytest.fixture
+    def facet_with_telephoto_photo(self, tmp_path, config_with_focal_length_category):
+        from db import init_database, get_connection
+        from processing.scorer import Facet
+
+        db_path = str(tmp_path / 'focal_length.db')
+        init_database(db_path)
+        columns = ['path', 'focal_length'] + list(TestUpdateAllAggregatesHonorsOverride._RECALC_COLUMNS.keys())
+        values = [self._PATH, self._FOCAL_LENGTH] + list(TestUpdateAllAggregatesHonorsOverride._RECALC_COLUMNS.values())
+        placeholders = ','.join('?' * len(columns))
+        with get_connection(db_path, row_factory=False) as conn:
+            conn.execute(
+                f"INSERT INTO photos ({','.join(columns)}) VALUES ({placeholders})",
+                values,
+            )
+            conn.commit()
+        return Facet(db_path=db_path, config_path=config_with_focal_length_category, lightweight=True)
+
+    def test_recompute_honors_a_focal_length_min_category(self, facet_with_telephoto_photo):
+        from db import get_connection
+
+        facet = facet_with_telephoto_photo
+        facet.update_all_aggregates(use_embeddings=False)
+
+        with get_connection(facet.db_path, row_factory=False) as conn:
+            category, = conn.execute(
+                "SELECT category FROM photos WHERE path = ?", (self._PATH,)
+            ).fetchone()
+
+        assert category == 'telephoto'
+
+
+# ---------------------------------------------------------------------------
+# score_photo_from_pil — the --dry-run preview path honors the sticky override
+# ---------------------------------------------------------------------------
+
+class TestScorePhotoFromPilHonorsOverride:
+    """Regression test: score_photo_from_pil (reached via process_single_photo,
+    the --dry-run preview path) never looked up photo_scoring_overrides, so a
+    dry-run preview could show a category a real scan would not have produced
+    for a photo with a sticky category_override/scoring_context.
+    """
+
+    def test_scoring_context_and_category_override_reach_calculate_aggregate_logic(self, tmp_path):
+        from unittest import mock
+
+        import cv2
+        import numpy as np
+        from PIL import Image as PILImage
+
+        from config import ScoringConfig
+        from db import init_database, get_connection
+        from db.scoring_overrides import set_photo_scoring_override
+        from processing.scorer import Facet, _load_image_modules
+
+        _load_image_modules()
+
+        db_path = str(tmp_path / 'dryrun.db')
+        init_database(db_path)
+        photo_path = tmp_path / 'a.jpg'
+        PILImage.new('RGB', (32, 32), color=(120, 130, 140)).save(photo_path)
+        resolved_path = str(photo_path.resolve())
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO photos (path) VALUES (?)", (resolved_path,))
+            conn.commit()
+        set_photo_scoring_override(
+            db_path, resolved_path, category_override='sports', scoring_context='action_stage'
+        )
+
+        recorded_metrics = {}
+        original_calculate = Facet.calculate_aggregate_logic
+
+        def spy_calculate(self, m, config=None):
+            recorded_metrics.update(m)
+            return original_calculate(self, m, config)
+
+        face_res = {
+            'face_count': 0, 'face_area': 0, 'face_quality': 0, 'eye_sharpness': 0,
+            'face_sharpness': 0, 'bbox': None, 'is_blink': 0, 'face_details': [],
+            'max_face_confidence': 0, 'is_group_portrait': 0, 'raw_eye_sharpness': 0,
+        }
+
+        scorer = Facet.__new__(Facet)
+        scorer.db_path = db_path
+        scorer.config = ScoringConfig()
+        scorer.tagger = None
+        scorer.samp_scorer = None
+        scorer.vlm_composition = None
+        scorer.tech_analyzer = mock.MagicMock()
+        scorer.tech_analyzer.get_sharpness_data.return_value = {'normalized': 7.0, 'raw_variance': 100.0}
+        scorer.tech_analyzer.get_color_harmony_data.return_value = {'normalized': 7.0, 'raw_entropy': 5.0}
+        scorer.tech_analyzer.get_histogram_data.return_value = {
+            'exposure_score': 7.0, 'shadow_clipped': 0, 'highlight_clipped': 0,
+            'spread': 10.0, 'mean_luminance': 0.5, 'bimodality': 1.0,
+            'histogram_bytes': b'\x00' * (256 * 4),
+        }
+        scorer.tech_analyzer.detect_monochrome.return_value = {'is_monochrome': 0, 'mean_saturation': 0.5}
+        scorer.tech_analyzer.get_dynamic_range.return_value = {'dynamic_range_stops': 8.0}
+        scorer.tech_analyzer.get_noise_estimate.return_value = {'noise_sigma': 1.0}
+        scorer.tech_analyzer.get_contrast_score.return_value = {'contrast_score': 5.0}
+        scorer.face_analyzer = mock.MagicMock()
+        scorer.face_analyzer.analyze_faces.return_value = face_res
+        scorer.get_aesthetic_and_quality = lambda pil_img: (7.0, None, 5.0, 'clip-mlp')
+        scorer.get_exif_data = lambda path: {'iso': None, 'f_stop': None}
+        scorer.calculate_aggregate_logic = spy_calculate.__get__(scorer, Facet)
+
+        pil_img = PILImage.open(photo_path).convert('RGB')
+        img_cv = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+
+        res = scorer.score_photo_from_pil(pil_img, img_cv, str(photo_path))
+
+        assert res is not None
+        assert recorded_metrics['scoring_context'] == 'action_stage'
+        assert recorded_metrics['category_override'] == 'sports'
+        assert res['category'] == 'sports'

@@ -4,7 +4,9 @@ Facet - AI-powered photo quality assessment system.
 
 CLI entry point. The scoring engine is in processing/scorer.py.
 """
+import atexit
 import os
+import signal
 import sys
 import time
 
@@ -558,6 +560,633 @@ def run_junk_detection(db_path, config, model_manager=None, only_missing=True,
     }
 
 
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+LIBRARY_LOCK_DIRNAME = '.facet_cache'
+LIBRARY_LOCK_FILENAME = 'library.lock'
+LIBRARY_LOCK_FILE_MODE = 0o644
+LIBRARY_LOCK_READ_BYTES = 4096
+LIBRARY_LOCK_RETRY_ATTEMPTS = 3
+LIBRARY_LOCK_RETRY_SECONDS = 0.05
+LIBRARY_LOCK_OVERRIDE_FLAG = '--force-library-lock'
+JOB_ORIGIN_ENV_VAR = 'FACET_JOB_ORIGIN'
+LIBRARY_JOB_SCAN = 'scan'
+LIBRARY_JOB_RECOMPUTE = 'recompute'
+UNKNOWN_LIBRARY_JOB = {'pid': None, 'kind': 'library job', 'origin': 'unknown'}
+DEFAULT_SCAN_STALE_SECONDS = 120
+
+LIBRARY_JOB_ARGS = (
+    'backfill_focal_35mm',
+    'cluster_faces_force',
+    'cluster_faces_incremental',
+    'cluster_faces_incremental_named',
+    'detect_duplicates',
+    'detect_junk',
+    'detect_moments',
+    'extract_faces_gpu_force',
+    'extract_faces_gpu_incremental',
+    'extract_gps',
+    'fix_thumbnail_rotation',
+    'generate_captions',
+    'import_sidecars',
+    'recompute_average',
+    'recompute_blinks',
+    'recompute_burst',
+    'recompute_category',
+    'recompute_colors',
+    'recompute_composition_cpu',
+    'recompute_composition_gpu',
+    'recompute_distortions',
+    'recompute_embeddings',
+    'recompute_eyes_expression',
+    'recompute_face_signals',
+    'recompute_form',
+    'recompute_iqa',
+    'recompute_junk',
+    'recompute_moments',
+    'recompute_ocr',
+    'recompute_saliency',
+    'recompute_skin_tone',
+    'recompute_tags',
+    'recompute_tags_vlm',
+    'refill_face_thumbnails_force',
+    'refill_face_thumbnails_incremental',
+    'rescan_gps',
+    'score_topiq',
+    'translate_captions',
+)
+
+
+class LibraryLockError(RuntimeError):
+    """Raised when the library lock is held elsewhere, or cannot be used."""
+
+
+def _library_lock_path(db_path):
+    db_dir = os.path.dirname(os.path.abspath(db_path))
+    return os.path.join(db_dir, LIBRARY_LOCK_DIRNAME, LIBRARY_LOCK_FILENAME)
+
+
+def _take_os_lock(fd, attempts=1):
+    """True when this open file description now owns the exclusive OS lock.
+
+    A job retries: ``_read_holder`` also grabs the lock for the microseconds
+    it takes to read the payload, and a real conflict lasts minutes, so one
+    unlucky overlap with a viewer poll must not refuse a job outright.
+    """
+    for attempt in range(attempts):
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            if attempt + 1 < attempts:
+                time.sleep(LIBRARY_LOCK_RETRY_SECONDS)
+    return False
+
+
+def _decode_holder(raw):
+    try:
+        return json.loads(raw)
+    except ValueError:
+        return dict(UNKNOWN_LIBRARY_JOB)
+
+
+def _read_holder(lock_path):
+    """Payload of the process holding *lock_path*, or None when it is free."""
+    if fcntl is None:
+        return None
+    try:
+        fd = os.open(lock_path, os.O_RDONLY)
+    except OSError:
+        return None
+    try:
+        if _take_os_lock(fd):
+            return None
+        return _decode_holder(os.read(fd, LIBRARY_LOCK_READ_BYTES))
+    finally:
+        os.close(fd)
+
+
+def library_job_holder(db_path):
+    """Info about the process holding the library lock, or None."""
+    return _read_holder(_library_lock_path(db_path))
+
+
+def library_job_conflict_message(holder, lock_path=None):
+    started_at = holder.get('started_at')
+    running_for = f", running for {int(max(0, time.time() - started_at))}s" if started_at else ""
+    message = (
+        f"A {holder.get('kind') or UNKNOWN_LIBRARY_JOB['kind']} is already running "
+        f"(pid {holder.get('pid') or 'unknown'}, started from "
+        f"{holder.get('origin') or 'unknown'}{running_for})."
+    )
+    return f"{message} Lock file: {lock_path}" if lock_path else message
+
+
+def scan_stale_seconds(config):
+    """Heartbeat age past which a ``scan_runs`` row stops counting as live."""
+    return config.get('processing', {}).get('scan_stale_seconds', DEFAULT_SCAN_STALE_SECONDS)
+
+
+class LibraryLock:
+    """Cross-process mutex for jobs that rewrite the whole ``photos`` table.
+
+    ``--recompute-average`` batches ~126k UPDATEs into one long transaction
+    (``processing/scorer.py: update_all_aggregates``); a second writer that
+    lands mid-transaction blocks for ``busy_timeout`` and then dies with
+    ``sqlite3.OperationalError``. Every library-rewriting entry point holds
+    this lock -- the scan for its whole run, post-processing tail included --
+    so the two can never overlap.
+
+    The mutex is the kernel's ``flock`` on
+    ``<db_dir>/.facet_cache/library.lock`` (the cache-dir convention from
+    ``api/routers/cull_preview.py``), NOT the file's existence: the OS drops
+    the lock when the holder dies or the machine reboots, so a leftover file
+    can never wedge a later job, a recycled PID means nothing, and a
+    half-written payload can never read as "free". The JSON payload is
+    descriptive only -- who holds it, from where, since when.
+    """
+
+    def __init__(self, db_path, kind, force=False):
+        self.lock_path = _library_lock_path(db_path)
+        self.kind = kind
+        self.force = force
+        self.origin = os.environ.get(JOB_ORIGIN_ENV_VAR, 'cli')
+        self._fd = None
+        self._prev_sigterm_handler = None
+
+    def acquire(self):
+        try:
+            self._acquire()
+        except LibraryLockError as ex:
+            if not self.force:
+                raise
+            logger.warning("%s Running anyway (%s).", ex, LIBRARY_LOCK_OVERRIDE_FLAG)
+        return self
+
+    def _acquire(self):
+        if fcntl is None:
+            logger.warning(
+                "No OS file locking on this platform (fcntl unavailable); "
+                "library jobs run unguarded.")
+            return
+        try:
+            os.makedirs(os.path.dirname(self.lock_path), exist_ok=True)
+            fd = os.open(self.lock_path, os.O_CREAT | os.O_RDWR, LIBRARY_LOCK_FILE_MODE)
+        except OSError as ex:
+            raise LibraryLockError(
+                f"Cannot use the library lock file {self.lock_path}: {ex}. Fix that path, "
+                f"or re-run with {LIBRARY_LOCK_OVERRIDE_FLAG} to run unguarded."
+            ) from ex
+        if not _take_os_lock(fd, attempts=LIBRARY_LOCK_RETRY_ATTEMPTS):
+            holder = _decode_holder(os.read(fd, LIBRARY_LOCK_READ_BYTES))
+            os.close(fd)
+            raise LibraryLockError(library_job_conflict_message(holder, self.lock_path))
+        self._fd = fd
+        self._write_payload()
+        self._prev_sigterm_handler = signal.signal(signal.SIGTERM, signal.default_int_handler)
+        atexit.register(self.release)
+
+    def _write_payload(self):
+        os.ftruncate(self._fd, 0)
+        os.lseek(self._fd, 0, os.SEEK_SET)
+        os.write(self._fd, json.dumps({
+            'pid': os.getpid(), 'kind': self.kind, 'origin': self.origin,
+            'started_at': time.time(),
+        }).encode())
+
+    def release(self):
+        if self._fd is None:
+            return
+        atexit.unregister(self.release)
+        signal.signal(signal.SIGTERM, self._prev_sigterm_handler)
+        fd, self._fd = self._fd, None
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+    def __enter__(self):
+        return self.acquire()
+
+    def __exit__(self, exc_type, exc, tb):
+        self.release()
+        return False
+
+
+def _acquire_library_lock(args, kind):
+    """Hold the library lock for this job, or exit(1) with a clear message."""
+    lock = LibraryLock(args.db, kind=kind, force=args.force_library_lock)
+    try:
+        return lock.acquire()
+    except LibraryLockError as ex:
+        logger.error("%s", ex)
+        exit(1)
+
+
+def _library_job_requested(args):
+    """True when the parsed args select a job that rewrites the library."""
+    return any(getattr(args, name) for name in LIBRARY_JOB_ARGS)
+
+
+def _run_scan(args, resumed_run):
+    """Enumerate, score and post-process a scan, under the library lock.
+
+    Extracted from ``main`` so the whole run -- the directory walk, the
+    scoring loop AND the post-processing tail (bursts, tagging, moments,
+    junk, the vec population) -- sits inside one held ``LibraryLock``.
+    ``scan_run.finish('completed')`` fires before that tail, so a lock
+    scoped to the scoring loop alone would leave those whole-library
+    writers racing a ``--recompute-average``.
+
+    ``main`` takes the lock before calling this, ahead of any directory
+    enumeration, so a conflict costs nothing on a large library.
+    """
+    from processing.scorer import Facet, process_bursts, process_single_photo
+
+    # Full mode - initialize with GPU models for photo processing
+    # Multi-pass mode skips eager loading of heavy GPU models (CLIP, SAMP-Net)
+    # since multi-pass loads its own models per pass via ModelManager
+    use_multi_pass = not (args.dry_run or args.single_pass)
+    scorer = Facet(db_path=args.db, config_path=args.config, multi_pass=use_multi_pass)
+    _log_scan_db_destination(scorer.db_path)
+
+    # Initialise plugin manager for scoring events
+    from plugins import init_global_plugin_manager
+    init_global_plugin_manager(config=scorer.config.config)
+
+    # 1. Gather files recursively from subfolders (or single files)
+    valid_suffixes = {'.jpg', '.jpeg'} | HEIF_EXTENSIONS | RAW_EXTENSIONS
+    all_files = []
+
+    # Get scanning settings
+    skip_hidden = scorer.config.get_scanning_settings().get('skip_hidden_directories', True)
+
+    for path_str in args.photo_paths:
+        base_path = Path(path_str).resolve()
+        if not base_path.exists():
+            logger.warning("Path does not exist: %s", path_str)
+            continue
+        if base_path.is_file():
+            # Single file - check if it's a valid image type
+            if base_path.suffix.lower() in valid_suffixes:
+                all_files.append(base_path)
+            else:
+                logger.warning("Unsupported file type: %s", path_str)
+        else:
+            # Directory - use os.walk to traverse, optionally skipping hidden directories
+            for root, dirs, files in os.walk(base_path):
+                # Prune hidden directories if configured
+                if skip_hidden:
+                    dirs[:] = [d for d in dirs if not d.startswith('.')]
+
+                # Add matching files
+                for f in files:
+                    p = Path(root) / f
+                    if p.suffix.lower() in valid_suffixes:
+                        all_files.append(p)
+
+    # Deduplicate (needed for case-insensitive filesystems like Windows)
+    all_files = list({f.resolve(): f for f in all_files}.values())
+
+    # --retry-failed: the worklist comes from scan_failures, not the dir walk
+    if args.retry_failed:
+        from processing.scan_state import get_failed_paths
+        scope = 'all' if args.retry_failed == 'all' else 'last'
+        failed = [Path(p) for p in get_failed_paths(args.db, scope)]
+        all_files = [p for p in failed if p.exists()]
+        missing = len(failed) - len(all_files)
+        logger.info("Retrying %d failed files (%d no longer on disk)", len(all_files), missing)
+
+    # Identify JPEGs to avoid double-processing if RAW+JPEG pairs exist
+    jpeg_like = {'.jpg', '.jpeg'} | HEIF_EXTENSIONS
+    jpegs_stems = {f.stem.lower() for f in all_files if f.suffix.lower() in jpeg_like}
+    if args.retry_failed:
+        unscanned = {str(f.resolve()) for f in all_files}
+    elif args.force_since:
+        from processing.scan_state import filter_paths_scanned_before
+        unscanned = filter_paths_scanned_before(
+            args.db, (str(f.resolve()) for f in all_files), args.force_since,
+        )
+    elif args.force:
+        unscanned = {str(f.resolve()) for f in all_files}
+        if args.resume and resumed_run:
+            from processing.scan_state import filter_paths_scanned_since
+            unscanned = filter_paths_scanned_since(
+                args.db, unscanned, resumed_run['started_at'],
+                scorer.config.version_hash,
+            )
+    else:
+        unscanned = scorer.filter_unscanned_paths(str(f.resolve()) for f in all_files)
+
+    # Filter the list to only include new or un-scanned files
+    todo_list = [f for f in all_files if str(f.resolve()) in unscanned
+                 and not (f.suffix.lower() in RAW_EXTENSIONS and f.stem.lower() in jpegs_stems)]
+    raw_paired_skipped = sum(
+        1 for f in all_files
+        if f.suffix.lower() in RAW_EXTENSIONS and f.stem.lower() in jpegs_stems
+    )
+
+    logger.info("Found %d total, processing %d new files.", len(all_files), len(todo_list))
+
+    if not todo_list:
+        logger.info("No new files to process.")
+        exit()
+
+    # Dry-run mode - score sample photos without saving to database
+    if args.dry_run:
+        sample_count = min(args.dry_run_count, len(todo_list))
+        sample_files = todo_list[:sample_count]
+        logger.info("=" * 80)
+        logger.info("DRY RUN MODE - Scoring %d sample photos (not saving to database)", sample_count)
+        logger.info("=" * 80)
+
+        results = []
+        for i, photo_path in enumerate(sample_files, 1):
+            logger.info("[%d/%d] Processing %s...", i, sample_count, photo_path.name)
+            try:
+                result, _ = process_single_photo(photo_path, scorer)
+                if result:
+                    results.append({
+                        'filename': photo_path.name,
+                        'category': result.get('category', 'unknown'),
+                        'aesthetic': result.get('aesthetic', 0),
+                        'comp_score': result.get('comp_score', 0),
+                        'aggregate': result.get('aggregate', 0),
+                        'face_quality': result.get('face_quality', 0),
+                    })
+                    logger.info("OK (aggregate: %.2f)", result.get('aggregate', 0))
+                else:
+                    logger.warning("FAILED")
+            except Exception as e:
+                logger.error("ERROR: %s", e)
+
+        # Print results table and exit non-zero if every sample failed (issue #15).
+        exit(_report_dry_run(results, sample_count))
+
+    # Pre-scan free-space guard: refuse to start if the volume can't hold the
+    # thumbnails + embeddings this scan will write into the single-file DB.
+    _proc_cfg = scorer.config.config.get('processing', {})
+    bytes_per_photo = _proc_cfg.get('bytes_per_photo_estimate', 250 * 1024)
+    safety_margin = _proc_cfg.get('disk_safety_margin', 1.2)
+    _ok_space, _free, _required = check_disk_space(
+        scorer.db_path, len(todo_list) * bytes_per_photo, margin=safety_margin)
+    if not _ok_space and not args.force_low_space:
+        logger.error(
+            "Not enough free space for this scan: ~%.1f GB needed for %d photos, "
+            "only %.1f GB free on %s.",
+            _required / 1e9, len(todo_list), _free / 1e9,
+            os.path.dirname(os.path.abspath(scorer.db_path)) or '.',
+        )
+        logger.error("Free up space or re-run with --force-low-space to override.")
+        exit(1)
+
+    # 2. Main Processing Loop
+    from utils import configure_raw_decoding
+    from processing.scan_state import ScanRun, scan_in_progress
+    from processing.progress import emit_progress
+    _proc = scorer.config.get_processing_settings()
+    configure_raw_decoding(
+        concurrency=_proc.get('raw_decode_concurrency', 0),
+        timeout_seconds=_proc.get('raw_decode_timeout_seconds', 120),
+    )
+
+    # Concurrency guard: a run with a fresh heartbeat looks genuinely live.
+    # Resuming on top of it would double-process, so refuse; a fresh scan only
+    # warns (ScanRun.start always inserts a new row, never adopting the live id).
+    stale_seconds = scan_stale_seconds(scorer.config.config)
+    if scan_in_progress(args.db, stale_seconds):
+        if args.resume:
+            logger.error("A scan appears to be running (fresh heartbeat). Resume after it "
+                         "finishes, or wait %ds for its heartbeat to go stale.", stale_seconds)
+            exit(1)
+        logger.warning("A scan appears to be running concurrently; starting a separate run.")
+
+    scan_mode = (f"pass:{args.single_pass_name}" if args.single_pass_name
+                 else 'single-pass' if args.single_pass else 'multi-pass')
+    scan_run = ScanRun.start(
+        args.db, scan_mode,
+        {'directories': [str(p) for p in args.photo_paths], 'force': args.force},
+        len(todo_list),
+    )
+    _scan_t0 = time.time()
+
+    def _on_scan_progress(processed, total):
+        scan_run.update_progress(processed)
+        elapsed = time.time() - _scan_t0
+        eta = (total - processed) * elapsed / processed if processed else None
+        emit_progress('scoring', processed, total, eta_seconds=eta)
+
+    emit_progress('scoring', 0, len(todo_list), force=True)
+    try:
+        # Check for single-pass mode or specific pass
+        if args.single_pass_name:
+            # Run specific pass only
+            from processing.multi_pass import run_single_pass
+            from models.model_manager import ModelManager
+
+            model_manager = ModelManager(scorer.config)
+            todo_paths = [str(f) for f in todo_list]
+            processed = run_single_pass(todo_paths, args.single_pass_name, scorer, model_manager)
+            logger.info("Processed %d photos with %s pass", processed, args.single_pass_name)
+
+        elif args.single_pass:
+            # Force single-pass mode (old --batch behavior - all models loaded at once)
+            from processing.batch_processor import BatchProcessor
+            from config import recalculate_batch_settings
+
+            proc_settings = scorer.config.get_processing_settings()
+            auto_tuning = proc_settings.get('auto_tuning', {})
+            tuning_interval = auto_tuning.get('tuning_interval_images', 50)
+
+            # Start with config defaults
+            current_settings = {
+                'batch_size': proc_settings.get('gpu_batch_size', 16),
+                'num_workers': proc_settings.get('num_workers', 4),
+                'auto_tuning': auto_tuning,
+            }
+
+            tuning_enabled = auto_tuning.get('enabled', True)
+            todo_paths = [str(f) for f in todo_list]
+
+            logger.info("Single-pass mode: %d batch, %d workers",
+                        current_settings['batch_size'], current_settings['num_workers'])
+
+            processor = BatchProcessor(
+                scorer,
+                batch_size=current_settings['batch_size'],
+                num_workers=current_settings['num_workers'],
+                on_error=scan_run.record_failure,
+                on_progress=_on_scan_progress,
+            )
+
+            calibration_done = [False]
+
+            def calibration_callback(metrics):
+                if calibration_done[0]:
+                    return False
+                old_workers = current_settings['num_workers']
+                new_settings = recalculate_batch_settings(metrics, current_settings)
+                current_settings.update(new_settings)
+                calibration_done[0] = True
+                if current_settings['num_workers'] != old_workers:
+                    logger.info("  Calibrated: %d workers", current_settings['num_workers'])
+                    return True
+                return False
+
+            def tuning_callback(metrics):
+                old_batch_size = current_settings['batch_size']
+                new_settings = recalculate_batch_settings(metrics, current_settings)
+                current_settings.update(new_settings)
+                if current_settings['batch_size'] != old_batch_size:
+                    processor.batch_size = current_settings['batch_size']
+
+            remaining_paths = processor.process_stream(
+                iter(todo_paths), len(todo_paths),
+                tuning_callback=tuning_callback if tuning_enabled else None,
+                tuning_interval=tuning_interval,
+                calibration_callback=calibration_callback if tuning_enabled else None
+            )
+
+            if remaining_paths:
+                processor = BatchProcessor(
+                    scorer,
+                    batch_size=current_settings['batch_size'],
+                    num_workers=current_settings['num_workers'],
+                    prefetch_multiplier=current_settings.get('prefetch_queue_multiplier', 2),
+                    on_error=scan_run.record_failure,
+                    on_progress=_on_scan_progress,
+                )
+                processor.process_stream(
+                    iter(remaining_paths), len(remaining_paths),
+                    tuning_callback=tuning_callback if tuning_enabled else None,
+                    tuning_interval=tuning_interval,
+                    calibration_callback=None
+                )
+
+        else:
+            # Default: Multi-pass processing (auto VRAM detection, sequential model loading)
+            from processing.multi_pass import ChunkedMultiPassProcessor
+            from models.model_manager import ModelManager
+
+            model_manager = ModelManager(scorer.config)
+            todo_paths = [str(f) for f in todo_list]
+
+            # Check processing mode from config
+            proc_settings = scorer.config.get_processing_settings()
+            mode = proc_settings.get('mode', 'auto')
+
+            if mode != 'single-pass':
+                processor = ChunkedMultiPassProcessor(
+                    scorer, model_manager, scorer.config.config,
+                    on_error=scan_run.record_failure,
+                    on_progress=_on_scan_progress,
+                )
+                processor.process_directory(todo_paths)
+            else:
+                # Force single-pass mode
+                from processing.batch_processor import BatchProcessor
+
+                processor = BatchProcessor(
+                    scorer,
+                    batch_size=proc_settings.get('gpu_batch_size', 16),
+                    num_workers=proc_settings.get('num_workers', 4),
+                    on_error=scan_run.record_failure,
+                    on_progress=_on_scan_progress,
+                )
+                processor.process_files(todo_paths)
+
+    except KeyboardInterrupt:
+        logger.info("Interrupted; skipping post-processing. Re-run to finalize.")
+        scorer.commit()
+        scan_run.finish('interrupted')
+        return
+    except Exception:
+        scan_run.finish('failed')
+        raise
+    else:
+        scan_run.finish('completed')
+        if args.retry_failed and todo_list:
+            retried_paths = [str(f.resolve()) for f in todo_list]
+            with get_connection(scorer.db_path) as conn:
+                conn.executemany(
+                    "DELETE FROM scan_failures WHERE path = ? AND scan_run_id != ?",
+                    [(p, scan_run.run_id) for p in retried_paths],
+                )
+                conn.commit()
+
+    # 3. Finalization
+    scorer.commit()
+
+    # 4. Process bursts
+    # Note: Run --cluster-faces-incremental separately if person_ids are needed for grouping
+    emit_progress('bursts', force=True)
+    process_bursts(scorer.db_path, scorer.config.config_path)
+
+    # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
+    emit_progress('tagging', force=True)
+    from tag_existing import run_tagging, resolve_scan_tagger
+
+    # In multi-pass mode the embedding model is loaded per-pass and released,
+    # so resolve_scan_tagger reloads the profile's model to encode the tag
+    # vocabulary (building a tagger from scorer.model is None yields no tags).
+    tagger = resolve_scan_tagger(scorer)
+
+    tagged = run_tagging(scorer.db_path, tagger, scorer.config)
+    if tagged:
+        logger.info("Tagged %d photos with missing tags.", tagged)
+    elif tagged == 0:
+        logger.info("No new tags assigned (all photos already tagged, or none cleared the similarity threshold).")
+
+    # 7. Narrative moments — cheap (cosine over the embeddings just computed),
+    # so label newly-scanned photos automatically. Reuses the scorer's
+    # RAM-cached embedding model; no-ops when narrative_moments is disabled.
+    if scorer.config.get_narrative_moments_config().get('enabled', False):
+        emit_progress('moments', force=True)
+        try:
+            result = run_moment_detection(
+                scorer.db_path, scorer.config,
+                model_manager=getattr(scorer, 'model_manager', None), only_missing=True,
+            )
+            if result.get('labeled'):
+                logger.info("Labeled %d new photos with narrative moments.", result['labeled'])
+        except Exception:
+            logger.warning("Narrative-moment detection failed (non-fatal)", exc_info=True)
+
+    # 8. Junk sweep — cheap cosine over the same embeddings, so flag non-photo
+    # junk (screenshots/documents/receipts/memes/slides) on newly-scanned
+    # photos automatically. No-ops when junk_sweep is disabled.
+    if scorer.config.get_junk_sweep_config().get('enabled', False):
+        emit_progress('junk', force=True)
+        try:
+            result = run_junk_detection(
+                scorer.db_path, scorer.config,
+                model_manager=getattr(scorer, 'model_manager', None), only_missing=True,
+            )
+            if result.get('junk_count'):
+                logger.info("Flagged %d new photos as junk.", result['junk_count'])
+        except Exception:
+            logger.warning("Junk detection failed (non-fatal)", exc_info=True)
+
+    _print_scan_summary(scorer.db_path, todo_list, raw_paired_skipped)
+
+    # Auto-populate sqlite-vec table so semantic search is fast on first viewer
+    # load after a scan. Idempotent: skips when already up-to-date, no-ops when
+    # sqlite-vec isn't installed.
+    emit_progress('vec', force=True)
+    try:
+        from db.vec import populate_vec_table
+        populate_vec_table(scorer.db_path)
+    except Exception:
+        logger.warning("Auto-populate of photos_vec failed (non-fatal)", exc_info=True)
+
+    _log_scan_db_destination(scorer.db_path)
+    emit_progress('done', force=True)
+    logger.info("All tasks complete.")
+
+
 def main():
     import argparse
 
@@ -889,6 +1518,8 @@ Configuration:
                         help=f'Path to database file (default: {DEFAULT_DB_PATH})')
     config_group.add_argument('--validate-categories', action='store_true',
                         help='Validate category configurations')
+    config_group.add_argument('--force-library-lock', action='store_true',
+                        help='Run even if another library job holds the lock (unsafe)')
 
     args = parser.parse_args()
 
@@ -905,6 +1536,12 @@ Configuration:
 
     if args.dry_run_count != 10 and not args.dry_run:
         parser.error("--dry-run-count requires --dry-run")
+
+    # Whole-library rewriters take the cross-process lock before any work, so
+    # a conflict costs nothing. --upgrade-db is deliberately absent: it runs
+    # the locked jobs below as subprocesses and would deadlock every one.
+    if _library_job_requested(args):
+        _acquire_library_lock(args, LIBRARY_JOB_RECOMPUTE)
 
     # Category validation mode (lightweight - no GPU needed)
     if args.validate_categories:
@@ -1095,10 +1732,7 @@ Configuration:
         exit()
 
     # Import scorer (deferred to avoid loading heavy modules for --help)
-    from processing.scorer import (
-        Facet, process_bursts, process_single_photo,
-        _load_image_modules,
-    )
+    from processing.scorer import Facet, process_bursts, _load_image_modules
 
     # Compute recommendations mode (lightweight - no GPU needed)
     if args.compute_recommendations:
@@ -2200,7 +2834,14 @@ Configuration:
         exit()
 
     # Recompute average scores (lightweight - no GPU needed)
+    # The library lock is already held (LIBRARY_JOB_ARGS); scan_in_progress
+    # additionally catches a scan started by a build that predates the lock.
     if args.recompute_average or args.recompute_category:
+        from processing.scan_state import scan_in_progress
+        stale_seconds = scan_stale_seconds(ScoringConfig(args.config, validate=False).config)
+        if scan_in_progress(args.db, stale_seconds):
+            logger.error("A scan appears to be running; wait for it to finish before recomputing.")
+            exit(1)
         scorer = Facet(db_path=args.db, config_path=args.config, lightweight=True)
         normalizer = None
         norm_settings = scorer.config.get_normalization_settings()
@@ -2389,7 +3030,7 @@ Configuration:
     resumed_run = None
     if args.resume:
         from processing.scan_state import get_last_resumable_run
-        stale_seconds = ScoringConfig(args.config, validate=False).config.get('processing', {}).get('scan_stale_seconds', 120)
+        stale_seconds = scan_stale_seconds(ScoringConfig(args.config, validate=False).config)
         resumed_run = get_last_resumable_run(args.db, stale_seconds)
         if not args.photo_paths:
             if not resumed_run:
@@ -2421,385 +3062,11 @@ Configuration:
         )
         exit()
 
-    # Full mode - initialize with GPU models for photo processing
-    # Multi-pass mode skips eager loading of heavy GPU models (CLIP, SAMP-Net)
-    # since multi-pass loads its own models per pass via ModelManager
-    use_multi_pass = not (args.dry_run or args.single_pass)
-    scorer = Facet(db_path=args.db, config_path=args.config, multi_pass=use_multi_pass)
-    _log_scan_db_destination(scorer.db_path)
-
-    # Initialise plugin manager for scoring events
-    from plugins import init_global_plugin_manager
-    init_global_plugin_manager(config=scorer.config.config)
-
-    # 1. Gather files recursively from subfolders (or single files)
-    valid_suffixes = {'.jpg', '.jpeg'} | HEIF_EXTENSIONS | RAW_EXTENSIONS
-    all_files = []
-
-    # Get scanning settings
-    skip_hidden = scorer.config.get_scanning_settings().get('skip_hidden_directories', True)
-
-    for path_str in args.photo_paths:
-        base_path = Path(path_str).resolve()
-        if not base_path.exists():
-            logger.warning("Path does not exist: %s", path_str)
-            continue
-        if base_path.is_file():
-            # Single file - check if it's a valid image type
-            if base_path.suffix.lower() in valid_suffixes:
-                all_files.append(base_path)
-            else:
-                logger.warning("Unsupported file type: %s", path_str)
-        else:
-            # Directory - use os.walk to traverse, optionally skipping hidden directories
-            for root, dirs, files in os.walk(base_path):
-                # Prune hidden directories if configured
-                if skip_hidden:
-                    dirs[:] = [d for d in dirs if not d.startswith('.')]
-
-                # Add matching files
-                for f in files:
-                    p = Path(root) / f
-                    if p.suffix.lower() in valid_suffixes:
-                        all_files.append(p)
-
-    # Deduplicate (needed for case-insensitive filesystems like Windows)
-    all_files = list({f.resolve(): f for f in all_files}.values())
-
-    # --retry-failed: the worklist comes from scan_failures, not the dir walk
-    if args.retry_failed:
-        from processing.scan_state import get_failed_paths
-        scope = 'all' if args.retry_failed == 'all' else 'last'
-        failed = [Path(p) for p in get_failed_paths(args.db, scope)]
-        all_files = [p for p in failed if p.exists()]
-        missing = len(failed) - len(all_files)
-        logger.info("Retrying %d failed files (%d no longer on disk)", len(all_files), missing)
-
-    # Identify JPEGs to avoid double-processing if RAW+JPEG pairs exist
-    jpeg_like = {'.jpg', '.jpeg'} | HEIF_EXTENSIONS
-    jpegs_stems = {f.stem.lower() for f in all_files if f.suffix.lower() in jpeg_like}
-    if args.retry_failed:
-        unscanned = {str(f.resolve()) for f in all_files}
-    elif args.force_since:
-        from processing.scan_state import filter_paths_scanned_before
-        unscanned = filter_paths_scanned_before(
-            args.db, (str(f.resolve()) for f in all_files), args.force_since,
-        )
-    elif args.force:
-        unscanned = {str(f.resolve()) for f in all_files}
-        if args.resume and resumed_run:
-            from processing.scan_state import filter_paths_scanned_since
-            unscanned = filter_paths_scanned_since(
-                args.db, unscanned, resumed_run['started_at'],
-                scorer.config.version_hash,
-            )
-    else:
-        unscanned = scorer.filter_unscanned_paths(str(f.resolve()) for f in all_files)
-
-    # Filter the list to only include new or un-scanned files
-    todo_list = [f for f in all_files if str(f.resolve()) in unscanned
-                 and not (f.suffix.lower() in RAW_EXTENSIONS and f.stem.lower() in jpegs_stems)]
-    raw_paired_skipped = sum(
-        1 for f in all_files
-        if f.suffix.lower() in RAW_EXTENSIONS and f.stem.lower() in jpegs_stems
-    )
-
-    logger.info("Found %d total, processing %d new files.", len(all_files), len(todo_list))
-
-    if not todo_list:
-        logger.info("No new files to process.")
-        exit()
-
-    # Dry-run mode - score sample photos without saving to database
-    if args.dry_run:
-        sample_count = min(args.dry_run_count, len(todo_list))
-        sample_files = todo_list[:sample_count]
-        logger.info("=" * 80)
-        logger.info("DRY RUN MODE - Scoring %d sample photos (not saving to database)", sample_count)
-        logger.info("=" * 80)
-
-        results = []
-        for i, photo_path in enumerate(sample_files, 1):
-            logger.info("[%d/%d] Processing %s...", i, sample_count, photo_path.name)
-            try:
-                result, _ = process_single_photo(photo_path, scorer)
-                if result:
-                    results.append({
-                        'filename': photo_path.name,
-                        'category': result.get('category', 'unknown'),
-                        'aesthetic': result.get('aesthetic', 0),
-                        'comp_score': result.get('comp_score', 0),
-                        'aggregate': result.get('aggregate', 0),
-                        'face_quality': result.get('face_quality', 0),
-                    })
-                    logger.info("OK (aggregate: %.2f)", result.get('aggregate', 0))
-                else:
-                    logger.warning("FAILED")
-            except Exception as e:
-                logger.error("ERROR: %s", e)
-
-        # Print results table and exit non-zero if every sample failed (issue #15).
-        exit(_report_dry_run(results, sample_count))
-
-    # Pre-scan free-space guard: refuse to start if the volume can't hold the
-    # thumbnails + embeddings this scan will write into the single-file DB.
-    _proc_cfg = scorer.config.config.get('processing', {})
-    bytes_per_photo = _proc_cfg.get('bytes_per_photo_estimate', 250 * 1024)
-    safety_margin = _proc_cfg.get('disk_safety_margin', 1.2)
-    _ok_space, _free, _required = check_disk_space(
-        scorer.db_path, len(todo_list) * bytes_per_photo, margin=safety_margin)
-    if not _ok_space and not args.force_low_space:
-        logger.error(
-            "Not enough free space for this scan: ~%.1f GB needed for %d photos, "
-            "only %.1f GB free on %s.",
-            _required / 1e9, len(todo_list), _free / 1e9,
-            os.path.dirname(os.path.abspath(scorer.db_path)) or '.',
-        )
-        logger.error("Free up space or re-run with --force-low-space to override.")
-        exit(1)
-
-    # 2. Main Processing Loop
-    from utils import configure_raw_decoding
-    from processing.scan_state import ScanRun, scan_in_progress
-    from processing.progress import emit_progress
-    _proc = scorer.config.get_processing_settings()
-    configure_raw_decoding(
-        concurrency=_proc.get('raw_decode_concurrency', 0),
-        timeout_seconds=_proc.get('raw_decode_timeout_seconds', 120),
-    )
-
-    # Concurrency guard: a run with a fresh heartbeat looks genuinely live.
-    # Resuming on top of it would double-process, so refuse; a fresh scan only
-    # warns (ScanRun.start always inserts a new row, never adopting the live id).
-    stale_seconds = scorer.config.config.get('processing', {}).get('scan_stale_seconds', 120)
-    if scan_in_progress(args.db, stale_seconds):
-        if args.resume:
-            logger.error("A scan appears to be running (fresh heartbeat). Resume after it "
-                         "finishes, or wait %ds for its heartbeat to go stale.", stale_seconds)
-            exit(1)
-        logger.warning("A scan appears to be running concurrently; starting a separate run.")
-
-    scan_mode = (f"pass:{args.single_pass_name}" if args.single_pass_name
-                 else 'single-pass' if args.single_pass else 'multi-pass')
-    scan_run = ScanRun.start(
-        args.db, scan_mode,
-        {'directories': [str(p) for p in args.photo_paths], 'force': args.force},
-        len(todo_list),
-    )
-    _scan_t0 = time.time()
-
-    def _on_scan_progress(processed, total):
-        scan_run.update_progress(processed)
-        elapsed = time.time() - _scan_t0
-        eta = (total - processed) * elapsed / processed if processed else None
-        emit_progress('scoring', processed, total, eta_seconds=eta)
-
-    emit_progress('scoring', 0, len(todo_list), force=True)
+    lock = _acquire_library_lock(args, LIBRARY_JOB_SCAN)
     try:
-        # Check for single-pass mode or specific pass
-        if args.single_pass_name:
-            # Run specific pass only
-            from processing.multi_pass import run_single_pass
-            from models.model_manager import ModelManager
-
-            model_manager = ModelManager(scorer.config)
-            todo_paths = [str(f) for f in todo_list]
-            processed = run_single_pass(todo_paths, args.single_pass_name, scorer, model_manager)
-            logger.info("Processed %d photos with %s pass", processed, args.single_pass_name)
-
-        elif args.single_pass:
-            # Force single-pass mode (old --batch behavior - all models loaded at once)
-            from processing.batch_processor import BatchProcessor
-            from config import recalculate_batch_settings
-
-            proc_settings = scorer.config.get_processing_settings()
-            auto_tuning = proc_settings.get('auto_tuning', {})
-            tuning_interval = auto_tuning.get('tuning_interval_images', 50)
-
-            # Start with config defaults
-            current_settings = {
-                'batch_size': proc_settings.get('gpu_batch_size', 16),
-                'num_workers': proc_settings.get('num_workers', 4),
-                'auto_tuning': auto_tuning,
-            }
-
-            tuning_enabled = auto_tuning.get('enabled', True)
-            todo_paths = [str(f) for f in todo_list]
-
-            logger.info("Single-pass mode: %d batch, %d workers",
-                        current_settings['batch_size'], current_settings['num_workers'])
-
-            processor = BatchProcessor(
-                scorer,
-                batch_size=current_settings['batch_size'],
-                num_workers=current_settings['num_workers'],
-                on_error=scan_run.record_failure,
-                on_progress=_on_scan_progress,
-            )
-
-            calibration_done = [False]
-
-            def calibration_callback(metrics):
-                if calibration_done[0]:
-                    return False
-                old_workers = current_settings['num_workers']
-                new_settings = recalculate_batch_settings(metrics, current_settings)
-                current_settings.update(new_settings)
-                calibration_done[0] = True
-                if current_settings['num_workers'] != old_workers:
-                    logger.info("  Calibrated: %d workers", current_settings['num_workers'])
-                    return True
-                return False
-
-            def tuning_callback(metrics):
-                old_batch_size = current_settings['batch_size']
-                new_settings = recalculate_batch_settings(metrics, current_settings)
-                current_settings.update(new_settings)
-                if current_settings['batch_size'] != old_batch_size:
-                    processor.batch_size = current_settings['batch_size']
-
-            remaining_paths = processor.process_stream(
-                iter(todo_paths), len(todo_paths),
-                tuning_callback=tuning_callback if tuning_enabled else None,
-                tuning_interval=tuning_interval,
-                calibration_callback=calibration_callback if tuning_enabled else None
-            )
-
-            if remaining_paths:
-                processor = BatchProcessor(
-                    scorer,
-                    batch_size=current_settings['batch_size'],
-                    num_workers=current_settings['num_workers'],
-                    prefetch_multiplier=current_settings.get('prefetch_queue_multiplier', 2),
-                    on_error=scan_run.record_failure,
-                    on_progress=_on_scan_progress,
-                )
-                processor.process_stream(
-                    iter(remaining_paths), len(remaining_paths),
-                    tuning_callback=tuning_callback if tuning_enabled else None,
-                    tuning_interval=tuning_interval,
-                    calibration_callback=None
-                )
-
-        else:
-            # Default: Multi-pass processing (auto VRAM detection, sequential model loading)
-            from processing.multi_pass import ChunkedMultiPassProcessor
-            from models.model_manager import ModelManager
-
-            model_manager = ModelManager(scorer.config)
-            todo_paths = [str(f) for f in todo_list]
-
-            # Check processing mode from config
-            proc_settings = scorer.config.get_processing_settings()
-            mode = proc_settings.get('mode', 'auto')
-
-            if mode != 'single-pass':
-                processor = ChunkedMultiPassProcessor(
-                    scorer, model_manager, scorer.config.config,
-                    on_error=scan_run.record_failure,
-                    on_progress=_on_scan_progress,
-                )
-                processor.process_directory(todo_paths)
-            else:
-                # Force single-pass mode
-                from processing.batch_processor import BatchProcessor
-
-                processor = BatchProcessor(
-                    scorer,
-                    batch_size=proc_settings.get('gpu_batch_size', 16),
-                    num_workers=proc_settings.get('num_workers', 4),
-                    on_error=scan_run.record_failure,
-                    on_progress=_on_scan_progress,
-                )
-                processor.process_files(todo_paths)
-
-    except KeyboardInterrupt:
-        logger.info("Interrupted; skipping post-processing. Re-run to finalize.")
-        scorer.commit()
-        scan_run.finish('interrupted')
-        return
-    except Exception:
-        scan_run.finish('failed')
-        raise
-    else:
-        scan_run.finish('completed')
-        if args.retry_failed and todo_list:
-            retried_paths = [str(f.resolve()) for f in todo_list]
-            with get_connection(scorer.db_path) as conn:
-                conn.executemany(
-                    "DELETE FROM scan_failures WHERE path = ? AND scan_run_id != ?",
-                    [(p, scan_run.run_id) for p in retried_paths],
-                )
-                conn.commit()
-
-    # 3. Finalization
-    scorer.commit()
-
-    # 4. Process bursts
-    # Note: Run --cluster-faces-incremental separately if person_ids are needed for grouping
-    emit_progress('bursts', force=True)
-    process_bursts(scorer.db_path, scorer.config.config_path)
-
-    # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
-    emit_progress('tagging', force=True)
-    from tag_existing import run_tagging, resolve_scan_tagger
-
-    # In multi-pass mode the embedding model is loaded per-pass and released,
-    # so resolve_scan_tagger reloads the profile's model to encode the tag
-    # vocabulary (building a tagger from scorer.model is None yields no tags).
-    tagger = resolve_scan_tagger(scorer)
-
-    tagged = run_tagging(scorer.db_path, tagger, scorer.config)
-    if tagged:
-        logger.info("Tagged %d photos with missing tags.", tagged)
-    elif tagged == 0:
-        logger.info("No new tags assigned (all photos already tagged, or none cleared the similarity threshold).")
-
-    # 7. Narrative moments — cheap (cosine over the embeddings just computed),
-    # so label newly-scanned photos automatically. Reuses the scorer's
-    # RAM-cached embedding model; no-ops when narrative_moments is disabled.
-    if scorer.config.get_narrative_moments_config().get('enabled', False):
-        emit_progress('moments', force=True)
-        try:
-            result = run_moment_detection(
-                scorer.db_path, scorer.config,
-                model_manager=getattr(scorer, 'model_manager', None), only_missing=True,
-            )
-            if result.get('labeled'):
-                logger.info("Labeled %d new photos with narrative moments.", result['labeled'])
-        except Exception:
-            logger.warning("Narrative-moment detection failed (non-fatal)", exc_info=True)
-
-    # 8. Junk sweep — cheap cosine over the same embeddings, so flag non-photo
-    # junk (screenshots/documents/receipts/memes/slides) on newly-scanned
-    # photos automatically. No-ops when junk_sweep is disabled.
-    if scorer.config.get_junk_sweep_config().get('enabled', False):
-        emit_progress('junk', force=True)
-        try:
-            result = run_junk_detection(
-                scorer.db_path, scorer.config,
-                model_manager=getattr(scorer, 'model_manager', None), only_missing=True,
-            )
-            if result.get('junk_count'):
-                logger.info("Flagged %d new photos as junk.", result['junk_count'])
-        except Exception:
-            logger.warning("Junk detection failed (non-fatal)", exc_info=True)
-
-    _print_scan_summary(scorer.db_path, todo_list, raw_paired_skipped)
-
-    # Auto-populate sqlite-vec table so semantic search is fast on first viewer
-    # load after a scan. Idempotent: skips when already up-to-date, no-ops when
-    # sqlite-vec isn't installed.
-    emit_progress('vec', force=True)
-    try:
-        from db.vec import populate_vec_table
-        populate_vec_table(scorer.db_path)
-    except Exception:
-        logger.warning("Auto-populate of photos_vec failed (non-fatal)", exc_info=True)
-
-    _log_scan_db_destination(scorer.db_path)
-    emit_progress('done', force=True)
-    logger.info("All tasks complete.")
+        _run_scan(args, resumed_run)
+    finally:
+        lock.release()
 
 
 if __name__ == '__main__':

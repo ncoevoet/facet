@@ -51,6 +51,10 @@ class AlbumPhotosRequest(BaseModel):
     photo_paths: list[str]
 
 
+class AlbumScoringContextRequest(BaseModel):
+    scoring_context: str
+
+
 # --- Helpers ---
 
 def _normalize_smart_filters(filters):
@@ -113,6 +117,10 @@ def _album_to_dict(album):
         result['is_shared'] = bool(album['share_token'])
     except (IndexError, KeyError):
         result['is_shared'] = False
+    try:
+        result['scoring_context'] = album['scoring_context']
+    except (IndexError, KeyError):
+        result['scoring_context'] = None
     return result
 
 
@@ -539,14 +547,211 @@ def delete_album(
     album_id: int,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Delete an album and its photo associations."""
+    """Delete an album and its photo associations.
+
+    ``photo_scoring_overrides`` has no FK to ``albums``, so deleting the
+    album alone would leave every member permanently stamped with its
+    scoring context. Clear only the overrides this album set (``source =
+    'album:<id>'``) before dropping the album's own rows.
+    """
     with get_db() as conn:
         user_id = _get_user_id(user)
         _check_album_access(conn, album_id, user_id)
+        _clear_album_context_overrides(conn, album_id)
         conn.execute("DELETE FROM album_photos WHERE album_id = ?", (album_id,))
         conn.execute("DELETE FROM albums WHERE id = ?", (album_id,))
         conn.commit()
         return {'ok': True}
+
+
+def _apply_album_scoring_context(conn, album_id, paths):
+    """Materialize the album's declared scoring context onto ``paths``.
+
+    A no-op when the album carries no context. Called from
+    ``append_album_photos`` so photos added after ``PUT .../scoring_context``
+    inherit it too, not just the members present at assignment time. A path
+    already carrying a manual override is skipped — see
+    ``set_album_scoring_context``.
+    """
+    row = conn.execute("SELECT scoring_context FROM albums WHERE id = ?", (album_id,)).fetchone()
+    context = row['scoring_context'] if row else None
+    if not context:
+        return
+    from db.scoring_overrides import set_photo_scoring_override
+    existing_paths = _existing_photo_paths(conn, paths)
+    manual_paths = _manual_override_paths(conn, existing_paths)
+    for path in existing_paths:
+        if path in manual_paths:
+            continue
+        set_photo_scoring_override(conn, path, scoring_context=context, source=f'album:{album_id}')
+
+
+def _resolve_album_member_paths(conn, album_row):
+    """Resolve an album's CURRENT member photo paths, sync.
+
+    Smart albums carry no rows in ``album_photos`` — membership is computed
+    at read time from ``smart_filter_json``. This mirrors the smart branch of
+    ``_fetch_album_photos`` (owner-scoped visibility, saved filters via
+    ``_build_gallery_where``) rather than reimplementing filter evaluation,
+    just without pagination since callers here need every match. Regular
+    albums read ``album_photos`` directly, unchanged.
+
+    ``smart_filter_json`` carries only the filter the user actually chose
+    (``sort``/``sort_direction``/``person``/etc.) — it deliberately does NOT
+    include ``hide_blinks``/``hide_bursts``/``hide_duplicates``/
+    ``hide_rejected``, which are global, runtime-toggleable gallery VIEW
+    preferences (``viewer.defaults``), not part of the album's own
+    definition. So this is the album's FILTER definition, not "whatever the
+    gallery happened to be showing": the count returned here can legitimately
+    exceed what the album's own gallery view displays with those hide-*
+    toggles on, and that is intentional — a burst follower of the same scene
+    is still a real member of e.g. an "action" smart album.
+
+    Either way this is a snapshot of membership NOW: a caller that
+    materializes something onto these paths (e.g. a scoring context) is
+    stamping today's members, not subscribing to the filter — photos that
+    start matching a smart filter later are not included.
+    """
+    if album_row['is_smart'] and album_row['smart_filter_json']:
+        from api.routers.gallery import _build_gallery_where
+        owner_id = album_row['user_id']
+        saved_filters = _normalize_smart_filters(json.loads(album_row['smart_filter_json']))
+        where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=owner_id)
+        from_clause, from_params = get_photos_from_clause(owner_id)
+        where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        rows = conn.execute(
+            f"SELECT path FROM {from_clause}{where_str}", from_params + sql_params
+        ).fetchall()
+        return [r['path'] for r in rows]
+
+    rows = conn.execute(
+        "SELECT photo_path FROM album_photos WHERE album_id = ?", (album_row['id'],)
+    ).fetchall()
+    return [r['photo_path'] for r in rows]
+
+
+def _other_context_albums(conn, exclude_album_id):
+    """Other albums (any type) that currently declare a non-null scoring context."""
+    return conn.execute(
+        "SELECT id, scoring_context, is_smart, smart_filter_json, user_id FROM albums "
+        "WHERE scoring_context IS NOT NULL AND id != ?",
+        (exclude_album_id,),
+    ).fetchall()
+
+
+def _photo_in_album(conn, album_row, path):
+    """Whether ``path`` is currently a member of ``album_row`` (smart or manual)."""
+    if album_row['is_smart'] and album_row['smart_filter_json']:
+        from api.routers.gallery import _build_gallery_where
+        owner_id = album_row['user_id']
+        saved_filters = _normalize_smart_filters(json.loads(album_row['smart_filter_json']))
+        where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=owner_id)
+        from_clause, from_params = get_photos_from_clause(owner_id)
+        where_str = f" WHERE {' AND '.join(list(where_clauses) + ['path = ?'])}"
+        row = conn.execute(
+            f"SELECT 1 FROM {from_clause}{where_str} LIMIT 1",
+            from_params + sql_params + [path],
+        ).fetchone()
+        return row is not None
+    row = conn.execute(
+        "SELECT 1 FROM album_photos WHERE album_id = ? AND photo_path = ?", (album_row['id'], path)
+    ).fetchone()
+    return row is not None
+
+
+def _clear_album_context_overrides(conn, album_id, paths=None):
+    """Undo this album's scoring_context stamp on ``paths`` (or every member
+    this album stamped, when ``paths`` is None).
+
+    Scoped strictly to rows whose ``source`` is exactly this album's
+    (``album:<id>``, written by ``set_album_scoring_context`` /
+    ``_apply_album_scoring_context``) so a photo's own manual override, or a
+    context a different album set, is never touched.
+
+    A single ``source`` column cannot represent multi-album membership: when
+    ``paths`` names a bounded set (a specific removal, e.g.
+    ``remove_photos_from_album``), a path that is STILL a member of another
+    album which itself declares a context is re-stamped with that other
+    album's context instead of being left unscored — re-deriving from the
+    albums that currently declare a context rather than the (unrecorded) set
+    of albums that stamped this row historically. Full-album clears
+    (``paths=None``, from ``delete_album`` / ``clear_album_scoring_context``)
+    skip this re-derivation: testing every cleared photo against every other
+    context-declaring album is unbounded for a smart album's full membership,
+    and that photo's OWN album was just deleted/cleared, so there is no
+    caller-scoped set to bound the check to.
+
+    Returns the count cleared (re-stamped members are not counted as cleared).
+    """
+    from db.scoring_overrides import clear_photo_scoring_override, set_photo_scoring_override
+
+    source = f'album:{album_id}'
+    if paths is not None:
+        if not paths:
+            return 0
+        from api.db_helpers import select_in_chunks
+        rows = list(select_in_chunks(
+            conn,
+            "SELECT photo_path FROM photo_scoring_overrides "
+            "WHERE source = ? AND scoring_context IS NOT NULL AND photo_path IN ({placeholders})",
+            paths, before=[source],
+        ))
+    else:
+        rows = conn.execute(
+            "SELECT photo_path FROM photo_scoring_overrides WHERE source = ? AND scoring_context IS NOT NULL",
+            (source,),
+        ).fetchall()
+
+    cleared_paths = [r['photo_path'] for r in rows]
+    other_albums = _other_context_albums(conn, album_id) if paths is not None else []
+
+    cleared = 0
+    for path in cleared_paths:
+        other = next((a for a in other_albums if _photo_in_album(conn, a, path)), None)
+        if other is not None:
+            set_photo_scoring_override(
+                conn, path, scoring_context=other['scoring_context'], source=f"album:{other['id']}"
+            )
+        else:
+            clear_photo_scoring_override(conn, path, field='scoring_context')
+            cleared += 1
+    return cleared
+
+
+def _existing_photo_paths(conn, paths):
+    """Keep only the paths that exist in ``photos``, preserving order.
+
+    ``album_photos`` carries no foreign key, so a member can name a row that
+    was never scanned or has since been cleaned up. ``photo_scoring_overrides``
+    does have one, so writing an override for such a path raises IntegrityError
+    and rolls back the whole assignment.
+    """
+    if not paths:
+        return []
+    from api.db_helpers import select_in_chunks
+    known = {r[0] for r in select_in_chunks(
+        conn, "SELECT path FROM photos WHERE path IN ({placeholders})", paths)}
+    return [p for p in paths if p in known]
+
+
+def _manual_override_paths(conn, paths):
+    """Photo paths in ``paths`` whose scoring_context override was set manually.
+
+    A manual override must never be silently converted into an album-sourced
+    one, so callers that materialize an album's scoring context skip these
+    paths entirely (both the value and the ``source`` provenance are left
+    untouched).
+    """
+    if not paths:
+        return set()
+    from api.db_helpers import select_in_chunks
+    rows = select_in_chunks(
+        conn,
+        "SELECT photo_path FROM photo_scoring_overrides "
+        "WHERE source = 'manual' AND photo_path IN ({placeholders})",
+        paths,
+    )
+    return {r['photo_path'] for r in rows}
 
 
 def append_album_photos(conn, album_id, paths):
@@ -576,6 +781,7 @@ def append_album_photos(conn, album_id, paths):
         "updated_at = datetime('now') WHERE id = ?",
         (paths[0], album_id)
     )
+    _apply_album_scoring_context(conn, album_id, paths)
     return added
 
 
@@ -607,18 +813,35 @@ def remove_photos_from_album(
     body: AlbumPhotosRequest,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Remove photos from an album (batch)."""
+    """Remove photos from an album (batch).
+
+    Also undoes this album's scoring_context stamp on exactly the removed
+    photos (``source = 'album:<id>'`` only) — remaining members keep it, a
+    photo's own manual override is never touched, and a path still a member
+    of another context-declaring album is re-stamped with that album's
+    context instead of being left unscored (see
+    ``_clear_album_context_overrides``).
+
+    A no-op for smart albums: ``album_photos`` carries no rows for them (their
+    membership is resolved live from ``smart_filter_json``), so there is
+    nothing to remove — and the removed photos would typically still be
+    members, so clearing their scoring-context stamp here would be wrong.
+    """
     if not body.photo_paths:
         raise HTTPException(status_code=400, detail="photo_paths must not be empty")
     with get_db() as conn:
         user_id = _get_user_id(user)
-        _check_album_access(conn, album_id, user_id)
+        album = _check_album_access(conn, album_id, user_id)
+
+        if album['is_smart']:
+            return {'ok': True, 'photo_count': 0}
 
         placeholders = ','.join(['?'] * len(body.photo_paths))
         conn.execute(
             f"DELETE FROM album_photos WHERE album_id = ? AND photo_path IN ({placeholders})",
             [album_id] + body.photo_paths
         )
+        _clear_album_context_overrides(conn, album_id, paths=body.photo_paths)
         conn.execute("UPDATE albums SET updated_at = datetime('now') WHERE id = ?", (album_id,))
         conn.commit()
 
@@ -653,6 +876,166 @@ async def get_album_photos(
         sort_dir = 'ASC' if qp.get('sort_direction', 'ASC') == 'ASC' else 'DESC'
 
         return await _fetch_album_photos(conn, album, user_id, page, per_page, sort, sort_dir)
+
+
+@router.put("/api/albums/{album_id}/scoring_context")
+def set_album_scoring_context(
+    album_id: int,
+    body: AlbumScoringContextRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Set the album's scoring context and materialize it onto CURRENT member photos.
+
+    Membership is the album's FILTER definition (``_resolve_album_member_paths``
+    — the same resolution the read endpoint uses), not "whatever the gallery
+    happened to be showing": for a smart album it deliberately ignores the
+    gallery's hide-blinks/hide-bursts/hide-duplicates/hide-rejected VIEW
+    preferences (global, runtime-toggleable, and not part of
+    ``smart_filter_json``), so ``updated`` can legitimately exceed the photo
+    count the album's own gallery view displays with those toggles on.
+    Membership is also captured NOW: photos that start matching a smart
+    filter later do not retroactively inherit the context, and ``updated``
+    reports the real number of photos actually written, which is 0 (flagged
+    via ``warning``) when a smart album currently matches nothing.
+
+    A member whose override was set manually (``source == 'manual'``) is
+    skipped outright — never stamped with this album's context, and its
+    ``source`` is never overwritten — so an album assignment can't silently
+    convert a photo's own manual choice into an album-sourced one.
+    ``manual_skipped`` reports how many were left alone this way.
+
+    ``conflicts`` counts (non-manual) members whose scoring_context differed
+    from the new value, read immediately before this call overwrites them —
+    informational, not a dry-run preview: the change is already applied by
+    the time the caller sees the count, since this endpoint has no separate
+    commit step.
+    """
+    from config import ScoringConfig
+    from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
+
+    config = ScoringConfig(validate=False)
+    if body.scoring_context not in config.get_scoring_contexts():
+        raise HTTPException(status_code=400, detail=f'Unknown scoring context: {body.scoring_context}')
+
+    with get_db() as conn:
+        user_id = _get_user_id(user)
+        album = _check_album_access(conn, album_id, user_id)
+
+        conn.execute(
+            "UPDATE albums SET scoring_context = ?, updated_at = datetime('now') WHERE id = ?",
+            (body.scoring_context, album_id),
+        )
+
+        member_paths = _resolve_album_member_paths(conn, album)
+        paths = _existing_photo_paths(conn, member_paths)
+        manual_paths = _manual_override_paths(conn, paths)
+        stampable = [p for p in paths if p not in manual_paths]
+
+        existing = get_photo_scoring_overrides(conn, paths=stampable)
+        conflicts = sum(
+            1 for p in stampable
+            if existing.get(p, {}).get('scoring_context') not in (None, body.scoring_context)
+        )
+
+        source = f'album:{album_id}'
+        for path in stampable:
+            set_photo_scoring_override(conn, path, scoring_context=body.scoring_context, source=source, created_by=user_id)
+
+        conn.commit()
+
+    result = {'updated': len(stampable), 'conflicts': conflicts, 'manual_skipped': len(manual_paths)}
+    if bool(album['is_smart']) and not paths:
+        result['warning'] = 'Smart album currently matches no photos; nothing was updated.'
+    return result
+
+
+@router.delete("/api/albums/{album_id}/scoring_context")
+def clear_album_scoring_context(
+    album_id: int,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Clear the album's scoring context and undo it on the members it set.
+
+    A scoring context assigned via ``PUT .../scoring_context`` had no way to
+    be unset: the album's own ``scoring_context`` stayed stamped forever
+    (deleting the album or removing photos left ``photo_scoring_overrides``
+    untouched, since that table carries no FK to ``albums``). Only overrides
+    whose ``source`` is exactly this album's (``album:<id>``) are cleared, so
+    a member's own manual override, or a context a different album set, is
+    left untouched.
+    """
+    with get_db() as conn:
+        user_id = _get_user_id(user)
+        _check_album_access(conn, album_id, user_id)
+
+        conn.execute(
+            "UPDATE albums SET scoring_context = NULL, updated_at = datetime('now') WHERE id = ?",
+            (album_id,),
+        )
+        cleared = _clear_album_context_overrides(conn, album_id)
+        conn.commit()
+
+    return {'ok': True, 'cleared': cleared}
+
+
+@router.get("/api/albums/{album_id}/suggested_context")
+def get_album_suggested_context(
+    album_id: int,
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Suggest a scoring context from the album's dominant narrative moment.
+
+    Membership is resolved the same way ``set_album_scoring_context`` resolves
+    it (``_resolve_album_member_paths``) rather than reading ``album_photos``
+    directly, which carries no rows for a smart album and would silently
+    starve every suggestion for the album type this feature matters most for.
+
+    Suggestion only — writes nothing; the caller confirms via
+    ``PUT .../scoring_context``.
+    """
+    from config import ScoringConfig
+    from api.db_helpers import select_in_chunks
+
+    with get_db() as conn:
+        user_id = _get_user_id(user)
+        album = _check_album_access(conn, album_id, user_id)
+
+        member_paths = _resolve_album_member_paths(conn, album)
+        paths = _existing_photo_paths(conn, member_paths)
+
+        counts: dict = {}
+        for row in select_in_chunks(
+            conn,
+            "SELECT narrative_moment, COUNT(*) as cnt FROM photos "
+            "WHERE path IN ({placeholders}) AND narrative_moment IS NOT NULL AND narrative_moment != '' "
+            "GROUP BY narrative_moment",
+            paths,
+        ):
+            counts[row['narrative_moment']] = counts.get(row['narrative_moment'], 0) + row['cnt']
+
+    total = sum(counts.values())
+
+    if not total:
+        return {'suggested': None, 'moment': None, 'share': 0.0, 'counts': {}}
+
+    dominant_moment, dominant_count = max(counts.items(), key=lambda kv: kv[1])
+    share = dominant_count / total
+
+    config = ScoringConfig(validate=False)
+    suggested = next(
+        (
+            name for name, context_cfg in config.get_scoring_contexts().items()
+            if dominant_moment in context_cfg.get('suggest_from_moments', [])
+        ),
+        None,
+    )
+
+    return {
+        'suggested': suggested,
+        'moment': dominant_moment,
+        'share': round(share, 4),
+        'counts': counts,
+    }
 
 
 # --- Sharing endpoints ---

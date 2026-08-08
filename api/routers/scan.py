@@ -6,6 +6,7 @@ Scan router — trigger and monitor photo scanning.
 import asyncio
 import json
 import logging
+import os
 import subprocess
 import sys
 import threading
@@ -18,8 +19,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from api.auth import CurrentUser, create_access_token, decode_access_token, require_superadmin
-from api.config import VIEWER_CONFIG, FACET_SCRIPT, get_all_scan_directories, get_user_directories, _photo_types_cache, _stats_cache
+from api.auth import CurrentUser, create_access_token, decode_access_token, require_edition, require_superadmin
+from api.config import VIEWER_CONFIG, FACET_SCRIPT, _CONFIG_PATH, get_all_scan_directories, get_user_directories, _photo_types_cache, _stats_cache
 from processing.progress import parse_progress_line
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
@@ -28,10 +29,14 @@ logger = logging.getLogger(__name__)
 SCAN_STREAM_PURPOSE = 'scan_stream'
 SCAN_STREAM_TOKEN_TTL_SECONDS = 60
 
-# Global scan state (only one scan at a time)
+JOB_KIND_SCAN = 'scan'
+JOB_KIND_RECOMPUTE = 'recompute'
+
+# Global scan state (only one scan or recompute job at a time)
 _scan_lock = threading.Lock()
 _scan_state = {
     'running': False,
+    'kind': None,
     'process': None,
     'output_lines': deque(maxlen=500),
     'started_at': None,
@@ -39,6 +44,57 @@ _scan_state = {
     'exit_code': None,
     'progress': None,
 }
+
+
+def _library_job_conflict_detail():
+    """Message naming the process cross-process-locking the DB, or None.
+
+    Checks the ``facet.LibraryLock`` next to the DB, which every
+    library-rewriting run holds for its whole run -- a scan (scoring loop AND
+    post-processing tail), a ``--recompute-average``/``--recompute-category``,
+    and the other ``facet.LIBRARY_JOB_ARGS`` jobs, whether started from a
+    terminal or from a subprocess spawned by this router. The message names
+    the holder's own kind; it is never assumed.
+    """
+    from db.connection import DEFAULT_DB_PATH
+    from facet import library_job_conflict_message, library_job_holder
+
+    holder = library_job_holder(DEFAULT_DB_PATH)
+    return library_job_conflict_message(holder) if holder else None
+
+
+def _configured_scan_stale_seconds():
+    """``processing.scan_stale_seconds``, read fresh so a reload is honoured."""
+    from api.config import _FULL_CONFIG
+    from facet import scan_stale_seconds
+
+    return scan_stale_seconds(_FULL_CONFIG)
+
+
+def _recompute_conflict_detail():
+    """Like ``_library_job_conflict_detail`` but also refuses on a live scan.
+
+    A scan started by a build that predates the library lock is only visible
+    through ``scan_runs`` (heartbeat, also used by ``--resume``), so that
+    check is kept as a second line of defence -- honouring the configured
+    staleness bound rather than the function default, like every other caller.
+    """
+    conflict = _library_job_conflict_detail()
+    if conflict:
+        return conflict
+    from db.connection import DEFAULT_DB_PATH
+    from processing.scan_state import scan_in_progress
+
+    if scan_in_progress(DEFAULT_DB_PATH, _configured_scan_stale_seconds()):
+        return "A scan is already running from the command line."
+    return None
+
+
+def _cross_process_job_env():
+    """Subprocess env marking a spawned job as viewer-origin for LibraryLock."""
+    from facet import JOB_ORIGIN_ENV_VAR
+
+    return {**os.environ, JOB_ORIGIN_ENV_VAR: 'viewer'}
 
 
 def _read_scan_output(proc):
@@ -66,6 +122,10 @@ class ScanStartRequest(BaseModel):
     directories: list[str] = []
 
 
+class RecomputeRequest(BaseModel):
+    confirm: bool
+
+
 @router.post("/start")
 def start_scan(
     body: ScanStartRequest,
@@ -82,6 +142,11 @@ def start_scan(
         if _scan_state['running']:
             _scan_lock.release()
             raise HTTPException(status_code=409, detail="A scan is already running")
+
+        conflict = _library_job_conflict_detail()
+        if conflict:
+            _scan_lock.release()
+            raise HTTPException(status_code=409, detail=conflict)
 
         directories = body.directories
 
@@ -105,9 +170,11 @@ def start_scan(
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            env=_cross_process_job_env(),
         )
 
         _scan_state['running'] = True
+        _scan_state['kind'] = JOB_KIND_SCAN
         _scan_state['process'] = proc
         _scan_state['output_lines'] = deque(maxlen=500)
         _scan_state['started_at'] = time.time()
@@ -265,4 +332,135 @@ def scan_directories(
             {'path': d, 'owner': 'shared' if d not in user_dirs else user.user_id}
             for d in all_dirs
         ]
+    }
+
+
+@router.post("/recompute")
+def start_recompute(
+    body: RecomputeRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Trigger a full-library aggregate recompute as a background subprocess.
+
+    Reuses the scan job machinery (``_scan_lock``, ``_scan_state``,
+    ``_read_scan_output``) so a scan and a recompute stay mutually exclusive
+    *within this process*. Cross-process (a CLI ``--recompute-average`` or
+    scan running from a terminal) is caught by ``_recompute_conflict_detail``,
+    which checks ``facet.LibraryLock`` -- the subprocess spawned below holds
+    that same lock for its whole run, marked ``origin=viewer`` via
+    ``_cross_process_job_env`` so the conflict message names where it came
+    from. The argv is fixed and entirely server-origin, so unlike ``/start``
+    it is edition-gated rather than superadmin-only.
+
+    ``confirm`` is required rather than decorative: a body-less POST is a CORS
+    "simple request" and never preflights, so any page the user happens to open
+    could otherwise start a multi-hour rewrite of the whole photos table on a
+    password-less install. Requiring a JSON body forces the preflight that the
+    other write endpoints get for free.
+    """
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="Recompute must be explicitly confirmed")
+
+    if not _scan_lock.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail="A job is already running")
+
+    try:
+        if _scan_state['running']:
+            raise HTTPException(status_code=409, detail="A job is already running")
+
+        conflict = _recompute_conflict_detail()
+        if conflict:
+            raise HTTPException(status_code=409, detail=conflict)
+
+        cmd = [sys.executable, FACET_SCRIPT, '--recompute-average', '--config', str(_CONFIG_PATH)]
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=_cross_process_job_env(),
+        )
+
+        _scan_state['running'] = True
+        _scan_state['kind'] = JOB_KIND_RECOMPUTE
+        _scan_state['process'] = proc
+        _scan_state['output_lines'] = deque(maxlen=500)
+        _scan_state['started_at'] = time.time()
+        _scan_state['directories'] = []
+        _scan_state['exit_code'] = None
+        _scan_state['progress'] = None
+
+        reader = threading.Thread(target=_read_scan_output, args=(proc,), daemon=True)
+        reader.start()
+
+        return {
+            'success': True,
+            'message': 'Recompute started',
+            'pid': proc.pid,
+        }
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Recompute failed to start")
+        _scan_state['running'] = False
+        raise HTTPException(status_code=500, detail='Recompute failed to start')
+    finally:
+        _scan_lock.release()
+
+
+def _cross_process_job_holder():
+    """The live ``facet.LibraryLock`` holder, if any.
+
+    A scan holds it too, not just a recompute, so the holder's recorded
+    ``kind`` is reported as-is. Peeking it here is what lets a worker that
+    never handled the POST still answer ``running`` truthfully instead of
+    mistaking silence for failure.
+    """
+    from db.connection import DEFAULT_DB_PATH
+    from facet import library_job_holder
+
+    return library_job_holder(DEFAULT_DB_PATH)
+
+
+@router.get("/recompute_status")
+def recompute_status(
+    user: CurrentUser = Depends(require_edition),
+):
+    """Poll recompute progress.
+
+    ``_scan_state`` is a per-process global, so a worker other than the one
+    that handled the POST has none of it. ``_cross_process_job_holder`` fills
+    that gap for ``running`` so a fresh worker reports "running, progress
+    unknown" rather than a false "failed", and reports the holder's own
+    ``kind`` -- a scan holds the same lock, so assuming ``recompute`` here
+    would mislabel it. ``progress`` and a terminal ``exit_code`` still require
+    having watched the subprocess directly, so they stay null unless this
+    worker's own state is the one that pertains to a recompute -- never
+    leaked from a stale scan.
+
+    Deliberately excludes ``output_lines`` -- the superadmin-only log stream
+    served by ``/status`` and ``/stream`` is not widened to edition users.
+    """
+    local_running = _scan_state['running']
+    holder = None if local_running else _cross_process_job_holder()
+
+    if local_running or holder is not None:
+        return {
+            'running': True,
+            'kind': _scan_state.get('kind') if local_running else holder.get('kind'),
+            'progress': _scan_state.get('progress') if local_running else None,
+            'exit_code': None,
+        }
+
+    if _scan_state.get('kind') != JOB_KIND_RECOMPUTE:
+        return {'running': False, 'kind': None, 'progress': None, 'exit_code': None}
+
+    return {
+        'running': False,
+        'kind': JOB_KIND_RECOMPUTE,
+        'progress': _scan_state.get('progress'),
+        'exit_code': _scan_state.get('exit_code'),
     }

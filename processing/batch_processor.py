@@ -18,6 +18,7 @@ import imagehash
 from tqdm import tqdm
 
 from analyzers import CompositionAnalyzer, ImageCache
+from db.scoring_overrides import get_photo_scoring_overrides
 from utils import (
     load_image_from_path, get_tag_params, detect_silhouette,
     tags_to_string
@@ -273,6 +274,12 @@ class BatchProcessor:
             paths = [item['path'] for item in batch]
             batch_exif = self._get_batch_exif(paths)
 
+            # Sticky per-photo scoring context/override, batched once per
+            # batch (not per photo) so a rescan preserves them instead of
+            # silently dropping them.
+            resolved_paths = [str(Path(p).resolve()) for p in paths]
+            batch_overrides = get_photo_scoring_overrides(self.scorer.db_path, paths=resolved_paths)
+
             # Extract PIL images and pre-processed CLIP inputs
             pil_images = [item['pil_img'] for item in batch]
             clip_inputs = None
@@ -364,6 +371,7 @@ class BatchProcessor:
                 # Batch uses resolved paths, so resolve before lookup
                 resolved_path = str(Path(path).resolve())
                 exif_data = batch_exif.get(resolved_path) or self.scorer.get_exif_data(path)
+                photo_override = batch_overrides.get(resolved_path, {})
 
                 # Determine silhouette using shared function
                 is_silhouette = detect_silhouette(histogram_data, tags, face_res.get('face_count', 0))
@@ -392,6 +400,8 @@ class BatchProcessor:
                     'f_stop': exif_data.get('f_stop'),
                     'quality_score': quality_score,
                     'scoring_model': scoring_model,
+                    'scoring_context': photo_override.get('scoring_context'),
+                    'category_override': photo_override.get('category_override'),
                 }
                 aggregate, category = self.scorer.calculate_aggregate_logic(metrics)
 

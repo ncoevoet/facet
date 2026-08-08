@@ -37,17 +37,17 @@ A `Makefile` is also available: `make install`, `make install-cpu`, `make run`, 
 
 ### Docker
 
-One image serves every profile; model weights download at runtime into Docker named volumes, so the image is self-contained. Pick a profile with `FACET_VRAM_PROFILE` — no JSON editing.
+`docker compose up` pulls a published image from GHCR — no local build, no JSON editing. Two variants share one `Dockerfile`: a slim CPU image (`ghcr.io/ncoevoet/facet:latest`) and a full CUDA + RAPIDS cuML image (`:latest-cuda`) for GPU profiles. Pick a profile with `FACET_VRAM_PROFILE`.
 
 ```bash
 cp .env.example .env      # set FACET_VRAM_PROFILE + PHOTOS_DIR
-docker compose up -d      # baked default config, CPU
+docker compose up -d      # pulls :latest (CPU), baked default config
 
-# GPU / per-profile — add an overlay (needs NVIDIA Container Toolkit):
+# GPU / per-profile — add an overlay (needs NVIDIA Container Toolkit), pulls :latest-cuda:
 docker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d
 ```
 
-Overlays exist for `legacy`, `8gb`, and `16gb` (`docker-compose.{legacy,8gb,16gb}.yml`). Dependencies are pinned in `requirements.lock.txt` and cuML GPU face clustering is baked in, so GPU profiles cluster on GPU out of the box. Models download once on first run into the `facet-hf-cache` / `facet-insightface` / `facet-pretrained` volumes. Deploy knobs live in `.env` (`FACET_VRAM_PROFILE`, `PHOTOS_DIR`, `PORT`, `DB_PATH`). See [Deployment](DEPLOYMENT.md) for the full Docker + Windows/WSL2 guide.
+Overlays exist for `legacy`, `8gb`, and `16gb` (`docker-compose.{legacy,8gb,16gb}.yml`). Dependencies are pinned in `requirements.lock.txt` and cuML GPU face clustering is baked into the CUDA image, so GPU profiles cluster on GPU out of the box; the CPU image falls back to CPU HDBSCAN. Models download once on first run into the `facet-hf-cache` / `facet-insightface` / `facet-pretrained` volumes. Deploy knobs live in `.env` (`FACET_VRAM_PROFILE`, `PHOTOS_DIR`, `PORT`, `DB_PATH`). `docker compose build` still builds from source (see `Dockerfile` for the `BASE_IMAGE`/`STRIP_TORCH`/`INSTALL_CUML` build args). See [Deployment](DEPLOYMENT.md) for the full Docker + Windows/WSL2 guide.
 
 ---
 

@@ -1,3 +1,9 @@
+# Defaults to the CUDA runtime (the local `docker build` / `docker compose build`
+# path, unchanged). The published CPU image overrides BASE_IMAGE to a slim base
+# and flips STRIP_TORCH/INSTALL_CUML — see .github/workflows/docker-publish.yml.
+# Must be declared before the FIRST FROM to be usable as a later stage's default.
+ARG BASE_IMAGE=pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime
+
 # ---- Stage 1: Build Angular client ----
 FROM node:22-alpine AS client-build
 
@@ -7,8 +13,23 @@ RUN npm install --no-audit --no-fund
 COPY client/ ./
 RUN npx ng build
 
-# ---- Stage 2: Python runtime with CUDA ----
-FROM pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime
+# ---- Stage 2: Python runtime ----
+FROM ${BASE_IMAGE}
+
+# STRIP_TORCH=1 (default, CUDA base): torch/torchvision are NOT installed here —
+# the CUDA base image already ships them, and requirements.lock.txt below is a
+# pre-stripped freeze that omits torch/torchvision/nvidia-*/triton for exactly
+# that reason (see the comment on the COPY below).
+# STRIP_TORCH=0 (slim/CPU base): the base image has no torch at all, so install
+# it explicitly from the CPU wheel index — pulling it from PyPI unpinned would
+# resolve the full CUDA wheels and blow the CPU image's size target.
+ARG STRIP_TORCH=1
+# INSTALL_CUML=1 (default, CUDA base): install RAPIDS cuML for GPU-accelerated
+# face clustering (~5.75 GB, the largest single layer).
+# INSTALL_CUML=0 (CPU base): skip it entirely — face clustering already falls
+# back to CPU HDBSCAN (face_clustering.use_gpu="auto") when no CUDA device is
+# present, so the CPU image needs none of this.
+ARG INSTALL_CUML=1
 
 WORKDIR /app
 
@@ -30,6 +51,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # The optional extended-IQA tier (scoring_config.json "iqa_extended") is OFF by
 # default and intentionally NOT installed here (see docs/CONFIGURATION.md).
 COPY requirements.lock.txt .
+# CPU base only: the image ships no torch at all, so install it up front from
+# the CPU wheel index before anything in requirements.lock.txt can pull in a
+# CUDA build transitively.
+RUN if [ "$STRIP_TORCH" = "0" ]; then \
+        pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu ; \
+    fi
 RUN pip install --no-cache-dir -r requirements.lock.txt
 
 # GPU face clustering (RAPIDS cuML). Baked in so the GPU profiles (8gb/16gb/24gb)
@@ -39,7 +66,10 @@ RUN pip install --no-cache-dir -r requirements.lock.txt
 # is by far the largest single add to the image (~5.75 GB); pinned for reproducibility.
 # Installed unconstrained: cuML pins numba<0.65 (the lock has 0.65.1 via pyiqa) and
 # pulls newer nvidia-cuda-* 12.9 wheels. Validated that torch + pyiqa still work after.
-RUN pip install --no-cache-dir --extra-index-url https://pypi.nvidia.com cuml-cu12==26.6.0
+# Skipped on the CPU image (INSTALL_CUML=0) — see the ARG comment above.
+RUN if [ "$INSTALL_CUML" = "1" ]; then \
+        pip install --no-cache-dir --extra-index-url https://pypi.nvidia.com cuml-cu12==26.6.0 ; \
+    fi
 
 # Copy built Angular client
 COPY --from=client-build /app/client/dist/client/browser client/dist/client/browser

@@ -94,6 +94,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 - **Estadísticas** — paneles de uso de equipo, desglose por categoría, cronología de disparos y correlaciones de métricas
 - **Crítica con IA** — desglose de la puntuación que muestra la contribución de cada métrica; evaluación en lenguaje natural por VLM `[GPU]` `[16gb/24gb]`
 - **Ajuste de pesos** — editor de pesos por categoría con vista previa de la puntuación en vivo. La comparación A/B de fotos aprende de tus elecciones y sugiere pesos optimizados.
+- **Contextos de puntuación** — controla *qué* categoría puntúa una foto, algo independiente de los deslizadores de peso, que solo ajustan la categoría ya elegida: reordena la prioridad global de categorías, aplica un contexto con nombre (Acción/Escenario, Sesión de retrato, Vida salvaje, …) por álbum, o fija una anulación de categoría por foto que sobrevive a cada recálculo.
 - **Orden "Mi gusto"** — ordena la galería según la puntuación aprendida del clasificador personal, con una insignia de confianza que muestra la cobertura aprendida y la precisión en datos de validación
 - **Aprendizaje a partir de etiquetas** — las decisiones de selección, las valoraciones por estrellas, los favoritos y los rechazos alimentan el optimizador de pesos (`--sync-label-comparisons`, `--mine-insights`)
 - **Instantáneas** — guarda, restaura y compara configuraciones de pesos
@@ -180,13 +181,13 @@ La puntuación estética se basa en modelos y es aproximada; cuenta con ajustar 
 ### Docker (recomendado)
 
 ```bash
-docker compose up
+docker compose up      # descarga ghcr.io/ncoevoet/facet:latest — sin build local
 # Abre http://localhost:5000
 ```
 
-Esto se ejecuta en modo CPU: no se necesita GPU para explorar y servir una biblioteca existente. Monta tu directorio de fotos en `docker-compose.yml`.
+`docker compose up` descarga la imagen CPU publicada en lugar de construir la pila en local; `docker compose build` sigue construyendo desde este repositorio para modificaciones locales. Esto se ejecuta en modo CPU: no se necesita GPU para explorar y servir una biblioteca existente. Monta tu directorio de fotos en `docker-compose.yml`.
 
-La **aceleración por GPU** (opcional) requiere una GPU NVIDIA y el [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Actívala con el archivo de anulación:
+La **aceleración por GPU** (opcional) requiere una GPU NVIDIA y el [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Actívala con el archivo de anulación (descarga la imagen `:latest-cuda`):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up

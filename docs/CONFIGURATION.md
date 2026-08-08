@@ -9,6 +9,7 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Users](#users)
 - [Scanning](#scanning)
 - [Categories](#categories)
+- [Scoring Contexts](#scoring-contexts)
 - [Scoring](#scoring)
 - [Thresholds](#thresholds)
 - [Composition](#composition)
@@ -140,6 +141,74 @@ Each category has:
 - `tags` - CLIP vocabulary for tag-based matching
 
 > **Form & color-harmony weights.** Every category's `weights` block carries five explainable metric keys — `symmetry_percent`, `balance_percent`, `edge_entropy_percent`, `fractal_percent`, and `color_harmony_percent` — populated by `--recompute-form`. They ship at `0` in every category, so aggregates stay byte-identical until you give one a weight (then re-run `--recompute-average`). Weights within a category must still sum to 100.
+
+---
+
+## Scoring Contexts
+
+A scoring context is a named **delta** over the global `categories` priority order above — it promotes a short list of categories to the front and excludes others outright, leaving everything else in its existing priority order. It exists because priority is global and shared, but which category *should* win varies by shoot: a backlit dance frame tagged `sports` gets captured by `silhouette` (priority 42) long before `sports` (priority 71) is ever reached, and the weight sliders can't fix that — they govern how the *selected* category scores, not which one gets selected.
+
+```json
+{
+  "scoring_contexts": {
+    "default": {
+      "label_key": "comparison.context.default",
+      "promote": [],
+      "excluded": [],
+      "suggest_from_moments": []
+    },
+    "action_stage": {
+      "label_key": "comparison.context.action_stage",
+      "promote": ["sports", "concert", "candid"],
+      "excluded": ["silhouette"],
+      "suggest_from_moments": ["sports", "concert", "nightlife"]
+    }
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `label_key` | i18n key for the context's display name |
+| `promote` | Category names moved to the front of the evaluation order, in the order given |
+| `excluded` | Category names removed from evaluation entirely (never matched under this context) |
+| `suggest_from_moments` | `narrative_moment` values that suggest this context for an album — read by `GET /api/albums/{id}/suggested_context` (see [VIEWER.md](VIEWER.md)) |
+
+**Effective order** = `promote` (in order) → the global priority order minus the promoted and excluded names → `default` (the catch-all category, priority 999) last. A name listed in **both** `promote` and `excluded` is dropped from the order entirely — `excluded` wins, the `promote` entry is not honored. `default` itself can never be promoted or excluded. Passing no context, or an unknown context name, falls back to the plain global priority order (and logs a warning for an unknown name); the resolved `[(category_name, CategoryFilter)]` list is memoized per context name for the lifetime of the loaded config (`ScoringConfig.resolve_context_order`). `python facet.py --validate-categories` reports (without failing the load) any `promote`/`excluded` name that isn't a real category, any name listed in both, and any `suggest_from_moments` entry that isn't a key of `narrative_moments.event_types.<default_event_type>` — a typo in any of these otherwise fails silently.
+
+Shipped presets — `default` is an empty delta, so existing behavior is unchanged unless a context is explicitly assigned:
+
+| Context | Promotes | Excludes | Suggested from moments |
+|---------|----------|----------|------------------------|
+| `default` | — | — | — |
+| `action_stage` | `sports`, `concert`, `candid` | `silhouette` | `sports`, `concert`, `nightlife` |
+| `party_event` | `group_portrait`, `candid`, `food` | — | `celebration`, `group_gathering`, `dining` |
+| `portrait_session` | `portrait`, `portrait_bw`, `fashion` | — | `portrait`, `children` |
+| `wildlife` | `wildlife` | — | `nature_wildlife`, `pets` |
+| `landscape` | `landscape`, `golden_hour`, `blue_hour` | — | `scenic_landscape`, `mountains`, `snow_winter` |
+| `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
+
+### Editing a context
+
+`PUT /api/config/scoring_contexts/{name}` (edition-gated) rewrites one context's delta from the viewer's **Scoring Context** tab — drag the promoted head into the order you want, click a category to toggle its exclusion, save. Body is `{"promote": [name, ...], "excluded": [name, ...]}`. Only those two fields are editable: `label_key` and `suggest_from_moments` are left exactly as they were, and every other context is untouched. **Editing the delta is deliberately all the UI offers** — a context never carries a standalone full ordering, so the non-promoted categories always keep the global priority order and a category added later can never be silently missing from six separate lists.
+
+The write is rejected with a 400 naming the offender when the context doesn't exist, when a `promote`/`excluded` entry isn't an existing category, when `default` appears in either list (it is the pinned catch-all and can be neither promoted nor excluded), or when `promote` repeats a name (its order is meaningful, so a repeat is ambiguous). Listing the same category in **both** lists is still accepted — `excluded` wins and the `promote` entry is dropped, exactly as documented above — and a repeat inside `excluded` is collapsed rather than rejected, since it is a set. Each write takes the same timestamped, pruned `.backup.<timestamp>` copy and holds the same lock as the priority and weight writers, so concurrent config saves can't drop each other. `resolve_context_order` memoizes per `ScoringConfig` instance and every reader constructs a fresh one per request, so there is no order cache to invalidate after a write.
+
+Like a priority reorder, editing a context does not touch any photo's stored `category` by itself — run a recompute afterward (see [Changing priorities requires a recompute](#reordering-the-global-priority)); the tab offers a **Recompute now** button for exactly this.
+
+### Assigning a context
+
+A scoring context is assigned **per album** via `PUT /api/albums/{id}/scoring_context` (edition-gated), which writes the album's `scoring_context` column and materializes the same value into `photo_scoring_overrides.scoring_context` for every photo that is a member **at that moment**, skipping any member whose override was set manually (`source = 'manual'`) — an album assignment never silently converts a photo's own manual choice into an album-sourced one. The response's `conflicts` count is how many non-manual members already carried a different context (last-write-wins), `manual_skipped` is how many manual members were left untouched, and `updated` is how many were actually written. A manual album resolves membership from its `album_photos` rows; a smart album (`is_smart`) has none, so membership is instead resolved by evaluating its saved `smart_filter_json` against the live database (`_resolve_album_member_paths`, mirroring the smart branch of `_fetch_album_photos`). This is the album's **filter definition**, not the gallery view: `smart_filter_json` carries only the filter the user chose (sort, person, etc.) and deliberately excludes the gallery's `hide_blinks`/`hide_bursts`/`hide_duplicates`/`hide_rejected` view preferences (global, runtime-toggleable `viewer.defaults`, not part of the album's own definition), so `updated` can legitimately exceed the photo count the album's own gallery view displays with those toggles on — a burst follower of an otherwise-matching shot is still a real member. A smart album whose filter currently matches nothing comes back with `updated: 0` and a `warning`. Either way the stamp is a snapshot, not a subscription: for a manual album, a photo added *afterward* via `append_album_photos` does inherit the context automatically (also skipping manual members), but a smart album's filter matching a *new* photo later does **not** retroactively apply the context to it — only calling `PUT` again re-stamps whatever currently matches. `DELETE /api/albums/{id}/scoring_context` clears the album's `scoring_context` and undoes the stamp on exactly the members this album set (`source = 'album:<id>'`), leaving any photo's own manual override untouched. Removing specific photos from an album (`DELETE /api/albums/{id}/photos`) undoes this album's stamp on exactly those photos the same way, except when a removed photo is *still* a member of another album that itself declares a context — a single `source` column cannot represent multi-album membership, so that photo is re-stamped with the other album's context instead of being left unscored (this re-derivation is bounded to the photos in the removal request; a full-album delete or an explicit context clear does not attempt it, since checking every cleared photo against every other context-declaring album is unbounded for a smart album's full membership). Removing photos from a smart album is a no-op (`album_photos` carries no rows for it, and the removed photos are typically still members). `GET /api/albums/{id}/suggested_context` proposes a context from the album's dominant `narrative_moment` (resolved the same way, `_resolve_album_member_paths`), mapped through `suggest_from_moments`, along with the dominant moment's `share` of the album — it writes nothing; the assignment above still has to be called explicitly.
+
+For a single stubborn photo, a **category override** is the escape hatch — not a context, a direct category assignment: `POST /api/comparison/override_category` (edition-gated) validates the category name against the config and records it in `photo_scoring_overrides.category_override`; `POST /api/comparison/clear_category_override` removes it, letting filter evaluation decide again on the next recompute.
+
+Both levers persist in one side table, `photo_scoring_overrides(photo_path PK, scoring_context, category_override, source, created_at, created_by)`, rather than as columns on `photos` — `save_photo`/`save_photos_batch` write photo rows with `INSERT OR REPLACE` (`processing/scorer.py`), which would silently drop any new column on that row at the next rescan. `processing/scorer.py`'s `Facet._determine_photo_category` is the single choke point that resolves both, on the scan path and on `--recompute-average` alike: a valid `category_override` wins outright; otherwise `ScoringConfig.determine_category(photo_data, context=scoring_context)` evaluates the context's effective order. A numeric filter still fails when the underlying EXIF value is missing or unparseable regardless of context — see [Scoring — the missing-EXIF trap](SCORING.md#the-missing-exif-trap) for the `sports`/`shutter_speed_max` case that promoting alone cannot fix.
+
+### Reordering the global priority
+
+`GET|POST /api/config/category_priorities` (edition-gated) reads and rewrites the base order that every context deltas against. `POST` takes `{"order": [name, ...]}` — a set-equal permutation of every non-`default` category name — and **permutes the existing priority multiset onto the new order** rather than renumbering (e.g. 10/20/30): this keeps the documented priority numbers meaningful for categories whose stored priority is already unique. A category with a missing or duplicated priority — which `--validate-categories` only flags as a logged issue, not a hard error — is healed as part of the same write instead of rejecting it with a 400: it is assigned a fresh value past the current maximum, so a hand-edited config with broken priorities is repaired by submitting any valid order rather than being permanently stuck (this endpoint is the only writer of `priority`, so it has to agree with `--validate-categories` about what's merely a logged issue versus a hard failure). `default` (priority 999) is pinned last and excluded from reordering. Every write takes a timestamped `.backup.<timestamp>` copy of `scoring_config.json` first — only the 20 most recent backups are kept, older ones are pruned on each write — and this writer shares a lock with the weight editor (`update_category_weights`) — the previous unguarded read-modify-write let a concurrent save from each silently drop the other's changes.
+
+**Changing priorities requires a recompute.** The reorder itself does not touch any photo's stored `category` — run `python facet.py --recompute-average`, or trigger `POST /api/scan/recompute` from the viewer (edition-gated) and poll `GET /api/scan/recompute_status`. `update_all_aggregates` emits `@FACET_PROGRESS` lines (previously `tqdm`-only) so this can drive a progress bar. A recompute holds one long write transaction across the whole `photos` table, so `--recompute-average`/`--recompute-category` acquire a cross-process `facet.LibraryLock` (a PID-stamped `<db_dir>/.facet_cache/library.lock`) for their entire run, not just the viewer's in-memory job lock: a CLI recompute refuses outright if a scan is already running, a CLI scan refuses outright if a recompute is running, and the viewer's `POST /api/scan/start`/`POST /api/scan/recompute` peek the same lock file and return 409 naming the holder (kind, pid, origin) before spawning — so a terminal job and a viewer-triggered job can no longer collide and crash with `SQLITE_BUSY`. A holder that crashes is detected immediately via an OS PID-liveness check, so a stale lock self-heals rather than wedging future jobs. The one remaining gap is CLI scan-vs-scan: two concurrent scans started from a terminal are still only soft-warned, not refused (deliberate; `--resume` still hard-refuses). If `normalization.per_category` is enabled, see [Normalization](#normalization) for why even a single, uncontested recompute may need to run twice.
 
 ---
 
@@ -313,6 +382,8 @@ Controls how raw metrics are scaled to 0-10 scores.
 | `percentile_target` | `90` | 90th percentile = score of 10.0 |
 | `per_category` | `true` | Category-specific normalization |
 | `category_min_samples` | `50` | Minimum photos for per-category |
+
+**A single recompute does not converge when `per_category` is enabled.** `compute_percentiles_per_category` (`config/percentile_normalizer.py`) groups photos by the *currently stored* `photos.category` column, and it runs once, up front, before `update_all_aggregates` re-determines and rewrites each photo's category for the new config. So after any change that can move photos between categories — reordering priorities, assigning/clearing a scoring context, adding or clearing a category override — the first `--recompute-average` normalizes every photo against percentiles grouped by its **old** category, not the one it is about to be assigned. Run `--recompute-average` a second time so the per-category percentiles are computed from the now-correct `category` column; only then do the normalized scores settle.
 
 ---
 

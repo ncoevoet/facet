@@ -12,6 +12,7 @@ const MOCK_ALBUM: Album = {
   is_smart: false,
   is_shared: false,
   smart_filter_json: null,
+  scoring_context: null,
   photo_count: 42,
   created_at: '2025-06-01T00:00:00Z',
   updated_at: '2025-06-15T00:00:00Z',
@@ -225,6 +226,50 @@ describe('AlbumService', () => {
       const req = httpTesting.expectOne((r) => r.url === '/api/shared/album/1');
       expect(req.request.method).toBe('GET');
       expect(req.request.params.get('token')).toBe('my-token');
+      req.flush(mockResponse);
+    });
+  });
+
+  describe('setScoringContext()', () => {
+    it('should PUT the scoring context to /api/albums/:id/scoring_context', () => {
+      const mockResponse = { updated: 5, conflicts: 2 };
+
+      service.setScoringContext(1, 'party_event').subscribe((data) => {
+        expect(data).toEqual(mockResponse);
+      });
+
+      const req = httpTesting.expectOne('/api/albums/1/scoring_context');
+      expect(req.request.method).toBe('PUT');
+      expect(req.request.body).toEqual({ scoring_context: 'party_event' });
+      req.flush(mockResponse);
+    });
+  });
+
+  describe('getSuggestedContext()', () => {
+    it('should GET /api/albums/:id/suggested_context', () => {
+      const mockResponse = { suggested: 'party_event', moment: 'celebration', share: 0.82, counts: { celebration: 41 } };
+
+      service.getSuggestedContext(1).subscribe((data) => {
+        expect(data).toEqual(mockResponse);
+      });
+
+      const req = httpTesting.expectOne('/api/albums/1/suggested_context');
+      expect(req.request.method).toBe('GET');
+      req.flush(mockResponse);
+    });
+  });
+
+  // F6: clearing a scoring context is its own endpoint, distinct from setScoringContext.
+  describe('clearScoringContext()', () => {
+    it('should DELETE /api/albums/:id/scoring_context', () => {
+      const mockResponse = { ok: true, cleared: 5 };
+
+      service.clearScoringContext(1).subscribe((data) => {
+        expect(data).toEqual(mockResponse);
+      });
+
+      const req = httpTesting.expectOne('/api/albums/1/scoring_context');
+      expect(req.request.method).toBe('DELETE');
       req.flush(mockResponse);
     });
   });

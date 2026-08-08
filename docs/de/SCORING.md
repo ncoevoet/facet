@@ -7,7 +7,7 @@ Fotos werden zunächst einer Kategorie zugeordnet und anschließend mit den Gewi
 ## So funktioniert die Bewertung
 
 1. **Kategorieerkennung** – Das Foto wird auf seinen Inhalt analysiert (Gesichter, Tags, EXIF-Daten)
-2. **Filterauswertung** – Die Kategorien werden in Prioritätsreihenfolge ausgewertet, bis eine zutrifft
+2. **Filterauswertung** – Die Kategorien werden in Prioritätsreihenfolge ausgewertet, bis eine zutrifft (ein *Bewertungskontext* kann Kategorien pro Album oder Foto vorziehen/ausschließen, ohne die Basisreihenfolge zu ändern – siehe [Bewertungskontexte](#bewertungskontexte))
 3. **Gewichtsanwendung** – Kategoriespezifische Gewichte werden auf die Metriken angewendet
 4. **Modifikatoranwendung** – Boni, Strafen und Verhaltensflags werden angewendet
 5. **Endwertung** – Gewichtete Summe, begrenzt auf den Bereich 0–10
@@ -36,6 +36,42 @@ Fotos werden zunächst einer Kategorie zugeordnet und anschließend mit den Gewi
 | 999 | `default` | Rückfall (kein Filter) |
 
 Weitere tag-basierte Kategorien sind `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` und `weather`.
+
+## Bewertungskontexte
+
+Die obige Prioritätsreihenfolge ist global – jedes Foto wird gegen dieselbe Liste ausgewertet. Ein **Bewertungskontext** ist ein benanntes *Delta* über dieser Basisreihenfolge: Er zieht eine kurze Liste von Kategorien an den Anfang und schließt andere vollständig aus, ohne irgendetwas neu zu nummerieren. `default` (leere `promote`-/`excluded`-Listen) ist der Kontext ohne Wirkung, sodass sich für ein Foto nichts ändert, solange ihm nicht explizit ein Kontext zugewiesen wird.
+
+**Effektive Reihenfolge** = `promote` (in der angegebenen Reihenfolge) → die globale Prioritätsreihenfolge abzüglich der vorgezogenen und ausgeschlossenen Namen → `default` zuletzt. Ein Name, der sowohl in `promote` als auch in `excluded` steht, wird vollständig entfernt – `excluded` gewinnt. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) berechnet dies einmal pro Kontextname und speichert das Ergebnis zwischen (memoization).
+
+Mitgelieferte Voreinstellungen – bearbeitbar über den Tab **Bewertungskontext** des Viewers (`PUT /api/config/scoring_contexts/{name}`, nur im Bearbeitungsmodus) oder direkt im JSON; die vollständige Feldreferenz siehe [Bewertungskontexte](CONFIGURATION.md#bewertungskontexte):
+
+| Context | Promotes | Excludes |
+|---------|----------|----------|
+| `default` | – | – |
+| `action_stage` | `sports`, `concert`, `candid` | `silhouette` |
+| `party_event` | `group_portrait`, `candid`, `food` | – |
+| `portrait_session` | `portrait`, `portrait_bw`, `fashion` | – |
+| `wildlife` | `wildlife` | – |
+| `landscape` | `landscape`, `golden_hour`, `blue_hour` | – |
+| `motorsport` | `sports`, `vehicle` | `silhouette` |
+
+Nur das *Delta* ist bearbeitbar — den bevorzugten Kopf in die gewünschte Reihenfolge ziehen, den Ausschluss einer Kategorie umschalten — nie eine vollständige eigenständige Reihenfolge pro Kontext: die nicht bevorzugten Kategorien behalten immer die globale Prioritätsreihenfolge, sodass eine später hinzugefügte Kategorie nie stillschweigend in sechs getrennten Listen fehlen kann. Die Validierungsregeln siehe [Einen Kontext bearbeiten](CONFIGURATION.md#einen-kontext-bearbeiten).
+
+Ein Kontext wird pro Album zugewiesen (`PUT /api/albums/{id}/scoring_context`, was ihn auf jedes Foto überträgt, das gerade Mitglied ist – bei einem intelligenten Album eine Momentaufnahme, kein Abonnement, siehe [Bewertungskontexte](CONFIGURATION.md#bewertungskontexte)) oder, für ein einzelnes hartnäckiges Foto, als dauerhafte Kategorieüberschreibung angewendet (`POST /api/comparison/override_category`). Beide Hebel werden in einer separaten Tabelle `photo_scoring_overrides` gespeichert statt als Spalten auf `photos` – `save_photo`/`save_photos_batch` schreiben Fotozeilen mit `INSERT OR REPLACE`, was eine neue Spalte auf dieser Zeile beim nächsten erneuten Scan stillschweigend löschen würde. Das Setzen des einen Hebels lässt den anderen unberührt, und beide können unabhängig voneinander zurückgesetzt werden. **Keiner der beiden wirkt sich auf bereits bewertete Fotos aus, bevor nicht eine Neuberechnung erfolgt** – `python facet.py --recompute-average` oder `POST /api/scan/recompute` über den Viewer (prozessübergreifend dagegen abgesichert, dass zwei gleichzeitig laufen – siehe [Das Ändern von Prioritäten erfordert eine Neuberechnung](CONFIGURATION.md#die-globale-priorität-neu-ordnen)). Ist `normalization.per_category` aktiviert, führen Sie die Neuberechnung zweimal aus – siehe [Normalization](CONFIGURATION.md#normalization) dafür, warum der erste Durchlauf anhand der alten Kategorie jedes Fotos normalisiert.
+
+### Die Falle fehlender EXIF-Daten
+
+Eine Neuordnung – ob durch Bearbeiten der globalen Priorität oder durch Vorziehen via Kontext – ändert nur, welche Kategorie *zuerst versucht* wird. Sie kann nicht bewirken, dass die Filter einer Kategorie auf ein Foto zutreffen, auf das sie sonst nicht zuträfen. `config/category_filter.py:122-128` lässt einen numerischen Bereichsfilter grundsätzlich scheitern, sobald der zugrunde liegende Fotowert fehlt oder nicht auswertbar ist, anstatt nur diese Grenze zu überspringen – ein fehlender Wert und ein außerhalb des Bereichs liegender Wert werden identisch behandelt, und die Kategorie wird in beiden Fällen übersprungen.
+
+Konkret: `sports` (Priorität 71) trägt `shutter_speed_max: 0.02`. Eine Tanzaufnahme, die langsamer als 1/50s belichtet wurde, oder ganz ohne auslesbare EXIF-Verschlusszeit, scheitert an diesem Filter, egal wo `sports` in der Auswertungsreihenfolge steht – selbst wenn es durch einen Kontext wie `action_stage` ganz nach vorn gezogen wird. Das Foto fällt durch zur nächstpassenden Kategorie, typischerweise `fashion` (Priorität 43, mit Tag `fashion`, hat ein Gesicht) oder `silhouette` (Priorität 42, Gegenlicht mit Gesicht). **Das ist die mit Abstand nützlichste Prüfung, wenn ein Foto in einer unerwarteten Kategorie landet:** Bevor Sie etwas neu ordnen oder vorziehen, stellen Sie sicher, dass die numerischen Filter der Zielkategorie tatsächlich zu den gespeicherten EXIF-Daten des Fotos passen können, nicht nur zu seinen Tags.
+
+### Die globale Priorität neu ordnen
+
+`GET/POST /api/config/category_priorities` (Edition-geschützt) liest und schreibt die Basisreihenfolge, gegen die jeder Kontext sein Delta bildet. `POST` erwartet `{"order": [name, ...]}` – eine mengengleiche Permutation aller Kategorienamen außer `default` – und **permutiert die vorhandenen Prioritätswerte auf die neue Reihenfolge**, statt sie neu durchzunummerieren (10/20/30/…): Die Multimenge der Prioritäten bleibt unverändert, sodass die Zahlen in der obigen Tabelle aussagekräftig bleiben und die Eindeutigkeit konstruktionsbedingt erhalten bleibt. `default` (Priorität 999) ist fest am Ende verankert und von der Neuordnung ausgeschlossen. Jeder Schreibvorgang legt zunächst eine zeitgestempelte Kopie `.backup.<timestamp>` von `scoring_config.json` an; dieser Writer teilt sich nun eine Sperre mit dem Gewichtseditor (`update_category_weights`), da das vorherige ungeschützte Read-Modify-Write dazu führen konnte, dass ein gleichzeitiges Speichern der beiden die Änderungen des jeweils anderen stillschweigend verwarf.
+
+Die Neuordnung allein verändert nicht die gespeicherte `category` eines Fotos – führen Sie anschließend eine Neuberechnung aus (`--recompute-average` oder `POST /api/scan/recompute`), um sie anzuwenden.
+
+**Bekannte Einschränkung:** `api/types.py` erstellt die Typ-/Filter-Dropdown-Liste der Galerie einmalig beim Import aus `ScoringConfig.get_categories()`. Eine Prioritätsänderung wirkt sich sofort auf die tatsächliche Kategoriezuordnung aus (jeder Bewertungs- und Neuberechnungsaufruf liest die Konfiguration erneut von der Festplatte), aber das Typ-Dropdown der Galerie behält seine alte Reihenfolge bei, bis der Viewer-Prozess neu gestartet wird. Das Filtern selbst ist davon nicht betroffen – die Neuordnung fügt keine Kategorienamen hinzu oder entfernt welche.
 
 ## Kategoriedefinition
 

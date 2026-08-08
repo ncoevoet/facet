@@ -1,5 +1,9 @@
 services:
   facet:
+    # Pulls the published CPU image by default. `docker compose build` (or
+    # `up --build`) still builds from source using the Dockerfile below —
+    # handy for local hacking.
+    image: ghcr.io/ncoevoet/facet:latest
     build: .
     ports:
       - "${PORT:-5000}:5000"

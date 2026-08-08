@@ -1,5 +1,6 @@
 """Tests for the core config module (ScoringConfig, CategoryFilter, determine_category)."""
 
+import json
 import os
 
 import pytest
@@ -215,6 +216,385 @@ class TestDetermineCategory:
             "f_stop": None,
         }
         assert scoring_config.determine_category(photo) == "group_portrait"
+
+
+class TestDetermineCategoryToleratesNamelessCategory:
+    """DEFECT L4 regression: resolve_context_order used to dereference
+    c['name'] eagerly for every category while building the evaluation
+    order, so a single hand-edited category missing its 'name' field
+    KeyErrored on every determine_category call -- master only crashed
+    if that particular nameless category actually matched."""
+
+    _CATEGORIES = [
+        {"priority": 5, "filters": {"required_tags": ["nonexistent_tag_xyz"]}},
+        {"name": "default", "priority": 999, "filters": {}},
+    ]
+
+    def _config(self, tmp_path):
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({"categories": self._CATEGORIES}))
+        return ScoringConfig(config_path=str(config_path), validate=False)
+
+    def test_unrelated_photo_does_not_crash_on_the_nameless_category(self, tmp_path):
+        cfg = self._config(tmp_path)
+        photo = {"tags": "unrelated", "face_count": 0, "face_ratio": 0.0}
+        assert cfg.determine_category(photo) == "default"
+
+
+# ---------------------------------------------------------------------------
+# scoring contexts (get_scoring_contexts / resolve_context_order / determine_category context)
+# ---------------------------------------------------------------------------
+
+
+class TestScoringContexts:
+    """Scoring contexts reorder/exclude categories on top of the base priority order."""
+
+    def _silhouette_sports_photo(self, **overrides):
+        photo = {
+            "tags": "athlete, competition, fashion, sports",
+            "face_count": 1,
+            "face_ratio": 0.15,
+            "is_silhouette": 1,
+            "is_group_portrait": 0,
+            "is_monochrome": 0,
+            "mean_luminance": 0.2,
+            "iso": None,
+            "shutter_speed": None,
+            "focal_length": None,
+            "f_stop": None,
+        }
+        photo.update(overrides)
+        return photo
+
+    def test_silhouette_wins_under_default(self, scoring_config):
+        """A silhouette-flagged, sports-tagged photo is 'silhouette' with no context."""
+        assert scoring_config.determine_category(self._silhouette_sports_photo()) == "silhouette"
+
+    def test_action_stage_excludes_silhouette(self, scoring_config):
+        """The same photo never resolves to 'silhouette' under action_stage."""
+        result = scoring_config.determine_category(self._silhouette_sports_photo(), context="action_stage")
+        assert result != "silhouette"
+
+    def test_action_stage_promotes_sports_when_it_actually_matches(self, scoring_config):
+        """With a valid shutter speed, action_stage promotes 'sports' ahead of 'silhouette'."""
+        photo = self._silhouette_sports_photo(shutter_speed="1/500")
+        assert scoring_config.determine_category(photo, context="action_stage") == "sports"
+
+    def test_unknown_context_falls_back_to_default_order(self, scoring_config):
+        """An unconfigured context name behaves exactly like no context at all."""
+        photo = self._silhouette_sports_photo()
+        default_result = scoring_config.determine_category(photo)
+        fallback_result = scoring_config.determine_category(photo, context="not_a_real_context")
+        assert fallback_result == default_result
+
+    def test_get_categories_with_no_context_is_unchanged(self, scoring_config):
+        """get_categories() with no argument keeps the plain priority-sorted list."""
+        categories = scoring_config.get_categories()
+        priorities = [c.get("priority", 100) for c in categories]
+        assert priorities == sorted(priorities)
+        assert categories[-1]["name"] == "default"
+
+    def test_get_scoring_contexts_includes_shipped_presets(self, scoring_config):
+        """The shipped presets are all present with the required keys."""
+        contexts = scoring_config.get_scoring_contexts()
+        expected_keys = {"label_key", "promote", "excluded", "suggest_from_moments"}
+        for name in ("default", "action_stage", "party_event", "portrait_session",
+                     "wildlife", "landscape", "motorsport"):
+            assert name in contexts
+            assert set(contexts[name].keys()) == expected_keys
+
+    def test_context_names_reference_real_categories_and_moments(self, scoring_config):
+        """Every promote/excluded name is a real category; every suggested moment is real."""
+        category_names = {c["name"] for c in scoring_config.get_categories()}
+        moment_names = set(
+            scoring_config.config.get("narrative_moments", {})
+            .get("event_types", {}).get("general", {}).keys()
+        )
+        for context in scoring_config.get_scoring_contexts().values():
+            for name in context["promote"] + context["excluded"]:
+                assert name in category_names
+            for moment in context["suggest_from_moments"]:
+                assert moment in moment_names
+
+    def test_resolve_context_order_is_memoized(self, scoring_config):
+        """Repeated calls for the same context return the identical cached result."""
+        first = scoring_config.resolve_context_order("action_stage")
+        second = scoring_config.resolve_context_order("action_stage")
+        assert first is second
+
+    def test_resolve_context_order_is_consistent_across_calls(self, scoring_config):
+        """The resolved order is stable (same names, same sequence) across calls."""
+        first_names = [name for name, _ in scoring_config.resolve_context_order("landscape")]
+        second_names = [name for name, _ in scoring_config.resolve_context_order("landscape")]
+        assert first_names == second_names
+
+    def test_validate_categories_passes_for_shipped_scoring_contexts(self, scoring_config):
+        """The shipped scoring_contexts block raises no validation issues."""
+        ok, issues = scoring_config.validate_categories(verbose=False)
+        assert ok is True
+        assert not any(issue.startswith("scoring_contexts.") for issue in issues)
+
+
+class TestValidateCategoriesScoringContexts:
+    """validate_categories() reports config mistakes in scoring_contexts rather
+    than silently dropping them (typo'd names, promote/excluded overlaps, and
+    suggest_from_moments entries that don't exist)."""
+
+    _CATEGORIES = [
+        {"name": "silhouette", "priority": 10, "filters": {}},
+        {"name": "sports", "priority": 20, "filters": {}},
+        {"name": "wildlife", "priority": 30, "filters": {}},
+        {"name": "default", "priority": 999, "filters": {}},
+    ]
+
+    def _config_with(self, tmp_path, scoring_contexts, narrative_moments=None):
+        config_path = tmp_path / "scoring_config.json"
+        config = {
+            "categories": self._CATEGORIES,
+            "scoring_contexts": scoring_contexts,
+            "narrative_moments": narrative_moments or {
+                "default_event_type": "general",
+                "event_types": {"general": {"sports": [], "nature_wildlife": []}},
+            },
+        }
+        config_path.write_text(json.dumps(config))
+        return ScoringConfig(config_path=str(config_path), validate=False)
+
+    def test_unknown_promote_name_is_reported(self, tmp_path):
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": ["wildlfe", "sports"], "excluded": [],
+                    "suggest_from_moments": []},
+        })
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any("promote references unknown category 'wildlfe'" in i for i in issues)
+
+    def test_unknown_excluded_name_is_reported(self, tmp_path):
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": [], "excluded": ["silhouete"],
+                    "suggest_from_moments": []},
+        })
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any("excluded references unknown category 'silhouete'" in i for i in issues)
+
+    def test_name_in_both_promote_and_excluded_is_reported(self, tmp_path):
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": ["sports"], "excluded": ["sports"],
+                    "suggest_from_moments": []},
+        })
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any(
+            "'sports' is listed in both promote and excluded" in i and "excluded wins" in i
+            for i in issues
+        )
+
+    def test_unknown_suggest_from_moments_entry_is_reported(self, tmp_path):
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": [], "excluded": [],
+                    "suggest_from_moments": ["not_a_real_moment"]},
+        })
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any(
+            "suggest_from_moments references unknown moment 'not_a_real_moment'" in i
+            for i in issues
+        )
+
+    def test_valid_context_reports_nothing(self, tmp_path):
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": ["sports"], "excluded": ["silhouette"],
+                    "suggest_from_moments": ["sports"]},
+        })
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is True
+        assert issues == []
+
+    def test_typo_does_not_silently_change_resolved_order(self, tmp_path):
+        """The adversarial repro: typo'd promote/excluded names are dropped by
+        resolve_context_order with no error — validate_categories is what
+        surfaces the mistake."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"label_key": "x", "promote": ["wildlfe", "Wildlife", "sports"],
+                    "excluded": ["silhouete"], "suggest_from_moments": []},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert order[0] == "sports"
+        assert "silhouette" in order
+
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert len(issues) >= 3
+
+
+class TestValidateCategoriesMalformedScoringContexts:
+    """DEFECT M2 regression: validate_categories() must report a clear issue
+    for a malformed scoring_contexts shape instead of crashing -- it exists
+    specifically to diagnose a hand-edited config, so raising on exactly the
+    configs it should be diagnosing is the worst possible behaviour."""
+
+    _CATEGORIES = TestValidateCategoriesScoringContexts._CATEGORIES
+
+    def _config_with(self, tmp_path, scoring_contexts):
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": self._CATEGORIES,
+            "scoring_contexts": scoring_contexts,
+        }))
+        return ScoringConfig(config_path=str(config_path), validate=False)
+
+    def test_promote_not_a_list_is_reported_not_raised(self, tmp_path):
+        cfg = self._config_with(tmp_path, {"ctx": {"promote": 5}})
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any("'promote' should be a list, got int" in i for i in issues)
+
+    def test_suggest_from_moments_not_a_list_is_reported_not_raised(self, tmp_path):
+        cfg = self._config_with(tmp_path, {"ctx": {"suggest_from_moments": 3}})
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any("'suggest_from_moments' should be a list, got int" in i for i in issues)
+
+    def test_promote_entry_that_is_a_list_is_reported_not_raised(self, tmp_path):
+        cfg = self._config_with(tmp_path, {"ctx": {"promote": [["sports"]]}})
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any("promote entry ['sports'] is not a string" in i for i in issues)
+
+    def test_mixed_type_promote_and_excluded_entries_are_reported_not_raised(self, tmp_path):
+        cfg = self._config_with(tmp_path, {"ctx": {"promote": [1, "sports"], "excluded": [1, "sports"]}})
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any("promote entry 1 is not a string" in i for i in issues)
+        assert any("excluded entry 1 is not a string" in i for i in issues)
+
+    def test_promote_as_a_bare_string_is_not_iterated_as_characters(self, tmp_path):
+        cfg = self._config_with(tmp_path, {"ctx": {"promote": "sports"}})
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is False
+        assert any("'promote' should be a list, got str" in i for i in issues)
+        assert not any("unknown category 's'" in i for i in issues)
+        assert not any("unknown category 'p'" in i for i in issues)
+
+
+class TestResolveContextOrderEdgeCases:
+    """resolve_context_order edge cases, isolated from the real scoring_config.json
+    with a small fabricated category set so promote/excluded interactions can be
+    pinned down exactly."""
+
+    _CATEGORIES = [
+        {"name": "silhouette", "priority": 10, "filters": {}},
+        {"name": "sports", "priority": 20, "filters": {}},
+        {"name": "wildlife", "priority": 30, "filters": {}},
+        {"name": "default", "priority": 999, "filters": {}},
+    ]
+
+    def _config_with(self, tmp_path, scoring_contexts):
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": self._CATEGORIES,
+            "scoring_contexts": scoring_contexts,
+        }))
+        return ScoringConfig(config_path=str(config_path), validate=False)
+
+    def test_name_in_both_promote_and_excluded_is_dropped_entirely(self, tmp_path):
+        """excluded wins: a name listed in both never appears in the order at all."""
+        cfg = self._config_with(tmp_path, {
+            "conflict": {"promote": ["sports"], "excluded": ["sports"]},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("conflict")]
+        assert "sports" not in order
+        assert set(order) == {"silhouette", "wildlife", "default"}
+
+    def test_promote_name_that_does_not_exist_is_ignored(self, tmp_path):
+        """A promote entry naming a nonexistent category is dropped, not crashed on."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"promote": ["not_a_real_category"], "excluded": []},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert "not_a_real_category" not in order
+        assert set(order) == {"silhouette", "sports", "wildlife", "default"}
+
+    def test_excluded_name_that_does_not_exist_is_harmless(self, tmp_path):
+        """An excluded entry naming a nonexistent category changes nothing."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"promote": [], "excluded": ["not_a_real_category"]},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert set(order) == {"silhouette", "sports", "wildlife", "default"}
+
+    def test_default_named_in_promote_is_still_evaluated_last(self, tmp_path):
+        """'default' can never be promoted ahead of the rest, even if listed."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"promote": ["default", "wildlife"], "excluded": []},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert order[0] == "wildlife"
+        assert order[-1] == "default"
+
+    def test_default_named_in_excluded_is_still_evaluated_last(self, tmp_path):
+        """'default' can never be excluded — it always stays, always last."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"promote": [], "excluded": ["default"]},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert order[-1] == "default"
+        assert set(order) == {"silhouette", "sports", "wildlife", "default"}
+
+    def test_duplicate_promote_names_produce_one_entry(self, tmp_path):
+        """A name repeated in promote is only placed once, at its first occurrence."""
+        cfg = self._config_with(tmp_path, {
+            "ctx": {"promote": ["wildlife", "sports", "wildlife"], "excluded": []},
+        })
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert order.count("wildlife") == 1
+        assert order[:2] == ["wildlife", "sports"]
+
+
+class TestResolveContextOrderMalformedShapes:
+    """DEFECT M2 regression, runtime twin: the same malformed scoring_contexts
+    shapes that validate_categories must report also reached resolve_context_order,
+    which 500s the API and aborts a scan. A malformed context must degrade to
+    the default order with a warning, never take the process down."""
+
+    _CATEGORIES = TestResolveContextOrderEdgeCases._CATEGORIES
+
+    def _config_with(self, tmp_path, scoring_contexts):
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": self._CATEGORIES,
+            "scoring_contexts": scoring_contexts,
+        }))
+        return ScoringConfig(config_path=str(config_path), validate=False)
+
+    def test_promote_not_a_list_falls_back_to_default_order(self, tmp_path):
+        cfg = self._config_with(tmp_path, {"ctx": {"promote": 5}})
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert set(order) == {"silhouette", "sports", "wildlife", "default"}
+
+    def test_promote_entry_that_is_a_list_is_dropped_not_raised(self, tmp_path):
+        cfg = self._config_with(tmp_path, {"ctx": {"promote": [["sports"]]}})
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert set(order) == {"silhouette", "sports", "wildlife", "default"}
+
+    def test_mixed_type_promote_and_excluded_do_not_raise(self, tmp_path):
+        cfg = self._config_with(tmp_path, {"ctx": {"promote": [1, "sports"], "excluded": [1, "wildlife"]}})
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert order[0] == "sports"
+        assert "wildlife" not in order
+
+    def test_promote_as_a_bare_string_is_not_iterated_as_characters(self, tmp_path):
+        cfg = self._config_with(tmp_path, {"ctx": {"promote": "sports"}})
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert set(order) == {"silhouette", "sports", "wildlife", "default"}
+
+    def test_context_definition_that_is_not_an_object_falls_back_to_default_order(self, tmp_path):
+        """A whole context value of the wrong type (e.g. hand-edited to an
+        int) previously raised AttributeError on context_def.get(...)."""
+        cfg = self._config_with(tmp_path, {"ctx": 5})
+        order = [name for name, _ in cfg.resolve_context_order("ctx")]
+        assert set(order) == {"silhouette", "sports", "wildlife", "default"}
 
 
 # ---------------------------------------------------------------------------

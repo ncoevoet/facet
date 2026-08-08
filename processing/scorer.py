@@ -5,6 +5,7 @@ Facet class and supporting functions extracted from facet.py.
 """
 import os
 import sys
+import time
 import sqlite3
 
 # Ensure the script's directory is in Python path for local imports
@@ -23,7 +24,9 @@ import re as _re
 from pathlib import Path
 from db import init_database, get_connection
 from db.schema import FACES_UPSERT_SQL, face_upsert_row
+from db.scoring_overrides import get_photo_scoring_overrides
 from db.vec import sync_vec_batch
+from processing.progress import emit_progress
 
 
 @functools.lru_cache(maxsize=8)
@@ -985,10 +988,13 @@ class Facet:
     def _determine_photo_category(self, m, cfg):
         """
         Determine which weight category applies to this photo.
-        Uses config-driven filter rules evaluated in priority order.
+        Honors a sticky per-photo category override first, then delegates to
+        config-driven filter rules evaluated in priority order within the
+        photo's scoring context.
 
         Args:
-            m: Dict with photo metrics (tags, face_count, face_ratio, etc.)
+            m: Dict with photo metrics (tags, face_count, face_ratio, etc.),
+               plus optional 'category_override' and 'scoring_context' keys.
             cfg: ScoringConfig instance
 
         Returns: category string (e.g., 'portrait', 'wildlife', 'default')
@@ -1000,6 +1006,17 @@ class Facet:
             if isinstance(val, (int, float)):
                 return float(val) if -100 <= val <= 100 else default
             return default
+
+        if cfg is None:
+            # Fallback if no config (shouldn't happen in practice)
+            from config import ScoringConfig
+            cfg = ScoringConfig(validate=False)
+
+        category_override = m.get('category_override')
+        if category_override:
+            known_categories = {c['name'] for c in cfg.get_categories()}
+            if category_override in known_categories:
+                return category_override
 
         # Build photo_data dict for config-driven category determination
         photo_data = {
@@ -1015,15 +1032,10 @@ class Facet:
             'focal_length': m.get('focal_length'),
             'f_stop': m.get('f_stop'),
         }
+        scoring_context = m.get('scoring_context')
 
         # Delegate to config-driven category determination
-        if cfg:
-            return cfg.determine_category(photo_data)
-
-        # Fallback if no config (shouldn't happen in practice)
-        from config import ScoringConfig
-        fallback_cfg = ScoringConfig(validate=False)
-        return fallback_cfg.determine_category(photo_data)
+        return cfg.determine_category(photo_data, context=scoring_context)
 
     def calculate_aggregate_logic(self, m, config=None):
         """
@@ -1198,6 +1210,9 @@ class Facet:
             # 6. Get EXIF data first so we can use it in scoring
             exif_data = self.get_exif_data(metadata_source)
 
+            resolved_path = str(Path(metadata_source).resolve())
+            photo_override = get_photo_scoring_overrides(self.db_path, paths=[resolved_path]).get(resolved_path, {})
+
             # 7. Generate semantic tags from CLIP embedding
             tags = None
             if self.tagger is not None and clip_embedding is not None:
@@ -1250,6 +1265,8 @@ class Facet:
                 # EXIF data for ISO/aperture adjustments
                 'iso': exif_data.get('iso'),
                 'f_stop': exif_data.get('f_stop'),
+                'scoring_context': photo_override.get('scoring_context'),
+                'category_override': photo_override.get('category_override'),
             }
 
             # Calculate final aggregate score and category using the centralized logic
@@ -1257,7 +1274,7 @@ class Facet:
 
             # 9. Prepare the final row for the database with raw data
             res = {
-                'path': str(Path(metadata_source).resolve()),
+                'path': resolved_path,
                 'filename': Path(metadata_source).name,
                 'category': category,
                 'image_width': img_w,
@@ -1365,7 +1382,7 @@ class Facet:
             recalc_cols = """
                 path, aesthetic, face_count, face_quality, eye_sharpness, face_sharpness,
                 face_ratio, tech_sharpness, color_score, exposure_score, comp_score,
-                isolation_bonus, is_blink, iso, f_stop, shadow_clipped, highlight_clipped,
+                isolation_bonus, is_blink, iso, f_stop, focal_length, shadow_clipped, highlight_clipped,
                 is_silhouette, histogram_spread, is_monochrome, contrast_score, tags,
                 leading_lines_score, histogram_bimodality, clip_embedding,
                 raw_sharpness_variance, raw_color_entropy, raw_eye_sharpness,
@@ -1382,9 +1399,20 @@ class Facet:
             else:
                 cursor = conn.execute(f"SELECT {recalc_cols} FROM photos")
             rows = cursor.fetchall()
+            row_count = len(rows)
 
-            for row in tqdm(rows, desc="Updating DB"):
+            # Loaded once up front (not columns in recalc_cols — they live in
+            # photo_scoring_overrides) so a rescore preserves any sticky
+            # per-photo context/override instead of silently dropping it.
+            overrides = get_photo_scoring_overrides(conn)
+
+            emit_progress('recompute', 0, row_count, force=True)
+            recompute_t0 = time.time()
+            for i, row in enumerate(tqdm(rows, desc="Updating DB")):
                 row_dict = dict(row)
+                photo_override = overrides.get(row_dict['path'], {})
+                row_dict['scoring_context'] = photo_override.get('scoring_context')
+                row_dict['category_override'] = photo_override.get('category_override')
 
                 # Try to recalculate aesthetic from stored embedding
                 if use_embeddings and row_dict.get('clip_embedding'):
@@ -1482,8 +1510,14 @@ class Facet:
                         ) from e
                     raise
 
+                processed = i + 1
+                elapsed = time.time() - recompute_t0
+                emit_progress('recompute', processed, row_count,
+                              eta_seconds=(row_count - processed) * elapsed / processed)
+
             conn.commit()
 
+        emit_progress('recompute', row_count, row_count, force=True)
         logger.info("Updated %s photos", recalc_standard)
         logger.info("Stored categories for %s photos", categories_updated)
         if use_embeddings:

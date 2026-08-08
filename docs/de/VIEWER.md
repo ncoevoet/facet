@@ -271,6 +271,8 @@ Wenn `viewer.features.show_scan_button` auf `true` steht und der Benutzer die Ro
 
 Dies ist nützlich, wenn die Galerie auf derselben Maschine läuft, die GPU-Zugriff für die Bewertung hat.
 
+Ein verwandter, aber eigenständiger Auslöser, `POST /api/scan/recompute`, verwendet dieselbe Job-Sperre, um vorhandene Fotos direkt neu zu bewerten (keine neuen Dateien) – siehe [Kategoriepriorität & Bewertungskontexte](#kategoriepriorität--bewertungskontexte). Anders als diese nur für Superadmins sichtbare Scan-Schaltfläche ist er Edition-geschützt.
+
 ## Semantische Suche
 
 Hybride Suche, die CLIP/SigLIP-Embedding-Ähnlichkeit (70%) mit FTS5-BM25-Textabgleich auf Bildbeschreibungen und Tags (30%) kombiniert. Geben Sie eine Anfrage wie „Sonnenuntergang über Bergen" oder „Kind spielt im Schnee" ein, und die Galerie liefert passende Fotos, sortiert nach kombinierter Wertung.
@@ -301,6 +303,10 @@ Speichern Sie eine Kombination von Filtern (Kamera, Tag, Person, Zeitraum, Wertu
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 Gesteuert über `viewer.features.show_albums` (Standard: `true`).
+
+### Bewertungskontext
+
+Jedes Album kann einen Bewertungskontext tragen, der bestimmt, welche Kategorie für seine Mitgliedsfotos gewinnt, unabhängig von der globalen Prioritätsreihenfolge – siehe [Bewertungskontexte](CONFIGURATION.md#bewertungskontexte). `PUT /api/albums/{id}/scoring_context` (Edition-geschützt) setzt ihn und überträgt denselben Kontext auf jedes Foto, das **gerade jetzt** Mitglied ist; `conflicts` in der Antwort zählt nicht-manuelle Mitglieder, die bereits einen abweichenden Kontext trugen, `manual_skipped` zählt Mitglieder, deren eigene manuelle Überschreibung unangetastet blieb (eine Albumzuweisung wandelt die manuelle Überschreibung eines Fotos niemals stillschweigend in eine album-basierte um), und `updated` gibt an, wie viele tatsächlich geschrieben wurden. Ein manuelles Album löst die Mitgliedschaft aus seinen `album_photos`-Zeilen auf; ein intelligentes Album hat keine solchen Zeilen, daher wird die Mitgliedschaft stattdessen durch Auswertung seines gespeicherten `smart_filter_json` gegen die Live-Datenbank aufgelöst. Das ist die **Filterdefinition** des Albums, nicht „was die Galerie zufällig gerade anzeigte“: Es ignoriert bewusst die Ansichtseinstellungen der Galerie zum Ausblenden von Blinzlern, Serienbild-Verlierern, Duplikaten und abgelehnten Fotos (global, zur Laufzeit umschaltbar und nicht Teil von `smart_filter_json`), sodass `updated` die Fotoanzahl, die die eigene Galerieansicht des Albums bei aktivierten Umschaltern zeigt, rechtmäßig übersteigen kann – und liefert `updated: 0` mit einer `warning` zurück, wenn der Filter derzeit nichts trifft. So oder so ist die Übertragung eine Momentaufnahme, kein laufendes Abonnement: Bei einem manuellen Album übernimmt ein *später* hinzugefügtes Foto den Kontext automatisch, aber ein Foto, das *später* dem Filter eines intelligenten Albums entspricht, übernimmt den Kontext **nicht** rückwirkend – der Kontext muss erneut gesetzt werden (`PUT`), um neue Treffer zu erfassen. `DELETE /api/albums/{id}/scoring_context` (im Dialog als Aktion „Kontext löschen“ dargestellt, die sich von der Auswahl des Kontexts `default` unterscheidet, der `default` zuweist statt zu löschen) macht die Übertragung auf genau den Mitgliedern rückgängig, die dieses Album markiert hat, ohne die eigene manuelle Überschreibung eines Fotos zu berühren – und wenn ein so zurückgesetztes Foto *weiterhin* Mitglied eines anderen Albums ist, das selbst einen Kontext deklariert, wird es stattdessen mit dem Kontext dieses anderen Albums neu markiert, statt unbewertet zu bleiben (diese Neuableitung ist auf die konkret aus einem Album entfernten Fotos begrenzt; das Löschen oder Leeren eines ganzen Albums versucht dies nicht). `GET /api/albums/{id}/suggested_context` schlägt einen Kontext anhand des dominanten erkannten `narrative_moment` des Albums vor (über die `suggest_from_moments`-Liste jedes Kontexts) mit einer `share`-Konfidenz – dabei wird nichts geschrieben; die obige Zuweisung muss weiterhin explizit bestätigt werden. Eine Neuberechnung (`POST /api/scan/recompute`) ist erforderlich, damit der neue Kontext tatsächlich die gespeicherte Kategorie eines Fotos ändert.
 
 ### Fotofreigabe
 
@@ -607,9 +613,20 @@ Manueller Gewichtseditor: ein Regler pro Metrik für die ausgewählte Kategorie 
 
 Speichern Sie die aktuellen Gewichte als benannten Snapshot und stellen Sie jeden früheren Snapshot wieder her.
 
+### Kategoriepriorität & Bewertungskontexte
+
+Kategorien werden in aufsteigender `priority`-Reihenfolge ausgewertet, und der erste zutreffende Filter gewinnt – das vollständige Modell finden Sie unter [Filterauswertung](SCORING.md#so-funktioniert-die-bewertung) und [Bewertungskontexte](CONFIGURATION.md#bewertungskontexte). Zwei Edition-geschützte Hebel steuern dies, ohne `scoring_config.json` von Hand zu bearbeiten:
+
+- **Globale Priorität** – `GET/POST /api/config/category_priorities` listet die Basis-Auswertungsreihenfolge auf und ordnet sie neu. `POST` erwartet eine vollständige geordnete Liste von Kategorienamen und permutiert die vorhandenen Prioritätswerte darauf, sodass die Multimenge (und ihre Eindeutigkeit) erhalten bleibt, statt neu durchnummeriert zu werden.
+- **Bewertungskontexte** – `GET /api/config/scoring_contexts` listet die konfigurierten Voreinstellungen (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) zusammen mit der aufgelösten effektiven Reihenfolge jedes einzelnen auf. Ein Kontext zieht einige Kategorien an den Anfang und schließt andere vollständig aus, ohne die globale Reihenfolge zu verändern, und wird pro Album zugewiesen (siehe [Bewertungskontext](#bewertungskontext) unter Alben) oder pro Foto über die Kategorieüberschreibung unten.
+
+Keiner der beiden Hebel bewertet Fotos von sich aus neu. Nach dem Neuordnen von Prioritäten, dem Zuweisen eines Kontexts oder dem Setzen einer Foto-Überschreibung lösen Sie eine Neuberechnung aus (`POST /api/scan/recompute`, Edition-geschützt) und fragen `GET /api/scan/recompute_status` auf `{running, kind, progress, exit_code}` ab. Sowohl `/scan/start` als auch `/scan/recompute` sind prozessübergreifend durch `facet.LibraryLock` abgesichert, nicht nur durch die In-Memory-Jobsperre des Viewers (siehe [Die globale Priorität neu ordnen](CONFIGURATION.md#die-globale-priorität-neu-ordnen)): Läuft bereits eine Neuberechnung oder ein Scan von einem Terminal aus, verweigert der Viewer einen neuen Job mit 409 unter Angabe des Halters – ein CLI-Job und ein über den Viewer gestarteter können also nicht mehr kollidieren. Ist `normalization.per_category` aktiviert, konvergiert eine einzelne Neuberechnung nach einer kategorierelevanten Änderung nicht vollständig – siehe [Normalization](CONFIGURATION.md#normalization).
+
 ### Kategorieüberschreibung
 
-Um die Kategorie eines Fotos aus der Vergleichsansicht neu zuzuweisen: Bearbeiten Sie das Kategorieabzeichen, wählen Sie eine Zielkategorie, führen Sie „Filterkonflikte analysieren" aus, um zu sehen, welche Filter es ausschließen, und wenden Sie dann die Überschreibung an.
+Um die Kategorie eines Fotos aus der Vergleichsansicht neu zuzuweisen: Bearbeiten Sie das Kategorieabzeichen, wählen Sie eine Zielkategorie, führen Sie „Filterkonflikte analysieren" aus, um zu sehen, welche Filter es ausschließen, und wenden Sie dann die Überschreibung an. Die Überschreibung wird gegen die konfigurierten Kategorienamen validiert (`POST /api/comparison/override_category`) und wird nun in der separaten Tabelle `photo_scoring_overrides` gespeichert – anders als zuvor übersteht sie die nächste Neuberechnung, statt stillschweigend verworfen zu werden, und das Foto behält die manuell zugewiesene Kategorie, bis sie explizit zurückgesetzt wird (`POST /api/comparison/clear_category_override`).
+
+Dieselben zwei Aktionen stehen in der Foto-Lightbox unter **Bewertungskategorie festlegen…** / **Überschreibung entfernen** zur Verfügung (Edition), zusammen mit einem aufklappbaren Bereich **Warum gehört dieses Foto nicht zu einer anderen Kategorie?**. Wählen Sie dort eine Zielkategorie, und der Bereich zeigt, welche Filter das Foto derzeit ausschließen und welchen Wert jeder annehmen müsste – zum Beispiel „shutter_speed_max von 0,02 auf 0,033 erhöhen“. So lässt sich am schnellsten feststellen, ob eine Kategorie für ein Foto unerreichbar ist statt nur überstimmt – was sich durch Umsortieren allein nicht beheben lässt. Dahinter steht `POST /api/comparison/suggest_filters`.
 
 ## EXIF-Statistiken
 
@@ -936,6 +953,9 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `GET /api/albums/{id}/photos` | Fotos im Album auflisten (paginiert) |
 | `POST /api/albums/{id}/photos` | Fotos zum Album hinzufügen |
 | `DELETE /api/albums/{id}/photos` | Fotos aus dem Album entfernen |
+| `PUT /api/albums/{id}/scoring_context` | `[Edition]` Bewertungskontext des Albums setzen; überträgt ihn auf Mitglieder, die gerade jetzt dem Filter des Albums entsprechen, wobei die manuelle Überschreibung jedes Mitglieds unangetastet bleibt (intelligente Alben lösen `smart_filter_json` live auf), liefert `{updated, conflicts, manual_skipped}` |
+| `DELETE /api/albums/{id}/scoring_context` | `[Edition]` Bewertungskontext des Albums löschen und die Übertragung auf genau den Mitgliedern rückgängig machen, die es gesetzt hat, liefert `{ok, cleared}` |
+| `GET /api/albums/{id}/suggested_context` | Bewertungskontext anhand des dominanten `narrative_moment` des Albums vorschlagen (nur Vorschlag, schreibt nichts) |
 | `POST /api/albums/{id}/share` | Freigabe-Token erzeugen |
 | `DELETE /api/albums/{id}/share` | Freigabe-Token widerrufen |
 | `GET /api/shared/album/{id}?token=` | Geteiltes Album ansehen (keine Authentifizierung) |
@@ -1005,7 +1025,8 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `GET /api/comparison/learned_weights` | Vorgeschlagene Gewichte aus Vergleichen |
 | `POST /api/comparison/preview_score` | Vorschau mit benutzerdefinierten Gewichten |
 | `POST /api/comparison/suggest_filters` | Filterkonflikte analysieren |
-| `POST /api/comparison/override_category` | Fotokategorie überschreiben |
+| `POST /api/comparison/override_category` | `[Edition]` Dauerhafte Kategorieüberschreibung pro Foto setzen (validiert gegen die konfigurierten Kategorienamen; übersteht die nächste Neuberechnung) |
+| `POST /api/comparison/clear_category_override` | `[Edition]` Kategorieüberschreibung eines Fotos entfernen; die Filterauswertung entscheidet bei der nächsten Neuberechnung erneut |
 | `POST /api/recalculate` | Wertungen mit aktuellen Gewichten neu berechnen |
 
 ### Serienbild-Auswahl
@@ -1033,6 +1054,8 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `GET /api/scan/status` | Scan-Fortschritt prüfen (strukturiertes `progress`: `{phase, current, total, eta_seconds}`) |
 | `GET /api/scan/stream?token=<jwt>` | `[Superadmin]` Echtzeit-Fortschritt über Server-Sent Events; das Token wird als Query-Parameter übergeben (die `EventSource`-API kann keine Header setzen), mit automatischem Rückgriff auf das Polling von `/status` |
 | `GET /api/scan/directories` | Konfigurierte Scan-Verzeichnisse auflisten |
+| `POST /api/scan/recompute` | `[Edition]` Löst eine vollständige Aggregat-Neuberechnung der Bibliothek (`--recompute-average`) als Hintergrundjob aus; prozessübergreifend durch `facet.LibraryLock` abgesichert, verweigert daher auch mit 409 unter Angabe des Halters, wenn bereits ein Scan oder eine Neuberechnung von einem Terminal aus läuft, nicht nur von einem anderen Viewer-Tab. Anders als `/start` ist die argv serverseitig fest vorgegeben und nimmt keine Eingaben aus der Anfrage entgegen, weshalb kein Superadmin erforderlich ist |
+| `GET /api/scan/recompute_status` | `[Edition]` Fortschritt der Neuberechnung abfragen: `{running, kind, progress, exit_code}` – ohne den nur für Superadmins sichtbaren `output_lines`-Log-Stream, den `/status` liefert |
 
 ### Gesichtsverwaltung
 
@@ -1061,6 +1084,9 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `GET /api/config/weight_snapshots` | Gespeicherte Gewichts-Snapshots auflisten |
 | `POST /api/config/save_snapshot` | Aktuelle Gewichte als Snapshot speichern |
 | `POST /api/config/restore_weights` | Gewichte aus einem Snapshot wiederherstellen |
+| `GET /api/config/category_priorities` | `[Edition]` Kategorien in aktueller Prioritäts- (Auswertungs-)Reihenfolge auflisten |
+| `POST /api/config/category_priorities` | `[Edition]` Auswertungspriorität der Kategorien neu ordnen; permutiert die vorhandenen Prioritätswerte auf die neue Reihenfolge, statt sie neu durchzunummerieren |
+| `GET /api/config/scoring_contexts` | Konfigurierte Bewertungskontexte auflisten, jeweils mit der aufgelösten effektiven Kategoriereihenfolge |
 
 ### Zusammenführungsvorschläge
 

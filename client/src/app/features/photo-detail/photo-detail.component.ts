@@ -6,6 +6,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
@@ -22,6 +24,7 @@ import { CategoryLabelPipe } from '../gallery/photo-tooltip.component';
 import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
 import { DownloadIconPipe } from '../../shared/pipes/download-icon.pipe';
 import { HistogramComponent } from '../../shared/components/histogram/histogram.component';
+import { ComparisonCategoryExplainerComponent } from '../comparison/comparison-category-explainer.component';
 import { DownloadOption } from '../../shared/models/download.model';
 import { downloadAll } from '../../shared/utils/download';
 import { GalleryStore } from '../gallery/gallery.store';
@@ -29,6 +32,7 @@ import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 import { I18N } from '../../core/i18n/keys';
 import { isTypingContext } from '../../shared/utils/keyboard';
+import type { CategoryOverrideResult } from './category-override-dialog.component';
 
 const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   saliency: I18N.social_export.source.saliency,
@@ -44,6 +48,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
     MatTooltipModule,
     MatMenuModule,
     MatDialogModule,
+    MatFormFieldModule,
+    MatSelectModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
     FixedPipe,
@@ -55,6 +61,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
     IsLensNamePipe,
     DownloadIconPipe,
     HistogramComponent,
+    ComparisonCategoryExplainerComponent,
   ],
   template: `
     @if (photo(); as p) {
@@ -88,6 +95,21 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             [matTooltip]="I18N.critique.title | translate">
             <mat-icon>analytics</mat-icon>
           </button>
+        }
+
+        @if (auth.isEdition()) {
+          <button mat-icon-button [matMenuTriggerFor]="categoryOverrideMenu"
+            [matTooltip]="I18N.photo.category_override.menu_tooltip | translate">
+            <mat-icon>category</mat-icon>
+          </button>
+          <mat-menu #categoryOverrideMenu="matMenu">
+            <button mat-menu-item (click)="openCategoryOverride(p)">
+              <mat-icon>edit</mat-icon> {{ I18N.photo.category_override.set_action | translate }}
+            </button>
+            <button mat-menu-item (click)="clearCategoryOverride(p)">
+              <mat-icon>restart_alt</mat-icon> {{ I18N.photo.category_override.clear_action | translate }}
+            </button>
+          </mat-menu>
         }
 
         @if (auth.isEdition() && p.unassigned_faces > 0) {
@@ -189,6 +211,29 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <span class="text-[var(--mat-sys-primary)] font-semibold ml-auto">{{ p.aggregate | fixed:1 }}</span>
             </div>
           </div>
+
+          <!-- Category explainer: "why isn't this photo classified as X?" -->
+          @if (auth.isEdition()) {
+            <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
+              <button mat-button class="!px-0 !min-w-0" (click)="toggleExplainer()">
+                <mat-icon>{{ explainerOpen() ? 'expand_less' : 'expand_more' }}</mat-icon>
+                {{ I18N.photo.category_override.explainer_toggle | translate }}
+              </button>
+              @if (explainerOpen()) {
+                <mat-form-field class="w-full !-mt-1">
+                  <mat-label>{{ I18N.photo.category_override.target_category_label | translate }}</mat-label>
+                  <mat-select [value]="explainerTargetCategory()" (selectionChange)="explainerTargetCategory.set($event.value)">
+                    @for (name of explainerCategories(); track name) {
+                      <mat-option [value]="name">{{ name | categoryLabel }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                @if (explainerTargetCategory(); as target) {
+                  <app-category-explainer [path]="p.path" [targetCategory]="target" />
+                }
+              }
+            </div>
+          }
 
           <!-- Rating controls (edition only) -->
           @if (auth.isEdition()) {
@@ -487,6 +532,11 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly downloadOptions = signal<DownloadOption[]>([]);
   protected readonly generatingCaption = signal(false);
   protected readonly stars: readonly number[] = [1, 2, 3, 4, 5];
+
+  // Category explainer ("why isn't this photo classified as X?")
+  protected readonly explainerOpen = signal(false);
+  protected readonly explainerCategories = signal<string[]>([]);
+  protected readonly explainerTargetCategory = signal<string | null>(null);
 
   // Zoom & pan state
   private readonly imagePanel = viewChild<ElementRef<HTMLDivElement>>('imagePanel');
@@ -788,6 +838,41 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   protected openCritique(photo: Photo): void {
     this.photoActions.openCritique(photo);
+  }
+
+  protected openCategoryOverride(p: Photo): void {
+    import('./category-override-dialog.component').then(m => {
+      const ref = this.dialog.open(m.CategoryOverrideDialogComponent, {
+        width: '95vw',
+        maxWidth: '24rem',
+        data: { path: p.path, currentCategory: p.category },
+      });
+      ref.afterClosed().subscribe((result: CategoryOverrideResult | undefined) => {
+        if (result) this.photo.set({ ...p, category: result.category, aggregate: result.aggregate });
+      });
+    });
+  }
+
+  protected async clearCategoryOverride(p: Photo): Promise<void> {
+    try {
+      const res = await firstValueFrom(
+        this.api.post<{ new_category: string; aggregate: number }>('/comparison/clear_category_override', { path: p.path }),
+      );
+      this.photo.set({ ...p, category: res.new_category, aggregate: res.aggregate });
+      this.snackBar.open(this.i18n.t(I18N.photo.category_override.cleared), '', { duration: 3000 });
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+    }
+  }
+
+  protected toggleExplainer(): void {
+    const next = !this.explainerOpen();
+    this.explainerOpen.set(next);
+    if (next && this.explainerCategories().length === 0) {
+      firstValueFrom(this.api.get<{ categories: { name: string }[] }>('/config/category_priorities'))
+        .then(res => this.explainerCategories.set(res.categories.map(c => c.name)))
+        .catch(() => this.explainerCategories.set([]));
+    }
   }
 
   protected openAddPerson(photo: Photo): void {

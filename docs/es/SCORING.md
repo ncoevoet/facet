@@ -7,7 +7,7 @@ Las fotos se clasifican en una categoría y luego se puntúan con los pesos de e
 ## Cómo funciona la puntuación
 
 1. **Detección de categoría** - La foto se analiza por su contenido (rostros, etiquetas, datos EXIF)
-2. **Evaluación de filtros** - Las categorías se evalúan por orden de prioridad hasta que una coincide
+2. **Evaluación de filtros** - Las categorías se evalúan por orden de prioridad hasta que una coincide (un *contexto de puntuación* puede promover/excluir categorías por álbum o foto sin cambiar el orden base — consulta [Contextos de puntuación](#contextos-de-puntuación))
 3. **Aplicación de pesos** - Se aplican los pesos específicos de la categoría a las métricas
 4. **Aplicación de modificadores** - Se aplican bonificaciones, penalizaciones e indicadores de comportamiento
 5. **Puntuación final** - Suma ponderada acotada al rango 0-10
@@ -36,6 +36,42 @@ Las fotos se clasifican en una categoría y luego se puntúan con los pesos de e
 | 999 | `default` | Reserva (sin filtro) |
 
 Otras categorías basadas en etiquetas son `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic` y `weather`.
+
+## Contextos de puntuación
+
+El orden de prioridad anterior es global — todas las fotos se evalúan contra la misma lista. Un **contexto de puntuación** es un *delta* con nombre sobre ese orden base: promueve una lista corta de categorías al frente y excluye otras por completo, sin renumerar nada. `default` (`promote`/`excluded` vacíos) es el contexto neutro (no-op), así que nada cambia para una foto a menos que se le asigne explícitamente un contexto.
+
+**Orden efectivo** = `promote` (en el orden dado) → el orden de prioridad global con los nombres promovidos y excluidos eliminados → `default` al final. Un nombre que aparece a la vez en `promote` y en `excluded` se elimina por completo — gana `excluded`. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) calcula y memoiza esto una vez por nombre de contexto.
+
+Preajustes incluidos — editables desde la pestaña **Contexto de puntuación** del visor (`PUT /api/config/scoring_contexts/{name}`, restringido al modo edición) o directamente en el JSON; consulta [Contextos de puntuación](CONFIGURATION.md#contextos-de-puntuación) para la referencia completa de campos:
+
+| Contexto | Promueve | Excluye |
+|---------|----------|----------|
+| `default` | — | — |
+| `action_stage` | `sports`, `concert`, `candid` | `silhouette` |
+| `party_event` | `group_portrait`, `candid`, `food` | — |
+| `portrait_session` | `portrait`, `portrait_bw`, `fashion` | — |
+| `wildlife` | `wildlife` | — |
+| `landscape` | `landscape`, `golden_hour`, `blue_hour` | — |
+| `motorsport` | `sports`, `vehicle` | `silhouette` |
+
+Solo el *delta* es editable — arrastra la cabeza promovida al orden que quieras, alterna la exclusión de una categoría — nunca un orden completo independiente por contexto: las categorías no promovidas siempre conservan el orden de prioridad global, así que una categoría añadida más tarde nunca puede faltar en silencio en seis listas separadas. Consulta [Editar un contexto](CONFIGURATION.md#editar-un-contexto) para las reglas de validación.
+
+Un contexto se asigna por álbum (`PUT /api/albums/{id}/scoring_context`, que lo materializa en cada foto que es miembro en ese momento — para un álbum inteligente, una instantánea, no una suscripción, consulta [Contextos de puntuación](CONFIGURATION.md#contextos-de-puntuación)) o, para una foto concreta y difícil, se aplica como una anulación de categoría persistente (`POST /api/comparison/override_category`). Ambas palancas persisten en una tabla auxiliar `photo_scoring_overrides` en lugar de como columnas en `photos` — `save_photo`/`save_photos_batch` escriben las filas de foto con `INSERT OR REPLACE`, lo que borraría en silencio cualquier columna nueva de esa fila en el siguiente reescaneo. Establecer una palanca deja la otra intacta, y cada una se puede borrar de forma independiente. **Ninguna de las dos surte efecto en fotos ya puntuadas hasta un recálculo** — `python facet.py --recompute-average`, o `POST /api/scan/recompute` desde el visor (protegido entre procesos frente a que se ejecuten dos a la vez — consulta [Cambiar las prioridades requiere un recálculo](CONFIGURATION.md#reordenar-la-prioridad-global)). Si `normalization.per_category` está activado, ejecuta el recálculo dos veces — consulta [Normalización](CONFIGURATION.md#normalización) para saber por qué el primer pase normaliza frente a la categoría anterior de cada foto.
+
+### La trampa de los EXIF faltantes
+
+Reordenar — ya sea editando la prioridad global o promoviendo mediante un contexto — solo cambia qué categoría se *prueba primero*. No puede hacer que los filtros de una categoría coincidan con una foto con la que de otro modo no coincidirían. `config/category_filter.py:122-128` hace fallar un filtro de rango numérico por completo siempre que el valor subyacente de la foto falte o no se pueda interpretar, en lugar de omitir solo ese límite — un valor ausente y un valor fuera de rango se tratan de forma idéntica, y la categoría se descarta en cualquiera de los dos casos.
+
+En concreto: `sports` (prioridad 71) lleva `shutter_speed_max: 0.02`. Un fotograma de baile disparado más lento que 1/50s, o sin una velocidad de obturación EXIF legible, no supera ese filtro sin importar dónde se sitúe `sports` en el orden de evaluación — incluso promovida al frente por un contexto como `action_stage`. La foto cae entonces en la siguiente categoría que coincida, típicamente `fashion` (prioridad 43, etiquetada `fashion`, tiene rostro) o `silhouette` (prioridad 42, a contraluz con rostro). **Esto es lo más útil que se puede comprobar cuando una foto acaba en una categoría inesperada:** antes de reordenar o promover nada, confirma que los filtros numéricos de la categoría de destino realmente pueden coincidir con el EXIF almacenado de la foto, no solo con sus etiquetas.
+
+### Reordenar la prioridad global
+
+`GET/POST /api/config/category_priorities` (requiere edición) lee y reescribe el orden base contra el que aplica su delta cada contexto. `POST` recibe `{"order": [name, ...]}` — una permutación de igual conjunto de todos los nombres de categoría distintos de `default` — y **permuta los valores de prioridad existentes sobre el nuevo orden** en lugar de renumerar (10/20/30/…): el multiconjunto de prioridades no cambia, así que los números de la tabla anterior siguen siendo válidos y la unicidad se mantiene por construcción. `default` (prioridad 999) queda fijada al final y excluida del reordenamiento. Cada escritura toma antes una copia con marca de tiempo `.backup.<timestamp>` de `scoring_config.json`; este escritor y el editor de pesos (`update_category_weights`) ahora comparten un único bloqueo, ya que el anterior ciclo de lectura-modificación-escritura sin protección permitía que un guardado concurrente de cada uno descartara en silencio los cambios del otro.
+
+Reordenar no toca por sí solo la `category` almacenada de ninguna foto — ejecuta un recálculo después (`--recompute-average` o `POST /api/scan/recompute`) para aplicarlo.
+
+**Limitación conocida:** `api/types.py` construye la lista desplegable de tipo/filtro de la galería a partir de `ScoringConfig.get_categories()` una sola vez al importar el módulo. Un reordenamiento de prioridad se recoge de inmediato para la coincidencia real de categorías (cada llamada de puntuación y recálculo vuelve a leer la configuración desde disco), pero el desplegable de tipo de la galería conserva su orden antiguo hasta que se reinicia el proceso del visor. El filtrado en sí no se ve afectado — reordenar no añade ni quita ningún nombre de categoría.
 
 ## Definición de categoría
 

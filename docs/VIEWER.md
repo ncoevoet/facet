@@ -276,6 +276,8 @@ When `viewer.features.show_scan_button` is `true` and the user has `superadmin` 
 
 This is useful when the viewer runs on the same machine that has GPU access for scoring.
 
+A related but separate trigger, `POST /api/scan/recompute`, reuses the same job lock to rescore existing photos in place (no new files) — see [Category Priority & Scoring Contexts](#category-priority--scoring-contexts). Unlike this superadmin-only scan button, it is edition-gated.
+
 ## Semantic Search
 
 Hybrid search combining CLIP/SigLIP embedding similarity (70%) with FTS5 BM25 text matching on captions and tags (30%). Type a query like "sunset over mountains" or "child playing in snow" and the viewer returns matching photos ranked by combined score.
@@ -302,6 +304,10 @@ Create albums and add photos from the gallery using multi-select. Albums support
 ### Smart Albums
 
 Save a combination of filters (camera, tag, person, date range, score thresholds, etc.) as a smart album. Smart albums dynamically update as new photos match the saved filter criteria. The filter combination is stored as JSON in `smart_filter_json`.
+
+### Scoring Context
+
+Each album can carry a scoring context that decides which category wins for its member photos, independent of the global priority order — see [Scoring Contexts](CONFIGURATION.md#scoring-contexts). `PUT /api/albums/{id}/scoring_context` (edition-gated) sets it and materializes the same context onto every photo that is a member **right now**; `conflicts` in the response counts non-manual members that already carried a different context, `manual_skipped` counts members whose own manual override was left untouched (an album assignment never silently converts a photo's manual override into an album-sourced one), and `updated` counts how many were actually written. A manual album resolves membership from its `album_photos` rows; a smart album has none, so membership is instead resolved by evaluating its saved `smart_filter_json` against the live database. That is the album's **filter definition**, not "whatever the gallery happened to be showing": it deliberately ignores the gallery's hide-blinks/hide-bursts/hide-duplicates/hide-rejected view preferences (global, runtime-toggleable, and not part of `smart_filter_json`), so `updated` can legitimately exceed the photo count the album's own gallery view displays with those toggles on — and comes back with `updated: 0` and a `warning` when the filter currently matches nothing. Either way the stamp is a one-time snapshot, not a live subscription: a manual album's photo added *afterward* does inherit the context automatically, but a smart album's filter matching a *new* photo later does **not** retroactively apply the context to it — the context has to be set again (`PUT`) to pick up new matches. `DELETE /api/albums/{id}/scoring_context` (surfaced in the dialog as a "Clear context" action distinct from selecting the `default` context, which stamps `default` rather than clearing) undoes the stamp on exactly the members this album set, leaving any photo's own manual override untouched — and when a photo being undone is *still* a member of another album that itself declares a context, it is re-stamped with that other album's context instead of being left unscored (this re-derivation is scoped to the specific photos being removed from an album; deleting or clearing a whole album does not attempt it). `GET /api/albums/{id}/suggested_context` proposes one from the album's dominant detected `narrative_moment` (via each context's `suggest_from_moments` list) with a `share` confidence — it writes nothing; the assignment above still has to be confirmed explicitly. A recompute (`POST /api/scan/recompute`) is required for the new context to actually change any photo's stored category.
 
 ### Portfolio Export
 
@@ -620,9 +626,20 @@ Manual weight editor: a slider per metric for the selected category with a live 
 
 Save the current weights as a named snapshot and restore any earlier snapshot.
 
+### Category Priority & Scoring Contexts
+
+Categories are evaluated in ascending `priority` order and the first filter match wins — see [Filter Evaluation](SCORING.md#how-scoring-works) and [Scoring Contexts](CONFIGURATION.md#scoring-contexts) for the full model. Two edition-gated levers manage this without hand-editing `scoring_config.json`:
+
+- **Global priority** — `GET/POST /api/config/category_priorities` lists and reorders the base evaluation order. `POST` takes a full ordered list of category names and permutes the existing priority values onto it, so the multiset (and its uniqueness) is preserved rather than renumbered.
+- **Scoring contexts** — `GET /api/config/scoring_contexts` lists the configured presets (`default`, `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) together with each one's resolved effective order. A context promotes some categories to the front and excludes others outright without touching the global order, and is assigned per album (see [Scoring Context](#scoring-context) under Albums) or per photo via the category override below.
+
+Neither lever rescores photos by itself. After reordering priorities, assigning a context, or setting a per-photo override, trigger a recompute (`POST /api/scan/recompute`, edition-gated) and poll `GET /api/scan/recompute_status` for `{running, kind, progress, exit_code}`. Both `/scan/start` and `/scan/recompute` are guarded cross-process by `facet.LibraryLock`, not just the viewer's in-memory job lock (see [Reordering the global priority](CONFIGURATION.md#reordering-the-global-priority)): a recompute or scan already running from a terminal makes the viewer refuse a new job with 409, naming the holder, so a CLI job and a viewer-triggered one can no longer collide. If `normalization.per_category` is enabled, a single recompute after a category-affecting change won't fully converge — see [Normalization](CONFIGURATION.md#normalization).
+
 ### Category Override
 
-To reassign a photo's category from the comparison view: edit the category badge, select a target category, run "Analyze Filter Conflicts" to see which filters exclude it, then apply the override.
+To reassign a photo's category from the comparison view: edit the category badge, select a target category, run "Analyze Filter Conflicts" to see which filters exclude it, then apply the override. The override is validated against the configured category names (`POST /api/comparison/override_category`) and now persists in the `photo_scoring_overrides` side table — unlike before, it survives the next recompute instead of being silently discarded, and the photo keeps the manually assigned category until it is explicitly cleared (`POST /api/comparison/clear_category_override`).
+
+The same two actions are available in the photo lightbox under **Set scoring category…** / **Clear override** (edition-gated), alongside a collapsible **why isn't this a different category?** panel. Pick a target category there and the panel reports which filters currently exclude the photo and what each one would have to become — for example *"Raise shutter_speed_max from 0.02 to 0.033"*. This is the quickest way to find out that a category is unreachable for a given photo rather than merely out-ranked, which reordering alone cannot fix. It is backed by `POST /api/comparison/suggest_filters`.
 
 ## EXIF Statistics
 
@@ -1044,6 +1061,9 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/albums/{id}/photos` | List photos in album (paginated) |
 | `POST /api/albums/{id}/photos` | Add photos to album |
 | `DELETE /api/albums/{id}/photos` | Remove photos from album |
+| `PUT /api/albums/{id}/scoring_context` | `[Edition]` Set the album's scoring context; materializes it onto members matching the album's filter right now, skipping any member's manual override (smart albums resolve `smart_filter_json` live), returns `{updated, conflicts, manual_skipped}` |
+| `DELETE /api/albums/{id}/scoring_context` | `[Edition]` Clear the album's scoring context and undo its stamp on exactly the members it set, returns `{ok, cleared}` |
+| `GET /api/albums/{id}/suggested_context` | Suggest a scoring context from the album's dominant `narrative_moment` (suggestion only, writes nothing) |
 | `POST /api/albums/{id}/share` | Generate share token |
 | `DELETE /api/albums/{id}/share` | Revoke share token |
 | `GET /api/shared/album/{id}?token=` | View shared album (no auth) |
@@ -1113,7 +1133,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/comparison/learned_weights` | Suggested weights from comparisons |
 | `POST /api/comparison/preview_score` | Preview with custom weights |
 | `POST /api/comparison/suggest_filters` | Analyze filter conflicts |
-| `POST /api/comparison/override_category` | Override photo category |
+| `POST /api/comparison/override_category` | `[Edition]` Set a sticky per-photo category override (validated against configured category names; survives the next recompute) |
+| `POST /api/comparison/clear_category_override` | `[Edition]` Remove a photo's category override; filter evaluation decides again on the next recompute |
 | `POST /api/recalculate` | Recalculate scores with current weights |
 
 ### Burst Culling
@@ -1143,6 +1164,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/scan/status` | Check scan progress (structured `progress`: `{phase, current, total, eta_seconds}`) |
 | `GET /api/scan/stream?token=<jwt>` | `[Superadmin]` Real-time progress via Server-Sent Events; token is passed as a query param (the `EventSource` API can't set headers), with automatic fallback to polling `/status` |
 | `GET /api/scan/directories` | List configured scan directories |
+| `POST /api/scan/recompute` | `[Edition]` Trigger a full-library aggregate recompute (`--recompute-average`) as a background job; guarded cross-process by `facet.LibraryLock`, so it also refuses (409, naming the holder) when a scan or recompute is already running from a terminal, not just from another viewer tab. Unlike `/start`, its argv is fixed server-side and takes no request input, so it needs no superadmin |
+| `GET /api/scan/recompute_status` | `[Edition]` Poll recompute progress: `{running, kind, progress, exit_code}` — omits the superadmin-only `output_lines` log stream that `/status` returns |
 
 ### Face Management
 
@@ -1171,6 +1194,9 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/config/weight_snapshots` | List saved weight snapshots |
 | `POST /api/config/save_snapshot` | Save current weights as snapshot |
 | `POST /api/config/restore_weights` | Restore weights from snapshot |
+| `GET /api/config/category_priorities` | `[Edition]` List categories in current priority (evaluation) order |
+| `POST /api/config/category_priorities` | `[Edition]` Reorder category evaluation priority; permutes the existing priority values onto the new order rather than renumbering |
+| `GET /api/config/scoring_contexts` | List configured scoring contexts, each with its resolved effective category order |
 
 ### Merge Suggestions
 

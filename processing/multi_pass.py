@@ -22,6 +22,8 @@ from typing import List, Dict, Any
 
 from tqdm import tqdm
 
+from db.scoring_overrides import get_photo_scoring_overrides
+
 logger = logging.getLogger("facet.multi_pass")
 
 # Marks a chunk photo whose required model pass failed, so it is recorded in
@@ -840,6 +842,12 @@ class ChunkedMultiPassProcessor:
         from analyzers import CompositionAnalyzer
         from utils import detect_silhouette
 
+        # Sticky per-photo scoring context/override, batched once per chunk
+        # (not per photo) so a rescan preserves them instead of silently
+        # dropping them. photos.path stores resolved paths.
+        resolved_paths = [str(Path(path).resolve()) for path in results]
+        chunk_overrides = get_photo_scoring_overrides(self.scorer.db_path, paths=resolved_paths)
+
         for path, data in results.items():
             if not data or path not in images or data.get(SCAN_FAILED_KEY):
                 continue
@@ -959,6 +967,9 @@ class ChunkedMultiPassProcessor:
                 'f_stop': img_data.get('exif', {}).get('f_stop'),
                 'shutter_speed': img_data.get('exif', {}).get('shutter_speed'),
             }
+            photo_override = chunk_overrides.get(str(Path(path).resolve()), {})
+            metrics['scoring_context'] = photo_override.get('scoring_context')
+            metrics['category_override'] = photo_override.get('category_override')
 
             # Use scorer's aggregate calculation
             aggregate, category = self.scorer.calculate_aggregate_logic(metrics)

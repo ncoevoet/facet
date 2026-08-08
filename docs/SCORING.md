@@ -7,7 +7,7 @@ Photos are classified into a category, then scored with that category's weights.
 ## How Scoring Works
 
 1. **Category Detection** - Photo analyzed for content (faces, tags, EXIF data)
-2. **Filter Evaluation** - Categories evaluated in priority order until one matches
+2. **Filter Evaluation** - Categories evaluated in priority order until one matches (a *scoring context* can promote/exclude categories per album or photo without changing the base order — see [Scoring Contexts](#scoring-contexts))
 3. **Weight Application** - Category-specific weights applied to metrics
 4. **Modifier Application** - Bonuses, penalties, and behavior flags applied
 5. **Final Score** - Weighted sum clamped to 0-10 range
@@ -36,6 +36,42 @@ Photos are classified into a category, then scored with that category's weights.
 | 999 | `default` | Fallback (no filter) |
 
 Other tag-based categories include `aerial`, `food`, `sports`, `vehicle`, `travel`, `fashion`, `candid`, `product`, `architecture`, `urban`, `golden_hour`, `blue_hour`, `cinematic`, `vintage`, `abstract`, `minimalist`, `dramatic`, and `weather`.
+
+## Scoring Contexts
+
+The priority order above is global — every photo evaluates against the same list. A **scoring context** is a named *delta* over that base order: it promotes a short list of categories to the front and excludes others outright, without renumbering anything. `default` (empty `promote`/`excluded`) is the no-op context, so nothing changes for a photo unless a context is explicitly assigned to it.
+
+**Effective order** = `promote` (in the order given) → the global priority order with the promoted and excluded names removed → `default` last. A name listed in both `promote` and `excluded` is dropped entirely — `excluded` wins. `ScoringConfig.resolve_context_order()` (`config/scoring_config.py`) computes and memoizes this once per context name.
+
+Shipped presets — editable from the viewer's **Scoring Context** tab (`PUT /api/config/scoring_contexts/{name}`, edition-gated) or directly in the JSON; see [Scoring Contexts](CONFIGURATION.md#scoring-contexts) for the full field reference:
+
+| Context | Promotes | Excludes |
+|---------|----------|----------|
+| `default` | — | — |
+| `action_stage` | `sports`, `concert`, `candid` | `silhouette` |
+| `party_event` | `group_portrait`, `candid`, `food` | — |
+| `portrait_session` | `portrait`, `portrait_bw`, `fashion` | — |
+| `wildlife` | `wildlife` | — |
+| `landscape` | `landscape`, `golden_hour`, `blue_hour` | — |
+| `motorsport` | `sports`, `vehicle` | `silhouette` |
+
+Only the *delta* is editable — drag the promoted head into order, toggle a category's exclusion — never a full standalone ordering per context: the non-promoted categories always keep the global priority order, so a category added later can never be silently missing from six separate lists. See [Editing a context](CONFIGURATION.md#editing-a-context) for the validation rules.
+
+A context is assigned per album (`PUT /api/albums/{id}/scoring_context`, which materializes it onto every photo that is currently a member — a one-time snapshot, not a live subscription for a smart album, see [Assigning a context](CONFIGURATION.md#scoring-contexts)) or, for a single stubborn photo, applied as a sticky category override (`POST /api/comparison/override_category`). Both levers persist in a `photo_scoring_overrides` side table rather than as columns on `photos` — `save_photo`/`save_photos_batch` write photo rows with `INSERT OR REPLACE`, which would silently wipe a new column on that row at the next rescan. Setting one lever leaves the other untouched, and either can be cleared independently. **Neither takes effect on already-scored photos until a recompute** — `python facet.py --recompute-average`, or `POST /api/scan/recompute` from the viewer (guarded cross-process against a second scan/recompute running at once — see [Changing priorities requires a recompute](CONFIGURATION.md#reordering-the-global-priority)). If `normalization.per_category` is enabled, run the recompute twice — see [Normalization](CONFIGURATION.md#normalization) for why the first pass normalizes against each photo's old category.
+
+### The missing-EXIF trap
+
+Reordering — whether by editing global priority or by promoting via a context — only changes which category is *tried first*. It cannot make a category's filters match a photo they otherwise wouldn't. `config/category_filter.py:122-128` fails a numeric range filter outright whenever the photo's underlying value is missing or unparseable, rather than skipping just that bound — a missing value and an out-of-range value are treated identically, and the category is passed over either way.
+
+Concretely: `sports` (priority 71) carries `shutter_speed_max: 0.02`. A dance frame shot slower than 1/50s, or with no readable EXIF shutter speed at all, fails that filter no matter where `sports` sits in the evaluation order — even promoted to the very front by a context like `action_stage`. The photo falls through to whatever matches next, typically `fashion` (priority 43, tagged `fashion`, has a face) or `silhouette` (priority 42, backlit with a face). **This is the single most useful thing to check when a photo lands in an unexpected category:** before reordering or promoting anything, confirm the target category's numeric filters can actually match the photo's stored EXIF, not just its tags.
+
+### Reordering global priority
+
+`GET/POST /api/config/category_priorities` (edition-gated) reads and rewrites the base order that every context deltas against. `POST` takes `{"order": [name, ...]}` — a set-equal permutation of every non-`default` category name — and **permutes the existing priority values onto the new order** rather than renumbering (10/20/30/…): the priority multiset is unchanged, so the numbers in the table above stay meaningful and uniqueness holds by construction. `default` (priority 999) is pinned last and excluded from reordering. Every write takes a timestamped `.backup.<timestamp>` copy of `scoring_config.json` first; this writer and the weight editor (`update_category_weights`) now share one lock, since the previous unguarded read-modify-write let a concurrent save from each silently drop the other's changes.
+
+Reordering does not touch any photo's stored `category` by itself — run a recompute afterward (`--recompute-average` or `POST /api/scan/recompute`) to apply it.
+
+**Known limitation:** `api/types.py` builds the gallery's type/filter dropdown list from `ScoringConfig.get_categories()` once at import time. A priority reorder is picked up immediately for actual category matching (every scoring and recompute call re-reads the config from disk), but the gallery's type dropdown keeps its old ordering until the viewer process restarts. Filtering itself is unaffected — reordering adds or removes no category names.
 
 ## Category Definition
 

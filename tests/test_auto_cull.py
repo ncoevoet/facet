@@ -33,7 +33,7 @@ _SCHEMA = """
     CREATE TABLE albums (
         id INTEGER PRIMARY KEY, user_id TEXT, name TEXT, description TEXT,
         cover_photo_path TEXT, is_smart INTEGER DEFAULT 0, smart_filter_json TEXT,
-        share_token TEXT, created_at TEXT, updated_at TEXT
+        share_token TEXT, created_at TEXT, updated_at TEXT, scoring_context TEXT
     );
     CREATE TABLE album_photos (
         id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT,

@@ -4,6 +4,7 @@
 #   docker compose -f docker-compose.yml -f docker-compose.8gb.yml up -d
 services:
   facet:
+    image: ghcr.io/ncoevoet/facet:latest-cuda
     environment:
       - FACET_VRAM_PROFILE=8gb
     deploy:

@@ -20,6 +20,7 @@ pytest.importorskip("imagehash")
 pytest.importorskip("cv2")
 
 from db import init_database, get_connection
+from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
 from processing.scorer import Facet, _load_image_modules
 
 _load_image_modules()  # scorer.py lazily binds PIL Image, cv2, BytesIO, …
@@ -111,6 +112,23 @@ def test_rescan_preserves_user_and_derived_data(scored_db):
         assert conn.execute("SELECT COUNT(*) FROM comparisons").fetchone()[0] == 1
         assert conn.execute("SELECT COUNT(*) FROM learned_scores").fetchone()[0] == 1
         assert conn.execute("SELECT COUNT(*) FROM user_preferences").fetchone()[0] == 1
+
+
+def test_rescan_preserves_sticky_scoring_override(scored_db):
+    """The whole reason photo_scoring_overrides is a side table and not columns
+    on `photos`: a sticky category_override must survive the same INSERT OR
+    REPLACE rescan that wipes an unlisted column. Prove it for the real write
+    path (save_photos_batch), not just the recompute-average path.
+    """
+    db, facet = scored_db
+    set_photo_scoring_override(db, '/p/a.jpg', category_override='sports', source='manual')
+
+    # Re-scan (--force): same path, new scores, same INSERT OR REPLACE call
+    # that (pre-fix) cascade-deleted comparisons/learned_scores/user_preferences.
+    facet.save_photos_batch([(_base_result('/p/a.jpg', 9.9), _IMG)])
+
+    overrides = get_photo_scoring_overrides(db)
+    assert overrides['/p/a.jpg'] == {'scoring_context': None, 'category_override': 'sports'}
 
 
 def test_rescan_refreshes_faces(scored_db):

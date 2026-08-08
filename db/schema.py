@@ -495,6 +495,7 @@ ALBUMS_COLUMNS = [
     ('share_token', 'TEXT'),
     ('created_at', "TEXT DEFAULT (datetime('now'))"),
     ('updated_at', "TEXT DEFAULT (datetime('now'))"),
+    ('scoring_context', 'TEXT'),  # the album's declared scoring context, materialized onto member photos
 ]
 
 ALBUM_PHOTOS_COLUMNS = [
@@ -551,6 +552,21 @@ USER_PREFERENCES_INDEXES = [
     ('idx_user_prefs_path', 'user_preferences', 'photo_path'),
     ('idx_user_prefs_fav', 'user_preferences', 'user_id, is_favorite'),
     ('idx_user_prefs_rating', 'user_preferences', 'user_id, star_rating'),
+]
+
+# Sticky per-photo scoring context / category override — a side table, not
+# columns on `photos`, because save_photo/save_photos_batch write photos via
+# INSERT OR REPLACE (processing/scorer.py), which would silently wipe any new
+# column on that row on the next rescan. photo_scoring_overrides is untouched
+# by a photo rescan; processing.scorer.Facet._determine_photo_category is the
+# single choke point that reads it.
+PHOTO_SCORING_OVERRIDES_COLUMNS = [
+    ('photo_path', 'TEXT PRIMARY KEY REFERENCES photos(path) ON DELETE CASCADE'),
+    ('scoring_context', 'TEXT'),
+    ('category_override', 'TEXT'),
+    ('source', 'TEXT'),
+    ('created_at', "TEXT DEFAULT (datetime('now'))"),
+    ('created_by', 'TEXT'),
 ]
 
 # FTS5 full-text search virtual table and sync triggers.
@@ -834,6 +850,13 @@ def init_database(db_path='photo_scores_pro.db'):
             USER_PREFERENCES_COLUMNS,
             constraints=['PRIMARY KEY (user_id, photo_path)']
         ))
+
+        # Create photo_scoring_overrides table for sticky per-photo scoring
+        # context / category overrides
+        conn.execute(_build_create_table_sql(
+            'photo_scoring_overrides', PHOTO_SCORING_OVERRIDES_COLUMNS
+        ))
+        _migrate_add_missing_columns(conn, 'photo_scoring_overrides', PHOTO_SCORING_OVERRIDES_COLUMNS)
 
         # Create photos_vec virtual table for vector search (requires sqlite-vec)
         if HAS_SQLITE_VEC:

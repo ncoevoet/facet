@@ -25,6 +25,20 @@
         }
       }
     },
+    "scoring_contexts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["label_key", "promote", "excluded", "suggest_from_moments"],
+        "additionalProperties": false,
+        "properties": {
+          "label_key": { "type": "string", "minLength": 1 },
+          "promote": { "type": "array", "items": { "type": "string" } },
+          "excluded": { "type": "array", "items": { "type": "string" } },
+          "suggest_from_moments": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
     "viewer": { "type": "object" },
     "processing": { "type": "object" },
     "scoring": { "type": "object" },

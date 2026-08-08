@@ -28,6 +28,20 @@ python facet.py --doctor # überprüfe deine Einrichtung
 
 Ein `Makefile` steht ebenfalls zur Verfügung: `make install`, `make install-cpu`, `make run`, `make doctor`.
 
+### Docker
+
+`docker compose up` zieht ein veröffentlichtes Image von GHCR – kein lokaler Build, keine JSON-Bearbeitung. Zwei Varianten teilen sich ein `Dockerfile`: ein schlankes CPU-Image (`ghcr.io/ncoevoet/facet:latest`) und ein vollständiges CUDA-+-RAPIDS-cuML-Image (`:latest-cuda`) für GPU-Profile. Wählen Sie ein Profil über `FACET_VRAM_PROFILE`.
+
+```bash
+cp .env.example .env      # FACET_VRAM_PROFILE + PHOTOS_DIR setzen
+docker compose up -d      # zieht :latest (CPU), Standardkonfiguration eingebacken
+
+# GPU / pro Profil — ein Overlay hinzufügen (benötigt das NVIDIA Container Toolkit), zieht :latest-cuda:
+docker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d
+```
+
+Overlays existieren für `legacy`, `8gb` und `16gb` (`docker-compose.{legacy,8gb,16gb}.yml`). Abhängigkeiten sind in `requirements.lock.txt` fixiert, und die cuML-GPU-Gesichtsclusterbildung ist fest im CUDA-Image enthalten, sodass GPU-Profile sofort auf der GPU clustern; das CPU-Image fällt auf CPU-HDBSCAN zurück. Modelle werden beim ersten Lauf einmalig in die Volumes `facet-hf-cache` / `facet-insightface` / `facet-pretrained` heruntergeladen. Bereitstellungs-Einstellungen liegen in `.env` (`FACET_VRAM_PROFILE`, `PHOTOS_DIR`, `PORT`, `DB_PATH`). `docker compose build` baut weiterhin aus dem Quellcode (siehe `Dockerfile` für die Build-Argumente `BASE_IMAGE`/`STRIP_TORCH`/`INSTALL_CUML`). Die vollständige Docker- + Windows/WSL2-Anleitung finden Sie unter [Deployment](DEPLOYMENT.md).
+
 ---
 
 ## Manuelle Installation
