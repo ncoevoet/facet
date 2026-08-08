@@ -287,7 +287,11 @@ export class GalleryStore {
       untracked(() => {
         if (this.smartSaveTimer) clearTimeout(this.smartSaveTimer);
         this.smartSaveTimer = setTimeout(() => {
-          firstValueFrom(this.albumService.update(album.id, { smart_filter_json: json })).catch(() => {});
+          firstValueFrom(this.albumService.update(album.id, { smart_filter_json: json })).catch(() => {
+            // The filters stay applied on screen whether or not the write
+            // landed, so a swallowed rejection reads exactly like a save.
+            this.snackBar.open(this.i18n.t(I18N.albums.smart_save_failed), '', { duration: 5000 });
+          });
         }, 500);
       });
     });

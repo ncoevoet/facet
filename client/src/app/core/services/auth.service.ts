@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { DestroyRef, Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -23,12 +23,29 @@ interface LoginResponse {
   user?: { user_id: string; role: string; display_name: string };
 }
 
+/** True once the JWT's own `exp` has passed. Verifying the signature is the
+ *  server's business; this only stops the client presenting a token it already
+ *  knows is dead, which some deployments treat as worse than no token at all.
+ *  An unreadable token counts as expired — it can only be rejected anyway. */
+function isExpired(token: string): boolean {
+  const payload = token.split('.')[1];
+  if (!payload) return true;
+  try {
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const exp = (JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='))) as { exp?: number }).exp;
+    return typeof exp !== 'number' || exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
 
   private readonly TOKEN_KEY = 'facet_token';
+  private pendingRevalidation: Promise<AuthStatus | null> | null = null;
 
   /** Reactive auth state */
   readonly status = signal<AuthStatus | null>(null);
@@ -41,8 +58,21 @@ export class AuthService {
   readonly features = computed(() => this.status()?.features ?? {});
   readonly downloadProfiles = computed(() => this.status()?.download_profiles ?? []);
 
+  constructor() {
+    // Another tab rotated the shared token (login, logout, edition lock or
+    // unlock). Without this, our cached status keeps advertising rights the
+    // rotated token no longer carries — an amber Edition icon over a session
+    // the server 403s. The event never fires in the tab that wrote the value.
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === this.TOKEN_KEY) void this.revalidate();
+    };
+    window.addEventListener('storage', onStorage);
+    inject(DestroyRef).onDestroy(() => window.removeEventListener('storage', onStorage));
+  }
+
   get token(): string | null {
-    return localStorage.getItem(this.TOKEN_KEY);
+    const token = localStorage.getItem(this.TOKEN_KEY);
+    return token && !isExpired(token) ? token : null;
   }
 
   /** Check auth status with the server */
@@ -50,6 +80,16 @@ export class AuthService {
     const status = await firstValueFrom(this.http.get<AuthStatus>('/api/auth/status'));
     this.status.set(status);
     return status;
+  }
+
+  /** Reconcile the cached status with the server, coalescing concurrent callers
+   *  so a burst of rejected requests costs a single round-trip. Never rejects:
+   *  a failed reconciliation must not replace the error that triggered it. */
+  revalidate(): Promise<AuthStatus | null> {
+    this.pendingRevalidation ??= this.checkStatus()
+      .catch(() => null)
+      .finally(() => { this.pendingRevalidation = null; });
+    return this.pendingRevalidation;
   }
 
   /** Login with credentials */

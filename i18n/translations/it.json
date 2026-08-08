@@ -540,6 +540,7 @@
     "database_error": "Errore del database",
     "rate_limited": "Troppe richieste — attendere un momento",
     "access_denied": "Accesso negato",
+    "edition_expired": "La modalità di modifica non è più attiva - sbloccala e riprova",
     "server_error": "Errore del server — riprovare",
     "action_failed": "Azione non riuscita — modifica annullata"
   },
@@ -1615,6 +1616,7 @@
     "add_photos": "Aggiungi all'album",
     "photos_added": "Foto aggiunte all'album",
     "save_smart": "Salva come album intelligente",
+    "smart_save_failed": "I filtri dell'album intelligente non sono stati salvati",
     "smart_album": "Album intelligente",
     "smart_tooltip": "Album intelligente — raccoglie automaticamente le foto corrispondenti a un filtro salvato",
     "confirm_delete_title": "Elimina album",

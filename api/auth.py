@@ -113,8 +113,7 @@ async def get_optional_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> Optional[CurrentUser]:
     """Extract user from JWT token if present, without requiring auth."""
-    bearer = credentials.credentials if credentials else None
-    token = bearer
+    token = credentials.credentials if credentials else None
     if token is None and request.method in ('GET', 'HEAD'):
         # <img> and EventSource requests cannot carry the Authorization
         # header; fall back to the HttpOnly login cookie for safe methods
@@ -123,11 +122,9 @@ async def get_optional_user(
 
     payload = decode_access_token(token) if token else None
     if payload is None:
-        if bearer is not None:
-            # An explicit bad/expired Bearer keeps failing loudly.
-            return None
-        # No password mode — everyone is authenticated (a stale cookie
-        # must not lock an open install out).
+        # No password mode — everyone is authenticated. A stale token, whether
+        # it arrived in the cookie or as a Bearer, must not lock an open
+        # install out: the same request carrying no token at all is let in.
         if not is_multi_user_enabled() and not VIEWER_CONFIG.get('password', ''):
             return CurrentUser()
         return None

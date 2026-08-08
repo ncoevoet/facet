@@ -540,6 +540,7 @@
     "database_error": "Database Error",
     "rate_limited": "Too many requests — please wait a moment",
     "access_denied": "Access denied",
+    "edition_expired": "Edition mode is no longer active - unlock Edition and try again",
     "server_error": "Server error — please try again",
     "action_failed": "Action failed — change reverted"
   },
@@ -1613,6 +1614,7 @@
     "add_photos": "Add to Album",
     "photos_added": "Photos added to album",
     "save_smart": "Save as Smart Album",
+    "smart_save_failed": "Smart album filters were not saved",
     "smart_album": "Smart Album",
     "smart_tooltip": "Smart album — automatically gathers photos matching a saved filter",
     "confirm_delete_title": "Delete Album",

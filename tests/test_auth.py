@@ -151,6 +151,15 @@ def _make_client():
     return TestClient(create_app())
 
 
+def _expired_bearer(**claims):
+    """Return an Authorization header carrying an already-expired token."""
+    token = create_access_token(
+        {"sub": "_legacy", "role": "user", **claims},
+        expires_delta=timedelta(seconds=-1),
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
 # ---------------------------------------------------------------------------
 # No-password mode (HTTP)
 # ---------------------------------------------------------------------------
@@ -187,6 +196,24 @@ class TestNoPasswordMode:
         assert resp.status_code == 200
         body = resp.json()
         assert body["authenticated"] is True
+
+    def test_expired_bearer_does_not_lock_the_install_out(self, client):
+        """A 48h-old token must not be worse than sending no token at all."""
+        resp = client.get("/api/auth/status", headers=_expired_bearer())
+        assert resp.status_code == 200
+        assert resp.json()["authenticated"] is True
+
+    def test_garbage_bearer_does_not_lock_the_install_out(self, client):
+        resp = client.get(
+            "/api/auth/status", headers={"Authorization": "Bearer not-a-jwt"}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["authenticated"] is True
+
+    def test_expired_bearer_reaches_a_state_changing_route(self, client):
+        """POST has no cookie fallback, so only the Bearer path can save it."""
+        resp = client.post("/api/auth/edition/logout", headers=_expired_bearer())
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +258,12 @@ class TestLegacyPasswordMode:
                 client.post("/api/auth/login", json={"password": "wrong"})
             resp = client.post("/api/auth/login", json={"password": "wrong"})
             assert resp.status_code == 429
+
+    def test_expired_bearer_stays_unauthenticated(self, client):
+        """The open-install fallback must not widen to a locked deployment."""
+        resp = client.get("/api/auth/status", headers=_expired_bearer())
+        assert resp.status_code == 200
+        assert resp.json()["authenticated"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -337,6 +370,16 @@ class TestEditionPasswordMode:
         )
         assert resp.status_code == 401
 
+    def test_expired_bearer_keeps_access_but_drops_edition(self, client):
+        """The reported install: no viewer password, edition password set."""
+        resp = client.get(
+            "/api/auth/status", headers=_expired_bearer(edition=True)
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["authenticated"] is True
+        assert body["edition_authenticated"] is False
+
     def test_edition_login_rejected_in_multi_user(self, client):
         with mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True):
             resp = client.post(
@@ -413,3 +456,11 @@ class TestMultiUserMode:
             json={"password": "hunter2"},
         )
         assert resp.status_code == 400
+
+    def test_expired_bearer_stays_unauthenticated(self, client):
+        """Multi-user has no open-install fallback, empty password or not."""
+        resp = client.get(
+            "/api/auth/status", headers=_expired_bearer(sub="alice", role="admin")
+        )
+        assert resp.status_code == 200
+        assert resp.json()["authenticated"] is False

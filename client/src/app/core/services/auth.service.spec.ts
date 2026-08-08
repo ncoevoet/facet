@@ -4,6 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router } from '@angular/router';
 import { AuthService, AuthStatus } from './auth.service';
+import { makeJwt } from '../../../testing/jwt';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -111,14 +112,77 @@ describe('AuthService', () => {
 
   describe('token', () => {
     it('should read token from localStorage', () => {
-      getItemSpy.mockReturnValue('my-jwt-token');
-      expect(service.token).toBe('my-jwt-token');
+      const live = makeJwt(3600);
+      getItemSpy.mockReturnValue(live);
+      expect(service.token).toBe(live);
       expect(localStorage.getItem).toHaveBeenCalledWith('facet_token');
     });
 
     it('should return null when no token stored', () => {
       getItemSpy.mockReturnValue(null);
       expect(service.token).toBeNull();
+    });
+
+    it('should return null for a token whose exp has passed', () => {
+      getItemSpy.mockReturnValue(makeJwt(-1));
+      expect(service.token).toBeNull();
+    });
+
+    it('should return null for a token with no exp claim', () => {
+      getItemSpy.mockReturnValue(`header.${btoa(JSON.stringify({ sub: '_legacy' }))}.sig`);
+      expect(service.token).toBeNull();
+    });
+
+    it('should return null for an unreadable token', () => {
+      getItemSpy.mockReturnValue('not-a-jwt');
+      expect(service.token).toBeNull();
+    });
+  });
+
+  describe('revalidate()', () => {
+    it('should coalesce concurrent callers into a single request', async () => {
+      const both = Promise.all([service.revalidate(), service.revalidate()]);
+
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+
+      expect(await both).toEqual([mockStatus, mockStatus]);
+      expect(service.status()).toEqual(mockStatus);
+    });
+
+    it('should issue a fresh request once the previous one settled', async () => {
+      const first = service.revalidate();
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+      await first;
+
+      const second = service.revalidate();
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+      await second;
+    });
+
+    it('should resolve null instead of rejecting when the request fails', async () => {
+      const promise = service.revalidate();
+
+      httpTesting.expectOne('/api/auth/status').flush('boom', { status: 500, statusText: 'Server Error' });
+
+      await expect(promise).resolves.toBeNull();
+    });
+  });
+
+  describe('cross-tab token rotation', () => {
+    it('should refetch status when another tab rewrites the token', async () => {
+      service.status.set({ ...mockStatus, edition_authenticated: true });
+
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_token' }));
+
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+      await Promise.resolve();
+      expect(service.isEdition()).toBe(false);
+    });
+
+    it('should ignore changes to unrelated storage keys', () => {
+      window.dispatchEvent(new StorageEvent('storage', { key: 'facet_language' }));
+
+      httpTesting.expectNone('/api/auth/status');
     });
   });
 

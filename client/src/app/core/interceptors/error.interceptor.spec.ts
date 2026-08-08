@@ -13,14 +13,19 @@ import { AuthService } from '../services/auth.service';
 import { I18nService } from '../services/i18n.service';
 
 describe('errorInterceptor', () => {
-  let authMock: { token: string | null; logout: Mock };
+  let authMock: { token: string | null; logout: Mock; isEdition: Mock; revalidate: Mock };
   let snackBarMock: { open: Mock };
   let i18nMock: { t: Mock; locale: Mock };
   let backendMock: { handle: Mock };
   let next: MockedFunction<HttpHandlerFn>;
 
   beforeEach(() => {
-    authMock = { token: null, logout: vi.fn() };
+    authMock = {
+      token: null,
+      logout: vi.fn(),
+      isEdition: vi.fn(() => false),
+      revalidate: vi.fn(() => Promise.resolve(null)),
+    };
     snackBarMock = { open: vi.fn() };
     i18nMock = { t: vi.fn((key: string) => key), locale: vi.fn(() => 'en') };
     // The interceptor uses HttpBackend directly to post 5xx crash reports
@@ -124,19 +129,43 @@ describe('errorInterceptor', () => {
       });
     }));
 
-  it('shows snackbar on 403 for non-auth URLs', () =>
+  const raise403 = (url = '/api/photos') =>
     new Promise<void>((resolve) => {
-      const req = new HttpRequest('GET', '/api/photos');
-      const error = new HttpErrorResponse({ status: 403, url: '/api/photos' });
-      next.mockReturnValue(throwError(() => error));
+      const req = new HttpRequest('GET', url);
+      next.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403, url })));
+      runInterceptor(req).subscribe({ error: () => resolve() });
+    });
 
-      runInterceptor(req).subscribe({
-        error: () => {
-          expect(snackBarMock.open).toHaveBeenCalledWith('errors.access_denied', '', { duration: 3000 });
-          resolve();
-        },
-      });
-    }));
+  it('shows snackbar on 403 for non-auth URLs', async () => {
+    await raise403();
+
+    await vi.waitFor(() =>
+      expect(snackBarMock.open).toHaveBeenCalledWith('errors.access_denied', '', { duration: 3000 }),
+    );
+  });
+
+  it('reconciles the cached status on 403 for non-auth URLs', async () => {
+    await raise403();
+
+    expect(authMock.revalidate).toHaveBeenCalled();
+  });
+
+  it('does NOT reconcile on 403 for /api/auth/ URLs', async () => {
+    await raise403('/api/auth/edition/login');
+
+    expect(authMock.revalidate).not.toHaveBeenCalled();
+    expect(snackBarMock.open).not.toHaveBeenCalled();
+  });
+
+  it('reports a lost edition session when reconciling shows edition is gone', async () => {
+    authMock.isEdition.mockReturnValueOnce(true).mockReturnValue(false);
+
+    await raise403();
+
+    await vi.waitFor(() =>
+      expect(snackBarMock.open).toHaveBeenCalledWith('errors.edition_expired', '', { duration: 6000 }),
+    );
+  });
 
   it('shows snackbar on 500 server error', () =>
     new Promise<void>((resolve) => {

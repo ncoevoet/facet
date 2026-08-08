@@ -36,6 +36,8 @@ def spearman_srcc(xs, ys):
     """
     if len(xs) != len(ys) or len(xs) < 3:
         return None
+    if len(set(xs)) < 2 or len(set(ys)) < 2:
+        return None
     try:
         from scipy.stats import spearmanr
         rho, _ = spearmanr(xs, ys)
