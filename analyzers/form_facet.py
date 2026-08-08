@@ -211,13 +211,17 @@ def _color_harmony(hsv):
     sample_weights = weights[idx]
     from sklearn.cluster import KMeans
 
-    km = KMeans(n_clusters=_KMEANS_CLUSTERS, n_init=4, random_state=0)
+    # A palette of two hues cannot yield five clusters; asking anyway makes
+    # sklearn warn and return empty clusters that the weight filter below
+    # discards, so cap the request at what the image can actually support.
+    n_clusters = min(_KMEANS_CLUSTERS, np.unique(points, axis=0).shape[0])
+    km = KMeans(n_clusters=n_clusters, n_init=4, random_state=0)
     with _KM_LOCK:
         labels = km.fit_predict(points, sample_weight=sample_weights)
     centers = km.cluster_centers_
     cluster_hues = np.rad2deg(np.arctan2(centers[:, 1], centers[:, 0])) % 360.0
     cluster_weights = np.array([
-        float(sample_weights[labels == i].sum()) for i in range(_KMEANS_CLUSTERS)
+        float(sample_weights[labels == i].sum()) for i in range(n_clusters)
     ])
     keep = cluster_weights > 0
     if not keep.any():

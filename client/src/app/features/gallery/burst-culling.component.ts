@@ -295,7 +295,7 @@ interface ShortcutRow {
               <mat-icon>compare</mat-icon>
             </button>
             <mat-menu #thresholdMenu="matMenu">
-              <div class="flex items-center gap-2 px-4 py-3" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+              <div class="flex items-center gap-2 px-4 py-3" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                 <span class="text-xs opacity-60">{{ I18N.culling.threshold | translate }}</span>
                 <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
                   <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.culling.threshold | translate" />
@@ -333,7 +333,7 @@ interface ShortcutRow {
             <mat-icon>tune</mat-icon>
           </button>
           <mat-menu #strictnessMenu="matMenu">
-            <div class="flex items-center gap-2 px-4 py-3" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+            <div class="flex items-center gap-2 px-4 py-3" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
               <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
               <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="5" [discrete]="true">
                 <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="I18N.culling.strictness | translate" />
