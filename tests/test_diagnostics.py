@@ -155,6 +155,38 @@ def _make_cuda_torch():
     return mock_torch
 
 
+def _make_mps_torch():
+    """torch stand-in whose Apple Metal backend is available."""
+    mock_torch = _make_mock_torch_module()
+    mock_torch.__version__ = "2.6.0"
+    mock_torch.version = types.SimpleNamespace(cuda=None)
+    mock_torch.backends = types.SimpleNamespace(
+        cudnn=types.SimpleNamespace(version=lambda: None),
+        mps=types.SimpleNamespace(is_available=lambda: True),
+    )
+    mock_torch.cuda = types.SimpleNamespace(is_available=lambda: False)
+    return mock_torch
+
+
+class TestDoctorMPS:
+    def test_reports_mps_as_active_without_nvidia_warning(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        with mock.patch.dict("sys.modules", {"torch": _make_mps_torch()}), \
+             mock.patch("diagnostics.subprocess.run") as run:
+            run_doctor(
+                config_path=str(tmp_path / "no.json"),
+                db_path=str(tmp_path / "no.db"),
+            )
+
+        out = capsys.readouterr().out
+        assert "[OK] Apple Silicon (MPS): available" in out
+        assert "[OK] Facet runtime device: mps" in out
+        assert "Apple Metal Performance Shaders" in out
+        assert "InsightFace: ONNX Runtime CPU provider" in out
+        assert "GPU Troubleshooting" not in out
+        assert all(call.args[0][0] != "nvidia-smi" for call in run.call_args_list)
+
+
 class TestDoctorTorchCompileStatus:
     """--doctor reports torch.compile status on a CUDA host (issue #15)."""
 
@@ -336,6 +368,7 @@ class TestSuggestVramProfile:
         mock_psutil = types.ModuleType("psutil")
         mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=31 * 1024**3)
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
+             mock.patch("utils.device.mps_available", return_value=False), \
              mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
             profile, vram, msg = ScoringConfig.suggest_vram_profile()
         assert profile == 'legacy'
@@ -347,10 +380,35 @@ class TestSuggestVramProfile:
         mock_psutil = types.ModuleType("psutil")
         mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=4 * 1024**3)
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
+             mock.patch("utils.device.mps_available", return_value=False), \
              mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
             profile, vram, msg = ScoringConfig.suggest_vram_profile()
         assert profile == 'legacy'
         assert 'limited CPU mode' in msg
+
+    def test_mps_uses_legacy_profile_with_acceleration_message(self, monkeypatch):
+        mock_psutil = types.ModuleType("psutil")
+        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=48 * 1024**3)
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
+             mock.patch("utils.device.mps_available", return_value=True), \
+             mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
+            profile, vram, msg = ScoringConfig.suggest_vram_profile()
+        assert profile == 'legacy'
+        assert vram is None
+        assert 'MPS' in msg
+        assert 'Torch models accelerated' in msg
+
+    def test_mps_cpu_override_is_reported(self, monkeypatch):
+        mock_psutil = types.ModuleType("psutil")
+        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=48 * 1024**3)
+        monkeypatch.setenv("FACET_DEVICE", "cpu")
+        with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
+             mock.patch("utils.device.mps_available", return_value=True), \
+             mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
+            profile, _, msg = ScoringConfig.suggest_vram_profile()
+        assert profile == 'legacy'
+        assert 'FACET_DEVICE=cpu' in msg
 
 
 class TestCheckVramProfileCompatibility:

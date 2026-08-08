@@ -104,13 +104,24 @@ fi
 CUDA_VERSION=""
 TORCH_INDEX=""
 ONNX_PACKAGE="onnxruntime>=1.15.0"
+HOST_OS="$(uname -s)"
+HOST_ARCH="$(uname -m)"
+APPLE_MPS=0
 
 if [[ "$FORCE_CPU" -eq 1 ]]; then
     info "CPU-only mode (--cpu)"
-    TORCH_INDEX="https://download.pytorch.org/whl/cpu"
+    if [[ "$HOST_OS" != "Darwin" ]]; then
+        TORCH_INDEX="https://download.pytorch.org/whl/cpu"
+    else
+        warn "macOS has no CPU-only PyTorch wheel — the unified wheel includes the Metal (MPS) backend"
+        warn "  To disable acceleration at runtime, set FACET_DEVICE=cpu when running Facet"
+    fi
 elif [[ -n "$CUDA_OVERRIDE" ]]; then
     CUDA_VERSION="$CUDA_OVERRIDE"
     info "CUDA version override: $CUDA_VERSION"
+elif [[ "$HOST_OS" == "Darwin" && "$HOST_ARCH" == "arm64" ]]; then
+    APPLE_MPS=1
+    ok "Apple Silicon detected: PyTorch Metal (MPS) acceleration enabled"
 else
     # Auto-detect via nvidia-smi
     if command -v nvidia-smi &>/dev/null; then
@@ -146,13 +157,18 @@ if [[ -n "$CUDA_VERSION" ]]; then
         warn "CUDA $CUDA_VERSION is too old — using CPU-only PyTorch"
         TORCH_INDEX="https://download.pytorch.org/whl/cpu"
     fi
-elif [[ -z "$TORCH_INDEX" ]]; then
+elif [[ -z "$TORCH_INDEX" && "$APPLE_MPS" -eq 0 && "$HOST_OS" != "Darwin" ]]; then
     TORCH_INDEX="https://download.pytorch.org/whl/cpu"
 fi
 
 # --- Step 5: Install PyTorch ---
 info "Installing PyTorch..."
-$INSTALLER install torch torchvision --index-url "$TORCH_INDEX"
+if [[ -n "$TORCH_INDEX" ]]; then
+    $INSTALLER install torch torchvision --index-url "$TORCH_INDEX"
+else
+    # PyPI supplies the native macOS wheel with its MPS backend.
+    $INSTALLER install torch torchvision
+fi
 ok "PyTorch installed"
 
 # --- Step 6: Install ONNX Runtime ---

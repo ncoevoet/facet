@@ -470,8 +470,8 @@ class ChunkedMultiPassProcessor:
         # Free memory
         del images
         gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        from utils.device import clear_device_cache
+        clear_device_cache(getattr(self.model_manager, 'device', 'cpu'))
 
     def _record_chunk_pass_failure(self, images: Dict, results: Dict, failed_stages: List[str]):
         """Record every image in a chunk whose required model pass failed.

@@ -163,6 +163,9 @@ def _load_gpu_modules():
     """Load torch and related modules only when needed."""
     global torch, F, open_clip, BatchProcessor
     if torch is None:
+        # Import device policy first so the MPS fallback environment variable
+        # is present before torch initialises its Metal backend.
+        import utils.device  # noqa: F401
         import torch as _torch
         import torch.nn.functional as _F
         import open_clip as _open_clip
@@ -609,9 +612,8 @@ class Facet:
         if not lightweight:
             # Load image processing and GPU-dependent modules
             _load_image_modules()
-            _load_gpu_modules()
-
             from utils.device import get_device
+            _load_gpu_modules()
             self.device = get_device()
             logger.info("Using %s", self.device)
 

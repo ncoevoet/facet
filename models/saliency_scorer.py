@@ -120,8 +120,8 @@ class SaliencyScorer:
 
         self._loaded = False
         _ensure_imports()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        from utils.device import clear_device_cache
+        clear_device_cache(self.device)
         logger.info("  BiRefNet unloaded")
 
     def get_saliency_mask(self, pil_img):
