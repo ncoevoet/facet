@@ -313,6 +313,62 @@ class TestGalleryPhotos:
 
 
 # ---------------------------------------------------------------------------
+# Folder (path_prefix) Filter
+# ---------------------------------------------------------------------------
+
+class TestGalleryPathPrefixFilter:
+    """GET /api/photos?path_prefix= — subtree match on the directory boundary.
+
+    The viewer's folder picker feeds these prefixes straight from /api/folders,
+    so the normalisation and escaping below are part of that contract.
+    """
+
+    PHOTOS = [
+        _photo("/lib/A/one.jpg", "2024:01:01 10:00:00"),
+        _photo("/lib/A/B/C/deep.jpg", "2024:01:01 10:00:00"),
+        _photo("/lib/Alpha/other.jpg", "2024:01:01 10:00:00"),
+        _photo("/lib/100_MEDIA/wild.jpg", "2024:01:01 10:00:00"),
+        _photo("/lib/100XMEDIA/decoy.jpg", "2024:01:01 10:00:00"),
+        _photo("C:\\lib\\W\\win.jpg", "2024:01:01 10:00:00"),
+    ]
+
+    def _paths_for(self, tmp_path, path_prefix):
+        db_path = str(tmp_path / f"test-{abs(hash(path_prefix))}.db")
+        _make_db(db_path, self.PHOTOS)
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
+            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch.dict("api.config._count_cache", {}, clear=True),
+        ):
+            resp = TestClient(app).get("/api/photos", params={"path_prefix": path_prefix, "per_page": 50})
+        assert resp.status_code == 200
+        return sorted(p["path"] for p in resp.json()["photos"])
+
+    def test_matches_the_whole_subtree(self, tmp_path):
+        assert self._paths_for(tmp_path, "/lib/A") == ["/lib/A/B/C/deep.jpg", "/lib/A/one.jpg"]
+
+    def test_trailing_slash_variants_are_equivalent(self, tmp_path):
+        bare = self._paths_for(tmp_path, "/lib/A")
+        assert self._paths_for(tmp_path, "/lib/A/") == bare
+        assert self._paths_for(tmp_path, "/lib/A///") == bare
+
+    def test_stops_at_the_directory_boundary(self, tmp_path):
+        assert "/lib/Alpha/other.jpg" not in self._paths_for(tmp_path, "/lib/A")
+
+    def test_underscore_is_not_a_like_wildcard(self, tmp_path):
+        assert self._paths_for(tmp_path, "/lib/100_MEDIA") == ["/lib/100_MEDIA/wild.jpg"]
+
+    def test_windows_paths_match_a_forward_slash_prefix(self, tmp_path):
+        assert self._paths_for(tmp_path, "C:/lib/W/") == ["C:\\lib\\W\\win.jpg"]
+
+    def test_empty_prefix_filters_nothing(self, tmp_path):
+        assert len(self._paths_for(tmp_path, "")) == len(self.PHOTOS)
+
+
+# ---------------------------------------------------------------------------
 # Hide Bursts
 # ---------------------------------------------------------------------------
 
