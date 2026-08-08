@@ -406,3 +406,74 @@ class TestAssignFace:
         assert alice["representative_face_id"] == 11
         assert alice["face_thumbnail"] == b'F2thumb'
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Lock retry
+# ---------------------------------------------------------------------------
+
+
+class TestLockedDatabaseRetry:
+    """A background writer holding SQLite's write lock must not fail a user save.
+
+    The ranker retrain, the rating-comparison sync, the WAL checkpoint and an
+    out-of-process scan all take the single write lock in bursts. Before the
+    retry, a rating that landed inside one of those bursts exhausted
+    busy_timeout and surfaced to the user as a 500 ("not saved").
+    """
+
+    @staticmethod
+    def _locking_conn(fail_times):
+        """A connection whose commit reports 'database is locked' N times."""
+        conn_mock = mock.MagicMock()
+        state = {"n": 0}
+
+        def commit():
+            if state["n"] < fail_times:
+                state["n"] += 1
+                raise sqlite3.OperationalError("database is locked")
+
+        conn_mock.commit.side_effect = commit
+        conn_mock.execute.return_value = mock.MagicMock()
+        return conn_mock, state
+
+    @staticmethod
+    def _post(conn_mock, raise_server_exceptions=True):
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "", "features": {}}),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
+            mock.patch("api.routers.faces.is_multi_user_enabled", return_value=False),
+            mock.patch("api.routers.faces._mint_rating_comparisons"),
+            mock.patch("api.db_helpers.time.sleep"),
+        ):
+            app, client = _make_app_and_client(raise_server_exceptions)
+            user = CurrentUser(user_id="u1", role="admin", edition_authenticated=True)
+            _override_auth_user(app, user)
+            with mock.patch("api.routers.faces.get_db", _cm(conn_mock)):
+                return client.post(
+                    "/api/photo/set_rating",
+                    json={"photo_path": "/photo.jpg", "rating": 3},
+                )
+
+    def test_transient_lock_is_retried_and_succeeds(self):
+        conn_mock, state = self._locking_conn(fail_times=2)
+        resp = self._post(conn_mock)
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        assert state["n"] == 2, "both locked attempts should have been retried"
+
+    def test_persistent_lock_returns_503_not_500(self):
+        conn_mock, _ = self._locking_conn(fail_times=99)
+        resp = self._post(conn_mock, raise_server_exceptions=False)
+        assert resp.status_code == 503
+        assert resp.headers.get("Retry-After") == "1"
+
+    def test_non_lock_database_error_still_500s_without_retrying(self):
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value = mock.MagicMock()
+        conn_mock.commit.side_effect = sqlite3.IntegrityError("constraint failed")
+
+        resp = self._post(conn_mock, raise_server_exceptions=False)
+        assert resp.status_code == 500
+        # One attempt only — a genuine fault must not be retried.
+        assert conn_mock.commit.call_count == 1
