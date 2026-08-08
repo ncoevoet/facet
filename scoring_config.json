@@ -814,7 +814,8 @@
           "motion",
           "athlete",
           "competition",
-          "action_sport"
+          "action_sport",
+          "dance"
         ],
         "tag_match_mode": "any",
         "shutter_speed_max": 0.02
@@ -905,6 +906,19 @@
           "parkour",
           "gymnastics",
           "martial arts"
+        ],
+        "dance": [
+          "dance performance",
+          "dancer on stage",
+          "ballet dancer",
+          "contemporary dance",
+          "ballroom dancing",
+          "latin dance",
+          "hip hop dance",
+          "dance competition",
+          "dance troupe performing",
+          "dancer mid leap",
+          "dancer in motion"
         ]
       }
     },
