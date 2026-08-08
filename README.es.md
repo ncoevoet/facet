@@ -50,7 +50,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 ### Explorar
 
 - **Modos de galería** — mosaico (filas justificadas que preservan las proporciones) y cuadrícula (tarjetas uniformes con superposición de metadatos)
-- **Filtros** — rango de fechas, etiqueta de contenido, patrón de composición, cámara, objetivo, persona, nivel de calidad, valoración por estrellas y rangos de métricas personalizados
+- **Filtros** — rango de fechas, etiqueta de contenido, patrón de composición, cámara, objetivo, persona, carpeta, nivel de calidad, valoración por estrellas y rangos de métricas personalizados
 - **Búsqueda semántica** — escribe una consulta en lenguaje natural como "atardecer en la playa" y encuentra fotos coincidentes mediante búsqueda por embedding y por texto
 - **Cronología** — explorador cronológico con navegación por año/mes y desplazamiento infinito
 - **Mapa** — fotos geoetiquetadas en un mapa interactivo con agrupación de marcadores

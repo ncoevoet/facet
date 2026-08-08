@@ -457,7 +457,19 @@ Sfoglia la tua libreria di foto in base alla struttura delle directory. Accessib
 - Navigazione tramite breadcrumb per risalire l'albero delle directory
 - Ogni cartella mostra una foto di copertina (l'immagine con il punteggio più alto in quella directory)
 - Clicca su una cartella per entrarvi, oppure clicca su una foto per aprirla nella galleria
+- Ogni scheda di cartella offre un'azione di filtro che apre la galleria limitata a quella cartella — disponibile su qualsiasi cartella, non solo su quelle finali
 - Rispetta la visibilità delle directory multiutente in modalità multiutente
+
+### Filtro per cartella
+
+Il pannello dei filtri della galleria include una sezione **Cartella**. **Scegli cartella…** apre un
+selettore che percorre l'albero delle directory un livello alla volta; applicandolo la galleria viene
+limitata a quella cartella **e a tutte le sue sottocartelle**. La cartella attiva compare come chip di
+filtro, si combina con tutti gli altri filtri (punteggio, persona, data…), sopravvive a un ricaricamento
+tramite il parametro URL `path_prefix` ed è salvata negli album intelligenti.
+
+Il filtro per cartella restringe soltanto la griglia delle foto: i menu a discesa del pannello, i
+conteggi per tipo, le statistiche, la cronologia, la mappa e la ricerca restano sull'intera libreria.
 
 ## Finestra filtro GPS
 

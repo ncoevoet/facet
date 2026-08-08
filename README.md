@@ -54,7 +54,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 ### Browse
 
 - **Gallery modes** — mosaic (justified rows preserving aspect ratios) and grid (uniform cards with metadata overlay)
-- **Filters** — date range, content tag, composition pattern, camera, lens, person, quality level, star rating, and custom metric ranges
+- **Filters** — date range, content tag, composition pattern, camera, lens, person, folder, quality level, star rating, and custom metric ranges
 - **Semantic search** — type a natural-language query like "sunset on the beach" and find matching photos via embedding and text search
 - **Timeline** — chronological browser with year/month navigation and infinite scroll
 - **Map** — geotagged photos on an interactive map with marker clustering

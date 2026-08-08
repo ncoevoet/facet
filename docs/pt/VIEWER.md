@@ -456,7 +456,19 @@ Navegue pela sua biblioteca de fotos pela estrutura de diretórios. Acesse pela 
 - Navegação por trilha de navegação (breadcrumb) para subir na árvore de diretórios
 - Cada pasta mostra uma foto de capa (a imagem de maior pontuação naquele diretório)
 - Clique em uma pasta para entrar nela, ou clique em uma foto para abri-la na galeria
+- Cada cartão de pasta oferece uma ação de filtro que abre a galeria restrita àquela pasta — disponível em qualquer pasta, não apenas nas finais
 - Respeita a visibilidade de diretórios multiusuário no modo multiusuário
+
+### Filtro por pasta
+
+O painel de filtros da galeria tem uma seção **Pasta**. **Escolher pasta…** abre um seletor que percorre a
+árvore de diretórios um nível de cada vez; ao aplicá-lo, a galeria fica restrita àquela pasta **e a todas
+as suas subpastas**. A pasta ativa aparece como um chip de filtro, combina-se com todos os outros filtros
+(pontuação, pessoa, data…), sobrevive a um recarregamento pelo parâmetro de URL `path_prefix` e é salva
+nos álbuns inteligentes.
+
+O filtro por pasta restringe apenas a grade de fotos — as listas suspensas do painel, as contagens por
+tipo, as estatísticas, a linha do tempo, o mapa e a busca continuam abrangendo toda a biblioteca.
 
 ## Diálogo de Filtro por GPS
 

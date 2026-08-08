@@ -457,7 +457,19 @@ Durchsuchen Sie Ihre Fotobibliothek nach Verzeichnisstruktur. Zugriff über die 
 - Brotkrümel-Navigation, um im Verzeichnisbaum nach oben zu wechseln
 - Jeder Ordner zeigt ein Titelbild (das am höchsten bewertete Bild in diesem Verzeichnis)
 - Klicken Sie auf einen Ordner, um in ihn abzusteigen, oder auf ein Foto, um es in der Galerie zu öffnen
+- Jede Ordnerkachel bietet eine Filteraktion, die die Galerie auf diesen Ordner eingeschränkt öffnet — verfügbar für jeden Ordner, nicht nur für Endordner
 - Berücksichtigt im Mehrbenutzermodus die Verzeichnissichtbarkeit der Benutzer
+
+### Ordnerfilter
+
+Die Filterleiste der Galerie enthält einen Abschnitt **Ordner**. **Ordner wählen…** öffnet eine Auswahl,
+die den Verzeichnisbaum Ebene für Ebene durchläuft; das Anwenden beschränkt die Galerie auf diesen Ordner
+**und alle seine Unterordner**. Der aktive Ordner erscheint als Filter-Chip, lässt sich mit allen anderen
+Filtern kombinieren (Bewertung, Person, Datum…), übersteht ein Neuladen über den URL-Parameter
+`path_prefix` und wird in intelligenten Alben gespeichert.
+
+Der Ordnerfilter schränkt nur das Fotoraster ein — die Auswahllisten der Filterleiste, die Typzähler, die
+Statistiken, die Zeitleiste, die Karte und die Suche bleiben bibliotheksweit.
 
 ## GPS-Filterdialog
 

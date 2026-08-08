@@ -456,7 +456,19 @@ Explora tu biblioteca de fotos por la estructura de directorios. Accede mediante
 - Navegación por migas de pan para subir en el árbol de directorios
 - Cada carpeta muestra una foto de portada (la imagen con mayor puntuación de ese directorio)
 - Haz clic en una carpeta para entrar en ella, o haz clic en una foto para abrirla en la galería
+- Cada tarjeta de carpeta ofrece una acción de filtrado que abre la galería restringida a esa carpeta — disponible en cualquier carpeta, no solo en las finales
 - Respeta la visibilidad de directorios multiusuario en modo multiusuario
+
+### Filtro por carpeta
+
+El panel de filtros de la galería tiene una sección **Carpeta**. **Elegir carpeta…** abre un selector que
+recorre el árbol de directorios nivel a nivel; al aplicarlo, la galería se restringe a esa carpeta **y a
+todas sus subcarpetas**. La carpeta activa aparece como una etiqueta de filtro, se combina con el resto de
+filtros (puntuación, persona, fecha…), sobrevive a una recarga mediante el parámetro de URL `path_prefix`
+y se guarda en los álbumes inteligentes.
+
+El filtro por carpeta solo restringe la cuadrícula de fotos: los desplegables del panel, los recuentos por
+tipo, las estadísticas, la línea de tiempo, el mapa y la búsqueda siguen abarcando toda la biblioteca.
 
 ## Diálogo de filtro GPS
 

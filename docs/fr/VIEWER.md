@@ -457,7 +457,20 @@ Parcourez votre bibliothèque photo par structure de répertoires. Accessible vi
 - Navigation par fil d'Ariane pour remonter dans l'arborescence des répertoires
 - Chaque dossier affiche une photo de couverture (l'image la mieux notée de ce répertoire)
 - Cliquez sur un dossier pour y descendre, ou sur une photo pour l'ouvrir dans la galerie
+- Chaque vignette de dossier propose une action de filtrage qui ouvre la galerie restreinte à ce dossier — disponible sur tous les dossiers, pas seulement les dossiers terminaux
 - Respecte la visibilité des répertoires multi-utilisateurs en mode multi-utilisateurs
+
+### Filtre par dossier
+
+Le panneau de filtres de la galerie comporte une section **Dossier**. **Choisir un dossier…** ouvre un
+sélecteur qui parcourt l'arborescence niveau par niveau ; l'appliquer restreint la galerie à ce dossier
+**et à tous ses sous-dossiers**. Le dossier actif apparaît sous forme de puce de filtre, se combine avec
+tous les autres filtres (note, personne, date…), survit à un rechargement via le paramètre d'URL
+`path_prefix` et est enregistré dans les albums intelligents.
+
+Le filtre par dossier restreint uniquement la grille de photos — les listes déroulantes du panneau, les
+compteurs par type, les statistiques, la chronologie, la carte et la recherche restent à l'échelle de
+toute la bibliothèque.
 
 ## Boîte de dialogue Filtre GPS
 
