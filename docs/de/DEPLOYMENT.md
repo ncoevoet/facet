@@ -219,6 +219,8 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 **Veröffentlichen ohne Release.** `.github/workflows/docker-publish.yml` akzeptiert auch einen manuellen `workflow_dispatch`-Trigger über den *Run workflow*-Button im Actions-Tab, unabhängig vom `vX.Y.Z`-Tag-Push oben – er baut `latest`/`latest-cuda` neu und veröffentlicht sie erneut, ausgehend vom aktuellen Stand von `master`, ohne dass dafür ein Release geschnitten werden muss. Er erzeugt keinen versionierten Tag: Die `type=semver`-Muster von `docker/metadata-action` feuern nur bei einem echten `vX.Y.Z`-Git-Tag, sodass ein manueller Lauf ausschließlich `latest`/`latest-cuda` verschiebt.
 
+**Beide veröffentlichten Images sind ausschließlich `linux/amd64` (x86_64).** Das deckt x86-NAS-Hardware ab (Synology Plus/x86, UGREEN, UnifyDrive und alles, was Coolify, Portainer oder ein gewöhnliches Docker auf einer Intel-/AMD-CPU betreibt). Es gibt kein `arm64`-Image: Das Cross-Compilieren eines mehrere Gigabyte großen ML-Stacks unter QEMU kostet Stunden pro Tag, und die CUDA-Variante ist ohnehin nur für x86 verfügbar. Bauen Sie es auf einem ARM-NAS oder einem Raspberry Pi stattdessen lokal mit `docker compose build`, statt es zu ziehen – `docker compose up` behält `build: .` unterhalb des Schlüssels `image:` genau für diesen Fall bei.
+
 > **Nur bei der ersten Veröffentlichung:** Ein neues GHCR-Paket ist standardmäßig **privat**. Nach dem ersten Lauf des `docker-publish`-Workflows muss ein Owner `ghcr.io/ncoevoet/facet` auf **öffentlich** umstellen (Paket-Einstellungen → Change visibility) – andernfalls schlägt `docker compose up` bei einem frischen Klon mit einem 401-Fehler beim Pull fehl. Dieser Wechsel ist für `ghcr.io/ncoevoet/facet` bereits erfolgt – `:latest` (der schlanke CPU-Build, ~3,3 GB) und `:latest-cuda` lassen sich heute beide anonym ziehen; bisher existieren nur diese beiden Tags, versionierte Tags (`:1.7.2`, …) erscheinen erst beim ersten Push eines `vX.Y.Z`-Tags.
 
 `scoring_config.json` wird als Volume eingehängt (nicht ins Image eingebacken), sodass Sie es auf dem Host bearbeiten und neu starten können. Der Datenbankpfad wird durch `DB_PATH` festgelegt (Standard `/app/data/photo_scores_pro.db`). Modell-Caches bleiben unter `./model-cache/` erhalten, sodass sie Neustarts überdauern.
@@ -249,6 +251,132 @@ services:
       - /volume1/Photos:/volume1/Photos:ro  # Mount photos for downloads
     restart: always
 ```
+
+## Windows (WSL2) mit einer NVIDIA-GPU
+
+Führen Sie den vollständigen GPU-Scoring- + Viewer-Stack in Docker unter Windows über WSL2 aus — ohne Docker Desktop. Das hält alles (die Linux-Distribution, ihre Docker-Images und `/var/lib/docker`) auf einem **Datenlaufwerk** (z. B. `D:`), was wichtig ist, wenn auf dem Systemlaufwerk `C:` wenig Platz ist.
+
+**Voraussetzungen:** ein aktueller NVIDIA-Treiber unter Windows (`nvidia-smi` funktioniert an der Windows-Eingabeaufforderung — der Treiber stellt das WSL2-CUDA-Passthrough bereit; Sie installieren **keinen** Treiber innerhalb von WSL).
+
+### 1. WSL2 installieren (Admin, einmalig)
+
+In einer **erhöhten** (als Administrator ausgeführten) PowerShell, danach bei Bedarf neu starten:
+
+```powershell
+wsl --install --no-distribution   # WSL2 platform only, no distro on C:
+```
+
+### 2. Eine Distribution installieren, deren Datenträger auf dem Datenlaufwerk liegt
+
+```powershell
+wsl --install -d Ubuntu --location D:\wsl\facet --name facet --no-launch
+```
+
+`--location` legt die `ext4.vhdx` der Distribution unter `D:\wsl\facet` ab, sodass der Image-Speicher von Docker nicht auf `C:` liegt. `--no-launch` überspringt die interaktive Erstlauf-Abfrage; die folgenden Befehle laufen als `root`, was für eine Maschine mit einem einzigen Verwendungszweck unproblematisch ist.
+
+### 3. systemd aktivieren (für den Docker-Dienst erforderlich)
+
+```powershell
+wsl -d facet -u root -- bash -lc 'printf "[boot]\nsystemd=true\n" > /etc/wsl.conf'
+wsl --shutdown           # apply on next start
+```
+
+### 4. Docker CE + das NVIDIA Container Toolkit installieren (innerhalb der Distribution)
+
+```bash
+wsl -d facet -u root
+# --- inside the distro ---
+apt-get update && apt-get install -y ca-certificates curl gnupg
+# Docker repo (fall back to the newest supported codename if yours is too new):
+. /etc/os-release; CODE=$VERSION_CODENAME
+curl -fsSL -o /dev/null "https://download.docker.com/linux/ubuntu/dists/$CODE/Release" || CODE=noble
+install -m0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $CODE stable" > /etc/apt/sources.list.d/docker.list
+# NVIDIA toolkit repo (distribution-agnostic):
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+  > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin nvidia-container-toolkit
+nvidia-ctk runtime configure --runtime=docker
+nvidia-ctk config --set nvidia-container-cli.no-cgroups=true --in-place   # WSL2 has no nvidia cgroup
+systemctl enable --now docker
+# Verify GPU passthrough:
+docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi --query-gpu=name,memory.total --format=csv
+```
+
+### 5. Facet bauen und ausführen, eine Datei pro Profil
+
+Das Repository auf dem Windows-Laufwerk ist innerhalb von WSL unter `/mnt/d/...` sichtbar. Das Image ist **autark**: Abhängigkeiten sind in `requirements.lock.txt` fixiert (ein getesteter, eingefrorener Versionssatz — siehe „Reproduzierbares, autarkes Image“ weiter unten), und alle Modell-Caches liegen in von Docker verwalteten **benannten Volumes**, sodass der Container niemals die nativen Modell-Caches des Hosts oder gemeinsam genutzten lokalen Zustand liest. Modelle werden beim ersten Start einmal in diese Volumes heruntergeladen und bleiben erhalten.
+
+Wählen Sie das Profil über eine Overlay-Datei pro Profil — ohne jede JSON-Bearbeitung:
+
+```bash
+cd /mnt/d/photo-llm
+# legacy (CPU-only): CLIP ViT-L-14 + CLIP-MLP aesthetic + CLIP tagging
+docker compose -f docker-compose.yml -f docker-compose.legacy.yml up -d --build
+# 8gb (GPU): CLIP + TOPIQ + SAMP-Net + faces + saliency
+docker compose -f docker-compose.yml -f docker-compose.8gb.yml up -d --build
+# 16gb (GPU): SigLIP2 + TOPIQ + Qwen3.5-2B tagging + BiRefNet saliency
+docker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d --build
+
+curl -s localhost:5000/health          # -> ok
+```
+
+Jedes Overlay setzt `FACET_VRAM_PROFILE` (berücksichtigt von `config/scoring_config.py`, überschreibt `models.vram_profile` in der Konfiguration — ohne jede JSON-Bearbeitung) und reserviert für die GPU-Profile die NVIDIA-GPU. Die GPU-Profile (8gb/16gb/24gb) clustern Gesichter über das eingebaute RAPIDS cuML auf der GPU; das legacy-Profil clustert immer auf der CPU. Das generische `docker-compose.gpu.yml` bleibt für einen einfachen GPU-Lauf mit dem eigenen `vram_profile` der Konfiguration (Standard `auto`) erhalten.
+
+Der erste Start lädt die Modelle des Profils in die benannten Volumes; setzen Sie sie mit `docker compose down -v` zurück.
+
+### Reproduzierbares, autarkes Image
+
+- **Fixierte Versionen.** Das Image wird aus `requirements.lock.txt` gebaut — einem vollständigen `pip freeze` eines validierten Containers, aus dem `torch`/`torchvision` und `nvidia-*` entfernt wurden (das CUDA-Basis-Image liefert diese bereits). Das verhindert stille Drift zu ungetesteten Releases. (Beispiel, wovor dies schützt: transformers 5.3+ hat das Vision-Batching von Qwen3.5 geändert und den VLM-Tagger kaputtgemacht; `kornia`, von BiRefNet benötigt, wird nicht von transformers mitgezogen und muss fixiert werden.) Nach einem bewussten Upgrade neu erzeugen: `docker compose ... exec facet pip freeze --all | grep -ivE '^(pip|wheel|torch|torchvision|nvidia-|triton)' > requirements.lock.txt`.
+- **GPU-Gesichts-Clusterbildung eingebaut.** RAPIDS cuML (`cuml-cu12`) ist im Image enthalten, sodass die GPU-Profile (8gb/16gb/24gb) Gesichter auf der GPU clustern (HDBSCAN über `face_clustering.use_gpu="auto"`); das legacy-Profil — und jeder Host ohne CUDA-Gerät — clustert immer auf der CPU. cuML ist die mit Abstand größte Abhängigkeit (~5,75 GB; siehe die Größenaufschlüsselung unten).
+- **Keine Host-Kopplung.** Modell-Caches sind benannte Volumes, keine Host-Bind-Mounts; der Container läuft ohne erhöhte Rechte (der Standard-Entrypoint wechselt zum Benutzer `facet`).
+- **Schlanker Build-Kontext.** `.dockerignore` schließt lokalen Bulk-Inhalt aus (`conda/`, Beispieldatensätze, `*.db`, Caches, Entwicklungs-Artefakte) — halten Sie neue große lokale Verzeichnisse aus dem Kontext heraus, indem Sie sie dort ergänzen.
+
+### Image-Größe und Modell-Downloads
+
+Zwei Varianten werden aus demselben `Dockerfile` veröffentlicht — **keine enthält Modellgewichte**:
+
+| Image | Gemessene Größe | Basis |
+|-------|------|------|
+| `ghcr.io/ncoevoet/facet:latest` (CPU) | ~3,3 GB | `python:3.12-slim` + CPU-Wheel-PyTorch |
+| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | ~21 GB | CUDA-PyTorch + RAPIDS cuML |
+
+**CPU-Image** — die für die meisten Nutzer maßgebliche Größe, dominiert vom ML-Abhängigkeits-Stack und nicht von PyTorch selbst:
+
+| Layer | Größe |
+|-------|------|
+| Python-ML-Abhängigkeiten (opencv, transformers, insightface, pyiqa, scipy, hdbscan, …) | ~1,9 GB |
+| PyTorch + torchvision (CPU-Wheels) | ~960 MB |
+| System-Bibliotheken (`libgl1`, `libglib2.0-0`, `exiftool`, `gosu`) | ~288 MB |
+| Basis-OS (`python:3.12-slim`) + Anwendungscode | ~150 MB |
+
+**CUDA-Image** — unverändert gegenüber dem einzigen Image, das dieses Repository zuvor veröffentlicht hat, weiterhin vom GPU-Stack dominiert:
+
+| Layer | Größe |
+|-------|------|
+| RAPIDS cuML (Gesichts-Clusterbildung auf der GPU) | ~5,75 GB |
+| CUDA-Laufzeitbibliotheken (`nvidia-*`) | ~3,7 GB |
+| PyTorch + Triton | ~1,9 GB |
+| Python-ML-Abhängigkeiten (transformers, pyiqa, insightface, …) | ~1,9 GB |
+| Basis-OS + conda | ~2-3 GB |
+
+Modellgewichte werden **beim ersten Start heruntergeladen**, in die benannten Volumes (`facet-hf-cache`, `facet-insightface`, `facet-pretrained`) — nie in das Image —, sodass die Größe auf der Festplatte vom aktiven Profil abhängt:
+
+| Modell | Größe | Profile |
+|-------|------|----------|
+| SigLIP 2 NaFlex SO400M (Embeddings) | ~4,3 GB | 16gb / 24gb |
+| Qwen3.5-2B (Verschlagwortung) | ~4,2 GB | 16gb |
+| Qwen3.5-4B (Verschlagwortung) | ~8 GB | 24gb |
+| Qwen2-VL-2B (Komposition) | ~4,2 GB | 24gb |
+| CLIP ViT-L-14 (Embeddings + Verschlagwortung) | ~1,6 GB | legacy / 8gb |
+| BiRefNet (Saliency) | ~424 MB | alle |
+| InsightFace buffalo_l (Gesichter) | ~600 MB | alle |
+| SAMP-Net (Komposition) | ~175 MB | alle |
+
+**Download-Gesamtsumme beim ersten Start pro Profil:** legacy / 8gb ~3-4 GB, 16gb ~10-11 GB, 24gb ~18 GB. Planen Sie Speicherplatz für das Image **plus** diese Volumes ein; `docker compose down -v` löscht die Volumes und erzwingt beim nächsten Start einen erneuten Download.
 
 ## Generischer Linux-Server
 
