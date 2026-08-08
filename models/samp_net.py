@@ -43,7 +43,16 @@ def _adaptive_avg_pool2d(
         or (in_h % out_h == 0 and in_w % out_w == 0)
     ):
         return F.adaptive_avg_pool2d(input_tensor, output_size)
+    return _manual_adaptive_avg_pool2d(input_tensor, output_size)
 
+
+def _manual_adaptive_avg_pool2d(
+    input_tensor: torch.Tensor,
+    output_size: tuple[int, int],
+) -> torch.Tensor:
+    """Reproduce PyTorch's adaptive pooling bins with native tensor means."""
+    out_h, out_w = output_size
+    in_h, in_w = input_tensor.shape[-2:]
     rows = []
     for row in range(out_h):
         h_start = row * in_h // out_h
@@ -851,15 +860,17 @@ class SAMPNetScorer:
         # result: {'comp_score': 7.5, 'pattern': 'rule_of_thirds', ...}
     """
 
-    def __init__(self, model_path: str = None, device: str = 'cuda'):
+    def __init__(self, model_path: str = None, device: str | None = None):
         """
         Initialize SAMP-Net scorer with saliency detector.
 
         Args:
             model_path: Path to SAMP-Net weights. If None, uses default.
-            device: 'cuda', 'mps', or 'cpu'
+            device: 'cuda', 'mps', or 'cpu'. If None, auto-selected via get_device().
         """
-        from utils.device import is_device_available
+        from utils.device import get_device, is_device_available
+        if device is None:
+            device = get_device()
         self.device = device if is_device_available(device, torch_module=torch) else 'cpu'
         self.model_path = model_path or 'pretrained_models/samp_net.pth'
 

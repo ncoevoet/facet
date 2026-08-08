@@ -112,6 +112,9 @@ if [[ "$FORCE_CPU" -eq 1 ]]; then
     info "CPU-only mode (--cpu)"
     if [[ "$HOST_OS" != "Darwin" ]]; then
         TORCH_INDEX="https://download.pytorch.org/whl/cpu"
+    else
+        warn "macOS has no CPU-only PyTorch wheel — the unified wheel includes the Metal (MPS) backend"
+        warn "  To disable acceleration at runtime, set FACET_DEVICE=cpu when running Facet"
     fi
 elif [[ -n "$CUDA_OVERRIDE" ]]; then
     CUDA_VERSION="$CUDA_OVERRIDE"

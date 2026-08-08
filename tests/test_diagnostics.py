@@ -169,7 +169,8 @@ def _make_mps_torch():
 
 
 class TestDoctorMPS:
-    def test_reports_mps_as_active_without_nvidia_warning(self, capsys, tmp_path):
+    def test_reports_mps_as_active_without_nvidia_warning(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
         with mock.patch.dict("sys.modules", {"torch": _make_mps_torch()}), \
              mock.patch("diagnostics.subprocess.run") as run:
             run_doctor(

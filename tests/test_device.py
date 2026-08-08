@@ -69,6 +69,26 @@ def test_invalid_device_override_is_rejected(monkeypatch):
         device.get_device()
 
 
+def test_auto_falls_back_to_cpu_with_no_accelerators(monkeypatch):
+    fake, _ = _torch()
+    monkeypatch.setitem(sys.modules, "torch", fake)
+    monkeypatch.delenv("FACET_DEVICE", raising=False)
+    assert device.get_device() == "cpu"
+
+
+def test_auto_without_torch_defaults_to_cpu(monkeypatch):
+    monkeypatch.setitem(sys.modules, "torch", None)
+    monkeypatch.delenv("FACET_DEVICE", raising=False)
+    assert device.get_device() == "cpu"
+
+
+def test_forced_accelerator_without_torch_raises(monkeypatch):
+    monkeypatch.setitem(sys.modules, "torch", None)
+    monkeypatch.setenv("FACET_DEVICE", "mps")
+    with pytest.raises(RuntimeError, match="PyTorch is not installed"):
+        device.get_device()
+
+
 def test_mps_cache_and_synchronize_use_metal_api(monkeypatch):
     fake, calls = _torch(mps=True)
     monkeypatch.setitem(sys.modules, "torch", fake)
@@ -79,5 +99,15 @@ def test_mps_cache_and_synchronize_use_metal_api(monkeypatch):
     assert calls.cuda_empty == 0
 
 
-def test_mps_operator_fallback_enabled_by_default():
+def test_mps_operator_fallback_enabled_by_default(monkeypatch):
+    import importlib
+    monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
+    importlib.reload(device)
     assert os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] == "1"
+
+
+def test_mps_operator_fallback_respects_explicit_override(monkeypatch):
+    import importlib
+    monkeypatch.setenv("PYTORCH_ENABLE_MPS_FALLBACK", "0")
+    importlib.reload(device)
+    assert os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] == "0"
