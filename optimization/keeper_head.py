@@ -20,12 +20,12 @@ as a ``stats_cache`` JSON snapshot keyed by (user, category).
 
 import json
 import logging
-import os
 import time
 from datetime import datetime, timezone
 
 import numpy as np
 
+from config import default_config_path
 from db import DEFAULT_DB_PATH, get_connection
 from optimization.personal_ranker import (
     DEFAULT_C, DEFAULT_CV_FOLDS, DEFAULT_MIN_IMPROVEMENT_PP, MIN_COMPARISONS,
@@ -123,13 +123,8 @@ def _burst_weights_for(config_path):
 
 
 def _default_config_path():
-    """Resolve the same scoring_config.json api.config._CONFIG_PATH resolves,
-    computed here rather than imported to keep the api -> optimization import
-    direction one-way.
-    """
-    return os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        'scoring_config.json')
+    """Repo-root scoring_config.json (see config.default_config_path)."""
+    return default_config_path()
 
 
 def train_keeper_head(db_path=DEFAULT_DB_PATH, category=None, user_id=None,

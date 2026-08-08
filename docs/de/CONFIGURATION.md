@@ -1605,6 +1605,41 @@ Ein-Knopf-Auto-Cull für die Culling-Dunkelkammer (`POST /api/culling/auto`, edi
 
 `dry_run` ist standardmäßig aktiv und liefert eine Behalte-/Ablehnen-Vorschau pro Gruppe; ein Anwenden zeichnet zusätzlich `source='culling'`-Vergleichszeilen auf und stößt ein automatisches Nachtrainieren an. Siehe [Web-Viewer — Auto-Cull](VIEWER.md#auto-cull).
 
+## Automatisches Nachtrainieren
+
+Steuert, wann sich der persönliche Ranker („Mein Geschmack") neu trainiert. Jede Aussortier-Bestätigung und jede Bewertungsänderung erhöht einen Zähler pro Benutzer für „neue Vergleiche seit dem letzten Training"; das Überschreiten von `threshold` bewaffnet einen Leerlauf-Timer, und das Nachtrainieren startet erst, nachdem Sie `idle_seconds` lang inaktiv waren.
+
+Das Leerlauffenster ist entscheidend: Das Nachtrainieren schreibt eine Zeile pro Foto neu, und SQLite erlaubt nur einen Schreiber pro Datenbankdatei. Ein Start mitten in einer Serie würde mit Ihren eigenen Bewertungsschreibvorgängen konkurrieren — genau so ließ ein langes Nachtrainieren Bewertungsaktionen fehlschlagen. Auf eine Pause zu warten trennt beides.
+
+```json
+{
+  "auto_retrain": {
+    "threshold": 25,
+    "idle_seconds": 60
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `threshold` | `25` | Anzahl neuer Vergleiche, die ein Benutzer sammeln muss, bevor ein Nachtrainieren bewaffnet wird. Erhöhen Sie den Wert, wenn Sie sehr große Stapel bewerten und die (CPU-, Sekunden- bis Minuten-)Trainingskosten über mehr Signal amortisieren möchten |
+| `idle_seconds` | `60` | Sekunden ohne Bewertungs-/Aussortier-Aktivität, die erforderlich sind, bevor das bewaffnete Nachtrainieren tatsächlich startet. Jede neue Aktion verschiebt den Timer. `0` startet sofort (Verhalten vor 1.7.3) |
+
+Beide sind zur Laufzeit über Umgebungsvariablen überschreibbar, die Vorrang vor den JSON-Werten haben — nützlich unter Docker, wo die Konfiguration oft ins Image eingebacken ist:
+
+```bash
+FACET_RETRAIN_THRESHOLD=100 FACET_RETRAIN_IDLE_S=300 python viewer.py
+```
+
+| Variable | Überschreibt |
+|----------|--------------|
+| `FACET_RETRAIN_THRESHOLD` | `auto_retrain.threshold` |
+| `FACET_RETRAIN_IDLE_S` | `auto_retrain.idle_seconds` |
+
+Ein nicht lesbarer Wert fällt auf die JSON-Einstellung zurück, ein fehlender oder fehlerhafter Block auf die eingebauten Standardwerte — ein Tippfehler degradiert also auf das ausgelieferte Verhalten, statt das automatische Nachtrainieren abzuschalten. Beide Werte werden einmalig beim Start gelesen — eine Änderung erfordert einen Neustart.
+
+Das Nachtrainieren behält sein Holdout-Kreuzvalidierungs-Gate: Ein Lauf, der die aktuelle Referenz nicht schlägt, schreibt nichts.
+
 ## Genre-spezifische Aussortier-Profile
 
 Genre-Vorlagen, die alle Aussortier-Regler in einem Klick bündeln: Sport behält nur das schärfste Bild einer langen Serie, Hochzeiten behalten mehr Varianten mit Priorität auf offenen Augen, Konzerte lockern die Augen-/Ausdruck-Schwellen, Tierwelt entfernt den menschlichen Gesichtsfilter ganz. Die Aussortier-Dunkelkammer zeigt eine Vorlagenauswahl.

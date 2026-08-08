@@ -1620,6 +1620,41 @@ One-button auto-cull for the culling darkroom (`POST /api/culling/auto`, edition
 
 `dry_run` defaults on and returns a per-group keep/reject preview; an apply additionally records `source='culling'` comparison rows and nudges one auto-retrain. See [Web Viewer — Auto-cull](VIEWER.md#auto-cull).
 
+## Auto-Retrain
+
+Controls when the personal ranker ("My Taste") retrains itself. Every culling confirm and every rating change adds to a per-user "new comparisons since last train" counter; crossing `threshold` arms an idle timer, and the retrain starts only once you have been inactive for `idle_seconds`.
+
+The idle window matters: the retrain rewrites one row per photo, and SQLite allows a single writer per database file. Dispatching mid-burst would make it contend with your own rating writes, which is exactly how a long retrain used to make rating actions fail. Waiting for a pause keeps the two apart.
+
+```json
+{
+  "auto_retrain": {
+    "threshold": 25,
+    "idle_seconds": 60
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `threshold` | `25` | New comparisons a user must accumulate before a retrain is armed. Raise it if you rate very large batches and want the (CPU, seconds-to-minutes) training amortized over more signal |
+| `idle_seconds` | `60` | Seconds of no rating/culling activity required before the armed retrain actually starts. Every new action pushes the timer back. `0` dispatches immediately (the pre-1.7.3 behaviour) |
+
+Both are overridable at runtime by environment variables, which take precedence over the JSON values — useful for Docker, where the config is often baked into the image:
+
+```bash
+FACET_RETRAIN_THRESHOLD=100 FACET_RETRAIN_IDLE_S=300 python viewer.py
+```
+
+| Variable | Overrides |
+|----------|-----------|
+| `FACET_RETRAIN_THRESHOLD` | `auto_retrain.threshold` |
+| `FACET_RETRAIN_IDLE_S` | `auto_retrain.idle_seconds` |
+
+An unparseable value falls back to the JSON setting, and a missing or malformed block falls back to the built-in defaults, so a typo degrades to the shipped behaviour instead of disabling auto-retrain. Both values are read once at startup — changing them needs a restart.
+
+The retrain keeps its held-out cross-validation gate: a run that fails to beat the current baseline writes nothing.
+
 ## Genre-Aware Culling Profiles
 
 Genre presets that bundle every culling knob into one click: sports keeps only the single sharpest of a long burst, weddings keep more variants with eyes-open critical, concerts relax the eye/expression gates, wildlife drops the human-face gate entirely. The culling darkroom shows a preset selector.

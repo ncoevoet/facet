@@ -1605,6 +1605,41 @@ Triagem automática de um botão só para o laboratório de triagem (`POST /api/
 
 `dry_run` vem ativado por padrão e retorna uma prévia de manter/rejeitar por grupo; uma aplicação também registra linhas de comparação `source='culling'` e dispara um re-treinamento automático. Veja [Visualizador Web — Triagem automática](VIEWER.md#triagem-automática).
 
+## Re-treinamento automático
+
+Controla quando o classificador pessoal («Meu gosto») se re-treina. Cada confirmação de triagem e cada mudança de avaliação incrementa um contador por usuário de «novas comparações desde o último treinamento»; ultrapassar `threshold` arma um temporizador de inatividade, e o re-treinamento só começa após `idle_seconds` sem atividade sua.
+
+A janela de inatividade é essencial: o re-treinamento reescreve uma linha por foto, e o SQLite permite apenas um escritor por arquivo de banco de dados. Dispará-lo no meio de uma sequência o colocaria em disputa com as suas próprias escritas de avaliação — foi exatamente assim que um re-treinamento longo fazia as ações de avaliação falharem. Esperar por uma pausa separa os dois.
+
+```json
+{
+  "auto_retrain": {
+    "threshold": 25,
+    "idle_seconds": 60
+  }
+}
+```
+
+| Configuração | Padrão | Descrição |
+|--------------|--------|-----------|
+| `threshold` | `25` | Novas comparações que um usuário deve acumular antes de armar um re-treinamento. Aumente se você avalia lotes muito grandes e quer amortizar o custo do treinamento (CPU, de segundos a minutos) sobre mais sinal |
+| `idle_seconds` | `60` | Segundos sem atividade de avaliação/triagem necessários antes que o re-treinamento armado realmente comece. Cada nova ação adia o temporizador. `0` dispara imediatamente (comportamento anterior à 1.7.3) |
+
+Ambos podem ser sobrescritos em tempo de execução por variáveis de ambiente, que têm precedência sobre os valores do JSON — útil no Docker, onde a configuração costuma vir embutida na imagem:
+
+```bash
+FACET_RETRAIN_THRESHOLD=100 FACET_RETRAIN_IDLE_S=300 python viewer.py
+```
+
+| Variável | Sobrescreve |
+|----------|-------------|
+| `FACET_RETRAIN_THRESHOLD` | `auto_retrain.threshold` |
+| `FACET_RETRAIN_IDLE_S` | `auto_retrain.idle_seconds` |
+
+Um valor ilegível recai na configuração do JSON, e um bloco ausente ou malformado recai nos padrões embutidos, de modo que um erro de digitação degrada para o comportamento de fábrica em vez de desativar o re-treinamento automático. Ambos os valores são lidos uma única vez na inicialização — alterá-los exige um reinício.
+
+O re-treinamento mantém sua verificação por validação cruzada em dados reservados: uma execução que não supera a referência atual não escreve nada.
+
 ## Perfis de seleção por gênero
 
 Predefinições por gênero que agrupam todos os controles de seleção em um clique: esportes mantém apenas a foto mais nítida de uma longa sequência, casamentos mantêm mais variantes com olhos abertos como prioridade, shows relaxam os limiares de olhos/expressão, a vida selvagem remove por completo o filtro de rosto humano. A câmara escura de seleção mostra um seletor de predefinição.

@@ -1605,6 +1605,41 @@ Tri automatique en un bouton pour la chambre noire de tri (`POST /api/culling/au
 
 `dry_run` est activé par défaut et renvoie un aperçu conservation/rejet par groupe ; une application enregistre en plus des lignes de comparaison `source='culling'` et déclenche un ré-entraînement automatique. Voir [Visionneuse web — Tri automatique](VIEWER.md#auto-cull).
 
+## Ré-entraînement automatique
+
+Contrôle le moment où le classeur personnel (« Mes goûts ») se ré-entraîne. Chaque confirmation de tri et chaque changement de note incrémente un compteur par utilisateur de « nouvelles comparaisons depuis le dernier entraînement » ; le franchissement de `threshold` arme une minuterie d'inactivité, et le ré-entraînement ne démarre qu'après `idle_seconds` sans activité de votre part.
+
+Cette fenêtre d'inactivité est essentielle : le ré-entraînement réécrit une ligne par photo, et SQLite n'autorise qu'un seul écrivain par fichier de base. Un déclenchement en pleine série le mettrait en concurrence avec vos propres écritures de notation — c'est précisément ainsi qu'un long ré-entraînement faisait échouer les actions de notation. Attendre une pause sépare les deux.
+
+```json
+{
+  "auto_retrain": {
+    "threshold": 25,
+    "idle_seconds": 60
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|--------|-------------|
+| `threshold` | `25` | Nombre de nouvelles comparaisons qu'un utilisateur doit accumuler avant qu'un ré-entraînement soit armé. À augmenter si vous notez de très gros lots et souhaitez amortir le coût de l'entraînement (CPU, de quelques secondes à quelques minutes) sur davantage de signal |
+| `idle_seconds` | `60` | Secondes sans activité de notation/tri requises avant que le ré-entraînement armé ne démarre réellement. Chaque nouvelle action repousse la minuterie. `0` déclenche immédiatement (comportement antérieur à la 1.7.3) |
+
+Les deux sont surchargeables à l'exécution par des variables d'environnement, prioritaires sur les valeurs JSON — utile sous Docker, où la configuration est souvent intégrée à l'image :
+
+```bash
+FACET_RETRAIN_THRESHOLD=100 FACET_RETRAIN_IDLE_S=300 python viewer.py
+```
+
+| Variable | Surcharge |
+|----------|-----------|
+| `FACET_RETRAIN_THRESHOLD` | `auto_retrain.threshold` |
+| `FACET_RETRAIN_IDLE_S` | `auto_retrain.idle_seconds` |
+
+Une valeur illisible retombe sur le réglage JSON, et un bloc absent ou mal formé retombe sur les valeurs par défaut intégrées : une faute de frappe dégrade donc vers le comportement livré au lieu de désactiver le ré-entraînement automatique. Les deux valeurs sont lues une seule fois au démarrage — les modifier nécessite un redémarrage.
+
+Le ré-entraînement conserve son verrou de validation croisée sur données réservées : une exécution qui ne bat pas la référence actuelle n'écrit rien.
+
 ## Profils de tri par genre
 
 Préréglages par genre qui regroupent tous les réglages de tri en un clic : le sport ne garde que la photo la plus nette d'une longue rafale, les mariages conservent plus de variantes avec les yeux ouverts prioritaires, les concerts assouplissent les seuils yeux/expression, l'animalier supprime totalement le filtre de visage humain. La chambre noire de tri affiche un sélecteur de préréglage.

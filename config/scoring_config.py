@@ -21,6 +21,18 @@ from config.category_filter import (
 NORMALIZATION_TOLERANCE = 5  # +/- 5% tolerance (95-105%)
 
 
+def default_config_path():
+    """Absolute path to the repo-root scoring_config.json.
+
+    Resolves what api.config._CONFIG_PATH resolves, but lives here so modules
+    outside the api package can reach it without inverting the
+    api -> optimization import direction.
+    """
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'scoring_config.json')
+
+
 def _calc_stats(values):
     """Calculate statistical summary for a list of values.
 
