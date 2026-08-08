@@ -188,6 +188,25 @@ Préréglages livrés par défaut — `default` est un delta vide, si bien que l
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — | `scenic_landscape`, `mountains`, `snow_winter` |
 | `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
 
+### Ajouter votre propre contexte
+
+Les préréglages fournis ne forment pas un ensemble fermé : ajoutez une clé sous `scoring_contexts` et vous obtenez un contexte comme les autres — il se résout, il s'attribue à un album, et son delta se modifie depuis l'onglet **Contexte de notation**. Rien n'est à déclarer dans le code.
+
+```json
+{
+  "scoring_contexts": {
+    "dance_comp": {
+      "label_key": "comparison.context.dance_comp",
+      "promote": ["sports", "concert"],
+      "excluded": ["silhouette", "fashion"],
+      "suggest_from_moments": ["sports"]
+    }
+  }
+}
+```
+
+Une nuance toutefois : `label_key` est recherchée dans les paquets i18n, et une clé absente retombe désormais sur le **`name`** propre au contexte (par exemple `dance_comp`) plutôt que sur un chemin brut à points — un contexte personnalisé reste lisible dans le sélecteur, dans toutes les langues, même avant d'avoir une traduction. Ajoutez la clé aux six paquets `i18n/translations/*.json` pour lui donner un libellé correctement localisé plutôt que le simple nom.
+
 ### Modifier un contexte
 
 `PUT /api/config/scoring_contexts/{name}` (réservé au mode édition) réécrit le delta d'un seul contexte depuis l'onglet **Contexte de notation** de la visionneuse — faites glisser la tête promue dans l'ordre voulu, cliquez sur une catégorie pour basculer son exclusion, enregistrez. Le corps est `{"promote": [nom, ...], "excluded": [nom, ...]}`. Seuls ces deux champs sont modifiables : `label_key` et `suggest_from_moments` restent exactement tels quels, et tous les autres contextes sont laissés intacts. **L'interface ne propose délibérément que l'édition du delta** — un contexte ne porte jamais d'ordre complet autonome, si bien que les catégories non promues conservent toujours l'ordre de priorité global et qu'une catégorie ajoutée plus tard ne peut jamais manquer silencieusement dans six listes distinctes.

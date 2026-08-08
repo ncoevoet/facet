@@ -15,6 +15,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { ScoringContextLabelPipe } from '../../shared/pipes/scoring-context-label.pipe';
 import { EtaDurationPipe, FilterValueFormatPipe } from './comparison.pipes';
 import { I18N } from '../../core/i18n/keys';
 
@@ -135,6 +136,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
     MatProgressBarModule,
     MatTooltipModule,
     TranslatePipe,
+    ScoringContextLabelPipe,
     CategoryFilterSummaryPipe,
     EtaDurationPipe,
   ],
@@ -151,7 +153,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
             <mat-label>{{ I18N.comparison.context.context_picker | translate }}</mat-label>
             <mat-select [value]="selectedContext()" (selectionChange)="selectContext($event.value)">
               @for (ctx of contexts(); track ctx.name) {
-                <mat-option [value]="ctx.name">{{ ctx.label_key | translate }}</mat-option>
+                <mat-option [value]="ctx.name">{{ ctx | scoringContextLabel }}</mat-option>
               }
             </mat-select>
           </mat-form-field>
@@ -222,7 +224,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
         <mat-card>
           <mat-card-header class="!flex !items-start">
             <div class="flex-1">
-              <mat-card-title>{{ ctx.label_key | translate }}</mat-card-title>
+              <mat-card-title>{{ ctx | scoringContextLabel }}</mat-card-title>
               <mat-card-subtitle>{{ I18N.comparison.context.delta_description | translate }}</mat-card-subtitle>
             </div>
             <div class="flex gap-1 shrink-0">

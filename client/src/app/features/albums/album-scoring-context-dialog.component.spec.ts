@@ -74,6 +74,16 @@ describe('AlbumScoringContextDialogComponent', () => {
     expect(component.selectedContext()).toBe('party_event');
   });
 
+  // The suggested context's label_key may name a key nobody added to the i18n bundles
+  // (a user-authored scoring_contexts entry) -- suggestedLabel() must fall back to the
+  // context's own name instead of surfacing I18nService's raw-key miss behaviour.
+  it('suggestedLabel falls back to the suggested context\'s name when its label_key has no i18n bundle entry', async () => {
+    build(null, { suggested: 'party_event', moment: 'celebration', share: 0.6, counts: {} });
+    await component.ngOnInit();
+
+    expect(component.suggestedLabel()).toBe('party_event');
+  });
+
   // Defect 3: the suggestion is optional and its failure must never blow away the
   // real context list nor the current selection — previously one `catch` around
   // `Promise.all([contexts, suggested])` replaced the whole list with a single
