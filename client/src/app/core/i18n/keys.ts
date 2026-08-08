@@ -1125,6 +1125,7 @@ export const I18N = {
       add_filter: "gallery.sidebar.add_filter",
       semantic_search: "gallery.sidebar.semantic_search",
       location: "gallery.sidebar.location",
+      folder: "gallery.sidebar.folder",
       persons: "gallery.sidebar.persons",
       smart_album_filter_notice: "gallery.sidebar.smart_album_filter_notice",
       virtual_scroll: "gallery.sidebar.virtual_scroll",
@@ -1181,6 +1182,10 @@ export const I18N = {
     subject_placement_range: "gallery.subject_placement_range",
     bg_separation_range: "gallery.bg_separation_range",
     gps_clear: "gallery.gps_clear",
+    choose_folder: "gallery.choose_folder",
+    folder_clear: "gallery.folder_clear",
+    all_folders: "gallery.all_folders",
+    use_this_folder: "gallery.use_this_folder",
     loading_photos: "gallery.loading_photos",
     quality_tier: "gallery.quality_tier",
     quality_tiers: {
@@ -2006,6 +2011,8 @@ export const I18N = {
     empty: "folders.empty",
     root: "folders.root",
     photos_count: "folders.photos_count",
+    find_folder: "folders.find_folder",
+    filter_gallery: "folders.filter_gallery",
   },
   albums_sharing: {
     share: "albums_sharing.share",

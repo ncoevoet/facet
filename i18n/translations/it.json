@@ -1121,6 +1121,7 @@
       "add_filter": "Aggiungi filtro...",
       "semantic_search": "Ricerca semantica",
       "location": "Posizione",
+      "folder": "Cartella",
       "persons": "Persone",
       "smart_album_filter_notice": "Album intelligente — i filtri vengono salvati automaticamente.",
       "virtual_scroll": "Scorrimento rapido (virtualizzato)",
@@ -1177,6 +1178,10 @@
     "saturation_range": "Saturazione",
     "star_rating_range": "Valutazione a stelle",
     "gps_clear": "Rimuovi posizione",
+    "choose_folder": "Scegli cartella…",
+    "folder_clear": "Rimuovi cartella",
+    "all_folders": "Tutte le cartelle",
+    "use_this_folder": "Usa questa cartella",
     "loading_photos": "Caricamento foto…",
     "quality_tier": "Livello di qualità",
     "quality_tiers": {
@@ -2003,7 +2008,9 @@
     "title": "Cartelle",
     "empty": "Nessuna cartella trovata.",
     "root": "Radice",
-    "photos_count": "foto"
+    "photos_count": "foto",
+    "find_folder": "Cerca una cartella…",
+    "filter_gallery": "Filtra la galleria per questa cartella"
   },
   "albums_sharing": {
     "share": "Condividi album",

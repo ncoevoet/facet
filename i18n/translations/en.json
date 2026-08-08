@@ -1121,6 +1121,7 @@
       "add_filter": "Add Filter...",
       "semantic_search": "Semantic Search",
       "location": "Location",
+      "folder": "Folder",
       "persons": "Persons",
       "smart_album_filter_notice": "Smart album — filter changes are saved automatically.",
       "virtual_scroll": "Fast scrolling (virtualized)",
@@ -1177,6 +1178,10 @@
     "subject_placement_range": "Subject Placement",
     "bg_separation_range": "BG Separation",
     "gps_clear": "Clear location",
+    "choose_folder": "Choose folder…",
+    "folder_clear": "Clear folder",
+    "all_folders": "All folders",
+    "use_this_folder": "Use this folder",
     "loading_photos": "Loading photos…",
     "quality_tier": "Quality Tier",
     "quality_tiers": {
@@ -2001,7 +2006,9 @@
     "title": "Folders",
     "empty": "No folders found.",
     "root": "Root",
-    "photos_count": "photos"
+    "photos_count": "photos",
+    "find_folder": "Find a folder…",
+    "filter_gallery": "Filter gallery by this folder"
   },
   "albums_sharing": {
     "share": "Share Album",

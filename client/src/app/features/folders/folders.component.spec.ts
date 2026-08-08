@@ -123,4 +123,18 @@ describe('FoldersComponent', () => {
       });
     });
   });
+
+  describe('filterInGallery', () => {
+    it('should navigate to the gallery filtered on the folder, without replacing history', () => {
+      const folder = { name: 'Work', path: '/photos/Work/', photo_count: 5, cover_photo_path: null };
+      component.filterInGallery(folder);
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], {
+        queryParams: {
+          path_prefix: '/photos/Work/',
+          sort: 'date_taken',
+          sort_direction: 'DESC',
+        },
+      });
+    });
+  });
 });

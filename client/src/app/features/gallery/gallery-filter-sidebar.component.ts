@@ -25,6 +25,7 @@ import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { SaveSmartAlbumDialogComponent } from '../albums/save-smart-album-dialog.component';
+import { folderDisplayName } from '../folders/folders.util';
 import { I18N } from '../../core/i18n/keys';
 
 export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
@@ -655,6 +656,44 @@ function saveSectionStates(states: Record<string, boolean>): void {
         </mat-expansion-panel>
       }
 
+      <!-- Folder filter -->
+      @if (store.config()?.features?.show_folders || store.filters().path_prefix) {
+        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['folder'] === true"
+                             (opened)="onSectionToggle('folder', true)"
+                             (closed)="onSectionToggle('folder', false)"
+                             [style.background-color]="sectionStates()['folder'] === true ? 'var(--mat-sys-surface-container)' : null">
+          <mat-expansion-panel-header>
+            <mat-panel-title class="flex items-center gap-2">
+              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">folder</mat-icon>
+              {{ I18N.gallery.sidebar.folder | translate }}
+              @if (sectionActiveCounts()['folder']) {
+                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['folder'] }}</span>
+              }
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <div class="flex flex-col gap-2 pb-2">
+            @if (store.filters().path_prefix) {
+              <div class="flex items-center gap-1">
+                <button mat-stroked-button class="flex-1 min-w-0 !justify-start" [matTooltip]="store.filters().path_prefix"
+                        [attr.aria-label]="I18N.gallery.choose_folder | translate" (click)="openFolderPicker()">
+                  <mat-icon>folder</mat-icon>
+                  <span class="truncate">{{ currentFolderName() }}</span>
+                </button>
+                <button mat-icon-button [matTooltip]="I18N.gallery.folder_clear | translate"
+                        [attr.aria-label]="I18N.gallery.folder_clear | translate" (click)="clearFolderFilter()">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            } @else {
+              <button mat-stroked-button class="w-full" (click)="openFolderPicker()">
+                <mat-icon>folder_open</mat-icon>
+                {{ I18N.gallery.choose_folder | translate }}
+              </button>
+            }
+          </div>
+        </mat-expansion-panel>
+      }
+
       <!-- Metric filter sections (collapsed by default) -->
       <!-- Common metric sections -->
       @for (group of commonFilterGroups(); track group.sectionKey) {
@@ -800,6 +839,8 @@ export class GalleryFilterSidebarComponent {
     if (el) el.value = '';
   }
 
+  readonly currentFolderName = computed(() => folderDisplayName(this.store.filters().path_prefix));
+
   readonly sectionIcons = SECTION_ICONS;
   private i18n = inject(I18nService);
 
@@ -898,6 +939,7 @@ export class GalleryFilterSidebarComponent {
       equipment: (f.camera ? 1 : 0) + (f.lens ? 1 : 0),
       persons: f.person_id ? f.person_id.split(',').length : 0,
       refine: (f.favorites_only ? 1 : 0) + (f.is_monochrome ? 1 : 0) + (f.hide_rejected ? 1 : 0),
+      folder: f.path_prefix ? 1 : 0,
     };
     const fAny = f as Record<string, any>;
     for (const sectionKey of SECTION_ORDER) {
@@ -986,6 +1028,25 @@ export class GalleryFilterSidebarComponent {
 
   clearGpsFilter(): void {
     this.store.updateFilters({ gps_lat: '', gps_lng: '', gps_radius_km: '' });
+  }
+
+  openFolderPicker(): void {
+    import('./folder-picker-dialog.component').then(m => {
+      const ref = this.dialog.open(m.FolderPickerDialogComponent, {
+        width: '95vw',
+        maxWidth: '600px',
+        data: { path_prefix: this.store.filters().path_prefix },
+      });
+      ref.afterClosed().subscribe((result?: string) => {
+        if (result !== undefined && result !== this.store.filters().path_prefix) {
+          this.store.updateFilter('path_prefix', result);
+        }
+      });
+    });
+  }
+
+  clearFolderFilter(): void {
+    this.store.updateFilter('path_prefix', '');
   }
 
   saveAsSmartAlbum(): void {

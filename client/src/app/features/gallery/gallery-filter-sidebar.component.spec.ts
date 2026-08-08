@@ -44,6 +44,7 @@ describe('GalleryFilterSidebarComponent', () => {
         min_subject_prominence: '', max_subject_prominence: '',
         min_subject_placement: '', max_subject_placement: '',
         min_bg_separation: '', max_bg_separation: '',
+        path_prefix: '',
       }),
       filterDrawerOpen: signal(true),
       cameras: signal([]),
@@ -139,6 +140,13 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(component.sectionActiveCounts()['equipment']).toBe(2);
     });
 
+    it('counts an active path_prefix for the folder section', () => {
+      const mockStore = (component as any).store;
+      expect(component.sectionActiveCounts()['folder']).toBe(0);
+      mockStore.filters.set({ ...mockStore.filters(), path_prefix: '/photos/Family/' });
+      expect(component.sectionActiveCounts()['folder']).toBe(1);
+    });
+
     it('counts favorites_only, is_monochrome, hide_rejected for refine section', () => {
       const mockStore = (component as any).store;
       mockStore.filters.set({ ...mockStore.filters(), favorites_only: true, is_monochrome: true, hide_rejected: true });
@@ -216,6 +224,21 @@ describe('GalleryFilterSidebarComponent', () => {
       mockStore.filters.set({ ...mockStore.filters(), min_iso: '100' });
       component.onDynamicRangeChange(isoFilter, 'max', 25600);
       expect(mockStore.updateFilterDebounced).toHaveBeenCalledWith('max_iso', '');
+    });
+  });
+
+  describe('folder filter', () => {
+    it('clearFolderFilter empties path_prefix', () => {
+      const mockStore = (component as any).store;
+      mockStore.filters.set({ ...mockStore.filters(), path_prefix: '/photos/Family/' });
+      component.clearFolderFilter();
+      expect(mockStore.updateFilter).toHaveBeenCalledWith('path_prefix', '');
+    });
+
+    it('currentFolderName shows the last segment of the active prefix', () => {
+      const mockStore = (component as any).store;
+      mockStore.filters.set({ ...mockStore.filters(), path_prefix: '/photos/Family/2026/' });
+      expect(component.currentFolderName()).toBe('2026');
     });
   });
 });

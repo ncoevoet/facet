@@ -1121,6 +1121,7 @@
       "add_filter": "Agregar filtro...",
       "semantic_search": "Búsqueda semántica",
       "location": "Ubicación",
+      "folder": "Carpeta",
       "persons": "Personas",
       "smart_album_filter_notice": "Álbum inteligente — los filtros se guardan automáticamente.",
       "virtual_scroll": "Desplazamiento rápido (virtualizado)",
@@ -1177,6 +1178,10 @@
     "saturation_range": "Saturación",
     "star_rating_range": "Valoración por estrellas",
     "gps_clear": "Borrar ubicación",
+    "choose_folder": "Elegir carpeta…",
+    "folder_clear": "Borrar carpeta",
+    "all_folders": "Todas las carpetas",
+    "use_this_folder": "Usar esta carpeta",
     "loading_photos": "Cargando fotos…",
     "quality_tier": "Nivel de calidad",
     "quality_tiers": {
@@ -2003,7 +2008,9 @@
     "title": "Carpetas",
     "empty": "No se encontraron carpetas.",
     "root": "Raíz",
-    "photos_count": "fotos"
+    "photos_count": "fotos",
+    "find_folder": "Buscar una carpeta…",
+    "filter_gallery": "Filtrar la galería por esta carpeta"
   },
   "albums_sharing": {
     "share": "Compartir álbum",

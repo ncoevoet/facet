@@ -1125,6 +1125,7 @@
       "add_filter": "Filter hinzufügen...",
       "semantic_search": "Semantische Suche",
       "location": "Standort",
+      "folder": "Ordner",
       "persons": "Personen",
       "smart_album_filter_notice": "Smart-Album — Filteränderungen werden automatisch gespeichert.",
       "virtual_scroll": "Schnelles Scrollen (virtualisiert)",
@@ -1181,6 +1182,10 @@
     "saturation_range": "Sättigung",
     "star_rating_range": "Sternebewertung",
     "gps_clear": "Standort entfernen",
+    "choose_folder": "Ordner wählen…",
+    "folder_clear": "Ordner entfernen",
+    "all_folders": "Alle Ordner",
+    "use_this_folder": "Diesen Ordner verwenden",
     "loading_photos": "Fotos werden geladen…",
     "quality_tier": "Qualitätsstufe",
     "quality_tiers": {
@@ -2007,7 +2012,9 @@
     "title": "Ordner",
     "empty": "Keine Ordner gefunden.",
     "root": "Stammverzeichnis",
-    "photos_count": "Fotos"
+    "photos_count": "Fotos",
+    "find_folder": "Ordner suchen…",
+    "filter_gallery": "Galerie nach diesem Ordner filtern"
   },
   "albums_sharing": {
     "share": "Album teilen",
