@@ -1122,6 +1122,7 @@
       "add_filter": "Adicionar filtro...",
       "semantic_search": "Busca semântica",
       "location": "Localização",
+      "folder": "Pasta",
       "persons": "Pessoas",
       "smart_album_filter_notice": "Álbum inteligente — as alterações de filtro são salvas automaticamente.",
       "virtual_scroll": "Rolagem rápida (virtualizada)",
@@ -1178,6 +1179,10 @@
     "subject_placement_range": "Posicionamento do sujeito",
     "bg_separation_range": "Separação do fundo",
     "gps_clear": "Limpar localização",
+    "choose_folder": "Escolher pasta…",
+    "folder_clear": "Limpar pasta",
+    "all_folders": "Todas as pastas",
+    "use_this_folder": "Usar esta pasta",
     "loading_photos": "Carregando fotos…",
     "quality_tier": "Nível de qualidade",
     "quality_tiers": {
@@ -2003,7 +2008,9 @@
     "title": "Pastas",
     "empty": "Nenhuma pasta encontrada.",
     "root": "Raiz",
-    "photos_count": "fotos"
+    "photos_count": "fotos",
+    "find_folder": "Procurar uma pasta…",
+    "filter_gallery": "Filtrar a galeria por esta pasta"
   },
   "albums_sharing": {
     "share": "Compartilhar álbum",

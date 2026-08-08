@@ -50,7 +50,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 ### Navegar
 
 - **Modos de galeria** — mosaico (linhas justificadas que preservam as proporções) e grade (cards uniformes com sobreposição de metadados)
-- **Filtros** — intervalo de datas, tag de conteúdo, padrão de composição, câmera, lente, pessoa, nível de qualidade, classificação por estrelas e faixas de métricas personalizadas
+- **Filtros** — intervalo de datas, tag de conteúdo, padrão de composição, câmera, lente, pessoa, pasta, nível de qualidade, classificação por estrelas e faixas de métricas personalizadas
 - **Busca semântica** — digite uma consulta em linguagem natural como "pôr do sol na praia" e encontre fotos correspondentes por meio de busca por embedding e texto
 - **Linha do tempo** — navegador cronológico com navegação por ano/mês e rolagem infinita
 - **Mapa** — fotos georreferenciadas em um mapa interativo com agrupamento de marcadores

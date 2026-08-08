@@ -41,6 +41,7 @@ import { SlideshowComponent } from './features/gallery/slideshow.component';
 import { Photo } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
 import { I18N } from './core/i18n/keys';
+import { folderDisplayName } from './features/folders/folders.util';
 
 /** Inline dialog for edition password prompt. */
 @Component({
@@ -273,10 +274,7 @@ export class App implements OnInit {
     if (f.quality_tier) chips.push({ id: 'quality_tier', labelKey: 'gallery.quality_tier', value: this.i18n.t('gallery.quality_tiers.' + f.quality_tier), clearKeys: ['quality_tier'] });
     if (f.color_temp) chips.push({ id: 'color_temp', labelKey: 'gallery.color_temp', value: this.i18n.t('gallery.color_temps.' + f.color_temp), clearKeys: ['color_temp'] });
     if (f.hue_bucket) chips.push({ id: 'hue_bucket', labelKey: 'gallery.hue', value: this.i18n.t('gallery.hue_buckets.' + f.hue_bucket), clearKeys: ['hue_bucket'] });
-    if (f.path_prefix) {
-      const folderName = f.path_prefix.replace(/\/$/, '').split('/').pop() || f.path_prefix;
-      chips.push({ id: 'path_prefix', labelKey: 'folders.title', value: folderName, clearKeys: ['path_prefix'] });
-    }
+    if (f.path_prefix) chips.push({ id: 'path_prefix', labelKey: 'folders.title', value: folderDisplayName(f.path_prefix), clearKeys: ['path_prefix'] });
 
     // Person filter — one chip per selected person
     if (f.person_id) {

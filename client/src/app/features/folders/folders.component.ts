@@ -5,24 +5,14 @@ import { DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { I18N } from '../../core/i18n/keys';
-
-interface FolderItem {
-  name: string;
-  path: string;
-  photo_count: number;
-  cover_photo_path: string | null;
-}
-
-interface FoldersResponse {
-  folders: FolderItem[];
-  has_direct_photos: boolean;
-}
+import { buildFolderBreadcrumbs, type FolderItem, type FoldersResponse } from './folders.util';
 
 @Component({
   selector: 'app-folders',
@@ -32,6 +22,7 @@ interface FoldersResponse {
     MatIconModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     TranslatePipe,
     ThumbnailUrlPipe,
   ],
@@ -72,31 +63,41 @@ interface FoldersResponse {
 
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       @for (folder of folders(); track folder.path) {
-        <button
-          class="group flex flex-col rounded-xl overflow-hidden bg-[var(--mat-sys-surface-container)] hover:shadow-lg transition-shadow cursor-pointer text-left"
-          (click)="openFolder(folder)">
-          @if (folder.cover_photo_path) {
-            <div class="relative w-full aspect-[4/3] overflow-hidden">
-              <img [src]="folder.cover_photo_path | thumbnailUrl:320"
-                   [alt]="folder.name"
-                   loading="lazy"
-                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
-                <span class="text-white text-xs font-medium truncate">{{ folder.name }}</span>
+        <div class="relative">
+          <button
+            class="group flex flex-col w-full rounded-xl overflow-hidden bg-[var(--mat-sys-surface-container)] hover:shadow-lg transition-shadow cursor-pointer text-left"
+            (click)="openFolder(folder)">
+            @if (folder.cover_photo_path) {
+              <div class="relative w-full aspect-[4/3] overflow-hidden">
+                <img [src]="folder.cover_photo_path | thumbnailUrl:320"
+                     [alt]="folder.name"
+                     loading="lazy"
+                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+                  <span class="text-white text-xs font-medium truncate">{{ folder.name }}</span>
+                </div>
               </div>
-            </div>
-          } @else {
-            <div class="relative w-full aspect-[4/3] flex items-center justify-center overflow-hidden bg-[var(--mat-sys-surface-container-high)]">
-              <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">folder</mat-icon>
-              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
-                <span class="text-white text-xs font-medium truncate">{{ folder.name }}</span>
+            } @else {
+              <div class="relative w-full aspect-[4/3] flex items-center justify-center overflow-hidden bg-[var(--mat-sys-surface-container-high)]">
+                <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">folder</mat-icon>
+                <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
+                  <span class="text-white text-xs font-medium truncate">{{ folder.name }}</span>
+                </div>
               </div>
+            }
+            <div class="p-3">
+              <div class="text-xs opacity-60">{{ folder.photo_count | number }} {{ I18N.folders.photos_count | translate }}</div>
             </div>
-          }
-          <div class="p-3">
-            <div class="text-xs opacity-60">{{ folder.photo_count | number }} {{ I18N.folders.photos_count | translate }}</div>
-          </div>
-        </button>
+          </button>
+          <button
+            mat-icon-button
+            class="!absolute top-0.5 right-0.5 z-10 !text-white !bg-black/40"
+            [matTooltip]="I18N.folders.filter_gallery | translate"
+            [attr.aria-label]="(I18N.folders.filter_gallery | translate) + ' — ' + folder.name"
+            (click)="filterInGallery(folder)">
+            <mat-icon class="!text-base !w-5 !h-5 !leading-5">filter_alt</mat-icon>
+          </button>
+        </div>
       }
     </div>
   `,
@@ -113,19 +114,7 @@ export class FoldersComponent implements OnInit {
   protected readonly loading = signal(false);
   protected readonly currentPrefix = signal('');
 
-  protected readonly breadcrumbs = computed(() => {
-    const prefix = this.currentPrefix();
-    if (!prefix) return [];
-    const parts = prefix.replace(/\/$/, '').split('/').filter(Boolean);
-    const crumbs: { name: string; path: string }[] = [];
-    for (let i = 0; i < parts.length; i++) {
-      crumbs.push({
-        name: parts[i],
-        path: parts.slice(0, i + 1).join('/') + '/',
-      });
-    }
-    return crumbs;
-  });
+  protected readonly breadcrumbs = computed(() => buildFolderBreadcrumbs(this.currentPrefix()));
 
   ngOnInit(): void {
     this.pageHelp.setDescription(I18N.folders.help);
@@ -172,6 +161,16 @@ export class FoldersComponent implements OnInit {
   protected openFolder(folder: FolderItem): void {
     this.router.navigate(['/folders'], {
       queryParams: { prefix: folder.path },
+    });
+  }
+
+  protected filterInGallery(folder: FolderItem): void {
+    this.router.navigate(['/'], {
+      queryParams: {
+        path_prefix: folder.path,
+        sort: 'date_taken',
+        sort_direction: 'DESC',
+      },
     });
   }
 }

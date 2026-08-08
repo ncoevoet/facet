@@ -50,7 +50,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 ### Parcourir
 
 - **Modes de galerie** — mosaïque (rangées justifiées préservant les proportions) et grille (cartes uniformes avec superposition des métadonnées)
-- **Filtres** — plage de dates, tag de contenu, motif de composition, appareil, objectif, personne, niveau de qualité, note (étoiles) et plages de métriques personnalisées
+- **Filtres** — plage de dates, tag de contenu, motif de composition, appareil, objectif, personne, dossier, niveau de qualité, note (étoiles) et plages de métriques personnalisées
 - **Recherche sémantique** — saisissez une requête en langage naturel comme « coucher de soleil à la plage » et trouvez les photos correspondantes grâce à la recherche par embedding et par texte
 - **Chronologie** — navigateur chronologique avec navigation par année/mois et défilement infini
 - **Carte** — photos géolocalisées sur une carte interactive avec regroupement des marqueurs

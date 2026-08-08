@@ -466,7 +466,18 @@ Browse your photo library by directory structure. Access via the `/folders` rout
 - Breadcrumb navigation to move up the directory tree
 - Each folder shows a cover photo (highest-scoring image in that directory)
 - Click a folder to descend into it, or click a photo to open it in the gallery
+- Each folder card has a filter action that opens the gallery restricted to that folder — available on every folder, not only leaf folders
 - Respects multi-user directory visibility in multi-user mode
+
+### Folder Filter
+
+The gallery filter sidebar has a **Folder** section. **Choose folder…** opens a picker that walks the
+directory tree one level at a time; applying it restricts the gallery to that folder **and all of its
+subfolders**. The active folder shows up as a filter chip, combines with every other filter (score,
+person, date…), survives a reload through the `path_prefix` URL parameter, and is saved into smart albums.
+
+The folder filter narrows the photo grid only — the sidebar dropdowns, type counts, statistics,
+timeline, map and search stay library-wide.
 
 ## GPS Filter Dialog
 

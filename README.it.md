@@ -50,7 +50,7 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 ### Sfogliare
 
 - **Modalità galleria** — mosaico (righe giustificate che preservano le proporzioni) e griglia (schede uniformi con sovrapposizione dei metadati)
-- **Filtri** — intervallo di date, tag di contenuto, modello compositivo, fotocamera, obiettivo, persona, livello di qualità, valutazione a stelle e intervalli di metriche personalizzati
+- **Filtri** — intervallo di date, tag di contenuto, modello compositivo, fotocamera, obiettivo, persona, cartella, livello di qualità, valutazione a stelle e intervalli di metriche personalizzati
 - **Ricerca semantica** — digita una query in linguaggio naturale come "tramonto in spiaggia" e trova le foto corrispondenti tramite embedding e ricerca testuale
 - **Cronologia** — browser cronologico con navigazione per anno/mese e scorrimento infinito
 - **Mappa** — foto geolocalizzate su una mappa interattiva con clustering dei marcatori

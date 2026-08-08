@@ -50,7 +50,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 ### Durchstöbern
 
 - **Galeriemodi** — Mosaik (ausgerichtete Zeilen, die Seitenverhältnisse beibehalten) und Raster (einheitliche Karten mit Metadaten-Overlay)
-- **Filter** — Zeitraum, Inhalts-Tag, Kompositionsmuster, Kamera, Objektiv, Person, Qualitätsstufe, Sternebewertung und benutzerdefinierte Metrikbereiche
+- **Filter** — Zeitraum, Inhalts-Tag, Kompositionsmuster, Kamera, Objektiv, Person, Ordner, Qualitätsstufe, Sternebewertung und benutzerdefinierte Metrikbereiche
 - **Semantische Suche** — geben Sie eine natürlichsprachliche Anfrage wie „Sonnenuntergang am Strand“ ein und finden Sie passende Fotos über Embedding- und Textsuche
 - **Zeitleiste** — chronologischer Browser mit Jahr-/Monatsnavigation und unendlichem Scrollen
 - **Karte** — geotaggte Fotos auf einer interaktiven Karte mit Markierungs-Clustering

@@ -507,7 +507,7 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **i18n:** `GET /api/i18n/languages`, `GET /api/i18n/{lang}` — language list and translation bundles.
 
-**Folders:** `GET /api/folders` — photo folder structure for folder-based browsing.
+**Folders:** `GET /api/folders` — one level of the photo folder structure (`{name, path, photo_count, cover_photo_path}` + `has_direct_photos`), where `path` is directly usable as the gallery's `path_prefix` filter. The Folders view (`/folders`) browses it, and each folder card carries a "filter gallery by this folder" action. The gallery sidebar's **Folder** section (`gallery-filter-sidebar.component.ts`) opens `folder-picker-dialog.component.ts`, a drill-down picker over the same endpoint — a tree is impossible because the endpoint reports no `has_subfolders` and each level costs an uncached subtree scan. Applying sets `path_prefix` (subtree match, `api/routers/gallery.py` `_apply_date_album_geo_filters`), which round-trips through the URL and into `smart_filter_json`. Known limitation: `path_prefix` scopes the photo list only — `/api/filter_options/*`, `/api/type_counts`, `/api/stats/*`, `/api/timeline`, `/api/search` and the map stay library-wide.
 
 **Download:** `GET /api/download/options?path=<path>&is_shared=<bool>` — available download types (original, darktable profiles, raw). `GET /api/download?path=<path>&type=original|darktable|raw&profile=<name>` — download with companion RAW detection and darktable profile conversion.
 
