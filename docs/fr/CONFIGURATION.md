@@ -205,7 +205,7 @@ Les préréglages fournis ne forment pas un ensemble fermé : ajoutez une clé 
 }
 ```
 
-Une réserve toutefois : `label_key` est recherchée dans les paquets i18n, et une clé absente retombe sur **la clé elle-même**. Un contexte désignant une clé inexistante s'affiche littéralement `comparison.context.dance_comp` dans le sélecteur, dans toutes les langues, sans aucune erreur. Ajoutez donc la clé aux six paquets `i18n/translations/*.json`, ou faites pointer `label_key` vers une chaîne déjà existante.
+Une nuance toutefois : `label_key` est recherchée dans les paquets i18n, et une clé absente retombe désormais sur le **`name`** propre au contexte (par exemple `dance_comp`) plutôt que sur un chemin brut à points — un contexte personnalisé reste lisible dans le sélecteur, dans toutes les langues, même avant d'avoir une traduction. Ajoutez la clé aux six paquets `i18n/translations/*.json` pour lui donner un libellé correctement localisé plutôt que le simple nom.
 
 ### Modifier un contexte
 

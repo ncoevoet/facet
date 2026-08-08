@@ -205,7 +205,7 @@ Los preajustes incluidos no son un conjunto cerrado: añade una clave bajo `scor
 }
 ```
 
-Una salvedad: `label_key` se busca en los paquetes i18n, y una clave ausente recurre a **la propia clave**. Un contexto que nombre una clave inexistente se muestra literalmente como `comparison.context.dance_comp` en el selector, en todos los idiomas y sin ningún error. Añade la clave a los seis paquetes `i18n/translations/*.json`, o haz que `label_key` apunte a una cadena que ya exista.
+Un matiz: `label_key` se busca en los paquetes i18n, y una clave ausente recurre ahora al propio **`name`** del contexto (por ejemplo, `dance_comp`) en lugar de mostrar una ruta de puntos en bruto — un contexto personalizado sigue siendo legible en el selector, en todos los idiomas, incluso antes de tener traducción. Añade la clave a los seis paquetes `i18n/translations/*.json` para darle una etiqueta correctamente localizada en lugar del nombre a secas.
 
 ### Editar un contexto
 

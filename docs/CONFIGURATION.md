@@ -205,7 +205,7 @@ The shipped presets are not a closed set — add a key under `scoring_contexts` 
 }
 ```
 
-One catch: `label_key` is looked up in the i18n bundles, and a missing key falls back to **the key itself**. A context naming a key that doesn't exist renders literally as `comparison.context.dance_comp` in the picker, in every language, with no error. Either add the key to all six `i18n/translations/*.json` bundles, or point `label_key` at a string that already exists.
+One nuance: `label_key` is looked up in the i18n bundles, and a missing key now falls back to the context's own **`name`** (e.g. `dance_comp`) instead of rendering a raw dot-path — a custom context stays readable in the picker, in every language, even before it has a translation. Add the key to all six `i18n/translations/*.json` bundles to give it a properly localized label instead of the bare name.
 
 ### Editing a context
 

@@ -205,7 +205,7 @@ As predefinições fornecidas não são um conjunto fechado: adicione uma chave 
 }
 ```
 
-Uma ressalva: `label_key` é procurada nos pacotes i18n e uma chave em falta recai sobre **a própria chave**. Um contexto que indique uma chave inexistente aparece literalmente como `comparison.context.dance_comp` no seletor, em todos os idiomas e sem qualquer erro. Adicione a chave aos seis pacotes `i18n/translations/*.json`, ou aponte `label_key` para uma cadeia já existente.
+Uma nuance: `label_key` é procurada nos pacotes i18n e uma chave em falta recai agora sobre o próprio **`name`** do contexto (por exemplo, `dance_comp`) em vez de um caminho de pontos em bruto — um contexto personalizado continua legível no seletor, em todos os idiomas, mesmo antes de ter uma tradução. Adicione a chave aos seis pacotes `i18n/translations/*.json` para lhe dar um rótulo devidamente localizado em vez do nome simples.
 
 ### Editando um Contexto
 

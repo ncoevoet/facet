@@ -12,6 +12,7 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { AlbumService, AlbumScoringContextResult, AlbumSuggestedContext } from '../../core/services/album.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { ScoringContextLabelPipe, resolveScoringContextLabel } from '../../shared/pipes/scoring-context-label.pipe';
 import { I18N } from '../../core/i18n/keys';
 
 export interface AlbumScoringContextDialogData {
@@ -54,7 +55,7 @@ const DEFAULT_CONTEXT = 'default';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     MatDialogModule, MatButtonModule, MatFormFieldModule, MatSelectModule,
-    MatProgressSpinnerModule, MatProgressBarModule, TranslatePipe,
+    MatProgressSpinnerModule, MatProgressBarModule, TranslatePipe, ScoringContextLabelPipe,
   ],
   template: `
     <h2 mat-dialog-title class="truncate">{{ I18N.albums.scoring_context.dialog_title | translate:{ name: data.albumName } }}</h2>
@@ -71,7 +72,7 @@ const DEFAULT_CONTEXT = 'default';
           <mat-select [value]="selectedContext()" [disabled]="phase() !== 'select'"
                       (selectionChange)="selectedContext.set($event.value)">
             @for (context of contexts(); track context.name) {
-              <mat-option [value]="context.name">{{ context.label_key | translate }}</mat-option>
+              <mat-option [value]="context.name">{{ context | scoringContextLabel }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
@@ -187,7 +188,7 @@ export class AlbumScoringContextDialogComponent implements OnInit {
     const suggested = this.suggestion()?.suggested;
     if (!suggested) return '';
     const context = this.contexts().find(c => c.name === suggested);
-    return context ? this.i18n.t(context.label_key) : suggested;
+    return context ? resolveScoringContextLabel(context, this.i18n.t(context.label_key)) : suggested;
   });
   protected readonly suggestedPercent = computed(() => Math.round((this.suggestion()?.share ?? 0) * 100));
 

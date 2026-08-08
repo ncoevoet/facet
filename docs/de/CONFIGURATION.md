@@ -205,7 +205,7 @@ Die mitgelieferten Voreinstellungen sind keine geschlossene Menge: Fügen Sie ei
 }
 ```
 
-Ein Haken dabei: `label_key` wird in den i18n-Paketen nachgeschlagen, und ein fehlender Schlüssel fällt auf **den Schlüssel selbst** zurück. Ein Kontext, der einen nicht vorhandenen Schlüssel nennt, erscheint in der Auswahl wörtlich als `comparison.context.dance_comp` — in jeder Sprache und ohne Fehlermeldung. Fügen Sie den Schlüssel entweder allen sechs `i18n/translations/*.json`-Paketen hinzu, oder lassen Sie `label_key` auf eine bereits vorhandene Zeichenkette zeigen.
+Eine Nuance dabei: `label_key` wird in den i18n-Paketen nachgeschlagen, und ein fehlender Schlüssel fällt jetzt auf den eigenen **`name`** des Kontexts zurück (z. B. `dance_comp`) statt auf einen rohen Punktpfad — ein eigener Kontext bleibt in der Auswahl lesbar, in jeder Sprache, auch bevor er eine Übersetzung hat. Fügen Sie den Schlüssel allen sechs `i18n/translations/*.json`-Paketen hinzu, um ihm statt des bloßen Namens eine richtig lokalisierte Bezeichnung zu geben.
 
 ### Einen Kontext bearbeiten
 

@@ -1003,6 +1003,15 @@ describe('ComparisonPriorityTabComponent — rendering (D2/D6)', () => {
     expect(fixture.nativeElement.textContent).toContain(I18N.comparison.context.excluded_title);
   });
 
+  it('falls back to the context name for a label_key with no i18n bundle entry, instead of the raw key', async () => {
+    await render();
+    component.selectContext('action_stage');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('action_stage');
+    expect(fixture.nativeElement.textContent).not.toContain('comparison.context.action_stage');
+  });
+
   it('D2: renders nothing extra when the backend has not reported an ETA yet', async () => {
     await render();
     component.stale.set(true);

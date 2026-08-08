@@ -205,7 +205,7 @@ I preset forniti non sono un insieme chiuso: aggiungi una chiave sotto `scoring_
 }
 ```
 
-Un'avvertenza: `label_key` viene cercata nei pacchetti i18n e una chiave mancante ricade sulla **chiave stessa**. Un contesto che indica una chiave inesistente compare letteralmente come `comparison.context.dance_comp` nel selettore, in ogni lingua e senza alcun errore. Aggiungi la chiave a tutti e sei i pacchetti `i18n/translations/*.json`, oppure fai puntare `label_key` a una stringa già esistente.
+Una sfumatura: `label_key` viene cercata nei pacchetti i18n, e una chiave mancante ora ricade sul **`name`** stesso del contesto (per esempio `dance_comp`) invece che su un percorso a punti grezzo — un contesto personalizzato resta leggibile nel selettore, in ogni lingua, anche prima di avere una traduzione. Aggiungi la chiave a tutti e sei i pacchetti `i18n/translations/*.json` per dargli un'etichetta correttamente localizzata invece del semplice nome.
 
 ### Modificare un contesto
 
