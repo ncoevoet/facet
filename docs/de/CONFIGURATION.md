@@ -188,6 +188,25 @@ Mitgelieferte Voreinstellungen – `default` ist ein leeres Delta, sodass sich a
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | – | `scenic_landscape`, `mountains`, `snow_winter` |
 | `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
 
+### Einen eigenen Kontext hinzufügen
+
+Die mitgelieferten Voreinstellungen sind keine geschlossene Menge: Fügen Sie einen Schlüssel unter `scoring_contexts` hinzu, und Sie erhalten einen Kontext wie jeden anderen — er wird aufgelöst, lässt sich einem Album zuweisen, und sein Delta ist über den Tab **Bewertungskontext** bearbeitbar. Im Code muss nichts registriert werden.
+
+```json
+{
+  "scoring_contexts": {
+    "dance_comp": {
+      "label_key": "comparison.context.dance_comp",
+      "promote": ["sports", "concert"],
+      "excluded": ["silhouette", "fashion"],
+      "suggest_from_moments": ["sports"]
+    }
+  }
+}
+```
+
+Ein Haken dabei: `label_key` wird in den i18n-Paketen nachgeschlagen, und ein fehlender Schlüssel fällt auf **den Schlüssel selbst** zurück. Ein Kontext, der einen nicht vorhandenen Schlüssel nennt, erscheint in der Auswahl wörtlich als `comparison.context.dance_comp` — in jeder Sprache und ohne Fehlermeldung. Fügen Sie den Schlüssel entweder allen sechs `i18n/translations/*.json`-Paketen hinzu, oder lassen Sie `label_key` auf eine bereits vorhandene Zeichenkette zeigen.
+
 ### Einen Kontext bearbeiten
 
 `PUT /api/config/scoring_contexts/{name}` (nur im Bearbeitungsmodus) schreibt das Delta eines einzelnen Kontexts aus dem Tab **Bewertungskontext** des Viewers neu — den bevorzugten Kopf in die gewünschte Reihenfolge ziehen, eine Kategorie anklicken, um ihren Ausschluss umzuschalten, speichern. Der Rumpf lautet `{"promote": [name, ...], "excluded": [name, ...]}`. Nur diese beiden Felder sind bearbeitbar: `label_key` und `suggest_from_moments` bleiben unverändert, und alle anderen Kontexte werden nicht angetastet. **Die Oberfläche bietet bewusst ausschließlich die Bearbeitung des Deltas an** — ein Kontext trägt nie eine vollständige eigenständige Reihenfolge, sodass die nicht bevorzugten Kategorien immer die globale Prioritätsreihenfolge behalten und eine später hinzugefügte Kategorie nie stillschweigend in sechs getrennten Listen fehlen kann.

@@ -188,6 +188,25 @@ Shipped presets — `default` is an empty delta, so existing behavior is unchang
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — | `scenic_landscape`, `mountains`, `snow_winter` |
 | `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
 
+### Adding your own context
+
+The shipped presets are not a closed set — add a key under `scoring_contexts` and it is a context like any other: it resolves, it is assignable to an album, and its delta is editable from the **Scoring Context** tab. Nothing needs to be registered in code.
+
+```json
+{
+  "scoring_contexts": {
+    "dance_comp": {
+      "label_key": "comparison.context.dance_comp",
+      "promote": ["sports", "concert"],
+      "excluded": ["silhouette", "fashion"],
+      "suggest_from_moments": ["sports"]
+    }
+  }
+}
+```
+
+One catch: `label_key` is looked up in the i18n bundles, and a missing key falls back to **the key itself**. A context naming a key that doesn't exist renders literally as `comparison.context.dance_comp` in the picker, in every language, with no error. Either add the key to all six `i18n/translations/*.json` bundles, or point `label_key` at a string that already exists.
+
 ### Editing a context
 
 `PUT /api/config/scoring_contexts/{name}` (edition-gated) rewrites one context's delta from the viewer's **Scoring Context** tab — drag the promoted head into the order you want, click a category to toggle its exclusion, save. Body is `{"promote": [name, ...], "excluded": [name, ...]}`. Only those two fields are editable: `label_key` and `suggest_from_moments` are left exactly as they were, and every other context is untouched. **Editing the delta is deliberately all the UI offers** — a context never carries a standalone full ordering, so the non-promoted categories always keep the global priority order and a category added later can never be silently missing from six separate lists.

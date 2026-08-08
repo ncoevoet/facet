@@ -188,6 +188,25 @@ Presets fornecidos — `default` é um delta vazio, então o comportamento exist
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — | `scenic_landscape`, `mountains`, `snow_winter` |
 | `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
 
+### Adicionar o seu próprio contexto
+
+As predefinições fornecidas não são um conjunto fechado: adicione uma chave em `scoring_contexts` e terá um contexto como qualquer outro — é resolvido, atribui-se a um álbum e o seu delta é editável a partir do separador **Contexto de pontuação**. Nada precisa de ser registado no código.
+
+```json
+{
+  "scoring_contexts": {
+    "dance_comp": {
+      "label_key": "comparison.context.dance_comp",
+      "promote": ["sports", "concert"],
+      "excluded": ["silhouette", "fashion"],
+      "suggest_from_moments": ["sports"]
+    }
+  }
+}
+```
+
+Uma ressalva: `label_key` é procurada nos pacotes i18n e uma chave em falta recai sobre **a própria chave**. Um contexto que indique uma chave inexistente aparece literalmente como `comparison.context.dance_comp` no seletor, em todos os idiomas e sem qualquer erro. Adicione a chave aos seis pacotes `i18n/translations/*.json`, ou aponte `label_key` para uma cadeia já existente.
+
 ### Editando um Contexto
 
 `PUT /api/config/scoring_contexts/{name}` (protegido por edition) reescreve o delta de um único contexto a partir da aba **Contexto de pontuação** do visualizador: arraste a cabeça promovida para a ordem desejada, clique em uma categoria para alternar sua exclusão e salve. O corpo é `{"promote": [nome, ...], "excluded": [nome, ...]}`. Apenas esses dois campos são editáveis: `label_key` e `suggest_from_moments` permanecem exatamente como estavam, e nenhum outro contexto é tocado. **A interface oferece deliberadamente apenas a edição do delta**: um contexto nunca carrega uma ordenação completa e independente, então as categorias não promovidas sempre mantêm a ordem de prioridade global e uma categoria adicionada depois nunca pode faltar silenciosamente em seis listas separadas.

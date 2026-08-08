@@ -188,6 +188,25 @@ Preajustes incluidos — `default` es un delta vacío, así que el comportamient
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — | `scenic_landscape`, `mountains`, `snow_winter` |
 | `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
 
+### Añadir tu propio contexto
+
+Los preajustes incluidos no son un conjunto cerrado: añade una clave bajo `scoring_contexts` y tendrás un contexto como cualquier otro — se resuelve, se asigna a un álbum y su delta se edita desde la pestaña **Contexto de puntuación**. No hay que registrar nada en el código.
+
+```json
+{
+  "scoring_contexts": {
+    "dance_comp": {
+      "label_key": "comparison.context.dance_comp",
+      "promote": ["sports", "concert"],
+      "excluded": ["silhouette", "fashion"],
+      "suggest_from_moments": ["sports"]
+    }
+  }
+}
+```
+
+Una salvedad: `label_key` se busca en los paquetes i18n, y una clave ausente recurre a **la propia clave**. Un contexto que nombre una clave inexistente se muestra literalmente como `comparison.context.dance_comp` en el selector, en todos los idiomas y sin ningún error. Añade la clave a los seis paquetes `i18n/translations/*.json`, o haz que `label_key` apunte a una cadena que ya exista.
+
 ### Editar un contexto
 
 `PUT /api/config/scoring_contexts/{name}` (restringido al modo edición) reescribe el delta de un único contexto desde la pestaña **Contexto de puntuación** del visor: arrastra la cabeza promovida al orden que quieras, haz clic en una categoría para alternar su exclusión y guarda. El cuerpo es `{"promote": [nombre, ...], "excluded": [nombre, ...]}`. Solo esos dos campos son editables: `label_key` y `suggest_from_moments` se dejan exactamente como estaban, y ningún otro contexto se toca. **La interfaz ofrece deliberadamente solo la edición del delta**: un contexto nunca lleva un orden completo independiente, así que las categorías no promovidas siempre conservan el orden de prioridad global y una categoría añadida más tarde nunca puede faltar en silencio en seis listas separadas.

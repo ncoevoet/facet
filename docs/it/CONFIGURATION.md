@@ -188,6 +188,25 @@ Preset forniti di serie — `default` è un delta vuoto, quindi il comportamento
 | `landscape` | `landscape`, `golden_hour`, `blue_hour` | — | `scenic_landscape`, `mountains`, `snow_winter` |
 | `motorsport` | `sports`, `vehicle` | `silhouette` | `sports`, `road_vehicle` |
 
+### Aggiungere un proprio contesto
+
+I preset forniti non sono un insieme chiuso: aggiungi una chiave sotto `scoring_contexts` e ottieni un contesto come gli altri — viene risolto, si assegna a un album e il suo delta si modifica dalla scheda **Contesto di punteggio**. Non serve registrare nulla nel codice.
+
+```json
+{
+  "scoring_contexts": {
+    "dance_comp": {
+      "label_key": "comparison.context.dance_comp",
+      "promote": ["sports", "concert"],
+      "excluded": ["silhouette", "fashion"],
+      "suggest_from_moments": ["sports"]
+    }
+  }
+}
+```
+
+Un'avvertenza: `label_key` viene cercata nei pacchetti i18n e una chiave mancante ricade sulla **chiave stessa**. Un contesto che indica una chiave inesistente compare letteralmente come `comparison.context.dance_comp` nel selettore, in ogni lingua e senza alcun errore. Aggiungi la chiave a tutti e sei i pacchetti `i18n/translations/*.json`, oppure fai puntare `label_key` a una stringa già esistente.
+
 ### Modificare un contesto
 
 `PUT /api/config/scoring_contexts/{name}` (riservato alla modalità edizione) riscrive il delta di un singolo contesto dalla scheda **Contesto di punteggio** del visualizzatore: trascina la testa promossa nell'ordine desiderato, fai clic su una categoria per attivarne o disattivarne l'esclusione e salva. Il corpo è `{"promote": [nome, ...], "excluded": [nome, ...]}`. Solo questi due campi sono modificabili: `label_key` e `suggest_from_moments` restano esattamente come sono, e nessun altro contesto viene toccato. **L'interfaccia offre deliberatamente solo la modifica del delta**: un contesto non porta mai un ordine completo autonomo, quindi le categorie non promosse mantengono sempre l'ordine di priorità globale e una categoria aggiunta in seguito non può mai mancare silenziosamente da sei elenchi distinti.
