@@ -7,4 +7,7 @@ export class PersonsFiltersService {
   readonly search = signal('');
   readonly showHidden = signal(false);
   readonly createRequested = signal(0);
+  /** Lives here rather than in ManagePersonsComponent so the app shell can swap its
+   *  mobile bottom bar for the selection action bar (issue #73). */
+  readonly selectedIds = signal<Set<number>>(new Set());
 }
