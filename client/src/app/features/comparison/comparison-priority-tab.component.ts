@@ -523,6 +523,7 @@ export class ComparisonPriorityTabComponent {
   );
   readonly topOverlapPairs = computed(() =>
     [...(this.overlap()?.overlaps ?? [])]
+      .filter(p => !p.pair.includes(DEFAULT_CATEGORY_NAME))
       .sort((a, b) => b.count - a.count)
       .slice(0, MAX_OVERLAP_PAIRS),
   );

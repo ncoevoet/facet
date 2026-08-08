@@ -560,8 +560,18 @@ describe('ComparisonPriorityTabComponent', () => {
       await component.loadOverlapLazily();
 
       expect(component.topOverlapPairs().map(p => p.pair)).toEqual([
-        ['sports', 'silhouette'], ['landscape', 'travel'], ['sports', 'default'],
+        ['sports', 'silhouette'], ['landscape', 'travel'],
       ]);
+    });
+
+    // default matches every photo by design, so it pairs with everything and its
+    // counts dwarf the real collisions: on the live library 7 of the top 8 pairs
+    // were "default + X" and the one useful pair sorted last.
+    it('D4: never includes a pair involving the pinned default category', async () => {
+      mockApi.get.mockReturnValue(of(OVERLAP));
+      await component.loadOverlapLazily();
+
+      expect(component.topOverlapPairs().every(p => !p.pair.includes('default'))).toBe(true);
     });
 
     it('D4: caps the rendered pairs at MAX_OVERLAP_PAIRS', async () => {
