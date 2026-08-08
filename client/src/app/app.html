@@ -366,8 +366,7 @@
     <div class="mx-4 mt-3 p-3 rounded-lg bg-[var(--mat-sys-surface-container)] text-sm opacity-80">{{ key | translate }}</div>
   }
 
-  <!-- Mobile search bar is rendered as a fixed bar above the gallery bottom bar -->
-
+  <!-- Mobile search bar is rendered as the first row of the gallery bottom stack -->
 
   <!-- Active filter chips bar (gallery route only, when filters are active) -->
   @if (auth.isAuthenticated() && isGalleryRoute() && (activeFilterChips().length || store.filters().similar_to)) {
@@ -449,218 +448,218 @@
     <router-outlet />
   </main>
 
-  <!-- Mobile gallery bottom bar (< md only) -->
-  @if (auth.isAuthenticated() && isGalleryRoute()) {
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-1 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <!-- Search toggle -->
-      <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="mobileSearchOpen.set(!mobileSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
-        <mat-icon>search</mat-icon>
-      </button>
+  <!-- Mobile gallery bottom bars (search row stacks over the toolbar) -->
+  @if (auth.isAuthenticated() && mobileGalleryBarVisible()) {
+    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-[var(--mat-sys-surface-container)] safe-area-pb">
+      @if (mobileSearchOpen()) {
+        <div class="px-4 py-1 border-t border-[var(--mat-sys-outline-variant)]">
+          <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
+            <input matInput
+                   [value]="store.filters().search"
+                   (keyup.enter)="onSearchChange($event); mobileSearchOpen.set(false)"
+                   (blur)="onSearchChange($event)"
+                   [placeholder]="I18N.gallery.search_placeholder | translate"
+                   />
+            <mat-icon matPrefix class="opacity-60">search</mat-icon>
+            <button matSuffix mat-icon-button (click)="clearSearch(); mobileSearchOpen.set(false)">
+              <mat-icon>close</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+      }
+      <div class="flex items-center gap-1 px-2 py-1 border-t border-[var(--mat-sys-outline-variant)]">
+        <!-- Search toggle -->
+        <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="mobileSearchOpen.set(!mobileSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
+          <mat-icon>search</mat-icon>
+        </button>
 
-      <!-- Sort selector with label -->
-      <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
-        <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
-        <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
-          @if (store.config()?.features?.show_my_taste) {
-            <mat-option value="learned_score">{{ I18N.gallery.sort_my_taste | translate }}</mat-option>
-          }
-          @if (sortGroups(); as groups) {
-            @for (group of groups; track group[0]) {
-              <mat-optgroup [label]="('sort_groups.' + (group[0] | sortGroupKey)) | translate">
-                @for (opt of group[1]; track opt.column) {
-                  <mat-option [value]="opt.column">{{ 'sort_options.' + opt.column | translate }}</mat-option>
-                }
-              </mat-optgroup>
+        <!-- Sort selector with label -->
+        <mat-form-field class="flex-1 min-w-0" subscriptSizing="dynamic">
+          <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
+          <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().sort" (selectionChange)="onSortChange($event.value)">
+            @if (store.config()?.features?.show_my_taste) {
+              <mat-option value="learned_score">{{ I18N.gallery.sort_my_taste | translate }}</mat-option>
             }
-          } @else {
-            <mat-option value="aggregate">{{ I18N.gallery.sort_aggregate | translate }}</mat-option>
-            <mat-option value="aesthetic">{{ I18N.gallery.sort_aesthetic | translate }}</mat-option>
-            <mat-option value="date_taken">{{ I18N.gallery.sort_date | translate }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
+            @if (sortGroups(); as groups) {
+              @for (group of groups; track group[0]) {
+                <mat-optgroup [label]="('sort_groups.' + (group[0] | sortGroupKey)) | translate">
+                  @for (opt of group[1]; track opt.column) {
+                    <mat-option [value]="opt.column">{{ 'sort_options.' + opt.column | translate }}</mat-option>
+                  }
+                </mat-optgroup>
+              }
+            } @else {
+              <mat-option value="aggregate">{{ I18N.gallery.sort_aggregate | translate }}</mat-option>
+              <mat-option value="aesthetic">{{ I18N.gallery.sort_aesthetic | translate }}</mat-option>
+              <mat-option value="date_taken">{{ I18N.gallery.sort_date | translate }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
 
-      <!-- Tooltip-mode menu (mobile, first in icon cluster) -->
-      <button mat-icon-button class="!w-10 !h-10 shrink-0"
-              [matMenuTriggerFor]="tooltipModeMenuMobile"
-              [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
-              [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate">
-        <mat-icon>{{
-          store.filters().tooltip_mode === 'click' ? 'touch_app'
-          : store.filters().tooltip_mode === 'off' ? 'visibility_off'
-          : 'chat_bubble_outline'
-        }}</mat-icon>
-      </button>
-      <mat-menu #tooltipModeMenuMobile="matMenu">
-        <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'hover')">
-          <mat-icon>chat_bubble_outline</mat-icon>
-          {{ I18N.gallery.tooltip_mode.hover | translate }}
+        <!-- Tooltip-mode menu (mobile, first in icon cluster) -->
+        <button mat-icon-button class="!w-10 !h-10 shrink-0"
+                [matMenuTriggerFor]="tooltipModeMenuMobile"
+                [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
+                [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate">
+          <mat-icon>{{
+            store.filters().tooltip_mode === 'click' ? 'touch_app'
+            : store.filters().tooltip_mode === 'off' ? 'visibility_off'
+            : 'chat_bubble_outline'
+          }}</mat-icon>
         </button>
-        <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'click')">
-          <mat-icon>touch_app</mat-icon>
-          {{ I18N.gallery.tooltip_mode.click | translate }}
-        </button>
-        <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
-          <mat-icon>visibility_off</mat-icon>
-          {{ I18N.gallery.tooltip_mode.off | translate }}
-        </button>
-      </mat-menu>
+        <mat-menu #tooltipModeMenuMobile="matMenu">
+          <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'hover')">
+            <mat-icon>chat_bubble_outline</mat-icon>
+            {{ I18N.gallery.tooltip_mode.hover | translate }}
+          </button>
+          <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'click')">
+            <mat-icon>touch_app</mat-icon>
+            {{ I18N.gallery.tooltip_mode.click | translate }}
+          </button>
+          <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
+            <mat-icon>visibility_off</mat-icon>
+            {{ I18N.gallery.tooltip_mode.off | translate }}
+          </button>
+        </mat-menu>
 
-      <!-- Sort direction toggle -->
-      <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="toggleSortDirection()"
-        [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)">
-        <mat-icon>{{ store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-      </button>
+        <!-- Sort direction toggle -->
+        <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="toggleSortDirection()"
+          [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)">
+          <mat-icon>{{ store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+        </button>
 
-      <!-- Slideshow toggle -->
-      <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="store.slideshowActive.set(!store.slideshowActive())" [matTooltip]="I18N.slideshow.start | translate">
-        <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
-      </button>
+        <!-- Slideshow toggle -->
+        <button mat-icon-button class="!w-10 !h-10 shrink-0" (click)="store.slideshowActive.set(!store.slideshowActive())" [matTooltip]="I18N.slideshow.start | translate">
+          <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
+        </button>
 
-      <!-- Filter drawer toggle -->
-      <button
-        mat-icon-button class="!w-10 !h-10 shrink-0"
-        (click)="store.setFilterDrawerOpen(!store.filterDrawerOpen())"
-        [matTooltip]="I18N.ui.buttons.filters | translate"
-        [matBadge]="store.activeFilterCount() || null"
-        matBadgeColor="primary"
-        matBadgeSize="small"
-      >
-        <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">tune</mat-icon>
-      </button>
-    </div>
-  }
-
-  <!-- Mobile gallery search bar -->
-  @if (auth.isAuthenticated() && isGalleryRoute() && mobileSearchOpen()) {
-    <div class="lg:hidden fixed bottom-[45px] left-0 right-0 z-50 px-4 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)]">
-      <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
-        <input matInput
-               [value]="store.filters().search"
-               (keyup.enter)="onSearchChange($event); mobileSearchOpen.set(false)"
-               (blur)="onSearchChange($event)"
-               [placeholder]="I18N.gallery.search_placeholder | translate"
-               />
-        <mat-icon matPrefix class="opacity-60">search</mat-icon>
-        <button matSuffix mat-icon-button (click)="clearSearch(); mobileSearchOpen.set(false)">
-          <mat-icon>close</mat-icon>
-        </button>
-      </mat-form-field>
-    </div>
-  }
-
-  <!-- Mobile albums bottom bar -->
-  @if (auth.isAuthenticated() && isAlbumsRoute()) {
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-0 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobileAlbumTypeMenu" [matTooltip]="I18N.albums.filter_type | translate">
-        <mat-icon>filter_list</mat-icon>
-      </button>
-      <mat-menu #mobileAlbumTypeMenu="matMenu">
-        <button mat-menu-item (click)="albumsFilters.typeFilter.set('')">
-          <span [class.font-bold]="!albumsFilters.typeFilter()">{{ I18N.albums.type_all | translate }}</span>
-        </button>
-        <button mat-menu-item (click)="albumsFilters.typeFilter.set('manual')">
-          <span [class.font-bold]="albumsFilters.typeFilter() === 'manual'">{{ I18N.albums.type_manual | translate }}</span>
-        </button>
-        <button mat-menu-item (click)="albumsFilters.typeFilter.set('smart')">
-          <span [class.font-bold]="albumsFilters.typeFilter() === 'smart'">{{ I18N.albums.type_smart | translate }}</span>
-        </button>
-      </mat-menu>
-      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobileAlbumSortMenu" [matTooltip]="I18N.albums.sort_by | translate">
-        <mat-icon>sort</mat-icon>
-      </button>
-      <mat-menu #mobileAlbumSortMenu="matMenu">
-        <button mat-menu-item (click)="albumsFilters.sort.set('updated_at')">
-          <span [class.font-bold]="albumsFilters.sort() === 'updated_at'">{{ I18N.albums.sort_recent | translate }}</span>
-        </button>
-        <button mat-menu-item (click)="albumsFilters.sort.set('name')">
-          <span [class.font-bold]="albumsFilters.sort() === 'name'">{{ I18N.albums.sort_name | translate }}</span>
-        </button>
-        <button mat-menu-item (click)="albumsFilters.sort.set('photo_count')">
-          <span [class.font-bold]="albumsFilters.sort() === 'photo_count'">{{ I18N.albums.sort_photos | translate }}</span>
-        </button>
-      </mat-menu>
-      <button mat-icon-button class="!w-10 !h-10" (click)="mobileAlbumsSearchOpen.set(!mobileAlbumsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
-        <mat-icon>search</mat-icon>
-      </button>
-      @if (auth.isEdition()) {
-        <button mat-icon-button class="!w-10 !h-10 ml-auto" [matTooltip]="I18N.albums.create | translate" [attr.aria-label]="I18N.albums.create | translate" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
-          <mat-icon>add</mat-icon>
-        </button>
-      }
-    </div>
-  }
-
-  <!-- Mobile albums search bar -->
-  @if (auth.isAuthenticated() && isAlbumsRoute() && mobileAlbumsSearchOpen()) {
-    <div class="lg:hidden fixed bottom-[45px] left-0 right-0 z-50 px-4 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)]">
-      <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
-        <input matInput [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" [placeholder]="I18N.albums.search | translate" />
-        <mat-icon matPrefix class="opacity-60">search</mat-icon>
-        <button matSuffix mat-icon-button (click)="albumsFilters.search.set(''); mobileAlbumsSearchOpen.set(false)">
-          <mat-icon>close</mat-icon>
-        </button>
-      </mat-form-field>
-    </div>
-  }
-
-  <!-- Mobile persons bottom bar -->
-  @if (auth.isAuthenticated() && isPersonsRoute()) {
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center gap-0 px-2 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] safe-area-pb">
-      <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobilePersonsSortMenu" [matTooltip]="I18N.gallery.sort | translate">
-        <mat-icon>sort</mat-icon>
-      </button>
-      <mat-menu #mobilePersonsSortMenu="matMenu">
-        <button mat-menu-item (click)="onPersonsSortChange('count')">
-          <span [class.font-bold]="personsFilters.sort() === 'count'">{{ I18N.persons.sort_count | translate }}</span>
-        </button>
-        <button mat-menu-item (click)="onPersonsSortChange('name')">
-          <span [class.font-bold]="personsFilters.sort() === 'name'">{{ I18N.persons.sort_name | translate }}</span>
-        </button>
-        <mat-divider />
-        <button mat-menu-item (click)="togglePersonsSortDirection()">
-          <mat-icon>{{ personsFilters.sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-          {{ personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate) }}
-        </button>
-      </mat-menu>
-      <button mat-icon-button class="!w-10 !h-10" (click)="mobilePersonsSearchOpen.set(!mobilePersonsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
-        <mat-icon>search</mat-icon>
-      </button>
-      @if (auth.isEdition()) {
+        <!-- Filter drawer toggle -->
         <button
-          mat-icon-button class="!w-10 !h-10"
-          [class.!text-[var(--mat-sys-primary)]]="personsFilters.showHidden()"
-          [attr.aria-pressed]="personsFilters.showHidden()"
-          [matTooltip]="I18N.persons.show_hidden | translate"
-          [attr.aria-label]="I18N.persons.show_hidden | translate"
-          (click)="personsFilters.showHidden.set(!personsFilters.showHidden())">
-          <mat-icon>{{ personsFilters.showHidden() ? 'visibility' : 'visibility_off' }}</mat-icon>
+          mat-icon-button class="!w-10 !h-10 shrink-0"
+          (click)="store.setFilterDrawerOpen(!store.filterDrawerOpen())"
+          [matTooltip]="I18N.ui.buttons.filters | translate"
+          [matBadge]="store.activeFilterCount() || null"
+          matBadgeColor="primary"
+          matBadgeSize="small"
+        >
+          <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">tune</mat-icon>
         </button>
-        <button mat-icon-button class="!w-10 !h-10 ml-auto"
-          [matTooltip]="I18N.manage_persons.new_person | translate"
-          [attr.aria-label]="I18N.manage_persons.new_person | translate"
-          (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
-          <mat-icon>person_add</mat-icon>
-        </button>
-        <a mat-icon-button class="!w-10 !h-10" routerLink="/merge-suggestions"
-          [matTooltip]="I18N.persons.merge_suggestions | translate"
-          [attr.aria-label]="I18N.persons.merge_suggestions | translate">
-          <mat-icon>auto_fix_high</mat-icon>
-        </a>
-      }
+      </div>
     </div>
   }
 
-  <!-- Mobile persons search bar -->
-  @if (auth.isAuthenticated() && isPersonsRoute() && mobilePersonsSearchOpen()) {
-    <div class="lg:hidden fixed bottom-[45px] left-0 right-0 z-50 px-4 py-1 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)]">
-      <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
-        <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" [placeholder]="I18N.persons.search_placeholder | translate" />
-        <mat-icon matPrefix class="opacity-60">search</mat-icon>
-        <button matSuffix mat-icon-button (click)="personsFilters.search.set(''); mobilePersonsSearchOpen.set(false)">
-          <mat-icon>close</mat-icon>
+  <!-- Mobile albums bottom bars (search row stacks over the toolbar) -->
+  @if (auth.isAuthenticated() && isAlbumsRoute()) {
+    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-[var(--mat-sys-surface-container)] safe-area-pb">
+      @if (mobileAlbumsSearchOpen()) {
+        <div class="px-4 py-1 border-t border-[var(--mat-sys-outline-variant)]">
+          <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
+            <input matInput [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" [placeholder]="I18N.albums.search | translate" />
+            <mat-icon matPrefix class="opacity-60">search</mat-icon>
+            <button matSuffix mat-icon-button (click)="albumsFilters.search.set(''); mobileAlbumsSearchOpen.set(false)">
+              <mat-icon>close</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+      }
+      <div class="flex items-center gap-0 px-2 py-1 border-t border-[var(--mat-sys-outline-variant)]">
+        <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobileAlbumTypeMenu" [matTooltip]="I18N.albums.filter_type | translate">
+          <mat-icon>filter_list</mat-icon>
         </button>
-      </mat-form-field>
+        <mat-menu #mobileAlbumTypeMenu="matMenu">
+          <button mat-menu-item (click)="albumsFilters.typeFilter.set('')">
+            <span [class.font-bold]="!albumsFilters.typeFilter()">{{ I18N.albums.type_all | translate }}</span>
+          </button>
+          <button mat-menu-item (click)="albumsFilters.typeFilter.set('manual')">
+            <span [class.font-bold]="albumsFilters.typeFilter() === 'manual'">{{ I18N.albums.type_manual | translate }}</span>
+          </button>
+          <button mat-menu-item (click)="albumsFilters.typeFilter.set('smart')">
+            <span [class.font-bold]="albumsFilters.typeFilter() === 'smart'">{{ I18N.albums.type_smart | translate }}</span>
+          </button>
+        </mat-menu>
+        <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobileAlbumSortMenu" [matTooltip]="I18N.albums.sort_by | translate">
+          <mat-icon>sort</mat-icon>
+        </button>
+        <mat-menu #mobileAlbumSortMenu="matMenu">
+          <button mat-menu-item (click)="albumsFilters.sort.set('updated_at')">
+            <span [class.font-bold]="albumsFilters.sort() === 'updated_at'">{{ I18N.albums.sort_recent | translate }}</span>
+          </button>
+          <button mat-menu-item (click)="albumsFilters.sort.set('name')">
+            <span [class.font-bold]="albumsFilters.sort() === 'name'">{{ I18N.albums.sort_name | translate }}</span>
+          </button>
+          <button mat-menu-item (click)="albumsFilters.sort.set('photo_count')">
+            <span [class.font-bold]="albumsFilters.sort() === 'photo_count'">{{ I18N.albums.sort_photos | translate }}</span>
+          </button>
+        </mat-menu>
+        <button mat-icon-button class="!w-10 !h-10" (click)="mobileAlbumsSearchOpen.set(!mobileAlbumsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
+          <mat-icon>search</mat-icon>
+        </button>
+        @if (auth.isEdition()) {
+          <button mat-icon-button class="!w-10 !h-10 ml-auto" [matTooltip]="I18N.albums.create | translate" [attr.aria-label]="I18N.albums.create | translate" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
+            <mat-icon>add</mat-icon>
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Mobile persons bottom bars (search row stacks over the toolbar) -->
+  @if (auth.isAuthenticated() && mobilePersonsBarVisible()) {
+    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-[var(--mat-sys-surface-container)] safe-area-pb">
+      @if (mobilePersonsSearchOpen()) {
+        <div class="px-4 py-1 border-t border-[var(--mat-sys-outline-variant)]">
+          <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
+            <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" [placeholder]="I18N.persons.search_placeholder | translate" />
+            <mat-icon matPrefix class="opacity-60">search</mat-icon>
+            <button matSuffix mat-icon-button (click)="personsFilters.search.set(''); mobilePersonsSearchOpen.set(false)">
+              <mat-icon>close</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+      }
+      <div class="flex items-center gap-0 px-2 py-1 border-t border-[var(--mat-sys-outline-variant)]">
+        <button mat-icon-button class="!w-10 !h-10" [matMenuTriggerFor]="mobilePersonsSortMenu" [matTooltip]="I18N.gallery.sort | translate">
+          <mat-icon>sort</mat-icon>
+        </button>
+        <mat-menu #mobilePersonsSortMenu="matMenu">
+          <button mat-menu-item (click)="onPersonsSortChange('count')">
+            <span [class.font-bold]="personsFilters.sort() === 'count'">{{ I18N.persons.sort_count | translate }}</span>
+          </button>
+          <button mat-menu-item (click)="onPersonsSortChange('name')">
+            <span [class.font-bold]="personsFilters.sort() === 'name'">{{ I18N.persons.sort_name | translate }}</span>
+          </button>
+          <mat-divider />
+          <button mat-menu-item (click)="togglePersonsSortDirection()">
+            <mat-icon>{{ personsFilters.sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+            {{ personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate) }}
+          </button>
+        </mat-menu>
+        <button mat-icon-button class="!w-10 !h-10" (click)="mobilePersonsSearchOpen.set(!mobilePersonsSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate">
+          <mat-icon>search</mat-icon>
+        </button>
+        @if (auth.isEdition()) {
+          <button
+            mat-icon-button class="!w-10 !h-10"
+            [class.!text-[var(--mat-sys-primary)]]="personsFilters.showHidden()"
+            [attr.aria-pressed]="personsFilters.showHidden()"
+            [matTooltip]="I18N.persons.show_hidden | translate"
+            [attr.aria-label]="I18N.persons.show_hidden | translate"
+            (click)="personsFilters.showHidden.set(!personsFilters.showHidden())">
+            <mat-icon>{{ personsFilters.showHidden() ? 'visibility' : 'visibility_off' }}</mat-icon>
+          </button>
+          <button mat-icon-button class="!w-10 !h-10 ml-auto"
+            [matTooltip]="I18N.manage_persons.new_person | translate"
+            [attr.aria-label]="I18N.manage_persons.new_person | translate"
+            (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
+            <mat-icon>person_add</mat-icon>
+          </button>
+          <a mat-icon-button class="!w-10 !h-10" routerLink="/merge-suggestions"
+            [matTooltip]="I18N.persons.merge_suggestions | translate"
+            [attr.aria-label]="I18N.persons.merge_suggestions | translate">
+            <mat-icon>auto_fix_high</mat-icon>
+          </a>
+        }
+      </div>
     </div>
   }
 

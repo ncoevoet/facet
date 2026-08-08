@@ -10,6 +10,7 @@ import { I18nService } from './core/services/i18n.service';
 import { ThemeService } from './core/services/theme.service';
 import { CompareFiltersService } from './features/comparison/compare-filters.service';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
+import { PersonsFiltersService } from './features/persons/persons-filters.service';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SwUpdate } from '@angular/service-worker';
@@ -19,9 +20,11 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
   const filtersSignal = signal<GalleryFilters>({ ...DEFAULT_FILTERS });
   const personsSignal = signal<{ id: number; name: string | null }[]>([]);
   const compareCategorySig = signal('');
+  const selectionCountSignal = signal(0);
   const mockStore = {
     filters: filtersSignal,
     persons: personsSignal,
+    selectionCount: selectionCountSignal,
     updateFilter: vi.fn(),
     resetFilters: vi.fn(() => Promise.resolve()),
     config: signal(null),
@@ -47,7 +50,16 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
     ],
   });
 
-  return { app: TestBed.inject(App), filtersSignal, personsSignal, mockStore, mockRouter, compareCategorySig };
+  return {
+    app: TestBed.inject(App),
+    filtersSignal,
+    personsSignal,
+    mockStore,
+    mockRouter,
+    compareCategorySig,
+    selectionCountSignal,
+    personsFilters: TestBed.inject(PersonsFiltersService),
+  };
 }
 
 describe('App', () => {
@@ -85,6 +97,42 @@ describe('App', () => {
     it('isCompareRoute ignores query string', () => {
       const { app } = createApp('/compare?category=portrait');
       expect((app as any).isCompareRoute()).toBe(true);
+    });
+  });
+
+  describe('mobile bottom bar vs selection (issue #73)', () => {
+    it('shows the gallery bottom bar when nothing is selected', () => {
+      const { app } = createApp('/');
+      expect((app as any).mobileGalleryBarVisible()).toBe(true);
+    });
+
+    it('hides the gallery bottom bar while photos are selected', () => {
+      const { app, selectionCountSignal } = createApp('/');
+      selectionCountSignal.set(3);
+      expect((app as any).mobileGalleryBarVisible()).toBe(false);
+    });
+
+    it('hides the gallery bottom bar on an album route while photos are selected', () => {
+      const { app, selectionCountSignal } = createApp('/album/12');
+      selectionCountSignal.set(1);
+      expect((app as any).mobileGalleryBarVisible()).toBe(false);
+    });
+
+    it('shows the persons bottom bar when nothing is selected', () => {
+      const { app } = createApp('/persons');
+      expect((app as any).mobilePersonsBarVisible()).toBe(true);
+    });
+
+    it('hides the persons bottom bar while persons are selected', () => {
+      const { app, personsFilters } = createApp('/persons');
+      personsFilters.selectedIds.set(new Set([1, 2]));
+      expect((app as any).mobilePersonsBarVisible()).toBe(false);
+    });
+
+    it('leaves the persons bar alone when the gallery has a selection', () => {
+      const { app, selectionCountSignal } = createApp('/persons');
+      selectionCountSignal.set(5);
+      expect((app as any).mobilePersonsBarVisible()).toBe(true);
     });
   });
 

@@ -370,7 +370,7 @@ export class PersonFacesDialogComponent implements OnInit {
 
     <!-- Selection action bar (sticky bottom) -->
     @if (auth.isEdition() && selectedIds().size > 0) {
-      <div class="fixed bottom-[45px] lg:bottom-0 left-0 right-0 z-50 flex flex-col lg:flex-row items-center justify-center gap-2 lg:gap-3 px-4 lg:px-6 py-2 lg:py-3 bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
+      <div class="fixed bottom-0 left-0 right-0 z-50 flex flex-col lg:flex-row items-center justify-center gap-2 lg:gap-3 px-4 lg:px-6 py-2 lg:py-3 max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
         <span class="text-sm font-medium">{{ I18N.gallery.selection.count | translate:{ count: selectedIds().size } }}</span>
         <div class="flex items-center gap-2">
           <button mat-button (click)="clearSelection()">
@@ -407,7 +407,7 @@ export class ManagePersonsComponent implements OnInit {
   readonly total = signal(0);
   readonly loading = signal(false);
   readonly editingId = signal<number | null>(null);
-  readonly selectedIds = signal<Set<number>>(new Set());
+  readonly selectedIds = this.personsFilters.selectedIds;
   readonly needsNaming = signal<Person[]>([]);
   readonly needsNamingExpanded = signal(true);
 
@@ -420,6 +420,7 @@ export class ManagePersonsComponent implements OnInit {
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       this.pageHelp.setDescription(null);
+      this.clearSelection();
       const t = this.personsToolbar();
       if (t) this.headerSlot.clear(t);
     });

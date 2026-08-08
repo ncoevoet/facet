@@ -187,6 +187,11 @@ export class App implements OnInit {
   protected readonly isTimelineRoute = computed(() => this.url().split('?')[0].startsWith('/timeline'));
   protected readonly isSharedRoute = computed(() => this.url().split('?')[0].startsWith('/shared/'));
 
+  /** On mobile the selection action bar replaces the route's bottom bar rather than
+   *  stacking on top of it, so the two can never overlap (issue #73). */
+  protected readonly mobileGalleryBarVisible = computed(() => this.isGalleryRoute() && !this.store.selectionCount());
+  protected readonly mobilePersonsBarVisible = computed(() => this.isPersonsRoute() && !this.personsFilters.selectedIds().size);
+
   /** True on routes that render their own per-route header controls, so the
    *  header separator only shows when both the nav and those controls are present. */
   protected readonly hasHeaderControls = computed(() =>
