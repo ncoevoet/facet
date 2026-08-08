@@ -118,6 +118,77 @@ describe('ComparisonCategoryExplainerComponent', () => {
       expect(component.result()?.current_category).toBe('b_current');
       expect(component.loading()).toBe(false);
     });
+
+    it('keeps loading true while a newer request is still in flight after the previous one settled', async () => {
+      const slowB = new Subject<{ current_category: string; target_category: string; conflicts: unknown[]; suggestions: unknown[]; no_conflicts: boolean }>();
+      mockApi.post.mockImplementationOnce(() => of({
+        current_category: 'a_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true,
+      }));
+      mockApi.post.mockImplementationOnce(() => slowB.asObservable());
+
+      component.path = () => '/b.jpg';
+      component.targetCategory = () => 'sports';
+
+      const pendingA = component.load('/a.jpg', 'sports');
+      const pendingB = component.load('/b.jpg', 'sports');
+      await pendingA;
+
+      expect(component.loading()).toBe(true);
+      expect(component.result()).toBeNull();
+
+      slowB.next({ current_category: 'b_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true });
+      slowB.complete();
+      await pendingB;
+
+      expect(component.loading()).toBe(false);
+      expect(component.result()?.current_category).toBe('b_current');
+    });
+
+    it('never lets a stale FAILURE clobber the fresh result already shown', async () => {
+      const failA = new Subject<unknown>();
+      mockApi.post.mockImplementationOnce(() => failA.asObservable());
+      mockApi.post.mockImplementationOnce(() => of({
+        current_category: 'b_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true,
+      }));
+
+      component.path = () => '/b.jpg';
+      component.targetCategory = () => 'sports';
+
+      const pendingA = component.load('/a.jpg', 'sports');
+      await component.load('/b.jpg', 'sports');
+
+      failA.error(new Error('boom'));
+      await pendingA;
+
+      expect(component.error()).toBe(false);
+      expect(component.result()?.current_category).toBe('b_current');
+      expect(component.loading()).toBe(false);
+    });
+
+    // Latent robustness hole (not reachable today: photo-detail.component.ts only
+    // instantiates this component inside an `@if` guard with non-empty path/target),
+    // pinned so a future caller can't reintroduce it silently: the early return for
+    // a falsy input skips the `finally` that resets `loading`, because that `finally`
+    // belongs to the now-superseded in-flight request.
+    it('leaves loading stuck true if an input goes falsy while a request is still in flight', async () => {
+      const slowA = new Subject<unknown>();
+      mockApi.post.mockImplementationOnce(() => slowA.asObservable());
+
+      component.path = () => '/a.jpg';
+      component.targetCategory = () => 'sports';
+      const pendingA = component.load('/a.jpg', 'sports');
+      expect(component.loading()).toBe(true);
+
+      component.targetCategory = () => '';
+      await component.load('/a.jpg', '');
+
+      slowA.next({ current_category: 'a_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true });
+      slowA.complete();
+      await pendingA;
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(component.loading()).toBe(true);
+    });
   });
 
   describe('retry', () => {

@@ -128,11 +128,14 @@ class TestUpdateCategoryPriorities:
         result_names = [c["name"] for c in cfg.get_categories() if c["name"] != "default"]
         assert result_names == reversed_order
 
-    def test_missing_priority_raises_400_instead_of_crashing(self, config_copy):
-        """DEFECT 4a regression: a category with a None priority previously
-        crashed ``sorted()`` with an opaque TypeError instead of a clean 400.
-        ``validate_categories`` tolerates a missing priority as a logged
-        issue, not a hard error, so this state is reachable in practice."""
+    def test_missing_priority_is_healed_instead_of_crashing_or_blocking(self, config_copy):
+        """DEFECT M2/M3 regression: a category with a None priority previously
+        crashed ``sorted()`` with an opaque TypeError, and a later fix turned
+        that into a hard 400 -- which left a hand-edited config with no
+        in-app way to fix it, since this endpoint is the only priority
+        writer. ``validate_categories`` tolerates a missing priority as a
+        logged issue, not a hard error, so this endpoint must agree: heal it
+        and still honor the requested order."""
         data = json.loads(config_copy.read_text())
         target = next(c for c in data["categories"] if c["name"] != "default")
         del target["priority"]
@@ -140,34 +143,40 @@ class TestUpdateCategoryPriorities:
 
         order = _non_default_names(config_copy)
 
-        with pytest.raises(HTTPException) as exc_info:
-            update_category_priorities(config_copy, order)
-        assert exc_info.value.status_code == 400
-        assert "priority" in exc_info.value.detail.lower()
-        assert target["name"] in exc_info.value.detail
+        update_category_priorities(config_copy, order)
 
-    def test_duplicate_existing_priority_raises_400_instead_of_silently_misordering(self, config_copy):
-        """DEFECT 4b regression: the docstring claimed priority uniqueness is
-        'guaranteed by construction', which is false -- the multiset of
-        existing priorities is preserved verbatim, so a pre-existing
-        collision (e.g. 'astro' colliding with 'art') makes a full reversal
-        return 200 OK while silently producing the wrong order. Reject it up
-        front instead of writing a config that can't express the request."""
+        cfg = ScoringConfig(str(config_copy), validate=False)
+        result_names = [c["name"] for c in cfg.get_categories() if c["name"] != "default"]
+        assert result_names == order
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is True
+        assert issues == []
+
+    def test_duplicate_existing_priority_is_healed_instead_of_silently_misordering(self, config_copy):
+        """DEFECT M2/M3 regression: the docstring once claimed priority
+        uniqueness is 'guaranteed by construction', which was false -- the
+        multiset of existing priorities was preserved verbatim, so a
+        pre-existing collision (e.g. 'astro' colliding with 'art') made a
+        full reversal return 200 OK while silently producing the wrong
+        order. A later fix hard-rejected this instead, which left the
+        Priorities tab permanently dead for a config it can't self-repair.
+        Heal the collision (assign a fresh value past the current maximum)
+        and still honor the requested order."""
         data = json.loads(config_copy.read_text())
         non_default = [c for c in data["categories"] if c["name"] != "default"]
         non_default[1]["priority"] = non_default[0]["priority"]
         config_copy.write_text(json.dumps(data))
-        original_contents = config_copy.read_text()
 
         order = list(reversed(_non_default_names(config_copy)))
 
-        with pytest.raises(HTTPException) as exc_info:
-            update_category_priorities(config_copy, order)
-        assert exc_info.value.status_code == 400
-        assert "duplicate" in exc_info.value.detail.lower()
-        assert non_default[0]["name"] in exc_info.value.detail
-        assert non_default[1]["name"] in exc_info.value.detail
-        assert config_copy.read_text() == original_contents
+        update_category_priorities(config_copy, order)
+
+        cfg = ScoringConfig(str(config_copy), validate=False)
+        result_names = [c["name"] for c in cfg.get_categories() if c["name"] != "default"]
+        assert result_names == order
+        ok, issues = cfg.validate_categories(verbose=False)
+        assert ok is True
+        assert issues == []
 
 
 class TestConfigWriteLock:

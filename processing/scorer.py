@@ -1380,7 +1380,7 @@ class Facet:
             recalc_cols = """
                 path, aesthetic, face_count, face_quality, eye_sharpness, face_sharpness,
                 face_ratio, tech_sharpness, color_score, exposure_score, comp_score,
-                isolation_bonus, is_blink, iso, f_stop, shadow_clipped, highlight_clipped,
+                isolation_bonus, is_blink, iso, f_stop, focal_length, shadow_clipped, highlight_clipped,
                 is_silhouette, histogram_spread, is_monochrome, contrast_score, tags,
                 leading_lines_score, histogram_bimodality, clip_embedding,
                 raw_sharpness_variance, raw_color_entropy, raw_eye_sharpness,

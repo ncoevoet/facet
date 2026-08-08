@@ -17,6 +17,11 @@ export interface CategoryOverrideDialogData {
   currentCategory: string | null;
 }
 
+export interface CategoryOverrideResult {
+  category: string;
+  aggregate: number;
+}
+
 interface CategoryOption {
   name: string;
 }
@@ -90,10 +95,10 @@ export class CategoryOverrideDialogComponent implements OnInit {
     this.saving.set(true);
     try {
       const res = await firstValueFrom(
-        this.api.post<{ new_category: string }>('/comparison/override_category', { path: this.data.path, category }),
+        this.api.post<{ new_category: string; aggregate: number }>('/comparison/override_category', { path: this.data.path, category }),
       );
       this.snackBar.open(this.i18n.t(I18N.photo.category_override.success, { category: res.new_category }), '', { duration: 3000 });
-      this.dialogRef.close(res.new_category);
+      this.dialogRef.close({ category: res.new_category, aggregate: res.aggregate });
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
       this.saving.set(false);

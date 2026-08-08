@@ -1,6 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
+import { provideRouter } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { AlbumService } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -10,8 +11,8 @@ import { AlbumsComponent } from './albums.component';
 describe('AlbumsComponent', () => {
   let component: AlbumsComponent;
   let mockAlbumService: { list: Mock; delete: Mock };
-  let mockAuth: { isEdition: Mock };
-  let mockI18n: { t: Mock };
+  let mockAuth: { isEdition: Mock; hasFeature: Mock };
+  let mockI18n: { t: Mock; translations: Mock };
   let mockDialog: { open: Mock };
 
   const mockAlbumsResponse = {
@@ -27,13 +28,14 @@ describe('AlbumsComponent', () => {
       list: vi.fn(() => of(mockAlbumsResponse)),
       delete: vi.fn(() => of({})),
     };
-    mockAuth = { isEdition: vi.fn(() => true) };
-    mockI18n = { t: vi.fn((key: string) => key) };
+    mockAuth = { isEdition: vi.fn(() => true), hasFeature: vi.fn(() => true) };
+    mockI18n = { t: vi.fn((key: string) => key), translations: vi.fn(() => ({})) };
     mockDialog = { open: vi.fn(() => ({ afterClosed: () => of(true) })) };
 
     TestBed.configureTestingModule({
       providers: [
         AlbumsComponent,
+        provideRouter([]),
         { provide: AlbumService, useValue: mockAlbumService },
         { provide: AuthService, useValue: mockAuth },
         { provide: I18nService, useValue: mockI18n },
@@ -87,5 +89,24 @@ describe('AlbumsComponent', () => {
       expect.objectContaining({ disableClose: true }),
     );
     expect(internals().albums().find((a: { id: number }) => a.id === album.id)?.scoring_context).toBe('party_event');
+  });
+
+  // DEFECT F7 regression: the scoring-context button was gated on `!album.is_smart`,
+  // making it unreachable for every smart album (all 16 albums in the real library
+  // are smart). Asserted against the RENDERED template, not `openScoringContext()`
+  // called directly on the instance -- calling the method bypasses the template
+  // gate entirely and would pass even with the bug present.
+  it('renders the scoring-context button for a smart album', async () => {
+    const fixture = TestBed.createComponent(AlbumsComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const smartCard = Array.from(fixture.nativeElement.querySelectorAll('a'))
+      .find((a: any) => a.textContent.includes('Smart')) as HTMLElement;
+    expect(smartCard).toBeTruthy();
+
+    const icons = Array.from(smartCard.querySelectorAll('mat-icon')).map((i: any) => i.textContent.trim());
+    expect(icons).toContain('tune');
   });
 });

@@ -258,4 +258,19 @@ describe('AlbumService', () => {
       req.flush(mockResponse);
     });
   });
+
+  // F6: clearing a scoring context is its own endpoint, distinct from setScoringContext.
+  describe('clearScoringContext()', () => {
+    it('should DELETE /api/albums/:id/scoring_context', () => {
+      const mockResponse = { ok: true, cleared: 5 };
+
+      service.clearScoringContext(1).subscribe((data) => {
+        expect(data).toEqual(mockResponse);
+      });
+
+      const req = httpTesting.expectOne('/api/albums/1/scoring_context');
+      expect(req.request.method).toBe('DELETE');
+      req.flush(mockResponse);
+    });
+  });
 });

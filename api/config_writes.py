@@ -86,26 +86,29 @@ def _validate_priority_order(order, current_names):
         raise HTTPException(status_code=400, detail=f"Unknown categories in order: {', '.join(unknown)}")
 
 
-def _validate_existing_priorities(by_name, current_names):
-    """Raise ``HTTPException(400)`` naming categories whose stored ``priority``
-    cannot express the requested order.
+def _resolve_priority_pool(by_name, current_names):
+    """Return ``len(current_names)`` unique priority ints, healing whatever's broken.
 
-    Two cases: a missing (``None``) priority crashes the ``sorted()`` call
-    below with a ``TypeError`` — ``validate_categories`` merely logs that as a
-    tolerated issue, so it is reachable here. A priority value shared by more
-    than one category is preserved verbatim by the positional reassignment,
-    so a pre-existing collision silently produces the wrong order instead of
-    the one requested — reject it instead of writing an unrepresentable config.
+    ``validate_categories`` treats a missing or duplicated ``priority`` as a
+    logged, non-fatal issue — a category still scores, it just can't be
+    reliably positioned. This endpoint is the only writer of ``priority``, so
+    it must agree: instead of 400ing (which would leave a hand-edited config
+    with no in-app way to fix it), a missing or colliding value is replaced
+    with a fresh one past the current maximum. Priorities that are already
+    unique and present are kept verbatim. The returned pool still needs
+    sorting before being zipped onto the requested order positionally.
     """
-    missing = sorted(name for name in current_names if by_name[name].get('priority') is None)
-    if missing:
-        raise HTTPException(status_code=400, detail=f"Missing priority for categories: {', '.join(missing)}")
-
-    priority_counts = Counter(by_name[name]['priority'] for name in current_names)
-    colliding_priorities = {priority for priority, count in priority_counts.items() if count > 1}
-    if colliding_priorities:
-        offending = sorted(name for name in current_names if by_name[name]['priority'] in colliding_priorities)
-        raise HTTPException(status_code=400, detail=f"Duplicate priority values on categories: {', '.join(offending)}")
+    counts = Counter(by_name[name].get('priority') for name in current_names)
+    next_value = max((p for p in counts if p is not None), default=0) + 1
+    pool = []
+    for name in current_names:
+        priority = by_name[name].get('priority')
+        if priority is None or counts[priority] > 1:
+            pool.append(next_value)
+            next_value += 1
+        else:
+            pool.append(priority)
+    return pool
 
 
 def update_category_priorities(config_path, order):
@@ -117,15 +120,17 @@ def update_category_priorities(config_path, order):
     pinned last regardless of what's submitted, so echoing GET's output back
     verbatim is accepted rather than rejected as an unknown category.
 
-    Raises ``HTTPException(400)`` naming what's wrong: an order that isn't a
-    permutation of the current names, or existing priorities that can't
-    express the requested order (missing or duplicated — see
-    ``_validate_existing_priorities``). The existing priority values are then
-    collected, sorted ascending, and reassigned positionally onto ``order`` —
-    the multiset of priorities is unchanged. ``default`` keeps its own
-    priority untouched. Always takes a timestamped loose backup before
-    writing (priorities aren't covered by the weights snapshot table) and
-    returns its path.
+    Raises ``HTTPException(400)`` only when ``order`` itself isn't a
+    permutation of the current names — see ``_validate_priority_order``. A
+    missing or duplicated stored ``priority`` is healed rather than rejected
+    (see ``_resolve_priority_pool``): valid, unique values are preserved
+    verbatim, broken ones are replaced with fresh values past the current
+    maximum, and the resulting pool is sorted ascending and reassigned
+    positionally onto ``order`` — so a hand-edited config with broken
+    priorities is fixed by the write instead of being permanently stuck.
+    ``default`` keeps its own priority untouched. Always takes a timestamped
+    loose backup before writing (priorities aren't covered by the weights
+    snapshot table) and returns its path.
     """
     config_path = str(config_path)
     with _CONFIG_WRITE_LOCK:
@@ -139,9 +144,8 @@ def update_category_priorities(config_path, order):
         order = [name for name in order if name != DEFAULT_CATEGORY_NAME]
 
         _validate_priority_order(order, current_names)
-        _validate_existing_priorities(by_name, current_names)
 
-        priorities = sorted(by_name[name]['priority'] for name in current_names)
+        priorities = sorted(_resolve_priority_pool(by_name, current_names))
         for name, priority in zip(order, priorities):
             by_name[name]['priority'] = priority
 

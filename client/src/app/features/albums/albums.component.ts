@@ -145,13 +145,11 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
                     <mat-icon class="opacity-60">web</mat-icon>
                   </button>
                 }
-                @if (!album.is_smart) {
-                  <button mat-icon-button
-                          [matTooltip]="I18N.albums.scoring_context.action | translate"
-                          (click)="openScoringContext($event, album)">
-                    <mat-icon class="opacity-60">tune</mat-icon>
-                  </button>
-                }
+                <button mat-icon-button
+                        [matTooltip]="I18N.albums.scoring_context.action | translate"
+                        (click)="openScoringContext($event, album)">
+                  <mat-icon class="opacity-60">tune</mat-icon>
+                </button>
                 <button mat-icon-button
                         [matTooltip]="I18N.albums.edit | translate"
                         (click)="editAlbum($event, album)">
@@ -313,13 +311,13 @@ export class AlbumsComponent {
   protected async openScoringContext(event: Event, album: Album): Promise<void> {
     event.preventDefault();
     event.stopPropagation();
-    const newContext = await firstValueFrom(this.dialog.open(AlbumScoringContextDialogComponent, {
+    const newContext: string | null | undefined = await firstValueFrom(this.dialog.open(AlbumScoringContextDialogComponent, {
       data: { albumId: album.id, albumName: album.name, currentContext: album.scoring_context } satisfies AlbumScoringContextDialogData,
       width: '95vw',
       maxWidth: '32rem',
       disableClose: true,
     }).afterClosed());
-    if (newContext) {
+    if (newContext !== undefined) {
       this.albums.update(list => list.map(a => a.id === album.id ? { ...a, scoring_context: newContext } : a));
     }
   }

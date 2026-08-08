@@ -457,14 +457,21 @@ describe('PhotoDetailComponent', () => {
   });
 
   describe('clearCategoryOverride', () => {
-    it('posts to the clear_category_override endpoint', async () => {
-      mockApi.post.mockReturnValue(of({ success: true, path: '/photos/test.jpg' }));
+    // D5: the endpoint's response already carries the recomputed category and
+    // aggregate; the client used to ignore both, leaving the lightbox
+    // showing the stale category/score until a full reload.
+    it('posts to the clear_category_override endpoint and applies the returned category and aggregate', async () => {
+      mockApi.post.mockReturnValue(of({
+        success: true, path: '/photos/test.jpg', old_category: 'portrait', new_category: 'landscape', aggregate: 6.8,
+      }));
       createComponent();
       component.photo.set(samplePhoto);
 
       await component.clearCategoryOverride(samplePhoto);
 
       expect(mockApi.post).toHaveBeenCalledWith('/comparison/clear_category_override', { path: '/photos/test.jpg' });
+      expect(component.photo()?.category).toBe('landscape');
+      expect(component.photo()?.aggregate).toBe(6.8);
     });
 
     it('does not throw when the API call fails', async () => {

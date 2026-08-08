@@ -16,7 +16,7 @@ describe('CategoryOverrideDialogComponent', () => {
 
   function build(currentCategory: string | null = 'silhouette') {
     get = vi.fn(() => of({ categories: [{ name: 'silhouette' }, { name: 'sports' }, { name: 'fashion' }] }));
-    post = vi.fn(() => of({ success: true, path: '/a.jpg', old_category: 'silhouette', new_category: 'sports' }));
+    post = vi.fn(() => of({ success: true, path: '/a.jpg', old_category: 'silhouette', new_category: 'sports', aggregate: 7.42 }));
     dialogClose = vi.fn();
     snackOpen = vi.fn();
     TestBed.configureTestingModule({
@@ -48,7 +48,7 @@ describe('CategoryOverrideDialogComponent', () => {
     expect(component.selectedCategory()).toBe('silhouette');
   });
 
-  it('saves the override and closes with the new category', async () => {
+  it('saves the override and closes with the new category and recomputed aggregate', async () => {
     build('silhouette');
     await component.ngOnInit();
     component.selectedCategory.set('sports');
@@ -56,7 +56,7 @@ describe('CategoryOverrideDialogComponent', () => {
     await component.save();
 
     expect(post).toHaveBeenCalledWith('/comparison/override_category', { path: '/a.jpg', category: 'sports' });
-    expect(dialogClose).toHaveBeenCalledWith('sports');
+    expect(dialogClose).toHaveBeenCalledWith({ category: 'sports', aggregate: 7.42 });
   });
 
   it('does not close on save error', async () => {

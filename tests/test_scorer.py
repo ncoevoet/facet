@@ -471,6 +471,68 @@ class TestUpdateAllAggregatesHonorsOverride:
 
 
 # ---------------------------------------------------------------------------
+# update_all_aggregates — recalc_cols carries every documented filter field
+# ---------------------------------------------------------------------------
+
+class TestUpdateAllAggregatesCarriesFocalLength:
+    """Regression test: recalc_cols (the SELECT feeding --recompute-average)
+    omitted focal_length, so a category using the documented focal_length_min
+    / focal_length_max filter could never match on the recompute path even
+    though the same field is honored when a photo is first scored — clearing
+    an override could assign one category and the next recompute would
+    silently reassign a different one.
+    """
+
+    _PATH = '/tele/a.jpg'
+    _FOCAL_LENGTH = 400.0
+
+    @pytest.fixture
+    def config_with_focal_length_category(self, tmp_path):
+        import json
+
+        with open('scoring_config.json') as f:
+            config = json.load(f)
+        base_category = next(c for c in config['categories'] if c['name'] == 'macro')
+        telephoto_category = dict(base_category, name='telephoto', priority=0,
+                                   filters={'focal_length_min': 200})
+        config['categories'].append(telephoto_category)
+        config_path = tmp_path / 'scoring_config.json'
+        config_path.write_text(json.dumps(config))
+        return str(config_path)
+
+    @pytest.fixture
+    def facet_with_telephoto_photo(self, tmp_path, config_with_focal_length_category):
+        from db import init_database, get_connection
+        from processing.scorer import Facet
+
+        db_path = str(tmp_path / 'focal_length.db')
+        init_database(db_path)
+        columns = ['path', 'focal_length'] + list(TestUpdateAllAggregatesHonorsOverride._RECALC_COLUMNS.keys())
+        values = [self._PATH, self._FOCAL_LENGTH] + list(TestUpdateAllAggregatesHonorsOverride._RECALC_COLUMNS.values())
+        placeholders = ','.join('?' * len(columns))
+        with get_connection(db_path, row_factory=False) as conn:
+            conn.execute(
+                f"INSERT INTO photos ({','.join(columns)}) VALUES ({placeholders})",
+                values,
+            )
+            conn.commit()
+        return Facet(db_path=db_path, config_path=config_with_focal_length_category, lightweight=True)
+
+    def test_recompute_honors_a_focal_length_min_category(self, facet_with_telephoto_photo):
+        from db import get_connection
+
+        facet = facet_with_telephoto_photo
+        facet.update_all_aggregates(use_embeddings=False)
+
+        with get_connection(facet.db_path, row_factory=False) as conn:
+            category, = conn.execute(
+                "SELECT category FROM photos WHERE path = ?", (self._PATH,)
+            ).fetchone()
+
+        assert category == 'telephoto'
+
+
+# ---------------------------------------------------------------------------
 # score_photo_from_pil — the --dry-run preview path honors the sticky override
 # ---------------------------------------------------------------------------
 

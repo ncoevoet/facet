@@ -1,5 +1,7 @@
 """Tests for the scan endpoint (api/routers/scan.py)."""
 
+import contextlib
+import inspect
 import json
 import os
 import signal
@@ -18,6 +20,63 @@ from api.routers.scan import SCAN_STREAM_PURPOSE
 
 _AUTH_MODULE = "api.auth"
 _ROUTER_MODULE = "api.routers.scan"
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_FACET_SCRIPT = os.path.join(_REPO_ROOT, "facet.py")
+
+
+@contextlib.contextmanager
+def _library_lock_held(db_path, kind="recompute", origin="cli"):
+    """Hold a real library lock the way a running job holds it.
+
+    The lock is the OS lock on the file, not the file's existence, so tests
+    that need a *live* holder must actually take it — hand-writing a JSON
+    payload only ever simulates a leftover (dead) lock.
+    """
+    from facet import LibraryLock
+
+    lock = LibraryLock(db_path, kind=kind)
+    lock.origin = origin
+    lock.acquire()
+    try:
+        yield lock
+    finally:
+        lock.release()
+
+
+def _write_leftover_lock_file(db_path, pid, kind="recompute", origin="cli", started_at=0):
+    """Write an unlocked lock file: what a crashed or rebooted holder leaves."""
+    from facet import _library_lock_path
+
+    lock_path = _library_lock_path(db_path)
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "w") as f:
+        json.dump({"pid": pid, "kind": kind, "origin": origin, "started_at": started_at}, f)
+    return lock_path
+
+
+def _spawn_lock_holder(db_path, kind="recompute"):
+    """Start a separate process holding the lock; returns once it is held."""
+    script = (
+        "import sys, time\n"
+        f"sys.path.insert(0, {_REPO_ROOT!r})\n"
+        "from facet import LibraryLock\n"
+        "LibraryLock(sys.argv[1], kind=sys.argv[2]).acquire()\n"
+        "print('held', flush=True)\n"
+        "time.sleep(60)\n"
+    )
+    proc = subprocess.Popen(
+        [sys.executable, "-c", script, db_path, kind],
+        stdout=subprocess.PIPE, text=True,
+    )
+    assert proc.stdout.readline().strip() == "held"
+    return proc
+
+
+def _run_facet(*argv):
+    return subprocess.run(
+        [sys.executable, _FACET_SCRIPT, *argv],
+        capture_output=True, text=True, timeout=120,
+    )
 
 
 def _viewer_config_with_scan(enabled=True):
@@ -440,6 +499,163 @@ class TestRecomputeStatus:
         assert data["progress"]["current"] == 10
         assert data["exit_code"] is None
 
+    def test_genuinely_failed_job_reads_as_failed_on_the_spawning_worker(self, edition_client):
+        """The worker that actually ran the job still reports its real,
+        non-zero exit code -- the fix must not turn every failure into an
+        indeterminate result."""
+        from api.routers.scan import _scan_state
+        _scan_state.update({
+            'running': False, 'kind': 'recompute', 'exit_code': 1, 'progress': None,
+        })
+
+        resp = edition_client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["running"] is False
+        assert data["kind"] == "recompute"
+        assert data["exit_code"] == 1
+
+    def test_local_scan_running_still_reports_running(self, edition_client):
+        """A locally running job of ANY kind must still surface as running
+        here -- this is the in-process mutual-exclusion signal that stops a
+        client from retrying a recompute while a scan occupies the same
+        job slot (``start_recompute`` 409s on ``_scan_state['running']``
+        regardless of kind)."""
+        from api.routers.scan import _scan_state
+        _scan_state.update({
+            'running': True, 'kind': 'scan', 'exit_code': None, 'progress': None,
+        })
+
+        resp = edition_client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["running"] is True
+        assert data["kind"] == "scan"
+
+    def test_stale_local_scan_result_does_not_leak_into_recompute_status(self, edition_client):
+        """A worker whose last local job was a finished *scan* must not
+        report that scan's exit code as if it were a recompute result."""
+        from api.routers.scan import _scan_state
+        _scan_state.update({
+            'running': False, 'kind': 'scan', 'exit_code': 0, 'progress': None,
+        })
+
+        resp = edition_client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["running"] is False
+        assert data["kind"] is None
+        assert data["exit_code"] is None
+
+
+class TestRecomputeStatusCrossProcess:
+    """A worker that never saw the POST still answers truthfully, using
+    ``facet.LibraryLock`` (held by the recompute subprocess for its whole
+    run, visible to every worker) as the cross-process running signal --
+    proving the fix for the false-failure defect described in THE DEFECT."""
+
+    ENDPOINT = "/api/scan/recompute_status"
+
+    @pytest.fixture(autouse=True)
+    def _reset_scan_state(self):
+        from api.routers.scan import _scan_state
+        original = dict(_scan_state)
+        yield
+        _scan_state.clear()
+        _scan_state.update(original)
+
+    @pytest.fixture(autouse=True)
+    def _cleanup_lock_file(self):
+        from db.connection import DEFAULT_DB_PATH
+        from facet import _library_lock_path
+
+        lock_path = _library_lock_path(DEFAULT_DB_PATH)
+        yield
+        if os.path.exists(lock_path):
+            os.remove(lock_path)
+
+    def _clear_local_state(self):
+        from api.routers.scan import _scan_state
+        _scan_state.clear()
+        _scan_state.update({
+            'running': False, 'kind': None, 'process': None,
+            'output_lines': deque(maxlen=500), 'started_at': None,
+            'directories': [], 'exit_code': None, 'progress': None,
+        })
+
+    def test_worker_with_no_local_state_reports_running_not_failed(self, edition_client):
+        """A poll landing on a worker that never handled the POST -- the
+        exact scenario THE DEFECT describes -- must read as running, not as
+        a false 'Recompute failed'."""
+        from db.connection import DEFAULT_DB_PATH
+
+        self._clear_local_state()
+        with _library_lock_held(DEFAULT_DB_PATH, kind="recompute", origin="viewer"):
+            resp = edition_client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["running"] is True
+        assert data["kind"] == "recompute"
+        assert data["exit_code"] is None
+
+    def test_a_scan_holding_the_lock_is_reported_as_a_scan_not_a_recompute(self, edition_client):
+        """A scan holds the same lock, so the holder's own kind is what gets
+        reported -- assuming 'recompute' would mislabel a running scan."""
+        from db.connection import DEFAULT_DB_PATH
+
+        self._clear_local_state()
+        with _library_lock_held(DEFAULT_DB_PATH, kind="scan", origin="cli"):
+            resp = edition_client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["running"] is True
+        assert data["kind"] == "scan"
+
+    def test_worker_with_no_local_state_and_no_lock_reads_as_indeterminate(self, edition_client):
+        """Nothing is running anywhere this worker can see: an honest
+        idle-shaped response, never a false failure."""
+        self._clear_local_state()
+
+        resp = edition_client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["running"] is False
+        assert data["kind"] is None
+        assert data["exit_code"] is None
+
+    def test_stale_lock_from_a_dead_pid_does_not_report_running(self, edition_client):
+        """A crashed holder's lock file must not make a fresh worker claim
+        a job is still running."""
+        from db.connection import DEFAULT_DB_PATH
+
+        self._clear_local_state()
+        _write_leftover_lock_file(DEFAULT_DB_PATH, pid=999999, origin="viewer")
+
+        resp = edition_client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["running"] is False
+
+    def test_leftover_lock_naming_a_live_unrelated_pid_does_not_report_running(self, edition_client):
+        """The recycled-PID case: after a power cut the file survives and its
+        PID is handed to some unrelated process. It must still read as free."""
+        from db.connection import DEFAULT_DB_PATH
+
+        self._clear_local_state()
+        _write_leftover_lock_file(DEFAULT_DB_PATH, pid=os.getpid(), origin="viewer")
+
+        resp = edition_client.get(self.ENDPOINT)
+
+        assert resp.status_code == 200
+        assert resp.json()["running"] is False
+
 
 class TestLibraryLock:
     """``facet.LibraryLock`` -- the cross-process mutex that keeps a
@@ -478,46 +694,150 @@ class TestLibraryLock:
 
     def test_stale_lock_from_a_dead_pid_self_heals(self, tmp_path):
         """A holder that crashed without releasing must not wedge the lock
-        forever: the next acquire steals it once the recorded PID is dead."""
-        from facet import LibraryLock, _library_lock_path
+        forever: the OS drops the lock with the process, so the leftover file
+        reads as free and the next acquire simply succeeds."""
+        from facet import LibraryLock, library_job_holder
 
         db_path = str(tmp_path / "photos.db")
         dead_proc = subprocess.Popen([sys.executable, "-c", "pass"])
         dead_proc.wait()
+        _write_leftover_lock_file(db_path, pid=dead_proc.pid)
 
-        lock_path = _library_lock_path(db_path)
-        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
-        with open(lock_path, "w") as f:
-            json.dump(
-                {"pid": dead_proc.pid, "kind": "recompute", "origin": "cli", "started_at": 0},
-                f,
-            )
-
+        assert library_job_holder(db_path) is None
         lock = LibraryLock(db_path, kind="recompute")
         lock.acquire()
-        assert os.path.exists(lock_path)
+        assert library_job_holder(db_path)["pid"] == os.getpid()
         lock.release()
-        assert not os.path.exists(lock_path)
+        assert library_job_holder(db_path) is None
+
+    def test_a_killed_holder_frees_the_lock_without_any_cleanup(self, tmp_path):
+        """The real crash: a live holder is SIGKILLed, so nothing of its own
+        runs. The kernel drops the lock, so no staleness heuristic is needed
+        and the next job is never wedged."""
+        from facet import LibraryLock, library_job_holder
+
+        db_path = str(tmp_path / "photos.db")
+        holder = _spawn_lock_holder(db_path, kind="recompute")
+        assert library_job_holder(db_path)["pid"] == holder.pid
+        holder.kill()
+        holder.wait()
+
+        assert library_job_holder(db_path) is None
+        LibraryLock(db_path, kind="scan").acquire().release()
+
+    def test_leftover_lock_naming_a_live_unrelated_pid_does_not_wedge(self, tmp_path):
+        """Power cut mid-job: the file survives the reboot and its PID gets
+        recycled by an unrelated (possibly root-owned) process. PID liveness
+        would call that "held forever"; the OS lock calls it free."""
+        from facet import LibraryLock, library_job_holder
+
+        db_path = str(tmp_path / "photos.db")
+        unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        try:
+            _write_leftover_lock_file(db_path, pid=unrelated.pid, started_at=1)
+            assert library_job_holder(db_path) is None
+            LibraryLock(db_path, kind="recompute").acquire().release()
+        finally:
+            unrelated.kill()
+            unrelated.wait()
+
+    def test_a_half_written_lock_file_still_reads_as_held(self, tmp_path):
+        """The payload is descriptive, the OS lock is the mutex: an empty or
+        corrupt file under a live holder must never read as free, or two
+        processes would both believe they own the library."""
+        from facet import LibraryLock, LibraryLockError, _library_lock_path, library_job_holder
+
+        db_path = str(tmp_path / "photos.db")
+        first = LibraryLock(db_path, kind="recompute")
+        first.acquire()
+        try:
+            with open(_library_lock_path(db_path), "w"):
+                pass
+            assert library_job_holder(db_path) is not None
+            with pytest.raises(LibraryLockError):
+                LibraryLock(db_path, kind="scan").acquire()
+        finally:
+            first.release()
+
+    def test_concurrent_acquires_never_produce_two_holders(self, tmp_path):
+        """Four processes hammering the same lock: each one that acquires
+        creates an O_EXCL marker, so any overlap is counted, not inferred."""
+        db_path = str(tmp_path / "photos.db")
+        marker = str(tmp_path / "holder.marker")
+        script = (
+            "import os, sys\n"
+            f"sys.path.insert(0, {_REPO_ROOT!r})\n"
+            "from facet import LibraryLock, LibraryLockError\n"
+            "db_path, marker, iterations = sys.argv[1], sys.argv[2], int(sys.argv[3])\n"
+            "violations = 0\n"
+            "for _ in range(iterations):\n"
+            "    lock = LibraryLock(db_path, kind='stress')\n"
+            "    try:\n"
+            "        lock.acquire()\n"
+            "    except LibraryLockError:\n"
+            "        continue\n"
+            "    try:\n"
+            "        fd = os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY)\n"
+            "        os.close(fd)\n"
+            "        os.remove(marker)\n"
+            "    except FileExistsError:\n"
+            "        violations += 1\n"
+            "    finally:\n"
+            "        lock.release()\n"
+            "print(violations)\n"
+        )
+        procs = [
+            subprocess.Popen(
+                [sys.executable, "-c", script, db_path, marker, "200"],
+                stdout=subprocess.PIPE, text=True,
+            )
+            for _ in range(4)
+        ]
+        violations = [int(p.communicate(timeout=120)[0].strip()) for p in procs]
+
+        assert violations == [0, 0, 0, 0]
+        assert all(p.returncode == 0 for p in procs)
+
+    def test_acquire_retries_before_declaring_a_conflict(self, tmp_path, monkeypatch):
+        """Reading the holder also takes the lock for a few microseconds, so a
+        viewer poll landing on an acquire must not refuse the job outright."""
+        import facet
+
+        calls = []
+        real_flock = facet.fcntl.flock
+
+        def flaky_flock(fd, operation):
+            calls.append(operation)
+            if len(calls) == 1:
+                raise BlockingIOError(11, "Resource temporarily unavailable")
+            return real_flock(fd, operation)
+
+        monkeypatch.setattr(facet.fcntl, "flock", flaky_flock)
+        lock = facet.LibraryLock(str(tmp_path / "photos.db"), kind="recompute")
+        lock.acquire()
+        lock.release()
+
+        assert len(calls) >= 2
 
     def test_release_on_exception_frees_the_lock(self, tmp_path):
-        from facet import LibraryLock, _library_lock_path
+        from facet import LibraryLock, library_job_holder
 
         db_path = str(tmp_path / "photos.db")
         with pytest.raises(RuntimeError):
             with LibraryLock(db_path, kind="recompute"):
                 raise RuntimeError("boom")
 
-        assert not os.path.exists(_library_lock_path(db_path))
+        assert library_job_holder(db_path) is None
 
     def test_release_on_sigterm_frees_the_lock(self, tmp_path):
-        from facet import LibraryLock, _library_lock_path
+        from facet import LibraryLock, library_job_holder
 
         db_path = str(tmp_path / "photos.db")
         with pytest.raises(KeyboardInterrupt):
             with LibraryLock(db_path, kind="recompute"):
                 os.kill(os.getpid(), signal.SIGTERM)
 
-        assert not os.path.exists(_library_lock_path(db_path))
+        assert library_job_holder(db_path) is None
 
     def test_sigterm_handler_is_restored_after_release(self, tmp_path):
         from facet import LibraryLock
@@ -550,6 +870,84 @@ class TestLibraryLock:
         finally:
             lock.release()
 
+    def test_conflict_message_names_the_lock_file(self, tmp_path):
+        """Without the path in the message a wedged lock is undiagnosable."""
+        from facet import LibraryLock, LibraryLockError, _library_lock_path
+
+        db_path = str(tmp_path / "photos.db")
+        first = LibraryLock(db_path, kind="recompute")
+        first.acquire()
+        try:
+            with pytest.raises(LibraryLockError) as exc_info:
+                LibraryLock(db_path, kind="scan").acquire()
+        finally:
+            first.release()
+
+        assert _library_lock_path(db_path) in str(exc_info.value)
+
+    def test_force_flag_runs_anyway_when_the_lock_is_held(self, tmp_path):
+        """The escape hatch: the user can always get their job to run."""
+        from facet import LibraryLock
+
+        db_path = str(tmp_path / "photos.db")
+        first = LibraryLock(db_path, kind="recompute")
+        first.acquire()
+        try:
+            forced = LibraryLock(db_path, kind="scan", force=True)
+            forced.acquire()
+            forced.release()
+        finally:
+            first.release()
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+    def test_unwritable_cache_dir_raises_a_clear_error(self, tmp_path):
+        """New failure mode introduced by the lock: the cache dir may be owned
+        by the other user in a viewer/CLI split. It must name the path and the
+        way out, not raise PermissionError from inside os.open."""
+        from facet import LibraryLock, LibraryLockError, LIBRARY_LOCK_OVERRIDE_FLAG, _library_lock_path
+
+        db_dir = tmp_path / "library"
+        db_dir.mkdir()
+        cache_dir = db_dir / ".facet_cache"
+        cache_dir.mkdir()
+        os.chmod(cache_dir, 0o500)
+        db_path = str(db_dir / "photos.db")
+        try:
+            with pytest.raises(LibraryLockError) as exc_info:
+                LibraryLock(db_path, kind="recompute").acquire()
+        finally:
+            os.chmod(cache_dir, 0o700)
+
+        message = str(exc_info.value)
+        assert _library_lock_path(db_path) in message
+        assert LIBRARY_LOCK_OVERRIDE_FLAG in message
+
+    def test_cache_dir_occupied_by_a_regular_file_raises_a_clear_error(self, tmp_path):
+        from facet import LibraryLock, LibraryLockError, LIBRARY_LOCK_OVERRIDE_FLAG
+
+        db_dir = tmp_path / "library"
+        db_dir.mkdir()
+        (db_dir / ".facet_cache").write_text("not a directory")
+
+        with pytest.raises(LibraryLockError) as exc_info:
+            LibraryLock(str(db_dir / "photos.db"), kind="recompute").acquire()
+
+        assert LIBRARY_LOCK_OVERRIDE_FLAG in str(exc_info.value)
+
+    def test_an_unusable_lock_path_is_a_clear_cli_error_not_a_traceback(self, tmp_path):
+        from facet import LIBRARY_LOCK_OVERRIDE_FLAG
+
+        db_dir = tmp_path / "library"
+        db_dir.mkdir()
+        (db_dir / ".facet_cache").write_text("not a directory")
+
+        result = _run_facet("--recompute-average", "--db", str(db_dir / "photos.db"))
+
+        assert result.returncode == 1
+        output = result.stdout + result.stderr
+        assert "Traceback" not in output
+        assert LIBRARY_LOCK_OVERRIDE_FLAG in output
+
 
 class TestCrossProcessLibraryLock:
     """The viewer endpoints refuse a second job when a CLI-run recompute (or
@@ -575,21 +973,11 @@ class TestCrossProcessLibraryLock:
         _scan_state.clear()
         _scan_state.update(original)
 
-    def _write_live_lock(self, kind="recompute", origin="cli"):
-        from db.connection import DEFAULT_DB_PATH
-        from facet import _library_lock_path
-
-        lock_path = _library_lock_path(DEFAULT_DB_PATH)
-        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
-        with open(lock_path, "w") as f:
-            json.dump(
-                {"pid": os.getpid(), "kind": kind, "origin": origin, "started_at": 0}, f,
-            )
-
     def test_recompute_refused_when_a_cli_recompute_holds_the_lock(self, edition_client):
-        self._write_live_lock(kind="recompute", origin="cli")
+        from db.connection import DEFAULT_DB_PATH
 
-        resp = edition_client.post("/api/scan/recompute", json={"confirm": True})
+        with _library_lock_held(DEFAULT_DB_PATH, kind="recompute", origin="cli"):
+            resp = edition_client.post("/api/scan/recompute", json={"confirm": True})
 
         assert resp.status_code == 409
         detail = resp.json()["detail"]
@@ -597,9 +985,11 @@ class TestCrossProcessLibraryLock:
         assert "cli" in detail
 
     def test_scan_refused_when_a_recompute_holds_the_lock(self):
-        self._write_live_lock(kind="recompute", origin="viewer")
+        from db.connection import DEFAULT_DB_PATH
+
         viewer_cfg = _viewer_config_with_scan()
         with (
+            _library_lock_held(DEFAULT_DB_PATH, kind="recompute", origin="viewer"),
             mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
             mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
             mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
@@ -611,6 +1001,33 @@ class TestCrossProcessLibraryLock:
         detail = resp.json()["detail"]
         assert "recompute" in detail
         assert "viewer" in detail
+
+    def test_scan_refused_when_another_scan_holds_the_lock(self):
+        """A scan now holds the same lock, so /start refuses a second one
+        cross-process instead of only checking a 120s heartbeat."""
+        from db.connection import DEFAULT_DB_PATH
+
+        viewer_cfg = _viewer_config_with_scan()
+        with (
+            _library_lock_held(DEFAULT_DB_PATH, kind="scan", origin="cli"),
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
+            mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
+        ):
+            app, client, _ = _make_superadmin_app(viewer_cfg)
+            resp = client.post("/api/scan/start", json={"directories": ["/photos"]})
+
+        assert resp.status_code == 409
+        assert "scan" in resp.json()["detail"]
+
+    def test_recompute_refused_when_a_cli_scan_holds_the_lock(self, edition_client):
+        from db.connection import DEFAULT_DB_PATH
+
+        with _library_lock_held(DEFAULT_DB_PATH, kind="scan", origin="cli"):
+            resp = edition_client.post("/api/scan/recompute", json={"confirm": True})
+
+        assert resp.status_code == 409
+        assert "scan" in resp.json()["detail"]
 
     def test_recompute_refused_when_a_cli_scan_is_in_progress(self, edition_client):
         from db.connection import DEFAULT_DB_PATH, get_connection
@@ -645,3 +1062,146 @@ class TestCrossProcessLibraryLock:
         assert resp.status_code == 200
         env = mock_popen.call_args.kwargs["env"]
         assert env[JOB_ORIGIN_ENV_VAR] == "viewer"
+
+
+class TestScanHoldsTheLibraryLock:
+    """The scan is the other half of the collision the lock exists for: it
+    dies on SQLITE_BUSY inside a recompute's single long transaction. Before
+    this it never took the lock at all and was only ever detected through a
+    120s heartbeat that goes stale during model loading."""
+
+    def test_scan_holds_the_lock_for_the_whole_scan(self, tmp_path, monkeypatch):
+        import facet
+
+        db_path = str(tmp_path / "photos.db")
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+        seen = {}
+
+        def fake_run_scan(args, resumed_run):
+            seen['holder'] = facet.library_job_holder(db_path)
+
+        monkeypatch.setattr(facet, "_run_scan", fake_run_scan)
+        monkeypatch.setattr(sys, "argv", ["facet.py", str(photos_dir), "--db", db_path])
+
+        facet.main()
+
+        assert seen['holder']["kind"] == facet.LIBRARY_JOB_SCAN
+        assert seen['holder']["pid"] == os.getpid()
+        assert facet.library_job_holder(db_path) is None
+
+    def test_a_recompute_started_mid_scan_is_refused(self, tmp_path, monkeypatch):
+        """The collision the lock exists to stop, end to end: a real
+        ``--recompute-average`` process launched while the scan body runs."""
+        import facet
+
+        db_path = str(tmp_path / "photos.db")
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+        seen = {}
+
+        def fake_run_scan(args, resumed_run):
+            seen['result'] = _run_facet("--recompute-average", "--db", db_path)
+
+        monkeypatch.setattr(facet, "_run_scan", fake_run_scan)
+        monkeypatch.setattr(sys, "argv", ["facet.py", str(photos_dir), "--db", db_path])
+
+        facet.main()
+
+        result = seen['result']
+        assert result.returncode == 1
+        output = result.stdout + result.stderr
+        assert "A scan is already running" in output
+        assert "Traceback" not in output
+
+    def test_a_scan_started_mid_recompute_is_refused_before_it_enumerates(self, tmp_path):
+        """And the other direction -- refused before the directory walk, so a
+        126k-photo library costs nothing on a conflict."""
+        db_path = str(tmp_path / "photos.db")
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+        holder = _spawn_lock_holder(db_path, kind="recompute")
+        try:
+            result = _run_facet(str(photos_dir), "--db", db_path)
+        finally:
+            holder.kill()
+            holder.wait()
+
+        assert result.returncode == 1
+        output = result.stdout + result.stderr
+        assert "recompute is already running" in output
+        assert "Found 0 total" not in output
+        assert "Traceback" not in output
+
+    def test_the_post_processing_tail_is_inside_the_locked_region(self):
+        """``scan_run.finish('completed')`` fires before bursts, tagging,
+        moments, junk and the vec population -- all whole-library writers. The
+        lock wraps ``_run_scan``, so they are covered by construction rather
+        than by a heartbeat that has already stopped."""
+        import facet
+
+        scan_source = inspect.getsource(facet._run_scan)
+        for tail_call in (
+            "process_bursts(",
+            "run_tagging(",
+            "run_moment_detection(",
+            "run_junk_detection(",
+            "populate_vec_table(",
+        ):
+            assert tail_call in scan_source, tail_call
+
+        main_source = inspect.getsource(facet.main)
+        assert "_acquire_library_lock(args, LIBRARY_JOB_SCAN)" in main_source
+        assert "_run_scan(args, resumed_run)" in main_source
+        assert "lock.release()" in main_source
+
+
+class TestLibraryJobCoverage:
+    """Which entry points participate in the lock, and which deliberately
+    do not."""
+
+    def test_every_library_job_arg_is_a_real_cli_flag(self):
+        from facet import LIBRARY_JOB_ARGS
+
+        help_text = _run_facet("--help").stdout
+
+        missing = [name for name in LIBRARY_JOB_ARGS
+                   if f"--{name.replace('_', '-')}" not in help_text]
+        assert missing == []
+
+    def test_upgrade_db_does_not_take_the_lock(self):
+        """It runs the locked jobs as subprocesses; holding the lock in the
+        parent would deadlock every step."""
+        from facet import LIBRARY_JOB_ARGS
+
+        assert "upgrade_db" not in LIBRARY_JOB_ARGS
+
+    def test_watch_mode_does_not_take_the_lock(self):
+        """The watcher is a supervisor that spawns scans; the spawned scan
+        takes the lock, the daemon must not hold it for days."""
+        from facet import LIBRARY_JOB_ARGS
+
+        assert "watch" not in LIBRARY_JOB_ARGS
+
+    def test_a_recompute_flag_is_refused_while_another_job_holds_the_lock(self, tmp_path):
+        db_path = str(tmp_path / "photos.db")
+        holder = _spawn_lock_holder(db_path, kind="scan")
+        try:
+            result = _run_facet("--recompute-tags", "--db", db_path)
+        finally:
+            holder.kill()
+            holder.wait()
+
+        assert result.returncode == 1
+        assert "scan is already running" in result.stdout + result.stderr
+
+    def test_a_read_only_command_is_not_blocked_by_the_lock(self, tmp_path):
+        db_path = str(tmp_path / "photos.db")
+        holder = _spawn_lock_holder(db_path, kind="recompute")
+        try:
+            result = _run_facet("--validate-categories", "--db", db_path)
+        finally:
+            holder.kill()
+            holder.wait()
+
+        assert result.returncode == 0

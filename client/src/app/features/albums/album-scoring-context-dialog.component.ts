@@ -10,7 +10,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { AlbumService, AlbumSuggestedContext } from '../../core/services/album.service';
+import { AlbumService, AlbumScoringContextResult, AlbumSuggestedContext } from '../../core/services/album.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N } from '../../core/i18n/keys';
 
@@ -91,12 +91,23 @@ const DEFAULT_CONTEXT = 'default';
 
         @if (phase() === 'saved' || phase() === 'recomputing' || phase() === 'recompute_done' || phase() === 'recompute_error') {
           <div class="rounded-lg bg-[var(--mat-sys-surface-container)] p-3 text-sm mt-2">
+            @if (warning(); as w) {
+              <p class="text-amber-400 mb-2">{{ w | translate }}</p>
+            }
             @if (conflicts() > 0) {
               <p class="text-amber-400 mb-2">
                 {{ I18N.albums.scoring_context.conflict_warning | translate:{ count: '' + conflicts() } }}
               </p>
             }
-            <p class="opacity-70 mb-2">{{ I18N.albums.scoring_context.saved_success | translate:{ count: '' + updatedCount() } }}</p>
+            @if (manualSkipped() > 0) {
+              <p class="text-amber-400 mb-2">
+                {{ I18N.albums.scoring_context.manual_skipped_note | translate:{ count: '' + manualSkipped() } }}
+              </p>
+            }
+            <p class="opacity-70 mb-2">
+              {{ (cleared() ? I18N.albums.scoring_context.cleared_success : I18N.albums.scoring_context.saved_success) | translate:{ count: '' + updatedCount() } }}
+            </p>
+            <p class="opacity-60 text-xs mb-2">{{ I18N.albums.scoring_context.membership_note | translate }}</p>
 
             @if (phase() === 'saved') {
               <p class="mb-2">{{ I18N.albums.scoring_context.recompute_prompt | translate }}</p>
@@ -130,11 +141,16 @@ const DEFAULT_CONTEXT = 'default';
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       @if (phase() === 'select' || phase() === 'saving') {
-        <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
+        <button mat-button (click)="cancel()">{{ I18N.ui.buttons.cancel | translate }}</button>
+        @if (data.currentContext) {
+          <button mat-button [disabled]="loading() || phase() === 'saving'" (click)="clear()">
+            {{ I18N.albums.scoring_context.clear_button | translate }}
+          </button>
+        }
         <button mat-flat-button [disabled]="loading() || phase() === 'saving'" (click)="save()">
           {{ phase() === 'saving' ? (I18N.ui.buttons.saving | translate) : (I18N.ui.buttons.save | translate) }}
         </button>
-      } @else if (phase() === 'recompute_done' || phase() === 'recompute_error') {
+      } @else {
         <button mat-button (click)="close()">{{ I18N.albums.scoring_context.close | translate }}</button>
       }
     </mat-dialog-actions>
@@ -158,7 +174,12 @@ export class AlbumScoringContextDialogComponent implements OnInit {
   protected readonly phase = signal<Phase>('select');
   protected readonly updatedCount = signal(0);
   protected readonly conflicts = signal(0);
+  protected readonly manualSkipped = signal(0);
+  protected readonly warning = signal<string | null>(null);
+  protected readonly cleared = signal(false);
+  private persisted = false;
   private persistedContext: string | null = null;
+  private closeRequested = false;
   protected readonly recomputeError = signal<'busy' | 'failed' | null>(null);
   protected readonly recomputeProgress = signal<RecomputeProgress | null>(null);
 
@@ -185,7 +206,7 @@ export class AlbumScoringContextDialogComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     this.loading.set(true);
     const contextsPromise = firstValueFrom(this.api.get<{ contexts: ScoringContextOption[] }>('/config/scoring_contexts'));
-    const suggestionPromise = firstValueFrom(this.albumService.getSuggestedContext(this.data.albumId));
+    const suggestionPromise = firstValueFrom(this.albumService.getSuggestedContext(this.data.albumId)).catch(() => null);
 
     try {
       this.contexts.set((await contextsPromise).contexts);
@@ -194,13 +215,20 @@ export class AlbumScoringContextDialogComponent implements OnInit {
       this.snackBar.open(this.i18n.t(I18N.notifications.connection_error), '', { duration: 3000 });
     }
 
-    try {
-      this.suggestion.set(await suggestionPromise);
-    } catch {
-      this.suggestion.set(null);
-    }
+    this.suggestion.set(await suggestionPromise);
 
     this.loading.set(false);
+  }
+
+  private applySavedResult(res: AlbumScoringContextResult, context: string | null, cleared: boolean): void {
+    this.updatedCount.set(res.updated);
+    this.conflicts.set(res.conflicts);
+    this.manualSkipped.set(res.manual_skipped);
+    this.warning.set(res.warning ? I18N.albums.scoring_context.empty_warning : null);
+    this.cleared.set(cleared);
+    this.persistedContext = context;
+    this.persisted = true;
+    this.phase.set('saved');
   }
 
   protected async save(): Promise<void> {
@@ -209,14 +237,37 @@ export class AlbumScoringContextDialogComponent implements OnInit {
     const context = this.selectedContext();
     try {
       const res = await firstValueFrom(this.albumService.setScoringContext(this.data.albumId, context));
-      this.updatedCount.set(res.updated);
-      this.conflicts.set(res.conflicts);
-      this.persistedContext = context;
-      this.phase.set('saved');
+      this.applySavedResult(res, context, false);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
       this.phase.set('select');
+      if (!this.closeRequested) {
+        this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      }
     }
+    if (this.closeRequested) this.close();
+  }
+
+  protected async clear(): Promise<void> {
+    if (this.phase() === 'saving') return;
+    this.phase.set('saving');
+    try {
+      const res = await firstValueFrom(this.albumService.clearScoringContext(this.data.albumId));
+      this.applySavedResult({ updated: res.cleared, conflicts: 0, manual_skipped: 0 }, null, true);
+    } catch {
+      this.phase.set('select');
+      if (!this.closeRequested) {
+        this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      }
+    }
+    if (this.closeRequested) this.close();
+  }
+
+  protected cancel(): void {
+    if (this.phase() === 'saving') {
+      this.closeRequested = true;
+      return;
+    }
+    this.close();
   }
 
   protected async recompute(): Promise<void> {
@@ -256,6 +307,6 @@ export class AlbumScoringContextDialogComponent implements OnInit {
   }
 
   protected close(): void {
-    this.dialogRef.close(this.persistedContext);
+    this.dialogRef.close(this.persisted ? this.persistedContext : undefined);
   }
 }

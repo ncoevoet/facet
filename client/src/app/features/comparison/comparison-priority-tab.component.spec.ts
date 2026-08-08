@@ -1,5 +1,5 @@
 import type { Mock } from 'vitest';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
@@ -341,9 +341,17 @@ describe('ComparisonPriorityTabComponent', () => {
   });
 
   describe('loadOverlapLazily / refreshOverlap / activateOverlap', () => {
+    // 'default' is pinned last by design (D3), so on the real library it would
+    // otherwise lead the table with a huge, non-diagnostic captured_by_higher
+    // count -- it must never appear in sortedOverlapCategories.
     const OVERLAP = {
-      overlaps: [],
+      overlaps: [
+        { pair: ['sports', 'silhouette'] as [string, string], count: 2227 },
+        { pair: ['landscape', 'travel'] as [string, string], count: 300 },
+        { pair: ['sports', 'default'] as [string, string], count: 40 },
+      ],
       per_category: [
+        { name: 'default', priority: 999, assigned: 7614, matched: 126661, captured_by_higher: 119047 },
         { name: 'silhouette', priority: 42, assigned: 5, matched: 20, captured_by_higher: 0 },
         { name: 'sports', priority: 71, assigned: 15, matched: 15, captured_by_higher: 15 },
       ],
@@ -357,6 +365,31 @@ describe('ComparisonPriorityTabComponent', () => {
 
       expect(component.overlapLoaded()).toBe(true);
       expect(component.sortedOverlapCategories().map(c => c.name)).toEqual(['sports', 'silhouette']);
+    });
+
+    it('D3: never includes the pinned default category, however high its captured_by_higher is', async () => {
+      mockApi.get.mockReturnValue(of(OVERLAP));
+      await component.loadOverlapLazily();
+
+      expect(component.sortedOverlapCategories().map(c => c.name)).not.toContain('default');
+    });
+
+    it('D4: exposes the top colliding pairs sorted by count descending', async () => {
+      mockApi.get.mockReturnValue(of(OVERLAP));
+      await component.loadOverlapLazily();
+
+      expect(component.topOverlapPairs().map(p => p.pair)).toEqual([
+        ['sports', 'silhouette'], ['landscape', 'travel'], ['sports', 'default'],
+      ]);
+    });
+
+    it('D4: caps the rendered pairs at MAX_OVERLAP_PAIRS', async () => {
+      const manyPairs = Array.from({ length: 12 }, (_, i) => ({ pair: ['a', `b${i}`] as [string, string], count: i }));
+      mockApi.get.mockReturnValue(of({ ...OVERLAP, overlaps: manyPairs }));
+      await component.loadOverlapLazily();
+
+      expect(component.topOverlapPairs()).toHaveLength(8);
+      expect(component.topOverlapPairs()[0].count).toBe(11);
     });
 
     it('does not re-fetch once loaded', async () => {
@@ -444,6 +477,54 @@ describe('ComparisonPriorityTabComponent', () => {
       expect(component.recomputing()).toBe(false);
       expect(component.recomputeMessageKey()).toBe(I18N.comparison.context.recompute_failed);
       expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    // D8: `_scan_state` (api/routers/scan.py) is a per-PROCESS module global on a
+    // multi-worker deployment. A poll served by a worker that never saw the POST
+    // answers {running:false, kind:null, exit_code:null} -- indistinguishable from
+    // a real failure unless the client treats it as indeterminate instead.
+    it('D8: reports an indeterminate outcome when exit_code is null (worker never saw the POST)', async () => {
+      component.stale.set(true);
+      mockApi.post.mockReturnValue(of({ success: true }));
+      mockApi.get.mockReturnValue(of({ running: false, kind: null, progress: null, exit_code: null }));
+
+      await component.startRecompute();
+      await flush();
+
+      expect(component.stale()).toBe(true);
+      expect(component.recomputing()).toBe(false);
+      expect(component.recomputeMessageKey()).toBe(I18N.comparison.context.recompute_unknown);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    // D8: a finished job of a DIFFERENT kind (e.g. a concurrent superadmin scan)
+    // must never be attributed to this recompute, even when its exit_code is 0.
+    it('D8: reports an indeterminate outcome when the finished job is a different kind', async () => {
+      component.stale.set(true);
+      mockApi.post.mockReturnValue(of({ success: true }));
+      mockApi.get.mockReturnValue(of({ running: false, kind: 'scan', progress: null, exit_code: 0 }));
+
+      await component.startRecompute();
+      await flush();
+
+      expect(component.stale()).toBe(true);
+      expect(component.recomputeMessageKey()).toBe(I18N.comparison.context.recompute_unknown);
+      expect(mockSnackBar.open).not.toHaveBeenCalled();
+    });
+
+    // D7: the poll's own catch used to silently clear `recomputing` with no
+    // message, dropping the banner back to "Recompute now" while the job is
+    // very likely still running server-side -- the next click then 409s.
+    it('D7: surfaces a message when the status poll itself fails', async () => {
+      component.stale.set(true);
+      mockApi.post.mockReturnValue(of({ success: true }));
+      mockApi.get.mockReturnValue(throwError(() => new Error('network')));
+
+      await component.startRecompute();
+      await flush();
+
+      expect(component.recomputing()).toBe(false);
+      expect(component.recomputeMessageKey()).toBe(I18N.comparison.context.recompute_unknown);
     });
 
     // Defect 5: a second click before the first POST resolves must not overwrite the
@@ -633,5 +714,101 @@ describe('ComparisonPriorityTabComponent', () => {
       expect(body.order).not.toContain('default');
       expect(body.order).toHaveLength(LAST_NON_DEFAULT_INDEX + 1);
     });
+  });
+});
+
+// D2/D6 are template-only defects (an unrendered field, a nesting bug) that a
+// class-only instantiation cannot prove -- these render the real template.
+describe('ComparisonPriorityTabComponent — rendering (D2/D6)', () => {
+  let fixture: ComponentFixture<ComparisonPriorityTabComponent>;
+  let component: ComparisonPriorityTabComponent;
+  let renderApi: { get: Mock; post: Mock };
+
+  const CONTEXTS = {
+    contexts: [
+      { name: 'default', label_key: 'comparison.context.default', promote: [], excluded: [], suggest_from_moments: [], effective_order: [] },
+      { name: 'action_stage', label_key: 'comparison.context.action_stage', promote: ['sports'], excluded: [], suggest_from_moments: [], effective_order: ['sports', 'default'] },
+    ],
+  };
+
+  async function render(): Promise<void> {
+    TestBed.resetTestingModule();
+    renderApi = {
+      get: vi.fn((url: string) => {
+        if (url === '/config/scoring_contexts') return of(CONTEXTS);
+        if (url === '/config/category_priorities') return of({ categories: [] });
+        if (url === '/stats/categories/overlap') return of({ overlaps: [], per_category: [], uncategorized: 0, total: 0 });
+        return of({});
+      }),
+      post: vi.fn(() => of({ success: true })),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ApiService, useValue: renderApi },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        {
+          provide: I18nService,
+          useValue: {
+            t: (k: string, vars?: Record<string, string | number>) => (vars ? `${k}(${JSON.stringify(vars)})` : k),
+            translations: () => ({}),
+          },
+        },
+        { provide: AuthService, useValue: { isEdition: signal(true) } },
+      ],
+    });
+    fixture = TestBed.createComponent(ComparisonPriorityTabComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  it('D6: the stale/recompute affordance renders for a named (non-default) context', async () => {
+    await render();
+    component.selectContext('action_stage');
+    component.stale.set(true);
+    fixture.detectChanges();
+
+    expect(component.isDefaultContext()).toBe(false);
+    const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
+    const recomputeButton = buttons.find(b => b.textContent?.includes(I18N.comparison.context.recompute_now));
+    expect(recomputeButton).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain(I18N.comparison.context.stale_notice);
+  });
+
+  it('D6: the affordance stays absent for a named context while scores are not stale', async () => {
+    await render();
+    component.selectContext('action_stage');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain(I18N.comparison.context.recompute_now);
+  });
+
+  it('D2: the ETA renders next to the current/total progress once the backend reports one', async () => {
+    await render();
+    component.stale.set(true);
+    component.recomputing.set(true);
+    component.recomputeStatus.set({
+      running: true, kind: 'recompute',
+      progress: { phase: 'recompute', current: 500, total: 126172, eta_seconds: 480 },
+      exit_code: null,
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('8 min');
+  });
+
+  it('D2: renders nothing extra when the backend has not reported an ETA yet', async () => {
+    await render();
+    component.stale.set(true);
+    component.recomputing.set(true);
+    component.recomputeStatus.set({
+      running: true, kind: 'recompute',
+      progress: { phase: 'recompute', current: 10, total: 126172 },
+      exit_code: null,
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('min');
   });
 });

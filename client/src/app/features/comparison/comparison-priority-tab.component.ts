@@ -15,10 +15,12 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { FilterValueFormatPipe } from './comparison.pipes';
+import { EtaDurationPipe, FilterValueFormatPipe } from './comparison.pipes';
 import { I18N } from '../../core/i18n/keys';
 
 const DEFAULT_CATEGORY_NAME = 'default';
+const JOB_KIND_RECOMPUTE = 'recompute';
+const MAX_OVERLAP_PAIRS = 8;
 
 interface CategoryPriorityEntry {
   name: string;
@@ -129,6 +131,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
     MatTooltipModule,
     TranslatePipe,
     CategoryFilterSummaryPipe,
+    EtaDurationPipe,
   ],
   template: `
     <div class="grid grid-cols-1 gap-6 mt-4 pb-20 lg:pb-0">
@@ -209,40 +212,6 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
             }
           </mat-card-content>
         </mat-card>
-
-        @if (stale()) {
-          <mat-card>
-            <mat-card-content class="!py-4 flex flex-col gap-3">
-              <div class="flex items-center gap-2 text-sm text-amber-400">
-                <mat-icon class="!text-base !w-4 !h-4">warning</mat-icon>
-                {{ I18N.comparison.context.stale_notice | translate }}
-              </div>
-              @if (recomputeMessageKey(); as messageKey) {
-                <div class="text-sm text-red-400">{{ messageKey | translate }}</div>
-              }
-              @if (recomputing()) {
-                <div class="flex flex-col gap-1.5">
-                  <mat-progress-bar [mode]="recomputeProgressPercent() === null ? 'indeterminate' : 'determinate'"
-                    [value]="recomputeProgressPercent() ?? 0" />
-                  @if (recomputeStatus()?.progress; as p) {
-                    <span class="text-xs text-gray-500">
-                      {{ I18N.comparison.context.recompute_progress | translate:{ current: p.current ?? 0, total: p.total ?? 0 } }}
-                    </span>
-                  }
-                </div>
-              } @else {
-                <button mat-flat-button
-                  [disabled]="recomputeDisabled()"
-                  (click)="startRecompute()">
-                  <span class="inline-flex items-center gap-1.5">
-                    <mat-icon class="!m-0">calculate</mat-icon>
-                    {{ I18N.comparison.context.recompute_now | translate }}
-                  </span>
-                </button>
-              }
-            </mat-card-content>
-          </mat-card>
-        }
       } @else if (selectedContextEntry(); as ctx) {
         <!-- Named context: read-only delta (no write endpoint exists yet) -->
         <mat-card>
@@ -310,6 +279,44 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
         </mat-card>
       }
 
+      <!-- Recompute affordance: available regardless of which context is selected. -->
+      @if (stale()) {
+        <mat-card>
+          <mat-card-content class="!py-4 flex flex-col gap-3">
+            <div class="flex items-center gap-2 text-sm text-amber-400">
+              <mat-icon class="!text-base !w-4 !h-4">warning</mat-icon>
+              {{ I18N.comparison.context.stale_notice | translate }}
+            </div>
+            @if (recomputeMessageKey(); as messageKey) {
+              <div class="text-sm text-red-400">{{ messageKey | translate }}</div>
+            }
+            @if (recomputing()) {
+              <div class="flex flex-col gap-1.5">
+                <mat-progress-bar [mode]="recomputeProgressPercent() === null ? 'indeterminate' : 'determinate'"
+                  [value]="recomputeProgressPercent() ?? 0" />
+                @if (recomputeStatus()?.progress; as p) {
+                  <span class="text-xs text-gray-500">
+                    {{ I18N.comparison.context.recompute_progress | translate:{ current: p.current ?? 0, total: p.total ?? 0 } }}
+                    @if (p.eta_seconds !== null && p.eta_seconds !== undefined) {
+                      &middot; {{ I18N.comparison.context.recompute_eta | translate:{ time: (p.eta_seconds | etaDuration) } }}
+                    }
+                  </span>
+                }
+              </div>
+            } @else {
+              <button mat-flat-button
+                [disabled]="recomputeDisabled()"
+                (click)="startRecompute()">
+                <span class="inline-flex items-center gap-1.5">
+                  <mat-icon class="!m-0">calculate</mat-icon>
+                  {{ I18N.comparison.context.recompute_now | translate }}
+                </span>
+              </button>
+            }
+          </mat-card-content>
+        </mat-card>
+      }
+
       <!-- Overlap panel (lazy: loaded when the tab is first activated) -->
       <mat-card>
         <mat-card-header class="!flex !items-start">
@@ -353,6 +360,21 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
             </table>
           } @else if (overlapLoaded()) {
             <p class="text-sm text-gray-500">{{ I18N.comparison.context.overlap_empty | translate }}</p>
+          }
+          @if (topOverlapPairs().length > 0) {
+            <div class="mt-4 pt-3 border-t border-[var(--mat-sys-outline-variant)]">
+              <h4 class="text-xs uppercase tracking-wide text-gray-500 mb-2">{{ I18N.comparison.context.overlap_pairs_title | translate }}</h4>
+              <ul class="flex flex-col gap-1 text-sm">
+                @for (pair of topOverlapPairs(); track pair.pair[0] + pair.pair[1]) {
+                  <li class="flex items-center justify-between gap-2">
+                    <span class="text-gray-300">
+                      {{ ('category_names.' + pair.pair[0]) | translate }} + {{ ('category_names.' + pair.pair[1]) | translate }}
+                    </span>
+                    <span class="font-mono text-amber-400 shrink-0">{{ pair.count }}</span>
+                  </li>
+                }
+              </ul>
+            </div>
           }
         </mat-card-content>
       </mat-card>
@@ -403,7 +425,14 @@ export class ComparisonPriorityTabComponent {
     this.recomputing() || !this.auth.isEdition(),
   );
   readonly sortedOverlapCategories = computed(() =>
-    [...(this.overlap()?.per_category ?? [])].sort((a, b) => b.captured_by_higher - a.captured_by_higher),
+    [...(this.overlap()?.per_category ?? [])]
+      .filter(c => c.name !== DEFAULT_CATEGORY_NAME)
+      .sort((a, b) => b.captured_by_higher - a.captured_by_higher),
+  );
+  readonly topOverlapPairs = computed(() =>
+    [...(this.overlap()?.overlaps ?? [])]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, MAX_OVERLAP_PAIRS),
   );
   readonly recomputeProgressPercent = computed(() => {
     const p = this.recomputeStatus()?.progress;
@@ -534,7 +563,14 @@ export class ComparisonPriorityTabComponent {
       if (!status.running) {
         this.stopRecomputePolling();
         this.recomputing.set(false);
-        if (status.exit_code === 0) {
+        // `_scan_state` is a per-PROCESS module global on a multi-worker
+        // deployment: a poll served by a worker that never saw the POST (or
+        // that is reporting on a concurrent scan, kind !== 'recompute')
+        // cannot be trusted as either success or failure -- report it as
+        // indeterminate rather than guessing.
+        if (status.kind !== JOB_KIND_RECOMPUTE || status.exit_code === null) {
+          this.recomputeMessageKey.set(I18N.comparison.context.recompute_unknown);
+        } else if (status.exit_code === 0) {
           this.stale.set(false);
           this.snackBar.open(this.i18n.t(I18N.comparison.context.recompute_done), '', { duration: 4000 });
         } else {
@@ -544,6 +580,7 @@ export class ComparisonPriorityTabComponent {
     } catch {
       this.stopRecomputePolling();
       this.recomputing.set(false);
+      this.recomputeMessageKey.set(I18N.comparison.context.recompute_unknown);
     }
   }
 

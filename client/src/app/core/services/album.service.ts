@@ -21,6 +21,13 @@ export interface Album {
 export interface AlbumScoringContextResult {
   updated: number;
   conflicts: number;
+  manual_skipped: number;
+  warning?: string;
+}
+
+export interface AlbumScoringContextClearResult {
+  ok: boolean;
+  cleared: number;
 }
 
 export interface AlbumSuggestedContext {
@@ -99,6 +106,11 @@ export class AlbumService {
   /** Set the album's scoring context; materializes it onto member photos (last-write-wins). */
   setScoringContext(albumId: number, scoringContext: string): Observable<AlbumScoringContextResult> {
     return this.api.put(`/albums/${albumId}/scoring_context`, { scoring_context: scoringContext });
+  }
+
+  /** Clear the album's scoring context and undo it on exactly the members this album stamped. */
+  clearScoringContext(albumId: number): Observable<AlbumScoringContextClearResult> {
+    return this.api.delete(`/albums/${albumId}/scoring_context`);
   }
 
   /** Suggest a scoring context from the album's dominant narrative moment. Writes nothing. */

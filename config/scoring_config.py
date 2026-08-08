@@ -58,6 +58,28 @@ def _calc_stats(values):
 
 from config.category_filter import CategoryFilter
 
+
+def _sanitize_context_names(context_def, field):
+    """Coerce a scoring_contexts list field (promote/excluded/suggest_from_moments) to strings.
+
+    Tolerates a hand-edited config where the field is the wrong type, or a
+    list with non-string entries, instead of letting callers crash on it.
+
+    Returns:
+        Tuple of (clean_names: list of str, problems: list of human-readable
+        descriptions of anything dropped). Both empty when the field is absent
+        or already well-formed.
+    """
+    raw = context_def.get(field)
+    if raw is None:
+        return [], []
+    if not isinstance(raw, list):
+        return [], [f"'{field}' should be a list, got {type(raw).__name__}"]
+    clean = [entry for entry in raw if isinstance(entry, str)]
+    problems = [f"{field} entry {entry!r} is not a string" for entry in raw if not isinstance(entry, str)]
+    return clean, problems
+
+
 class ScoringConfig:
     """Loads and manages scoring configuration from JSON file.
 
@@ -1018,9 +1040,18 @@ class ScoringConfig:
             if context:
                 logger.warning("Unknown scoring context %r, falling back to default order", context)
             context_def = contexts.get(DEFAULT_CONTEXT_NAME, {})
+        if not isinstance(context_def, dict):
+            logger.warning(
+                "Malformed scoring context %r (expected object, got %s), falling back to default order",
+                context or DEFAULT_CONTEXT_NAME, type(context_def).__name__,
+            )
+            context_def = {}
 
-        promote = context_def.get('promote') or []
-        excluded = set(context_def.get('excluded') or [])
+        promote, promote_problems = _sanitize_context_names(context_def, 'promote')
+        excluded_names, excluded_problems = _sanitize_context_names(context_def, 'excluded')
+        excluded = set(excluded_names)
+        for problem in promote_problems + excluded_problems:
+            logger.warning("scoring_contexts.%s: %s", cache_key, problem)
 
         by_name = {c.get('name'): c for c in self.config.get('categories', [])}
 
@@ -1044,7 +1075,7 @@ class ScoringConfig:
         if default_category is not None:
             ordered.append(default_category)
 
-        result = [(c['name'], CategoryFilter(c.get('filters', {}))) for c in ordered]
+        result = [(c.get('name'), CategoryFilter(c.get('filters', {}))) for c in ordered]
         self._context_order_cache[cache_key] = result
         return result
 
@@ -1153,8 +1184,11 @@ class ScoringConfig:
         for context_name, context_def in self.get_scoring_contexts().items():
             if not isinstance(context_def, dict):
                 continue
-            promote = context_def.get('promote') or []
-            excluded = context_def.get('excluded') or []
+            promote, promote_problems = _sanitize_context_names(context_def, 'promote')
+            excluded, excluded_problems = _sanitize_context_names(context_def, 'excluded')
+            moments, moment_problems = _sanitize_context_names(context_def, 'suggest_from_moments')
+            for problem in promote_problems + excluded_problems + moment_problems:
+                issues.append(f"scoring_contexts.{context_name}: {problem}")
 
             for name in promote:
                 if name not in category_names:
@@ -1173,7 +1207,7 @@ class ScoringConfig:
                     f"(excluded wins — the promote entry is dropped)"
                 )
 
-            for moment in context_def.get('suggest_from_moments') or []:
+            for moment in moments:
                 if moment not in moment_names:
                     issues.append(
                         f"scoring_contexts.{context_name}: suggest_from_moments references unknown moment "

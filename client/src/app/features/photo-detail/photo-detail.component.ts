@@ -32,6 +32,7 @@ import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 import { I18N } from '../../core/i18n/keys';
 import { isTypingContext } from '../../shared/utils/keyboard';
+import type { CategoryOverrideResult } from './category-override-dialog.component';
 
 const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   saliency: I18N.social_export.source.saliency,
@@ -846,15 +847,18 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         maxWidth: '24rem',
         data: { path: p.path, currentCategory: p.category },
       });
-      ref.afterClosed().subscribe((newCategory: string | undefined) => {
-        if (newCategory) this.photo.set({ ...p, category: newCategory });
+      ref.afterClosed().subscribe((result: CategoryOverrideResult | undefined) => {
+        if (result) this.photo.set({ ...p, category: result.category, aggregate: result.aggregate });
       });
     });
   }
 
   protected async clearCategoryOverride(p: Photo): Promise<void> {
     try {
-      await firstValueFrom(this.api.post('/comparison/clear_category_override', { path: p.path }));
+      const res = await firstValueFrom(
+        this.api.post<{ new_category: string; aggregate: number }>('/comparison/clear_category_override', { path: p.path }),
+      );
+      this.photo.set({ ...p, category: res.new_category, aggregate: res.aggregate });
       this.snackBar.open(this.i18n.t(I18N.photo.category_override.cleared), '', { duration: 3000 });
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });

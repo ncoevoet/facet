@@ -75,6 +75,19 @@ export class FilterValueFormatPipe implements PipeTransform {
 }
 
 /**
+ * Formats a remaining-time estimate (seconds) as a short, human-readable
+ * duration: "45s" under a minute, "8 min" (rounded) at or above one.
+ */
+@Pipe({ name: 'etaDuration', standalone: true, pure: true })
+export class EtaDurationPipe implements PipeTransform {
+  transform(etaSeconds: number | null | undefined): string {
+    if (etaSeconds == null || isNaN(etaSeconds) || etaSeconds < 0) return '';
+    if (etaSeconds < 60) return `${Math.max(1, Math.round(etaSeconds))}s`;
+    return `${Math.round(etaSeconds / 60)} min`;
+  }
+}
+
+/**
  * Formats modifier display values with appropriate units.
  * Bonus: +1.5 pts; Noise tolerance: percentage; Clipping multiplier: multiplier.
  */

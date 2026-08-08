@@ -709,10 +709,17 @@ class TestOverrideCategory:
         mock_config.get_categories.return_value = [{"name": "portrait"}, {"name": "sports"}]
 
         conn_mock = mock.MagicMock()
-        conn_mock.execute.return_value.fetchone.return_value = ("silhouette",)
+        conn_mock.execute.return_value.fetchone.return_value = {"path": "/a.jpg", "category": "silhouette"}
 
         mock_set_override = mock.MagicMock()
         fake_scoring_overrides_module = mock.MagicMock(set_photo_scoring_override=mock_set_override)
+
+        class _FakeFacet:
+            def __init__(self, *a, **k):
+                pass
+
+            def calculate_aggregate_logic(self, m):
+                return 7.42, m.get('category_override')
 
         app, client = _make_app_and_client()
         _override_auth(app, _edition_user())
@@ -723,6 +730,7 @@ class TestOverrideCategory:
                 "db.scoring_overrides": fake_scoring_overrides_module,
             }),
             mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
+            mock.patch("processing.scorer.Facet", _FakeFacet),
         ):
             resp = client.post(self.ENDPOINT, json={"path": "/a.jpg", "category": "sports"})
 
@@ -730,6 +738,7 @@ class TestOverrideCategory:
         data = resp.json()
         assert data["old_category"] == "silhouette"
         assert data["new_category"] == "sports"
+        assert data["aggregate"] == 7.42
 
         # Side-table override was written as a manual, sticky override.
         mock_set_override.assert_called_once()
@@ -737,13 +746,16 @@ class TestOverrideCategory:
         assert kwargs["category_override"] == "sports"
         assert kwargs["source"] == "manual"
 
-        # photos.category was updated immediately (before any recompute).
+        # photos.category AND aggregate were updated together, immediately --
+        # D5: a category override must never leave the score stale next to
+        # the new category.
         update_calls = [
             c for c in conn_mock.execute.call_args_list
             if c.args and isinstance(c.args[0], str) and "UPDATE photos SET category" in c.args[0]
         ]
         assert len(update_calls) == 1
         assert update_calls[0].args[1][0] == "sports"
+        assert update_calls[0].args[1][1] == 7.42
 
         conn_mock.commit.assert_called_once()
 
@@ -782,12 +794,7 @@ class TestClearCategoryOverride:
         assert resp.status_code == 404
 
     def test_clears_override(self):
-        photo_row = {
-            "tags": "sunset, beach", "face_count": 0, "face_ratio": 0.0,
-            "is_silhouette": 0, "is_group_portrait": 0, "is_monochrome": 0,
-            "mean_luminance": 0.5, "iso": 100, "shutter_speed": "1/500",
-            "focal_length": 35.0, "f_stop": 8.0, "category": "motorsport",
-        }
+        photo_row = {"path": "/a.jpg", "tags": "sunset, beach", "category": "motorsport"}
         conn_mock = mock.MagicMock()
         conn_mock.execute.return_value.fetchone.return_value = photo_row
 
@@ -798,18 +805,22 @@ class TestClearCategoryOverride:
             get_photo_scoring_overrides=mock_get_overrides,
         )
 
-        mock_config = mock.MagicMock()
-        mock_config.determine_category.return_value = "landscape"
+        class _FakeFacet:
+            def __init__(self, *a, **k):
+                pass
+
+            def calculate_aggregate_logic(self, m):
+                assert m["category_override"] is None
+                assert m["scoring_context"] is None
+                return 6.11, "landscape"
 
         app, client = _make_app_and_client()
         _override_auth(app, _edition_user())
 
         with (
             mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
-            mock.patch.dict("sys.modules", {
-                "db.scoring_overrides": fake_scoring_overrides_module,
-                "config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config),
-            }),
+            mock.patch.dict("sys.modules", {"db.scoring_overrides": fake_scoring_overrides_module}),
+            mock.patch("processing.scorer.Facet", _FakeFacet),
         ):
             resp = client.post(self.ENDPOINT, json={"path": "/a.jpg"})
 
@@ -818,28 +829,23 @@ class TestClearCategoryOverride:
         assert data["success"] is True
         assert data["old_category"] == "motorsport"
         assert data["new_category"] == "landscape"
+        assert data["aggregate"] == 6.11
 
         mock_clear.assert_called_once()
         args, kwargs = mock_clear.call_args
         assert args[1] == "/a.jpg"
         assert kwargs["field"] == "category_override"
 
-        # The recomputation reuses ScoringConfig.determine_category rather
-        # than reimplementing filter evaluation, honoring any remaining
-        # per-photo scoring_context override.
-        mock_config.determine_category.assert_called_once()
-        det_args, det_kwargs = mock_config.determine_category.call_args
-        assert det_args[0]["tags"] == "sunset, beach"
-        assert det_args[0]["shutter_speed"] == "1/500"
-        assert det_kwargs["context"] is None
-
-        # photos.category is rewritten immediately, mirroring override_category.
+        # photos.category AND aggregate are rewritten together, immediately --
+        # D5: clearing an override must never leave the score stale next to
+        # the recomputed category.
         update_calls = [
             c for c in conn_mock.execute.call_args_list
             if c.args and isinstance(c.args[0], str) and "UPDATE photos SET category" in c.args[0]
         ]
         assert len(update_calls) == 1
         assert update_calls[0].args[1][0] == "landscape"
+        assert update_calls[0].args[1][1] == 6.11
 
         conn_mock.commit.assert_called_once()
 
@@ -847,12 +853,7 @@ class TestClearCategoryOverride:
         """The photo's scoring_context override (independent of the cleared
         category_override) must still steer recomputation -- clearing the
         category pin should not also silently drop a sticky context."""
-        photo_row = {
-            "tags": "", "face_count": 0, "face_ratio": 0.0,
-            "is_silhouette": 0, "is_group_portrait": 0, "is_monochrome": 0,
-            "mean_luminance": 0.5, "iso": None, "shutter_speed": None,
-            "focal_length": None, "f_stop": None, "category": "motorsport",
-        }
+        photo_row = {"path": "/a.jpg", "tags": "", "category": "motorsport"}
         conn_mock = mock.MagicMock()
         conn_mock.execute.return_value.fetchone.return_value = photo_row
 
@@ -864,23 +865,133 @@ class TestClearCategoryOverride:
             get_photo_scoring_overrides=mock_get_overrides,
         )
 
-        mock_config = mock.MagicMock()
-        mock_config.determine_category.return_value = "sports"
+        seen = {}
+
+        class _FakeFacet:
+            def __init__(self, *a, **k):
+                pass
+
+            def calculate_aggregate_logic(self, m):
+                seen["scoring_context"] = m["scoring_context"]
+                return 5.0, "sports"
 
         app, client = _make_app_and_client()
         _override_auth(app, _edition_user())
 
         with (
             mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
-            mock.patch.dict("sys.modules", {
-                "db.scoring_overrides": fake_scoring_overrides_module,
-                "config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config),
-            }),
+            mock.patch.dict("sys.modules", {"db.scoring_overrides": fake_scoring_overrides_module}),
+            mock.patch("processing.scorer.Facet", _FakeFacet),
         ):
             resp = client.post(self.ENDPOINT, json={"path": "/a.jpg"})
 
         assert resp.status_code == 200
         assert resp.json()["new_category"] == "sports"
+        assert seen["scoring_context"] == "action_stage"
 
-        det_kwargs = mock_config.determine_category.call_args.kwargs
-        assert det_kwargs["context"] == "action_stage"
+
+# ---------------------------------------------------------------------------
+# TestSuggestFilters
+# ---------------------------------------------------------------------------
+
+class TestSuggestFilters:
+    """POST /api/comparison/suggest_filters
+
+    D1: shutter_speed is stored as TEXT for every non-null row in the real
+    126k-photo library ('1/250'-style fractions and plain decimal strings
+    like '0.001'), and it was compared to a numeric filter threshold with a
+    bare float()-free `<`/`>` -- raising TypeError -> 500 for the two
+    categories (sports, long_exposure) that filter on it. Plus a latent
+    photo_data['iso'] = metrics.get('ISO') bug (column is 'iso').
+    """
+
+    ENDPOINT = "/api/comparison/suggest_filters"
+
+    def _photo_row(self, **overrides):
+        row = {
+            "path": "/a.jpg", "category": "silhouette", "tags": "sports,street",
+            "face_count": 0, "face_ratio": 0.0, "is_silhouette": 1,
+            "is_group_portrait": 0, "is_monochrome": 0, "mean_luminance": 0.3,
+            "iso": 800, "shutter_speed": "0.001", "focal_length": 200.0, "f_stop": 2.8,
+        }
+        row.update(overrides)
+        return row
+
+    def test_real_decimal_shutter_speed_string_does_not_500(self):
+        """The literal repro: category=silhouette, tags='sports,street',
+        shutter_speed='0.001' (TEXT) against the 'sports' filter -- the one
+        question ("why isn't this photo sports?") the feature exists to answer."""
+        mock_config = mock.MagicMock()
+        mock_config.get_categories.return_value = [
+            {"name": "sports", "filters": {
+                "required_tags": ["sports"], "tag_match_mode": "any", "shutter_speed_max": 0.02,
+            }},
+        ]
+
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value.fetchone.return_value = self._photo_row()
+
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+
+        with (
+            mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+            mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
+        ):
+            resp = client.post(self.ENDPOINT, json={"path": "/a.jpg", "target_category": "sports"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["no_conflicts"] is True
+
+    def test_fraction_shutter_speed_string_is_coerced_like_category_filter(self):
+        """'1/250'-style fractional strings (the real on-disk format) must
+        parse the same way CategoryFilter._to_float does, not just avoid
+        crashing -- the endpoint has to agree with the real filter evaluation."""
+        mock_config = mock.MagicMock()
+        mock_config.get_categories.return_value = [
+            {"name": "long_exposure", "filters": {"shutter_speed_min": 1.0, "shutter_speed_max": 10.0}},
+        ]
+
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value.fetchone.return_value = self._photo_row(shutter_speed="1/250")
+
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+
+        with (
+            mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+            mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
+        ):
+            resp = client.post(self.ENDPOINT, json={"path": "/a.jpg", "target_category": "long_exposure"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        conflict = next(c for c in data["conflicts"] if c["filter"] == "shutter_speed_min")
+        assert conflict["type"] == "below_minimum"
+        assert conflict["actual"] == pytest.approx(1 / 250)
+
+    def test_iso_uses_the_lowercase_db_column(self):
+        """Latent bug: photo_data['iso'] read metrics.get('ISO') but the
+        column is 'iso', so it was always None -- a false 'missing' conflict
+        the moment any category filters on ISO."""
+        mock_config = mock.MagicMock()
+        mock_config.get_categories.return_value = [
+            {"name": "astro", "filters": {"iso_min": 1000}},
+        ]
+
+        conn_mock = mock.MagicMock()
+        conn_mock.execute.return_value.fetchone.return_value = self._photo_row(category="landscape", iso=800)
+
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+
+        with (
+            mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+            mock.patch(f"{_ROUTER_MODULE}.get_db", _cm(conn_mock)),
+        ):
+            resp = client.post(self.ENDPOINT, json={"path": "/a.jpg", "target_category": "astro"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["photo_values"]["iso"] == 800
+        conflict = next(c for c in data["conflicts"] if c["filter"] == "iso_min")
+        assert conflict["type"] == "below_minimum"
+        assert conflict["actual"] == 800

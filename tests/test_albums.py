@@ -757,62 +757,124 @@ class TestRemovePhotosFromAlbumClearsScoringOverrides:
 
 
 class TestAlbumSuggestedContext:
-    """Tests for GET /api/albums/{id}/suggested_context."""
+    """Tests for GET /api/albums/{id}/suggested_context.
 
-    ENDPOINT = "/api/albums/1/suggested_context"
+    Real ``sqlite3.Connection`` fixtures (not a mocked connection): the
+    endpoint now resolves membership through ``_resolve_album_member_paths``
+    (DEFECT F8 regression -- it used to read ``album_photos`` directly, which
+    carries no rows for a smart album, so the suggestion silently starved for
+    every smart album), the same real-DB exercise as
+    ``TestAlbumScoringContextSmartAlbum``.
+    """
 
-    def test_writes_nothing_and_suggests_from_dominant_moment(self, client):
-        album_row = _make_album_row(id=1)
+    _MOMENT_PHOTOS = (
+        "INSERT INTO photos (path, category, narrative_moment) VALUES "
+        "('/a.jpg', 'wildlife', 'sports_action'), ('/b.jpg', 'wildlife', 'sports_action'), "
+        "('/c.jpg', 'wildlife', 'sports_action'), ('/d.jpg', 'wildlife', 'sports_action'), "
+        "('/e.jpg', 'wildlife', 'sports_action'), ('/f.jpg', 'wildlife', 'sports_action'), "
+        "('/g.jpg', 'wildlife', 'sports_action'), ('/h.jpg', 'wildlife', 'sports_action'), "
+        "('/i.jpg', 'wildlife', 'celebration'), ('/j.jpg', 'wildlife', 'celebration'), "
+        "('/other.jpg', 'landscape', NULL)"
+    )
+    _MOMENT_MEMBER_PATHS = [
+        '/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg', '/e.jpg',
+        '/f.jpg', '/g.jpg', '/h.jpg', '/i.jpg', '/j.jpg',
+    ]
+    _CONTEXTS = {
+        "default": {"suggest_from_moments": []},
+        "action_stage": {"suggest_from_moments": ["sports_action"]},
+    }
 
+    @staticmethod
+    def _init_db(tmp_path, name, is_smart=0, smart_filter_json=None, seed_photos=True):
+        from db.connection import get_connection
+        from db.schema import init_database
+
+        db_path = str(tmp_path / name)
+        init_database(db_path)
+        with get_connection(db_path) as conn:
+            conn.execute(
+                "INSERT INTO albums (id, name, is_smart, smart_filter_json) VALUES (1, 'Trip', ?, ?)",
+                (is_smart, smart_filter_json),
+            )
+            if seed_photos:
+                conn.execute(TestAlbumSuggestedContext._MOMENT_PHOTOS)
+                if not is_smart:
+                    conn.executemany(
+                        "INSERT INTO album_photos (album_id, photo_path, position) VALUES (1, ?, ?)",
+                        [(p, i) for i, p in enumerate(TestAlbumSuggestedContext._MOMENT_MEMBER_PATHS)],
+                    )
+            conn.commit()
+        return db_path
+
+    def test_writes_nothing_and_suggests_from_dominant_moment(self, tmp_path):
+        from db.connection import get_connection
+        from api.routers.albums import get_album_suggested_context
+
+        db_path = self._init_db(tmp_path, "manual_suggest.db")
         mock_config = mock.MagicMock()
-        mock_config.get_scoring_contexts.return_value = {
-            "default": {"suggest_from_moments": []},
-            "action_stage": {"suggest_from_moments": ["sports_action"]},
-        }
+        mock_config.get_scoring_contexts.return_value = self._CONTEXTS
 
-        conn_mock = mock.MagicMock()
-        conn_mock.execute.return_value.fetchone.return_value = album_row
-        conn_mock.execute.return_value.fetchall.return_value = [
-            {"narrative_moment": "sports_action", "cnt": 8},
-            {"narrative_moment": "celebration", "cnt": 2},
-        ]
+        with get_connection(db_path) as conn:
+            with (
+                mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+                mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)),
+                mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+                mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": ""}),
+            ):
+                result = get_album_suggested_context(1, None)
 
-        with (
-            mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
-            mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn_mock)),
-        ):
-            resp = client.get(self.ENDPOINT)
+            assert conn.total_changes == 0  # suggestion only -- must not write anything
 
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["suggested"] == "action_stage"
-        assert data["moment"] == "sports_action"
-        assert data["share"] == 0.8
-        assert data["counts"] == {"sports_action": 8, "celebration": 2}
+        assert result["suggested"] == "action_stage"
+        assert result["moment"] == "sports_action"
+        assert result["share"] == 0.8
+        assert result["counts"] == {"sports_action": 8, "celebration": 2}
 
-        # Suggestion only -- must not write anything.
-        conn_mock.commit.assert_not_called()
-        write_calls = [
-            c for c in conn_mock.execute.call_args_list
-            if c.args and isinstance(c.args[0], str) and c.args[0].strip().upper().startswith(("UPDATE", "INSERT", "DELETE"))
-        ]
-        assert write_calls == []
+    def test_suggests_from_dominant_moment_on_smart_album(self, tmp_path):
+        """DEFECT F8 regression: a smart album's members carry the moments, but
+        ``album_photos`` is empty for it -- the suggestion must still resolve."""
+        from db.connection import get_connection
+        from api.routers.albums import get_album_suggested_context
 
-    def test_no_moments_returns_none(self, client):
-        album_row = _make_album_row(id=1)
+        db_path = self._init_db(tmp_path, "smart_suggest.db", is_smart=1, smart_filter_json='{"category": "wildlife"}')
+        mock_config = mock.MagicMock()
+        mock_config.get_scoring_contexts.return_value = self._CONTEXTS
 
-        conn_mock = mock.MagicMock()
-        conn_mock.execute.return_value.fetchone.return_value = album_row
-        conn_mock.execute.return_value.fetchall.return_value = []
+        with get_connection(db_path) as conn:
+            with (
+                mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+                mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)),
+                mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+                mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": ""}),
+            ):
+                result = get_album_suggested_context(1, None)
 
-        with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn_mock)):
-            resp = client.get(self.ENDPOINT)
+        assert result["suggested"] == "action_stage"
+        assert result["moment"] == "sports_action"
+        assert result["counts"] == {"sports_action": 8, "celebration": 2}
 
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["suggested"] is None
-        assert data["moment"] is None
-        assert data["share"] == 0.0
+    def test_no_moments_returns_none(self, tmp_path):
+        from db.connection import get_connection
+        from api.routers.albums import get_album_suggested_context
+
+        db_path = self._init_db(tmp_path, "no_moments.db", seed_photos=False)
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO photos (path) VALUES ('/a.jpg')")
+            conn.execute("INSERT INTO album_photos (album_id, photo_path, position) VALUES (1, '/a.jpg', 0)")
+            conn.commit()
+
+        with get_connection(db_path) as conn:
+            with (
+                mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)),
+                mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+                mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": ""}),
+            ):
+                result = get_album_suggested_context(1, None)
+
+        assert result["suggested"] is None
+        assert result["moment"] is None
+        assert result["share"] == 0.0
 
 
 class TestAlbumContextMaterializesOntoLaterPhotos:
@@ -871,4 +933,250 @@ class TestAlbumContextMaterializesOntoLaterPhotos:
 
         overrides = get_photo_scoring_overrides(db_path, paths=['/a.jpg'])
         assert overrides == {}
+
+
+class TestAlbumScoringContextPreservesManualOverride:
+    """DEFECT F2 regression: a member's manual override must never be
+    silently converted into an album-sourced one. Before the fix,
+    ``set_album_scoring_context`` stamped every member unconditionally, so a
+    photo the user had manually marked (``source == 'manual'``) had its
+    ``source`` flipped to ``album:<id>`` -- and a later clear of that album's
+    context would then wipe the photo's own choice."""
+
+    @staticmethod
+    def _init_db(tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import set_photo_scoring_override
+
+        db_path = str(tmp_path / "manual_protect.db")
+        init_database(db_path)
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO albums (id, name) VALUES (1, 'Trip')")
+            conn.execute("INSERT INTO photos (path) VALUES ('/manual.jpg'), ('/plain.jpg')")
+            conn.executemany(
+                "INSERT INTO album_photos (album_id, photo_path, position) VALUES (1, ?, ?)",
+                [('/manual.jpg', 0), ('/plain.jpg', 1)],
+            )
+            set_photo_scoring_override(conn, '/manual.jpg', category_override='sports', source='manual')
+            conn.commit()
+        return db_path
+
+    def test_set_skips_and_counts_manual_members(self, tmp_path):
+        from db.connection import get_connection
+        from db.scoring_overrides import get_photo_scoring_overrides
+        from api.routers.albums import set_album_scoring_context, AlbumScoringContextRequest
+
+        db_path = self._init_db(tmp_path)
+        mock_config = mock.MagicMock()
+        mock_config.get_scoring_contexts.return_value = {"default": {}, "action_stage": {}}
+
+        with get_connection(db_path) as conn:
+            with (
+                mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+                mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)),
+                mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+                mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": ""}),
+            ):
+                result = set_album_scoring_context(
+                    1, AlbumScoringContextRequest(scoring_context="action_stage"), _EDITION_USER
+                )
+
+            row = conn.execute(
+                "SELECT scoring_context, source FROM photo_scoring_overrides WHERE photo_path = '/manual.jpg'"
+            ).fetchone()
+
+        assert result["updated"] == 1
+        assert result["manual_skipped"] == 1
+        assert row["scoring_context"] is None
+        assert row["source"] == "manual"
+
+        overrides = get_photo_scoring_overrides(db_path, paths=['/plain.jpg'])
+        assert overrides['/plain.jpg']['scoring_context'] == 'action_stage'
+
+    def test_append_later_also_skips_manual_members(self, tmp_path):
+        """``_apply_album_scoring_context`` (run from ``append_album_photos``)
+        must apply the same manual-override protection as the initial stamp."""
+        from db.connection import get_connection
+        from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
+        from api.routers.albums import append_album_photos
+
+        db_path = self._init_db(tmp_path)
+        with get_connection(db_path) as conn:
+            conn.execute("UPDATE albums SET scoring_context = 'action_stage' WHERE id = 1")
+            conn.execute("DELETE FROM album_photos")
+            conn.execute("INSERT INTO photos (path) VALUES ('/new_manual.jpg')")
+            set_photo_scoring_override(conn, '/new_manual.jpg', category_override='sports', source='manual')
+            conn.commit()
+
+            append_album_photos(conn, 1, ['/manual.jpg', '/new_manual.jpg', '/plain.jpg'])
+            conn.commit()
+
+        overrides = get_photo_scoring_overrides(db_path, paths=['/manual.jpg', '/new_manual.jpg', '/plain.jpg'])
+        assert overrides['/manual.jpg']['scoring_context'] is None
+        assert overrides['/new_manual.jpg']['scoring_context'] is None
+        assert overrides['/plain.jpg']['scoring_context'] == 'action_stage'
+
+
+class TestAlbumScoringContextMultiAlbumMembership:
+    """DEFECT F3 regression: a single ``source`` column cannot represent
+    multi-album membership. Removing a photo from the album that most
+    recently stamped it must not strip a context that another album, which
+    still counts the photo a member, still declares."""
+
+    def test_remove_from_one_album_restamps_from_a_still_declaring_album(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
+        from api.routers.albums import remove_photos_from_album, AlbumPhotosRequest
+
+        db_path = str(tmp_path / "multi_album.db")
+        init_database(db_path)
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO albums (id, name, scoring_context) VALUES (1, 'Motorsport', 'motorsport')")
+            conn.execute("INSERT INTO albums (id, name, scoring_context) VALUES (2, 'Astro', 'astro')")
+            conn.execute("INSERT INTO photos (path) VALUES ('/shared.jpg')")
+            conn.executemany(
+                "INSERT INTO album_photos (album_id, photo_path, position) VALUES (?, '/shared.jpg', 0)",
+                [(1,), (2,)],
+            )
+            # Album 2 stamped last -- 'source' can only name one of the two albums.
+            set_photo_scoring_override(conn, '/shared.jpg', scoring_context='astro', source='album:2')
+            conn.commit()
+
+        with get_connection(db_path) as conn:
+            with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)):
+                result = remove_photos_from_album(2, AlbumPhotosRequest(photo_paths=['/shared.jpg']), _EDITION_USER)
+
+            assert result["ok"] is True
+
+            row = conn.execute(
+                "SELECT source FROM photo_scoring_overrides WHERE photo_path = '/shared.jpg'"
+            ).fetchone()
+            assert row["source"] == "album:1"
+
+        overrides = get_photo_scoring_overrides(db_path, paths=['/shared.jpg'])
+        # Still a member of album 1, which still declares a context -- re-derived, not cleared.
+        assert overrides['/shared.jpg']['scoring_context'] == 'motorsport'
+
+    def test_remove_from_only_declaring_album_clears_as_before(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
+        from api.routers.albums import remove_photos_from_album, AlbumPhotosRequest
+
+        db_path = str(tmp_path / "single_album.db")
+        init_database(db_path)
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO albums (id, name, scoring_context) VALUES (1, 'Motorsport', 'motorsport')")
+            conn.execute("INSERT INTO photos (path) VALUES ('/a.jpg')")
+            conn.execute("INSERT INTO album_photos (album_id, photo_path, position) VALUES (1, '/a.jpg', 0)")
+            set_photo_scoring_override(conn, '/a.jpg', scoring_context='motorsport', source='album:1')
+            conn.commit()
+
+        with get_connection(db_path) as conn:
+            with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)):
+                remove_photos_from_album(1, AlbumPhotosRequest(photo_paths=['/a.jpg']), _EDITION_USER)
+
+            overrides = get_photo_scoring_overrides(db_path, paths=['/a.jpg'])
+        assert overrides == {}
+
+
+class TestSmartAlbumRemovePhotosIsANoop:
+    """DEFECT F4 regression: ``album_photos`` carries no rows for a smart
+    album -- membership is resolved live from ``smart_filter_json`` -- so
+    DELETE .../photos must not strip scoring-context stamps from photos that
+    are (still) members."""
+
+    def test_remove_photos_is_a_noop_for_a_smart_album(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
+        from api.routers.albums import remove_photos_from_album, AlbumPhotosRequest
+
+        db_path = str(tmp_path / "smart_remove.db")
+        init_database(db_path)
+        with get_connection(db_path) as conn:
+            conn.execute(
+                "INSERT INTO albums (id, name, is_smart, smart_filter_json, scoring_context) "
+                "VALUES (1, 'Wildlife', 1, '{\"category\": \"wildlife\"}', 'action_stage')"
+            )
+            conn.execute("INSERT INTO photos (path, category) VALUES ('/w1.jpg', 'wildlife')")
+            set_photo_scoring_override(conn, '/w1.jpg', scoring_context='action_stage', source='album:1')
+            conn.commit()
+
+        with get_connection(db_path) as conn:
+            with (
+                mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)),
+                mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+                mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": ""}),
+            ):
+                result = remove_photos_from_album(1, AlbumPhotosRequest(photo_paths=['/w1.jpg']), _EDITION_USER)
+
+            overrides = get_photo_scoring_overrides(conn, paths=['/w1.jpg'])
+        assert result["ok"] is True
+        assert overrides['/w1.jpg']['scoring_context'] == 'action_stage'
+
+
+class TestAlbumScoringContextChunksLargeMemberSets:
+    """DEFECT F5 regression: every ``IN (?, ?, ...)`` query built from a
+    member list must be chunked under SQLite's bound-variable limit, like
+    every other bulk lookup in the codebase (``select_in_chunks``). Exercised
+    with 2200 members -- more than double ``select_in_chunks``'s default
+    900-per-chunk -- so a chunk-boundary bug (e.g. only the last chunk's
+    results surviving) would be caught, independent of exactly where a given
+    SQLite build's variable ceiling sits."""
+
+    _COUNT = 2200
+
+    def test_set_and_clear_handle_thousands_of_members(self, tmp_path):
+        from db.connection import get_connection
+        from db.schema import init_database
+        from db.scoring_overrides import get_photo_scoring_overrides
+        from api.routers.albums import (
+            set_album_scoring_context, clear_album_scoring_context, AlbumScoringContextRequest,
+        )
+
+        db_path = str(tmp_path / "chunking.db")
+        init_database(db_path)
+        paths = [f'/bulk_{i}.jpg' for i in range(self._COUNT)]
+        with get_connection(db_path) as conn:
+            conn.execute("INSERT INTO albums (id, name) VALUES (1, 'Bulk')")
+            conn.executemany("INSERT INTO photos (path) VALUES (?)", [(p,) for p in paths])
+            conn.executemany(
+                "INSERT INTO album_photos (album_id, photo_path, position) VALUES (1, ?, ?)",
+                [(p, i) for i, p in enumerate(paths)],
+            )
+            conn.commit()
+
+        mock_config = mock.MagicMock()
+        mock_config.get_scoring_contexts.return_value = {"default": {}, "action_stage": {}}
+
+        with get_connection(db_path) as conn:
+            with (
+                mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
+                mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)),
+                mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+                mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": ""}),
+            ):
+                set_result = set_album_scoring_context(
+                    1, AlbumScoringContextRequest(scoring_context="action_stage"), _EDITION_USER
+                )
+
+        assert set_result["updated"] == self._COUNT
+
+        overrides = get_photo_scoring_overrides(db_path, paths=paths)
+        assert len(overrides) == self._COUNT
+        assert all(o['scoring_context'] == 'action_stage' for o in overrides.values())
+
+        with get_connection(db_path) as conn:
+            with (
+                mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(conn)),
+                mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+                mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": ""}),
+            ):
+                clear_result = clear_album_scoring_context(1, _EDITION_USER)
+
+        assert clear_result["cleared"] == self._COUNT
+        assert get_photo_scoring_overrides(db_path, paths=paths) == {}
 

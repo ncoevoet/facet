@@ -36,25 +36,27 @@ def get_photo_scoring_overrides(db, paths=None):
 
     ``db`` may be an open sqlite3 connection or a database path / None (a
     short-lived connection is opened here). ``paths`` restricts the lookup to
-    the given photo paths in a single query; omit it to load every override
-    row (the whole-library recompute path). Callers batch this lookup once
-    per chunk/scan rather than querying per photo.
+    the given photo paths, chunked under SQLite's bound-variable limit (a
+    filterless smart album can resolve to the whole library); omit it to load
+    every override row (the whole-library recompute path). Callers batch this
+    lookup once per chunk/scan rather than querying per photo.
     """
-    query = _SELECT_SQL
-    params = ()
     if paths is not None:
         paths = list(paths)
         if not paths:
             return {}
-        placeholders = ','.join('?' * len(paths))
-        query = f"{_SELECT_SQL} WHERE photo_path IN ({placeholders})"
-        params = tuple(paths)
-
-    if hasattr(db, 'execute'):
-        rows = db.execute(query, params).fetchall()
+        from api.db_helpers import select_in_chunks
+        query = f"{_SELECT_SQL} WHERE photo_path IN ({{placeholders}})"
+        if hasattr(db, 'execute'):
+            rows = list(select_in_chunks(db, query, paths))
+        else:
+            with get_connection(db or DEFAULT_DB_PATH) as conn:
+                rows = list(select_in_chunks(conn, query, paths))
+    elif hasattr(db, 'execute'):
+        rows = db.execute(_SELECT_SQL).fetchall()
     else:
         with get_connection(db or DEFAULT_DB_PATH) as conn:
-            rows = conn.execute(query, params).fetchall()
+            rows = conn.execute(_SELECT_SQL).fetchall()
 
     return {
         photo_path: {'scoring_context': scoring_context, 'category_override': category_override}
