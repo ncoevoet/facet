@@ -544,6 +544,7 @@
     "database_error": "Datenbankfehler",
     "rate_limited": "Zu viele Anfragen — bitte warten Sie einen Moment",
     "access_denied": "Zugriff verweigert",
+    "edition_expired": "Bearbeitungsmodus nicht mehr aktiv - Bearbeitung entsperren und erneut versuchen",
     "server_error": "Serverfehler — bitte versuchen Sie es erneut",
     "action_failed": "Aktion fehlgeschlagen — Änderung rückgängig gemacht"
   },
@@ -1619,6 +1620,7 @@
     "add_photos": "Zum Album hinzufugen",
     "photos_added": "Fotos zum Album hinzugefugt",
     "save_smart": "Als intelligentes Album speichern",
+    "smart_save_failed": "Die Filter des intelligenten Albums wurden nicht gespeichert",
     "smart_album": "Intelligentes Album",
     "smart_tooltip": "Intelligentes Album — sammelt automatisch Fotos, die einem gespeicherten Filter entsprechen",
     "confirm_delete_title": "Album loschen",

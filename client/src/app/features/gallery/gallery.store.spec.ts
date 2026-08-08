@@ -5,7 +5,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { NEVER, Subject, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
-import { AlbumService } from '../../core/services/album.service';
+import { Album, AlbumService } from '../../core/services/album.service';
 import { I18nService } from '../../core/services/i18n.service';
 import {
   GalleryStore,
@@ -1173,5 +1173,79 @@ describe('GalleryStore restoreSnapshot', () => {
       ['/a.jpg', { is_favorite: false, is_rejected: false, star_rating: null }],
     ]));
     expect(apiPost).not.toHaveBeenCalled();
+  });
+});
+
+describe('GalleryStore smart-album auto-save', () => {
+  let store: GalleryStore;
+  let albumUpdate: Mock;
+  let snackOpen: Mock;
+
+  const smartAlbum: Album = {
+    id: 7,
+    name: 'Keepers',
+    description: '',
+    cover_photo_path: null,
+    first_photo_path: null,
+    is_smart: true,
+    is_shared: false,
+    smart_filter_json: '{}',
+    scoring_context: null,
+    photo_count: 3,
+    created_at: '',
+    updated_at: '',
+  };
+
+  beforeEach(() => {
+    albumUpdate = vi.fn(() => of({}));
+    snackOpen = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        GalleryStore,
+        { provide: ApiService, useValue: { get: vi.fn(() => of({})), post: vi.fn(() => of({})) } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
+        { provide: AuthService, useValue: { isEdition: vi.fn(() => true) } },
+        { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: albumUpdate } },
+        { provide: MatSnackBar, useValue: { open: snackOpen } },
+        { provide: I18nService, useValue: { t: (k: string) => k } },
+      ],
+    });
+    store = TestBed.inject(GalleryStore);
+    store.currentAlbum.set(smartAlbum);
+  });
+
+  async function changeFiltersAndSettle(): Promise<void> {
+    store.filters.set({ ...DEFAULT_FILTERS, camera: 'Canon' });
+    TestBed.tick();
+    await vi.advanceTimersByTimeAsync(500);
+  }
+
+  it('persists the filters without a snackbar when the write succeeds', async () => {
+    vi.useFakeTimers();
+    try {
+      await changeFiltersAndSettle();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(albumUpdate).toHaveBeenCalledTimes(1);
+    const [albumId, body] = albumUpdate.mock.calls[0];
+    expect(albumId).toBe(7);
+    expect(JSON.parse(body.smart_filter_json)).toMatchObject({ camera: 'Canon' });
+    expect(snackOpen).not.toHaveBeenCalled();
+  });
+
+  it('reports a rejected write instead of letting it pass for a save', async () => {
+    albumUpdate.mockReturnValue(throwError(() => new Error('403')));
+
+    vi.useFakeTimers();
+    try {
+      await changeFiltersAndSettle();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(snackOpen).toHaveBeenCalledWith('albums.smart_save_failed', '', { duration: 5000 });
   });
 });

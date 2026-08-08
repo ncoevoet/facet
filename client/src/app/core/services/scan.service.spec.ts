@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ScanService, ScanStatus } from './scan.service';
 import { AuthService } from './auth.service';
+import { makeJwt } from '../../../testing/jwt';
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -53,7 +54,7 @@ describe('ScanService', () => {
     originalEventSource = globalThis.EventSource;
     globalThis.EventSource = MockEventSource as unknown as typeof EventSource;
 
-    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue('test-token');
+    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(makeJwt(3600));
 
     TestBed.configureTestingModule({
       providers: [
