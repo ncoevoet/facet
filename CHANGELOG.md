@@ -4,6 +4,19 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **The `auto` VRAM profile is sized from unified memory on Apple Silicon** instead of always resolving to `legacy`. There is no CUDA device-properties query for unified memory, so `auto` used to fall to the weakest tier on any Mac — a 128 GB machine included — even though the higher-tier models had just been taught to run on Metal. Thresholds are deliberately conservative, each covering the profile's model weights twice over and leaving 8 GB to macOS, then rounded up to a memory configuration Apple ships: 16 GB reaches `8gb`, 32 GB reaches `16gb`, 48 GB reaches `24gb`, and anything smaller stays `legacy`. An explicitly configured profile remains authoritative, and no fake VRAM figure is fed into the CUDA path. Whether the selected tier actually fits on Metal is unverified — it needs a Mac.
+- **`PUT /api/config/scoring_contexts/{name}` now requires both `promote` and `excluded`**, and answers 404 rather than 400 for an unknown context. A partial body previously applied as a full replacement, so `{"promote": [...]}` silently cleared the exclusions; it is now refused with 422 and the config is left untouched. The shipped client always sent both fields, so no in-tree caller changes.
+
+### Fixed
+- **The library lock warns when it cannot do its job across hosts**: `flock` is host-local on SMB/CIFS, so two machines sharing an SMB-mounted database directory would each believe they hold it. The acquire now detects such a mount and says so once, without refusing — NFS between Linux clients gives real cross-host semantics and stays silent. Documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+- **`--upgrade-db` no longer runs its schema migration unlocked.** Step 0 issued `ALTER TABLE` on `photos` while holding nothing, so landing inside a recompute's long write transaction failed it and aborted the upgrade before it began. The DDL now takes the library lock and releases it before the subprocess chain, which takes its own.
+- **Armed retrains are cancelled at shutdown** rather than left to fire. The accumulated counter is persisted, so the next rating re-arms; firing one as the process goes away would start a multi-minute train that cannot finish.
+
+### Security
+- **Rotating a password now revokes the tokens issued under it.** Nothing was invalidated server-side before: after a logout, after "Lock Edition", and even after `viewer.edition_password` was changed, an existing JWT still performed edition writes for its full 48 hours — so the interface offered a revocation that never happened. Tokens now carry a digest of the stored viewer and edition passwords: rotating the viewer password ends the session outright, and rotating the edition password drops edition rights while leaving the session intact. Logout remains a client-side token drop, which the code and the client now state plainly instead of implying otherwise. **Every existing session is signed out once on upgrade**, since tokens issued before this carry neither claim.
+- **One mutex now guards `scoring_config.json`.** Two lock families protected the same file — the config writers used one, the password upgrade and the share-secret initialisation another — so interleaved writes could lose one side's update wholesale.
+
 ## [1.8.0] "Opalescence" — 2026-08-09
 
 ### Added

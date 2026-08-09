@@ -26,6 +26,15 @@ DEFAULT_CONTEXT_NAME = "default"
 # Name of the catch-all category (priority 999, empty filters) — always evaluated last
 DEFAULT_CATEGORY_NAME = "default"
 
+# Minimum total unified memory (GB) per profile on Apple Metal, richest first —
+# derivation in ScoringConfig.suggest_profile_for_unified_memory
+UNIFIED_MEMORY_PROFILE_THRESHOLDS_GB = (
+    ('24gb', 48.0),
+    ('16gb', 32.0),
+    ('8gb', 16.0),
+)
+UNIFIED_MEMORY_MINIMUM_PROFILE = 'legacy'
+
 
 def default_config_path():
     """Absolute path to the repo-root scoring_config.json.
@@ -735,8 +744,38 @@ class ScoringConfig:
             return None
 
     @staticmethod
+    def suggest_profile_for_unified_memory(total_memory_gb):
+        """Pick a profile for an Apple Metal machine from its total unified memory.
+
+        Metal has no dedicated VRAM, so the CUDA sizing path has no number to
+        read there. Unified memory is system RAM: the models share it with
+        macOS, the window server and every other running application, and a Mac
+        that swaps is far slower than one on a smaller profile. Each threshold
+        in UNIFIED_MEMORY_PROFILE_THRESHOLDS_GB therefore asks for about twice
+        the profile's model footprint (legacy ~2GB, 8gb ~6GB, 16gb ~14GB, 24gb
+        ~20GB of weights plus inference), never less than that footprint plus
+        8GB left to the rest of the system, rounded up to a memory
+        configuration Apple actually ships.
+
+        Args:
+            total_memory_gb: Total unified memory in GB
+
+        Returns:
+            Profile name: 'legacy', '8gb', '16gb', or '24gb'
+        """
+        for profile, minimum_gb in UNIFIED_MEMORY_PROFILE_THRESHOLDS_GB:
+            if total_memory_gb >= minimum_gb:
+                return profile
+        return UNIFIED_MEMORY_MINIMUM_PROFILE
+
+    @staticmethod
     def suggest_vram_profile(vram_gb=None):
         """Suggest the appropriate VRAM profile based on detected or provided VRAM.
+
+        A CUDA device is sized from its dedicated VRAM. Apple Metal reports no
+        such figure, so it is sized from total unified memory instead (see
+        suggest_profile_for_unified_memory) and the returned VRAM stays None
+        rather than borrowing a number that does not exist there.
 
         Args:
             vram_gb: VRAM in GB (if None, will auto-detect)
@@ -754,13 +793,16 @@ class ScoringConfig:
             except Exception:
                 has_mps = False
             force_cpu = os.environ.get('FACET_DEVICE', 'auto').strip().lower() == 'cpu'
+            profile = UNIFIED_MEMORY_MINIMUM_PROFILE
             try:
                 import psutil
                 ram_gb = psutil.virtual_memory().total / (1024**3)
                 if has_mps and not force_cpu:
+                    profile = ScoringConfig.suggest_profile_for_unified_memory(ram_gb)
                     msg = (
                         f"Apple Metal (MPS) detected, {ram_gb:.0f}GB unified memory - "
-                        "legacy profile (Torch models accelerated; InsightFace on CPU)"
+                        f"{profile} profile (sized from total unified memory; "
+                        "Torch models accelerated, InsightFace on CPU)"
                     )
                 elif has_mps:
                     msg = (
@@ -778,7 +820,7 @@ class ScoringConfig:
                     "No GPU detected, using legacy (CPU-only) profile"
                 )
             msg += "\n  Tip: run 'python facet.py --doctor' for GPU setup diagnostics"
-            return 'legacy', None, msg
+            return profile, None, msg
 
         # Profile recommendations based on VRAM
         if vram_gb >= 20:
@@ -839,7 +881,7 @@ class ScoringConfig:
                             "Profile '%s' on Metal: unified memory is not dedicated VRAM, so the "
                             "profile is taken as configured rather than sized automatically",
                             current_profile)
-                        logger.info("  Set vram_profile to 'auto' to fall back to 'legacy' on Metal")
+                        logger.info("  Set vram_profile to 'auto' to size it from total unified memory instead")
                     return True, current_profile, "OK (MPS mode, profile as configured)"
                 if verbose:
                     logger.warning("No GPU does not support VRAM profile '%s'", current_profile)

@@ -18,6 +18,8 @@ python facet.py --doctor # vérifier votre installation
 
 `install.sh` crée le venv, détecte le GPU/CUDA, installe PyTorch avec l'URL d'index correspondante, la bonne variante d'ONNX Runtime, le reste des dépendances, et compile le frontend Angular.
 
+Sur Apple Silicon, le script d'installation utilise le wheel macOS natif de PyTorch et Facet sélectionne automatiquement le backend Metal (`mps`). La mémoire unifiée d'Apple n'est pas de la VRAM CUDA : le profil de modèles `auto` est donc dimensionné à partir de la mémoire unifiée totale, et non d'un chiffre de VRAM dédiée qui n'existe pas ici — voir [Apple Silicon (Metal/MPS)](#apple-silicon-metalmps). Les modèles Torch — CLIP, SAMP-Net, PyIQA et la saillance — peuvent utiliser MPS ; InsightFace passe par ONNX Runtime sur CPU. Définissez `FACET_DEVICE=cpu` pour désactiver l'accélération ou `FACET_DEVICE=mps` pour exiger MPS (et échouer clairement s'il n'est pas disponible).
+
 **Options :**
 | Option | Effet |
 |------|--------|
@@ -82,6 +84,28 @@ pip install -r requirements.txt
 > **Vous rencontrez des erreurs de dépendances ?** Consultez [Résoudre les conflits de dépendances](#résoudre-les-conflits-de-dépendances) ci-dessous.
 
 ### Configuration du GPU
+
+#### Apple Silicon (Metal/MPS)
+
+Aucun paquet GPU distinct n'est nécessaire. Installez avec `bash install.sh`, puis vérifiez que `python facet.py --doctor` indique `Facet runtime device: mps`. Facet active par défaut le repli sur CPU de PyTorch pour les opérateurs non pris en charge. Pour comparer les performances :
+
+```bash
+FACET_DEVICE=cpu python facet.py /path/to/photos --pass embeddings --force
+FACET_DEVICE=mps python facet.py /path/to/photos --pass embeddings --force
+```
+
+La détection de visages InsightFace reste sur CPU car il s'agit d'un modèle ONNX Runtime, et non d'un modèle PyTorch.
+
+Metal n'a pas de VRAM dédiée : `vram_profile: "auto"` est donc dimensionné à partir de la mémoire unifiée totale rapportée par le système :
+
+| Mémoire unifiée totale | Profil sélectionné par `auto` |
+|------------------------|-------------------------------|
+| moins de 16 Go | `legacy` |
+| 16-31 Go | `8gb` |
+| 32-47 Go | `16gb` |
+| 48 Go et plus | `24gb` |
+
+Chaque seuil exige environ le double de l'empreinte mémoire des modèles du profil, car la mémoire unifiée est partagée avec macOS, le serveur graphique et toutes les autres applications en cours d'exécution — un Mac qui recourt au swap est plus lent qu'un Mac sur un profil plus modeste. Un profil explicitement configuré est toujours respecté tel quel, sur Metal comme ailleurs : définissez-en un pour outrepasser ces seuils dans un sens comme dans l'autre.
 
 #### PyTorch avec CUDA
 

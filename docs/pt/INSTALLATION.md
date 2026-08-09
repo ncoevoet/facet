@@ -18,6 +18,8 @@ python facet.py --doctor # verify your setup
 
 `install.sh` cria o venv, detecta GPU/CUDA, instala o PyTorch com a index URL correspondente, a variante correta do ONNX Runtime, o restante das dependências e compila o frontend Angular.
 
+No Apple Silicon, o instalador usa o wheel nativo de macOS do PyTorch e o Facet seleciona automaticamente o backend Metal (`mps`). A memória unificada da Apple não é VRAM CUDA: por isso o perfil de modelos `auto` é dimensionado pela memória unificada total, e não por um valor de VRAM dedicada que ali não existe — veja [Apple Silicon (Metal/MPS)](#apple-silicon-metalmps). Os modelos baseados em Torch — CLIP, SAMP-Net, PyIQA e a saliência — podem usar o MPS; o InsightFace usa o ONNX Runtime na CPU. Defina `FACET_DEVICE=cpu` para desativar a aceleração ou `FACET_DEVICE=mps` para exigir o MPS (e falhar de forma clara se ele não estiver disponível).
+
 **Opções:**
 | Flag | Efeito |
 |------|--------|
@@ -82,6 +84,28 @@ pip install -r requirements.txt
 > **Encontrando erros de dependência?** Veja [Solução de Conflitos de Dependência](#troubleshooting-dependency-conflicts) abaixo.
 
 ### Configuração da GPU
+
+#### Apple Silicon (Metal/MPS)
+
+Nenhum pacote de GPU separado é necessário. Instale com `bash install.sh` e depois verifique se `python facet.py --doctor` informa `Facet runtime device: mps`. O Facet ativa por padrão o fallback para CPU do PyTorch para operadores não suportados. Para comparar o desempenho:
+
+```bash
+FACET_DEVICE=cpu python facet.py /path/to/photos --pass embeddings --force
+FACET_DEVICE=mps python facet.py /path/to/photos --pass embeddings --force
+```
+
+A detecção de faces do InsightFace permanece na CPU porque é um modelo do ONNX Runtime, não do PyTorch.
+
+O Metal não tem VRAM dedicada, portanto `vram_profile: "auto"` é dimensionado pela memória unificada total informada pelo sistema:
+
+| Memória unificada total | Perfil escolhido pelo `auto` |
+|-------------------------|------------------------------|
+| menos de 16 GB | `legacy` |
+| 16-31 GB | `8gb` |
+| 32-47 GB | `16gb` |
+| 48 GB ou mais | `24gb` |
+
+Cada limite exige cerca do dobro da pegada de memória dos modelos do perfil, porque a memória unificada é compartilhada com o macOS, o servidor de janelas e todos os outros aplicativos em execução: um Mac que recorre ao swap é mais lento do que um Mac em um perfil menor. Um perfil configurado explicitamente é sempre respeitado como está, no Metal como em qualquer outro lugar: defina um para substituir esses limites em qualquer direção.
 
 #### PyTorch com CUDA
 

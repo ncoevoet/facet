@@ -18,6 +18,8 @@ python facet.py --doctor # überprüfe deine Einrichtung
 
 `install.sh` erstellt die venv, erkennt GPU/CUDA, installiert PyTorch mit der passenden Index-URL, die richtige ONNX-Runtime-Variante, die übrigen Abhängigkeiten und baut das Angular-Frontend.
 
+Auf Apple Silicon verwendet das Installationsskript das native macOS-Wheel von PyTorch, und Facet wählt automatisch das Metal-Backend (`mps`). Apples Unified Memory ist kein CUDA-VRAM: Das Modellprofil `auto` wird daher anhand des gesamten Unified Memory bemessen statt anhand eines Werts für dedizierten VRAM, den es dort nicht gibt — siehe [Apple Silicon (Metal/MPS)](#apple-silicon-metalmps). Torch-basierte Modelle — CLIP, SAMP-Net, PyIQA und Salienz — können MPS nutzen; InsightFace läuft über ONNX Runtime auf der CPU. Setzen Sie `FACET_DEVICE=cpu`, um die Beschleunigung zu deaktivieren, oder `FACET_DEVICE=mps`, um MPS zu erzwingen (und klar zu scheitern, wenn es nicht verfügbar ist).
+
 **Optionen:**
 | Flag | Wirkung |
 |------|--------|
@@ -82,6 +84,28 @@ pip install -r requirements.txt
 > **Treten Abhängigkeitsfehler auf?** Siehe [Abhängigkeitskonflikte beheben](#abhängigkeitskonflikte-beheben) weiter unten.
 
 ### GPU-Einrichtung
+
+#### Apple Silicon (Metal/MPS)
+
+Es wird kein separates GPU-Paket benötigt. Installieren Sie mit `bash install.sh` und prüfen Sie anschließend, dass `python facet.py --doctor` `Facet runtime device: mps` meldet. Facet aktiviert standardmäßig den CPU-Fallback von PyTorch für nicht unterstützte Operatoren. Zum Vergleich der Performance:
+
+```bash
+FACET_DEVICE=cpu python facet.py /path/to/photos --pass embeddings --force
+FACET_DEVICE=mps python facet.py /path/to/photos --pass embeddings --force
+```
+
+Die Gesichtserkennung von InsightFace bleibt auf der CPU, weil sie ein ONNX-Runtime-Modell ist und kein PyTorch-Modell.
+
+Metal hat keinen dedizierten VRAM, daher wird `vram_profile: "auto"` anhand des vom System gemeldeten gesamten Unified Memory bemessen:
+
+| Gesamter Unified Memory | Von `auto` gewähltes Profil |
+|-------------------------|-----------------------------|
+| unter 16 GB | `legacy` |
+| 16-31 GB | `8gb` |
+| 32-47 GB | `16gb` |
+| 48 GB und mehr | `24gb` |
+
+Jede Schwelle verlangt etwa das Doppelte des Modellspeicherbedarfs des Profils, denn der Unified Memory wird mit macOS, dem Window-Server und jeder anderen laufenden Anwendung geteilt — ein Mac, der auslagert, ist langsamer als einer mit einem kleineren Profil. Ein ausdrücklich konfiguriertes Profil wird immer so übernommen, wie es konfiguriert ist, auf Metal wie überall sonst: Setzen Sie eines, um diese Schwellen in beide Richtungen zu übersteuern.
 
 #### PyTorch mit CUDA
 

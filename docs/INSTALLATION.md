@@ -19,11 +19,13 @@ python facet.py --doctor # verify your setup
 `install.sh` creates the venv, detects GPU/CUDA, installs PyTorch with the matching index URL, the right ONNX Runtime variant, the rest of the dependencies, and builds the Angular frontend.
 
 On Apple Silicon, the installer uses PyTorch's native macOS wheel and Facet
-automatically selects the Metal (`mps`) backend. The `legacy` model profile is
-used because Apple unified memory is not CUDA VRAM. Torch-based CLIP, SAMP-Net,
-PyIQA, and saliency work can use MPS; InsightFace uses ONNX Runtime on CPU.
-Set `FACET_DEVICE=cpu` to disable acceleration or `FACET_DEVICE=mps` to require
-MPS (and fail clearly if it is unavailable).
+automatically selects the Metal (`mps`) backend. Apple unified memory is not
+CUDA VRAM, so the `auto` model profile is sized from total unified memory
+instead of from a dedicated-VRAM figure that does not exist there — see
+[Apple Silicon (Metal/MPS)](#apple-silicon-metalmps). Torch-based CLIP,
+SAMP-Net, PyIQA, and saliency work can use MPS; InsightFace uses ONNX Runtime
+on CPU. Set `FACET_DEVICE=cpu` to disable acceleration or `FACET_DEVICE=mps` to
+require MPS (and fail clearly if it is unavailable).
 
 **Options:**
 | Flag | Effect |
@@ -102,8 +104,23 @@ FACET_DEVICE=mps python facet.py /path/to/photos --pass embeddings --force
 ```
 
 InsightFace face detection remains on CPU because it is an ONNX Runtime model,
-not a PyTorch model. CUDA-only `16gb` and `24gb` profiles are not selected on
-MPS; use `legacy` or `auto`.
+not a PyTorch model.
+
+Metal has no dedicated VRAM, so `vram_profile: "auto"` is sized from the total
+unified memory the system reports:
+
+| Total unified memory | Profile selected by `auto` |
+|----------------------|----------------------------|
+| under 16GB | `legacy` |
+| 16-31GB | `8gb` |
+| 32-47GB | `16gb` |
+| 48GB and above | `24gb` |
+
+Each threshold asks for roughly twice the profile's model footprint, because
+unified memory is shared with macOS, the window server and every other running
+application — a Mac that swaps is slower than one on a smaller profile. An
+explicitly configured profile is always honoured as written, on Metal as
+anywhere else, so set one to override these thresholds in either direction.
 
 #### PyTorch with CUDA
 

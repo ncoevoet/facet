@@ -375,6 +375,18 @@ class TestSuggestVramProfile:
         assert vram is None
         assert '31GB RAM' in msg
 
+    def test_no_gpu_large_ram_stays_legacy(self):
+        """Plenty of RAM without an accelerator is still the legacy profile."""
+        mock_psutil = types.ModuleType("psutil")
+        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=128 * 1024**3)
+        with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
+             mock.patch("utils.device.mps_available", return_value=False), \
+             mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
+            profile, vram, msg = ScoringConfig.suggest_vram_profile()
+        assert profile == 'legacy'
+        assert vram is None
+        assert 'No GPU detected' in msg
+
     def test_no_gpu_low_ram(self):
         """No GPU, low RAM → legacy with limited CPU mode."""
         mock_psutil = types.ModuleType("psutil")
@@ -386,18 +398,65 @@ class TestSuggestVramProfile:
         assert profile == 'legacy'
         assert 'limited CPU mode' in msg
 
-    def test_mps_uses_legacy_profile_with_acceleration_message(self, monkeypatch):
+    @staticmethod
+    def _suggest_on_mps(monkeypatch, total_memory_gb):
+        """Run the suggestion on a simulated Metal machine of a given size."""
         mock_psutil = types.ModuleType("psutil")
-        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=48 * 1024**3)
+        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(
+            total=int(total_memory_gb * 1024**3),
+        )
         monkeypatch.delenv("FACET_DEVICE", raising=False)
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
              mock.patch("utils.device.mps_available", return_value=True), \
              mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
+            return ScoringConfig.suggest_vram_profile()
+
+    def test_mps_sizes_the_profile_from_unified_memory(self, monkeypatch):
+        """A large Mac gets a real profile, not the weakest tier."""
+        profile, vram, msg = self._suggest_on_mps(monkeypatch, 128)
+        assert profile == '24gb'
+        assert vram is None
+        assert 'MPS' in msg
+        assert '128GB unified memory' in msg
+        assert 'sized from total unified memory' in msg
+        assert 'Torch models accelerated' in msg
+
+    def test_mps_48gb_reaches_the_richest_profile(self, monkeypatch):
+        profile, _, _ = self._suggest_on_mps(monkeypatch, 48)
+        assert profile == '24gb'
+
+    def test_mps_36gb_stays_on_the_16gb_profile(self, monkeypatch):
+        profile, _, _ = self._suggest_on_mps(monkeypatch, 36)
+        assert profile == '16gb'
+
+    def test_mps_32gb_reaches_the_16gb_profile(self, monkeypatch):
+        profile, _, _ = self._suggest_on_mps(monkeypatch, 32)
+        assert profile == '16gb'
+
+    def test_mps_24gb_stays_on_the_8gb_profile(self, monkeypatch):
+        profile, _, _ = self._suggest_on_mps(monkeypatch, 24)
+        assert profile == '8gb'
+
+    def test_mps_16gb_reaches_the_8gb_profile(self, monkeypatch):
+        profile, _, _ = self._suggest_on_mps(monkeypatch, 16)
+        assert profile == '8gb'
+
+    def test_mps_small_mac_still_uses_legacy(self, monkeypatch):
+        """8GB of unified memory has no headroom for a richer profile."""
+        profile, _, msg = self._suggest_on_mps(monkeypatch, 8)
+        assert profile == 'legacy'
+        assert '8GB unified memory' in msg
+
+    def test_mps_without_psutil_falls_back_to_legacy(self, monkeypatch):
+        """Unified memory that cannot be measured must not be assumed large."""
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
+             mock.patch("utils.device.mps_available", return_value=True), \
+             mock.patch.dict("sys.modules", {"psutil": None}):
             profile, vram, msg = ScoringConfig.suggest_vram_profile()
         assert profile == 'legacy'
         assert vram is None
         assert 'MPS' in msg
-        assert 'Torch models accelerated' in msg
 
     def test_mps_cpu_override_is_reported(self, monkeypatch):
         mock_psutil = types.ModuleType("psutil")
