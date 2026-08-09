@@ -122,6 +122,11 @@ def test_recompute_iqa_labels_a_metal_run_and_keeps_one_model_per_pass(
     a dedicated VRAM budget.
     """
     import logging
+
+    import pytest
+
+    pytest.importorskip("torch", reason="recompute_iqa_from_thumbnails imports pyiqa_scorer, which needs torch")
+
     import models.model_manager as mm
     from db import get_connection
     from db.schema import init_database

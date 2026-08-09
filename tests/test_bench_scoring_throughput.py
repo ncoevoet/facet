@@ -237,6 +237,7 @@ def test_tracker_records_unavailable_samples_as_none(monkeypatch):
 
 def test_tracker_measures_a_real_child_process():
     """End-to-end over a real subprocess: RSS is the child's, not the harness's."""
+    pytest.importorskip("psutil", reason="the RSS sampler reports unavailable without psutil")
     child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
     try:
         tracker = ResourceTracker(child.pid, interval_s=0.01)
