@@ -22,8 +22,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from api.config import (
     JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRY_HOURS,
     VIEWER_CONFIG,
+    config_load_failed,
     is_multi_user_enabled
 )
+
+VIEWER_PASSWORD_KEY = 'password'
+EDITION_PASSWORD_KEY = 'edition_password'
 
 
 # --- JWT TOKEN MANAGEMENT ---
@@ -73,6 +77,20 @@ def clear_auth_cookie(response) -> None:
 
 # --- USER INFO FROM TOKEN ---
 
+def _is_open_install(password_key):
+    """True when the install legitimately has no lock behind ``password_key``.
+
+    A scoring_config.json that exists but failed to parse yields a config with
+    no passwords at all, which reads exactly like a deliberately open install
+    and would hand edition rights to anonymous callers. Such an install is
+    treated as locked; only a genuinely absent config, or a configured-and-
+    empty password, stays open.
+    """
+    if config_load_failed() or is_multi_user_enabled():
+        return False
+    return not VIEWER_CONFIG.get(password_key, '')
+
+
 class CurrentUser:
     """Represents the current authenticated user."""
     __slots__ = ('user_id', 'role', 'display_name', 'edition_authenticated')
@@ -92,7 +110,7 @@ class CurrentUser:
     def is_edition(self):
         if is_multi_user_enabled():
             return self.role in ('admin', 'superadmin')
-        if not VIEWER_CONFIG.get('edition_password', ''):
+        if _is_open_install(EDITION_PASSWORD_KEY):
             return True
         return self.edition_authenticated
 
@@ -101,9 +119,7 @@ class CurrentUser:
         return self.role == 'superadmin'
 
     def _is_no_password_mode(self):
-        if is_multi_user_enabled():
-            return False
-        return not VIEWER_CONFIG.get('password', '')
+        return _is_open_install(VIEWER_PASSWORD_KEY)
 
 
 # --- DEPENDENCY INJECTION ---
@@ -125,7 +141,7 @@ async def get_optional_user(
         # No password mode — everyone is authenticated. A stale token, whether
         # it arrived in the cookie or as a Bearer, must not lock an open
         # install out: the same request carrying no token at all is let in.
-        if not is_multi_user_enabled() and not VIEWER_CONFIG.get('password', ''):
+        if _is_open_install(VIEWER_PASSWORD_KEY):
             return CurrentUser()
         return None
 
@@ -301,10 +317,9 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
     Called after a successful login against a plaintext password.
     Uses the same atomic write pattern as _load_and_ensure_share_secret().
     """
-    from api.config import _CONFIG_PATH, _share_secret_lock, reload_config
+    from api.config import _CONFIG_PATH, _share_secret_lock, atomic_write_json, reload_config
     import json
     import shutil
-    import tempfile
 
     hashed = hash_password(plaintext)
     with _share_secret_lock:
@@ -319,25 +334,17 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
             viewer[config_key] = hashed
             config['viewer'] = viewer
             shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
-            dir_name = os.path.dirname(_CONFIG_PATH)
-            fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
             try:
-                with os.fdopen(fd, 'w') as f:
-                    json.dump(config, f, indent=2)
-                os.replace(tmp_path, _CONFIG_PATH)
+                atomic_write_json(_CONFIG_PATH, config)
                 reload_config()
                 logger.info("Upgraded plaintext %s to PBKDF2 hash", config_key)
             except Exception:
-                try:
-                    os.unlink(tmp_path)
-                except OSError:
-                    pass
                 logger.exception("Failed to upgrade password hash for %s", config_key)
 
 
 def check_legacy_password_warnings():
     """Log warnings at startup if plaintext passwords are detected."""
-    for key in ('password', 'edition_password'):
+    for key in (VIEWER_PASSWORD_KEY, EDITION_PASSWORD_KEY):
         value = VIEWER_CONFIG.get(key, '')
         if value and not _is_hashed(value):
             logger.warning(
@@ -395,6 +402,6 @@ def is_edition_authenticated(user: Optional[CurrentUser]) -> bool:
     """
     if user is None:
         return False
-    if not is_multi_user_enabled() and not VIEWER_CONFIG.get('edition_password', ''):
+    if _is_open_install(EDITION_PASSWORD_KEY):
         return True
     return user.is_edition

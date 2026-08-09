@@ -11,13 +11,13 @@ import json
 import logging
 import os
 import shutil
-import tempfile
 import threading
 from collections import Counter
 from datetime import datetime
 
 from fastapi import HTTPException
 
+from api.config import atomic_write_json
 from config.scoring_config import DEFAULT_CATEGORY_NAME
 from db import record_weight_snapshot
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 _CONFIG_WRITE_LOCK = threading.Lock()
 
 MAX_CONFIG_BACKUPS = 20
+BACKUP_TIMESTAMP_FORMAT = '%Y%m%d_%H%M%S_%f'
 
 
 def record_category_snapshot(category, weights, created_by, get_db):
@@ -38,25 +39,12 @@ def record_category_snapshot(category, weights, created_by, get_db):
         logger.warning("Could not record weight snapshot for %s", category, exc_info=True)
 
 
-def _atomic_write_config(config_path, config):
-    """Write ``config`` to ``config_path`` atomically via mkstemp + os.replace."""
-    dir_name = os.path.dirname(config_path)
-    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
-    try:
-        with os.fdopen(fd, 'w') as f:
-            json.dump(config, f, indent=2)
-        os.replace(tmp_path, config_path)
-    except Exception:
-        os.unlink(tmp_path)
-        raise
-
-
 def _prune_config_backups(config_path, keep=MAX_CONFIG_BACKUPS):
     """Keep only the ``keep`` most recent timestamped backups of ``config_path``.
 
-    Every priority write drops an 88 KB backup and the filename is second-
-    granular, so an unattended caller in a loop would fill the disk. Pruning
-    keeps the safety net without the unbounded growth.
+    Every priority write drops an 88 KB backup, so an unattended caller in a
+    loop would fill the disk. Pruning keeps the safety net without the
+    unbounded growth.
     """
     directory = os.path.dirname(config_path) or '.'
     prefix = os.path.basename(config_path) + '.backup.'
@@ -66,6 +54,20 @@ def _prune_config_backups(config_path, keep=MAX_CONFIG_BACKUPS):
             os.unlink(os.path.join(directory, stale))
         except OSError:
             logger.warning("Could not prune config backup %s", stale, exc_info=True)
+
+
+def _backup_config(config_path, *, prune=True):
+    """Copy ``config_path`` aside under a timestamped name and return that path.
+
+    The stamp carries microseconds: at second granularity two saves inside the
+    same second collapsed into one file, so the ``backup`` path handed back to
+    the caller no longer held the state it was promised.
+    """
+    backup_path = f"{config_path}.backup.{datetime.now().strftime(BACKUP_TIMESTAMP_FORMAT)}"
+    shutil.copy2(config_path, backup_path)
+    if prune:
+        _prune_config_backups(config_path)
+    return backup_path
 
 
 def _validate_priority_order(order, current_names):
@@ -149,11 +151,9 @@ def update_category_priorities(config_path, order):
         for name, priority in zip(order, priorities):
             by_name[name]['priority'] = priority
 
-        backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        shutil.copy2(config_path, backup_path)
-        _prune_config_backups(config_path)
+        backup_path = _backup_config(config_path)
 
-        _atomic_write_config(config_path, config)
+        atomic_write_json(config_path, config)
 
     return backup_path
 
@@ -219,11 +219,9 @@ def update_scoring_context(config_path, context, promote, excluded):
         target['promote'] = list(promote)
         target['excluded'] = list(dict.fromkeys(excluded))
 
-        backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        shutil.copy2(config_path, backup_path)
-        _prune_config_backups(config_path)
+        backup_path = _backup_config(config_path)
 
-        _atomic_write_config(config_path, config)
+        atomic_write_json(config_path, config)
 
     return backup_path
 
@@ -252,8 +250,7 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
 
         backup_path = None
         if backup:
-            backup_path = f"{config_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            shutil.copy2(config_path, backup_path)
+            backup_path = _backup_config(config_path, prune=False)
 
         if weights is not None:
             if replace_weights:
@@ -265,6 +262,6 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
         if filters is not None:
             target['filters'] = filters
 
-        _atomic_write_config(config_path, config)
+        atomic_write_json(config_path, config)
 
     return backup_path

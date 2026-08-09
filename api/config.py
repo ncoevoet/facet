@@ -9,6 +9,7 @@ import os
 import json
 import math
 import shutil
+import stat
 import tempfile
 import threading
 import time
@@ -21,51 +22,138 @@ _CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scoring
 _share_secret_lock = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')
 
+_TEMP_CONFIG_SUFFIX = '.json'
+_WORLD_READ_WRITE_MODE = 0o666
+_config_load_failed = False
+
+
+def _umask_default_mode():
+    """Return the permission bits a plain ``open(path, 'w')`` would have created.
+
+    ``os.umask`` is both the setter and the only getter, so the current value
+    is read by setting it and immediately restoring it. Only reached when the
+    destination does not exist yet and there is no mode to preserve.
+    """
+    umask = os.umask(0)
+    os.umask(umask)
+    return _WORLD_READ_WRITE_MODE & ~umask
+
+
+def _replacement_mode(path):
+    """Permission bits an atomic replacement of ``path`` must end up with."""
+    try:
+        return stat.S_IMODE(os.stat(path).st_mode)
+    except FileNotFoundError:
+        return _umask_default_mode()
+
+
+def _fsync_directory(directory):
+    """Flush a rename in ``directory`` so the replacement survives a crash.
+
+    The replacement's own bytes are already fsynced and not every platform
+    allows opening a directory for reading, so a failure here is logged rather
+    than raised.
+    """
+    try:
+        fd = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError:
+        logger.debug("Could not fsync directory %s", directory, exc_info=True)
+
+
+def _unlink_quietly(path):
+    """Remove a temp file whose write failed, without masking the real error."""
+    try:
+        os.unlink(path)
+    except OSError:
+        logger.debug("Could not remove temp file %s", path, exc_info=True)
+
+
+def atomic_write_json(path, data):
+    """Replace ``path`` with ``data`` atomically, durably, and at its current mode.
+
+    ``tempfile.mkstemp`` creates the replacement 0600, so the destination's own
+    permissions are copied onto it before the rename — otherwise every config
+    write would silently strip the group/other read access a co-deployed CLI
+    needs. The payload is fsynced before the rename and the containing
+    directory after it, so a crash leaves either the old file or the new one,
+    never a truncated mix.
+    """
+    directory = os.path.dirname(path) or '.'
+    mode = _replacement_mode(path)
+    fd, tmp_path = tempfile.mkstemp(dir=directory, suffix=_TEMP_CONFIG_SUFFIX)
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp_path, mode)
+        os.replace(tmp_path, path)
+    except Exception:
+        _unlink_quietly(tmp_path)
+        raise
+    _fsync_directory(directory)
+
+
+def config_load_failed():
+    """True when scoring_config.json exists but could not be parsed.
+
+    An unparseable config yields an EMPTY config — one carrying neither
+    ``viewer.password`` nor ``viewer.edition_password`` — which is
+    indistinguishable from a deliberately open install and would otherwise
+    unlock every edition route. ``api.auth`` consults this flag to treat such
+    an install as locked. A genuinely absent config is NOT a failure: a fresh,
+    never-configured install is legitimately open.
+    """
+    return _config_load_failed
+
+
+def _read_config():
+    """Parse scoring_config.json, tracking whether an existing file failed to parse.
+
+    Returns ``(config, parsed_ok)``. A missing file yields ``({}, False)``
+    without arming :func:`config_load_failed`.
+    """
+    global _config_load_failed
+    try:
+        with open(_CONFIG_PATH) as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        logger.debug("No %s — running as a never-configured install", _CONFIG_PATH)
+        return {}, False
+    except Exception:
+        _config_load_failed = True
+        logger.error(
+            "Could not parse %s — refusing the open-install auth path until it parses",
+            _CONFIG_PATH, exc_info=True,
+        )
+        return {}, False
+    _config_load_failed = False
+    return config, True
+
 
 def _load_and_ensure_share_secret():
     """Load scoring_config.json once, ensure share_secret exists. Returns (config_dict, secret).
 
     Uses file locking to prevent race conditions when multiple workers start simultaneously.
     Writes atomically via temp file + rename to avoid partial writes.
+
+    A config that exists but does not parse gets an ephemeral in-memory secret
+    and is never rewritten: persisting a share_secret-only stub over a partial
+    or corrupt file would destroy the whole config (and its .backup with it).
     """
-    try:
-        with open(_CONFIG_PATH) as f:
-            config = json.load(f)
-    except Exception:
-        logger.debug("Could not load %s, using empty config", _CONFIG_PATH)
-        config = {}
+    config, _ = _read_config()
     if 'share_secret' not in config or not config['share_secret']:
         with _share_secret_lock:
-            # Re-read after acquiring lock — another worker may have written the secret
-            parsed_ok = False
-            try:
-                with open(_CONFIG_PATH) as f:
-                    config = json.load(f)
-                parsed_ok = True
-            except Exception:
-                logger.warning(
-                    "Could not parse %s — using an ephemeral share_secret and NOT "
-                    "rewriting the file (refusing to clobber an unparseable config)",
-                    _CONFIG_PATH,
-                )
-                config = {}
+            config, parsed_ok = _read_config()
             if 'share_secret' not in config or not config['share_secret']:
                 config['share_secret'] = secrets.token_hex(32)
-                # Only persist when the real config actually parsed. Writing a
-                # share_secret-only stub over a partial/corrupt file would
-                # destroy the whole config (and its .backup with it).
                 if parsed_ok:
                     shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
-                    # Atomic write: write to temp file then rename
-                    dir_name = os.path.dirname(_CONFIG_PATH)
-                    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
-                    try:
-                        with os.fdopen(fd, 'w') as f:
-                            json.dump(config, f, indent=2)
-                        os.replace(tmp_path, _CONFIG_PATH)
-                    except Exception:
-                        os.unlink(tmp_path)
-                        raise
+                    atomic_write_json(_CONFIG_PATH, config)
     return config, config['share_secret']
 
 
@@ -147,12 +235,7 @@ def load_viewer_config(config=None):
         'notification_duration_ms': 2000
     }
     if config is None:
-        try:
-            with open(_CONFIG_PATH) as f:
-                config = json.load(f)
-        except Exception:
-            logger.debug("Could not load config for viewer, using defaults", exc_info=True)
-            return defaults
+        config, _ = _read_config()
     viewer = config.get('viewer', {})
     for key, value in defaults.items():
         if key not in viewer:

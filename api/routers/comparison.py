@@ -21,7 +21,7 @@ from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
     VIEWER_CONFIG, _CONFIG_PATH, FACET_SCRIPT,
     get_comparison_mode_settings,
-    reload_config, _stats_cache,
+    reload_config, invalidate_stats_cache,
 )
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
@@ -431,7 +431,7 @@ async def api_update_weights(
         )
 
         reload_config()
-        _stats_cache.clear()
+        invalidate_stats_cache()
 
         result = {
             'success': True,
@@ -512,7 +512,7 @@ def api_update_category_priorities(
         backup_path = update_category_priorities(str(_CONFIG_PATH), body.order)
 
         reload_config()
-        _stats_cache.clear()
+        invalidate_stats_cache()
 
         return {
             'success': True,
@@ -576,7 +576,7 @@ def api_update_scoring_context(
         backup_path = update_scoring_context(str(_CONFIG_PATH), name, body.promote, body.excluded)
 
         reload_config()
-        _stats_cache.clear()
+        invalidate_stats_cache()
 
         return {
             'success': True,
@@ -1218,7 +1218,7 @@ def api_comparison_override_category(
         )
         conn.commit()
 
-    _stats_cache.clear()
+    invalidate_stats_cache()
 
     return {
         'success': True,
@@ -1270,7 +1270,7 @@ def api_comparison_clear_category_override(
         )
         conn.commit()
 
-    _stats_cache.clear()
+    invalidate_stats_cache()
 
     return {
         'success': True,
@@ -1537,7 +1537,7 @@ def api_restore_weights(
         )
 
         reload_config()
-        _stats_cache.clear()
+        invalidate_stats_cache()
 
         return {
             'success': True,

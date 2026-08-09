@@ -554,15 +554,13 @@ class TestCategoryPriorities:
         app, client = _make_app_and_client()
         _override_auth(app, _edition_user())
 
-        mock_stats_cache = mock.MagicMock()
         with (
             mock.patch(
                 "api.config_writes.update_category_priorities",
                 return_value="/tmp/scoring_config.json.backup.20260731",
-                create=True,
             ) as mock_writer,
             mock.patch(f"{_ROUTER_MODULE}.reload_config") as mock_reload,
-            mock.patch(f"{_ROUTER_MODULE}._stats_cache", mock_stats_cache),
+            mock.patch(f"{_ROUTER_MODULE}.invalidate_stats_cache") as mock_invalidate,
         ):
             resp = client.post(self.ENDPOINT, json={"order": ["sports", "silhouette", "default"]})
 
@@ -575,7 +573,7 @@ class TestCategoryPriorities:
         call_args = mock_writer.call_args[0]
         assert call_args[1] == ["sports", "silhouette", "default"]
         mock_reload.assert_called_once()
-        mock_stats_cache.clear.assert_called_once()
+        mock_invalidate.assert_called_once()
 
     def test_post_bad_order_returns_400(self):
         from fastapi import HTTPException
@@ -586,7 +584,6 @@ class TestCategoryPriorities:
         with mock.patch(
             "api.config_writes.update_category_priorities",
             side_effect=HTTPException(status_code=400, detail="order must be a permutation of existing categories"),
-            create=True,
         ):
             resp = client.post(self.ENDPOINT, json={"order": ["not_a_real_category"]})
 
@@ -605,9 +602,9 @@ class TestCategoryPriorities:
         mock_config.get_categories.return_value = new_order
 
         with (
-            mock.patch("api.config_writes.update_category_priorities", return_value=None, create=True),
+            mock.patch("api.config_writes.update_category_priorities", return_value=None),
             mock.patch(f"{_ROUTER_MODULE}.reload_config"),
-            mock.patch(f"{_ROUTER_MODULE}._stats_cache"),
+            mock.patch(f"{_ROUTER_MODULE}.invalidate_stats_cache"),
             mock.patch.dict("sys.modules", {"config": mock.MagicMock(ScoringConfig=lambda *a, **k: mock_config)}),
         ):
             post_resp = client.post(self.ENDPOINT, json={"order": ["sports", "silhouette"]})
@@ -684,15 +681,13 @@ class TestUpdateScoringContext:
         app, client = _make_app_and_client()
         _override_auth(app, _edition_user())
 
-        mock_stats_cache = mock.MagicMock()
         with (
             mock.patch(
                 "api.config_writes.update_scoring_context",
                 return_value="/tmp/scoring_config.json.backup.20260808",
-                create=True,
             ) as mock_writer,
             mock.patch(f"{_ROUTER_MODULE}.reload_config") as mock_reload,
-            mock.patch(f"{_ROUTER_MODULE}._stats_cache", mock_stats_cache),
+            mock.patch(f"{_ROUTER_MODULE}.invalidate_stats_cache") as mock_invalidate,
         ):
             resp = client.put(self.ENDPOINT, json=self.BODY)
 
@@ -707,7 +702,7 @@ class TestUpdateScoringContext:
         assert promote == ["sports"]
         assert excluded == ["silhouette"]
         mock_reload.assert_called_once()
-        mock_stats_cache.clear.assert_called_once()
+        mock_invalidate.assert_called_once()
 
     @pytest.mark.parametrize("detail", [
         "Unknown scoring context: nope",
@@ -724,7 +719,6 @@ class TestUpdateScoringContext:
         with mock.patch(
             "api.config_writes.update_scoring_context",
             side_effect=HTTPException(status_code=400, detail=detail),
-            create=True,
         ):
             resp = client.put(self.ENDPOINT, json=self.BODY)
 
@@ -752,7 +746,7 @@ class TestUpdateScoringContext:
         with (
             mock.patch(f"{_ROUTER_MODULE}._CONFIG_PATH", config_copy),
             mock.patch(f"{_ROUTER_MODULE}.reload_config"),
-            mock.patch(f"{_ROUTER_MODULE}._stats_cache"),
+            mock.patch(f"{_ROUTER_MODULE}.invalidate_stats_cache"),
             mock.patch.dict("sys.modules", {"config": config_module}),
         ):
             put_resp = client.put(self.ENDPOINT, json={

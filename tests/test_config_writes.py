@@ -1,9 +1,13 @@
 """Tests for api/config_writes.py — the locked category priority writer."""
 
 import json
+import os
 import shutil
+import stat
 import threading
+from datetime import datetime
 from pathlib import Path
+from unittest import mock
 
 import pytest
 from fastapi import HTTPException
@@ -346,6 +350,72 @@ class TestUpdateScoringContext:
         ok, issues = ScoringConfig(str(config_copy), validate=False).validate_categories(verbose=False)
         assert ok is True
         assert issues == []
+
+
+class _SameSecondClock:
+    """A clock whose successive readings differ only below the second."""
+
+    def __init__(self):
+        self._readings = 0
+
+    def now(self):
+        self._readings += 1
+        return datetime(2026, 8, 9, 12, 0, 0, self._readings * 1000)
+
+
+class TestAtomicConfigWrite:
+    """The config writer must not change the file's permissions or lose data."""
+
+    CONTEXT = "action_stage"
+    GROUP_READABLE_MODE = 0o664
+    OWNER_ONLY_MODE = 0o600
+
+    def _mode(self, path):
+        return stat.S_IMODE(os.stat(path).st_mode)
+
+    @pytest.mark.parametrize("mode", [GROUP_READABLE_MODE, OWNER_ONLY_MODE])
+    def test_existing_permissions_are_preserved(self, config_copy, mode):
+        """``tempfile.mkstemp`` creates its file 0600, so an unfixed writer
+        silently locked a co-deployed CLI out of the config it shares."""
+        os.chmod(config_copy, mode)
+
+        update_scoring_context(config_copy, self.CONTEXT, ["wildlife"], [])
+
+        assert self._mode(config_copy) == mode
+
+    def test_payload_is_fsynced_before_the_rename(self, config_copy):
+        """Rename-atomic is not crash-durable: without the flush the rename can
+        land while the replacement's bytes are still only in the page cache."""
+        calls = []
+        real_fsync, real_replace = os.fsync, os.replace
+
+        def _record_fsync(fd):
+            calls.append("fsync")
+            return real_fsync(fd)
+
+        def _record_replace(src, dst):
+            calls.append("replace")
+            return real_replace(src, dst)
+
+        with mock.patch("os.fsync", _record_fsync), mock.patch("os.replace", _record_replace):
+            update_scoring_context(config_copy, self.CONTEXT, ["wildlife"], [])
+
+        assert calls == ["fsync", "replace", "fsync"]
+
+    def test_two_writes_in_one_second_keep_distinct_backups(self, config_copy):
+        """A second-granular stamp made the second save overwrite the first
+        backup, so the ``backup`` path returned no longer held what the caller
+        was promised."""
+        first_contents = config_copy.read_text()
+
+        with mock.patch("api.config_writes.datetime", _SameSecondClock()):
+            first_backup = update_scoring_context(config_copy, self.CONTEXT, ["wildlife"], [])
+            second_contents = config_copy.read_text()
+            second_backup = update_scoring_context(config_copy, self.CONTEXT, ["sports"], [])
+
+        assert first_backup != second_backup
+        assert Path(first_backup).read_text() == first_contents
+        assert Path(second_backup).read_text() == second_contents
 
 
 class TestConfigWriteLock:

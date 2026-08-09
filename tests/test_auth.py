@@ -3,6 +3,7 @@
 from datetime import timedelta
 from unittest import mock
 
+import jwt
 import pytest
 from fastapi.testclient import TestClient
 
@@ -19,6 +20,15 @@ from api.auth import (
 )
 
 _AUTH_MODULE = "api.routers.auth"
+
+# A real edition-gated route (Depends(require_edition)): asserting on a field
+# of /api/auth/status only proves what the status payload reports, not what an
+# unauthorized caller can actually do.
+_EDITION_ENDPOINT = "/api/albums"
+_EDITION_BODY = {"name": "regression"}
+_INCOMPLETE_EDITION_BODY = {}
+_FOREIGN_JWT_SECRET = "other-secret-never-issued-by-this-server"
+_UNSIGNED_ALGORITHM = "none"
 
 
 # ---------------------------------------------------------------------------
@@ -147,17 +157,40 @@ def _fresh_limiter():
     return RateLimiter(max_attempts=5, window_seconds=60)
 
 
-def _make_client():
-    return TestClient(create_app())
+def _make_client(raise_server_exceptions=True):
+    return TestClient(create_app(), raise_server_exceptions=raise_server_exceptions)
+
+
+def _bearer(token):
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _expired_bearer(**claims):
     """Return an Authorization header carrying an already-expired token."""
-    token = create_access_token(
+    return _bearer(create_access_token(
         {"sub": "_legacy", "role": "user", **claims},
         expires_delta=timedelta(seconds=-1),
-    )
-    return {"Authorization": f"Bearer {token}"}
+    ))
+
+
+def _foreign_secret_bearer(**claims):
+    """A well-formed token signed with a secret this server never issued."""
+    return _bearer(jwt.encode(
+        {"sub": "_legacy", "role": "user", **claims},
+        _FOREIGN_JWT_SECRET, algorithm="HS256",
+    ))
+
+
+def _unsigned_bearer(**claims):
+    """An ``alg: none`` token — the classic signature-stripping forgery."""
+    return _bearer(jwt.encode(
+        {"sub": "_legacy", "role": "user", **claims},
+        key=None, algorithm=_UNSIGNED_ALGORITHM,
+    ))
+
+
+_REJECTED_BEARERS = [_expired_bearer, _foreign_secret_bearer, _unsigned_bearer]
+_REJECTED_BEARER_IDS = ["expired", "wrong_secret", "alg_none"]
 
 
 # ---------------------------------------------------------------------------
@@ -370,15 +403,23 @@ class TestEditionPasswordMode:
         )
         assert resp.status_code == 401
 
-    def test_expired_bearer_keeps_access_but_drops_edition(self, client):
+    @pytest.mark.parametrize("make_headers", _REJECTED_BEARERS, ids=_REJECTED_BEARER_IDS)
+    def test_unusable_bearer_keeps_access_but_drops_edition(self, client, make_headers):
         """The reported install: no viewer password, edition password set."""
-        resp = client.get(
-            "/api/auth/status", headers=_expired_bearer(edition=True)
-        )
+        resp = client.get("/api/auth/status", headers=make_headers(edition=True))
         assert resp.status_code == 200
         body = resp.json()
         assert body["authenticated"] is True
         assert body["edition_authenticated"] is False
+
+    @pytest.mark.parametrize("make_headers", _REJECTED_BEARERS, ids=_REJECTED_BEARER_IDS)
+    def test_unusable_bearer_is_refused_by_a_real_edition_route(self, client, make_headers):
+        """A forged or stale ``edition`` claim must not survive as edition
+        access on the route that actually mutates state."""
+        resp = client.post(
+            _EDITION_ENDPOINT, json=_EDITION_BODY, headers=make_headers(edition=True)
+        )
+        assert resp.status_code == 403
 
     def test_edition_login_rejected_in_multi_user(self, client):
         with mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True):
@@ -386,6 +427,95 @@ class TestEditionPasswordMode:
                 "/api/auth/edition/login", json={"password": "ed-pw"}
             )
             assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Unparseable scoring_config.json (fail closed)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def load_config_from():
+    """Drive the real ``api.config`` parse-failure flag from a chosen path.
+
+    Returns a callable taking the path to read and reporting whether the parse
+    failure was recorded. The previous flag value is always restored: leaking
+    an armed flag would lock every later test out of the open-install path.
+    """
+    import api.config as api_config
+
+    previous = api_config._config_load_failed
+
+    def _load(path):
+        with mock.patch.object(api_config, "_CONFIG_PATH", str(path)):
+            api_config._read_config()
+        return api_config.config_load_failed()
+
+    yield _load
+    api_config._config_load_failed = previous
+
+
+class TestUnparseableConfigFailsClosed:
+    """A config that EXISTS but does not parse must lock the install down.
+
+    The empty config it degrades to carries neither ``password`` nor
+    ``edition_password``, so it used to be indistinguishable from a
+    deliberately open install and unlocked every edition route. A genuinely
+    absent config is a different thing — a fresh, never-configured install
+    that is legitimately open — and must keep working.
+    """
+
+    CORRUPT_CONFIG = '{"viewer": {"edition_password": "ed-pw"'
+
+    @pytest.fixture(autouse=True)
+    def _patch(self):
+        viewer_cfg = {"password": "", "edition_password": "", "features": {}}
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch("api.auth.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
+            mock.patch("api.auth.is_multi_user_enabled", return_value=False),
+        ):
+            yield
+
+    def _corrupt_config(self, tmp_path):
+        path = tmp_path / "scoring_config.json"
+        path.write_text(self.CORRUPT_CONFIG)
+        return path
+
+    def test_corrupt_config_is_recorded_as_a_load_failure(self, tmp_path, load_config_from):
+        assert load_config_from(self._corrupt_config(tmp_path)) is True
+
+    def test_absent_config_is_not_a_load_failure(self, tmp_path, load_config_from):
+        assert load_config_from(tmp_path / "never_configured.json") is False
+
+    def test_corrupt_config_forbids_an_authenticated_edition_route(self, tmp_path, load_config_from):
+        load_config_from(self._corrupt_config(tmp_path))
+        client = _make_client(raise_server_exceptions=False)
+
+        resp = client.post(
+            _EDITION_ENDPOINT,
+            json=_EDITION_BODY,
+            headers={"Authorization": f"Bearer {create_access_token({'sub': '_legacy', 'role': 'user'})}"},
+        )
+        assert resp.status_code == 403
+
+    def test_corrupt_config_rejects_an_anonymous_edition_route(self, tmp_path, load_config_from):
+        load_config_from(self._corrupt_config(tmp_path))
+        client = _make_client(raise_server_exceptions=False)
+
+        resp = client.post(_EDITION_ENDPOINT, json=_EDITION_BODY)
+        assert resp.status_code == 401
+
+    def test_absent_config_keeps_the_open_install_open(self, tmp_path, load_config_from):
+        """The same request, with the flag disarmed, reaches the handler: a 422
+        on an incomplete body proves the edition gate was passed, without
+        writing an album."""
+        load_config_from(tmp_path / "never_configured.json")
+        client = _make_client(raise_server_exceptions=False)
+
+        resp = client.post(_EDITION_ENDPOINT, json=_INCOMPLETE_EDITION_BODY)
+        assert resp.status_code == 422
 
 
 # ---------------------------------------------------------------------------
