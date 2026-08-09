@@ -134,3 +134,48 @@ def test_rapid_ratings_coalesce_into_one_rebuild(rating_db, monkeypatch):
         assert not faces._rating_sync_timers
     finally:
         faces.flush_rating_comparisons()              # ensure no stray timer leaks to other tests
+
+
+def test_the_server_lifespan_flushes_a_pending_rating_sync(rating_db, monkeypatch):
+    """Shutdown fires a pending sync instead of dropping it.
+
+    The opposite call than for an armed ranker retrain, which shutdown cancels:
+    that is a multi-minute job, while this rebuild is short and its rows are the
+    ratings the user just gave. Drives the real FastAPI lifespan, because the
+    flush is only worth anything if the server actually calls it.
+    """
+    from api.routers import faces
+    import optimization.label_pairs as lp
+
+    monkeypatch.setattr(faces, "_RATING_SYNC_DEBOUNCE_S", 300)  # never fires on its own
+    monkeypatch.setattr("db.DEFAULT_DB_PATH", rating_db)
+    calls = []
+    monkeypatch.setattr(lp, "sync_label_comparisons", lambda *a, **k: calls.append(1))
+    try:
+        with TestClient(create_app()):
+            faces._mint_rating_comparisons(None)
+            assert list(faces._rating_sync_timers) == [None]
+            assert calls == []                        # still inside the debounce window
+        assert calls == [1]                           # flushed by shutdown, not dropped
+        assert not faces._rating_sync_timers
+    finally:
+        faces.flush_rating_comparisons()
+
+
+def test_a_failing_flush_does_not_break_shutdown(caplog):
+    """A flush that raises is logged and swallowed — shutdown must still finish."""
+    from api.routers import faces
+
+    called = []
+
+    def boom():
+        called.append(1)
+        raise RuntimeError("rebuild exploded")
+
+    with mock.patch.object(faces, "flush_rating_comparisons", boom):
+        with caplog.at_level("WARNING"):
+            with TestClient(create_app()):
+                pass
+
+    assert called == [1]
+    assert any("Flushing pending rating syncs" in r.getMessage() for r in caplog.records)

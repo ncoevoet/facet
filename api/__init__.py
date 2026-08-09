@@ -142,6 +142,43 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
+# Wall clock the shutdown waits on a pending rating sync before giving up on it
+# and letting its daemon thread be reaped with the process.
+RATING_FLUSH_TIMEOUT_SECONDS = 5.0
+
+
+def _flush_pending_rating_syncs():
+    """Fire the debounced rating syncs still waiting out their window.
+
+    Unlike an armed ranker retrain — a multi-minute job, so shutdown cancels it —
+    a pending sync is a short rebuild whose output is user signal: the star
+    ratings just given, turned into comparison rows. Dropping it would silently
+    discard them, so shutdown flushes instead.
+
+    Bounded on purpose: the flush runs on a daemon thread joined for at most
+    ``RATING_FLUSH_TIMEOUT_SECONDS``, and any failure inside it is logged rather
+    than raised, so neither a slow rebuild on a large library nor a broken one
+    can keep the process from exiting.
+    """
+    import threading
+
+    def _flush():
+        try:
+            from api.routers.faces import flush_rating_comparisons
+            flush_rating_comparisons()
+        except Exception:
+            logger.warning("Flushing pending rating syncs on shutdown failed", exc_info=True)
+
+    flusher = threading.Thread(target=_flush, daemon=True, name="rating-sync-flush")
+    flusher.start()
+    flusher.join(timeout=RATING_FLUSH_TIMEOUT_SECONDS)
+    if flusher.is_alive():
+        logger.warning(
+            "Pending rating sync still running after %.1fs, exiting without it",
+            RATING_FLUSH_TIMEOUT_SECONDS,
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan — startup/shutdown hooks."""
@@ -234,6 +271,13 @@ async def lifespan(app: FastAPI):
     if wal_thread is not None:
         # Bound the join so a stuck PRAGMA can't hang shutdown.
         wal_thread.join(timeout=5.0)
+    # Flush before the retrain cancellation below: the sync writes comparison
+    # rows a retrain would consume, so the writes must land first, and anything
+    # the flush itself arms is then swept up by that same cancellation rather
+    # than surviving it. After the WAL thread has stopped (no checkpoint
+    # competing for the write lock) and before the final checkpoint, so the rows
+    # it commits are checkpointed into the main DB file.
+    _flush_pending_rating_syncs()
     # Disarm any ranker retrain waiting out its idle window: starting a
     # multi-minute train as the process goes away helps nobody, and the pending
     # counter is persisted, so the comparisons survive to trigger the next one.
