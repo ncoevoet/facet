@@ -35,6 +35,12 @@ logger = logging.getLogger("facet.api.db_helpers")
 # a hard error into a slightly slower success.
 RETRY_ATTEMPTS = 4
 RETRY_BASE_DELAY = 0.05
+# Total wall clock a retried handler may spend, attempts notwithstanding. Every
+# attempt already waits out the connection's own `busy_timeout` (5s), so an
+# attempt count alone let one sync handler hold one of the 40 anyio threadpool
+# tokens for ~20s before answering 503. Whichever limit is reached first ends
+# the retries, so a burst that clears instantly still gets all its attempts.
+RETRY_BUDGET_SECONDS = 2.5
 
 
 def is_locked_error(ex) -> bool:
@@ -49,38 +55,48 @@ def is_locked_error(ex) -> bool:
     return 'locked' in message or 'busy' in message
 
 
-def retry_on_locked(attempts=RETRY_ATTEMPTS, base_delay=RETRY_BASE_DELAY):
+def retry_on_locked(attempts=RETRY_ATTEMPTS, base_delay=RETRY_BASE_DELAY,
+                    budget_seconds=RETRY_BUDGET_SECONDS):
     """Retry a write handler while SQLite reports the database busy/locked.
 
     Retries the WHOLE handler rather than just the commit: these handlers read
     the current value before writing the new one (toggles), so a retry has to
     re-read or it would persist a decision made against stale state. Anything
-    that is not a lock error propagates untouched on the first raise. Exhausting
-    the attempts yields 503 + Retry-After — the write is still possible, the
-    server is merely busy, so it is not a 500.
+    that is not a lock error propagates untouched on the first raise.
+
+    Retrying stops at ``attempts`` OR once ``budget_seconds`` of wall clock is
+    spent, whichever comes first — each attempt can itself sit out the
+    connection's ``busy_timeout``, so an attempt count alone does not bound how
+    long the caller's threadpool token is held. Giving up yields 503 +
+    Retry-After — the write is still possible, the server is merely busy, so it
+    is not a 500.
     """
     def decorate(fn):
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
+            started = time.monotonic()
             for attempt in range(attempts):
                 try:
                     return fn(*args, **kwargs)
                 except sqlite3.OperationalError as ex:
                     if not is_locked_error(ex):
                         raise
-                    if attempt == attempts - 1:
+                    # Exponential backoff, jittered so parallel writers from the
+                    # same burst don't line up and collide again in lockstep.
+                    delay = base_delay * (2 ** attempt) * (0.5 + random.random())
+                    elapsed = time.monotonic() - started
+                    if attempt == attempts - 1 or elapsed + delay >= budget_seconds:
                         logger.warning(
-                            "%s still blocked by a database lock after %d attempts",
-                            fn.__name__, attempts,
+                            "%s still blocked by a database lock after %d attempts "
+                            "in %.2fs, giving up",
+                            fn.__name__, attempt + 1, elapsed, exc_info=True,
                         )
                         raise HTTPException(
                             status_code=503,
                             detail='Database is busy, please retry',
                             headers={'Retry-After': '1'},
                         ) from ex
-                    # Exponential backoff, jittered so parallel writers from the
-                    # same burst don't line up and collide again in lockstep.
-                    time.sleep(base_delay * (2 ** attempt) * (0.5 + random.random()))
+                    time.sleep(delay)
         return wrapper
     return decorate
 

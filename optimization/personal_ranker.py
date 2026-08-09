@@ -50,6 +50,23 @@ _UNUSED_BLOB_COLS = frozenset({'thumbnail', 'histogram_data', 'caption_embedding
 # slices releases the lock between them.
 _WRITE_CHUNK = 2000
 
+# Rows per keyset page of the inference scan. Iterating one cursor lazily while
+# numpy scores each row keeps a read snapshot open for the whole (multi-minute)
+# pass, so the WAL checkpointer cannot advance past the reader and `-wal` grows
+# unbounded. Each page is fetched whole — bounding the snapshot to one page —
+# and only the page is held in memory.
+_SCAN_PAGE_ROWS = 2000
+
+_ROWID_ALIAS = "_scan_rowid"
+
+# The global-scope score a photo mirrors, repeated by every statement that reads
+# it so the two can never drift apart.
+_GLOBAL_LEARNED_SCORE = (
+    "(SELECT ls.learned_score FROM learned_scores ls"
+    "  WHERE ls.photo_path = photos.path"
+    "    AND ls.category IS NULL AND ls.user_id IS NULL)"
+)
+
 
 def _load_piaa_config(config_path):
     """Read the ``piaa_prior`` block. Missing file/block -> disabled (flag off)."""
@@ -468,20 +485,29 @@ def _collect_scored(db_path, emb_dim, raw_fn):
     normalization happens once, later, in ``_persist_scores`` — the PIAA blend
     is applied HERE, on the raw scores, never after the rank/percentile step.
 
-    Rows are streamed off the cursor rather than fetched into a list: a full
-    library's thumbnails alone are several GB, and this runs on a background
-    thread inside the viewer process.
+    Rows are read one keyset page at a time rather than materialized whole: a
+    full library's thumbnails alone are several GB, and this runs on a background
+    thread inside the viewer process. Each page is exhausted before it is scored,
+    so the read snapshot lasts a page rather than the whole run — a cursor held
+    open across multi-minute numpy work pins the WAL and lets it grow unbounded.
     """
     scored = []
     with get_connection(db_path) as conn:
         cols = ", ".join(_scoring_columns(conn))
-        for r in conn.execute(f"SELECT {cols} FROM photos WHERE clip_embedding IS NOT NULL"):
-            row = dict(r)
-            emb = bytes_to_normalized_embedding(row['clip_embedding'])
-            if emb is None or emb.shape[0] != emb_dim:
-                continue
-            scored.append((row['path'], float(raw_fn(row, emb))))
-    return scored
+        query = (f"SELECT rowid AS {_ROWID_ALIAS}, {cols} FROM photos "
+                 f"WHERE clip_embedding IS NOT NULL AND rowid > ? ORDER BY rowid LIMIT ?")
+        last_rowid = 0
+        while True:
+            page = conn.execute(query, (last_rowid, _SCAN_PAGE_ROWS)).fetchall()
+            if not page:
+                return scored
+            for r in page:
+                row = dict(r)
+                last_rowid = row.pop(_ROWID_ALIAS)
+                emb = bytes_to_normalized_embedding(row['clip_embedding'])
+                if emb is None or emb.shape[0] != emb_dim:
+                    continue
+                scored.append((row['path'], float(raw_fn(row, emb))))
 
 
 def _mirror_learned_score(conn):
@@ -498,20 +524,50 @@ def _mirror_learned_score(conn):
     whole primary key, so a photo carries at most one row across every scope; an
     unmatched per-user row left over from another scope's training must mirror as
     NULL, not leak into the global column.
+
+    The ``IS NOT`` predicate (NULL-safe on both sides) restricts the write to
+    rows whose score actually moved: without it every photo in the slice is
+    rewritten, and a photos record carries a ~46 KB thumbnail.
     """
     top = conn.execute("SELECT MAX(rowid) FROM photos").fetchone()[0]
     if top is None:
         return
     for start in range(1, top + 1, _WRITE_CHUNK):
         conn.execute(
-            """UPDATE photos SET learned_score = (
-                   SELECT ls.learned_score FROM learned_scores ls
-                   WHERE ls.photo_path = photos.path
-                     AND ls.category IS NULL AND ls.user_id IS NULL)
-               WHERE rowid BETWEEN ? AND ?""",
+            f"""UPDATE photos SET learned_score = {_GLOBAL_LEARNED_SCORE}
+                WHERE rowid BETWEEN ? AND ?
+                  AND learned_score IS NOT {_GLOBAL_LEARNED_SCORE}""",
             (start, start + _WRITE_CHUNK - 1),
         )
         conn.commit()
+
+
+def _scope_clause(category, user_id):
+    """``(sql, params)`` selecting exactly one (category, user) scope's rows."""
+    if user_id is None:
+        return "category IS ? AND user_id IS NULL", [category]
+    return "category IS ? AND user_id = ?", [category, user_id]
+
+
+def _delete_superseded_scores(conn, category, user_id, run_marker):
+    """Drop the scope's rows this run did not rewrite, in committed slices.
+
+    Every row the run wrote carries ``run_marker`` as its ``updated_at``, so what
+    is left is exactly the photos that dropped out of the ranker and must stop
+    sorting. Runs last, and only on rows the new scores did not replace, so an
+    interrupted run leaves the PREVIOUS scores in place instead of a hole.
+    """
+    scope_sql, scope_params = _scope_clause(category, user_id)
+    while True:
+        deleted = conn.execute(
+            f"""DELETE FROM learned_scores WHERE rowid IN (
+                    SELECT rowid FROM learned_scores
+                    WHERE {scope_sql} AND updated_at IS NOT ? LIMIT ?)""",
+            (*scope_params, run_marker, _WRITE_CHUNK),
+        ).rowcount
+        conn.commit()
+        if deleted < _WRITE_CHUNK:
+            return
 
 
 def _persist_scores(db_path, scored, category, user_id, n_pairs):
@@ -523,6 +579,11 @@ def _persist_scores(db_path, scored, category, user_id, n_pairs):
     cost is that a concurrent "My Taste" sort can observe a partially rebuilt
     table for a few seconds (missing rows read NULL and sink) — acceptable for an
     opt-in alternate sort, unlike failing the user's saves.
+
+    New rows land first and the superseded ones are removed last, so the failure
+    mode of a mid-run error is stale scores rather than missing ones: deleting
+    the scope up front committed a hole that no later error could undo, and the
+    caller (``optimization/auto_retrain._run_retrain``) swallows the exception.
     """
     if not scored:
         return 0
@@ -532,11 +593,6 @@ def _persist_scores(db_path, scored, category, user_id, n_pairs):
     normalized = 10.0 * order / denom
     now = datetime.now(timezone.utc).isoformat()
     with get_connection(db_path) as conn:
-        if user_id is None:
-            conn.execute("DELETE FROM learned_scores WHERE category IS ? AND user_id IS NULL", (category,))
-        else:
-            conn.execute("DELETE FROM learned_scores WHERE category IS ? AND user_id = ?", (category, user_id))
-        conn.commit()
         for start in range(0, len(scored), _WRITE_CHUNK):
             conn.executemany(
                 """INSERT OR REPLACE INTO learned_scores
@@ -548,6 +604,7 @@ def _persist_scores(db_path, scored, category, user_id, n_pairs):
                 ],
             )
             conn.commit()
+        _delete_superseded_scores(conn, category, user_id, now)
         if category is None and user_id is None:
             _mirror_learned_score(conn)
     return len(scored)

@@ -192,6 +192,24 @@ def test_scoring_columns_exclude_unused_blobs(ranker_db):
     assert 'clip_embedding' in cols, "the embedding IS the feature"
 
 
+def test_collect_scored_pages_over_every_row(ranker_db, monkeypatch):
+    """Keyset paging must cover the library exactly once.
+
+    The scan reads a page at a time so the read snapshot cannot span the whole
+    (multi-minute) scoring loop and pin the WAL. A wrong keyset bound would
+    silently drop or repeat rows at every page boundary.
+    """
+    _seed_photos(ranker_db, n=25)
+    monkeypatch.setattr(pr, "_SCAN_PAGE_ROWS", 3)
+
+    scored = pr._collect_scored(ranker_db, emb_dim=16, raw_fn=lambda row, emb: float(emb[0]))
+    paths = [p for p, _ in scored]
+
+    assert len(paths) == 25
+    assert len(set(paths)) == 25
+    assert paths == sorted(paths)
+
+
 def test_collect_scored_matches_a_select_star_scan(ranker_db):
     """Narrowing the column list must not change a single score."""
     _seed_photos(ranker_db, n=25)
@@ -297,6 +315,93 @@ def test_mirror_clears_scores_photos_no_longer_have(ranker_db):
     finally:
         conn.close()
     assert non_null == 6, "photos dropped from the ranker must not keep a stale score"
+
+
+def _stored_scores(db_path):
+    conn = sqlite3.connect(db_path)
+    try:
+        return dict(conn.execute("SELECT photo_path, learned_score FROM learned_scores").fetchall())
+    finally:
+        conn.close()
+
+
+def test_persist_scores_failure_mid_loop_keeps_the_previous_scores(ranker_db, monkeypatch):
+    """A failed rewrite must leave the OLD scores, never a truncated table.
+
+    Regression: the scope was DELETEd — and committed — before the first INSERT,
+    so an error partway through the chunked inserts left learned_scores
+    permanently truncated-plus-partial while photos.learned_score still held the
+    previous run's values. _run_retrain swallows the exception, so nothing
+    retried and nothing rolled back.
+    """
+    _seed_photos(ranker_db, n=12)
+    monkeypatch.setattr(pr, "_WRITE_CHUNK", 3)
+    pr._persist_scores(ranker_db, _scored_rows(12), None, None, n_pairs=7)
+    before = _stored_scores(ranker_db)
+    assert len(before) == 12
+
+    real_connection = pr.get_connection
+
+    from contextlib import contextmanager
+
+    class _FailingConn:
+        """Fails the SECOND insert slice, mid-loop, with the first committed."""
+
+        def __init__(self, conn):
+            self._conn = conn
+            self._slices = 0
+
+        def __getattr__(self, name):
+            return getattr(self._conn, name)
+
+        def executemany(self, *args, **kwargs):
+            self._slices += 1
+            if self._slices == 2:
+                raise sqlite3.OperationalError("disk I/O error")
+            return self._conn.executemany(*args, **kwargs)
+
+    @contextmanager
+    def failing_connection(db_path, *args, **kwargs):
+        with real_connection(db_path, *args, **kwargs) as conn:
+            yield _FailingConn(conn)
+
+    monkeypatch.setattr(pr, "get_connection", failing_connection)
+    reversed_scores = [(path, 11.0 - i) for i, (path, _) in enumerate(_scored_rows(12))]
+    with pytest.raises(sqlite3.OperationalError):
+        pr._persist_scores(ranker_db, reversed_scores, None, None, n_pairs=9)
+
+    after = _stored_scores(ranker_db)
+    assert len(after) == 12, "a mid-run failure must not truncate the scope"
+    # The first slice landed with the new ranking; everything past the failure
+    # still carries the previous run's score rather than nothing.
+    assert after['/r/p000.jpg'] == pytest.approx(10.0)
+    for i in range(3, 12):
+        path = f'/r/p{i:03d}.jpg'
+        assert after[path] == pytest.approx(before[path])
+
+
+def test_mirror_skips_rows_whose_score_did_not_change(ranker_db):
+    """Re-mirroring an unchanged score must not rewrite the (46 KB) photo row."""
+    _seed_photos(ranker_db, n=12)
+    pr._persist_scores(ranker_db, _scored_rows(12), None, None, n_pairs=7)
+
+    conn = sqlite3.connect(ranker_db)
+    try:
+        unchanged_before = conn.total_changes
+        pr._mirror_learned_score(conn)
+        assert conn.total_changes == unchanged_before, "unchanged rows were rewritten"
+
+        conn.execute("UPDATE learned_scores SET learned_score = 9.5 WHERE photo_path = ?",
+                     ('/r/p004.jpg',))
+        conn.commit()
+        changed_before = conn.total_changes
+        pr._mirror_learned_score(conn)
+        assert conn.total_changes - changed_before == 1, "the changed row must still be written"
+        assert conn.execute(
+            "SELECT learned_score FROM photos WHERE path = ?", ('/r/p004.jpg',)
+        ).fetchone()[0] == pytest.approx(9.5)
+    finally:
+        conn.close()
 
 
 def test_mirror_ignores_rows_from_another_scope(ranker_db):

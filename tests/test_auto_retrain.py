@@ -226,6 +226,50 @@ def test_thread_start_failure_releases_slot(db_path, monkeypatch):
     assert _counter(db_path, None) == 30
 
 
+def test_a_held_library_lock_defers_the_retrain(db_path):
+    """A CLI recompute holding the library mutex must not be joined mid-write.
+
+    train_ranker rewrites photos.learned_score across the whole table, so it is
+    the same class of writer as --recompute-average. The CLI trainers take the
+    lock via facet.LIBRARY_JOB_ARGS; this is the in-process path.
+    """
+    from facet import LIBRARY_JOB_RECOMPUTE, LibraryLock
+
+    holder = LibraryLock(db_path, kind=LIBRARY_JOB_RECOMPUTE).acquire()
+    try:
+        with mock.patch("optimization.personal_ranker.train_ranker") as train:
+            assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25) is True
+            for t in list(ar._active_threads):
+                t.join(timeout=5)
+        train.assert_not_called()
+    finally:
+        holder.release()
+
+    assert ar._retrain_running is False
+    # Deferred, not dropped: the batch must survive to trigger the next attempt.
+    assert _counter(db_path, None) == 30
+
+
+def test_the_retrain_holds_the_library_lock_while_it_trains(db_path):
+    """The mutex must cover the train itself, not merely be checked before it."""
+    from facet import LIBRARY_JOB_RETRAIN, library_job_holder
+
+    seen = {}
+
+    def spy_train(db_path=None, user_id=None, **kwargs):
+        seen["holder"] = library_job_holder(db_path)
+        return {"written": 0, "cv_accuracy": 0.0}
+
+    with mock.patch("optimization.personal_ranker.train_ranker", side_effect=spy_train):
+        assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25) is True
+        for t in list(ar._active_threads):
+            t.join(timeout=5)
+
+    assert seen["holder"] is not None
+    assert seen["holder"]["kind"] == LIBRARY_JOB_RETRAIN
+    assert library_job_holder(db_path) is None
+
+
 def test_gated_result_logged_and_lock_released(db_path):
     """A retrain that fails the held-out CV gate writes nothing but releases cleanly."""
     def gated_train(db_path=None, user_id=None, **kwargs):
@@ -235,9 +279,12 @@ def test_gated_result_logged_and_lock_released(db_path):
 
     with mock.patch("optimization.personal_ranker.train_ranker", side_effect=gated_train) as train:
         assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25) is True
+        # Joining inside the patch: the worker resolves train_ranker when it
+        # runs, so a join outside races the patch teardown and can exercise the
+        # real trainer instead.
+        for t in list(ar._active_threads):
+            t.join(timeout=5)
 
-    for t in list(ar._active_threads):
-        t.join(timeout=5)
     train.assert_called_once()
     assert ar._retrain_running is False
 
@@ -289,9 +336,9 @@ def test_keeper_refresh_failure_does_not_block_ranker(db_path):
         mock.patch("optimization.keeper_head.train_keeper_head", side_effect=boom_keeper) as keeper,
     ):
         assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25) is True
+        for t in list(ar._active_threads):
+            t.join(timeout=5)
 
-    for t in list(ar._active_threads):
-        t.join(timeout=5)
     ranker.assert_called_once()
     keeper.assert_called_once()
     assert ranker_done.is_set()
@@ -320,9 +367,81 @@ def test_further_events_push_the_idle_window_back(db_path):
         second = ar._pending_timers[None][0]
 
     assert second is not first, "a later event must re-arm the timer"
-    assert not first.is_alive(), "the superseded timer must be cancelled"
+    # Timer.cancel() only sets `finished`; the thread takes an unbounded moment
+    # to notice, so is_alive() is a flaky read of the same fact.
+    assert first.finished.is_set(), "the superseded timer must be cancelled"
     train.assert_not_called()
     assert _counter(db_path, None) == 31
+
+
+def test_dispatch_only_deregisters_the_timer_that_fired_it(db_path):
+    """A dispatch must not drop a timer it does not own.
+
+    Regression: _dispatch popped _pending_timers[scope] BY SCOPE. A rating that
+    landed while a fired dispatch waited on _retrain_lock armed a NEW timer,
+    which that dispatch then deleted from the registry without cancelling it —
+    still alive and armed, but unreachable, so no later event could push it back
+    and it fired in the middle of the user's rating burst.
+    """
+    with mock.patch("optimization.personal_ranker.train_ranker"):
+        assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25,
+                                idle_seconds=300) is True
+        armed = ar._pending_timers[None][0]
+        # A dispatch owning no timer (the inline path, or one whose own timer was
+        # superseded) runs while `armed` is registered.
+        ar._dispatch(db_path, None, 25)
+        for t in list(ar._active_threads):
+            t.join(timeout=5)
+
+    assert None in ar._pending_timers, "the concurrently armed timer was dropped"
+    assert ar._pending_timers[None][0] is armed
+    assert not armed.finished.is_set(), "the armed timer must stay cancellable"
+
+
+def test_a_fired_timer_deregisters_itself(db_path):
+    """The timer that does fire must leave the registry, or entries pile up."""
+    done = threading.Event()
+
+    def fake_train(db_path=None, user_id=None, **kwargs):
+        done.set()
+        return {"gated": False, "written": 1, "cv_accuracy": 88.0}
+
+    with mock.patch("optimization.personal_ranker.train_ranker", side_effect=fake_train):
+        assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25,
+                                idle_seconds=0.05) is True
+        assert done.wait(timeout=5), "the idle timer never dispatched the retrain"
+        for t in list(ar._active_threads):
+            t.join(timeout=5)
+
+    assert ar._pending_timers == {}
+
+
+def test_concurrent_events_do_not_lose_an_increment(db_path):
+    """The counter is atomic in SQL, so it no longer needs the process-wide lock.
+
+    Regression guard for the lock scope: the read-modify-write it used to protect
+    held _retrain_lock across a SQLite commit, serializing every concurrent
+    rater's bookkeeping on the request thread behind one blocked write.
+    """
+    threads = 8
+    per_thread = 10
+    errors = []
+
+    def rate():
+        try:
+            for _ in range(per_thread):
+                ar.maybe_retrain(db_path, user_id=None, added=1, threshold=10 ** 6)
+        except Exception as ex:  # noqa: BLE001 — surfaced by the assertion below
+            errors.append(ex)
+
+    workers = [threading.Thread(target=rate) for _ in range(threads)]
+    for t in workers:
+        t.start()
+    for t in workers:
+        t.join(timeout=30)
+
+    assert errors == []
+    assert _counter(db_path, None) == threads * per_thread
 
 
 def test_timer_dispatches_once_the_window_elapses(db_path):
@@ -388,7 +507,7 @@ def test_dispatch_commit_failure_releases_the_claimed_slot(db_path, monkeypatch)
 
     # Let maybe_retrain's own counter commit succeed, then fail inside _dispatch.
     conn = real_connect(db_path)
-    ar._write_counter(conn, None, 30)
+    ar._bump_counter(conn, None, 30)
     conn.commit()
     conn.close()
     monkeypatch.setattr(sqlite3, "connect", lambda p, *a, **k: _FailingCommitConn(real_connect(p, *a, **k)))

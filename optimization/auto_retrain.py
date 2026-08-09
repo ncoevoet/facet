@@ -21,9 +21,12 @@ Design notes / safety:
   Every later event pushes the timer back, so the retrain lands when the user
   pauses instead of mid-burst — where its long write would otherwise contend
   with the user's own rating writes and time them out.
-- The counter is only zeroed, and the in-flight slot only claimed, at the moment
-  the worker actually starts, so a crash inside the idle window cannot discard
-  accumulated comparisons.
+- The counter is only consumed, and the in-flight slot only claimed, at the
+  moment the worker actually starts, so a crash inside the idle window cannot
+  discard accumulated comparisons.
+- The lock never spans a SQLite commit: the counter is a single atomic SQL
+  upsert/decrement issued outside it, so one rater blocked on the write lock
+  cannot serialize every other rater's bookkeeping.
 - The held-out CV gate inside ``train_ranker`` is NOT bypassed: a dispatched
   retrain that fails the gate simply writes nothing, exactly as a manual run
   would. ``force`` is never set here.
@@ -35,6 +38,7 @@ import json
 import logging
 import os
 import threading
+import time
 
 logger = logging.getLogger("facet.auto_retrain")
 
@@ -123,35 +127,107 @@ def _scope_key(scope) -> str:
     return f"{_COUNTER_KEY_PREFIX}:{scope if scope is not None else 'global'}"
 
 
-def _read_counter(conn, scope) -> int:
-    row = conn.execute(
-        "SELECT value FROM stats_cache WHERE key = ?", (_scope_key(scope),)
-    ).fetchone()
-    if not row or row[0] is None:
-        return 0
+def _as_count(value) -> int:
+    """A stats_cache value as a counter; anything unparseable counts as 0."""
     try:
-        return int(row[0])
+        return int(value)
     except (TypeError, ValueError):
         return 0
 
 
-def _write_counter(conn, scope, value: int) -> None:
-    import time
+def _read_counter(conn, scope) -> int:
+    row = conn.execute(
+        "SELECT value FROM stats_cache WHERE key = ?", (_scope_key(scope),)
+    ).fetchone()
+    return _as_count(row[0]) if row else 0
+
+
+def _bump_counter(conn, scope, delta: int) -> int:
+    """Atomically add ``delta`` to a scope's counter; returns the new value.
+
+    One SQL upsert rather than a read-modify-write, so concurrent raters cannot
+    lose an increment without serializing on the process-wide lock — which must
+    never be held across a SQLite commit.
+    """
+    row = conn.execute(
+        "INSERT INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET "
+        "value = CAST(stats_cache.value AS INTEGER) + excluded.value, "
+        "updated_at = excluded.updated_at "
+        "RETURNING value",
+        (_scope_key(scope), int(delta), time.time()),
+    ).fetchone()
+    return _as_count(row[0]) if row else 0
+
+
+def _consume_counter(conn, scope, amount: int) -> None:
+    """Subtract the comparisons a dispatch just claimed, floored at 0.
+
+    A relative decrement rather than a reset, so an increment landing between
+    the dispatch's read and this write is carried over to the next crossing
+    instead of being silently discarded.
+    """
     conn.execute(
-        "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
-        (_scope_key(scope), str(int(value)), time.time()),
+        "UPDATE stats_cache SET value = MAX(0, CAST(value AS INTEGER) - ?), updated_at = ? "
+        "WHERE key = ?",
+        (int(amount), time.time(), _scope_key(scope)),
     )
 
 
-def _run_retrain(db_path, scope):
+def _hold_library_lock(db_path, scope):
+    """The cross-process library mutex for this train, or None when held elsewhere.
+
+    ``train_ranker`` rewrites ``photos.learned_score`` across the whole table,
+    so it collides with a CLI ``--recompute-average`` exactly as a second scan
+    would. The CLI trainers take this lock through ``facet.LIBRARY_JOB_ARGS``;
+    this thread is that same writer reached from the viewer, and taking it here
+    is what makes the lock's invariant true for the in-process path.
+    """
+    from facet import LIBRARY_JOB_RETRAIN, LibraryLock, LibraryLockError
+    try:
+        return LibraryLock(db_path, kind=LIBRARY_JOB_RETRAIN).acquire()
+    except LibraryLockError as ex:
+        logger.info("Auto-retrain (scope=%s) deferred: %s", scope, ex)
+        return None
+
+
+def _give_back_counter(db_path, scope, pending):
+    """Return the consumed comparisons after a train that never ran.
+
+    Mirrors the thread-start-failure path: the consumption assumed a training
+    run, so without this the accumulated comparisons are silently discarded and
+    the next crossing needs a whole fresh batch.
+    """
+    import sqlite3
+    conn = None
+    try:
+        conn = sqlite3.connect(db_path)
+        _bump_counter(conn, scope, pending)
+        conn.commit()
+    except sqlite3.Error:
+        logger.warning("Auto-retrain (scope=%s) could not restore its counter", scope, exc_info=True)
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def _run_retrain(db_path, scope, pending=0):
     """Background worker: run train_ranker for one scope, then release the lock.
 
     Best-effort: any failure is logged and swallowed so a broken train never
     takes down the server thread that spawned it. The held-out CV gate inside
     train_ranker is left intact (force is not passed).
+
+    Deferred rather than run when another process holds the library lock;
+    ``pending`` is handed back so the batch survives to trigger the next one.
     """
     global _retrain_running
+    library_lock = None
     try:
+        library_lock = _hold_library_lock(db_path, scope)
+        if library_lock is None:
+            _give_back_counter(db_path, scope, pending)
+            return
         from optimization.personal_ranker import train_ranker
         result = train_ranker(db_path=db_path, user_id=scope)
         if result.get("error"):
@@ -185,12 +261,30 @@ def _run_retrain(db_path, scope):
     except Exception:  # noqa: BLE001 — background worker must never propagate
         logger.warning("Auto-retrain (scope=%s) failed", scope, exc_info=True)
     finally:
+        if library_lock is not None:
+            library_lock.release()
         with _retrain_lock:
             _retrain_running = False
 
 
-def _dispatch(db_path, scope, threshold):
-    """Claim the in-flight slot, zero the counter, and start the worker.
+def _deregister_timer(scope, timer) -> None:
+    """Drop a scope's armed timer, but ONLY when the registered one IS ``timer``.
+
+    Popping by scope would silently drop a NEWER timer armed by an event that
+    landed while this dispatch waited on the lock: still alive and armed, but no
+    longer reachable to be cancelled, so it fired mid-rating-burst. Caller holds
+    ``_retrain_lock``.
+    """
+    entry = _pending_timers.get(scope)
+    if entry is not None and entry[0] is timer:
+        del _pending_timers[scope]
+
+
+def _dispatch(db_path, scope, threshold, firing_timer=None):
+    """Claim the in-flight slot, consume the counter, and start the worker.
+
+    ``firing_timer`` is the idle timer whose expiry triggered this dispatch, and
+    the only timer this dispatch may deregister (see ``_deregister_timer``).
 
     Re-checks the counter against the threshold on its own connection, because
     this also runs from the idle timer — long after the crossing that armed it.
@@ -203,32 +297,33 @@ def _dispatch(db_path, scope, threshold):
     claimed = False
     try:
         conn = sqlite3.connect(db_path)
+        pending = _read_counter(conn, scope)
         with _retrain_lock:
-            _pending_timers.pop(scope, None)
-            pending = _read_counter(conn, scope)
+            _deregister_timer(scope, firing_timer)
             if not should_retrain(pending, threshold, _retrain_running):
                 return False
             _retrain_running = True
             claimed = True
-            _write_counter(conn, scope, 0)
-            conn.commit()
+        _consume_counter(conn, scope, pending)
+        conn.commit()
 
         # Prune finished threads so the tracking list can't grow unbounded.
         _active_threads[:] = [t for t in _active_threads if t.is_alive()]
         t = threading.Thread(
-            target=_run_retrain, args=(db_path, scope), name=f"auto-retrain-{scope}", daemon=True,
+            target=_run_retrain, args=(db_path, scope, pending),
+            name=f"auto-retrain-{scope}", daemon=True,
         )
         try:
             t.start()
         except Exception:  # noqa: BLE001 — releasing the claimed slot is the point
             # Thread failed to start (e.g. resource exhaustion). Release the
-            # slot so the next event can dispatch again, and restore the
-            # counter to `pending` — the reset to 0 above assumed a training
-            # run that never happened, so without this the accumulated
-            # comparisons would be silently discarded.
+            # slot so the next event can dispatch again, and give the counter
+            # back what we consumed — that consumption assumed a training run
+            # that never happened, so without this the accumulated comparisons
+            # would be silently discarded.
             with _retrain_lock:
                 _retrain_running = False
-            _write_counter(conn, scope, pending)
+            _bump_counter(conn, scope, pending)
             conn.commit()
             logger.warning("Auto-retrain dispatch failed to start (scope=%s)", scope, exc_info=True)
             return False
@@ -251,14 +346,23 @@ def _dispatch(db_path, scope, threshold):
             conn.close()
 
 
+def _make_idle_timer(db_path, scope, threshold, idle_seconds):
+    """A daemon Timer that hands its own identity to the dispatch it triggers."""
+    def fire():
+        _dispatch(db_path, scope, threshold, firing_timer=timer)
+
+    timer = threading.Timer(idle_seconds, fire)
+    timer.daemon = True
+    return timer
+
+
 def _schedule(db_path, scope, threshold, idle_seconds):
     """(Re)arm the idle timer for a scope. Each new event pushes it back."""
     with _retrain_lock:
         existing = _pending_timers.get(scope)
         if existing is not None:
             existing[0].cancel()
-        timer = threading.Timer(idle_seconds, _dispatch, args=(db_path, scope, threshold))
-        timer.daemon = True
+        timer = _make_idle_timer(db_path, scope, threshold, idle_seconds)
         _pending_timers[scope] = (timer, db_path, threshold)
         timer.start()
 
@@ -270,7 +374,7 @@ def flush_pending_retrain():
         _pending_timers.clear()
     for scope, (timer, db_path, threshold) in pending:
         timer.cancel()
-        _dispatch(db_path, scope, threshold)
+        _dispatch(db_path, scope, threshold, firing_timer=timer)
 
 
 def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = None, conn=None,
@@ -312,19 +416,21 @@ def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = None, conn=
         if own_conn:
             conn = sqlite3.connect(db_path)
         try:
-            # Read-modify-write the counter UNDER the lock so two concurrent
-            # events can't both read the same value and lose an increment.
-            with _retrain_lock:
-                pending = _read_counter(conn, scope) + max(0, int(added))
-                _write_counter(conn, scope, pending)
-                conn.commit()
-                ready = should_retrain(pending, threshold, _retrain_running)
+            # The increment is atomic in SQL, so it needs no lock — and must not
+            # take one: a commit blocked behind SQLite's write lock would then
+            # serialize every concurrent rater's bookkeeping on the request
+            # thread. The lock only guards _retrain_running / _pending_timers.
+            pending = _bump_counter(conn, scope, max(0, int(added)))
+            conn.commit()
         finally:
             if own_conn:
                 conn.close()
     except sqlite3.Error:
         logger.warning("Auto-retrain counter update failed (scope=%s)", scope, exc_info=True)
         return False
+
+    with _retrain_lock:
+        ready = should_retrain(pending, threshold, _retrain_running)
 
     if not ready:
         return False
