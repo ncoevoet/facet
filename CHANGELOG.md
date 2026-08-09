@@ -4,6 +4,19 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.8.2] "Adularescence" — 2026-08-09
+
+### Fixed
+- **DeQA-Score is no longer refused on every Mac.** Its `can_run` check compared Apple unified memory against a dedicated-VRAM bar — and `detect_vram()` reports `0.0` on Metal — so the model was skipped however much memory the machine had. CUDA is still judged on dedicated VRAM, unchanged; Metal is judged on total unified memory against roughly twice the model's footprint (32 GB for DeQA's 16 GB bar, the same derivation that sizes the `auto` profile). The skip message now names the budget that actually applies instead of quoting VRAM to a machine that has none. Whether DeQA loads and runs on Metal is unverified — it needs a Mac; if it doesn't, the existing handler leaves the column NULL rather than failing the run.
+- **`--recompute-iqa` no longer logs an accelerated run as "CPU"** on Apple Silicon. The pass packing stays deliberately conservative there — one model at a time, because unified memory is shared with macOS and everything else running — and that choice is now pinned by a test rather than surviving as a side effect of the `0.0` comparison.
+- **`FACET_DEVICE=cpu` on an NVIDIA host now refuses DeQA-Score** instead of loading a 16 GB vision-language model onto the CPU: the capability check read the card's VRAM while the loader honoured the override.
+- **Pending rating syncs are flushed at shutdown rather than dropped.** The debounced timers that mint rating-derived comparison rows were never fired or disarmed when the server stopped, so a sync in flight was lost. It now runs bounded at five seconds on a daemon thread, after the checkpoint thread has stopped (so it doesn't contend for SQLite's single writer) and before the final truncating checkpoint (so its rows land in the database, not in a WAL the next start inherits).
+- **The throughput benchmark measured the wrong process.** `peak_vram_mb` sampled Torch's allocator counters in the harness while the work ran in a subprocess, and those counters are process-local — so the figure was `0.0` on CUDA as much as on Metal, and had almost certainly never meant anything. GPU memory now comes from `nvidia-smi`'s per-process table filtered to the scoring child and its workers. Metal exposes no per-process equivalent, so no GPU figure is reported there at all: unified memory is system RAM, and the process tree's RSS is reported under its own name with the method stated beside it. A metric that could not be sampled reports as unavailable, never as zero. **Schema change**: `peak_vram_mb` is removed (not aliased); `peak_gpu_memory_mb`, `peak_rss_mb`, `gpu_memory_method` and `rss_method` replace it.
+
+### Internal
+- The retry helper's wall-clock budget, added in 1.8.0, gained the test it never had — it was covered only through an endpoint, so a regression to counting attempts would have gone unnoticed.
+- CI installs `psutil`, a declared dependency its hardcoded subset had omitted, and the two tests that need `torch` or `psutil` skip cleanly where those are absent.
+
 ## [1.8.1] "Iridescence" — 2026-08-09
 
 ### Changed
