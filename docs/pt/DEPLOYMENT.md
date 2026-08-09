@@ -460,6 +460,12 @@ photos.yourdomain.com {
 
 Reexecute a exportação e o `rsync` após cada sessão de pontuação para atualizar o banco de dados no servidor. Para servidores com bastante memória, você pode sincronizar diretamente o `photo_scores_pro.db` completo em vez de exportar.
 
+### Um trabalho de biblioteca por vez
+
+Um escaneamento, `--recompute-average`, `--upgrade-db` e um treinamento do ranqueador pessoal reescrevem cada um o banco de dados inteiro, então o Facet permite apenas um por vez: cada um toma um arquivo de bloqueio em `<db_dir>/.facet_cache/library.lock`, e um segundo trabalho se recusa a iniciar, nomeando o que já está em execução.
+
+Esse bloqueio é um bloqueio de arquivo do kernel, portanto exclui trabalhos **apenas em uma máquina**. Quando o banco de dados é acessado por SMB/CIFS — por exemplo, uma estação de trabalho Windows pontuando fotos em um compartilhamento de NAS —, cada máquina toma sua própria cópia do bloqueio e nenhuma enxerga a outra. O Facet detecta a montagem e registra um aviso ao tomar o bloqueio, mas não pode impor nada entre máquinas: execute os trabalhos de biblioteca a partir de uma única máquina por vez. NFS entre clientes Linux não é afetado — lá o `flock` vira um bloqueio de registro POSIX arbitrado pelo servidor.
+
 ## Configuração multiusuário
 
 Para dar a cada usuário um conjunto privado de diretórios de fotos, adicione uma seção `users` ao `scoring_config.json`. Consulte [Configuração](CONFIGURATION.md#users) para a referência completa.

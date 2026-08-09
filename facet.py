@@ -580,6 +580,9 @@ LIBRARY_LOCK_WINDOWS_BYTES = 1
 LIBRARY_LOCK_RETRY_ATTEMPTS = 3
 LIBRARY_LOCK_RETRY_SECONDS = 0.05
 LIBRARY_LOCK_OVERRIDE_FLAG = '--force-library-lock'
+LIBRARY_LOCK_MOUNTS_PATH = '/proc/mounts'
+LIBRARY_LOCK_MOUNT_ESCAPES = (('\\040', ' '), ('\\011', '\t'), ('\\012', '\n'), ('\\134', '\\'))
+LIBRARY_LOCK_HOST_LOCAL_FILESYSTEMS = frozenset({'cifs', 'smbfs', 'smb2', 'smb3'})
 JOB_ORIGIN_ENV_VAR = 'FACET_JOB_ORIGIN'
 LIBRARY_JOB_SCAN = 'scan'
 LIBRARY_JOB_RECOMPUTE = 'recompute'
@@ -713,6 +716,77 @@ def _library_lock_path(db_path):
     return os.path.join(db_dir, LIBRARY_LOCK_DIRNAME, LIBRARY_LOCK_FILENAME)
 
 
+def _unescape_mount_field(field):
+    """A mount-table field with its octal escapes (space, tab, ...) restored."""
+    for escape, character in LIBRARY_LOCK_MOUNT_ESCAPES:
+        field = field.replace(escape, character)
+    return field
+
+
+def _iter_mount_points():
+    """``(mount point, filesystem type)`` for every mount this kernel reports.
+
+    Yields nothing where the table cannot be read -- an unreadable ``/proc``, or
+    any platform that has none -- which is what makes the caller's answer
+    "unknown" rather than an error.
+    """
+    try:
+        with open(LIBRARY_LOCK_MOUNTS_PATH) as mounts:
+            lines = mounts.readlines()
+    except OSError:
+        return
+    for line in lines:
+        fields = line.split()
+        if len(fields) >= 3:
+            yield _unescape_mount_field(fields[1]), fields[2]
+
+
+def _path_is_under(path, mount_point):
+    root = mount_point.rstrip(os.sep)
+    return not root or path == root or path.startswith(root + os.sep)
+
+
+def _filesystem_type(path):
+    """Filesystem type backing *path*, by longest-prefix mount point match.
+
+    ``None`` when the mount table says nothing about it, so every caller must
+    read "unknown" as "assume nothing" rather than as a problem.
+    """
+    target = os.path.abspath(path)
+    matched_point, matched_type = '', None
+    for point, filesystem in _iter_mount_points():
+        if len(point) >= len(matched_point) and _path_is_under(target, point):
+            matched_point, matched_type = point, filesystem
+    return matched_type
+
+
+_host_local_lock_warned = set()
+
+
+def _warn_if_lock_is_host_local(lock_path):
+    """Warn once when the lock file sits on a filesystem the lock cannot span.
+
+    ``flock`` on an SMB/CIFS mount is arbitrated by the kernel that took it and
+    nowhere else, so two machines scoring the same NAS library would each
+    believe they hold this mutex. NFS is deliberately absent from the list:
+    Linux implements ``flock`` there as a POSIX record lock, which the server
+    does arbitrate between clients.
+
+    Best-effort and never fatal -- an unreadable mount table, an unrecognised
+    filesystem or a platform without ``/proc`` says nothing and locks anyway.
+    """
+    filesystem = _filesystem_type(lock_path)
+    if filesystem not in LIBRARY_LOCK_HOST_LOCAL_FILESYSTEMS or lock_path in _host_local_lock_warned:
+        return
+    _host_local_lock_warned.add(lock_path)
+    logger.warning(
+        "The library lock %s is on a %s mount: file locks there are local to this "
+        "host, so a scan or recompute started on another machine is NOT excluded "
+        "by it. Run library jobs from one machine at a time.",
+        lock_path, filesystem,
+    )
+
+
 def _take_os_lock(fd, attempts=1):
     """True when this open file description now owns the exclusive OS lock.
 
@@ -797,7 +871,7 @@ class LibraryLock:
     lands mid-transaction blocks for ``busy_timeout`` and then dies with
     ``sqlite3.OperationalError``. Every library-rewriting entry point of this
     module holds this lock -- the scan for its whole run, post-processing tail
-    included -- so the two can never overlap.
+    included -- so on one machine the two can never overlap.
 
     The mutex is the OS file lock (``fcntl.flock``, ``msvcrt.locking`` on
     Windows -- see ``_select_os_lock_backend``) on
@@ -807,6 +881,14 @@ class LibraryLock:
     can never wedge a later job, a recycled PID means nothing, and a
     half-written payload can never read as "free". The JSON payload is
     descriptive only -- who holds it, from where, since when.
+
+    That exclusion is per-host, and the guarantee stops where the kernel's
+    view does. On an SMB/CIFS-mounted library the lock is honoured only by the
+    machine that took it, so two machines each take "the" lock and neither sees
+    the other; ``_warn_if_lock_is_host_local`` says so at acquire time rather
+    than letting the promise stand unqualified. NFS between Linux clients is
+    unaffected. Run library jobs from one machine at a time on an SMB-mounted
+    library (``docs/DEPLOYMENT.md``).
     """
 
     def __init__(self, db_path, kind, force=False):
@@ -832,6 +914,7 @@ class LibraryLock:
                 "No OS file locking on this platform (neither fcntl nor msvcrt); "
                 "library jobs run unguarded.")
             return
+        _warn_if_lock_is_host_local(self.lock_path)
         try:
             self._open_and_hold()
         except OSError as ex:
@@ -937,6 +1020,25 @@ def hold_library_lock_or_exit(db_path, kind):
 def _library_job_requested(args):
     """True when the parsed args select a job that rewrites the library."""
     return any(getattr(args, name) for name in LIBRARY_JOB_ARGS)
+
+
+def _upgrade_db_schema(args, db_path):
+    """Migrate the schema under the library lock; returns the columns added.
+
+    ``--upgrade-db`` is exempt from ``LIBRARY_JOB_ARGS`` because it runs the
+    backfill steps as subprocesses that take this same lock -- a lock still held
+    here would deadlock every one of them. But the ``ALTER TABLE``s below are
+    library writes like any other: landing them inside a concurrent recompute's
+    long transaction fails them and aborts the upgrade at step 0. So the lock is
+    scoped to the migration alone and dropped before the chain starts.
+    """
+    lock = _acquire_library_lock(args, LIBRARY_JOB_MAINTENANCE)
+    try:
+        before_columns = _get_photo_column_count(db_path)
+        init_database(db_path)
+        return _get_photo_column_count(db_path) - before_columns
+    finally:
+        lock.release()
 
 
 def _scan_writes_to_library(args):
@@ -1699,7 +1801,8 @@ Configuration:
 
     # Whole-library rewriters take the cross-process lock before any work, so
     # a conflict costs nothing. --upgrade-db is deliberately absent: it runs
-    # the locked jobs below as subprocesses and would deadlock every one.
+    # the locked jobs below as subprocesses and would deadlock every one. Its
+    # own schema DDL is locked separately, in _upgrade_db_schema.
     if _library_job_requested(args):
         _acquire_library_lock(args, LIBRARY_JOB_RECOMPUTE)
 
@@ -2062,11 +2165,9 @@ Configuration:
         # any new columns added since the DB was last initialised.
         db_path = args.db or DEFAULT_DB_PATH
         logger.info("--- Schema migration (init_database) ---")
-        before_cols = _get_photo_column_count(db_path)
-        init_database(db_path)
-        after_cols = _get_photo_column_count(db_path)
-        if after_cols > before_cols:
-            logger.info("  Added %d column(s) to photos table", after_cols - before_cols)
+        added_columns = _upgrade_db_schema(args, db_path)
+        if added_columns > 0:
+            logger.info("  Added %d column(s) to photos table", added_columns)
         else:
             logger.info("  Schema already up to date")
 

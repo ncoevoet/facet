@@ -467,22 +467,46 @@ def test_timer_dispatches_once_the_window_elapses(db_path):
     assert ar._retrain_running is False
 
 
-def test_flush_pending_retrain_fires_an_armed_timer(db_path):
-    done = threading.Event()
+def test_shutdown_cancels_an_armed_timer_instead_of_training(db_path):
+    """Shutdown must disarm, not flush: a train started as the process goes away
+    is a multi-minute job nobody is left to use, and the counter is persisted so
+    the batch survives to trigger the next crossing after a restart.
 
-    def fake_train(db_path=None, user_id=None, **kwargs):
-        done.set()
-        return {"gated": False, "written": 1, "cv_accuracy": 88.0}
+    The wait runs well past the idle window, where a timer that was merely
+    deregistered from ``_pending_timers`` -- rather than cancelled -- would
+    still fire and train.
+    """
+    with mock.patch("optimization.personal_ranker.train_ranker") as train:
+        ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25, idle_seconds=0.05)
+        assert ar.cancel_pending_retrains() == 1
+        time.sleep(0.3)
 
-    with mock.patch("optimization.personal_ranker.train_ranker", side_effect=fake_train):
-        ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25, idle_seconds=300)
-        ar.flush_pending_retrain()
-        assert done.wait(timeout=5), "flush did not dispatch the armed retrain"
-        for t in list(ar._active_threads):
-            t.join(timeout=5)
-
+    train.assert_not_called()
     assert ar._pending_timers == {}
-    assert _counter(db_path, None) == 0
+    assert ar._active_threads == []
+    assert _counter(db_path, None) == 30
+
+
+def test_shutdown_with_nothing_armed_is_a_no_op(db_path):
+    assert ar.cancel_pending_retrains() == 0
+
+
+def test_the_server_lifespan_cancels_armed_retrains_on_shutdown(db_path):
+    """The cancellation is only worth anything if the server actually calls it,
+    so this drives the real FastAPI lifespan rather than the function alone."""
+    from fastapi.testclient import TestClient
+
+    from api import create_app
+
+    with mock.patch("optimization.personal_ranker.train_ranker") as train:
+        with TestClient(create_app()):
+            assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25,
+                                    idle_seconds=0.5) is True
+            assert list(ar._pending_timers) == [None]
+        assert ar._pending_timers == {}
+        time.sleep(0.8)
+
+    train.assert_not_called()
 
 
 def test_dispatch_commit_failure_releases_the_claimed_slot(db_path, monkeypatch):

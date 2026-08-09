@@ -462,6 +462,12 @@ photos.yourdomain.com {
 
 Relancez l'export et `rsync` après chaque session de scoring pour mettre à jour la base de données sur le serveur. Pour les serveurs dotés de beaucoup de mémoire, vous pouvez synchroniser directement la base complète `photo_scores_pro.db` au lieu de l'exporter.
 
+### Un seul travail de bibliothèque à la fois
+
+Un scan, `--recompute-average`, `--upgrade-db` et un entraînement du classeur personnel réécrivent chacun toute la base de données : Facet n'en autorise donc qu'un seul à la fois. Chacun prend un fichier de verrou dans `<db_dir>/.facet_cache/library.lock`, et un second travail refuse de démarrer en nommant celui déjà en cours.
+
+Ce verrou est un verrou de fichier du noyau : il n'exclut donc les travaux que **sur une seule machine**. Lorsque la base de données est accédée via SMB/CIFS — un poste Windows qui score des photos sur un partage NAS, par exemple —, chaque machine prend sa propre copie du verrou et aucune ne voit l'autre. Facet détecte le montage et journalise un avertissement au moment de prendre le verrou, mais il ne peut rien imposer entre machines : lancez les travaux de bibliothèque depuis une seule machine à la fois. NFS entre clients Linux n'est pas concerné — `flock` y devient un verrou d'enregistrement POSIX arbitré par le serveur.
+
 ## Configuration multi-utilisateur
 
 Pour attribuer à chaque utilisateur un ensemble privé de répertoires de photos, ajoutez une section `users` à `scoring_config.json`. Voir [Configuration](CONFIGURATION.md#users) pour la référence complète.

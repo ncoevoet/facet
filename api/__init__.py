@@ -234,6 +234,13 @@ async def lifespan(app: FastAPI):
     if wal_thread is not None:
         # Bound the join so a stuck PRAGMA can't hang shutdown.
         wal_thread.join(timeout=5.0)
+    # Disarm any ranker retrain waiting out its idle window: starting a
+    # multi-minute train as the process goes away helps nobody, and the pending
+    # counter is persisted, so the comparisons survive to trigger the next one.
+    from optimization.auto_retrain import cancel_pending_retrains
+    cancelled_retrains = cancel_pending_retrains()
+    if cancelled_retrains:
+        logger.info("Cancelled %d armed ranker retrain(s) on shutdown", cancelled_retrains)
     # One-time WAL checkpoint on clean shutdown so the next start doesn't
     # inherit a bloated -wal file. Best-effort: a failure here is logged but
     # never blocks shutdown.

@@ -367,14 +367,20 @@ def _schedule(db_path, scope, threshold, idle_seconds):
         timer.start()
 
 
-def flush_pending_retrain():
-    """Fire any armed idle timers immediately (tests / shutdown)."""
+def cancel_pending_retrains():
+    """Disarm every waiting idle timer; returns how many were cancelled.
+
+    Called from the server's lifespan shutdown. Firing them instead would start
+    a multi-minute train as the process is going away, and nothing is lost by
+    dropping them: the pending counter is persisted in ``stats_cache``, so the
+    accumulated comparisons simply trigger the next crossing after a restart.
+    """
     with _retrain_lock:
-        pending = list(_pending_timers.items())
+        pending = list(_pending_timers.values())
         _pending_timers.clear()
-    for scope, (timer, db_path, threshold) in pending:
+    for timer, _, _ in pending:
         timer.cancel()
-        _dispatch(db_path, scope, threshold, firing_timer=timer)
+    return len(pending)
 
 
 def maybe_retrain(db_path, user_id, added: int = 1, threshold: int = None, conn=None,

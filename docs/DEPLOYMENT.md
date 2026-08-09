@@ -493,6 +493,12 @@ photos.yourdomain.com {
 
 Re-run the export and `rsync` after each scoring session to update the database on the server. For high-memory servers, you can sync the full `photo_scores_pro.db` directly instead of exporting.
 
+### One library job at a time
+
+A scan, `--recompute-average`, `--upgrade-db` and a ranker training run each rewrite the whole database, so Facet allows only one of them at a time: every one takes a lock file at `<db_dir>/.facet_cache/library.lock`, and a second job refuses to start, naming the one already running.
+
+That lock is a kernel file lock, so it excludes jobs **on one machine only**. When the database is reached over SMB/CIFS — a Windows workstation scoring photos on a NAS share, for example — each machine takes its own copy of the lock and neither sees the other. Facet detects the mount and logs a warning when it takes the lock, but it cannot enforce anything across hosts: run library jobs from one machine at a time. NFS between Linux clients is not affected — there `flock` becomes a POSIX record lock that the server arbitrates.
+
 ## Multi-User Setup
 
 To give each user a private set of photo directories, add a `users` section to `scoring_config.json`. See [Configuration](CONFIGURATION.md#users) for the full reference.

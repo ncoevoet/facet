@@ -1121,6 +1121,197 @@ class TestLibraryLock:
         assert LIBRARY_LOCK_OVERRIDE_FLAG in output
 
 
+def _fake_mount_table(tmp_path, entries):
+    """A ``/proc/mounts``-shaped file from ``(mount point, filesystem)`` pairs.
+
+    Mount points are written verbatim, so a test can pass the octal escapes the
+    kernel itself uses for a mount point containing a space.
+    """
+    table = tmp_path / "mounts"
+    table.write_text(
+        "".join(f"//server/share {point} {filesystem} rw,relatime 0 0\n"
+                for point, filesystem in entries)
+    )
+    return str(table)
+
+
+class TestHostLocalLockWarning:
+    """``flock`` is arbitrated by the kernel that took it, so on an SMB/CIFS
+    mount two machines each believe they hold the library lock. The lock cannot
+    fix that, but it must not promise an exclusion it does not deliver."""
+
+    @pytest.fixture(autouse=True)
+    def _forget_earlier_warnings(self):
+        import facet
+
+        facet._host_local_lock_warned.clear()
+        yield
+        facet._host_local_lock_warned.clear()
+
+    def test_a_cifs_mounted_library_warns_that_the_lock_is_local_to_this_host(
+            self, tmp_path, monkeypatch, caplog):
+        import facet
+
+        db_dir = tmp_path / "library"
+        db_dir.mkdir()
+        db_path = str(db_dir / "photos.db")
+        monkeypatch.setattr(
+            facet, "LIBRARY_LOCK_MOUNTS_PATH",
+            _fake_mount_table(tmp_path, [("/", "ext4"), (str(db_dir), "cifs")]))
+        lock = facet.LibraryLock(db_path, kind="recompute")
+        with caplog.at_level("WARNING"):
+            lock.acquire()
+        try:
+            assert facet.library_job_holder(db_path) is not None
+        finally:
+            lock.release()
+
+        assert "cifs" in caplog.text
+        assert "another machine" in caplog.text
+        assert facet._library_lock_path(db_path) in caplog.text
+
+    def test_the_warning_is_emitted_once_per_lock_path(self, tmp_path, monkeypatch, caplog):
+        import facet
+
+        db_dir = tmp_path / "library"
+        db_dir.mkdir()
+        db_path = str(db_dir / "photos.db")
+        monkeypatch.setattr(
+            facet, "LIBRARY_LOCK_MOUNTS_PATH",
+            _fake_mount_table(tmp_path, [("/", "ext4"), (str(db_dir), "smb3")]))
+        with caplog.at_level("WARNING"):
+            for _ in range(3):
+                facet.LibraryLock(db_path, kind="recompute").acquire().release()
+
+        assert caplog.text.count("local to this host") == 1
+
+    def test_nfs_does_not_warn_because_its_locks_do_cross_hosts(
+            self, tmp_path, monkeypatch, caplog):
+        """Linux implements flock on NFS as a POSIX record lock the server
+        arbitrates, so warning there would be a false alarm on the most common
+        remote-library setup."""
+        import facet
+
+        db_dir = tmp_path / "library"
+        db_dir.mkdir()
+        monkeypatch.setattr(
+            facet, "LIBRARY_LOCK_MOUNTS_PATH",
+            _fake_mount_table(tmp_path, [("/", "ext4"), (str(db_dir), "nfs4")]))
+        with caplog.at_level("WARNING"):
+            facet.LibraryLock(str(db_dir / "photos.db"), kind="recompute").acquire().release()
+
+        assert caplog.text == ""
+
+    def test_an_unreadable_mount_table_locks_silently(self, tmp_path, monkeypatch, caplog):
+        """Detection is advisory: no /proc (any non-Linux host) must neither
+        raise, nor warn, nor stop the lock from being taken."""
+        import facet
+
+        db_dir = tmp_path / "library"
+        db_dir.mkdir()
+        db_path = str(db_dir / "photos.db")
+        monkeypatch.setattr(facet, "LIBRARY_LOCK_MOUNTS_PATH", str(tmp_path / "absent"))
+        lock = facet.LibraryLock(db_path, kind="recompute")
+        with caplog.at_level("WARNING"):
+            lock.acquire()
+        try:
+            assert facet.library_job_holder(db_path) is not None
+        finally:
+            lock.release()
+
+        assert caplog.text == ""
+
+    def test_the_longest_matching_mount_point_wins(self, tmp_path, monkeypatch):
+        """A shorter prefix must not shadow the mount the path actually sits on
+        -- in either direction, or the check either misses or cries wolf."""
+        import facet
+
+        monkeypatch.setattr(
+            facet, "LIBRARY_LOCK_MOUNTS_PATH",
+            _fake_mount_table(tmp_path, [("/", "ext4"), ("/mnt/nas", "cifs")]))
+
+        assert facet._filesystem_type("/mnt/nas/photos/.facet_cache/library.lock") == "cifs"
+        assert facet._filesystem_type("/home/user/photos/.facet_cache/library.lock") == "ext4"
+        assert facet._filesystem_type("/mnt/nasty/photos") == "ext4"
+
+    def test_a_mount_point_containing_a_space_is_unescaped(self, tmp_path, monkeypatch):
+        """The kernel writes it as \\040; matching the raw field would silently
+        miss the SMB share and skip the warning."""
+        import facet
+
+        monkeypatch.setattr(
+            facet, "LIBRARY_LOCK_MOUNTS_PATH",
+            _fake_mount_table(tmp_path, [("/", "ext4"), (r"/mnt/my\040nas", "cifs")]))
+
+        assert facet._filesystem_type("/mnt/my nas/photos") == "cifs"
+
+
+class TestUpgradeDbSchemaLock:
+    """``--upgrade-db`` ALTERs the photos table before its locked steps run.
+    Unlocked, that DDL landing inside a recompute's long write transaction
+    fails and aborts the upgrade at step 0 -- but the lock must be gone again
+    before the subprocess chain, whose every step takes it."""
+
+    def _upgrade_args(self, db_path):
+        return mock.Mock(db=db_path, force_library_lock=False)
+
+    def test_the_ddl_runs_locked_and_the_chain_runs_unlocked(self, tmp_path, monkeypatch):
+        import facet
+
+        db_path = str(tmp_path / "photos.db")
+        during_ddl, during_chain = [], []
+
+        def recording_init_database(path):
+            during_ddl.append(facet.library_job_holder(db_path))
+
+        def recording_run(cmd, *args, **kwargs):
+            during_chain.append(facet.library_job_holder(db_path))
+            return subprocess.CompletedProcess(cmd, 0)
+
+        monkeypatch.setattr(facet, "init_database", recording_init_database)
+        monkeypatch.setattr(subprocess, "run", recording_run)
+        monkeypatch.setattr(sys, "argv", ["facet.py", "--upgrade-db", "--db", db_path])
+
+        with pytest.raises(SystemExit) as exit_info:
+            facet.main()
+
+        assert exit_info.value.code == 0
+        assert len(during_ddl) == 1
+        assert during_ddl[0] is not None, "the schema migration ran without the library lock"
+        assert during_ddl[0]["kind"] == facet.LIBRARY_JOB_MAINTENANCE
+        assert during_ddl[0]["pid"] == os.getpid()
+        assert during_chain, "the backfill chain never ran"
+        assert all(holder is None for holder in during_chain), (
+            "the chain inherited the parent's lock and would deadlock on it")
+
+    def test_a_running_recompute_defers_the_migration_instead_of_altering_into_it(
+            self, tmp_path, monkeypatch):
+        import facet
+
+        db_path = str(tmp_path / "photos.db")
+        migrated = []
+        monkeypatch.setattr(facet, "init_database", lambda path: migrated.append(path))
+
+        with _library_lock_held(db_path, kind="recompute"):
+            with pytest.raises(SystemExit) as exit_info:
+                facet._upgrade_db_schema(self._upgrade_args(db_path), db_path)
+
+        assert exit_info.value.code == 1
+        assert migrated == []
+
+    def test_the_lock_is_released_even_when_the_migration_raises(self, tmp_path, monkeypatch):
+        import facet
+
+        db_path = str(tmp_path / "photos.db")
+        monkeypatch.setattr(
+            facet, "init_database", mock.Mock(side_effect=RuntimeError("migration boom")))
+
+        with pytest.raises(RuntimeError):
+            facet._upgrade_db_schema(self._upgrade_args(db_path), db_path)
+
+        assert facet.library_job_holder(db_path) is None
+
+
 class TestCrossProcessLibraryLock:
     """The viewer endpoints refuse a second job when a CLI-run recompute (or
     scan, for /recompute) already holds ``facet.LibraryLock`` -- proving the

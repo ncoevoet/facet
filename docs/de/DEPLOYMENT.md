@@ -464,6 +464,12 @@ photos.yourdomain.com {
 
 Führen Sie nach jeder Bewertungssitzung den Export und `rsync` erneut aus, um die Datenbank auf dem Server zu aktualisieren. Bei Servern mit viel Speicher können Sie die vollständige `photo_scores_pro.db` direkt synchronisieren, statt zu exportieren.
 
+### Immer nur ein Bibliotheksauftrag
+
+Ein Scan, `--recompute-average`, `--upgrade-db` und ein Training des persönlichen Rankers schreiben jeweils die gesamte Datenbank neu, daher lässt Facet nur einen davon gleichzeitig zu: Jeder nimmt eine Sperrdatei unter `<db_dir>/.facet_cache/library.lock`, und ein zweiter Auftrag verweigert den Start und nennt den bereits laufenden.
+
+Diese Sperre ist eine Kernel-Dateisperre und schließt Aufträge daher **nur auf einer Maschine** aus. Wenn die Datenbank über SMB/CIFS erreicht wird — etwa eine Windows-Workstation, die Fotos auf einer NAS-Freigabe bewertet —, nimmt jede Maschine ihre eigene Kopie der Sperre und keine sieht die andere. Facet erkennt die Einhängung und protokolliert beim Nehmen der Sperre eine Warnung, kann aber maschinenübergreifend nichts erzwingen: Führen Sie Bibliotheksaufträge immer nur von einer Maschine aus. NFS zwischen Linux-Clients ist nicht betroffen — dort wird `flock` zu einer POSIX-Datensatzsperre, die der Server arbitriert.
+
 ## Mehrbenutzer-Einrichtung
 
 Um jedem Benutzer einen privaten Satz von Fotoverzeichnissen zu geben, fügen Sie einen Abschnitt `users` zu `scoring_config.json` hinzu. Siehe [Konfiguration](CONFIGURATION.md#users) für die vollständige Referenz.
