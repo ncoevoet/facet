@@ -9,7 +9,9 @@ from unittest import mock
 
 import pytest
 
+from models.deqa_scorer import DeQAScorer
 from models.model_manager import ModelManager
+from processing.scorer import describe_scoring_device
 from utils import device
 
 
@@ -246,3 +248,66 @@ class TestAcceleratorAwareTaggerGate:
     def test_cpu_is_still_reported_as_cpu_only(self, monkeypatch):
         proc = self._processor(monkeypatch)
         assert proc._memory_budget_label() == "CPU-only"
+
+
+class TestAcceleratorAwareDeQAGate:
+    """DeQA-Score must not read an MPS Mac's 0.0GB of dedicated VRAM as "no GPU".
+
+    ``detect_vram`` reports dedicated CUDA memory only, so gating the load on it
+    refused DeQA-Score on every Apple Silicon machine however much unified
+    memory it had, while the same class of model runs on Metal elsewhere in the
+    codebase. The CUDA comparison is deliberately left untouched.
+    """
+
+    def _scorer(self, monkeypatch, *, cuda=False, mps=False, vram_gb=0.0, ram_gb=8.0):
+        import models.model_manager as mm
+
+        _use_fake_torch(monkeypatch, cuda=cuda, mps=mps)
+        monkeypatch.setattr(mm.ModelManager, "detect_vram", staticmethod(lambda: vram_gb))
+        monkeypatch.setattr(mm.ModelManager, "detect_system_ram_gb", staticmethod(lambda: ram_gb))
+        return DeQAScorer()
+
+    def test_large_memory_mac_may_run(self, monkeypatch):
+        assert self._scorer(monkeypatch, mps=True, ram_gb=64.0).can_run() is True
+
+    def test_small_memory_mac_is_refused(self, monkeypatch):
+        assert self._scorer(monkeypatch, mps=True, ram_gb=16.0).can_run() is False
+
+    def test_mac_requirement_doubles_the_vram_bar(self, monkeypatch):
+        required = DeQAScorer.unified_memory_required_gb(DeQAScorer.DEFAULT_MIN_VRAM_GB)
+        assert required == 32.0
+        assert self._scorer(monkeypatch, mps=True, ram_gb=required).can_run() is True
+        assert self._scorer(monkeypatch, mps=True, ram_gb=required - 0.5).can_run() is False
+
+    def test_a_small_model_still_leaves_the_system_its_headroom(self):
+        assert DeQAScorer.unified_memory_required_gb(4.0) == 12.0
+
+    def test_cuda_above_the_vram_bar_is_unchanged(self, monkeypatch):
+        assert self._scorer(monkeypatch, cuda=True, vram_gb=24.0).can_run() is True
+
+    def test_cuda_below_the_vram_bar_is_unchanged(self, monkeypatch):
+        assert self._scorer(monkeypatch, cuda=True, vram_gb=8.0).can_run() is False
+
+    def test_no_accelerator_is_still_refused(self, monkeypatch):
+        assert self._scorer(monkeypatch, ram_gb=256.0).can_run() is False
+
+    def test_refused_load_names_both_memory_budgets(self, monkeypatch):
+        scorer = self._scorer(monkeypatch, mps=True, ram_gb=8.0)
+        with pytest.raises(RuntimeError, match="unified memory"):
+            scorer.load()
+        assert scorer._loaded is False
+
+
+class TestScoringDeviceLabel:
+    """A Metal run is GPU-accelerated and must not be logged as "CPU"."""
+
+    def test_metal_is_labelled_by_its_unified_memory(self):
+        assert describe_scoring_device("mps", 0.0, 36.0) == (
+            "mps accelerator, unified memory (36GB)"
+        )
+
+    def test_cuda_is_still_labelled_by_its_vram(self):
+        assert describe_scoring_device("cuda", 24.0, 64.0) == "GPU (24GB)"
+
+    def test_no_accelerator_is_still_labelled_cpu(self):
+        assert describe_scoring_device(None, 0.0, 64.0) == "CPU"

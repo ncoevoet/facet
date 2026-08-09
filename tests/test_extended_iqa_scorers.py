@@ -7,7 +7,10 @@ We therefore:
     torch/transformers or hit the network),
   - test _normalize_score endpoint mapping directly,
   - test DeQAScorer.can_run gating + load() RuntimeError by patching
-    ModelManager.detect_vram (no GPU required).
+    ModelManager.detect_accelerator / detect_vram (no GPU required).
+
+Apple Metal coverage for the same gate lives in tests/test_device.py, next to
+the fake-torch helpers that simulate an MPS machine.
 """
 
 import pytest
@@ -80,31 +83,34 @@ def test_deqa_normalize_clamps_out_of_range():
 # DeQAScorer.can_run gating + load() RuntimeError
 # --------------------------------------------------------------------------- #
 
-def test_deqa_can_run_low_vram_false(monkeypatch):
+def _fake_cuda_host(monkeypatch, vram_gb):
+    """Simulate a CUDA host with ``vram_gb`` of dedicated VRAM."""
     import models.model_manager as mm
-    monkeypatch.setattr(mm.ModelManager, "detect_vram", staticmethod(lambda: 8.0))
+    monkeypatch.setattr(mm.ModelManager, "detect_accelerator", staticmethod(lambda: "cuda"))
+    monkeypatch.setattr(mm.ModelManager, "detect_vram", staticmethod(lambda: vram_gb))
+
+
+def test_deqa_can_run_low_vram_false(monkeypatch):
+    _fake_cuda_host(monkeypatch, 8.0)
     scorer = DeQAScorer()
     assert scorer.can_run(16.0) is False
 
 
 def test_deqa_can_run_high_vram_true(monkeypatch):
-    import models.model_manager as mm
-    monkeypatch.setattr(mm.ModelManager, "detect_vram", staticmethod(lambda: 24.0))
+    _fake_cuda_host(monkeypatch, 24.0)
     scorer = DeQAScorer()
     assert scorer.can_run(16.0) is True
 
 
 def test_deqa_can_run_uses_default_threshold(monkeypatch):
-    import models.model_manager as mm
     # Exactly at the default 16.0 threshold should pass (>=).
-    monkeypatch.setattr(mm.ModelManager, "detect_vram", staticmethod(lambda: 16.0))
+    _fake_cuda_host(monkeypatch, 16.0)
     scorer = DeQAScorer()
     assert scorer.can_run() is True
 
 
 def test_deqa_load_raises_when_cannot_run(monkeypatch):
-    import models.model_manager as mm
-    monkeypatch.setattr(mm.ModelManager, "detect_vram", staticmethod(lambda: 4.0))
+    _fake_cuda_host(monkeypatch, 4.0)
     scorer = DeQAScorer()
     with pytest.raises(RuntimeError):
         scorer.load()

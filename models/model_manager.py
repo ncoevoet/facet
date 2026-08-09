@@ -659,7 +659,7 @@ class ModelManager:
             from models.deqa_scorer import DeQAScorer
             scorer = DeQAScorer(device=self.device)
             if not scorer.can_run():
-                logger.warning("DeQA-Score skipped: insufficient VRAM (needs 16GB+)")
+                logger.warning("DeQA-Score skipped: %s", scorer.describe_memory_shortfall())
                 return None
             scorer.load()
             self.models['deqa'] = scorer

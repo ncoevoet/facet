@@ -51,6 +51,9 @@ class DeQAScorer:
     # Minimum VRAM (GB) required by default for the model to run.
     DEFAULT_MIN_VRAM_GB = 16.0
 
+    UNIFIED_MEMORY_FOOTPRINT_MULTIPLIER = 2.0
+    UNIFIED_MEMORY_SYSTEM_HEADROOM_GB = 8.0
+
     def __init__(self, device: Optional[str] = None):
         """Initialize the scorer.
 
@@ -67,38 +70,100 @@ class DeQAScorer:
         self.processor = None
         self._loaded = False
 
-    def can_run(self, min_vram_gb: float = DEFAULT_MIN_VRAM_GB) -> bool:
-        """Return whether enough VRAM is available to run DeQA-Score.
+    @classmethod
+    def unified_memory_required_gb(cls, min_vram_gb: float) -> float:
+        """Total unified memory (GB) an Apple Metal machine needs for this model.
 
-        Queries available VRAM via
-        :meth:`models.model_manager.ModelManager.detect_vram` and compares it to
-        ``min_vram_gb``. Used to gate loading so a low-VRAM host can log a
-        "skipped" message and leave the score column NULL.
+        Unified memory IS system RAM: the weights share it with macOS, the
+        window server and every other running application, so comparing it raw
+        against a dedicated-VRAM figure would greenlight a machine that swaps.
+        The requirement is therefore about twice the model's VRAM footprint, and
+        never less than that footprint plus room left to the rest of the system
+        — the same reasoning that sizes the ``auto`` profile in
+        :meth:`config.scoring_config.ScoringConfig.suggest_profile_for_unified_memory`,
+        where a 16GB-class profile asks for a 32GB Mac.
 
         Args:
-            min_vram_gb: Minimum VRAM in GB required to run (default 16.0).
+            min_vram_gb: The dedicated-VRAM requirement being translated.
 
         Returns:
-            True if detected VRAM >= ``min_vram_gb``, else False.
+            Minimum total unified memory in GB.
         """
-        from models.model_manager import ModelManager
-        available = ModelManager.detect_vram()
-        return float(available) >= float(min_vram_gb)
+        return max(
+            float(min_vram_gb) * cls.UNIFIED_MEMORY_FOOTPRINT_MULTIPLIER,
+            float(min_vram_gb) + cls.UNIFIED_MEMORY_SYSTEM_HEADROOM_GB,
+        )
+
+    def can_run(self, min_vram_gb: float = DEFAULT_MIN_VRAM_GB) -> bool:
+        """Return whether this machine has the memory to run DeQA-Score.
+
+        Asks :meth:`models.model_manager.ModelManager.detect_accelerator` which
+        accelerator is actually present instead of reading dedicated VRAM as a
+        proxy for one: ``detect_vram`` reports 0.0 on Apple Metal, which refused
+        DeQA on every Mac however much unified memory it had.
+
+        A CUDA card is judged on its dedicated VRAM against ``min_vram_gb``,
+        unchanged. Apple Metal is judged on total unified memory against
+        :meth:`unified_memory_required_gb`. With no accelerator — including a
+        ``FACET_DEVICE=cpu`` override on a GPU host — the model stays refused,
+        so the caller logs a "skipped" message and leaves the column NULL.
+
+        Args:
+            min_vram_gb: Minimum dedicated VRAM in GB required to run (default 16.0).
+
+        Returns:
+            True if the detected accelerator has the memory to run, else False.
+        """
+        return self._evaluate_memory(min_vram_gb)[0]
+
+    def describe_memory_shortfall(self, min_vram_gb: float = DEFAULT_MIN_VRAM_GB) -> str:
+        """Why this machine cannot run DeQA-Score, in the caller's own terms.
+
+        Names the budget that actually applies: dedicated VRAM on CUDA, total
+        unified memory on Apple Metal — where quoting a VRAM figure would be
+        meaningless, since the machine has none.
+
+        Args:
+            min_vram_gb: Minimum dedicated VRAM in GB required to run.
+
+        Returns:
+            A human-readable reason, whether or not the model could run.
+        """
+        return self._evaluate_memory(min_vram_gb)[1]
+
+    def _evaluate_memory(self, min_vram_gb: float) -> tuple:
+        """(can run, reason) for the accelerator this machine actually has."""
+        from models.model_manager import UNIFIED_MEMORY_ACCELERATOR, ModelManager
+
+        accelerator = ModelManager.detect_accelerator()
+        if accelerator is None:
+            return False, "no accelerator detected"
+        if accelerator == UNIFIED_MEMORY_ACCELERATOR:
+            required = self.unified_memory_required_gb(min_vram_gb)
+            available = float(ModelManager.detect_system_ram_gb())
+            return available >= required, (
+                f"needs {required:.0f}GB unified memory, detected {available:.0f}GB")
+        available = float(ModelManager.detect_vram())
+        return available >= float(min_vram_gb), (
+            f"needs {float(min_vram_gb):.0f}GB VRAM, detected {available:.0f}GB")
 
     def load(self):
         """Load the DeQA-Score VLM to the target device.
 
         Raises:
-            RuntimeError: if :meth:`can_run` is False (insufficient VRAM), so the
-                caller can log a "skipped" message and leave the column NULL.
+            RuntimeError: if :meth:`can_run` is False (no accelerator, or not
+                enough memory on it), so the caller can log a "skipped" message
+                and leave the column NULL.
         """
         if self._loaded:
             return
 
         if not self.can_run():
+            unified_gb = self.unified_memory_required_gb(self.DEFAULT_MIN_VRAM_GB)
             raise RuntimeError(
-                f"DeQA-Score requires at least {self.DEFAULT_MIN_VRAM_GB:.0f}GB VRAM; "
-                "skipping load (score will be left NULL)."
+                f"DeQA-Score requires a CUDA GPU with at least {self.DEFAULT_MIN_VRAM_GB:.0f}GB "
+                f"VRAM, or an Apple Metal machine with at least {unified_gb:.0f}GB unified "
+                "memory; skipping load (score will be left NULL)."
             )
 
         import torch  # noqa: F401  (lazy heavy import)

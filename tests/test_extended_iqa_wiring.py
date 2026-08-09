@@ -110,6 +110,50 @@ def test_pass_pyiqa_writes_dedicated_extended_column():
     assert "quality_score" not in results["/p.jpg"]
 
 
+def test_recompute_iqa_labels_a_metal_run_and_keeps_one_model_per_pass(
+    tmp_path, caplog, monkeypatch
+):
+    """A Metal recompute must be logged as accelerated, and stay one-model-per-pass.
+
+    ``detect_vram`` reports 0.0GB on Apple Metal, which the old label rendered
+    as "CPU" on a machine that really was GPU-accelerated. The packing stays
+    deliberately conservative there: unified memory is system RAM shared with
+    the OS, so co-loading every model is not the same bet as co-loading them in
+    a dedicated VRAM budget.
+    """
+    import logging
+    import models.model_manager as mm
+    from db import get_connection
+    from db.schema import init_database
+    from processing.scorer import Facet
+
+    db = str(tmp_path / "iqa.db")
+    init_database(db)
+    with get_connection(db) as conn:
+        conn.execute(
+            "INSERT INTO photos (path, filename, thumbnail) VALUES (?, ?, ?)",
+            ("/p.jpg", "p.jpg", b"thumb"),
+        )
+        conn.commit()
+
+    monkeypatch.setattr(mm.ModelManager, "detect_vram", staticmethod(lambda: 0.0))
+    monkeypatch.setattr(mm.ModelManager, "detect_accelerator", staticmethod(lambda: "mps"))
+    monkeypatch.setattr(mm.ModelManager, "detect_system_ram_gb", staticmethod(lambda: 36.0))
+
+    executed = []
+    monkeypatch.setattr(
+        Facet, "_run_iqa_pass",
+        lambda self, model_names, batch_size, counters: executed.append(list(model_names)),
+    )
+
+    facet = Facet(db_path=db, lightweight=True)
+    with caplog.at_level(logging.INFO):
+        facet.recompute_iqa_from_thumbnails()
+
+    assert "| mps accelerator, unified memory (36GB) |" in caplog.text
+    assert executed == [[model] for model, _ in facet._IQA_MODELS]
+
+
 def test_photos_schema_has_extended_iqa_columns(tmp_path):
     """The persistence path writes these columns, so the schema must define them
     (guards against the save INSERT and the column being out of sync)."""

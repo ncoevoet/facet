@@ -587,6 +587,37 @@ def build_metric_vector(m, cfg, category, weights=None, penalties=None):
 
     return result
 
+
+IQA_PASS_VRAM_MARGIN_GB = 2
+CPU_DEVICE_LABEL = "CPU"
+
+
+def describe_scoring_device(accelerator, vram_gb, ram_gb):
+    """Human label for the device a recompute will actually run models on.
+
+    Reads the detected accelerator rather than inferring one from dedicated
+    VRAM: Apple Metal reports 0.0GB of VRAM while genuinely running the models
+    on the GPU, so a VRAM-derived label called an accelerated Mac "CPU". A
+    unified-memory accelerator is labelled with the system RAM it draws from,
+    since that pool IS its memory budget.
+
+    Args:
+        accelerator: 'cuda', 'mps', or None (see ModelManager.detect_accelerator)
+        vram_gb: Dedicated VRAM in GB (0.0 off CUDA)
+        ram_gb: Total system RAM in GB
+
+    Returns:
+        Label string for the scan log.
+    """
+    from models.model_manager import UNIFIED_MEMORY_ACCELERATOR
+
+    if accelerator is None:
+        return CPU_DEVICE_LABEL
+    if accelerator == UNIFIED_MEMORY_ACCELERATOR:
+        return "%s accelerator, unified memory (%.0fGB)" % (accelerator, ram_gb)
+    return "GPU (%.0fGB)" % vram_gb
+
+
 # MAIN SCORER CLASS
 # ============================================
 
@@ -1901,9 +1932,13 @@ class Facet:
     def recompute_iqa_from_thumbnails(self, batch_size: int = 64):
         """Recompute supplementary IQA metrics from stored thumbnails.
 
-        Auto-detects available VRAM and groups models into passes:
-        - >=8GB VRAM: all 3 models at once (~6GB), single DB pass
-        - <8GB VRAM: one model at a time (~2GB each), 3 DB passes
+        Auto-detects the accelerator and groups models into passes:
+        - >=8GB dedicated VRAM: all 3 models at once (~6GB), single DB pass
+        - <8GB dedicated VRAM: one model at a time (~2GB each), 3 DB passes
+        - Apple Metal: one model at a time — deliberately conservative, because
+          its memory IS system RAM shared with macOS and every other running
+          application, so co-loading models there is not the same bet as
+          co-loading them in a dedicated VRAM budget
         - CPU-only: one model at a time
 
         Incremental: skips columns already populated per photo.
@@ -1939,12 +1974,14 @@ class Facet:
         model_names = [m for m, _ in self._IQA_MODELS]
         total_model_vram = sum(PYIQA_MODELS[m]['vram_gb'] for m in model_names)
 
-        if vram_gb >= total_model_vram + 2:  # +2GB safety margin
+        if vram_gb >= total_model_vram + IQA_PASS_VRAM_MARGIN_GB:
             passes = [model_names]  # all at once
         else:
             passes = [[m] for m in model_names]  # one at a time
 
-        device = "GPU (%.0fGB)" % vram_gb if vram_gb > 0 else "CPU"
+        device = describe_scoring_device(
+            ModelManager.detect_accelerator(), vram_gb, ModelManager.detect_system_ram_gb()
+        )
         logger.info("%d photos to score | %s | %d pass(es): %s",
                     total, device, len(passes), ", ".join("+".join(p) for p in passes))
 
