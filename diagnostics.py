@@ -70,8 +70,8 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
         _info("CUDA", "skipped (simulation mode)")
     else:
         try:
-            import torch
             from utils.device import get_device, mps_available
+            import torch
             has_mps = mps_available()
             _ok("torch", torch.__version__)
             cuda_version = torch.version.cuda or "None (CPU-only build)"

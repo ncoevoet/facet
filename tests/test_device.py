@@ -5,9 +5,11 @@ from __future__ import annotations
 import os
 import sys
 import types
+from unittest import mock
 
 import pytest
 
+from models.model_manager import ModelManager
 from utils import device
 
 
@@ -111,3 +113,84 @@ def test_mps_operator_fallback_respects_explicit_override(monkeypatch):
     monkeypatch.setenv("PYTORCH_ENABLE_MPS_FALLBACK", "0")
     importlib.reload(device)
     assert os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] == "0"
+
+
+def _use_fake_torch(monkeypatch, *, cuda=False, mps=False):
+    fake, _ = _torch(cuda=cuda, mps=mps)
+    monkeypatch.setitem(sys.modules, "torch", fake)
+    monkeypatch.delenv("FACET_DEVICE", raising=False)
+    return fake
+
+
+def test_detect_accelerator_reports_mps_when_cuda_is_absent(monkeypatch):
+    _use_fake_torch(monkeypatch, mps=True)
+    assert ModelManager.detect_accelerator() == "mps"
+
+
+def test_detect_accelerator_reports_cuda(monkeypatch):
+    _use_fake_torch(monkeypatch, cuda=True)
+    assert ModelManager.detect_accelerator() == "cuda"
+
+
+def test_detect_accelerator_is_none_without_accelerators(monkeypatch):
+    _use_fake_torch(monkeypatch)
+    assert ModelManager.detect_accelerator() is None
+
+
+class TestAcceleratorAwareTaggerGate:
+    """The multi-pass tagger gate must not read an MPS Mac as "no accelerator".
+
+    ``detect_vram`` reports dedicated CUDA VRAM only, so on Apple Metal it is
+    0.0 while models really do run on the GPU. Gating the profile's VLM tagger
+    on that number silently downgraded a configured 16gb profile to CLIP
+    similarity tagging.
+    """
+
+    PROFILE_TAGGER = "qwen3_5_tagger"
+
+    def _processor(self, monkeypatch, *, cuda=False, mps=False, available_vram=0.0):
+        from processing.multi_pass import ChunkedMultiPassProcessor
+        _use_fake_torch(monkeypatch, cuda=cuda, mps=mps)
+        profile = {
+            "aesthetic_model": "topiq",
+            "tagging_model": "qwen3.5-2b",
+            "supplementary_pyiqa": [],
+            "saliency_enabled": False,
+            "composition_model": "samp-net",
+        }
+        model_manager = types.SimpleNamespace(
+            detect_vram=lambda: available_vram,
+            get_active_profile=lambda: profile,
+        )
+        scorer = mock.MagicMock()
+        scorer.config.get_extended_iqa_settings.return_value = {}
+        with mock.patch("processing.multi_pass._ensure_imports"):
+            return ChunkedMultiPassProcessor(
+                scorer=scorer, model_manager=model_manager, config={}
+            )
+
+    def test_mps_keeps_the_configured_profile_tagger(self, monkeypatch):
+        proc = self._processor(monkeypatch, mps=True)
+        assert proc.accelerator == "mps"
+        assert self.PROFILE_TAGGER in proc._select_models()
+
+    def test_no_accelerator_still_degrades_to_clip_tagging(self, monkeypatch):
+        proc = self._processor(monkeypatch)
+        assert proc.accelerator is None
+        assert self.PROFILE_TAGGER not in proc._select_models()
+
+    def test_cuda_vram_still_vetoes_a_tagger_that_does_not_fit(self, monkeypatch):
+        proc = self._processor(monkeypatch, cuda=True, available_vram=2.0)
+        assert self.PROFILE_TAGGER not in proc._select_models()
+
+    def test_cuda_with_enough_vram_keeps_the_tagger(self, monkeypatch):
+        proc = self._processor(monkeypatch, cuda=True, available_vram=16.0)
+        assert self.PROFILE_TAGGER in proc._select_models()
+
+    def test_mps_is_not_reported_as_cpu_only(self, monkeypatch):
+        proc = self._processor(monkeypatch, mps=True)
+        assert proc._memory_budget_label() == "mps accelerator, unified memory"
+
+    def test_cpu_is_still_reported_as_cpu_only(self, monkeypatch):
+        proc = self._processor(monkeypatch)
+        assert proc._memory_budget_label() == "CPU-only"

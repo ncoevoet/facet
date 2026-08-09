@@ -23,6 +23,7 @@ from typing import List, Dict, Any
 from tqdm import tqdm
 
 from db.scoring_overrides import get_photo_scoring_overrides
+from models.model_manager import UNIFIED_MEMORY_ACCELERATOR, ModelManager
 
 logger = logging.getLogger("facet.multi_pass")
 
@@ -130,6 +131,7 @@ class ChunkedMultiPassProcessor:
         # VRAM detection and pass grouping
         _ensure_imports()
         self.available_vram = model_manager.detect_vram()
+        self.accelerator = ModelManager.detect_accelerator()
         self.pass_groups = None
 
         # Restricted single-pass mode (run_single_pass): only one model runs, so
@@ -186,6 +188,30 @@ class ChunkedMultiPassProcessor:
             return True
         return False
 
+    @property
+    def uses_unified_memory(self) -> bool:
+        """True when the accelerator shares system RAM instead of dedicated VRAM."""
+        return self.accelerator == UNIFIED_MEMORY_ACCELERATOR
+
+    def _memory_budget_label(self) -> str:
+        """Human label for what bounds model memory when there is no VRAM budget."""
+        if self.accelerator is None:
+            return "CPU-only"
+        return f"{self.accelerator} accelerator, unified memory"
+
+    def _apply_ram_safe_chunk_start(self):
+        """Start with a small chunk when model memory comes out of system RAM.
+
+        Avoids an OOM on the very first chunk; ResourceMonitor grows it back as
+        soon as it measures headroom. A unified-memory accelerator is budgeted
+        the same way, since its memory *is* system RAM.
+        """
+        if not self.auto_tuning_enabled or self.chunk_size <= self.min_chunk_size:
+            return
+        logger.info("  Chunk size: %d -> %d (%s safe start, auto-tuning will increase)",
+                    self.chunk_size, self.min_chunk_size, self._memory_budget_label())
+        self.chunk_size = self.min_chunk_size
+
     def detect_and_configure(self):
         """
         Auto-detect VRAM and configure optimal pass grouping.
@@ -194,10 +220,10 @@ class ChunkedMultiPassProcessor:
         based on available VRAM.
         """
         logger.info("Detecting hardware...")
-        cpu_mode = self.available_vram == 0.0
-        if cpu_mode:
+        ram_budgeted = self.available_vram == 0.0
+        if ram_budgeted:
             ram_gb = self.model_manager.detect_system_ram_gb()
-            logger.info("Mode: CPU-only (%.0fGB RAM)", ram_gb)
+            logger.info("Mode: %s (%.0fGB RAM)", self._memory_budget_label(), ram_gb)
         else:
             logger.info("GPU VRAM: %.1fGB", self.available_vram)
 
@@ -210,8 +236,8 @@ class ChunkedMultiPassProcessor:
             models_to_run, self.available_vram
         )
 
-        if cpu_mode:
-            logger.info("Pass grouping (CPU-only mode):")
+        if ram_budgeted:
+            logger.info("Pass grouping (%s):", self._memory_budget_label())
             for i, group in enumerate(self.pass_groups, 1):
                 total_ram = sum(self.model_manager.get_model_ram(m) for m in group)
                 logger.info("  Pass %d: %s [~%.1fGB RAM]", i, " + ".join(group), total_ram)
@@ -226,16 +252,21 @@ class ChunkedMultiPassProcessor:
         else:
             logger.info("  -> %d passes (images loaded %dx per chunk)", len(self.pass_groups), len(self.pass_groups))
 
-        # CPU-only: start with small chunk size to avoid OOM on first chunk.
-        # ResourceMonitor will increase it if memory headroom is available.
-        if cpu_mode and self.auto_tuning_enabled:
-            safe_start = self.min_chunk_size
-            if self.chunk_size > safe_start:
-                logger.info("  Chunk size: %d -> %d (CPU-only safe start, auto-tuning will increase)",
-                            self.chunk_size, safe_start)
-                self.chunk_size = safe_start
+        if ram_budgeted:
+            self._apply_ram_safe_chunk_start()
 
         return self.pass_groups
+
+    def _profile_tagger_fits(self, required_vram_gb) -> bool:
+        """Whether the profile's VLM tagger may be loaded on this machine.
+
+        Only a CUDA card has a dedicated VRAM budget to compare against. On a
+        unified-memory accelerator there is no such number, so the explicitly
+        configured profile is authoritative: an MPS Mac asking for the 16gb
+        profile keeps its VLM tagger instead of silently degrading to CLIP
+        similarity. With no accelerator at all the requirement still applies.
+        """
+        return self.uses_unified_memory or self.available_vram >= required_vram_gb
 
     def _select_models(self) -> List[str]:
         """
@@ -300,7 +331,7 @@ class ChunkedMultiPassProcessor:
         profile = self.model_manager.get_active_profile()
         tagging_model = profile.get('tagging_model', 'clip')
         tagging_entry = TAGGING_MODELS.get(tagging_model)
-        if tagging_entry and self.available_vram >= tagging_entry[1]:
+        if tagging_entry and self._profile_tagger_fits(tagging_entry[1]):
             models.append(tagging_entry[0])
         # else: CLIP tagging uses clip embeddings, no extra model needed
 

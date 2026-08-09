@@ -329,6 +329,8 @@ class TestGalleryPathPrefixFilter:
         _photo("/lib/Alpha/other.jpg", "2024:01:01 10:00:00"),
         _photo("/lib/100_MEDIA/wild.jpg", "2024:01:01 10:00:00"),
         _photo("/lib/100XMEDIA/decoy.jpg", "2024:01:01 10:00:00"),
+        _photo("/lib/100%FUN/party.jpg", "2024:01:01 10:00:00"),
+        _photo("/lib/100XFUN/decoy2.jpg", "2024:01:01 10:00:00"),
         _photo("C:\\lib\\W\\win.jpg", "2024:01:01 10:00:00"),
     ]
 
@@ -360,6 +362,9 @@ class TestGalleryPathPrefixFilter:
 
     def test_underscore_is_not_a_like_wildcard(self, tmp_path):
         assert self._paths_for(tmp_path, "/lib/100_MEDIA") == ["/lib/100_MEDIA/wild.jpg"]
+
+    def test_percent_is_not_a_like_wildcard(self, tmp_path):
+        assert self._paths_for(tmp_path, "/lib/100%FUN") == ["/lib/100%FUN/party.jpg"]
 
     def test_windows_paths_match_a_forward_slash_prefix(self, tmp_path):
         assert self._paths_for(tmp_path, "C:/lib/W/") == ["C:\\lib\\W\\win.jpg"]

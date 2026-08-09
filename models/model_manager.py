@@ -13,6 +13,9 @@ from pathlib import Path
 
 logger = logging.getLogger("facet.models")
 
+CPU_DEVICE = 'cpu'
+UNIFIED_MEMORY_ACCELERATOR = 'mps'
+
 # Lazy import for torch
 torch = None
 
@@ -752,10 +755,15 @@ class ModelManager:
     @staticmethod
     def detect_vram() -> float:
         """
-        Detect available GPU VRAM in GB.
+        Detect dedicated GPU VRAM in GB.
+
+        Only a CUDA device has a dedicated VRAM budget. A unified-memory
+        accelerator (Apple Metal) shares system RAM and reports 0.0 here, which
+        means "no VRAM budget to spend", never "no accelerator" — ask
+        :meth:`detect_accelerator` for the latter.
 
         Returns:
-            Available VRAM in GB, or 0 if no GPU available
+            Dedicated VRAM in GB, or 0.0 when there is no CUDA device
         """
         _torch = _ensure_torch()
         if not _torch.cuda.is_available():
@@ -764,6 +772,22 @@ class ModelManager:
         props = _torch.cuda.get_device_properties(0)
         total_gb = props.total_memory / (1024**3)
         return total_gb
+
+    @staticmethod
+    def detect_accelerator() -> str | None:
+        """
+        Detect which accelerator Facet will run models on.
+
+        Reads the shared device policy (``utils.device.get_device``) so the
+        answer honours ``FACET_DEVICE`` and covers Apple Metal, which a
+        CUDA-only probe reports as "no GPU".
+
+        Returns:
+            Torch device string ('cuda' or 'mps'), or None when running on CPU
+        """
+        from utils.device import get_device
+        device = get_device()
+        return None if device == CPU_DEVICE else device
 
     @staticmethod
     def detect_system_ram_gb() -> float:

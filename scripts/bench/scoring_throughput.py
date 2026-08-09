@@ -31,6 +31,9 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.bench import _common as bench
+from utils.device import is_device_available
+
+_BYTES_PER_MB = 1024 * 1024
 
 
 def _try_import_psutil():
@@ -74,6 +77,28 @@ class ResourceTracker:
         if self._thread is not None:
             self._thread.join(timeout=2.0)
 
+    def _accelerator_memory_mb(self) -> float:
+        """Accelerator memory in MB for whichever backend is available.
+
+        CUDA exposes an allocator high-water mark; Apple Metal has no such
+        counter, so the driver/tensor allocations are sampled instead and the
+        polling loop keeps the running maximum.
+        """
+        if self._torch is None:
+            return 0.0
+        try:
+            if is_device_available("cuda", torch_module=self._torch):
+                return self._torch.cuda.max_memory_allocated() / _BYTES_PER_MB
+            if is_device_available("mps", torch_module=self._torch):
+                mps = getattr(self._torch, "mps", None)
+                driver_allocated = getattr(mps, "driver_allocated_memory", None)
+                current_allocated = getattr(mps, "current_allocated_memory", None)
+                if callable(driver_allocated) and callable(current_allocated):
+                    return max(driver_allocated(), current_allocated()) / _BYTES_PER_MB
+        except Exception:
+            return 0.0
+        return 0.0
+
     def _loop(self) -> None:
         proc = None
         if self._psutil is not None:
@@ -86,15 +111,10 @@ class ResourceTracker:
             rss_mb = 0.0
             if proc is not None:
                 try:
-                    rss_mb = proc.memory_info().rss / (1024 * 1024)
+                    rss_mb = proc.memory_info().rss / _BYTES_PER_MB
                 except Exception:
                     rss_mb = 0.0
-            vram_mb = 0.0
-            if self._torch is not None and self._torch.cuda.is_available():
-                try:
-                    vram_mb = self._torch.cuda.max_memory_allocated() / (1024 * 1024)
-                except Exception:
-                    vram_mb = 0.0
+            vram_mb = self._accelerator_memory_mb()
             self.peak_rss_mb = max(self.peak_rss_mb, rss_mb)
             self.peak_vram_mb = max(self.peak_vram_mb, vram_mb)
             self.samples.append(

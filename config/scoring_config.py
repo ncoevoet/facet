@@ -92,6 +92,17 @@ def _sanitize_context_names(context_def, field):
     return clean, problems
 
 
+def _usable_category_name(category):
+    """Return a category's name when it is a non-empty string, else None.
+
+    A nameless entry must never reach a context's evaluation order:
+    ``determine_category`` returns the matched name verbatim, so an unusable
+    one would be persisted as the photo's category instead of failing loudly.
+    """
+    name = category.get('name')
+    return name if isinstance(name, str) and name.strip() else None
+
+
 class ScoringConfig:
     """Loads and manages scoring configuration from JSON file.
 
@@ -822,12 +833,19 @@ class ScoringConfig:
             except Exception:
                 has_mps = False
             if current_profile != 'legacy':
+                if has_mps:
+                    if verbose:
+                        logger.info(
+                            "Profile '%s' on Metal: unified memory is not dedicated VRAM, so the "
+                            "profile is taken as configured rather than sized automatically",
+                            current_profile)
+                        logger.info("  Set vram_profile to 'auto' to fall back to 'legacy' on Metal")
+                    return True, current_profile, "OK (MPS mode, profile as configured)"
                 if verbose:
-                    accelerator = "MPS" if has_mps else "No GPU"
-                    logger.warning("%s does not support VRAM profile '%s'", accelerator, current_profile)
+                    logger.warning("No GPU does not support VRAM profile '%s'", current_profile)
                     logger.warning("  Consider setting vram_profile to 'legacy' or 'auto' in scoring_config.json")
                     logger.warning("  Tip: run 'python facet.py --doctor' for GPU setup diagnostics")
-                return False, 'legacy', "MPS requires the legacy profile" if has_mps else "No GPU detected"
+                return False, 'legacy', "No GPU detected"
             return True, current_profile, "OK (MPS mode)" if has_mps else "OK (CPU mode)"
 
         # Define VRAM requirements for each profile
@@ -1094,7 +1112,16 @@ class ScoringConfig:
         for problem in promote_problems + excluded_problems:
             logger.warning("scoring_contexts.%s: %s", cache_key, problem)
 
-        by_name = {c.get('name'): c for c in self.config.get('categories', [])}
+        by_name = {}
+        for category in self.config.get('categories', []):
+            name = _usable_category_name(category)
+            if name is None:
+                logger.warning(
+                    "categories: entry with priority %r has no usable 'name' (%r), skipping it",
+                    category.get('priority'), category.get('name'),
+                )
+                continue
+            by_name[name] = category
 
         ordered = []
         seen = set()
@@ -1106,8 +1133,8 @@ class ScoringConfig:
             seen.add(name)
 
         for category in self._priority_sorted_categories():
-            name = category.get('name')
-            if name == DEFAULT_CATEGORY_NAME or name in excluded or name in seen:
+            name = _usable_category_name(category)
+            if name is None or name == DEFAULT_CATEGORY_NAME or name in excluded or name in seen:
                 continue
             ordered.append(category)
             seen.add(name)
