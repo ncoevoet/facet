@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIG & SHARE SECRET (single parse of scoring_config.json) ---
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scoring_config.json')
-_share_secret_lock = threading.Lock()
+CONFIG_WRITE_LOCK = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')
 
 _TEMP_CONFIG_SUFFIX = '.json'
@@ -81,6 +81,14 @@ def atomic_write_json(path, data):
     needs. The payload is fsynced before the rename and the containing
     directory after it, so a crash leaves either the old file or the new one,
     never a truncated mix.
+
+    Atomicity is per write, not per read-modify-write: every caller that reads
+    scoring_config.json, edits part of it and writes it back MUST hold
+    :data:`CONFIG_WRITE_LOCK` across the whole sequence, or one caller's update
+    is lost wholesale under another's. That lock is the only one taken while a
+    config write is in flight; ``reload_config`` may acquire it (through
+    :func:`_load_and_ensure_share_secret`) while holding ``_config_lock``, so no
+    writer may call ``reload_config`` without first releasing it.
     """
     directory = os.path.dirname(path) or '.'
     mode = _replacement_mode(path)
@@ -138,8 +146,10 @@ def _read_config():
 def _load_and_ensure_share_secret():
     """Load scoring_config.json once, ensure share_secret exists. Returns (config_dict, secret).
 
-    Uses file locking to prevent race conditions when multiple workers start simultaneously.
-    Writes atomically via temp file + rename to avoid partial writes.
+    Holds :data:`CONFIG_WRITE_LOCK` — the one lock every writer of this file
+    takes — across its read-modify-write, so a concurrent weights, priority,
+    context or password-upgrade write can neither lose this secret nor be lost
+    under it. Writes atomically via temp file + rename to avoid partial writes.
 
     A config that exists but does not parse gets an ephemeral in-memory secret
     and is never rewritten: persisting a share_secret-only stub over a partial
@@ -147,7 +157,7 @@ def _load_and_ensure_share_secret():
     """
     config, _ = _read_config()
     if 'share_secret' not in config or not config['share_secret']:
-        with _share_secret_lock:
+        with CONFIG_WRITE_LOCK:
             config, parsed_ok = _read_config()
             if 'share_secret' not in config or not config['share_secret']:
                 config['share_secret'] = secrets.token_hex(32)
@@ -305,11 +315,20 @@ _config_lock = threading.Lock()
 
 
 def reload_config():
-    """Reload scoring_config.json from disk."""
-    global _FULL_CONFIG, _share_secret, VIEWER_CONFIG, JWT_SECRET
+    """Reload scoring_config.json from disk.
+
+    ``VIEWER_CONFIG`` is refilled in place rather than rebound: every consumer
+    does ``from api.config import VIEWER_CONFIG`` at import time and holds that
+    dict forever, so rebinding this module's name would leave them all reading
+    the pre-reload values. ``api.auth`` derives each token's password generation
+    from it, which makes a stale copy a security question and not just a
+    freshness one.
+    """
+    global _FULL_CONFIG, _share_secret, JWT_SECRET
     with _config_lock:
         _FULL_CONFIG, _share_secret = _load_and_ensure_share_secret()
-        VIEWER_CONFIG = load_viewer_config(_FULL_CONFIG)
+        VIEWER_CONFIG.clear()
+        VIEWER_CONFIG.update(load_viewer_config(_FULL_CONFIG))
         JWT_SECRET = _share_secret
 
 

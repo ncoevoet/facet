@@ -5,6 +5,7 @@ import os
 import shutil
 import stat
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from unittest import mock
@@ -12,8 +13,9 @@ from unittest import mock
 import pytest
 from fastapi import HTTPException
 
+from api.auth import _is_hashed, upgrade_legacy_password
+from api.config import CONFIG_WRITE_LOCK, atomic_write_json
 from api.config_writes import (
-    _CONFIG_WRITE_LOCK,
     update_category_priorities,
     update_scoring_context,
 )
@@ -262,10 +264,13 @@ class TestUpdateScoringContext:
         assert backup_path is not None
         assert Path(backup_path).read_text() == original_contents
 
-    def test_unknown_context_raises_400(self, config_copy):
+    def test_unknown_context_raises_404(self, config_copy):
+        """An unknown named resource is a 404, matching how the sibling
+        ``update_category_weights`` answers a category that isn't configured.
+        The 400s below stay 400s: those are bodies that cannot be applied."""
         with pytest.raises(HTTPException) as exc_info:
             update_scoring_context(config_copy, "not_a_real_context", [], [])
-        assert exc_info.value.status_code == 400
+        assert exc_info.value.status_code == 404
         assert "not_a_real_context" in exc_info.value.detail
 
     def test_unknown_promoted_category_raises_400(self, config_copy):
@@ -422,8 +427,8 @@ class TestConfigWriteLock:
     """A shared lock serializes concurrent config writes so none are lost."""
 
     def test_lock_is_a_real_lock(self):
-        assert hasattr(_CONFIG_WRITE_LOCK, "acquire")
-        assert hasattr(_CONFIG_WRITE_LOCK, "release")
+        assert hasattr(CONFIG_WRITE_LOCK, "acquire")
+        assert hasattr(CONFIG_WRITE_LOCK, "release")
 
     def test_concurrent_writes_never_corrupt_the_file(self, config_copy):
         names = _non_default_names(config_copy)
@@ -442,3 +447,53 @@ class TestConfigWriteLock:
         ok, issues = cfg.validate_categories(verbose=False)
         assert ok is True
         assert issues == []
+
+
+_PLAINTEXT_PASSWORD = "legacy-plaintext-pw"
+_WRITE_WINDOW_SECONDS = 0.4
+
+
+class TestWritersOfDifferentPartsShareOneLock:
+    """``api.auth`` rewrites ``viewer.password`` in the same file this module
+    rewrites contexts and priorities in. While they held two different locks,
+    whichever read first won and the other's update was lost wholesale — not
+    corrupted, silently reverted."""
+
+    CONTEXT = "action_stage"
+
+    def _delayed_write(self, delay):
+        """Widen one writer's read-modify-write window so the other lands inside it."""
+        def _write(path, data):
+            time.sleep(delay)
+            atomic_write_json(path, data)
+        return _write
+
+    def test_neither_update_is_lost(self, config_copy):
+        data = json.loads(config_copy.read_text())
+        data["viewer"]["password"] = _PLAINTEXT_PASSWORD
+        config_copy.write_text(json.dumps(data))
+
+        import api.config as api_config
+
+        def _write_context():
+            update_scoring_context(config_copy, self.CONTEXT, ["wildlife"], [])
+
+        def _upgrade_password():
+            upgrade_legacy_password("password", _PLAINTEXT_PASSWORD)
+
+        with (
+            mock.patch("api.config_writes.atomic_write_json", self._delayed_write(_WRITE_WINDOW_SECONDS)),
+            mock.patch.object(api_config, "_CONFIG_PATH", str(config_copy)),
+            mock.patch.object(api_config, "reload_config", lambda: None),
+        ):
+            context_writer = threading.Thread(target=_write_context)
+            password_writer = threading.Thread(target=_upgrade_password)
+            context_writer.start()
+            time.sleep(_WRITE_WINDOW_SECONDS / 4)
+            password_writer.start()
+            context_writer.join()
+            password_writer.join()
+
+        written = json.loads(config_copy.read_text())
+        assert written["scoring_contexts"][self.CONTEXT]["promote"] == ["wildlife"]
+        assert _is_hashed(written["viewer"]["password"])

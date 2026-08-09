@@ -705,7 +705,6 @@ class TestUpdateScoringContext:
         mock_invalidate.assert_called_once()
 
     @pytest.mark.parametrize("detail", [
-        "Unknown scoring context: nope",
         "Unknown categories in promote: not_a_real_category",
         "'default' cannot appear in excluded: it is the pinned catch-all category",
         "Duplicate categories in promote: sports",
@@ -724,6 +723,51 @@ class TestUpdateScoringContext:
 
         assert resp.status_code == 400
         assert resp.json()["detail"] == detail
+
+    def test_unknown_context_surfaces_as_404(self, tmp_path):
+        """An unknown named resource, answered like every other missing one --
+        not folded into the 400s that mean "this body cannot be applied"."""
+        import shutil
+
+        config_copy = tmp_path / "scoring_config.json"
+        shutil.copy2(_REPO_CONFIG_PATH, config_copy)
+
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _edition_user())
+
+        with (
+            mock.patch(f"{_ROUTER_MODULE}._CONFIG_PATH", config_copy),
+            mock.patch(f"{_ROUTER_MODULE}.reload_config"),
+            mock.patch(f"{_ROUTER_MODULE}.invalidate_stats_cache"),
+        ):
+            resp = client.put("/api/config/scoring_contexts/not_a_real_context", json=self.BODY)
+
+        assert resp.status_code == 404
+        assert "not_a_real_context" in resp.json()["detail"]
+
+    @pytest.mark.parametrize("body", [{"promote": ["sports"]}, {"excluded": ["macro"]}, {}])
+    def test_partial_body_is_refused_and_changes_nothing(self, tmp_path, body):
+        """A defaulted list silently wiped the omitted one: PUT {"promote": [...]}
+        cleared ``excluded`` with no error. Both fields are now required, so a
+        partial body dies in validation before any file is touched."""
+        import shutil
+
+        config_copy = tmp_path / "scoring_config.json"
+        shutil.copy2(_REPO_CONFIG_PATH, config_copy)
+        before = config_copy.read_text()
+
+        app, client = _make_app_and_client(raise_server_exceptions=False)
+        _override_auth(app, _edition_user())
+
+        with (
+            mock.patch(f"{_ROUTER_MODULE}._CONFIG_PATH", config_copy),
+            mock.patch(f"{_ROUTER_MODULE}.reload_config"),
+            mock.patch(f"{_ROUTER_MODULE}.invalidate_stats_cache"),
+        ):
+            resp = client.put(self.ENDPOINT, json=body)
+
+        assert resp.status_code == 422
+        assert config_copy.read_text() == before
 
     def test_round_trip_against_a_real_config_copy(self, tmp_path):
         """PUT then GET reports the new delta -- driven through the real writer

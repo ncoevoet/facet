@@ -107,7 +107,13 @@ def edition_login(body: EditionLoginRequest, request: Request, response: Respons
 
 @router.post("/edition/logout", response_model=LoginResponse)
 def edition_logout(response: Response, user: CurrentUser = Depends(require_authenticated)):
-    """Drop edition privileges and return a non-edition token."""
+    """Return a non-edition token for the client to replace its own with.
+
+    Nothing is revoked server-side: the edition token the caller already holds
+    stays valid until it expires or ``viewer.edition_password`` is rotated, so
+    this only drops the privileges of a client that honours the swap. Rotating
+    the edition password is what actually revokes edition rights everywhere.
+    """
     token = create_access_token({
         'sub': user.user_id or '_legacy',
         'role': user.role,
@@ -119,7 +125,13 @@ def edition_logout(response: Response, user: CurrentUser = Depends(require_authe
 
 @router.post("/logout")
 def logout(response: Response):
-    """Clear the HttpOnly auth cookie (the client drops its Bearer token)."""
+    """Clear the HttpOnly auth cookie; the client drops its Bearer token.
+
+    Logout is a client-side token drop, not a revocation — a JWT already handed
+    out cannot be invalidated individually without server-side session state.
+    A leaked token is killed by rotating ``viewer.password``, which ages every
+    token minted under the old value out at once.
+    """
     clear_auth_cookie(response)
     return {"ok": True}
 

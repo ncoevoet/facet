@@ -35,10 +35,13 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       } else if (error.status === 429) {
         snackBar.open(i18n.t(I18N.errors.rate_limited), '', { duration: 5000 });
       } else if (error.status === 403 && !isAuthUrl(req.url)) {
-        // The server refused rights the cached status still advertises — a
-        // token rotated in another tab, or an edition password changed under
-        // us. Reconcile before reporting, so the toast can say which of the
-        // two it was and the Edition indicator stops lying either way.
+        // The server refused rights the cached status still advertises. Either
+        // the edition password was rotated — which strips the edition claim
+        // from every token minted under the old one — or this session simply
+        // never had the right the UI offered. A logout elsewhere is NOT a
+        // cause: it drops that client's own token and revokes nothing here.
+        // Reconcile before reporting, so the toast can say which of the two it
+        // was and the Edition indicator stops lying either way.
         const hadEdition = auth.isEdition();
         void auth.revalidate().then(() => {
           const lostEdition = hadEdition && !auth.isEdition();

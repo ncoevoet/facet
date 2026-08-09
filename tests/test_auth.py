@@ -1,6 +1,9 @@
 """Tests for authentication: JWT tokens, password hashing, rate limiting, and login endpoints."""
 
+import json
+import shutil
 from datetime import timedelta
+from pathlib import Path
 from unittest import mock
 
 import jwt
@@ -10,9 +13,12 @@ from fastapi.testclient import TestClient
 from api import create_app
 from api.auth import (
     AUTH_COOKIE_NAME,
+    EDITION_GENERATION_CLAIM,
+    VIEWER_GENERATION_CLAIM,
     create_access_token,
     decode_access_token,
     hash_password,
+    password_generation,
     verify_password,
     verify_legacy_password,
     _is_hashed,
@@ -57,6 +63,21 @@ class TestJWTTokens:
     def test_invalid_token_returns_none(self):
         assert decode_access_token("not-a-jwt") is None
         assert decode_access_token("") is None
+
+    def test_token_carries_both_password_generations(self):
+        decoded = decode_access_token(create_access_token({"sub": "alice"}))
+        assert decoded[VIEWER_GENERATION_CLAIM] == password_generation("password")
+        assert decoded[EDITION_GENERATION_CLAIM] == password_generation("edition_password")
+
+    @pytest.mark.parametrize("claim", [VIEWER_GENERATION_CLAIM, EDITION_GENERATION_CLAIM])
+    def test_token_without_a_generation_claim_is_stale(self, claim):
+        """No shim for claim-less tokens: accepting them would be exactly the
+        hole the claims close."""
+        payload = decode_access_token(create_access_token({"sub": "alice"}))
+        del payload[claim]
+        from api.auth import JWT_ALGORITHM, JWT_SECRET
+
+        assert decode_access_token(jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)) is None
 
 
 # ---------------------------------------------------------------------------
@@ -516,6 +537,135 @@ class TestUnparseableConfigFailsClosed:
 
         resp = client.post(_EDITION_ENDPOINT, json=_INCOMPLETE_EDITION_BODY)
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Password rotation ages tokens out (FINDING 32)
+# ---------------------------------------------------------------------------
+
+
+_REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "scoring_config.json"
+
+_VIEWER_PASSWORD = "viewer-pw"
+_EDITION_PASSWORD = "ed-pw"
+_ROTATED_PASSWORD = "rotated-pw"
+
+
+class TestPasswordRotationRevokesTokens:
+    """A JWT is bound to the passwords stored when it was minted.
+
+    Reproduces the reported probe end to end against the real app: nothing
+    invalidates a token server-side, so before this binding a token kept
+    performing edition writes for its full 48h across a logout, an edition
+    logout, and an edition-password change. Each test drives a real login over
+    HTTP, rewrites the stored password on disk, reloads, and re-issues the SAME
+    bearer against a route that actually mutates state.
+    """
+
+    @pytest.fixture()
+    def locked_install(self, tmp_path):
+        """A real, locked scoring_config.json this process reads and reloads.
+
+        Passwords are stored pre-hashed so ``upgrade_legacy_password`` stays
+        inert and the file changes only when a test rotates it.
+        """
+        import api.config as api_config
+
+        config_path = tmp_path / "scoring_config.json"
+        shutil.copy2(_REPO_CONFIG_PATH, config_path)
+
+        def rotate(**passwords):
+            config = json.loads(config_path.read_text())
+            for key, value in passwords.items():
+                config['viewer'][key] = hash_password(value)
+            config_path.write_text(json.dumps(config))
+            api_config.reload_config()
+
+        with (
+            mock.patch.object(api_config, "_CONFIG_PATH", str(config_path)),
+            mock.patch(f"{_AUTH_MODULE}._login_limiter", _fresh_limiter()),
+        ):
+            rotate(password=_VIEWER_PASSWORD, edition_password=_EDITION_PASSWORD)
+            yield rotate
+        api_config.reload_config()
+
+    def _edition_bearer(self, client):
+        resp = client.post("/api/auth/edition/login", json={"password": _EDITION_PASSWORD})
+        assert resp.status_code == 200
+        return _bearer(resp.json()["access_token"])
+
+    def test_edition_write_works_before_any_rotation(self, locked_install):
+        client = _make_client(raise_server_exceptions=False)
+        headers = self._edition_bearer(client)
+
+        resp = client.post(_EDITION_ENDPOINT, json=_EDITION_BODY, headers=headers)
+        assert resp.status_code == 200
+
+    def test_rotating_the_edition_password_kills_edition_writes(self, locked_install):
+        client = _make_client(raise_server_exceptions=False)
+        headers = self._edition_bearer(client)
+        before = client.post(_EDITION_ENDPOINT, json=_EDITION_BODY, headers=headers)
+
+        locked_install(edition_password=_ROTATED_PASSWORD)
+        after = client.post(_EDITION_ENDPOINT, json=_EDITION_BODY, headers=headers)
+
+        assert (before.status_code, after.status_code) == (200, 403)
+
+    def test_rotating_the_edition_password_keeps_the_session(self, locked_install):
+        """Edition rights are revoked everywhere without logging anyone out."""
+        client = _make_client(raise_server_exceptions=False)
+        headers = self._edition_bearer(client)
+
+        locked_install(edition_password=_ROTATED_PASSWORD)
+        resp = client.get("/api/auth/status", headers=headers)
+
+        assert resp.status_code == 200
+        assert resp.json()["authenticated"] is True
+        assert resp.json()["edition_authenticated"] is False
+
+    def test_rotating_the_viewer_password_ends_the_session(self, locked_install):
+        client = _make_client(raise_server_exceptions=False)
+        resp = client.post("/api/auth/login", json={"password": _VIEWER_PASSWORD})
+        assert resp.status_code == 200
+        headers = _bearer(resp.json()["access_token"])
+        before = client.get("/api/auth/status", headers=headers)
+
+        locked_install(password=_ROTATED_PASSWORD)
+        after = client.get("/api/auth/status", headers=headers)
+
+        assert (before.json()["authenticated"], after.json()["authenticated"]) == (True, False)
+
+    def test_rotating_the_viewer_password_kills_edition_writes(self, locked_install):
+        client = _make_client(raise_server_exceptions=False)
+        headers = self._edition_bearer(client)
+        before = client.post(_EDITION_ENDPOINT, json=_EDITION_BODY, headers=headers)
+
+        locked_install(password=_ROTATED_PASSWORD)
+        after = client.post(_EDITION_ENDPOINT, json=_EDITION_BODY, headers=headers)
+
+        assert (before.status_code, after.status_code) == (200, 401)
+
+    def test_cookie_session_dies_with_the_viewer_password(self, locked_install):
+        """The cookie mirrors the same JWT, so it must age out with it."""
+        client = _make_client(raise_server_exceptions=False)
+        assert client.post("/api/auth/login", json={"password": _VIEWER_PASSWORD}).status_code == 200
+        before = client.get("/api/auth/status")
+
+        locked_install(password=_ROTATED_PASSWORD)
+        after = client.get("/api/auth/status")
+
+        assert (before.json()["authenticated"], after.json()["authenticated"]) == (True, False)
+
+    def test_logout_does_not_revoke_the_bearer(self, locked_install):
+        """Out of scope by design: individual revocation needs server-side
+        session state. The docstrings and the client say so; this pins it."""
+        client = _make_client(raise_server_exceptions=False)
+        headers = self._edition_bearer(client)
+
+        assert client.post("/api/auth/logout", headers=headers).status_code == 200
+        resp = client.post(_EDITION_ENDPOINT, json=_EDITION_BODY, headers=headers)
+
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------

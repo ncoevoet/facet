@@ -29,27 +29,74 @@ from api.config import (
 VIEWER_PASSWORD_KEY = 'password'
 EDITION_PASSWORD_KEY = 'edition_password'
 
+VIEWER_GENERATION_CLAIM = 'pv'
+EDITION_GENERATION_CLAIM = 'ev'
+GENERATION_DIGEST_LENGTH = 12
+
 
 # --- JWT TOKEN MANAGEMENT ---
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
+def password_generation(password_key: str) -> str:
+    """Short digest naming the CURRENT stored value behind ``password_key``.
+
+    Taken over what is on disk — the PBKDF2 hash once the password has been
+    upgraded, never the plaintext the user typed — so it changes exactly when
+    the password changes and discloses nothing about it. Tokens carry it, which
+    is what lets a password change age out tokens minted under the previous one:
+    nothing else invalidates a JWT server-side.
+    """
+    stored = VIEWER_CONFIG.get(password_key, '') or ''
+    return hashlib.sha256(stored.encode('utf-8')).hexdigest()[:GENERATION_DIGEST_LENGTH]
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token."""
+    """Create a JWT access token bound to the current password generations."""
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(hours=JWT_EXPIRY_HOURS))
     to_encode['exp'] = expire
     to_encode['iat'] = datetime.now(timezone.utc)
+    to_encode[VIEWER_GENERATION_CLAIM] = password_generation(VIEWER_PASSWORD_KEY)
+    to_encode[EDITION_GENERATION_CLAIM] = password_generation(EDITION_PASSWORD_KEY)
     return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+def _match_password_generations(payload: dict) -> Optional[dict]:
+    """Age ``payload`` against the passwords stored right now.
+
+    A token that predates the current ``viewer.password`` is treated exactly as
+    no token at all, so rotating it logs every session out. An outdated
+    ``viewer.edition_password`` is narrower: the session survives with its
+    edition claim stripped, so rotating that one revokes edition rights
+    everywhere without logging anyone out. A token carrying neither claim was
+    minted before tokens were bound at all and is likewise stale — accepting it
+    would leave exactly the hole the claims exist to close.
+    """
+    viewer_generation = payload.get(VIEWER_GENERATION_CLAIM)
+    edition_generation = payload.get(EDITION_GENERATION_CLAIM)
+    if viewer_generation is None or edition_generation is None:
+        return None
+    if viewer_generation != password_generation(VIEWER_PASSWORD_KEY):
+        return None
+    if edition_generation != password_generation(EDITION_PASSWORD_KEY):
+        payload['edition'] = False
+    return payload
+
+
 def decode_access_token(token: str) -> Optional[dict]:
-    """Decode a JWT access token. Returns None if invalid."""
+    """Decode a JWT access token. Returns None if invalid or stale.
+
+    Staleness is decided by :func:`_match_password_generations`: signature and
+    expiry alone cannot express "this password has since changed", and no token
+    is revocable server-side otherwise.
+    """
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
     except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
         return None
+    return _match_password_generations(payload)
 
 
 AUTH_COOKIE_NAME = 'facet_auth'
@@ -314,15 +361,20 @@ def verify_legacy_password(candidate: str, stored: str) -> bool:
 def upgrade_legacy_password(config_key: str, plaintext: str):
     """Hash a plaintext password and rewrite it in scoring_config.json.
 
-    Called after a successful login against a plaintext password.
-    Uses the same atomic write pattern as _load_and_ensure_share_secret().
+    Called after a successful login against a plaintext password. The
+    read-modify-write is held under ``CONFIG_WRITE_LOCK`` — the single lock
+    every writer of this file takes — so a concurrent weights, priority or
+    scoring-context write can no longer land inside this one's window and be
+    overwritten (or overwrite it). The reload happens after the lock is
+    released, because it re-reads the file and may take that same lock.
     """
-    from api.config import _CONFIG_PATH, _share_secret_lock, atomic_write_json, reload_config
+    from api.config import _CONFIG_PATH, CONFIG_WRITE_LOCK, atomic_write_json, reload_config
     import json
     import shutil
 
     hashed = hash_password(plaintext)
-    with _share_secret_lock:
+    upgraded = False
+    with CONFIG_WRITE_LOCK:
         try:
             with open(_CONFIG_PATH) as f:
                 config = json.load(f)
@@ -336,10 +388,12 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
             shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
             try:
                 atomic_write_json(_CONFIG_PATH, config)
-                reload_config()
-                logger.info("Upgraded plaintext %s to PBKDF2 hash", config_key)
+                upgraded = True
             except Exception:
                 logger.exception("Failed to upgrade password hash for %s", config_key)
+    if upgraded:
+        reload_config()
+        logger.info("Upgraded plaintext %s to PBKDF2 hash", config_key)
 
 
 def check_legacy_password_warnings():

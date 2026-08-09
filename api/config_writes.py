@@ -5,25 +5,27 @@ same way: load the config, find the category, snapshot its current weights,
 optionally drop a loose file backup, mutate the target, and write it back. The
 ``get_db`` callable is threaded in so callers keep their own (patchable) db
 context manager.
+
+Every read-modify-write here runs under ``api.config.CONFIG_WRITE_LOCK``, the
+one lock guarding scoring_config.json — shared with the share-secret bootstrap
+and the plaintext-password upgrade in ``api.auth``, which rewrite other parts of
+the very same file.
 """
 
 import json
 import logging
 import os
 import shutil
-import threading
 from collections import Counter
 from datetime import datetime
 
 from fastapi import HTTPException
 
-from api.config import atomic_write_json
+from api.config import CONFIG_WRITE_LOCK, atomic_write_json
 from config.scoring_config import DEFAULT_CATEGORY_NAME
 from db import record_weight_snapshot
 
 logger = logging.getLogger(__name__)
-
-_CONFIG_WRITE_LOCK = threading.Lock()
 
 MAX_CONFIG_BACKUPS = 20
 BACKUP_TIMESTAMP_FORMAT = '%Y%m%d_%H%M%S_%f'
@@ -135,7 +137,7 @@ def update_category_priorities(config_path, order):
     snapshot table) and returns its path.
     """
     config_path = str(config_path)
-    with _CONFIG_WRITE_LOCK:
+    with CONFIG_WRITE_LOCK:
         with open(config_path) as f:
             config = json.load(f)
 
@@ -182,10 +184,14 @@ def update_scoring_context(config_path, context, promote, excluded):
     carries a full standalone ordering that would silently omit a category
     added later.
 
-    Raises ``HTTPException(400)`` naming the offender for an unknown context,
-    an entry that isn't an existing category, ``default`` in either list (it is
-    pinned last and can be neither promoted nor excluded), or a duplicate
-    within ``promote`` (whose order is meaningful, so a repeat is ambiguous).
+    Raises ``HTTPException(404)`` when ``context`` names no configured scoring
+    context — a missing named resource, answered the way the sibling
+    ``update_category_weights`` already answers a missing category, rather than
+    conflated with the 400s below. Raises ``HTTPException(400)`` naming the
+    offender for a body that cannot be applied: an entry that isn't an existing
+    category, ``default`` in either list (it is pinned last and can be neither
+    promoted nor excluded), or a duplicate within ``promote`` (whose order is
+    meaningful, so a repeat is ambiguous).
     Listing the same category in **both** lists stays accepted — ``excluded``
     wins and the ``promote`` entry is dropped by
     ``ScoringConfig.resolve_context_order``, which is the documented behaviour.
@@ -196,13 +202,13 @@ def update_scoring_context(config_path, context, promote, excluded):
     covered by the weights snapshot table) and returns its path.
     """
     config_path = str(config_path)
-    with _CONFIG_WRITE_LOCK:
+    with CONFIG_WRITE_LOCK:
         with open(config_path) as f:
             config = json.load(f)
 
         contexts = config.get('scoring_contexts', {})
         if not isinstance(contexts, dict) or context not in contexts:
-            raise HTTPException(status_code=400, detail=f"Unknown scoring context: {context}")
+            raise HTTPException(status_code=404, detail=f"Unknown scoring context: {context}")
 
         duplicates = sorted(name for name, count in Counter(promote).items() if count > 1)
         if duplicates:
@@ -238,7 +244,7 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
     them. ``modifiers`` and ``filters`` are set only when not None.
     """
     config_path = str(config_path)
-    with _CONFIG_WRITE_LOCK:
+    with CONFIG_WRITE_LOCK:
         with open(config_path) as f:
             config = json.load(f)
 

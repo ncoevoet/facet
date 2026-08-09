@@ -138,8 +138,15 @@ class CategoryPrioritiesBody(BaseModel):
 
 
 class ScoringContextBody(BaseModel):
-    promote: list[str] = []
-    excluded: list[str] = []
+    """Both lists are required: the PUT replaces the whole delta.
+
+    Defaulting either to ``[]`` made a partial body silently destructive — a
+    caller sending only ``promote`` wiped the context's ``excluded`` list with
+    no error. Requiring both turns that into a 422 the caller can see.
+    """
+
+    promote: list[str]
+    excluded: list[str]
 
 
 class SaveSnapshotBody(BaseModel):
@@ -569,6 +576,10 @@ def api_update_scoring_context(
     ``resolve_context_order`` memoizes per ``ScoringConfig`` instance and every
     reader builds a fresh one per request, so the rewritten delta is picked up
     without any cache to invalidate here.
+
+    Both lists are required and replace the stored delta wholesale: a partial
+    body is a 422, an unknown ``name`` a 404, and a body naming a category that
+    cannot be promoted or excluded a 400.
     """
     from api.config_writes import update_scoring_context
 
