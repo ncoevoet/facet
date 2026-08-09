@@ -1,8 +1,17 @@
 """``facet.py`` throughput benchmark.
 
-Runs ``facet.py`` on a fixed photo directory and reports photos/sec, peak RSS,
-peak VRAM, and per-pass wallclock. Output mirrors ``bench.py`` so before/after
-diffs are mechanical.
+Runs ``facet.py`` on a fixed photo directory and reports photos/sec, peak
+process-tree RSS, peak per-process GPU memory, and per-pass wallclock. Output
+mirrors ``bench.py`` so before/after diffs are mechanical.
+
+Every memory figure describes the scoring *subprocess tree*, never this
+harness. ``torch.cuda.max_memory_allocated`` and the ``torch.mps`` counters
+only ever see the process that calls them, so they cannot observe a child;
+GPU memory is therefore read from ``nvidia-smi``'s per-pid accounting. Apple
+Metal has no equivalent per-process counter, and unified memory is system RAM,
+so on that platform ``peak_rss_mb`` is the only defensible proxy and
+``peak_gpu_memory_mb`` is reported as ``null``. A figure that could not be
+sampled is always ``null``, never zero.
 
 Example::
 
@@ -19,10 +28,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable, Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -31,9 +42,37 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.bench import _common as bench
-from utils.device import is_device_available
 
 _BYTES_PER_MB = 1024 * 1024
+_MB_SUFFIX = "MB"
+_UNAVAILABLE = "unavailable"
+_MB_DECIMALS = 1
+_NVIDIA_SMI = "nvidia-smi"
+_NVIDIA_SMI_ARGS = (
+    "--query-compute-apps=pid,used_gpu_memory",
+    "--format=csv,noheader,nounits",
+)
+_NVIDIA_SMI_TIMEOUT_S = 5.0
+_CSV_SEPARATOR = ","
+_GPU_MEMORY_METHOD_NVIDIA_SMI = (
+    "nvidia-smi --query-compute-apps=pid,used_gpu_memory, summed over the "
+    "scoring subprocess tree (MiB, high-water mark across samples)"
+)
+_GPU_MEMORY_METHOD_UNAVAILABLE = (
+    "unavailable: nvidia-smi never attributed GPU memory to the scoring "
+    "subprocess tree (binary absent, query unsupported, pid namespace "
+    "mismatch, or no CUDA device used). Apple Metal exposes no per-process "
+    "GPU memory counter at all -- on unified memory read peak_rss_mb, which "
+    "is RSS and not a GPU measurement"
+)
+_RSS_METHOD_PSUTIL = (
+    "psutil RSS summed over the scoring subprocess tree (MiB, high-water mark "
+    "across samples; pages shared between those processes are counted once "
+    "per process)"
+)
+_RSS_METHOD_UNAVAILABLE = (
+    "unavailable: psutil could not sample the scoring subprocess tree"
+)
 
 
 def _try_import_psutil():
@@ -45,28 +84,117 @@ def _try_import_psutil():
         return None
 
 
-def _try_import_torch():
-    try:
-        import torch  # type: ignore
+def read_nvidia_smi_compute_apps() -> str | None:
+    """Raw per-process GPU memory CSV from ``nvidia-smi``, or None if it cannot run.
 
-        return torch
-    except Exception:
+    None means "not measured" — the binary is absent, the query is unsupported
+    on this driver, or the call failed — and is deliberately distinct from an
+    output that reports no memory.
+    """
+    if shutil.which(_NVIDIA_SMI) is None:
         return None
+    try:
+        completed = subprocess.run(
+            [_NVIDIA_SMI, *_NVIDIA_SMI_ARGS],
+            capture_output=True,
+            text=True,
+            timeout=_NVIDIA_SMI_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return completed.stdout
+
+
+def parse_compute_apps(csv_output: str) -> dict[int, float]:
+    """Map pid to GPU memory in MiB from ``nvidia-smi``'s compute-apps CSV.
+
+    A pid holding memory on several GPUs gets one row per GPU, so rows for the
+    same pid are summed. Rows nvidia-smi could not quantify (``[N/A]``,
+    ``[Not Supported]``) carry no number and are dropped.
+    """
+    usage: dict[int, float] = {}
+    for line in csv_output.splitlines():
+        fields = [field.strip() for field in line.split(_CSV_SEPARATOR)]
+        if len(fields) < 2:
+            continue
+        try:
+            pid = int(fields[0])
+            used_mb = float(fields[1])
+        except ValueError:
+            continue
+        usage[pid] = usage.get(pid, 0.0) + used_mb
+    return usage
+
+
+class GpuMemorySampler:
+    """Reads another process tree's GPU memory from the driver, not from torch.
+
+    ``torch.cuda.max_memory_allocated`` and the ``torch.mps`` counters are
+    process-local, so a harness watching a scoring subprocess cannot use them.
+    ``nvidia-smi`` attributes memory per pid, which crosses the process
+    boundary. A sample counts as measured only when at least one tracked pid
+    appears in that output: a run whose pids are invisible (no NVIDIA driver,
+    container pid namespace mismatch, Apple Metal) yields None rather than a
+    plausible-looking zero.
+    """
+
+    def __init__(
+        self,
+        query: Callable[[], str | None] = read_nvidia_smi_compute_apps,
+    ):
+        self._query = query
+
+    def sample_mb(self, pids: Iterable[int]) -> float | None:
+        output = self._query()
+        if not output:
+            return None
+        tracked_pids = set(pids)
+        usage = parse_compute_apps(output)
+        tracked = [mb for pid, mb in usage.items() if pid in tracked_pids]
+        if not tracked:
+            return None
+        return sum(tracked)
+
+
+def _running_peak(peak: float | None, value: float | None) -> float | None:
+    if value is None:
+        return peak
+    return value if peak is None else max(peak, value)
+
+
+def _rounded_mb(value: float | None) -> float | None:
+    return None if value is None else round(value, _MB_DECIMALS)
+
+
+def _format_mb(value: float | None) -> str:
+    return _UNAVAILABLE if value is None else f"{value}{_MB_SUFFIX}"
 
 
 class ResourceTracker:
-    """Polls RSS + VRAM in a background thread until ``stop()``."""
+    """Polls the scoring subprocess tree's RSS + GPU memory until ``stop()``.
 
-    def __init__(self, pid: int, interval_s: float = 0.5):
+    Both figures describe the child process tree, never this harness. A metric
+    that could not be sampled stays None all the way into the JSON, so an
+    unmeasurable run is never reported as zero usage.
+    """
+
+    def __init__(
+        self,
+        pid: int,
+        interval_s: float = 0.5,
+        gpu_sampler: GpuMemorySampler | None = None,
+    ):
         self._psutil = _try_import_psutil()
-        self._torch = _try_import_torch()
         self._pid = pid
         self._interval = interval_s
+        self._gpu_sampler = gpu_sampler or GpuMemorySampler()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
-        self.peak_rss_mb = 0.0
-        self.peak_vram_mb = 0.0
-        self.samples: list[dict[str, float]] = []
+        self.peak_rss_mb: float | None = None
+        self.peak_gpu_memory_mb: float | None = None
+        self.samples: list[dict[str, float | None]] = []
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._loop, daemon=True)
@@ -77,49 +205,55 @@ class ResourceTracker:
         if self._thread is not None:
             self._thread.join(timeout=2.0)
 
-    def _accelerator_memory_mb(self) -> float:
-        """Accelerator memory in MB for whichever backend is available.
+    @property
+    def gpu_memory_method(self) -> str:
+        if self.peak_gpu_memory_mb is None:
+            return _GPU_MEMORY_METHOD_UNAVAILABLE
+        return _GPU_MEMORY_METHOD_NVIDIA_SMI
 
-        CUDA exposes an allocator high-water mark; Apple Metal has no such
-        counter, so the driver/tensor allocations are sampled instead and the
-        polling loop keeps the running maximum.
-        """
-        if self._torch is None:
-            return 0.0
+    @property
+    def rss_method(self) -> str:
+        if self.peak_rss_mb is None:
+            return _RSS_METHOD_UNAVAILABLE
+        return _RSS_METHOD_PSUTIL
+
+    def _process_tree(self) -> list[Any]:
+        """The scoring child plus its descendants, which fork after startup."""
+        if self._psutil is None:
+            return []
         try:
-            if is_device_available("cuda", torch_module=self._torch):
-                return self._torch.cuda.max_memory_allocated() / _BYTES_PER_MB
-            if is_device_available("mps", torch_module=self._torch):
-                mps = getattr(self._torch, "mps", None)
-                driver_allocated = getattr(mps, "driver_allocated_memory", None)
-                current_allocated = getattr(mps, "current_allocated_memory", None)
-                if callable(driver_allocated) and callable(current_allocated):
-                    return max(driver_allocated(), current_allocated()) / _BYTES_PER_MB
+            child = self._psutil.Process(self._pid)
+            return [child, *child.children(recursive=True)]
         except Exception:
-            return 0.0
-        return 0.0
+            return []
+
+    def _tree_rss_mb(self, tree: list[Any]) -> float | None:
+        total: float | None = None
+        for proc in tree:
+            try:
+                rss_mb = proc.memory_info().rss / _BYTES_PER_MB
+            except Exception:
+                continue
+            total = rss_mb if total is None else total + rss_mb
+        return total
+
+    def sample_once(self) -> None:
+        tree = self._process_tree()
+        rss_mb = self._tree_rss_mb(tree)
+        gpu_mb = self._gpu_sampler.sample_mb({self._pid, *(proc.pid for proc in tree)})
+        self.peak_rss_mb = _running_peak(self.peak_rss_mb, rss_mb)
+        self.peak_gpu_memory_mb = _running_peak(self.peak_gpu_memory_mb, gpu_mb)
+        self.samples.append(
+            {
+                "t": time.time(),
+                "rss_mb": _rounded_mb(rss_mb),
+                "gpu_memory_mb": _rounded_mb(gpu_mb),
+            }
+        )
 
     def _loop(self) -> None:
-        proc = None
-        if self._psutil is not None:
-            try:
-                proc = self._psutil.Process(self._pid)
-            except Exception:
-                proc = None
         while not self._stop.is_set():
-            t = time.time()
-            rss_mb = 0.0
-            if proc is not None:
-                try:
-                    rss_mb = proc.memory_info().rss / _BYTES_PER_MB
-                except Exception:
-                    rss_mb = 0.0
-            vram_mb = self._accelerator_memory_mb()
-            self.peak_rss_mb = max(self.peak_rss_mb, rss_mb)
-            self.peak_vram_mb = max(self.peak_vram_mb, vram_mb)
-            self.samples.append(
-                {"t": t, "rss_mb": round(rss_mb, 1), "vram_mb": round(vram_mb, 1)}
-            )
+            self.sample_once()
             if self._stop.wait(self._interval):
                 return
 
@@ -199,8 +333,10 @@ def run_facet(args: argparse.Namespace) -> dict[str, Any]:
         "photo_count": photo_count,
         "device": args.device,
         "photos_per_sec": round(photos_per_sec, 3),
-        "peak_rss_mb": round(tracker.peak_rss_mb, 1),
-        "peak_vram_mb": round(tracker.peak_vram_mb, 1),
+        "peak_rss_mb": _rounded_mb(tracker.peak_rss_mb),
+        "rss_method": tracker.rss_method,
+        "peak_gpu_memory_mb": _rounded_mb(tracker.peak_gpu_memory_mb),
+        "gpu_memory_method": tracker.gpu_memory_method,
         "stdout_tail": output_lines[-50:],
     }
 
@@ -268,9 +404,11 @@ def main() -> int:
         f"\ndevice={result['device']} photos={result['photo_count']} "
         f"elapsed={result['elapsed_s']}s "
         f"throughput={result['photos_per_sec']} photos/sec "
-        f"peak_rss={result['peak_rss_mb']}MB "
-        f"peak_vram={result['peak_vram_mb']}MB"
+        f"peak_rss={_format_mb(result['peak_rss_mb'])} "
+        f"peak_gpu_memory={_format_mb(result['peak_gpu_memory_mb'])}"
     )
+    print(f"peak_rss_mb measured by: {result['rss_method']}")
+    print(f"peak_gpu_memory_mb measured by: {result['gpu_memory_method']}")
     print(f"Saved: {out_path.relative_to(bench.REPO_ROOT)}")
     return result["returncode"]
 
