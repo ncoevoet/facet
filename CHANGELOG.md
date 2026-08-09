@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.8.1] "Iridescence" — 2026-08-09
+
 ### Changed
 - **The `auto` VRAM profile is sized from unified memory on Apple Silicon** instead of always resolving to `legacy`. There is no CUDA device-properties query for unified memory, so `auto` used to fall to the weakest tier on any Mac — a 128 GB machine included — even though the higher-tier models had just been taught to run on Metal. Thresholds are deliberately conservative, each covering the profile's model weights twice over and leaving 8 GB to macOS, then rounded up to a memory configuration Apple ships: 16 GB reaches `8gb`, 32 GB reaches `16gb`, 48 GB reaches `24gb`, and anything smaller stays `legacy`. An explicitly configured profile remains authoritative, and no fake VRAM figure is fed into the CUDA path. Whether the selected tier actually fits on Metal is unverified — it needs a Mac.
 - **`PUT /api/config/scoring_contexts/{name}` now requires both `promote` and `excluded`**, and answers 404 rather than 400 for an unknown context. A partial body previously applied as a full replacement, so `{"promote": [...]}` silently cleared the exclusions; it is now refused with 422 and the config is left untouched. The shipped client always sent both fields, so no in-tree caller changes.
