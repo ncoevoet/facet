@@ -4,6 +4,38 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.8.0] "Opalescence" — 2026-08-09
+
+### Added
+- **Scoring contexts** (`scoring_contexts` config block, `GET|PUT /api/config/scoring_contexts`, `GET|POST /api/config/category_priorities`): categories are evaluated in ascending `priority` order and the first filter match wins, which meant a dance shot landed in whatever category happened to sit earliest. A **scoring context** is a named delta over that one global order — `{promote, excluded}` — so an album of stage work can put `action_stage` first and drop `fashion` without disturbing how anything else is scored. Six presets ship (`action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`) alongside the empty `default`. The delta is editable from the viewer's **Scoring Context** tab: reorder the promoted head by dragging or with the move buttons, click a category to toggle its exclusion, and the resulting effective order recomputes from the draft as you edit rather than after a rescore. Deliberately a delta and never a standalone per-context ordering, so a category added later takes its place everywhere instead of being invisible to six stored lists. Unknown names, the pinned `default`, and duplicates are refused by name; a category in both lists is accepted, and exclusion wins.
+- **Per-album and per-photo scoring context** (`albums.scoring_context`, `photo_scoring_overrides` table, `PUT|DELETE /api/albums/{id}/scoring_context`, `GET /api/albums/{id}/suggested_context`): a context can be assigned to an album and materialized onto its members, or pinned to a single photo along with an outright category override. Overrides live in a side table rather than a column on `photos`, because the scan writes that table with `INSERT OR REPLACE` and would silently wipe them on the next rescan. `Facet._determine_photo_category` is the single choke point resolving override → context → filters, shared by the scan and `--recompute-average`, and an album's dominant `narrative_moment` can suggest a context without writing anything.
+- **Apple Silicon Metal (MPS) acceleration**: models route through one shared device policy (`utils/device.py`) honouring `FACET_DEVICE`, with a manual adaptive-pooling shim for the composition network, which MPS cannot run natively. See [docs/INSTALLATION.md](docs/INSTALLATION.md).
+- **Folder filter** (`GET /api/folders`, gallery `path_prefix`): a drill-down picker in the gallery sidebar scopes the grid to a folder subtree, round-trips through the URL and can be saved into a smart album. It narrows the photo list only — filter dropdowns, counts, stats, timeline, search and the map stay library-wide, which the docs now state plainly.
+- **Category explainer**: asking why a photo is *not* in a category answers from the same filters the scorer applies, reachable from the lightbox.
+
+### Changed
+- **Docker images are published prebuilt** rather than built locally (x86_64 only).
+- **The ranker retrains only once rating activity has stopped**: crossing the comparison threshold arms an idle timer that each further action pushes back, so training never lands mid-rating-burst where its write would contend with the user's own saves. Scoring and storage stream in committed slices instead of one long write, and the inference scan skips the thumbnail, histogram and caption BLOBs.
+- **The library lock is a kernel file lock** (`fcntl.flock`, `msvcrt.locking` on Windows) rather than a PID-stamped file, and now covers every entry point that rewrites the library: each flag in `LIBRARY_JOB_ARGS`, a scan for its whole run including the post-processing tail, the rewriting `database.py` commands, `validate_db.py --auto-fix`, `tag_existing.py`, and the viewer's in-process auto-retrain. The kernel drops it when the holder dies, so a leftover file can never wedge a later job, and the viewer reports a conflict by name before spawning instead of colliding and dying with `SQLITE_BUSY`. A `--dry-run` scan writes nothing and no longer takes it.
+- `--recompute-average` reports an estimated time remaining.
+
+### Fixed
+- **A stray page could rewrite the whole library** (`fix(api)`), and a cached gallery view could be restored against the wrong filters.
+- **The album scoring-context button was hidden for smart albums** — every album in a real library is smart, so the feature was inert exactly where it was meant to be used, and the test called the handler directly and never noticed.
+- **The category explainer raised `TypeError` for the one category filtering on shutter speed**, which is stored as text for every row — the one question the feature exists to answer was the one it could not.
+- **Reordering the promoted head required a pointer drag** (WCAG 2.2 SC 2.5.7): each row now carries keyboard-operable move buttons beside the drag handle.
+- **Switching scoring context mid-save discarded the newly selected context's draft**, with the success toast naming the wrong context.
+- **The Edition badge outlived its session**, a stale token could lock an open install out, and a client clock running fast locked the user out with no server involvement.
+- **The mobile bottom bar swallowed the selection bar** (#83).
+- A rating write blocked by a database lock is retried within a wall-clock budget rather than stacking four attempts on top of SQLite's own five-second timeout.
+- On Metal, VRAM detection reported zero — no CUDA device — so a machine actively running models on the GPU was treated as having no accelerator and silently dropped the VLM tagger from an explicitly configured profile.
+- A category with no usable name was returned as a photo's category and persisted as NULL.
+
+### Security
+- **A `scoring_config.json` that exists but does not parse no longer opens the install**: the empty config it produced carried no passwords, which read exactly like a deliberately open install and handed edition rights to anonymous callers. Such a config now fails closed; one that is genuinely absent still opens, because an install that was never configured is legitimately open.
+- **Config writes preserve the file's permissions**: every save through the UI replaced a group-readable `scoring_config.json` with an owner-only one, so a CLI running as another user could no longer read it. Writes are also fsynced now, not merely rename-atomic.
+- Dependency advisories closed: Angular i18n XSS and the `HttpTransferCache` cache-key ambiguity (21.2.19), PostCSS `sourceMappingURL` arbitrary file read (8.5.25), and an out-of-bounds heap read in aiohttp's C response parser (3.14.3).
+
 ## [1.7.2] "Éclat" — 2026-07-30
 
 ### Fixed
