@@ -1,12 +1,15 @@
 """Tests for the scan endpoint (api/routers/scan.py)."""
 
+import ast
 import contextlib
+import errno
 import inspect
 import json
 import os
 import signal
 import subprocess
 import sys
+import threading
 from collections import deque
 from datetime import timedelta
 from unittest import mock
@@ -77,6 +80,48 @@ def _run_facet(*argv):
         [sys.executable, _FACET_SCRIPT, *argv],
         capture_output=True, text=True, timeout=120,
     )
+
+
+def _cli_flag_dests():
+    """Every long flag the facet.py parser defines, as its argparse dest.
+
+    Read off the parser's own ``add_argument`` calls rather than copied, so a
+    flag added later turns up here whether or not anyone remembers this file.
+    """
+    with open(_FACET_SCRIPT, encoding="utf-8") as f:
+        tree = ast.parse(f.read())
+    dests = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "add_argument"):
+            continue
+        flags = [a.value for a in node.args
+                 if isinstance(a, ast.Constant) and str(a.value).startswith("--")]
+        if not flags:
+            continue
+        dest = next((kw.value.value for kw in node.keywords if kw.arg == "dest"), None)
+        dests.add(dest or flags[0][2:].replace("-", "_"))
+    return dests
+
+
+def _peek_concurrently(db_path, peekers=16):
+    """What ``peekers`` simultaneous ``library_job_holder`` calls each saw."""
+    from facet import library_job_holder
+
+    seen = []
+    ready = threading.Barrier(peekers)
+
+    def peek():
+        ready.wait()
+        seen.append(library_job_holder(db_path))
+
+    threads = [threading.Thread(target=peek) for _ in range(peekers)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return seen
 
 
 def _viewer_config_with_scan(enabled=True):
@@ -759,6 +804,133 @@ class TestLibraryLock:
         finally:
             first.release()
 
+    def test_release_leaves_no_identity_behind(self, tmp_path):
+        """A finished job's payload is what a losing probe would read as a live
+        holder, so ``release`` empties the file before unlocking it."""
+        from facet import LibraryLock, _library_lock_path
+
+        db_path = str(tmp_path / "photos.db")
+        LibraryLock(db_path, kind="recompute").acquire().release()
+
+        assert os.path.getsize(_library_lock_path(db_path)) == 0
+
+    def test_concurrent_peeks_never_manufacture_a_holder(self, tmp_path):
+        """Peeking used to take the *exclusive* lock, so two overlapping peeks
+        made one of them fail and read the finished job's leftover payload --
+        a spurious 409 / ``running: true`` in the viewer. Probing shared (and
+        against an emptied file) makes peeks invisible to each other."""
+        from facet import LibraryLock
+
+        db_path = str(tmp_path / "photos.db")
+        LibraryLock(db_path, kind="recompute").acquire().release()
+
+        assert [holder for holder in _peek_concurrently(db_path) if holder is not None] == []
+
+    def test_concurrent_peeks_all_still_see_a_live_holder(self, tmp_path):
+        """The counter-check: a probe that never reports anything would pass
+        the test above and let two jobs rewrite the library at once."""
+        from facet import LibraryLock
+
+        db_path = str(tmp_path / "photos.db")
+        lock = LibraryLock(db_path, kind="scan")
+        lock.acquire()
+        try:
+            seen = _peek_concurrently(db_path)
+        finally:
+            lock.release()
+
+        assert [holder for holder in seen if holder is None] == []
+        assert {holder["pid"] for holder in seen} == {os.getpid()}
+
+    def test_a_full_disk_while_describing_the_holder_is_a_clear_error(self, tmp_path, monkeypatch):
+        """ENOSPC/EDQUOT on the payload write used to escape as the raw OSError
+        traceback the lock was meant to replace."""
+        import facet
+
+        db_path = str(tmp_path / "photos.db")
+        monkeypatch.setattr(
+            facet.LibraryLock, "_write_payload",
+            mock.Mock(side_effect=OSError(errno.ENOSPC, "No space left on device")),
+        )
+        lock = facet.LibraryLock(db_path, kind="recompute")
+        try:
+            with pytest.raises(facet.LibraryLockError) as exc_info:
+                lock.acquire()
+            message = str(exc_info.value)
+            assert facet._library_lock_path(db_path) in message
+            assert facet.LIBRARY_LOCK_OVERRIDE_FLAG in message
+        finally:
+            lock.release()
+
+    def test_a_failed_payload_write_keeps_the_lock_itself(self, tmp_path, monkeypatch):
+        """The payload is descriptive only -- the OS lock is the mutex, and it
+        is already held by then, so losing it over the description would let a
+        second job in."""
+        import facet
+
+        db_path = str(tmp_path / "photos.db")
+        monkeypatch.setattr(
+            facet.LibraryLock, "_write_payload",
+            mock.Mock(side_effect=OSError(errno.EDQUOT, "Disk quota exceeded")),
+        )
+        lock = facet.LibraryLock(db_path, kind="recompute", force=True)
+        lock.acquire()
+        try:
+            assert facet.library_job_holder(db_path) is not None
+        finally:
+            lock.release()
+
+        assert facet.library_job_holder(db_path) is None
+
+    def test_windows_selects_a_real_lock_backend(self, monkeypatch):
+        """Without an msvcrt branch the lock is a no-op on Windows: every
+        acquire succeeds and every peek reports the library free."""
+        import facet
+
+        monkeypatch.setattr(facet, "fcntl", None)
+        monkeypatch.setattr(facet, "msvcrt", mock.Mock(LK_NBLCK=1, LK_UNLCK=0))
+
+        assert facet._select_os_lock_backend() is facet._MsvcrtBackend
+
+    def test_the_windows_backend_locks_a_byte_past_the_payload(self, tmp_path, monkeypatch):
+        """A Windows range lock is mandatory, not advisory: locking byte 0
+        would make the holder's own JSON unreadable to the peek that has to
+        name it."""
+        import facet
+
+        locked = []
+        fake_msvcrt = mock.Mock(LK_NBLCK=1, LK_UNLCK=0)
+        fake_msvcrt.locking.side_effect = lambda fd, mode, nbytes: locked.append(
+            (os.lseek(fd, 0, os.SEEK_CUR), mode, nbytes))
+        monkeypatch.setattr(facet, "msvcrt", fake_msvcrt)
+        fd = os.open(str(tmp_path / "library.lock"), os.O_CREAT | os.O_RDWR, 0o644)
+        try:
+            facet._MsvcrtBackend.take_exclusive(fd)
+            facet._MsvcrtBackend.unlock(fd)
+            position_after = os.lseek(fd, 0, os.SEEK_CUR)
+        finally:
+            os.close(fd)
+
+        assert locked == [
+            (facet.LIBRARY_LOCK_WINDOWS_OFFSET, fake_msvcrt.LK_NBLCK, facet.LIBRARY_LOCK_WINDOWS_BYTES),
+            (facet.LIBRARY_LOCK_WINDOWS_OFFSET, fake_msvcrt.LK_UNLCK, facet.LIBRARY_LOCK_WINDOWS_BYTES),
+        ]
+        assert position_after == 0
+
+    def test_a_platform_without_any_file_locking_runs_unguarded(self, tmp_path, monkeypatch, caplog):
+        """The only remaining warn-and-continue case, and it must say so."""
+        import facet
+
+        monkeypatch.setattr(facet, "fcntl", None)
+        monkeypatch.setattr(facet, "msvcrt", None)
+        monkeypatch.setattr(facet, "_OS_LOCK", facet._select_os_lock_backend())
+        db_path = str(tmp_path / "photos.db")
+        with caplog.at_level("WARNING"):
+            facet.LibraryLock(db_path, kind="scan").acquire().release()
+
+        assert "unguarded" in caplog.text
+        assert facet.library_job_holder(db_path) is None
+
     def test_concurrent_acquires_never_produce_two_holders(self, tmp_path):
         """Four processes hammering the same lock: each one that acquires
         creates an O_EXCL marker, so any overlap is counted, not inferred."""
@@ -1090,6 +1262,28 @@ class TestScanHoldsTheLibraryLock:
         assert seen['holder']["pid"] == os.getpid()
         assert facet.library_job_holder(db_path) is None
 
+    def test_a_dry_run_scan_does_not_take_the_lock(self, tmp_path, monkeypatch):
+        """A --dry-run preview scores a sample and saves nothing, so taking the
+        exclusive lock only refused the preview while any job ran, and blocked
+        a legitimate recompute for as long as the preview took."""
+        import facet
+
+        db_path = str(tmp_path / "photos.db")
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+        seen = {}
+
+        def fake_run_scan(args, resumed_run):
+            seen['holder'] = facet.library_job_holder(db_path)
+
+        monkeypatch.setattr(facet, "_run_scan", fake_run_scan)
+        monkeypatch.setattr(sys, "argv",
+                            ["facet.py", str(photos_dir), "--db", db_path, "--dry-run"])
+
+        facet.main()
+
+        assert seen['holder'] is None
+
     def test_a_recompute_started_mid_scan_is_refused(self, tmp_path, monkeypatch):
         """The collision the lock exists to stop, end to end: a real
         ``--recompute-average`` process launched while the scan body runs."""
@@ -1156,9 +1350,75 @@ class TestScanHoldsTheLibraryLock:
         assert "lock.release()" in main_source
 
 
+_LOCK_EXEMPT_WRITERS = {
+    "upgrade_db": "runs the locked jobs as subprocesses; holding the lock in the parent "
+                  "would deadlock every one of them",
+    "watch": "a supervisor that spawns scans; the scan it spawns takes the lock, and the "
+             "daemon itself must not hold it for days",
+}
+
+_JOB_MODIFIERS = frozenset({
+    "apply_recommendations", "config", "db", "discover_min_cluster_size", "dry_run",
+    "dry_run_count", "embed_originals", "force", "force_library_lock", "force_low_space",
+    "force_since", "limit", "merge_threshold", "optimize_category", "optimize_force",
+    "optimize_sources", "ranker_category", "resume", "retry_failed", "score_to_stars",
+    "simulate", "simulate_gpu", "simulate_vram", "single_pass", "single_pass_name",
+    "train_keeper_force", "train_ranker_force", "user", "verbose", "watch_debounce",
+})
+
+_READ_ONLY_LIBRARY_COMMANDS = frozenset({
+    "auto_tune_categories", "comparison_stats", "doctor", "eval_iqa_srcc", "export_csv",
+    "export_json", "immich_sync", "immich_test", "list_models", "mine_insights",
+    "report_unreviewed_bursts", "suggest_person_merges", "sweep_dedup_thresholds",
+    "validate_categories",
+})
+
+_NON_LIBRARY_WRITERS = frozenset({
+    "compute_recommendations", "discover_moments", "export_sidecars", "optimize_weights",
+})
+
+
 class TestLibraryJobCoverage:
     """Which entry points participate in the lock, and which deliberately
     do not."""
+
+    def test_every_cli_flag_is_classified_for_the_library_lock(self):
+        """The inverse direction of the test below: a flag whose handler
+        rewrites the library must be in ``LIBRARY_JOB_ARGS``, or the class
+        invariant ("every library-rewriting entry point of this module holds
+        this lock") is quietly false. Nothing can decide that automatically,
+        so every flag the parser defines is classified here instead -- a new
+        one fails this test until someone says which bucket it belongs in.
+        ``LIBRARY_JOB_ARGS`` may be a superset: locking a job that only writes
+        ``comparisons`` or ``stats_cache`` costs a conflict message, while
+        missing a real writer costs a SQLITE_BUSY crash."""
+        from facet import LIBRARY_JOB_ARGS
+
+        classified = (set(LIBRARY_JOB_ARGS) | set(_LOCK_EXEMPT_WRITERS) | _JOB_MODIFIERS
+                      | _READ_ONLY_LIBRARY_COMMANDS | _NON_LIBRARY_WRITERS)
+
+        assert sorted(_cli_flag_dests() - classified) == []
+
+    def test_the_lock_classification_names_no_dead_flags(self):
+        """A rename that leaves a stale name behind would silently un-classify
+        the renamed flag while this file still looked complete."""
+        from facet import LIBRARY_JOB_ARGS
+
+        classified = (set(LIBRARY_JOB_ARGS) | set(_LOCK_EXEMPT_WRITERS) | _JOB_MODIFIERS
+                      | _READ_ONLY_LIBRARY_COMMANDS | _NON_LIBRARY_WRITERS)
+
+        assert sorted(classified - _cli_flag_dests()) == []
+
+    def test_the_trainers_and_the_label_sync_take_the_lock(self):
+        """``--train-ranker`` mirrors the learned scores into
+        ``photos.learned_score`` (``optimization/personal_ranker.py``), so it
+        is a whole-library rewriter that used to run unguarded;
+        ``--train-keeper`` and ``--sync-label-comparisons`` are the long DB
+        writers it runs alongside."""
+        from facet import LIBRARY_JOB_ARGS
+
+        for name in ("train_ranker", "train_keeper", "sync_label_comparisons"):
+            assert name in LIBRARY_JOB_ARGS, name
 
     def test_every_library_job_arg_is_a_real_cli_flag(self):
         from facet import LIBRARY_JOB_ARGS

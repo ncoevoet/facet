@@ -53,6 +53,8 @@ def main():
         logger.info("=" * 60)
 
         if args.auto_fix:
+            from facet import LIBRARY_JOB_REPAIR, hold_library_lock_or_exit
+            hold_library_lock_or_exit(args.db, LIBRARY_JOB_REPAIR)
             logger.info("Auto-fixing all issues...")
             with get_connection(args.db, row_factory=False) as conn:
                 for result in fixable_results:

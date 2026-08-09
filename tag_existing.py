@@ -141,6 +141,10 @@ def main():
     parser.add_argument('--force', action='store_true', help='Re-tag all photos, not just untagged ones')
     args = parser.parse_args()
 
+    if not args.dry_run:
+        from facet import LIBRARY_JOB_TAGGING, hold_library_lock_or_exit
+        hold_library_lock_or_exit(args.db, LIBRARY_JOB_TAGGING)
+
     # Load config
     from config import ScoringConfig
     config = ScoringConfig(args.config)

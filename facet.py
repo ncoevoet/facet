@@ -8,6 +8,7 @@ import atexit
 import os
 import signal
 import sys
+import threading
 import time
 
 # Suppress noisy third-party library output
@@ -565,16 +566,27 @@ try:
 except ImportError:
     fcntl = None
 
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
+
 LIBRARY_LOCK_DIRNAME = '.facet_cache'
 LIBRARY_LOCK_FILENAME = 'library.lock'
 LIBRARY_LOCK_FILE_MODE = 0o644
 LIBRARY_LOCK_READ_BYTES = 4096
+LIBRARY_LOCK_WINDOWS_OFFSET = LIBRARY_LOCK_READ_BYTES
+LIBRARY_LOCK_WINDOWS_BYTES = 1
 LIBRARY_LOCK_RETRY_ATTEMPTS = 3
 LIBRARY_LOCK_RETRY_SECONDS = 0.05
 LIBRARY_LOCK_OVERRIDE_FLAG = '--force-library-lock'
 JOB_ORIGIN_ENV_VAR = 'FACET_JOB_ORIGIN'
 LIBRARY_JOB_SCAN = 'scan'
 LIBRARY_JOB_RECOMPUTE = 'recompute'
+LIBRARY_JOB_RETRAIN = 'retrain'
+LIBRARY_JOB_MAINTENANCE = 'maintenance'
+LIBRARY_JOB_TAGGING = 'tagging'
+LIBRARY_JOB_REPAIR = 'repair'
 UNKNOWN_LIBRARY_JOB = {'pid': None, 'kind': 'library job', 'origin': 'unknown'}
 DEFAULT_SCAN_STALE_SECONDS = 120
 
@@ -616,12 +628,84 @@ LIBRARY_JOB_ARGS = (
     'refill_face_thumbnails_incremental',
     'rescan_gps',
     'score_topiq',
+    'sync_label_comparisons',
+    'train_keeper',
+    'train_ranker',
     'translate_captions',
 )
 
 
 class LibraryLockError(RuntimeError):
     """Raised when the library lock is held elsewhere, or cannot be used."""
+
+
+class _FlockBackend:
+    """POSIX advisory whole-file locks (``fcntl.flock``).
+
+    The shared mode is what makes a peek harmless: it still conflicts with a
+    holder's exclusive lock, so it answers "is anyone holding this?", but two
+    concurrent peeks never exclude each other.
+    """
+
+    peek_open_flags = os.O_RDONLY
+
+    @staticmethod
+    def take_exclusive(fd):
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    @staticmethod
+    def take_shared(fd):
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+
+    @staticmethod
+    def unlock(fd):
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+
+class _MsvcrtBackend:
+    """Windows byte-range locks (``msvcrt.locking``), which have no shared mode.
+
+    A peek therefore probes with the same exclusive lock and drops it again;
+    two peeks can still collide, but neither can report a finished job because
+    ``release`` empties the payload first. The locked byte sits past the
+    payload so a Windows range lock -- mandatory, unlike POSIX advisory locks
+    -- never blocks reading the holder's JSON.
+    """
+
+    peek_open_flags = os.O_RDWR
+
+    @staticmethod
+    def _lock_reserved_byte(fd, mode):
+        position = os.lseek(fd, 0, os.SEEK_CUR)
+        os.lseek(fd, LIBRARY_LOCK_WINDOWS_OFFSET, os.SEEK_SET)
+        try:
+            msvcrt.locking(fd, mode, LIBRARY_LOCK_WINDOWS_BYTES)
+        finally:
+            os.lseek(fd, position, os.SEEK_SET)
+
+    @staticmethod
+    def take_exclusive(fd):
+        _MsvcrtBackend._lock_reserved_byte(fd, msvcrt.LK_NBLCK)
+
+    @staticmethod
+    def take_shared(fd):
+        _MsvcrtBackend._lock_reserved_byte(fd, msvcrt.LK_NBLCK)
+
+    @staticmethod
+    def unlock(fd):
+        _MsvcrtBackend._lock_reserved_byte(fd, msvcrt.LK_UNLCK)
+
+
+def _select_os_lock_backend():
+    """The one place that decides how this platform locks a file."""
+    if fcntl is not None:
+        return _FlockBackend
+    if msvcrt is not None:
+        return _MsvcrtBackend
+    return None
+
+
+_OS_LOCK = _select_os_lock_backend()
 
 
 def _library_lock_path(db_path):
@@ -632,18 +716,28 @@ def _library_lock_path(db_path):
 def _take_os_lock(fd, attempts=1):
     """True when this open file description now owns the exclusive OS lock.
 
-    A job retries: ``_read_holder`` also grabs the lock for the microseconds
-    it takes to read the payload, and a real conflict lasts minutes, so one
-    unlucky overlap with a viewer poll must not refuse a job outright.
+    A job retries: a peek's probe holds the file for the microseconds it takes
+    to read the payload, and a real conflict lasts minutes, so one unlucky
+    overlap with a viewer poll must not refuse a job outright.
     """
     for attempt in range(attempts):
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _OS_LOCK.take_exclusive(fd)
             return True
         except OSError:
             if attempt + 1 < attempts:
                 time.sleep(LIBRARY_LOCK_RETRY_SECONDS)
     return False
+
+
+def _lock_is_free(fd):
+    """True when no job holds the lock, probed without taking it away."""
+    try:
+        _OS_LOCK.take_shared(fd)
+    except OSError:
+        return False
+    _OS_LOCK.unlock(fd)
+    return True
 
 
 def _decode_holder(raw):
@@ -654,15 +748,20 @@ def _decode_holder(raw):
 
 
 def _read_holder(lock_path):
-    """Payload of the process holding *lock_path*, or None when it is free."""
-    if fcntl is None:
+    """Payload of the process holding *lock_path*, or None when it is free.
+
+    The probe is read-only and, where the platform has a shared mode, taken
+    in it: two overlapping peeks that excluded each other would make one of
+    them read a finished job's leftover payload as a live holder.
+    """
+    if _OS_LOCK is None:
         return None
     try:
-        fd = os.open(lock_path, os.O_RDONLY)
+        fd = os.open(lock_path, _OS_LOCK.peek_open_flags)
     except OSError:
         return None
     try:
-        if _take_os_lock(fd):
+        if _lock_is_free(fd):
             return None
         return _decode_holder(os.read(fd, LIBRARY_LOCK_READ_BYTES))
     finally:
@@ -696,11 +795,12 @@ class LibraryLock:
     ``--recompute-average`` batches ~126k UPDATEs into one long transaction
     (``processing/scorer.py: update_all_aggregates``); a second writer that
     lands mid-transaction blocks for ``busy_timeout`` and then dies with
-    ``sqlite3.OperationalError``. Every library-rewriting entry point holds
-    this lock -- the scan for its whole run, post-processing tail included --
-    so the two can never overlap.
+    ``sqlite3.OperationalError``. Every library-rewriting entry point of this
+    module holds this lock -- the scan for its whole run, post-processing tail
+    included -- so the two can never overlap.
 
-    The mutex is the kernel's ``flock`` on
+    The mutex is the OS file lock (``fcntl.flock``, ``msvcrt.locking`` on
+    Windows -- see ``_select_os_lock_backend``) on
     ``<db_dir>/.facet_cache/library.lock`` (the cache-dir convention from
     ``api/routers/cull_preview.py``), NOT the file's existence: the OS drops
     the lock when the holder dies or the machine reboots, so a leftover file
@@ -727,27 +827,51 @@ class LibraryLock:
         return self
 
     def _acquire(self):
-        if fcntl is None:
+        if _OS_LOCK is None:
             logger.warning(
-                "No OS file locking on this platform (fcntl unavailable); "
+                "No OS file locking on this platform (neither fcntl nor msvcrt); "
                 "library jobs run unguarded.")
             return
         try:
-            os.makedirs(os.path.dirname(self.lock_path), exist_ok=True)
-            fd = os.open(self.lock_path, os.O_CREAT | os.O_RDWR, LIBRARY_LOCK_FILE_MODE)
+            self._open_and_hold()
         except OSError as ex:
             raise LibraryLockError(
                 f"Cannot use the library lock file {self.lock_path}: {ex}. Fix that path, "
                 f"or re-run with {LIBRARY_LOCK_OVERRIDE_FLAG} to run unguarded."
             ) from ex
+
+    def _open_and_hold(self):
+        """Create the file, take the OS lock, then describe the holder.
+
+        Cleanup is armed before the payload is written, so a full disk
+        (ENOSPC/EDQUOT) surfaces as the same clear ``LibraryLockError`` as an
+        unusable path instead of a raw traceback -- and the lock itself, which
+        is already held and is the actual mutex, is kept rather than dropped
+        for the sake of its descriptive JSON.
+        """
+        os.makedirs(os.path.dirname(self.lock_path), exist_ok=True)
+        fd = os.open(self.lock_path, os.O_CREAT | os.O_RDWR, LIBRARY_LOCK_FILE_MODE)
         if not _take_os_lock(fd, attempts=LIBRARY_LOCK_RETRY_ATTEMPTS):
             holder = _decode_holder(os.read(fd, LIBRARY_LOCK_READ_BYTES))
             os.close(fd)
             raise LibraryLockError(library_job_conflict_message(holder, self.lock_path))
         self._fd = fd
-        self._write_payload()
-        self._prev_sigterm_handler = signal.signal(signal.SIGTERM, signal.default_int_handler)
+        self._install_sigterm_cleanup()
         atexit.register(self.release)
+        self._write_payload()
+
+    def _install_sigterm_cleanup(self):
+        """Turn SIGTERM into an unwind that releases, when we may install it.
+
+        Python only allows a handler in the main thread of the main
+        interpreter, and the viewer's auto-retrain takes this lock on a daemon
+        thread. There, the process already owns its own SIGTERM disposition and
+        the kernel drops the lock with the process anyway, so skipping is
+        correct rather than a degraded fallback.
+        """
+        if threading.current_thread() is not threading.main_thread():
+            return
+        self._prev_sigterm_handler = signal.signal(signal.SIGTERM, signal.default_int_handler)
 
     def _write_payload(self):
         os.ftruncate(self._fd, 0)
@@ -758,13 +882,22 @@ class LibraryLock:
         }).encode())
 
     def release(self):
+        """Empty the payload, then drop the OS lock.
+
+        Truncating before the unlock is what stops a peek that loses a probe
+        race from reading this finished job's identity and reporting it as
+        still running.
+        """
         if self._fd is None:
             return
         atexit.unregister(self.release)
-        signal.signal(signal.SIGTERM, self._prev_sigterm_handler)
+        if self._prev_sigterm_handler is not None:
+            signal.signal(signal.SIGTERM, self._prev_sigterm_handler)
+            self._prev_sigterm_handler = None
         fd, self._fd = self._fd, None
         try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.ftruncate(fd, 0)
+            _OS_LOCK.unlock(fd)
         finally:
             os.close(fd)
 
@@ -786,9 +919,34 @@ def _acquire_library_lock(args, kind):
         exit(1)
 
 
+def hold_library_lock_or_exit(db_path, kind):
+    """Take the library mutex for a job in a sibling CLI, or exit(1) with the reason.
+
+    ``database.py``, ``validate_db.py`` and ``tag_existing.py`` rewrite the same
+    ``photos`` table this module's jobs do, so they contend for SQLite's single
+    writer in exactly the same way and belong under the same mutex. They are
+    short-lived, so the lock's own atexit hook is what releases it.
+    """
+    try:
+        return LibraryLock(db_path, kind=kind).acquire()
+    except LibraryLockError as ex:
+        logger.error("%s", ex)
+        sys.exit(1)
+
+
 def _library_job_requested(args):
     """True when the parsed args select a job that rewrites the library."""
     return any(getattr(args, name) for name in LIBRARY_JOB_ARGS)
+
+
+def _scan_writes_to_library(args):
+    """False for a ``--dry-run`` preview, which saves nothing to the database.
+
+    Taking the exclusive lock for it would refuse the preview whenever any job
+    is running, and block a legitimate recompute for as long as the preview
+    takes -- for a read-only sample of a handful of photos.
+    """
+    return not args.dry_run
 
 
 def _run_scan(args, resumed_run):
@@ -802,7 +960,9 @@ def _run_scan(args, resumed_run):
     writers racing a ``--recompute-average``.
 
     ``main`` takes the lock before calling this, ahead of any directory
-    enumeration, so a conflict costs nothing on a large library.
+    enumeration, so a conflict costs nothing on a large library -- except for
+    a ``--dry-run`` preview, which saves nothing and is run without it (see
+    ``_scan_writes_to_library``).
     """
     from processing.scorer import Facet, process_bursts, process_single_photo
 
@@ -3062,11 +3222,12 @@ Configuration:
         )
         exit()
 
-    lock = _acquire_library_lock(args, LIBRARY_JOB_SCAN)
+    lock = _acquire_library_lock(args, LIBRARY_JOB_SCAN) if _scan_writes_to_library(args) else None
     try:
         _run_scan(args, resumed_run)
     finally:
-        lock.release()
+        if lock is not None:
+            lock.release()
 
 
 if __name__ == '__main__':

@@ -148,6 +148,34 @@ def migrate_user_preferences(username, db_path=DEFAULT_DB_PATH):
 
     logger.info("Done. %d preference(s) migrated for '%s'.", migrated, username)
 
+LIBRARY_REWRITING_ARGS = (
+    'analyze',
+    'cleanup_missing_photos',
+    'cleanup_orphaned_persons',
+    'migrate_storage_db',
+    'migrate_storage_fs',
+    'migrate_tags',
+    'optimize',
+    'populate_vec',
+    'rebuild_fts',
+    'vacuum',
+)
+
+
+def _hold_library_lock(args):
+    """Take the library mutex when the selected command rewrites the database.
+
+    VACUUM takes SQLite's exclusive lock and the migrations rewrite whole
+    columns of ``photos``, so any of these landing inside a scan or a
+    ``--recompute-average`` transaction dies with ``database is locked``.
+    A ``--dry-run`` inspection writes nothing and stays unguarded.
+    """
+    if args.dry_run or not any(getattr(args, name, False) for name in LIBRARY_REWRITING_ARGS):
+        return None
+    from facet import LIBRARY_JOB_MAINTENANCE, hold_library_lock_or_exit
+    return hold_library_lock_or_exit(args.db, LIBRARY_JOB_MAINTENANCE)
+
+
 def main():
     import argparse
 
@@ -291,6 +319,8 @@ def main():
 
     if args.dry_run and not args.cleanup_missing_photos:
         parser.error("--dry-run can only be used with --cleanup-missing-photos")
+
+    _hold_library_lock(args)
 
     if args.stats_info:
         # Show stats cache status

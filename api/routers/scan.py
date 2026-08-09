@@ -131,7 +131,15 @@ def start_scan(
     body: ScanStartRequest,
     user: CurrentUser = Depends(require_superadmin),
 ):
-    """Trigger a photo scan as a background subprocess."""
+    """Spawn a photo scan as a background subprocess.
+
+    The conflict check below and the child's own ``LibraryLock`` acquire are
+    seconds apart, so a job that starts between them makes the child exit
+    before it scores anything. That fails safe -- the child refuses rather
+    than corrupting a concurrent run -- so what is reported here is only what
+    this process can vouch for: the subprocess was spawned. Whether it went on
+    to hold the lock and run is what ``GET /api/scan/status`` reports.
+    """
     if not VIEWER_CONFIG.get('features', {}).get('show_scan_button', False):
         raise HTTPException(status_code=403, detail="Scan feature not enabled")
 
@@ -188,7 +196,7 @@ def start_scan(
         _scan_lock.release()
         return {
             'success': True,
-            'message': 'Scan started',
+            'message': 'Scan spawned; poll /api/scan/status to see it run',
             'directories': directories,
             'pid': proc.pid,
         }
@@ -340,7 +348,7 @@ def start_recompute(
     body: RecomputeRequest,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Trigger a full-library aggregate recompute as a background subprocess.
+    """Spawn a full-library aggregate recompute as a background subprocess.
 
     Reuses the scan job machinery (``_scan_lock``, ``_scan_state``,
     ``_read_scan_output``) so a scan and a recompute stay mutually exclusive
@@ -351,6 +359,12 @@ def start_recompute(
     ``_cross_process_job_env`` so the conflict message names where it came
     from. The argv is fixed and entirely server-origin, so unlike ``/start``
     it is edition-gated rather than superadmin-only.
+
+    That conflict check and the child's acquire are seconds apart, so a job
+    starting in between makes the child refuse and exit. The check therefore
+    buys a clean 409 for the common case, not a guarantee, and the response
+    claims only what this process can vouch for: the subprocess was spawned.
+    ``GET /api/scan/recompute_status`` is what says whether it is running.
 
     ``confirm`` is required rather than decorative: a body-less POST is a CORS
     "simple request" and never preflights, so any page the user happens to open
@@ -397,7 +411,7 @@ def start_recompute(
 
         return {
             'success': True,
-            'message': 'Recompute started',
+            'message': 'Recompute spawned; poll /api/scan/recompute_status to see it run',
             'pid': proc.pid,
         }
 
