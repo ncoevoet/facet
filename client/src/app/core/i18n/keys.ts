@@ -1469,6 +1469,8 @@ export const I18N = {
       excluded_description: "comparison.context.excluded_description",
       add_promotion: "comparison.context.add_promotion",
       remove_promotion: "comparison.context.remove_promotion",
+      move_up: "comparison.context.move_up",
+      move_down: "comparison.context.move_down",
       context_saved: "comparison.context.context_saved",
       error_saving_context: "comparison.context.error_saving_context",
       effective_order_title: "comparison.context.effective_order_title",
@@ -2015,6 +2017,9 @@ export const I18N = {
     photos_count: "folders.photos_count",
     find_folder: "folders.find_folder",
     filter_gallery: "folders.filter_gallery",
+    load_error: {
+      message: "folders.load_error.message",
+    },
   },
   albums_sharing: {
     share: "albums_sharing.share",

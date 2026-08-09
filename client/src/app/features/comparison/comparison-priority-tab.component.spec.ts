@@ -2,7 +2,7 @@ import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -441,6 +441,19 @@ describe('ComparisonPriorityTabComponent', () => {
       component.toggleExcluded('macro');
       mockAuth.isEdition.set(false);
       expect(component.contextSaveDisabled()).toBe(true);
+    });
+
+    // Second guard behind the disabled picker (the DOM can no longer reach this state):
+    // the post-save reload re-seeds the draft ONLY for the context that was saved, so a
+    // selection that moved on keeps its own unsaved edits.
+    it('a reload scoped to the saved context leaves another context\'s unsaved draft alone', async () => {
+      component.selectContext('wildlife');
+      component.toggleExcluded('macro');
+
+      await component.loadContexts('action_stage');
+
+      expect(component.draftExcluded()).toEqual(['macro']);
+      expect(component.hasContextChanges()).toBe(true);
     });
   });
 
@@ -1024,5 +1037,253 @@ describe('ComparisonPriorityTabComponent — rendering (D2/D6)', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('min');
+  });
+});
+
+// Every delta edit below is driven by a real click on the rendered control, never by
+// calling the handler: a handler-level test proves the code path, not that a user can
+// reach it -- this codebase has already shipped a regression where the handler worked
+// and the control it stood for was unreachable.
+describe('ComparisonPriorityTabComponent — delta editing driven from the DOM', () => {
+  let fixture: ComponentFixture<ComparisonPriorityTabComponent>;
+  let component: ComparisonPriorityTabComponent;
+  let api: { get: Mock; post: Mock; put: Mock };
+
+  const DOM_CATEGORIES = [
+    { name: 'concert', priority: 15, filters: {} },
+    { name: 'silhouette', priority: 42, filters: {} },
+    { name: 'candid', priority: 47, filters: {} },
+    { name: 'macro', priority: 55, filters: {} },
+    { name: 'wildlife', priority: 65, filters: {} },
+    { name: 'sports', priority: 71, filters: {} },
+    { name: 'default', priority: 999, filters: {} },
+  ];
+
+  const DOM_CONTEXTS = {
+    contexts: [
+      { name: 'default', label_key: 'comparison.context.default', promote: [], excluded: [], suggest_from_moments: [], effective_order: [] },
+      {
+        name: 'action_stage', label_key: 'comparison.context.action_stage',
+        promote: ['sports', 'concert', 'candid'], excluded: ['silhouette'],
+        suggest_from_moments: [], effective_order: [],
+      },
+      {
+        name: 'wildlife', label_key: 'comparison.context.wildlife',
+        promote: ['wildlife'], excluded: [],
+        suggest_from_moments: [], effective_order: [],
+      },
+    ],
+  };
+
+  function buttons(root: ParentNode = fixture.nativeElement): HTMLButtonElement[] {
+    return Array.from(root.querySelectorAll('button'));
+  }
+
+  function byAriaLabel(label: string): HTMLButtonElement | undefined {
+    return buttons().find(b => b.getAttribute('aria-label') === label);
+  }
+
+  /** Promoted-head rows and the "add to promoted" / exclusion chips all render the same
+   *  `category_names.<name>` text; the chips are told apart by `aria-pressed`, which only
+   *  the exclusion toggles carry. */
+  function chip(kind: 'promote' | 'exclude', name: string): HTMLButtonElement | undefined {
+    return buttons().find(b =>
+      (b.textContent ?? '').trim() === `category_names.${name}`
+      && b.hasAttribute('aria-pressed') === (kind === 'exclude'));
+  }
+
+  function promotedRows(): HTMLElement[] {
+    return Array.from(fixture.nativeElement.querySelectorAll('[cdkdrag]')) as HTMLElement[];
+  }
+
+  function rowButton(rowIndex: number, ariaLabel: string): HTMLButtonElement | undefined {
+    return buttons(promotedRows()[rowIndex]).find(b => b.getAttribute('aria-label') === ariaLabel);
+  }
+
+  function selectTrigger(): HTMLElement {
+    return fixture.nativeElement.querySelector('mat-select') as HTMLElement;
+  }
+
+  function openOptions(): HTMLElement[] {
+    (selectTrigger().querySelector('.mat-mdc-select-trigger') as HTMLElement).click();
+    fixture.detectChanges();
+    return Array.from(document.querySelectorAll('.mat-mdc-select-panel mat-option')) as HTMLElement[];
+  }
+
+  async function pickContextFromDom(name: string): Promise<void> {
+    const option = openOptions().find(o => (o.textContent ?? '').trim() === name);
+    if (!option) throw new Error(`context option "${name}" is not in the rendered picker`);
+    option.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  async function render(): Promise<void> {
+    TestBed.resetTestingModule();
+    api = {
+      get: vi.fn((url: string) => {
+        if (url === '/config/scoring_contexts') return of(DOM_CONTEXTS);
+        if (url === '/config/category_priorities') return of({ categories: DOM_CATEGORIES });
+        if (url === '/stats/categories/overlap') return of({ overlaps: [], per_category: [], uncategorized: 0, total: 0 });
+        return of({});
+      }),
+      post: vi.fn(() => of({ success: true })),
+      put: vi.fn(() => of({ success: true })),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ApiService, useValue: api },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}) } },
+        { provide: AuthService, useValue: { isEdition: signal(true) } },
+      ],
+    });
+    fixture = TestBed.createComponent(ComparisonPriorityTabComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await pickContextFromDom('action_stage');
+  }
+
+  afterEach(() => {
+    document.querySelectorAll('.cdk-overlay-container').forEach(el => el.remove());
+  });
+
+  it('seeds the promoted rows of the context picked from the rendered dropdown', async () => {
+    await render();
+
+    expect(component.selectedContext()).toBe('action_stage');
+    expect(promotedRows().map(r => r.textContent?.trim())).toHaveLength(3);
+    expect(component.draftPromote()).toEqual(['sports', 'concert', 'candid']);
+  });
+
+  it('a click on an "add to promoted" chip appends that category and renders a new row', async () => {
+    await render();
+
+    chip('promote', 'wildlife')!.click();
+    fixture.detectChanges();
+
+    expect(component.draftPromote()).toEqual(['sports', 'concert', 'candid', 'wildlife']);
+    expect(promotedRows()).toHaveLength(4);
+    expect(chip('promote', 'wildlife')).toBeUndefined();
+  });
+
+  it('a click on a promoted row\'s remove button drops that category', async () => {
+    await render();
+
+    rowButton(1, I18N.comparison.context.remove_promotion)!.click();
+    fixture.detectChanges();
+
+    expect(component.draftPromote()).toEqual(['sports', 'candid']);
+    expect(promotedRows()).toHaveLength(2);
+  });
+
+  it('a click on an exclusion chip toggles it in, and a second click toggles it back out', async () => {
+    await render();
+
+    chip('exclude', 'macro')!.click();
+    fixture.detectChanges();
+
+    expect(component.draftExcluded()).toEqual(['silhouette', 'macro']);
+    expect(chip('exclude', 'macro')!.getAttribute('aria-pressed')).toBe('true');
+
+    chip('exclude', 'macro')!.click();
+    fixture.detectChanges();
+
+    expect(component.draftExcluded()).toEqual(['silhouette']);
+    expect(chip('exclude', 'macro')!.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('a click on Save PUTs the edited delta for the selected context', async () => {
+    await render();
+    chip('promote', 'wildlife')!.click();
+    chip('exclude', 'macro')!.click();
+    fixture.detectChanges();
+
+    byAriaLabel(I18N.comparison.save)!.click();
+    await fixture.whenStable();
+
+    expect(api.put).toHaveBeenCalledWith('/config/scoring_contexts/action_stage', {
+      promote: ['sports', 'concert', 'candid', 'wildlife'],
+      excluded: ['silhouette', 'macro'],
+    });
+  });
+
+  it('a click on Reset discards the pending edits and re-renders the saved delta', async () => {
+    await render();
+    chip('promote', 'wildlife')!.click();
+    chip('exclude', 'macro')!.click();
+    fixture.detectChanges();
+    expect(component.hasContextChanges()).toBe(true);
+
+    byAriaLabel(I18N.comparison.reset)!.click();
+    fixture.detectChanges();
+
+    expect(component.draftPromote()).toEqual(['sports', 'concert', 'candid']);
+    expect(component.draftExcluded()).toEqual(['silhouette']);
+    expect(promotedRows()).toHaveLength(3);
+    expect(api.put).not.toHaveBeenCalled();
+  });
+
+  // WCAG 2.2 SC 2.5.7 (Dragging Movements): reordering the promoted head used to be
+  // reachable by pointer drag only, with no single-pointer alternative and no keyboard
+  // path. The move buttons are that alternative, so they must reorder from a real click.
+  it('WCAG 2.5.7: a click on a row\'s move-down button reorders without any drag', async () => {
+    await render();
+
+    rowButton(0, I18N.comparison.context.move_down)!.click();
+    fixture.detectChanges();
+
+    expect(component.draftPromote()).toEqual(['concert', 'sports', 'candid']);
+    expect(component.hasContextChanges()).toBe(true);
+  });
+
+  it('WCAG 2.5.7: a click on a row\'s move-up button reorders without any drag', async () => {
+    await render();
+
+    rowButton(2, I18N.comparison.context.move_up)!.click();
+    fixture.detectChanges();
+
+    expect(component.draftPromote()).toEqual(['sports', 'candid', 'concert']);
+  });
+
+  it('WCAG 2.5.7: the move controls are disabled exactly at the ends of the list', async () => {
+    await render();
+
+    expect(rowButton(0, I18N.comparison.context.move_up)!.disabled).toBe(true);
+    expect(rowButton(0, I18N.comparison.context.move_down)!.disabled).toBe(false);
+    expect(rowButton(2, I18N.comparison.context.move_up)!.disabled).toBe(false);
+    expect(rowButton(2, I18N.comparison.context.move_down)!.disabled).toBe(true);
+  });
+
+  // Switching context mid-save re-seeded the draft from the newly selected context, and
+  // the save's own `loadContexts()` then re-seeded it AGAIN once the PUT resolved --
+  // silently overwriting whatever the user had just edited on the new context (and
+  // congratulating them for saving it). The picker must not be operable while the PUT
+  // is in flight.
+  it('locks the context picker while a save is in flight, so the new context\'s edits cannot be clobbered', async () => {
+    await render();
+    chip('promote', 'wildlife')!.click();
+    fixture.detectChanges();
+
+    let settlePut: () => void = () => {};
+    api.put.mockReturnValue(new Observable<unknown>(sub => {
+      settlePut = () => { sub.next({}); sub.complete(); };
+    }));
+
+    byAriaLabel(I18N.comparison.save)!.click();
+    fixture.detectChanges();
+    expect(component.savingContext()).toBe(true);
+
+    expect(selectTrigger().getAttribute('aria-disabled')).toBe('true');
+    expect(openOptions()).toHaveLength(0);
+    expect(component.selectedContext()).toBe('action_stage');
+
+    settlePut();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.savingContext()).toBe(false);
   });
 });

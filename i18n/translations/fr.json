@@ -1467,6 +1467,8 @@
       "excluded_description": "Cliquez sur une catégorie pour l'exclure de ce contexte. Une catégorie exclue n'est jamais retenue, même si elle est promue.",
       "add_promotion": "Ajouter aux catégories promues",
       "remove_promotion": "Retirer des catégories promues",
+      "move_up": "Monter",
+      "move_down": "Descendre",
       "context_saved": "Contexte de notation enregistré",
       "error_saving_context": "Échec de l'enregistrement du contexte de notation",
       "effective_order_title": "Ordre d'évaluation effectif",
@@ -2012,7 +2014,10 @@
     "root": "Racine",
     "photos_count": "photos",
     "find_folder": "Rechercher un dossier…",
-    "filter_gallery": "Filtrer la galerie sur ce dossier"
+    "filter_gallery": "Filtrer la galerie sur ce dossier",
+    "load_error": {
+      "message": "Impossible de charger les dossiers : le serveur n'a pas répondu"
+    }
   },
   "albums_sharing": {
     "share": "Partager l'album",

@@ -1471,6 +1471,8 @@
       "excluded_description": "Klicken Sie auf eine Kategorie, um sie aus diesem Kontext auszuschließen. Eine ausgeschlossene Kategorie greift nie, auch wenn sie bevorzugt ist.",
       "add_promotion": "Zu bevorzugten hinzufügen",
       "remove_promotion": "Aus bevorzugten entfernen",
+      "move_up": "Nach oben verschieben",
+      "move_down": "Nach unten verschieben",
       "context_saved": "Bewertungskontext gespeichert",
       "error_saving_context": "Fehler beim Speichern des Bewertungskontexts",
       "effective_order_title": "Effektive Auswertungsreihenfolge",
@@ -2016,7 +2018,10 @@
     "root": "Stammverzeichnis",
     "photos_count": "Fotos",
     "find_folder": "Ordner suchen…",
-    "filter_gallery": "Galerie nach diesem Ordner filtern"
+    "filter_gallery": "Galerie nach diesem Ordner filtern",
+    "load_error": {
+      "message": "Ordner konnten nicht geladen werden — der Server hat nicht geantwortet"
+    }
   },
   "albums_sharing": {
     "share": "Album teilen",

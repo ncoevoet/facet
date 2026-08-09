@@ -23,17 +23,25 @@ interface LoginResponse {
   user?: { user_id: string; role: string; display_name: string };
 }
 
-/** True once the JWT's own `exp` has passed. Verifying the signature is the
- *  server's business; this only stops the client presenting a token it already
- *  knows is dead, which some deployments treat as worse than no token at all.
- *  An unreadable token counts as expired — it can only be rejected anyway. */
+/** Slack allowed on the client's own clock before it judges a token dead. The
+ *  verdict that matters is the server's; a browser clock running ahead would
+ *  otherwise discard a token the server still accepts, and — since a fresh
+ *  login token is judged by the same clock — lock the user out of a working
+ *  session with no server round-trip involved. */
+const CLOCK_SKEW_GRACE_MS = 5 * 60 * 1000;
+
+/** True once the JWT's own `exp` has passed, plus the clock-skew grace. Verifying
+ *  the signature is the server's business; this only stops the client presenting
+ *  a token it already knows is dead, which some deployments treat as worse than
+ *  no token at all. An unreadable token counts as expired — it can only be
+ *  rejected anyway. */
 function isExpired(token: string): boolean {
   const payload = token.split('.')[1];
   if (!payload) return true;
   try {
     const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
     const exp = (JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='))) as { exp?: number }).exp;
-    return typeof exp !== 'number' || exp * 1000 <= Date.now();
+    return typeof exp !== 'number' || exp * 1000 + CLOCK_SKEW_GRACE_MS <= Date.now();
   } catch {
     return true;
   }

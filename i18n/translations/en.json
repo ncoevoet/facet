@@ -1465,6 +1465,8 @@
       "excluded_description": "Click a category to exclude it from this context. An excluded category is never matched, even when promoted.",
       "add_promotion": "Add to promoted",
       "remove_promotion": "Remove from promoted",
+      "move_up": "Move up",
+      "move_down": "Move down",
       "context_saved": "Scoring context saved",
       "error_saving_context": "Failed to save scoring context",
       "effective_order_title": "Effective evaluation order",
@@ -2010,7 +2012,10 @@
     "root": "Root",
     "photos_count": "photos",
     "find_folder": "Find a folder…",
-    "filter_gallery": "Filter gallery by this folder"
+    "filter_gallery": "Filter gallery by this folder",
+    "load_error": {
+      "message": "Couldn't load folders — the server didn't respond"
+    }
   },
   "albums_sharing": {
     "share": "Share Album",

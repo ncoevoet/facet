@@ -1467,6 +1467,8 @@
       "excluded_description": "Fai clic su una categoria per escluderla da questo contesto. Una categoria esclusa non viene mai abbinata, anche se promossa.",
       "add_promotion": "Aggiungi alle promosse",
       "remove_promotion": "Rimuovi dalle promosse",
+      "move_up": "Sposta su",
+      "move_down": "Sposta giù",
       "context_saved": "Contesto di valutazione salvato",
       "error_saving_context": "Errore nel salvataggio del contesto di valutazione",
       "effective_order_title": "Ordine di valutazione effettivo",
@@ -2012,7 +2014,10 @@
     "root": "Radice",
     "photos_count": "foto",
     "find_folder": "Cerca una cartella…",
-    "filter_gallery": "Filtra la galleria per questa cartella"
+    "filter_gallery": "Filtra la galleria per questa cartella",
+    "load_error": {
+      "message": "Impossibile caricare le cartelle — il server non ha risposto"
+    }
   },
   "albums_sharing": {
     "share": "Condividi album",

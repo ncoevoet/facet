@@ -123,9 +123,19 @@ describe('AuthService', () => {
       expect(service.token).toBeNull();
     });
 
-    it('should return null for a token whose exp has passed', () => {
-      getItemSpy.mockReturnValue(makeJwt(-1));
+    it('should return null for a token whose exp has passed beyond the clock-skew grace', () => {
+      getItemSpy.mockReturnValue(makeJwt(-3600));
       expect(service.token).toBeNull();
+    });
+
+    // A browser clock a few minutes fast used to make the client withhold a token the
+    // server still accepts: the request then 401s, the error interceptor logs out, and
+    // the freshly issued login token is judged dead by the same clock — a lockout with
+    // no server verdict anywhere in it.
+    it('should still present a token that only looks expired because the local clock runs fast', () => {
+      const skewed = makeJwt(-60);
+      getItemSpy.mockReturnValue(skewed);
+      expect(service.token).toBe(skewed);
     });
 
     it('should return null for a token with no exp claim', () => {

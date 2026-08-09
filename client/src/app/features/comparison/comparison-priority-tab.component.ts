@@ -151,7 +151,8 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
         <mat-card-content class="!pt-4">
           <mat-form-field class="w-full max-w-sm">
             <mat-label>{{ I18N.comparison.context.context_picker | translate }}</mat-label>
-            <mat-select [value]="selectedContext()" (selectionChange)="selectContext($event.value)">
+            <mat-select [value]="selectedContext()" [disabled]="savingContext()"
+                        (selectionChange)="selectContext($event.value)">
               @for (ctx of contexts(); track ctx.name) {
                 <mat-option [value]="ctx.name">{{ ctx | scoringContextLabel }}</mat-option>
               }
@@ -264,6 +265,20 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
                       <mat-icon cdkDragHandle class="text-gray-400 cursor-move shrink-0">drag_indicator</mat-icon>
                       <span class="w-8 shrink-0 text-xs font-mono text-gray-400">{{ i + 1 }}</span>
                       <span class="flex-1 text-sm">{{ ('category_names.' + name) | translate }}</span>
+                      <button mat-icon-button class="shrink-0"
+                        [disabled]="i === 0"
+                        (click)="movePromotedUp(i)"
+                        [matTooltip]="I18N.comparison.context.move_up | translate"
+                        [attr.aria-label]="I18N.comparison.context.move_up | translate">
+                        <mat-icon>arrow_upward</mat-icon>
+                      </button>
+                      <button mat-icon-button class="shrink-0"
+                        [disabled]="i === draftPromote().length - 1"
+                        (click)="movePromotedDown(i)"
+                        [matTooltip]="I18N.comparison.context.move_down | translate"
+                        [attr.aria-label]="I18N.comparison.context.move_down | translate">
+                        <mat-icon>arrow_downward</mat-icon>
+                      </button>
                       <button mat-icon-button class="shrink-0"
                         (click)="unpromoteCategory(name)"
                         [matTooltip]="I18N.comparison.context.remove_promotion | translate"
@@ -558,8 +573,22 @@ export class ComparisonPriorityTabComponent {
   }
 
   dropPromoted(event: CdkDragDrop<string[]>): void {
+    this.movePromoted(event.previousIndex, event.currentIndex);
+  }
+
+  movePromotedUp(index: number): void {
+    if (index <= 0) return;
+    this.movePromoted(index, index - 1);
+  }
+
+  movePromotedDown(index: number): void {
+    if (index >= this.draftPromote().length - 1) return;
+    this.movePromoted(index, index + 1);
+  }
+
+  private movePromoted(from: number, to: number): void {
     const arr = [...this.draftPromote()];
-    moveItemInArray(arr, event.previousIndex, event.currentIndex);
+    moveItemInArray(arr, from, to);
     this.draftPromote.set(arr);
   }
 
@@ -593,13 +622,17 @@ export class ComparisonPriorityTabComponent {
     this.orderedCategories.set(restored);
   }
 
-  async loadContexts(): Promise<void> {
+  /** `reseedContext` scopes the draft re-seed to that one context: a selection that
+   *  moved on while a save was in flight keeps its own unsaved edits. */
+  async loadContexts(reseedContext?: string): Promise<void> {
     try {
       const data = await firstValueFrom(
         this.api.get<{ contexts: ScoringContextEntry[] }>('/config/scoring_contexts'),
       );
       this.contexts.set(data.contexts ?? []);
-      this.resetContextDraft();
+      if (reseedContext === undefined || reseedContext === this.selectedContext()) {
+        this.resetContextDraft();
+      }
     } catch {
       this.snackBar.open(this.i18n.t(I18N.comparison.context.error_loading_contexts), '', { duration: 4000 });
     }
@@ -619,7 +652,7 @@ export class ComparisonPriorityTabComponent {
       this.stale.set(true);
       this.recomputeMessageKey.set(null);
       this.snackBar.open(this.i18n.t(I18N.comparison.context.context_saved), '', { duration: 3000 });
-      await this.loadContexts();
+      await this.loadContexts(ctx.name);
     } catch {
       this.snackBar.open(this.i18n.t(I18N.comparison.context.error_saving_context), '', { duration: 4000 });
     } finally {

@@ -1467,6 +1467,8 @@
       "excluded_description": "Haz clic en una categoría para excluirla de este contexto. Una categoría excluida nunca coincide, aunque esté promovida.",
       "add_promotion": "Añadir a promovidas",
       "remove_promotion": "Quitar de promovidas",
+      "move_up": "Subir",
+      "move_down": "Bajar",
       "context_saved": "Contexto de puntuación guardado",
       "error_saving_context": "Error al guardar el contexto de puntuación",
       "effective_order_title": "Orden de evaluación efectivo",
@@ -2012,7 +2014,10 @@
     "root": "Raíz",
     "photos_count": "fotos",
     "find_folder": "Buscar una carpeta…",
-    "filter_gallery": "Filtrar la galería por esta carpeta"
+    "filter_gallery": "Filtrar la galería por esta carpeta",
+    "load_error": {
+      "message": "No se pudieron cargar las carpetas — el servidor no respondió"
+    }
   },
   "albums_sharing": {
     "share": "Compartir álbum",

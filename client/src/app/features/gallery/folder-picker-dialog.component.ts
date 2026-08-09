@@ -79,6 +79,14 @@ export interface FolderPickerData {
         <div class="flex justify-center py-8">
           <mat-spinner diameter="32" />
         </div>
+      } @else if (loadError()) {
+        <div class="flex flex-col items-center gap-2 px-1 py-6">
+          <p class="text-xs opacity-70 text-center">{{ I18N.folders.load_error.message | translate }}</p>
+          <button mat-stroked-button (click)="retry()">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">refresh</mat-icon>
+            {{ I18N.gallery.load_error.retry | translate }}
+          </button>
+        </div>
       } @else if (!filteredChildren().length) {
         <p class="text-xs opacity-50 px-1 py-6 text-center">{{ I18N.folders.empty | translate }}</p>
       } @else {
@@ -112,6 +120,7 @@ export class FolderPickerDialogComponent {
   readonly prefix = signal(this.data.path_prefix ?? '');
   readonly children = signal<FolderItem[]>([]);
   readonly loading = signal(false);
+  readonly loadError = signal(false);
   readonly query = signal('');
 
   protected readonly breadcrumbs = computed(() => buildFolderBreadcrumbs(this.prefix()));
@@ -133,6 +142,7 @@ export class FolderPickerDialogComponent {
     const seq = ++this.loadSeq;
     this.prefix.set(prefix);
     this.query.set('');
+    this.loadError.set(false);
 
     const cached = this.levelCache.get(prefix);
     if (cached) {
@@ -151,8 +161,13 @@ export class FolderPickerDialogComponent {
       // The endpoint reports its own failures as an empty list, so only transport errors land here.
       if (seq !== this.loadSeq) return;
       this.children.set([]);
+      this.loadError.set(true);
     } finally {
       if (seq === this.loadSeq) this.loading.set(false);
     }
+  }
+
+  retry(): void {
+    void this.navigateTo(this.prefix());
   }
 }

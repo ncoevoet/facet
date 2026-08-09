@@ -1,8 +1,10 @@
 import type { Mock } from 'vitest';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { Observable, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { I18nService } from '../../core/services/i18n.service';
+import { I18N } from '../../core/i18n/keys';
 import { FolderPickerDialogComponent, type FolderPickerData } from './folder-picker-dialog.component';
 import type { FolderItem, FoldersResponse } from '../folders/folders.util';
 
@@ -124,8 +126,28 @@ describe('FolderPickerDialogComponent', () => {
 
     expect(component.children()).toEqual([]);
     expect(component.loading()).toBe(false);
+    expect(component.loadError()).toBe(true);
   });
 
+  it('reports an empty level as empty, not as a failure', async () => {
+    mockApi.get.mockReturnValue(of({ folders: [], has_direct_photos: true }));
+    const component = createComponent();
+    await Promise.resolve();
+
+    expect(component.loadError()).toBe(false);
+  });
+
+  it('clears the error once a retry succeeds', async () => {
+    mockApi.get.mockReturnValue(throwError(() => new Error('offline')));
+    const component = createComponent();
+    await Promise.resolve();
+
+    mockApi.get.mockReturnValue(of(rootLevel));
+    await component.navigateTo(component.prefix());
+
+    expect(component.loadError()).toBe(false);
+    expect(component.children()).toHaveLength(2);
+  });
   it('filters the visible children by name, case-insensitively', async () => {
     const component = createComponent();
     await Promise.resolve();
@@ -170,5 +192,69 @@ describe('FolderPickerDialogComponent', () => {
 
     expect(component.prefix()).toBe('/photos/Travel/');
     expect(component.children()[0].name).toBe('2026');
+  });
+});
+
+// A transport failure used to render the "No folders found." copy -- indistinguishable
+// from a folder that genuinely has no children, on what the API documents as a
+// potentially slow uncached subtree scan. It must say so, and offer a working retry.
+describe('FolderPickerDialogComponent — a failed load surfaces a retry (rendered)', () => {
+  let fixture: ComponentFixture<FolderPickerDialogComponent>;
+  let component: FolderPickerDialogComponent;
+  let get: Mock;
+
+  async function render(): Promise<void> {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: MAT_DIALOG_DATA, useValue: {} },
+        { provide: MatDialogRef, useValue: { close: vi.fn() } },
+        { provide: ApiService, useValue: { get } },
+        { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}) } },
+      ],
+    });
+    fixture = TestBed.createComponent(FolderPickerDialogComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  function retryButton(): HTMLButtonElement | undefined {
+    return (Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[])
+      .find(b => (b.textContent ?? '').includes(I18N.gallery.load_error.retry));
+  }
+
+  it('renders the failure message and a retry control instead of the empty-folder copy', async () => {
+    get = vi.fn(() => throwError(() => new Error('offline')));
+    await render();
+
+    expect(fixture.nativeElement.textContent).toContain(I18N.folders.load_error.message);
+    expect(fixture.nativeElement.textContent).not.toContain(I18N.folders.empty);
+    expect(retryButton()).toBeTruthy();
+  });
+
+  it('a click on retry refetches the level and renders the folders', async () => {
+    get = vi.fn(() => throwError(() => new Error('offline')));
+    await render();
+
+    get.mockReturnValue(of(rootLevel));
+    retryButton()!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(component.loadError()).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('Family');
+    expect(fixture.nativeElement.textContent).not.toContain(I18N.folders.load_error.message);
+  });
+
+  it('renders the empty-folder copy, and no retry, for a genuinely empty level', async () => {
+    get = vi.fn(() => of({ folders: [], has_direct_photos: true }));
+    await render();
+
+    expect(fixture.nativeElement.textContent).toContain(I18N.folders.empty);
+    expect(fixture.nativeElement.textContent).not.toContain(I18N.folders.load_error.message);
+    expect(retryButton()).toBeUndefined();
   });
 });
