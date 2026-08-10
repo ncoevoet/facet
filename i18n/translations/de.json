@@ -1085,6 +1085,7 @@
     "hide_bursts": "Beste aus Serie",
     "hide_duplicates": "Duplikate ausblenden",
     "hide_brackets": "Beste der Belichtungsreihe",
+    "hide_panoramas": "Bestes Bild des Panoramas",
     "reset_filters": "Filter zurücksetzen",
     "scroll_to_top": "Nach oben scrollen",
     "photo_grid": "Fotoraster",
@@ -1976,6 +1977,8 @@
       "similar": "Ähnliche",
       "scenes": "Szenen",
       "brackets": "Belichtungsreihen",
+      "panoramas": "Panoramen",
+      "hdr_panoramas": "HDR-Panoramen",
       "tooltip": "Wählen, welche Art von Gruppen geprüft werden soll"
     },
     "darkroom_tooltip": "Vollbild-Dunkelkammer öffnen, um Bilder zu vergleichen und auszuwählen",
@@ -1988,6 +1991,11 @@
     "bracket": {
       "label": "Belichtungsreihe",
       "hint": "Ein Motiv in mehreren Belichtungen – behalte die Reihe, wähle keinen Sieger"
+    },
+    "panorama": {
+      "label": "Panorama",
+      "hdr_label": "HDR-Panorama",
+      "hint": "Bilder eines Schwenks — behalten Sie die Serie, es gibt kein bestes Bild"
     }
   },
   "scenes": {

@@ -818,7 +818,40 @@ agrupar las ráfagas.
 | `min_span_stops` | `1.0` | Amplitud mínima entre la toma más oscura y la más clara |
 | `step_tolerance_stops` | `0.34` | Irregularidad admitida entre pasos (un tercio de paso) |
 
+
 ---
+
+## Detección de panorámicas
+
+Los fotogramas de una panorámica se tomaron para unirse, no para competir: la detección de ráfagas los lee como tomas rivales y oculta todos menos uno. Esta pasada los identifica con pruebas geométricas — puntos SIFT y una homografía RANSAC entre fotogramas consecutivos, medidos sobre las miniaturas de 640px ya almacenadas. Sin descodificar el original, sin modelo, sin dependencias nuevas.
+
+Lo que separa un barrido de una ráfaga es el desplazamiento **acumulado**, no el de cada par: una panorámica se dispara con cerca del 90 % de solapamiento, así que un paso mueve solo el 5-18 % del encuadre, mientras que a lo largo de la serie una ráfaga oscila en torno a cero y un barrido avanza. Las panorámicas simples y HDR son tipos distintos, separados por la amplitud de exposición.
+
+Los umbrales se calibraron con 26 panorámicas y 8 no panorámicas confirmadas a ojo en una biblioteca de 126 000 fotos. Precisión medida: en torno al 96 %. La exhaustividad es deliberadamente incompleta — los barridos verticales de poco desplazamiento y las panorámicas de pocas posiciones quedan bajo el umbral y se pierden. Perder una panorámica no cuesta nada; etiquetar mal un reportaje cuesta confianza, y la corrección manual persistente cubre ambos sentidos.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5
+  }
+}
+```
+
+| Ajuste | Predet. | Descripción |
+|---------|---------|-------------|
+| `enabled` | `true` | Desactivar por completo la detección de panorámicas |
+| `max_gap_seconds` | `30.0` | Intervalo máximo entre fotogramas consecutivos |
+| `min_frames` | `8` | Serie más corta considerada panorámica |
+| `min_drift` | `0.43` | Barrido total, en anchos de encuadre, para que una serie cuente |
+| `min_inliers` | `25` | Coincidencias RANSAC necesarias para validar un par |
+| `hdr_min_span_stops` | `1.5` | Amplitud de exposición por encima de la cual un barrido es una panorámica HDR |
+
+Cambiar estos valores no hace nada por sí solo — la detección es una pasada por lotes: vuelve a ejecutar `--detect-panoramas` (o la acción de la visor) para que el cambio llegue a la galería y al descarte.
 
 ## Puntuación de ráfagas
 

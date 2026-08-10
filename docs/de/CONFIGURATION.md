@@ -820,7 +820,40 @@ Serienbildung.
 | `min_span_stops` | `1.0` | Kleinster Gesamtabstand zwischen dunkelster und hellster Aufnahme |
 | `step_tolerance_stops` | `0.34` | Zulässige Ungleichmäßigkeit der Stufen (eine Drittelstufe) |
 
+
 ---
+
+## Panorama-Erkennung
+
+Die Bilder eines Panoramas wurden zum Zusammenfügen aufgenommen, nicht als Konkurrenz zueinander: Die Serienerkennung liest sie als konkurrierende Aufnahmen und blendet alle bis auf eines aus. Dieser Durchlauf benennt sie anhand geometrischer Belege — SIFT-Merkmale und eine RANSAC-Homographie zwischen aufeinanderfolgenden Bildern, gemessen an den gespeicherten 640px-Vorschaubildern. Kein Dekodieren des Originals, kein Modell, keine zusätzliche Abhängigkeit.
+
+Einen Schwenk von einer Serie unterscheidet die **kumulierte** Verschiebung, nicht der Versatz pro Bild: Panoramen werden mit rund 90 % Überlappung aufgenommen, ein Schritt verschiebt also nur 5-18 % des Bildes, während eine Serie über den Verlauf um null pendelt und ein Schwenk voranschreitet. Einfache und HDR-Schwenks sind getrennte Arten, unterschieden über die Belichtungsspanne.
+
+Die Schwellenwerte wurden an 26 Panoramen und 8 Nicht-Panoramen kalibriert, die in einer Bibliothek mit 126.000 Fotos per Augenschein bestätigt wurden. Gemessene Genauigkeit: rund 96 %. Die Trefferquote ist bewusst unvollständig — vertikale Schwenks mit geringer Verschiebung und Panoramen mit wenigen Positionen liegen unter der Schwelle und werden übersehen. Ein übersehenes Panorama kostet nichts; fälschlich etikettierte Reportage kostet Vertrauen, und die dauerhafte manuelle Korrektur fängt beide Richtungen ab.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `enabled` | `true` | Panorama-Erkennung vollständig abschalten |
+| `max_gap_seconds` | `30.0` | Größter Abstand zwischen aufeinanderfolgenden Bildern |
+| `min_frames` | `8` | Kürzeste Folge, die als Panorama gilt |
+| `min_drift` | `0.43` | Gesamtschwenk in Bildbreiten, ab dem eine Folge zählt |
+| `min_inliers` | `25` | Erforderliche RANSAC-Übereinstimmungen pro Paar |
+| `hdr_min_span_stops` | `1.5` | Belichtungsspanne, ab der ein Schwenk ein HDR-Panorama ist |
+
+Diese Werte zu ändern bewirkt für sich genommen nichts — die Erkennung ist ein Stapellauf: Führen Sie `--detect-panoramas` erneut aus (oder die Schaltfläche im Viewer), damit die Änderung Galerie und Auswahl erreicht.
 
 ## Burst Scoring
 

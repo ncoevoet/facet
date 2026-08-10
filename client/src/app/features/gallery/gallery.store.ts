@@ -86,6 +86,7 @@ export interface ViewerConfig {
     hide_bursts: boolean;
     hide_duplicates: boolean;
     hide_brackets: boolean;
+    hide_panoramas: boolean;
     hide_details: boolean;
     tooltip_mode: TooltipMode;
     hide_rejected: boolean;
@@ -359,6 +360,7 @@ export class GalleryStore {
         hide_bursts: storedDisplay.hide_bursts ?? (defaults?.hide_bursts ?? true),
         hide_duplicates: storedDisplay.hide_duplicates ?? (defaults?.hide_duplicates ?? true),
         hide_brackets: storedDisplay.hide_brackets ?? (defaults?.hide_brackets ?? true),
+        hide_panoramas: storedDisplay.hide_panoramas ?? (defaults?.hide_panoramas ?? true),
         hide_rejected: storedDisplay.hide_rejected ?? (defaults?.hide_rejected ?? true),
         favorites_only: storedDisplay.favorites_only ?? false,
         is_monochrome: storedDisplay.is_monochrome ?? false,
@@ -556,6 +558,7 @@ export class GalleryStore {
       hide_bursts: defaults?.hide_bursts ?? true,
       hide_duplicates: defaults?.hide_duplicates ?? true,
       hide_brackets: defaults?.hide_brackets ?? true,
+      hide_panoramas: defaults?.hide_panoramas ?? true,
       hide_rejected: defaults?.hide_rejected ?? true,
     });
     this.resetCardWidth();

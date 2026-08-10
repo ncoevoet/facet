@@ -1085,6 +1085,7 @@ export const I18N = {
     hide_bursts: "gallery.hide_bursts",
     hide_duplicates: "gallery.hide_duplicates",
     hide_brackets: "gallery.hide_brackets",
+    hide_panoramas: "gallery.hide_panoramas",
     reset_filters: "gallery.reset_filters",
     scroll_to_top: "gallery.scroll_to_top",
     photo_grid: "gallery.photo_grid",
@@ -1974,6 +1975,8 @@ export const I18N = {
       similar: "culling.group_by.similar",
       scenes: "culling.group_by.scenes",
       brackets: "culling.group_by.brackets",
+      panoramas: "culling.group_by.panoramas",
+      hdr_panoramas: "culling.group_by.hdr_panoramas",
       tooltip: "culling.group_by.tooltip",
     },
     darkroom_tooltip: "culling.darkroom_tooltip",
@@ -1986,6 +1989,11 @@ export const I18N = {
     bracket: {
       label: "culling.bracket.label",
       hint: "culling.bracket.hint",
+    },
+    panorama: {
+      label: "culling.panorama.label",
+      hdr_label: "culling.panorama.hdr_label",
+      hint: "culling.panorama.hint",
     },
   },
   scenes: {

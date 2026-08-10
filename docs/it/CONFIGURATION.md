@@ -819,7 +819,40 @@ raggruppamento delle raffiche.
 | `min_span_stops` | `1.0` | Escursione minima tra lo scatto più scuro e il più chiaro |
 | `step_tolerance_stops` | `0.34` | Irregolarità ammessa tra i passi (un terzo di stop) |
 
+
 ---
+
+## Rilevamento dei panorami
+
+I fotogrammi di un panorama sono stati scattati per essere uniti, non per competere: il rilevamento delle raffiche li legge come scatti rivali e ne nasconde tutti tranne uno. Questa passata li identifica su basi geometriche — punti SIFT e un'omografia RANSAC tra fotogrammi consecutivi, misurati sulle miniature da 640px già memorizzate. Nessuna decodifica dell'originale, nessun modello, nessuna dipendenza aggiuntiva.
+
+Ciò che distingue una panoramica da una raffica è lo spostamento **cumulativo**, non quello del singolo scatto: un panorama si riprende con circa il 90 % di sovrapposizione, quindi un passo sposta solo il 5-18 % dell'inquadratura, mentre sull'intera serie una raffica oscilla intorno allo zero e una panoramica avanza. Panorami semplici e HDR sono tipi distinti, separati dall'escursione di esposizione.
+
+Le soglie sono state calibrate su 26 panorami e 8 non-panorami confermati a occhio su una libreria di 126.000 foto. Precisione misurata: circa il 96 %. Il richiamo è volutamente incompleto — le panoramiche verticali a basso spostamento e i panorami con poche posizioni restano sotto la soglia e vengono persi. Perdere un panorama non costa nulla; etichettare per errore del reportage costa fiducia, e la correzione manuale persistente copre entrambe le direzioni.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|---------|---------|-------------|
+| `enabled` | `true` | Disattivare completamente il rilevamento dei panorami |
+| `max_gap_seconds` | `30.0` | Intervallo massimo tra fotogrammi consecutivi |
+| `min_frames` | `8` | Serie più breve considerata un panorama |
+| `min_drift` | `0.43` | Spostamento totale, in larghezze di inquadratura, perché una serie conti |
+| `min_inliers` | `25` | Corrispondenze RANSAC necessarie per validare una coppia |
+| `hdr_min_span_stops` | `1.5` | Escursione di esposizione oltre la quale una panoramica è un panorama HDR |
+
+Modificare questi valori non produce nulla da solo — il rilevamento è una passata batch: rilancia `--detect-panoramas` (o l'azione nel visualizzatore) perché la modifica raggiunga la galleria e la selezione.
 
 ## Burst Scoring
 

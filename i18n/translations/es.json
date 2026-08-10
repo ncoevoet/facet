@@ -1081,6 +1081,7 @@
     "hide_bursts": "Mejor de ráfaga",
     "hide_duplicates": "Ocultar duplicados",
     "hide_brackets": "Mejor del horquillado",
+    "hide_panoramas": "Mejor del panorama",
     "reset_filters": "Restablecer filtros",
     "scroll_to_top": "Volver arriba",
     "photo_grid": "Cuadrícula de fotos",
@@ -1972,6 +1973,8 @@
       "similar": "Similares",
       "scenes": "Escenas",
       "brackets": "Horquillados de exposición",
+      "panoramas": "Panoramas",
+      "hdr_panoramas": "Panoramas HDR",
       "tooltip": "Elige qué tipo de grupos revisar"
     },
     "darkroom_tooltip": "Abrir el cuarto oscuro a pantalla completa para comparar y elegir",
@@ -1984,6 +1987,11 @@
     "bracket": {
       "label": "Horquillado de exposición",
       "hint": "Un mismo sujeto con varias exposiciones: conserva la serie, no elijas una"
+    },
+    "panorama": {
+      "label": "Panorama",
+      "hdr_label": "Panorama HDR",
+      "hint": "Fotogramas de un barrido — conserva el conjunto, no hay una mejor toma"
     }
   },
   "scenes": {

@@ -820,7 +820,40 @@ regroupement des rafales.
 | `min_span_stops` | `1.0` | Amplitude minimale entre la vue la plus sombre et la plus claire |
 | `step_tolerance_stops` | `0.34` | Irrégularité tolérée entre les pas (un tiers d'IL) |
 
+
 ---
+
+## Détection de panoramas
+
+Les images d'un panorama ont été prises pour être assemblées, pas pour se concurrencer : la détection de rafales les lit comme des prises concurrentes et n'en garde qu'une. Cette passe les nomme sur des preuves géométriques — points SIFT et homographie RANSAC entre images consécutives, mesurés sur les vignettes 640px déjà stockées. Aucun décodage de l'original, aucun modèle, aucune dépendance supplémentaire.
+
+Ce qui distingue un balayage d'une rafale est le déplacement **cumulé**, pas le décalage image par image : un panorama est pris avec environ 90 % de recouvrement, donc un pas ne déplace que 5 à 18 % du cadre, tandis que sur la durée une rafale oscille autour de zéro et un balayage avance. Les panoramas simples et HDR sont deux types distincts, séparés par l'écart d'exposition.
+
+Les seuils ont été calibrés sur 26 panoramas et 8 non-panoramas confirmés à l'œil sur une bibliothèque de 126 000 photos. Précision mesurée : environ 96 %. Le rappel est volontairement incomplet — les balayages verticaux à faible déplacement et les panoramas à peu de positions passent sous le seuil et sont manqués. Manquer un panorama ne coûte rien ; étiqueter du reportage à tort coûte la confiance, et la correction manuelle persistante rattrape les deux sens.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5
+  }
+}
+```
+
+| Paramètre | Défaut | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Désactiver complètement la détection de panoramas |
+| `max_gap_seconds` | `30.0` | Écart maximal entre deux images consécutives |
+| `min_frames` | `8` | Série la plus courte considérée comme un panorama |
+| `min_drift` | `0.43` | Balayage total, en largeurs de cadre, pour qu'une série compte |
+| `min_inliers` | `25` | Points concordants RANSAC requis pour valider une paire |
+| `hdr_min_span_stops` | `1.5` | Écart d'exposition au-delà duquel un balayage est un panorama HDR |
+
+Modifier ces valeurs ne change rien en soi — la détection est une passe par lots : relancez `--detect-panoramas` (ou l'action de relance dans la visionneuse) pour que le changement atteigne la galerie et le tri.
 
 ## Notation des rafales
 

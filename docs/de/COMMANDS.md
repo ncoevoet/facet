@@ -125,6 +125,7 @@ Diese Befehle aktualisieren bestimmte Metriken, leiten neue Daten ab (KI-Bildunt
 | `python facet.py --recompute-face-signals` | Augen-offen- + Lächel-Scores pro Gesicht aus den gespeicherten 106-Punkt-Landmarken nachfüllen (CPU, schnell; kein Modell). Läuft auch als Schritt von `--upgrade-db` |
 | `python facet.py --recompute-burst` | Serienbild-Erkennungsgruppen neu berechnen |
 | `python facet.py --detect-sequences` | Erkennt Belichtungsreihen aus den gespeicherten EXIF-Daten (gesamte Bibliothek, kein Bilddekodieren) und setzt das Leitbild jeder Serie auf die Basisbelichtung. Läuft am Ende jedes Scans und als Schritt von `--upgrade-db` |
+| `python facet.py --detect-panoramas` | Panorama-Serien durch geometrischen Abgleich der gespeicherten Vorschaubilder erkennen (gesamte Bibliothek, CPU, keine Bilddekodierung). Läuft am Ende jedes Scans |
 | `python facet.py --detect-duplicates` | Doppelte Fotos via pHash erkennen |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Kosinus-Schwellenwerte für Beinahe-Duplikate auswerten (Präzisions-/Recall-Tabelle mit Labels, sonst Verteilung der Kandidaten-Kosinuswerte) |
 | `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` KI-Bildunterschriften für Fotos mit VLM erzeugen. Wenn `narrative_moments.caption_min_confidence > 0`, werden nicht gekennzeichnete / `other` / unter dem Schwellenwert liegende Fotos übersprungen (derselbe Filter gilt für den On-Demand-Bildunterschrift-Endpunkt) |

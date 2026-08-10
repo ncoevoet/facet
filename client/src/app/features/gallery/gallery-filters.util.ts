@@ -138,6 +138,7 @@ export interface GalleryFilters {
   hide_bursts: boolean;
   hide_duplicates: boolean;
   hide_brackets: boolean;
+  hide_panoramas: boolean;
   hide_rejected: boolean;
   favorites_only: boolean;
   is_monochrome: boolean;
@@ -158,6 +159,7 @@ export interface FilterDefaults {
   hide_bursts?: boolean;
   hide_duplicates?: boolean;
   hide_brackets?: boolean;
+  hide_panoramas?: boolean;
   hide_rejected?: boolean;
   tooltip_mode?: TooltipMode;
 }
@@ -167,7 +169,7 @@ export const SMART_ALBUM_EXCLUDE_KEYS = new Set([
   'page', 'per_page', 'semanticQuery', 'album_id',
   'similar_to', 'similarity_mode', 'min_similarity',
   'hide_details', 'tooltip_mode', 'hide_blinks', 'hide_bursts',
-  'hide_duplicates', 'hide_brackets', 'hide_rejected',
+  'hide_duplicates', 'hide_brackets', 'hide_panoramas', 'hide_rejected',
   'gps_lat', 'gps_lng', 'gps_radius_km',
 ]);
 
@@ -305,6 +307,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   hide_bursts: true,
   hide_duplicates: true,
   hide_brackets: true,
+  hide_panoramas: true,
   hide_rejected: true,
   favorites_only: false,
   is_monochrome: false,
@@ -315,11 +318,11 @@ export const DEFAULT_FILTERS: GalleryFilters = {
 };
 
 export type DisplayOptions = Pick<GalleryFilters,
-  'hide_details' | 'tooltip_mode' | 'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' |
+  'hide_details' | 'tooltip_mode' | 'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' | 'hide_panoramas' |
   'hide_rejected' | 'favorites_only' | 'is_monochrome'>;
 
 export const DISPLAY_OPTION_KEYS: (keyof DisplayOptions)[] = [
-  'hide_details', 'tooltip_mode', 'hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets',
+  'hide_details', 'tooltip_mode', 'hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets', 'hide_panoramas',
   'hide_rejected', 'favorites_only', 'is_monochrome',
 ];
 
@@ -377,6 +380,8 @@ export function applyQueryParams(
     result.hide_duplicates = params['hide_duplicates'] !== 'false';
   if (params['hide_brackets'] !== undefined)
     result.hide_brackets = params['hide_brackets'] !== 'false';
+  if (params['hide_panoramas'] !== undefined)
+    result.hide_panoramas = params['hide_panoramas'] !== 'false';
   if (params['hide_rejected'] !== undefined) result.hide_rejected = params['hide_rejected'] !== 'false';
   if (params['favorites_only'] !== undefined) result.favorites_only = params['favorites_only'] === 'true';
   if (params['is_monochrome'] !== undefined) result.is_monochrome = params['is_monochrome'] === 'true';

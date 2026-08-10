@@ -819,7 +819,40 @@ agrupamento das rajadas.
 | `min_span_stops` | `1.0` | Amplitude mínima entre a foto mais escura e a mais clara |
 | `step_tolerance_stops` | `0.34` | Irregularidade admitida entre os passos (um terço de passo) |
 
+
 ---
+
+## Deteção de panorâmicas
+
+Os fotogramas de uma panorâmica foram captados para serem unidos, não para competir: a deteção de rajadas lê-os como tomadas rivais e esconde todos menos um. Esta passagem identifica-os com provas geométricas — pontos SIFT e uma homografia RANSAC entre fotogramas consecutivos, medidos sobre as miniaturas de 640px já armazenadas. Sem descodificar o original, sem modelo, sem dependências novas.
+
+O que separa uma varredura de uma rajada é o deslocamento **acumulado**, não o de cada par: uma panorâmica é captada com cerca de 90 % de sobreposição, pelo que um passo desloca apenas 5-18 % do enquadramento, enquanto ao longo da série uma rajada oscila em torno de zero e uma varredura avança. Panorâmicas simples e HDR são tipos distintos, separados pela amplitude de exposição.
+
+Os limiares foram calibrados com 26 panorâmicas e 8 não-panorâmicas confirmadas a olho numa biblioteca de 126 000 fotos. Precisão medida: cerca de 96 %. A abrangência é deliberadamente incompleta — varreduras verticais de baixo deslocamento e panorâmicas com poucas posições ficam abaixo do limiar e são perdidas. Perder uma panorâmica não custa nada; etiquetar mal uma reportagem custa confiança, e a correção manual persistente cobre ambos os sentidos.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5
+  }
+}
+```
+
+| Definição | Predefinição | Descrição |
+|---------|---------|-------------|
+| `enabled` | `true` | Desativar completamente a deteção de panorâmicas |
+| `max_gap_seconds` | `30.0` | Intervalo máximo entre fotogramas consecutivos |
+| `min_frames` | `8` | Série mais curta considerada panorâmica |
+| `min_drift` | `0.43` | Varredura total, em larguras de enquadramento, para a série contar |
+| `min_inliers` | `25` | Correspondências RANSAC necessárias para validar um par |
+| `hdr_min_span_stops` | `1.5` | Amplitude de exposição acima da qual uma varredura é uma panorâmica HDR |
+
+Alterar estes valores não faz nada por si só — a deteção é uma passagem em lote: volte a executar `--detect-panoramas` (ou a ação no visualizador) para que a alteração chegue à galeria e à seleção.
 
 ## Burst Scoring
 

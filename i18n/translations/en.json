@@ -1081,6 +1081,7 @@
     "hide_bursts": "Best of Burst",
     "hide_duplicates": "Hide Duplicates",
     "hide_brackets": "Best of bracket",
+    "hide_panoramas": "Best of panorama",
     "reset_filters": "Reset Filters",
     "scroll_to_top": "Scroll to top",
     "photo_grid": "Photo grid",
@@ -1970,6 +1971,8 @@
       "similar": "Similar",
       "scenes": "Scenes",
       "brackets": "Exposure brackets",
+      "panoramas": "Panoramas",
+      "hdr_panoramas": "HDR panoramas",
       "tooltip": "Choose which kind of near-duplicate groups to review"
     },
     "darkroom_tooltip": "Open the full-screen darkroom to compare frames and pick the keepers",
@@ -1982,6 +1985,11 @@
     "bracket": {
       "label": "Exposure bracket",
       "hint": "One subject at several exposures — keep the set, don't pick a winner"
+    },
+    "panorama": {
+      "label": "Panorama",
+      "hdr_label": "HDR panorama",
+      "hint": "Frames of one sweep — keep the set, there is no best frame"
     }
   },
   "scenes": {

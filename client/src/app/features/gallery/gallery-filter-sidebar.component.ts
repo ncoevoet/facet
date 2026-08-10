@@ -530,6 +530,10 @@ function saveSectionStates(states: Record<string, boolean>): void {
             (change)="store.updateFilter('hide_brackets', $event.checked)"
           >{{ I18N.gallery.hide_brackets | translate }}</mat-checkbox>
           <mat-checkbox
+            [checked]="store.filters().hide_panoramas"
+            (change)="store.updateFilter('hide_panoramas', $event.checked)"
+          >{{ I18N.gallery.hide_panoramas | translate }}</mat-checkbox>
+          <mat-checkbox
             [checked]="store.filters().hide_rejected"
             (change)="store.updateFilter('hide_rejected', $event.checked)"
           >{{ I18N.gallery.hide_rejected | translate }}</mat-checkbox>

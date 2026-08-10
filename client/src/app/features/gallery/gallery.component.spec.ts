@@ -309,20 +309,20 @@ describe('GalleryComponent', () => {
 
   describe('hidden-photos banner toggle', () => {
     it('stashes the hide flags and offers to restore them', async () => {
-      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true });
 
       component.showAllHidden();
       expect(mockStore.updateFilters).toHaveBeenCalledWith({
-        hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false,
+        hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false,
       });
 
       // The store is mocked, so mirror the write the real one would have made.
-      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false });
       expect(component.canRestoreHidden()).toBe(true);
 
       component.restoreHidden();
       expect(mockStore.updateFilters).toHaveBeenLastCalledWith({
-        hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true,
+        hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true,
       });
     });
 
@@ -331,9 +331,9 @@ describe('GalleryComponent', () => {
     });
 
     it('withdraws the restore once a hide filter is switched back on by hand', () => {
-      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true, hide_panoramas: true });
       component.showAllHidden();
-      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: false, hide_brackets: false });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false });
       expect(component.canRestoreHidden()).toBe(false);
     });
   });

@@ -1081,6 +1081,7 @@
     "hide_bursts": "Meilleure de la rafale",
     "hide_duplicates": "Masquer doublons",
     "hide_brackets": "Meilleure du bracketing",
+    "hide_panoramas": "Meilleure du panorama",
     "reset_filters": "Réinitialiser",
     "scroll_to_top": "Remonter en haut",
     "photo_grid": "Grille de photos",
@@ -1972,6 +1973,8 @@
       "similar": "Similaires",
       "scenes": "Scènes",
       "brackets": "Bracketings d'exposition",
+      "panoramas": "Panoramas",
+      "hdr_panoramas": "Panoramas HDR",
       "tooltip": "Choisissez le type de groupes à passer en revue"
     },
     "darkroom_tooltip": "Ouvrir le studio plein écran pour comparer les images et choisir",
@@ -1984,6 +1987,11 @@
     "bracket": {
       "label": "Bracketing d'exposition",
       "hint": "Un même sujet à plusieurs expositions : gardez la série, ne choisissez pas"
+    },
+    "panorama": {
+      "label": "Panorama",
+      "hdr_label": "Panorama HDR",
+      "hint": "Images d'un même balayage — gardez la série, aucune image n'est la meilleure"
     }
   },
   "scenes": {

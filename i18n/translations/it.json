@@ -1081,6 +1081,7 @@
     "hide_bursts": "Migliore della raffica",
     "hide_duplicates": "Nascondi duplicati",
     "hide_brackets": "Migliore del bracketing",
+    "hide_panoramas": "Migliore del panorama",
     "reset_filters": "Ripristina filtri",
     "scroll_to_top": "Torna su",
     "photo_grid": "Griglia di foto",
@@ -1972,6 +1973,8 @@
       "similar": "Simili",
       "scenes": "Scene",
       "brackets": "Bracketing di esposizione",
+      "panoramas": "Panorami",
+      "hdr_panoramas": "Panorami HDR",
       "tooltip": "Scegli quale tipo di gruppi rivedere"
     },
     "darkroom_tooltip": "Apri la camera oscura a schermo intero per confrontare e scegliere",
@@ -1984,6 +1987,11 @@
     "bracket": {
       "label": "Bracketing di esposizione",
       "hint": "Uno stesso soggetto a più esposizioni: conserva la serie, non scegliere"
+    },
+    "panorama": {
+      "label": "Panorama",
+      "hdr_label": "Panorama HDR",
+      "hint": "Fotogrammi di una panoramica — tieni la serie, non esiste uno scatto migliore"
     }
   },
   "scenes": {
