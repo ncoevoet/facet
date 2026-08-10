@@ -192,7 +192,7 @@ class TestDetectSequencesEndToEnd:
         _seed(db, _bracket_rows())
 
         result = detect_sequences(str(db))
-        assert result == {'sets': 1, 'frames': 3, 'promoted': 1}
+        assert result == {'sets': 1, 'frames': 3, 'promoted': 1, 'demoted': 0}
 
         with sqlite3.connect(db) as conn:
             conn.row_factory = sqlite3.Row
@@ -234,6 +234,49 @@ class TestDetectSequencesEndToEnd:
             stale = conn.execute(
                 "SELECT COUNT(*) FROM photos WHERE sequence_group_id IS NOT NULL").fetchone()[0]
         assert stale == 0
+
+    def test_relabelling_hands_a_lapsed_bracket_back_to_scoring(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, _bracket_rows())
+        detect_sequences(str(db))
+        with sqlite3.connect(db) as conn:
+            # Flatten the ladder: the set is no longer a bracket, so the base
+            # frame has no claim to lead the burst any more.
+            conn.execute("UPDATE photos SET shutter_speed = '0.01'")
+            conn.commit()
+
+        result = detect_sequences(str(db))
+        assert result['sets'] == 0 and result['demoted'] == 1
+
+        with sqlite3.connect(db) as conn:
+            leads = {r[0] for r in conn.execute(
+                "SELECT path FROM photos WHERE is_burst_lead = 1")}
+        # Back on the highest-scoring frame, where burst scoring had put it --
+        # not left on the base exposure a lapsed promotion pointed at.
+        assert leads == {'/b2.jpg'}
+
+    def test_a_lapsed_bracket_leaves_other_burst_groups_alone(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        untouched = [
+            ('/u0.jpg', 'u0.jpg', '2025:04:16 11:00:00', 'Canon EOS R6', 4.0, '0.01', 100,
+             '00ff00ff00ff00ff', 3.0, 2, 0),
+            ('/u1.jpg', 'u1.jpg', '2025:04:16 11:00:01', 'Canon EOS R6', 4.0, '0.01', 100,
+             '00ff00ff00ff00ff', 2.0, 2, 1),
+        ]
+        _seed(db, _bracket_rows() + untouched)
+        detect_sequences(str(db))
+        with sqlite3.connect(db) as conn:
+            conn.execute("UPDATE photos SET shutter_speed = '0.01' WHERE burst_group_id = 1")
+            conn.commit()
+
+        detect_sequences(str(db))
+
+        with sqlite3.connect(db) as conn:
+            leads = {r[0] for r in conn.execute(
+                "SELECT path FROM photos WHERE burst_group_id = 2 AND is_burst_lead = 1")}
+        # Group 2 never carried a bracket, so nothing about it is rewritten --
+        # its lead stays exactly where burst scoring left it, score or not.
+        assert leads == {'/u1.jpg'}
 
     def test_a_burst_mixing_a_bracket_with_other_frames_keeps_its_scored_lead(self, tmp_path):
         db = tmp_path / 'seq.db'

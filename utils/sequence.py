@@ -32,6 +32,7 @@ import sqlite3
 
 from db.connection import apply_pragmas
 from utils.date_utils import parse_date
+from utils.selection import pick_lead
 
 logger = logging.getLogger("facet.sequence")
 
@@ -170,13 +171,53 @@ def _load_photos(conn):
     return photos
 
 
-def _promote_bracket_leads(conn):
+def _previously_promoted_groups(conn):
+    """Burst groups a previous pass centred on a bracket's base frame.
+
+    Read before the labels are cleared, so a group that stops qualifying can be
+    handed back to scoring instead of keeping a lead the evidence no longer
+    supports.
+    """
+    return {
+        row['burst_group_id'] for row in conn.execute(
+            "SELECT DISTINCT burst_group_id FROM photos "
+            "WHERE burst_group_id IS NOT NULL AND sequence_kind = ?",
+            (BRACKET,),
+        ).fetchall()
+    }
+
+
+def _restore_scored_lead(conn, burst_group_id):
+    """Give a burst group back the lead scoring would have chosen for it."""
+    members = [dict(row) for row in conn.execute(
+        "SELECT path, aggregate, face_count, eyes_open_score, expression_score, "
+        "       tech_sharpness, learned_score "
+        "FROM photos WHERE burst_group_id = ?",
+        (burst_group_id,),
+    ).fetchall()]
+    winner = pick_lead(members)
+    if winner is None:
+        return False
+    conn.execute(
+        "UPDATE photos SET is_burst_lead = CASE WHEN path = ? THEN 1 ELSE 0 END "
+        "WHERE burst_group_id = ?",
+        (winner['path'], burst_group_id),
+    )
+    return True
+
+
+def _promote_bracket_leads(conn, previously_promoted=frozenset()):
     """Point `is_burst_lead` at the base frame of every wholly-bracketed burst.
 
     Only touches burst groups whose members are exactly one bracket. Where a
     burst mixes a bracket with other frames the lead stays where scoring put it:
     there the competing takes are real, and the base frame has no claim to
     represent them.
+
+    A group this pass no longer recognises as a bracket -- corrected EXIF, a
+    tightened threshold -- has its scored lead restored. Leaving the earlier
+    promotion in place would keep pointing "best of burst" at a frame nothing
+    now says is the base, and only a full rescan would ever correct it.
     """
     rows = conn.execute(
         "SELECT burst_group_id, COUNT(*) AS members, "
@@ -201,7 +242,12 @@ def _promote_bracket_leads(conn):
             (base['path'], row['burst_group_id']),
         )
         promoted += 1
-    return promoted
+    still_bracketed = {row['burst_group_id'] for row in rows}
+    demoted = sum(
+        _restore_scored_lead(conn, group_id)
+        for group_id in sorted(previously_promoted - still_bracketed)
+    )
+    return promoted, demoted
 
 
 def detect_sequences(db_path, config_path=None):
@@ -242,6 +288,7 @@ def detect_sequences(db_path, config_path=None):
 
         runs = _find_bracket_runs(photos, settings)
 
+        previously_promoted = _previously_promoted_groups(conn)
         conn.execute(
             "UPDATE photos SET sequence_group_id = NULL, sequence_kind = NULL, "
             "sequence_ev_offset = NULL WHERE sequence_group_id IS NOT NULL"
@@ -254,10 +301,11 @@ def detect_sequences(db_path, config_path=None):
                 [(group_id, BRACKET, _compensation_offset(base_ev, p['ev']), p['path']) for p in run],
             )
 
-        promoted = _promote_bracket_leads(conn)
+        promoted, demoted = _promote_bracket_leads(conn, previously_promoted)
         conn.commit()
 
     framed = sum(len(r) for r in runs)
-    logger.info("Found %d bracket sets (%d frames); re-centred %d burst groups on their base frame",
-                len(runs), framed, promoted)
-    return {'sets': len(runs), 'frames': framed, 'promoted': promoted}
+    logger.info(
+        "Found %d bracket sets (%d frames); re-centred %d burst groups on their base frame, "
+        "handed %d back to scoring", len(runs), framed, promoted, demoted)
+    return {'sets': len(runs), 'frames': framed, 'promoted': promoted, 'demoted': demoted}
