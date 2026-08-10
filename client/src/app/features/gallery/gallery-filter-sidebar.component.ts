@@ -537,6 +537,21 @@ function saveSectionStates(states: Record<string, boolean>): void {
             [checked]="store.filters().hide_rejected"
             (change)="store.updateFilter('hide_rejected', $event.checked)"
           >{{ I18N.gallery.hide_rejected | translate }}</mat-checkbox>
+          <!-- A correction is invisible in the labels until the detector runs
+               again, so without this the only record of one still pending is
+               the user's memory. Edition-only: nobody else can make one. -->
+          @if (auth.isEdition()) {
+            <mat-form-field subscriptSizing="dynamic" class="w-full">
+              <mat-label>{{ I18N.gallery.sequence_override.label | translate }}</mat-label>
+              <mat-select [value]="store.filters().sequence_override"
+                          (selectionChange)="store.updateFilter('sequence_override', $event.value)">
+                <mat-option value="">{{ I18N.gallery.sequence_override.all | translate }}</mat-option>
+                <mat-option value="any">{{ I18N.gallery.sequence_override.any | translate }}</mat-option>
+                <mat-option value="suppressed">{{ I18N.gallery.sequence_override.suppressed | translate }}</mat-option>
+                <mat-option value="forced">{{ I18N.gallery.sequence_override.forced | translate }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+          }
           <mat-checkbox
             [checked]="store.filters().favorites_only"
             (change)="store.updateFilter('favorites_only', $event.checked)"
@@ -946,7 +961,8 @@ export class GalleryFilterSidebarComponent {
       content: (f.type ? 1 : 0) + (f.tag ? 1 : 0) + (f.composition_pattern ? 1 : 0),
       equipment: (f.camera ? 1 : 0) + (f.lens ? 1 : 0),
       persons: f.person_id ? f.person_id.split(',').length : 0,
-      refine: (f.favorites_only ? 1 : 0) + (f.is_monochrome ? 1 : 0) + (f.hide_rejected ? 1 : 0),
+      refine: (f.favorites_only ? 1 : 0) + (f.is_monochrome ? 1 : 0) + (f.hide_rejected ? 1 : 0)
+        + (f.sequence_override ? 1 : 0),
       folder: f.path_prefix ? 1 : 0,
     };
     const fAny = f as Record<string, any>;

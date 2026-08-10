@@ -124,6 +124,20 @@ interface AppConfig {
           </div>
         }
 
+        <!-- A pending panorama correction. Keyed on the override, never on
+             sequence_kind: a set the detector never grouped has no kind at all
+             until the next run, and that miss is exactly what was corrected.
+             Unconditional, unlike the badge above -- a correction is not
+             collapsed behind anything, so a hide toggle says nothing about it. -->
+        @if (photo().sequence_override; as pending) {
+          <div class="absolute bottom-1 left-[4.5rem] w-7 h-7 z-30 inline-flex items-center justify-center"
+               [matTooltip]="(pending === 'suppressed' ? I18N.gallery.sequence_override.badge_suppressed : I18N.gallery.sequence_override.badge) | translate"
+               [attr.aria-label]="(pending === 'suppressed' ? I18N.gallery.sequence_override.badge_suppressed : I18N.gallery.sequence_override.badge) | translate">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-amber-300 drop-shadow-md"
+                      aria-hidden="true">schedule</mat-icon>
+          </div>
+        }
+
         <!-- Persistent rejected badge (shape + desaturation, not color alone).
              Sits where the hover bar's own reject button sits, right of the
              heart. It does NOT yield to a star rating: the two occupy opposite

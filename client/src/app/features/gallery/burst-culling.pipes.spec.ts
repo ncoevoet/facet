@@ -3,6 +3,7 @@ import {
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
   WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
   CullPreviewUrlPipe, SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe,
+  GroupOverridePipe,
   CullingGroup, CullingFace, CullingSubject, FaceThresholds,
 } from './burst-culling.pipes';
 
@@ -351,5 +352,32 @@ describe('CullPreviewUrlPipe', () => {
   it('builds the cull_preview endpoint URL with encoded path and style', () => {
     expect(pipe.transform('/a/b c.jpg', 'Velvia look'))
       .toBe('/api/photo/cull_preview?path=%2Fa%2Fb+c.jpg&style=Velvia+look');
+  });
+});
+
+describe('GroupOverridePipe', () => {
+  const pipe = new GroupOverridePipe();
+  const group = (overrides: (string | null)[]): CullingGroup => ({
+    group_id: 1, type: 'panorama', reason: '3 frames', best_path: '/p0.jpg', count: 3,
+    photos: overrides.map((sequence_override, i) => ({
+      path: `/p${i}.jpg`, filename: `p${i}.jpg`, aggregate: 5, aesthetic: 5,
+      tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: null,
+      burst_score: 5, sequence_override,
+    })),
+  });
+
+  it('reports nothing for an uncorrected set', () => {
+    expect(pipe.transform(group([null, null, null]))).toBe('');
+  });
+
+  it('reports the correction carried by the frames', () => {
+    expect(pipe.transform(group(['suppressed', 'suppressed', 'suppressed']))).toBe('suppressed');
+  });
+
+  // A set is corrected whole, but the feed can serve a partially-overlapping
+  // set after a re-run renumbered the groups; one corrected frame still means
+  // the user has said something about this set, and the chip must show it.
+  it('reports a correction carried by only some frames', () => {
+    expect(pipe.transform(group([null, 'hdr_panorama', null]))).toBe('hdr_panorama');
   });
 });

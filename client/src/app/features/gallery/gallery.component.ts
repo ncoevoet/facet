@@ -33,6 +33,7 @@ import { GalleryStore, PhotoFlagSnapshot } from './gallery.store';
 import { Photo } from '../../shared/models/photo.model';
 import { isTypingContext } from '../../shared/utils/keyboard';
 import { UndoService } from '../../core/services/undo.service';
+import { SequenceOverrideService, SequenceKind } from '../../core/services/sequence-override.service';
 import { AuthService } from '../../core/services/auth.service';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { downloadAll } from '../../shared/utils/download';
@@ -508,6 +509,22 @@ type HiddenFilterFlags = Pick<GalleryFilters,
               </button>
             </mat-menu>
           }
+          <!-- The other half of the panorama correction: culling can only fix a
+               set the detector found, and an undetected sweep appears in no
+               culling group at all. Here the frames are in front of the user. -->
+          @if (auth.isEdition()) {
+            <button mat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="sequenceMenu"><mat-icon>panorama_photosphere</mat-icon> {{ I18N.gallery.selection.mark_sequence | translate }}</button>
+            <mat-menu #sequenceMenu="matMenu">
+              <button mat-menu-item (click)="markAsPanorama('panorama')">
+                <mat-icon>panorama_photosphere</mat-icon>
+                {{ I18N.gallery.selection.mark_panorama | translate }}
+              </button>
+              <button mat-menu-item (click)="markAsPanorama('hdr_panorama')">
+                <mat-icon>vrpano</mat-icon>
+                {{ I18N.gallery.selection.mark_hdr_panorama | translate }}
+              </button>
+            </mat-menu>
+          }
           <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ I18N.gallery.selection.copy_filenames | translate }}</button>
           @if (auth.isEdition()) {
             <button mat-button class="!hidden lg:!inline-flex" (click)="openExportDialog()"><mat-icon>drive_file_move</mat-icon> {{ I18N.export.action | translate }}</button>
@@ -548,6 +565,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly albumService = inject(AlbumService);
   private readonly photoActions = inject(PhotoActionsService);
   private readonly undoService = inject(UndoService);
+  private readonly sequenceOverrides = inject(SequenceOverrideService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
@@ -1035,6 +1053,39 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Declare the selected frames one panorama the detector missed.
+   *
+   * Not routed through `executeBatchAction`: that undoes by restoring a photo's
+   * favorite/reject/rating snapshot, and nothing here touches those — the
+   * inverse of a correction is dropping it, which is its own endpoint. Two
+   * frames is the floor because one frame is not a set.
+   */
+  protected async markAsPanorama(kind: SequenceKind): Promise<void> {
+    const paths = [...this.selectedPaths()];
+    if (paths.length < 2) {
+      this.snackBar.open(this.i18n.t(I18N.gallery.selection.mark_needs_two), '', { duration: 3000 });
+      return;
+    }
+    try {
+      await this.sequenceOverrides.setAsync(paths, kind);
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      return;
+    }
+    this.store.patchSequenceOverride(paths, kind);
+    this.clearSelection();
+    this.undoService.register({
+      labelKey: I18N.gallery.selection.marked_panorama,
+      labelParams: { count: paths.length },
+      undo: async () => {
+        await this.sequenceOverrides.clearAsync(paths);
+        this.store.patchSequenceOverride(paths, null);
+        this.store.restoreSelection(paths);
+      },
+    });
+  }
+
+  /**
    * "Keep top N%": ask the server for the bottom (100-N)% of the current view by
    * the current sort, select them, and let the user reject via the selection bar.
    */
@@ -1086,6 +1137,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       case 'export': this.openExportDialog(); break;
       case 'cull': await this.openCullDialog(); break;
       case 'copy': this.copyPaths(); break;
+      case 'mark-panorama': await this.markAsPanorama(action.sequenceKind); break;
       case 'download': await this.downloadSelected(action.type, action.profile); break;
     }
   }

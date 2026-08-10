@@ -1083,6 +1083,15 @@
     "hide_duplicates": "Hide Duplicates",
     "hide_brackets": "Best of bracket",
     "hide_panoramas": "Best of panorama",
+    "sequence_override": {
+      "label": "Panorama corrections",
+      "all": "All photos",
+      "any": "Corrected",
+      "suppressed": "Marked not a panorama",
+      "forced": "Marked as a panorama",
+      "badge": "Marked as a panorama — applies at the next detection run",
+      "badge_suppressed": "Marked not a panorama — applies at the next detection run"
+    },
     "reset_filters": "Reset Filters",
     "scroll_to_top": "Scroll to top",
     "photo_grid": "Photo grid",
@@ -1103,7 +1112,12 @@
       "select_all": "Select all",
       "invert": "Invert",
       "compare": "Compare",
-      "actions": "Actions"
+      "actions": "Actions",
+      "mark_sequence": "Mark as a set",
+      "mark_panorama": "Mark as one panorama",
+      "mark_hdr_panorama": "Mark as one HDR panorama",
+      "marked_panorama": "{count} photos marked as one panorama",
+      "mark_needs_two": "Select at least two photos"
     },
     "keep_top": {
       "label": "Keep top %",
@@ -1990,7 +2004,22 @@
     "panorama": {
       "label": "Panorama",
       "hdr_label": "HDR panorama",
-      "hint": "Frames of one sweep — keep the set, there is no best frame"
+      "hint": "Frames of one sweep — keep the set, there is no best frame",
+      "correct": "Correct this set",
+      "correct_tooltip": "Geometry cannot tell a deliberate sweep from a pan following a subject — say which this is",
+      "not_a_panorama": "Not a panorama",
+      "relabel_plain": "It is a plain panorama",
+      "relabel_hdr": "It is an HDR panorama",
+      "clear_correction": "Drop the correction",
+      "pending": "Correction pending",
+      "pending_tooltip": "Saved. It applies at the next detection run — until then this set is still labelled as it was.",
+      "corrected": "Correction saved",
+      "correction_failed": "Could not save the correction",
+      "rerun_banner": "Corrections waiting on a detection run: {count}",
+      "rerun_running": "Detection running…",
+      "rerun_done": "Detection finished — reload to see the new labels",
+      "rerun_failed": "Could not run detection",
+      "rerun_busy": "Another library job is running; try again when it finishes"
     }
   },
   "scenes": {

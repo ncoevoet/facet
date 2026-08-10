@@ -1083,6 +1083,15 @@
     "hide_duplicates": "Ocultar duplicados",
     "hide_brackets": "Mejor del horquillado",
     "hide_panoramas": "Mejor del panorama",
+    "sequence_override": {
+      "label": "Correcciones de panorama",
+      "all": "Todas las fotos",
+      "any": "Corregidas",
+      "suppressed": "Marcadas como «no es un panorama»",
+      "forced": "Marcadas como panorama",
+      "badge": "Marcada como panorama: se aplica en la próxima detección",
+      "badge_suppressed": "Marcada como «no es un panorama»: se aplica en la próxima detección"
+    },
     "reset_filters": "Restablecer filtros",
     "scroll_to_top": "Volver arriba",
     "photo_grid": "Cuadrícula de fotos",
@@ -1103,7 +1112,12 @@
       "select_all": "Seleccionar todo",
       "invert": "Invertir",
       "compare": "Comparar",
-      "actions": "Acciones"
+      "actions": "Acciones",
+      "mark_sequence": "Marcar como serie",
+      "mark_panorama": "Marcar como un panorama",
+      "mark_hdr_panorama": "Marcar como un panorama HDR",
+      "marked_panorama": "{count} fotos marcadas como un panorama",
+      "mark_needs_two": "Seleccione al menos dos fotos"
     },
     "keep_top": {
       "label": "Conservar % superior",
@@ -1992,7 +2006,22 @@
     "panorama": {
       "label": "Panorama",
       "hdr_label": "Panorama HDR",
-      "hint": "Fotogramas de un barrido — conserva el conjunto, no hay una mejor toma"
+      "hint": "Fotogramas de un barrido — conserva el conjunto, no hay una mejor toma",
+      "correct": "Corregir esta serie",
+      "correct_tooltip": "La geometría no distingue un barrido deliberado de un paneo que sigue a un sujeto: indique cuál es",
+      "not_a_panorama": "No es un panorama",
+      "relabel_plain": "Es un panorama simple",
+      "relabel_hdr": "Es un panorama HDR",
+      "clear_correction": "Descartar la corrección",
+      "pending": "Corrección pendiente",
+      "pending_tooltip": "Guardada. Se aplica en la próxima detección; hasta entonces esta serie conserva su etiqueta actual.",
+      "corrected": "Corrección guardada",
+      "correction_failed": "No se pudo guardar la corrección",
+      "rerun_banner": "Correcciones a la espera de una detección: {count}",
+      "rerun_running": "Detección en curso…",
+      "rerun_done": "Detección terminada: recargue para ver las nuevas etiquetas",
+      "rerun_failed": "No se pudo iniciar la detección",
+      "rerun_busy": "Otra tarea está usando la biblioteca; inténtelo cuando termine"
     }
   },
   "scenes": {

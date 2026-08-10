@@ -20,6 +20,16 @@ logger = logging.getLogger(__name__)
 JUNK_NOT_JUNK = 'not_junk'   # junk_kind sentinel: photo evaluated and found clean
 JUNK_ANY = 'any'             # gallery junk_kind filter value: match any junk kind
 
+# Gallery `sequence_override` filter values. A correction is pending until the
+# next detection run applies it, so listing them is how a user finds what is
+# still waiting on that run.
+SEQUENCE_OVERRIDE_ANY = 'any'                # any pending correction
+SEQUENCE_OVERRIDE_SUPPRESSED = 'suppressed'  # "this is not a panorama"
+SEQUENCE_OVERRIDE_FORCED = 'forced'          # "these frames are one"
+SEQUENCE_OVERRIDE_VALUES = (
+    SEQUENCE_OVERRIDE_ANY, SEQUENCE_OVERRIDE_SUPPRESSED, SEQUENCE_OVERRIDE_FORCED,
+)
+
 
 # --- SORT OPTIONS (loaded from config) ---
 def _build_sort_options():

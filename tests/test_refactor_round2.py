@@ -47,6 +47,10 @@ _PHOTOS_SCHEMA = """
         id INTEGER PRIMARY KEY, name TEXT, representative_face_id INTEGER,
         face_count INTEGER, face_thumbnail BLOB
     );
+    CREATE TABLE photo_sequence_overrides (
+        photo_path TEXT PRIMARY KEY, sequence_kind TEXT, override_group_key TEXT,
+        source TEXT, created_at TEXT, created_by TEXT
+    );
 """
 
 _SAMPLE_PHOTO = {

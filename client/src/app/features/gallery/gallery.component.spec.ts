@@ -2,7 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './gallery.store';
@@ -20,7 +20,7 @@ describe('GalleryComponent', () => {
 
    
   let mockStore: any;
-  let mockApi: { thumbnailUrl: Mock };
+  let mockApi: { thumbnailUrl: Mock; post: Mock };
   let mockAuth: Record<string, unknown>;
   let mockI18n: { t: Mock };
   let routeMock: { snapshot: { paramMap: { get: Mock }; queryParams: Record<string, string> } };
@@ -75,10 +75,12 @@ describe('GalleryComponent', () => {
       batchFavorite: vi.fn(() => Promise.resolve(new Map())),
       batchReject: vi.fn(() => Promise.resolve(new Map())),
       batchRating: vi.fn(() => Promise.resolve(new Map())),
+      patchSequenceOverride: vi.fn(),
     };
 
     mockApi = {
       thumbnailUrl: vi.fn((path: string) => `/thumbnail?path=${path}`),
+      post: vi.fn(() => of({ success: true, overridden: 0, skipped: 0, kind: null })),
     };
 
     mockAuth = { isEdition: vi.fn(() => false) };
@@ -98,7 +100,17 @@ describe('GalleryComponent', () => {
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), get: vi.fn(() => of({})) } },
         { provide: ActivatedRoute, useValue: routeMock },
         { provide: MatDialog, useValue: { open: vi.fn() } },
-        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        // Returns a ref stub, not undefined: UndoService reads onAction() /
+        // afterDismissed() off whatever open() hands back.
+        {
+          provide: MatSnackBar,
+          useValue: {
+            open: vi.fn(() => ({
+              onAction: () => new Subject<void>(),
+              afterDismissed: () => new Subject<void>(),
+            })),
+          },
+        },
       ],
     });
     component = TestBed.runInInjectionContext(() => new GalleryComponent());
@@ -468,6 +480,56 @@ describe('GalleryComponent', () => {
       await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
 
       expect(dialog.open).not.toHaveBeenCalled();
+    });
+  });
+  describe('marking a selection as one panorama', () => {
+    function select(paths: string[]) {
+      mockStore.selectedPaths.set(new Set(paths));
+      mockStore.selectionCount.set(paths.length);
+    }
+
+    const mark = (kind: 'panorama' | 'hdr_panorama' = 'panorama') =>
+      (component as unknown as { markAsPanorama: (k: string) => Promise<void> }).markAsPanorama(kind);
+
+    // The gallery is the only surface that can correct a MISS: an undetected
+    // sweep is in no culling group, so it can only be named where its frames
+    // are visible as ordinary photos.
+    it('sends every selected path with the chosen kind', async () => {
+      select(['/a.jpg', '/b.jpg', '/c.jpg']);
+
+      await mark('hdr_panorama');
+
+      expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/override_sequence', {
+        paths: ['/a.jpg', '/b.jpg', '/c.jpg'],
+        kind: 'hdr_panorama',
+      });
+    });
+
+    it('marks the photos pending and clears the selection', async () => {
+      select(['/a.jpg', '/b.jpg']);
+
+      await mark();
+
+      expect(mockStore.patchSequenceOverride).toHaveBeenCalledWith(['/a.jpg', '/b.jpg'], 'panorama');
+      expect(mockStore.clearSelection).toHaveBeenCalled();
+    });
+
+    it('refuses a single photo — one frame is not a set', async () => {
+      select(['/a.jpg']);
+
+      await mark();
+
+      expect(mockApi.post).not.toHaveBeenCalled();
+    });
+
+    it('marks nothing when the server refuses', async () => {
+      select(['/a.jpg', '/b.jpg']);
+      mockApi.post.mockReturnValueOnce(throwError(() => new Error('nope')));
+
+      await mark();
+
+      expect(mockStore.patchSequenceOverride).not.toHaveBeenCalled();
+      expect(mockStore.clearSelection).not.toHaveBeenCalled();
     });
   });
 });

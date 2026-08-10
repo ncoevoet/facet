@@ -1083,6 +1083,15 @@
     "hide_duplicates": "Masquer doublons",
     "hide_brackets": "Meilleure du bracketing",
     "hide_panoramas": "Meilleure du panorama",
+    "sequence_override": {
+      "label": "Corrections de panorama",
+      "all": "Toutes les photos",
+      "any": "Corrigées",
+      "suppressed": "Marquées « pas un panorama »",
+      "forced": "Marquées comme panorama",
+      "badge": "Marquée comme panorama — s’applique à la prochaine détection",
+      "badge_suppressed": "Marquée « pas un panorama » — s’applique à la prochaine détection"
+    },
     "reset_filters": "Réinitialiser",
     "scroll_to_top": "Remonter en haut",
     "photo_grid": "Grille de photos",
@@ -1103,7 +1112,12 @@
       "select_all": "Tout sélectionner",
       "invert": "Inverser",
       "compare": "Comparer",
-      "actions": "Actions"
+      "actions": "Actions",
+      "mark_sequence": "Marquer comme série",
+      "mark_panorama": "Marquer comme un panorama",
+      "mark_hdr_panorama": "Marquer comme un panorama HDR",
+      "marked_panorama": "{count} photos marquées comme un panorama",
+      "mark_needs_two": "Sélectionnez au moins deux photos"
     },
     "keep_top": {
       "label": "Garder le top %",
@@ -1992,7 +2006,22 @@
     "panorama": {
       "label": "Panorama",
       "hdr_label": "Panorama HDR",
-      "hint": "Images d'un même balayage — gardez la série, aucune image n'est la meilleure"
+      "hint": "Images d'un même balayage — gardez la série, aucune image n'est la meilleure",
+      "correct": "Corriger cette série",
+      "correct_tooltip": "La géométrie ne distingue pas un balayage délibéré d’un panoramique qui suit un sujet : dites ce que c’est",
+      "not_a_panorama": "Ce n’est pas un panorama",
+      "relabel_plain": "C’est un panorama simple",
+      "relabel_hdr": "C’est un panorama HDR",
+      "clear_correction": "Abandonner la correction",
+      "pending": "Correction en attente",
+      "pending_tooltip": "Enregistrée. Elle s’applique à la prochaine détection — d’ici là cette série garde son étiquette actuelle.",
+      "corrected": "Correction enregistrée",
+      "correction_failed": "Impossible d’enregistrer la correction",
+      "rerun_banner": "Corrections en attente d’une détection : {count}",
+      "rerun_running": "Détection en cours…",
+      "rerun_done": "Détection terminée — rechargez pour voir les nouvelles étiquettes",
+      "rerun_failed": "Impossible de lancer la détection",
+      "rerun_busy": "Une autre tâche occupe la bibliothèque ; réessayez à la fin"
     }
   },
   "scenes": {

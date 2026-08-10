@@ -26,6 +26,16 @@ def _cm(conn):
     return _ctx()
 
 
+# Every culling feed reports each frame's pending panorama correction, so this
+# side table is part of the schema they query even when no correction exists.
+_SEQUENCE_OVERRIDES_SCHEMA = """
+    CREATE TABLE photo_sequence_overrides (
+        photo_path TEXT PRIMARY KEY, sequence_kind TEXT, override_group_key TEXT,
+        source TEXT, created_at TEXT, created_by TEXT
+    );
+"""
+
+
 # ---------------------------------------------------------------------------
 # Unit tests for helper functions
 # ---------------------------------------------------------------------------
@@ -504,7 +514,7 @@ class TestConfirmBracketGroup:
             id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
             category TEXT, session_id TEXT, user_id TEXT, source TEXT
         );
-    """
+    """ + _SEQUENCE_OVERRIDES_SCHEMA
 
     @staticmethod
     def _db():
@@ -708,7 +718,7 @@ class TestQueryBurstGroupsScope:
         CREATE TABLE album_photos (
             id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT
         );
-    """
+    """ + _SEQUENCE_OVERRIDES_SCHEMA
 
     # g1: two frames inside the window; g2: outside; g3: two frames inside +
     # a tail frame 3s AFTER the window end (boundary burst).
@@ -793,7 +803,7 @@ class TestFetchBracketGroups:
             sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL,
             shadow_clipped INTEGER, highlight_clipped INTEGER
         );
-    """
+    """ + _SEQUENCE_OVERRIDES_SCHEMA
 
     @staticmethod
     def _db(rows):
@@ -867,3 +877,62 @@ class TestFetchBracketGroups:
         conn.commit()
         paths = [p['path'] for g in self._fetch(conn) for p in g['photos']]
         assert '/plain.jpg' not in paths
+
+
+class TestPanoramaGroupsCarryTheOverride:
+    """A culling group reports each frame's pending correction.
+
+    Suppressing a set from culling writes to `photo_sequence_overrides` and
+    changes nothing in `photos` until the next detection run, so the set is
+    still served here afterwards. Without the frame carrying its correction the
+    feed would look exactly as it did before the click.
+    """
+
+    _SCHEMA = """
+        CREATE TABLE photos (
+            path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
+            aesthetic REAL, tech_sharpness REAL, is_blink INTEGER DEFAULT 0,
+            is_burst_lead INTEGER DEFAULT 0, burst_group_id INTEGER,
+            eyes_open_score REAL, expression_score REAL, face_count INTEGER DEFAULT 0,
+            category TEXT, is_rejected INTEGER DEFAULT 0,
+            sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL
+        );
+    """ + _SEQUENCE_OVERRIDES_SCHEMA
+
+    def _db(self, overrides=()):
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(self._SCHEMA)
+        conn.executemany(
+            "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "
+            "tech_sharpness, sequence_group_id, sequence_kind) VALUES (?,?,?,5.0,5.0,5.0,1,'panorama')",
+            [(f'/p{i}.jpg', f'p{i}.jpg', f'2025:04:15 12:00:0{i}') for i in range(3)])
+        conn.executemany(
+            "INSERT INTO photo_sequence_overrides "
+            "(photo_path, sequence_kind, override_group_key, source) VALUES (?,?,?,'user')",
+            overrides)
+        conn.commit()
+        return conn
+
+    def _fetch(self, conn):
+        from api.routers.burst_culling import _fetch_panorama_groups
+        with mock.patch("api.routers.burst_culling.get_photos_from_clause",
+                        return_value=("photos", [])), \
+                mock.patch("api.routers.burst_culling.is_multi_user_enabled",
+                           return_value=False):
+            return _fetch_panorama_groups(conn, None, 'panorama', "1=1", [])
+
+    def test_an_uncorrected_set_reports_nothing(self):
+        photos = self._fetch(self._db())[0]['photos']
+        assert {p['sequence_override'] for p in photos} == {None}
+
+    def test_a_suppressed_set_reports_it_on_every_frame(self):
+        conn = self._db([(f'/p{i}.jpg', None, None) for i in range(3)])
+        photos = self._fetch(conn)[0]['photos']
+        assert {p['sequence_override'] for p in photos} == {'suppressed'}
+
+    def test_a_relabel_reports_the_forced_kind(self):
+        conn = self._db([(f'/p{i}.jpg', 'hdr_panorama', '/p0.jpg') for i in range(3)])
+        photos = self._fetch(conn)[0]['photos']
+        assert {p['sequence_override'] for p in photos} == {'hdr_panorama'}

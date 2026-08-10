@@ -24,7 +24,7 @@ from api.subject_bbox import parse_subject_bbox
 from api.db_helpers import (
     get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
     trigger_auto_retrain, set_photos_rejected, album_filter_clause, time_window_clauses,
-    select_in_chunks,
+    select_in_chunks, SEQUENCE_OVERRIDE_SELECT,
 )
 from api.similarity_groups import compute_similarity_groups
 from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBody
@@ -70,7 +70,7 @@ def _culling_photo_columns(path_expr='path', burst=False, sequence_group=False):
     written by copying the previous one. Rows are read by name throughout, so
     the extra columns go on the end rather than in a particular position.
     """
-    cols = [path_expr, *_CULLING_PHOTO_COLS]
+    cols = [path_expr, *_CULLING_PHOTO_COLS, SEQUENCE_OVERRIDE_SELECT]
     if burst:
         cols += ['is_burst_lead', 'burst_group_id']
     if sequence_group:

@@ -685,6 +685,18 @@ export class GalleryStore {
     );
   }
 
+  /**
+   * Mark the given photos as carrying (or no longer carrying) a pending
+   * panorama correction.
+   *
+   * Kept out of `patchPhotos`' flag snapshot machinery: a correction is not a
+   * rating, it is undone by dropping it server-side, and the tile badge only
+   * needs the value the server already accepted.
+   */
+  patchSequenceOverride(paths: string[], value: string | null): void {
+    this.patchPhotos(new Set(paths), { sequence_override: value });
+  }
+
   /** Capture pre-mutation flag state for the given paths (revert / undo input). */
   private snapshotFlags(paths: string[]): Map<string, PhotoFlagSnapshot> {
     const pathSet = new Set(paths);

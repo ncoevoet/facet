@@ -1,6 +1,6 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
@@ -53,7 +53,14 @@ describe('BurstCullingComponent', () => {
       get: vi.fn(() => of(mockCullingGroupsResponse)),
       post: vi.fn(() => of({})),
     };
-    mockSnackBar = { open: vi.fn() };
+    // Returns a ref stub, not undefined: UndoService reads onAction() /
+    // afterDismissed() off whatever open() hands back.
+    mockSnackBar = {
+      open: vi.fn(() => ({
+        onAction: () => new Subject<void>(),
+        afterDismissed: () => new Subject<void>(),
+      })),
+    };
     mockI18n = { t: vi.fn((key: string) => key) };
 
     TestBed.configureTestingModule({
@@ -941,6 +948,102 @@ describe('BurstCullingComponent', () => {
       component['focusPhotoInLightbox'](1);
 
       expect(component['lightboxIndex']()).toBe(1);
+    });
+  });
+
+  describe('panorama corrections', () => {
+    const panoramaGroup = {
+      group_id: 7,
+      type: 'panorama' as const,
+      reason: '3 frames',
+      sequence_kind: 'panorama',
+      best_path: '/p1.jpg',
+      count: 3,
+      photos: [0, 1, 2].map(i => ({
+        path: `/p${i}.jpg`, filename: `p${i}.jpg`, aggregate: 5, aesthetic: 5,
+        tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: '2025-04-15',
+        burst_score: 5, sequence_kind: 'panorama',
+      })),
+    };
+
+    const seed = () => component['groups'].set([structuredClone(panoramaGroup)] as never);
+
+    it('suppressing a set posts the correction for every frame', async () => {
+      seed();
+
+      await (component as never as { correctSequence: (g: unknown) => Promise<void> })
+        .correctSequence(component['groups']()[0]);
+
+      expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/override_sequence', {
+        paths: ['/p0.jpg', '/p1.jpg', '/p2.jpg'],
+        kind: null,
+      });
+    });
+
+    it('marks the frames pending so the group reads as corrected', async () => {
+      seed();
+
+      await (component as never as { correctSequence: (g: unknown) => Promise<void> })
+        .correctSequence(component['groups']()[0]);
+
+      expect(component['groups']()[0].photos.map(p => p.sequence_override))
+        .toEqual(['suppressed', 'suppressed', 'suppressed']);
+      expect(component['pendingCorrections']()).toBe(1);
+    });
+
+    it('a relabel records the forced kind', async () => {
+      seed();
+
+      await (component as never as { correctSequence: (g: unknown, k: string) => Promise<void> })
+        .correctSequence(component['groups']()[0], 'hdr_panorama');
+
+      expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/override_sequence', {
+        paths: ['/p0.jpg', '/p1.jpg', '/p2.jpg'],
+        kind: 'hdr_panorama',
+      });
+      expect(component['groups']()[0].photos[0].sequence_override).toBe('hdr_panorama');
+    });
+
+    it('leaves the group in the feed — the detector has not run yet', async () => {
+      seed();
+
+      await (component as never as { correctSequence: (g: unknown) => Promise<void> })
+        .correctSequence(component['groups']()[0]);
+
+      expect(component['groups']()).toHaveLength(1);
+      expect(component['hiddenGroups']()).not.toContain('7_panorama');
+    });
+
+    it('a failed correction marks nothing pending', async () => {
+      seed();
+      mockApi.post.mockReturnValueOnce(throwError(() => new Error('nope')));
+
+      await (component as never as { correctSequence: (g: unknown) => Promise<void> })
+        .correctSequence(component['groups']()[0]);
+
+      expect(component['groups']()[0].photos[0].sequence_override).toBeUndefined();
+      expect(component['pendingCorrections']()).toBe(0);
+      expect(mockSnackBar.open).toHaveBeenCalled();
+    });
+
+    it('dropping a correction clears it server-side and locally', async () => {
+      seed();
+      await (component as never as { correctSequence: (g: unknown) => Promise<void> })
+        .correctSequence(component['groups']()[0]);
+
+      await (component as never as { clearCorrection: (g: unknown) => Promise<void> })
+        .clearCorrection(component['groups']()[0]);
+
+      expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/clear_sequence_override', {
+        paths: ['/p0.jpg', '/p1.jpg', '/p2.jpg'],
+      });
+      expect(component['pendingCorrections']()).toBe(0);
+    });
+
+    it('an uncorrected feed offers no re-run', () => {
+      seed();
+
+      expect(component['pendingCorrections']()).toBe(0);
     });
   });
 });

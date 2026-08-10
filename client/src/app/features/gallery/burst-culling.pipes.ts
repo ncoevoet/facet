@@ -26,6 +26,9 @@ export interface CullingPhoto {
   sequence_kind?: string | null;
   /** Stops away from that sequence's base exposure; 0 on the base frame itself. */
   sequence_ev_offset?: number | null;
+  /** A manual correction still waiting on the next detection run: 'suppressed'
+   *  ("not a panorama") or the kind the set was forced to. */
+  sequence_override?: string | null;
 }
 
 /** A single detected face within a photo (from POST /api/culling-group/faces). */
@@ -343,6 +346,20 @@ export class CullGroupLabelPipe implements PipeTransform {
 
   transform(kind: string): string {
     return CullGroupLabelPipe.KEYS[kind] ?? '';
+  }
+}
+
+/**
+ * A group's pending manual correction, or '' when it carries none.
+ *
+ * Read off the frames rather than stored on the group: the correction lives
+ * per-photo in `photo_sequence_overrides`, and a set is only ever corrected
+ * whole, so the first frame carrying one speaks for the group.
+ */
+@Pipe({ name: 'groupOverride' })
+export class GroupOverridePipe implements PipeTransform {
+  transform(group: CullingGroup): string {
+    return group.photos.find(p => p.sequence_override)?.sequence_override ?? '';
   }
 }
 

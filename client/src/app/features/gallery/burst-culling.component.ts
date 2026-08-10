@@ -1,5 +1,6 @@
 import { Component, inject, signal, computed, effect, viewChild, ElementRef, OnDestroy, WritableSignal, HostListener, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { DecimalPipe, NgClass, NgTemplateOutlet } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -24,6 +25,10 @@ import { isTypingContext } from '../../shared/utils/keyboard';
 import { createLoupeState } from '../../shared/utils/loupe-state';
 import { SyncedZoomComponent, ZoomState, FIT_ZOOM } from './synced-zoom.component';
 import { CompareFiltersService } from '../comparison/compare-filters.service';
+import { PanoramaSettingsService } from '../comparison/panorama-settings.service';
+import { SequenceOverrideService, SequenceKind } from '../../core/services/sequence-override.service';
+import { UndoService } from '../../core/services/undo.service';
+import { SequenceKindLabelPipe } from '../../shared/pipes/sequence-kind.pipe';
 import { firstValueFrom } from 'rxjs';
 import { I18N } from '../../core/i18n/keys';
 import {
@@ -31,7 +36,7 @@ import {
   CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe,
   FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
   SortIconPipe, CategoryIconPipe, CullProfileIconPipe, CullPreviewUrlPipe,
-  SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe,
+  SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe, GroupOverridePipe,
   cullPreviewUrl,
   CullingGroup, CullingPhoto, CullingFace, CullingSubject, FaceThresholds, CullStyle,
 } from './burst-culling.pipes';
@@ -168,6 +173,8 @@ interface ShortcutRow {
     SubjectForPathPipe,
     SubjectRingClassPipe,
     EvOffsetPipe,
+    GroupOverridePipe,
+    SequenceKindLabelPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
   ],
@@ -440,6 +447,25 @@ interface ShortcutRow {
         </div>
       }
 
+      <!-- Corrections change nothing until the detector runs again, and that run
+           is a whole-library batch pass -- far too expensive to fire once per
+           click. So they accumulate and the run is offered here, once. -->
+      @if (pendingCorrections() > 0) {
+        <div class="shrink-0 flex flex-wrap items-center gap-3 p-3 mb-3 rounded-lg bg-[var(--mat-sys-surface-container)]" role="status">
+          <mat-icon class="!text-base !w-5 !h-5 !leading-5 text-amber-500" aria-hidden="true">schedule</mat-icon>
+          <span class="text-sm">{{ I18N.culling.panorama.rerun_banner | translate:{ count: pendingCorrections() } }}</span>
+          <button mat-stroked-button class="!h-8 !text-sm !rounded-md" [disabled]="detecting()"
+                  (click)="rerunDetection()"
+                  [matTooltip]="I18N.panorama.settings.redetect_tooltip | translate">
+            <mat-icon>refresh</mat-icon>{{ I18N.panorama.settings.redetect | translate }}
+          </button>
+          @if (detecting()) { <mat-spinner diameter="18" /> }
+          @if (detectMessage(); as m) {
+            <span class="text-sm opacity-80" [class.text-red-500]="detectFailed()">{{ m | translate }}</span>
+          }
+        </div>
+      }
+
       <!-- Scrollable group list; the header above stays fixed -->
       <div class="flex-1 min-h-0 overflow-y-auto -mx-4 px-4 md:-mx-8 md:px-8 pb-4 max-lg:pb-24" data-culling-scroll>
       <!-- Content -->
@@ -482,11 +508,23 @@ interface ShortcutRow {
               <!-- A pan has no best frame: every one covers a different part of
                    the scene and the set only means anything whole. -->
               @if (group.sequence_kind === 'panorama' || group.sequence_kind === 'hdr_panorama') {
-                <div class="flex items-center gap-2 px-4 pt-2 text-xs">
+                <div class="flex flex-wrap items-center gap-2 px-4 pt-2 text-xs">
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-400">
                     <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ group.sequence_kind | cullGroupIcon }}</mat-icon>{{ (group.sequence_kind === 'hdr_panorama' ? I18N.culling.panorama.hdr_label : I18N.culling.panorama.label) | translate }}
                   </span>
-                  <span class="opacity-70">{{ I18N.culling.panorama.hint | translate }}</span>
+                  <!-- The detector still owns the label above until it runs
+                       again, so a saved correction can only ever read as
+                       pending here -- saying otherwise would claim a set had
+                       changed while the feed still groups it the old way. -->
+                  @if (group | groupOverride; as pending) {
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                          [matTooltip]="I18N.culling.panorama.pending_tooltip | translate">
+                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4" aria-hidden="true">schedule</mat-icon>{{ I18N.culling.panorama.pending | translate }}
+                      <span class="opacity-80">({{ (pending === 'suppressed' ? I18N.culling.panorama.not_a_panorama : (pending | sequenceKindLabel)) | translate }})</span>
+                    </span>
+                  } @else {
+                    <span class="opacity-70">{{ I18N.culling.panorama.hint | translate }}</span>
+                  }
                 </div>
               }
               <!-- Photos -->
@@ -604,6 +642,38 @@ interface ShortcutRow {
                            [style.transform]="'scaleX(' + ((group | passCountdown:passingGroups()) / passCountdownSeconds) + ')'"></div>
                     </div>
                   } @else {
+                    <!-- Geometry cannot recover intent, so a residual error rate
+                         is inherent and this is where it is corrected. Only on
+                         panorama sets: a bracket is identified from EXIF, not
+                         from a measurement that can read a subject-tracking pan
+                         as a sweep. -->
+                    @if (auth.isEdition() && (group.sequence_kind === 'panorama' || group.sequence_kind === 'hdr_panorama')) {
+                      <button mat-icon-button [matMenuTriggerFor]="correctMenu"
+                              [matTooltip]="I18N.culling.panorama.correct_tooltip | translate"
+                              [attr.aria-label]="I18N.culling.panorama.correct | translate">
+                        <mat-icon>edit_note</mat-icon>
+                      </button>
+                      <mat-menu #correctMenu="matMenu">
+                        <button mat-menu-item (click)="correctSequence(group)">
+                          <mat-icon>wrong_location</mat-icon>{{ I18N.culling.panorama.not_a_panorama | translate }}
+                        </button>
+                        @if (group.sequence_kind !== 'panorama') {
+                          <button mat-menu-item (click)="correctSequence(group, 'panorama')">
+                            <mat-icon>panorama_photosphere</mat-icon>{{ I18N.culling.panorama.relabel_plain | translate }}
+                          </button>
+                        }
+                        @if (group.sequence_kind !== 'hdr_panorama') {
+                          <button mat-menu-item (click)="correctSequence(group, 'hdr_panorama')">
+                            <mat-icon>vrpano</mat-icon>{{ I18N.culling.panorama.relabel_hdr | translate }}
+                          </button>
+                        }
+                        @if (group | groupOverride) {
+                          <button mat-menu-item (click)="clearCorrection(group)">
+                            <mat-icon>undo</mat-icon>{{ I18N.culling.panorama.clear_correction | translate }}
+                          </button>
+                        }
+                      </mat-menu>
+                    }
                     <button mat-icon-button (click)="openLightbox(group, 0)"
                             [matTooltip]="I18N.culling.darkroom_tooltip | translate"
                             [attr.aria-label]="I18N.culling.darkroom | translate">
@@ -955,6 +1025,9 @@ export class BurstCullingComponent implements OnDestroy {
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly albumService = inject(AlbumService);
   private readonly compareFilters = inject(CompareFiltersService);
+  private readonly sequenceOverrides = inject(SequenceOverrideService);
+  private readonly panoramaSettings = inject(PanoramaSettingsService);
+  private readonly undoService = inject(UndoService);
   protected readonly auth = inject(AuthService);
   protected readonly store = inject(GalleryStore);
   private readonly sceneDate = new SceneDatePipe();
@@ -1036,6 +1109,16 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Set of group keys hidden after pass timeout */
   private readonly hiddenGroups = signal<Set<string>>(new Set());
+
+  /** Groups in the feed carrying a correction the detector has not applied yet. */
+  protected readonly pendingCorrections = computed(
+    () => this.groups().filter(g => g.photos.some(p => p.sequence_override)).length,
+  );
+  /** True while a re-detection subprocess runs (spawned here or elsewhere). */
+  protected readonly detecting = signal(false);
+  protected readonly detectMessage = signal('');
+  protected readonly detectFailed = signal(false);
+  private detectPollTimer: ReturnType<typeof setInterval> | null = null;
 
   /** Active timers for passing groups (for cleanup) */
   private readonly passTimers = new Map<string, { timeoutId: ReturnType<typeof setTimeout>; intervalId: ReturnType<typeof setInterval>; onElapsed: () => void; commit: boolean }>();
@@ -1363,6 +1446,7 @@ export class BurstCullingComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.pageHelp.setDescription(null);
     this.clearAllPassTimers();
+    this.stopDetectionPolling();
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => {});
     }
@@ -2093,6 +2177,118 @@ export class BurstCullingComponent implements OnDestroy {
       next.delete(key);
       return next;
     });
+  }
+
+  /**
+   * Record what this set really is: not a panorama (no `kind`), or the kind it
+   * should have been given.
+   *
+   * Offered as Undo rather than the 7-second cooldown the confirm uses: the
+   * correction only takes effect at the next detection run, so blocking for
+   * seven seconds would buy nothing, and the group must stay on screen —
+   * a suppressed set is still served here until that run.
+   */
+  protected async correctSequence(group: CullingGroup, kind?: SequenceKind): Promise<void> {
+    const paths = group.photos.map(p => p.path);
+    const previous = new Map(group.photos.map(p => [p.path, p.sequence_override ?? null]));
+    try {
+      await this.sequenceOverrides.setAsync(paths, kind);
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.culling.panorama.correction_failed), '',
+                         { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+      return;
+    }
+    this.patchOverrides(paths, kind ?? 'suppressed');
+    this.undoService.register({
+      labelKey: I18N.culling.panorama.corrected,
+      undo: async () => {
+        await this.sequenceOverrides.clearAsync(paths);
+        this.restoreOverrides(previous);
+      },
+    });
+  }
+
+  /** Hand this set back to the detector, dropping the pending correction. */
+  protected async clearCorrection(group: CullingGroup): Promise<void> {
+    const paths = group.photos.map(p => p.path);
+    try {
+      await this.sequenceOverrides.clearAsync(paths);
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.culling.panorama.correction_failed), '',
+                         { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+      return;
+    }
+    this.patchOverrides(paths, null);
+  }
+
+  /** Set one override value on the named frames, wherever they sit in the feed. */
+  private patchOverrides(paths: string[], value: string | null): void {
+    const target = new Set(paths);
+    this.restoreOverrides(new Map([...target].map(path => [path, value])));
+  }
+
+  /** Write back per-path override values (the undo path restores the old ones). */
+  private restoreOverrides(values: Map<string, string | null>): void {
+    this.groups.update(groups => groups.map(group => (
+      group.photos.some(p => values.has(p.path))
+        ? {
+            ...group,
+            photos: group.photos.map(p => (
+              values.has(p.path) ? { ...p, sequence_override: values.get(p.path) ?? null } : p
+            )),
+          }
+        : group
+    )));
+  }
+
+  /**
+   * Spawn the whole-library detection run the pending corrections need.
+   *
+   * Polls the shared job status rather than assuming success: the run is a
+   * background subprocess holding the library lock, and a 409 means another job
+   * already holds it.
+   */
+  protected async rerunDetection(): Promise<void> {
+    if (this.detecting()) return;
+    this.detecting.set(true);
+    this.detectFailed.set(false);
+    this.detectMessage.set('');
+    try {
+      await firstValueFrom(this.panoramaSettings.redetect());
+    } catch (error: unknown) {
+      this.detecting.set(false);
+      this.detectFailed.set(true);
+      const busy = error instanceof HttpErrorResponse && error.status === 409;
+      this.detectMessage.set(busy ? I18N.culling.panorama.rerun_busy : I18N.culling.panorama.rerun_failed);
+      return;
+    }
+    this.detectMessage.set(I18N.culling.panorama.rerun_running);
+    this.detectPollTimer = setInterval(() => void this.pollDetection(), 2000);
+  }
+
+  private async pollDetection(): Promise<void> {
+    try {
+      const status = await firstValueFrom(
+        this.api.get<{ running: boolean; kind: string | null; exit_code: number | null }>(
+          '/scan/recompute_status'));
+      if (status.running) return;
+      this.stopDetectionPolling();
+      const failed = status.exit_code !== 0 && status.exit_code !== null;
+      this.detectFailed.set(failed);
+      this.detectMessage.set(failed ? I18N.culling.panorama.rerun_failed : I18N.culling.panorama.rerun_done);
+    } catch {
+      this.stopDetectionPolling();
+      this.detectFailed.set(true);
+      this.detectMessage.set(I18N.culling.panorama.rerun_failed);
+    }
+  }
+
+  private stopDetectionPolling(): void {
+    this.detecting.set(false);
+    if (this.detectPollTimer !== null) {
+      clearInterval(this.detectPollTimer);
+      this.detectPollTimer = null;
+    }
   }
 
   /** Fetch per-category comparison counts + threshold for the weight-tuning chip. */

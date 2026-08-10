@@ -36,6 +36,7 @@ class Photo(BaseModel):
     narrative_moment: Optional[str] = None
     narrative_moment_confidence: Optional[float] = None
     junk_kind: Optional[str] = None
+    sequence_override: Optional[str] = None
     tags: Optional[str] = None
     tags_list: list[str] = []
     composition_pattern: Optional[str] = None
@@ -160,6 +161,7 @@ class GalleryParams(BaseModel):
     category: str = ''
     narrative_moment: str = ''
     junk_kind: str = ''         # exact kind, or 'any' for any junk
+    sequence_override: str = '' # any | suppressed | forced (pending panorama corrections)
     # Color facet (opt-in extraction, always-on filter)
     color_temp: str = ''        # warm | cool | neutral
     hue_bucket: str = ''        # red | orange | yellow | green | cyan | blue | purple | magenta

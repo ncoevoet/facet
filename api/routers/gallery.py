@@ -28,6 +28,7 @@ from api.top_picks import get_top_picks_score_sql, get_top_picks_threshold
 from api.types import (
     VALID_SORT_COLS, TYPE_FILTERS, normalize_params, get_photo_types,
     JUNK_ANY, JUNK_NOT_JUNK,
+    SEQUENCE_OVERRIDE_FORCED, SEQUENCE_OVERRIDE_SUPPRESSED, SEQUENCE_OVERRIDE_VALUES,
 )
 
 router = APIRouter(tags=["gallery"])
@@ -232,8 +233,32 @@ def _apply_text_filters(where_clauses, sql_params, params, conn):
             where_clauses.append("junk_kind = ?")
             sql_params.append(params['junk_kind'])
 
+    _apply_sequence_override_filter(where_clauses, params)
+
     if params.get('is_silhouette') == '1':
         where_clauses.append("is_silhouette = 1")
+
+
+def _apply_sequence_override_filter(where_clauses, params):
+    """Narrow the view to photos carrying a pending panorama correction.
+
+    A correction is invisible in the labels until the next detection run
+    rewrites them, so without this the only way to find what is still waiting on
+    that run is to remember it. Keyed on the override table rather than on
+    ``sequence_kind``: a forced set has no ``sequence_kind`` at all until that
+    run, which is precisely the case worth listing.
+    """
+    value = params.get('sequence_override')
+    if value not in SEQUENCE_OVERRIDE_VALUES:
+        return
+    kind_sql = ''
+    if value == SEQUENCE_OVERRIDE_SUPPRESSED:
+        kind_sql = ' AND o.sequence_kind IS NULL'
+    elif value == SEQUENCE_OVERRIDE_FORCED:
+        kind_sql = ' AND o.sequence_kind IS NOT NULL'
+    where_clauses.append(
+        "EXISTS (SELECT 1 FROM photo_sequence_overrides o "
+        f"WHERE o.photo_path = photos.path{kind_sql})")
 
 
 def _quality_tier_bounds(tier):

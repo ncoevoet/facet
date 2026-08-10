@@ -1087,6 +1087,15 @@
     "hide_duplicates": "Duplikate ausblenden",
     "hide_brackets": "Beste der Belichtungsreihe",
     "hide_panoramas": "Bestes Bild des Panoramas",
+    "sequence_override": {
+      "label": "Panorama-Korrekturen",
+      "all": "Alle Fotos",
+      "any": "Korrigiert",
+      "suppressed": "Als „kein Panorama“ markiert",
+      "forced": "Als Panorama markiert",
+      "badge": "Als Panorama markiert — greift beim nächsten Erkennungslauf",
+      "badge_suppressed": "Als „kein Panorama“ markiert — greift beim nächsten Erkennungslauf"
+    },
     "reset_filters": "Filter zurücksetzen",
     "scroll_to_top": "Nach oben scrollen",
     "photo_grid": "Fotoraster",
@@ -1107,7 +1116,12 @@
       "select_all": "Alle auswählen",
       "invert": "Umkehren",
       "compare": "Vergleichen",
-      "actions": "Aktionen"
+      "actions": "Aktionen",
+      "mark_sequence": "Als Serie markieren",
+      "mark_panorama": "Als ein Panorama markieren",
+      "mark_hdr_panorama": "Als ein HDR-Panorama markieren",
+      "marked_panorama": "{count} Fotos als ein Panorama markiert",
+      "mark_needs_two": "Wählen Sie mindestens zwei Fotos aus"
     },
     "keep_top": {
       "label": "Top % behalten",
@@ -1996,7 +2010,22 @@
     "panorama": {
       "label": "Panorama",
       "hdr_label": "HDR-Panorama",
-      "hint": "Bilder eines Schwenks — behalten Sie die Serie, es gibt kein bestes Bild"
+      "hint": "Bilder eines Schwenks — behalten Sie die Serie, es gibt kein bestes Bild",
+      "correct": "Diese Serie korrigieren",
+      "correct_tooltip": "Die Geometrie unterscheidet einen bewussten Schwenk nicht von einem Schwenk, der einem Motiv folgt — sagen Sie, was es ist",
+      "not_a_panorama": "Kein Panorama",
+      "relabel_plain": "Es ist ein einfaches Panorama",
+      "relabel_hdr": "Es ist ein HDR-Panorama",
+      "clear_correction": "Korrektur verwerfen",
+      "pending": "Korrektur ausstehend",
+      "pending_tooltip": "Gespeichert. Sie greift beim nächsten Erkennungslauf — bis dahin behält diese Serie ihre bisherige Kennzeichnung.",
+      "corrected": "Korrektur gespeichert",
+      "correction_failed": "Korrektur konnte nicht gespeichert werden",
+      "rerun_banner": "Korrekturen, die auf einen Erkennungslauf warten: {count}",
+      "rerun_running": "Erkennung läuft…",
+      "rerun_done": "Erkennung abgeschlossen — neu laden, um die neuen Kennzeichnungen zu sehen",
+      "rerun_failed": "Erkennung konnte nicht gestartet werden",
+      "rerun_busy": "Ein anderer Bibliotheksauftrag läuft; versuchen Sie es danach erneut"
     }
   },
   "scenes": {

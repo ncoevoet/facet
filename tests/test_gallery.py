@@ -50,6 +50,10 @@ _PHOTOS_SCHEMA = """
         id INTEGER PRIMARY KEY, name TEXT, representative_face_id INTEGER,
         face_count INTEGER, face_thumbnail BLOB
     );
+    CREATE TABLE photo_sequence_overrides (
+        photo_path TEXT PRIMARY KEY, sequence_kind TEXT, override_group_key TEXT,
+        source TEXT, created_at TEXT, created_by TEXT
+    );
 """
 
 _SAMPLE_PHOTO = {
@@ -671,3 +675,88 @@ class TestGalleryHidePanoramas:
 
     def test_ordinary_photos_are_untouched(self, tmp_path):
         assert "/plain.jpg" in self._fetch(tmp_path, "hide_bursts=1&hide_panoramas=1&per_page=50")
+
+
+class TestGallerySequenceOverrideFilter:
+    """Pending panorama corrections, surfaced on the payload and listable.
+
+    A correction lives in `photo_sequence_overrides` and changes nothing in
+    `photos` until the next detection run rewrites the labels, so it is
+    invisible in `sequence_kind` by construction. Without a way to list them the
+    only record that a correction is still waiting on that run is the user's
+    memory.
+    """
+
+    _PHOTOS = [
+        _photo("/plain.jpg", "2024:06:15 11:00:00"),
+        _photo("/killed.jpg", "2024:06:15 12:00:00",
+               sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=1),
+        _photo("/forced-a.jpg", "2024:06:15 13:00:00"),
+        _photo("/forced-b.jpg", "2024:06:15 13:00:01"),
+    ]
+
+    _OVERRIDES = [
+        ("/killed.jpg", None, None),
+        ("/forced-a.jpg", "panorama", "/forced-a.jpg"),
+        ("/forced-b.jpg", "panorama", "/forced-a.jpg"),
+    ]
+
+    def _fetch(self, tmp_path, query):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, self._PHOTOS)
+        conn = sqlite3.connect(db_path)
+        conn.executemany(
+            "INSERT INTO photo_sequence_overrides "
+            "(photo_path, sequence_kind, override_group_key, source) VALUES (?, ?, ?, 'user')",
+            self._OVERRIDES,
+        )
+        conn.commit()
+        conn.close()
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
+            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch.dict("api.config._count_cache", {}, clear=True),
+        ):
+            resp = TestClient(app).get(f"/api/photos?page=1&per_page=50&{query}")
+        assert resp.status_code == 200
+        return resp.json()["photos"]
+
+    def test_a_suppression_reads_as_suppressed(self, tmp_path):
+        by_path = {p["path"]: p for p in self._fetch(tmp_path, "")}
+        assert by_path["/killed.jpg"]["sequence_override"] == "suppressed"
+
+    def test_a_forced_set_reports_its_kind(self, tmp_path):
+        by_path = {p["path"]: p for p in self._fetch(tmp_path, "")}
+        assert by_path["/forced-a.jpg"]["sequence_override"] == "panorama"
+
+    def test_an_uncorrected_photo_reports_nothing(self, tmp_path):
+        by_path = {p["path"]: p for p in self._fetch(tmp_path, "")}
+        assert by_path["/plain.jpg"]["sequence_override"] is None
+
+    def test_any_lists_both_directions(self, tmp_path):
+        paths = {p["path"] for p in self._fetch(tmp_path, "sequence_override=any")}
+        assert paths == {"/killed.jpg", "/forced-a.jpg", "/forced-b.jpg"}
+
+    def test_suppressed_excludes_forced_sets(self, tmp_path):
+        paths = {p["path"] for p in self._fetch(tmp_path, "sequence_override=suppressed")}
+        assert paths == {"/killed.jpg"}
+
+    def test_forced_excludes_suppressions(self, tmp_path):
+        paths = {p["path"] for p in self._fetch(tmp_path, "sequence_override=forced")}
+        assert paths == {"/forced-a.jpg", "/forced-b.jpg"}
+
+    def test_an_unknown_value_filters_nothing(self, tmp_path):
+        paths = {p["path"] for p in self._fetch(tmp_path, "sequence_override=nonsense")}
+        assert "/plain.jpg" in paths
+
+    def test_the_hide_toggles_still_compose(self, tmp_path):
+        """A suppressed frame is still a labelled panorama until the re-run, so
+        `hide_panoramas` must keep applying to it -- the filter narrows the
+        view, it does not exempt rows from the visibility rules."""
+        paths = {p["path"] for p in self._fetch(
+            tmp_path, "sequence_override=any&hide_panoramas=1")}
+        assert "/killed.jpg" in paths  # it is its own set's lead
+        assert paths == {"/killed.jpg", "/forced-a.jpg", "/forced-b.jpg"}

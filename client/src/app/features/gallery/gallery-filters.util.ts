@@ -117,6 +117,8 @@ export interface GalleryFilters {
   date_to: string;
   // Content
   composition_pattern: string;
+  /** Pending panorama corrections: '' | 'any' | 'suppressed' | 'forced'. */
+  sequence_override: string;
   // Similar-to filter
   similar_to: string;
   similarity_mode: 'visual' | 'color' | 'person';
@@ -176,7 +178,7 @@ export const SMART_ALBUM_EXCLUDE_KEYS = new Set([
 /** Common string-typed filter keys shared across URL sync, API params, and filter counting. */
 export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
   'type', 'camera', 'lens', 'tag', 'person_id', 'composition_pattern', 'search',
-  'color_temp', 'hue_bucket', 'quality_tier',
+  'color_temp', 'hue_bucket', 'quality_tier', 'sequence_override',
   'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
   'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
   'min_face_quality', 'max_face_quality', 'min_composition', 'max_composition',
@@ -292,6 +294,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   date_from: '',
   date_to: '',
   composition_pattern: '',
+  sequence_override: '',
   path_prefix: '',
   semanticQuery: '',
   album_id: '',

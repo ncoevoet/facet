@@ -1083,6 +1083,15 @@
     "hide_duplicates": "Nascondi duplicati",
     "hide_brackets": "Migliore del bracketing",
     "hide_panoramas": "Migliore del panorama",
+    "sequence_override": {
+      "label": "Correzioni panorama",
+      "all": "Tutte le foto",
+      "any": "Corrette",
+      "suppressed": "Segnate come «non è un panorama»",
+      "forced": "Segnate come panorama",
+      "badge": "Segnata come panorama: si applica alla prossima rilevazione",
+      "badge_suppressed": "Segnata come «non è un panorama»: si applica alla prossima rilevazione"
+    },
     "reset_filters": "Ripristina filtri",
     "scroll_to_top": "Torna su",
     "photo_grid": "Griglia di foto",
@@ -1103,7 +1112,12 @@
       "select_all": "Seleziona tutto",
       "invert": "Inverti",
       "compare": "Confronta",
-      "actions": "Azioni"
+      "actions": "Azioni",
+      "mark_sequence": "Segna come serie",
+      "mark_panorama": "Segna come un panorama",
+      "mark_hdr_panorama": "Segna come un panorama HDR",
+      "marked_panorama": "{count} foto segnate come un panorama",
+      "mark_needs_two": "Seleziona almeno due foto"
     },
     "keep_top": {
       "label": "Tieni top %",
@@ -1992,7 +2006,22 @@
     "panorama": {
       "label": "Panorama",
       "hdr_label": "Panorama HDR",
-      "hint": "Fotogrammi di una panoramica — tieni la serie, non esiste uno scatto migliore"
+      "hint": "Fotogrammi di una panoramica — tieni la serie, non esiste uno scatto migliore",
+      "correct": "Correggi questa serie",
+      "correct_tooltip": "La geometria non distingue una panoramica deliberata da una che segue un soggetto: indica di quale si tratta",
+      "not_a_panorama": "Non è un panorama",
+      "relabel_plain": "È un panorama semplice",
+      "relabel_hdr": "È un panorama HDR",
+      "clear_correction": "Annulla la correzione",
+      "pending": "Correzione in attesa",
+      "pending_tooltip": "Salvata. Si applica alla prossima rilevazione; fino ad allora questa serie mantiene l’etichetta attuale.",
+      "corrected": "Correzione salvata",
+      "correction_failed": "Impossibile salvare la correzione",
+      "rerun_banner": "Correzioni in attesa di una rilevazione: {count}",
+      "rerun_running": "Rilevazione in corso…",
+      "rerun_done": "Rilevazione terminata: ricarica per vedere le nuove etichette",
+      "rerun_failed": "Impossibile avviare la rilevazione",
+      "rerun_busy": "Un’altra operazione sta usando la libreria; riprova al termine"
     }
   },
   "scenes": {

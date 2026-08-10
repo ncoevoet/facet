@@ -1083,6 +1083,15 @@
     "hide_duplicates": "Ocultar duplicatas",
     "hide_brackets": "Melhor do bracketing",
     "hide_panoramas": "Melhor do panorama",
+    "sequence_override": {
+      "label": "Correções de panorama",
+      "all": "Todas as fotos",
+      "any": "Corrigidas",
+      "suppressed": "Marcadas como «não é um panorama»",
+      "forced": "Marcadas como panorama",
+      "badge": "Marcada como panorama: aplica-se na próxima deteção",
+      "badge_suppressed": "Marcada como «não é um panorama»: aplica-se na próxima deteção"
+    },
     "reset_filters": "Redefinir filtros",
     "scroll_to_top": "Voltar ao topo",
     "photo_grid": "Grade de fotos",
@@ -1103,7 +1112,12 @@
       "select_all": "Selecionar todas",
       "invert": "Inverter",
       "compare": "Comparar",
-      "actions": "Ações"
+      "actions": "Ações",
+      "mark_sequence": "Marcar como série",
+      "mark_panorama": "Marcar como um panorama",
+      "mark_hdr_panorama": "Marcar como um panorama HDR",
+      "marked_panorama": "{count} fotos marcadas como um panorama",
+      "mark_needs_two": "Selecione pelo menos duas fotos"
     },
     "keep_top": {
       "label": "Manter top %",
@@ -1990,7 +2004,22 @@
     "panorama": {
       "label": "Panorama",
       "hdr_label": "Panorama HDR",
-      "hint": "Fotogramas de uma panorâmica — mantenha o conjunto, não há melhor imagem"
+      "hint": "Fotogramas de uma panorâmica — mantenha o conjunto, não há melhor imagem",
+      "correct": "Corrigir esta série",
+      "correct_tooltip": "A geometria não distingue uma varredura deliberada de um movimento que segue um motivo: diga o que é",
+      "not_a_panorama": "Não é um panorama",
+      "relabel_plain": "É um panorama simples",
+      "relabel_hdr": "É um panorama HDR",
+      "clear_correction": "Descartar a correção",
+      "pending": "Correção pendente",
+      "pending_tooltip": "Guardada. Aplica-se na próxima deteção; até lá esta série mantém a etiqueta atual.",
+      "corrected": "Correção guardada",
+      "correction_failed": "Não foi possível guardar a correção",
+      "rerun_banner": "Correções à espera de uma deteção: {count}",
+      "rerun_running": "Deteção em curso…",
+      "rerun_done": "Deteção concluída: recarregue para ver as novas etiquetas",
+      "rerun_failed": "Não foi possível iniciar a deteção",
+      "rerun_busy": "Outra tarefa está a usar a biblioteca; tente novamente quando terminar"
     }
   },
   "scenes": {

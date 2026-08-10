@@ -274,9 +274,26 @@ later ranking.
 pan that follows a moving subject are the same measurement — so a residual error
 rate is inherent, measured at roughly 4%. A correction ("this is not a panorama"
 / "these frames are one") is sticky: it lives in its own table and survives every
-later detection run, which clears and rewrites the labels it produced. **There is
-no button for this yet** — it is currently API-only, via
-`POST /api/culling-groups/override_sequence` and `/clear_sequence_override`.
+later detection run, which clears and rewrites the labels it produced.
+
+Both error directions have their own surface, because they are found in
+different places. A **false positive** is corrected in culling, where the set is
+in front of you: the group's action bar carries a correction menu (edition only)
+offering *Not a panorama* and a relabel between plain and HDR. A **miss** is
+corrected from the gallery, because an undetected sweep appears in no culling
+group at all: select its frames and use *Mark as a set* → *Mark as one panorama*
+in the selection bar. Both are undoable from the snackbar, and both take at least
+two frames.
+
+Nothing relabels immediately. A correction is saved at once and marked pending —
+a clock badge on the gallery tile, a *Correction pending* chip on the culling
+group — because detection is a whole-library batch pass, far too expensive to run
+once per click. The culling page shows a banner counting what is waiting, with a
+**Re-run detection** button beside it; the sidebar's *Panorama corrections* filter
+(edition only, under Refine) lists them library-wide, as either direction or
+both. Until that run, a suppressed set is still grouped as a panorama and a
+forced one is still ungrouped — the correction is a note to the detector, not a
+label of its own.
 
 **Tuning it.** The Panoramas tab under Compare exposes the thresholds that were
 actually calibrated against labelled sets — minimum frames, minimum sweep,
