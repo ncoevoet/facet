@@ -6,7 +6,10 @@
  */
 
 export type GalleryMode = 'grid' | 'mosaic';
-export type TooltipMode = 'hover' | 'click' | 'off';
+export type TooltipMode = 'hover' | 'click' | 'off' | 'panel';
+
+/** Every accepted tooltip mode, so the URL parser and the mode picker cannot drift apart. */
+export const TOOLTIP_MODES: readonly TooltipMode[] = ['hover', 'click', 'off', 'panel'];
 
 export const GALLERY_MODE_KEY = 'facet_gallery_mode';
 export const DRAWER_STATE_KEY = 'facet_filter_drawer_open';
@@ -134,6 +137,7 @@ export interface GalleryFilters {
   hide_blinks: boolean;
   hide_bursts: boolean;
   hide_duplicates: boolean;
+  hide_brackets: boolean;
   hide_rejected: boolean;
   favorites_only: boolean;
   is_monochrome: boolean;
@@ -153,6 +157,7 @@ export interface FilterDefaults {
   hide_blinks?: boolean;
   hide_bursts?: boolean;
   hide_duplicates?: boolean;
+  hide_brackets?: boolean;
   hide_rejected?: boolean;
   tooltip_mode?: TooltipMode;
 }
@@ -162,7 +167,7 @@ export const SMART_ALBUM_EXCLUDE_KEYS = new Set([
   'page', 'per_page', 'semanticQuery', 'album_id',
   'similar_to', 'similarity_mode', 'min_similarity',
   'hide_details', 'tooltip_mode', 'hide_blinks', 'hide_bursts',
-  'hide_duplicates', 'hide_rejected',
+  'hide_duplicates', 'hide_brackets', 'hide_rejected',
   'gps_lat', 'gps_lng', 'gps_radius_km',
 ]);
 
@@ -299,6 +304,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   hide_blinks: true,
   hide_bursts: true,
   hide_duplicates: true,
+  hide_brackets: true,
   hide_rejected: true,
   favorites_only: false,
   is_monochrome: false,
@@ -309,11 +315,11 @@ export const DEFAULT_FILTERS: GalleryFilters = {
 };
 
 export type DisplayOptions = Pick<GalleryFilters,
-  'hide_details' | 'tooltip_mode' | 'hide_blinks' | 'hide_bursts' | 'hide_duplicates' |
+  'hide_details' | 'tooltip_mode' | 'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' |
   'hide_rejected' | 'favorites_only' | 'is_monochrome'>;
 
 export const DISPLAY_OPTION_KEYS: (keyof DisplayOptions)[] = [
-  'hide_details', 'tooltip_mode', 'hide_blinks', 'hide_bursts', 'hide_duplicates',
+  'hide_details', 'tooltip_mode', 'hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets',
   'hide_rejected', 'favorites_only', 'is_monochrome',
 ];
 
@@ -369,10 +375,12 @@ export function applyQueryParams(
   if (params['hide_bursts'] !== undefined) result.hide_bursts = params['hide_bursts'] !== 'false';
   if (params['hide_duplicates'] !== undefined)
     result.hide_duplicates = params['hide_duplicates'] !== 'false';
+  if (params['hide_brackets'] !== undefined)
+    result.hide_brackets = params['hide_brackets'] !== 'false';
   if (params['hide_rejected'] !== undefined) result.hide_rejected = params['hide_rejected'] !== 'false';
   if (params['favorites_only'] !== undefined) result.favorites_only = params['favorites_only'] === 'true';
   if (params['is_monochrome'] !== undefined) result.is_monochrome = params['is_monochrome'] === 'true';
-  if (params['tooltip_mode'] && ['hover', 'click', 'off'].includes(params['tooltip_mode'])) {
+  if (params['tooltip_mode'] && TOOLTIP_MODES.includes(params['tooltip_mode'] as TooltipMode)) {
     result.tooltip_mode = params['tooltip_mode'] as TooltipMode;
   }
   if (params['page']) result.page = parseInt(params['page'], 10) || 1;
@@ -405,6 +413,8 @@ export function buildSyncParams(
     params['hide_bursts'] = String(f.hide_bursts);
   if (f.hide_duplicates !== (defaults?.hide_duplicates ?? true))
     params['hide_duplicates'] = String(f.hide_duplicates);
+  if (f.hide_brackets !== (defaults?.hide_brackets ?? true))
+    params['hide_brackets'] = String(f.hide_brackets);
   if (f.hide_rejected !== (defaults?.hide_rejected ?? true))
     params['hide_rejected'] = String(f.hide_rejected);
   if (f.tooltip_mode !== (defaults?.tooltip_mode ?? 'hover'))
@@ -435,6 +445,7 @@ export function buildApiParams(
   if (f.hide_blinks) params['hide_blinks'] = true;
   if (f.hide_bursts) params['hide_bursts'] = true;
   if (f.hide_duplicates) params['hide_duplicates'] = true;
+  if (f.hide_brackets) params['hide_brackets'] = true;
   if (f.hide_rejected) params['hide_rejected'] = true;
   if (f.favorites_only) params['favorites_only'] = '1';
   if (f.is_monochrome) params['is_monochrome'] = '1';

@@ -42,6 +42,20 @@ import { Photo } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
 import { I18N } from './core/i18n/keys';
 import { folderDisplayName } from './features/folders/folders.util';
+import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from './shared/utils/media-query';
+
+/** When the "a newer Facet is out" notice was last shown, so it stays weekly. */
+const RELEASE_NOTICE_KEY = 'facet_release_notice_shown';
+const RELEASE_NOTICE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Response of GET /api/updates/check. */
+interface ReleaseCheck {
+  enabled: boolean;
+  current: string;
+  latest: string | null;
+  update_available: boolean;
+  release_url: string;
+}
 
 /** Inline dialog for edition password prompt. */
 @Component({
@@ -387,6 +401,39 @@ export class App implements OnInit {
       });
   }
 
+  /**
+   * Mention once a week that a newer Facet has been released.
+   *
+   * Separate from the service worker's notice above, which reloads the page onto
+   * a bundle already downloaded; this one is about a release nobody has installed
+   * yet. Only edition users see it — upgrading is an operator's job, and telling
+   * anyone else would be nagging them about something they cannot act on.
+   *
+   * The weekly stamp is written as soon as the notice is shown, not when it is
+   * dismissed, so a reload cannot turn it into a notice on every page load.
+   */
+  private async maybeAnnounceNewRelease(): Promise<void> {
+    if (!this.auth.isEdition()) return;
+    const now = Date.now();
+    const last = Number(localStorage.getItem(RELEASE_NOTICE_KEY)) || 0;
+    if (now - last < RELEASE_NOTICE_INTERVAL_MS) return;
+    try {
+      const res = await firstValueFrom(this.api.get<ReleaseCheck>('/api/updates/check'));
+      if (!res?.update_available || !res.latest) return;
+      localStorage.setItem(RELEASE_NOTICE_KEY, String(now));
+      const ref = this.snackBar.open(
+        this.i18n.t(I18N.updates.available, { version: res.latest }),
+        res.release_url ? this.i18n.t(I18N.updates.view) : '',
+        { duration: 15000 },
+      );
+      if (res.release_url) {
+        ref.onAction().subscribe(() => window.open(res.release_url, '_blank', 'noopener'));
+      }
+    } catch {
+      // A check that cannot run is not worth a word to the user.
+    }
+  }
+
   /** Auth identity fingerprint, to refresh config only on real transitions. */
   private lastAuthKey: string | null = null;
 
@@ -402,14 +449,28 @@ export class App implements OnInit {
           void this.store.refreshConfig();
           // Edition-only indicators loaded once at startup must refresh when
           // edition is gained mid-session (otherwise they'd need an app reload).
-          if (s?.edition_authenticated) this.refreshBurstGroupsIndicator();
+          if (s?.edition_authenticated) {
+            this.refreshBurstGroupsIndicator();
+            void this.maybeAnnounceNewRelease();
+          }
         }
         this.lastAuthKey = key;
       });
     });
   }
 
+  /**
+   * Whether the viewport can host the docked details rail.
+   *
+   * Gates the tooltip menu's "Side panel" entry: below this width the rail is
+   * not rendered, so offering the mode would let the user pick a setting that
+   * silently does nothing but fall back to the floating tooltip.
+   */
+  private readonly railCapable = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
+  protected readonly canDockDetails = this.railCapable.isDesktop;
+
   async ngOnInit(): Promise<void> {
+    this.railCapable.setup();
     this.setupUpdateNotifications();
     await this.i18n.loadLanguages();
     await this.i18n.load();

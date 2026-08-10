@@ -13,6 +13,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { AlbumService } from '../../core/services/album.service';
 import { GalleryComponent } from './gallery.component';
 import { ScoreClassPipe } from '../../shared/pipes/score.pipes';
+import { MAX_COMPARE_PANES } from './synced-zoom.component';
 
 describe('GalleryComponent', () => {
   let component: GalleryComponent;
@@ -303,6 +304,170 @@ describe('GalleryComponent', () => {
       expect(mockStore.loadPhotos).toHaveBeenCalled();
       expect(mockStore.photos()).toHaveLength(1);
       expect(mockStore.initializing()).toBe(false);
+    });
+  });
+
+  describe('hidden-photos banner toggle', () => {
+    it('stashes the hide flags and offers to restore them', async () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true });
+
+      component.showAllHidden();
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false,
+      });
+
+      // The store is mocked, so mirror the write the real one would have made.
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false });
+      expect(component.canRestoreHidden()).toBe(true);
+
+      component.restoreHidden();
+      expect(mockStore.updateFilters).toHaveBeenLastCalledWith({
+        hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true,
+      });
+    });
+
+    it('offers no restore before Show all has been used', () => {
+      expect(component.canRestoreHidden()).toBe(false);
+    });
+
+    it('withdraws the restore once a hide filter is switched back on by hand', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true });
+      component.showAllHidden();
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: false, hide_brackets: false });
+      expect(component.canRestoreHidden()).toBe(false);
+    });
+  });
+
+  describe('docked details panel (tooltip_mode = panel)', () => {
+    const hoverEvent = { currentTarget: null } as unknown as MouseEvent;
+
+    /** Force the rail's width gate on, the way a >=1280px viewport would. */
+    function widenForRail() {
+      vi.stubGlobal('matchMedia', (media: string) => ({
+        matches: true, media, addEventListener() {}, removeEventListener() {},
+      }));
+      (component as unknown as { railWide: { setup(): void } }).railWide.setup();
+    }
+
+    beforeEach(() => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'panel' });
+    });
+
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('needs a wide viewport as well as the setting, not the setting alone', () => {
+      expect(component['tooltipMode']()).toBe('panel');
+      expect(component.panelMode()).toBe(false);
+    });
+
+    describe('with a viewport wide enough for the rail', () => {
+      beforeEach(() => widenForRail());
+
+      it('is active', () => {
+        expect(component.panelMode()).toBe(true);
+      });
+
+      it('hovering a photo feeds the rail without any placement maths', () => {
+        const photo = { path: '/a.jpg' } as never;
+        component.showTooltip(hoverEvent, photo);
+        expect(component['tooltipPhoto']()).toBe(photo);
+        expect(component['tooltipX']()).toBe(0);
+        expect(component['tooltipY']()).toBe(0);
+      });
+
+      it('keeps the last photo when the cursor leaves the grid', () => {
+        const photo = { path: '/a.jpg' } as never;
+        component.showTooltip(hoverEvent, photo);
+        component.hideTooltip();
+        expect(component['tooltipPhoto']()).toBe(photo);
+      });
+
+      it('yields the shared drawer to the filters while they are open', () => {
+        mockStore.filterDrawerOpen.set(true);
+        expect(component.detailsRailVisible()).toBe(false);
+      });
+    });
+
+    it('still clears on mouse-out in hover mode', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      component.hideTooltip();
+      expect(component['tooltipPhoto']()).toBeNull();
+    });
+
+    it('falls back to a positioned floating tooltip when the rail cannot be shown', () => {
+      // Selecting the mode on a viewport too narrow for the rail used to skip
+      // the placement maths and leave the floating box at a stale coordinate.
+      const card = document.createElement('div');
+      card.className = 'relative rounded-lg';
+      document.body.appendChild(card);
+      const photo = { path: '/a.jpg', image_width: 4000, image_height: 3000 } as never;
+      component.showTooltip({ currentTarget: card } as unknown as MouseEvent, photo);
+      expect(component['tooltipPhoto']()).toBe(photo);
+      card.remove();
+    });
+
+    it('clears on mouse-out while the rail is unavailable, like hover does', () => {
+      const photo = { path: '/a.jpg' } as never;
+      component['tooltipPhoto'].set(photo);
+      component.hideTooltip();
+      expect(component['tooltipPhoto']()).toBeNull();
+    });
+  });
+
+  describe('compare selection', () => {
+    const photo = (path: string) => ({ path, filename: path.slice(1) });
+
+    function select(paths: string[]) {
+      mockStore.selectedPaths.set(new Set(paths));
+      mockStore.selectionCount.set(paths.length);
+    }
+
+    // The dialog itself is covered by its own spec; this is the wiring — which
+    // photos it is handed, in which order, and when the action is offered.
+    it('is offered from two photos up to the pane limit', () => {
+      const c = component as unknown as { canCompareSelection: () => boolean };
+      for (const n of [0, 1]) {
+        select(Array.from({ length: n }, (_, i) => `/p${i}.jpg`));
+        expect(c.canCompareSelection()).toBe(false);
+      }
+      for (let n = 2; n <= MAX_COMPARE_PANES; n++) {
+        select(Array.from({ length: n }, (_, i) => `/p${i}.jpg`));
+        expect(c.canCompareSelection()).toBe(true);
+      }
+      select(Array.from({ length: MAX_COMPARE_PANES + 1 }, (_, i) => `/p${i}.jpg`));
+      expect(c.canCompareSelection()).toBe(false);
+    });
+
+    it('hands over the grid order, not the order they were picked in', async () => {
+      mockStore.photos.set(['/a.jpg', '/b.jpg', '/c.jpg'].map(photo));
+      select(['/c.jpg', '/a.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+
+      await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
+
+      const data = (dialog.open as Mock).mock.calls[0][1].data;
+      expect(data.photos.map((p: { path: string }) => p.path)).toEqual(['/a.jpg', '/c.jpg']);
+    });
+
+    it('caps the panes even if more photos are somehow selected', async () => {
+      const paths = Array.from({ length: MAX_COMPARE_PANES + 2 }, (_, i) => `/p${i}.jpg`);
+      mockStore.photos.set(paths.map(photo));
+      select(paths);
+      const dialog = TestBed.inject(MatDialog);
+
+      await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
+
+      expect((dialog.open as Mock).mock.calls[0][1].data.photos.length).toBe(MAX_COMPARE_PANES);
+    });
+
+    it('does nothing when fewer than two selected photos are loaded', async () => {
+      mockStore.photos.set([photo('/a.jpg')]);
+      select(['/a.jpg', '/gone.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+
+      await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
+
+      expect(dialog.open).not.toHaveBeenCalled();
     });
   });
 });

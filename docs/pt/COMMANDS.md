@@ -124,6 +124,7 @@ Esses comandos atualizam métricas específicas, derivam novos dados (legendas p
 | `python facet.py --recompute-eyes-expression` | Recalcula as pontuações de olhos-abertos + expressão a partir dos landmarks armazenados (CPU, rápido) |
 | `python facet.py --recompute-face-signals` | Preenche retroativamente as pontuações de olhos-abertos + sorriso por rosto a partir dos landmarks de 106 pontos armazenados (CPU, rápido; sem modelo). Também roda como uma etapa de `--upgrade-db` |
 | `python facet.py --recompute-burst` | Recalcula os grupos de detecção de rajada |
+| `python facet.py --detect-sequences` | Deteta conjuntos de bracketing de exposição a partir dos EXIF armazenados (biblioteca inteira, sem descodificar imagens) e coloca a foto principal de cada rajada na exposição base. Corre no fim de cada análise e como passo de `--upgrade-db` |
 | `python facet.py --detect-duplicates` | Detecta fotos duplicadas via pHash |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Avalia limiares de cosseno para quase-duplicatas (tabela de precisão/revocação com rótulos; caso contrário, distribuição de cosseno dos candidatos) |
 | `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Gera legendas por IA para as fotos usando VLM. Quando `narrative_moments.caption_min_confidence > 0`, ignora fotos sem rótulo / `other` / abaixo do limiar (o mesmo portão se aplica ao endpoint de legenda sob demanda) |

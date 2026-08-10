@@ -2014,6 +2014,20 @@
     "time_window_minutes": 0.8,
     "rapid_burst_seconds": 0.4
   },
+  "sequence_detection": {
+    "enabled": true,
+    "max_gap_seconds": 3.0,
+    "max_hamming": 10,
+    "min_frames": 3,
+    "min_step_stops": 0.5,
+    "min_span_stops": 1.0,
+    "step_tolerance_stops": 0.34
+  },
+  "updates": {
+    "enabled": true,
+    "check_url": "https://api.github.com/repos/ncoevoet/facet/releases/latest",
+    "interval_days": 7
+  },
   "duplicate_detection": {
     "similarity_threshold_percent": 90
   },
@@ -3101,6 +3115,7 @@
       "hide_blinks": true,
       "hide_bursts": true,
       "hide_duplicates": true,
+      "hide_brackets": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,

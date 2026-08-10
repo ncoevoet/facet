@@ -31,6 +31,7 @@ _PHOTOS_SCHEMA = """
         comp_score REAL, isolation_bonus REAL, is_blink INTEGER,
         phash TEXT, is_burst_lead INTEGER, burst_group_id INTEGER,
         is_duplicate_lead INTEGER, duplicate_group_id INTEGER,
+        sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL,
         aggregate REAL,
         category TEXT, image_width INTEGER, image_height INTEGER,
         tags TEXT, composition_pattern TEXT, person_id INTEGER,
@@ -422,6 +423,64 @@ class TestGalleryHideBursts:
         data = self._fetch(tmp_path)
         assert data["hidden_summary"]["bursts"] == 1
         assert data["hidden_summary"]["total"] == 1
+
+
+class TestGalleryHideBrackets:
+    """GET /api/photos?hide_brackets=1 — a bracket contributes its base frame only.
+
+    Deliberately independent of burst state: a quarter of real bracket sets share
+    a burst group with unrelated frames, where the lead is not the base exposure,
+    so hiding burst non-leads leaves the flanking exposures on show.
+    """
+
+    _PHOTOS = [
+        _photo("/plain.jpg", "2024:06:15 11:00:00"),
+        # A bracket whose frames are burst LEADS, so hide_bursts would not touch them.
+        _photo("/b-under.jpg", "2024:06:15 12:00:00", is_burst_lead=1, burst_group_id=None,
+               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=-2.0),
+        _photo("/b-base.jpg", "2024:06:15 12:00:01", is_burst_lead=1, burst_group_id=None,
+               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=0.0),
+        _photo("/b-over.jpg", "2024:06:15 12:00:02", is_burst_lead=1, burst_group_id=None,
+               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=2.0),
+    ]
+
+    def _fetch(self, tmp_path, query):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, self._PHOTOS)
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
+            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch.dict("api.config._count_cache", {}, clear=True),
+        ):
+            resp = TestClient(app).get(f"/api/photos?page=1&{query}")
+        assert resp.status_code == 200
+        return resp.json()
+
+    def test_only_the_base_exposure_survives(self, tmp_path):
+        data = self._fetch(tmp_path, "hide_brackets=1")
+        paths = {p["path"] for p in data["photos"]}
+        assert paths == {"/plain.jpg", "/b-base.jpg"}
+
+    def test_ordinary_photos_are_untouched(self, tmp_path):
+        data = self._fetch(tmp_path, "hide_brackets=1")
+        assert "/plain.jpg" in {p["path"] for p in data["photos"]}
+
+    def test_off_shows_every_frame(self, tmp_path):
+        data = self._fetch(tmp_path, "hide_brackets=0")
+        assert len(data["photos"]) == 4
+
+    def test_hidden_frames_are_counted_for_the_banner(self, tmp_path):
+        data = self._fetch(tmp_path, "hide_brackets=1")
+        assert data["hidden_summary"]["brackets"] == 2
+        assert data["hidden_summary"]["total"] == 2
+
+    def test_burst_hiding_alone_would_not_have_hidden_them(self, tmp_path):
+        # The premise of the filter: these frames are burst leads.
+        data = self._fetch(tmp_path, "hide_bursts=1")
+        assert len(data["photos"]) == 4
 
 
 # ---------------------------------------------------------------------------

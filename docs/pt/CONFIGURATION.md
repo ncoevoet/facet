@@ -747,6 +747,80 @@ Agrupa fotos similares tiradas em sucessão rápida.
 
 ---
 
+## Notificações de atualização
+
+Avisa quem administra a instalação de que saiu uma versão mais recente do Facet. Não confundir com o «Está disponível uma nova versão — Recarregar» do navegador, que muda a página para um pacote já descarregado: aqui trata-se de uma versão que ninguém instalou ainda.
+
+Deliberadamente discreto. A verificação corre no servidor e o resultado fica em cache, pelo que uma instalação pergunta ao GitHub no máximo uma vez por `interval_days`, independentemente de quantas pessoas tenham o viewer aberto. O pedido não leva mais nada consigo — sem token, sem identificadores, nada da fototeca. Uma falha é silenciosa: um GitHub inacessível aparece como «nenhuma atualização conhecida», nunca como erro. Só os utilizadores em modo edição são avisados, porque atualizar é tarefa de quem gere a instalação, e cada navegador mostra o aviso no máximo uma vez por semana.
+
+Defina `enabled` como `false` para eliminar por completo o pedido de saída.
+
+```json
+{
+  "updates": {
+    "enabled": true,
+    "check_url": "https://api.github.com/repos/ncoevoet/facet/releases/latest",
+    "interval_days": 7
+  }
+}
+```
+
+| Definição | Predefinição | Descrição |
+|---|---|---|
+| `enabled` | `true` | `false` desativa a verificação; nada é alguma vez pedido |
+| `check_url` | API do GitHub da última versão | Onde procurar a versão publicada mais recente |
+| `interval_days` | `7` | Durante quanto tempo um resultado fica em cache antes de nova consulta |
+
+---
+
+## Deteção de sequências
+
+Dá nome às séries fotografadas deliberadamente em vários fotogramas — hoje, os bracketings de
+exposição — para que não sejam lidas como tomadas em competição. A escala de exposição é
+deduzida de `f_stop` / `shutter_speed` / `ISO`, já armazenados
+(`EV = log2(N^2 / t) - log2(ISO / 100)`), pelo que uma biblioteca existente é etiquetada só
+com aritmética: sem nova análise, sem descodificar imagens e sem modelo.
+
+Uma série é aceite se as fotos partilharem a câmara, se seguirem dentro de
+`max_gap_seconds`, mantiverem o enquadramento (`max_hamming` sobre o pHash) e os seus EV
+formarem uma escala regular e num só sentido de pelo menos `min_frames` fotos abrangendo
+`min_span_stops`. É a regularidade dos passos que distingue um bracketing de uma série à mão
+com luz a mudar.
+
+Cada foto recebe `sequence_ev_offset`, a sua compensação de exposição face à foto base, com o
+sinal que a câmara usa: `-2` é a escura e `+2` a clara. Quando uma rajada corresponde
+exatamente a um bracketing, o seu `is_burst_lead` passa para essa foto base, para que a
+galeria mostre a foto corretamente exposta em vez da que obteve a melhor pontuação.
+
+Executa-se com `--detect-sequences`; corre também no fim de cada análise, depois do
+agrupamento das rajadas.
+
+```json
+{
+  "sequence_detection": {
+    "enabled": true,
+    "max_gap_seconds": 3.0,
+    "max_hamming": 10,
+    "min_frames": 3,
+    "min_step_stops": 0.5,
+    "min_span_stops": 1.0,
+    "step_tolerance_stops": 0.34
+  }
+}
+```
+
+| Definição | Predefinição | Descrição |
+|---|---|---|
+| `enabled` | `true` | Desativa por completo a deteção de bracketing |
+| `max_gap_seconds` | `3.0` | Intervalo máximo entre duas fotos consecutivas de uma série |
+| `max_hamming` | `10` | Distância pHash admitida entre as fotos (mesmo enquadramento) |
+| `min_frames` | `3` | Série mais curta considerada um bracketing |
+| `min_step_stops` | `0.5` | Menor passo de EV que conta como alteração deliberada |
+| `min_span_stops` | `1.0` | Amplitude mínima entre a foto mais escura e a mais clara |
+| `step_tolerance_stops` | `0.34` | Irregularidade admitida entre os passos (um terço de passo) |
+
+---
+
 ## Burst Scoring
 
 Pesos usados pela seleção de rajadas para calcular uma pontuação composta na escolha do melhor disparo dentro de cada grupo de rajada. Os pesos devem somar 1,0.
@@ -1151,6 +1225,7 @@ Exibição e comportamento da galeria web.
       "hide_blinks": true,
       "hide_bursts": true,
       "hide_duplicates": true,
+      "hide_brackets": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1233,6 +1308,7 @@ Exibição e comportamento da galeria web.
 | `hide_blinks` | `true` | Oculta fotos com piscar por padrão |
 | `hide_bursts` | `true` | Mostra apenas a melhor da rajada por padrão |
 | `hide_duplicates` | `true` | Oculta fotos duplicadas que não sejam a principal por padrão |
+| `hide_brackets` | `true` | Mostra apenas a exposição base de cada bracketing por padrão |
 | `hide_details` | `true` | Oculta os detalhes da foto nos cartões por padrão |
 | `tooltip_mode` | `"hover"` | Gatilho do tooltip: `"hover"`, `"click"` ou `"off"`. Substitui o antigo booleano `hide_tooltip`. |
 | `hide_rejected` | `true` | Oculta fotos rejeitadas por padrão |

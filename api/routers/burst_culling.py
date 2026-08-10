@@ -31,6 +31,7 @@ from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBod
 from comparison.comparison_manager import record_culling_pairs
 from processing.burst_score import burst_weights_from_config, compute_burst_score
 from utils.date_utils import parse_date
+from utils.sequence import BRACKET as BRACKET_KIND
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,30 @@ def _rejected_clause(user_id):
     else:
         is_rejected_col = "COALESCE(photos.is_rejected, 0)"
     return from_clause, from_params, is_rejected_col
+
+
+_CULLING_PHOTO_COLS = (
+    'filename', 'date_taken', 'aggregate', 'aesthetic', 'tech_sharpness', 'is_blink',
+    'eyes_open_score', 'expression_score', 'face_count', 'category',
+    'sequence_kind', 'sequence_ev_offset',
+)
+
+
+def _culling_photo_columns(path_expr='path', burst=False, sequence_group=False):
+    """The per-photo columns a culling feed selects, as one SELECT list.
+
+    Stated once rather than in each feed's own copy: the burst, similar and
+    bracket queries all want the same fields, and adding one used to mean
+    finding every site by hand -- which is how the newest feed came to be
+    written by copying the previous one. Rows are read by name throughout, so
+    the extra columns go on the end rather than in a particular position.
+    """
+    cols = [path_expr, *_CULLING_PHOTO_COLS]
+    if burst:
+        cols += ['is_burst_lead', 'burst_group_id']
+    if sequence_group:
+        cols += ['sequence_group_id']
+    return ', '.join(cols)
 
 
 router = APIRouter(tags=["burst_culling"])
@@ -63,7 +88,7 @@ class SimilarSelectionBody(BaseModel):
 
 class CullingConfirmBody(BaseModel):
     group_id: int
-    type: Literal['burst', 'similar', 'scene']
+    type: Literal['burst', 'similar', 'scene', 'bracket']
     paths: list[str]
     keep_paths: list[str]
 
@@ -91,6 +116,7 @@ class AutoCullBody(BaseModel):
     highlights_album: str = ''
     dry_run: bool = True
     profile: Optional[str] = None
+    trim_brackets: bool = False
 
 
 # --- Helpers ---
@@ -378,6 +404,8 @@ def _format_group(photos, burst_group_id):
             'is_burst_lead': p.get('is_burst_lead') or 0,
             'date_taken': p.get('date_taken'),
             'burst_score': round(_compute_burst_score(p), 2),
+            'sequence_kind': p.get('sequence_kind'),
+            'sequence_ev_offset': p.get('sequence_ev_offset'),
         })
 
     scored.sort(key=lambda x: x['burst_score'], reverse=True)
@@ -393,7 +421,22 @@ def _format_group(photos, burst_group_id):
         'best_path': best_path,
         'count': len(scored),
         'category': _dominant_category(photos, best_path),
+        'sequence_kind': _group_sequence_kind(scored),
     }
+
+
+def _group_sequence_kind(photos):
+    """The sequence kind when every frame belongs to one, else None.
+
+    Only an unmixed group earns the label. A burst that merely contains a
+    bracket is still a set of competing takes and must keep being culled as one;
+    saying "bracket" there would tell the user not to choose when choosing is
+    exactly what is left to do.
+    """
+    kinds = {p.get('sequence_kind') for p in photos}
+    if len(kinds) == 1:
+        return kinds.pop()
+    return None
 
 
 # --- Shared burst query logic ---
@@ -457,9 +500,7 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
         if exclude_rejected:
             from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
             all_photos = conn.execute(
-                f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
-                           tech_sharpness, is_blink, is_burst_lead, burst_group_id,
-                           eyes_open_score, expression_score, face_count, category
+                f"""SELECT {_culling_photo_columns('photos.path', burst=True)}
                     FROM {from_clause}
                     WHERE burst_group_id IN ({placeholders}) AND {vis_sql}
                       AND {is_rejected_col} = 0{member_sql}
@@ -468,9 +509,7 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
             ).fetchall()
         else:
             all_photos = conn.execute(
-                f"""SELECT path, filename, date_taken, aggregate, aesthetic,
-                           tech_sharpness, is_blink, is_burst_lead, burst_group_id,
-                           eyes_open_score, expression_score, face_count, category
+                f"""SELECT {_culling_photo_columns(burst=True)}
                     FROM photos
                     WHERE burst_group_id IN ({placeholders}) AND {vis_sql}{member_sql}
                     ORDER BY burst_group_id, date_taken""",
@@ -753,6 +792,7 @@ def _enrich_burst_group(group):
         'best_path': group['best_path'],
         'count': group['count'],
         'category': group.get('category'),
+        'sequence_kind': group.get('sequence_kind'),
         'time_delta_seconds': time_delta_seconds,
     }
 
@@ -821,8 +861,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
     if exclude_rejected:
         from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
         rows = conn.execute(
-            f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
-                       tech_sharpness, is_blink, eyes_open_score, expression_score, face_count, category
+            f"""SELECT {_culling_photo_columns('photos.path')}
                 FROM {from_clause}
                 WHERE photos.path IN ({placeholders}) AND {vis_sql}
                   AND {is_rejected_col} = 0""",
@@ -830,8 +869,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
         ).fetchall()
     else:
         rows = conn.execute(
-            f"""SELECT path, filename, date_taken, aggregate, aesthetic,
-                       tech_sharpness, is_blink, eyes_open_score, expression_score, face_count, category
+            f"""SELECT {_culling_photo_columns()}
                 FROM photos
                 WHERE path IN ({placeholders}) AND {vis_sql}""",
             unique_paths + vis_params,
@@ -901,6 +939,7 @@ def _fetch_scene_groups(conn, user_id=None, album_id=None, date_from=None, date_
             'best_path': best_path,
             'count': len(photos),
             'category': _dominant_category(photos, best_path),
+            'sequence_kind': _group_sequence_kind(photos),
             'start': scene.get('start'),
             'end': scene.get('end'),
             'moment': moment,
@@ -1016,14 +1055,39 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
             'best_path': best_path,
             'count': group['count'],
             'category': _dominant_category(photo_list, best_path),
+            'sequence_kind': _group_sequence_kind(photo_list),
             'similarity_percent': sim_pct,
         })
 
     return results
 
 
-_CULLING_SORTS = ('easiest', 'redundant', 'best', 'recent', 'needs_comparisons')
-_CULLING_GROUP_BY = ('all', 'burst', 'similar', 'scene')
+_CULLING_SORTS = ('easiest', 'redundant', 'best', 'recent', 'needs_comparisons', 'chronological')
+_CULLING_GROUP_BY = ('all', 'burst', 'similar', 'scene', 'bracket')
+
+# Natural direction of each sort mode. Every mode ranks largest-first except
+# `chronological`, which walks the shoot forward in time -- the order a
+# timeline-driven review expects, and the one a bracketed or panned sequence has
+# to be read in to make sense.
+_CULLING_SORT_DESC = {'chronological': False}
+
+_CULLING_DIRECTIONS = ('', 'asc', 'desc')
+
+
+def _culling_sort_reverse(sort, direction):
+    """Whether the feed sorts descending, given the mode and an explicit override.
+
+    An empty `direction` means "whatever this mode naturally does", which is what
+    every existing caller sends and what keeps their results unchanged. An
+    explicit asc/desc wins outright rather than XOR-ing with the mode's default:
+    a button labelled "ascending" that produces descending results for three of
+    six modes would be indefensible.
+    """
+    if direction == 'asc':
+        return False
+    if direction == 'desc':
+        return True
+    return _CULLING_SORT_DESC.get(sort, True)
 
 # Memo of the fully-enriched + globally-sorted culling groups, keyed by the
 # request params that determine the set. Pagination over the same set then
@@ -1057,10 +1121,11 @@ def _category_comparison_needs(conn):
 
 
 def _culling_sort_key(group, sort, cat_needs, default_need):
-    """Descending sort key for a culling group under the selected mode.
+    """Sort key for a culling group under the selected mode.
 
-    All modes sort largest-first. `easiest` ranks by the burst_score gap between
-    the best photo and the runner-up (a clear winner = a fast confirm).
+    Modes rank largest-first except `chronological`, whose direction comes from
+    `_CULLING_SORT_DESC`. `easiest` ranks by the burst_score gap between the best
+    photo and the runner-up (a clear winner = a fast confirm).
     """
     photos = group.get('photos') or []
     if sort == 'redundant':
@@ -1070,12 +1135,32 @@ def _culling_sort_key(group, sort, cat_needs, default_need):
     if sort == 'recent':
         dates = [p.get('date_taken') for p in photos if p.get('date_taken')]
         return (max(dates) if dates else '',)
+    if sort == 'chronological':
+        # Earliest frame of the group, so the feed follows the shoot forward.
+        # Groups with no capture time sort last rather than jumping to the head.
+        dates = [p.get('date_taken') for p in photos if p.get('date_taken')]
+        return (min(dates) if dates else '￿',)
     if sort == 'needs_comparisons':
         category = group.get('category') or ''
         return (cat_needs.get(category, default_need), group.get('count') or 0)
     scores = sorted((p.get('burst_score') or 0) for p in photos)
     gap = scores[-1] - scores[-2] if len(scores) >= 2 else 0
     return (gap,)
+
+
+def _order_group_photos_by_capture(groups):
+    """Re-order each group's photos into capture order, in place.
+
+    Groups arrive scored-best-first, which is what the confirm UI wants but the
+    wrong reading order for a sequence shot deliberately -- a bracket or a panned
+    run only makes sense walked forward in time. Applied strictly after
+    enrichment: `best_path` is already recorded on the group and `cull_reason`
+    on each photo, so neither depends on the list position any more.
+    """
+    for group in groups:
+        photos = group.get('photos')
+        if photos:
+            photos.sort(key=lambda p: (p.get('date_taken') or '￿', p.get('path') or ''))
 
 
 @router.post("/api/culling-group/faces")
@@ -1290,6 +1375,7 @@ async def api_culling_groups(
     seed: int = Query(0),
     exclude_rejected: bool = Query(True),
     sort: str = Query('easiest'),
+    direction: str = Query(''),
     group_by: str = Query('all'),
     album_id: Optional[int] = None,
     date_from: Optional[str] = None,
@@ -1300,15 +1386,19 @@ async def api_culling_groups(
 
     `group_by` selects the grouping: `all` (today's merged burst+similar feed),
     `burst`, `similar`, or `scene`. Burst/similar groups are enriched + globally
-    ordered by `sort` (easiest | redundant | best | recent | needs_comparisons)
-    and memoized; `scene` groups come from `compute_scenes`, stay chronological
-    (`sort` is ignored), and bypass the memo (compute_scenes has its own cache).
+    ordered by `sort` (easiest | redundant | best | recent | needs_comparisons |
+    chronological) and memoized; `scene` groups come from `compute_scenes`, stay
+    chronological (`sort` is ignored), and bypass the memo (compute_scenes has
+    its own cache). `direction` (asc | desc) flips whichever sort is active;
+    empty keeps that mode's natural direction, so existing callers are unchanged.
     Each group includes a `type` field ("burst" | "similar" | "scene") and a
     human-readable `reason`. Optionally scoped to an album and/or an EXIF
     capture-time window (used by "Cull this scene").
     """
     if sort not in _CULLING_SORTS:
         sort = 'easiest'
+    if direction not in _CULLING_DIRECTIONS:
+        direction = ''
     if group_by not in _CULLING_GROUP_BY:
         group_by = 'all'
     with get_db() as conn:
@@ -1331,12 +1421,32 @@ async def api_culling_groups(
                 # Enriching + globally sorting the whole unreviewed set is identical
                 # across pages, so memo it and let pagination reuse one enrichment
                 # instead of re-materializing + re-scoring every group per page.
-                cache_key = (round(similarity_threshold, 3), seed, sort, exclude_rejected, user_id,
-                             album_id, date_from, date_to, group_by)
+                cache_key = (round(similarity_threshold, 3), seed, sort, direction, exclude_rejected,
+                             user_id, album_id, date_from, date_to, group_by)
                 cached = _culling_groups_cache.get(cache_key)
                 now = time.time()
                 if cached is not None and now - cached[0] < _CULLING_GROUPS_CACHE_TTL:
                     all_groups = cached[1]
+                elif group_by == 'bracket':
+                    # Bracket sets are their own granularity: one subject, several
+                    # exposures. Sorted like any other feed, but never merged into
+                    # `all` -- the whole point is to see them apart from the bursts
+                    # they would otherwise be read as.
+                    all_groups = _fetch_bracket_groups(
+                        conn, user_id, vis_sql, vis_params, album_id=album_id,
+                        date_from=date_from, date_to=date_to,
+                        exclude_rejected=exclude_rejected,
+                    )
+                    cat_needs, default_need = ({}, 0)
+                    if sort == 'needs_comparisons':
+                        cat_needs, default_need = _category_comparison_needs(conn)
+                    all_groups.sort(key=lambda g: _culling_sort_key(g, sort, cat_needs, default_need),
+                                    reverse=_culling_sort_reverse(sort, direction))
+                    if sort == 'chronological':
+                        _order_group_photos_by_capture(all_groups)
+                    if len(_culling_groups_cache) >= _CULLING_GROUPS_CACHE_MAX:
+                        _culling_groups_cache.clear()
+                    _culling_groups_cache[cache_key] = (now, all_groups)
                 else:
                     burst_groups = []
                     if group_by in ('all', 'burst'):
@@ -1371,7 +1481,10 @@ async def api_culling_groups(
                     cat_needs, default_need = ({}, 0)
                     if sort == 'needs_comparisons':
                         cat_needs, default_need = _category_comparison_needs(conn)
-                    all_groups.sort(key=lambda g: _culling_sort_key(g, sort, cat_needs, default_need), reverse=True)
+                    all_groups.sort(key=lambda g: _culling_sort_key(g, sort, cat_needs, default_need),
+                                    reverse=_culling_sort_reverse(sort, direction))
+                    if sort == 'chronological':
+                        _order_group_photos_by_capture(all_groups)
 
                     if len(_culling_groups_cache) >= _CULLING_GROUPS_CACHE_MAX:
                         _culling_groups_cache.clear()
@@ -1457,15 +1570,60 @@ def keeper_hints(
         return hints
 
 
+def _confirm_bracket_group(body, user):
+    """Reject the frames a bracket set did not keep, recording no comparison pairs.
+
+    Bounded to the set the client named: only paths that really carry the
+    bracket kind are touched, so a malformed body cannot reject arbitrary
+    photos through this route.
+
+    Bounded to what the caller can see, too. ``set_photos_rejected`` already
+    refuses to write outside that scope, but the counts are derived here, and
+    deriving them from the unfiltered set would answer "does this path exist,
+    and is it a bracket frame?" for a directory the caller cannot read.
+    """
+    user_id = user.user_id if user else None
+    paths = [p for p in (body.paths or []) if p]
+    if not paths:
+        raise HTTPException(status_code=400, detail='paths is required for a bracket group')
+    keep = set(body.keep_paths or [])
+    with get_db() as conn:
+        vis_sql, vis_params = get_visibility_clause(user_id)
+        placeholders = ','.join('?' * len(paths))
+        bracketed = {
+            r['path'] for r in conn.execute(
+                f"SELECT path FROM photos WHERE path IN ({placeholders}) "
+                f"AND sequence_kind = ? AND {vis_sql}",
+                paths + [BRACKET_KIND] + vis_params,
+            ).fetchall()
+        }
+        reject_paths = [p for p in bracketed if p not in keep]
+        set_photos_rejected(conn, reject_paths, user_id)
+        conn.commit()
+    _invalidate_culling_groups_cache()
+    return {
+        'success': True,
+        'kept': len(bracketed) - len(reject_paths),
+        'rejected': len(reject_paths),
+        'skipped': len(paths) - len(bracketed),
+    }
+
+
 @router.post("/api/culling-groups/confirm")
 async def confirm_culling_group(
     body: CullingConfirmBody,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Confirm culling selection for a burst, similar, or scene group.
+    """Confirm culling selection for a burst, similar, scene, or bracket group.
 
     Delegates to the existing burst/similar/scene confirm logic based on `type`.
+    Brackets are handled here rather than delegated: they reject like the others
+    but record no comparison pairs, because preferring one rung of an exposure
+    ladder to another says something about the exposure, not about the picture,
+    and feeding that to the ranker would bias every later ranking.
     """
+    if body.type == 'bracket':
+        return _confirm_bracket_group(body, user)
     if body.type == 'burst':
         burst_body = BurstSelectionBody(
             burst_id=body.group_id,
@@ -1492,10 +1650,11 @@ async def confirm_culling_group(
 
 _AUTO_CULL_PREVIEW_CAP = 200
 
-# Decision order for overlapping photos: burst leads are decided first, then
-# similar, then scene, so a later group never re-decides a path an earlier one
-# already kept or rejected.
-_AUTO_CULL_TYPE_ORDER = {'burst': 0, 'similar': 1, 'scene': 2}
+# Decision order for overlapping photos: brackets first (their keep is a fact
+# about the exposure ladder, not a judgement), then burst leads, then similar,
+# then scene, so a later group never re-decides a path an earlier one already
+# kept or rejected.
+_AUTO_CULL_TYPE_ORDER = {'bracket': -1, 'burst': 0, 'similar': 1, 'scene': 2}
 
 
 def _get_auto_cull_config():
@@ -1531,6 +1690,78 @@ def _auto_keep_split(photos, strictness, min_keep):
             keep_count += 1
     keep_count = min(len(ranked), max(keep_count, min_keep))
     return ranked[:keep_count], ranked[keep_count:]
+
+
+def _bracket_keep_split(photos):
+    """Split a bracket into (keep=[base exposure], reject=[the other rungs]).
+
+    Deliberately ignores score and strictness. Which rung of a ladder was
+    correctly exposed is a fact about how the set was shot, not a judgement, and
+    ranking a -2 EV frame against a +2 EV one measures the bracket rather than
+    the photograph.
+    """
+    ranked = sorted(photos, key=lambda p: (abs(p.get('sequence_ev_offset') or 0), p.get('path') or ''))
+    return ranked[:1], ranked[1:]
+
+
+def _fetch_bracket_groups(conn, user_id, vis_sql, vis_params, album_id=None,
+                          date_from=None, date_to=None, exclude_rejected=True,
+                          redundant_only=False):
+    """Exposure-bracket sets as culling groups, base exposure first.
+
+    Serves two callers. `group_by='bracket'` browses every set, so the
+    photographer can see what was shot as a ladder rather than hunting for it
+    among bursts. `redundant_only` narrows to the sets whose base exposure
+    already holds the whole scene -- a bracket earns its extra frames by
+    covering range the base clips away, and when the base clips neither shadows
+    nor highlights there was nothing to recover, which is the "I leave
+    bracketing on all the time" case auto-cull offers to trim.
+
+    Sets where the base has never been measured (either clipping flag NULL) are
+    never called redundant: unmeasured is not the same as unclipped.
+    """
+    from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
+    album_sql, album_params = album_filter_clause(album_id)
+    window_clauses, window_params = time_window_clauses(date_from, date_to)
+    scope_sql = f" AND {album_sql}" + "".join(f" AND {c}" for c in window_clauses)
+    scope_params = album_params + window_params
+    reject_sql = f" AND {is_rejected_col} = 0" if exclude_rejected else ""
+    redundant_sql = ""
+    redundant_params = []
+    if redundant_only:
+        redundant_sql = """
+              AND sequence_group_id IN (
+                  SELECT sequence_group_id FROM photos
+                  WHERE sequence_kind = ? AND sequence_ev_offset = 0
+                    AND shadow_clipped = 0 AND highlight_clipped = 0)"""
+        redundant_params = [BRACKET_KIND]
+    rows = conn.execute(
+        f"""SELECT {_culling_photo_columns('photos.path', burst=True, sequence_group=True)}
+            FROM {from_clause}
+            WHERE sequence_kind = ? AND {vis_sql}{reject_sql}{scope_sql}{redundant_sql}
+            ORDER BY sequence_group_id, ABS(sequence_ev_offset), photos.path""",
+        from_params + [BRACKET_KIND] + vis_params + scope_params + redundant_params,
+    ).fetchall()
+
+    groups = []
+    for seq_id, members in groupby(rows, key=lambda r: r['sequence_group_id']):
+        photos = [dict(m) for m in members]
+        if len(photos) < 2:
+            continue
+        for photo in photos:
+            photo['burst_score'] = round(_compute_burst_score(photo), 2)
+        span = max(abs(p.get('sequence_ev_offset') or 0) for p in photos)
+        groups.append({
+            'group_id': seq_id,
+            'type': 'bracket',
+            'reason': f'{len(photos)} frames, ±{span:g} EV',
+            'photos': photos,
+            'best_path': photos[0]['path'],
+            'count': len(photos),
+            'category': _dominant_category(photos, photos[0]['path']),
+            'sequence_kind': BRACKET_KIND,
+        })
+    return groups
 
 
 def _collect_auto_cull_groups(conn, user_id, group_by, album_id, date_from, date_to):
@@ -1593,6 +1824,12 @@ def _apply_auto_cull_group(conn, group, keep_paths, reject_paths, user_id, vis_s
     elif gtype == 'similar':
         _mark_similarity_reviewed(conn, keep_paths + reject_paths, vis_sql, vis_params)
     set_photos_rejected(conn, reject_paths, user_id)
+    if gtype == 'bracket':
+        # Deliberately no comparison pairs. Dropping the flanking exposures of a
+        # bracket says nothing about taste -- feeding "base beat -2 EV" to the
+        # ranker would teach it that correctly exposed frames win, which is an
+        # artefact of the ladder and would bias every later ranking.
+        return 0
     return record_culling_pairs(
         conn, keep_paths, reject_paths, user_id=user_id, group_type=gtype,
     )
@@ -1690,6 +1927,12 @@ def auto_cull(
             groups = _collect_auto_cull_groups(
                 conn, user_id, body.group_by, body.album_id, body.date_from, body.date_to,
             )
+            if body.trim_brackets:
+                groups += _fetch_bracket_groups(
+                    conn, user_id, vis_sql, vis_params,
+                    album_id=body.album_id, date_from=body.date_from, date_to=body.date_to,
+                    redundant_only=True,
+                )
             # Decide leads first: burst before similar before scene, so a photo an
             # earlier group keeps/rejects is never re-decided by a later one.
             groups.sort(key=lambda g: _AUTO_CULL_TYPE_ORDER.get(g['type'], 99))
@@ -1705,9 +1948,12 @@ def auto_cull(
                 photos = [p for p in group['photos'] if p['path'] not in decided]
                 if len(photos) < 2:
                     continue
-                keep, reject = _auto_keep_split(
-                    photos, strictness, min_keep,
-                )
+                if group['type'] == 'bracket':
+                    keep, reject = _bracket_keep_split(photos)
+                else:
+                    keep, reject = _auto_keep_split(
+                        photos, strictness, min_keep,
+                    )
                 keep_paths = [p['path'] for p in keep]
                 reject_paths = [p['path'] for p in reject]
                 decided.update(keep_paths)

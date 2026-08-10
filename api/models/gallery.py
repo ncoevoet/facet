@@ -117,6 +117,7 @@ class GalleryParams(BaseModel):
     hide_blinks: str = '0'
     hide_bursts: str = '0'
     hide_duplicates: str = '0'
+    hide_brackets: str = '0'
     burst_only: str = ''
     no_blink: str = ''
     search: str = ''

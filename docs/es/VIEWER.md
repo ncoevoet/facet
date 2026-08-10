@@ -198,6 +198,8 @@ Controlada por `viewer.features.show_my_taste` (predeterminado: `true`). El esta
 - **Descartar** — Marca todas las seleccionadas como descartadas (quita el favorito y la valoración)
 - **Valorar** — Establece la valoración por estrellas (1–5) para todas las seleccionadas, o borra la valoración
 - **Añadir al álbum** — Añade las seleccionadas a un álbum existente o nuevo
+- **Invertir** — Cambia la selección por su complemento sobre las fotos cargadas. Elegir las que se conservan e invertir es la forma directa de ver exactamente lo que va a desaparecer. Limitado a lo cargado, igual que «Seleccionar todo», para no seleccionar nunca en silencio fotos que no ves.
+- **Comparar** — Abre de 2 a 4 fotos seleccionadas una al lado de otra con desplazamiento y zoom sincronizados (rueda para ampliar, arrastrar para desplazar, doble clic para reiniciar; todos los paneles se mueven juntos y pasan a resolución completa más allá de la escala de ajuste). La misma vista que usa el cuarto oscuro de descarte, ahora alcanzable para cualquier conjunto elegido a mano y no solo para tomas contiguas de una ráfaga.
 - **Copiar nombres de archivo** — Copia los nombres de archivo seleccionados al portapapeles
 - **Exportar** — Escribe sidecars XMP (valoración/favorito/descartado) junto a los archivos seleccionados (consulta [Exportación al editor](#exportación-al-editor))
 - **Descargar** — Descarga las fotos seleccionadas
@@ -210,9 +212,10 @@ Las acciones masivas requieren el modo de edición. Haz doble clic en cualquier 
 - **Modo de diseño** - Alterna entre **Cuadrícula** (tarjetas uniformes) y **Mosaico** (filas justificadas que preservan las proporciones). El mosaico es solo para escritorio; el móvil siempre usa cuadrícula.
 - **Tamaño de miniatura** - Control deslizante para ajustar la altura de la tarjeta/fila (120–400px, persistido en localStorage)
 - **Ocultar detalles** - Oculta los metadatos de la foto en las tarjetas (solo en modo cuadrícula)
-- **Ocultar información emergente** - Desactiva la información emergente al pasar el cursor que muestra los detalles de la foto en escritorio
+- **Información** - Cómo se muestran los detalles: **Al pasar** (predeterminado), **Al hacer clic**, **Desactivada** o **Panel lateral**. El panel lateral fija los mismos detalles en el cajón derecho en vez de seguir al cursor: así un dato concreto está siempre en el mismo sitio de una foto a otra, y el panel conserva la última foto sobre la que pasaste en lugar de vaciarse al salir de la cuadrícula. Comparte ese cajón con la barra de filtros: abrir los filtros lo oculta hasta que los cierres, y la cuadrícula mantiene exactamente el ancho que tiene con los filtros abiertos. Requiere una ventana de al menos 1280 px.
 - **Ocultar parpadeos** - Filtra las fotos con parpadeos detectados
 - **Mejor de la ráfaga** - Muestra solo la foto mejor puntuada de cada ráfaga
+- **Mejor del horquillado** - Muestra solo la exposición base de cada horquillado detectado y oculta las tomas laterales. **Activado por defecto.** Independiente de «Mejor de la ráfaga»: un cuarto de los horquillados comparte ráfaga con tomas ajenas, donde la principal no es la exposición base.
 - **Desplazamiento infinito** - Las fotos se cargan a medida que te desplazas
 - **Desplazamiento rápido (virtualizado)** - Renderizado por ventanas de filas: solo las
   filas cercanas a la ventana de visualización están en el DOM, de modo que el desplazamiento profundo
@@ -508,6 +511,9 @@ La página de descarte (`/culling`, modo de edición) agrupa las tomas casi idé
 - **Ráfagas** — fotos tomadas muy seguidas en el tiempo (de la detección de ráfagas).
 - **Similar** — fotos que se parecen entre sí independientemente de cuándo se tomaron, agrupadas por la similitud de embeddings de CLIP/SigLIP. Un control deslizante de umbral controla lo estricta que es la agrupación.
 - **Escenas** — grupos de escena cronológicos (series por hora de captura), cada uno encabezado por su intervalo de tiempo y su momento narrativo dominante. Sujeto a `viewer.features.show_scenes`.
+- **Horquillados de exposición** — los conjuntos multiexposición encontrados por [`--detect-sequences`](COMMANDS.md), con la exposición base primero y cada toma etiquetada con su compensación (`-2 EV` … `+2 EV`). Deliberadamente fuera de **Todo**: un horquillado es un mismo sujeto fotografiado varias veces para fusionarse, no un conjunto de tomas que compiten; por eso todas las tomas empiezan marcadas como «conservar» y confirmar no registra ningún par de comparación — preferir un escalón de una escala de exposición no dice nada de tu gusto. Si quieres eliminar las exposiciones laterales, usa el recorte de horquillados del descarte automático (más abajo).
+
+Junto a la granularidad hay dos controles de orden: el **modo de orden** (más fáciles primero, más redundantes, mejores, más recientes, necesitan comparaciones o **más antiguas primero**) y un **botón de flecha que invierte el modo activo**. «Más antiguas primero» es el único modo que además ordena las fotos *dentro* de cada grupo por hora de captura, el único orden en el que un horquillado o una secuencia de barrido se leen correctamente.
 
 Para cada grupo, elige la foto o fotos a conservar; al confirmar se descartan el resto. Las confirmaciones se difieren y se pueden deshacer (consulta [Deshacer](#deshacer)). La granularidad, la ordenación y la categoría elegidas se conservan en `localStorage`. Los controles que no se aplican a la granularidad actual se ocultan: el desplegable de ordenación y el control deslizante de umbral de similitud desaparecen en el modo escena, y el botón de ámbito se oculta cuando no tienes álbumes manuales. Cada botón de la barra de herramientas y de acción de grupo lleva una información emergente, y en pantallas pequeñas la barra de herramientas se desprende en una barra inferior desplazable.
 
@@ -522,6 +528,8 @@ Un botón **Descarte automático** de la barra de herramientas descarta todo un 
 La vista previa es una **simulación** (no se escribe nada): muestra el reparto de conservar/descartar por grupo. Confirma para aplicar — los descartes se registran y, como en todo descarte, entrenan a "My Taste"; un álbum opcional de **Destacados** recopila de forma idempotente la mejor foto de cada grupo que puntúe al menos `auto_cull.highlights_min`. Una insignia de aviso "mejor foto en este grupo" señala los grupos en los que el descarte automático conservaría un fotograma distinto del líder actual. `POST /api/culling/auto`; se configura mediante el bloque [`auto_cull`](CONFIGURATION.md#auto-cull).
 
 Cuando hay una cabeza de clasificación de conservación entrenada, `POST /api/culling/auto` elige la foto a conservar de cada grupo según `keeper_prob` en cuanto supera su umbral de precisión — de lo contrario, el resultado es idéntico byte a byte al de la heurística.
+
+**El recorte de horquillados redundantes** es opcional (`trim_brackets`, desactivado por defecto). Un horquillado se gana sus tomas extra cubriendo el rango que la exposición base recorta; cuando esa base no recorta ni sombras ni altas luces no había nada que recuperar, así que las exposiciones laterales son almacenamiento y no latitud — el caso de «dejo el horquillado activado siempre». Solo se conserva la toma base, sea cual sea la severidad, y los conjuntos cuya base nunca se ha medido se dejan intactos: sin medir no es lo mismo que sin recortar.
 
 ### Pantalla completa
 

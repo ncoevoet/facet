@@ -102,6 +102,7 @@ function makeConfig(overrides: Partial<ViewerConfig> = {}): ViewerConfig {
       hide_blinks: true,
       hide_bursts: true,
       hide_duplicates: true,
+      hide_brackets: true,
       hide_details: true,
       tooltip_mode: "hover",
       hide_rejected: true,
@@ -263,6 +264,7 @@ describe('GalleryStore', () => {
           hide_blinks: false,
           hide_bursts: false,
           hide_duplicates: false,
+          hide_brackets: false,
           hide_details: false,
           tooltip_mode: "hover",
           hide_rejected: false,
@@ -736,6 +738,7 @@ describe('GalleryStore', () => {
           hide_blinks: false,
           hide_bursts: true,
           hide_duplicates: true,
+          hide_brackets: true,
           hide_details: true,
           tooltip_mode: "hover",
           hide_rejected: true,
@@ -1016,6 +1019,32 @@ describe('GalleryStore selection', () => {
   it('restoreSelection rehydrates a saved set', () => {
     store.restoreSelection(['/a.jpg', '/d.jpg']);
     expect([...store.selectedPaths()].sort()).toEqual(['/a.jpg', '/d.jpg']);
+  });
+
+  it('invertSelection swaps the selection for its complement', () => {
+    store.toggleSelection(store.photos()[0]);
+    store.toggleSelection(store.photos()[2]);
+    store.invertSelection();
+    expect([...store.selectedPaths()].sort()).toEqual(['/b.jpg', '/d.jpg']);
+  });
+
+  it('invertSelection on an empty selection selects everything', () => {
+    store.invertSelection();
+    expect(store.selectionCount()).toBe(4);
+  });
+
+  it('invertSelection twice returns the original selection', () => {
+    store.toggleSelection(store.photos()[1]);
+    store.invertSelection();
+    store.invertSelection();
+    expect([...store.selectedPaths()]).toEqual(['/b.jpg']);
+  });
+
+  it('invertSelection resets the range anchor so the next shift-click starts fresh', () => {
+    store.toggleSelection(store.photos()[0]);
+    store.invertSelection();
+    store.toggleSelection(store.photos()[2], { shiftKey: true } as MouseEvent);
+    expect([...store.selectedPaths()].sort()).toEqual(['/b.jpg', '/d.jpg']);
   });
 });
 

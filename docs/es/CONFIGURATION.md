@@ -747,6 +747,79 @@ Agrupa fotos similares tomadas en rápida sucesión.
 
 ---
 
+## Notificaciones de actualización
+
+Avisa a quien administra la instalación de que se ha publicado una versión más reciente de Facet. No confundir con el «Hay una nueva versión disponible — Recargar» del navegador, que cambia la página a un paquete ya descargado: aquí se trata de una versión que nadie ha instalado todavía.
+
+Deliberadamente discreto. La comprobación se hace en el servidor y su resultado se cachea, así que una instalación pregunta a GitHub como mucho una vez cada `interval_days`, sin importar cuánta gente tenga abierto el viewer. La petición no lleva nada más que a sí misma: ni token, ni identificadores, ni nada de la fototeca. Un fallo es silencioso: un GitHub inaccesible aparece como «no se conoce ninguna actualización», nunca como un error. Solo se avisa a los usuarios en modo edición, porque actualizar es tarea del operador, y cada navegador muestra el aviso como mucho una vez por semana.
+
+Pon `enabled` en `false` para eliminar por completo la petición saliente.
+
+```json
+{
+  "updates": {
+    "enabled": true,
+    "check_url": "https://api.github.com/repos/ncoevoet/facet/releases/latest",
+    "interval_days": 7
+  }
+}
+```
+
+| Ajuste | Predeterminado | Descripción |
+|---|---|---|
+| `enabled` | `true` | `false` desactiva la comprobación; no se solicita nada nunca |
+| `check_url` | API de GitHub de la última versión | Dónde buscar la versión publicada más reciente |
+| `interval_days` | `7` | Cuánto se cachea un resultado antes de volver a preguntar |
+
+---
+
+## Detección de secuencias
+
+Nombra las series tomadas deliberadamente con varias fotos — hoy, los horquillados de
+exposición — para que no se lean como tomas que compiten entre sí. La escala de exposición
+se deduce de `f_stop` / `shutter_speed` / `ISO`, ya almacenados
+(`EV = log2(N^2 / t) - log2(ISO / 100)`), de modo que una biblioteca existente se etiqueta
+solo con aritmética: sin volver a escanear, sin decodificar imágenes y sin modelo.
+
+Una serie se acepta si sus fotos comparten cámara, se suceden dentro de `max_gap_seconds`,
+mantienen el encuadre (`max_hamming` sobre el pHash) y sus EV forman una escala regular y
+unidireccional de al menos `min_frames` fotos que abarca `min_span_stops`. La regularidad de
+los pasos es lo que distingue un horquillado de una serie a pulso con luz cambiante.
+
+Cada foto recibe `sequence_ev_offset`, su compensación de exposición respecto a la foto base,
+con el signo que usa la cámara: `-2` es la oscura y `+2` la clara. Cuando una ráfaga resulta
+ser exactamente un horquillado, su `is_burst_lead` pasa a esa foto base, para que la galería
+muestre la foto bien expuesta y no la que obtuvo la mejor puntuación.
+
+Se ejecuta con `--detect-sequences`; también corre al final de cada escaneo, después de
+agrupar las ráfagas.
+
+```json
+{
+  "sequence_detection": {
+    "enabled": true,
+    "max_gap_seconds": 3.0,
+    "max_hamming": 10,
+    "min_frames": 3,
+    "min_step_stops": 0.5,
+    "min_span_stops": 1.0,
+    "step_tolerance_stops": 0.34
+  }
+}
+```
+
+| Ajuste | Predeterminado | Descripción |
+|---|---|---|
+| `enabled` | `true` | Desactiva por completo la detección de horquillado |
+| `max_gap_seconds` | `3.0` | Intervalo máximo entre dos tomas consecutivas de una serie |
+| `max_hamming` | `10` | Distancia pHash admitida entre tomas (mismo encuadre) |
+| `min_frames` | `3` | Serie más corta que se considera un horquillado |
+| `min_step_stops` | `0.5` | Menor paso de EV que cuenta como cambio deliberado |
+| `min_span_stops` | `1.0` | Amplitud mínima entre la toma más oscura y la más clara |
+| `step_tolerance_stops` | `0.34` | Irregularidad admitida entre pasos (un tercio de paso) |
+
+---
+
 ## Puntuación de ráfagas
 
 Pesos usados por el descarte de ráfagas para calcular una puntuación compuesta que selecciona la mejor toma dentro de cada grupo de ráfaga. Los pesos deben sumar 1,0.
@@ -1151,6 +1224,7 @@ Visualización y comportamiento de la galería web.
       "hide_blinks": true,
       "hide_bursts": true,
       "hide_duplicates": true,
+      "hide_brackets": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1233,6 +1307,7 @@ Visualización y comportamiento de la galería web.
 | `hide_blinks` | `true` | Ocultar fotos con parpadeo por defecto |
 | `hide_bursts` | `true` | Mostrar solo la mejor de la ráfaga por defecto |
 | `hide_duplicates` | `true` | Ocultar las fotos duplicadas no principales por defecto |
+| `hide_brackets` | `true` | Mostrar solo la exposición base de cada horquillado por defecto |
 | `hide_details` | `true` | Ocultar los detalles de la foto en las tarjetas por defecto |
 | `tooltip_mode` | `"hover"` | Activación del tooltip: `"hover"`, `"click"` u `"off"`. Sustituye al booleano `hide_tooltip` anterior. |
 | `hide_rejected` | `true` | Ocultar las fotos rechazadas por defecto |

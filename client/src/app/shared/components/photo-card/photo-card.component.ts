@@ -312,22 +312,42 @@ export class PhotoCardComponent {
   // Edition mode
   readonly isEditionMode = input(false);
   readonly personFilterId = input('');
-  /** 'hover' (default) | 'click' | 'off' — drives tooltip emission strategy. */
-  readonly tooltipMode = input<'hover' | 'click' | 'off'>('hover');
+  /** 'hover' (default) | 'click' | 'off' | 'panel' — drives tooltip emission strategy.
+   *
+   *  'panel' feeds the gallery's docked rail, which is the one mode driven by
+   *  BOTH gestures: it was asked for as "changes with the photo selected (click)
+   *  or hovered (hover)", and since the rail is parked rather than chasing the
+   *  cursor there is no reason to make that an either/or. It also keeps the rail
+   *  usable on a touch screen, where hover never fires. */
+  readonly tooltipMode = input<'hover' | 'click' | 'off' | 'panel'>('hover');
+
+  /** Whether this mode reports hover at all (both hover and the docked rail do). */
+  private hoverDriven(): boolean {
+    return this.tooltipMode() === 'hover' || this.tooltipMode() === 'panel';
+  }
+
+  /** Whether this mode reports clicks (the click tooltip and the docked rail). */
+  private clickDriven(): boolean {
+    return this.tooltipMode() === 'click' || this.tooltipMode() === 'panel';
+  }
 
   // Events
   readonly selectionChange = output<{ photo: Photo; event: MouseEvent }>();
 
   onSelect(event: MouseEvent): void {
     this.selectionChange.emit({ photo: this.photo(), event });
-    if (this.tooltipMode() === 'click') {
+    if (this.clickDriven()) {
       this.tooltipShow.emit({ photo: this.photo(), event });
     }
   }
 
+  /** Space is the keyboard's click, so it feeds the details panel the same way. */
   onKeySelect(event: Event): void {
     event.preventDefault();
     this.selectionChange.emit({ photo: this.photo(), event: event as MouseEvent });
+    if (this.clickDriven()) {
+      this.tooltipShow.emit({ photo: this.photo(), event: event as MouseEvent });
+    }
   }
 
   onKeyOpen(event: Event): void {
@@ -336,13 +356,13 @@ export class PhotoCardComponent {
   }
 
   onMouseEnter(event: MouseEvent): void {
-    if (this.tooltipMode() === 'hover') {
+    if (this.hoverDriven()) {
       this.tooltipShow.emit({ photo: this.photo(), event });
     }
   }
 
   onMouseLeave(): void {
-    if (this.tooltipMode() === 'hover') {
+    if (this.hoverDriven()) {
       this.tooltipHide.emit();
     }
   }

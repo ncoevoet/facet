@@ -198,6 +198,8 @@ Contrôlé par `viewer.features.show_my_taste` (par défaut : `true`). L'état d
 - **Rejeter** — Marquer toute la sélection comme rejetée (efface le favori et la note)
 - **Noter** — Définir une note en étoiles (1–5) pour toute la sélection, ou effacer la note
 - **Ajouter à un album** — Ajouter la sélection à un album existant ou nouveau
+- **Inverser** — Remplacer la sélection par son complément parmi les photos chargées. Choisir celles à garder puis inverser : c'est la façon directe de voir exactement ce qui va disparaître. Limité aux photos chargées, comme « Tout sélectionner », pour ne jamais sélectionner en silence des photos que vous ne voyez pas.
+- **Comparer** — Ouvrir 2 à 4 photos sélectionnées côte à côte, panoramique et zoom synchronisés (molette pour zoomer, glisser pour déplacer, double-clic pour réinitialiser ; tous les volets bougent ensemble et passent en pleine résolution au-delà de l'échelle d'ajustement). La même vue que celle du tri, atteignable pour n'importe quel ensemble choisi à la main et non plus seulement pour des vues voisines d'une rafale.
 - **Copier les noms de fichiers** — Copier les noms de fichiers sélectionnés dans le presse-papiers
 - **Exporter** — Écrire des sidecars XMP (note/favori/rejet) à côté des fichiers sélectionnés (voir [Export vers éditeur](#export-vers-éditeur))
 - **Télécharger** — Télécharger les photos sélectionnées
@@ -210,9 +212,10 @@ Les actions groupées nécessitent le mode édition. Double-cliquez sur n'import
 - **Mode de disposition** - Basculez entre **Grille** (cartes uniformes) et **Mosaïque** (lignes justifiées préservant les rapports d'aspect). La mosaïque est réservée au bureau ; le mobile utilise toujours la grille.
 - **Taille des vignettes** - Curseur pour ajuster la hauteur des cartes/lignes (120–400px, conservé dans le localStorage)
 - **Masquer les détails** - Masquer les métadonnées des photos sur les cartes (mode grille uniquement)
-- **Masquer l'infobulle** - Désactiver l'infobulle au survol qui affiche les détails de la photo sur le bureau
+- **Infobulle** - Mode d'affichage des détails : **Survol** (par défaut), **Clic**, **Désactivée** ou **Panneau latéral**. Le panneau latéral ancre les mêmes détails dans le tiroir de droite au lieu de suivre le curseur : une information donnée se trouve toujours au même endroit d'une photo à l'autre, et le panneau conserve la dernière photo survolée au lieu de se vider quand le curseur quitte la grille. Il partage ce tiroir avec la barre de filtres : ouvrir les filtres le masque jusqu'à ce que vous les refermiez, et la grille conserve exactement la largeur qu'elle a lorsque les filtres sont ouverts. Nécessite une fenêtre d'au moins 1280 px.
 - **Masquer les clignements** - Filtrer les photos avec des clignements détectés
 - **Meilleure de la rafale** - N'afficher que la photo la mieux notée de chaque rafale
+- **Meilleure du bracketing** - N'affiche que l'exposition de référence de chaque bracketing détecté, en masquant les vues latérales. **Activé par défaut.** Indépendant de « Meilleure de la rafale » : un quart des bracketings partagent une rafale avec d'autres vues, où la vignette principale n'est pas l'exposition de référence.
 - **Défilement infini** - Les photos se chargent à mesure que vous défilez
 - **Défilement rapide (virtualisé)** - Rendu fenêtré par ligne : seules les lignes
   proches de la zone d'affichage sont dans le DOM, de sorte que le défilement en
@@ -510,6 +513,9 @@ La page de tri sélectif (`/culling`, mode édition) regroupe les clichés quasi
 - **Rafales** — photos prises dans un court intervalle de temps (issues de la détection de rafales).
 - **Similaires** — photos qui se ressemblent quel que soit le moment où elles ont été prises, regroupées par similarité d'embeddings CLIP/SigLIP. Un curseur de seuil contrôle la rigueur du regroupement.
 - **Scènes** — groupes de scènes chronologiques (suites de temps de capture), chacun en-tête de son intervalle de temps et de son moment narratif dominant. Conditionné par `viewer.features.show_scenes`.
+- **Bracketings d'exposition** — les séries multi-expositions trouvées par [`--detect-sequences`](COMMANDS.md), exposition de référence en tête, chaque vue portant sa correction (`-2 EV` … `+2 EV`). Volontairement absentes de **Tout** : un bracketing est un même sujet photographié plusieurs fois pour être fusionné, pas un ensemble de prises concurrentes ; toutes les vues sont donc marquées « à garder » d'emblée et la validation n'enregistre aucune paire de comparaison — préférer un échelon d'une échelle d'exposition ne dit rien de votre goût. Pour supprimer les expositions latérales, utilisez le rognage de bracketing du tri automatique (ci-dessous).
+
+Deux commandes de tri accompagnent la granularité : le **mode de tri** (les plus faciles d'abord, les plus redondantes, les meilleures, les plus récentes, celles à comparer, ou **les plus anciennes d'abord**) et un **bouton fléché qui inverse le mode actif**. « Les plus anciennes d'abord » est le seul mode qui ordonne aussi les photos *à l'intérieur* de chaque groupe par ordre de prise de vue, le seul ordre dans lequel un bracketing ou une séquence panoramique se lit correctement.
 
 Pour chaque groupe, choisissez la ou les photos à conserver ; la confirmation rejette le reste. Les confirmations sont différées et peuvent être annulées (voir [Annuler](#annuler)). Les choix de granularité, de tri et de catégorie sont conservés dans le `localStorage`. Les commandes qui ne s'appliquent pas à la granularité courante sont masquées — le menu déroulant de tri et le curseur de seuil de similarité disparaissent en mode scène, et le bouton de portée est masqué lorsque vous n'avez aucun album manuel. Chaque bouton de la barre d'outils et d'action de groupe porte une infobulle, et sur les petits écrans la barre d'outils se détache en une barre inférieure défilante.
 
@@ -524,6 +530,8 @@ Un bouton **Tri automatique** de la barre d'outils trie toute une portée en une
 L'aperçu est une **simulation** (rien n'est écrit) : il montre la répartition conservation/rejet par groupe. Confirmez pour appliquer — les rejets sont enregistrés et, comme tout tri, entraînent « My Taste » ; un album **Highlights** facultatif rassemble de manière idempotente la meilleure photo de chaque groupe notée au moins `auto_cull.highlights_min`. Un badge indicatif « meilleure photo dans ce groupe » signale les groupes où le tri automatique conserverait une image différente de la tête actuelle. `POST /api/culling/auto` ; configuré via le bloc [`auto_cull`](CONFIGURATION.md#auto-cull).
 
 Lorsqu'une tête de classement des photos à conserver (keeper-ranking) est entraînée, `POST /api/culling/auto` choisit la photo à conserver de chaque groupe selon `keeper_prob` dès qu'elle franchit son seuil de précision — sinon, le résultat est identique au bit près à la sélection heuristique.
+
+**Le rognage des bracketings redondants** est optionnel (`trim_brackets`, désactivé par défaut). Un bracketing justifie ses vues supplémentaires en couvrant la plage que l'exposition de référence écrête ; quand cette référence n'écrête ni les ombres ni les hautes lumières, il n'y avait rien à récupérer et les expositions latérales occupent de l'espace sans apporter de latitude — le cas « je laisse le bracketing activé en permanence ». Seule la vue de référence est conservée, quelle que soit la sévérité, et les séries dont la référence n'a jamais été mesurée sont laissées intactes : non mesuré ne veut pas dire non écrêté.
 
 ### Plein écran
 

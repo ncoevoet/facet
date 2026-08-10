@@ -226,3 +226,112 @@ describe('PhotoCardComponent', () => {
     });
   });
 });
+
+describe('PhotoCardComponent tooltip emission', () => {
+  const mockI18n = { t: vi.fn((key: string) => key), currentLang: vi.fn(() => 'en'), locale: vi.fn(() => 'en'), translations: vi.fn(() => ({})) };
+
+  /** Drive the card directly: this is about which gesture emits, not markup. */
+  function card(mode: 'hover' | 'click' | 'off' | 'panel') {
+    TestBed.configureTestingModule({
+      imports: [PhotoCardComponent],
+      providers: [{ provide: I18nService, useValue: mockI18n }],
+    });
+    const fixture = TestBed.createComponent(PhotoCardComponent);
+    fixture.componentRef.setInput('photo', makePhoto());
+    fixture.componentRef.setInput('tooltipMode', mode);
+    fixture.detectChanges();
+    const shown: string[] = [];
+    let hidden = 0;
+    fixture.componentInstance.tooltipShow.subscribe(e => shown.push(e.photo.path));
+    fixture.componentInstance.tooltipHide.subscribe(() => { hidden++; });
+    return { c: fixture.componentInstance, shown, hidden: () => hidden };
+  }
+
+  const clickEvent = {} as MouseEvent;
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('hover mode reports hover but not clicks', () => {
+    const { c, shown } = card('hover');
+    c.onMouseEnter(clickEvent);
+    expect(shown).toEqual(['/test.jpg']);
+    c.onSelect(clickEvent);
+    expect(shown).toEqual(['/test.jpg']);
+  });
+
+  it('click mode reports clicks but not hover', () => {
+    const { c, shown } = card('click');
+    c.onMouseEnter(clickEvent);
+    expect(shown).toEqual([]);
+    c.onSelect(clickEvent);
+    expect(shown).toEqual(['/test.jpg']);
+  });
+
+  it('panel mode reports BOTH, since the rail is parked rather than chasing the cursor', () => {
+    const { c, shown } = card('panel');
+    c.onMouseEnter(clickEvent);
+    c.onSelect(clickEvent);
+    expect(shown).toEqual(['/test.jpg', '/test.jpg']);
+  });
+
+  it('panel mode still reports mouse-out, which the gallery ignores while the rail shows', () => {
+    const { c, hidden } = card('panel');
+    c.onMouseLeave();
+    expect(hidden()).toBe(1);
+  });
+
+  it('off mode reports nothing at all', () => {
+    const { c, shown, hidden } = card('off');
+    c.onMouseEnter(clickEvent);
+    c.onSelect(clickEvent);
+    c.onMouseLeave();
+    expect(shown).toEqual([]);
+    expect(hidden()).toBe(0);
+  });
+
+  it('selecting still emits selectionChange in every mode', () => {
+    for (const mode of ['hover', 'click', 'off', 'panel'] as const) {
+      const { c } = card(mode);
+      const selected: string[] = [];
+      c.selectionChange.subscribe(e => selected.push(e.photo.path));
+      c.onSelect(clickEvent);
+      expect(selected).toEqual(['/test.jpg']);
+      TestBed.resetTestingModule();
+    }
+  });
+
+  // Space is the keyboard's click. Reporting the selection but not the photo
+  // left a keyboard user selecting cards while the panel stayed on whatever the
+  // mouse last touched — the one gesture that can reach it on a touch screen.
+  it('Space reports the photo in the modes a click would', () => {
+    const keyEvent = { preventDefault: () => {} } as unknown as Event;
+    for (const mode of ['click', 'panel'] as const) {
+      const { c, shown } = card(mode);
+      c.onKeySelect(keyEvent);
+      expect(shown).toEqual(['/test.jpg']);
+      TestBed.resetTestingModule();
+    }
+  });
+
+  it('Space reports nothing in the modes a click would not', () => {
+    const keyEvent = { preventDefault: () => {} } as unknown as Event;
+    for (const mode of ['hover', 'off'] as const) {
+      const { c, shown } = card(mode);
+      c.onKeySelect(keyEvent);
+      expect(shown).toEqual([]);
+      TestBed.resetTestingModule();
+    }
+  });
+
+  it('Space still selects, whatever the tooltip mode', () => {
+    const keyEvent = { preventDefault: () => {} } as unknown as Event;
+    for (const mode of ['hover', 'click', 'off', 'panel'] as const) {
+      const { c } = card(mode);
+      const selected: string[] = [];
+      c.selectionChange.subscribe(e => selected.push(e.photo.path));
+      c.onKeySelect(keyEvent);
+      expect(selected).toEqual(['/test.jpg']);
+      TestBed.resetTestingModule();
+    }
+  });
+});

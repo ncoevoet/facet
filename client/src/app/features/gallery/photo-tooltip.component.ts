@@ -29,32 +29,43 @@ export class CategoryLabelPipe implements PipeTransform {
   imports: [FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe, CategoryLabelPipe, IsLensNamePipe, MomentLabelPipe, HistogramComponent],
   template: `
     @if (photo(); as p) {
+      <!-- The class list stays a literal string: Tailwind only generates a
+           utility it can see in the source, and an arbitrary value written as an
+           escaped class binding is invisible to it (z-[1000] silently vanished
+           that way). Docking overrides it through style bindings instead. -->
       <div
         class="fixed z-[1000] pointer-events-none flex flex-col backdrop-blur-sm p-2.5 rounded-xl shadow-2xl"
         style="background: var(--facet-tooltip-bg); border: 1px solid var(--facet-tooltip-border)"
-        [style.left.px]="x()"
-        [style.top.px]="y()"
+        [style.position]="docked() ? 'static' : null"
+        [style.pointer-events]="docked() ? 'auto' : null"
+        [style.width]="docked() ? '100%' : null"
+        [style.left.px]="docked() ? null : x()"
+        [style.top.px]="docked() ? null : y()"
       >
-        <!-- Zone A: Image + Scoring sections -->
+        <!-- Zone A: Image + Scoring sections. The floating tooltip puts a
+             portrait photo beside its numbers to stay within the viewport; the
+             docked rail is a fixed narrow column, where that split leaves both
+             halves too thin to read, so it always stacks. -->
         <div class="flex items-start gap-3"
-          [class.flex-col]="isLandscape()"
-          [class.flex-row-reverse]="!isLandscape() && flipped()"
+          [class.flex-col]="isLandscape() || docked()"
+          [class.flex-row-reverse]="!isLandscape() && !docked() && flipped()"
         >
           <!-- Image preview -->
           <img
             [src]="p.path | thumbnailUrl:640"
             [alt]="p.filename"
             class="rounded-md object-contain shrink-0"
-            [class.max-h-[40vh]]="!isLandscape()"
-            [class.w-full]="isLandscape()"
-            [class.max-h-[28vh]]="isLandscape()"
+            [class.max-h-[40vh]]="!isLandscape() && !docked()"
+            [class.w-full]="isLandscape() || docked()"
+            [class.max-h-[28vh]]="isLandscape() && !docked()"
+            [class.max-h-[45vh]]="docked()"
           />
 
           <!-- Scoring panel -->
           <div class="text-xs leading-relaxed text-[var(--facet-tooltip-text)]"
-            [class.min-w-[240px]]="!isLandscape()"
-            [class.max-w-[260px]]="!isLandscape()"
-            [class.w-full]="isLandscape()"
+            [class.min-w-[240px]]="!isLandscape() && !docked()"
+            [class.max-w-[260px]]="!isLandscape() && !docked()"
+            [class.w-full]="isLandscape() || docked()"
           >
             <!-- Filename + Date -->
             <div class="font-semibold text-[var(--facet-tooltip-text-title)] truncate"
@@ -308,6 +319,14 @@ export class PhotoTooltipComponent {
   readonly x = input(0);
   readonly y = input(0);
   readonly flipped = input(false);
+  /**
+   * Render docked in a column instead of floating at (x, y).
+   *
+   * Same content either way — what changes is that a docked panel stays in one
+   * place, which is the whole point of the mode: comparing the same field
+   * across photos is guesswork when the box moves with the cursor.
+   */
+  readonly docked = input(false);
 
   /** Whether the photo is landscape orientation (wider than tall). */
   readonly isLandscape = computed(() => {

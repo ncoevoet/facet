@@ -747,6 +747,81 @@ Gruppiert ähnliche Fotos, die in schneller Folge aufgenommen wurden.
 
 ---
 
+## Update-Benachrichtigungen
+
+Sagt der Person, die die Installation betreut, dass ein neueres Facet veröffentlicht wurde. Nicht zu verwechseln mit dem „Eine neue Version ist verfügbar – Neu laden“ des Browsers, das die Seite auf ein bereits heruntergeladenes Bundle umstellt; hier geht es um eine Version, die noch niemand installiert hat.
+
+Bewusst zurückhaltend. Die Prüfung läuft serverseitig und ihr Ergebnis wird zwischengespeichert, sodass eine Installation GitHub höchstens einmal pro `interval_days` fragt, wie viele Menschen auch immer den Viewer offen haben. Die Anfrage trägt nichts weiter mit sich — kein Token, keine Kennungen, nichts aus der Bibliothek. Ein Fehlschlag bleibt stumm: ein nicht erreichbares GitHub erscheint als „kein Update bekannt“, nie als Fehler. Nur Edition-Nutzer werden informiert, denn das Aktualisieren ist Sache des Betreibers, und jeder Browser zeigt den Hinweis höchstens einmal pro Woche.
+
+`enabled` auf `false` setzen unterbindet die ausgehende Anfrage vollständig.
+
+```json
+{
+  "updates": {
+    "enabled": true,
+    "check_url": "https://api.github.com/repos/ncoevoet/facet/releases/latest",
+    "interval_days": 7
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `enabled` | `true` | `false` deaktiviert die Prüfung; es wird nie etwas angefragt |
+| `check_url` | GitHub-API für die neueste Version | Wo nach der neuesten veröffentlichten Version gesucht wird |
+| `interval_days` | `7` | Wie lange ein Ergebnis zwischengespeichert wird, bevor erneut gefragt wird |
+
+---
+
+## Sequenzerkennung
+
+Benennt bewusst mehrteilig aufgenommene Serien — derzeit Belichtungsreihen — damit sie nicht
+als konkurrierende Aufnahmen gelesen werden. Die Belichtungsleiter wird aus den bereits
+gespeicherten Werten `f_stop` / `shutter_speed` / `ISO` abgeleitet
+(`EV = log2(N^2 / t) - log2(ISO / 100)`); eine bestehende Bibliothek wird also allein durch
+Rechnen ausgezeichnet: kein erneuter Scan, kein Bilddekodieren, kein Modell.
+
+Eine Folge zählt, wenn ihre Aufnahmen dieselbe Kamera teilen, innerhalb von
+`max_gap_seconds` aufeinanderfolgen, den Bildausschnitt beibehalten (`max_hamming` auf dem
+pHash) und ihre LW eine gleichmäßige, gerichtete Leiter aus mindestens `min_frames`
+Aufnahmen über `min_span_stops` bilden. Die Gleichmäßigkeit unterscheidet eine
+Belichtungsreihe von einer freihändigen Folge in wechselndem Licht.
+
+Jede Aufnahme erhält `sequence_ev_offset`, ihre Belichtungskorrektur gegenüber der
+Basisaufnahme — vorzeichenrichtig wie auf der Kamera: `-2` ist die dunkle, `+2` die helle
+Aufnahme. Entspricht eine Serie genau einer Belichtungsreihe, wandert ihr `is_burst_lead` auf
+die Basisaufnahme, sodass die Galerie das korrekt belichtete Bild zeigt statt desjenigen mit
+der höchsten Bewertung.
+
+Aufruf über `--detect-sequences`; läuft außerdem am Ende jedes Scans, nach der
+Serienbildung.
+
+```json
+{
+  "sequence_detection": {
+    "enabled": true,
+    "max_gap_seconds": 3.0,
+    "max_hamming": 10,
+    "min_frames": 3,
+    "min_step_stops": 0.5,
+    "min_span_stops": 1.0,
+    "step_tolerance_stops": 0.34
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `enabled` | `true` | Belichtungsreihen-Erkennung vollständig abschalten |
+| `max_gap_seconds` | `3.0` | Größter Abstand zwischen zwei aufeinanderfolgenden Aufnahmen |
+| `max_hamming` | `10` | Erlaubter pHash-Abstand zwischen den Aufnahmen (gleicher Bildausschnitt) |
+| `min_frames` | `3` | Kürzeste Folge, die als Belichtungsreihe gilt |
+| `min_step_stops` | `0.5` | Kleinste LW-Stufe, die als bewusste Änderung zählt |
+| `min_span_stops` | `1.0` | Kleinster Gesamtabstand zwischen dunkelster und hellster Aufnahme |
+| `step_tolerance_stops` | `0.34` | Zulässige Ungleichmäßigkeit der Stufen (eine Drittelstufe) |
+
+---
+
 ## Burst Scoring
 
 Gewichte, die beim Serienbild-Culling verwendet werden, um eine zusammengesetzte Bewertung für die Auswahl der besten Aufnahme innerhalb jeder Serienbildgruppe zu berechnen. Die Gewichte sollten in der Summe 1,0 ergeben.
@@ -1151,6 +1226,7 @@ Anzeige und Verhalten der Web-Galerie.
       "hide_blinks": true,
       "hide_bursts": true,
       "hide_duplicates": true,
+      "hide_brackets": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1233,6 +1309,7 @@ Anzeige und Verhalten der Web-Galerie.
 | `hide_blinks` | `true` | Blinzelfotos standardmäßig ausblenden |
 | `hide_bursts` | `true` | Standardmäßig nur das beste Serienbild anzeigen |
 | `hide_duplicates` | `true` | Nicht führende Duplikatfotos standardmäßig ausblenden |
+| `hide_brackets` | `true` | Standardmäßig nur die Basisbelichtung einer Belichtungsreihe anzeigen |
 | `hide_details` | `true` | Fotodetails auf Karten standardmäßig ausblenden |
 | `tooltip_mode` | `"hover"` | Tooltip-Auslöser: `"hover"`, `"click"` oder `"off"`. Ersetzt das frühere boolesche `hide_tooltip`. |
 | `hide_rejected` | `true` | Abgelehnte Fotos standardmäßig ausblenden |

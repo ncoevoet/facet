@@ -198,6 +198,8 @@ Controllato da `viewer.features.show_my_taste` (predefinito: `true`). Lo stato d
 - **Rifiuta** — Contrassegna tutte le selezionate come scartate (rimuove preferito e valutazione)
 - **Valuta** — Imposta la valutazione a stelle (1–5) per tutte le selezionate, o azzera la valutazione
 - **Aggiungi all'album** — Aggiungi le selezionate a un album esistente o nuovo
+- **Inverti** — Sostituisce la selezione con il suo complemento sulle foto caricate. Scegliere quelle da conservare e invertire è il modo diretto di vedere esattamente ciò che sta per sparire. Limitato a ciò che è caricato, come «Seleziona tutto», così non seleziona mai in silenzio foto che non vedi.
+- **Confronta** — Apre da 2 a 4 foto selezionate affiancate con panoramica e zoom sincronizzati (rotella per ingrandire, trascinamento per spostare, doppio clic per azzerare; tutti i riquadri si muovono insieme e passano a piena risoluzione oltre la scala di adattamento). La stessa vista della camera oscura di selezione, ora raggiungibile per qualsiasi insieme scelto a mano e non più solo per scatti contigui di una raffica.
 - **Copia nomi file** — Copia i nomi dei file selezionati negli appunti
 - **Esporta** — Scrivi i sidecar XMP (valutazione/preferito/scarto) accanto ai file selezionati (vedi [Esportazione per editor](#esportazione-per-editor))
 - **Scarica** — Scarica le foto selezionate
@@ -210,9 +212,10 @@ Le azioni di gruppo richiedono la modalità di modifica. Fai doppio clic su una 
 - **Modalità layout** - Passa tra **Griglia** (schede uniformi) e **Mosaico** (righe giustificate che preservano le proporzioni). Il mosaico è solo per desktop; su mobile si usa sempre la griglia.
 - **Dimensione miniatura** - Cursore per regolare l'altezza delle schede/righe (120–400px, salvato in localStorage)
 - **Nascondi dettagli** - Nascondi i metadati delle foto sulle schede (solo modalità griglia)
-- **Nascondi tooltip** - Disabilita il tooltip al passaggio del mouse che mostra i dettagli della foto su desktop
+- **Tooltip** - Come vengono mostrati i dettagli: **Al passaggio** (predefinito), **Al clic**, **Disattivato** o **Pannello laterale**. Il pannello laterale ancora gli stessi dettagli nel cassetto di destra invece di seguire il cursore: un dato si trova così sempre nello stesso punto da una foto all'altra, e il pannello conserva l'ultima foto sfiorata invece di svuotarsi quando il cursore lascia la griglia. Condivide quel cassetto con la barra dei filtri: aprire i filtri lo nasconde finché non li richiudi, e la griglia mantiene esattamente la larghezza che ha con i filtri aperti. Richiede una finestra di almeno 1280 px.
 - **Nascondi occhi chiusi** - Filtra le foto con battiti di ciglia rilevati
 - **Migliore della raffica** - Mostra solo la foto con il punteggio più alto di ogni raffica
+- **Migliore del bracketing** - Mostra solo l'esposizione di base di ogni bracketing rilevato, nascondendo gli scatti laterali. **Attivo per impostazione predefinita.** Indipendente da «Migliore della raffica»: un quarto dei bracketing condivide una raffica con scatti estranei, dove la foto guida non è l'esposizione di base.
 - **Scorrimento infinito** - Le foto si caricano man mano che scorri
 - **Scorrimento rapido (virtualizzato)** - Rendering a finestra di righe: solo le righe
   vicine al viewport sono nel DOM, così lo scorrimento profondo attraverso decine di
@@ -509,6 +512,9 @@ La pagina di selezione (`/culling`, modalità di modifica) raggruppa gli scatti 
 - **Raffiche** — foto scattate ravvicinate nel tempo (dal rilevamento delle raffiche).
 - **Simili** — foto che si assomigliano indipendentemente da quando sono state scattate, raggruppate per somiglianza degli embedding CLIP/SigLIP. Un cursore di soglia controlla quanto è rigido il raggruppamento.
 - **Scene** — gruppi di scene cronologiche (sequenze temporali di scatto), ciascuna intestata dal proprio intervallo temporale e dal momento narrativo dominante. Soggetto a `viewer.features.show_scenes`.
+- **Bracketing di esposizione** — le serie multi-esposizione trovate da [`--detect-sequences`](COMMANDS.md), con l'esposizione di base per prima e ogni scatto etichettato con la sua compensazione (`-2 EV` … `+2 EV`). Deliberatamente fuori da **Tutto**: un bracketing è uno stesso soggetto fotografato più volte per essere fuso, non un insieme di scatti in competizione; per questo tutti gli scatti partono contrassegnati come «da conservare» e la conferma non registra alcuna coppia di confronto — preferire un gradino di una scala di esposizione non dice nulla sul proprio gusto. Per eliminare le esposizioni laterali, usa il taglio dei bracketing della selezione automatica (più sotto).
+
+Accanto alla granularità stanno due comandi di ordinamento: la **modalità di ordinamento** (più facili prima, più ridondanti, migliori, più recenti, servono confronti oppure **più vecchie prima**) e un **pulsante freccia che inverte la modalità attiva**. «Più vecchie prima» è l'unica modalità che ordina anche le foto *all'interno* di ogni gruppo per ora di scatto, l'unico ordine in cui un bracketing o una sequenza panoramica si leggono correttamente.
 
 Per ogni gruppo, scegli quale/quali conservare; la conferma scarta il resto. Le conferme sono differite e possono essere annullate (vedi [Annulla](#annulla)). Le scelte di granularità, ordinamento e categoria vengono salvate in `localStorage`. I controlli che non si applicano alla granularità corrente vengono nascosti — il menu a tendina di ordinamento e il cursore della soglia di somiglianza scompaiono in modalità scena, e il pulsante di ambito viene nascosto quando non hai album manuali. Ogni pulsante della barra degli strumenti e di azione di gruppo riporta un tooltip e, sugli schermi piccoli, la barra degli strumenti si stacca in una barra inferiore scorrevole.
 
@@ -523,6 +529,8 @@ Un pulsante **Selezione automatica** nella barra degli strumenti seleziona un in
 L'anteprima è un'**esecuzione a vuoto** (dry run, non viene scritto nulla): mostra la suddivisione conservazione/scarto per gruppo. Conferma per applicare — gli scarti vengono registrati e, come ogni selezione, addestrano "I miei gusti"; un album facoltativo **Highlights** raccoglie in modo idempotente la foto migliore di ogni gruppo con punteggio almeno pari a `auto_cull.highlights_min`. Un badge indicatore "foto migliore in questo gruppo" segnala i gruppi in cui la selezione automatica conserverebbe un fotogramma diverso dall'attuale foto guida. `POST /api/culling/auto`; configurato tramite il blocco [`auto_cull`](CONFIGURATION.md#auto-cull).
 
 Quando è addestrato un keeper-ranking head, `POST /api/culling/auto` sceglie la foto da conservare di ogni gruppo in base a `keeper_prob` non appena supera il proprio vincolo di accuratezza — altrimenti l'output è identico byte per byte a quello euristico.
+
+**Il taglio dei bracketing ridondanti** è facoltativo (`trim_brackets`, disattivato per impostazione predefinita). Un bracketing si guadagna gli scatti in più coprendo la gamma che l'esposizione di base taglia; quando quella base non taglia né le ombre né le alte luci non c'era nulla da recuperare, e le esposizioni laterali sono spazio occupato anziché latitudine — il caso «tengo il bracketing sempre attivo». Resta solo lo scatto di base, qualunque sia la severità, e le serie la cui base non è mai stata misurata restano intatte: non misurato non equivale a non tagliato.
 
 ### Schermo intero
 

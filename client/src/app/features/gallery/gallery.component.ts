@@ -34,7 +34,7 @@ import { Photo } from '../../shared/models/photo.model';
 import { isTypingContext } from '../../shared/utils/keyboard';
 import { UndoService } from '../../core/services/undo.service';
 import { AuthService } from '../../core/services/auth.service';
-import { useDesktopSignal } from '../../shared/utils/media-query';
+import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { downloadAll } from '../../shared/utils/download';
 import { basename, copyLines } from '../../shared/utils/clipboard';
 import { I18nService } from '../../core/services/i18n.service';
@@ -50,7 +50,7 @@ import { PhotoSkeletonComponent } from '../../shared/components/photo-skeleton/p
 import {
   GalleryRow, buildGridRows, buildMosaicRows, gridColumnCount, totalRowsHeight, windowRange,
 } from './gallery-rows.util';
-import { applyQueryParams } from './gallery-filters.util';
+import { GalleryFilters, applyQueryParams } from './gallery-filters.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
 import { ExportEditorDialogComponent } from './export-editor-dialog.component';
@@ -58,6 +58,12 @@ import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll
 import { I18N } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
+import { MAX_COMPARE_PANES } from './synced-zoom.component';
+
+/** The three toggles the hidden-photos banner clears and restores together. */
+type HiddenFilterFlags = Pick<GalleryFilters,
+  'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets'>;
+
 
 @Component({
   selector: 'app-gallery',
@@ -150,13 +156,31 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
     </ng-template>
 
     <mat-sidenav-container class="h-full">
-      <!-- Filter sidebar -->
+      <!-- One end drawer, two occupants. Material allows a single drawer per
+           side, which is also the behaviour we want: the details rail and the
+           filters compete for the same strip, so opening the filters hides the
+           rail and closing them brings it back, without either changing how much
+           room the grid gets. -->
       <mat-sidenav #filterDrawer disableClose="false" [mode]="isDesktop() ? 'side' : 'over'" position="end" class="w-[min(320px,100vw)] p-0"
         (openedChange)="onFilterDrawerChange($event)">
-        <app-gallery-filter-sidebar />
+        @if (detailsRailVisible()) {
+          <div class="p-2">
+            @if (tooltipPhoto(); as p) {
+              <app-photo-tooltip [photo]="p" [docked]="true" />
+            } @else {
+              <div class="rounded-xl p-4 text-sm opacity-60 text-center"
+                   style="background: var(--facet-tooltip-bg); border: 1px solid var(--facet-tooltip-border)">
+                {{ I18N.gallery.tooltip_mode.panel_empty | translate }}
+              </div>
+            }
+          </div>
+        } @else {
+          <app-gallery-filter-sidebar />
+        }
       </mat-sidenav>
 
-      <!-- Main content -->
+      <!-- Main content. The drawer reserves its own strip, so the grid gets
+           exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
         <!-- Hidden-photos banner -->
         @if (showHiddenBanner()) {
@@ -167,6 +191,16 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
             </span>
             <button mat-button class="!min-w-0" (click)="showAllHidden()">
               {{ I18N.gallery.hidden_banner.show_all | translate }}
+            </button>
+          </div>
+        } @else if (canRestoreHidden()) {
+          <div class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex items-center gap-3 text-sm">
+            <mat-icon class="opacity-70 !text-base !w-5 !h-5">visibility</mat-icon>
+            <span class="flex-1">
+              {{ I18N.gallery.hidden_banner.showing_all | translate }}
+            </span>
+            <button mat-button class="!min-w-0" (click)="restoreHidden()">
+              {{ I18N.gallery.hidden_banner.restore | translate }}
             </button>
           </div>
         }
@@ -412,7 +446,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
     }
 
     <!-- Photo details tooltip (single instance, repositioned on hover, hidden on small/touch devices) -->
-    @if (!tooltipDisabled() && (tooltipMode() === 'click' || (isDesktop() && !isTouchDevice()))) {
+    @if (!tooltipDisabled() && !panelMode() && (tooltipMode() === 'click' || (isDesktop() && !isTouchDevice()))) {
       <app-photo-tooltip
         [photo]="tooltipPhoto()"
         [x]="tooltipX()"
@@ -420,6 +454,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
         [flipped]="tooltipFlipped()"
       />
     }
+
 
     <!-- Selection action bar -->
     @if (selectionCount()) {
@@ -431,6 +466,12 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
           @if (!allLoadedSelected()) {
             <button mat-icon-button class="lg:!hidden" (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="selectAll()"><mat-icon>select_all</mat-icon> {{ I18N.gallery.selection.select_all | translate }}</button>
+          }
+          <button mat-icon-button class="lg:!hidden" (click)="invertSelection()" [matTooltip]="I18N.gallery.selection.invert | translate"><mat-icon>flip</mat-icon></button>
+          <button mat-button class="!hidden lg:!inline-flex" (click)="invertSelection()"><mat-icon>flip</mat-icon> {{ I18N.gallery.selection.invert | translate }}</button>
+          @if (canCompareSelection()) {
+            <button mat-icon-button class="lg:!hidden" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate"><mat-icon>compare</mat-icon></button>
+            <button mat-button class="!hidden lg:!inline-flex" (click)="compareSelection()"><mat-icon>compare</mat-icon> {{ I18N.gallery.selection.compare | translate }}</button>
           }
           <!-- Mobile: single Actions trigger opening a touch-friendly bottom sheet -->
           <button mat-flat-button class="lg:!hidden" (click)="openActionsSheet()" [disabled]="downloading()">
@@ -576,6 +617,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
   });
   protected readonly isDesktop = this.desktop.isDesktop;
 
+  /**
+   * Whether the viewport is wide enough to give up a 320px strip permanently.
+   *
+   * The details rail is not merely a desktop feature: at the md breakpoint the
+   * drawer would take more than a third of the window and leave the grid too
+   * narrow to browse, so it wants its own, higher bar.
+   */
+  private readonly railWide = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
+
   /** Effective gallery mode: force grid on small viewports */
   readonly effectiveGalleryMode = computed(() =>
     (this.isDesktop() && this.containerWidth() > 0) ? this.store.galleryMode() : 'grid',
@@ -589,19 +639,65 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Whether tooltip is fully disabled (off mode) — used for skipping rendering and hover handlers */
   readonly tooltipDisabled = computed(() => this.tooltipMode() === 'off');
 
+  /** Docked rail needs real width, not merely "not a phone". */
+  readonly panelMode = computed(() => this.tooltipMode() === 'panel' && this.railWide.isDesktop());
+
+  /**
+   * Whether the end drawer currently shows details rather than filters.
+   *
+   * The filters win while they are open: they are an explicit, transient action,
+   * and the rail is a standing preference to come back to once they are closed.
+   */
+  readonly detailsRailVisible = computed(
+    () => this.panelMode() && !this.store.filterDrawerOpen(),
+  );
+
   /** Show the hidden-photos banner when filters are hiding rows and at least one is on. */
   readonly showHiddenBanner = computed(() => {
     const f = this.store.filters();
     return this.store.hiddenSummary().total > 0
-      && (f.hide_blinks || f.hide_bursts || f.hide_duplicates);
+      && (f.hide_blinks || f.hide_bursts || f.hide_duplicates || f.hide_brackets);
+  });
+
+  /**
+   * The hide toggles as they stood before "Show all" cleared them.
+   *
+   * View state, not a filter: "Show all" used to be one-way, so peeking at the
+   * blinks and burst frames a filter was holding back meant walking to the
+   * sidebar and re-ticking three boxes from memory. Kept here rather than in the
+   * store because nothing outside this banner needs it.
+   */
+  private readonly hiddenFiltersStash = signal<HiddenFilterFlags | null>(null);
+
+  /** Offer the restore only while all three are still off, so it never fights a manual change. */
+  readonly canRestoreHidden = computed(() => {
+    const stash = this.hiddenFiltersStash();
+    if (!stash) return false;
+    const f = this.store.filters();
+    return !f.hide_blinks && !f.hide_bursts && !f.hide_duplicates && !f.hide_brackets;
   });
 
   showAllHidden(): void {
+    const f = this.store.filters();
+    this.hiddenFiltersStash.set({
+      hide_blinks: f.hide_blinks,
+      hide_bursts: f.hide_bursts,
+      hide_duplicates: f.hide_duplicates,
+      hide_brackets: f.hide_brackets,
+    });
     void this.store.updateFilters({
       hide_blinks: false,
       hide_bursts: false,
       hide_duplicates: false,
+      hide_brackets: false,
     });
+  }
+
+  restoreHidden(): void {
+    const stash = this.hiddenFiltersStash();
+    if (!stash) return;
+    this.hiddenFiltersStash.set(null);
+    void this.store.updateFilters({ ...stash });
   }
 
   /** Container width for mosaic layout (updated via ResizeObserver) */
@@ -694,6 +790,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     afterNextRender(() => {
       this.isTouchDevice.set(window.matchMedia('(hover: none)').matches);
       this.desktop.setup();
+      this.railWide.setup();
       this.setupResizeObserver();
       this.setupScrollTracking();
     });
@@ -704,9 +801,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
       if (t) this.headerSlot.set(t);
     });
 
-    // Sync store.filterDrawerOpen signal → mat-sidenav
+    // Sync store.filterDrawerOpen signal → mat-sidenav. The details rail shares
+    // this drawer, so it keeps the strip open on its own once the filters close.
     effect(() => {
-      const open = this.store.filterDrawerOpen();
+      const open = this.store.filterDrawerOpen() || this.panelMode();
       const drawer = this.filterDrawer();
       if (!drawer) return;
       if (open) drawer.open();
@@ -771,6 +869,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.saveViewSnapshot();
     this.resizeObserver?.disconnect();
     this.desktop.cleanup();
+    this.railWide.cleanup();
   }
 
   /** Capture scroll + query state so back-navigation can skip the reload. */
@@ -806,6 +905,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Save/restore sidebar scroll position on drawer open/close */
   onFilterDrawerChange(open: boolean): void {
+    // The details rail holds this drawer open by itself, so an `open` it caused
+    // must not be recorded as "the user asked for filters" — otherwise closing
+    // the filters would immediately re-open them and the toggle would be stuck.
+    if (open && this.detailsRailVisible()) return;
     this.store.setFilterDrawerOpen(open);
     const sidebarEl = document.querySelector('app-gallery-filter-sidebar div[data-scroll]') as HTMLElement | null;
     if (!sidebarEl) return;
@@ -827,6 +930,31 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   protected selectAll(): void {
     this.store.selectAllLoaded();
+  }
+
+  protected invertSelection(): void {
+    this.store.invertSelection();
+  }
+
+  /** Two panes is the smallest useful compare; past four they are too small to read. */
+  protected readonly canCompareSelection = computed(
+    () => this.selectionCount() >= 2 && this.selectionCount() <= MAX_COMPARE_PANES,
+  );
+
+  protected async compareSelection(): Promise<void> {
+    const selected = this.selectedPaths();
+    // Keep the grid's order rather than selection order: comparing left-to-right
+    // as they are laid out is what the user is already looking at.
+    const photos = this.store.photos().filter(p => selected.has(p.path)).slice(0, MAX_COMPARE_PANES);
+    if (photos.length < 2) return;
+    const { CompareSelectedDialogComponent } = await import('./compare-selected-dialog.component');
+    this.dialog.open(CompareSelectedDialogComponent, {
+      data: { photos },
+      width: '96vw',
+      height: '92vh',
+      maxWidth: '96vw',
+      autoFocus: false,
+    });
   }
 
   /** Ctrl+A selects all loaded photos unless focus is in an input or a dialog is open. */
@@ -922,6 +1050,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
         showAlbums: !!this.store.config()?.features?.show_albums,
         albums: this.albumOptions(),
         downloadProfiles: this.auth.downloadProfiles(),
+        canCompare: this.canCompareSelection(),
       },
     });
     const action = await firstValueFrom(ref.afterDismissed());
@@ -932,6 +1061,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
       case 'rate': await this.batchRate(action.rating); break;
       case 'album': await this.addToAlbum(action.albumId); break;
       case 'create-album': await this.createAlbumAndAdd(); break;
+      case 'invert': this.invertSelection(); break;
+      case 'compare': await this.compareSelection(); break;
+      case 'export': this.openExportDialog(); break;
+      case 'cull': await this.openCullDialog(); break;
       case 'copy': this.copyPaths(); break;
       case 'download': await this.downloadSelected(action.type, action.profile); break;
     }
@@ -1013,6 +1146,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
   showTooltip(event: MouseEvent, photo: Photo): void {
     const mode = this.tooltipMode();
     if (mode === 'off') return;
+    // The rail is parked, so none of the placement maths below applies to it.
+    // Only while it is actually shown, though: with the mode selected on a
+    // viewport too narrow for the rail, skipping the maths left the floating
+    // tooltip to render at a stale coordinate in the middle of the page.
+    if (mode === 'panel' && this.panelMode()) {
+      this.tooltipPhoto.set(photo);
+      return;
+    }
     // Hover mode is meaningless on touch (mouseenter fires once on tap and
     // sticks) so we suppress it there. Click mode is the intended touch path
     // and must work — only block hover on touch devices.
@@ -1086,6 +1227,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   hideTooltip(): void {
+    // A docked rail keeps the last photo on mouse-out. Blanking it every time
+    // the cursor crossed a gap would undo the reason for docking it.
+    if (this.panelMode()) return;
     this.tooltipPhoto.set(null);
   }
 

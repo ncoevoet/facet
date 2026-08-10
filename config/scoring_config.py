@@ -548,6 +548,15 @@ class ScoringConfig:
             'rapid_burst_seconds': 5
         })
 
+    def get_sequence_detection_settings(self):
+        """Get exposure-bracket detection settings.
+
+        Returns only what the config carries; `utils.sequence.DEFAULTS` supplies
+        the rest, so a partial block tunes one threshold without having to
+        restate the others.
+        """
+        return self.config.get('sequence_detection', {})
+
     def get_duplicate_detection_settings(self):
         """Get duplicate detection settings.
 

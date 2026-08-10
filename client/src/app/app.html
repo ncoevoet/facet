@@ -5,7 +5,12 @@
     <div class="flex items-center gap-3 w-full">
       <!-- Nav links -->
       @if (auth.isAuthenticated()) {
-        <nav class="flex items-center gap-0 lg:gap-1 max-lg:min-w-0 max-lg:overflow-x-auto">
+        <!-- max-lg:px-1.5 is not spacing: each Material icon button hangs its
+             48px accessibility touch target 6px past its 36px box, and an
+             overflow-x-auto parent counts that overhang as scrollable content.
+             Without the padding the bar showed a scrollbar even when every icon
+             fitted exactly. The padding gives the overhang somewhere to land. -->
+        <nav class="flex items-center gap-0 lg:gap-1 max-lg:min-w-0 max-lg:overflow-x-auto max-lg:px-1.5">
           <a mat-icon-button class="lg:!hidden" routerLink="/" routerLinkActive #rlGalleryM="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGalleryM.isActive ? 'var(--mat-sys-primary)' : ''" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
             <mat-icon>diamond</mat-icon>
           </a>
@@ -207,6 +212,7 @@
           <mat-icon>{{
             store.filters().tooltip_mode === 'click' ? 'touch_app'
             : store.filters().tooltip_mode === 'off' ? 'visibility_off'
+            : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
             : 'chat_bubble_outline'
           }}</mat-icon>
         </button>
@@ -252,6 +258,12 @@
             <mat-icon>touch_app</mat-icon>
             {{ I18N.gallery.tooltip_mode.click | translate }}
           </button>
+          @if (canDockDetails()) {
+            <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'panel')">
+              <mat-icon>view_sidebar</mat-icon>
+              {{ I18N.gallery.tooltip_mode.panel | translate }}
+            </button>
+          }
           <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
             <mat-icon>visibility_off</mat-icon>
             {{ I18N.gallery.tooltip_mode.off | translate }}
@@ -504,6 +516,7 @@
           <mat-icon>{{
             store.filters().tooltip_mode === 'click' ? 'touch_app'
             : store.filters().tooltip_mode === 'off' ? 'visibility_off'
+            : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
             : 'chat_bubble_outline'
           }}</mat-icon>
         </button>
@@ -516,6 +529,12 @@
             <mat-icon>touch_app</mat-icon>
             {{ I18N.gallery.tooltip_mode.click | translate }}
           </button>
+          @if (canDockDetails()) {
+            <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'panel')">
+              <mat-icon>view_sidebar</mat-icon>
+              {{ I18N.gallery.tooltip_mode.panel | translate }}
+            </button>
+          }
           <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
             <mat-icon>visibility_off</mat-icon>
             {{ I18N.gallery.tooltip_mode.off | translate }}

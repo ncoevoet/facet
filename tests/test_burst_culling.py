@@ -6,9 +6,16 @@ from unittest import mock
 import pytest
 
 from api.routers.burst_culling import (
+    _CULLING_GROUP_BY,
+    _CULLING_SORT_DESC,
+    _CULLING_SORTS,
     _compute_burst_score,
     _compute_cull_reason,
+    _culling_sort_key,
+    _culling_sort_reverse,
     _format_group,
+    _group_sequence_kind,
+    _order_group_photos_by_capture,
 )
 
 
@@ -154,6 +161,139 @@ class TestComputeCullReason:
         best = self._best()
         photo = self._best(path='/x.jpg')  # identical metrics, different path
         assert _compute_cull_reason(photo, best)['key'] == 'near_duplicate'
+
+
+class TestGroupSequenceKind:
+    """A group is only called a bracket when every frame is one. A burst that
+    merely contains a bracket still needs culling, and labelling it would tell
+    the user not to choose exactly where choosing is the remaining work."""
+
+    def test_all_frames_bracketed(self):
+        assert _group_sequence_kind([{'sequence_kind': 'bracket'}] * 3) == 'bracket'
+
+    def test_mixed_group_is_unlabelled(self):
+        photos = [{'sequence_kind': 'bracket'}, {'sequence_kind': 'bracket'}, {'sequence_kind': None}]
+        assert _group_sequence_kind(photos) is None
+
+    def test_ordinary_burst_is_unlabelled(self):
+        assert _group_sequence_kind([{'sequence_kind': None}] * 3) is None
+
+    def test_missing_key_is_treated_as_unlabelled(self):
+        assert _group_sequence_kind([{}, {}]) is None
+
+    def test_format_group_labels_a_wholly_bracketed_burst(self):
+        photos = [
+            {'path': f'/b{i}.jpg', 'filename': f'b{i}.jpg', 'aggregate': 5.0 + i,
+             'sequence_kind': 'bracket', 'sequence_ev_offset': ev}
+            for i, ev in enumerate((-2.0, 0.0, 2.0))
+        ]
+        group = _format_group(photos, burst_group_id=7)
+        assert group['sequence_kind'] == 'bracket'
+        assert {p['sequence_ev_offset'] for p in group['photos']} == {-2.0, 0.0, 2.0}
+
+    def test_format_group_leaves_an_ordinary_burst_unlabelled(self):
+        photos = [{'path': f'/p{i}.jpg', 'filename': f'p{i}.jpg', 'aggregate': 5.0} for i in range(3)]
+        assert _format_group(photos, burst_group_id=7)['sequence_kind'] is None
+
+
+class TestSortDirectionOverride:
+    """The direction toggle. An explicit choice wins outright rather than
+    XOR-ing with each mode's default, so one button cannot mean 'ascending' in
+    some modes and 'descending' in others."""
+
+    def test_empty_direction_keeps_each_mode_natural(self):
+        assert _culling_sort_reverse('easiest', '') is True
+        assert _culling_sort_reverse('recent', '') is True
+        assert _culling_sort_reverse('chronological', '') is False
+
+    def test_explicit_asc_wins_everywhere(self):
+        for mode in _CULLING_SORTS:
+            assert _culling_sort_reverse(mode, 'asc') is False
+
+    def test_explicit_desc_wins_everywhere(self):
+        for mode in _CULLING_SORTS:
+            assert _culling_sort_reverse(mode, 'desc') is True
+
+    def test_unknown_direction_falls_back_to_natural(self):
+        assert _culling_sort_reverse('chronological', 'sideways') is False
+        assert _culling_sort_reverse('best', 'sideways') is True
+
+    def test_reversing_recent_yields_oldest_first(self):
+        groups = [
+            {'group_id': 1, 'count': 1, 'photos': [{'date_taken': '2024:01:01 08:00:00'}]},
+            {'group_id': 2, 'count': 1, 'photos': [{'date_taken': '2025:06:01 12:00:00'}]},
+        ]
+        groups.sort(key=lambda g: _culling_sort_key(g, 'recent', {}, 0),
+                    reverse=_culling_sort_reverse('recent', 'asc'))
+        assert [g['group_id'] for g in groups] == [1, 2]
+
+
+class TestBracketGranularity:
+    def test_bracket_is_a_grouping(self):
+        assert 'bracket' in _CULLING_GROUP_BY
+
+    def test_bracket_is_not_folded_into_the_merged_feed(self):
+        # `all` is burst+similar. A bracket surfacing there would be read as a
+        # set of competing takes, which is exactly what the granularity avoids.
+        assert _CULLING_GROUP_BY[0] == 'all'
+
+
+class TestChronologicalSort:
+    """`chronological` is the one mode that runs ascending, so the direction map
+    matters as much as the key: a regression that reverted it would silently
+    serve newest-first under a label promising the opposite."""
+
+    @staticmethod
+    def _group(gid, dates):
+        return {'group_id': gid, 'count': len(dates),
+                'photos': [{'date_taken': d, 'path': f'/{gid}-{i}.jpg', 'burst_score': 1}
+                           for i, d in enumerate(dates)]}
+
+    @staticmethod
+    def _sorted(groups, sort):
+        groups.sort(key=lambda g: _culling_sort_key(g, sort, {}, 0),
+                    reverse=_CULLING_SORT_DESC.get(sort, True))
+        return [g['group_id'] for g in groups]
+
+    def test_registered_as_a_sort_mode(self):
+        assert 'chronological' in _CULLING_SORTS
+
+    def test_only_chronological_runs_ascending(self):
+        for mode in ('easiest', 'redundant', 'best', 'recent', 'needs_comparisons'):
+            assert _CULLING_SORT_DESC.get(mode, True) is True
+        assert _CULLING_SORT_DESC['chronological'] is False
+
+    def test_groups_ordered_by_their_earliest_frame(self):
+        groups = [
+            self._group(1, ['2025:03:02 10:00:00', '2025:03:02 09:00:00']),
+            self._group(2, ['2024:01:01 08:00:00']),
+            self._group(3, ['2025:06:01 12:00:00']),
+        ]
+        assert self._sorted(groups, 'chronological') == [2, 1, 3]
+
+    def test_undated_groups_sink_to_the_end(self):
+        groups = [self._group(1, [None]), self._group(2, ['2024:01:01 08:00:00'])]
+        assert self._sorted(groups, 'chronological') == [2, 1]
+
+    def test_recent_still_ranks_newest_first(self):
+        groups = [
+            self._group(1, ['2024:01:01 08:00:00']),
+            self._group(2, ['2025:06:01 12:00:00']),
+        ]
+        assert self._sorted(groups, 'recent') == [2, 1]
+
+    def test_group_photos_reordered_into_capture_order(self):
+        groups = [self._group(1, ['2025:03:02 10:00:00', '2025:03:02 09:00:00'])]
+        _order_group_photos_by_capture(groups)
+        assert [p['date_taken'] for p in groups[0]['photos']] == [
+            '2025:03:02 09:00:00', '2025:03:02 10:00:00']
+
+    def test_reordering_preserves_the_recorded_best(self):
+        groups = [self._group(1, ['2025:03:02 10:00:00', '2025:03:02 09:00:00'])]
+        groups[0]['best_path'] = '/1-0.jpg'  # the later frame scored best
+        _order_group_photos_by_capture(groups)
+        assert groups[0]['best_path'] == '/1-0.jpg'
+        assert groups[0]['photos'][0]['path'] == '/1-1.jpg'
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +462,146 @@ class TestCullingGroupsEndpoint:
         assert resp.json() == {"status": "ok", "kept": 1, "rejected": 1}
         scene_cull.assert_awaited_once()
 
+    def test_group_by_bracket_serves_bracket_groups(self, client):
+        mock_conn = mock.MagicMock()
+        bracket_groups = [{
+            "group_id": 1, "type": "bracket", "reason": "bracket", "sequence_kind": "bracket",
+            "photos": [{"path": "/k0.jpg", "sequence_ev_offset": -2.0},
+                       {"path": "/k1.jpg", "sequence_ev_offset": 0.0}],
+            "best_path": "/k1.jpg", "count": 2, "category": None,
+        }]
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
+            mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.routers.burst_culling._fetch_bracket_groups",
+                       return_value=bracket_groups) as bracket_fetch,
+            mock.patch("api.routers.burst_culling._fetch_unreviewed_burst_groups") as burst_fetch,
+            mock.patch("api.routers.burst_culling._count_unreviewed_similar_groups") as similar_count,
+        ):
+            resp = client.get("/api/culling-groups?group_by=bracket")
+        assert resp.status_code == 200
+        assert [g["type"] for g in resp.json()["groups"]] == ["bracket"]
+        bracket_fetch.assert_called_once()
+        # A bracket is its own granularity: neither competing-takes feed is consulted.
+        burst_fetch.assert_not_called()
+        similar_count.assert_not_called()
+
+
+class TestConfirmBracketGroup:
+    """The bracket branch of POST /api/culling-groups/confirm.
+
+    It rejects like the other granularities but records no comparison pairs,
+    and is bounded to the paths that really carry the bracket kind — a
+    malformed body must not be able to reject arbitrary photos through it.
+    """
+
+    _SCHEMA = """
+        CREATE TABLE photos (
+            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
+            sequence_kind TEXT, sequence_ev_offset REAL, is_rejected INTEGER DEFAULT 0
+        );
+        CREATE TABLE comparisons (
+            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
+            category TEXT, session_id TEXT, user_id TEXT, source TEXT
+        );
+    """
+
+    @staticmethod
+    def _db():
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(TestConfirmBracketGroup._SCHEMA)
+        rungs = (('/k0.jpg', -2.0), ('/k1.jpg', 0.0), ('/k2.jpg', 2.0))
+        for path, ev in rungs:
+            conn.execute(
+                "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind, "
+                "sequence_ev_offset) VALUES (?, ?, 1, 'bracket', ?)",
+                (path, path.lstrip('/'), ev),
+            )
+        conn.execute(
+            "INSERT INTO photos (path, filename, sequence_kind) VALUES ('/plain.jpg', 'plain.jpg', NULL)"
+        )
+        conn.commit()
+        return conn
+
+    @pytest.fixture()
+    def client(self):
+        from fastapi.testclient import TestClient
+        from api import create_app
+        from api.auth import get_optional_user, require_edition, CurrentUser
+
+        app = create_app()
+        fake_user = CurrentUser(user_id="test", edition_authenticated=True)
+        app.dependency_overrides[get_optional_user] = lambda: fake_user
+        app.dependency_overrides[require_edition] = lambda: fake_user
+        yield TestClient(app)
+        app.dependency_overrides.clear()
+
+    @staticmethod
+    def _confirm(client, conn, body):
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
+            mock.patch("api.db_helpers.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+        ):
+            return client.post("/api/culling-groups/confirm", json={
+                "group_id": 1, "type": "bracket", **body,
+            })
+
+    def _rejected(self, conn):
+        return {r['path'] for r in conn.execute(
+            "SELECT path FROM photos WHERE is_rejected = 1").fetchall()}
+
+    def test_rejects_the_frames_that_were_not_kept(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/k1.jpg", "/k2.jpg"], "keep_paths": ["/k1.jpg"],
+        })
+        assert resp.status_code == 200
+        assert resp.json() == {'success': True, 'kept': 1, 'rejected': 2, 'skipped': 0}
+        assert self._rejected(conn) == {"/k0.jpg", "/k2.jpg"}
+
+    def test_records_no_comparison_pairs(self, client):
+        conn = self._db()
+        self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/k1.jpg", "/k2.jpg"], "keep_paths": ["/k1.jpg"],
+        })
+        # Preferring one rung of an exposure ladder describes the exposure, not
+        # the photograph; feeding it to the ranker would bias every later ranking.
+        assert conn.execute("SELECT COUNT(*) FROM comparisons").fetchone()[0] == 0
+
+    def test_keeping_every_frame_rejects_nothing(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/k1.jpg", "/k2.jpg"],
+            "keep_paths": ["/k0.jpg", "/k1.jpg", "/k2.jpg"],
+        })
+        assert resp.json() == {'success': True, 'kept': 3, 'rejected': 0, 'skipped': 0}
+        assert self._rejected(conn) == set()
+
+    def test_a_path_outside_the_bracket_is_skipped_not_rejected(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/plain.jpg"], "keep_paths": [],
+        })
+        assert resp.json()['skipped'] == 1
+        assert self._rejected(conn) == {"/k0.jpg"}
+
+    def test_an_unknown_path_is_skipped_not_rejected(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/nowhere.jpg"], "keep_paths": [],
+        })
+        assert resp.json()['skipped'] == 1
+        assert self._rejected(conn) == {"/k0.jpg"}
+
+    def test_empty_paths_is_rejected_as_a_bad_request(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {"paths": [], "keep_paths": []})
+        assert resp.status_code == 400
+        assert 'paths is required' in resp.json()['detail']
+
 
 class TestFilterSimilarGroups:
     """Unit tests for read-time rejected-photo filtering of cached similar groups."""
@@ -422,7 +702,8 @@ class TestQueryBurstGroupsScope:
             path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
             aesthetic REAL, tech_sharpness REAL, is_blink INTEGER, is_burst_lead INTEGER,
             burst_group_id INTEGER, burst_reviewed INTEGER, eyes_open_score REAL,
-            expression_score REAL, face_count INTEGER, category TEXT
+            expression_score REAL, face_count INTEGER, category TEXT,
+            sequence_kind TEXT, sequence_ev_offset REAL
         );
         CREATE TABLE album_photos (
             id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT
@@ -492,3 +773,97 @@ class TestQueryBurstGroupsScope:
         assert {g["burst_id"] for g in groups} == {1}
         assert total == 1
 
+
+
+class TestFetchBracketGroups:
+    """The browse path behind `group_by=bracket`.
+
+    Auto-cull's trimming reaches this function too, but only ever with
+    `redundant_only=True`, so the plain browse — grouping, base-first ordering
+    and the small-set exclusion — had no coverage of its own.
+    """
+
+    _SCHEMA = """
+        CREATE TABLE photos (
+            path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
+            aesthetic REAL, tech_sharpness REAL, is_blink INTEGER DEFAULT 0,
+            is_burst_lead INTEGER DEFAULT 0, burst_group_id INTEGER,
+            eyes_open_score REAL, expression_score REAL, face_count INTEGER DEFAULT 0,
+            category TEXT, is_rejected INTEGER DEFAULT 0,
+            sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL,
+            shadow_clipped INTEGER, highlight_clipped INTEGER
+        );
+    """
+
+    @staticmethod
+    def _db(rows):
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(TestFetchBracketGroups._SCHEMA)
+        conn.executemany(
+            "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "
+            "tech_sharpness, sequence_group_id, sequence_kind, sequence_ev_offset, "
+            "is_rejected) VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+        conn.commit()
+        return conn
+
+    @staticmethod
+    def _rung(path, when, seq, ev, score=5.0, rejected=0):
+        return (path, path.lstrip('/'), when, score, score, score, seq, 'bracket', ev, rejected)
+
+    @staticmethod
+    def _fetch(conn, **kwargs):
+        from api.routers.burst_culling import _fetch_bracket_groups
+        with mock.patch("api.routers.burst_culling.get_photos_from_clause",
+                        return_value=("photos", [])), \
+                mock.patch("api.routers.burst_culling.is_multi_user_enabled",
+                           return_value=False):
+            return _fetch_bracket_groups(conn, None, "1=1", [], **kwargs)
+
+    def test_groups_by_sequence_and_leads_with_the_base_exposure(self):
+        conn = self._db([
+            self._rung('/k2.jpg', '2025:04:15 19:59:07', 1, 2.0, score=9.0),
+            self._rung('/k0.jpg', '2025:04:15 19:59:05', 1, -2.0, score=4.0),
+            self._rung('/k1.jpg', '2025:04:15 19:59:06', 1, 0.0, score=5.0),
+        ])
+        groups = self._fetch(conn)
+        assert len(groups) == 1
+        group = groups[0]
+        assert group['type'] == 'bracket'
+        # Base first regardless of score: the +2 frame scores highest and the
+        # feed must still open on the exposure the set was built around.
+        assert [p['path'] for p in group['photos']] == ['/k1.jpg', '/k0.jpg', '/k2.jpg']
+
+    def test_separate_sets_are_separate_groups(self):
+        conn = self._db([
+            self._rung('/a0.jpg', '2025:04:15 19:59:05', 1, -1.0),
+            self._rung('/a1.jpg', '2025:04:15 19:59:06', 1, 0.0),
+            self._rung('/b0.jpg', '2025:04:15 20:10:05', 2, 0.0),
+            self._rung('/b1.jpg', '2025:04:15 20:10:06', 2, 1.0),
+        ])
+        assert len(self._fetch(conn)) == 2
+
+    def test_a_set_left_with_one_frame_is_not_a_group(self):
+        conn = self._db([self._rung('/lonely.jpg', '2025:04:15 19:59:05', 1, 0.0)])
+        assert self._fetch(conn) == []
+
+    def test_rejected_frames_are_excluded_by_default(self):
+        conn = self._db([
+            self._rung('/k0.jpg', '2025:04:15 19:59:05', 1, -1.0),
+            self._rung('/k1.jpg', '2025:04:15 19:59:06', 1, 0.0),
+            self._rung('/k2.jpg', '2025:04:15 19:59:07', 1, 1.0, rejected=1),
+        ])
+        paths = [p['path'] for p in self._fetch(conn)[0]['photos']]
+        assert '/k2.jpg' not in paths
+
+    def test_a_photo_that_is_not_bracketed_never_appears(self):
+        conn = self._db([
+            self._rung('/k0.jpg', '2025:04:15 19:59:05', 1, -1.0),
+            self._rung('/k1.jpg', '2025:04:15 19:59:06', 1, 0.0),
+        ])
+        conn.execute("INSERT INTO photos (path, filename, sequence_kind) "
+                     "VALUES ('/plain.jpg', 'plain.jpg', NULL)")
+        conn.commit()
+        paths = [p['path'] for g in self._fetch(conn) for p in g['photos']]
+        assert '/plain.jpg' not in paths

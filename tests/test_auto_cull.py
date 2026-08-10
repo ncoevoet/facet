@@ -28,7 +28,9 @@ _SCHEMA = """
         burst_group_id INTEGER, burst_reviewed INTEGER DEFAULT 0,
         similarity_reviewed INTEGER DEFAULT 0, eyes_open_score REAL,
         expression_score REAL, face_count INTEGER DEFAULT 0, category TEXT,
-        is_rejected INTEGER DEFAULT 0
+        is_rejected INTEGER DEFAULT 0,
+        sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL,
+        shadow_clipped INTEGER, highlight_clipped INTEGER
     );
     CREATE TABLE albums (
         id INTEGER PRIMARY KEY, user_id TEXT, name TEXT, description TEXT,
@@ -561,6 +563,77 @@ class TestCullProfiles:
         body = resp.json()
         # An unresolved profile behaves exactly like no profile (config default 50).
         assert body["kept"] == 4 and body["rejected"] == 1
+
+
+class TestTrimBrackets:
+    """Redundant-bracket trimming. Opt-in, keeps the base exposure regardless of
+    score, and deliberately records no comparison pairs."""
+
+    @staticmethod
+    def _bracket_db(shadow=0, highlight=0, kind='bracket'):
+        conn = _db(photos=[])
+        # The +2 EV frame scores highest, so a score-based split would keep the
+        # wrong rung; the base must win on its exposure offset alone.
+        rungs = (('/k0.jpg', -2.0, 4.0), ('/k1.jpg', 0.0, 5.0), ('/k2.jpg', 2.0, 9.0))
+        for path, ev, score in rungs:
+            conn.execute(
+                "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "
+                "tech_sharpness, is_blink, is_burst_lead, sequence_group_id, sequence_kind, "
+                "sequence_ev_offset, shadow_clipped, highlight_clipped) "
+                "VALUES (?, ?, '2025:04:15 19:59:05', ?, ?, ?, 0, 0, 1, ?, ?, ?, ?)",
+                (path, path.lstrip('/'), score, score, score, kind, ev,
+                 shadow if ev == 0 else 0, highlight if ev == 0 else 0),
+            )
+        conn.commit()
+        return conn
+
+    def test_off_by_default(self, edition_client):
+        conn = self._bracket_db()
+        resp, _ = _post(edition_client, conn, {"group_by": "burst"})
+        assert resp.json()["groups_processed"] == 0
+
+    def test_keeps_the_base_exposure_not_the_best_scoring_frame(self, edition_client):
+        conn = self._bracket_db()
+        resp, _ = _post(edition_client, conn, {"group_by": "burst", "trim_brackets": True})
+        body = resp.json()
+        assert body["groups_processed"] == 1
+        group = body["preview"][0]
+        assert group["type"] == "bracket"
+        assert group["keep_paths"] == ["/k1.jpg"]
+        assert set(group["reject_paths"]) == {"/k0.jpg", "/k2.jpg"}
+
+    def test_strictness_does_not_widen_the_keep(self, edition_client):
+        conn = self._bracket_db()
+        resp, _ = _post(edition_client, conn, {
+            "group_by": "burst", "trim_brackets": True, "strictness": 0, "min_keep_per_group": 3,
+        })
+        assert resp.json()["preview"][0]["keep_paths"] == ["/k1.jpg"]
+
+    def test_a_clipped_base_still_needs_its_flanking_exposures(self, edition_client):
+        conn = self._bracket_db(highlight=1)
+        resp, _ = _post(edition_client, conn, {"group_by": "burst", "trim_brackets": True})
+        assert resp.json()["groups_processed"] == 0
+
+    def test_an_unmeasured_base_is_left_alone(self, edition_client):
+        conn = self._bracket_db()
+        conn.execute("UPDATE photos SET highlight_clipped = NULL WHERE sequence_ev_offset = 0")
+        conn.commit()
+        resp, _ = _post(edition_client, conn, {"group_by": "burst", "trim_brackets": True})
+        assert resp.json()["groups_processed"] == 0
+
+    def test_apply_rejects_the_extras_without_recording_comparison_pairs(self, edition_client):
+        conn = self._bracket_db()
+        resp, retrain = _post(edition_client, conn, {
+            "group_by": "burst", "trim_brackets": True, "dry_run": False,
+        })
+        assert resp.status_code == 200
+        rejected = {r["path"] for r in conn.execute(
+            "SELECT path FROM photos WHERE is_rejected = 1")}
+        assert rejected == {"/k0.jpg", "/k2.jpg"}
+        # An exposure ladder is not a taste signal: no pairs, so no ranker nudge.
+        pairs = conn.execute("SELECT COUNT(*) FROM comparisons").fetchone()[0]
+        assert pairs == 0
+        assert retrain.call_args.args[2] == 0
 
 
 class TestProfileEndpoints:

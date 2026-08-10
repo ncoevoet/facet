@@ -59,6 +59,13 @@ PHOTOS_COLUMNS = [
     ('duplicate_group_id', 'INTEGER'),
     ('is_duplicate_lead', 'INTEGER DEFAULT 0 CHECK (is_duplicate_lead IN (0, 1))'),
 
+    # Deliberate multi-frame sequences (--detect-sequences). A bracket is one
+    # subject shot at several exposures, so its frames must not be read as
+    # competing takes the way a burst's are.
+    ('sequence_group_id', 'INTEGER'),
+    ('sequence_kind', 'TEXT'),       # 'bracket' today; leaves room for 'panorama'
+    ('sequence_ev_offset', 'REAL'),  # exposure compensation vs the set's base frame (0.0 = base, + = brighter)
+
     # Raw data for recalculation
     ('clip_embedding', 'BLOB'),
     ('raw_sharpness_variance', 'REAL'),
@@ -261,6 +268,8 @@ INDEXES = [
     ('idx_category_aggregate', 'photos', 'category, aggregate DESC'),
     ('idx_narrative_moment', 'photos', 'narrative_moment'),
     ('idx_junk_kind', 'photos', 'junk_kind'),
+    ('idx_sequence_group', 'photos', 'sequence_group_id'),
+    ('idx_sequence_kind', 'photos', 'sequence_kind, sequence_group_id'),
     # Additional composite indexes for viewer sorting performance
     ('idx_aesthetic_aggregate', 'photos', 'aesthetic DESC, aggregate DESC'),
     ('idx_face_quality_sort', 'photos', 'face_quality DESC, eye_sharpness DESC'),

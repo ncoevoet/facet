@@ -186,6 +186,14 @@ HIDE_DUPLICATES_SQL = hide_duplicates_sql()
 HIDDEN_BURST_SQL = "(is_burst_lead = 0 AND burst_group_id IS NOT NULL)"
 HIDDEN_DUPLICATE_SQL = "(is_duplicate_lead = 0 AND duplicate_group_id IS NOT NULL)"
 
+# Keep every ordinary photo plus the base exposure of each bracket. Deliberately
+# independent of burst state: hiding non-leads only collapses a bracket that
+# happens to sit alone in a burst group, and a quarter of them share one with
+# unrelated frames, where the lead is not the base exposure and the flanking
+# exposures stay on show.
+HIDE_BRACKETS_SQL = "(sequence_kind IS NULL OR sequence_ev_offset = 0)"
+HIDDEN_BRACKET_SQL = "(sequence_kind IS NOT NULL AND sequence_ev_offset != 0)"
+
 
 DATE_FILTER_EXPR = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
 
@@ -240,8 +248,14 @@ def time_window_clauses(date_from=None, date_to=None, column='date_taken'):
     return clauses, params
 
 
-def build_hide_clauses(hide_blinks: str, hide_bursts: str, hide_duplicates: str) -> list[str]:
-    """Convert hide-toggle string params ('1'/'true') to SQL WHERE fragments."""
+def build_hide_clauses(hide_blinks: str, hide_bursts: str, hide_duplicates: str,
+                       hide_brackets: str = '') -> list[str]:
+    """Convert hide-toggle string params ('1'/'true') to SQL WHERE fragments.
+
+    `hide_brackets` defaults to off here so the many callers that pass three
+    toggles keep their exact behaviour; the gallery, which owns the user-facing
+    default, passes it explicitly.
+    """
     clauses = []
     if hide_blinks in ('1', 'true'):
         clauses.append(HIDE_BLINKS_SQL)
@@ -249,6 +263,8 @@ def build_hide_clauses(hide_blinks: str, hide_bursts: str, hide_duplicates: str)
         clauses.append(HIDE_BURSTS_SQL)
     if hide_duplicates in ('1', 'true'):
         clauses.append(HIDE_DUPLICATES_SQL)
+    if hide_brackets in ('1', 'true'):
+        clauses.append(HIDE_BRACKETS_SQL)
     return clauses
 
 # Column lists shared by gallery and person viewer
@@ -275,6 +291,7 @@ PHOTO_OPTIONAL_COLS = [
     'form_symmetry', 'form_balance', 'form_edge_entropy', 'form_fractal', 'color_harmony',
     'narrative_moment', 'narrative_moment_confidence',
     'junk_kind',
+    'sequence_group_id', 'sequence_kind', 'sequence_ev_offset',
 ]
 
 
@@ -509,7 +526,7 @@ async def get_cached_count_async(conn, where_str, sql_params, from_clause="photo
 
 
 async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_clause="photos"):
-    """Cached blink/burst/duplicate aggregates over the no-hide set.
+    """Cached blink/burst/duplicate/bracket aggregates over the no-hide set.
 
     The gallery builds its hidden_summary from a full-table aggregate (~100ms on a
     large library). It is identical across every page of a filter set, so cache it
@@ -526,7 +543,8 @@ async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_c
         "SELECT COUNT(*) AS unhidden, "
         "SUM(CASE WHEN is_blink = 1 THEN 1 ELSE 0 END) AS blinks, "
         f"SUM(CASE WHEN {HIDDEN_BURST_SQL} THEN 1 ELSE 0 END) AS bursts, "
-        f"SUM(CASE WHEN {HIDDEN_DUPLICATE_SQL} THEN 1 ELSE 0 END) AS duplicates "
+        f"SUM(CASE WHEN {HIDDEN_DUPLICATE_SQL} THEN 1 ELSE 0 END) AS duplicates, "
+        f"SUM(CASE WHEN {HIDDEN_BRACKET_SQL} THEN 1 ELSE 0 END) AS brackets "
         f"FROM {from_clause}{where_str}",
         sql_params,
     )
@@ -537,6 +555,7 @@ async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_c
         'blinks': int(row['blinks'] or 0) if row else 0,
         'bursts': int(row['bursts'] or 0) if row else 0,
         'duplicates': int(row['duplicates'] or 0) if row else 0,
+        'brackets': int(row['brackets'] or 0) if row else 0,
     }
     _count_cache_store(cache_key, agg)
     return agg

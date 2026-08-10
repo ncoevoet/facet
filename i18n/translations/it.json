@@ -1028,7 +1028,9 @@
     "help": "Sfoglia e filtra la tua libreria. Ordina per punteggio, data o per i tuoi gusti personali; usa i filtri della barra laterale (persone, tag, fotocamera, categoria, intervallo di punteggio, momenti) e la ricerca per trovare le foto.",
     "hidden_banner": {
       "message": "{n} foto nascoste dai filtri attivi",
-      "show_all": "Mostra tutte"
+      "show_all": "Mostra tutte",
+      "restore": "Ripristina i filtri",
+      "showing_all": "Vengono mostrate tutte le foto, inclusi occhi chiusi, raffiche e duplicati"
     },
     "all_photos": "Tutte le foto",
     "sort": "Ordina per",
@@ -1071,11 +1073,14 @@
       "label": "Tooltip",
       "hover": "Hover",
       "click": "Clic",
-      "off": "Disattivato"
+      "panel": "Pannello laterale",
+      "off": "Disattivato",
+      "panel_empty": "Passa il cursore su una foto o fai clic per vederne qui i dettagli"
     },
     "hide_blinks": "Nascondi occhi chiusi",
     "hide_bursts": "Migliore della raffica",
     "hide_duplicates": "Nascondi duplicati",
+    "hide_brackets": "Migliore del bracketing",
     "reset_filters": "Ripristina filtri",
     "scroll_to_top": "Torna su",
     "photo_grid": "Griglia di foto",
@@ -1094,6 +1099,8 @@
       "batch_rejected": "{count} foto rifiutate",
       "batch_rated": "{count} foto valutate {rating} stelle",
       "select_all": "Seleziona tutto",
+      "invert": "Inverti",
+      "compare": "Confronta",
       "actions": "Azioni"
     },
     "keep_top": {
@@ -1208,7 +1215,12 @@
       "purple": "Viola",
       "magenta": "Magenta"
     },
-    "moment_confidence_range": "Confidenza del momento"
+    "moment_confidence_range": "Confidenza del momento",
+    "compare": {
+      "title": "Confronto di {count} foto",
+      "hint": "Rotella per ingrandire, trascina per spostare: tutti i riquadri si muovono insieme. Doppio clic per reimpostare.",
+      "reset_zoom": "Reimposta lo zoom"
+    }
   },
   "composition_patterns": {
     "none": "Nessuno",
@@ -1506,6 +1518,7 @@
       "gather": "Raccolta file",
       "scoring": "Valutazione",
       "bursts": "Rilevamento raffiche",
+      "sequences": "Rilevamento dei bracketing",
       "tagging": "Etichettatura",
       "vec": "Indicizzazione",
       "done": "Completato"
@@ -1873,6 +1886,9 @@
       "best": "Migliori prima",
       "recent": "Più recenti",
       "needs_comparisons": "Confronti necessari",
+      "chronological": "Meno recenti prima",
+      "ascending": "Crescente: fai clic per invertire",
+      "descending": "Decrescente: fai clic per invertire",
       "tooltip": "Ordina i gruppi (i più facili prima, i più ridondanti…)"
     },
     "weight_remaining": "{count} per regolare i pesi",
@@ -1955,6 +1971,7 @@
       "bursts": "Raffiche",
       "similar": "Simili",
       "scenes": "Scene",
+      "brackets": "Bracketing di esposizione",
       "tooltip": "Scegli quale tipo di gruppi rivedere"
     },
     "darkroom_tooltip": "Apri la camera oscura a schermo intero per confrontare e scegliere",
@@ -1963,6 +1980,10 @@
       "original": "Originale",
       "loading": "Generazione anteprima",
       "error": "Impossibile generare l'anteprima elaborata"
+    },
+    "bracket": {
+      "label": "Bracketing di esposizione",
+      "hint": "Uno stesso soggetto a più esposizioni: conserva la serie, non scegliere"
     }
   },
   "scenes": {
@@ -2347,5 +2368,9 @@
     "cancel": "Annulla",
     "done": "Portfolio esportato: {count} foto",
     "error": "Esportazione del portfolio non riuscita"
+  },
+  "updates": {
+    "available": "Facet {version} è disponibile",
+    "view": "Note di rilascio"
   }
 }

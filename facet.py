@@ -601,6 +601,7 @@ LIBRARY_JOB_ARGS = (
     'detect_duplicates',
     'detect_junk',
     'detect_moments',
+    'detect_sequences',
     'extract_faces_gpu_force',
     'extract_faces_gpu_incremental',
     'extract_gps',
@@ -1387,6 +1388,13 @@ def _run_scan(args, resumed_run):
     emit_progress('bursts', force=True)
     process_bursts(scorer.db_path, scorer.config.config_path)
 
+    # 5. Name the deliberate multi-exposure sets burst grouping just swallowed,
+    # and move each group's lead onto its base exposure. Must follow the bursts
+    # step: it is that grouping it corrects.
+    emit_progress('sequences', force=True)
+    from utils.sequence import detect_sequences
+    detect_sequences(scorer.db_path, scorer.config.config_path)
+
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
     emit_progress('tagging', force=True)
     from tag_existing import run_tagging, resolve_scan_tagger
@@ -1564,6 +1572,9 @@ Configuration:
                         help='Recompute aggregate scores for a single category only')
     db_group.add_argument('--detect-duplicates', action='store_true',
                         help='Detect duplicate photos using pHash comparison')
+    db_group.add_argument('--detect-sequences', action='store_true',
+                        help='Detect exposure-bracket sets from stored EXIF and centre each on '
+                             'its base exposure (whole library, no image decode)')
     db_group.add_argument('--sweep-dedup-thresholds', nargs='?', const='', metavar='LABELS_JSON',
                         help='Evaluate near-dup cosine thresholds. With a labels JSON, prints a '
                              'precision/recall table; without, prints the candidate-cosine distribution.')
@@ -1987,6 +1998,13 @@ Configuration:
         detect_duplicates(args.db, config_path=args.config)
         exit()
 
+    # Detect exposure brackets (arithmetic over stored EXIF - no GPU, no decode)
+    if args.detect_sequences:
+        from utils.sequence import detect_sequences
+        init_database(args.db)
+        detect_sequences(args.db, config_path=args.config)
+        exit()
+
     # Evaluate near-dup cosine thresholds (read-only, no GPU)
     if args.sweep_dedup_thresholds is not None:
         from utils.duplicate import report_dedup_thresholds
@@ -2178,6 +2196,7 @@ Configuration:
             ("--recompute-saliency", "Subject saliency (BiRefNet)"),
             ("--recompute-composition-cpu", "Rule-based composition"),
             ("--recompute-burst", "Burst detection grouping"),
+            ("--detect-sequences", "Exposure-bracket sets from stored EXIF"),
             ("--recompute-blinks", "Blink detection from landmarks"),
             ("--recompute-eyes-expression", "Eyes-open + expression from landmarks"),
             ("--recompute-face-signals", "Per-face eyes/smile signals from landmarks"),
@@ -2614,8 +2633,12 @@ Configuration:
 
     # Recompute burst detection
     if args.recompute_burst:
+        from utils.sequence import detect_sequences
         config = ScoringConfig(args.config)
         process_bursts(args.db, config.config_path)
+        # Regrouping bursts resets every lead, which would silently undo the
+        # bracket centring; re-derive it rather than leave it stale.
+        detect_sequences(args.db, config_path=config.config_path)
         logger.info("Burst detection complete.")
         exit()
 
@@ -3129,7 +3152,9 @@ Configuration:
                 conn.commit()
             logger.info("Persisted percentile snapshot for drift tracking")
         if not args.recompute_category:
+            from utils.sequence import detect_sequences
             process_bursts(scorer.db_path, scorer.config.config_path)
+            detect_sequences(scorer.db_path, config_path=scorer.config.config_path)
         logger.info("Recalculation done.")
         exit()
 

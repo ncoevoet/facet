@@ -755,6 +755,85 @@ Groups similar photos taken in quick succession.
 
 ---
 
+## Update Notifications
+
+Tells whoever administers the install when a newer Facet has been released. Not the same
+thing as the browser's "a new version is available — Reload", which swaps the page onto a
+bundle it has already downloaded; this one is about a release nobody has installed yet.
+
+Deliberately narrow. The check runs on the server and its result is cached, so an install
+asks GitHub at most once per `interval_days` however many people are looking at the viewer.
+The request carries nothing but itself — no token, no identifiers, nothing about the
+library. A failure is silent: an unreachable GitHub shows as "no update known", never as an
+error. Only edition users are told, because upgrading is an operator's job and nobody else
+could act on it, and each browser shows the notice at most once a week.
+
+Set `enabled` to `false` to stop the outbound request entirely.
+
+```json
+{
+  "updates": {
+    "enabled": true,
+    "check_url": "https://api.github.com/repos/ncoevoet/facet/releases/latest",
+    "interval_days": 7
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | `false` disables the check; nothing is ever requested |
+| `check_url` | GitHub latest-release API | Where to look for the newest published release |
+| `interval_days` | `7` | How long a result is cached before asking again |
+
+---
+
+## Sequence Detection
+
+Names deliberate multi-frame sets — today, exposure brackets — so they are not read as
+competing takes. The exposure ladder is derived from the `f_stop` / `shutter_speed` / `ISO`
+already stored per photo (`EV = log2(N^2 / t) - log2(ISO / 100)`), so an existing library is
+labelled by arithmetic alone: no rescan, no image decode, no model.
+
+A run qualifies when its frames share a camera, follow each other inside `max_gap_seconds`,
+keep the same framing (`max_hamming` on the pHash), and their EV forms a one-directional,
+evenly spaced ladder of at least `min_frames` frames spanning `min_span_stops`. Even spacing
+is what separates a bracket from a hand-held run drifting through changing light.
+
+Each frame is stamped with `sequence_ev_offset`, its exposure compensation relative to the
+set's base frame — signed the way a camera labels an AEB set, so `-2` is the dark frame and
+`+2` the bright one. When a burst group turns out to be exactly one bracket, its
+`is_burst_lead` moves onto that base frame, so the default gallery shows the correctly
+exposed photo instead of whichever exposure happened to score highest.
+
+Run via `--detect-sequences`; it also runs at the end of every scan, after burst grouping.
+
+```json
+{
+  "sequence_detection": {
+    "enabled": true,
+    "max_gap_seconds": 3.0,
+    "max_hamming": 10,
+    "min_frames": 3,
+    "min_step_stops": 0.5,
+    "min_span_stops": 1.0,
+    "step_tolerance_stops": 0.34
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Turn bracket detection off entirely |
+| `max_gap_seconds` | `3.0` | Longest gap between consecutive frames of one set |
+| `max_hamming` | `10` | pHash distance allowed between frames (same framing) |
+| `min_frames` | `3` | Shortest run treated as a bracket |
+| `min_step_stops` | `0.5` | Smallest EV step that counts as a deliberate change |
+| `min_span_stops` | `1.0` | Smallest total spread from darkest to brightest frame |
+| `step_tolerance_stops` | `0.34` | How uneven the steps may be (a third of a stop) |
+
+---
+
 ## Burst Scoring
 
 Weights used by burst culling to compute a composite score for selecting the best shot within each burst group. Weights should sum to 1.0.
@@ -1166,6 +1245,7 @@ Web gallery display and behavior.
       "hide_blinks": true,
       "hide_bursts": true,
       "hide_duplicates": true,
+      "hide_brackets": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1248,6 +1328,7 @@ Web gallery display and behavior.
 | `hide_blinks` | `true` | Hide blink photos by default |
 | `hide_bursts` | `true` | Show only best of burst by default |
 | `hide_duplicates` | `true` | Hide non-lead duplicate photos by default |
+| `hide_brackets` | `true` | Show only a bracket's base exposure by default |
 | `hide_details` | `true` | Hide photo details on cards by default |
 | `tooltip_mode` | `"hover"` | Tooltip trigger: `"hover"`, `"click"`, or `"off"`. Replaces the prior `hide_tooltip` boolean. |
 | `hide_rejected` | `true` | Hide rejected photos by default |

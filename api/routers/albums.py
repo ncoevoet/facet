@@ -363,7 +363,7 @@ def _compute_smart_album_cover(conn, album_row, user_id=None):
         saved_filters = _normalize_smart_filters(saved_filters)
         # Apply viewer defaults for hide filters (excluded from smart_filter_json but active by default)
         defaults = VIEWER_CONFIG.get('defaults', {})
-        for key in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_rejected'):
+        for key in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets', 'hide_rejected'):
             if key not in saved_filters:
                 saved_filters[key] = '1' if defaults.get(key, False) else '0'
         where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=user_id)

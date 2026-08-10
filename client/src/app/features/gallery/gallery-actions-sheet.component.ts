@@ -8,6 +8,10 @@ import { I18N } from '../../core/i18n/keys';
 export type SheetAction =
   | { kind: 'favorite' }
   | { kind: 'reject' }
+  | { kind: 'invert' }
+  | { kind: 'compare' }
+  | { kind: 'export' }
+  | { kind: 'cull' }
   | { kind: 'rate'; rating: number }
   | { kind: 'album'; albumId: number }
   | { kind: 'create-album' }
@@ -20,6 +24,8 @@ export interface GalleryActionsSheetData {
   showAlbums: boolean;
   albums: Album[];
   downloadProfiles: string[];
+  /** Whether the selection size is within the compare surface's pane bounds. */
+  canCompare: boolean;
 }
 
 /** Touch-friendly bulk-actions sheet replacing the cramped mobile action bar. */
@@ -67,8 +73,28 @@ export interface GalleryActionsSheetData {
             {{ I18N.albums.create | translate }}
           </button>
         }
+        <!-- Present on the desktop bar but previously unreachable on a phone,
+             where this sheet is the only way to any bulk action. -->
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'export' })">
+          <mat-icon aria-hidden="true">drive_file_move</mat-icon>
+          {{ I18N.export.action | translate }}
+        </button>
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'cull' })">
+          <mat-icon aria-hidden="true">folder_move</mat-icon>
+          {{ I18N.cull.action | translate }}
+        </button>
       }
 
+      <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'invert' })">
+        <mat-icon aria-hidden="true">flip</mat-icon>
+        {{ I18N.gallery.selection.invert | translate }}
+      </button>
+      @if (data.canCompare) {
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'compare' })">
+          <mat-icon aria-hidden="true">compare</mat-icon>
+          {{ I18N.gallery.selection.compare | translate }}
+        </button>
+      }
       <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'copy' })">
         <mat-icon aria-hidden="true">content_copy</mat-icon>
         {{ I18N.gallery.selection.copy_filenames | translate }}

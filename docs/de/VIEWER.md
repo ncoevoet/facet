@@ -198,6 +198,8 @@ Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-S
 - **Ablehnen** — Alle ausgewählten als abgelehnt markieren (hebt Favorit und Bewertung auf)
 - **Bewerten** — Sternebewertung (1–5) für alle ausgewählten setzen oder Bewertung löschen
 - **Zu Album hinzufügen** — Auswahl zu einem bestehenden oder neuen Album hinzufügen
+- **Umkehren** — Die Auswahl gegen ihr Komplement über den geladenen Fotos tauschen. Erst die Behalte-Kandidaten wählen, dann umkehren: der direkte Weg, genau zu sehen, was gleich verschwindet. Auf das Geladene begrenzt, wie „Alle auswählen“, damit nie stillschweigend Fotos ausgewählt werden, die man gar nicht sieht.
+- **Vergleichen** — 2 bis 4 ausgewählte Fotos nebeneinander öffnen, mit synchronisiertem Schwenken und Zoomen (Scrollen zum Zoomen, Ziehen zum Schwenken, Doppelklick zum Zurücksetzen; alle Fensterteile bewegen sich gemeinsam und wechseln jenseits der Einpassungsskala auf volle Auflösung). Dieselbe Ansicht wie in der Auswahl-Dunkelkammer, nun für jeden von Hand zusammengestellten Satz erreichbar statt nur für Aufnahmen, die in einer Serie nebeneinanderliegen.
 - **Dateinamen kopieren** — Ausgewählte Dateinamen in die Zwischenablage kopieren
 - **Exportieren** — XMP-Sidecars (Bewertung/Favorit/Ablehnung) neben den ausgewählten Dateien schreiben (siehe [Editor-Export](#editor-export))
 - **Herunterladen** — Ausgewählte Fotos herunterladen
@@ -210,9 +212,10 @@ Sammelaktionen erfordern den Bearbeitungsmodus. Doppelklicken Sie ein beliebiges
 - **Layout-Modus** – Wechseln zwischen **Raster** (einheitliche Karten) und **Mosaik** (justierte Zeilen, die Seitenverhältnisse beibehalten). Mosaik ist nur auf dem Desktop verfügbar; mobil wird stets das Raster verwendet.
 - **Vorschaubildgröße** – Regler zum Anpassen der Karten-/Zeilenhöhe (120–400px, in localStorage gespeichert)
 - **Details ausblenden** – Foto-Metadaten auf Karten ausblenden (nur im Rastermodus)
-- **Tooltip ausblenden** – Den Hover-Tooltip deaktivieren, der auf dem Desktop Fotodetails anzeigt
+- **Tooltip** - Wie Fotodetails gezeigt werden: **Hover** (Standard), **Klick**, **Aus** oder **Seitenleiste**. Die Seitenleiste verankert dieselben Details in der rechten Schublade, statt dem Zeiger zu folgen: ein bestimmtes Feld steht so von Foto zu Foto immer an derselben Stelle, und die Leiste behält das zuletzt überfahrene Foto, statt zu leeren, sobald der Zeiger das Raster verlässt. Sie teilt sich diese Schublade mit der Filterleiste — die Filter zu öffnen blendet sie aus, bis sie wieder geschlossen werden, und das Raster behält genau die Breite, die es bei geöffneten Filtern hat. Erfordert ein Fenster von mindestens 1280 px.
 - **Blinzler ausblenden** – Fotos mit erkanntem Blinzeln herausfiltern
 - **Beste aus Serie** – Nur das am höchsten bewertete Foto jedes Serienbilds anzeigen
+- **Beste der Belichtungsreihe** – Zeigt nur die Basisbelichtung jeder erkannten Belichtungsreihe und blendet die flankierenden Aufnahmen aus. **Standardmäßig an.** Unabhängig von „Beste aus Serie“: ein Viertel der Reihen teilt sich ein Serienbild mit fremden Aufnahmen, wo das Leitfoto nicht die Basisbelichtung ist.
 - **Endloses Scrollen** – Fotos werden beim Scrollen geladen
 - **Schnelles Scrollen (virtualisiert)** – Zeilenfenster-Rendering: Nur Zeilen nahe dem
   Sichtbereich befinden sich im DOM, sodass tiefes Scrollen durch zehntausende Fotos
@@ -509,6 +512,9 @@ Die Auswahl-Seite (`/culling`, Bearbeitungsmodus) gruppiert nahezu identische Au
 - **Serienbilder** — zeitlich dicht aufeinanderfolgend aufgenommene Fotos (aus der Serienbilderkennung).
 - **Ähnlich** — Fotos, die sich ähneln, unabhängig vom Aufnahmezeitpunkt, gruppiert nach CLIP/SigLIP-Embedding-Ähnlichkeit. Ein Schwellenwertregler steuert, wie streng die Gruppierung ist.
 - **Szenen** — chronologische Szenengruppen (Aufnahmezeit-Läufe), jeweils mit ihrer Zeitspanne und ihrem dominanten narrativen Moment als Überschrift. Abhängig von `viewer.features.show_scenes`.
+- **Belichtungsreihen** — die von [`--detect-sequences`](COMMANDS.md) gefundenen Mehrfachbelichtungs-Serien, Basisbelichtung zuerst, jede Aufnahme mit ihrer Korrektur beschriftet (`-2 EV` … `+2 EV`). Bewusst nicht Teil von **Alle**: eine Belichtungsreihe ist ein Motiv, das zum Zusammenführen mehrfach aufgenommen wurde, kein Satz konkurrierender Aufnahmen. Deshalb sind alle Aufnahmen von vornherein als „behalten“ markiert, und ein Bestätigen schreibt keine Vergleichspaare — eine Stufe einer Belichtungsleiter zu bevorzugen sagt nichts über den eigenen Geschmack. Wer die flankierenden Belichtungen loswerden will, nutzt das Reihen-Trimmen des Auto-Cullings (unten).
+
+Neben der Granularität stehen zwei Sortier-Bedienelemente: der **Sortiermodus** (am einfachsten zuerst, am redundantesten, beste, neueste, braucht Vergleiche oder **älteste zuerst**) und eine **Pfeiltaste, die den jeweils aktiven Modus umkehrt**. „Älteste zuerst“ ist der einzige Modus, der auch die Fotos *innerhalb* jeder Gruppe in Aufnahmereihenfolge bringt — die einzige Reihenfolge, in der sich eine Belichtungsreihe oder eine geschwenkte Sequenz richtig liest.
 
 Wählen Sie für jede Gruppe die Behaltefoto(s); das Bestätigen lehnt den Rest ab. Bestätigungen werden verzögert ausgeführt und können rückgängig gemacht werden (siehe [Rückgängig](#rückgängig)). Die Granularitäts-, Sortier- und Kategoriewahl wird in `localStorage` gespeichert. Steuerelemente, die für die aktuelle Granularität nicht gelten, werden ausgeblendet — das Sortier-Dropdown und der Ähnlichkeitsschwellen-Regler verschwinden im Szenenmodus, und die Geltungsbereich-Schaltfläche wird ausgeblendet, wenn Sie keine manuellen Alben haben. Jede Symbolleisten- und Gruppenaktions-Schaltfläche trägt einen Tooltip, und auf kleinen Bildschirmen löst sich die Symbolleiste in eine scrollbare untere Leiste.
 
@@ -523,6 +529,8 @@ Eine **Auto-Cull**-Schaltfläche in der Symbolleiste sortiert einen ganzen Geltu
 Die Vorschau ist ein **Probelauf** (nichts wird geschrieben): Sie zeigt die Behalte-/Ablehnen-Aufteilung pro Gruppe. Bestätigen zum Anwenden — Ablehnungen werden erfasst und trainieren, wie jedes Aussortieren, „Mein Geschmack"; ein optionales **Highlights**-Album sammelt idempotent das beste Foto jeder Gruppe, das mindestens `auto_cull.highlights_min` erreicht. Ein Hinweis-Badge „besseres Foto in dieser Gruppe" markiert Gruppen, in denen Auto-Cull ein anderes Bild als das aktuelle Leitfoto behalten würde. `POST /api/culling/auto`; konfiguriert über den [`auto_cull`](CONFIGURATION.md#auto-cull)-Block.
 
 Wenn ein Keeper-Ranking-Head trainiert ist, wählt `POST /api/culling/auto` den Behalte-Kandidaten jeder Gruppe nach `keeper_prob`, sobald er seine Genauigkeitsschwelle erreicht — andernfalls ist die Ausgabe bit-identisch mit der Heuristik.
+
+**Das Trimmen redundanter Belichtungsreihen** ist optional (`trim_brackets`, standardmäßig aus). Eine Reihe verdient ihre zusätzlichen Aufnahmen dadurch, dass sie den Bereich abdeckt, den die Basisbelichtung abschneidet; wenn diese Basis weder Schatten noch Lichter beschneidet, gab es nichts zu retten, und die flankierenden Belichtungen sind Speicherplatz statt Spielraum — der Fall „ich lasse die Belichtungsreihe dauerhaft an“. Es bleibt nur die Basisaufnahme, unabhängig von der Strenge, und Reihen, deren Basis nie gemessen wurde, bleiben unangetastet: ungemessen ist nicht dasselbe wie unbeschnitten.
 
 ### Vollbild
 

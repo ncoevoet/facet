@@ -198,6 +198,8 @@ Controlado por `viewer.features.show_my_taste` (padrão: `true`). O status do ra
 - **Rejeitar** — Marca todas as selecionadas como rejeitadas (limpa favorito e avaliação)
 - **Avaliar** — Define a avaliação por estrelas (1–5) para todas as selecionadas, ou limpa a avaliação
 - **Adicionar ao álbum** — Adiciona as selecionadas a um álbum existente ou novo
+- **Inverter** — Troca a seleção pelo seu complemento sobre as fotos carregadas. Escolher as que ficam e inverter é a forma direta de ver exatamente o que vai desaparecer. Limitado ao que está carregado, tal como «Selecionar tudo», para nunca selecionar em silêncio fotos que não vê.
+- **Comparar** — Abre 2 a 4 fotos selecionadas lado a lado com deslocamento e zoom sincronizados (roda para ampliar, arrastar para deslocar, duplo clique para repor; todos os painéis se movem juntos e passam a resolução total para lá da escala de ajuste). A mesma vista da câmara escura de triagem, agora alcançável para qualquer conjunto escolhido à mão e não apenas para fotos vizinhas de uma sequência.
 - **Copiar nomes de arquivo** — Copia os nomes de arquivo selecionados para a área de transferência
 - **Exportar** — Grava sidecars XMP (avaliação/favorito/rejeição) ao lado dos arquivos selecionados (veja [Exportação para Editor](#exportação-para-editor))
 - **Baixar** — Baixa as fotos selecionadas
@@ -210,9 +212,10 @@ As ações em lote requerem o modo de edição. Dê um duplo clique em qualquer 
 - **Modo de Layout** - Alterne entre **Grade** (cartões uniformes) e **Mosaico** (linhas justificadas preservando as proporções). O Mosaico é apenas para desktop; o mobile sempre usa grade.
 - **Tamanho da Miniatura** - Controle deslizante para ajustar a altura do cartão/linha (120–400px, persistido no localStorage)
 - **Ocultar Detalhes** - Oculta os metadados da foto nos cartões (apenas no modo grade)
-- **Ocultar Dica** - Desativa a dica de ferramenta ao passar o mouse que mostra os detalhes da foto no desktop
+- **Dica** - Como os detalhes são mostrados: **Ao passar** (predefinição), **Ao clicar**, **Desativado** ou **Painel lateral**. O painel lateral fixa os mesmos detalhes na gaveta da direita em vez de seguir o cursor: um dado fica assim sempre no mesmo sítio de uma foto para a outra, e o painel mantém a última foto sobre a qual passou em vez de esvaziar quando o cursor sai da grelha. Partilha essa gaveta com a barra de filtros: abrir os filtros oculta-o até os fechar, e a grelha mantém exatamente a largura que tem com os filtros abertos. Requer uma janela de pelo menos 1280 px.
 - **Ocultar Piscadas** - Filtra fotos com piscadas detectadas
 - **Melhor da Sequência** - Mostra apenas a foto com maior pontuação de cada sequência (burst)
+- **Melhor do bracketing** - Mostra apenas a exposição base de cada bracketing detetado, ocultando as fotos laterais. **Ativo por predefinição.** Independente de «Melhor da Sequência»: um quarto dos bracketings partilha uma sequência com fotos alheias, onde a principal não é a exposição base.
 - **Rolagem Infinita** - As fotos carregam conforme você rola
 - **Rolagem Rápida (virtualizada)** - Renderização em janela de linhas: apenas as linhas
   próximas à viewport ficam no DOM, então a rolagem profunda por dezenas de milhares de fotos
@@ -508,6 +511,9 @@ A página de triagem (`/culling`, modo de edição) agrupa fotos quase idêntica
 - **Sequências** — fotos tiradas próximas no tempo (da detecção de sequências).
 - **Semelhantes** — fotos que se parecem independentemente de quando foram tiradas, agrupadas pela similaridade de embedding CLIP/SigLIP. Um controle deslizante de limiar controla o quão restrito é o agrupamento.
 - **Cenas** — grupos de cenas cronológicas (sequências por horário de captura), cada um encabeçado por seu intervalo de tempo e momento narrativo dominante. Condicionado a `viewer.features.show_scenes`.
+- **Bracketings de exposição** — os conjuntos multiexposição encontrados por [`--detect-sequences`](COMMANDS.md), com a exposição base primeiro e cada foto identificada com a sua compensação (`-2 EV` … `+2 EV`). Deliberadamente fora de **Tudo**: um bracketing é o mesmo motivo fotografado várias vezes para ser fundido, não um conjunto de tomadas em competição; por isso todas as fotos começam marcadas como «manter» e confirmar não regista qualquer par de comparação — preferir um degrau de uma escala de exposição nada diz sobre o seu gosto. Para eliminar as exposições laterais, use o corte de bracketings da seleção automática (abaixo).
+
+Ao lado da granularidade ficam dois controlos de ordenação: o **modo de ordenação** (mais fáceis primeiro, mais redundantes, melhores, mais recentes, precisam de comparações ou **mais antigas primeiro**) e um **botão de seta que inverte o modo ativo**. «Mais antigas primeiro» é o único modo que também ordena as fotos *dentro* de cada grupo por hora de captura, a única ordem em que um bracketing ou uma sequência panorâmica se leem corretamente.
 
 Para cada grupo, escolha a(s) foto(s) a manter; confirmar rejeita o resto. As confirmações são adiadas e podem ser desfeitas (veja [Desfazer](#desfazer)). As escolhas de granularidade, ordenação e categoria persistem no `localStorage`. Controles que não se aplicam à granularidade atual são ocultados — o menu suspenso de ordenação e o controle deslizante de limiar de similaridade desaparecem no modo de cena, e o botão de escopo fica oculto quando você não tem álbuns manuais. Cada botão da barra de ferramentas e de ação de grupo tem uma dica (tooltip), e em telas pequenas a barra de ferramentas se destaca em uma barra inferior rolável.
 
@@ -522,6 +528,8 @@ Um botão **Triagem automática** na barra de ferramentas tria um escopo inteiro
 A prévia é uma **simulação** (dry run — nada é gravado): ela mostra a divisão de manter/rejeitar por grupo. Confirme para aplicar — as rejeições são registradas e, como toda triagem, treinam o "Meu Gosto"; um álbum opcional **Highlights** reúne de forma idempotente a melhor foto de cada grupo com pontuação de pelo menos `auto_cull.highlights_min`. Um selo de dica "foto melhor neste grupo" sinaliza os grupos em que a triagem automática manteria um quadro diferente do líder atual. `POST /api/culling/auto`; configurado pelo bloco [`auto_cull`](CONFIGURATION.md#auto-cull).
 
 Quando uma cabeça de ranqueamento de retenção está treinada, `POST /api/culling/auto` escolhe a foto a manter de cada grupo pelo `keeper_prob` assim que ela ultrapassa sua barreira de acurácia — caso contrário, a saída é idêntica byte a byte à da heurística.
+
+**O corte de bracketings redundantes** é opcional (`trim_brackets`, desativado por predefinição). Um bracketing merece as suas fotos extra por cobrir a gama que a exposição base corta; quando essa base não corta nem sombras nem altas luzes não havia nada a recuperar, e as exposições laterais são espaço ocupado em vez de latitude — o caso «deixo o bracketing sempre ligado». Só a foto base é mantida, qualquer que seja a severidade, e os conjuntos cuja base nunca foi medida ficam intactos: não medido não é o mesmo que não cortado.
 
 ### Tela cheia
 
