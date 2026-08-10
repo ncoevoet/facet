@@ -1028,7 +1028,9 @@
     "help": "Browse and filter your library. Sort by score, date or your personal taste; use the sidebar filters (people, tags, camera, category, score range, moments) and the search to find photos.",
     "hidden_banner": {
       "message": "{n} photos hidden by current filters",
-      "show_all": "Show all"
+      "show_all": "Show all",
+      "restore": "Restore filters",
+      "showing_all": "Showing every photo — blinks, bursts and duplicates included"
     },
     "all_photos": "All Photos",
     "sort": "Sort by",
@@ -1071,7 +1073,9 @@
       "label": "Tooltip",
       "hover": "Hover",
       "click": "Click",
-      "off": "Off"
+      "panel": "Side panel",
+      "off": "Off",
+      "panel_empty": "Hover a photo to see its details here"
     },
     "hide_blinks": "Hide Blinks",
     "hide_bursts": "Best of Burst",
@@ -1094,6 +1098,8 @@
       "batch_rejected": "{count} photos rejected",
       "batch_rated": "{count} photos rated {rating} stars",
       "select_all": "Select all",
+      "invert": "Invert",
+      "compare": "Compare",
       "actions": "Actions"
     },
     "keep_top": {
@@ -1208,7 +1214,12 @@
       "purple": "Purple",
       "magenta": "Magenta"
     },
-    "moment_confidence_range": "Moment Confidence"
+    "moment_confidence_range": "Moment Confidence",
+    "compare": {
+      "title": "Comparing {count} photos",
+      "hint": "Scroll to zoom, drag to pan — every pane moves together. Double-click to reset.",
+      "reset_zoom": "Reset zoom"
+    }
   },
   "composition_patterns": {
     "none": "None",
@@ -1504,6 +1515,7 @@
       "gather": "Gathering files",
       "scoring": "Scoring",
       "bursts": "Detecting bursts",
+      "sequences": "Detecting brackets",
       "tagging": "Tagging",
       "vec": "Indexing",
       "done": "Done"
@@ -1871,6 +1883,9 @@
       "best": "Best first",
       "recent": "Most recent",
       "needs_comparisons": "Needs comparisons",
+      "chronological": "Oldest first",
+      "ascending": "Ascending — click to reverse",
+      "descending": "Descending — click to reverse",
       "tooltip": "Order the groups (easiest first, most redundant, best, recent…)"
     },
     "weight_remaining": "{count} to tune weights",
@@ -1953,6 +1968,7 @@
       "bursts": "Bursts",
       "similar": "Similar",
       "scenes": "Scenes",
+      "brackets": "Exposure brackets",
       "tooltip": "Choose which kind of near-duplicate groups to review"
     },
     "darkroom_tooltip": "Open the full-screen darkroom to compare frames and pick the keepers",
@@ -1961,6 +1977,10 @@
       "original": "Original",
       "loading": "Rendering preview",
       "error": "Could not render the edited preview"
+    },
+    "bracket": {
+      "label": "Exposure bracket",
+      "hint": "One subject at several exposures — keep the set, don't pick a winner"
     }
   },
   "scenes": {

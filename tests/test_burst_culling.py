@@ -6,9 +6,16 @@ from unittest import mock
 import pytest
 
 from api.routers.burst_culling import (
+    _CULLING_GROUP_BY,
+    _CULLING_SORT_DESC,
+    _CULLING_SORTS,
     _compute_burst_score,
     _compute_cull_reason,
+    _culling_sort_key,
+    _culling_sort_reverse,
     _format_group,
+    _group_sequence_kind,
+    _order_group_photos_by_capture,
 )
 
 
@@ -154,6 +161,139 @@ class TestComputeCullReason:
         best = self._best()
         photo = self._best(path='/x.jpg')  # identical metrics, different path
         assert _compute_cull_reason(photo, best)['key'] == 'near_duplicate'
+
+
+class TestGroupSequenceKind:
+    """A group is only called a bracket when every frame is one. A burst that
+    merely contains a bracket still needs culling, and labelling it would tell
+    the user not to choose exactly where choosing is the remaining work."""
+
+    def test_all_frames_bracketed(self):
+        assert _group_sequence_kind([{'sequence_kind': 'bracket'}] * 3) == 'bracket'
+
+    def test_mixed_group_is_unlabelled(self):
+        photos = [{'sequence_kind': 'bracket'}, {'sequence_kind': 'bracket'}, {'sequence_kind': None}]
+        assert _group_sequence_kind(photos) is None
+
+    def test_ordinary_burst_is_unlabelled(self):
+        assert _group_sequence_kind([{'sequence_kind': None}] * 3) is None
+
+    def test_missing_key_is_treated_as_unlabelled(self):
+        assert _group_sequence_kind([{}, {}]) is None
+
+    def test_format_group_labels_a_wholly_bracketed_burst(self):
+        photos = [
+            {'path': f'/b{i}.jpg', 'filename': f'b{i}.jpg', 'aggregate': 5.0 + i,
+             'sequence_kind': 'bracket', 'sequence_ev_offset': ev}
+            for i, ev in enumerate((-2.0, 0.0, 2.0))
+        ]
+        group = _format_group(photos, burst_group_id=7)
+        assert group['sequence_kind'] == 'bracket'
+        assert {p['sequence_ev_offset'] for p in group['photos']} == {-2.0, 0.0, 2.0}
+
+    def test_format_group_leaves_an_ordinary_burst_unlabelled(self):
+        photos = [{'path': f'/p{i}.jpg', 'filename': f'p{i}.jpg', 'aggregate': 5.0} for i in range(3)]
+        assert _format_group(photos, burst_group_id=7)['sequence_kind'] is None
+
+
+class TestSortDirectionOverride:
+    """The direction toggle. An explicit choice wins outright rather than
+    XOR-ing with each mode's default, so one button cannot mean 'ascending' in
+    some modes and 'descending' in others."""
+
+    def test_empty_direction_keeps_each_mode_natural(self):
+        assert _culling_sort_reverse('easiest', '') is True
+        assert _culling_sort_reverse('recent', '') is True
+        assert _culling_sort_reverse('chronological', '') is False
+
+    def test_explicit_asc_wins_everywhere(self):
+        for mode in _CULLING_SORTS:
+            assert _culling_sort_reverse(mode, 'asc') is False
+
+    def test_explicit_desc_wins_everywhere(self):
+        for mode in _CULLING_SORTS:
+            assert _culling_sort_reverse(mode, 'desc') is True
+
+    def test_unknown_direction_falls_back_to_natural(self):
+        assert _culling_sort_reverse('chronological', 'sideways') is False
+        assert _culling_sort_reverse('best', 'sideways') is True
+
+    def test_reversing_recent_yields_oldest_first(self):
+        groups = [
+            {'group_id': 1, 'count': 1, 'photos': [{'date_taken': '2024:01:01 08:00:00'}]},
+            {'group_id': 2, 'count': 1, 'photos': [{'date_taken': '2025:06:01 12:00:00'}]},
+        ]
+        groups.sort(key=lambda g: _culling_sort_key(g, 'recent', {}, 0),
+                    reverse=_culling_sort_reverse('recent', 'asc'))
+        assert [g['group_id'] for g in groups] == [1, 2]
+
+
+class TestBracketGranularity:
+    def test_bracket_is_a_grouping(self):
+        assert 'bracket' in _CULLING_GROUP_BY
+
+    def test_bracket_is_not_folded_into_the_merged_feed(self):
+        # `all` is burst+similar. A bracket surfacing there would be read as a
+        # set of competing takes, which is exactly what the granularity avoids.
+        assert _CULLING_GROUP_BY[0] == 'all'
+
+
+class TestChronologicalSort:
+    """`chronological` is the one mode that runs ascending, so the direction map
+    matters as much as the key: a regression that reverted it would silently
+    serve newest-first under a label promising the opposite."""
+
+    @staticmethod
+    def _group(gid, dates):
+        return {'group_id': gid, 'count': len(dates),
+                'photos': [{'date_taken': d, 'path': f'/{gid}-{i}.jpg', 'burst_score': 1}
+                           for i, d in enumerate(dates)]}
+
+    @staticmethod
+    def _sorted(groups, sort):
+        groups.sort(key=lambda g: _culling_sort_key(g, sort, {}, 0),
+                    reverse=_CULLING_SORT_DESC.get(sort, True))
+        return [g['group_id'] for g in groups]
+
+    def test_registered_as_a_sort_mode(self):
+        assert 'chronological' in _CULLING_SORTS
+
+    def test_only_chronological_runs_ascending(self):
+        for mode in ('easiest', 'redundant', 'best', 'recent', 'needs_comparisons'):
+            assert _CULLING_SORT_DESC.get(mode, True) is True
+        assert _CULLING_SORT_DESC['chronological'] is False
+
+    def test_groups_ordered_by_their_earliest_frame(self):
+        groups = [
+            self._group(1, ['2025:03:02 10:00:00', '2025:03:02 09:00:00']),
+            self._group(2, ['2024:01:01 08:00:00']),
+            self._group(3, ['2025:06:01 12:00:00']),
+        ]
+        assert self._sorted(groups, 'chronological') == [2, 1, 3]
+
+    def test_undated_groups_sink_to_the_end(self):
+        groups = [self._group(1, [None]), self._group(2, ['2024:01:01 08:00:00'])]
+        assert self._sorted(groups, 'chronological') == [2, 1]
+
+    def test_recent_still_ranks_newest_first(self):
+        groups = [
+            self._group(1, ['2024:01:01 08:00:00']),
+            self._group(2, ['2025:06:01 12:00:00']),
+        ]
+        assert self._sorted(groups, 'recent') == [2, 1]
+
+    def test_group_photos_reordered_into_capture_order(self):
+        groups = [self._group(1, ['2025:03:02 10:00:00', '2025:03:02 09:00:00'])]
+        _order_group_photos_by_capture(groups)
+        assert [p['date_taken'] for p in groups[0]['photos']] == [
+            '2025:03:02 09:00:00', '2025:03:02 10:00:00']
+
+    def test_reordering_preserves_the_recorded_best(self):
+        groups = [self._group(1, ['2025:03:02 10:00:00', '2025:03:02 09:00:00'])]
+        groups[0]['best_path'] = '/1-0.jpg'  # the later frame scored best
+        _order_group_photos_by_capture(groups)
+        assert groups[0]['best_path'] == '/1-0.jpg'
+        assert groups[0]['photos'][0]['path'] == '/1-1.jpg'
 
 
 # ---------------------------------------------------------------------------
@@ -422,7 +562,8 @@ class TestQueryBurstGroupsScope:
             path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
             aesthetic REAL, tech_sharpness REAL, is_blink INTEGER, is_burst_lead INTEGER,
             burst_group_id INTEGER, burst_reviewed INTEGER, eyes_open_score REAL,
-            expression_score REAL, face_count INTEGER, category TEXT
+            expression_score REAL, face_count INTEGER, category TEXT,
+            sequence_kind TEXT, sequence_ev_offset REAL
         );
         CREATE TABLE album_photos (
             id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT

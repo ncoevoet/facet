@@ -1028,7 +1028,9 @@
     "help": "Parcourez et filtrez votre bibliothèque. Triez par score, date ou par vos goûts personnels ; utilisez les filtres de la barre latérale (personnes, mots-clés, appareil, catégorie, plage de score, moments) et la recherche pour trouver des photos.",
     "hidden_banner": {
       "message": "{n} photos masquées par les filtres actuels",
-      "show_all": "Tout afficher"
+      "show_all": "Tout afficher",
+      "restore": "Rétablir les filtres",
+      "showing_all": "Toutes les photos sont affichées, y compris clignements, rafales et doublons"
     },
     "all_photos": "Toutes les photos",
     "sort": "Trier par",
@@ -1071,7 +1073,9 @@
       "label": "Infobulle",
       "hover": "Survol",
       "click": "Clic",
-      "off": "Désactivée"
+      "panel": "Panneau latéral",
+      "off": "Désactivée",
+      "panel_empty": "Survolez une photo pour voir ses détails ici"
     },
     "hide_blinks": "Masquer clignements",
     "hide_bursts": "Meilleure de la rafale",
@@ -1094,6 +1098,8 @@
       "batch_rejected": "{count} photos rejetées",
       "batch_rated": "{count} photos notées {rating} étoiles",
       "select_all": "Tout sélectionner",
+      "invert": "Inverser",
+      "compare": "Comparer",
       "actions": "Actions"
     },
     "keep_top": {
@@ -1208,7 +1214,12 @@
       "purple": "Violet",
       "magenta": "Magenta"
     },
-    "moment_confidence_range": "Confiance du moment"
+    "moment_confidence_range": "Confiance du moment",
+    "compare": {
+      "title": "Comparaison de {count} photos",
+      "hint": "Molette pour zoomer, glisser pour déplacer : tous les volets bougent ensemble. Double-clic pour réinitialiser.",
+      "reset_zoom": "Réinitialiser le zoom"
+    }
   },
   "composition_patterns": {
     "none": "Aucun",
@@ -1506,6 +1517,7 @@
       "gather": "Analyse des fichiers",
       "scoring": "Notation",
       "bursts": "Détection des rafales",
+      "sequences": "Détection des bracketings",
       "tagging": "Étiquetage",
       "vec": "Indexation",
       "done": "Terminé"
@@ -1873,6 +1885,9 @@
       "best": "Les meilleures",
       "recent": "Les plus récentes",
       "needs_comparisons": "À comparer en priorité",
+      "chronological": "Plus anciennes d'abord",
+      "ascending": "Ordre croissant : cliquez pour inverser",
+      "descending": "Ordre décroissant : cliquez pour inverser",
       "tooltip": "Trier les groupes (les plus faciles d'abord, les plus redondants…)"
     },
     "weight_remaining": "{count} avant réglage des poids",
@@ -1955,6 +1970,7 @@
       "bursts": "Rafales",
       "similar": "Similaires",
       "scenes": "Scènes",
+      "brackets": "Bracketings d'exposition",
       "tooltip": "Choisissez le type de groupes à passer en revue"
     },
     "darkroom_tooltip": "Ouvrir le studio plein écran pour comparer les images et choisir",
@@ -1963,6 +1979,10 @@
       "original": "Original",
       "loading": "Génération de l'aperçu",
       "error": "Impossible de générer l'aperçu retouché"
+    },
+    "bracket": {
+      "label": "Bracketing d'exposition",
+      "hint": "Un même sujet à plusieurs expositions : gardez la série, ne choisissez pas"
     }
   },
   "scenes": {

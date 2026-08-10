@@ -1028,7 +1028,9 @@
     "help": "Navegue e filtre a sua biblioteca. Ordene por pontuação, data ou pelo seu gosto pessoal; use os filtros da barra lateral (pessoas, tags, câmera, categoria, faixa de pontuação, momentos) e a busca para encontrar fotos.",
     "hidden_banner": {
       "message": "{n} fotos ocultadas pelos filtros atuais",
-      "show_all": "Mostrar todas"
+      "show_all": "Mostrar todas",
+      "restore": "Restaurar filtros",
+      "showing_all": "A mostrar todas as fotos, incluindo piscadelas, rajadas e duplicados"
     },
     "all_photos": "Todas as fotos",
     "sort": "Ordenar por",
@@ -1071,7 +1073,9 @@
       "label": "Dica",
       "hover": "Passar o mouse",
       "click": "Clicar",
-      "off": "Desligado"
+      "panel": "Painel lateral",
+      "off": "Desligado",
+      "panel_empty": "Passe o cursor sobre uma foto para ver aqui os seus detalhes"
     },
     "hide_blinks": "Ocultar piscadas",
     "hide_bursts": "Melhor da rajada",
@@ -1094,6 +1098,8 @@
       "batch_rejected": "{count} fotos rejeitadas",
       "batch_rated": "{count} fotos avaliadas com {rating} estrelas",
       "select_all": "Selecionar todas",
+      "invert": "Inverter",
+      "compare": "Comparar",
       "actions": "Ações"
     },
     "keep_top": {
@@ -1208,7 +1214,12 @@
       "purple": "Roxo",
       "magenta": "Magenta"
     },
-    "moment_confidence_range": "Confiança do momento"
+    "moment_confidence_range": "Confiança do momento",
+    "compare": {
+      "title": "A comparar {count} fotos",
+      "hint": "Roda para ampliar, arraste para deslocar — todos os painéis se movem juntos. Duplo clique para repor.",
+      "reset_zoom": "Repor o zoom"
+    }
   },
   "composition_patterns": {
     "none": "Nenhum",
@@ -1504,6 +1515,7 @@
       "gather": "A reunir ficheiros",
       "scoring": "Pontuação",
       "bursts": "A detetar rajadas",
+      "sequences": "A detetar bracketings",
       "tagging": "Etiquetagem",
       "vec": "Indexação",
       "done": "Concluído"
@@ -1871,6 +1883,9 @@
       "best": "Melhores primeiro",
       "recent": "Mais recentes",
       "needs_comparisons": "Precisa de comparações",
+      "chronological": "Mais antigas primeiro",
+      "ascending": "Ascendente — clique para inverter",
+      "descending": "Descendente — clique para inverter",
       "tooltip": "Ordenar os grupos (os mais fáceis primeiro, os mais redundantes…)"
     },
     "weight_remaining": "{count} para ajustar os pesos",
@@ -1953,6 +1968,7 @@
       "bursts": "Rajadas",
       "similar": "Semelhantes",
       "scenes": "Cenas",
+      "brackets": "Bracketings de exposição",
       "tooltip": "Escolha que tipo de grupos rever"
     },
     "darkroom_tooltip": "Abrir o quarto escuro em ecrã inteiro para comparar e escolher",
@@ -1961,6 +1977,10 @@
       "original": "Original",
       "loading": "A gerar a pré-visualização",
       "error": "Não foi possível gerar a pré-visualização editada"
+    },
+    "bracket": {
+      "label": "Bracketing de exposição",
+      "hint": "Um mesmo motivo com várias exposições — guarde a série, não escolha uma"
     }
   },
   "scenes": {

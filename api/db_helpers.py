@@ -275,6 +275,7 @@ PHOTO_OPTIONAL_COLS = [
     'form_symmetry', 'form_balance', 'form_edge_entropy', 'form_fractal', 'color_harmony',
     'narrative_moment', 'narrative_moment_confidence',
     'junk_kind',
+    'sequence_group_id', 'sequence_kind', 'sequence_ev_offset',
 ]
 
 

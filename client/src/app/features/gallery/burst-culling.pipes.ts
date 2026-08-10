@@ -21,6 +21,10 @@ export interface CullingPhoto {
   eyes_open_score?: number | null;
   expression_score?: number | null;
   cull_reason?: CullReason;
+  /** Set when the frame belongs to a deliberate multi-frame sequence ('bracket'). */
+  sequence_kind?: string | null;
+  /** Stops away from that sequence's base exposure; 0 on the base frame itself. */
+  sequence_ev_offset?: number | null;
 }
 
 /** A single detected face within a photo (from POST /api/culling-group/faces). */
@@ -55,20 +59,35 @@ export interface CullingSubject {
   crop_sharpness_score: number | null;
 }
 
-/** A burst, similar, or scene group surfaced for culling. */
+/** A burst, similar, scene, or bracket group surfaced for culling. */
 export interface CullingGroup {
   group_id: number;
-  type: 'burst' | 'similar' | 'scene';
+  type: 'burst' | 'similar' | 'scene' | 'bracket';
   reason: string;
   photos: CullingPhoto[];
   best_path: string;
   count: number;
   category?: string | null;
+  /** Set only when EVERY frame belongs to one sequence, so the group is not a set
+   *  of competing takes to choose between. */
+  sequence_kind?: string | null;
   /** Scene-only: capture-time window + dominant narrative moment (group_by=scene). */
   start?: string | null;
   end?: string | null;
   moment?: string | null;
   moment_confidence?: number | null;
+}
+
+/** Render a bracket frame's exposure offset as a signed badge ("+2 EV", "0 EV").
+ *  The sign is the whole point -- it says which rung of the ladder a frame is. */
+@Pipe({ name: 'evOffset' })
+export class EvOffsetPipe implements PipeTransform {
+  transform(stops: number | null | undefined): string {
+    if (stops === null || stops === undefined || Number.isNaN(stops)) return '';
+    const rounded = Math.round(stops * 10) / 10;
+    const sign = rounded > 0 ? '+' : rounded < 0 ? '−' : '';
+    return `${sign}${Math.abs(rounded)} EV`;
+  }
 }
 
 @Pipe({ name: 'isKept' })
@@ -222,6 +241,7 @@ export class SortIconPipe implements PipeTransform {
     best: 'star',
     recent: 'schedule',
     needs_comparisons: 'compare_arrows',
+    chronological: 'history',
   };
 
   transform(mode: string): string {
@@ -300,6 +320,7 @@ export class CullGroupIconPipe implements PipeTransform {
     burst: 'burst_mode',
     similar: 'filter_none',
     scene: 'movie_filter',
+    bracket: 'exposure',
   };
 
   transform(kind: string): string {
@@ -314,6 +335,7 @@ export class CullGroupLabelPipe implements PipeTransform {
     burst: 'culling.group_by.bursts',
     similar: 'culling.group_by.similar',
     scene: 'culling.group_by.scenes',
+    bracket: 'culling.group_by.brackets',
   };
 
   transform(kind: string): string {

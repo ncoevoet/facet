@@ -2,7 +2,7 @@ import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
   WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
-  CullPreviewUrlPipe, SubjectForPathPipe, SubjectRingClassPipe,
+  CullPreviewUrlPipe, SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe,
   CullingGroup, CullingFace, CullingSubject, FaceThresholds,
 } from './burst-culling.pipes';
 
@@ -267,10 +267,32 @@ describe('SortIconPipe', () => {
     expect(pipe.transform('best')).toBe('star');
     expect(pipe.transform('recent')).toBe('schedule');
     expect(pipe.transform('needs_comparisons')).toBe('compare_arrows');
+    expect(pipe.transform('chronological')).toBe('history');
   });
 
   it('falls back to the generic sort icon for an unknown mode', () => {
     expect(pipe.transform('whatever')).toBe('sort');
+  });
+});
+
+describe('EvOffsetPipe', () => {
+  const pipe = new EvOffsetPipe();
+
+  it('signs the offset so the rung of the ladder is readable', () => {
+    expect(pipe.transform(2)).toBe('+2 EV');
+    expect(pipe.transform(-2)).toBe('−2 EV');
+    expect(pipe.transform(0)).toBe('0 EV');
+  });
+
+  it('rounds a third-stop offset to one decimal', () => {
+    expect(pipe.transform(1.33)).toBe('+1.3 EV');
+    expect(pipe.transform(-1.96)).toBe('−2 EV');
+  });
+
+  it('renders nothing for a frame outside any bracket', () => {
+    expect(pipe.transform(null)).toBe('');
+    expect(pipe.transform(undefined)).toBe('');
+    expect(pipe.transform(NaN)).toBe('');
   });
 });
 

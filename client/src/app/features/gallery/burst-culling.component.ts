@@ -31,7 +31,7 @@ import {
   CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe,
   FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
   SortIconPipe, CategoryIconPipe, CullProfileIconPipe, CullPreviewUrlPipe,
-  SubjectForPathPipe, SubjectRingClassPipe,
+  SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe,
   cullPreviewUrl,
   CullingGroup, CullingPhoto, CullingFace, CullingSubject, FaceThresholds, CullStyle,
 } from './burst-culling.pipes';
@@ -72,6 +72,7 @@ interface CullProfilesResponse { profiles: CullProfile[]; default: string; }
 // overrides the stored granularity.
 const CULL_GROUP_BY_KEY = 'facet_culling_group_by';
 const CULL_SORT_KEY = 'facet_culling_sort';
+const CULL_SORT_DIR_KEY = 'facet_culling_sort_direction';
 const CULL_CATEGORY_KEY = 'facet_culling_category';
 const CULL_FACE_EYES_KEY = 'facet_culling_face_eyes_min';
 const CULL_FACE_SMILE_KEY = 'facet_culling_face_smile_min';
@@ -82,9 +83,9 @@ function readStoredFaceMin(key: string): number {
   const v = Number(localStorage.getItem(key));
   return Number.isFinite(v) && v >= 0 && v <= 10 ? v : 0;
 }
-const GROUP_BY_VALUES = ['all', 'burst', 'similar', 'scene'] as const;
+const GROUP_BY_VALUES = ['all', 'burst', 'similar', 'scene', 'bracket'] as const;
 type GroupBy = typeof GROUP_BY_VALUES[number];
-const SORT_VALUES = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons'];
+const SORT_VALUES = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons', 'chronological'];
 
 function readStoredGroupBy(): GroupBy {
   const v = localStorage.getItem(CULL_GROUP_BY_KEY);
@@ -94,6 +95,12 @@ function readStoredGroupBy(): GroupBy {
 function readStoredSort(): string {
   const v = localStorage.getItem(CULL_SORT_KEY);
   return v && SORT_VALUES.includes(v) ? v : 'easiest';
+}
+
+/** Stored sort direction. '' means "whatever the active mode naturally does". */
+function readStoredSortDirection(): '' | 'asc' | 'desc' {
+  const v = localStorage.getItem(CULL_SORT_DIR_KEY);
+  return v === 'asc' || v === 'desc' ? v : '';
 }
 
 /** Lightweight scene shape for the album→scene scope cascade (GET /scenes?summary=true). */
@@ -156,6 +163,7 @@ interface ShortcutRow {
     CullPreviewUrlPipe,
     SubjectForPathPipe,
     SubjectRingClassPipe,
+    EvOffsetPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
   ],
@@ -244,6 +252,10 @@ interface ShortcutRow {
                 <span [class.font-bold]="groupBy() === 'scene'">{{ I18N.culling.group_by.scenes | translate }}</span>
               </button>
             }
+            <button mat-menu-item (click)="onGroupByChange('bracket')">
+              <mat-icon>{{ 'bracket' | cullGroupIcon }}</mat-icon>
+              <span [class.font-bold]="groupBy() === 'bracket'">{{ I18N.culling.group_by.brackets | translate }}</span>
+            </button>
           </mat-menu>
           @if (groupBy() !== 'scene') {
             <button mat-icon-button [matMenuTriggerFor]="cullSortMenu"
@@ -260,6 +272,12 @@ interface ShortcutRow {
                 </button>
               }
             </mat-menu>
+            <button mat-icon-button (click)="toggleSortDirection()"
+                    [class.!text-[var(--mat-sys-primary)]]="sortDirection() !== ''"
+                    [matTooltip]="(sortAscending() ? I18N.culling.sort.ascending : I18N.culling.sort.descending) | translate"
+                    [attr.aria-label]="(sortAscending() ? I18N.culling.sort.ascending : I18N.culling.sort.descending) | translate">
+              <mat-icon>{{ sortAscending() ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
+            </button>
           }
           @if (categoryOptions().length > 0) {
             <button mat-icon-button [matMenuTriggerFor]="cullCategoryMenu"
@@ -439,6 +457,16 @@ interface ShortcutRow {
                   }
                 </div>
               }
+              <!-- One subject at several exposures, not competing takes: say so
+                   rather than let the user hunt for the "best" of a bracket. -->
+              @if (group.sequence_kind === 'bracket') {
+                <div class="flex items-center gap-2 px-4 pt-2 text-xs">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                    <mat-icon class="!text-sm !w-4 !h-4 !leading-4">exposure</mat-icon>{{ I18N.culling.bracket.label | translate }}
+                  </span>
+                  <span class="opacity-70">{{ I18N.culling.bracket.hint | translate }}</span>
+                </div>
+              }
               <!-- Photos -->
               <div class="flex gap-2 md:gap-3 overflow-x-auto px-2 py-3 items-center transition-opacity duration-300 [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--mat-sys-outline-variant)] [&::-webkit-scrollbar-track]:bg-transparent"
                    [class.pointer-events-none]="(group | isConfirmed:confirmedGroups())"
@@ -484,8 +512,15 @@ interface ShortcutRow {
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">close</mat-icon>
                       </div>
                     }
-                    <div class="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-white text-xs font-medium">
-                      {{ photo.aggregate | number:'1.1-1' }}
+                    <div class="absolute bottom-2 left-2 flex items-center gap-1">
+                      <span class="px-2 py-0.5 rounded bg-black/60 text-white text-xs font-medium">
+                        {{ photo.aggregate | number:'1.1-1' }}
+                      </span>
+                      @if (photo.sequence_kind === 'bracket') {
+                        <span class="px-2 py-0.5 rounded bg-amber-600 text-white text-xs font-bold">
+                          {{ photo.sequence_ev_offset | evOffset }}
+                        </span>
+                      }
                     </div>
                     @if (photo.is_blink) {
                       <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-yellow-600 text-white text-xs font-bold">
@@ -1114,7 +1149,17 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Server-side ordering of culling groups; reloads from page 1 on change. Persisted. */
   protected readonly sortMode = signal(readStoredSort());
-  protected readonly sortModes = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons'] as const;
+  protected readonly sortModes = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons', 'chronological'] as const;
+
+  /** Explicit sort direction; '' leaves each mode its natural one. Persisted. */
+  protected readonly sortDirection = signal<'' | 'asc' | 'desc'>(readStoredSortDirection());
+
+  /** Whether the active mode currently runs oldest/smallest-first. */
+  protected readonly sortAscending = computed(() => {
+    const explicit = this.sortDirection();
+    if (explicit) return explicit === 'asc';
+    return this.sortMode() === 'chronological';
+  });
 
   /** Content-category to cull ('' = all). Filters the visible group list client-side. Persisted. */
   protected readonly categoryFilter = signal(localStorage.getItem(CULL_CATEGORY_KEY) ?? '');
@@ -1176,7 +1221,9 @@ export class BurstCullingComponent implements OnDestroy {
     this.scopeTo.set(qp.get('to'));
     this.scopeScene.set(qp.get('scene'));
     const gb = qp.get('group_by');
-    if (gb === 'all' || gb === 'burst' || gb === 'similar' || gb === 'scene') this.groupBy.set(gb);
+    // Validated against the shared list, not a repeated literal union: the
+    // hand-written one silently dropped every granularity added after it.
+    if (gb && (GROUP_BY_VALUES as readonly string[]).includes(gb)) this.groupBy.set(gb as GroupBy);
     void this.loadGroups();
     void this.loadAlbums();
     void this.loadCullProfiles();
@@ -1313,6 +1360,7 @@ export class BurstCullingComponent implements OnDestroy {
       seed: this.similarSeed,
       exclude_rejected: this.excludeRejected(),
       sort: this.sortMode(),
+      direction: this.sortDirection(),
       group_by: this.groupBy(),
     };
     const album = this.scopeAlbum();
@@ -1420,8 +1468,17 @@ export class BurstCullingComponent implements OnDestroy {
    * The best photo is always kept; additional photos whose burst_score falls
    * within a strictness-derived margin of the best are also kept. At strictness
    * 100 only the single best survives; at 0 everything within ~5 points stays.
+   *
+   * A bracket is the exception and starts fully kept whatever the strictness:
+   * its frames were shot to be merged, not to compete, so proposing to drop the
+   * flanking exposures would be proposing to destroy the bracket. Trimming one
+   * stays available deliberately, through auto-cull's `trim_brackets`, which
+   * first checks the base exposure clips nothing.
    */
   private computeAutoKeep(group: CullingGroup): Set<string> {
+    if (group.sequence_kind === 'bracket') {
+      return new Set<string>(group.photos.map(p => p.path));
+    }
     const best = group.best_path || group.photos[0]?.path;
     if (!best) return new Set<string>();
     const kept = new Set<string>([best]);
@@ -1526,6 +1583,16 @@ export class BurstCullingComponent implements OnDestroy {
   protected onSortChange(value: string): void {
     this.sortMode.set(value);
     localStorage.setItem(CULL_SORT_KEY, value);
+    this.selectedGroupIndex.set(0);
+    this.resetForReload();
+  }
+
+  /** Flip the active sort. Writes an explicit direction rather than a "reversed"
+   *  flag, so switching mode afterwards keeps the direction the user asked for. */
+  protected toggleSortDirection(): void {
+    const next = this.sortAscending() ? 'desc' : 'asc';
+    this.sortDirection.set(next);
+    localStorage.setItem(CULL_SORT_DIR_KEY, next);
     this.selectedGroupIndex.set(0);
     this.resetForReload();
   }

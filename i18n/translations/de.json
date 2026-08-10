@@ -1032,7 +1032,9 @@
     "help": "Durchsuchen und filtern Sie Ihre Bibliothek. Sortieren Sie nach Bewertung, Datum oder Ihrem persönlichen Geschmack; nutzen Sie die Filter in der Seitenleiste (Personen, Schlagwörter, Kamera, Kategorie, Wertungsbereich, Momente) und die Suche, um Fotos zu finden.",
     "hidden_banner": {
       "message": "{n} Fotos durch aktuelle Filter ausgeblendet",
-      "show_all": "Alle anzeigen"
+      "show_all": "Alle anzeigen",
+      "restore": "Filter wiederherstellen",
+      "showing_all": "Alle Fotos werden angezeigt – einschließlich Blinzler, Serien und Duplikate"
     },
     "all_photos": "Alle Fotos",
     "sort": "Sortieren nach",
@@ -1075,7 +1077,9 @@
       "label": "Tooltip",
       "hover": "Hover",
       "click": "Klick",
-      "off": "Aus"
+      "panel": "Seitenleiste",
+      "off": "Aus",
+      "panel_empty": "Fahre über ein Foto, um seine Details hier zu sehen"
     },
     "hide_blinks": "Blinzler ausblenden",
     "hide_bursts": "Beste aus Serie",
@@ -1098,6 +1102,8 @@
       "batch_rejected": "{count} Fotos abgelehnt",
       "batch_rated": "{count} Fotos mit {rating} Sternen bewertet",
       "select_all": "Alle auswählen",
+      "invert": "Umkehren",
+      "compare": "Vergleichen",
       "actions": "Aktionen"
     },
     "keep_top": {
@@ -1212,7 +1218,12 @@
       "purple": "Violett",
       "magenta": "Magenta"
     },
-    "moment_confidence_range": "Moment-Konfidenz"
+    "moment_confidence_range": "Moment-Konfidenz",
+    "compare": {
+      "title": "{count} Fotos im Vergleich",
+      "hint": "Scrollen zum Zoomen, Ziehen zum Verschieben – alle Bereiche bewegen sich gemeinsam. Doppelklick setzt zurück.",
+      "reset_zoom": "Zoom zurücksetzen"
+    }
   },
   "composition_patterns": {
     "none": "Keines",
@@ -1510,6 +1521,7 @@
       "gather": "Dateien sammeln",
       "scoring": "Bewertung",
       "bursts": "Serien erkennen",
+      "sequences": "Belichtungsreihen werden erkannt",
       "tagging": "Verschlagwortung",
       "vec": "Indizierung",
       "done": "Fertig"
@@ -1877,6 +1889,9 @@
       "best": "Beste zuerst",
       "recent": "Neueste zuerst",
       "needs_comparisons": "Vergleiche nötig",
+      "chronological": "Älteste zuerst",
+      "ascending": "Aufsteigend – zum Umkehren klicken",
+      "descending": "Absteigend – zum Umkehren klicken",
       "tooltip": "Gruppen sortieren (einfachste zuerst, redundanteste, beste…)"
     },
     "weight_remaining": "{count} bis zur Gewichtsabstimmung",
@@ -1959,6 +1974,7 @@
       "bursts": "Serien",
       "similar": "Ähnliche",
       "scenes": "Szenen",
+      "brackets": "Belichtungsreihen",
       "tooltip": "Wählen, welche Art von Gruppen geprüft werden soll"
     },
     "darkroom_tooltip": "Vollbild-Dunkelkammer öffnen, um Bilder zu vergleichen und auszuwählen",
@@ -1967,6 +1983,10 @@
       "original": "Original",
       "loading": "Vorschau wird erstellt",
       "error": "Bearbeitete Vorschau konnte nicht erstellt werden"
+    },
+    "bracket": {
+      "label": "Belichtungsreihe",
+      "hint": "Ein Motiv in mehreren Belichtungen – behalte die Reihe, wähle keinen Sieger"
     }
   },
   "scenes": {
