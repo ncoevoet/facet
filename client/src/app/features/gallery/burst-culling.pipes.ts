@@ -1,5 +1,6 @@
 import { Pipe, PipeTransform, inject } from '@angular/core';
 import { I18nService } from '../../core/services/i18n.service';
+import { SEQUENCE_KIND_ICONS } from '../../shared/pipes/sequence-kind.pipe';
 
 /** Backend-supplied machine reason key + optional value for why a photo ranks lower. */
 export interface CullReason {
@@ -59,10 +60,10 @@ export interface CullingSubject {
   crop_sharpness_score: number | null;
 }
 
-/** A burst, similar, scene, or bracket group surfaced for culling. */
+/** A burst, similar, scene, bracket or panorama group surfaced for culling. */
 export interface CullingGroup {
   group_id: number;
-  type: 'burst' | 'similar' | 'scene' | 'bracket';
+  type: 'burst' | 'similar' | 'scene' | 'bracket' | 'panorama' | 'hdr_panorama';
   reason: string;
   photos: CullingPhoto[];
   best_path: string;
@@ -320,7 +321,7 @@ export class CullGroupIconPipe implements PipeTransform {
     burst: 'burst_mode',
     similar: 'filter_none',
     scene: 'movie_filter',
-    bracket: 'exposure',
+    ...SEQUENCE_KIND_ICONS,
   };
 
   transform(kind: string): string {
@@ -336,6 +337,8 @@ export class CullGroupLabelPipe implements PipeTransform {
     similar: 'culling.group_by.similar',
     scene: 'culling.group_by.scenes',
     bracket: 'culling.group_by.brackets',
+    panorama: 'culling.group_by.panoramas',
+    hdr_panorama: 'culling.group_by.hdr_panoramas',
   };
 
   transform(kind: string): string {

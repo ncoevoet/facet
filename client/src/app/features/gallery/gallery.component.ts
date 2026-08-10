@@ -62,7 +62,7 @@ import { MAX_COMPARE_PANES } from './synced-zoom.component';
 
 /** The three toggles the hidden-photos banner clears and restores together. */
 type HiddenFilterFlags = Pick<GalleryFilters,
-  'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets'>;
+  'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' | 'hide_panoramas'>;
 
 
 @Component({
@@ -245,6 +245,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
                 <div class="flex gap-2 mb-2" [style.height.px]="row.height">
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
+                  [collapsedSequenceKinds]="collapsedSequenceKinds()"
                       [photo]="photo"
                       [attr.data-pidx]="row.startIndex + i"
                       [style.width.px]="row.widths[i]"
@@ -290,6 +291,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
             >
               @for (photo of store.photos(); track photo.path; let i = $index) {
                 <app-photo-card
+                  [collapsedSequenceKinds]="collapsedSequenceKinds()"
                   [photo]="photo"
                   [attr.data-pidx]="i"
                   [config]="store.config()"
@@ -331,6 +333,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
                 <div class="flex gap-2" style="content-visibility: auto; contain-intrinsic-size: auto 300px">
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
+                  [collapsedSequenceKinds]="collapsedSequenceKinds()"
                       [photo]="photo"
                       [attr.data-pidx]="row.startIndex + i"
                       [style.width.px]="row.widths[i]"
@@ -652,11 +655,25 @@ export class GalleryComponent implements OnInit, OnDestroy {
     () => this.panelMode() && !this.store.filterDrawerOpen(),
   );
 
+  /** Sequence kinds whose sets are currently collapsed behind one frame.
+   *
+   *  A tile only earns its set badge while the matching toggle is hiding the
+   *  rest of the set. With the toggle off every frame is on screen in its own
+   *  right, and badging all of them would say nothing.
+   */
+  readonly collapsedSequenceKinds = computed(() => {
+    const f = this.store.filters();
+    const kinds: string[] = [];
+    if (f.hide_brackets) kinds.push('bracket');
+    if (f.hide_panoramas) kinds.push('panorama', 'hdr_panorama');
+    return kinds;
+  });
+
   /** Show the hidden-photos banner when filters are hiding rows and at least one is on. */
   readonly showHiddenBanner = computed(() => {
     const f = this.store.filters();
     return this.store.hiddenSummary().total > 0
-      && (f.hide_blinks || f.hide_bursts || f.hide_duplicates || f.hide_brackets);
+      && (f.hide_blinks || f.hide_bursts || f.hide_duplicates || f.hide_brackets || f.hide_panoramas);
   });
 
   /**
@@ -674,7 +691,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const stash = this.hiddenFiltersStash();
     if (!stash) return false;
     const f = this.store.filters();
-    return !f.hide_blinks && !f.hide_bursts && !f.hide_duplicates && !f.hide_brackets;
+    return !f.hide_blinks && !f.hide_bursts && !f.hide_duplicates && !f.hide_brackets
+      && !f.hide_panoramas;
   });
 
   showAllHidden(): void {
@@ -684,12 +702,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
       hide_bursts: f.hide_bursts,
       hide_duplicates: f.hide_duplicates,
       hide_brackets: f.hide_brackets,
+      hide_panoramas: f.hide_panoramas,
     });
     void this.store.updateFilters({
       hide_blinks: false,
       hide_bursts: false,
       hide_duplicates: false,
       hide_brackets: false,
+      hide_panoramas: false,
     });
   }
 

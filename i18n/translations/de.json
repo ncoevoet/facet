@@ -568,7 +568,8 @@
     "remove_favorite": "Aus Favoriten entfernen",
     "mark_rejected": "Als abgelehnt markieren",
     "unmark_rejected": "Ablehnung aufheben",
-    "rejected_badge": "Abgelehnt"
+    "rejected_badge": "Abgelehnt",
+    "rating_badge": "Bewertung {stars}"
   },
   "similar": {
     "title": "Ähnliche Fotos",
@@ -1085,6 +1086,7 @@
     "hide_bursts": "Beste aus Serie",
     "hide_duplicates": "Duplikate ausblenden",
     "hide_brackets": "Beste der Belichtungsreihe",
+    "hide_panoramas": "Bestes Bild des Panoramas",
     "reset_filters": "Filter zurücksetzen",
     "scroll_to_top": "Nach oben scrollen",
     "photo_grid": "Fotoraster",
@@ -1976,6 +1978,8 @@
       "similar": "Ähnliche",
       "scenes": "Szenen",
       "brackets": "Belichtungsreihen",
+      "panoramas": "Panoramen",
+      "hdr_panoramas": "HDR-Panoramen",
       "tooltip": "Wählen, welche Art von Gruppen geprüft werden soll"
     },
     "darkroom_tooltip": "Vollbild-Dunkelkammer öffnen, um Bilder zu vergleichen und auszuwählen",
@@ -1988,6 +1992,11 @@
     "bracket": {
       "label": "Belichtungsreihe",
       "hint": "Ein Motiv in mehreren Belichtungen – behalte die Reihe, wähle keinen Sieger"
+    },
+    "panorama": {
+      "label": "Panorama",
+      "hdr_label": "HDR-Panorama",
+      "hint": "Bilder eines Schwenks — behalten Sie die Serie, es gibt kein bestes Bild"
     }
   },
   "scenes": {
@@ -2376,5 +2385,27 @@
   "updates": {
     "available": "Facet {version} ist verfügbar",
     "view": "Versionshinweise"
+  },
+  "panorama": {
+    "settings": {
+      "tab_label": "Panoramen",
+      "intro": "Wie Panorama-Serien erkannt werden. Kalibriert an 26 bestätigten Panoramen und 8 bestätigten Nicht-Panoramen; die Standardwerte sind gemessen, nicht geschätzt. Speichern allein ändert keine Etiketten — die Erkennung ist ein Stapellauf über die ganze Bibliothek, also erneut ausführen, damit die Änderung die Galerie erreicht.",
+      "enabled": "Panoramen erkennen",
+      "min_frames": "Mindestanzahl Bilder",
+      "min_frames_hint": "Jedes bestätigte Nicht-Panorama hatte 6 Bilder oder weniger",
+      "min_drift": "Mindestschwenk (Bildbreiten)",
+      "min_drift_hint": "Bestätigte Nicht-Panoramen liegen bei 0,36-0,40; das kleinste echte bei 0,46",
+      "max_gap_seconds": "Größter Abstand zwischen Bildern (Sekunden)",
+      "max_gap_hint": "Ein bewusster Schwenk ist langsamer als eine Serie",
+      "hdr_span": "HDR-Schwelle (Blenden)",
+      "hdr_span_hint": "Einfache Schwenks umfassen 0,0-0,7 Blenden, HDR 2,0-4,4",
+      "save": "Speichern",
+      "redetect": "Erkennung erneut ausführen",
+      "redetect_tooltip": "Etikettiert die ganze Bibliothek neu; dauert mehrere Minuten",
+      "saved": "Einstellungen gespeichert — Erkennung erneut ausführen, um sie anzuwenden",
+      "save_failed": "Einstellungen konnten nicht gespeichert werden",
+      "redetect_started": "Erkennung gestartet; sie läuft im Hintergrund",
+      "redetect_failed": "Erkennung konnte nicht gestartet werden"
+    }
   }
 }

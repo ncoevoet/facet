@@ -21,6 +21,10 @@ from db.schema import (
 )
 from db.maintenance import vacuum_database, analyze_database, optimize_database, cleanup_orphaned_persons, export_viewer_db, cleanup_missing_photos, backup_database, check_disk_space
 from db.weight_snapshots import record_weight_snapshot, delete_weight_snapshot
+from db.sequence_overrides import (
+    get_sequence_overrides, set_sequence_overrides, clear_sequence_overrides,
+    existing_group_key,
+)
 from db.scoring_overrides import (
     get_photo_scoring_overrides, set_photo_scoring_override, clear_photo_scoring_override,
 )

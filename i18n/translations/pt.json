@@ -564,7 +564,8 @@
     "remove_favorite": "Remover dos favoritos",
     "mark_rejected": "Marcar como rejeitada",
     "unmark_rejected": "Remover marca de rejeitada",
-    "rejected_badge": "Rejeitada"
+    "rejected_badge": "Rejeitada",
+    "rating_badge": "Classificação {stars}"
   },
   "similar": {
     "title": "Fotos semelhantes",
@@ -1081,6 +1082,7 @@
     "hide_bursts": "Melhor da rajada",
     "hide_duplicates": "Ocultar duplicatas",
     "hide_brackets": "Melhor do bracketing",
+    "hide_panoramas": "Melhor do panorama",
     "reset_filters": "Redefinir filtros",
     "scroll_to_top": "Voltar ao topo",
     "photo_grid": "Grade de fotos",
@@ -1970,6 +1972,8 @@
       "similar": "Semelhantes",
       "scenes": "Cenas",
       "brackets": "Bracketings de exposição",
+      "panoramas": "Panoramas",
+      "hdr_panoramas": "Panoramas HDR",
       "tooltip": "Escolha que tipo de grupos rever"
     },
     "darkroom_tooltip": "Abrir o quarto escuro em ecrã inteiro para comparar e escolher",
@@ -1982,6 +1986,11 @@
     "bracket": {
       "label": "Bracketing de exposição",
       "hint": "Um mesmo motivo com várias exposições — guarde a série, não escolha uma"
+    },
+    "panorama": {
+      "label": "Panorama",
+      "hdr_label": "Panorama HDR",
+      "hint": "Fotogramas de uma panorâmica — mantenha o conjunto, não há melhor imagem"
     }
   },
   "scenes": {
@@ -2370,5 +2379,27 @@
   "updates": {
     "available": "O Facet {version} está disponível",
     "view": "Notas de versão"
+  },
+  "panorama": {
+    "settings": {
+      "tab_label": "Panorâmicas",
+      "intro": "Como as panorâmicas são detetadas. Calibrado com 26 panorâmicas e 8 não-panorâmicas confirmadas; os valores predefinidos são medidos, não adivinhados. Guardar não reetiqueta nada por si só — a deteção é uma passagem em lote sobre toda a biblioteca, por isso volte a executá-la para que a alteração chegue à galeria.",
+      "enabled": "Detetar panorâmicas",
+      "min_frames": "Fotogramas mínimos",
+      "min_frames_hint": "Todas as não-panorâmicas confirmadas tinham 6 fotogramas ou menos",
+      "min_drift": "Varredura mínima (larguras de enquadramento)",
+      "min_drift_hint": "As não-panorâmicas confirmadas agrupam-se em 0,36-0,40; a panorâmica real mais pequena é 0,46",
+      "max_gap_seconds": "Intervalo máximo entre fotogramas (segundos)",
+      "max_gap_hint": "Uma panorâmica deliberada é mais lenta do que uma rajada",
+      "hdr_span": "Limiar HDR (pontos)",
+      "hdr_span_hint": "As varreduras simples abrangem 0,0-0,7 pontos, as HDR 2,0-4,4",
+      "save": "Guardar",
+      "redetect": "Voltar a executar a deteção",
+      "redetect_tooltip": "Reetiqueta toda a biblioteca; demora vários minutos",
+      "saved": "Definições guardadas — volte a executar a deteção para as aplicar",
+      "save_failed": "Não foi possível guardar as definições",
+      "redetect_started": "Deteção iniciada; corre em segundo plano",
+      "redetect_failed": "Não foi possível iniciar a deteção"
+    }
   }
 }

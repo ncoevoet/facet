@@ -822,6 +822,51 @@ regroupement des rafales.
 
 ---
 
+## Détection de panoramas
+
+Les images d'un panorama ont été prises pour être assemblées, pas pour se concurrencer : la détection de rafales les lit comme des prises concurrentes et n'en garde qu'une. Cette passe les nomme sur des preuves géométriques — points SIFT et homographie RANSAC entre images consécutives, mesurés sur les vignettes 640px déjà stockées. Aucun décodage de l'original, aucun modèle, aucune dépendance supplémentaire.
+
+Ce qui distingue un balayage d'une rafale est le déplacement **cumulé**, pas le décalage image par image : un panorama est pris avec environ 90 % de recouvrement, donc un pas ne déplace que 5 à 18 % du cadre, tandis que sur la durée une rafale oscille autour de zéro et un balayage avance. Les panoramas simples et HDR sont deux types distincts, séparés par l'écart d'exposition.
+
+Les seuils ont été calibrés sur 26 panoramas et 8 non-panoramas confirmés à l'œil sur une bibliothèque de 126 000 photos. Précision mesurée : environ 96 %. Le rappel est volontairement incomplet — les balayages verticaux à faible déplacement et les panoramas à peu de positions passent sous le seuil et sont manqués. Manquer un panorama ne coûte rien ; étiqueter du reportage à tort coûte la confiance, et la correction manuelle persistante rattrape les deux sens.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5
+  }
+}
+```
+
+| Paramètre | Défaut | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Désactiver complètement la détection de panoramas |
+| `max_gap_seconds` | `30.0` | Écart maximal entre deux images consécutives d'un balayage |
+| `min_frames` | `8` | Série la plus courte considérée comme un panorama. Le discriminant le plus fort : tous les non-panoramas confirmés comptaient 6 images ou moins |
+| `min_drift` | `0.43` | Balayage total, en largeurs de cadre, pour qu'une série compte. Les non-panoramas confirmés se groupent entre 0,36 et 0,40 ; le plus petit vrai panorama est à 0,46 |
+| `min_inliers` | `25` | Points concordants RANSAC requis pour valider une paire |
+| `max_step` | `0.9` | Plus grand pas isolé, en largeurs de cadre — au-delà c'est une coupure de scène |
+| `back_tolerance` | `0.02` | Recul toléré sur un pas avant que la série ne s'arrête |
+| `max_ortho` | `0.15` | Dérive latérale tolérée sur l'ensemble du balayage |
+| `ortho_ratio` | `0.25` | Marge latérale supplémentaire proportionnelle au balayage, pour ne pas pénaliser les longues séries |
+| `step_ortho_abs` | `0.02` | Déplacement latéral toléré sur un seul pas avant d'être lu comme un recadrage |
+| `step_ortho_ratio` | `0.5` | La même limite, en fraction de la taille du pas |
+| `hdr_min_span_stops` | `1.5` | Écart d'exposition au-delà duquel un balayage est un panorama HDR. Les balayages simples couvrent 0,0 à 0,7 IL, les HDR 2,0 à 4,4 |
+| `sift_features` | `400` | Points caractéristiques par vignette. Le corpus est encore détecté à 250 ; 400 garde de la marge |
+| `match_ratio` | `0.75` | Rapport de Lowe qu'une correspondance doit franchir pour être retenue |
+| `workers` | `0` | Processus parallèles ; `0` choisit selon le nombre de cœurs. L'accélération reste en deçà du nombre de cœurs : le coût est dominé par les lectures aléatoires de vignettes |
+| `probe_stride` | `8` | Nombre d'images entre les sondages rapides qui écartent les rafales ordinaires |
+| `probe_min_drift` | `0.05` | Mouvement en deçà duquel un sondage déclare la série immobile |
+
+Modifier ces valeurs ne change rien en soi — la détection est une passe par lots : relancez `--detect-panoramas` (ou l'action de relance dans la visionneuse) pour que le changement atteigne la galerie et le tri.
+
+---
+
 ## Notation des rafales
 
 Pondérations utilisées par le tri de rafales pour calculer un score composite afin de sélectionner la meilleure prise au sein de chaque groupe de rafale. La somme des pondérations doit faire 1,0.
@@ -1227,6 +1272,7 @@ Affichage et comportement de la galerie web.
       "hide_bursts": true,
       "hide_duplicates": true,
       "hide_brackets": true,
+      "hide_panoramas": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1310,6 +1356,7 @@ Affichage et comportement de la galerie web.
 | `hide_bursts` | `true` | Afficher uniquement la meilleure de chaque rafale par défaut |
 | `hide_duplicates` | `true` | Masquer les doublons non principaux par défaut |
 | `hide_brackets` | `true` | Afficher uniquement l'exposition de base de chaque bracketing par défaut |
+| `hide_panoramas` | `true` | N'afficher qu'une image représentative par panorama par défaut |
 | `hide_details` | `true` | Masquer les détails des photos sur les cartes par défaut |
 | `tooltip_mode` | `"hover"` | Déclencheur d'infobulle : `"hover"`, `"click"` ou `"off"`. Remplace l'ancien booléen `hide_tooltip`. |
 | `hide_rejected` | `true` | Masquer les photos rejetées par défaut |

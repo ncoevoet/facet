@@ -564,7 +564,8 @@
     "remove_favorite": "Remove from favorites",
     "mark_rejected": "Mark as rejected",
     "unmark_rejected": "Remove rejected mark",
-    "rejected_badge": "Rejected"
+    "rejected_badge": "Rejected",
+    "rating_badge": "Rated {stars}"
   },
   "similar": {
     "title": "Similar Photos",
@@ -1081,6 +1082,7 @@
     "hide_bursts": "Best of Burst",
     "hide_duplicates": "Hide Duplicates",
     "hide_brackets": "Best of bracket",
+    "hide_panoramas": "Best of panorama",
     "reset_filters": "Reset Filters",
     "scroll_to_top": "Scroll to top",
     "photo_grid": "Photo grid",
@@ -1970,6 +1972,8 @@
       "similar": "Similar",
       "scenes": "Scenes",
       "brackets": "Exposure brackets",
+      "panoramas": "Panoramas",
+      "hdr_panoramas": "HDR panoramas",
       "tooltip": "Choose which kind of near-duplicate groups to review"
     },
     "darkroom_tooltip": "Open the full-screen darkroom to compare frames and pick the keepers",
@@ -1982,6 +1986,11 @@
     "bracket": {
       "label": "Exposure bracket",
       "hint": "One subject at several exposures — keep the set, don't pick a winner"
+    },
+    "panorama": {
+      "label": "Panorama",
+      "hdr_label": "HDR panorama",
+      "hint": "Frames of one sweep — keep the set, there is no best frame"
     }
   },
   "scenes": {
@@ -2370,5 +2379,27 @@
   "updates": {
     "available": "Facet {version} is available",
     "view": "Release notes"
+  },
+  "panorama": {
+    "settings": {
+      "tab_label": "Panoramas",
+      "intro": "How panorama sets are detected. Calibrated against 26 confirmed panoramas and 8 confirmed non-panoramas; the defaults are measured, not guessed. Saving does not relabel anything on its own — detection is a batch pass over the whole library, so re-run it for a change to reach the gallery.",
+      "enabled": "Detect panoramas",
+      "min_frames": "Minimum frames",
+      "min_frames_hint": "Every confirmed non-panorama was 6 frames or fewer",
+      "min_drift": "Minimum sweep (frame widths)",
+      "min_drift_hint": "Confirmed non-panoramas cluster at 0.36-0.40; the smallest real one is 0.46",
+      "max_gap_seconds": "Longest gap between frames (seconds)",
+      "max_gap_hint": "A deliberate pan is slower than a burst",
+      "hdr_span": "HDR threshold (stops)",
+      "hdr_span_hint": "Plain sweeps span 0.0-0.7 stops, HDR ones 2.0-4.4",
+      "save": "Save",
+      "redetect": "Re-run detection",
+      "redetect_tooltip": "Re-labels the whole library; takes several minutes",
+      "saved": "Settings saved — re-run detection to apply them",
+      "save_failed": "Could not save the settings",
+      "redetect_started": "Detection started; it runs in the background",
+      "redetect_failed": "Could not start detection"
+    }
   }
 }

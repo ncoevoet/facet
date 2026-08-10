@@ -821,6 +821,51 @@ raggruppamento delle raffiche.
 
 ---
 
+## Rilevamento dei panorami
+
+I fotogrammi di un panorama sono stati scattati per essere uniti, non per competere: il rilevamento delle raffiche li legge come scatti rivali e ne nasconde tutti tranne uno. Questa passata li identifica su basi geometriche — punti SIFT e un'omografia RANSAC tra fotogrammi consecutivi, misurati sulle miniature da 640px già memorizzate. Nessuna decodifica dell'originale, nessun modello, nessuna dipendenza aggiuntiva.
+
+Ciò che distingue una panoramica da una raffica è lo spostamento **cumulativo**, non quello del singolo scatto: un panorama si riprende con circa il 90 % di sovrapposizione, quindi un passo sposta solo il 5-18 % dell'inquadratura, mentre sull'intera serie una raffica oscilla intorno allo zero e una panoramica avanza. Panorami semplici e HDR sono tipi distinti, separati dall'escursione di esposizione.
+
+Le soglie sono state calibrate su 26 panorami e 8 non-panorami confermati a occhio su una libreria di 126.000 foto. Precisione misurata: circa il 96 %. Il richiamo è volutamente incompleto — le panoramiche verticali a basso spostamento e i panorami con poche posizioni restano sotto la soglia e vengono persi. Perdere un panorama non costa nulla; etichettare per errore del reportage costa fiducia, e la correzione manuale persistente copre entrambe le direzioni.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|---------|---------|-------------|
+| `enabled` | `true` | Disattivare completamente il rilevamento dei panorami |
+| `max_gap_seconds` | `30.0` | Intervallo massimo fra fotogrammi consecutivi di una panoramica |
+| `min_frames` | `8` | Serie più breve considerata un panorama. Il discriminante più forte: ogni non-panorama confermato aveva 6 fotogrammi o meno |
+| `min_drift` | `0.43` | Spostamento totale, in larghezze di inquadratura, perché una serie conti. I non-panorami confermati si raggruppano fra 0,36 e 0,40; il più piccolo reale è 0,46 |
+| `min_inliers` | `25` | Corrispondenze RANSAC necessarie per validare una coppia |
+| `max_step` | `0.9` | Passo singolo più ampio, in larghezze di inquadratura — oltre è uno stacco di scena |
+| `back_tolerance` | `0.02` | Arretramento tollerato su un passo prima che la serie termini |
+| `max_ortho` | `0.15` | Deriva laterale tollerata sull'intera panoramica |
+| `ortho_ratio` | `0.25` | Margine laterale aggiuntivo proporzionale allo spostamento, per non penalizzare le serie lunghe |
+| `step_ortho_abs` | `0.02` | Spostamento laterale tollerato in un singolo passo prima di leggerlo come ricomposizione |
+| `step_ortho_ratio` | `0.5` | Lo stesso limite come frazione del passo |
+| `hdr_min_span_stops` | `1.5` | Escursione di esposizione oltre la quale una panoramica è un panorama HDR. Le semplici coprono 0,0-0,7 stop, le HDR 2,0-4,4 |
+| `sift_features` | `400` | Caratteristiche per miniatura. Il corpus viene rilevato anche a 250; 400 lascia margine |
+| `match_ratio` | `0.75` | Rapporto di Lowe che una corrispondenza deve superare per essere tenuta |
+| `workers` | `0` | Processi paralleli; `0` sceglie in base ai core. Scala al di sotto del numero di core: domina la lettura casuale delle miniature |
+| `probe_stride` | `8` | Fotogrammi fra i sondaggi economici che scartano le raffiche ordinarie |
+| `probe_min_drift` | `0.05` | Movimento sotto il quale un sondaggio dichiara ferma la serie |
+
+Modificare questi valori non produce nulla da solo — il rilevamento è una passata batch: rilancia `--detect-panoramas` (o l'azione nel visualizzatore) perché la modifica raggiunga la galleria e la selezione.
+
+---
+
 ## Burst Scoring
 
 Pesi usati dalla selezione delle raffiche per calcolare un punteggio composito che individua lo scatto migliore all'interno di ciascun gruppo di raffica. La somma dei pesi dovrebbe essere 1,0.
@@ -1226,6 +1271,7 @@ Visualizzazione e comportamento della galleria web.
       "hide_bursts": true,
       "hide_duplicates": true,
       "hide_brackets": true,
+      "hide_panoramas": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1309,6 +1355,7 @@ Visualizzazione e comportamento della galleria web.
 | `hide_bursts` | `true` | Mostra per impostazione predefinita solo la migliore della raffica |
 | `hide_duplicates` | `true` | Nasconde per impostazione predefinita le foto duplicate non principali |
 | `hide_brackets` | `true` | Mostra per impostazione predefinita solo l'esposizione base di ogni bracketing |
+| `hide_panoramas` | `true` | Mostrare per impostazione predefinita un solo fotogramma per panorama |
 | `hide_details` | `true` | Nasconde per impostazione predefinita i dettagli della foto sulle schede |
 | `tooltip_mode` | `"hover"` | Attivazione del tooltip: `"hover"`, `"click"` o `"off"`. Sostituisce il precedente booleano `hide_tooltip`. |
 | `hide_rejected` | `true` | Nasconde per impostazione predefinita le foto rifiutate |

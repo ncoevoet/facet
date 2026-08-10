@@ -822,6 +822,51 @@ Serienbildung.
 
 ---
 
+## Panorama-Erkennung
+
+Die Bilder eines Panoramas wurden zum Zusammenfügen aufgenommen, nicht als Konkurrenz zueinander: Die Serienerkennung liest sie als konkurrierende Aufnahmen und blendet alle bis auf eines aus. Dieser Durchlauf benennt sie anhand geometrischer Belege — SIFT-Merkmale und eine RANSAC-Homographie zwischen aufeinanderfolgenden Bildern, gemessen an den gespeicherten 640px-Vorschaubildern. Kein Dekodieren des Originals, kein Modell, keine zusätzliche Abhängigkeit.
+
+Einen Schwenk von einer Serie unterscheidet die **kumulierte** Verschiebung, nicht der Versatz pro Bild: Panoramen werden mit rund 90 % Überlappung aufgenommen, ein Schritt verschiebt also nur 5-18 % des Bildes, während eine Serie über den Verlauf um null pendelt und ein Schwenk voranschreitet. Einfache und HDR-Schwenks sind getrennte Arten, unterschieden über die Belichtungsspanne.
+
+Die Schwellenwerte wurden an 26 Panoramen und 8 Nicht-Panoramen kalibriert, die in einer Bibliothek mit 126.000 Fotos per Augenschein bestätigt wurden. Gemessene Genauigkeit: rund 96 %. Die Trefferquote ist bewusst unvollständig — vertikale Schwenks mit geringer Verschiebung und Panoramen mit wenigen Positionen liegen unter der Schwelle und werden übersehen. Ein übersehenes Panorama kostet nichts; fälschlich etikettierte Reportage kostet Vertrauen, und die dauerhafte manuelle Korrektur fängt beide Richtungen ab.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `enabled` | `true` | Panorama-Erkennung vollständig abschalten |
+| `max_gap_seconds` | `30.0` | Größter Abstand zwischen aufeinanderfolgenden Bildern eines Schwenks |
+| `min_frames` | `8` | Kürzeste Folge, die als Panorama gilt. Das stärkste Unterscheidungsmerkmal: jedes bestätigte Nicht-Panorama hatte 6 Bilder oder weniger |
+| `min_drift` | `0.43` | Gesamtschwenk in Bildbreiten, ab dem eine Folge zählt. Bestätigte Nicht-Panoramen liegen bei 0,36-0,40; das kleinste echte bei 0,46 |
+| `min_inliers` | `25` | Erforderliche RANSAC-Übereinstimmungen je Bildpaar |
+| `max_step` | `0.9` | Größter Einzelschritt in Bildbreiten — darüber ist es ein Szenenwechsel |
+| `back_tolerance` | `0.02` | Wie weit ein Schritt zurückgehen darf, bevor die Folge endet |
+| `max_ortho` | `0.15` | Seitliche Abweichung über den gesamten Schwenk |
+| `ortho_ratio` | `0.25` | Zusätzliches seitliches Budget anteilig zum Schwenk, damit lange Folgen nicht benachteiligt werden |
+| `step_ortho_abs` | `0.02` | Seitliche Bewegung in einem Schritt, bevor er als Neuausrichtung gilt |
+| `step_ortho_ratio` | `0.5` | Dieselbe Grenze als Anteil der Schrittgröße |
+| `hdr_min_span_stops` | `1.5` | Belichtungsspanne, ab der ein Schwenk ein HDR-Panorama ist. Einfache Schwenks umfassen 0,0-0,7 Blenden, HDR 2,0-4,4 |
+| `sift_features` | `400` | Merkmale je Vorschaubild. Das Korpus wird auch mit 250 erkannt; 400 lässt Spielraum |
+| `match_ratio` | `0.75` | Lowe-Verhältnis, das eine Übereinstimmung unterschreiten muss |
+| `workers` | `0` | Parallele Prozesse; `0` wählt nach Kernanzahl. Skaliert unterhalb der Kernanzahl — die Kosten dominieren zufällige Vorschaubild-Lesezugriffe |
+| `probe_stride` | `8` | Bilder zwischen den günstigen Stichproben, die gewöhnliche Serien aussortieren |
+| `probe_min_drift` | `0.05` | Bewegung, unterhalb derer eine Stichprobe die Folge als unbewegt einstuft |
+
+Diese Werte zu ändern bewirkt für sich genommen nichts — die Erkennung ist ein Stapellauf: Führen Sie `--detect-panoramas` erneut aus (oder die Schaltfläche im Viewer), damit die Änderung Galerie und Auswahl erreicht.
+
+---
+
 ## Burst Scoring
 
 Gewichte, die beim Serienbild-Culling verwendet werden, um eine zusammengesetzte Bewertung für die Auswahl der besten Aufnahme innerhalb jeder Serienbildgruppe zu berechnen. Die Gewichte sollten in der Summe 1,0 ergeben.
@@ -1227,6 +1272,7 @@ Anzeige und Verhalten der Web-Galerie.
       "hide_bursts": true,
       "hide_duplicates": true,
       "hide_brackets": true,
+      "hide_panoramas": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1310,6 +1356,7 @@ Anzeige und Verhalten der Web-Galerie.
 | `hide_bursts` | `true` | Standardmäßig nur das beste Serienbild anzeigen |
 | `hide_duplicates` | `true` | Nicht führende Duplikatfotos standardmäßig ausblenden |
 | `hide_brackets` | `true` | Standardmäßig nur die Basisbelichtung einer Belichtungsreihe anzeigen |
+| `hide_panoramas` | `true` | Standardmäßig nur ein repräsentatives Bild je Panorama zeigen |
 | `hide_details` | `true` | Fotodetails auf Karten standardmäßig ausblenden |
 | `tooltip_mode` | `"hover"` | Tooltip-Auslöser: `"hover"`, `"click"` oder `"off"`. Ersetzt das frühere boolesche `hide_tooltip`. |
 | `hide_rejected` | `true` | Abgelehnte Fotos standardmäßig ausblenden |

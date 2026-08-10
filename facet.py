@@ -601,6 +601,7 @@ LIBRARY_JOB_ARGS = (
     'detect_duplicates',
     'detect_junk',
     'detect_moments',
+    'detect_panoramas',
     'detect_sequences',
     'extract_faces_gpu_force',
     'extract_faces_gpu_incremental',
@@ -637,6 +638,34 @@ LIBRARY_JOB_ARGS = (
     'train_ranker',
     'translate_captions',
 )
+
+
+def detect_all_sequences(db_path, config_path):
+    """Label both kinds of deliberate multi-frame set, brackets first.
+
+    The order is load-bearing, not incidental. An HDR panorama's frames are
+    bracketed at every position, so the bracket pass claims them first and the
+    panorama pass supersedes that label with `hdr_panorama` -- the panorama is
+    the meaningful culling unit, and one `sequence_kind` column can hold only one
+    answer. Running the bracket pass alone would leave those frames labelled as
+    brackets until this ran again, so every caller goes through here.
+    """
+    from utils.sequence import detect_sequences
+    from utils.panorama import detect_panoramas
+
+    brackets = detect_sequences(db_path, config_path=config_path)
+    try:
+        panoramas = detect_panoramas(db_path, config_path=config_path)
+    except Exception:
+        # Contained here rather than at each caller. The bracket pass is
+        # arithmetic over stored columns and keeps failing loudly as it always
+        # has; the panorama pass is a CV pass over thumbnails plus a process
+        # pool, and it is new. Letting it fail a whole --recompute-average, or
+        # abort a scan before tagging and moments, would trade work that
+        # succeeded for a set-labelling step nothing downstream depends on.
+        logger.warning("Panorama detection failed (non-fatal)", exc_info=True)
+        panoramas = None
+    return brackets, panoramas
 
 
 class LibraryLockError(RuntimeError):
@@ -1392,8 +1421,7 @@ def _run_scan(args, resumed_run):
     # and move each group's lead onto its base exposure. Must follow the bursts
     # step: it is that grouping it corrects.
     emit_progress('sequences', force=True)
-    from utils.sequence import detect_sequences
-    detect_sequences(scorer.db_path, scorer.config.config_path)
+    detect_all_sequences(scorer.db_path, scorer.config.config_path)
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
     emit_progress('tagging', force=True)
@@ -1573,8 +1601,12 @@ Configuration:
     db_group.add_argument('--detect-duplicates', action='store_true',
                         help='Detect duplicate photos using pHash comparison')
     db_group.add_argument('--detect-sequences', action='store_true',
-                        help='Detect exposure-bracket sets from stored EXIF and centre each on '
-                             'its base exposure (whole library, no image decode)')
+                        help='Detect deliberate multi-frame sets: exposure brackets from stored '
+                             'EXIF, then panoramas from thumbnail geometry (whole library)')
+    db_group.add_argument('--detect-panoramas', action='store_true',
+                        help='Detect panorama sets by matching stored thumbnails geometrically. '
+                             'Runs the bracket pass first, as --detect-sequences does: an HDR '
+                             'panorama is bracketed at every position, so the two must stay in step')
     db_group.add_argument('--sweep-dedup-thresholds', nargs='?', const='', metavar='LABELS_JSON',
                         help='Evaluate near-dup cosine thresholds. With a labels JSON, prints a '
                              'precision/recall table; without, prints the candidate-cosine distribution.')
@@ -1999,10 +2031,9 @@ Configuration:
         exit()
 
     # Detect exposure brackets (arithmetic over stored EXIF - no GPU, no decode)
-    if args.detect_sequences:
-        from utils.sequence import detect_sequences
+    if args.detect_sequences or args.detect_panoramas:
         init_database(args.db)
-        detect_sequences(args.db, config_path=args.config)
+        detect_all_sequences(args.db, args.config)
         exit()
 
     # Evaluate near-dup cosine thresholds (read-only, no GPU)
@@ -2633,12 +2664,11 @@ Configuration:
 
     # Recompute burst detection
     if args.recompute_burst:
-        from utils.sequence import detect_sequences
         config = ScoringConfig(args.config)
         process_bursts(args.db, config.config_path)
         # Regrouping bursts resets every lead, which would silently undo the
         # bracket centring; re-derive it rather than leave it stale.
-        detect_sequences(args.db, config_path=config.config_path)
+        detect_all_sequences(args.db, config.config_path)
         logger.info("Burst detection complete.")
         exit()
 
@@ -3152,9 +3182,8 @@ Configuration:
                 conn.commit()
             logger.info("Persisted percentile snapshot for drift tracking")
         if not args.recompute_category:
-            from utils.sequence import detect_sequences
             process_bursts(scorer.db_path, scorer.config.config_path)
-            detect_sequences(scorer.db_path, config_path=scorer.config.config_path)
+            detect_all_sequences(scorer.db_path, scorer.config.config_path)
         logger.info("Recalculation done.")
         exit()
 

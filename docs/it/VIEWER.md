@@ -453,6 +453,18 @@ API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
 Vedi [Configurazione — Capsule](CONFIGURATION.md#capsules) per tutte le impostazioni.
 
+## Panorami e bracket di esposizione
+
+I fotogrammi di un panorama sono stati scattati per essere uniti e quelli di un bracket per essere fusi: né gli uni né gli altri sono scatti in competizione. Il rilevamento delle raffiche non coglie la differenza — arrivano a pochi secondi l'uno dall'altro, da una fotocamera, a una focale — e senza questo li raggruppa e ne nasconde tutti tranne uno, scelto con un criterio che per una panoramica non significa nulla.
+
+**Nella galleria.** «Migliore del bracket» e «Migliore del panorama» (attivi per impostazione predefinita) comprimono ogni serie dietro un fotogramma rappresentativo: l'esposizione di base per un bracket, il fotogramma centrale per un panorama. Quel fotogramma porta una piccola icona in basso, accanto alla stella e al cuore, che indica che cosa rappresenta — panoramica semplice, panoramica HDR o bracket — con un suggerimento. L'icona compare solo finché il filtro corrispondente nasconde davvero il resto della serie.
+
+**Nella selezione.** Il menu di granularità offre «Bracket di esposizione», «Panorami» e «Panorami HDR» come flussi propri, mai uniti in «Tutto». Ogni fotogramma parte contrassegnato da tenere, e confermare una serie non registra coppie di confronto: preferire un gradino di una scala di esposizione, o un fotogramma di una panoramica, descrive come è stata scattata la serie, non la fotografia.
+
+**Correggere una serie.** La geometria non può ricostruire l'intenzione — una panoramica deliberata e un panning che segue un soggetto in movimento sono la stessa misura — quindi un tasso di errore residuo intorno al 4 % è inerente. Una correzione è persistente e sopravvive a ogni rilevamento successivo. **Non esiste ancora un pulsante**: passa dall'API, `POST /api/culling-groups/override_sequence` e `/clear_sequence_override`.
+
+**Regolare il rilevamento.** La scheda Panorami, sotto Confronta, espone le soglie realmente calibrate su serie etichettate. Salvarle non cambia nulla di per sé: il rilevamento è una passata batch sull'intera libreria, quindi la scheda offre un rilancio accanto al salvataggio. Vedi [CONFIGURATION.md](CONFIGURATION.md).
+
 ## Vista cartelle
 
 Sfoglia la tua libreria di foto in base alla struttura delle directory. Accessibile tramite la rotta `/folders`.

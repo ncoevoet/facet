@@ -31,6 +31,7 @@ SCAN_STREAM_TOKEN_TTL_SECONDS = 60
 
 JOB_KIND_SCAN = 'scan'
 JOB_KIND_RECOMPUTE = 'recompute'
+JOB_KIND_PANORAMAS = 'panoramas'
 
 # Global scan state (only one scan or recompute job at a time)
 _scan_lock = threading.Lock()
@@ -372,8 +373,19 @@ def start_recompute(
     password-less install. Requiring a JSON body forces the preflight that the
     other write endpoints get for free.
     """
+    return _spawn_fixed_library_job(
+        body, '--recompute-average', JOB_KIND_RECOMPUTE,
+        'Recompute spawned; poll /api/scan/recompute_status to see it run')
+
+
+def _spawn_fixed_library_job(body, flag, kind, message):
+    """Spawn a library-rewriting facet.py job whose argv is fixed server-side.
+
+    Shared by every endpoint of this shape so the locking, the cross-process
+    conflict check and the state bookkeeping cannot drift apart between them.
+    """
     if not body.confirm:
-        raise HTTPException(status_code=400, detail="Recompute must be explicitly confirmed")
+        raise HTTPException(status_code=400, detail="This job must be explicitly confirmed")
 
     if not _scan_lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="A job is already running")
@@ -386,7 +398,7 @@ def start_recompute(
         if conflict:
             raise HTTPException(status_code=409, detail=conflict)
 
-        cmd = [sys.executable, FACET_SCRIPT, '--recompute-average', '--config', str(_CONFIG_PATH)]
+        cmd = [sys.executable, FACET_SCRIPT, flag, '--config', str(_CONFIG_PATH)]
 
         proc = subprocess.Popen(
             cmd,
@@ -398,7 +410,7 @@ def start_recompute(
         )
 
         _scan_state['running'] = True
-        _scan_state['kind'] = JOB_KIND_RECOMPUTE
+        _scan_state['kind'] = kind
         _scan_state['process'] = proc
         _scan_state['output_lines'] = deque(maxlen=500)
         _scan_state['started_at'] = time.time()
@@ -409,20 +421,40 @@ def start_recompute(
         reader = threading.Thread(target=_read_scan_output, args=(proc,), daemon=True)
         reader.start()
 
-        return {
-            'success': True,
-            'message': 'Recompute spawned; poll /api/scan/recompute_status to see it run',
-            'pid': proc.pid,
-        }
+        return {'success': True, 'message': message, 'pid': proc.pid}
 
     except HTTPException:
         raise
     except Exception:
-        logger.exception("Recompute failed to start")
+        logger.exception("Library job %s failed to start", flag)
         _scan_state['running'] = False
-        raise HTTPException(status_code=500, detail='Recompute failed to start')
+        raise HTTPException(status_code=500, detail='Job failed to start')
     finally:
         _scan_lock.release()
+
+@router.post("/detect_panoramas")
+def start_detect_panoramas(
+    body: RecomputeRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Spawn a whole-library panorama re-detection as a background subprocess.
+
+    Editing a threshold changes nothing on its own: detection is a batch pass
+    that writes ``sequence_kind``, not a live query, so the gallery and the
+    culling feed keep serving the labels the last run produced until this is
+    called. It exists so the settings surface can offer that re-run rather than
+    leaving the user to find a terminal.
+
+    Shares ``_scan_lock``/``_scan_state`` and the ``facet.LibraryLock`` conflict
+    check with the scan and recompute jobs, so no two library-rewriting jobs run
+    at once. Like ``/recompute`` the argv is fixed and entirely server-origin,
+    so it is edition-gated rather than superadmin-only, and ``confirm`` is
+    required for the same reason: a body-less POST never preflights.
+    """
+    return _spawn_fixed_library_job(
+        body, '--detect-panoramas', JOB_KIND_PANORAMAS,
+        'Panorama detection spawned; poll /api/scan/recompute_status to see it run')
+
 
 
 def _cross_process_job_holder():
@@ -469,12 +501,12 @@ def recompute_status(
             'exit_code': None,
         }
 
-    if _scan_state.get('kind') != JOB_KIND_RECOMPUTE:
+    if _scan_state.get('kind') not in (JOB_KIND_RECOMPUTE, JOB_KIND_PANORAMAS):
         return {'running': False, 'kind': None, 'progress': None, 'exit_code': None}
 
     return {
         'running': False,
-        'kind': JOB_KIND_RECOMPUTE,
+        'kind': _scan_state.get('kind'),
         'progress': _scan_state.get('progress'),
         'exit_code': _scan_state.get('exit_code'),
     }

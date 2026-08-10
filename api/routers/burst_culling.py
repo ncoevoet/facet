@@ -31,9 +31,17 @@ from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBod
 from comparison.comparison_manager import record_culling_pairs
 from processing.burst_score import burst_weights_from_config, compute_burst_score
 from utils.date_utils import parse_date
+from db.sequence_overrides import (
+    clear_sequence_overrides, existing_group_key, set_sequence_overrides,
+)
+from utils.panorama import HDR_PANORAMA, PANORAMA
 from utils.sequence import BRACKET as BRACKET_KIND
 
 logger = logging.getLogger(__name__)
+
+# Kinds whose frames were shot to be combined, so the set is kept whole and no
+# comparison pair is ever recorded from choosing within it.
+_KEEP_WHOLE_KINDS = (BRACKET_KIND, PANORAMA, HDR_PANORAMA)
 
 
 def _rejected_clause(user_id):
@@ -88,7 +96,7 @@ class SimilarSelectionBody(BaseModel):
 
 class CullingConfirmBody(BaseModel):
     group_id: int
-    type: Literal['burst', 'similar', 'scene', 'bracket']
+    type: Literal['burst', 'similar', 'scene', 'bracket', 'panorama', 'hdr_panorama']
     paths: list[str]
     keep_paths: list[str]
 
@@ -1063,7 +1071,8 @@ def _fetch_unreviewed_similar_groups(conn, threshold, vis_sql, vis_params, seed,
 
 
 _CULLING_SORTS = ('easiest', 'redundant', 'best', 'recent', 'needs_comparisons', 'chronological')
-_CULLING_GROUP_BY = ('all', 'burst', 'similar', 'scene', 'bracket')
+_CULLING_GROUP_BY = ('all', 'burst', 'similar', 'scene', 'bracket',
+                     'panorama', 'hdr_panorama')
 
 # Natural direction of each sort mode. Every mode ranks largest-first except
 # `chronological`, which walks the shoot forward in time -- the order a
@@ -1427,16 +1436,26 @@ async def api_culling_groups(
                 now = time.time()
                 if cached is not None and now - cached[0] < _CULLING_GROUPS_CACHE_TTL:
                     all_groups = cached[1]
-                elif group_by == 'bracket':
-                    # Bracket sets are their own granularity: one subject, several
-                    # exposures. Sorted like any other feed, but never merged into
-                    # `all` -- the whole point is to see them apart from the bursts
-                    # they would otherwise be read as.
-                    all_groups = _fetch_bracket_groups(
-                        conn, user_id, vis_sql, vis_params, album_id=album_id,
-                        date_from=date_from, date_to=date_to,
-                        exclude_rejected=exclude_rejected,
-                    )
+                elif group_by in _KEEP_WHOLE_KINDS:
+                    # Brackets and panoramas are each their own granularity, and
+                    # never merged into `all`: their frames were shot to be
+                    # combined, not to compete, so the whole point is to see them
+                    # apart from the bursts they would otherwise be read as. Plain
+                    # and HDR sweeps stay apart too -- they are culled with
+                    # different expectations. Everything after the fetch is shared,
+                    # so it is written once rather than per kind.
+                    if group_by == BRACKET_KIND:
+                        all_groups = _fetch_bracket_groups(
+                            conn, user_id, vis_sql, vis_params, album_id=album_id,
+                            date_from=date_from, date_to=date_to,
+                            exclude_rejected=exclude_rejected,
+                        )
+                    else:
+                        all_groups = _fetch_panorama_groups(
+                            conn, user_id, group_by, vis_sql, vis_params, album_id=album_id,
+                            date_from=date_from, date_to=date_to,
+                            exclude_rejected=exclude_rejected,
+                        )
                     cat_needs, default_need = ({}, 0)
                     if sort == 'needs_comparisons':
                         cat_needs, default_need = _category_comparison_needs(conn)
@@ -1570,12 +1589,12 @@ def keeper_hints(
         return hints
 
 
-def _confirm_bracket_group(body, user):
-    """Reject the frames a bracket set did not keep, recording no comparison pairs.
+def _confirm_sequence_group(body, user, kind):
+    """Reject the frames a sequence set did not keep, recording no comparison pairs.
 
     Bounded to the set the client named: only paths that really carry the
-    bracket kind are touched, so a malformed body cannot reject arbitrary
-    photos through this route.
+    named kind are touched, so a malformed body cannot reject arbitrary photos
+    through this route.
 
     Bounded to what the caller can see, too. ``set_photos_rejected`` already
     refuses to write outside that scope, but the counts are derived here, and
@@ -1585,27 +1604,27 @@ def _confirm_bracket_group(body, user):
     user_id = user.user_id if user else None
     paths = [p for p in (body.paths or []) if p]
     if not paths:
-        raise HTTPException(status_code=400, detail='paths is required for a bracket group')
+        raise HTTPException(status_code=400, detail=f'paths is required for a {kind} group')
     keep = set(body.keep_paths or [])
     with get_db() as conn:
         vis_sql, vis_params = get_visibility_clause(user_id)
         placeholders = ','.join('?' * len(paths))
-        bracketed = {
+        in_set = {
             r['path'] for r in conn.execute(
                 f"SELECT path FROM photos WHERE path IN ({placeholders}) "
                 f"AND sequence_kind = ? AND {vis_sql}",
-                paths + [BRACKET_KIND] + vis_params,
+                paths + [kind] + vis_params,
             ).fetchall()
         }
-        reject_paths = [p for p in bracketed if p not in keep]
+        reject_paths = [p for p in in_set if p not in keep]
         set_photos_rejected(conn, reject_paths, user_id)
         conn.commit()
     _invalidate_culling_groups_cache()
     return {
         'success': True,
-        'kept': len(bracketed) - len(reject_paths),
+        'kept': len(in_set) - len(reject_paths),
         'rejected': len(reject_paths),
-        'skipped': len(paths) - len(bracketed),
+        'skipped': len(paths) - len(in_set),
     }
 
 
@@ -1614,16 +1633,17 @@ async def confirm_culling_group(
     body: CullingConfirmBody,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Confirm culling selection for a burst, similar, scene, or bracket group.
+    """Confirm culling selection for a burst, similar, scene or sequence group.
 
     Delegates to the existing burst/similar/scene confirm logic based on `type`.
-    Brackets are handled here rather than delegated: they reject like the others
-    but record no comparison pairs, because preferring one rung of an exposure
-    ladder to another says something about the exposure, not about the picture,
-    and feeding that to the ranker would bias every later ranking.
+    The sequence kinds -- brackets and panoramas -- are handled here rather than
+    delegated: they reject like the others but record no comparison pairs.
+    Preferring one rung of an exposure ladder, or one frame of a pan, says
+    something about how the set was shot rather than about the picture, and
+    feeding that to the ranker would bias every later ranking.
     """
-    if body.type == 'bracket':
-        return _confirm_bracket_group(body, user)
+    if body.type in _KEEP_WHOLE_KINDS:
+        return _confirm_sequence_group(body, user, body.type)
     if body.type == 'burst':
         burst_body = BurstSelectionBody(
             burst_id=body.group_id,
@@ -1692,6 +1712,23 @@ def _auto_keep_split(photos, strictness, min_keep):
     return ranked[:keep_count], ranked[keep_count:]
 
 
+def _sequence_scope(user_id, album_id, date_from, date_to, exclude_rejected):
+    """Shared FROM/WHERE scaffolding for a sequence-kind culling feed.
+
+    Only the prologue is shared. The SELECT, the ORDER BY and the group dict
+    stay per kind: a bracket orders by exposure offset and represents itself
+    with its base frame, a panorama orders by capture and takes its middle one,
+    and only brackets have a redundancy filter -- parameterising all four would
+    cost more clarity than the duplication does.
+    """
+    from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
+    album_sql, album_params = album_filter_clause(album_id)
+    window_clauses, window_params = time_window_clauses(date_from, date_to)
+    scope_sql = f" AND {album_sql}" + "".join(f" AND {c}" for c in window_clauses)
+    reject_sql = f" AND {is_rejected_col} = 0" if exclude_rejected else ""
+    return from_clause, from_params, scope_sql, album_params + window_params, reject_sql
+
+
 def _bracket_keep_split(photos):
     """Split a bracket into (keep=[base exposure], reject=[the other rungs]).
 
@@ -1720,12 +1757,8 @@ def _fetch_bracket_groups(conn, user_id, vis_sql, vis_params, album_id=None,
     Sets where the base has never been measured (either clipping flag NULL) are
     never called redundant: unmeasured is not the same as unclipped.
     """
-    from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
-    album_sql, album_params = album_filter_clause(album_id)
-    window_clauses, window_params = time_window_clauses(date_from, date_to)
-    scope_sql = f" AND {album_sql}" + "".join(f" AND {c}" for c in window_clauses)
-    scope_params = album_params + window_params
-    reject_sql = f" AND {is_rejected_col} = 0" if exclude_rejected else ""
+    from_clause, from_params, scope_sql, scope_params, reject_sql = _sequence_scope(
+        user_id, album_id, date_from, date_to, exclude_rejected)
     redundant_sql = ""
     redundant_params = []
     if redundant_only:
@@ -1760,6 +1793,46 @@ def _fetch_bracket_groups(conn, user_id, vis_sql, vis_params, album_id=None,
             'count': len(photos),
             'category': _dominant_category(photos, photos[0]['path']),
             'sequence_kind': BRACKET_KIND,
+        })
+    return groups
+
+
+def _fetch_panorama_groups(conn, user_id, kind, vis_sql, vis_params, album_id=None,
+                           date_from=None, date_to=None, exclude_rejected=True):
+    """Panorama sets as culling groups, in capture order.
+
+    Ordered by capture rather than by score, because a sweep has no best frame:
+    every one of them covers a different part of the scene and the set only
+    means anything whole. The representative is the middle frame, the one most
+    likely to hold the subject -- a choice, unlike a bracket's base exposure,
+    which is a fact.
+    """
+    from_clause, from_params, scope_sql, scope_params, reject_sql = _sequence_scope(
+        user_id, album_id, date_from, date_to, exclude_rejected)
+    rows = conn.execute(
+        f"""SELECT {_culling_photo_columns('photos.path', burst=True, sequence_group=True)}
+            FROM {from_clause}
+            WHERE sequence_kind = ? AND {vis_sql}{reject_sql}{scope_sql}
+            ORDER BY sequence_group_id, photos.date_taken, photos.path""",
+        from_params + [kind] + vis_params + scope_params,
+    ).fetchall()
+
+    groups = []
+    for seq_id, members in groupby(rows, key=lambda r: r['sequence_group_id']):
+        photos = [dict(m) for m in members]
+        if len(photos) < 2:
+            continue
+        for photo in photos:
+            photo['burst_score'] = round(_compute_burst_score(photo), 2)
+        groups.append({
+            'group_id': seq_id,
+            'type': kind,
+            'reason': f'{len(photos)} frames',
+            'photos': photos,
+            'best_path': photos[len(photos) // 2]['path'],
+            'count': len(photos),
+            'category': _dominant_category(photos, photos[len(photos) // 2]['path']),
+            'sequence_kind': kind,
         })
     return groups
 
@@ -1819,16 +1892,20 @@ def _apply_auto_cull_group(conn, group, keep_paths, reject_paths, user_id, vis_s
     number of comparison pairs inserted.
     """
     gtype = group['type']
+    keep_whole = group.get('sequence_kind') in _KEEP_WHOLE_KINDS
     if gtype == 'burst':
         _mark_burst_reviewed(conn, keep_paths, reject_paths)
     elif gtype == 'similar':
         _mark_similarity_reviewed(conn, keep_paths + reject_paths, vis_sql, vis_params)
     set_photos_rejected(conn, reject_paths, user_id)
-    if gtype == 'bracket':
+    if gtype == 'bracket' or keep_whole:
         # Deliberately no comparison pairs. Dropping the flanking exposures of a
         # bracket says nothing about taste -- feeding "base beat -2 EV" to the
         # ranker would teach it that correctly exposed frames win, which is an
-        # artefact of the ladder and would bias every later ranking.
+        # artefact of the ladder and would bias every later ranking. The same
+        # holds for one frame of a pan, and the test is the set's kind rather
+        # than the feed it came through: a wholly-panorama burst group arrives
+        # typed 'burst' and would otherwise have written those pairs.
         return 0
     return record_culling_pairs(
         conn, keep_paths, reject_paths, user_id=user_id, group_type=gtype,
@@ -1950,6 +2027,13 @@ def auto_cull(
                     continue
                 if group['type'] == 'bracket':
                     keep, reject = _bracket_keep_split(photos)
+                elif group.get('sequence_kind') in _KEEP_WHOLE_KINDS:
+                    # Reached through the `all`/`burst` feed, where a sweep is
+                    # still burst-grouped and arrives typed 'burst'. Judging it
+                    # on `type` alone auto-rejected every frame but the
+                    # top-scored one -- destroying the set this feature exists
+                    # to protect, and from a granularity the user never chose.
+                    keep, reject = photos, []
                 else:
                     keep, reject = _auto_keep_split(
                         photos, strictness, min_keep,
@@ -2005,3 +2089,89 @@ def auto_cull(
             conn.rollback()
             logger.exception("Auto-cull failed")
             raise HTTPException(status_code=500, detail='Internal server error')
+
+
+def _visible_paths_or_404(conn, paths, user_id):
+    """The subset of ``paths`` the caller may see, or 404 when none of them are.
+
+    Resolved before any write, so a forged path list can never reach a photo
+    outside the caller's directory scope.
+    """
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    placeholders = ','.join('?' * len(paths))
+    visible = [
+        row['path'] for row in conn.execute(
+            f"SELECT path FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
+            paths + vis_params,
+        ).fetchall()
+    ]
+    if not visible:
+        raise HTTPException(status_code=404, detail='No such photos')
+    return visible
+
+
+class SequenceOverrideBody(BaseModel):
+    """A manual correction to one panorama set.
+
+    ``kind`` names what the frames really are; omitting it suppresses the set
+    ("this is not a panorama"). Keyed on the member paths the caller names,
+    never on a group id -- ids are renumbered from 1 on every detection run.
+    """
+    paths: list[str] = Field(min_length=1, max_length=500)
+    kind: Optional[Literal['panorama', 'hdr_panorama']] = None
+
+
+@router.post("/api/culling-groups/override_sequence")
+def override_sequence_group(
+    body: SequenceOverrideBody,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Record a sticky correction to what a set of frames is.
+
+    Geometry cannot recover intent: a deliberate sweep and a pan that follows a
+    moving subject are the same measurement, so a residual error rate is
+    inherent and this is how it is corrected. The correction lands in
+    ``photo_sequence_overrides`` rather than in ``photos``, because the detector
+    clears and rewrites ``photos.sequence_*`` at the start of every run and
+    would erase it.
+
+    Takes effect on the next detection run, which
+    ``POST /api/scan/detect_panoramas`` triggers.
+    """
+    user_id = user.user_id if user else None
+    paths = [p for p in body.paths if p]
+    if not paths:
+        raise HTTPException(status_code=400, detail='paths is required')
+
+    with get_db() as conn:
+        visible = _visible_paths_or_404(conn, paths, user_id)
+        # Reuse the key already on these frames when there is one. Minting a
+        # fresh `min(paths)` per call let two overlapping corrections land two
+        # kinds under a single key, and the set was then labelled by whichever
+        # row the database happened to return first.
+        group_key = existing_group_key(conn, visible) if body.kind else None
+        set_sequence_overrides(conn, visible, body.kind, group_key=group_key,
+                               created_by=user_id)
+        conn.commit()
+    _invalidate_culling_groups_cache()
+    return {'success': True, 'overridden': len(visible),
+            'skipped': len(paths) - len(visible), 'kind': body.kind}
+
+
+@router.post("/api/culling-groups/clear_sequence_override")
+def clear_sequence_override(
+    body: SequenceOverrideBody,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Drop manual corrections for the named frames, handing them back to the detector."""
+    user_id = user.user_id if user else None
+    paths = [p for p in body.paths if p]
+    if not paths:
+        raise HTTPException(status_code=400, detail='paths is required')
+
+    with get_db() as conn:
+        visible = _visible_paths_or_404(conn, paths, user_id)
+        cleared = clear_sequence_overrides(conn, visible)
+        conn.commit()
+    _invalidate_culling_groups_cache()
+    return {'success': True, 'cleared': cleared}

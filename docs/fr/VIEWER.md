@@ -453,6 +453,18 @@ API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
 
 Voir [Configuration — Capsules](CONFIGURATION.md#capsules) pour tous les réglages.
 
+## Panoramas et bracketings d'exposition
+
+Les images d'un panorama ont été prises pour être assemblées, celles d'un bracketing pour être fusionnées : ni les unes ni les autres ne sont des prises concurrentes. La détection de rafales ne voit pas la différence — les images arrivent à quelques secondes d'intervalle, d'un même boîtier, à une même focale — et sans cela elle les regroupe et n'en garde qu'une, choisie sur un critère qui ne veut rien dire pour un panoramique.
+
+**Dans la galerie.** « Meilleure du bracketing » et « Meilleure du panorama » (actives par défaut) replient chaque série derrière une image représentative : l'exposition de référence pour un bracketing, l'image médiane pour un panorama. Cette image porte une petite icône en bas, à côté de l'étoile et du cœur, indiquant ce qu'elle représente — balayage simple, balayage HDR ou bracketing — avec une infobulle. L'icône n'apparaît que tant que le filtre correspondant masque réellement le reste de la série.
+
+**Dans le tri.** Le menu de granularité propose « Bracketings d'exposition », « Panoramas » et « Panoramas HDR » comme flux distincts, jamais fondus dans « Tout ». Toutes les images sont marquées « à garder » d'emblée, et valider une série n'enregistre aucune paire de comparaison : préférer un barreau d'une échelle d'exposition, ou une image d'un panoramique, décrit la façon dont la série a été prise, pas la photographie.
+
+**Corriger une série.** La géométrie ne peut pas deviner l'intention — un balayage délibéré et un filé qui suit un sujet mobile donnent la même mesure — donc un taux d'erreur résiduel d'environ 4 % est inhérent. Une correction est persistante et survit à chaque détection ultérieure. **Il n'existe pas encore de bouton** : elle passe par l'API, `POST /api/culling-groups/override_sequence` et `/clear_sequence_override`.
+
+**Régler la détection.** L'onglet Panoramas, sous Comparer, expose les seuils réellement calibrés sur des séries étiquetées. Les enregistrer ne change rien en soi : la détection est une passe par lots sur toute la bibliothèque, l'onglet propose donc une relance à côté de l'enregistrement. Voir [CONFIGURATION.md](CONFIGURATION.md).
+
 ## Vue Dossiers
 
 Parcourez votre bibliothèque photo par structure de répertoires. Accessible via la route `/folders`.

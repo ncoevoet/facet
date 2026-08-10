@@ -124,7 +124,8 @@ These commands update specific metrics, derive new data (AI captions, GPS, embed
 | `python facet.py --recompute-eyes-expression` | Recompute eyes-open + expression scores from stored landmarks (CPU, fast) |
 | `python facet.py --recompute-face-signals` | Backfill per-face eyes-open + smile scores from the stored 106-point landmarks (CPU, fast; no model). Also runs as a step of `--upgrade-db` |
 | `python facet.py --recompute-burst` | Recompute burst detection groups |
-| `python facet.py --detect-sequences` | Detect exposure-bracket sets from stored EXIF (whole library, no image decode) and move each burst group's lead onto its base exposure. Runs at the end of every scan and as a step of `--upgrade-db` |
+| `python facet.py --detect-sequences` | Detect deliberate multi-frame sets: exposure brackets from stored EXIF, then panoramas from thumbnail geometry, and move each burst group's lead onto its base exposure. Runs at the end of every scan and as a step of `--upgrade-db` |
+| `python facet.py --detect-panoramas` | Detect panorama sets by matching stored thumbnails geometrically (whole library, CPU, no image decode). Runs the bracket pass first, as `--detect-sequences` does: an HDR panorama is bracketed at every position, so the two must stay in step |
 | `python facet.py --detect-duplicates` | Detect duplicate photos via pHash |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Evaluate near-dup cosine thresholds (precision/recall table with labels, else candidate-cosine distribution) |
 | `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Generate AI captions for photos using VLM. When `narrative_moments.caption_min_confidence > 0`, skips unlabelled / `other` / below-threshold photos (the same gate applies to the on-demand caption endpoint) |

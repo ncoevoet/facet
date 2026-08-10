@@ -1580,3 +1580,88 @@ def api_delete_weight_snapshot(
         raise HTTPException(status_code=404, detail='Snapshot not found')
 
     return {'success': True}
+
+
+@router.get("/api/config/panorama_detection")
+def api_get_panorama_detection():
+    """The panorama detector's effective settings, config over module defaults.
+
+    Open, like ``GET /api/config/scoring_contexts``: it describes how the
+    library was labelled, which the gallery already shows. Writing is
+    edition-gated.
+    """
+    from config import ScoringConfig
+    from utils.panorama import DEFAULTS
+
+    settings = dict(DEFAULTS)
+    settings.update(ScoringConfig(str(_CONFIG_PATH), validate=False)
+                    .get_panorama_detection_settings())
+    return {'settings': settings, 'defaults': dict(DEFAULTS)}
+
+
+class PanoramaDetectionBody(BaseModel):
+    """Every threshold is required: the PUT replaces the whole block.
+
+    Defaulting any of them would make a partial body silently destructive -- a
+    form that failed to send one field would reset it, and for a detector that
+    changes what the library contains on the next run.
+    """
+    model_config = {'extra': 'forbid'}
+
+    enabled: bool
+    max_gap_seconds: float
+    min_frames: int
+    min_inliers: int
+    min_drift: float
+    max_step: float
+    back_tolerance: float
+    max_ortho: float
+    ortho_ratio: float
+    step_ortho_abs: float
+    step_ortho_ratio: float
+    sift_features: int
+    match_ratio: float
+    probe_stride: int
+    probe_min_drift: float
+    workers: int
+    max_run_frames: int
+    hdr_min_span_stops: float
+
+
+@router.put("/api/config/panorama_detection")
+def api_update_panorama_detection(
+    body: PanoramaDetectionBody,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Rewrite the panorama detector's thresholds.
+
+    Every key is required and replaces the stored value wholesale — a partial
+    body is a 422 and an out-of-range value a 400 naming the key — because a
+    form that silently dropped a field would otherwise change what the library
+    contains on the next detection run.
+
+    Writing settings does not relabel anything: detection is a batch pass, so
+    the caller must follow this with ``POST /api/scan/detect_panoramas`` for the
+    change to reach the gallery or the culling feed.
+    """
+    from api.config_writes import update_panorama_detection
+
+    try:
+        backup_path = update_panorama_detection(str(_CONFIG_PATH), body.model_dump())
+        reload_config()
+
+        return {
+            'success': True,
+            'message': 'Panorama detection settings updated; re-run detection to apply them',
+            'backup': backup_path,
+            'requires_redetection': True,
+        }
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail='Config file not found')
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail='Invalid JSON in config')
+    except Exception:
+        logger.exception("Failed to update panorama detection settings")
+        raise HTTPException(status_code=500, detail='Failed to update settings')

@@ -700,7 +700,7 @@ class TestQueryBurstGroupsScope:
     _SCHEMA = """
         CREATE TABLE photos (
             path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
-            aesthetic REAL, tech_sharpness REAL, is_blink INTEGER, is_burst_lead INTEGER,
+            aesthetic REAL, tech_sharpness REAL, is_blink INTEGER, is_burst_lead INTEGER, is_sequence_lead INTEGER DEFAULT 0,
             burst_group_id INTEGER, burst_reviewed INTEGER, eyes_open_score REAL,
             expression_score REAL, face_count INTEGER, category TEXT,
             sequence_kind TEXT, sequence_ev_offset REAL

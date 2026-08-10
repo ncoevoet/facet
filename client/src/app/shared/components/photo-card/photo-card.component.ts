@@ -6,6 +6,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { Photo } from '../../models/photo.model';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
+import { SequenceKindIconPipe, SequenceKindLabelPipe } from '../../pipes/sequence-kind.pipe';
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { ScoreClassPipe, SortScorePipe } from '../../pipes/score.pipes';
@@ -34,6 +35,8 @@ interface AppConfig {
     MatMenuModule,
     TranslatePipe,
     ThumbnailUrlPipe,
+    SequenceKindIconPipe,
+    SequenceKindLabelPipe,
     PersonThumbnailUrlPipe,
     FixedPipe,
     ShutterSpeedPipe,
@@ -77,16 +80,58 @@ interface AppConfig {
           (load)="imageLoaded.set(true)"
         />
 
-        <!-- Persistent favorite heart (visible without hover, bottom-right, edition mode only) -->
+        <!-- Persistent badges.
+             Each one occupies the EXACT box of the hover-bar control it stands
+             for -- same w-7 h-7, same bottom-1, same left-1.5 / right-1.5 /
+             right-9 the bar's own px-1.5 py-1 and gap-0.5 produce. They were
+             6px off before, which read as the icons jumping every time the
+             pointer entered or left the tile. -->
         @if (isEditionMode() && photo().is_favorite) {
-          <div class="absolute bottom-1.5 right-3 z-20 pointer-events-none transition-opacity md:group-hover/img:opacity-0">
+          <div class="absolute bottom-1 right-1.5 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md">favorite</mat-icon>
           </div>
         }
 
-        <!-- Persistent rejected badge (shape + desaturation, not color alone) -->
+        <!-- A rating the user set is a standing fact about the photo, so it
+             should not take a hover to see it. Carries the same count bubble the
+             control does. -->
+        @if (isEditionMode() && photo().star_rating) {
+          <div class="absolute bottom-1 left-1.5 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0"
+               [attr.aria-label]="I18N.rating.rating_badge | translate:{ stars: photo().star_rating ?? 0 }">
+            <mat-icon class="!text-lg !w-[18px] !h-[18px] !leading-[18px] !text-yellow-400 drop-shadow-md"
+                      aria-hidden="true">star</mat-icon>
+            <span class="absolute -top-0.5 -right-0.5 min-w-3.5 h-3.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold flex items-center justify-center leading-none">{{ photo().star_rating }}</span>
+          </div>
+        }
+
+        <!-- This tile stands for a whole set, not one photo. With the hide
+             toggle on, the other frames are collapsed behind it and nothing
+             else on the tile would say so. Bottom row, just past the star's
+             slot: every persistent badge keeps a fixed position so they never
+             trade places as a photo is favourited or rated. Shown only while the
+             matching hide toggle is on: with it off every frame is on screen in
+             its own right, and badging all of them says nothing. It does NOT fade
+             under the hover bar the way the rating badges do -- those fade
+             because the bar replaces them with their own controls, whereas this
+             one states a fact the bar never repeats, so hiding it on hover just
+             loses information. Sits above the bar's gradient. -->
+        @if (collapsedSequenceKinds().includes(photo().sequence_kind ?? '')) {
+          <div class="absolute bottom-1 left-10 w-7 h-7 z-30 inline-flex items-center justify-center"
+               [matTooltip]="photo().sequence_kind | sequenceKindLabel | translate"
+               [attr.aria-label]="photo().sequence_kind | sequenceKindLabel | translate">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-sky-300 drop-shadow-md"
+                      aria-hidden="true">{{ photo().sequence_kind | sequenceKindIcon }}</mat-icon>
+          </div>
+        }
+
+        <!-- Persistent rejected badge (shape + desaturation, not color alone).
+             Sits where the hover bar's own reject button sits, right of the
+             heart. It does NOT yield to a star rating: the two occupy opposite
+             corners so they never collided, and hiding it left desaturation as
+             the only signal -- which conveys nothing to a screen reader and
+             nothing at all on an already-monochrome photo. -->
         @if (isEditionMode() && photo().is_rejected) {
-          <div class="absolute bottom-1.5 left-3 z-20 pointer-events-none flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 transition-opacity md:group-hover/img:opacity-0"
+          <div class="absolute bottom-1 right-9 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0"
                [attr.aria-label]="I18N.rating.rejected_badge | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md" aria-hidden="true">thumb_down</mat-icon>
           </div>
@@ -311,6 +356,13 @@ export class PhotoCardComponent {
 
   // Edition mode
   readonly isEditionMode = input(false);
+  /** Sequence kinds currently collapsed behind a representative frame.
+   *
+   *  Passed in rather than read from the gallery's filter state, so this shared
+   *  component keeps knowing nothing about a feature store. Empty means no hide
+   *  toggle is on, and the badge would then be claiming a set is collapsed when
+   *  every one of its frames is on screen. */
+  readonly collapsedSequenceKinds = input<readonly string[]>([]);
   readonly personFilterId = input('');
   /** 'hover' (default) | 'click' | 'off' | 'panel' — drives tooltip emission strategy.
    *

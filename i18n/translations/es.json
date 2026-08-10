@@ -564,7 +564,8 @@
     "remove_favorite": "Quitar de favoritas",
     "mark_rejected": "Marcar como rechazada",
     "unmark_rejected": "Quitar marca de rechazada",
-    "rejected_badge": "Rechazada"
+    "rejected_badge": "Rechazada",
+    "rating_badge": "Valoración {stars}"
   },
   "similar": {
     "title": "Fotos similares",
@@ -1081,6 +1082,7 @@
     "hide_bursts": "Mejor de ráfaga",
     "hide_duplicates": "Ocultar duplicados",
     "hide_brackets": "Mejor del horquillado",
+    "hide_panoramas": "Mejor del panorama",
     "reset_filters": "Restablecer filtros",
     "scroll_to_top": "Volver arriba",
     "photo_grid": "Cuadrícula de fotos",
@@ -1972,6 +1974,8 @@
       "similar": "Similares",
       "scenes": "Escenas",
       "brackets": "Horquillados de exposición",
+      "panoramas": "Panoramas",
+      "hdr_panoramas": "Panoramas HDR",
       "tooltip": "Elige qué tipo de grupos revisar"
     },
     "darkroom_tooltip": "Abrir el cuarto oscuro a pantalla completa para comparar y elegir",
@@ -1984,6 +1988,11 @@
     "bracket": {
       "label": "Horquillado de exposición",
       "hint": "Un mismo sujeto con varias exposiciones: conserva la serie, no elijas una"
+    },
+    "panorama": {
+      "label": "Panorama",
+      "hdr_label": "Panorama HDR",
+      "hint": "Fotogramas de un barrido — conserva el conjunto, no hay una mejor toma"
     }
   },
   "scenes": {
@@ -2372,5 +2381,27 @@
   "updates": {
     "available": "Facet {version} ya está disponible",
     "view": "Notas de la versión"
+  },
+  "panorama": {
+    "settings": {
+      "tab_label": "Panorámicas",
+      "intro": "Cómo se detectan las panorámicas. Calibrado con 26 panorámicas y 8 no panorámicas confirmadas; los valores por defecto están medidos, no supuestos. Guardar no reetiqueta nada por sí solo — la detección es una pasada por lotes sobre toda la biblioteca, así que vuelve a ejecutarla para que el cambio llegue a la galería.",
+      "enabled": "Detectar panorámicas",
+      "min_frames": "Fotogramas mínimos",
+      "min_frames_hint": "Toda no panorámica confirmada tenía 6 fotogramas o menos",
+      "min_drift": "Barrido mínimo (anchos de encuadre)",
+      "min_drift_hint": "Las no panorámicas confirmadas se agrupan en 0,36-0,40; la panorámica real más pequeña es 0,46",
+      "max_gap_seconds": "Intervalo máximo entre fotogramas (segundos)",
+      "max_gap_hint": "Un barrido deliberado es más lento que una ráfaga",
+      "hdr_span": "Umbral HDR (pasos)",
+      "hdr_span_hint": "Los barridos simples abarcan 0,0-0,7 pasos, los HDR 2,0-4,4",
+      "save": "Guardar",
+      "redetect": "Volver a ejecutar la detección",
+      "redetect_tooltip": "Reetiqueta toda la biblioteca; tarda varios minutos",
+      "saved": "Ajustes guardados: vuelve a ejecutar la detección para aplicarlos",
+      "save_failed": "No se pudieron guardar los ajustes",
+      "redetect_started": "Detección iniciada; se ejecuta en segundo plano",
+      "redetect_failed": "No se pudo iniciar la detección"
+    }
   }
 }

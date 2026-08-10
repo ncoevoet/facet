@@ -452,6 +452,18 @@ API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
 Veja [Configuração — Cápsulas](CONFIGURATION.md#capsules) para todas as configurações.
 
+## Panorâmicas e brackets de exposição
+
+Os fotogramas de uma panorâmica foram captados para serem unidos e os de um bracket para serem fundidos: nenhum deles é um conjunto de tomadas rivais. A deteção de rajadas não distingue a diferença — chegam com segundos de intervalo, de uma câmara, a uma distância focal — e sem isto agrupa-os e esconde todos menos um, escolhido por um critério que nada significa para uma varredura.
+
+**Na galeria.** «Melhor do bracket» e «Melhor da panorâmica» (ativos por predefinição) recolhem cada série atrás de um fotograma representativo: a exposição base num bracket, o fotograma central numa panorâmica. Esse fotograma leva um pequeno ícone em baixo, junto à estrela e ao coração, que indica o que representa — varredura simples, varredura HDR ou bracket — com uma dica. O ícone só aparece enquanto o filtro correspondente estiver realmente a esconder o resto da série.
+
+**Na seleção.** O menu de granularidade oferece «Brackets de exposição», «Panorâmicas» e «Panorâmicas HDR» como fluxos próprios, nunca fundidos em «Tudo». Todos os fotogramas começam marcados para manter, e confirmar uma série não regista pares de comparação: preferir um degrau de uma escala de exposição, ou um fotograma de uma varredura, descreve como a série foi captada, não a fotografia.
+
+**Corrigir uma série.** A geometria não consegue recuperar a intenção — uma varredura deliberada e um varrimento que segue um sujeito em movimento são a mesma medição — pelo que uma taxa de erro residual de cerca de 4 % é inerente. Uma correção é persistente e sobrevive a cada deteção posterior. **Ainda não existe um botão**: faz-se pela API, `POST /api/culling-groups/override_sequence` e `/clear_sequence_override`.
+
+**Afinar a deteção.** O separador Panorâmicas, em Comparar, expõe os limiares realmente calibrados com séries etiquetadas. Guardá-los não muda nada por si só: a deteção é uma passagem em lote sobre toda a biblioteca, por isso o separador oferece uma nova execução ao lado do guardar. Ver [CONFIGURATION.md](CONFIGURATION.md).
+
 ## Visão de Pastas
 
 Navegue pela sua biblioteca de fotos pela estrutura de diretórios. Acesse pela rota `/folders`.

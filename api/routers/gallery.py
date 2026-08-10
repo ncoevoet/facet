@@ -313,8 +313,10 @@ def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_i
     hide_bursts_val = hbr if hbr in ('1', 'true') else params.get('burst_only', '')
     hide_duplicates_val = params.get('hide_duplicates', '')
     hide_brackets_val = params.get('hide_brackets', '')
+    hide_panoramas_val = params.get('hide_panoramas', '')
     where_clauses.extend(build_hide_clauses(
-        hide_blinks_val, hide_bursts_val, hide_duplicates_val, hide_brackets_val))
+        hide_blinks_val, hide_bursts_val, hide_duplicates_val, hide_brackets_val,
+        hide_panoramas_val))
 
 
 def _apply_preference_filters(where_clauses, sql_params, params, user_id):
@@ -683,11 +685,13 @@ async def api_photos(
 
             any_hide_active = any(
                 params.get(k) in ('1', 'true')
-                for k in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets', 'no_blink', 'burst_only')
+                for k in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets',
+                          'hide_panoramas', 'no_blink', 'burst_only')
             )
             if any_hide_active:
                 params_no_hide = dict(params)
-                for k in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets', 'no_blink', 'burst_only'):
+                for k in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets',
+                          'hide_panoramas', 'no_blink', 'burst_only'):
                     params_no_hide[k] = ''
                 where_no_hide, params_no_hide_sql = _build_gallery_where(
                     params_no_hide, conn, user_id=user_id,
@@ -705,10 +709,11 @@ async def api_photos(
                     'bursts': agg['bursts'],
                     'duplicates': agg['duplicates'],
                     'brackets': agg['brackets'],
+                    'panoramas': agg['panoramas'],
                 }
             else:
                 hidden_summary = {'total': 0, 'blinks': 0, 'bursts': 0, 'duplicates': 0,
-                                  'brackets': 0}
+                                  'brackets': 0, 'panoramas': 0}
 
             # cache hit, no PRAGMA — same select-cols logic as other endpoints
             select_cols = build_photo_select_columns(conn=None, user_id=user_id)

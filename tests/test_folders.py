@@ -21,7 +21,7 @@ _FOLDERS_SCHEMA = """
         path TEXT PRIMARY KEY,
         aggregate REAL,
         is_blink INTEGER DEFAULT 0,
-        is_burst_lead INTEGER DEFAULT 1,
+        is_burst_lead INTEGER DEFAULT 1, is_sequence_lead INTEGER DEFAULT 0,
         is_duplicate_lead INTEGER DEFAULT 1,
         is_rejected INTEGER DEFAULT 0
     );

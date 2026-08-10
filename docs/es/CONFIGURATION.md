@@ -820,6 +820,51 @@ agrupar las ráfagas.
 
 ---
 
+## Detección de panorámicas
+
+Los fotogramas de una panorámica se tomaron para unirse, no para competir: la detección de ráfagas los lee como tomas rivales y oculta todos menos uno. Esta pasada los identifica con pruebas geométricas — puntos SIFT y una homografía RANSAC entre fotogramas consecutivos, medidos sobre las miniaturas de 640px ya almacenadas. Sin descodificar el original, sin modelo, sin dependencias nuevas.
+
+Lo que separa un barrido de una ráfaga es el desplazamiento **acumulado**, no el de cada par: una panorámica se dispara con cerca del 90 % de solapamiento, así que un paso mueve solo el 5-18 % del encuadre, mientras que a lo largo de la serie una ráfaga oscila en torno a cero y un barrido avanza. Las panorámicas simples y HDR son tipos distintos, separados por la amplitud de exposición.
+
+Los umbrales se calibraron con 26 panorámicas y 8 no panorámicas confirmadas a ojo en una biblioteca de 126 000 fotos. Precisión medida: en torno al 96 %. La exhaustividad es deliberadamente incompleta — los barridos verticales de poco desplazamiento y las panorámicas de pocas posiciones quedan bajo el umbral y se pierden. Perder una panorámica no cuesta nada; etiquetar mal un reportaje cuesta confianza, y la corrección manual persistente cubre ambos sentidos.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5
+  }
+}
+```
+
+| Ajuste | Predet. | Descripción |
+|---------|---------|-------------|
+| `enabled` | `true` | Desactivar por completo la detección de panorámicas |
+| `max_gap_seconds` | `30.0` | Intervalo máximo entre fotogramas consecutivos de un barrido |
+| `min_frames` | `8` | Serie más corta considerada panorámica. El discriminante más fuerte: toda no panorámica confirmada tenía 6 fotogramas o menos |
+| `min_drift` | `0.43` | Barrido total, en anchos de encuadre, para que una serie cuente. Las no panorámicas confirmadas se agrupan en 0,36-0,40; la real más pequeña es 0,46 |
+| `min_inliers` | `25` | Coincidencias RANSAC necesarias para validar un par |
+| `max_step` | `0.9` | Mayor paso aislado, en anchos de encuadre — más allá es un corte de escena |
+| `back_tolerance` | `0.02` | Retroceso tolerado en un paso antes de terminar la serie |
+| `max_ortho` | `0.15` | Desvío lateral tolerado en todo el barrido |
+| `ortho_ratio` | `0.25` | Margen lateral adicional proporcional al barrido, para no penalizar series largas |
+| `step_ortho_abs` | `0.02` | Movimiento lateral tolerado en un solo paso antes de leerse como reencuadre |
+| `step_ortho_ratio` | `0.5` | El mismo límite como fracción del propio paso |
+| `hdr_min_span_stops` | `1.5` | Amplitud de exposición por encima de la cual un barrido es una panorámica HDR. Los simples abarcan 0,0-0,7 pasos, los HDR 2,0-4,4 |
+| `sift_features` | `400` | Rasgos por miniatura. El corpus se sigue detectando con 250; 400 deja margen |
+| `match_ratio` | `0.75` | Razón de Lowe que una coincidencia debe superar para conservarse |
+| `workers` | `0` | Procesos paralelos; `0` elige según los núcleos. Escala por debajo del número de núcleos: domina la lectura aleatoria de miniaturas |
+| `probe_stride` | `8` | Fotogramas entre los sondeos baratos que descartan ráfagas corrientes |
+| `probe_min_drift` | `0.05` | Movimiento por debajo del cual un sondeo declara inmóvil la serie |
+
+Cambiar estos valores no hace nada por sí solo — la detección es una pasada por lotes: vuelve a ejecutar `--detect-panoramas` (o la acción de la visor) para que el cambio llegue a la galería y al descarte.
+
+---
+
 ## Puntuación de ráfagas
 
 Pesos usados por el descarte de ráfagas para calcular una puntuación compuesta que selecciona la mejor toma dentro de cada grupo de ráfaga. Los pesos deben sumar 1,0.
@@ -1225,6 +1270,7 @@ Visualización y comportamiento de la galería web.
       "hide_bursts": true,
       "hide_duplicates": true,
       "hide_brackets": true,
+      "hide_panoramas": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1308,6 +1354,7 @@ Visualización y comportamiento de la galería web.
 | `hide_bursts` | `true` | Mostrar solo la mejor de la ráfaga por defecto |
 | `hide_duplicates` | `true` | Ocultar las fotos duplicadas no principales por defecto |
 | `hide_brackets` | `true` | Mostrar solo la exposición base de cada horquillado por defecto |
+| `hide_panoramas` | `true` | Mostrar solo un fotograma representativo por panorámica por defecto |
 | `hide_details` | `true` | Ocultar los detalles de la foto en las tarjetas por defecto |
 | `tooltip_mode` | `"hover"` | Activación del tooltip: `"hover"`, `"click"` u `"off"`. Sustituye al booleano `hide_tooltip` anterior. |
 | `hide_rejected` | `true` | Ocultar las fotos rechazadas por defecto |

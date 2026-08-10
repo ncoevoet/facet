@@ -821,6 +821,51 @@ agrupamento das rajadas.
 
 ---
 
+## Deteção de panorâmicas
+
+Os fotogramas de uma panorâmica foram captados para serem unidos, não para competir: a deteção de rajadas lê-os como tomadas rivais e esconde todos menos um. Esta passagem identifica-os com provas geométricas — pontos SIFT e uma homografia RANSAC entre fotogramas consecutivos, medidos sobre as miniaturas de 640px já armazenadas. Sem descodificar o original, sem modelo, sem dependências novas.
+
+O que separa uma varredura de uma rajada é o deslocamento **acumulado**, não o de cada par: uma panorâmica é captada com cerca de 90 % de sobreposição, pelo que um passo desloca apenas 5-18 % do enquadramento, enquanto ao longo da série uma rajada oscila em torno de zero e uma varredura avança. Panorâmicas simples e HDR são tipos distintos, separados pela amplitude de exposição.
+
+Os limiares foram calibrados com 26 panorâmicas e 8 não-panorâmicas confirmadas a olho numa biblioteca de 126 000 fotos. Precisão medida: cerca de 96 %. A abrangência é deliberadamente incompleta — varreduras verticais de baixo deslocamento e panorâmicas com poucas posições ficam abaixo do limiar e são perdidas. Perder uma panorâmica não custa nada; etiquetar mal uma reportagem custa confiança, e a correção manual persistente cobre ambos os sentidos.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5
+  }
+}
+```
+
+| Definição | Predefinição | Descrição |
+|---------|---------|-------------|
+| `enabled` | `true` | Desativar completamente a deteção de panorâmicas |
+| `max_gap_seconds` | `30.0` | Intervalo máximo entre fotogramas consecutivos de uma varredura |
+| `min_frames` | `8` | Série mais curta considerada panorâmica. O discriminante mais forte: todas as não-panorâmicas confirmadas tinham 6 fotogramas ou menos |
+| `min_drift` | `0.43` | Varredura total, em larguras de enquadramento, para a série contar. As não-panorâmicas confirmadas agrupam-se em 0,36-0,40; a real mais pequena é 0,46 |
+| `min_inliers` | `25` | Correspondências RANSAC necessárias para validar um par |
+| `max_step` | `0.9` | Maior passo isolado, em larguras de enquadramento — acima disso é um corte de cena |
+| `back_tolerance` | `0.02` | Recuo tolerado num passo antes de a série terminar |
+| `max_ortho` | `0.15` | Desvio lateral tolerado em toda a varredura |
+| `ortho_ratio` | `0.25` | Margem lateral adicional proporcional à varredura, para não penalizar séries longas |
+| `step_ortho_abs` | `0.02` | Movimento lateral tolerado num único passo antes de ser lido como reenquadramento |
+| `step_ortho_ratio` | `0.5` | O mesmo limite como fração do próprio passo |
+| `hdr_min_span_stops` | `1.5` | Amplitude de exposição acima da qual uma varredura é uma panorâmica HDR. As simples abrangem 0,0-0,7 pontos, as HDR 2,0-4,4 |
+| `sift_features` | `400` | Características por miniatura. O corpus continua a ser detetado a 250; 400 deixa margem |
+| `match_ratio` | `0.75` | Razão de Lowe que uma correspondência tem de superar para ser mantida |
+| `workers` | `0` | Processos paralelos; `0` escolhe pelo número de núcleos. Escala abaixo do número de núcleos: domina a leitura aleatória de miniaturas |
+| `probe_stride` | `8` | Fotogramas entre as sondagens baratas que descartam rajadas comuns |
+| `probe_min_drift` | `0.05` | Movimento abaixo do qual uma sondagem declara a série imóvel |
+
+Alterar estes valores não faz nada por si só — a deteção é uma passagem em lote: volte a executar `--detect-panoramas` (ou a ação no visualizador) para que a alteração chegue à galeria e à seleção.
+
+---
+
 ## Burst Scoring
 
 Pesos usados pela seleção de rajadas para calcular uma pontuação composta na escolha do melhor disparo dentro de cada grupo de rajada. Os pesos devem somar 1,0.
@@ -1226,6 +1271,7 @@ Exibição e comportamento da galeria web.
       "hide_bursts": true,
       "hide_duplicates": true,
       "hide_brackets": true,
+      "hide_panoramas": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1309,6 +1355,7 @@ Exibição e comportamento da galeria web.
 | `hide_bursts` | `true` | Mostra apenas a melhor da rajada por padrão |
 | `hide_duplicates` | `true` | Oculta fotos duplicadas que não sejam a principal por padrão |
 | `hide_brackets` | `true` | Mostra apenas a exposição base de cada bracketing por padrão |
+| `hide_panoramas` | `true` | Mostrar por predefinição apenas um fotograma representativo por panorâmica |
 | `hide_details` | `true` | Oculta os detalhes da foto nos cartões por padrão |
 | `tooltip_mode` | `"hover"` | Gatilho do tooltip: `"hover"`, `"click"` ou `"off"`. Substitui o antigo booleano `hide_tooltip`. |
 | `hide_rejected` | `true` | Oculta fotos rejeitadas por padrão |

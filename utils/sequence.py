@@ -21,9 +21,12 @@ long enough, its EV steps all point the same way, they span a real difference,
 and they are evenly sized: a hand-held sequence through changing light drifts,
 it does not step by a clean 1 or 2 stops each time.
 
-Panorama detection is deliberately absent. Its members share one exposure and
-differ by a pan, which is far harder to separate from an ordinary run of
-near-duplicates; it wants its own evidence rather than a guess bolted onto this.
+Panoramas are detected separately, in `utils.panorama`, on geometric evidence
+rather than on exposure. Both passes share the `sequence_*` columns but own
+disjoint sets of rows, each clearing and rewriting only its own
+`sequence_kind`, and each numbering its own sets from 1 -- so the identity of a
+set is the pair `(sequence_kind, sequence_group_id)`, and every reader must
+filter by kind before grouping by id.
 """
 
 import logging
@@ -287,10 +290,16 @@ def detect_sequences(db_path, config_path=None):
         runs = _find_bracket_runs(photos, settings)
 
         previously_promoted = _wholly_bracketed_groups(conn)
+        # Scoped to this pass's own kind. Clearing every labelled row would wipe
+        # the panorama pass's labels on each bracket run, and vice versa: the two
+        # passes share these columns but own disjoint sets of rows.
         conn.execute(
             "UPDATE photos SET sequence_group_id = NULL, sequence_kind = NULL, "
-            "sequence_ev_offset = NULL WHERE sequence_group_id IS NOT NULL"
+            "sequence_ev_offset = NULL WHERE sequence_kind = ?",
+            (BRACKET,),
         )
+        # Numbered from 1 within this kind; see the module docstring on why the
+        # set identity is (sequence_kind, sequence_group_id) and not the id alone.
         for group_id, run in enumerate(runs, start=1):
             base_ev = _base_frame(run)['ev']
             conn.executemany(

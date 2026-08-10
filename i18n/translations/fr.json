@@ -564,7 +564,8 @@
     "remove_favorite": "Retirer des favoris",
     "mark_rejected": "Marquer comme rejeté",
     "unmark_rejected": "Retirer la marque rejeté",
-    "rejected_badge": "Rejetée"
+    "rejected_badge": "Rejetée",
+    "rating_badge": "Note : {stars}"
   },
   "similar": {
     "title": "Photos similaires",
@@ -1081,6 +1082,7 @@
     "hide_bursts": "Meilleure de la rafale",
     "hide_duplicates": "Masquer doublons",
     "hide_brackets": "Meilleure du bracketing",
+    "hide_panoramas": "Meilleure du panorama",
     "reset_filters": "Réinitialiser",
     "scroll_to_top": "Remonter en haut",
     "photo_grid": "Grille de photos",
@@ -1972,6 +1974,8 @@
       "similar": "Similaires",
       "scenes": "Scènes",
       "brackets": "Bracketings d'exposition",
+      "panoramas": "Panoramas",
+      "hdr_panoramas": "Panoramas HDR",
       "tooltip": "Choisissez le type de groupes à passer en revue"
     },
     "darkroom_tooltip": "Ouvrir le studio plein écran pour comparer les images et choisir",
@@ -1984,6 +1988,11 @@
     "bracket": {
       "label": "Bracketing d'exposition",
       "hint": "Un même sujet à plusieurs expositions : gardez la série, ne choisissez pas"
+    },
+    "panorama": {
+      "label": "Panorama",
+      "hdr_label": "Panorama HDR",
+      "hint": "Images d'un même balayage — gardez la série, aucune image n'est la meilleure"
     }
   },
   "scenes": {
@@ -2372,5 +2381,27 @@
   "updates": {
     "available": "Facet {version} est disponible",
     "view": "Notes de version"
+  },
+  "panorama": {
+    "settings": {
+      "tab_label": "Panoramas",
+      "intro": "Comment les panoramas sont détectés. Calibré sur 26 panoramas et 8 non-panoramas confirmés ; les valeurs par défaut sont mesurées, pas devinées. Enregistrer ne réétiquette rien en soi — la détection est une passe par lots sur toute la bibliothèque : relancez-la pour que le changement atteigne la galerie.",
+      "enabled": "Détecter les panoramas",
+      "min_frames": "Nombre minimal d’images",
+      "min_frames_hint": "Tous les non-panoramas confirmés comptaient 6 images ou moins",
+      "min_drift": "Balayage minimal (largeurs de cadre)",
+      "min_drift_hint": "Les non-panoramas confirmés se groupent entre 0,36 et 0,40 ; le plus petit vrai panorama est à 0,46",
+      "max_gap_seconds": "Écart maximal entre images (secondes)",
+      "max_gap_hint": "Un panoramique délibéré est plus lent qu’une rafale",
+      "hdr_span": "Seuil HDR (IL)",
+      "hdr_span_hint": "Les balayages simples couvrent 0,0 à 0,7 IL, les HDR 2,0 à 4,4",
+      "save": "Enregistrer",
+      "redetect": "Relancer la détection",
+      "redetect_tooltip": "Réétiquette toute la bibliothèque ; prend plusieurs minutes",
+      "saved": "Réglages enregistrés — relancez la détection pour les appliquer",
+      "save_failed": "Impossible d'enregistrer les réglages",
+      "redetect_started": "Détection lancée ; elle s'exécute en arrière-plan",
+      "redetect_failed": "Impossible de lancer la détection"
+    }
   }
 }

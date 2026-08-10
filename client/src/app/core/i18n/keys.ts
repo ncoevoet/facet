@@ -569,6 +569,7 @@ export const I18N = {
     mark_rejected: "rating.mark_rejected",
     unmark_rejected: "rating.unmark_rejected",
     rejected_badge: "rating.rejected_badge",
+    rating_badge: "rating.rating_badge",
   },
   similar: {
     title: "similar.title",
@@ -1085,6 +1086,7 @@ export const I18N = {
     hide_bursts: "gallery.hide_bursts",
     hide_duplicates: "gallery.hide_duplicates",
     hide_brackets: "gallery.hide_brackets",
+    hide_panoramas: "gallery.hide_panoramas",
     reset_filters: "gallery.reset_filters",
     scroll_to_top: "gallery.scroll_to_top",
     photo_grid: "gallery.photo_grid",
@@ -1974,6 +1976,8 @@ export const I18N = {
       similar: "culling.group_by.similar",
       scenes: "culling.group_by.scenes",
       brackets: "culling.group_by.brackets",
+      panoramas: "culling.group_by.panoramas",
+      hdr_panoramas: "culling.group_by.hdr_panoramas",
       tooltip: "culling.group_by.tooltip",
     },
     darkroom_tooltip: "culling.darkroom_tooltip",
@@ -1986,6 +1990,11 @@ export const I18N = {
     bracket: {
       label: "culling.bracket.label",
       hint: "culling.bracket.hint",
+    },
+    panorama: {
+      label: "culling.panorama.label",
+      hdr_label: "culling.panorama.hdr_label",
+      hint: "culling.panorama.hint",
     },
   },
   scenes: {
@@ -2374,5 +2383,27 @@ export const I18N = {
   updates: {
     available: "updates.available",
     view: "updates.view",
+  },
+  panorama: {
+    settings: {
+      tab_label: "panorama.settings.tab_label",
+      intro: "panorama.settings.intro",
+      enabled: "panorama.settings.enabled",
+      min_frames: "panorama.settings.min_frames",
+      min_frames_hint: "panorama.settings.min_frames_hint",
+      min_drift: "panorama.settings.min_drift",
+      min_drift_hint: "panorama.settings.min_drift_hint",
+      max_gap_seconds: "panorama.settings.max_gap_seconds",
+      max_gap_hint: "panorama.settings.max_gap_hint",
+      hdr_span: "panorama.settings.hdr_span",
+      hdr_span_hint: "panorama.settings.hdr_span_hint",
+      save: "panorama.settings.save",
+      redetect: "panorama.settings.redetect",
+      redetect_tooltip: "panorama.settings.redetect_tooltip",
+      saved: "panorama.settings.saved",
+      save_failed: "panorama.settings.save_failed",
+      redetect_started: "panorama.settings.redetect_started",
+      redetect_failed: "panorama.settings.redetect_failed",
+    },
   },
 } as const;

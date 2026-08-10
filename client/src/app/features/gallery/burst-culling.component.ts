@@ -83,8 +83,12 @@ function readStoredFaceMin(key: string): number {
   const v = Number(localStorage.getItem(key));
   return Number.isFinite(v) && v >= 0 && v <= 10 ? v : 0;
 }
-const GROUP_BY_VALUES = ['all', 'burst', 'similar', 'scene', 'bracket'] as const;
+const GROUP_BY_VALUES = ['all', 'burst', 'similar', 'scene', 'bracket',
+                         'panorama', 'hdr_panorama'] as const;
 type GroupBy = typeof GROUP_BY_VALUES[number];
+// Sets whose frames were shot to be combined: kept whole by default, and
+// never a source of comparison pairs.
+const KEEP_WHOLE_KINDS: readonly string[] = ['bracket', 'panorama', 'hdr_panorama'];
 const SORT_VALUES = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons', 'chronological'];
 
 function readStoredGroupBy(): GroupBy {
@@ -255,6 +259,14 @@ interface ShortcutRow {
             <button mat-menu-item (click)="onGroupByChange('bracket')">
               <mat-icon>{{ 'bracket' | cullGroupIcon }}</mat-icon>
               <span [class.font-bold]="groupBy() === 'bracket'">{{ I18N.culling.group_by.brackets | translate }}</span>
+            </button>
+            <button mat-menu-item (click)="onGroupByChange('panorama')">
+              <mat-icon>{{ 'panorama' | cullGroupIcon }}</mat-icon>
+              <span [class.font-bold]="groupBy() === 'panorama'">{{ I18N.culling.group_by.panoramas | translate }}</span>
+            </button>
+            <button mat-menu-item (click)="onGroupByChange('hdr_panorama')">
+              <mat-icon>{{ 'hdr_panorama' | cullGroupIcon }}</mat-icon>
+              <span [class.font-bold]="groupBy() === 'hdr_panorama'">{{ I18N.culling.group_by.hdr_panoramas | translate }}</span>
             </button>
           </mat-menu>
           @if (groupBy() !== 'scene') {
@@ -462,9 +474,19 @@ interface ShortcutRow {
               @if (group.sequence_kind === 'bracket') {
                 <div class="flex items-center gap-2 px-4 pt-2 text-xs">
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                    <mat-icon class="!text-sm !w-4 !h-4 !leading-4">exposure</mat-icon>{{ I18N.culling.bracket.label | translate }}
+                    <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ 'bracket' | cullGroupIcon }}</mat-icon>{{ I18N.culling.bracket.label | translate }}
                   </span>
                   <span class="opacity-70">{{ I18N.culling.bracket.hint | translate }}</span>
+                </div>
+              }
+              <!-- A pan has no best frame: every one covers a different part of
+                   the scene and the set only means anything whole. -->
+              @if (group.sequence_kind === 'panorama' || group.sequence_kind === 'hdr_panorama') {
+                <div class="flex items-center gap-2 px-4 pt-2 text-xs">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-400">
+                    <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ group.sequence_kind | cullGroupIcon }}</mat-icon>{{ (group.sequence_kind === 'hdr_panorama' ? I18N.culling.panorama.hdr_label : I18N.culling.panorama.label) | translate }}
+                  </span>
+                  <span class="opacity-70">{{ I18N.culling.panorama.hint | translate }}</span>
                 </div>
               }
               <!-- Photos -->
@@ -1469,14 +1491,15 @@ export class BurstCullingComponent implements OnDestroy {
    * within a strictness-derived margin of the best are also kept. At strictness
    * 100 only the single best survives; at 0 everything within ~5 points stays.
    *
-   * A bracket is the exception and starts fully kept whatever the strictness:
-   * its frames were shot to be merged, not to compete, so proposing to drop the
-   * flanking exposures would be proposing to destroy the bracket. Trimming one
-   * stays available deliberately, through auto-cull's `trim_brackets`, which
-   * first checks the base exposure clips nothing.
+   * A bracket or a panorama is the exception and starts fully kept whatever the
+   * strictness: their frames were shot to be merged, not to compete, so
+   * proposing to drop the flanking exposures or half a sweep would be proposing
+   * to destroy the set. Trimming a bracket stays available deliberately,
+   * through auto-cull's `trim_brackets`, which first checks the base exposure
+   * clips nothing.
    */
   private computeAutoKeep(group: CullingGroup): Set<string> {
-    if (group.sequence_kind === 'bracket') {
+    if (group.sequence_kind && KEEP_WHOLE_KINDS.includes(group.sequence_kind)) {
       return new Set<string>(group.photos.map(p => p.path));
     }
     const best = group.best_path || group.photos[0]?.path;

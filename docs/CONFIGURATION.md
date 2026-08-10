@@ -834,6 +834,52 @@ Run via `--detect-sequences`; it also runs at the end of every scan, after burst
 
 ---
 
+## Panorama Detection
+
+Panorama source frames were shot to be stitched, not to compete, so burst detection reads them as competing takes and hides all but one. This pass names them on geometric evidence — SIFT features and a RANSAC homography between consecutive frames, measured on the stored 640px thumbnails. No original decode, no model, no extra dependency.
+
+What separates a sweep from a burst is *cumulative* drift, not per-frame shift: real panoramas are shot at roughly 90% overlap, so one step moves only 5-18% of the frame, while over a run a burst wobbles around zero and a sweep marches. Plain and HDR sweeps are separate kinds, split on exposure spread.
+
+Thresholds were calibrated against 26 panoramas and 8 non-panoramas confirmed by eye on a 126k-photo library. Precision measured ~96%; recall is deliberately incomplete — vertical low-drift sweeps and few-position panoramas fall below the drift floor and are missed. Missing a panorama costs nothing; mislabelling reportage costs trust, and the sticky per-set override corrects both directions.
+
+```json
+{
+  "panorama_detection": {
+    "enabled": true,
+    "max_gap_seconds": 30.0,
+    "min_frames": 8,
+    "min_drift": 0.43,
+    "min_inliers": 25,
+    "hdr_min_span_stops": 1.5,
+    "sift_features": 400
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Turn panorama detection off entirely |
+| `max_gap_seconds` | `30.0` | Longest gap between consecutive frames of one sweep |
+| `min_frames` | `8` | Shortest run treated as a panorama. The single strongest discriminator: every confirmed non-panorama was 6 frames or fewer |
+| `min_drift` | `0.43` | Total sweep, in frame widths, before a run counts. Confirmed negatives cluster at 0.36-0.40 and the lowest confirmed positive is 0.46 |
+| `min_inliers` | `25` | RANSAC inliers needed for a pair to count as matched |
+| `max_step` | `0.9` | Largest single step, in frame widths — beyond this it is a scene cut |
+| `back_tolerance` | `0.02` | How far a step may move against the sweep before it ends the run |
+| `max_ortho` | `0.15` | Sideways wander allowed across the whole sweep |
+| `ortho_ratio` | `0.25` | Extra sideways budget as a fraction of drift, so long sweeps are not penalised |
+| `step_ortho_abs` | `0.02` | Sideways movement allowed in a single step before it reads as a recomposition |
+| `step_ortho_ratio` | `0.5` | The same limit as a fraction of the step's own size |
+| `hdr_min_span_stops` | `1.5` | Exposure spread above which a sweep is an HDR panorama. Confirmed plain sweeps span 0.0-0.7 stops, HDR ones 2.0-4.4 |
+| `sift_features` | `400` | Features per thumbnail. The corpus still detects at 250; 400 keeps margin |
+| `match_ratio` | `0.75` | Lowe ratio a feature match must beat to be kept |
+| `workers` | `0` | Parallel worker processes; `0` picks from the core count. Scales short of the core count -- the cost is dominated by random thumbnail reads the workers contend on |
+| `probe_stride` | `8` | Frames between the cheap static-run probes that skip ordinary bursts |
+| `probe_min_drift` | `0.05` | Movement at a probe below which the run is abandoned as static |
+
+Editing these changes nothing on its own — detection is a batch pass, so re-run `--detect-panoramas` (or use the viewer's re-run action) for the change to reach the gallery and the culling feed.
+
+---
+
 ## Burst Scoring
 
 Weights used by burst culling to compute a composite score for selecting the best shot within each burst group. Weights should sum to 1.0.
@@ -1246,6 +1292,7 @@ Web gallery display and behavior.
       "hide_bursts": true,
       "hide_duplicates": true,
       "hide_brackets": true,
+      "hide_panoramas": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1329,6 +1376,7 @@ Web gallery display and behavior.
 | `hide_bursts` | `true` | Show only best of burst by default |
 | `hide_duplicates` | `true` | Hide non-lead duplicate photos by default |
 | `hide_brackets` | `true` | Show only a bracket's base exposure by default |
+| `hide_panoramas` | `true` | Show only one representative frame per panorama by default |
 | `hide_details` | `true` | Hide photo details on cards by default |
 | `tooltip_mode` | `"hover"` | Tooltip trigger: `"hover"`, `"click"`, or `"off"`. Replaces the prior `hide_tooltip` boolean. |
 | `hide_rejected` | `true` | Hide rejected photos by default |
