@@ -1226,6 +1226,7 @@ Affichage et comportement de la galerie web.
       "hide_blinks": true,
       "hide_bursts": true,
       "hide_duplicates": true,
+      "hide_brackets": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1308,6 +1309,7 @@ Affichage et comportement de la galerie web.
 | `hide_blinks` | `true` | Masquer les photos avec clignement par défaut |
 | `hide_bursts` | `true` | Afficher uniquement la meilleure de chaque rafale par défaut |
 | `hide_duplicates` | `true` | Masquer les doublons non principaux par défaut |
+| `hide_brackets` | `true` | Afficher uniquement l'exposition de base de chaque bracketing par défaut |
 | `hide_details` | `true` | Masquer les détails des photos sur les cartes par défaut |
 | `tooltip_mode` | `"hover"` | Déclencheur d'infobulle : `"hover"`, `"click"` ou `"off"`. Remplace l'ancien booléen `hide_tooltip`. |
 | `hide_rejected` | `true` | Masquer les photos rejetées par défaut |

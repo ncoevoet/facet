@@ -1225,6 +1225,7 @@ Exibição e comportamento da galeria web.
       "hide_blinks": true,
       "hide_bursts": true,
       "hide_duplicates": true,
+      "hide_brackets": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1307,6 +1308,7 @@ Exibição e comportamento da galeria web.
 | `hide_blinks` | `true` | Oculta fotos com piscar por padrão |
 | `hide_bursts` | `true` | Mostra apenas a melhor da rajada por padrão |
 | `hide_duplicates` | `true` | Oculta fotos duplicadas que não sejam a principal por padrão |
+| `hide_brackets` | `true` | Mostra apenas a exposição base de cada bracketing por padrão |
 | `hide_details` | `true` | Oculta os detalhes da foto nos cartões por padrão |
 | `tooltip_mode` | `"hover"` | Gatilho do tooltip: `"hover"`, `"click"` ou `"off"`. Substitui o antigo booleano `hide_tooltip`. |
 | `hide_rejected` | `true` | Oculta fotos rejeitadas por padrão |

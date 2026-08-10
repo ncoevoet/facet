@@ -1225,6 +1225,7 @@ Visualizzazione e comportamento della galleria web.
       "hide_blinks": true,
       "hide_bursts": true,
       "hide_duplicates": true,
+      "hide_brackets": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1307,6 +1308,7 @@ Visualizzazione e comportamento della galleria web.
 | `hide_blinks` | `true` | Nasconde per impostazione predefinita le foto con battito di palpebre |
 | `hide_bursts` | `true` | Mostra per impostazione predefinita solo la migliore della raffica |
 | `hide_duplicates` | `true` | Nasconde per impostazione predefinita le foto duplicate non principali |
+| `hide_brackets` | `true` | Mostra per impostazione predefinita solo l'esposizione base di ogni bracketing |
 | `hide_details` | `true` | Nasconde per impostazione predefinita i dettagli della foto sulle schede |
 | `tooltip_mode` | `"hover"` | Attivazione del tooltip: `"hover"`, `"click"` o `"off"`. Sostituisce il precedente booleano `hide_tooltip`. |
 | `hide_rejected` | `true` | Nasconde per impostazione predefinita le foto rifiutate |

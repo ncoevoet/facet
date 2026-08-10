@@ -1245,6 +1245,7 @@ Web gallery display and behavior.
       "hide_blinks": true,
       "hide_bursts": true,
       "hide_duplicates": true,
+      "hide_brackets": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1327,6 +1328,7 @@ Web gallery display and behavior.
 | `hide_blinks` | `true` | Hide blink photos by default |
 | `hide_bursts` | `true` | Show only best of burst by default |
 | `hide_duplicates` | `true` | Hide non-lead duplicate photos by default |
+| `hide_brackets` | `true` | Show only a bracket's base exposure by default |
 | `hide_details` | `true` | Hide photo details on cards by default |
 | `tooltip_mode` | `"hover"` | Tooltip trigger: `"hover"`, `"click"`, or `"off"`. Replaces the prior `hide_tooltip` boolean. |
 | `hide_rejected` | `true` | Hide rejected photos by default |

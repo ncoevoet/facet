@@ -1226,6 +1226,7 @@ Anzeige und Verhalten der Web-Galerie.
       "hide_blinks": true,
       "hide_bursts": true,
       "hide_duplicates": true,
+      "hide_brackets": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1308,6 +1309,7 @@ Anzeige und Verhalten der Web-Galerie.
 | `hide_blinks` | `true` | Blinzelfotos standardmäßig ausblenden |
 | `hide_bursts` | `true` | Standardmäßig nur das beste Serienbild anzeigen |
 | `hide_duplicates` | `true` | Nicht führende Duplikatfotos standardmäßig ausblenden |
+| `hide_brackets` | `true` | Standardmäßig nur die Basisbelichtung einer Belichtungsreihe anzeigen |
 | `hide_details` | `true` | Fotodetails auf Karten standardmäßig ausblenden |
 | `tooltip_mode` | `"hover"` | Tooltip-Auslöser: `"hover"`, `"click"` oder `"off"`. Ersetzt das frühere boolesche `hide_tooltip`. |
 | `hide_rejected` | `true` | Abgelehnte Fotos standardmäßig ausblenden |
