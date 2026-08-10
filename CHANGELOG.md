@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.10.1] "Argentique" — 2026-08-10
+
 ### Added
 - **Corrections to a panorama can be made from the gallery and from culling, in both directions.** Geometry cannot recover intent, so a residual error rate is inherent — and each direction of error is found somewhere different. A false positive is visible in culling, where the set is in front of you, and is corrected there (suppress it, or relabel plain ↔ HDR). A miss is not: an undetected sweep appears in no culling group at all, so it is corrected from the gallery selection bar instead. Both mark the set **pending** rather than applying anything optimistically — the detector is a batch pass — and both register an undo instead of the confirm's seven-second cooldown, which would buy nothing for a change that only lands at the next run. A `sequence_override` gallery filter lists what is still waiting, library-wide.
 
