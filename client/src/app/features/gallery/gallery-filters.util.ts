@@ -420,6 +420,8 @@ export function buildSyncParams(
     params['hide_duplicates'] = String(f.hide_duplicates);
   if (f.hide_brackets !== (defaults?.hide_brackets ?? true))
     params['hide_brackets'] = String(f.hide_brackets);
+  if (f.hide_panoramas !== (defaults?.hide_panoramas ?? true))
+    params['hide_panoramas'] = String(f.hide_panoramas);
   if (f.hide_rejected !== (defaults?.hide_rejected ?? true))
     params['hide_rejected'] = String(f.hide_rejected);
   if (f.tooltip_mode !== (defaults?.tooltip_mode ?? 'hover'))
@@ -451,6 +453,7 @@ export function buildApiParams(
   if (f.hide_bursts) params['hide_bursts'] = true;
   if (f.hide_duplicates) params['hide_duplicates'] = true;
   if (f.hide_brackets) params['hide_brackets'] = true;
+  if (f.hide_panoramas) params['hide_panoramas'] = true;
   if (f.hide_rejected) params['hide_rejected'] = true;
   if (f.favorites_only) params['favorites_only'] = '1';
   if (f.is_monochrome) params['is_monochrome'] = '1';
