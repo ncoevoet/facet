@@ -10,12 +10,14 @@ import json
 import sqlite3
 import time
 from contextlib import contextmanager
+from importlib import metadata
+from pathlib import Path
 from unittest import mock
 
 import pytest
 
 from api.updates import CACHE_KEY, check_for_update, get_update_settings
-from utils.version import is_newer, parse_version
+from utils.version import UNKNOWN, current_version, is_newer, parse_version
 
 _SCHEMA = "CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);"
 
@@ -34,6 +36,38 @@ def _upstream(latest, url='https://example.invalid/releases/1'):
     payload = None if latest is None else {'latest': latest, 'release_url': url}
     with mock.patch('api.updates._fetch_latest', return_value=payload) as fetch:
         yield fetch
+
+
+class TestCurrentVersion:
+    """The source order is the whole point: Facet usually runs from a clone,
+    where an old `pip install -e .` leaves egg-info pinned to whatever version
+    was current then. Reading that first reported 1.0.1 for a 1.8.2 checkout and
+    would have announced an upgrade to someone already on the newest release.
+    """
+
+    _PYPROJECT = '[project]\nname = "facet-photo"\nversion = "1.8.2"\n'
+
+    def test_pyproject_wins_over_stale_distribution_metadata(self):
+        with mock.patch.object(Path, 'read_text', return_value=self._PYPROJECT), \
+                mock.patch.object(metadata, 'version', return_value='1.0.1'):
+            assert current_version() == '1.8.2'
+
+    def test_falls_back_to_distribution_metadata_when_pyproject_is_unreadable(self):
+        with mock.patch.object(Path, 'read_text', side_effect=OSError), \
+                mock.patch.object(metadata, 'version', return_value='1.0.1'):
+            assert current_version() == '1.0.1'
+
+    def test_unknown_when_neither_source_answers(self):
+        with mock.patch.object(Path, 'read_text', side_effect=OSError), \
+                mock.patch.object(metadata, 'version',
+                                  side_effect=metadata.PackageNotFoundError):
+            assert current_version() == UNKNOWN
+
+    def test_an_unknown_version_is_never_announced_as_an_upgrade(self):
+        # parse_version returns () for UNKNOWN's peers, and is_newer refuses an
+        # empty tuple, so a version it could not read cannot trigger a notice.
+        assert is_newer('v1.9.0', UNKNOWN) is True
+        assert is_newer(UNKNOWN, '1.8.2') is False
 
 
 class TestParseVersion:
