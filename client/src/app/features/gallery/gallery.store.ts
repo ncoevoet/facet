@@ -29,6 +29,7 @@ export interface HiddenSummary {
   blinks: number;
   bursts: number;
   duplicates: number;
+  brackets: number;
 }
 
 export interface PhotosResponse {
@@ -84,6 +85,7 @@ export interface ViewerConfig {
     hide_blinks: boolean;
     hide_bursts: boolean;
     hide_duplicates: boolean;
+    hide_brackets: boolean;
     hide_details: boolean;
     tooltip_mode: TooltipMode;
     hide_rejected: boolean;
@@ -171,7 +173,7 @@ export class GalleryStore {
   readonly virtualScroll = signal(localStorage.getItem('facet_virtual_scroll') !== 'off');
 
   // Hidden-photo summary (populated from /photos response)
-  readonly hiddenSummary = signal<HiddenSummary>({ total: 0, blinks: 0, bursts: 0, duplicates: 0 });
+  readonly hiddenSummary = signal<HiddenSummary>({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0 });
 
   // --- View snapshot for back-navigation restoration ---
   readonly viewSnapshot = signal<{ scrollTop: number; albumId: string | null; filterKey: string } | null>(null);
@@ -356,6 +358,7 @@ export class GalleryStore {
         hide_blinks: storedDisplay.hide_blinks ?? (defaults?.hide_blinks ?? true),
         hide_bursts: storedDisplay.hide_bursts ?? (defaults?.hide_bursts ?? true),
         hide_duplicates: storedDisplay.hide_duplicates ?? (defaults?.hide_duplicates ?? true),
+        hide_brackets: storedDisplay.hide_brackets ?? (defaults?.hide_brackets ?? true),
         hide_rejected: storedDisplay.hide_rejected ?? (defaults?.hide_rejected ?? true),
         favorites_only: storedDisplay.favorites_only ?? false,
         is_monochrome: storedDisplay.is_monochrome ?? false,
@@ -414,7 +417,7 @@ export class GalleryStore {
       this.total.set(res.total);
       this.hasMore.set(res.has_more);
       this.hiddenSummary.set(
-        res.hidden_summary ?? { total: 0, blinks: 0, bursts: 0, duplicates: 0 },
+        res.hidden_summary ?? { total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0 },
       );
       void this.fetchKeeperHints(res.photos.map(p => p.path));
     } catch {
@@ -552,6 +555,7 @@ export class GalleryStore {
       hide_blinks: defaults?.hide_blinks ?? true,
       hide_bursts: defaults?.hide_bursts ?? true,
       hide_duplicates: defaults?.hide_duplicates ?? true,
+      hide_brackets: defaults?.hide_brackets ?? true,
       hide_rejected: defaults?.hide_rejected ?? true,
     });
     this.resetCardWidth();

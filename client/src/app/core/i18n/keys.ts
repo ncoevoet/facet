@@ -1084,6 +1084,7 @@ export const I18N = {
     hide_blinks: "gallery.hide_blinks",
     hide_bursts: "gallery.hide_bursts",
     hide_duplicates: "gallery.hide_duplicates",
+    hide_brackets: "gallery.hide_brackets",
     reset_filters: "gallery.reset_filters",
     scroll_to_top: "gallery.scroll_to_top",
     photo_grid: "gallery.photo_grid",

@@ -213,6 +213,7 @@ Sammelaktionen erfordern den Bearbeitungsmodus. Doppelklicken Sie ein beliebiges
 - **Tooltip** - Wie Fotodetails gezeigt werden: **Hover** (Standard), **Klick**, **Aus** oder **Seitenleiste**. Die Seitenleiste verankert dieselben Details in der rechten Schublade, statt dem Zeiger zu folgen: ein bestimmtes Feld steht so von Foto zu Foto immer an derselben Stelle, und die Leiste behält das zuletzt überfahrene Foto, statt zu leeren, sobald der Zeiger das Raster verlässt. Sie teilt sich diese Schublade mit der Filterleiste — die Filter zu öffnen blendet sie aus, bis sie wieder geschlossen werden, und das Raster behält genau die Breite, die es bei geöffneten Filtern hat. Erfordert ein Fenster von mindestens 1280 px.
 - **Blinzler ausblenden** – Fotos mit erkanntem Blinzeln herausfiltern
 - **Beste aus Serie** – Nur das am höchsten bewertete Foto jedes Serienbilds anzeigen
+- **Beste der Belichtungsreihe** – Zeigt nur die Basisbelichtung jeder erkannten Belichtungsreihe und blendet die flankierenden Aufnahmen aus. **Standardmäßig an.** Unabhängig von „Beste aus Serie“: ein Viertel der Reihen teilt sich ein Serienbild mit fremden Aufnahmen, wo das Leitfoto nicht die Basisbelichtung ist.
 - **Endloses Scrollen** – Fotos werden beim Scrollen geladen
 - **Schnelles Scrollen (virtualisiert)** – Zeilenfenster-Rendering: Nur Zeilen nahe dem
   Sichtbereich befinden sich im DOM, sodass tiefes Scrollen durch zehntausende Fotos

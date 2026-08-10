@@ -572,6 +572,7 @@ For quick reference, here are the actual defaults from the config file:
 | `viewer.defaults` | `hide_blinks` | `true` |
 | `viewer.defaults` | `hide_bursts` | `true` |
 | `viewer.defaults` | `hide_duplicates` | `true` |
+| `viewer.defaults` | `hide_brackets` | `true` (gallery shows only a bracket's base exposure; `HIDE_BRACKETS_SQL`, independent of `hide_bursts`) |
 | `viewer.defaults` | `hide_details` | `true` |
 | `viewer.defaults` | `tooltip_mode` | `"hover"` (`hover` \| `click` \| `off` \| `panel`; `panel` docks the details in the end drawer, shares that strip with the filter sidebar and needs a viewport ≥ 1280px) |
 | `viewer.defaults` | `gallery_mode` | `"mosaic"` |

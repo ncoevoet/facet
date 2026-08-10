@@ -213,6 +213,7 @@ Le azioni di gruppo richiedono la modalità di modifica. Fai doppio clic su una 
 - **Tooltip** - Come vengono mostrati i dettagli: **Al passaggio** (predefinito), **Al clic**, **Disattivato** o **Pannello laterale**. Il pannello laterale ancora gli stessi dettagli nel cassetto di destra invece di seguire il cursore: un dato si trova così sempre nello stesso punto da una foto all'altra, e il pannello conserva l'ultima foto sfiorata invece di svuotarsi quando il cursore lascia la griglia. Condivide quel cassetto con la barra dei filtri: aprire i filtri lo nasconde finché non li richiudi, e la griglia mantiene esattamente la larghezza che ha con i filtri aperti. Richiede una finestra di almeno 1280 px.
 - **Nascondi occhi chiusi** - Filtra le foto con battiti di ciglia rilevati
 - **Migliore della raffica** - Mostra solo la foto con il punteggio più alto di ogni raffica
+- **Migliore del bracketing** - Mostra solo l'esposizione di base di ogni bracketing rilevato, nascondendo gli scatti laterali. **Attivo per impostazione predefinita.** Indipendente da «Migliore della raffica»: un quarto dei bracketing condivide una raffica con scatti estranei, dove la foto guida non è l'esposizione di base.
 - **Scorrimento infinito** - Le foto si caricano man mano che scorri
 - **Scorrimento rapido (virtualizzato)** - Rendering a finestra di righe: solo le righe
   vicine al viewport sono nel DOM, così lo scorrimento profondo attraverso decine di

@@ -213,6 +213,7 @@ Les actions groupées nécessitent le mode édition. Double-cliquez sur n'import
 - **Infobulle** - Mode d'affichage des détails : **Survol** (par défaut), **Clic**, **Désactivée** ou **Panneau latéral**. Le panneau latéral ancre les mêmes détails dans le tiroir de droite au lieu de suivre le curseur : une information donnée se trouve toujours au même endroit d'une photo à l'autre, et le panneau conserve la dernière photo survolée au lieu de se vider quand le curseur quitte la grille. Il partage ce tiroir avec la barre de filtres : ouvrir les filtres le masque jusqu'à ce que vous les refermiez, et la grille conserve exactement la largeur qu'elle a lorsque les filtres sont ouverts. Nécessite une fenêtre d'au moins 1280 px.
 - **Masquer les clignements** - Filtrer les photos avec des clignements détectés
 - **Meilleure de la rafale** - N'afficher que la photo la mieux notée de chaque rafale
+- **Meilleure du bracketing** - N'affiche que l'exposition de référence de chaque bracketing détecté, en masquant les vues latérales. **Activé par défaut.** Indépendant de « Meilleure de la rafale » : un quart des bracketings partagent une rafale avec d'autres vues, où la vignette principale n'est pas l'exposition de référence.
 - **Défilement infini** - Les photos se chargent à mesure que vous défilez
 - **Défilement rapide (virtualisé)** - Rendu fenêtré par ligne : seules les lignes
   proches de la zone d'affichage sont dans le DOM, de sorte que le défilement en

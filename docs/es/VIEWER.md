@@ -213,6 +213,7 @@ Las acciones masivas requieren el modo de edición. Haz doble clic en cualquier 
 - **Información** - Cómo se muestran los detalles: **Al pasar** (predeterminado), **Al hacer clic**, **Desactivada** o **Panel lateral**. El panel lateral fija los mismos detalles en el cajón derecho en vez de seguir al cursor: así un dato concreto está siempre en el mismo sitio de una foto a otra, y el panel conserva la última foto sobre la que pasaste en lugar de vaciarse al salir de la cuadrícula. Comparte ese cajón con la barra de filtros: abrir los filtros lo oculta hasta que los cierres, y la cuadrícula mantiene exactamente el ancho que tiene con los filtros abiertos. Requiere una ventana de al menos 1280 px.
 - **Ocultar parpadeos** - Filtra las fotos con parpadeos detectados
 - **Mejor de la ráfaga** - Muestra solo la foto mejor puntuada de cada ráfaga
+- **Mejor del horquillado** - Muestra solo la exposición base de cada horquillado detectado y oculta las tomas laterales. **Activado por defecto.** Independiente de «Mejor de la ráfaga»: un cuarto de los horquillados comparte ráfaga con tomas ajenas, donde la principal no es la exposición base.
 - **Desplazamiento infinito** - Las fotos se cargan a medida que te desplazas
 - **Desplazamiento rápido (virtualizado)** - Renderizado por ventanas de filas: solo las
   filas cercanas a la ventana de visualización están en el DOM, de modo que el desplazamiento profundo

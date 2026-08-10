@@ -213,6 +213,7 @@ As ações em lote requerem o modo de edição. Dê um duplo clique em qualquer 
 - **Dica** - Como os detalhes são mostrados: **Ao passar** (predefinição), **Ao clicar**, **Desativado** ou **Painel lateral**. O painel lateral fixa os mesmos detalhes na gaveta da direita em vez de seguir o cursor: um dado fica assim sempre no mesmo sítio de uma foto para a outra, e o painel mantém a última foto sobre a qual passou em vez de esvaziar quando o cursor sai da grelha. Partilha essa gaveta com a barra de filtros: abrir os filtros oculta-o até os fechar, e a grelha mantém exatamente a largura que tem com os filtros abertos. Requer uma janela de pelo menos 1280 px.
 - **Ocultar Piscadas** - Filtra fotos com piscadas detectadas
 - **Melhor da Sequência** - Mostra apenas a foto com maior pontuação de cada sequência (burst)
+- **Melhor do bracketing** - Mostra apenas a exposição base de cada bracketing detetado, ocultando as fotos laterais. **Ativo por predefinição.** Independente de «Melhor da Sequência»: um quarto dos bracketings partilha uma sequência com fotos alheias, onde a principal não é a exposição base.
 - **Rolagem Infinita** - As fotos carregam conforme você rola
 - **Rolagem Rápida (virtualizada)** - Renderização em janela de linhas: apenas as linhas
   próximas à viewport ficam no DOM, então a rolagem profunda por dezenas de milhares de fotos

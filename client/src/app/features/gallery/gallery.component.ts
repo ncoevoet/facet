@@ -61,7 +61,8 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { MAX_COMPARE_PANES } from './synced-zoom.component';
 
 /** The three toggles the hidden-photos banner clears and restores together. */
-type HiddenFilterFlags = Pick<GalleryFilters, 'hide_blinks' | 'hide_bursts' | 'hide_duplicates'>;
+type HiddenFilterFlags = Pick<GalleryFilters,
+  'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets'>;
 
 
 @Component({
@@ -655,7 +656,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   readonly showHiddenBanner = computed(() => {
     const f = this.store.filters();
     return this.store.hiddenSummary().total > 0
-      && (f.hide_blinks || f.hide_bursts || f.hide_duplicates);
+      && (f.hide_blinks || f.hide_bursts || f.hide_duplicates || f.hide_brackets);
   });
 
   /**
@@ -673,7 +674,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const stash = this.hiddenFiltersStash();
     if (!stash) return false;
     const f = this.store.filters();
-    return !f.hide_blinks && !f.hide_bursts && !f.hide_duplicates;
+    return !f.hide_blinks && !f.hide_bursts && !f.hide_duplicates && !f.hide_brackets;
   });
 
   showAllHidden(): void {
@@ -682,11 +683,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
       hide_blinks: f.hide_blinks,
       hide_bursts: f.hide_bursts,
       hide_duplicates: f.hide_duplicates,
+      hide_brackets: f.hide_brackets,
     });
     void this.store.updateFilters({
       hide_blinks: false,
       hide_bursts: false,
       hide_duplicates: false,
+      hide_brackets: false,
     });
   }
 

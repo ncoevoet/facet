@@ -221,6 +221,7 @@ A **Keep top %** control in the gallery toolbar (edition mode) turns the whole f
 - **Tooltip** - How photo details are shown: **Hover** (default), **Click**, **Off**, or **Side panel**. The side panel docks the same details in the right-hand drawer instead of following the cursor, so a given field is always in the same place from one photo to the next; it keeps the last photo you hovered rather than blanking when the cursor leaves the grid. It shares that drawer with the filter sidebar — opening the filters hides it until you close them again, and the grid keeps exactly the width it has with the filters open. Needs a viewport of at least 1280px.
 - **Hide Blinks** - Filter out photos with detected blinks
 - **Best of Burst** - Show only top-scored photo from each burst
+- **Best of bracket** - Show only the base exposure of each detected bracket set, hiding the flanking frames. **On by default.** Independent of Best of Burst: a quarter of bracket sets share a burst group with unrelated frames, where the burst lead is not the base exposure, so burst-hiding alone leaves the extra exposures on show.
 - **Infinite Scroll** - Photos load as you scroll
 - **Fast Scrolling (virtualized)** - Row-windowed rendering: only rows near the
   viewport are in the DOM, so deep scrolling through tens of thousands of photos
