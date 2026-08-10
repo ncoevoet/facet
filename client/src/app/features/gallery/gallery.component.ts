@@ -950,7 +950,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const { CompareSelectedDialogComponent } = await import('./compare-selected-dialog.component');
     this.dialog.open(CompareSelectedDialogComponent, {
       data: { photos },
-      panelClass: 'compare-dialog',
       width: '96vw',
       height: '92vh',
       maxWidth: '96vw',

@@ -341,9 +341,13 @@ export class PhotoCardComponent {
     }
   }
 
+  /** Space is the keyboard's click, so it feeds the details panel the same way. */
   onKeySelect(event: Event): void {
     event.preventDefault();
     this.selectionChange.emit({ photo: this.photo(), event: event as MouseEvent });
+    if (this.clickDriven()) {
+      this.tooltipShow.emit({ photo: this.photo(), event: event as MouseEvent });
+    }
   }
 
   onKeyOpen(event: Event): void {

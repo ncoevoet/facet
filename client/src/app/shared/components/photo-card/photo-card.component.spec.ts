@@ -299,4 +299,39 @@ describe('PhotoCardComponent tooltip emission', () => {
       TestBed.resetTestingModule();
     }
   });
+
+  // Space is the keyboard's click. Reporting the selection but not the photo
+  // left a keyboard user selecting cards while the panel stayed on whatever the
+  // mouse last touched — the one gesture that can reach it on a touch screen.
+  it('Space reports the photo in the modes a click would', () => {
+    const keyEvent = { preventDefault: () => {} } as unknown as Event;
+    for (const mode of ['click', 'panel'] as const) {
+      const { c, shown } = card(mode);
+      c.onKeySelect(keyEvent);
+      expect(shown).toEqual(['/test.jpg']);
+      TestBed.resetTestingModule();
+    }
+  });
+
+  it('Space reports nothing in the modes a click would not', () => {
+    const keyEvent = { preventDefault: () => {} } as unknown as Event;
+    for (const mode of ['hover', 'off'] as const) {
+      const { c, shown } = card(mode);
+      c.onKeySelect(keyEvent);
+      expect(shown).toEqual([]);
+      TestBed.resetTestingModule();
+    }
+  });
+
+  it('Space still selects, whatever the tooltip mode', () => {
+    const keyEvent = { preventDefault: () => {} } as unknown as Event;
+    for (const mode of ['hover', 'click', 'off', 'panel'] as const) {
+      const { c } = card(mode);
+      const selected: string[] = [];
+      c.selectionChange.subscribe(e => selected.push(e.photo.path));
+      c.onKeySelect(keyEvent);
+      expect(selected).toEqual(['/test.jpg']);
+      TestBed.resetTestingModule();
+    }
+  });
 });

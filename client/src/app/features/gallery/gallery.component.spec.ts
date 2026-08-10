@@ -13,6 +13,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { AlbumService } from '../../core/services/album.service';
 import { GalleryComponent } from './gallery.component';
 import { ScoreClassPipe } from '../../shared/pipes/score.pipes';
+import { MAX_COMPARE_PANES } from './synced-zoom.component';
 
 describe('GalleryComponent', () => {
   let component: GalleryComponent;
@@ -410,6 +411,63 @@ describe('GalleryComponent', () => {
       component['tooltipPhoto'].set(photo);
       component.hideTooltip();
       expect(component['tooltipPhoto']()).toBeNull();
+    });
+  });
+
+  describe('compare selection', () => {
+    const photo = (path: string) => ({ path, filename: path.slice(1) });
+
+    function select(paths: string[]) {
+      mockStore.selectedPaths.set(new Set(paths));
+      mockStore.selectionCount.set(paths.length);
+    }
+
+    // The dialog itself is covered by its own spec; this is the wiring — which
+    // photos it is handed, in which order, and when the action is offered.
+    it('is offered from two photos up to the pane limit', () => {
+      const c = component as unknown as { canCompareSelection: () => boolean };
+      for (const n of [0, 1]) {
+        select(Array.from({ length: n }, (_, i) => `/p${i}.jpg`));
+        expect(c.canCompareSelection()).toBe(false);
+      }
+      for (let n = 2; n <= MAX_COMPARE_PANES; n++) {
+        select(Array.from({ length: n }, (_, i) => `/p${i}.jpg`));
+        expect(c.canCompareSelection()).toBe(true);
+      }
+      select(Array.from({ length: MAX_COMPARE_PANES + 1 }, (_, i) => `/p${i}.jpg`));
+      expect(c.canCompareSelection()).toBe(false);
+    });
+
+    it('hands over the grid order, not the order they were picked in', async () => {
+      mockStore.photos.set(['/a.jpg', '/b.jpg', '/c.jpg'].map(photo));
+      select(['/c.jpg', '/a.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+
+      await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
+
+      const data = (dialog.open as Mock).mock.calls[0][1].data;
+      expect(data.photos.map((p: { path: string }) => p.path)).toEqual(['/a.jpg', '/c.jpg']);
+    });
+
+    it('caps the panes even if more photos are somehow selected', async () => {
+      const paths = Array.from({ length: MAX_COMPARE_PANES + 2 }, (_, i) => `/p${i}.jpg`);
+      mockStore.photos.set(paths.map(photo));
+      select(paths);
+      const dialog = TestBed.inject(MatDialog);
+
+      await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
+
+      expect((dialog.open as Mock).mock.calls[0][1].data.photos.length).toBe(MAX_COMPARE_PANES);
+    });
+
+    it('does nothing when fewer than two selected photos are loaded', async () => {
+      mockStore.photos.set([photo('/a.jpg')]);
+      select(['/a.jpg', '/gone.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+
+      await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
+
+      expect(dialog.open).not.toHaveBeenCalled();
     });
   });
 });
