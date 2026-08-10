@@ -88,6 +88,10 @@ export interface Photo {
   is_favorite: boolean | null;
   is_rejected: boolean | null;
   keeper_hint?: KeeperHint | null;
+  /** 'bracket' | 'panorama' | 'hdr_panorama' when this frame belongs to a
+   *  deliberate multi-frame set. With the matching hide toggle on, the tile
+   *  showing it stands for the whole set. */
+  sequence_kind?: string | null;
   similarity?: number;
   caption?: string;
   caption_translated?: string;

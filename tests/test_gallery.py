@@ -32,6 +32,7 @@ _PHOTOS_SCHEMA = """
         phash TEXT, is_burst_lead INTEGER, burst_group_id INTEGER,
         is_duplicate_lead INTEGER, duplicate_group_id INTEGER,
         sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL,
+        is_sequence_lead INTEGER DEFAULT 0,
         aggregate REAL,
         category TEXT, image_width INTEGER, image_height INTEGER,
         tags TEXT, composition_pattern TEXT, person_id INTEGER,

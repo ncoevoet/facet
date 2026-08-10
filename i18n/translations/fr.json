@@ -2380,5 +2380,23 @@
   "updates": {
     "available": "Facet {version} est disponible",
     "view": "Notes de version"
+  },
+  "panorama": {
+    "settings": {
+      "tab_label": "Panoramas",
+      "intro": "Comment les panoramas sont détectés. Calibré sur 26 panoramas et 8 non-panoramas confirmés ; les valeurs par défaut sont mesurées, pas devinées. Enregistrer ne réétiquette rien en soi — la détection est une passe par lots sur toute la bibliothèque : relancez-la pour que le changement atteigne la galerie.",
+      "enabled": "Détecter les panoramas",
+      "min_frames": "Nombre minimal d’images",
+      "min_frames_hint": "Tous les non-panoramas confirmés comptaient 6 images ou moins",
+      "min_drift": "Balayage minimal (largeurs de cadre)",
+      "min_drift_hint": "Les non-panoramas confirmés se groupent entre 0,36 et 0,40 ; le plus petit vrai panorama est à 0,46",
+      "max_gap_seconds": "Écart maximal entre images (secondes)",
+      "max_gap_hint": "Un panoramique délibéré est plus lent qu’une rafale",
+      "hdr_span": "Seuil HDR (IL)",
+      "hdr_span_hint": "Les balayages simples couvrent 0,0 à 0,7 IL, les HDR 2,0 à 4,4",
+      "save": "Enregistrer",
+      "redetect": "Relancer la détection",
+      "redetect_tooltip": "Réétiquette toute la bibliothèque ; prend plusieurs minutes"
+    }
   }
 }

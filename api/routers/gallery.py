@@ -709,10 +709,11 @@ async def api_photos(
                     'bursts': agg['bursts'],
                     'duplicates': agg['duplicates'],
                     'brackets': agg['brackets'],
+                    'panoramas': agg['panoramas'],
                 }
             else:
                 hidden_summary = {'total': 0, 'blinks': 0, 'bursts': 0, 'duplicates': 0,
-                                  'brackets': 0}
+                                  'brackets': 0, 'panoramas': 0}
 
             # cache hit, no PRAGMA — same select-cols logic as other endpoints
             select_cols = build_photo_select_columns(conn=None, user_id=user_id)

@@ -819,7 +819,6 @@ agrupamento das rajadas.
 | `min_span_stops` | `1.0` | Amplitude mínima entre a foto mais escura e a mais clara |
 | `step_tolerance_stops` | `0.34` | Irregularidade admitida entre os passos (um terço de passo) |
 
-
 ---
 
 ## Deteção de panorâmicas
@@ -853,6 +852,8 @@ Os limiares foram calibrados com 26 panorâmicas e 8 não-panorâmicas confirmad
 | `hdr_min_span_stops` | `1.5` | Amplitude de exposição acima da qual uma varredura é uma panorâmica HDR |
 
 Alterar estes valores não faz nada por si só — a deteção é uma passagem em lote: volte a executar `--detect-panoramas` (ou a ação no visualizador) para que a alteração chegue à galeria e à seleção.
+
+---
 
 ## Burst Scoring
 

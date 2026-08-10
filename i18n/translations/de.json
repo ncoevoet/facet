@@ -2384,5 +2384,23 @@
   "updates": {
     "available": "Facet {version} ist verfügbar",
     "view": "Versionshinweise"
+  },
+  "panorama": {
+    "settings": {
+      "tab_label": "Panoramen",
+      "intro": "Wie Panorama-Serien erkannt werden. Kalibriert an 26 bestätigten Panoramen und 8 bestätigten Nicht-Panoramen; die Standardwerte sind gemessen, nicht geschätzt. Speichern allein ändert keine Etiketten — die Erkennung ist ein Stapellauf über die ganze Bibliothek, also erneut ausführen, damit die Änderung die Galerie erreicht.",
+      "enabled": "Panoramen erkennen",
+      "min_frames": "Mindestanzahl Bilder",
+      "min_frames_hint": "Jedes bestätigte Nicht-Panorama hatte 6 Bilder oder weniger",
+      "min_drift": "Mindestschwenk (Bildbreiten)",
+      "min_drift_hint": "Bestätigte Nicht-Panoramen liegen bei 0,36-0,40; das kleinste echte bei 0,46",
+      "max_gap_seconds": "Größter Abstand zwischen Bildern (Sekunden)",
+      "max_gap_hint": "Ein bewusster Schwenk ist langsamer als eine Serie",
+      "hdr_span": "HDR-Schwelle (Blenden)",
+      "hdr_span_hint": "Einfache Schwenks umfassen 0,0-0,7 Blenden, HDR 2,0-4,4",
+      "save": "Speichern",
+      "redetect": "Erkennung erneut ausführen",
+      "redetect_tooltip": "Etikettiert die ganze Bibliothek neu; dauert mehrere Minuten"
+    }
   }
 }

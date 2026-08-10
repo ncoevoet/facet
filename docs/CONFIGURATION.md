@@ -871,6 +871,8 @@ Thresholds were calibrated against 26 panoramas and 8 non-panoramas confirmed by
 | `step_ortho_ratio` | `0.5` | The same limit as a fraction of the step's own size |
 | `hdr_min_span_stops` | `1.5` | Exposure spread above which a sweep is an HDR panorama. Confirmed plain sweeps span 0.0-0.7 stops, HDR ones 2.0-4.4 |
 | `sift_features` | `400` | Features per thumbnail. The corpus still detects at 250; 400 keeps margin |
+| `match_ratio` | `0.75` | Lowe ratio a feature match must beat to be kept |
+| `workers` | `0` | Parallel worker processes; `0` picks from the core count. Scales short of the core count -- the cost is dominated by random thumbnail reads the workers contend on |
 | `probe_stride` | `8` | Frames between the cheap static-run probes that skip ordinary bursts |
 | `probe_min_drift` | `0.05` | Movement at a probe below which the run is abandoned as static |
 

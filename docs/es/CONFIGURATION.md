@@ -818,7 +818,6 @@ agrupar las ráfagas.
 | `min_span_stops` | `1.0` | Amplitud mínima entre la toma más oscura y la más clara |
 | `step_tolerance_stops` | `0.34` | Irregularidad admitida entre pasos (un tercio de paso) |
 
-
 ---
 
 ## Detección de panorámicas
@@ -852,6 +851,8 @@ Los umbrales se calibraron con 26 panorámicas y 8 no panorámicas confirmadas a
 | `hdr_min_span_stops` | `1.5` | Amplitud de exposición por encima de la cual un barrido es una panorámica HDR |
 
 Cambiar estos valores no hace nada por sí solo — la detección es una pasada por lotes: vuelve a ejecutar `--detect-panoramas` (o la acción de la visor) para que el cambio llegue a la galería y al descarte.
+
+---
 
 ## Puntuación de ráfagas
 

@@ -820,7 +820,6 @@ regroupement des rafales.
 | `min_span_stops` | `1.0` | Amplitude minimale entre la vue la plus sombre et la plus claire |
 | `step_tolerance_stops` | `0.34` | Irrégularité tolérée entre les pas (un tiers d'IL) |
 
-
 ---
 
 ## Détection de panoramas
@@ -854,6 +853,8 @@ Les seuils ont été calibrés sur 26 panoramas et 8 non-panoramas confirmés à
 | `hdr_min_span_stops` | `1.5` | Écart d'exposition au-delà duquel un balayage est un panorama HDR |
 
 Modifier ces valeurs ne change rien en soi — la détection est une passe par lots : relancez `--detect-panoramas` (ou l'action de relance dans la visionneuse) pour que le changement atteigne la galerie et le tri.
+
+---
 
 ## Notation des rafales
 

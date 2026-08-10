@@ -1,5 +1,6 @@
 import { Pipe, PipeTransform, inject } from '@angular/core';
 import { I18nService } from '../../core/services/i18n.service';
+import { SEQUENCE_KIND_ICONS } from '../../shared/pipes/sequence-kind.pipe';
 
 /** Backend-supplied machine reason key + optional value for why a photo ranks lower. */
 export interface CullReason {
@@ -320,9 +321,7 @@ export class CullGroupIconPipe implements PipeTransform {
     burst: 'burst_mode',
     similar: 'filter_none',
     scene: 'movie_filter',
-    bracket: 'exposure',
-    panorama: 'panorama_photosphere',
-    hdr_panorama: 'hdr_on',
+    ...SEQUENCE_KIND_ICONS,
   };
 
   transform(kind: string): string {

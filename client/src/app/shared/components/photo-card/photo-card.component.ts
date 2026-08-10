@@ -6,6 +6,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { Photo } from '../../models/photo.model';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
+import { SequenceKindIconPipe, SequenceKindLabelPipe } from '../../pipes/sequence-kind.pipe';
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { ScoreClassPipe, SortScorePipe } from '../../pipes/score.pipes';
@@ -34,6 +35,8 @@ interface AppConfig {
     MatMenuModule,
     TranslatePipe,
     ThumbnailUrlPipe,
+    SequenceKindIconPipe,
+    SequenceKindLabelPipe,
     PersonThumbnailUrlPipe,
     FixedPipe,
     ShutterSpeedPipe,
@@ -81,6 +84,17 @@ interface AppConfig {
         @if (isEditionMode() && photo().is_favorite) {
           <div class="absolute bottom-1.5 right-3 z-20 pointer-events-none transition-opacity md:group-hover/img:opacity-0">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md">favorite</mat-icon>
+          </div>
+        }
+
+        <!-- This tile stands for a whole set, not one photo. With the hide
+             toggle on, the other frames are collapsed behind it and nothing
+             else on the tile would say so. -->
+        @if (photo().sequence_kind; as kind) {
+          <div class="absolute top-1.5 right-3 z-20 pointer-events-none flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 transition-opacity md:group-hover/img:opacity-0"
+               [attr.aria-label]="kind | sequenceKindLabel | translate">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-sky-300 drop-shadow-md"
+                      aria-hidden="true">{{ kind | sequenceKindIcon }}</mat-icon>
           </div>
         }
 

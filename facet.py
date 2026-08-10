@@ -1411,7 +1411,14 @@ def _run_scan(args, resumed_run):
     # and move each group's lead onto its base exposure. Must follow the bursts
     # step: it is that grouping it corrects.
     emit_progress('sequences', force=True)
-    detect_all_sequences(scorer.db_path, scorer.config.config_path)
+    try:
+        detect_all_sequences(scorer.db_path, scorer.config.config_path)
+    except Exception:
+        # Was pure arithmetic over stored EXIF; it now also runs a CV pass over
+        # thumbnails and a process pool. Letting that abort the scan would throw
+        # away tagging, moments, junk and vec population -- and the GPU work
+        # already done -- over a set-labelling step nothing downstream needs.
+        logger.warning("Sequence/panorama detection failed (non-fatal)", exc_info=True)
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
     emit_progress('tagging', force=True)
@@ -1591,11 +1598,12 @@ Configuration:
     db_group.add_argument('--detect-duplicates', action='store_true',
                         help='Detect duplicate photos using pHash comparison')
     db_group.add_argument('--detect-sequences', action='store_true',
-                        help='Detect exposure-bracket sets from stored EXIF and centre each on '
-                             'its base exposure (whole library, no image decode)')
+                        help='Detect deliberate multi-frame sets: exposure brackets from stored '
+                             'EXIF, then panoramas from thumbnail geometry (whole library)')
     db_group.add_argument('--detect-panoramas', action='store_true',
-                        help='Detect panorama sets by matching stored thumbnails geometrically '
-                             '(whole library, CPU, no image decode)')
+                        help='Detect panorama sets by matching stored thumbnails geometrically. '
+                             'Runs the bracket pass first, as --detect-sequences does: an HDR '
+                             'panorama is bracketed at every position, so the two must stay in step')
     db_group.add_argument('--sweep-dedup-thresholds', nargs='?', const='', metavar='LABELS_JSON',
                         help='Evaluate near-dup cosine thresholds. With a labels JSON, prints a '
                              'precision/recall table; without, prints the candidate-cosine distribution.')
@@ -2020,17 +2028,9 @@ Configuration:
         exit()
 
     # Detect exposure brackets (arithmetic over stored EXIF - no GPU, no decode)
-    if args.detect_sequences:
-        from utils.sequence import detect_sequences
+    if args.detect_sequences or args.detect_panoramas:
         init_database(args.db)
-        detect_sequences(args.db, config_path=args.config)
-        exit()
-
-    # Detect panorama sets (geometry over stored thumbnails - CPU, no decode)
-    if args.detect_panoramas:
-        from utils.panorama import detect_panoramas
-        init_database(args.db)
-        detect_panoramas(args.db, config_path=args.config)
+        detect_all_sequences(args.db, args.config)
         exit()
 
     # Evaluate near-dup cosine thresholds (read-only, no GPU)

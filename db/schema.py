@@ -261,6 +261,7 @@ INDEXES = [
     ('idx_face_ratio', 'photos', 'face_ratio'),
     ('idx_is_monochrome', 'photos', 'is_monochrome'),
     ('idx_is_burst_lead', 'photos', 'is_burst_lead'),
+    ('idx_is_sequence_lead', 'photos', 'is_sequence_lead'),
     ('idx_tags', 'photos', 'tags'),
     ('idx_faces_photo', 'faces', 'photo_path'),
     ('idx_faces_person', 'faces', 'person_id'),

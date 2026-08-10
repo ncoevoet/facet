@@ -2383,4 +2383,22 @@ export const I18N = {
     available: "updates.available",
     view: "updates.view",
   },
+  panorama: {
+    settings: {
+      tab_label: "panorama.settings.tab_label",
+      intro: "panorama.settings.intro",
+      enabled: "panorama.settings.enabled",
+      min_frames: "panorama.settings.min_frames",
+      min_frames_hint: "panorama.settings.min_frames_hint",
+      min_drift: "panorama.settings.min_drift",
+      min_drift_hint: "panorama.settings.min_drift_hint",
+      max_gap_seconds: "panorama.settings.max_gap_seconds",
+      max_gap_hint: "panorama.settings.max_gap_hint",
+      hdr_span: "panorama.settings.hdr_span",
+      hdr_span_hint: "panorama.settings.hdr_span_hint",
+      save: "panorama.settings.save",
+      redetect: "panorama.settings.redetect",
+      redetect_tooltip: "panorama.settings.redetect_tooltip",
+    },
+  },
 } as const;

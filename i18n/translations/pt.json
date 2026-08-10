@@ -2378,5 +2378,23 @@
   "updates": {
     "available": "O Facet {version} está disponível",
     "view": "Notas de versão"
+  },
+  "panorama": {
+    "settings": {
+      "tab_label": "Panorâmicas",
+      "intro": "Como as panorâmicas são detetadas. Calibrado com 26 panorâmicas e 8 não-panorâmicas confirmadas; os valores predefinidos são medidos, não adivinhados. Guardar não reetiqueta nada por si só — a deteção é uma passagem em lote sobre toda a biblioteca, por isso volte a executá-la para que a alteração chegue à galeria.",
+      "enabled": "Detetar panorâmicas",
+      "min_frames": "Fotogramas mínimos",
+      "min_frames_hint": "Todas as não-panorâmicas confirmadas tinham 6 fotogramas ou menos",
+      "min_drift": "Varredura mínima (larguras de enquadramento)",
+      "min_drift_hint": "As não-panorâmicas confirmadas agrupam-se em 0,36-0,40; a panorâmica real mais pequena é 0,46",
+      "max_gap_seconds": "Intervalo máximo entre fotogramas (segundos)",
+      "max_gap_hint": "Uma panorâmica deliberada é mais lenta do que uma rajada",
+      "hdr_span": "Limiar HDR (pontos)",
+      "hdr_span_hint": "As varreduras simples abrangem 0,0-0,7 pontos, as HDR 2,0-4,4",
+      "save": "Guardar",
+      "redetect": "Voltar a executar a deteção",
+      "redetect_tooltip": "Reetiqueta toda a biblioteca; demora vários minutos"
+    }
   }
 }

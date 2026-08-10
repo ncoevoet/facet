@@ -320,7 +320,7 @@ def update_panorama_detection(config_path, settings):
                             detail=f"Missing panorama_detection key: {missing[0]}")
     for key, value in settings.items():
         low, high = PANORAMA_DETECTION_BOUNDS[key]
-        if not isinstance(value, (int, float)) or isinstance(value, bool) and key != 'enabled':
+        if not isinstance(value, (int, float)) or (isinstance(value, bool) and key != 'enabled'):
             raise HTTPException(status_code=400, detail=f"{key} must be a number")
         if not low <= float(value) <= high:
             raise HTTPException(
@@ -331,7 +331,7 @@ def update_panorama_detection(config_path, settings):
     with CONFIG_WRITE_LOCK:
         with open(config_path) as f:
             config = json.load(f)
-        backup_path = _backup_config(config_path, prune=False)
+        backup_path = _backup_config(config_path)
         stored = dict(settings)
         stored['enabled'] = bool(stored['enabled'])
         for key in ('min_frames', 'min_inliers', 'sift_features', 'probe_stride', 'workers'):

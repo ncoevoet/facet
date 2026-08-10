@@ -2380,5 +2380,23 @@
   "updates": {
     "available": "Facet {version} è disponibile",
     "view": "Note di rilascio"
+  },
+  "panorama": {
+    "settings": {
+      "tab_label": "Panorami",
+      "intro": "Come vengono rilevati i panorami. Calibrato su 26 panorami e 8 non-panorami confermati; i valori predefiniti sono misurati, non ipotizzati. Salvare non rietichetta nulla da solo — il rilevamento è una passata batch sull’intera libreria, quindi rilancialo perché la modifica raggiunga la galleria.",
+      "enabled": "Rileva i panorami",
+      "min_frames": "Fotogrammi minimi",
+      "min_frames_hint": "Ogni non-panorama confermato aveva 6 fotogrammi o meno",
+      "min_drift": "Spostamento minimo (larghezze di inquadratura)",
+      "min_drift_hint": "I non-panorami confermati si raggruppano fra 0,36 e 0,40; il panorama reale più piccolo è 0,46",
+      "max_gap_seconds": "Intervallo massimo fra fotogrammi (secondi)",
+      "max_gap_hint": "Una panoramica deliberata è più lenta di una raffica",
+      "hdr_span": "Soglia HDR (stop)",
+      "hdr_span_hint": "Le panoramiche semplici coprono 0,0-0,7 stop, quelle HDR 2,0-4,4",
+      "save": "Salva",
+      "redetect": "Rilancia il rilevamento",
+      "redetect_tooltip": "Rietichetta l’intera libreria; richiede diversi minuti"
+    }
   }
 }

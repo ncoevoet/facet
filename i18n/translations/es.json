@@ -2380,5 +2380,23 @@
   "updates": {
     "available": "Facet {version} ya está disponible",
     "view": "Notas de la versión"
+  },
+  "panorama": {
+    "settings": {
+      "tab_label": "Panorámicas",
+      "intro": "Cómo se detectan las panorámicas. Calibrado con 26 panorámicas y 8 no panorámicas confirmadas; los valores por defecto están medidos, no supuestos. Guardar no reetiqueta nada por sí solo — la detección es una pasada por lotes sobre toda la biblioteca, así que vuelve a ejecutarla para que el cambio llegue a la galería.",
+      "enabled": "Detectar panorámicas",
+      "min_frames": "Fotogramas mínimos",
+      "min_frames_hint": "Toda no panorámica confirmada tenía 6 fotogramas o menos",
+      "min_drift": "Barrido mínimo (anchos de encuadre)",
+      "min_drift_hint": "Las no panorámicas confirmadas se agrupan en 0,36-0,40; la panorámica real más pequeña es 0,46",
+      "max_gap_seconds": "Intervalo máximo entre fotogramas (segundos)",
+      "max_gap_hint": "Un barrido deliberado es más lento que una ráfaga",
+      "hdr_span": "Umbral HDR (pasos)",
+      "hdr_span_hint": "Los barridos simples abarcan 0,0-0,7 pasos, los HDR 2,0-4,4",
+      "save": "Guardar",
+      "redetect": "Volver a ejecutar la detección",
+      "redetect_tooltip": "Reetiqueta toda la biblioteca; tarda varios minutos"
+    }
   }
 }

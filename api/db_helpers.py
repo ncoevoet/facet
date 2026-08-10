@@ -25,6 +25,8 @@ from api.config import (
 )
 from api.database import get_db_connection
 from db import DEFAULT_DB_PATH
+from utils.panorama import KINDS as PANORAMA_KINDS
+from utils.sequence import BRACKET as BRACKET_KIND
 
 logger = logging.getLogger("facet.api.db_helpers")
 
@@ -191,14 +193,16 @@ HIDDEN_DUPLICATE_SQL = "(is_duplicate_lead = 0 AND duplicate_group_id IS NOT NUL
 # happens to sit alone in a burst group, and a quarter of them share one with
 # unrelated frames, where the lead is not the base exposure and the flanking
 # exposures stay on show.
-HIDE_BRACKETS_SQL = "(sequence_kind IS NULL OR sequence_kind != 'bracket' OR sequence_ev_offset = 0)"
-HIDDEN_BRACKET_SQL = "(sequence_kind = 'bracket' AND sequence_ev_offset != 0)"
+HIDE_BRACKETS_SQL = (
+    f"(sequence_kind IS NULL OR sequence_kind != '{BRACKET_KIND}' "
+    "OR sequence_ev_offset = 0)")
+HIDDEN_BRACKET_SQL = f"(sequence_kind = '{BRACKET_KIND}' AND sequence_ev_offset != 0)"
 
 # The same idea for panorama sets, keyed on the marked representative rather
 # than on an exposure offset a pan does not have. Scoped by kind on both sides:
 # before it was, `hide_brackets` -- on by default -- silently hid every frame of
 # every panorama, because their kind is not NULL and their ev_offset is.
-PANORAMA_KINDS_SQL = "('panorama', 'hdr_panorama')"
+PANORAMA_KINDS_SQL = "(" + ", ".join(f"'{kind}'" for kind in PANORAMA_KINDS) + ")"
 HIDE_PANORAMAS_SQL = (
     f"(sequence_kind IS NULL OR sequence_kind NOT IN {PANORAMA_KINDS_SQL} "
     "OR is_sequence_lead = 1)")
@@ -557,7 +561,8 @@ async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_c
         "SUM(CASE WHEN is_blink = 1 THEN 1 ELSE 0 END) AS blinks, "
         f"SUM(CASE WHEN {HIDDEN_BURST_SQL} THEN 1 ELSE 0 END) AS bursts, "
         f"SUM(CASE WHEN {HIDDEN_DUPLICATE_SQL} THEN 1 ELSE 0 END) AS duplicates, "
-        f"SUM(CASE WHEN {HIDDEN_BRACKET_SQL} THEN 1 ELSE 0 END) AS brackets "
+        f"SUM(CASE WHEN {HIDDEN_BRACKET_SQL} THEN 1 ELSE 0 END) AS brackets, "
+        f"SUM(CASE WHEN {HIDDEN_PANORAMA_SQL} THEN 1 ELSE 0 END) AS panoramas "
         f"FROM {from_clause}{where_str}",
         sql_params,
     )
@@ -569,6 +574,7 @@ async def get_cached_hidden_aggregates_async(conn, where_str, sql_params, from_c
         'bursts': int(row['bursts'] or 0) if row else 0,
         'duplicates': int(row['duplicates'] or 0) if row else 0,
         'brackets': int(row['brackets'] or 0) if row else 0,
+        'panoramas': int(row['panoramas'] or 0) if row else 0,
     }
     _count_cache_store(cache_key, agg)
     return agg

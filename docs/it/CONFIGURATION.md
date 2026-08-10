@@ -819,7 +819,6 @@ raggruppamento delle raffiche.
 | `min_span_stops` | `1.0` | Escursione minima tra lo scatto più scuro e il più chiaro |
 | `step_tolerance_stops` | `0.34` | Irregolarità ammessa tra i passi (un terzo di stop) |
 
-
 ---
 
 ## Rilevamento dei panorami
@@ -853,6 +852,8 @@ Le soglie sono state calibrate su 26 panorami e 8 non-panorami confermati a occh
 | `hdr_min_span_stops` | `1.5` | Escursione di esposizione oltre la quale una panoramica è un panorama HDR |
 
 Modificare questi valori non produce nulla da solo — il rilevamento è una passata batch: rilancia `--detect-panoramas` (o l'azione nel visualizzatore) perché la modifica raggiunga la galleria e la selezione.
+
+---
 
 ## Burst Scoring
 

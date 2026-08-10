@@ -1857,39 +1857,85 @@
     },
     "action_stage": {
       "label_key": "comparison.context.action_stage",
-      "promote": ["sports", "concert", "candid"],
-      "excluded": ["silhouette"],
-      "suggest_from_moments": ["sports", "concert", "nightlife"]
+      "promote": [
+        "sports",
+        "concert",
+        "candid"
+      ],
+      "excluded": [
+        "silhouette"
+      ],
+      "suggest_from_moments": [
+        "sports",
+        "concert",
+        "nightlife"
+      ]
     },
     "party_event": {
       "label_key": "comparison.context.party_event",
-      "promote": ["group_portrait", "candid", "food"],
+      "promote": [
+        "group_portrait",
+        "candid",
+        "food"
+      ],
       "excluded": [],
-      "suggest_from_moments": ["celebration", "group_gathering", "dining"]
+      "suggest_from_moments": [
+        "celebration",
+        "group_gathering",
+        "dining"
+      ]
     },
     "portrait_session": {
       "label_key": "comparison.context.portrait_session",
-      "promote": ["portrait", "portrait_bw", "fashion"],
+      "promote": [
+        "portrait",
+        "portrait_bw",
+        "fashion"
+      ],
       "excluded": [],
-      "suggest_from_moments": ["portrait", "children"]
+      "suggest_from_moments": [
+        "portrait",
+        "children"
+      ]
     },
     "wildlife": {
       "label_key": "comparison.context.wildlife",
-      "promote": ["wildlife"],
+      "promote": [
+        "wildlife"
+      ],
       "excluded": [],
-      "suggest_from_moments": ["nature_wildlife", "pets"]
+      "suggest_from_moments": [
+        "nature_wildlife",
+        "pets"
+      ]
     },
     "landscape": {
       "label_key": "comparison.context.landscape",
-      "promote": ["landscape", "golden_hour", "blue_hour"],
+      "promote": [
+        "landscape",
+        "golden_hour",
+        "blue_hour"
+      ],
       "excluded": [],
-      "suggest_from_moments": ["scenic_landscape", "mountains", "snow_winter"]
+      "suggest_from_moments": [
+        "scenic_landscape",
+        "mountains",
+        "snow_winter"
+      ]
     },
     "motorsport": {
       "label_key": "comparison.context.motorsport",
-      "promote": ["sports", "vehicle"],
-      "excluded": ["silhouette"],
-      "suggest_from_moments": ["sports", "road_vehicle"]
+      "promote": [
+        "sports",
+        "vehicle"
+      ],
+      "excluded": [
+        "silhouette"
+      ],
+      "suggest_from_moments": [
+        "sports",
+        "road_vehicle"
+      ]
     }
   },
   "standalone_tags": {
@@ -3135,6 +3181,7 @@
       "hide_bursts": true,
       "hide_duplicates": true,
       "hide_brackets": true,
+      "hide_panoramas": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,

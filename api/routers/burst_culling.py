@@ -31,6 +31,9 @@ from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBod
 from comparison.comparison_manager import record_culling_pairs
 from processing.burst_score import burst_weights_from_config, compute_burst_score
 from utils.date_utils import parse_date
+from db.sequence_overrides import (
+    clear_sequence_overrides, existing_group_key, set_sequence_overrides,
+)
 from utils.panorama import HDR_PANORAMA, PANORAMA
 from utils.sequence import BRACKET as BRACKET_KIND
 
@@ -1433,37 +1436,26 @@ async def api_culling_groups(
                 now = time.time()
                 if cached is not None and now - cached[0] < _CULLING_GROUPS_CACHE_TTL:
                     all_groups = cached[1]
-                elif group_by == 'bracket':
-                    # Bracket sets are their own granularity: one subject, several
-                    # exposures. Sorted like any other feed, but never merged into
-                    # `all` -- the whole point is to see them apart from the bursts
-                    # they would otherwise be read as.
-                    all_groups = _fetch_bracket_groups(
-                        conn, user_id, vis_sql, vis_params, album_id=album_id,
-                        date_from=date_from, date_to=date_to,
-                        exclude_rejected=exclude_rejected,
-                    )
-                    cat_needs, default_need = ({}, 0)
-                    if sort == 'needs_comparisons':
-                        cat_needs, default_need = _category_comparison_needs(conn)
-                    all_groups.sort(key=lambda g: _culling_sort_key(g, sort, cat_needs, default_need),
-                                    reverse=_culling_sort_reverse(sort, direction))
-                    if sort == 'chronological':
-                        _order_group_photos_by_capture(all_groups)
-                    if len(_culling_groups_cache) >= _CULLING_GROUPS_CACHE_MAX:
-                        _culling_groups_cache.clear()
-                    _culling_groups_cache[cache_key] = (now, all_groups)
-                elif group_by in (PANORAMA, HDR_PANORAMA):
-                    # Panorama sets are their own granularity for the same reason
-                    # brackets are: their frames were shot to be combined, not to
-                    # compete, so reading them as competing takes is the error this
-                    # feed exists to prevent. Plain and HDR sweeps stay apart
-                    # because they are culled with different expectations.
-                    all_groups = _fetch_panorama_groups(
-                        conn, user_id, group_by, vis_sql, vis_params, album_id=album_id,
-                        date_from=date_from, date_to=date_to,
-                        exclude_rejected=exclude_rejected,
-                    )
+                elif group_by in _KEEP_WHOLE_KINDS:
+                    # Brackets and panoramas are each their own granularity, and
+                    # never merged into `all`: their frames were shot to be
+                    # combined, not to compete, so the whole point is to see them
+                    # apart from the bursts they would otherwise be read as. Plain
+                    # and HDR sweeps stay apart too -- they are culled with
+                    # different expectations. Everything after the fetch is shared,
+                    # so it is written once rather than per kind.
+                    if group_by == BRACKET_KIND:
+                        all_groups = _fetch_bracket_groups(
+                            conn, user_id, vis_sql, vis_params, album_id=album_id,
+                            date_from=date_from, date_to=date_to,
+                            exclude_rejected=exclude_rejected,
+                        )
+                    else:
+                        all_groups = _fetch_panorama_groups(
+                            conn, user_id, group_by, vis_sql, vis_params, album_id=album_id,
+                            date_from=date_from, date_to=date_to,
+                            exclude_rejected=exclude_rejected,
+                        )
                     cat_needs, default_need = ({}, 0)
                     if sort == 'needs_comparisons':
                         cat_needs, default_need = _category_comparison_needs(conn)
@@ -1720,6 +1712,23 @@ def _auto_keep_split(photos, strictness, min_keep):
     return ranked[:keep_count], ranked[keep_count:]
 
 
+def _sequence_scope(user_id, album_id, date_from, date_to, exclude_rejected):
+    """Shared FROM/WHERE scaffolding for a sequence-kind culling feed.
+
+    Only the prologue is shared. The SELECT, the ORDER BY and the group dict
+    stay per kind: a bracket orders by exposure offset and represents itself
+    with its base frame, a panorama orders by capture and takes its middle one,
+    and only brackets have a redundancy filter -- parameterising all four would
+    cost more clarity than the duplication does.
+    """
+    from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
+    album_sql, album_params = album_filter_clause(album_id)
+    window_clauses, window_params = time_window_clauses(date_from, date_to)
+    scope_sql = f" AND {album_sql}" + "".join(f" AND {c}" for c in window_clauses)
+    reject_sql = f" AND {is_rejected_col} = 0" if exclude_rejected else ""
+    return from_clause, from_params, scope_sql, album_params + window_params, reject_sql
+
+
 def _bracket_keep_split(photos):
     """Split a bracket into (keep=[base exposure], reject=[the other rungs]).
 
@@ -1748,12 +1757,8 @@ def _fetch_bracket_groups(conn, user_id, vis_sql, vis_params, album_id=None,
     Sets where the base has never been measured (either clipping flag NULL) are
     never called redundant: unmeasured is not the same as unclipped.
     """
-    from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
-    album_sql, album_params = album_filter_clause(album_id)
-    window_clauses, window_params = time_window_clauses(date_from, date_to)
-    scope_sql = f" AND {album_sql}" + "".join(f" AND {c}" for c in window_clauses)
-    scope_params = album_params + window_params
-    reject_sql = f" AND {is_rejected_col} = 0" if exclude_rejected else ""
+    from_clause, from_params, scope_sql, scope_params, reject_sql = _sequence_scope(
+        user_id, album_id, date_from, date_to, exclude_rejected)
     redundant_sql = ""
     redundant_params = []
     if redundant_only:
@@ -1802,17 +1807,14 @@ def _fetch_panorama_groups(conn, user_id, kind, vis_sql, vis_params, album_id=No
     likely to hold the subject -- a choice, unlike a bracket's base exposure,
     which is a fact.
     """
-    from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
-    album_sql, album_params = album_filter_clause(album_id)
-    window_clauses, window_params = time_window_clauses(date_from, date_to)
-    scope_sql = f" AND {album_sql}" + "".join(f" AND {c}" for c in window_clauses)
-    reject_sql = f" AND {is_rejected_col} = 0" if exclude_rejected else ""
+    from_clause, from_params, scope_sql, scope_params, reject_sql = _sequence_scope(
+        user_id, album_id, date_from, date_to, exclude_rejected)
     rows = conn.execute(
         f"""SELECT {_culling_photo_columns('photos.path', burst=True, sequence_group=True)}
             FROM {from_clause}
             WHERE sequence_kind = ? AND {vis_sql}{reject_sql}{scope_sql}
             ORDER BY sequence_group_id, photos.date_taken, photos.path""",
-        from_params + [kind] + vis_params + album_params + window_params,
+        from_params + [kind] + vis_params + scope_params,
     ).fetchall()
 
     groups = []
@@ -2078,6 +2080,25 @@ def auto_cull(
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
+def _visible_paths_or_404(conn, paths, user_id):
+    """The subset of ``paths`` the caller may see, or 404 when none of them are.
+
+    Resolved before any write, so a forged path list can never reach a photo
+    outside the caller's directory scope.
+    """
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    placeholders = ','.join('?' * len(paths))
+    visible = [
+        row['path'] for row in conn.execute(
+            f"SELECT path FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
+            paths + vis_params,
+        ).fetchall()
+    ]
+    if not visible:
+        raise HTTPException(status_code=404, detail='No such photos')
+    return visible
+
+
 class SequenceOverrideBody(BaseModel):
     """A manual correction to one panorama set.
 
@@ -2112,28 +2133,14 @@ def override_sequence_group(
         raise HTTPException(status_code=400, detail='paths is required')
 
     with get_db() as conn:
-        vis_sql, vis_params = get_visibility_clause(user_id)
-        placeholders = ','.join('?' * len(paths))
-        visible = [
-            r['path'] for r in conn.execute(
-                f"SELECT path FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
-                paths + vis_params,
-            ).fetchall()
-        ]
-        if not visible:
-            raise HTTPException(status_code=404, detail='No such photos')
-        # One key per correction so two forced sets never merge into one.
-        group_key = min(visible) if body.kind else None
-        conn.executemany(
-            "INSERT INTO photo_sequence_overrides "
-            "(photo_path, sequence_kind, override_group_key, source, created_by) "
-            "VALUES (?,?,?,?,?) "
-            "ON CONFLICT(photo_path) DO UPDATE SET "
-            "sequence_kind = excluded.sequence_kind, "
-            "override_group_key = excluded.override_group_key, "
-            "source = excluded.source, created_by = excluded.created_by",
-            [(path, body.kind, group_key, 'user', user_id) for path in visible],
-        )
+        visible = _visible_paths_or_404(conn, paths, user_id)
+        # Reuse the key already on these frames when there is one. Minting a
+        # fresh `min(paths)` per call let two overlapping corrections land two
+        # kinds under a single key, and the set was then labelled by whichever
+        # row the database happened to return first.
+        group_key = existing_group_key(conn, visible) if body.kind else None
+        set_sequence_overrides(conn, visible, body.kind, group_key=group_key,
+                               created_by=user_id)
         conn.commit()
     _invalidate_culling_groups_cache()
     return {'success': True, 'overridden': len(visible),
@@ -2152,19 +2159,8 @@ def clear_sequence_override(
         raise HTTPException(status_code=400, detail='paths is required')
 
     with get_db() as conn:
-        vis_sql, vis_params = get_visibility_clause(user_id)
-        placeholders = ','.join('?' * len(paths))
-        visible = [
-            r['path'] for r in conn.execute(
-                f"SELECT path FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
-                paths + vis_params,
-            ).fetchall()
-        ]
-        if not visible:
-            raise HTTPException(status_code=404, detail='No such photos')
-        cursor = conn.execute(
-            f"DELETE FROM photo_sequence_overrides WHERE photo_path IN "
-            f"({','.join('?' * len(visible))})", visible)
+        visible = _visible_paths_or_404(conn, paths, user_id)
+        cleared = clear_sequence_overrides(conn, visible)
         conn.commit()
     _invalidate_culling_groups_cache()
-    return {'success': True, 'cleared': cursor.rowcount}
+    return {'success': True, 'cleared': cleared}

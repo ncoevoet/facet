@@ -365,3 +365,101 @@ class TestLoadOverrides:
 
         assert suppressed == {'/a.jpg'}
         assert sorted(path for _, path in forced['g1']) == ['/b.jpg', '/c.jpg']
+
+
+class TestParallelAnalysis:
+    """The pool path is a different code path from the serial one.
+
+    Every other end-to-end test seeds a single run, which takes the serial
+    branch, so without this the worker initializer, the read-only connections it
+    opens and the picklability of a candidate run were never executed at all.
+    """
+
+    def test_two_sweeps_are_found_with_a_worker_pool(self, tmp_path):
+        db = tmp_path / 'pano.db'
+        _seed_sweep(db, frames=12, start_second=0)
+        rows = []
+        for index in range(12):
+            frame = _rotated(_textured_frame(seed=21), 5.0 * index)
+            ok, buffer = cv2.imencode('.jpg', frame)
+            assert ok
+            rows.append((f'/second{index}.jpg', f'second{index}.jpg',
+                         f'2025:04:15 12:05:{index:02d}', 'Canon EOS R6', 24.0,
+                         8.0, '0.005', 100, buffer.tobytes()))
+        with sqlite3.connect(db) as conn:
+            conn.executemany(
+                "INSERT INTO photos (path, filename, date_taken, camera_model, focal_length, "
+                "f_stop, shutter_speed, iso, thumbnail) VALUES (?,?,?,?,?,?,?,?,?)", rows)
+            conn.commit()
+
+        result = detect_panoramas(str(db))
+
+        assert result['sets'] == 2
+        with sqlite3.connect(db) as conn:
+            leads = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE is_sequence_lead = 1").fetchone()[0]
+        assert leads == 2
+
+
+class TestStaticRunProbe:
+    """The cheap gate that abandons a run before any geometry.
+
+    Untested, this is the module's most dangerous failure: an over-eager probe
+    discards every panorama and the rest of the suite still passes, because
+    every other fixture here is a moving run that never reaches `return True`.
+    Both `probe_stride` and `probe_min_drift` are editable through the config
+    endpoint, so a bad value has a direct route in.
+    """
+
+    def _probe(self, db, paths, **overrides):
+        from utils.panorama import _is_static_run, _sift_and_matcher
+        settings = _settings(**overrides)
+        sift, matcher = _sift_and_matcher(settings)
+        conn = sqlite3.connect(db)
+        conn.row_factory = sqlite3.Row
+        try:
+            return _is_static_run(conn, paths, sift, matcher, settings, {})
+        finally:
+            conn.close()
+
+    def test_a_long_static_burst_is_abandoned(self, tmp_path):
+        db = tmp_path / 'pano.db'
+        paths = _seed_sweep(db, frames=12, degrees_per_frame=0.0)
+        assert self._probe(db, paths) is True
+        assert detect_panoramas(str(db))['sets'] == 0
+
+    def test_a_moving_sweep_is_not_abandoned(self, tmp_path):
+        db = tmp_path / 'pano.db'
+        paths = _seed_sweep(db, frames=12, degrees_per_frame=5.0)
+        assert self._probe(db, paths) is False
+
+    def test_a_run_shorter_than_the_stride_is_never_abandoned(self, tmp_path):
+        """Too short to probe means unknown, not static."""
+        db = tmp_path / 'pano.db'
+        paths = _seed_sweep(db, frames=4, degrees_per_frame=0.0)
+        assert self._probe(db, paths) is False
+
+    def test_a_probe_that_cannot_match_escalates(self, tmp_path):
+        """A failed match means large motion, so the run must be analysed.
+
+        Abandoning it would silently drop exactly the fast sweeps that have no
+        overlap left at the probe stride.
+        """
+        from db.schema import init_database
+        db = tmp_path / 'pano.db'
+        init_database(str(db))
+        rows = []
+        for index in range(12):
+            frame = _textured_frame(seed=100 + index)
+            ok, buffer = cv2.imencode('.jpg', frame)
+            assert ok
+            rows.append((f'/x{index}.jpg', f'x{index}.jpg',
+                         f'2025:04:15 12:00:{index:02d}', 'Canon EOS R6', 24.0,
+                         8.0, '0.005', 100, buffer.tobytes()))
+        with sqlite3.connect(db) as conn:
+            conn.executemany(
+                "INSERT INTO photos (path, filename, date_taken, camera_model, focal_length, "
+                "f_stop, shutter_speed, iso, thumbnail) VALUES (?,?,?,?,?,?,?,?,?)", rows)
+            conn.commit()
+
+        assert self._probe(db, [r[0] for r in rows]) is False

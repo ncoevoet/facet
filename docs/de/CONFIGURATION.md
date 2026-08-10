@@ -820,7 +820,6 @@ Serienbildung.
 | `min_span_stops` | `1.0` | Kleinster Gesamtabstand zwischen dunkelster und hellster Aufnahme |
 | `step_tolerance_stops` | `0.34` | Zulässige Ungleichmäßigkeit der Stufen (eine Drittelstufe) |
 
-
 ---
 
 ## Panorama-Erkennung
@@ -854,6 +853,8 @@ Die Schwellenwerte wurden an 26 Panoramen und 8 Nicht-Panoramen kalibriert, die 
 | `hdr_min_span_stops` | `1.5` | Belichtungsspanne, ab der ein Schwenk ein HDR-Panorama ist |
 
 Diese Werte zu ändern bewirkt für sich genommen nichts — die Erkennung ist ein Stapellauf: Führen Sie `--detect-panoramas` erneut aus (oder die Schaltfläche im Viewer), damit die Änderung Galerie und Auswahl erreicht.
+
+---
 
 ## Burst Scoring
 

@@ -1599,9 +1599,37 @@ def api_get_panorama_detection():
     return {'settings': settings, 'defaults': dict(DEFAULTS)}
 
 
+class PanoramaDetectionBody(BaseModel):
+    """Every threshold is required: the PUT replaces the whole block.
+
+    Defaulting any of them would make a partial body silently destructive -- a
+    form that failed to send one field would reset it, and for a detector that
+    changes what the library contains on the next run.
+    """
+    model_config = {'extra': 'forbid'}
+
+    enabled: bool
+    max_gap_seconds: float
+    min_frames: int
+    min_inliers: int
+    min_drift: float
+    max_step: float
+    back_tolerance: float
+    max_ortho: float
+    ortho_ratio: float
+    step_ortho_abs: float
+    step_ortho_ratio: float
+    sift_features: int
+    match_ratio: float
+    probe_stride: int
+    probe_min_drift: float
+    workers: int
+    hdr_min_span_stops: float
+
+
 @router.put("/api/config/panorama_detection")
 def api_update_panorama_detection(
-    body: dict,
+    body: PanoramaDetectionBody,
     user: CurrentUser = Depends(require_edition),
 ):
     """Rewrite the panorama detector's thresholds.
@@ -1617,12 +1645,22 @@ def api_update_panorama_detection(
     """
     from api.config_writes import update_panorama_detection
 
-    backup_path = update_panorama_detection(str(_CONFIG_PATH), body)
-    reload_config()
+    try:
+        backup_path = update_panorama_detection(str(_CONFIG_PATH), body.model_dump())
+        reload_config()
 
-    return {
-        'success': True,
-        'message': 'Panorama detection settings updated; re-run detection to apply them',
-        'backup': backup_path,
-        'requires_redetection': True,
-    }
+        return {
+            'success': True,
+            'message': 'Panorama detection settings updated; re-run detection to apply them',
+            'backup': backup_path,
+            'requires_redetection': True,
+        }
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail='Config file not found')
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail='Invalid JSON in config')
+    except Exception:
+        logger.exception("Failed to update panorama detection settings")
+        raise HTTPException(status_code=500, detail='Failed to update settings')

@@ -30,6 +30,7 @@ export interface HiddenSummary {
   bursts: number;
   duplicates: number;
   brackets: number;
+  panoramas: number;
 }
 
 export interface PhotosResponse {
@@ -174,7 +175,7 @@ export class GalleryStore {
   readonly virtualScroll = signal(localStorage.getItem('facet_virtual_scroll') !== 'off');
 
   // Hidden-photo summary (populated from /photos response)
-  readonly hiddenSummary = signal<HiddenSummary>({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0 });
+  readonly hiddenSummary = signal<HiddenSummary>({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
 
   // --- View snapshot for back-navigation restoration ---
   readonly viewSnapshot = signal<{ scrollTop: number; albumId: string | null; filterKey: string } | null>(null);
@@ -419,7 +420,7 @@ export class GalleryStore {
       this.total.set(res.total);
       this.hasMore.set(res.has_more);
       this.hiddenSummary.set(
-        res.hidden_summary ?? { total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0 },
+        res.hidden_summary ?? { total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 },
       );
       void this.fetchKeeperHints(res.photos.map(p => p.path));
     } catch {

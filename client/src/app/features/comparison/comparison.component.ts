@@ -20,6 +20,7 @@ import { ComparisonSnapshotsTabComponent } from './comparison-snapshots-tab.comp
 import { ComparisonAbTabComponent } from './comparison-ab-tab.component';
 import { ComparisonSuggestionsTabComponent } from './comparison-suggestions-tab.component';
 import { ComparisonPriorityTabComponent } from './comparison-priority-tab.component';
+import { PanoramaSettingsTabComponent } from './panorama-settings-tab.component';
 import { I18N } from '../../core/i18n/keys';
 
 Chart.register(...registerables);
@@ -39,6 +40,7 @@ Chart.register(...registerables);
     ComparisonAbTabComponent,
     ComparisonSuggestionsTabComponent,
     ComparisonPriorityTabComponent,
+    PanoramaSettingsTabComponent,
   ],
   template: `
     <div class="p-4 md:p-6 max-w-screen-2xl mx-auto">
@@ -165,6 +167,15 @@ Chart.register(...registerables);
               {{ I18N.comparison.context.tab_label | translate }}
             </ng-template>
             <app-comparison-priority-tab #priorityTabEl />
+          </mat-tab>
+
+          <!-- Panorama detection tab -->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <mat-icon class="mr-2">panorama_photosphere</mat-icon>
+              {{ I18N.panorama.settings.tab_label | translate }}
+            </ng-template>
+            <app-panorama-settings-tab />
           </mat-tab>
         </mat-tab-group>
       }
