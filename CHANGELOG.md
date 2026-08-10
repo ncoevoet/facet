@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.0] "Chatoyance" — 2026-08-10
+
 ### Added
 - **Exposure brackets are recognised as brackets** (`--detect-sequences`, `sequence_detection` config, `sequence_group_id` / `sequence_kind` / `sequence_ev_offset` columns). Burst detection groups on framing and capture time, which describes a bracket exactly — so a bracket was collapsed into a burst, its lead picked by `aggregate`, and with the shipped `hide_bursts` default two frames in three disappeared behind whichever exposure happened to score best. On the 126k-photo library this was measured on, that was **226 sets, every one of them swallowed**. The ladder is now derived from the `f_stop` / `shutter_speed` / `ISO` already stored per photo, so an existing library is labelled by arithmetic alone — no rescan, no image decode, no model — and a group that turns out to be exactly one bracket has its lead moved onto the base exposure. Frames carry their exposure compensation signed the way a camera labels an AEB set, `-2` dark and `+2` bright. Panorama detection is deliberately not included: its frames share one exposure and differ by a pan, which wants its own evidence rather than a guess bolted onto this.
 - **Culling can be browsed by exposure bracket** (`GET /api/culling-groups?group_by=bracket`). Kept out of the merged `all` feed on purpose — the point is to see a bracket apart from the bursts it would otherwise be read as. Every frame starts marked keep, since the set was shot to be merged rather than to compete, and confirming one records no comparison pairs: preferring one rung of an exposure ladder describes the exposure, not the photograph, and feeding that to the ranker would bias every later ranking.
