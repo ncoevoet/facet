@@ -846,11 +846,22 @@ Les seuils ont été calibrés sur 26 panoramas et 8 non-panoramas confirmés à
 | Paramètre | Défaut | Description |
 |---------|---------|-------------|
 | `enabled` | `true` | Désactiver complètement la détection de panoramas |
-| `max_gap_seconds` | `30.0` | Écart maximal entre deux images consécutives |
-| `min_frames` | `8` | Série la plus courte considérée comme un panorama |
-| `min_drift` | `0.43` | Balayage total, en largeurs de cadre, pour qu'une série compte |
+| `max_gap_seconds` | `30.0` | Écart maximal entre deux images consécutives d'un balayage |
+| `min_frames` | `8` | Série la plus courte considérée comme un panorama. Le discriminant le plus fort : tous les non-panoramas confirmés comptaient 6 images ou moins |
+| `min_drift` | `0.43` | Balayage total, en largeurs de cadre, pour qu'une série compte. Les non-panoramas confirmés se groupent entre 0,36 et 0,40 ; le plus petit vrai panorama est à 0,46 |
 | `min_inliers` | `25` | Points concordants RANSAC requis pour valider une paire |
-| `hdr_min_span_stops` | `1.5` | Écart d'exposition au-delà duquel un balayage est un panorama HDR |
+| `max_step` | `0.9` | Plus grand pas isolé, en largeurs de cadre — au-delà c'est une coupure de scène |
+| `back_tolerance` | `0.02` | Recul toléré sur un pas avant que la série ne s'arrête |
+| `max_ortho` | `0.15` | Dérive latérale tolérée sur l'ensemble du balayage |
+| `ortho_ratio` | `0.25` | Marge latérale supplémentaire proportionnelle au balayage, pour ne pas pénaliser les longues séries |
+| `step_ortho_abs` | `0.02` | Déplacement latéral toléré sur un seul pas avant d'être lu comme un recadrage |
+| `step_ortho_ratio` | `0.5` | La même limite, en fraction de la taille du pas |
+| `hdr_min_span_stops` | `1.5` | Écart d'exposition au-delà duquel un balayage est un panorama HDR. Les balayages simples couvrent 0,0 à 0,7 IL, les HDR 2,0 à 4,4 |
+| `sift_features` | `400` | Points caractéristiques par vignette. Le corpus est encore détecté à 250 ; 400 garde de la marge |
+| `match_ratio` | `0.75` | Rapport de Lowe qu'une correspondance doit franchir pour être retenue |
+| `workers` | `0` | Processus parallèles ; `0` choisit selon le nombre de cœurs. L'accélération reste en deçà du nombre de cœurs : le coût est dominé par les lectures aléatoires de vignettes |
+| `probe_stride` | `8` | Nombre d'images entre les sondages rapides qui écartent les rafales ordinaires |
+| `probe_min_drift` | `0.05` | Mouvement en deçà duquel un sondage déclare la série immobile |
 
 Modifier ces valeurs ne change rien en soi — la détection est une passe par lots : relancez `--detect-panoramas` (ou l'action de relance dans la visionneuse) pour que le changement atteigne la galerie et le tri.
 

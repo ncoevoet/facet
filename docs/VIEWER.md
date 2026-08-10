@@ -7,6 +7,7 @@ FastAPI + Angular single-page application for browsing, filtering, and managing 
 ## Contents
 
 - [Starting the Viewer](#starting-the-viewer) · [Authentication](#authentication) · [Filtering Options](#filtering-options) · [Sorting](#sorting) · [Gallery Features](#gallery-features)
+- [Panoramas and exposure brackets](#panoramas-and-exposure-brackets)
 - [Person Management](#person-management) · [Scan Trigger (Superadmin)](#scan-trigger-superadmin) · [Semantic Search](#semantic-search) · [Albums](#albums)
 - [AI Critique](#ai-critique) · [AI Captioning](#ai-captioning-gpu-16gb24gb-edition) · [Memories ("On This Day")](#memories-on-this-day) · [Timeline View](#timeline-view) · [Map View](#map-view) · [Capsules](#capsules)
 - [Folders View](#folders-view) · [GPS Filter Dialog](#gps-filter-dialog) · [Merge Suggestions](#merge-suggestions) · [Editor Export](#editor-export) · [Culling](#culling) · [Junk Sweep](#junk-sweep) · [Pairwise Comparison Mode](#pairwise-comparison-mode)
@@ -243,6 +244,44 @@ Use the **similarity threshold slider** (0–90%) to control how strict the matc
 ### Filter Chips
 
 Active filters shown as removable chips with counts at top of gallery.
+
+## Panoramas and exposure brackets
+
+A panorama's frames were shot to be stitched and a bracket's to be merged, so
+neither is a set of competing takes. Burst detection cannot tell the difference
+— the frames arrive seconds apart from one camera at one focal length — so
+without this it groups them and hides all but one behind a lead picked on a
+criterion that means nothing for a pan.
+
+**In the gallery.** `Best of bracket` and `Best of panorama` (both on by
+default) collapse each set behind one representative frame: a bracket's base
+exposure, a panorama's middle frame. That frame carries a small icon in the
+bottom row, next to the star and heart, naming what it stands for — a plain
+sweep, an HDR sweep, or an exposure bracket — with a tooltip. The icon appears
+only while the matching toggle is actually hiding the rest of the set; with the
+toggle off every frame is on screen in its own right and there is nothing to
+stand for.
+
+**In culling.** The granularity menu offers `Exposure brackets`, `Panoramas` and
+`HDR panoramas` as their own feeds, never merged into `All` — the point is to
+see them apart from the bursts they would otherwise be read as. Every frame
+starts marked keep, and confirming a set records no comparison pairs: preferring
+one rung of an exposure ladder, or one frame of a pan, describes how the set was
+shot rather than the photograph, and feeding that to the ranker would bias every
+later ranking.
+
+**Correcting a set.** Geometry cannot recover intent — a deliberate sweep and a
+pan that follows a moving subject are the same measurement — so a residual error
+rate is inherent, measured at roughly 4%. A correction ("this is not a panorama"
+/ "these frames are one") is sticky: it lives in its own table and survives every
+later detection run, which clears and rewrites the labels it produced.
+
+**Tuning it.** The Panoramas tab under Compare exposes the thresholds that were
+actually calibrated against labelled sets — minimum frames, minimum sweep,
+longest gap and the HDR exposure spread. Saving them changes nothing on its own:
+detection is a batch pass over the whole library rather than a live query, so the
+tab offers a re-run beside the save. See
+[CONFIGURATION.md](CONFIGURATION.md#panorama-detection) for the full block.
 
 ## Person Management
 

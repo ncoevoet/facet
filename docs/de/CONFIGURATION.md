@@ -846,11 +846,22 @@ Die Schwellenwerte wurden an 26 Panoramen und 8 Nicht-Panoramen kalibriert, die 
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
 | `enabled` | `true` | Panorama-Erkennung vollständig abschalten |
-| `max_gap_seconds` | `30.0` | Größter Abstand zwischen aufeinanderfolgenden Bildern |
-| `min_frames` | `8` | Kürzeste Folge, die als Panorama gilt |
-| `min_drift` | `0.43` | Gesamtschwenk in Bildbreiten, ab dem eine Folge zählt |
-| `min_inliers` | `25` | Erforderliche RANSAC-Übereinstimmungen pro Paar |
-| `hdr_min_span_stops` | `1.5` | Belichtungsspanne, ab der ein Schwenk ein HDR-Panorama ist |
+| `max_gap_seconds` | `30.0` | Größter Abstand zwischen aufeinanderfolgenden Bildern eines Schwenks |
+| `min_frames` | `8` | Kürzeste Folge, die als Panorama gilt. Das stärkste Unterscheidungsmerkmal: jedes bestätigte Nicht-Panorama hatte 6 Bilder oder weniger |
+| `min_drift` | `0.43` | Gesamtschwenk in Bildbreiten, ab dem eine Folge zählt. Bestätigte Nicht-Panoramen liegen bei 0,36-0,40; das kleinste echte bei 0,46 |
+| `min_inliers` | `25` | Erforderliche RANSAC-Übereinstimmungen je Bildpaar |
+| `max_step` | `0.9` | Größter Einzelschritt in Bildbreiten — darüber ist es ein Szenenwechsel |
+| `back_tolerance` | `0.02` | Wie weit ein Schritt zurückgehen darf, bevor die Folge endet |
+| `max_ortho` | `0.15` | Seitliche Abweichung über den gesamten Schwenk |
+| `ortho_ratio` | `0.25` | Zusätzliches seitliches Budget anteilig zum Schwenk, damit lange Folgen nicht benachteiligt werden |
+| `step_ortho_abs` | `0.02` | Seitliche Bewegung in einem Schritt, bevor er als Neuausrichtung gilt |
+| `step_ortho_ratio` | `0.5` | Dieselbe Grenze als Anteil der Schrittgröße |
+| `hdr_min_span_stops` | `1.5` | Belichtungsspanne, ab der ein Schwenk ein HDR-Panorama ist. Einfache Schwenks umfassen 0,0-0,7 Blenden, HDR 2,0-4,4 |
+| `sift_features` | `400` | Merkmale je Vorschaubild. Das Korpus wird auch mit 250 erkannt; 400 lässt Spielraum |
+| `match_ratio` | `0.75` | Lowe-Verhältnis, das eine Übereinstimmung unterschreiten muss |
+| `workers` | `0` | Parallele Prozesse; `0` wählt nach Kernanzahl. Skaliert unterhalb der Kernanzahl — die Kosten dominieren zufällige Vorschaubild-Lesezugriffe |
+| `probe_stride` | `8` | Bilder zwischen den günstigen Stichproben, die gewöhnliche Serien aussortieren |
+| `probe_min_drift` | `0.05` | Bewegung, unterhalb derer eine Stichprobe die Folge als unbewegt einstuft |
 
 Diese Werte zu ändern bewirkt für sich genommen nichts — die Erkennung ist ein Stapellauf: Führen Sie `--detect-panoramas` erneut aus (oder die Schaltfläche im Viewer), damit die Änderung Galerie und Auswahl erreicht.
 

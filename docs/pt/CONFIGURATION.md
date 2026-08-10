@@ -845,11 +845,22 @@ Os limiares foram calibrados com 26 panorâmicas e 8 não-panorâmicas confirmad
 | Definição | Predefinição | Descrição |
 |---------|---------|-------------|
 | `enabled` | `true` | Desativar completamente a deteção de panorâmicas |
-| `max_gap_seconds` | `30.0` | Intervalo máximo entre fotogramas consecutivos |
-| `min_frames` | `8` | Série mais curta considerada panorâmica |
-| `min_drift` | `0.43` | Varredura total, em larguras de enquadramento, para a série contar |
+| `max_gap_seconds` | `30.0` | Intervalo máximo entre fotogramas consecutivos de uma varredura |
+| `min_frames` | `8` | Série mais curta considerada panorâmica. O discriminante mais forte: todas as não-panorâmicas confirmadas tinham 6 fotogramas ou menos |
+| `min_drift` | `0.43` | Varredura total, em larguras de enquadramento, para a série contar. As não-panorâmicas confirmadas agrupam-se em 0,36-0,40; a real mais pequena é 0,46 |
 | `min_inliers` | `25` | Correspondências RANSAC necessárias para validar um par |
-| `hdr_min_span_stops` | `1.5` | Amplitude de exposição acima da qual uma varredura é uma panorâmica HDR |
+| `max_step` | `0.9` | Maior passo isolado, em larguras de enquadramento — acima disso é um corte de cena |
+| `back_tolerance` | `0.02` | Recuo tolerado num passo antes de a série terminar |
+| `max_ortho` | `0.15` | Desvio lateral tolerado em toda a varredura |
+| `ortho_ratio` | `0.25` | Margem lateral adicional proporcional à varredura, para não penalizar séries longas |
+| `step_ortho_abs` | `0.02` | Movimento lateral tolerado num único passo antes de ser lido como reenquadramento |
+| `step_ortho_ratio` | `0.5` | O mesmo limite como fração do próprio passo |
+| `hdr_min_span_stops` | `1.5` | Amplitude de exposição acima da qual uma varredura é uma panorâmica HDR. As simples abrangem 0,0-0,7 pontos, as HDR 2,0-4,4 |
+| `sift_features` | `400` | Características por miniatura. O corpus continua a ser detetado a 250; 400 deixa margem |
+| `match_ratio` | `0.75` | Razão de Lowe que uma correspondência tem de superar para ser mantida |
+| `workers` | `0` | Processos paralelos; `0` escolhe pelo número de núcleos. Escala abaixo do número de núcleos: domina a leitura aleatória de miniaturas |
+| `probe_stride` | `8` | Fotogramas entre as sondagens baratas que descartam rajadas comuns |
+| `probe_min_drift` | `0.05` | Movimento abaixo do qual uma sondagem declara a série imóvel |
 
 Alterar estes valores não faz nada por si só — a deteção é uma passagem em lote: volte a executar `--detect-panoramas` (ou a ação no visualizador) para que a alteração chegue à galeria e à seleção.
 

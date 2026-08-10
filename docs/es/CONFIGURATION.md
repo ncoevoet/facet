@@ -844,11 +844,22 @@ Los umbrales se calibraron con 26 panorámicas y 8 no panorámicas confirmadas a
 | Ajuste | Predet. | Descripción |
 |---------|---------|-------------|
 | `enabled` | `true` | Desactivar por completo la detección de panorámicas |
-| `max_gap_seconds` | `30.0` | Intervalo máximo entre fotogramas consecutivos |
-| `min_frames` | `8` | Serie más corta considerada panorámica |
-| `min_drift` | `0.43` | Barrido total, en anchos de encuadre, para que una serie cuente |
+| `max_gap_seconds` | `30.0` | Intervalo máximo entre fotogramas consecutivos de un barrido |
+| `min_frames` | `8` | Serie más corta considerada panorámica. El discriminante más fuerte: toda no panorámica confirmada tenía 6 fotogramas o menos |
+| `min_drift` | `0.43` | Barrido total, en anchos de encuadre, para que una serie cuente. Las no panorámicas confirmadas se agrupan en 0,36-0,40; la real más pequeña es 0,46 |
 | `min_inliers` | `25` | Coincidencias RANSAC necesarias para validar un par |
-| `hdr_min_span_stops` | `1.5` | Amplitud de exposición por encima de la cual un barrido es una panorámica HDR |
+| `max_step` | `0.9` | Mayor paso aislado, en anchos de encuadre — más allá es un corte de escena |
+| `back_tolerance` | `0.02` | Retroceso tolerado en un paso antes de terminar la serie |
+| `max_ortho` | `0.15` | Desvío lateral tolerado en todo el barrido |
+| `ortho_ratio` | `0.25` | Margen lateral adicional proporcional al barrido, para no penalizar series largas |
+| `step_ortho_abs` | `0.02` | Movimiento lateral tolerado en un solo paso antes de leerse como reencuadre |
+| `step_ortho_ratio` | `0.5` | El mismo límite como fracción del propio paso |
+| `hdr_min_span_stops` | `1.5` | Amplitud de exposición por encima de la cual un barrido es una panorámica HDR. Los simples abarcan 0,0-0,7 pasos, los HDR 2,0-4,4 |
+| `sift_features` | `400` | Rasgos por miniatura. El corpus se sigue detectando con 250; 400 deja margen |
+| `match_ratio` | `0.75` | Razón de Lowe que una coincidencia debe superar para conservarse |
+| `workers` | `0` | Procesos paralelos; `0` elige según los núcleos. Escala por debajo del número de núcleos: domina la lectura aleatoria de miniaturas |
+| `probe_stride` | `8` | Fotogramas entre los sondeos baratos que descartan ráfagas corrientes |
+| `probe_min_drift` | `0.05` | Movimiento por debajo del cual un sondeo declara inmóvil la serie |
 
 Cambiar estos valores no hace nada por sí solo — la detección es una pasada por lotes: vuelve a ejecutar `--detect-panoramas` (o la acción de la visor) para que el cambio llegue a la galería y al descarte.
 
