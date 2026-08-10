@@ -557,6 +557,15 @@ class ScoringConfig:
         """
         return self.config.get('sequence_detection', {})
 
+    def get_panorama_detection_settings(self):
+        """Get panorama detection settings.
+
+        Returns only what the config carries; `utils.panorama.DEFAULTS` supplies
+        the rest, so a partial block tunes one threshold without having to
+        restate the others.
+        """
+        return self.config.get('panorama_detection', {})
+
     def get_duplicate_detection_settings(self):
         """Get duplicate detection settings.
 

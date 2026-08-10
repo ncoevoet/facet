@@ -271,3 +271,72 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
         atomic_write_json(config_path, config)
 
     return backup_path
+
+
+# Bounds for the panorama detector's editable thresholds. Every one is a
+# fraction of a frame dimension or a small count, so a value outside these
+# ranges is a mistake rather than a preference -- and one that would either
+# flood the culling feed or empty it.
+PANORAMA_DETECTION_BOUNDS = {
+    'enabled': (0, 1),
+    'max_gap_seconds': (1.0, 600.0),
+    'min_frames': (2, 200),
+    'min_inliers': (8, 2000),
+    'min_drift': (0.05, 10.0),
+    'max_step': (0.1, 1.0),
+    'back_tolerance': (0.0, 0.5),
+    'max_ortho': (0.0, 2.0),
+    'ortho_ratio': (0.0, 2.0),
+    'step_ortho_abs': (0.0, 0.5),
+    'step_ortho_ratio': (0.0, 2.0),
+    'sift_features': (100, 5000),
+    'match_ratio': (0.5, 0.95),
+    'probe_stride': (2, 64),
+    'probe_min_drift': (0.0, 0.5),
+    'workers': (0, 128),
+    'hdr_min_span_stops': (0.1, 10.0),
+}
+
+
+def update_panorama_detection(config_path, settings):
+    """Rewrite the ``panorama_detection`` block and persist to disk.
+
+    Every key is required and replaces the stored value wholesale, for the same
+    reason the scoring-context delta is: accepting a partial body would let a
+    form that failed to send a field silently reset it to whatever the module
+    default happens to be, which for a detector means silently changing what the
+    library contains on the next run.
+
+    Unknown keys are refused rather than stored, so a typo cannot sit inertly in
+    the config looking like it took effect.
+    """
+    unknown = sorted(set(settings) - set(PANORAMA_DETECTION_BOUNDS))
+    if unknown:
+        raise HTTPException(status_code=400,
+                            detail=f"Unknown panorama_detection key: {unknown[0]}")
+    missing = sorted(set(PANORAMA_DETECTION_BOUNDS) - set(settings))
+    if missing:
+        raise HTTPException(status_code=422,
+                            detail=f"Missing panorama_detection key: {missing[0]}")
+    for key, value in settings.items():
+        low, high = PANORAMA_DETECTION_BOUNDS[key]
+        if not isinstance(value, (int, float)) or isinstance(value, bool) and key != 'enabled':
+            raise HTTPException(status_code=400, detail=f"{key} must be a number")
+        if not low <= float(value) <= high:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{key} must be between {low} and {high}, got {value}")
+
+    config_path = str(config_path)
+    with CONFIG_WRITE_LOCK:
+        with open(config_path) as f:
+            config = json.load(f)
+        backup_path = _backup_config(config_path, prune=False)
+        stored = dict(settings)
+        stored['enabled'] = bool(stored['enabled'])
+        for key in ('min_frames', 'min_inliers', 'sift_features', 'probe_stride', 'workers'):
+            stored[key] = int(stored[key])
+        config['panorama_detection'] = stored
+        atomic_write_json(config_path, config)
+
+    return backup_path

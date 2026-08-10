@@ -349,3 +349,71 @@ class TestPromoteBracketLeads:
             leads = [r['path'] for r in conn.execute(
                 "SELECT path FROM photos WHERE is_burst_lead = 1")]
         assert leads == ['/b2.jpg']
+
+
+class TestKindScoping:
+    """The two sequence passes share these columns but own disjoint rows.
+
+    Before the clear was scoped, `detect_sequences` wiped every labelled row,
+    so a bracket run silently deleted the panorama pass's labels -- and a
+    panorama run deleted the brackets. Neither pass would ever see it, because
+    each re-created its own labels on the way out.
+    """
+
+    def _panorama_row(self):
+        return ('/p0.jpg', 'p0.jpg', '2025:04:15 20:10:00', 'Canon EOS R6', 8.0, '0.01', 100,
+                '0f0f0f0f0f0f0f0f', 7.0, None, 0)
+
+    def test_a_bracket_run_leaves_panorama_labels_alone(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, _bracket_rows() + [self._panorama_row()])
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "UPDATE photos SET sequence_group_id = 1, sequence_kind = 'panorama' "
+                "WHERE path = '/p0.jpg'")
+            conn.commit()
+
+        detect_sequences(str(db))
+
+        with sqlite3.connect(db) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT sequence_group_id, sequence_kind FROM photos WHERE path = '/p0.jpg'"
+            ).fetchone()
+        assert row['sequence_kind'] == 'panorama'
+        assert row['sequence_group_id'] == 1
+
+    def test_group_ids_are_numbered_within_a_kind_not_across(self, tmp_path):
+        """A bracket and a panorama may both be set 1; the pair identifies them."""
+        db = tmp_path / 'seq.db'
+        _seed(db, _bracket_rows() + [self._panorama_row()])
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "UPDATE photos SET sequence_group_id = 1, sequence_kind = 'panorama' "
+                "WHERE path = '/p0.jpg'")
+            conn.commit()
+
+        detect_sequences(str(db))
+
+        with sqlite3.connect(db) as conn:
+            conn.row_factory = sqlite3.Row
+            kinds = {r['sequence_kind']: r['sequence_group_id'] for r in conn.execute(
+                "SELECT DISTINCT sequence_kind, sequence_group_id FROM photos "
+                "WHERE sequence_kind IS NOT NULL")}
+        assert kinds == {'bracket': 1, 'panorama': 1}
+
+    def test_a_lapsed_bracket_is_still_cleared(self, tmp_path):
+        """Scoping the clear must not stop it clearing rows that no longer qualify."""
+        db = tmp_path / 'seq.db'
+        _seed(db, _bracket_rows())
+        detect_sequences(str(db))
+        with sqlite3.connect(db) as conn:
+            conn.execute("UPDATE photos SET shutter_speed = '0.005'")
+            conn.commit()
+
+        detect_sequences(str(db))
+
+        with sqlite3.connect(db) as conn:
+            labelled = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE sequence_kind IS NOT NULL").fetchone()[0]
+        assert labelled == 0

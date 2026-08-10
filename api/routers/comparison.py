@@ -1580,3 +1580,49 @@ def api_delete_weight_snapshot(
         raise HTTPException(status_code=404, detail='Snapshot not found')
 
     return {'success': True}
+
+
+@router.get("/api/config/panorama_detection")
+def api_get_panorama_detection():
+    """The panorama detector's effective settings, config over module defaults.
+
+    Open, like ``GET /api/config/scoring_contexts``: it describes how the
+    library was labelled, which the gallery already shows. Writing is
+    edition-gated.
+    """
+    from config import ScoringConfig
+    from utils.panorama import DEFAULTS
+
+    settings = dict(DEFAULTS)
+    settings.update(ScoringConfig(str(_CONFIG_PATH), validate=False)
+                    .get_panorama_detection_settings())
+    return {'settings': settings, 'defaults': dict(DEFAULTS)}
+
+
+@router.put("/api/config/panorama_detection")
+def api_update_panorama_detection(
+    body: dict,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Rewrite the panorama detector's thresholds.
+
+    Every key is required and replaces the stored value wholesale — a partial
+    body is a 422 and an out-of-range value a 400 naming the key — because a
+    form that silently dropped a field would otherwise change what the library
+    contains on the next detection run.
+
+    Writing settings does not relabel anything: detection is a batch pass, so
+    the caller must follow this with ``POST /api/scan/detect_panoramas`` for the
+    change to reach the gallery or the culling feed.
+    """
+    from api.config_writes import update_panorama_detection
+
+    backup_path = update_panorama_detection(str(_CONFIG_PATH), body)
+    reload_config()
+
+    return {
+        'success': True,
+        'message': 'Panorama detection settings updated; re-run detection to apply them',
+        'backup': backup_path,
+        'requires_redetection': True,
+    }

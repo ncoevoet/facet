@@ -63,8 +63,14 @@ PHOTOS_COLUMNS = [
     # subject shot at several exposures, so its frames must not be read as
     # competing takes the way a burst's are.
     ('sequence_group_id', 'INTEGER'),
-    ('sequence_kind', 'TEXT'),       # 'bracket' today; leaves room for 'panorama'
+    ('sequence_kind', 'TEXT'),       # 'bracket' | 'panorama' | 'hdr_panorama'
     ('sequence_ev_offset', 'REAL'),  # exposure compensation vs the set's base frame (0.0 = base, + = brighter)
+    # Which frame stands for a panorama set in the gallery. A bracket's
+    # representative is a fact it already carries (sequence_ev_offset = 0); a
+    # panorama has no equivalent, so the pass marks its middle frame here and
+    # the hide clause stays an indexed equality rather than a window function
+    # evaluated per gallery row.
+    ('is_sequence_lead', 'INTEGER DEFAULT 0'),
 
     # Raw data for recalculation
     ('clip_embedding', 'BLOB'),
@@ -578,6 +584,23 @@ PHOTO_SCORING_OVERRIDES_COLUMNS = [
     ('created_by', 'TEXT'),
 ]
 
+# Sticky per-set panorama override — a side table for the same reason as
+# photo_scoring_overrides, and one more: utils.panorama clears and rewrites
+# photos.sequence_* on every pass, so a correction stored there would not
+# survive its next run. `sequence_kind` NULL suppresses a detected set ("this is
+# not a panorama"); a kind forces one ("these frames are one"). Keyed on the
+# member path, never on sequence_group_id, which is renumbered from 1 each pass:
+# override_group_key ties the members of a forced set together across renumbering.
+# utils.panorama.resolve_segments is the single choke point that applies them.
+PHOTO_SEQUENCE_OVERRIDES_COLUMNS = [
+    ('photo_path', 'TEXT PRIMARY KEY REFERENCES photos(path) ON DELETE CASCADE'),
+    ('sequence_kind', 'TEXT'),
+    ('override_group_key', 'TEXT'),
+    ('source', 'TEXT'),
+    ('created_at', "TEXT DEFAULT (datetime('now'))"),
+    ('created_by', 'TEXT'),
+]
+
 # FTS5 full-text search virtual table and sync triggers.
 #
 # Covering schema: every field the gallery free-text search ever scanned via
@@ -866,6 +889,14 @@ def init_database(db_path='photo_scores_pro.db'):
             'photo_scoring_overrides', PHOTO_SCORING_OVERRIDES_COLUMNS
         ))
         _migrate_add_missing_columns(conn, 'photo_scoring_overrides', PHOTO_SCORING_OVERRIDES_COLUMNS)
+
+        # Create photo_sequence_overrides table for sticky per-set panorama
+        # corrections, which must outlive the detector's clear-and-rewrite pass
+        conn.execute(_build_create_table_sql(
+            'photo_sequence_overrides', PHOTO_SEQUENCE_OVERRIDES_COLUMNS
+        ))
+        _migrate_add_missing_columns(
+            conn, 'photo_sequence_overrides', PHOTO_SEQUENCE_OVERRIDES_COLUMNS)
 
         # Create photos_vec virtual table for vector search (requires sqlite-vec)
         if HAS_SQLITE_VEC:

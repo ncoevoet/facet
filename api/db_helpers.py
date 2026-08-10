@@ -191,8 +191,19 @@ HIDDEN_DUPLICATE_SQL = "(is_duplicate_lead = 0 AND duplicate_group_id IS NOT NUL
 # happens to sit alone in a burst group, and a quarter of them share one with
 # unrelated frames, where the lead is not the base exposure and the flanking
 # exposures stay on show.
-HIDE_BRACKETS_SQL = "(sequence_kind IS NULL OR sequence_ev_offset = 0)"
-HIDDEN_BRACKET_SQL = "(sequence_kind IS NOT NULL AND sequence_ev_offset != 0)"
+HIDE_BRACKETS_SQL = "(sequence_kind IS NULL OR sequence_kind != 'bracket' OR sequence_ev_offset = 0)"
+HIDDEN_BRACKET_SQL = "(sequence_kind = 'bracket' AND sequence_ev_offset != 0)"
+
+# The same idea for panorama sets, keyed on the marked representative rather
+# than on an exposure offset a pan does not have. Scoped by kind on both sides:
+# before it was, `hide_brackets` -- on by default -- silently hid every frame of
+# every panorama, because their kind is not NULL and their ev_offset is.
+PANORAMA_KINDS_SQL = "('panorama', 'hdr_panorama')"
+HIDE_PANORAMAS_SQL = (
+    f"(sequence_kind IS NULL OR sequence_kind NOT IN {PANORAMA_KINDS_SQL} "
+    "OR is_sequence_lead = 1)")
+HIDDEN_PANORAMA_SQL = (
+    f"(sequence_kind IN {PANORAMA_KINDS_SQL} AND is_sequence_lead = 0)")
 
 
 DATE_FILTER_EXPR = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
@@ -249,12 +260,12 @@ def time_window_clauses(date_from=None, date_to=None, column='date_taken'):
 
 
 def build_hide_clauses(hide_blinks: str, hide_bursts: str, hide_duplicates: str,
-                       hide_brackets: str = '') -> list[str]:
+                       hide_brackets: str = '', hide_panoramas: str = '') -> list[str]:
     """Convert hide-toggle string params ('1'/'true') to SQL WHERE fragments.
 
-    `hide_brackets` defaults to off here so the many callers that pass three
-    toggles keep their exact behaviour; the gallery, which owns the user-facing
-    default, passes it explicitly.
+    `hide_brackets` and `hide_panoramas` default to off here so the many callers
+    that pass three toggles keep their exact behaviour; the gallery, which owns
+    the user-facing defaults, passes them explicitly.
     """
     clauses = []
     if hide_blinks in ('1', 'true'):
@@ -265,6 +276,8 @@ def build_hide_clauses(hide_blinks: str, hide_bursts: str, hide_duplicates: str,
         clauses.append(HIDE_DUPLICATES_SQL)
     if hide_brackets in ('1', 'true'):
         clauses.append(HIDE_BRACKETS_SQL)
+    if hide_panoramas in ('1', 'true'):
+        clauses.append(HIDE_PANORAMAS_SQL)
     return clauses
 
 # Column lists shared by gallery and person viewer
