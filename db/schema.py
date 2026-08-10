@@ -269,6 +269,7 @@ INDEXES = [
     ('idx_narrative_moment', 'photos', 'narrative_moment'),
     ('idx_junk_kind', 'photos', 'junk_kind'),
     ('idx_sequence_group', 'photos', 'sequence_group_id'),
+    ('idx_sequence_kind', 'photos', 'sequence_kind, sequence_group_id'),
     # Additional composite indexes for viewer sorting performance
     ('idx_aesthetic_aggregate', 'photos', 'aesthetic DESC, aggregate DESC'),
     ('idx_face_quality_sort', 'photos', 'face_quality DESC, eye_sharpness DESC'),
