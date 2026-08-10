@@ -773,3 +773,97 @@ class TestQueryBurstGroupsScope:
         assert {g["burst_id"] for g in groups} == {1}
         assert total == 1
 
+
+
+class TestFetchBracketGroups:
+    """The browse path behind `group_by=bracket`.
+
+    Auto-cull's trimming reaches this function too, but only ever with
+    `redundant_only=True`, so the plain browse — grouping, base-first ordering
+    and the small-set exclusion — had no coverage of its own.
+    """
+
+    _SCHEMA = """
+        CREATE TABLE photos (
+            path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
+            aesthetic REAL, tech_sharpness REAL, is_blink INTEGER DEFAULT 0,
+            is_burst_lead INTEGER DEFAULT 0, burst_group_id INTEGER,
+            eyes_open_score REAL, expression_score REAL, face_count INTEGER DEFAULT 0,
+            category TEXT, is_rejected INTEGER DEFAULT 0,
+            sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL,
+            shadow_clipped INTEGER, highlight_clipped INTEGER
+        );
+    """
+
+    @staticmethod
+    def _db(rows):
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(TestFetchBracketGroups._SCHEMA)
+        conn.executemany(
+            "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "
+            "tech_sharpness, sequence_group_id, sequence_kind, sequence_ev_offset, "
+            "is_rejected) VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+        conn.commit()
+        return conn
+
+    @staticmethod
+    def _rung(path, when, seq, ev, score=5.0, rejected=0):
+        return (path, path.lstrip('/'), when, score, score, score, seq, 'bracket', ev, rejected)
+
+    @staticmethod
+    def _fetch(conn, **kwargs):
+        from api.routers.burst_culling import _fetch_bracket_groups
+        with mock.patch("api.routers.burst_culling.get_photos_from_clause",
+                        return_value=("photos", [])), \
+                mock.patch("api.routers.burst_culling.is_multi_user_enabled",
+                           return_value=False):
+            return _fetch_bracket_groups(conn, None, "1=1", [], **kwargs)
+
+    def test_groups_by_sequence_and_leads_with_the_base_exposure(self):
+        conn = self._db([
+            self._rung('/k2.jpg', '2025:04:15 19:59:07', 1, 2.0, score=9.0),
+            self._rung('/k0.jpg', '2025:04:15 19:59:05', 1, -2.0, score=4.0),
+            self._rung('/k1.jpg', '2025:04:15 19:59:06', 1, 0.0, score=5.0),
+        ])
+        groups = self._fetch(conn)
+        assert len(groups) == 1
+        group = groups[0]
+        assert group['type'] == 'bracket'
+        # Base first regardless of score: the +2 frame scores highest and the
+        # feed must still open on the exposure the set was built around.
+        assert [p['path'] for p in group['photos']] == ['/k1.jpg', '/k0.jpg', '/k2.jpg']
+
+    def test_separate_sets_are_separate_groups(self):
+        conn = self._db([
+            self._rung('/a0.jpg', '2025:04:15 19:59:05', 1, -1.0),
+            self._rung('/a1.jpg', '2025:04:15 19:59:06', 1, 0.0),
+            self._rung('/b0.jpg', '2025:04:15 20:10:05', 2, 0.0),
+            self._rung('/b1.jpg', '2025:04:15 20:10:06', 2, 1.0),
+        ])
+        assert len(self._fetch(conn)) == 2
+
+    def test_a_set_left_with_one_frame_is_not_a_group(self):
+        conn = self._db([self._rung('/lonely.jpg', '2025:04:15 19:59:05', 1, 0.0)])
+        assert self._fetch(conn) == []
+
+    def test_rejected_frames_are_excluded_by_default(self):
+        conn = self._db([
+            self._rung('/k0.jpg', '2025:04:15 19:59:05', 1, -1.0),
+            self._rung('/k1.jpg', '2025:04:15 19:59:06', 1, 0.0),
+            self._rung('/k2.jpg', '2025:04:15 19:59:07', 1, 1.0, rejected=1),
+        ])
+        paths = [p['path'] for p in self._fetch(conn)[0]['photos']]
+        assert '/k2.jpg' not in paths
+
+    def test_a_photo_that_is_not_bracketed_never_appears(self):
+        conn = self._db([
+            self._rung('/k0.jpg', '2025:04:15 19:59:05', 1, -1.0),
+            self._rung('/k1.jpg', '2025:04:15 19:59:06', 1, 0.0),
+        ])
+        conn.execute("INSERT INTO photos (path, filename, sequence_kind) "
+                     "VALUES ('/plain.jpg', 'plain.jpg', NULL)")
+        conn.commit()
+        paths = [p['path'] for g in self._fetch(conn) for p in g['photos']]
+        assert '/plain.jpg' not in paths

@@ -46,6 +46,30 @@ def _rejected_clause(user_id):
     return from_clause, from_params, is_rejected_col
 
 
+_CULLING_PHOTO_COLS = (
+    'filename', 'date_taken', 'aggregate', 'aesthetic', 'tech_sharpness', 'is_blink',
+    'eyes_open_score', 'expression_score', 'face_count', 'category',
+    'sequence_kind', 'sequence_ev_offset',
+)
+
+
+def _culling_photo_columns(path_expr='path', burst=False, sequence_group=False):
+    """The per-photo columns a culling feed selects, as one SELECT list.
+
+    Stated once rather than in each feed's own copy: the burst, similar and
+    bracket queries all want the same fields, and adding one used to mean
+    finding every site by hand -- which is how the newest feed came to be
+    written by copying the previous one. Rows are read by name throughout, so
+    the extra columns go on the end rather than in a particular position.
+    """
+    cols = [path_expr, *_CULLING_PHOTO_COLS]
+    if burst:
+        cols += ['is_burst_lead', 'burst_group_id']
+    if sequence_group:
+        cols += ['sequence_group_id']
+    return ', '.join(cols)
+
+
 router = APIRouter(tags=["burst_culling"])
 
 
@@ -476,10 +500,7 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
         if exclude_rejected:
             from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
             all_photos = conn.execute(
-                f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
-                           tech_sharpness, is_blink, is_burst_lead, burst_group_id,
-                           eyes_open_score, expression_score, face_count, category,
-                           sequence_kind, sequence_ev_offset
+                f"""SELECT {_culling_photo_columns('photos.path', burst=True)}
                     FROM {from_clause}
                     WHERE burst_group_id IN ({placeholders}) AND {vis_sql}
                       AND {is_rejected_col} = 0{member_sql}
@@ -488,10 +509,7 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
             ).fetchall()
         else:
             all_photos = conn.execute(
-                f"""SELECT path, filename, date_taken, aggregate, aesthetic,
-                           tech_sharpness, is_blink, is_burst_lead, burst_group_id,
-                           eyes_open_score, expression_score, face_count, category,
-                           sequence_kind, sequence_ev_offset
+                f"""SELECT {_culling_photo_columns(burst=True)}
                     FROM photos
                     WHERE burst_group_id IN ({placeholders}) AND {vis_sql}{member_sql}
                     ORDER BY burst_group_id, date_taken""",
@@ -843,9 +861,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
     if exclude_rejected:
         from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
         rows = conn.execute(
-            f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
-                       tech_sharpness, is_blink, eyes_open_score, expression_score, face_count, category,
-                       sequence_kind, sequence_ev_offset
+            f"""SELECT {_culling_photo_columns('photos.path')}
                 FROM {from_clause}
                 WHERE photos.path IN ({placeholders}) AND {vis_sql}
                   AND {is_rejected_col} = 0""",
@@ -853,9 +869,7 @@ def _fetch_similar_group_photos(conn, groups, vis_sql="1=1", vis_params=None, ma
         ).fetchall()
     else:
         rows = conn.execute(
-            f"""SELECT path, filename, date_taken, aggregate, aesthetic,
-                       tech_sharpness, is_blink, eyes_open_score, expression_score, face_count, category,
-                       sequence_kind, sequence_ev_offset
+            f"""SELECT {_culling_photo_columns()}
                 FROM photos
                 WHERE path IN ({placeholders}) AND {vis_sql}""",
             unique_paths + vis_params,
@@ -1562,18 +1576,25 @@ def _confirm_bracket_group(body, user):
     Bounded to the set the client named: only paths that really carry the
     bracket kind are touched, so a malformed body cannot reject arbitrary
     photos through this route.
+
+    Bounded to what the caller can see, too. ``set_photos_rejected`` already
+    refuses to write outside that scope, but the counts are derived here, and
+    deriving them from the unfiltered set would answer "does this path exist,
+    and is it a bracket frame?" for a directory the caller cannot read.
     """
     user_id = user.user_id if user else None
     paths = [p for p in (body.paths or []) if p]
     if not paths:
         raise HTTPException(status_code=400, detail='paths is required for a bracket group')
-    keep = {p for p in (body.keep_paths or [])}
+    keep = set(body.keep_paths or [])
     with get_db() as conn:
+        vis_sql, vis_params = get_visibility_clause(user_id)
         placeholders = ','.join('?' * len(paths))
         bracketed = {
             r['path'] for r in conn.execute(
-                f"SELECT path FROM photos WHERE path IN ({placeholders}) AND sequence_kind = ?",
-                paths + [BRACKET_KIND],
+                f"SELECT path FROM photos WHERE path IN ({placeholders}) "
+                f"AND sequence_kind = ? AND {vis_sql}",
+                paths + [BRACKET_KIND] + vis_params,
             ).fetchall()
         }
         reject_paths = [p for p in bracketed if p not in keep]
@@ -1715,10 +1736,7 @@ def _fetch_bracket_groups(conn, user_id, vis_sql, vis_params, album_id=None,
                     AND shadow_clipped = 0 AND highlight_clipped = 0)"""
         redundant_params = [BRACKET_KIND]
     rows = conn.execute(
-        f"""SELECT photos.path, filename, date_taken, aggregate, aesthetic,
-                   tech_sharpness, is_blink, is_burst_lead, burst_group_id,
-                   eyes_open_score, expression_score, face_count, category,
-                   sequence_group_id, sequence_kind, sequence_ev_offset
+        f"""SELECT {_culling_photo_columns('photos.path', burst=True, sequence_group=True)}
             FROM {from_clause}
             WHERE sequence_kind = ? AND {vis_sql}{reject_sql}{scope_sql}{redundant_sql}
             ORDER BY sequence_group_id, ABS(sequence_ev_offset), photos.path""",
