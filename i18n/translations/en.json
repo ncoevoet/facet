@@ -1075,7 +1075,7 @@
       "click": "Click",
       "panel": "Side panel",
       "off": "Off",
-      "panel_empty": "Hover a photo to see its details here"
+      "panel_empty": "Hover or click a photo to see its details here"
     },
     "hide_blinks": "Hide Blinks",
     "hide_bursts": "Best of Burst",

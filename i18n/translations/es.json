@@ -1075,7 +1075,7 @@
       "click": "Clic",
       "panel": "Panel lateral",
       "off": "Desactivado",
-      "panel_empty": "Pasa el cursor sobre una foto para ver aquí sus detalles"
+      "panel_empty": "Pasa el cursor sobre una foto o haz clic en ella para ver aquí sus detalles"
     },
     "hide_blinks": "Ocultar parpadeos",
     "hide_bursts": "Mejor de ráfaga",

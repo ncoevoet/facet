@@ -1075,7 +1075,7 @@
       "click": "Clicar",
       "panel": "Painel lateral",
       "off": "Desligado",
-      "panel_empty": "Passe o cursor sobre uma foto para ver aqui os seus detalhes"
+      "panel_empty": "Passe o cursor sobre uma foto ou clique nela para ver aqui os seus detalhes"
     },
     "hide_blinks": "Ocultar piscadas",
     "hide_bursts": "Melhor da rajada",

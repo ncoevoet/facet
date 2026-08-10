@@ -1075,7 +1075,7 @@
       "click": "Clic",
       "panel": "Panneau latéral",
       "off": "Désactivée",
-      "panel_empty": "Survolez une photo pour voir ses détails ici"
+      "panel_empty": "Survolez une photo ou cliquez dessus pour voir ses détails ici"
     },
     "hide_blinks": "Masquer clignements",
     "hide_bursts": "Meilleure de la rafale",
