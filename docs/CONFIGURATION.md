@@ -875,8 +875,9 @@ Thresholds were calibrated against 26 panoramas and 8 non-panoramas confirmed by
 | `workers` | `0` | Parallel worker processes; `0` picks from the core count. Scales short of the core count -- the cost is dominated by random thumbnail reads the workers contend on |
 | `probe_stride` | `8` | Frames between the cheap static-run probes that skip ordinary bursts |
 | `probe_min_drift` | `0.05` | Movement at a probe below which the run is abandoned as static |
+| `max_run_frames` | `500` | Longest candidate run measured. A sweep never needs this many frames, and the cap bounds the per-run feature cache (~220 KB per frame per worker) |
 
-Editing these changes nothing on its own — detection is a batch pass, so re-run `--detect-panoramas` (or use the viewer's re-run action) for the change to reach the gallery and the culling feed.
+Editing these changes nothing on its own — detection is a batch pass, so re-run `--detect-panoramas` (or use the viewer's re-run action) for the change to reach the gallery and the culling feed. Editing any of them also invalidates the incremental watermark, so that next run re-measures the whole library rather than reusing labels calibrated under the old thresholds.
 
 ---
 

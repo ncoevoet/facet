@@ -24,6 +24,7 @@ from fastapi import HTTPException
 from api.config import CONFIG_WRITE_LOCK, atomic_write_json
 from config.scoring_config import DEFAULT_CATEGORY_NAME
 from db import record_weight_snapshot
+from utils.panorama import SETTING_BOUNDS
 
 logger = logging.getLogger(__name__)
 
@@ -273,30 +274,9 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
     return backup_path
 
 
-# Bounds for the panorama detector's editable thresholds. Every one is a
-# fraction of a frame dimension or a small count, so a value outside these
-# ranges is a mistake rather than a preference -- and one that would either
-# flood the culling feed or empty it.
-PANORAMA_DETECTION_BOUNDS = {
-    'enabled': (0, 1),
-    'max_gap_seconds': (1.0, 600.0),
-    'min_frames': (2, 200),
-    'min_inliers': (8, 2000),
-    'min_drift': (0.05, 10.0),
-    'max_step': (0.1, 1.0),
-    'back_tolerance': (0.0, 0.5),
-    'max_ortho': (0.0, 2.0),
-    'ortho_ratio': (0.0, 2.0),
-    'step_ortho_abs': (0.0, 0.5),
-    'step_ortho_ratio': (0.0, 2.0),
-    'sift_features': (100, 5000),
-    'match_ratio': (0.5, 0.95),
-    'probe_stride': (2, 64),
-    'probe_min_drift': (0.0, 0.5),
-    'workers': (0, 128),
-    'max_run_frames': (10, 100000),
-    'hdr_min_span_stops': (0.1, 10.0),
-}
+# Re-exported from the detector, which owns the settings it reads. Kept as a
+# name here so the call sites below read unchanged.
+PANORAMA_DETECTION_BOUNDS = SETTING_BOUNDS
 
 
 def update_panorama_detection(config_path, settings):

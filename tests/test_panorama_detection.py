@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 import pytest
 
+from db.sequence_overrides import set_sequence_overrides
 from utils.panorama import (
     DEFAULTS,
     HDR_PANORAMA,
@@ -22,8 +23,18 @@ from utils.panorama import (
     detect_panoramas,
     find_segments,
     load_overrides,
+    read_watermark,
     resolve_segments,
+    split_runs,
 )
+
+
+def _sequence_labels(db_path):
+    """Every stored panorama label, as a comparable snapshot."""
+    with sqlite3.connect(db_path) as conn:
+        return sorted(conn.execute(
+            "SELECT path, sequence_group_id, sequence_kind, is_sequence_lead FROM photos "
+            "WHERE sequence_kind IS NOT NULL").fetchall())
 
 
 def _settings(**overrides):
@@ -155,7 +166,7 @@ class TestSyntheticGeometry:
             keypoints, descriptors = sift.detectAndCompute(image, None)
             return keypoints, descriptors, image.shape
 
-        step = _translation(features(base), features(turned), sift, matcher, settings)
+        step = _translation(features(base), features(turned), matcher, settings)
         assert step['inliers'] >= settings['min_inliers']
         assert abs(step['dx']) > 0.02
         assert abs(step['dy']) < 0.02
@@ -171,7 +182,7 @@ class TestSyntheticGeometry:
             return keypoints, descriptors, gray.shape
 
         step = _translation(features(_textured_frame(seed=1)),
-                            features(_textured_frame(seed=99)), sift, matcher, settings)
+                            features(_textured_frame(seed=99)), matcher, settings)
         assert step['inliers'] < settings['min_inliers']
 
 
@@ -517,3 +528,122 @@ class TestConfigGuards:
 
         assert runs, "expected the frames to form candidate runs"
         assert max(len(run) for run in runs) <= 10
+
+
+class TestAdjacentSegments:
+    """Where one sweep ends and the next begins.
+
+    The two sets used to share their boundary frame: the segment was cut at
+    `paths[index:end + 1]` and the next one resumed at step `end`, whose own
+    first photo is `paths[end]`. Both then wrote it, and the later group won --
+    so the earlier set served one frame fewer than it had reported.
+    """
+
+    def test_back_to_back_sweeps_share_no_frame(self):
+        settings = _settings(min_frames=4)
+        steps = [_step(dx=0.1) for _ in range(12)] + [_step(dx=-0.1) for _ in range(12)]
+        segments = find_segments(_paths(25), steps, settings)
+
+        assert len(segments) == 2
+        claimed = [path for segment in segments for path in segment['paths']]
+        assert len(claimed) == len(set(claimed)), f"a frame is in two sets: {claimed}"
+
+    def test_a_rejected_stretch_still_yields_its_frames(self):
+        """Only an *accepted* segment owns its last frame.
+
+        A stretch that fails the drift floor claims nothing, so the scan must
+        resume on it rather than past it -- otherwise the fix above would skip a
+        frame that could still open a real sweep.
+        """
+        settings = _settings(min_frames=4, min_drift=0.5)
+        steps = [_step(dx=0.02) for _ in range(4)] + [_step(dx=0.2) for _ in range(8)]
+        segments = find_segments(_paths(13), steps, settings)
+
+        assert len(segments) == 1
+        assert segments[0]['paths'][-1] == '/p12.jpg'
+
+
+class TestIncrementalPass:
+    """Coverage stays whole-library; only the measuring is skipped."""
+
+    def test_split_runs_measures_everything_without_a_watermark(self):
+        runs = [[{'scanned_at': '2025-01-01T00:00:00'}]]
+        fresh, settled = split_runs(runs, None)
+        assert (fresh, settled) == (runs, [])
+
+    def test_split_runs_reuses_a_run_no_photo_has_touched(self):
+        settled_run = [{'scanned_at': '2025-01-01T00:00:00'}]
+        fresh_run = [{'scanned_at': '2025-01-01T00:00:00'},
+                     {'scanned_at': '2025-06-01T00:00:00'}]
+        fresh, settled = split_runs([settled_run, fresh_run], '2025-03-01T00:00:00')
+        assert fresh == [fresh_run]
+        assert settled == [settled_run]
+
+    def test_split_runs_measures_a_run_of_unknown_age(self):
+        """A NULL `scanned_at` is unknown, not old."""
+        fresh, settled = split_runs([[{'scanned_at': None}]], '2025-03-01T00:00:00')
+        assert settled == []
+
+    def test_an_incremental_rerun_reproduces_the_full_pass(self, tmp_path):
+        db = tmp_path / 'pano.db'
+        _seed_sweep(db)
+        with sqlite3.connect(db) as conn:
+            conn.execute("UPDATE photos SET scanned_at = '2025-04-15T12:30:00'")
+            conn.commit()
+
+        full = detect_panoramas(str(db))
+        labels = _sequence_labels(db)
+
+        assert detect_panoramas(str(db), incremental=True) == full
+        assert _sequence_labels(db) == labels
+
+    def test_editing_a_threshold_invalidates_the_watermark(self, tmp_path):
+        """Stored labels answer the thresholds they were measured under."""
+        db = tmp_path / 'pano.db'
+        _seed_sweep(db)
+        with sqlite3.connect(db) as conn:
+            conn.execute("UPDATE photos SET scanned_at = '2025-04-15T12:30:00'")
+            conn.commit()
+        detect_panoramas(str(db))
+
+        with sqlite3.connect(db) as conn:
+            conn.row_factory = sqlite3.Row
+            assert read_watermark(conn, _settings()) == '2025-04-15T12:30:00'
+            assert read_watermark(conn, _settings(min_drift=0.9)) is None
+
+
+class TestOverrideApplied:
+    """`sequence_override` says a correction exists; `applied_at` says it landed."""
+
+    def test_a_pass_stamps_the_corrections_it_applied(self, tmp_path):
+        db = tmp_path / 'pano.db'
+        paths = _seed_sweep(db)
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths[:3], None)
+            conn.commit()
+            assert conn.execute("SELECT count(*) FROM photo_sequence_overrides "
+                                "WHERE applied_at IS NULL").fetchone()[0] == 3
+
+        detect_panoramas(str(db))
+
+        with sqlite3.connect(db) as conn:
+            pending = conn.execute("SELECT count(*) FROM photo_sequence_overrides "
+                                   "WHERE applied_at IS NULL").fetchone()[0]
+            kept = conn.execute("SELECT count(*) FROM photo_sequence_overrides").fetchone()[0]
+        assert pending == 0, "the run applied them, so none is still waiting on one"
+        assert kept == 3, "the correction itself must survive -- it is what keeps applying"
+
+    def test_correcting_again_marks_it_pending_once_more(self, tmp_path):
+        db = tmp_path / 'pano.db'
+        paths = _seed_sweep(db)
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths[:3], None)
+            conn.commit()
+        detect_panoramas(str(db))
+
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths[:3], PANORAMA)
+            conn.commit()
+            pending = conn.execute("SELECT count(*) FROM photo_sequence_overrides "
+                                   "WHERE applied_at IS NULL").fetchone()[0]
+        assert pending == 3

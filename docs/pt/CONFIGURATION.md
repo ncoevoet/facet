@@ -861,8 +861,9 @@ Os limiares foram calibrados com 26 panorâmicas e 8 não-panorâmicas confirmad
 | `workers` | `0` | Processos paralelos; `0` escolhe pelo número de núcleos. Escala abaixo do número de núcleos: domina a leitura aleatória de miniaturas |
 | `probe_stride` | `8` | Fotogramas entre as sondagens baratas que descartam rajadas comuns |
 | `probe_min_drift` | `0.05` | Movimento abaixo do qual uma sondagem declara a série imóvel |
+| `max_run_frames` | `500` | Série mais longa medida. Uma panorâmica nunca precisa de tantas imagens, e o limite delimita a cache de descritores por série (~220 KB por imagem e por processo) |
 
-Alterar estes valores não faz nada por si só — a deteção é uma passagem em lote: volte a executar `--detect-panoramas` (ou a ação no visualizador) para que a alteração chegue à galeria e à seleção.
+Alterar estes valores não faz nada por si só — a deteção é uma passagem em lote: volte a executar `--detect-panoramas` (ou a ação no visualizador) para que a alteração chegue à galeria e à seleção. Alterá-los invalida também a marca incremental: a passagem seguinte volta a medir toda a biblioteca em vez de reutilizar etiquetas calculadas com os limiares anteriores.
 
 ---
 

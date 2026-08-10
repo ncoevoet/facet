@@ -640,7 +640,7 @@ LIBRARY_JOB_ARGS = (
 )
 
 
-def detect_all_sequences(db_path, config_path):
+def detect_all_sequences(db_path, config_path, incremental=False, contain_failure=True):
     """Label both kinds of deliberate multi-frame set, brackets first.
 
     The order is load-bearing, not incidental. An HDR panorama's frames are
@@ -649,13 +649,27 @@ def detect_all_sequences(db_path, config_path):
     the meaningful culling unit, and one `sequence_kind` column can hold only one
     answer. Running the bracket pass alone would leave those frames labelled as
     brackets until this ran again, so every caller goes through here.
+
+    Args:
+        db_path: Path to the SQLite database
+        config_path: Path to scoring_config.json
+        incremental: Measure only runs holding a photo scanned since the last
+            pass. For callers whose job is something else and who reach this as
+            a tail step; an explicit re-run wants every run measured.
+        contain_failure: Swallow a panorama failure and carry on. False for the
+            entry point whose whole purpose IS that pass, which must be able to
+            report it failed.
     """
     from utils.sequence import detect_sequences
     from utils.panorama import detect_panoramas
 
     brackets = detect_sequences(db_path, config_path=config_path)
+    if not contain_failure:
+        return brackets, detect_panoramas(db_path, config_path=config_path,
+                                          incremental=incremental)
     try:
-        panoramas = detect_panoramas(db_path, config_path=config_path)
+        panoramas = detect_panoramas(db_path, config_path=config_path,
+                                     incremental=incremental)
     except Exception:
         # Contained here rather than at each caller. The bracket pass is
         # arithmetic over stored columns and keeps failing loudly as it always
@@ -1421,7 +1435,7 @@ def _run_scan(args, resumed_run):
     # and move each group's lead onto its base exposure. Must follow the bursts
     # step: it is that grouping it corrects.
     emit_progress('sequences', force=True)
-    detect_all_sequences(scorer.db_path, scorer.config.config_path)
+    detect_all_sequences(scorer.db_path, scorer.config.config_path, incremental=True)
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
     emit_progress('tagging', force=True)
@@ -2033,7 +2047,11 @@ Configuration:
     # Detect exposure brackets (arithmetic over stored EXIF - no GPU, no decode)
     if args.detect_sequences or args.detect_panoramas:
         init_database(args.db)
-        detect_all_sequences(args.db, args.config)
+        # An explicit re-run measures every run, and reports its own failure:
+        # this is the command a user reaches for after editing a threshold, so
+        # reusing labels or exiting 0 on a crash would both answer the wrong
+        # question.
+        detect_all_sequences(args.db, args.config, contain_failure=False)
         exit()
 
     # Evaluate near-dup cosine thresholds (read-only, no GPU)
@@ -2668,7 +2686,7 @@ Configuration:
         process_bursts(args.db, config.config_path)
         # Regrouping bursts resets every lead, which would silently undo the
         # bracket centring; re-derive it rather than leave it stale.
-        detect_all_sequences(args.db, config.config_path)
+        detect_all_sequences(args.db, config.config_path, incremental=True)
         logger.info("Burst detection complete.")
         exit()
 
@@ -3183,7 +3201,8 @@ Configuration:
             logger.info("Persisted percentile snapshot for drift tracking")
         if not args.recompute_category:
             process_bursts(scorer.db_path, scorer.config.config_path)
-            detect_all_sequences(scorer.db_path, scorer.config.config_path)
+            detect_all_sequences(scorer.db_path, scorer.config.config_path,
+                                 incremental=True)
         logger.info("Recalculation done.")
         exit()
 

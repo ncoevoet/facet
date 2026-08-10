@@ -24,7 +24,7 @@ from api.subject_bbox import parse_subject_bbox
 from api.db_helpers import (
     get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
     trigger_auto_retrain, set_photos_rejected, album_filter_clause, time_window_clauses,
-    select_in_chunks, SEQUENCE_OVERRIDE_SELECT,
+    select_in_chunks, SEQUENCE_OVERRIDE_SELECT, SEQUENCE_OVERRIDE_PENDING_SELECT,
 )
 from api.similarity_groups import compute_similarity_groups
 from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBody
@@ -70,7 +70,8 @@ def _culling_photo_columns(path_expr='path', burst=False, sequence_group=False):
     written by copying the previous one. Rows are read by name throughout, so
     the extra columns go on the end rather than in a particular position.
     """
-    cols = [path_expr, *_CULLING_PHOTO_COLS, SEQUENCE_OVERRIDE_SELECT]
+    cols = [path_expr, *_CULLING_PHOTO_COLS, SEQUENCE_OVERRIDE_SELECT,
+            SEQUENCE_OVERRIDE_PENDING_SELECT]
     if burst:
         cols += ['is_burst_lead', 'burst_group_id']
     if sequence_group:
@@ -1589,6 +1590,35 @@ def keeper_hints(
         return hints
 
 
+def _keep_whole_kind_for(paths):
+    """The keep-whole kind every named frame carries, or None if they differ.
+
+    Read from the labels rather than taken from the request's ``type``. A
+    wholly-panorama set is routinely served through the burst feed -- a sweep
+    arrives shredded across several burst groups, which is the problem this
+    feature exists to correct -- and such a group is typed ``burst``, so
+    branching on ``type`` alone sends it down the path that records comparison
+    pairs. Deriving it here also means a client cannot ask for the no-pairs
+    treatment for a set that is not one.
+    """
+    paths = [p for p in (paths or []) if p]
+    if not paths:
+        return None
+    placeholders = ','.join('?' * len(paths))
+    with get_db() as conn:
+        kinds = {
+            row['sequence_kind'] for row in conn.execute(
+                f"SELECT sequence_kind FROM photos WHERE path IN ({placeholders})",
+                paths).fetchall()
+        }
+    # Unmixed, exactly as `_group_sequence_kind` requires: a burst that merely
+    # contains a panorama frame is still a set of competing takes.
+    if len(kinds) != 1:
+        return None
+    kind = kinds.pop()
+    return kind if kind in _KEEP_WHOLE_KINDS else None
+
+
 def _confirm_sequence_group(body, user, kind):
     """Reject the frames a sequence set did not keep, recording no comparison pairs.
 
@@ -1600,6 +1630,11 @@ def _confirm_sequence_group(body, user, kind):
     refuses to write outside that scope, but the counts are derived here, and
     deriving them from the unfiltered set would answer "does this path exist,
     and is it a bracket frame?" for a directory the caller cannot read.
+
+    The set is still marked reviewed through whichever feed it arrived by. A
+    keep-whole set reached through the burst or similar feed -- which is how a
+    sweep shredded across burst groups gets here -- would otherwise come back
+    unreviewed on the next load, having been confirmed once already.
     """
     user_id = user.user_id if user else None
     paths = [p for p in (body.paths or []) if p]
@@ -1617,6 +1652,11 @@ def _confirm_sequence_group(body, user, kind):
             ).fetchall()
         }
         reject_paths = [p for p in in_set if p not in keep]
+        keep_paths = [p for p in in_set if p in keep]
+        if body.type == 'burst':
+            _mark_burst_reviewed(conn, keep_paths, reject_paths)
+        elif body.type == 'similar':
+            _mark_similarity_reviewed(conn, keep_paths + reject_paths, vis_sql, vis_params)
         set_photos_rejected(conn, reject_paths, user_id)
         conn.commit()
     _invalidate_culling_groups_cache()
@@ -1642,8 +1682,13 @@ async def confirm_culling_group(
     something about how the set was shot rather than about the picture, and
     feeding that to the ranker would bias every later ranking.
     """
-    if body.type in _KEEP_WHOLE_KINDS:
-        return _confirm_sequence_group(body, user, body.type)
+    # A declared sequence kind still routes on its own, so a set reached through
+    # its own granularity keeps the existing "paths outside the set are skipped"
+    # behaviour. The label is consulted only for the feeds that do NOT name one.
+    keep_whole = (body.type if body.type in _KEEP_WHOLE_KINDS
+                  else _keep_whole_kind_for(body.paths))
+    if keep_whole is not None:
+        return _confirm_sequence_group(body, user, keep_whole)
     if body.type == 'burst':
         burst_body = BurstSelectionBody(
             burst_id=body.group_id,
@@ -1898,14 +1943,16 @@ def _apply_auto_cull_group(conn, group, keep_paths, reject_paths, user_id, vis_s
     elif gtype == 'similar':
         _mark_similarity_reviewed(conn, keep_paths + reject_paths, vis_sql, vis_params)
     set_photos_rejected(conn, reject_paths, user_id)
-    if gtype == 'bracket' or keep_whole:
+    if keep_whole:
         # Deliberately no comparison pairs. Dropping the flanking exposures of a
         # bracket says nothing about taste -- feeding "base beat -2 EV" to the
         # ranker would teach it that correctly exposed frames win, which is an
         # artefact of the ladder and would bias every later ranking. The same
         # holds for one frame of a pan, and the test is the set's kind rather
         # than the feed it came through: a wholly-panorama burst group arrives
-        # typed 'burst' and would otherwise have written those pairs.
+        # typed 'burst' and would otherwise have written those pairs. A bracket
+        # group needs no separate test -- `_fetch_bracket_groups` sets both keys
+        # on the same dict, so its kind already answers for it.
         return 0
     return record_culling_pairs(
         conn, keep_paths, reject_paths, user_id=user_id, group_type=gtype,

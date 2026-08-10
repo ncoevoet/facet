@@ -15,7 +15,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, create_model, field_validator
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
@@ -30,6 +30,7 @@ from config.category_filter import _to_float
 from db import DEFAULT_DB_PATH, record_weight_snapshot, delete_weight_snapshot
 from api.config_writes import update_category_weights
 from utils.image_loading import RAW_EXTENSIONS
+from utils.panorama import DEFAULTS as PANORAMA_DEFAULTS
 
 logger = logging.getLogger(__name__)
 
@@ -1599,33 +1600,21 @@ def api_get_panorama_detection():
     return {'settings': settings, 'defaults': dict(DEFAULTS)}
 
 
-class PanoramaDetectionBody(BaseModel):
-    """Every threshold is required: the PUT replaces the whole block.
-
-    Defaulting any of them would make a partial body silently destructive -- a
-    form that failed to send one field would reset it, and for a detector that
-    changes what the library contains on the next run.
-    """
-    model_config = {'extra': 'forbid'}
-
-    enabled: bool
-    max_gap_seconds: float
-    min_frames: int
-    min_inliers: int
-    min_drift: float
-    max_step: float
-    back_tolerance: float
-    max_ortho: float
-    ortho_ratio: float
-    step_ortho_abs: float
-    step_ortho_ratio: float
-    sift_features: int
-    match_ratio: float
-    probe_stride: int
-    probe_min_drift: float
-    workers: int
-    max_run_frames: int
-    hdr_min_span_stops: float
+#: Every threshold is required: the PUT replaces the whole block. Defaulting any
+#: of them would make a partial body silently destructive -- a form that failed
+#: to send one field would reset it, and for a detector that changes what the
+#: library contains on the next run.
+#:
+#: Built from ``utils.panorama.DEFAULTS`` rather than restated field by field.
+#: The names and types were previously written out here, in the bounds table and
+#: in the client's interface, with nothing keeping the three in step -- and they
+#: had already drifted: the client was one key short, so any body built from its
+#: type rather than echoed back from the GET would 422.
+PanoramaDetectionBody = create_model(
+    'PanoramaDetectionBody',
+    __config__=ConfigDict(extra='forbid'),
+    **{key: (type(value), ...) for key, value in PANORAMA_DEFAULTS.items()},
+)
 
 
 @router.put("/api/config/panorama_detection")

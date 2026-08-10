@@ -36,12 +36,16 @@ without admitting reportage. Missing a panorama costs nothing here; mislabelling
 reportage costs trust. The sticky per-set override covers both directions.
 """
 
+import hashlib
+import json
 import logging
 import multiprocessing
 import os
 import sqlite3
+import time
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
+from datetime import datetime
 
 import numpy as np
 
@@ -82,6 +86,47 @@ DEFAULTS = {
     'hdr_min_span_stops': 1.5,
 }
 
+# Editable range per threshold. Lives beside DEFAULTS rather than in the API
+# layer because the two describe one thing -- what a setting is and what it may
+# be -- and apart they drifted: the client's own interface was already a key
+# short. DEFAULTS supplies the names and the types (the type of each default IS
+# the field's type); this supplies the bounds. Every one is a fraction of a frame
+# dimension or a small count, so a value outside these ranges is a mistake rather
+# than a preference, and one that would either flood the culling feed or empty it.
+SETTING_BOUNDS = {
+    'enabled': (0, 1),
+    'max_gap_seconds': (1.0, 600.0),
+    'min_frames': (2, 200),
+    'min_inliers': (8, 2000),
+    'min_drift': (0.05, 10.0),
+    'max_step': (0.1, 1.0),
+    'back_tolerance': (0.0, 0.5),
+    'max_ortho': (0.0, 2.0),
+    'ortho_ratio': (0.0, 2.0),
+    'step_ortho_abs': (0.0, 0.5),
+    'step_ortho_ratio': (0.0, 2.0),
+    'sift_features': (100, 5000),
+    'match_ratio': (0.5, 0.95),
+    'probe_stride': (2, 64),
+    'probe_min_drift': (0.0, 0.5),
+    'workers': (0, 128),
+    'max_run_frames': (10, 100000),
+    'hdr_min_span_stops': (0.1, 10.0),
+}
+
+# The one guard that keeps the pair honest, at import rather than at request
+# time: a threshold added to one and forgotten in the other is a 422 nobody sees
+# until a user tries to save the settings form.
+assert set(SETTING_BOUNDS) == set(DEFAULTS), (
+    f"panorama settings drifted: {set(SETTING_BOUNDS) ^ set(DEFAULTS)}")
+
+WATERMARK_KEY = 'panorama_detection:watermark'
+
+# Everything that changes what the geometry answers. `enabled` and `workers`
+# only decide whether and how fast the pass runs, so a change to either must not
+# invalidate labels that are still correct.
+_COST_ONLY_SETTINGS = ('enabled', 'workers')
+
 
 def _sift_and_matcher(settings):
     """Build the detector and matcher, importing cv2 lazily.
@@ -115,7 +160,7 @@ def _features(conn, path, sift, cache):
     return result
 
 
-def _translation(first, second, sift, matcher, settings):
+def _translation(first, second, matcher, settings):
     """Translation between two frames as a fraction of frame width and height.
 
     Coordinates are shifted to put the origin at the image centre before the
@@ -170,7 +215,7 @@ def _is_static_run(conn, paths, sift, matcher, settings, cache):
         nxt = min(index + stride, len(paths) - 1)
         step = _translation(_features(conn, paths[index], sift, cache),
                             _features(conn, paths[nxt], sift, cache),
-                            sift, matcher, settings)
+                            matcher, settings)
         if step is None or step['inliers'] < settings['min_inliers']:
             return False
         if (abs(step['dx']) >= settings['probe_min_drift']
@@ -246,6 +291,12 @@ def find_segments(paths, steps, settings):
                 'drift': round(drift, 4),
                 'ortho': round(orthogonal, 4),
             })
+            # An accepted segment owns `paths[end]`, so the next one starts past
+            # it. Resuming at `end` -- as a rejected stretch below rightly does,
+            # having claimed nothing -- hands the same frame to two sets, and the
+            # later one wins the UPDATE that writes the labels.
+            index = end + 1
+            continue
         index = max(end, index + 1)
     return segments
 
@@ -258,8 +309,8 @@ def _load_candidates(conn, settings):
     the vast majority of the library.
     """
     rows = conn.execute(
-        "SELECT path, date_taken, camera_model, focal_length, f_stop, shutter_speed, iso "
-        "FROM photos WHERE date_taken IS NOT NULL AND focal_length IS NOT NULL"
+        "SELECT path, date_taken, camera_model, focal_length, f_stop, shutter_speed, iso, "
+        "scanned_at FROM photos WHERE date_taken IS NOT NULL AND focal_length IS NOT NULL"
     ).fetchall()
     photos = []
     for row in rows:
@@ -272,6 +323,7 @@ def _load_candidates(conn, settings):
             'camera_model': row['camera_model'],
             'focal_length': row['focal_length'],
             'ev': exposure_value(row['f_stop'], row['shutter_speed'], row['iso']),
+            'scanned_at': row['scanned_at'],
         })
     photos.sort(key=lambda p: (p['camera_model'] or '', p['captured_at'], p['path']))
 
@@ -292,6 +344,89 @@ def _load_candidates(conn, settings):
     if len(current) >= settings['min_frames']:
         runs.append(current)
     return runs
+
+
+def _settings_fingerprint(settings):
+    """Digest of the settings that decide what the geometry answers."""
+    material = {k: v for k, v in settings.items() if k not in _COST_ONLY_SETTINGS}
+    return hashlib.sha256(
+        json.dumps(material, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def read_watermark(conn, settings):
+    """The `scanned_at` this pass last measured the library through, if reusable.
+
+    None means "measure everything": either no pass has recorded a watermark, or
+    a threshold has been edited since, which makes every stored label a stale
+    answer to a different question.
+    """
+    row = conn.execute(
+        "SELECT value FROM stats_cache WHERE key = ?", (WATERMARK_KEY,)).fetchone()
+    if row is None or not row[0]:
+        return None
+    try:
+        stored = json.loads(row[0])
+    except (TypeError, ValueError):
+        return None
+    if stored.get('fingerprint') != _settings_fingerprint(settings):
+        return None
+    return stored.get('scanned_through')
+
+
+def write_watermark(conn, settings, scanned_through):
+    """Record how far a full-coverage pass measured, and under which thresholds."""
+    conn.execute(
+        "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+        (WATERMARK_KEY,
+         json.dumps({'scanned_through': scanned_through,
+                     'fingerprint': _settings_fingerprint(settings)}),
+         time.time()))
+
+
+def split_runs(runs, watermark):
+    """Candidate runs split into the ones to re-measure and the ones to reuse.
+
+    A run's geometry depends on nothing outside its own frames, so a run whose
+    every frame was already scanned before the last pass cannot have changed its
+    answer. That is what keeps a ten-photo import off a whole-library CV pass:
+    the candidate gate above is EXIF arithmetic over stored columns and costs
+    about a second, while measuring every run costs minutes.
+    """
+    if watermark is None:
+        return list(runs), []
+    fresh, settled = [], []
+    for run in runs:
+        # A NULL `scanned_at` is unknown, not old -- measure it.
+        changed = any(photo['scanned_at'] is None or photo['scanned_at'] > watermark
+                      for photo in run)
+        (fresh if changed else settled).append(run)
+    return fresh, settled
+
+
+def stored_segments(conn, runs):
+    """The sets already labelled on runs this pass is not re-measuring.
+
+    Read back rather than recomputed, so reusing a run costs one indexed lookup
+    instead of its geometry. Only `paths` and `kind` are persisted; the geometry
+    fields are reporting-only and are not reconstructed.
+    """
+    segments = []
+    for run in runs:
+        paths = [photo['path'] for photo in run]
+        placeholders = ','.join('?' * len(paths))
+        rows = conn.execute(
+            "SELECT path, sequence_group_id, sequence_kind FROM photos "
+            f"WHERE path IN ({placeholders}) AND sequence_kind IN (?, ?) "
+            "AND sequence_group_id IS NOT NULL",
+            (*paths, *KINDS)).fetchall()
+        groups = defaultdict(list)
+        for row in rows:
+            groups[(row['sequence_kind'], row['sequence_group_id'])].append(row['path'])
+        order = {path: position for position, path in enumerate(paths)}
+        for (kind, _), members in sorted(groups.items()):
+            segments.append({'paths': sorted(members, key=order.__getitem__),
+                             'kind': kind, 'axis': 'x', 'drift': 0.0, 'ortho': 0.0})
+    return segments
 
 
 def classify_kind(evs, settings):
@@ -319,7 +454,7 @@ def _analyse(conn, run, sift, matcher, settings):
     steps, previous = [], _features(conn, paths[0], sift, cache)
     for path in paths[1:]:
         current = _features(conn, path, sift, cache)
-        steps.append(_translation(previous, current, sift, matcher, settings))
+        steps.append(_translation(previous, current, matcher, settings))
         previous = current
     by_path = {photo['path']: photo for photo in run}
     segments = find_segments(paths, steps, settings)
@@ -412,6 +547,7 @@ def _analyse_runs(db_path, runs, sift, matcher, settings):
         workers = min(8, os.cpu_count() or 1)
     if workers < 2 or len(runs) < 2:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        apply_pragmas(conn)
         conn.row_factory = sqlite3.Row
         try:
             return [seg for run in runs for seg in _analyse(conn, run, sift, matcher, settings)]
@@ -432,15 +568,21 @@ def _analyse_runs(db_path, runs, sift, matcher, settings):
     return found
 
 
-def detect_panoramas(db_path, config_path=None):
+def detect_panoramas(db_path, config_path=None, incremental=False):
     """Label panorama sets across the library.
 
     Whole-library by nature: a set is defined by its chronological neighbours, so
-    a photo cannot be classified without them.
+    a photo cannot be classified without them. `incremental` keeps that coverage
+    -- every run is still resolved and every label still rewritten -- while
+    measuring only the runs that hold a photo scanned since the last pass, which
+    is what makes this affordable on the scan path (see `split_runs`). The
+    explicit re-run entry points pass False and re-measure everything, because
+    that is what a user asks for after editing a threshold.
 
     Args:
         db_path: Path to the SQLite database
         config_path: Path to scoring_config.json (optional)
+        incremental: Reuse stored labels for runs no photo has touched
     """
     from config import ScoringConfig
 
@@ -461,13 +603,19 @@ def detect_panoramas(db_path, config_path=None):
         apply_pragmas(conn)
         conn.row_factory = sqlite3.Row
         runs = _load_candidates(conn, settings)
+        scanned_through = max(
+            (photo['scanned_at'] for run in runs for photo in run
+             if photo['scanned_at'] is not None), default=None)
+        watermark = read_watermark(conn, settings) if incremental else None
+        fresh, settled = split_runs(runs, watermark)
         logger.info(
-            "Panorama detection over %d candidate runs (gap<=%ss, >=%d frames, "
-            "drift>=%.2f frame widths)...",
-            len(runs), settings['max_gap_seconds'], settings['min_frames'],
-            settings['min_drift'])
+            "Panorama detection over %d candidate runs (%d reused, gap<=%ss, "
+            ">=%d frames, drift>=%.2f frame widths)...",
+            len(runs), len(settled), settings['max_gap_seconds'],
+            settings['min_frames'], settings['min_drift'])
 
-        found = _analyse_runs(db_path, runs, sift, matcher, settings)
+        found = _analyse_runs(db_path, fresh, sift, matcher, settings)
+        found.extend(stored_segments(conn, settled))
 
         suppressed, forced = load_overrides(conn)
         found = resolve_segments(found, suppressed, forced)
@@ -493,6 +641,15 @@ def detect_panoramas(db_path, config_path=None):
             # window function run over every row of every query.
             conn.execute("UPDATE photos SET is_sequence_lead = 1 WHERE path = ?",
                          (paths[len(paths) // 2],))
+        # The labels now reflect every stored correction, so none of them is
+        # waiting on a run any more. Stamped rather than deleted: the row is what
+        # keeps the correction applied on later passes, and it is only its
+        # *pending* status that ends here.
+        conn.execute("UPDATE photo_sequence_overrides SET applied_at = ? "
+                     "WHERE applied_at IS NULL", (datetime.now().isoformat(),))
+        # Written only once the labels are committed alongside it, so a pass that
+        # dies part-way leaves the previous watermark and the next one re-measures.
+        write_watermark(conn, settings, scanned_through)
         conn.commit()
 
     frames = sum(len(segment['paths']) for segment in found)

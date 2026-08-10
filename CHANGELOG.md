@@ -4,6 +4,20 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Corrections to a panorama can be made from the gallery and from culling, in both directions.** Geometry cannot recover intent, so a residual error rate is inherent — and each direction of error is found somewhere different. A false positive is visible in culling, where the set is in front of you, and is corrected there (suppress it, or relabel plain ↔ HDR). A miss is not: an undetected sweep appears in no culling group at all, so it is corrected from the gallery selection bar instead. Both mark the set **pending** rather than applying anything optimistically — the detector is a batch pass — and both register an undo instead of the confirm's seven-second cooldown, which would buy nothing for a change that only lands at the next run. A `sequence_override` gallery filter lists what is still waiting, library-wide.
+
+### Changed
+- **A scan no longer pays a whole-library panorama pass.** Detection ran over every candidate run on every scan, `--recompute-average` and `--recompute-burst`, holding the library lock throughout — measured at about seven minutes on a 126k-photo library, and `--watch` paid it again per settled batch, so importing ten photos cost the same as importing the library. Coverage is unchanged: every run is still resolved and every label still rewritten, but only runs holding a photo scanned since the last pass are re-measured, the rest read back from their stored labels. Editing any threshold invalidates that watermark, and the explicit `--detect-panoramas` re-measures everything regardless, since that is what the command is for.
+
+### Fixed
+- **A "correction pending" badge now stops saying pending once the run applies it.** The badge, the culling chip and the re-run banner keyed on the mere existence of an override row — but a correction is stored for as long as it applies, so they never cleared, and the only way to silence them was to delete the correction they were describing. The detector now stamps each override when it acts on it.
+- **Two panoramas shot back to back no longer share a frame.** Where one sweep ended and the next began, the boundary frame was emitted in both sets, and the second one won the write — so the first served one frame fewer than it had found.
+- **Confirming a panorama served through the burst feed no longer teaches the ranker anything.** A sweep arrives shredded across several burst groups, which is the case this feature exists to correct; such a group is typed `burst`, and the confirm branched on that type, so it recorded exactly the comparison pairs the feature was meant to suppress. The kind is now read from the labels rather than taken from the request.
+- **Undoing a re-labelled panorama restores the correction it replaced** instead of deleting it, which had left the detector free to re-apply the misread the user had already fixed.
+- **Auto-cull is no longer offered in a granularity it cannot serve.** In the panorama, HDR and bracket views the button sent a scope the server rejects, failing with a bare error; keeping one frame per set is meaningless for sets that are kept whole.
+- **The `sequence_override` gallery filter no longer scans the whole library** — measured 195 ms per page against 0 ms on 126k photos.
+
 ## [1.10.0] "Aventurescence" — 2026-08-10
 
 ### Added

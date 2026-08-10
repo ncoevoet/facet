@@ -26,9 +26,11 @@ export interface CullingPhoto {
   sequence_kind?: string | null;
   /** Stops away from that sequence's base exposure; 0 on the base frame itself. */
   sequence_ev_offset?: number | null;
-  /** A manual correction still waiting on the next detection run: 'suppressed'
-   *  ("not a panorama") or the kind the set was forced to. */
+  /** A manual correction to the set: 'suppressed' ("not a panorama") or the
+   *  kind it was forced to. Set for as long as the correction stands. */
   sequence_override?: string | null;
+  /** Whether that correction is still waiting on a detection run. */
+  sequence_override_pending?: number | null;
 }
 
 /** A single detected face within a photo (from POST /api/culling-group/faces). */
@@ -350,7 +352,7 @@ export class CullGroupLabelPipe implements PipeTransform {
 }
 
 /**
- * A group's pending manual correction, or '' when it carries none.
+ * A group's manual correction, or '' when it carries none.
  *
  * Read off the frames rather than stored on the group: the correction lives
  * per-photo in `photo_sequence_overrides`, and a set is only ever corrected
@@ -360,6 +362,20 @@ export class CullGroupLabelPipe implements PipeTransform {
 export class GroupOverridePipe implements PipeTransform {
   transform(group: CullingGroup): string {
     return group.photos.find(p => p.sequence_override)?.sequence_override ?? '';
+  }
+}
+
+/**
+ * A group's correction that the detector has not applied yet, or ''.
+ *
+ * Distinct from `groupOverride`: the correction stays stored once applied, so
+ * only this one may drive anything that says "pending".
+ */
+@Pipe({ name: 'groupOverridePending' })
+export class GroupOverridePendingPipe implements PipeTransform {
+  transform(group: CullingGroup): string {
+    const photo = group.photos.find(p => p.sequence_override && p.sequence_override_pending);
+    return photo?.sequence_override ?? '';
   }
 }
 

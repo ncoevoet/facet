@@ -694,7 +694,12 @@ export class GalleryStore {
    * needs the value the server already accepted.
    */
   patchSequenceOverride(paths: string[], value: string | null): void {
-    this.patchPhotos(new Set(paths), { sequence_override: value });
+    // A correction written now cannot have been applied yet -- the detector is a
+    // batch pass -- so the pending flag moves with the value it qualifies.
+    this.patchPhotos(new Set(paths), {
+      sequence_override: value,
+      sequence_override_pending: value ? 1 : null,
+    });
   }
 
   /** Capture pre-mutation flag state for the given paths (revert / undo input). */

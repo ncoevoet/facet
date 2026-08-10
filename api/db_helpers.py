@@ -318,19 +318,28 @@ PHOTO_OPTIONAL_COLS = [
     'sequence_group_id', 'sequence_kind', 'sequence_ev_offset',
 ]
 
-# A photo's pending manual sequence correction, flattened to one value:
-# 'suppressed' when the override says "this is not a panorama" (sequence_kind
-# NULL), otherwise the kind it was forced to.
+# A photo's manual sequence correction, flattened to one value: 'suppressed'
+# when the override says "this is not a panorama" (sequence_kind NULL),
+# otherwise the kind it was forced to.
 #
 # A correlated primary-key lookup rather than a LEFT JOIN because every caller
 # of build_photo_select_columns brings its own FROM clause -- from a bare
 # `photos` to a three-way join -- and adding the join to each by hand is how the
 # feeds drift apart. It reads NOT from `photos`: the detector clears and
-# rewrites those columns on every run, so a correction only exists here until
-# the next one applies it.
+# rewrites those columns on every run, so a correction lives only here.
 SEQUENCE_OVERRIDE_SELECT = (
     "(SELECT COALESCE(o.sequence_kind, 'suppressed') FROM photo_sequence_overrides o "
     "WHERE o.photo_path = photos.path) AS sequence_override"
+)
+
+# Whether that correction is still waiting on a detection run. Separate from the
+# value above because the two answer different questions: the correction stays
+# stored for as long as it applies, so its existence cannot mean "pending" --
+# reading it that way left the tile badge, the culling chip and the re-run banner
+# on screen for ever, silenced only by deleting the correction they described.
+SEQUENCE_OVERRIDE_PENDING_SELECT = (
+    "(SELECT o.applied_at IS NULL FROM photo_sequence_overrides o "
+    "WHERE o.photo_path = photos.path) AS sequence_override_pending"
 )
 
 
@@ -668,6 +677,7 @@ def build_photo_select_columns(conn, user_id=None):
             else:
                 select_cols.append(c)
     select_cols.append(SEQUENCE_OVERRIDE_SELECT)
+    select_cols.append(SEQUENCE_OVERRIDE_PENDING_SELECT)
     return select_cols
 
 

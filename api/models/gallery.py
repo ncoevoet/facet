@@ -37,6 +37,7 @@ class Photo(BaseModel):
     narrative_moment_confidence: Optional[float] = None
     junk_kind: Optional[str] = None
     sequence_override: Optional[str] = None
+    sequence_override_pending: Optional[int] = None
     tags: Optional[str] = None
     tags_list: list[str] = []
     composition_pattern: Optional[str] = None

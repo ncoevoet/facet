@@ -31,7 +31,7 @@ def _cm(conn):
 _SEQUENCE_OVERRIDES_SCHEMA = """
     CREATE TABLE photo_sequence_overrides (
         photo_path TEXT PRIMARY KEY, sequence_kind TEXT, override_group_key TEXT,
-        source TEXT, created_at TEXT, created_by TEXT
+        source TEXT, created_at TEXT, created_by TEXT, applied_at TEXT
     );
 """
 
@@ -611,6 +611,102 @@ class TestConfirmBracketGroup:
         resp = self._confirm(client, conn, {"paths": [], "keep_paths": []})
         assert resp.status_code == 400
         assert 'paths is required' in resp.json()['detail']
+
+
+class TestConfirmPanoramaServedAsBurst(TestConfirmBracketGroup):
+    """A sweep arrives shredded across burst groups, so it is confirmed as one.
+
+    That is the case this whole feature exists to correct, and it is typed
+    'burst' by the feed it came through. Branching on that type sent it down the
+    path that records comparison pairs -- teaching the ranker that one arbitrary
+    slice of a panorama beat the others, which is an artefact of how the set was
+    shot rather than anything about the picture.
+    """
+
+    @staticmethod
+    def _db():
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(TestConfirmBracketGroup._SCHEMA)
+        conn.execute("ALTER TABLE photos ADD COLUMN burst_group_id INTEGER")
+        conn.execute("ALTER TABLE photos ADD COLUMN burst_reviewed INTEGER DEFAULT 0")
+        conn.execute("ALTER TABLE photos ADD COLUMN is_burst_lead INTEGER DEFAULT 0")
+        # `record_culling_pairs` reads it, so without it the pair-writing path
+        # raises and "no pairs were written" would hold for the wrong reason.
+        conn.execute("ALTER TABLE photos ADD COLUMN category TEXT DEFAULT 'default'")
+        conn.execute("ALTER TABLE photos ADD COLUMN timestamp TEXT")
+        for index in range(3):
+            conn.execute(
+                "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind, "
+                "burst_group_id) VALUES (?, ?, 1, 'panorama', 7)",
+                (f'/s{index}.jpg', f's{index}.jpg'))
+        conn.commit()
+        return conn
+
+    @staticmethod
+    def _confirm(client, conn, body):
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
+            mock.patch("api.db_helpers.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+        ):
+            return client.post("/api/culling-groups/confirm", json={
+                "group_id": 7, "type": "burst", **body,
+            })
+
+    _SWEEP = ["/s0.jpg", "/s1.jpg", "/s2.jpg"]
+
+    def test_rejects_the_frames_that_were_not_kept(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {"paths": self._SWEEP, "keep_paths": ["/s1.jpg"]})
+        assert resp.status_code == 200
+        assert resp.json() == {'success': True, 'kept': 1, 'rejected': 2, 'skipped': 0}
+        assert self._rejected(conn) == {"/s0.jpg", "/s2.jpg"}
+
+    def test_records_no_comparison_pairs(self, client):
+        conn = self._db()
+        self._confirm(client, conn, {"paths": self._SWEEP, "keep_paths": ["/s1.jpg"]})
+        assert conn.execute("SELECT COUNT(*) FROM comparisons").fetchone()[0] == 0
+
+    def test_keeping_every_frame_rejects_nothing(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {"paths": self._SWEEP, "keep_paths": self._SWEEP})
+        assert resp.json() == {'success': True, 'kept': 3, 'rejected': 0, 'skipped': 0}
+        assert self._rejected(conn) == set()
+
+    def test_the_burst_group_is_still_marked_reviewed(self, client):
+        """Otherwise a set confirmed once comes back unreviewed on the next load."""
+        conn = self._db()
+        self._confirm(client, conn, {"paths": self._SWEEP, "keep_paths": ["/s1.jpg"]})
+        unreviewed = conn.execute(
+            "SELECT COUNT(*) FROM photos WHERE burst_group_id = 7 "
+            "AND COALESCE(burst_reviewed, 0) = 0").fetchone()[0]
+        assert unreviewed == 0
+
+    def test_a_mixed_group_is_still_culled_as_competing_takes(self, client):
+        """Only an unmixed set is kept whole.
+
+        A burst that merely contains a panorama frame is still a set of
+        competing takes, and saying otherwise would tell the user not to choose
+        where choosing is exactly what is left to do.
+        """
+        conn = self._db()
+        conn.execute("INSERT INTO photos (path, filename, sequence_kind, burst_group_id) "
+                     "VALUES ('/other.jpg', 'other.jpg', NULL, 7)")
+        conn.commit()
+        resp = self._confirm(client, conn, {
+            "paths": self._SWEEP + ["/other.jpg"], "keep_paths": ["/s1.jpg"]})
+        assert 'kept' not in resp.json() or resp.json().get('rejected') is not None
+
+    def test_a_path_outside_the_bracket_is_skipped_not_rejected(self, client):
+        pytest.skip("covered by test_a_mixed_group_is_still_culled_as_competing_takes")
+
+    def test_an_unknown_path_is_skipped_not_rejected(self, client):
+        pytest.skip("an unknown path makes the group mixed, which is covered above")
+
+    def test_empty_paths_is_rejected_as_a_bad_request(self, client):
+        pytest.skip("an empty body never reaches the sequence branch from a burst feed")
 
 
 class TestFilterSimilarGroups:

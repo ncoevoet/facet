@@ -92,11 +92,14 @@ export interface Photo {
    *  deliberate multi-frame set. With the matching hide toggle on, the tile
    *  showing it stands for the whole set. */
   sequence_kind?: string | null;
-  /** A manual correction to what this frame's set is, still waiting on the next
-   *  detection run: 'suppressed' ("not a panorama") or the kind it was forced
-   *  to. Independent of `sequence_kind`, which the detector owns — a forced set
-   *  has none at all until that run. */
+  /** A manual correction to what this frame's set is: 'suppressed' ("not a
+   *  panorama") or the kind it was forced to. Independent of `sequence_kind`,
+   *  which the detector owns — a forced set has none at all until the next run.
+   *  Set for as long as the correction stands, applied or not. */
   sequence_override?: string | null;
+  /** Whether that correction is still waiting on a detection run. The badge
+   *  keys on this, never on `sequence_override`, which stays set afterwards. */
+  sequence_override_pending?: number | null;
   similarity?: number;
   caption?: string;
   caption_translated?: string;

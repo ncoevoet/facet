@@ -18,18 +18,24 @@ from db.connection import get_connection
 
 _UPSERT_SQL = """
     INSERT INTO photo_sequence_overrides
-    (photo_path, sequence_kind, override_group_key, source, created_by)
-    VALUES (?, ?, ?, ?, ?)
+    (photo_path, sequence_kind, override_group_key, source, created_by, applied_at)
+    VALUES (?, ?, ?, ?, ?, NULL)
     ON CONFLICT(photo_path) DO UPDATE SET
         sequence_kind = excluded.sequence_kind,
         override_group_key = excluded.override_group_key,
         source = excluded.source,
-        created_by = excluded.created_by
+        created_by = excluded.created_by,
+        applied_at = NULL
 """
 
 
-def _resolve(db):
-    """Yield a connection whether ``db`` is one already or a path/None."""
+def _connection_for(db):
+    """Return ``(connection, owned)`` whether ``db`` is one already or a path/None.
+
+    ``owned`` says whether this call opened it, and so whether the caller must
+    commit and close: a caller that passed its own connection is mid-transaction
+    and committing under it would break that.
+    """
     if hasattr(db, 'execute'):
         return db, False
     return get_connection(db), True
@@ -43,7 +49,7 @@ def get_sequence_overrides(db, paths=None):
     letting SQLite's arbitrary row order decide that made the label of a
     multi-kind key nondeterministic.
     """
-    conn, owned = _resolve(db)
+    conn, owned = _connection_for(db)
     try:
         sql = ("SELECT photo_path, sequence_kind, override_group_key "
                "FROM photo_sequence_overrides")
@@ -72,7 +78,7 @@ def set_sequence_overrides(db, paths, kind, group_key=None, source='user', creat
     """
     if not paths:
         return 0
-    conn, owned = _resolve(db)
+    conn, owned = _connection_for(db)
     try:
         key = group_key if kind else None
         if kind and key is None:
@@ -91,7 +97,7 @@ def clear_sequence_overrides(db, paths):
     """Drop corrections for ``paths``, handing them back to the detector."""
     if not paths:
         return 0
-    conn, owned = _resolve(db)
+    conn, owned = _connection_for(db)
     try:
         cursor = conn.execute(
             f"DELETE FROM photo_sequence_overrides WHERE photo_path IN "
@@ -112,7 +118,7 @@ def existing_group_key(db, paths):
     """
     if not paths:
         return None
-    conn, owned = _resolve(db)
+    conn, owned = _connection_for(db)
     try:
         row = conn.execute(
             f"SELECT override_group_key FROM photo_sequence_overrides "

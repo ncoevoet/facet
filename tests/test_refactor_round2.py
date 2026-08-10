@@ -49,7 +49,7 @@ _PHOTOS_SCHEMA = """
     );
     CREATE TABLE photo_sequence_overrides (
         photo_path TEXT PRIMARY KEY, sequence_kind TEXT, override_group_key TEXT,
-        source TEXT, created_at TEXT, created_by TEXT
+        source TEXT, created_at TEXT, created_by TEXT, applied_at TEXT
     );
 """
 

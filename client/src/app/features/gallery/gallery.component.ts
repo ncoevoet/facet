@@ -34,6 +34,7 @@ import { Photo } from '../../shared/models/photo.model';
 import { isTypingContext } from '../../shared/utils/keyboard';
 import { UndoService } from '../../core/services/undo.service';
 import { SequenceOverrideService, SequenceKind } from '../../core/services/sequence-override.service';
+import { SequenceKindIconPipe } from '../../shared/pipes/sequence-kind.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { downloadAll } from '../../shared/utils/download';
@@ -82,6 +83,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
     MatTooltipModule,
     MatBottomSheetModule,
     TranslatePipe,
+    SequenceKindIconPipe,
     MatSnackBarModule,
     PhotoTooltipComponent,
     SlideshowComponent,
@@ -516,11 +518,11 @@ type HiddenFilterFlags = Pick<GalleryFilters,
             <button mat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="sequenceMenu"><mat-icon>panorama_photosphere</mat-icon> {{ I18N.gallery.selection.mark_sequence | translate }}</button>
             <mat-menu #sequenceMenu="matMenu">
               <button mat-menu-item (click)="markAsPanorama('panorama')">
-                <mat-icon>panorama_photosphere</mat-icon>
+                <mat-icon>{{ 'panorama' | sequenceKindIcon }}</mat-icon>
                 {{ I18N.gallery.selection.mark_panorama | translate }}
               </button>
               <button mat-menu-item (click)="markAsPanorama('hdr_panorama')">
-                <mat-icon>vrpano</mat-icon>
+                <mat-icon>{{ 'hdr_panorama' | sequenceKindIcon }}</mat-icon>
                 {{ I18N.gallery.selection.mark_hdr_panorama | translate }}
               </button>
             </mat-menu>

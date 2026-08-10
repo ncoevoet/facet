@@ -600,6 +600,13 @@ PHOTO_SEQUENCE_OVERRIDES_COLUMNS = [
     ('source', 'TEXT'),
     ('created_at', "TEXT DEFAULT (datetime('now'))"),
     ('created_by', 'TEXT'),
+    # When the detector last acted on this correction. NULL means the labels do
+    # not reflect it yet, which is what the viewer's "pending" badge, chip and
+    # re-run banner report. Without it the row's mere existence had to stand for
+    # "pending", so those never cleared: the correction stays stored for as long
+    # as it applies, so the only way to silence them was to delete it -- undoing
+    # the correction to stop being told it was waiting.
+    ('applied_at', 'TEXT'),
 ]
 
 # FTS5 full-text search virtual table and sync triggers.

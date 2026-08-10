@@ -256,9 +256,13 @@ def _apply_sequence_override_filter(where_clauses, params):
         kind_sql = ' AND o.sequence_kind IS NULL'
     elif value == SEQUENCE_OVERRIDE_FORCED:
         kind_sql = ' AND o.sequence_kind IS NOT NULL'
+    # Uncorrelated ``IN`` rather than a correlated ``EXISTS``: the correlated
+    # form makes SQLite scan every photo and probe the override table per row,
+    # measured at 195ms against 0ms on a 126k library, for a list that is a
+    # handful of rows long.
     where_clauses.append(
-        "EXISTS (SELECT 1 FROM photo_sequence_overrides o "
-        f"WHERE o.photo_path = photos.path{kind_sql})")
+        "photos.path IN (SELECT o.photo_path FROM photo_sequence_overrides o "
+        f"WHERE 1=1{kind_sql})")
 
 
 def _quality_tier_bounds(tier):

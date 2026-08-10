@@ -28,7 +28,7 @@ import { CompareFiltersService } from '../comparison/compare-filters.service';
 import { PanoramaSettingsService } from '../comparison/panorama-settings.service';
 import { SequenceOverrideService, SequenceKind } from '../../core/services/sequence-override.service';
 import { UndoService } from '../../core/services/undo.service';
-import { SequenceKindLabelPipe } from '../../shared/pipes/sequence-kind.pipe';
+import { SequenceKindLabelPipe, SUPPRESSED_OVERRIDE } from '../../shared/pipes/sequence-kind.pipe';
 import { firstValueFrom } from 'rxjs';
 import { I18N } from '../../core/i18n/keys';
 import {
@@ -37,6 +37,7 @@ import {
   FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
   SortIconPipe, CategoryIconPipe, CullProfileIconPipe, CullPreviewUrlPipe,
   SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe, GroupOverridePipe,
+  GroupOverridePendingPipe,
   cullPreviewUrl,
   CullingGroup, CullingPhoto, CullingFace, CullingSubject, FaceThresholds, CullStyle,
 } from './burst-culling.pipes';
@@ -174,6 +175,7 @@ interface ShortcutRow {
     SubjectRingClassPipe,
     EvOffsetPipe,
     GroupOverridePipe,
+    GroupOverridePendingPipe,
     SequenceKindLabelPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
@@ -398,7 +400,7 @@ interface ShortcutRow {
                      [attr.aria-label]="I18N.culling.loupe | translate" />
             </mat-slider>
           }
-          @if (auth.isEdition()) {
+          @if (auth.isEdition() && !keepWholeGranularity()) {
             <button mat-icon-button (click)="openAutoCull()" [disabled]="autoCullLoading()"
                     [matTooltip]="I18N.culling.auto_cull.tooltip | translate"
                     [attr.aria-label]="I18N.culling.auto_cull.button | translate">
@@ -510,13 +512,13 @@ interface ShortcutRow {
               @if (group.sequence_kind === 'panorama' || group.sequence_kind === 'hdr_panorama') {
                 <div class="flex flex-wrap items-center gap-2 px-4 pt-2 text-xs">
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-400">
-                    <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ group.sequence_kind | cullGroupIcon }}</mat-icon>{{ (group.sequence_kind === 'hdr_panorama' ? I18N.culling.panorama.hdr_label : I18N.culling.panorama.label) | translate }}
+                    <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ group.sequence_kind | cullGroupIcon }}</mat-icon>{{ group.sequence_kind | sequenceKindLabel | translate }}
                   </span>
                   <!-- The detector still owns the label above until it runs
                        again, so a saved correction can only ever read as
                        pending here -- saying otherwise would claim a set had
                        changed while the feed still groups it the old way. -->
-                  @if (group | groupOverride; as pending) {
+                  @if (group | groupOverridePending; as pending) {
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300"
                           [matTooltip]="I18N.culling.panorama.pending_tooltip | translate">
                       <mat-icon class="!text-sm !w-4 !h-4 !leading-4" aria-hidden="true">schedule</mat-icon>{{ I18N.culling.panorama.pending | translate }}
@@ -659,12 +661,12 @@ interface ShortcutRow {
                         </button>
                         @if (group.sequence_kind !== 'panorama') {
                           <button mat-menu-item (click)="correctSequence(group, 'panorama')">
-                            <mat-icon>panorama_photosphere</mat-icon>{{ I18N.culling.panorama.relabel_plain | translate }}
+                            <mat-icon>{{ 'panorama' | cullGroupIcon }}</mat-icon>{{ I18N.culling.panorama.relabel_plain | translate }}
                           </button>
                         }
                         @if (group.sequence_kind !== 'hdr_panorama') {
                           <button mat-menu-item (click)="correctSequence(group, 'hdr_panorama')">
-                            <mat-icon>vrpano</mat-icon>{{ I18N.culling.panorama.relabel_hdr | translate }}
+                            <mat-icon>{{ 'hdr_panorama' | cullGroupIcon }}</mat-icon>{{ I18N.culling.panorama.relabel_hdr | translate }}
                           </button>
                         }
                         @if (group | groupOverride) {
@@ -1112,7 +1114,20 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Groups in the feed carrying a correction the detector has not applied yet. */
   protected readonly pendingCorrections = computed(
-    () => this.groups().filter(g => g.photos.some(p => p.sequence_override)).length,
+    () => this.groups().filter(
+      g => g.photos.some(p => p.sequence_override && p.sequence_override_pending)).length,
+  );
+
+  /**
+   * True in a granularity whose sets are kept whole.
+   *
+   * Auto-cull picks one frame per group, which is meaningless for a bracket or a
+   * pan and is why the server accepts no such scope. Hidden rather than
+   * disabled: a control that can never apply here is noise, and leaving it
+   * enabled produced a bare 422 behind a generic failure message.
+   */
+  protected readonly keepWholeGranularity = computed(
+    () => KEEP_WHOLE_KINDS.includes(this.groupBy()),
   );
   /** True while a re-detection subprocess runs (spawned here or elsewhere). */
   protected readonly detecting = signal(false);
@@ -2202,10 +2217,32 @@ export class BurstCullingComponent implements OnDestroy {
     this.undoService.register({
       labelKey: I18N.culling.panorama.corrected,
       undo: async () => {
-        await this.sequenceOverrides.clearAsync(paths);
+        await this.restoreOverridesOnServer(previous);
         this.restoreOverrides(previous);
       },
     });
+  }
+
+  /**
+   * Put the stored overrides back where `previous` says they were.
+   *
+   * Clearing alone would not undo a re-labelling, it would delete it: a set the
+   * user had already corrected once carries an override before this call, so
+   * dropping the row discards that earlier decision — and the detector would
+   * then re-apply the very misread they had fixed, while the badge still
+   * claimed a correction the server no longer held.
+   */
+  private async restoreOverridesOnServer(previous: Map<string, string | null>): Promise<void> {
+    const byValue = new Map<string | null, string[]>();
+    for (const [path, value] of previous) {
+      const bucket = byValue.get(value);
+      if (bucket) bucket.push(path); else byValue.set(value, [path]);
+    }
+    for (const [value, paths] of byValue) {
+      if (value === null) await this.sequenceOverrides.clearAsync(paths);
+      else if (value === SUPPRESSED_OVERRIDE) await this.sequenceOverrides.setAsync(paths);
+      else await this.sequenceOverrides.setAsync(paths, value as SequenceKind);
+    }
   }
 
   /** Hand this set back to the detector, dropping the pending correction. */
@@ -2223,8 +2260,7 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Set one override value on the named frames, wherever they sit in the feed. */
   private patchOverrides(paths: string[], value: string | null): void {
-    const target = new Set(paths);
-    this.restoreOverrides(new Map([...target].map(path => [path, value])));
+    this.restoreOverrides(new Map(paths.map(path => [path, value])));
   }
 
   /** Write back per-path override values (the undo path restores the old ones). */
@@ -2234,7 +2270,15 @@ export class BurstCullingComponent implements OnDestroy {
         ? {
             ...group,
             photos: group.photos.map(p => (
-              values.has(p.path) ? { ...p, sequence_override: values.get(p.path) ?? null } : p
+              values.has(p.path)
+                ? {
+                    ...p,
+                    sequence_override: values.get(p.path) ?? null,
+                    // Anything just written here is by definition unapplied: the
+                    // detector is a batch pass, not a live query.
+                    sequence_override_pending: values.get(p.path) ? 1 : null,
+                  }
+                : p
             )),
           }
         : group

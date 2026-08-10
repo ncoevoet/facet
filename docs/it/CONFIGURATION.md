@@ -861,8 +861,9 @@ Le soglie sono state calibrate su 26 panorami e 8 non-panorami confermati a occh
 | `workers` | `0` | Processi paralleli; `0` sceglie in base ai core. Scala al di sotto del numero di core: domina la lettura casuale delle miniature |
 | `probe_stride` | `8` | Fotogrammi fra i sondaggi economici che scartano le raffiche ordinarie |
 | `probe_min_drift` | `0.05` | Movimento sotto il quale un sondaggio dichiara ferma la serie |
+| `max_run_frames` | `500` | Serie più lunga misurata. Una panoramica non ha mai bisogno di così tanti fotogrammi, e il limite delimita la cache di descrittori per serie (~220 KB per fotogramma e per processo) |
 
-Modificare questi valori non produce nulla da solo — il rilevamento è una passata batch: rilancia `--detect-panoramas` (o l'azione nel visualizzatore) perché la modifica raggiunga la galleria e la selezione.
+Modificare questi valori non produce nulla da solo — il rilevamento è una passata batch: rilancia `--detect-panoramas` (o l'azione nel visualizzatore) perché la modifica raggiunga la galleria e la selezione. Modificarli invalida anche il segnaposto incrementale: la passata successiva rimisura l'intera libreria invece di riusare etichette calcolate con le soglie precedenti.
 
 ---
 

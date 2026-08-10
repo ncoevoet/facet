@@ -860,8 +860,9 @@ Los umbrales se calibraron con 26 panorámicas y 8 no panorámicas confirmadas a
 | `workers` | `0` | Procesos paralelos; `0` elige según los núcleos. Escala por debajo del número de núcleos: domina la lectura aleatoria de miniaturas |
 | `probe_stride` | `8` | Fotogramas entre los sondeos baratos que descartan ráfagas corrientes |
 | `probe_min_drift` | `0.05` | Movimiento por debajo del cual un sondeo declara inmóvil la serie |
+| `max_run_frames` | `500` | Serie más larga que se mide. Una panorámica nunca necesita tantas imágenes, y el tope acota la caché de descriptores por serie (~220 KB por imagen y proceso) |
 
-Cambiar estos valores no hace nada por sí solo — la detección es una pasada por lotes: vuelve a ejecutar `--detect-panoramas` (o la acción de la visor) para que el cambio llegue a la galería y al descarte.
+Cambiar estos valores no hace nada por sí solo — la detección es una pasada por lotes: vuelve a ejecutar `--detect-panoramas` (o la acción de la visor) para que el cambio llegue a la galería y al descarte. Cambiarlos también invalida la marca incremental: la siguiente pasada vuelve a medir toda la biblioteca en lugar de reutilizar etiquetas calculadas con los umbrales anteriores.
 
 ---
 

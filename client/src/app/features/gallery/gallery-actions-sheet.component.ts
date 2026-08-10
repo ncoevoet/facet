@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MAT_BOTTOM_SHEET_DATA, MatBottomSheetRef } from '@angular/material/bottom-sheet';
 import { MatIconModule } from '@angular/material/icon';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { SequenceKindIconPipe } from '../../shared/pipes/sequence-kind.pipe';
 import { Album } from '../../core/services/album.service';
 import { I18N } from '../../core/i18n/keys';
 
@@ -33,7 +34,7 @@ export interface GalleryActionsSheetData {
 @Component({
   selector: 'app-gallery-actions-sheet',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatIconModule, TranslatePipe],
+  imports: [MatIconModule, TranslatePipe, SequenceKindIconPipe],
   template: `
     <div class="flex flex-col pb-2">
       <div class="px-4 py-3 text-sm font-medium border-b border-[var(--mat-sys-outline-variant)]">
@@ -85,11 +86,11 @@ export interface GalleryActionsSheetData {
           {{ I18N.cull.action | translate }}
         </button>
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'mark-panorama', sequenceKind: 'panorama' })">
-          <mat-icon aria-hidden="true">panorama_photosphere</mat-icon>
+          <mat-icon aria-hidden="true">{{ 'panorama' | sequenceKindIcon }}</mat-icon>
           {{ I18N.gallery.selection.mark_panorama | translate }}
         </button>
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'mark-panorama', sequenceKind: 'hdr_panorama' })">
-          <mat-icon aria-hidden="true">vrpano</mat-icon>
+          <mat-icon aria-hidden="true">{{ 'hdr_panorama' | sequenceKindIcon }}</mat-icon>
           {{ I18N.gallery.selection.mark_hdr_panorama | translate }}
         </button>
       }

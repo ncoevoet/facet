@@ -26,6 +26,7 @@ export interface PanoramaSettings {
   probe_stride: number;
   probe_min_drift: number;
   workers: number;
+  max_run_frames: number;
   hdr_min_span_stops: number;
 }
 

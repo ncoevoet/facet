@@ -862,8 +862,9 @@ Les seuils ont été calibrés sur 26 panoramas et 8 non-panoramas confirmés à
 | `workers` | `0` | Processus parallèles ; `0` choisit selon le nombre de cœurs. L'accélération reste en deçà du nombre de cœurs : le coût est dominé par les lectures aléatoires de vignettes |
 | `probe_stride` | `8` | Nombre d'images entre les sondages rapides qui écartent les rafales ordinaires |
 | `probe_min_drift` | `0.05` | Mouvement en deçà duquel un sondage déclare la série immobile |
+| `max_run_frames` | `500` | Plus longue série mesurée. Un panoramique n'a jamais besoin d'autant d'images, et le plafond borne le cache de descripteurs par série (~220 Ko par image et par processus) |
 
-Modifier ces valeurs ne change rien en soi — la détection est une passe par lots : relancez `--detect-panoramas` (ou l'action de relance dans la visionneuse) pour que le changement atteigne la galerie et le tri.
+Modifier ces valeurs ne change rien en soi — la détection est une passe par lots : relancez `--detect-panoramas` (ou l'action de relance dans la visionneuse) pour que le changement atteigne la galerie et le tri. Les modifier invalide aussi le repère incrémental : la passe suivante remesure toute la bibliothèque au lieu de réutiliser des étiquettes calculées avec les anciens seuils.
 
 ---
 

@@ -50,7 +50,7 @@ _SCHEMA = """
     CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
     CREATE TABLE photo_sequence_overrides (
         photo_path TEXT PRIMARY KEY, sequence_kind TEXT, override_group_key TEXT,
-        source TEXT, created_at TEXT, created_by TEXT
+        source TEXT, created_at TEXT, created_by TEXT, applied_at TEXT
     );
 """
 

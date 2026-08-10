@@ -862,8 +862,9 @@ Die Schwellenwerte wurden an 26 Panoramen und 8 Nicht-Panoramen kalibriert, die 
 | `workers` | `0` | Parallele Prozesse; `0` wählt nach Kernanzahl. Skaliert unterhalb der Kernanzahl — die Kosten dominieren zufällige Vorschaubild-Lesezugriffe |
 | `probe_stride` | `8` | Bilder zwischen den günstigen Stichproben, die gewöhnliche Serien aussortieren |
 | `probe_min_drift` | `0.05` | Bewegung, unterhalb derer eine Stichprobe die Folge als unbewegt einstuft |
+| `max_run_frames` | `500` | Längste gemessene Folge. Ein Schwenk braucht nie so viele Bilder, und die Obergrenze begrenzt den Merkmals-Cache pro Folge (~220 KB pro Bild und Prozess) |
 
-Diese Werte zu ändern bewirkt für sich genommen nichts — die Erkennung ist ein Stapellauf: Führen Sie `--detect-panoramas` erneut aus (oder die Schaltfläche im Viewer), damit die Änderung Galerie und Auswahl erreicht.
+Diese Werte zu ändern bewirkt für sich genommen nichts — die Erkennung ist ein Stapellauf: Führen Sie `--detect-panoramas` erneut aus (oder die Schaltfläche im Viewer), damit die Änderung Galerie und Auswahl erreicht. Eine Änderung entwertet außerdem die inkrementelle Marke: Der nächste Lauf vermisst die gesamte Bibliothek neu, statt Etiketten aus den alten Schwellenwerten wiederzuverwenden.
 
 ---
 
