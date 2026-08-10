@@ -258,10 +258,12 @@
             <mat-icon>touch_app</mat-icon>
             {{ I18N.gallery.tooltip_mode.click | translate }}
           </button>
-          <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'panel')">
-            <mat-icon>view_sidebar</mat-icon>
-            {{ I18N.gallery.tooltip_mode.panel | translate }}
-          </button>
+          @if (canDockDetails()) {
+            <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'panel')">
+              <mat-icon>view_sidebar</mat-icon>
+              {{ I18N.gallery.tooltip_mode.panel | translate }}
+            </button>
+          }
           <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
             <mat-icon>visibility_off</mat-icon>
             {{ I18N.gallery.tooltip_mode.off | translate }}
@@ -527,10 +529,12 @@
             <mat-icon>touch_app</mat-icon>
             {{ I18N.gallery.tooltip_mode.click | translate }}
           </button>
-          <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'panel')">
-            <mat-icon>view_sidebar</mat-icon>
-            {{ I18N.gallery.tooltip_mode.panel | translate }}
-          </button>
+          @if (canDockDetails()) {
+            <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'panel')">
+              <mat-icon>view_sidebar</mat-icon>
+              {{ I18N.gallery.tooltip_mode.panel | translate }}
+            </button>
+          }
           <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
             <mat-icon>visibility_off</mat-icon>
             {{ I18N.gallery.tooltip_mode.off | translate }}

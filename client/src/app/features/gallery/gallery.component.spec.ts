@@ -340,23 +340,51 @@ describe('GalleryComponent', () => {
   describe('docked details panel (tooltip_mode = panel)', () => {
     const hoverEvent = { currentTarget: null } as unknown as MouseEvent;
 
+    /** Force the rail's width gate on, the way a >=1280px viewport would. */
+    function widenForRail() {
+      vi.stubGlobal('matchMedia', (media: string) => ({
+        matches: true, media, addEventListener() {}, removeEventListener() {},
+      }));
+      (component as unknown as { railWide: { setup(): void } }).railWide.setup();
+    }
+
     beforeEach(() => {
       mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'panel' });
     });
 
-    it('hovering a photo feeds the rail without any placement maths', () => {
-      const photo = { path: '/a.jpg' } as never;
-      component.showTooltip(hoverEvent, photo);
-      expect(component['tooltipPhoto']()).toBe(photo);
-      expect(component['tooltipX']()).toBe(0);
-      expect(component['tooltipY']()).toBe(0);
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('needs a wide viewport as well as the setting, not the setting alone', () => {
+      expect(component['tooltipMode']()).toBe('panel');
+      expect(component.panelMode()).toBe(false);
     });
 
-    it('keeps the last photo when the cursor leaves the grid', () => {
-      const photo = { path: '/a.jpg' } as never;
-      component.showTooltip(hoverEvent, photo);
-      component.hideTooltip();
-      expect(component['tooltipPhoto']()).toBe(photo);
+    describe('with a viewport wide enough for the rail', () => {
+      beforeEach(() => widenForRail());
+
+      it('is active', () => {
+        expect(component.panelMode()).toBe(true);
+      });
+
+      it('hovering a photo feeds the rail without any placement maths', () => {
+        const photo = { path: '/a.jpg' } as never;
+        component.showTooltip(hoverEvent, photo);
+        expect(component['tooltipPhoto']()).toBe(photo);
+        expect(component['tooltipX']()).toBe(0);
+        expect(component['tooltipY']()).toBe(0);
+      });
+
+      it('keeps the last photo when the cursor leaves the grid', () => {
+        const photo = { path: '/a.jpg' } as never;
+        component.showTooltip(hoverEvent, photo);
+        component.hideTooltip();
+        expect(component['tooltipPhoto']()).toBe(photo);
+      });
+
+      it('yields the shared drawer to the filters while they are open', () => {
+        mockStore.filterDrawerOpen.set(true);
+        expect(component.detailsRailVisible()).toBe(false);
+      });
     });
 
     it('still clears on mouse-out in hover mode', () => {
@@ -365,16 +393,23 @@ describe('GalleryComponent', () => {
       expect(component['tooltipPhoto']()).toBeNull();
     });
 
-    it('needs a wide viewport as well as the setting, not the setting alone', () => {
-      // The width gate has not matched in the test environment, so selecting the
-      // mode must not by itself surrender a 320px strip.
-      expect(component['tooltipMode']()).toBe('panel');
-      expect(component.panelMode()).toBe(false);
+    it('falls back to a positioned floating tooltip when the rail cannot be shown', () => {
+      // Selecting the mode on a viewport too narrow for the rail used to skip
+      // the placement maths and leave the floating box at a stale coordinate.
+      const card = document.createElement('div');
+      card.className = 'relative rounded-lg';
+      document.body.appendChild(card);
+      const photo = { path: '/a.jpg', image_width: 4000, image_height: 3000 } as never;
+      component.showTooltip({ currentTarget: card } as unknown as MouseEvent, photo);
+      expect(component['tooltipPhoto']()).toBe(photo);
+      card.remove();
     });
 
-    it('yields the shared drawer to the filters while they are open', () => {
-      mockStore.filterDrawerOpen.set(true);
-      expect(component.detailsRailVisible()).toBe(false);
+    it('clears on mouse-out while the rail is unavailable, like hover does', () => {
+      const photo = { path: '/a.jpg' } as never;
+      component['tooltipPhoto'].set(photo);
+      component.hideTooltip();
+      expect(component['tooltipPhoto']()).toBeNull();
     });
   });
 });

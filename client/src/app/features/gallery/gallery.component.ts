@@ -34,7 +34,7 @@ import { Photo } from '../../shared/models/photo.model';
 import { isTypingContext } from '../../shared/utils/keyboard';
 import { UndoService } from '../../core/services/undo.service';
 import { AuthService } from '../../core/services/auth.service';
-import { useDesktopSignal } from '../../shared/utils/media-query';
+import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { downloadAll } from '../../shared/utils/download';
 import { basename, copyLines } from '../../shared/utils/clipboard';
 import { I18nService } from '../../core/services/i18n.service';
@@ -63,8 +63,6 @@ import { MAX_COMPARE_PANES } from './synced-zoom.component';
 /** The three toggles the hidden-photos banner clears and restores together. */
 type HiddenFilterFlags = Pick<GalleryFilters, 'hide_blinks' | 'hide_bursts' | 'hide_duplicates'>;
 
-/** Narrowest viewport that can spare a permanent 320px details rail (Tailwind `xl`). */
-const RAIL_MIN_WIDTH_PX = 1280;
 
 @Component({
   selector: 'app-gallery',
@@ -625,7 +623,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * drawer would take more than a third of the window and leave the grid too
    * narrow to browse, so it wants its own, higher bar.
    */
-  private readonly railWide = useDesktopSignal({ breakpointPx: RAIL_MIN_WIDTH_PX });
+  private readonly railWide = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
 
   /** Effective gallery mode: force grid on small viewports */
   readonly effectiveGalleryMode = computed(() =>
@@ -1063,6 +1061,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
       case 'create-album': await this.createAlbumAndAdd(); break;
       case 'invert': this.invertSelection(); break;
       case 'compare': await this.compareSelection(); break;
+      case 'export': this.openExportDialog(); break;
+      case 'cull': await this.openCullDialog(); break;
       case 'copy': this.copyPaths(); break;
       case 'download': await this.downloadSelected(action.type, action.profile); break;
     }
@@ -1145,7 +1145,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const mode = this.tooltipMode();
     if (mode === 'off') return;
     // The rail is parked, so none of the placement maths below applies to it.
-    if (mode === 'panel') {
+    // Only while it is actually shown, though: with the mode selected on a
+    // viewport too narrow for the rail, skipping the maths left the floating
+    // tooltip to render at a stale coordinate in the middle of the page.
+    if (mode === 'panel' && this.panelMode()) {
       this.tooltipPhoto.set(photo);
       return;
     }
@@ -1224,7 +1227,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   hideTooltip(): void {
     // A docked rail keeps the last photo on mouse-out. Blanking it every time
     // the cursor crossed a gap would undo the reason for docking it.
-    if (this.tooltipMode() === 'panel') return;
+    if (this.panelMode()) return;
     this.tooltipPhoto.set(null);
   }
 

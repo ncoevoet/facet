@@ -3,6 +3,15 @@ import { signal, Signal } from '@angular/core';
 /** Tailwind's `md`, the width at which this app calls itself desktop. */
 const DEFAULT_BREAKPOINT_PX = 768;
 
+/**
+ * Narrowest viewport that can spare a permanent ~320px details rail (Tailwind `xl`).
+ *
+ * Shared so the gallery's rail and the header menu that offers it agree: a menu
+ * entry that switches to a mode the viewport cannot render is worse than no
+ * entry at all.
+ */
+export const DETAILS_RAIL_MIN_WIDTH_PX = 1280;
+
 export function useDesktopSignal(
   options?: { onChange?: (matches: boolean) => void; breakpointPx?: number },
 ): { isDesktop: Signal<boolean>; setup: () => void; cleanup: () => void } {
