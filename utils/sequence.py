@@ -171,39 +171,46 @@ def _load_photos(conn):
     return photos
 
 
-def _previously_promoted_groups(conn):
-    """Burst groups a previous pass centred on a bracket's base frame.
+def _wholly_bracketed_groups(conn):
+    """Burst groups whose members are exactly one bracket.
 
-    Read before the labels are cleared, so a group that stops qualifying can be
-    handed back to scoring instead of keeping a lead the evidence no longer
-    supports.
+    The condition a promotion is made under, so asking it before and after a
+    relabel says which groups were centred on a base frame and which still are.
+    A group that merely *contains* a bracket was never promoted -- its lead stays
+    where scoring put it -- so answering that with "any member is bracketed"
+    would demote a group nothing had touched, every re-run.
     """
     return {
         row['burst_group_id'] for row in conn.execute(
-            "SELECT DISTINCT burst_group_id FROM photos "
-            "WHERE burst_group_id IS NOT NULL AND sequence_kind = ?",
+            "SELECT burst_group_id, COUNT(*) AS members, "
+            "       COUNT(DISTINCT sequence_group_id) AS sequences, "
+            "       SUM(CASE WHEN sequence_kind = ? THEN 1 ELSE 0 END) AS bracketed "
+            "FROM photos WHERE burst_group_id IS NOT NULL "
+            "GROUP BY burst_group_id HAVING sequences = 1 AND bracketed = members",
             (BRACKET,),
         ).fetchall()
     }
 
 
 def _restore_scored_lead(conn, burst_group_id):
-    """Give a burst group back the lead scoring would have chosen for it."""
+    """Give a burst group back the lead scoring would have chosen for it.
+
+    Candidates are read in capture order, the order `process_bursts` builds its
+    own list in, so a group whose frames tie on every scored term resolves to
+    the same frame a rescan would have picked rather than to whatever the table
+    happened to return first.
+    """
     members = [dict(row) for row in conn.execute(
         "SELECT path, aggregate, face_count, eyes_open_score, expression_score, "
         "       tech_sharpness, learned_score "
-        "FROM photos WHERE burst_group_id = ?",
+        "FROM photos WHERE burst_group_id = ? ORDER BY date_taken, path",
         (burst_group_id,),
     ).fetchall()]
-    winner = pick_lead(members)
-    if winner is None:
-        return False
     conn.execute(
         "UPDATE photos SET is_burst_lead = CASE WHEN path = ? THEN 1 ELSE 0 END "
         "WHERE burst_group_id = ?",
-        (winner['path'], burst_group_id),
+        (pick_lead(members)['path'], burst_group_id),
     )
-    return True
 
 
 def _promote_bracket_leads(conn, previously_promoted=frozenset()):
@@ -219,35 +226,26 @@ def _promote_bracket_leads(conn, previously_promoted=frozenset()):
     promotion in place would keep pointing "best of burst" at a frame nothing
     now says is the base, and only a full rescan would ever correct it.
     """
-    rows = conn.execute(
-        "SELECT burst_group_id, COUNT(*) AS members, "
-        "       COUNT(DISTINCT sequence_group_id) AS sequences, "
-        "       SUM(CASE WHEN sequence_kind = ? THEN 1 ELSE 0 END) AS bracketed "
-        "FROM photos WHERE burst_group_id IS NOT NULL "
-        "GROUP BY burst_group_id HAVING sequences = 1 AND bracketed = members",
-        (BRACKET,),
-    ).fetchall()
+    still_bracketed = _wholly_bracketed_groups(conn)
     promoted = 0
-    for row in rows:
+    for group_id in sorted(still_bracketed):
         base = conn.execute(
             "SELECT path FROM photos WHERE burst_group_id = ? "
             "ORDER BY ABS(COALESCE(sequence_ev_offset, 0)), path LIMIT 1",
-            (row['burst_group_id'],),
+            (group_id,),
         ).fetchone()
         if base is None:
             continue
         conn.execute(
             "UPDATE photos SET is_burst_lead = CASE WHEN path = ? THEN 1 ELSE 0 END "
             "WHERE burst_group_id = ?",
-            (base['path'], row['burst_group_id']),
+            (base['path'], group_id),
         )
         promoted += 1
-    still_bracketed = {row['burst_group_id'] for row in rows}
-    demoted = sum(
+    lapsed = sorted(previously_promoted - still_bracketed)
+    for group_id in lapsed:
         _restore_scored_lead(conn, group_id)
-        for group_id in sorted(previously_promoted - still_bracketed)
-    )
-    return promoted, demoted
+    return promoted, len(lapsed)
 
 
 def detect_sequences(db_path, config_path=None):
@@ -288,7 +286,7 @@ def detect_sequences(db_path, config_path=None):
 
         runs = _find_bracket_runs(photos, settings)
 
-        previously_promoted = _previously_promoted_groups(conn)
+        previously_promoted = _wholly_bracketed_groups(conn)
         conn.execute(
             "UPDATE photos SET sequence_group_id = NULL, sequence_kind = NULL, "
             "sequence_ev_offset = NULL WHERE sequence_group_id IS NOT NULL"

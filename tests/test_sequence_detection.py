@@ -17,7 +17,6 @@ from utils.sequence import (
     _compensation_offset,
     _find_bracket_runs,
     _is_bracket,
-    _promote_bracket_leads,
     detect_sequences,
     exposure_value,
 )
@@ -253,6 +252,27 @@ class TestDetectSequencesEndToEnd:
                 "SELECT path FROM photos WHERE is_burst_lead = 1")}
         # Back on the highest-scoring frame, where burst scoring had put it --
         # not left on the base exposure a lapsed promotion pointed at.
+        assert leads == {'/b2.jpg'}
+
+    def test_a_mixed_burst_is_never_demoted_however_often_the_pass_reruns(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        mixed = _bracket_rows() + [
+            ('/other.jpg', 'other.jpg', '2025:04:15 20:30:00', 'Canon EOS R6', 4.0, '0.01', 100,
+             '0f0f0f0f0f0f0f0f', 9.5, 1, 0),
+        ]
+        _seed(db, mixed)
+
+        results = [detect_sequences(str(db)) for _ in range(3)]
+
+        # The group holds a bracket but is not wholly one, so it is never
+        # promoted -- and must therefore never be demoted either. Answering
+        # "was this promoted?" with "does it contain a bracket?" moved the lead
+        # off the scored frame on the second run and every run after it.
+        assert [r['promoted'] for r in results] == [0, 0, 0]
+        assert [r['demoted'] for r in results] == [0, 0, 0]
+        with sqlite3.connect(db) as conn:
+            leads = {r[0] for r in conn.execute(
+                "SELECT path FROM photos WHERE is_burst_lead = 1")}
         assert leads == {'/b2.jpg'}
 
     def test_a_lapsed_bracket_leaves_other_burst_groups_alone(self, tmp_path):
