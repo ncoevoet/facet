@@ -1,32 +1,6 @@
 ---
 name: css-layout-patterns
-description: "CSS and Tailwind v4 layout patterns. Use for @apply not working in SCSS, @reference tailwindcss, flex height chain, overflow not working, flex:1 in flex-row, page scrolling instead of container, dark theme styling, or flex layout debugging."
-triggers:
-  - "@apply"
-  - "@reference"
-  - "Tailwind"
-  - "SCSS"
-  - "flex"
-  - "overflow"
-  - "scrolling"
-  - "page scrolls"
-  - "height chain"
-  - "layout"
-  - "dark theme"
-  - "responsive"
-  - "breakpoint"
-  - "min-height"
-  - "CSS"
-negative_triggers:
-  - "signal"
-  - "effect"
-  - "computed"
-  - "Python"
-  - "backend"
-  - "test"
-  - "spec"
-  - "Karma"
-  - "API"
+description: "CSS and Tailwind v4 layout patterns. Use for @apply not working in SCSS, @reference tailwindcss, flex height chain, overflow not working, flex:1 in flex-row, the page scrolling instead of the container, dark theme styling, responsive/breakpoint work, min-height issues, or flex layout debugging. Do NOT use for signals/effects/computed, Python or backend code, tests/specs, or API work."
 ---
 
 # CSS & Layout Patterns

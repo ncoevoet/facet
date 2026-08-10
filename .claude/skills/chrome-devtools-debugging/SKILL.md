@@ -1,29 +1,6 @@
 ---
 name: chrome-devtools-debugging
-description: "Browser debugging with Chrome DevTools MCP. Use for UI issues, unexpected API requests, wrong payloads, UI debugging, network request inspection, console errors, page snapshots, browser automation, UI validation testing, CSS layout debugging, or visual regression testing."
-triggers:
-  - "UI issue"
-  - "button not working"
-  - "API request"
-  - "wrong payload"
-  - "network request"
-  - "console error"
-  - "browser"
-  - "screenshot"
-  - "snapshot"
-  - "page not loading"
-  - "value reverts"
-  - "inspect"
-  - "DevTools"
-  - "UI not updating"  # For browser-side inspection; use signal-patterns for code-level signal mutation issues
-  - "422 error"
-  - "visual"
-negative_triggers:
-  - "Python"
-  - "backend only"
-  - "scoring engine"
-  - "database migration"
-  - "CLI command"
+description: "Browser debugging with Chrome DevTools MCP. Use for UI issues, unexpected API requests, wrong payloads, UI debugging, network request inspection, console errors, page snapshots, browser automation, UI validation testing, CSS layout debugging, or visual regression testing. Also triggers on: button not working, page not loading, value reverts, UI not updating in the browser, a 422 error, or a screenshot request. Do NOT use for Python/backend-only work, the scoring engine, database migrations, or CLI commands."
 ---
 
 # Chrome DevTools MCP Debugging

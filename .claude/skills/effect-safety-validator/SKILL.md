@@ -1,31 +1,6 @@
 ---
 name: effect-safety-validator
-description: Detect and fix unsafe effect patterns in Angular signals including constructor effects, form mutations, observable subscriptions in effects, and feedback loops. Use when fixing infinite loops, detecting ObjectUnsubscribedError, preventing form mutation side effects, or validating effect safety patterns. Do NOT use for general signal migration, simple component testing, or non-effect-related Angular issues.
-triggers:
-  - "infinite loop"
-  - "effect loop"
-  - "feedback loop"
-  - "ObjectUnsubscribedError"
-  - "NG0101"  # For runtime NG0101 errors; use test-creation for NG0101 in test context
-  - "recursive tick"
-  - "Maximum call stack"
-  - "form patchValue"
-  - "emitEvent"
-  - "untracked"
-  - "effect safety"
-  - "subscription leak"
-  - "takeUntilDestroyed"
-  - "queueMicrotask"
-  - "effect cleanup"
-negative_triggers:
-  - "create test"
-  - "write test"
-  - "CSS"
-  - "layout"
-  - "Python"
-  - "backend"
-  - "simple signal"
-  - "input signal"
+description: "Detect and fix unsafe effect patterns in Angular signals including constructor effects, form mutations, observable subscriptions in effects, and feedback loops. Use when fixing infinite loops, detecting ObjectUnsubscribedError, preventing form mutation side effects, or validating effect safety patterns. Do NOT use for general signal migration, simple component testing, or non-effect-related Angular issues. Also triggers on: effect loop, NG0101, recursive tick, Maximum call stack, form patchValue, emitEvent, untracked, subscription leak, takeUntilDestroyed, queueMicrotask, or effect cleanup."
 ---
 
 # Effect Safety Validator Skill

@@ -2,6 +2,16 @@
 
 Detailed explanations and fixes for common Angular test errors in the Facet project.
 
+## Contents
+
+- [NG0101: Recursive ApplicationRef.tick](#ng0101-recursive-applicationreftick)
+- [TS2345: Callback Signature Mismatch](#ts2345-callback-signature-mismatch)
+- [NullInjectorError: No provider for X](#nullinjectorerror-no-provider-for-x)
+- [firstValueFrom hangs / test times out](#firstvaluefrom-hangs-test-times-out)
+- [NG0303: Can't bind since it isn't a known input](#ng0303-cant-bind-since-it-isnt-a-known-input)
+- [TS6133: Signal Tracking Warning](#ts6133-signal-tracking-warning)
+- [Error-Fix Reference Table](#error-fix-reference-table)
+
 ## NG0101: Recursive ApplicationRef.tick
 
 **Root cause**: `TestBed.flushEffects()` calls `ApplicationRef.tick()`. Inside `fakeAsync`, this enters zone stability tracking, which emits `onStable`, triggering another `tick()` -- recursive tick = NG0101.

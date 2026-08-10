@@ -2,6 +2,12 @@
 
 **NEW in Angular 20**: Effects with change detection triggers now consistently throw NG0101 errors.
 
+## Contents
+
+- [Change Detection Triggers Requiring `untracked()`](#change-detection-triggers-requiring-untracked)
+- [Best Practice Pattern](#best-practice-pattern)
+- [Migration Checklist](#migration-checklist)
+
 ## Change Detection Triggers Requiring `untracked()`
 
 ### 1. BehaviorSubject/Subject operations

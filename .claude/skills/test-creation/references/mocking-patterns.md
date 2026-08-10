@@ -1,5 +1,14 @@
 # Mocking Patterns for Facet Angular Tests
 
+## Contents
+
+- [ApiService Mock](#apiservice-mock)
+- [I18nService Mock](#i18nservice-mock)
+- [AuthService Mock](#authservice-mock)
+- [HttpClient Mock (for unit-testing services directly)](#httpclient-mock-for-unit-testing-services-directly)
+- [Testing Pure Pipes](#testing-pure-pipes)
+- [Test Helper Functions](#test-helper-functions)
+
 ## ApiService Mock
 
 ```typescript

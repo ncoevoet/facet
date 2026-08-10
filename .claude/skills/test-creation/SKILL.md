@@ -1,38 +1,6 @@
 ---
 name: test-creation
-description: Create comprehensive test suites and fix failing tests for Angular 20 zoneless signal components. Use when creating tests, fixing test failures, improving coverage, handling TS2345 errors, testing signal inputs/outputs, testing effects and computed signals, testing services with firstValueFrom, or testing standalone components with inline templates. Do NOT use for E2E/Playwright tests, Python backend tests, test infrastructure/CI setup, or Karma configuration changes.
-triggers:
-  - "create tests"
-  - "write tests"
-  - "add tests"
-  - "fix test"
-  - "failing test"
-  - "test failure"
-  - "NG0101"  # For NG0101 in tests (fakeAsync/flushEffects); use effect-safety-validator for runtime NG0101
-  - "TS2345"
-  - "fakeAsync"
-  - "flushEffects"
-  - "test times out"
-  - "firstValueFrom hangs"
-  - "improve coverage"
-  - "test signal"
-  - "test component"
-  - "test service"
-  - "test pipe"
-  - "NullInjectorError"
-  - "spec file"
-  - "Karma"
-  - "Jasmine"
-negative_triggers:
-  - "Playwright"
-  - "E2E"
-  - "end-to-end"
-  - "pytest"
-  - "Python test"
-  - "backend test"
-  - "Karma config"
-  - "karma.conf"
-  - "CI setup"
+description: "Create comprehensive test suites and fix failing tests for Angular 20 zoneless signal components. Use when creating/writing/adding tests, fixing a failing test, improving coverage, handling TS2345 or NullInjectorError, testing signal inputs/outputs, effects and computed signals, services with firstValueFrom, or standalone components with inline templates. Also triggers on: NG0101, fakeAsync, flushEffects, a test that times out, firstValueFrom hangs, or a spec file. Do NOT use for E2E/Playwright or end-to-end tests, pytest / Python backend tests, test infrastructure or CI setup, karma.conf or Karma configuration changes."
 ---
 
 # Test Creation and Fixing Skill

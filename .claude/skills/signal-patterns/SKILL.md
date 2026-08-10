@@ -1,33 +1,6 @@
 ---
 name: signal-patterns
-description: Signal-based state management patterns for zoneless Angular 20 components. Use when building components with signal(), computed(), effect(), fixing UI not updating issues, detecting array/object mutations, or handling parent-child communication with signals. Do NOT use for CSS/styling issues, backend Python code, or non-Angular work.
-triggers:
-  - "signal"
-  - "computed"
-  - "UI not updating"  # For code-level signal mutation issues; use chrome-devtools-debugging for browser-side inspection
-  - "UI doesn't update"
-  - "array mutation"
-  - "object mutation"
-  - "signal.set"
-  - "signal.update"
-  - "input signal"
-  - "output signal"
-  - "parent-child"
-  - "zoneless"
-  - "change detection"
-  - "firstValueFrom"
-  - "onCleanup"
-negative_triggers:
-  - "CSS"
-  - "styling"
-  - "layout"
-  - "Tailwind"
-  - "Python"
-  - "backend"
-  - "FastAPI"
-  - "test"
-  - "spec"
-  - "Karma"
+description: "Signal-based state management patterns for zoneless Angular 20 components. Use when building components with signal(), computed(), effect(), fixing UI not updating issues, detecting array/object mutations, or handling parent-child communication with signals. Do NOT use for CSS/styling issues, backend Python code, or non-Angular work. Also triggers on: UI doesn't update, array mutation, signal.set / signal.update, input/output signals, change detection, firstValueFrom, or onCleanup."
 ---
 
 # Signal Patterns Skill
@@ -177,139 +150,23 @@ constructor() {
 
 ## Mutation Detection and Fixes
 
-### RED FLAG: Array Mutation
+A signal only notifies when its **reference** changes, so `push`, `items[0].x = y` and
+`obj.prop = z` all update the data and leave the UI stale. The fix is always to replace
+rather than mutate: `update(items => [...items, x])`, `map` for an element change, a fresh
+object literal for a property change.
 
-```typescript
-// WRONG: Array mutated in-place, signal sees same reference = no UI update
-const items = this.items();
-items.push(newItem);           // Reference unchanged
-items[0].score = 9.5;         // Element mutation not detected
+The most common bug in this codebase is **array element property mutation** — the array
+reference survives, so nothing renders.
 
-// CORRECT: Replace array to trigger signal update
-this.items.update(items => [...items, newItem]);
-this.items.update(items => items.map((item, i) =>
-  i === 0 ? { ...item, score: 9.5 } : item
-));
-```
-
-### RED FLAG: Object Property Mutation
-
-```typescript
-// WRONG: Property mutation not detected
-const photo = this.selectedPhoto();
-photo.tags = 'landscape,mountain';  // Same reference
-
-// CORRECT: Create new object
-this.selectedPhoto.set({ ...this.selectedPhoto(), tags: 'landscape,mountain' });
-
-// CORRECT: Use computed for derived values
-protected readonly photoDisplay = computed(() => {
-  const photo = this.selectedPhoto();
-  return { ...photo, displayName: photo.filename.replace(/\.[^.]+$/, '') };
-});
-```
-
-### RED FLAG: Array Element Property Mutation
-
-This is the most common issue:
-
-```typescript
-// WRONG: Most common bug — element property changes, array ref stays same
-method() {
-  const photos = this.photos();
-  photos[0].selected = true;  // UI doesn't update!
-}
-
-// SOLUTION 1: Replace whole array with map
-this.photos.update(photos =>
-  photos.map((photo, i) =>
-    i === 0 ? { ...photo, selected: true } : photo
-  )
-);
-
-// SOLUTION 2: Splice with spread
-this.photos.update(photos => [
-  ...photos.slice(0, index),
-  { ...photos[index], selected: true },
-  ...photos.slice(index + 1)
-]);
-```
-
-### The Safe Pattern for Array Updates
-
-```typescript
-// Generic helper for updating an item at a specific index
-private updateItemAtIndex<T extends object>(
-  items: T[],
-  index: number,
-  updates: Partial<T>
-): T[] {
-  return items.map((item, i) =>
-    i === index ? { ...item, ...updates } : item
-  );
-}
-
-// Usage
-togglePhotoSelected(index: number): void {
-  this.photos.update(photos =>
-    this.updateItemAtIndex(photos, index, {
-      selected: !photos[index].selected
-    })
-  );
-}
-
-// Update by identity (e.g., by path)
-updatePhoto(updated: Photo): void {
-  this.photos.update(photos =>
-    photos.map(p => p.path === updated.path ? updated : p)
-  );
-}
-```
+→ Every red flag, with its correct replacement and a generic
+`updateItemAtIndex` helper: [references/mutation-detection.md](references/mutation-detection.md)
 
 ## Parent-Child Communication
 
-### Safe Parent-Child Pattern
+State flows down as `input()` signals and up as `output()` events; the child never mutates
+what the parent owns.
 
-```typescript
-// Parent
-@Component({
-  selector: 'app-parent',
-  template: `
-    <app-child
-      [photos]="photos()"
-      (photoUpdated)="onPhotoUpdated($event)"
-    />
-  `
-})
-export class ParentComponent {
-  protected readonly photos = signal<Photo[]>([]);
-
-  onPhotoUpdated(photo: Photo): void {
-    this.photos.update(photos =>
-      photos.map(p => p.path === photo.path ? photo : p)
-    );
-  }
-}
-
-// Child
-@Component({
-  selector: 'app-child',
-  template: `
-    @for (photo of photos(); track photo.path) {
-      <button (click)="selectPhoto(photo)">{{ photo.filename }}</button>
-    }
-  `
-})
-export class ChildComponent {
-  readonly photos = input<Photo[]>([]);
-  readonly photoUpdated = output<Photo>();
-
-  selectPhoto(photo: Photo): void {
-    // Emit new object — never mutate the input
-    this.photoUpdated.emit({ ...photo, selected: true });
-  }
-}
-```
+→ The safe pattern in full: [references/parent-child.md](references/parent-child.md)
 
 ## Detecting Signal Issues
 

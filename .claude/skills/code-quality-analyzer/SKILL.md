@@ -1,31 +1,6 @@
 ---
 name: code-quality-analyzer
-description: Detect code smells, DRY violations, and refactoring opportunities across Angular codebase. Use when identifying duplicate code, reducing code duplication, extracting base classes, centralizing logic, detecting shotgun surgery patterns, or improving code maintainability. Do NOT use for linting/ESLint configuration, code formatting, performance profiling, or security vulnerability scanning.
-triggers:
-  - "duplicate code"
-  - "code smell"
-  - "DRY"
-  - "refactor"
-  - "code duplication"
-  - "extract base class"
-  - "centralize"
-  - "shotgun surgery"
-  - "code quality"
-  - "clean up"
-  - "messy code"
-  - "maintainability"
-  - "long method"
-negative_triggers:
-  - "ESLint"
-  - "linting"
-  - "formatting"
-  - "Prettier"
-  - "performance"
-  - "profiling"
-  - "security"
-  - "vulnerability"
-  - "Python"
-  - "backend"
+description: "Detect code smells, DRY violations, and refactoring opportunities across Angular codebase. Use when identifying duplicate code, reducing code duplication, extracting base classes, centralizing logic, detecting shotgun surgery patterns, or improving code maintainability. Do NOT use for linting/ESLint configuration, code formatting, performance profiling, or security vulnerability scanning. Also triggers on: extract base class, centralize logic, code quality, clean up messy code, or a long method."
 ---
 
 # Code Quality Analyzer Skill
