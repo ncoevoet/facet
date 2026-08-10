@@ -25,6 +25,7 @@ CACHE_KEY = 'update_check'
 DEFAULT_URL = 'https://api.github.com/repos/ncoevoet/facet/releases/latest'
 DEFAULT_INTERVAL_DAYS = 7
 REQUEST_TIMEOUT_SECONDS = 5
+MAX_RESPONSE_BYTES = 256 * 1024
 
 
 def get_update_settings():
@@ -42,16 +43,32 @@ def get_update_settings():
 
 
 def _fetch_latest(url):
-    """Latest release tag + page URL, or None when upstream cannot be reached."""
+    """Latest release tag + page URL, or None when upstream cannot be reached.
+
+    Every way this can go wrong ends in the same silent None. The read is capped
+    because `timeout` bounds each socket operation rather than the transfer, so
+    an endpoint trickling bytes could otherwise grow the buffer without limit;
+    and the payload is only read as an object once it is known to be one, since
+    a proxy answering with valid JSON of some other shape would otherwise raise
+    past every handler and surface as a 500.
+    """
     request = urllib.request.Request(url, headers={
         'Accept': 'application/vnd.github+json',
         'User-Agent': 'facet-update-check',
     })
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-            payload = json.loads(response.read().decode('utf-8'))
+            body = response.read(MAX_RESPONSE_BYTES + 1)
+        if len(body) > MAX_RESPONSE_BYTES:
+            logger.info("Update check response from %s exceeded %d bytes; ignoring.",
+                        url, MAX_RESPONSE_BYTES)
+            return None
+        payload = json.loads(body.decode('utf-8'))
     except (urllib.error.URLError, TimeoutError, ValueError, OSError) as ex:
         logger.info("Update check could not reach %s: %s", url, ex)
+        return None
+    if not isinstance(payload, dict):
+        logger.info("Update check response from %s was not a release object; ignoring.", url)
         return None
     tag = payload.get('tag_name') or payload.get('name')
     if not tag:

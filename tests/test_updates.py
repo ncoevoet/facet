@@ -216,3 +216,81 @@ class TestEndpoint:
         body = resp.json()
         assert body['update_available'] is True
         assert body['latest'] == 'v1.9.0'
+
+
+class TestFetchLatest:
+    """Every way the upstream call can go wrong ends in the same silent None.
+
+    The endpoint is edition-facing and its documented contract is that an
+    unreachable or misbehaving GitHub is invisible in the UI, so a shape or a
+    size nobody expected must not become a 500.
+    """
+
+    @staticmethod
+    @contextmanager
+    def _responding(body, status=200):
+        class _Response:
+            def __init__(self):
+                self._body = body
+                self.status = status
+
+            def read(self, amount=None):
+                return self._body if amount is None else self._body[:amount]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        with mock.patch('api.updates.urllib.request.urlopen', return_value=_Response()):
+            yield
+
+    def test_reads_the_tag_from_a_release_object(self):
+        from api.updates import _fetch_latest
+        body = json.dumps({'tag_name': 'v1.9.0', 'html_url': 'https://x/releases/1'}).encode()
+        with self._responding(body):
+            assert _fetch_latest('https://example.invalid') == {
+                'latest': 'v1.9.0', 'release_url': 'https://x/releases/1'}
+
+    def test_a_json_array_is_ignored_rather_than_raising(self):
+        # A proxy or captive portal answering with valid JSON of another shape
+        # used to reach `.get` on a list and escape as an unhandled 500.
+        from api.updates import _fetch_latest
+        with self._responding(b'[]'):
+            assert _fetch_latest('https://example.invalid') is None
+
+    @pytest.mark.parametrize('body', [b'"just a string"', b'42', b'null'])
+    def test_other_non_object_payloads_are_ignored(self, body):
+        from api.updates import _fetch_latest
+        with self._responding(body):
+            assert _fetch_latest('https://example.invalid') is None
+
+    def test_an_oversized_body_is_refused_even_when_it_is_valid(self):
+        # Deliberately well-formed and answerable: a body that only failed to
+        # parse would be refused by the JSON guard whether or not a size cap
+        # existed, and would not prove the cap does anything.
+        from api.updates import MAX_RESPONSE_BYTES, _fetch_latest
+        padded = json.dumps({
+            'tag_name': 'v9.9.9', 'html_url': '', 'body': 'x' * MAX_RESPONSE_BYTES,
+        }).encode()
+        assert len(padded) > MAX_RESPONSE_BYTES
+        with self._responding(padded):
+            assert _fetch_latest('https://example.invalid') is None
+
+    def test_a_body_at_the_limit_is_still_read(self):
+        from api.updates import MAX_RESPONSE_BYTES, _fetch_latest
+        payload = json.dumps({'tag_name': 'v2.0.0', 'html_url': ''}).encode()
+        assert len(payload) < MAX_RESPONSE_BYTES
+        with self._responding(payload):
+            assert _fetch_latest('https://example.invalid')['latest'] == 'v2.0.0'
+
+    def test_malformed_json_is_silent(self):
+        from api.updates import _fetch_latest
+        with self._responding(b'{not json'):
+            assert _fetch_latest('https://example.invalid') is None
+
+    def test_a_release_object_without_a_tag_is_ignored(self):
+        from api.updates import _fetch_latest
+        with self._responding(json.dumps({'html_url': 'https://x'}).encode()):
+            assert _fetch_latest('https://example.invalid') is None
