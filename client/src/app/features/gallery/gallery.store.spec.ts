@@ -1017,6 +1017,32 @@ describe('GalleryStore selection', () => {
     store.restoreSelection(['/a.jpg', '/d.jpg']);
     expect([...store.selectedPaths()].sort()).toEqual(['/a.jpg', '/d.jpg']);
   });
+
+  it('invertSelection swaps the selection for its complement', () => {
+    store.toggleSelection(store.photos()[0]);
+    store.toggleSelection(store.photos()[2]);
+    store.invertSelection();
+    expect([...store.selectedPaths()].sort()).toEqual(['/b.jpg', '/d.jpg']);
+  });
+
+  it('invertSelection on an empty selection selects everything', () => {
+    store.invertSelection();
+    expect(store.selectionCount()).toBe(4);
+  });
+
+  it('invertSelection twice returns the original selection', () => {
+    store.toggleSelection(store.photos()[1]);
+    store.invertSelection();
+    store.invertSelection();
+    expect([...store.selectedPaths()]).toEqual(['/b.jpg']);
+  });
+
+  it('invertSelection resets the range anchor so the next shift-click starts fresh', () => {
+    store.toggleSelection(store.photos()[0]);
+    store.invertSelection();
+    store.toggleSelection(store.photos()[2], { shiftKey: true } as MouseEvent);
+    expect([...store.selectedPaths()].sort()).toEqual(['/b.jpg', '/d.jpg']);
+  });
 });
 
 describe('GalleryStore optimistic mutations', () => {

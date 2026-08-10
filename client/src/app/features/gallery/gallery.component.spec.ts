@@ -305,4 +305,76 @@ describe('GalleryComponent', () => {
       expect(mockStore.initializing()).toBe(false);
     });
   });
+
+  describe('hidden-photos banner toggle', () => {
+    it('stashes the hide flags and offers to restore them', async () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: true });
+
+      component.showAllHidden();
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        hide_blinks: false, hide_bursts: false, hide_duplicates: false,
+      });
+
+      // The store is mocked, so mirror the write the real one would have made.
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_duplicates: false });
+      expect(component.canRestoreHidden()).toBe(true);
+
+      component.restoreHidden();
+      expect(mockStore.updateFilters).toHaveBeenLastCalledWith({
+        hide_blinks: true, hide_bursts: false, hide_duplicates: true,
+      });
+    });
+
+    it('offers no restore before Show all has been used', () => {
+      expect(component.canRestoreHidden()).toBe(false);
+    });
+
+    it('withdraws the restore once a hide filter is switched back on by hand', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: true, hide_duplicates: true });
+      component.showAllHidden();
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: false });
+      expect(component.canRestoreHidden()).toBe(false);
+    });
+  });
+
+  describe('docked details panel (tooltip_mode = panel)', () => {
+    const hoverEvent = { currentTarget: null } as unknown as MouseEvent;
+
+    beforeEach(() => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'panel' });
+    });
+
+    it('hovering a photo feeds the rail without any placement maths', () => {
+      const photo = { path: '/a.jpg' } as never;
+      component.showTooltip(hoverEvent, photo);
+      expect(component['tooltipPhoto']()).toBe(photo);
+      expect(component['tooltipX']()).toBe(0);
+      expect(component['tooltipY']()).toBe(0);
+    });
+
+    it('keeps the last photo when the cursor leaves the grid', () => {
+      const photo = { path: '/a.jpg' } as never;
+      component.showTooltip(hoverEvent, photo);
+      component.hideTooltip();
+      expect(component['tooltipPhoto']()).toBe(photo);
+    });
+
+    it('still clears on mouse-out in hover mode', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      component.hideTooltip();
+      expect(component['tooltipPhoto']()).toBeNull();
+    });
+
+    it('needs a wide viewport as well as the setting, not the setting alone', () => {
+      // The width gate has not matched in the test environment, so selecting the
+      // mode must not by itself surrender a 320px strip.
+      expect(component['tooltipMode']()).toBe('panel');
+      expect(component.panelMode()).toBe(false);
+    });
+
+    it('yields the shared drawer to the filters while they are open', () => {
+      mockStore.filterDrawerOpen.set(true);
+      expect(component.detailsRailVisible()).toBe(false);
+    });
+  });
 });

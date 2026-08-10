@@ -213,6 +213,22 @@ export class GalleryStore {
     this.selectedPaths.set(new Set(this.photos().map(p => p.path)));
   }
 
+  /**
+   * Swap the selection for its complement over the loaded photos.
+   *
+   * Deliberately bounded to what is loaded, like `selectAllLoaded`: inverting
+   * across the whole filtered set would silently select photos the user cannot
+   * see, which is the opposite of what "show me what I am about to reject" asks
+   * for. Pick the keepers, invert, reject.
+   */
+  invertSelection(): void {
+    const selected = this.selectedPaths();
+    this.selectedPaths.set(new Set(
+      this.photos().filter(p => !selected.has(p.path)).map(p => p.path),
+    ));
+    this.lastSelectedIndex = -1;
+  }
+
   clearSelection(): void {
     this.selectedPaths.set(new Set());
     this.lastSelectedIndex = -1;

@@ -8,6 +8,8 @@ import { I18N } from '../../core/i18n/keys';
 export type SheetAction =
   | { kind: 'favorite' }
   | { kind: 'reject' }
+  | { kind: 'invert' }
+  | { kind: 'compare' }
   | { kind: 'rate'; rating: number }
   | { kind: 'album'; albumId: number }
   | { kind: 'create-album' }
@@ -20,6 +22,8 @@ export interface GalleryActionsSheetData {
   showAlbums: boolean;
   albums: Album[];
   downloadProfiles: string[];
+  /** Whether the selection size is within the compare surface's pane bounds. */
+  canCompare: boolean;
 }
 
 /** Touch-friendly bulk-actions sheet replacing the cramped mobile action bar. */
@@ -69,6 +73,16 @@ export interface GalleryActionsSheetData {
         }
       }
 
+      <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'invert' })">
+        <mat-icon aria-hidden="true">flip</mat-icon>
+        {{ I18N.gallery.selection.invert | translate }}
+      </button>
+      @if (data.canCompare) {
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'compare' })">
+          <mat-icon aria-hidden="true">compare</mat-icon>
+          {{ I18N.gallery.selection.compare | translate }}
+        </button>
+      }
       <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'copy' })">
         <mat-icon aria-hidden="true">content_copy</mat-icon>
         {{ I18N.gallery.selection.copy_filenames | translate }}

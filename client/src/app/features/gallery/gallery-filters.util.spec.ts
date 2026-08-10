@@ -9,6 +9,7 @@ import {
   loadDisplayOptionsFromStorage,
   saveDisplayOptionsToStorage,
   DISPLAY_OPTIONS_KEY,
+  TOOLTIP_MODES,
 } from './gallery-filters.util';
 
 function filters(overrides: Partial<GalleryFilters> = {}): GalleryFilters {
@@ -84,6 +85,15 @@ describe('applyQueryParams', () => {
   it('validates similarity_mode against the allowlist', () => {
     expect(applyQueryParams(DEFAULT_FILTERS, { similarity_mode: 'bogus' }).similarity_mode).toBe('visual');
     expect(applyQueryParams(DEFAULT_FILTERS, { similarity_mode: 'color' }).similarity_mode).toBe('color');
+  });
+  it('accepts every tooltip mode and ignores anything else', () => {
+    // The parser silently drops unknown values, so a mode missing from the
+    // allowlist is un-shareable via URL rather than visibly broken.
+    for (const mode of TOOLTIP_MODES) {
+      expect(applyQueryParams(DEFAULT_FILTERS, { tooltip_mode: mode }).tooltip_mode).toBe(mode);
+    }
+    expect(applyQueryParams(DEFAULT_FILTERS, { tooltip_mode: 'sidebar' }).tooltip_mode)
+      .toBe(DEFAULT_FILTERS.tooltip_mode);
   });
   it('parses page as int with fallback to 1', () => {
     expect(applyQueryParams(DEFAULT_FILTERS, { page: '3' }).page).toBe(3);

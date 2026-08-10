@@ -312,8 +312,15 @@ export class PhotoCardComponent {
   // Edition mode
   readonly isEditionMode = input(false);
   readonly personFilterId = input('');
-  /** 'hover' (default) | 'click' | 'off' — drives tooltip emission strategy. */
-  readonly tooltipMode = input<'hover' | 'click' | 'off'>('hover');
+  /** 'hover' (default) | 'click' | 'off' | 'panel' — drives tooltip emission strategy.
+   *  'panel' feeds the gallery's docked rail and so emits on hover like 'hover'
+   *  does; only the parent differs, in that it ignores the hide. */
+  readonly tooltipMode = input<'hover' | 'click' | 'off' | 'panel'>('hover');
+
+  /** Whether this mode reports hover at all (both hover and the docked rail do). */
+  private hoverDriven(): boolean {
+    return this.tooltipMode() === 'hover' || this.tooltipMode() === 'panel';
+  }
 
   // Events
   readonly selectionChange = output<{ photo: Photo; event: MouseEvent }>();
@@ -336,13 +343,13 @@ export class PhotoCardComponent {
   }
 
   onMouseEnter(event: MouseEvent): void {
-    if (this.tooltipMode() === 'hover') {
+    if (this.hoverDriven()) {
       this.tooltipShow.emit({ photo: this.photo(), event });
     }
   }
 
   onMouseLeave(): void {
-    if (this.tooltipMode() === 'hover') {
+    if (this.hoverDriven()) {
       this.tooltipHide.emit();
     }
   }

@@ -6,7 +6,10 @@
  */
 
 export type GalleryMode = 'grid' | 'mosaic';
-export type TooltipMode = 'hover' | 'click' | 'off';
+export type TooltipMode = 'hover' | 'click' | 'off' | 'panel';
+
+/** Every accepted tooltip mode, so the URL parser and the mode picker cannot drift apart. */
+export const TOOLTIP_MODES: readonly TooltipMode[] = ['hover', 'click', 'off', 'panel'];
 
 export const GALLERY_MODE_KEY = 'facet_gallery_mode';
 export const DRAWER_STATE_KEY = 'facet_filter_drawer_open';
@@ -372,7 +375,7 @@ export function applyQueryParams(
   if (params['hide_rejected'] !== undefined) result.hide_rejected = params['hide_rejected'] !== 'false';
   if (params['favorites_only'] !== undefined) result.favorites_only = params['favorites_only'] === 'true';
   if (params['is_monochrome'] !== undefined) result.is_monochrome = params['is_monochrome'] === 'true';
-  if (params['tooltip_mode'] && ['hover', 'click', 'off'].includes(params['tooltip_mode'])) {
+  if (params['tooltip_mode'] && TOOLTIP_MODES.includes(params['tooltip_mode'] as TooltipMode)) {
     result.tooltip_mode = params['tooltip_mode'] as TooltipMode;
   }
   if (params['page']) result.page = parseInt(params['page'], 10) || 1;
