@@ -124,6 +124,7 @@ Estos comandos actualizan métricas específicas, derivan datos nuevos (leyendas
 | `python facet.py --recompute-eyes-expression` | Recalcula las puntuaciones de ojos abiertos + expresión a partir de los puntos de referencia almacenados (CPU, rápido) |
 | `python facet.py --recompute-face-signals` | Rellena las puntuaciones de ojos abiertos + sonrisa por cara a partir de los puntos de referencia de 106 puntos almacenados (CPU, rápido; sin modelo). También se ejecuta como paso de `--upgrade-db` |
 | `python facet.py --recompute-burst` | Recalcula los grupos de detección de ráfaga |
+| `python facet.py --detect-sequences` | Detecta conjuntos de horquillado de exposición a partir de los EXIF almacenados (biblioteca completa, sin decodificar imágenes) y sitúa la foto principal de cada ráfaga en la exposición base. Se ejecuta al final de cada escaneo y como paso de `--upgrade-db` |
 | `python facet.py --detect-duplicates` | Detecta fotos duplicadas mediante pHash |
 | `python facet.py --sweep-dedup-thresholds [labels.json]` | Evalúa los umbrales de coseno de casi-duplicados (tabla de precisión/exhaustividad con etiquetas; en su defecto, distribución de coseno de candidatos) |
 | `python facet.py --generate-captions` | `[GPU]` `[16gb/24gb]` Genera leyendas de IA para las fotos usando VLM. Cuando `narrative_moments.caption_min_confidence > 0`, omite las fotos sin etiquetar / `other` / por debajo del umbral (la misma restricción se aplica al endpoint de leyenda bajo demanda) |

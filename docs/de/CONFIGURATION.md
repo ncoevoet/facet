@@ -747,6 +747,55 @@ Gruppiert ähnliche Fotos, die in schneller Folge aufgenommen wurden.
 
 ---
 
+## Sequenzerkennung
+
+Benennt bewusst mehrteilig aufgenommene Serien — derzeit Belichtungsreihen — damit sie nicht
+als konkurrierende Aufnahmen gelesen werden. Die Belichtungsleiter wird aus den bereits
+gespeicherten Werten `f_stop` / `shutter_speed` / `ISO` abgeleitet
+(`EV = log2(N^2 / t) - log2(ISO / 100)`); eine bestehende Bibliothek wird also allein durch
+Rechnen ausgezeichnet: kein erneuter Scan, kein Bilddekodieren, kein Modell.
+
+Eine Folge zählt, wenn ihre Aufnahmen dieselbe Kamera teilen, innerhalb von
+`max_gap_seconds` aufeinanderfolgen, den Bildausschnitt beibehalten (`max_hamming` auf dem
+pHash) und ihre LW eine gleichmäßige, gerichtete Leiter aus mindestens `min_frames`
+Aufnahmen über `min_span_stops` bilden. Die Gleichmäßigkeit unterscheidet eine
+Belichtungsreihe von einer freihändigen Folge in wechselndem Licht.
+
+Jede Aufnahme erhält `sequence_ev_offset`, ihre Belichtungskorrektur gegenüber der
+Basisaufnahme — vorzeichenrichtig wie auf der Kamera: `-2` ist die dunkle, `+2` die helle
+Aufnahme. Entspricht eine Serie genau einer Belichtungsreihe, wandert ihr `is_burst_lead` auf
+die Basisaufnahme, sodass die Galerie das korrekt belichtete Bild zeigt statt desjenigen mit
+der höchsten Bewertung.
+
+Aufruf über `--detect-sequences`; läuft außerdem am Ende jedes Scans, nach der
+Serienbildung.
+
+```json
+{
+  "sequence_detection": {
+    "enabled": true,
+    "max_gap_seconds": 3.0,
+    "max_hamming": 10,
+    "min_frames": 3,
+    "min_step_stops": 0.5,
+    "min_span_stops": 1.0,
+    "step_tolerance_stops": 0.34
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `enabled` | `true` | Belichtungsreihen-Erkennung vollständig abschalten |
+| `max_gap_seconds` | `3.0` | Größter Abstand zwischen zwei aufeinanderfolgenden Aufnahmen |
+| `max_hamming` | `10` | Erlaubter pHash-Abstand zwischen den Aufnahmen (gleicher Bildausschnitt) |
+| `min_frames` | `3` | Kürzeste Folge, die als Belichtungsreihe gilt |
+| `min_step_stops` | `0.5` | Kleinste LW-Stufe, die als bewusste Änderung zählt |
+| `min_span_stops` | `1.0` | Kleinster Gesamtabstand zwischen dunkelster und hellster Aufnahme |
+| `step_tolerance_stops` | `0.34` | Zulässige Ungleichmäßigkeit der Stufen (eine Drittelstufe) |
+
+---
+
 ## Burst Scoring
 
 Gewichte, die beim Serienbild-Culling verwendet werden, um eine zusammengesetzte Bewertung für die Auswahl der besten Aufnahme innerhalb jeder Serienbildgruppe zu berechnen. Die Gewichte sollten in der Summe 1,0 ergeben.

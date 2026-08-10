@@ -747,6 +747,54 @@ Raggruppa foto simili scattate in rapida successione.
 
 ---
 
+## Rilevamento delle sequenze
+
+Dà un nome alle serie scattate deliberatamente in più fotogrammi — oggi i bracketing di
+esposizione — perché non vengano lette come scatti in competizione. La scala di esposizione
+si ricava da `f_stop` / `shutter_speed` / `ISO`, già memorizzati
+(`EV = log2(N^2 / t) - log2(ISO / 100)`): una libreria esistente viene quindi etichettata con
+la sola aritmetica, senza nuova scansione, senza decodifica delle immagini e senza modello.
+
+Una serie è accettata se gli scatti condividono la fotocamera, si susseguono entro
+`max_gap_seconds`, mantengono l'inquadratura (`max_hamming` sul pHash) e i loro EV formano
+una scala regolare e a senso unico di almeno `min_frames` scatti su `min_span_stops`. È la
+regolarità dei passi a distinguere un bracketing da una serie a mano libera in luce variabile.
+
+Ogni scatto riceve `sequence_ev_offset`, la sua compensazione dell'esposizione rispetto allo
+scatto di base, con il segno usato dalla fotocamera: `-2` è quello scuro, `+2` quello chiaro.
+Quando una raffica coincide esattamente con un bracketing, il suo `is_burst_lead` si sposta su
+quello scatto di base, così la galleria mostra la foto correttamente esposta invece di quella
+che ha ottenuto il punteggio migliore.
+
+Si avvia con `--detect-sequences`; viene eseguito anche al termine di ogni scansione, dopo il
+raggruppamento delle raffiche.
+
+```json
+{
+  "sequence_detection": {
+    "enabled": true,
+    "max_gap_seconds": 3.0,
+    "max_hamming": 10,
+    "min_frames": 3,
+    "min_step_stops": 0.5,
+    "min_span_stops": 1.0,
+    "step_tolerance_stops": 0.34
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|---|---|---|
+| `enabled` | `true` | Disattiva completamente il rilevamento del bracketing |
+| `max_gap_seconds` | `3.0` | Intervallo massimo tra due scatti consecutivi di una serie |
+| `max_hamming` | `10` | Distanza pHash ammessa tra gli scatti (stessa inquadratura) |
+| `min_frames` | `3` | Serie più breve considerata un bracketing |
+| `min_step_stops` | `0.5` | Minimo scarto di EV che conta come variazione voluta |
+| `min_span_stops` | `1.0` | Escursione minima tra lo scatto più scuro e il più chiaro |
+| `step_tolerance_stops` | `0.34` | Irregolarità ammessa tra i passi (un terzo di stop) |
+
+---
+
 ## Burst Scoring
 
 Pesi usati dalla selezione delle raffiche per calcolare un punteggio composito che individua lo scatto migliore all'interno di ciascun gruppo di raffica. La somma dei pesi dovrebbe essere 1,0.

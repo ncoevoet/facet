@@ -747,6 +747,54 @@ Agrupa fotos similares tiradas em sucessão rápida.
 
 ---
 
+## Deteção de sequências
+
+Dá nome às séries fotografadas deliberadamente em vários fotogramas — hoje, os bracketings de
+exposição — para que não sejam lidas como tomadas em competição. A escala de exposição é
+deduzida de `f_stop` / `shutter_speed` / `ISO`, já armazenados
+(`EV = log2(N^2 / t) - log2(ISO / 100)`), pelo que uma biblioteca existente é etiquetada só
+com aritmética: sem nova análise, sem descodificar imagens e sem modelo.
+
+Uma série é aceite se as fotos partilharem a câmara, se seguirem dentro de
+`max_gap_seconds`, mantiverem o enquadramento (`max_hamming` sobre o pHash) e os seus EV
+formarem uma escala regular e num só sentido de pelo menos `min_frames` fotos abrangendo
+`min_span_stops`. É a regularidade dos passos que distingue um bracketing de uma série à mão
+com luz a mudar.
+
+Cada foto recebe `sequence_ev_offset`, a sua compensação de exposição face à foto base, com o
+sinal que a câmara usa: `-2` é a escura e `+2` a clara. Quando uma rajada corresponde
+exatamente a um bracketing, o seu `is_burst_lead` passa para essa foto base, para que a
+galeria mostre a foto corretamente exposta em vez da que obteve a melhor pontuação.
+
+Executa-se com `--detect-sequences`; corre também no fim de cada análise, depois do
+agrupamento das rajadas.
+
+```json
+{
+  "sequence_detection": {
+    "enabled": true,
+    "max_gap_seconds": 3.0,
+    "max_hamming": 10,
+    "min_frames": 3,
+    "min_step_stops": 0.5,
+    "min_span_stops": 1.0,
+    "step_tolerance_stops": 0.34
+  }
+}
+```
+
+| Definição | Predefinição | Descrição |
+|---|---|---|
+| `enabled` | `true` | Desativa por completo a deteção de bracketing |
+| `max_gap_seconds` | `3.0` | Intervalo máximo entre duas fotos consecutivas de uma série |
+| `max_hamming` | `10` | Distância pHash admitida entre as fotos (mesmo enquadramento) |
+| `min_frames` | `3` | Série mais curta considerada um bracketing |
+| `min_step_stops` | `0.5` | Menor passo de EV que conta como alteração deliberada |
+| `min_span_stops` | `1.0` | Amplitude mínima entre a foto mais escura e a mais clara |
+| `step_tolerance_stops` | `0.34` | Irregularidade admitida entre os passos (um terço de passo) |
+
+---
+
 ## Burst Scoring
 
 Pesos usados pela seleção de rajadas para calcular uma pontuação composta na escolha do melhor disparo dentro de cada grupo de rajada. Os pesos devem somar 1,0.

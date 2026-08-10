@@ -200,6 +200,8 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 - **Reject** — Mark all selected as rejected (clears favorite and rating)
 - **Rate** — Set star rating (1–5) for all selected, or clear rating
 - **Add to album** — Add selected to an existing or new album
+- **Invert** — Swap the selection for its complement over the loaded photos. Pick the keepers, invert, reject — the direct way to see exactly what is about to go. Bounded to what is loaded, like Select all, so it never silently selects photos you cannot see.
+- **Compare** — Open 2–4 selected photos side by side with synced pan and zoom (scroll to zoom, drag to pan, double-click to reset; every pane moves together and swaps to full resolution past the fit scale). The same view the culling darkroom uses, reachable for any hand-picked set rather than only for frames adjacent in a burst.
 - **Copy filenames** — Copy selected filenames to clipboard
 - **Export** — Write XMP sidecars (rating/favorite/reject) next to the selected files (see [Editor Export](#editor-export))
 - **Download** — Download selected photos
@@ -216,7 +218,7 @@ A **Keep top %** control in the gallery toolbar (edition mode) turns the whole f
 - **Layout Mode** - Switch between **Grid** (uniform cards) and **Mosaic** (justified rows preserving aspect ratios). Mosaic is desktop-only; mobile always uses grid.
 - **Thumbnail Size** - Slider to adjust card/row height (120–400px, persisted in localStorage)
 - **Hide Details** - Hide photo metadata on cards (grid mode only)
-- **Hide Tooltip** - Disable the hover tooltip that shows photo details on desktop
+- **Tooltip** - How photo details are shown: **Hover** (default), **Click**, **Off**, or **Side panel**. The side panel docks the same details in the right-hand drawer instead of following the cursor, so a given field is always in the same place from one photo to the next; it keeps the last photo you hovered rather than blanking when the cursor leaves the grid. It shares that drawer with the filter sidebar — opening the filters hides it until you close them again, and the grid keeps exactly the width it has with the filters open. Needs a viewport of at least 1280px.
 - **Hide Blinks** - Filter out photos with detected blinks
 - **Best of Burst** - Show only top-scored photo from each burst
 - **Infinite Scroll** - Photos load as you scroll
@@ -517,6 +519,9 @@ The culling page (`/culling`, edition mode) groups near-identical shots so you c
 - **Bursts** — photos shot close together in time (from burst detection).
 - **Similar** — photos that look alike regardless of when they were taken, grouped by CLIP/SigLIP embedding similarity. A threshold slider controls how strict the grouping is.
 - **Scenes** — chronological scene groups (capture-time runs), each headed by its time span and dominant narrative moment. Gated on `viewer.features.show_scenes`.
+- **Exposure brackets** — the multi-exposure sets found by [`--detect-sequences`](COMMANDS.md), base exposure first, each frame badged with its compensation (`-2 EV` … `+2 EV`). Deliberately not part of **All**: a bracket is one subject shot several times to be merged, not a set of competing takes, so every frame starts marked keep and confirming records no comparison pairs — preferring one rung of an exposure ladder says nothing about your taste. Use auto-cull's bracket trimming (below) if you want the flanking exposures gone.
+
+Two sort controls sit beside the granularity: the **sort mode** (easiest first, most redundant, best, most recent, needs comparisons, or **oldest first**) and an **arrow button that reverses whichever mode is active**. Oldest-first is the one mode that also puts the photos *inside* each group in capture order, which is the only order a bracket or a panned sequence reads correctly in.
 
 For each group, pick the keeper(s); confirming rejects the rest. Confirms are deferred and can be undone (see [Undo](#undo)). The granularity, sort, and category choices persist in `localStorage`. Controls that don't apply to the current granularity are hidden — the sort dropdown and similarity-threshold slider disappear in scene mode, and the scope button is hidden when you have no manual albums. Every toolbar and group-action button carries a tooltip, and on small screens the toolbar detaches into a scrollable bottom bar.
 
@@ -533,6 +538,8 @@ A toolbar **Auto-cull** button culls a whole scope in one pass instead of group-
 The preview is a **dry run** (nothing is written): it shows the per-group keep/reject split. Confirm to apply — rejections are recorded and, like every cull, train "My Taste"; an optional **Highlights** album idempotently collects each group's best photo scoring at least `auto_cull.highlights_min`. A "better photo in this group" hint badge flags groups where auto-cull would keep a different frame than the current lead. `POST /api/culling/auto`; configured via the [`auto_cull`](CONFIGURATION.md#auto-cull) block.
 
 When a keeper-ranking head is trained, `POST /api/culling/auto` picks each group's keeper by `keeper_prob` once it clears its accuracy gate — otherwise the output is byte-identical to the heuristic pick.
+
+**Trimming redundant brackets** is opt-in (`trim_brackets`, off by default). A bracket earns its extra frames by covering range the base exposure clips away; when that base clips neither shadows nor highlights there was nothing to recover, so the flanking exposures are storage rather than latitude — the "I leave bracketing on all the time" case. Only the base frame is kept, whatever the strictness, and sets whose base has never been measured are left alone: unmeasured is not the same as unclipped.
 
 ### Fullscreen
 

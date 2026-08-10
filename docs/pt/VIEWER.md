@@ -210,7 +210,7 @@ As ações em lote requerem o modo de edição. Dê um duplo clique em qualquer 
 - **Modo de Layout** - Alterne entre **Grade** (cartões uniformes) e **Mosaico** (linhas justificadas preservando as proporções). O Mosaico é apenas para desktop; o mobile sempre usa grade.
 - **Tamanho da Miniatura** - Controle deslizante para ajustar a altura do cartão/linha (120–400px, persistido no localStorage)
 - **Ocultar Detalhes** - Oculta os metadados da foto nos cartões (apenas no modo grade)
-- **Ocultar Dica** - Desativa a dica de ferramenta ao passar o mouse que mostra os detalhes da foto no desktop
+- **Dica** - Como os detalhes são mostrados: **Ao passar** (predefinição), **Ao clicar**, **Desativado** ou **Painel lateral**. O painel lateral fixa os mesmos detalhes na gaveta da direita em vez de seguir o cursor: um dado fica assim sempre no mesmo sítio de uma foto para a outra, e o painel mantém a última foto sobre a qual passou em vez de esvaziar quando o cursor sai da grelha. Partilha essa gaveta com a barra de filtros: abrir os filtros oculta-o até os fechar, e a grelha mantém exatamente a largura que tem com os filtros abertos. Requer uma janela de pelo menos 1280 px.
 - **Ocultar Piscadas** - Filtra fotos com piscadas detectadas
 - **Melhor da Sequência** - Mostra apenas a foto com maior pontuação de cada sequência (burst)
 - **Rolagem Infinita** - As fotos carregam conforme você rola
@@ -508,6 +508,7 @@ A página de triagem (`/culling`, modo de edição) agrupa fotos quase idêntica
 - **Sequências** — fotos tiradas próximas no tempo (da detecção de sequências).
 - **Semelhantes** — fotos que se parecem independentemente de quando foram tiradas, agrupadas pela similaridade de embedding CLIP/SigLIP. Um controle deslizante de limiar controla o quão restrito é o agrupamento.
 - **Cenas** — grupos de cenas cronológicas (sequências por horário de captura), cada um encabeçado por seu intervalo de tempo e momento narrativo dominante. Condicionado a `viewer.features.show_scenes`.
+- **Bracketings de exposição** — os conjuntos multiexposição encontrados por [`--detect-sequences`](COMMANDS.md), com a exposição base primeiro e cada foto identificada com a sua compensação (`-2 EV` … `+2 EV`). Deliberadamente fora de **Tudo**: um bracketing é o mesmo motivo fotografado várias vezes para ser fundido, não um conjunto de tomadas em competição; por isso todas as fotos começam marcadas como «manter» e confirmar não regista qualquer par de comparação — preferir um degrau de uma escala de exposição nada diz sobre o seu gosto. Para eliminar as exposições laterais, use o corte de bracketings da seleção automática (abaixo).
 
 Para cada grupo, escolha a(s) foto(s) a manter; confirmar rejeita o resto. As confirmações são adiadas e podem ser desfeitas (veja [Desfazer](#desfazer)). As escolhas de granularidade, ordenação e categoria persistem no `localStorage`. Controles que não se aplicam à granularidade atual são ocultados — o menu suspenso de ordenação e o controle deslizante de limiar de similaridade desaparecem no modo de cena, e o botão de escopo fica oculto quando você não tem álbuns manuais. Cada botão da barra de ferramentas e de ação de grupo tem uma dica (tooltip), e em telas pequenas a barra de ferramentas se destaca em uma barra inferior rolável.
 

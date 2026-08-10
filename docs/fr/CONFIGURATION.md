@@ -747,6 +747,55 @@ Regroupe les photos similaires prises en succession rapide.
 
 ---
 
+## Détection de séquences
+
+Nomme les séries prises volontairement en plusieurs vues — aujourd'hui les bracketings
+d'exposition — pour qu'elles ne soient pas lues comme des prises concurrentes. L'échelle
+d'exposition est déduite des `f_stop` / `shutter_speed` / `ISO` déjà stockés
+(`EV = log2(N^2 / t) - log2(ISO / 100)`) : une bibliothèque existante est donc étiquetée par
+simple calcul, sans nouveau scan, sans décodage d'image et sans modèle.
+
+Une série est retenue si les vues partagent le même boîtier, se suivent dans
+`max_gap_seconds`, gardent le même cadrage (`max_hamming` sur le pHash) et si leurs IL
+forment une échelle régulière et unidirectionnelle d'au moins `min_frames` vues couvrant
+`min_span_stops`. C'est la régularité des pas qui distingue un bracketing d'une série à main
+levée dans une lumière changeante.
+
+Chaque vue reçoit `sequence_ev_offset`, sa correction d'exposition par rapport à la vue de
+référence, signée comme sur le boîtier : `-2` est la vue sombre, `+2` la vue claire. Quand
+une rafale correspond exactement à un bracketing, son `is_burst_lead` est déplacé sur la vue
+de référence, afin que la galerie affiche la photo correctement exposée plutôt que celle qui
+obtient le meilleur score.
+
+Lancé par `--detect-sequences` ; s'exécute aussi à la fin de chaque scan, après le
+regroupement des rafales.
+
+```json
+{
+  "sequence_detection": {
+    "enabled": true,
+    "max_gap_seconds": 3.0,
+    "max_hamming": 10,
+    "min_frames": 3,
+    "min_step_stops": 0.5,
+    "min_span_stops": 1.0,
+    "step_tolerance_stops": 0.34
+  }
+}
+```
+
+| Paramètre | Défaut | Description |
+|---|---|---|
+| `enabled` | `true` | Désactive entièrement la détection de bracketing |
+| `max_gap_seconds` | `3.0` | Écart maximal entre deux vues consécutives d'une série |
+| `max_hamming` | `10` | Distance pHash tolérée entre les vues (même cadrage) |
+| `min_frames` | `3` | Nombre minimal de vues pour parler de bracketing |
+| `min_step_stops` | `0.5` | Plus petit écart d'IL considéré comme volontaire |
+| `min_span_stops` | `1.0` | Amplitude minimale entre la vue la plus sombre et la plus claire |
+| `step_tolerance_stops` | `0.34` | Irrégularité tolérée entre les pas (un tiers d'IL) |
+
+---
+
 ## Notation des rafales
 
 Pondérations utilisées par le tri de rafales pour calculer un score composite afin de sélectionner la meilleure prise au sein de chaque groupe de rafale. La somme des pondérations doit faire 1,0.
