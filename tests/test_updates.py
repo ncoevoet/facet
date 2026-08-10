@@ -1,0 +1,170 @@
+"""Tests for the upstream release check (api/updates.py, utils/version.py).
+
+The behaviours that matter are the ones that keep it quiet: it must never
+announce an upgrade it is not sure of, never let an unreachable GitHub surface
+as an error, and never ask upstream more than once per interval however often
+the endpoint is called.
+"""
+
+import json
+import sqlite3
+import time
+from contextlib import contextmanager
+from unittest import mock
+
+import pytest
+
+from api.updates import CACHE_KEY, check_for_update, get_update_settings
+from utils.version import is_newer, parse_version
+
+_SCHEMA = "CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);"
+
+
+@pytest.fixture()
+def conn():
+    connection = sqlite3.connect(":memory:", check_same_thread=False)
+    connection.row_factory = sqlite3.Row
+    connection.executescript(_SCHEMA)
+    yield connection
+    connection.close()
+
+
+@contextmanager
+def _upstream(latest, url='https://example.invalid/releases/1'):
+    payload = None if latest is None else {'latest': latest, 'release_url': url}
+    with mock.patch('api.updates._fetch_latest', return_value=payload) as fetch:
+        yield fetch
+
+
+class TestParseVersion:
+    def test_plain_version(self):
+        assert parse_version('1.8.2') == (1, 8, 2)
+
+    def test_tolerates_a_v_prefix(self):
+        assert parse_version('v1.8.2') == (1, 8, 2)
+
+    def test_ignores_a_trailing_codename(self):
+        assert parse_version('1.8.2 "Adularescence"') == (1, 8, 2)
+
+    @pytest.mark.parametrize('value', [None, '', 'nightly', 'v'])
+    def test_unparseable_yields_empty(self, value):
+        assert parse_version(value) == ()
+
+
+class TestIsNewer:
+    def test_patch_bump(self):
+        assert is_newer('1.8.3', '1.8.2') is True
+
+    def test_same_version_is_not_newer(self):
+        assert is_newer('1.8.2', '1.8.2') is False
+
+    def test_older_is_not_newer(self):
+        assert is_newer('1.8.1', '1.8.2') is False
+
+    def test_shorter_tag_is_padded_not_truncated(self):
+        # 1.9 must beat 1.8.2, and must not beat 1.9.0.
+        assert is_newer('1.9', '1.8.2') is True
+        assert is_newer('1.9', '1.9.0') is False
+
+    def test_double_digit_components_compare_numerically(self):
+        assert is_newer('1.10.0', '1.9.0') is True
+
+    @pytest.mark.parametrize('candidate', [None, '', 'nightly'])
+    def test_an_unparseable_tag_is_never_an_upgrade(self, candidate):
+        assert is_newer(candidate, '1.8.2') is False
+
+
+class TestCheckForUpdate:
+    def test_reports_an_available_upgrade(self, conn):
+        with mock.patch('api.updates.current_version', return_value='1.8.2'), _upstream('v1.9.0'):
+            result = check_for_update(conn)
+        assert result['update_available'] is True
+        assert result['latest'] == 'v1.9.0'
+        assert result['current'] == '1.8.2'
+
+    def test_reports_nothing_when_already_current(self, conn):
+        with mock.patch('api.updates.current_version', return_value='1.9.0'), _upstream('v1.9.0'):
+            assert check_for_update(conn)['update_available'] is False
+
+    def test_a_second_call_inside_the_interval_does_not_ask_upstream(self, conn):
+        with mock.patch('api.updates.current_version', return_value='1.8.2'):
+            with _upstream('v1.9.0') as fetch:
+                check_for_update(conn)
+                check_for_update(conn)
+                assert fetch.call_count == 1
+
+    def test_force_asks_again(self, conn):
+        with mock.patch('api.updates.current_version', return_value='1.8.2'):
+            with _upstream('v1.9.0') as fetch:
+                check_for_update(conn)
+                check_for_update(conn, force=True)
+                assert fetch.call_count == 2
+
+    def test_a_stale_entry_is_refreshed(self, conn):
+        with mock.patch('api.updates.current_version', return_value='1.8.2'):
+            with _upstream('v1.9.0'):
+                check_for_update(conn)
+            conn.execute("UPDATE stats_cache SET updated_at = ? WHERE key = ?",
+                         (time.time() - 8 * 86400, CACHE_KEY))
+            conn.commit()
+            with _upstream('v2.0.0') as fetch:
+                result = check_for_update(conn)
+                assert fetch.call_count == 1
+        assert result['latest'] == 'v2.0.0'
+
+    def test_an_unreachable_upstream_is_silent_not_an_error(self, conn):
+        with mock.patch('api.updates.current_version', return_value='1.8.2'), _upstream(None):
+            result = check_for_update(conn)
+        assert result['update_available'] is False
+        assert result['latest'] is None
+
+    def test_a_failed_check_still_stamps_the_cache(self, conn):
+        # Otherwise an install with no outbound network would retry on every
+        # single request instead of once per interval.
+        with mock.patch('api.updates.current_version', return_value='1.8.2'):
+            with _upstream(None) as fetch:
+                check_for_update(conn)
+                check_for_update(conn)
+                assert fetch.call_count == 1
+
+    def test_corrupt_cache_is_recomputed(self, conn):
+        conn.execute("INSERT INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+                     (CACHE_KEY, '{not json', time.time()))
+        conn.commit()
+        with mock.patch('api.updates.current_version', return_value='1.8.2'), _upstream('v1.9.0'):
+            assert check_for_update(conn)['update_available'] is True
+
+    def test_disabled_in_config_never_touches_the_network(self, conn):
+        settings = {'enabled': False, 'check_url': 'x', 'interval_days': 7}
+        with mock.patch('api.updates.get_update_settings', return_value=settings):
+            with _upstream('v9.9.9') as fetch:
+                result = check_for_update(conn)
+                assert fetch.call_count == 0
+        assert result['enabled'] is False
+        assert result['update_available'] is False
+
+
+class TestUpdateSettings:
+    def test_defaults_when_the_block_is_absent(self):
+        with mock.patch.dict('api.config._FULL_CONFIG', {}, clear=False):
+            settings = get_update_settings()
+        assert settings['interval_days'] == 7
+        assert settings['enabled'] is True
+
+
+class TestEndpoint:
+    def test_requires_edition(self, regular_client):
+        assert regular_client.get("/api/updates/check").status_code == 403
+
+    def test_edition_gets_the_result(self, edition_client, conn):
+        @contextmanager
+        def _db():
+            yield conn
+        with mock.patch("api.routers.updates.get_db", _db), \
+                mock.patch('api.updates.current_version', return_value='1.8.2'), \
+                _upstream('v1.9.0'):
+            resp = edition_client.get("/api/updates/check")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body['update_available'] is True
+        assert body['latest'] == 'v1.9.0'

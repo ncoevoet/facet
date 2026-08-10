@@ -382,6 +382,7 @@ def create_app() -> FastAPI:
     from api.routers.cull_preview import router as cull_preview_router
     from api.routers.frame import router as frame_router
     from api.routers.webdav import router as webdav_router
+    from api.routers.updates import router as updates_router
 
     app.include_router(health_router)
     app.include_router(auth_router)
@@ -409,6 +410,7 @@ def create_app() -> FastAPI:
     app.include_router(folders_router)
     app.include_router(export_router)
     app.include_router(ranker_router)
+    app.include_router(updates_router)
     app.include_router(scenes_router)
     app.include_router(saliency_router)
     app.include_router(social_crop_router)

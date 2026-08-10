@@ -747,6 +747,32 @@ Gruppiert ähnliche Fotos, die in schneller Folge aufgenommen wurden.
 
 ---
 
+## Update-Benachrichtigungen
+
+Sagt der Person, die die Installation betreut, dass ein neueres Facet veröffentlicht wurde. Nicht zu verwechseln mit dem „Eine neue Version ist verfügbar – Neu laden“ des Browsers, das die Seite auf ein bereits heruntergeladenes Bundle umstellt; hier geht es um eine Version, die noch niemand installiert hat.
+
+Bewusst zurückhaltend. Die Prüfung läuft serverseitig und ihr Ergebnis wird zwischengespeichert, sodass eine Installation GitHub höchstens einmal pro `interval_days` fragt, wie viele Menschen auch immer den Viewer offen haben. Die Anfrage trägt nichts weiter mit sich — kein Token, keine Kennungen, nichts aus der Bibliothek. Ein Fehlschlag bleibt stumm: ein nicht erreichbares GitHub erscheint als „kein Update bekannt“, nie als Fehler. Nur Edition-Nutzer werden informiert, denn das Aktualisieren ist Sache des Betreibers, und jeder Browser zeigt den Hinweis höchstens einmal pro Woche.
+
+`enabled` auf `false` setzen unterbindet die ausgehende Anfrage vollständig.
+
+```json
+{
+  "updates": {
+    "enabled": true,
+    "check_url": "https://api.github.com/repos/ncoevoet/facet/releases/latest",
+    "interval_days": 7
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `enabled` | `true` | `false` deaktiviert die Prüfung; es wird nie etwas angefragt |
+| `check_url` | GitHub-API für die neueste Version | Wo nach der neuesten veröffentlichten Version gesucht wird |
+| `interval_days` | `7` | Wie lange ein Ergebnis zwischengespeichert wird, bevor erneut gefragt wird |
+
+---
+
 ## Sequenzerkennung
 
 Benennt bewusst mehrteilig aufgenommene Serien — derzeit Belichtungsreihen — damit sie nicht

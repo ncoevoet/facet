@@ -2365,5 +2365,9 @@
     "cancel": "Cancelar",
     "done": "Portefólio exportado: {count} fotos",
     "error": "Falha ao exportar o portefólio"
+  },
+  "updates": {
+    "available": "O Facet {version} está disponível",
+    "view": "Notas de versão"
   }
 }

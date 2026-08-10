@@ -747,6 +747,32 @@ Agrupa fotos similares tomadas en rápida sucesión.
 
 ---
 
+## Notificaciones de actualización
+
+Avisa a quien administra la instalación de que se ha publicado una versión más reciente de Facet. No confundir con el «Hay una nueva versión disponible — Recargar» del navegador, que cambia la página a un paquete ya descargado: aquí se trata de una versión que nadie ha instalado todavía.
+
+Deliberadamente discreto. La comprobación se hace en el servidor y su resultado se cachea, así que una instalación pregunta a GitHub como mucho una vez cada `interval_days`, sin importar cuánta gente tenga abierto el viewer. La petición no lleva nada más que a sí misma: ni token, ni identificadores, ni nada de la fototeca. Un fallo es silencioso: un GitHub inaccesible aparece como «no se conoce ninguna actualización», nunca como un error. Solo se avisa a los usuarios en modo edición, porque actualizar es tarea del operador, y cada navegador muestra el aviso como mucho una vez por semana.
+
+Pon `enabled` en `false` para eliminar por completo la petición saliente.
+
+```json
+{
+  "updates": {
+    "enabled": true,
+    "check_url": "https://api.github.com/repos/ncoevoet/facet/releases/latest",
+    "interval_days": 7
+  }
+}
+```
+
+| Ajuste | Predeterminado | Descripción |
+|---|---|---|
+| `enabled` | `true` | `false` desactiva la comprobación; no se solicita nada nunca |
+| `check_url` | API de GitHub de la última versión | Dónde buscar la versión publicada más reciente |
+| `interval_days` | `7` | Cuánto se cachea un resultado antes de volver a preguntar |
+
+---
+
 ## Detección de secuencias
 
 Nombra las series tomadas deliberadamente con varias fotos — hoy, los horquillados de

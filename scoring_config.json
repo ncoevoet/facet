@@ -2253,6 +2253,11 @@
     "min_span_stops": 1.0,
     "step_tolerance_stops": 0.34
   },
+  "updates": {
+    "enabled": true,
+    "check_url": "https://api.github.com/repos/ncoevoet/facet/releases/latest",
+    "interval_days": 7
+  },
   "duplicate_detection": {
     "similarity_threshold_percent": 90
   },

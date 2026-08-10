@@ -2367,5 +2367,9 @@
     "cancel": "Cancelar",
     "done": "Portafolio exportado: {count} fotos",
     "error": "Error al exportar el portafolio"
+  },
+  "updates": {
+    "available": "Facet {version} ya está disponible",
+    "view": "Notas de la versión"
   }
 }

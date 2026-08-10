@@ -2370,4 +2370,8 @@ export const I18N = {
     done: "portfolio.done",
     error: "portfolio.error",
   },
+  updates: {
+    available: "updates.available",
+    view: "updates.view",
+  },
 } as const;

@@ -747,6 +747,32 @@ Regroupe les photos similaires prises en succession rapide.
 
 ---
 
+## Notifications de mise à jour
+
+Prévient l'administrateur de l'installation qu'une nouvelle version de Facet est parue. À ne pas confondre avec le « Une nouvelle version est disponible — Recharger » du navigateur, qui bascule la page sur un paquet déjà téléchargé : ici il s'agit d'une version que personne n'a encore installée.
+
+Volontairement discret. La vérification a lieu côté serveur et son résultat est mis en cache : une installation n'interroge GitHub qu'une fois tous les `interval_days`, quel que soit le nombre de personnes devant le viewer. La requête ne transporte rien d'autre qu'elle-même — aucun jeton, aucun identifiant, rien de la photothèque. Un échec est silencieux : un GitHub injoignable se traduit par « aucune mise à jour connue », jamais par une erreur. Seuls les utilisateurs en mode édition sont prévenus, car la mise à jour relève de l'exploitant, et chaque navigateur n'affiche l'avis qu'une fois par semaine au maximum.
+
+Passez `enabled` à `false` pour supprimer complètement la requête sortante.
+
+```json
+{
+  "updates": {
+    "enabled": true,
+    "check_url": "https://api.github.com/repos/ncoevoet/facet/releases/latest",
+    "interval_days": 7
+  }
+}
+```
+
+| Paramètre | Défaut | Description |
+|---|---|---|
+| `enabled` | `true` | `false` désactive la vérification ; plus aucune requête n'est émise |
+| `check_url` | API GitHub des dernières versions | Où chercher la dernière version publiée |
+| `interval_days` | `7` | Durée de mise en cache du résultat avant une nouvelle interrogation |
+
+---
+
 ## Détection de séquences
 
 Nomme les séries prises volontairement en plusieurs vues — aujourd'hui les bracketings

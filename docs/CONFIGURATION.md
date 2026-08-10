@@ -755,6 +755,39 @@ Groups similar photos taken in quick succession.
 
 ---
 
+## Update Notifications
+
+Tells whoever administers the install when a newer Facet has been released. Not the same
+thing as the browser's "a new version is available — Reload", which swaps the page onto a
+bundle it has already downloaded; this one is about a release nobody has installed yet.
+
+Deliberately narrow. The check runs on the server and its result is cached, so an install
+asks GitHub at most once per `interval_days` however many people are looking at the viewer.
+The request carries nothing but itself — no token, no identifiers, nothing about the
+library. A failure is silent: an unreachable GitHub shows as "no update known", never as an
+error. Only edition users are told, because upgrading is an operator's job and nobody else
+could act on it, and each browser shows the notice at most once a week.
+
+Set `enabled` to `false` to stop the outbound request entirely.
+
+```json
+{
+  "updates": {
+    "enabled": true,
+    "check_url": "https://api.github.com/repos/ncoevoet/facet/releases/latest",
+    "interval_days": 7
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | `false` disables the check; nothing is ever requested |
+| `check_url` | GitHub latest-release API | Where to look for the newest published release |
+| `interval_days` | `7` | How long a result is cached before asking again |
+
+---
+
 ## Sequence Detection
 
 Names deliberate multi-frame sets — today, exposure brackets — so they are not read as

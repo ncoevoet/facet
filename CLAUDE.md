@@ -506,6 +506,8 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 
 **Plugins:** `GET /api/plugins`, `POST /api/plugins/test-webhook` — plugin listing and webhook testing.
 
+**Updates:** `GET /api/updates/check?force=` (edition-gated) — whether a newer Facet release exists than the one running. Server-side and cached in `stats_cache` under `update_check`, so an install asks GitHub at most once per `updates.interval_days` however many clients poll; the request carries no token, identifiers or library data, and an unreachable upstream returns `update_available: false` rather than an error. `utils/version.current_version()` reads `pyproject.toml` FIRST and only falls back to installed distribution metadata — a stale `pip install -e .` egg-info otherwise reported 1.0.1 for a 1.8.2 checkout. The client shows it at most once a week per browser (`facet_release_notice_shown`), and only in edition mode; it is unrelated to the service worker's own `pwa.update_available` reload prompt. Config: `updates` block (`enabled`, `check_url`, `interval_days`).
+
 **Health:** `GET /health`, `GET /ready` — server health and readiness checks.
 
 **i18n:** `GET /api/i18n/languages`, `GET /api/i18n/{lang}` — language list and translation bundles.
@@ -536,6 +538,8 @@ For quick reference, here are the actual defaults from the config file:
 | `burst_detection` | `similarity_threshold_percent` | `70` |
 | `burst_detection` | `time_window_minutes` | `0.8` |
 | `burst_detection` | `rapid_burst_seconds` | `0.4` |
+| `updates` | `enabled` | `true` (weekly upstream release check; `false` = no outbound request) |
+| `updates` | `interval_days` | `7` |
 | `sequence_detection` | `enabled` | `true` |
 | `sequence_detection` | `max_gap_seconds` | `3.0` |
 | `sequence_detection` | `min_frames` | `3` |

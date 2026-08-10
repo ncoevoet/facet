@@ -2367,5 +2367,9 @@
     "cancel": "Annulla",
     "done": "Portfolio esportato: {count} foto",
     "error": "Esportazione del portfolio non riuscita"
+  },
+  "updates": {
+    "available": "Facet {version} è disponibile",
+    "view": "Note di rilascio"
   }
 }
