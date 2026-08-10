@@ -474,7 +474,7 @@ interface ShortcutRow {
               @if (group.sequence_kind === 'bracket') {
                 <div class="flex items-center gap-2 px-4 pt-2 text-xs">
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                    <mat-icon class="!text-sm !w-4 !h-4 !leading-4">exposure</mat-icon>{{ I18N.culling.bracket.label | translate }}
+                    <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ 'bracket' | cullGroupIcon }}</mat-icon>{{ I18N.culling.bracket.label | translate }}
                   </span>
                   <span class="opacity-70">{{ I18N.culling.bracket.hint | translate }}</span>
                 </div>

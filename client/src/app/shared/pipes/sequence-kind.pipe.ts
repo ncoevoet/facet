@@ -11,9 +11,9 @@ import { I18N } from '../../core/i18n/keys';
  * one place, whether it is labelling a culling group or a single tile.
  */
 export const SEQUENCE_KIND_ICONS: Record<string, string> = {
-  bracket: 'exposure',
+  bracket: 'hdr_on',
   panorama: 'panorama_photosphere',
-  hdr_panorama: 'hdr_on',
+  hdr_panorama: 'vrpano',
 };
 
 export const SEQUENCE_KIND_LABELS: Record<string, string> = {
