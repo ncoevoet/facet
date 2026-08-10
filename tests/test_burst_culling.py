@@ -462,6 +462,146 @@ class TestCullingGroupsEndpoint:
         assert resp.json() == {"status": "ok", "kept": 1, "rejected": 1}
         scene_cull.assert_awaited_once()
 
+    def test_group_by_bracket_serves_bracket_groups(self, client):
+        mock_conn = mock.MagicMock()
+        bracket_groups = [{
+            "group_id": 1, "type": "bracket", "reason": "bracket", "sequence_kind": "bracket",
+            "photos": [{"path": "/k0.jpg", "sequence_ev_offset": -2.0},
+                       {"path": "/k1.jpg", "sequence_ev_offset": 0.0}],
+            "best_path": "/k1.jpg", "count": 2, "category": None,
+        }]
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
+            mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.routers.burst_culling._fetch_bracket_groups",
+                       return_value=bracket_groups) as bracket_fetch,
+            mock.patch("api.routers.burst_culling._fetch_unreviewed_burst_groups") as burst_fetch,
+            mock.patch("api.routers.burst_culling._count_unreviewed_similar_groups") as similar_count,
+        ):
+            resp = client.get("/api/culling-groups?group_by=bracket")
+        assert resp.status_code == 200
+        assert [g["type"] for g in resp.json()["groups"]] == ["bracket"]
+        bracket_fetch.assert_called_once()
+        # A bracket is its own granularity: neither competing-takes feed is consulted.
+        burst_fetch.assert_not_called()
+        similar_count.assert_not_called()
+
+
+class TestConfirmBracketGroup:
+    """The bracket branch of POST /api/culling-groups/confirm.
+
+    It rejects like the other granularities but records no comparison pairs,
+    and is bounded to the paths that really carry the bracket kind — a
+    malformed body must not be able to reject arbitrary photos through it.
+    """
+
+    _SCHEMA = """
+        CREATE TABLE photos (
+            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
+            sequence_kind TEXT, sequence_ev_offset REAL, is_rejected INTEGER DEFAULT 0
+        );
+        CREATE TABLE comparisons (
+            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
+            category TEXT, session_id TEXT, user_id TEXT, source TEXT
+        );
+    """
+
+    @staticmethod
+    def _db():
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(TestConfirmBracketGroup._SCHEMA)
+        rungs = (('/k0.jpg', -2.0), ('/k1.jpg', 0.0), ('/k2.jpg', 2.0))
+        for path, ev in rungs:
+            conn.execute(
+                "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind, "
+                "sequence_ev_offset) VALUES (?, ?, 1, 'bracket', ?)",
+                (path, path.lstrip('/'), ev),
+            )
+        conn.execute(
+            "INSERT INTO photos (path, filename, sequence_kind) VALUES ('/plain.jpg', 'plain.jpg', NULL)"
+        )
+        conn.commit()
+        return conn
+
+    @pytest.fixture()
+    def client(self):
+        from fastapi.testclient import TestClient
+        from api import create_app
+        from api.auth import get_optional_user, require_edition, CurrentUser
+
+        app = create_app()
+        fake_user = CurrentUser(user_id="test", edition_authenticated=True)
+        app.dependency_overrides[get_optional_user] = lambda: fake_user
+        app.dependency_overrides[require_edition] = lambda: fake_user
+        yield TestClient(app)
+        app.dependency_overrides.clear()
+
+    @staticmethod
+    def _confirm(client, conn, body):
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
+            mock.patch("api.db_helpers.get_visibility_clause", return_value=("1=1", [])),
+            mock.patch("api.db_helpers.is_multi_user_enabled", return_value=False),
+        ):
+            return client.post("/api/culling-groups/confirm", json={
+                "group_id": 1, "type": "bracket", **body,
+            })
+
+    def _rejected(self, conn):
+        return {r['path'] for r in conn.execute(
+            "SELECT path FROM photos WHERE is_rejected = 1").fetchall()}
+
+    def test_rejects_the_frames_that_were_not_kept(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/k1.jpg", "/k2.jpg"], "keep_paths": ["/k1.jpg"],
+        })
+        assert resp.status_code == 200
+        assert resp.json() == {'success': True, 'kept': 1, 'rejected': 2, 'skipped': 0}
+        assert self._rejected(conn) == {"/k0.jpg", "/k2.jpg"}
+
+    def test_records_no_comparison_pairs(self, client):
+        conn = self._db()
+        self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/k1.jpg", "/k2.jpg"], "keep_paths": ["/k1.jpg"],
+        })
+        # Preferring one rung of an exposure ladder describes the exposure, not
+        # the photograph; feeding it to the ranker would bias every later ranking.
+        assert conn.execute("SELECT COUNT(*) FROM comparisons").fetchone()[0] == 0
+
+    def test_keeping_every_frame_rejects_nothing(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/k1.jpg", "/k2.jpg"],
+            "keep_paths": ["/k0.jpg", "/k1.jpg", "/k2.jpg"],
+        })
+        assert resp.json() == {'success': True, 'kept': 3, 'rejected': 0, 'skipped': 0}
+        assert self._rejected(conn) == set()
+
+    def test_a_path_outside_the_bracket_is_skipped_not_rejected(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/plain.jpg"], "keep_paths": [],
+        })
+        assert resp.json()['skipped'] == 1
+        assert self._rejected(conn) == {"/k0.jpg"}
+
+    def test_an_unknown_path_is_skipped_not_rejected(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/nowhere.jpg"], "keep_paths": [],
+        })
+        assert resp.json()['skipped'] == 1
+        assert self._rejected(conn) == {"/k0.jpg"}
+
+    def test_empty_paths_is_rejected_as_a_bad_request(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {"paths": [], "keep_paths": []})
+        assert resp.status_code == 400
+        assert 'paths is required' in resp.json()['detail']
+
 
 class TestFilterSimilarGroups:
     """Unit tests for read-time rejected-photo filtering of cached similar groups."""
