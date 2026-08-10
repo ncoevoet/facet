@@ -1180,3 +1180,52 @@ class TestAlbumScoringContextChunksLargeMemberSets:
         assert clear_result["cleared"] == self._COUNT
         assert get_photo_scoring_overrides(db_path, paths=paths) == {}
 
+
+
+class TestSmartAlbumCoverAppliesHideDefaults:
+    """A smart album's cover must obey the same hide toggles its gallery does.
+
+    `smart_filter_json` deliberately carries only the filter the user chose and
+    excludes the view toggles, so the cover query has to re-supply them from
+    `viewer.defaults`. A toggle missing from that list reads as "do not hide",
+    and the cover becomes a photo the album's own gallery view is hiding --
+    which is exactly how `hide_brackets` shipped.
+    """
+
+    _DEFAULTS = {
+        'hide_blinks': True, 'hide_bursts': True, 'hide_duplicates': True,
+        'hide_brackets': True, 'hide_rejected': True, 'sort': 'aggregate',
+    }
+
+    def _filters_passed_to_the_gallery(self, saved_filters):
+        import json as _json
+
+        from api.routers.albums import _compute_smart_album_cover
+
+        conn = mock.MagicMock()
+        conn.execute.return_value.fetchone.return_value = None
+        album = _make_album_row(is_smart=1, smart_filter_json=_json.dumps(saved_filters))
+        with (
+            mock.patch("api.routers.gallery._build_gallery_where",
+                       return_value=([], [])) as build_where,
+            mock.patch(f"{_ALBUMS_MODULE}.VIEWER_CONFIG", {'defaults': self._DEFAULTS}),
+        ):
+            _compute_smart_album_cover(conn, album)
+        return build_where.call_args[0][0]
+
+    def test_every_configured_hide_toggle_reaches_the_cover_query(self):
+        passed = self._filters_passed_to_the_gallery({'sort': 'aggregate'})
+        expected = {k for k in self._DEFAULTS if k.startswith('hide_')}
+        # Structural on purpose: a hide toggle added to viewer.defaults and not
+        # to the cover's default list is the regression this guards, and naming
+        # the keys individually would not catch the next one.
+        assert expected <= set(passed)
+
+    def test_a_toggle_defaulting_to_true_is_applied_not_dropped(self):
+        passed = self._filters_passed_to_the_gallery({'sort': 'aggregate'})
+        assert passed['hide_brackets'] == '1'
+
+    def test_an_explicit_choice_in_the_saved_filter_wins(self):
+        passed = self._filters_passed_to_the_gallery(
+            {'sort': 'aggregate', 'hide_brackets': '0'})
+        assert passed['hide_brackets'] == '0'

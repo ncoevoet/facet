@@ -63,11 +63,25 @@ class TestCurrentVersion:
                                   side_effect=metadata.PackageNotFoundError):
             assert current_version() == UNKNOWN
 
-    def test_an_unknown_version_is_never_announced_as_an_upgrade(self):
-        # parse_version returns () for UNKNOWN's peers, and is_newer refuses an
-        # empty tuple, so a version it could not read cannot trigger a notice.
+    def test_the_unknown_sentinel_loses_to_every_real_release(self):
+        """`0.0.0` parses like any other version and sorts below all of them.
+
+        So an install whose version could not be read is told an upgrade exists
+        rather than being told it is current -- the safe direction -- and can
+        never itself be announced as newer than something real.
+        """
+        assert parse_version(UNKNOWN) == (0, 0, 0)
         assert is_newer('v1.9.0', UNKNOWN) is True
         assert is_newer(UNKNOWN, '1.8.2') is False
+
+    def test_an_unreadable_tag_is_never_announced_as_an_upgrade(self):
+        """A tag with no leading number parses to `()`, which `is_newer` refuses.
+
+        This is the guard that keeps a rolling tag like `nightly` from reading
+        as a release, and it is separate from the numeric sentinel above.
+        """
+        assert parse_version('nightly') == ()
+        assert is_newer('nightly', '1.8.2') is False
 
 
 class TestParseVersion:
