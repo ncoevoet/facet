@@ -97,7 +97,7 @@ interface AppConfig {
              control does. -->
         @if (isEditionMode() && photo().star_rating) {
           <div class="absolute bottom-1 left-1.5 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0"
-               [attr.aria-label]="photo().star_rating + ' ' + (I18N.rating.set_rating | translate)">
+               [attr.aria-label]="I18N.rating.rating_badge | translate:{ stars: photo().star_rating ?? 0 }">
             <mat-icon class="!text-lg !w-[18px] !h-[18px] !leading-[18px] !text-yellow-400 drop-shadow-md"
                       aria-hidden="true">star</mat-icon>
             <span class="absolute -top-0.5 -right-0.5 min-w-3.5 h-3.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold flex items-center justify-center leading-none">{{ photo().star_rating }}</span>
@@ -125,10 +125,12 @@ interface AppConfig {
         }
 
         <!-- Persistent rejected badge (shape + desaturation, not color alone).
-             Sits where the hover bar's own reject button sits -- right of the
-             heart -- and yields to a star rating on the same terms, so the badge
-             and the control it stands for never appear in different places. -->
-        @if (isEditionMode() && photo().is_rejected && !photo().star_rating) {
+             Sits where the hover bar's own reject button sits, right of the
+             heart. It does NOT yield to a star rating: the two occupy opposite
+             corners so they never collided, and hiding it left desaturation as
+             the only signal -- which conveys nothing to a screen reader and
+             nothing at all on an already-monochrome photo. -->
+        @if (isEditionMode() && photo().is_rejected) {
           <div class="absolute bottom-1 right-9 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0"
                [attr.aria-label]="I18N.rating.rejected_badge | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md" aria-hidden="true">thumb_down</mat-icon>

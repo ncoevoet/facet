@@ -147,7 +147,7 @@ python facet.py --recompute-blinks               # Recompute blink detection for
 python facet.py --recompute-burst                # Recompute burst detection groups
 python facet.py --detect-duplicates              # Detect duplicate photos via pHash
 python facet.py --detect-panoramas             # Detect panorama sets geometrically over stored thumbnails (CPU, no decode)
-python facet.py --detect-sequences               # Detect exposure-bracket sets from stored EXIF (whole library, no decode)
+python facet.py --detect-sequences             # Brackets from stored EXIF, then panoramas from thumbnail geometry (whole library)
 
 # AI captioning
 python facet.py --generate-captions          # Generate AI captions for uncaptioned photos (VLM, GPU)

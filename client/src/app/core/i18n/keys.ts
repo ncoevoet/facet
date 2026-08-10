@@ -569,6 +569,7 @@ export const I18N = {
     mark_rejected: "rating.mark_rejected",
     unmark_rejected: "rating.unmark_rejected",
     rejected_badge: "rating.rejected_badge",
+    rating_badge: "rating.rating_badge",
   },
   similar: {
     title: "similar.title",
@@ -2399,6 +2400,10 @@ export const I18N = {
       save: "panorama.settings.save",
       redetect: "panorama.settings.redetect",
       redetect_tooltip: "panorama.settings.redetect_tooltip",
+      saved: "panorama.settings.saved",
+      save_failed: "panorama.settings.save_failed",
+      redetect_started: "panorama.settings.redetect_started",
+      redetect_failed: "panorama.settings.redetect_failed",
     },
   },
 } as const;

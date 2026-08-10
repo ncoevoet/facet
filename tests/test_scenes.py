@@ -20,7 +20,7 @@ from api.routers.scenes import compute_scenes
 _SCHEMA = """
     CREATE TABLE photos (
         path TEXT PRIMARY KEY, filename TEXT, aggregate REAL, date_taken TEXT,
-        is_burst_lead INTEGER, burst_group_id INTEGER,
+        is_burst_lead INTEGER, is_sequence_lead INTEGER DEFAULT 0, burst_group_id INTEGER,
         is_rejected INTEGER, category TEXT
     );
     CREATE TABLE album_photos (
@@ -202,7 +202,7 @@ def test_time_window_scopes_scenes():
 _MOMENT_SCHEMA = """
     CREATE TABLE photos (
         path TEXT PRIMARY KEY, filename TEXT, aggregate REAL, date_taken TEXT,
-        is_burst_lead INTEGER, burst_group_id INTEGER,
+        is_burst_lead INTEGER, is_sequence_lead INTEGER DEFAULT 0, burst_group_id INTEGER,
         is_rejected INTEGER, category TEXT,
         narrative_moment TEXT, narrative_moment_confidence REAL
     );

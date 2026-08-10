@@ -35,7 +35,7 @@ _PHOTOS_SCHEMA = """
         eye_sharpness REAL, face_sharpness REAL, face_ratio REAL,
         tech_sharpness REAL, color_score REAL, exposure_score REAL,
         comp_score REAL, isolation_bonus REAL, is_blink INTEGER,
-        phash TEXT, is_burst_lead INTEGER, aggregate REAL,
+        phash TEXT, is_burst_lead INTEGER, is_sequence_lead INTEGER DEFAULT 0, aggregate REAL,
         category TEXT, image_width INTEGER, image_height INTEGER,
         tags TEXT, composition_pattern TEXT, person_id INTEGER,
         is_monochrome INTEGER, dynamic_range_stops REAL,

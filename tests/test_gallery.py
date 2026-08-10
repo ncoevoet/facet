@@ -618,3 +618,56 @@ class TestSelectBottomPercent:
         assert (data["total"], data["keep"], data["cut"]) == (10, 1, 9)
         assert data["truncated"] is True
         assert set(data["paths"]) == {"/p0.jpg", "/p1.jpg", "/p2.jpg"}
+
+
+class TestGalleryHidePanoramas:
+    """A panorama must survive both default hide toggles at once.
+
+    `hide_bursts` and `hide_panoramas` both ship on, are ANDed, and pick their
+    representative on unrelated criteria: the burst lead is score-ranked, the
+    panorama lead is the middle frame by capture. A sweep is routinely shredded
+    across several burst groups -- one real 33-frame set landed in seven -- so
+    the two clauses could agree on no frame at all and the whole set vanished.
+    The bracket test above cannot catch this: its frames are all burst leads.
+    """
+
+    _PHOTOS = [
+        _photo("/plain.jpg", "2024:06:15 11:00:00"),
+        # A sweep split across two burst groups. The panorama lead (/p-c) is
+        # deliberately NOT the lead of its burst group.
+        _photo("/p-a.jpg", "2024:06:15 12:00:00", is_burst_lead=1, burst_group_id=10,
+               sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=0),
+        _photo("/p-b.jpg", "2024:06:15 12:00:01", is_burst_lead=0, burst_group_id=10,
+               sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=0),
+        _photo("/p-c.jpg", "2024:06:15 12:00:02", is_burst_lead=0, burst_group_id=11,
+               sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=1),
+        _photo("/p-d.jpg", "2024:06:15 12:00:03", is_burst_lead=1, burst_group_id=11,
+               sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=0),
+    ]
+
+    def _fetch(self, tmp_path, query):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, self._PHOTOS)
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
+            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch.dict("api.config._count_cache", {}, clear=True),
+        ):
+            resp = TestClient(app).get(f"/api/photos?page=1&{query}")
+        assert resp.status_code == 200
+        return [p["path"] for p in resp.json()["photos"]]
+
+    def test_the_representative_survives_both_default_toggles(self, tmp_path):
+        paths = self._fetch(tmp_path, "hide_bursts=1&hide_panoramas=1&per_page=50")
+        assert "/p-c.jpg" in paths, "the whole panorama vanished with both toggles on"
+        assert sorted(p for p in paths if p.startswith("/p-")) == ["/p-c.jpg"]
+
+    def test_hide_panoramas_alone_keeps_only_the_representative(self, tmp_path):
+        paths = self._fetch(tmp_path, "hide_panoramas=1&per_page=50")
+        assert sorted(p for p in paths if p.startswith("/p-")) == ["/p-c.jpg"]
+
+    def test_ordinary_photos_are_untouched(self, tmp_path):
+        assert "/plain.jpg" in self._fetch(tmp_path, "hide_bursts=1&hide_panoramas=1&per_page=50")

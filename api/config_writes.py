@@ -294,6 +294,7 @@ PANORAMA_DETECTION_BOUNDS = {
     'probe_stride': (2, 64),
     'probe_min_drift': (0.0, 0.5),
     'workers': (0, 128),
+    'max_run_frames': (10, 100000),
     'hdr_min_span_stops': (0.1, 10.0),
 }
 

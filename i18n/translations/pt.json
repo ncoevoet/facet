@@ -564,7 +564,8 @@
     "remove_favorite": "Remover dos favoritos",
     "mark_rejected": "Marcar como rejeitada",
     "unmark_rejected": "Remover marca de rejeitada",
-    "rejected_badge": "Rejeitada"
+    "rejected_badge": "Rejeitada",
+    "rating_badge": "Classificação {stars}"
   },
   "similar": {
     "title": "Fotos semelhantes",
@@ -2394,7 +2395,11 @@
       "hdr_span_hint": "As varreduras simples abrangem 0,0-0,7 pontos, as HDR 2,0-4,4",
       "save": "Guardar",
       "redetect": "Voltar a executar a deteção",
-      "redetect_tooltip": "Reetiqueta toda a biblioteca; demora vários minutos"
+      "redetect_tooltip": "Reetiqueta toda a biblioteca; demora vários minutos",
+      "saved": "Definições guardadas — volte a executar a deteção para as aplicar",
+      "save_failed": "Não foi possível guardar as definições",
+      "redetect_started": "Deteção iniciada; corre em segundo plano",
+      "redetect_failed": "Não foi possível iniciar a deteção"
     }
   }
 }

@@ -564,7 +564,8 @@
     "remove_favorite": "Rimuovi dai preferiti",
     "mark_rejected": "Segna come scartata",
     "unmark_rejected": "Rimuovi segno di scarto",
-    "rejected_badge": "Scartata"
+    "rejected_badge": "Scartata",
+    "rating_badge": "Valutazione {stars}"
   },
   "similar": {
     "title": "Foto simili",
@@ -2396,7 +2397,11 @@
       "hdr_span_hint": "Le panoramiche semplici coprono 0,0-0,7 stop, quelle HDR 2,0-4,4",
       "save": "Salva",
       "redetect": "Rilancia il rilevamento",
-      "redetect_tooltip": "Rietichetta l’intera libreria; richiede diversi minuti"
+      "redetect_tooltip": "Rietichetta l’intera libreria; richiede diversi minuti",
+      "saved": "Impostazioni salvate — rilancia il rilevamento per applicarle",
+      "save_failed": "Impossibile salvare le impostazioni",
+      "redetect_started": "Rilevamento avviato; viene eseguito in background",
+      "redetect_failed": "Impossibile avviare il rilevamento"
     }
   }
 }

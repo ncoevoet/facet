@@ -24,7 +24,7 @@ from api.routers.burst_culling import (
 _SCHEMA = """
     CREATE TABLE photos (
         path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
-        aesthetic REAL, tech_sharpness REAL, is_blink INTEGER, is_burst_lead INTEGER,
+        aesthetic REAL, tech_sharpness REAL, is_blink INTEGER, is_burst_lead INTEGER, is_sequence_lead INTEGER DEFAULT 0,
         burst_group_id INTEGER, burst_reviewed INTEGER DEFAULT 0,
         similarity_reviewed INTEGER DEFAULT 0, eyes_open_score REAL,
         expression_score REAL, face_count INTEGER DEFAULT 0, category TEXT,

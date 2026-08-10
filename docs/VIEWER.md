@@ -274,7 +274,9 @@ later ranking.
 pan that follows a moving subject are the same measurement — so a residual error
 rate is inherent, measured at roughly 4%. A correction ("this is not a panorama"
 / "these frames are one") is sticky: it lives in its own table and survives every
-later detection run, which clears and rewrites the labels it produced.
+later detection run, which clears and rewrites the labels it produced. **There is
+no button for this yet** — it is currently API-only, via
+`POST /api/culling-groups/override_sequence` and `/clear_sequence_override`.
 
 **Tuning it.** The Panoramas tab under Compare exposes the thresholds that were
 actually calibrated against labelled sets — minimum frames, minimum sweep,

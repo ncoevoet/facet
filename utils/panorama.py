@@ -75,6 +75,9 @@ DEFAULTS = {
     'probe_stride': 8,
     'probe_min_drift': 0.05,
     'workers': 0,
+    # A sweep never needs this many frames; the cap bounds the per-run
+    # feature cache, which holds ~220 KB per frame per worker.
+    'max_run_frames': 500,
     # A panorama is HDR when its frames span a real exposure ladder.
     'hdr_min_span_stops': 1.5,
 }
@@ -155,7 +158,11 @@ def _is_static_run(conn, paths, sift, matcher, settings, cache):
     that fails to match means large motion and escalates; only a confident static
     match at every probe abandons the run.
     """
-    stride = settings['probe_stride']
+    # Floored: a hand-edited config bypasses the API's bounds, and the sibling
+    # keys use 0 as a "pick for me" sentinel, so `probe_stride: 0` is a
+    # plausible edit. It would make this loop never advance -- and the scan
+    # would hang holding the library lock, which no exception guard catches.
+    stride = max(1, int(settings['probe_stride']))
     if len(paths) < stride + 1:
         return False
     index = 0
@@ -276,7 +283,7 @@ def _load_candidates(conn, settings):
             continues = (photo['camera_model'] == previous['camera_model']
                          and photo['focal_length'] == previous['focal_length']
                          and 0 <= gap <= settings['max_gap_seconds'])
-            if continues:
+            if continues and len(current) < settings['max_run_frames']:
                 current.append(photo)
                 continue
         if len(current) >= settings['min_frames']:

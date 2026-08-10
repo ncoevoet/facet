@@ -2086,6 +2086,7 @@
     "probe_stride": 8,
     "probe_min_drift": 0.05,
     "workers": 0,
+    "max_run_frames": 500,
     "hdr_min_span_stops": 1.5
   },
   "updates": {

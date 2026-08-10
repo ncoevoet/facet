@@ -1270,6 +1270,7 @@ Visualización y comportamiento de la galería web.
       "hide_bursts": true,
       "hide_duplicates": true,
       "hide_brackets": true,
+      "hide_panoramas": true,
       "hide_details": true,
       "tooltip_mode": "hover",
       "hide_rejected": true,
@@ -1353,6 +1354,7 @@ Visualización y comportamiento de la galería web.
 | `hide_bursts` | `true` | Mostrar solo la mejor de la ráfaga por defecto |
 | `hide_duplicates` | `true` | Ocultar las fotos duplicadas no principales por defecto |
 | `hide_brackets` | `true` | Mostrar solo la exposición base de cada horquillado por defecto |
+| `hide_panoramas` | `true` | Mostrar solo un fotograma representativo por panorámica por defecto |
 | `hide_details` | `true` | Ocultar los detalles de la foto en las tarjetas por defecto |
 | `tooltip_mode` | `"hover"` | Activación del tooltip: `"hover"`, `"click"` u `"off"`. Sustituye al booleano `hide_tooltip` anterior. |
 | `hide_rejected` | `true` | Ocultar las fotos rechazadas por defecto |

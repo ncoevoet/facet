@@ -564,7 +564,8 @@
     "remove_favorite": "Remove from favorites",
     "mark_rejected": "Mark as rejected",
     "unmark_rejected": "Remove rejected mark",
-    "rejected_badge": "Rejected"
+    "rejected_badge": "Rejected",
+    "rating_badge": "Rated {stars}"
   },
   "similar": {
     "title": "Similar Photos",
@@ -2394,7 +2395,11 @@
       "hdr_span_hint": "Plain sweeps span 0.0-0.7 stops, HDR ones 2.0-4.4",
       "save": "Save",
       "redetect": "Re-run detection",
-      "redetect_tooltip": "Re-labels the whole library; takes several minutes"
+      "redetect_tooltip": "Re-labels the whole library; takes several minutes",
+      "saved": "Settings saved — re-run detection to apply them",
+      "save_failed": "Could not save the settings",
+      "redetect_started": "Detection started; it runs in the background",
+      "redetect_failed": "Could not start detection"
     }
   }
 }

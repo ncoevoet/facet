@@ -463,3 +463,57 @@ class TestStaticRunProbe:
             conn.commit()
 
         assert self._probe(db, [r[0] for r in rows]) is False
+
+
+class TestConfigGuards:
+    """A hand-edited config bypasses the API's bounds entirely."""
+
+    def test_a_zero_probe_stride_does_not_hang(self):
+        """`probe_stride: 0` is a plausible "disable it" edit.
+
+        The sibling keys use 0 as a "pick for me" sentinel, and the loop it
+        drives advances by the stride -- so 0 spun forever while the scan held
+        the library lock, which no exception guard catches.
+        """
+        from utils.panorama import _is_static_run
+
+        calls = []
+
+        class _Sift:
+            def detectAndCompute(self, *_):
+                return None, None
+
+        def fake_features(conn, path, sift, cache):
+            calls.append(path)
+            if len(calls) > 500:
+                raise AssertionError("_is_static_run did not advance")
+            return None
+
+        import utils.panorama as module
+        original = module._features
+        module._features = fake_features
+        try:
+            assert _is_static_run(None, _paths(12), _Sift(), None,
+                                  _settings(probe_stride=0), {}) is False
+        finally:
+            module._features = original
+
+    def test_a_run_is_capped_so_the_feature_cache_stays_bounded(self, tmp_path):
+        """Each cached frame holds ~220 KB per worker, and a run was unbounded."""
+        from db.schema import init_database
+        from utils.panorama import _load_candidates
+
+        db = tmp_path / 'cap.db'
+        init_database(str(db))
+        rows = [(f'/f{i}.jpg', f'f{i}.jpg', f'2025:04:15 12:{i // 60:02d}:{i % 60:02d}',
+                 'Canon EOS R6', 24.0) for i in range(60)]
+        with sqlite3.connect(db) as conn:
+            conn.executemany(
+                "INSERT INTO photos (path, filename, date_taken, camera_model, focal_length) "
+                "VALUES (?,?,?,?,?)", rows)
+            conn.commit()
+            conn.row_factory = sqlite3.Row
+            runs = _load_candidates(conn, _settings(max_run_frames=10))
+
+        assert runs, "expected the frames to form candidate runs"
+        assert max(len(run) for run in runs) <= 10

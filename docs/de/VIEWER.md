@@ -453,6 +453,18 @@ API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
 Siehe [Konfiguration — Kapseln](CONFIGURATION.md#capsules) für alle Einstellungen.
 
+## Panoramen und Belichtungsreihen
+
+Die Bilder eines Panoramas wurden zum Zusammenfügen aufgenommen, die einer Belichtungsreihe zum Verschmelzen — beides sind keine konkurrierenden Aufnahmen. Die Serienerkennung sieht den Unterschied nicht: Die Bilder treffen Sekunden auseinander von einer Kamera bei einer Brennweite ein. Ohne dies gruppiert sie sie und blendet alle bis auf eines aus, dessen Auswahlkriterium für einen Schwenk nichts bedeutet.
+
+**In der Galerie.** „Bestes der Belichtungsreihe" und „Bestes des Panoramas" (beide standardmäßig an) klappen jede Serie hinter ein repräsentatives Bild: die Basisbelichtung bei einer Reihe, das mittlere Bild bei einem Panorama. Dieses Bild trägt unten ein kleines Symbol neben Stern und Herz, das benennt, wofür es steht — einfacher Schwenk, HDR-Schwenk oder Belichtungsreihe — mit Tooltip. Das Symbol erscheint nur, solange der zugehörige Filter den Rest der Serie tatsächlich ausblendet.
+
+**Beim Aussortieren.** Das Granularitätsmenü bietet „Belichtungsreihen", „Panoramen" und „HDR-Panoramen" als eigene Ansichten, nie in „Alle" zusammengeführt. Jedes Bild ist von vornherein als Behalten markiert, und das Bestätigen einer Serie zeichnet keine Vergleichspaare auf: Eine Sprosse einer Belichtungsleiter oder ein Bild eines Schwenks zu bevorzugen beschreibt die Aufnahmeart, nicht das Bild.
+
+**Eine Serie korrigieren.** Geometrie kann Absicht nicht rekonstruieren — ein bewusster Schwenk und ein Mitzieher auf ein bewegtes Motiv sind dieselbe Messung — daher ist eine Restfehlerquote von rund 4 % inhärent. Eine Korrektur ist dauerhaft und überlebt jede spätere Erkennung. **Eine Schaltfläche dafür gibt es noch nicht**: Sie läuft über die API, `POST /api/culling-groups/override_sequence` und `/clear_sequence_override`.
+
+**Feinjustieren.** Der Reiter Panoramen unter Vergleichen zeigt die Schwellenwerte, die tatsächlich an etikettierten Serien kalibriert wurden. Speichern allein ändert nichts: Die Erkennung ist ein Stapellauf über die ganze Bibliothek, deshalb bietet der Reiter neben dem Speichern einen erneuten Durchlauf an. Siehe [CONFIGURATION.md](CONFIGURATION.md).
+
 ## Ordner-Ansicht
 
 Durchsuchen Sie Ihre Fotobibliothek nach Verzeichnisstruktur. Zugriff über die Route `/folders`.

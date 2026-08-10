@@ -1892,16 +1892,20 @@ def _apply_auto_cull_group(conn, group, keep_paths, reject_paths, user_id, vis_s
     number of comparison pairs inserted.
     """
     gtype = group['type']
+    keep_whole = group.get('sequence_kind') in _KEEP_WHOLE_KINDS
     if gtype == 'burst':
         _mark_burst_reviewed(conn, keep_paths, reject_paths)
     elif gtype == 'similar':
         _mark_similarity_reviewed(conn, keep_paths + reject_paths, vis_sql, vis_params)
     set_photos_rejected(conn, reject_paths, user_id)
-    if gtype == 'bracket':
+    if gtype == 'bracket' or keep_whole:
         # Deliberately no comparison pairs. Dropping the flanking exposures of a
         # bracket says nothing about taste -- feeding "base beat -2 EV" to the
         # ranker would teach it that correctly exposed frames win, which is an
-        # artefact of the ladder and would bias every later ranking.
+        # artefact of the ladder and would bias every later ranking. The same
+        # holds for one frame of a pan, and the test is the set's kind rather
+        # than the feed it came through: a wholly-panorama burst group arrives
+        # typed 'burst' and would otherwise have written those pairs.
         return 0
     return record_culling_pairs(
         conn, keep_paths, reject_paths, user_id=user_id, group_type=gtype,
@@ -2023,6 +2027,13 @@ def auto_cull(
                     continue
                 if group['type'] == 'bracket':
                     keep, reject = _bracket_keep_split(photos)
+                elif group.get('sequence_kind') in _KEEP_WHOLE_KINDS:
+                    # Reached through the `all`/`burst` feed, where a sweep is
+                    # still burst-grouped and arrives typed 'burst'. Judging it
+                    # on `type` alone auto-rejected every frame but the
+                    # top-scored one -- destroying the set this feature exists
+                    # to protect, and from a granularity the user never chose.
+                    keep, reject = photos, []
                 else:
                     keep, reject = _auto_keep_split(
                         photos, strictness, min_keep,

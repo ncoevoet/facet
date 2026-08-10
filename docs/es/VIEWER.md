@@ -452,6 +452,18 @@ API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo
 
 Consulta [Configuración — Cápsulas](CONFIGURATION.md#capsules) para todos los ajustes.
 
+## Panorámicas y bracketing de exposición
+
+Los fotogramas de una panorámica se tomaron para unirse y los de un bracketing para fusionarse: ninguno es un conjunto de tomas rivales. La detección de ráfagas no distingue la diferencia — llegan con segundos de separación, de una cámara, a una focal — y sin esto los agrupa y oculta todos menos uno, elegido con un criterio que no significa nada para un barrido.
+
+**En la galería.** «Mejor del bracketing» y «Mejor de la panorámica» (activados por defecto) contraen cada serie tras un fotograma representativo: la exposición base en un bracketing, el fotograma central en una panorámica. Ese fotograma lleva un pequeño icono abajo, junto a la estrella y el corazón, que nombra lo que representa — barrido simple, barrido HDR o bracketing — con información sobre herramientas. El icono solo aparece mientras el filtro correspondiente oculta realmente el resto de la serie.
+
+**Al descartar.** El menú de granularidad ofrece «Bracketing de exposición», «Panorámicas» y «Panorámicas HDR» como flujos propios, nunca fundidos en «Todo». Todos los fotogramas empiezan marcados para conservar, y confirmar una serie no registra pares de comparación: preferir un peldaño de una escala de exposición, o un fotograma de un barrido, describe cómo se tomó la serie, no la fotografía.
+
+**Corregir una serie.** La geometría no puede recuperar la intención — un barrido deliberado y un barrido que sigue a un sujeto en movimiento son la misma medida — así que una tasa de error residual de cerca del 4 % es inherente. Una corrección es persistente y sobrevive a cada detección posterior. **Todavía no hay un botón**: se hace por la API, `POST /api/culling-groups/override_sequence` y `/clear_sequence_override`.
+
+**Ajustar la detección.** La pestaña Panorámicas, bajo Comparar, expone los umbrales realmente calibrados con series etiquetadas. Guardarlos no cambia nada por sí solo: la detección es una pasada por lotes sobre toda la biblioteca, así que la pestaña ofrece una nueva ejecución junto al guardado. Véase [CONFIGURATION.md](CONFIGURATION.md).
+
 ## Vista de carpetas
 
 Explora tu biblioteca de fotos por la estructura de directorios. Accede mediante la ruta `/folders`.

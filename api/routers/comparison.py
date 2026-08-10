@@ -1624,6 +1624,7 @@ class PanoramaDetectionBody(BaseModel):
     probe_stride: int
     probe_min_drift: float
     workers: int
+    max_run_frames: int
     hdr_min_span_stops: float
 
 

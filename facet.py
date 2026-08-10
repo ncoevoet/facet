@@ -654,7 +654,17 @@ def detect_all_sequences(db_path, config_path):
     from utils.panorama import detect_panoramas
 
     brackets = detect_sequences(db_path, config_path=config_path)
-    panoramas = detect_panoramas(db_path, config_path=config_path)
+    try:
+        panoramas = detect_panoramas(db_path, config_path=config_path)
+    except Exception:
+        # Contained here rather than at each caller. The bracket pass is
+        # arithmetic over stored columns and keeps failing loudly as it always
+        # has; the panorama pass is a CV pass over thumbnails plus a process
+        # pool, and it is new. Letting it fail a whole --recompute-average, or
+        # abort a scan before tagging and moments, would trade work that
+        # succeeded for a set-labelling step nothing downstream depends on.
+        logger.warning("Panorama detection failed (non-fatal)", exc_info=True)
+        panoramas = None
     return brackets, panoramas
 
 
@@ -1411,14 +1421,7 @@ def _run_scan(args, resumed_run):
     # and move each group's lead onto its base exposure. Must follow the bursts
     # step: it is that grouping it corrects.
     emit_progress('sequences', force=True)
-    try:
-        detect_all_sequences(scorer.db_path, scorer.config.config_path)
-    except Exception:
-        # Was pure arithmetic over stored EXIF; it now also runs a CV pass over
-        # thumbnails and a process pool. Letting that abort the scan would throw
-        # away tagging, moments, junk and vec population -- and the GPU work
-        # already done -- over a set-labelling step nothing downstream needs.
-        logger.warning("Sequence/panorama detection failed (non-fatal)", exc_info=True)
+    detect_all_sequences(scorer.db_path, scorer.config.config_path)
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
     emit_progress('tagging', force=True)

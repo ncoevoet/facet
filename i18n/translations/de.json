@@ -568,7 +568,8 @@
     "remove_favorite": "Aus Favoriten entfernen",
     "mark_rejected": "Als abgelehnt markieren",
     "unmark_rejected": "Ablehnung aufheben",
-    "rejected_badge": "Abgelehnt"
+    "rejected_badge": "Abgelehnt",
+    "rating_badge": "Bewertung {stars}"
   },
   "similar": {
     "title": "Ähnliche Fotos",
@@ -2400,7 +2401,11 @@
       "hdr_span_hint": "Einfache Schwenks umfassen 0,0-0,7 Blenden, HDR 2,0-4,4",
       "save": "Speichern",
       "redetect": "Erkennung erneut ausführen",
-      "redetect_tooltip": "Etikettiert die ganze Bibliothek neu; dauert mehrere Minuten"
+      "redetect_tooltip": "Etikettiert die ganze Bibliothek neu; dauert mehrere Minuten",
+      "saved": "Einstellungen gespeichert — Erkennung erneut ausführen, um sie anzuwenden",
+      "save_failed": "Einstellungen konnten nicht gespeichert werden",
+      "redetect_started": "Erkennung gestartet; sie läuft im Hintergrund",
+      "redetect_failed": "Erkennung konnte nicht gestartet werden"
     }
   }
 }

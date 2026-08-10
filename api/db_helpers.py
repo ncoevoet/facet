@@ -172,7 +172,14 @@ def hide_bursts_sql(table_alias: str = '') -> str:
     they would vanish from the gallery.
     """
     p = f"{table_alias}." if table_alias else ""
-    return f"({p}is_burst_lead = 1 OR {p}is_burst_lead IS NULL OR {p}burst_group_id IS NULL)"
+    # `is_sequence_lead` is exempted because the two hide clauses are ANDed and
+    # pick their representative on unrelated criteria: the burst lead is
+    # score-ranked, the panorama lead is the middle frame by capture. A sweep is
+    # routinely shredded across several burst groups, so with both toggles on --
+    # both ship on -- the two clauses could agree on no frame at all and the
+    # whole set vanished from the gallery.
+    return (f"({p}is_burst_lead = 1 OR {p}is_burst_lead IS NULL "
+            f"OR {p}burst_group_id IS NULL OR {p}is_sequence_lead = 1)")
 
 
 def hide_duplicates_sql(table_alias: str = '') -> str:
