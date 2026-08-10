@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Code Review
 
-Run `/agents:code-review-agent` to review commits and changes. Supports reviewing the last commit, uncommitted changes, or specific files with configurable depth (quick/standard/deep) and focus areas (security, performance, sql, i18n, config).
+Run `/review-all:review-all` to review commits and changes — it takes a target (`last commit`, `--staged`, `PR #N`, `vs <branch>`, paths) and runs parallel agents across standards, bugs, security, DRY, performance, tests, API contracts and a11y/i18n, verifying each finding before reporting.
 
 ## Available Skills
 
@@ -35,6 +35,7 @@ Checklists for recurring multi-file changes — consult before starting:
 | [`new-metric-checklist.md`](.claude/patterns/new-metric-checklist.md) | Adding a new scoring metric (schema, scorer, config validator, API, client) |
 | [`i18n-sync.md`](.claude/patterns/i18n-sync.md) | Adding or renaming user-facing strings across all 6 languages |
 | [`vlm-model-change-checklist.md`](.claude/patterns/vlm-model-change-checklist.md) | Adding/upgrading/renaming/removing a VLM tagging or caption model (config, loaders, all routing sites, docs) |
+| [`panorama-detection.md`](.claude/patterns/panorama-detection.md) | Touching panorama detection, the sequence override table, or any "pending correction" surface |
 
 ## Project Overview
 
@@ -51,173 +52,32 @@ Facet is a multi-dimensional photo analysis engine that examines every facet of 
 
 ## Commands
 
+Every CLI flag lives in [docs/COMMANDS.md](docs/COMMANDS.md) — it is the complete
+reference and a superset of anything listed here. Only the handful used in almost
+every session are repeated below.
+
 ```bash
-# Score photos in a directory (auto multi-pass mode, VRAM auto-detection)
+# Scan / score a directory (auto multi-pass, VRAM auto-detection)
 python facet.py /path/to/photos
 
-# Force single-pass mode (all models loaded at once, requires high VRAM)
-python facet.py /path/to/photos --single-pass
-
-# Run specific pass only
-python facet.py /path/to/photos --pass quality       # TOPIQ only
-python facet.py /path/to/photos --pass quality-iaa   # TOPIQ IAA (aesthetic merit)
-python facet.py /path/to/photos --pass quality-face  # TOPIQ NR-Face (face quality)
-python facet.py /path/to/photos --pass quality-liqe  # LIQE (quality + distortion diagnosis)
-python facet.py /path/to/photos --pass tags          # Configured tagger only
-python facet.py /path/to/photos --pass composition   # SAMP-Net only
-python facet.py /path/to/photos --pass faces         # InsightFace only
-python facet.py /path/to/photos --pass embeddings    # CLIP/SigLIP embeddings only
-python facet.py /path/to/photos --pass saliency      # BiRefNet subject saliency
-
-# Force re-scan of already processed files
-python facet.py /path/to/photos --force
-
-# Resume / selective re-processing
-python facet.py --resume                          # Resume last interrupted/failed scan run
-python facet.py --retry-failed                    # Re-process files that failed last run (or: --retry-failed all)
-python facet.py /path/to/photos --force-since 2026-01-01  # Re-process only photos scanned before date
-
-# Watch mode (daemon re-scanning on new files; optional watchdog package)
-python facet.py /path/to/photos --watch [--watch-debounce 30]
-
-# Preview mode - score sample photos without saving (default: 10 photos)
-python facet.py /path/to/photos --dry-run
-python facet.py /path/to/photos --dry-run --dry-run-count 20
-
-# Re-tag photos with configured tagger model
-python facet.py --recompute-tags
-python facet.py --recompute-tags-vlm    # Re-tag using VLM tagger
-python facet.py --recompute-iqa         # Recompute supplementary IQA (TOPIQ IAA, NR-Face, LIQE) from thumbnails
-python facet.py --recompute-form         # Recompute explainable form metrics: symmetry, balance, edge-entropy, fractal, color_harmony (CPU, from thumbnails)
-python facet.py --recompute-face-signals # Recompute per-face eyes_open_score + smile_score from stored 106-pt landmarks (also runs in --upgrade-db)
-python facet.py --recompute-distortions  # Zero-shot distortion attributes over stored embeddings; prints Spearman correlation vs liqe_score/noise_sigma
-python facet.py --recompute-skin-tone    # Portrait skin-tone naturalness: CIEDE2000 vs CCT skin locus, green/magenta/blue/yellow cast
-
-# Immich sync (push ratings/favorites to an Immich server via REST)
-python facet.py --immich-sync            # Push ratings/favorites to Immich (honors --dry-run and --user)
-python facet.py --immich-test            # Check Immich connectivity + API key
-
-# Narrative moments (zero-shot CLIP + temporal smoothing; cheap — cosine over stored embeddings)
-python facet.py --detect-moments        # Label new photos with their narrative moment (auto-runs at end of each scan)
-python facet.py --recompute-moments     # Re-label the whole library (re-smooths the full timeline)
-
-# Junk sweep (zero-shot non-photo detection: screenshots/documents/receipts/memes/slides; cosine over stored embeddings)
-python facet.py --detect-junk           # Flag junk in new/unevaluated photos (auto-runs at end of each scan)
-python facet.py --recompute-junk        # Re-evaluate junk_kind for the whole library
-python facet.py --discover-moments      # Propose a library-specific moment vocabulary (cluster caption embeddings → scoring_config.discovered.json for review)
-
-# List available models and VRAM requirements
-python facet.py --list-models
-
-# Run diagnostic checks (Python, GPU, deps, config, database)
-python facet.py --doctor
-
-# Recompute aggregate scores using stored embeddings (creates backup first)
-python facet.py --recompute-average
-python facet.py --recompute-category portrait  # Single category only (faster)
-
-# Analyze database and show scoring recommendations
-python facet.py --compute-recommendations
-python facet.py --compute-recommendations --apply-recommendations  # Auto-apply scoring fixes
-
-# Export scores to CSV or JSON for external analysis
-python facet.py --export-csv                    # Auto-named with timestamp
-python facet.py --export-csv output.csv         # Specific filename
-python facet.py --export-json output.json
-
-# Import external editor metadata (ratings/labels/tags) from XMP sidecars into the DB
-python facet.py --import-sidecars               # All photos (newest-wins, tag union)
-python facet.py --import-sidecars /path         # Limit to a path subtree
-python facet.py --import-sidecars --user alice  # Multi-user: write ratings to alice's user_preferences
-
-# Export DB ratings/labels/tags/caption to XMP sidecars (sidecar only by default)
-python facet.py --export-sidecars               # All photos (write/merge <image>.xmp)
-python facet.py --export-sidecars /path         # Limit to a path subtree
-python facet.py --export-sidecars --embed-originals  # Also embed in-file (JPEG/HEIC/TIFF/PNG/DNG); RAW never modified
-python facet.py --export-sidecars --user alice  # Multi-user: export alice's ratings from user_preferences
-
-# Face recognition commands
-python facet.py --extract-faces-gpu-incremental  # Extract faces for new photos only (requires GPU)
-python facet.py --extract-faces-gpu-force        # Re-extract all faces, deletes existing (requires GPU)
-python facet.py --cluster-faces-incremental      # Cluster faces, preserves existing persons (CPU)
-python facet.py --cluster-faces-force            # Full re-cluster, deletes all persons (CPU)
-python facet.py --refill-face-thumbnails-incremental  # Generate missing face thumbnails
-python facet.py --refill-face-thumbnails-force        # Regenerate ALL face thumbnails from original images
-python facet.py --recompute-blinks               # Recompute blink detection for photos with faces
-python facet.py --recompute-burst                # Recompute burst detection groups
-python facet.py --detect-duplicates              # Detect duplicate photos via pHash
-python facet.py --detect-panoramas             # Detect panorama sets geometrically over stored thumbnails (CPU, no decode)
-python facet.py --detect-sequences             # Brackets from stored EXIF, then panoramas from thumbnail geometry (whole library)
-
-# AI captioning
-python facet.py --generate-captions          # Generate AI captions for uncaptioned photos (VLM, GPU)
-python facet.py --extract-gps                # Extract GPS coordinates from EXIF into database
-
-# Saliency commands
-python facet.py --recompute-saliency  # Recompute subject saliency metrics from stored thumbnails (BiRefNet, GPU; --force to redo all)
-
-# Composition commands
-python facet.py --recompute-composition-cpu  # Rule-based (CPU only, fast)
-python facet.py --recompute-composition-gpu  # SAMP-Net (requires GPU)
-
-# Thumbnail management
-python facet.py --fix-thumbnail-rotation  # Fix rotation of existing thumbnails using EXIF data
-
-# Configuration commands
-python facet.py --validate-categories  # Validate category configurations and show list
-
-# Pairwise comparison and weight optimization
-python facet.py --comparison-stats              # Show pairwise comparison statistics
-python facet.py --optimize-weights              # Optimize scoring weights from comparisons (all sources, reliability-weighted)
-python facet.py --optimize-weights --optimize-sources vote,culling  # Restrict training sources
-python facet.py --auto-tune-categories          # Superadmin-only stub: per-category comparison-label readiness for auto-tuning the shared global weights (auto-apply deferred pending labels)
-python facet.py --sync-label-comparisons       # Rebuild rating-derived pairs from stars/favorites/rejections
-python facet.py --mine-insights [report.json]  # Data-mining report: labels, correlations, drift, comparison health
-
-# Face clustering (additional)
-python facet.py --cluster-faces-incremental-named  # Cluster preserving only named persons
-
-# Tag existing photos using stored CLIP embeddings
-python tag_existing.py
-python tag_existing.py --dry-run --threshold 0.25
-
-# Database management
-python database.py                  # Initialize/upgrade schema
-python database.py --info           # Show schema information
-python database.py --migrate-tags   # Populate photo_tags lookup table (faster tag queries)
-python database.py --rebuild-fts    # Rebuild FTS5 full-text search index from captions/tags
-python database.py --populate-vec   # Populate photos_vec table for sqlite-vec vector search
-python database.py --refresh-stats  # Refresh statistics cache for viewer performance
-python database.py --stats-info     # Show statistics cache status and age
-python database.py --vacuum         # Reclaim space and defragment the database
-python database.py --analyze        # Update query planner statistics
-python database.py --optimize       # Run both VACUUM and ANALYZE for full optimization
-
-# Export lightweight viewer database (strips BLOBs, downsizes thumbnails)
-python database.py --export-viewer-db                    # Incremental export to default path
-python database.py --export-viewer-db output.db          # Custom output path
-python database.py --export-viewer-db --force-export     # Full re-export
-
-# Cleanup and storage migration
-python database.py --cleanup-orphaned-persons    # Delete persons with no assigned faces
-python database.py --cleanup-missing-photos     # Remove photos no longer on disk from the database (cascades & clears cache)
-python database.py --cleanup-missing-photos --dry-run # Preview missing photos without deleting
-python database.py --cleanup-missing-photos --force   # Required to proceed when ALL photos look missing (unmounted volume guard)
-python database.py --migrate-storage-fs          # Migrate thumbnails/embeddings from DB to filesystem
-python database.py --migrate-storage-db          # Migrate thumbnails/embeddings from filesystem to DB
-
-# User management (multi-user mode)
-python database.py --add-user USERNAME --role ROLE [--display-name NAME]
-python database.py --migrate-user-preferences --user USERNAME
-
-# Database consistency validation
-python validate_db.py               # Run all consistency checks
-python validate_db.py --auto-fix    # Auto-fix detected issues
-python validate_db.py --report-only # Report only, no prompts
-
-# Run web viewer (FastAPI + Angular on localhost:5000)
+# Run the viewer (FastAPI + Angular on localhost:5000)
 python viewer.py
+
+# Recompute aggregates after a weight, category or scoring-context change
+python facet.py --recompute-average
+
+# Schema init / upgrade
+python database.py
+
+# Tests and lint — ALWAYS the venv interpreter, never system Python
+venv/bin/python -m pytest tests/ -q
+venv/bin/python -m ruff check .
+cd client && npm run test          # Vitest builder, not `ng test`
+cd client && npx tsc --noEmit -p tsconfig.json
 ```
+
+A gate that ran through a pipe reports the pipe's exit code, not the command's —
+use `${PIPESTATUS[0]}` or redirect to a file before calling a suite green.
 
 ## Dependencies
 
@@ -293,7 +153,7 @@ Each category has configurable weights in `scoring_config.json` using `_percent`
 
 ### Category Filters & Modifiers
 
-Each category in `scoring_config.json` has `filters` (numeric ranges, booleans, tags) and `modifiers` (bonus, penalty scaling). Evaluated by `CategoryFilter` in `config/category_filter.py`. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full filter and modifier reference. A `scoring_contexts` block can reorder/exclude categories per album or photo without touching this global priority — see [Viewer API Routes](#viewer-api-routes-new-features) below and [docs/SCORING.md](docs/SCORING.md#scoring-contexts).
+Each category in `scoring_config.json` has `filters` (numeric ranges, booleans, tags) and `modifiers` (bonus, penalty scaling). Evaluated by `CategoryFilter` in `config/category_filter.py`. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full filter and modifier reference. A `scoring_contexts` block can reorder/exclude categories per album or photo without touching this global priority — see [Viewer API Routes](#viewer-api-routes) below and [docs/SCORING.md](docs/SCORING.md#scoring-contexts).
 
 ### Top Picks
 
@@ -339,58 +199,34 @@ Use `ScoringConfig.get_category_tags(category)` to get tag names or `get_tag_voc
 
 ### Database Schema
 
-SQLite table `photos` with columns:
+Column and table definitions live in `db/schema.py` (`PHOTOS_COLUMNS`, the `*_COLUMNS`
+lists and `init_database`), which is the only source that cannot drift. Read it rather
+than a copy. The semantics you cannot read off a column name:
 
-**Core:** path (PK), filename, date_taken, camera_model, lens_model, ISO, f_stop, shutter_speed, focal_length, image_width, image_height
+- **`photos` is rewritten wholesale on rescan** (`INSERT OR REPLACE`), so anything the user
+  set by hand belongs in a side table — see the invariant list under Viewer API Routes.
+- **Sentinels are meaningful:** `junk_kind='not_junk'` and `narrative_moment='other'` mean
+  *evaluated and clean*, NULL means *never evaluated*. The detect passes scope on that
+  difference.
+- **`sequence_*` columns are shared by two passes** — always filter by `sequence_kind`
+  before grouping by `sequence_group_id`.
+- **`is_sequence_lead`** marks the frame that stands for a set (the middle frame of a
+  panorama, the base exposure of a bracket) so the gallery's hide clause is an indexed
+  equality rather than a window function per query.
+- **`sequence_ev_offset`** is signed the way a camera labels an AEB set: `-2` dark, `+2`
+  bright. NULL for panoramas, which have no base exposure.
+- **BLOB columns** (`thumbnail`, `clip_embedding`, `caption_embedding`, `histogram_data`,
+  `face_embedding`) must be excluded from any bulk scan — the ranker's inference pass and
+  the viewer DB export both do this deliberately.
+- **`user_preferences` holds per-user ratings** in multi-user mode; the `photos` rating
+  columns are the single-user/global fallback. A feature that reads one must know which.
 
-**Scores:** aesthetic, face_count, face_quality, eye_sharpness, face_ratio, tech_sharpness, color_score, exposure_score, comp_score, aggregate, aesthetic_iaa, face_quality_iqa, liqe_score, topiq_score, quality_score
-
-**Faces (extended):** face_sharpness, face_confidence, is_silhouette, is_group_portrait, raw_eye_sharpness
-
-**Technical:** noise_sigma, contrast_score, dynamic_range_stops, mean_saturation, is_monochrome, focal_length_35mm, scoring_model, distortion_attributes (JSON, --recompute-distortions), skin_tone_delta, skin_tone_cast (--recompute-skin-tone)
-
-**Histogram:** histogram_spread, histogram_bimodality, mean_luminance, raw_color_entropy, shadow_clipped, highlight_clipped
-
-**Composition:** composition_pattern (SAMP-Net), power_point_score, leading_lines_score, composition_explanation, isolation_bonus
-
-**Form/Color (explainable, opt-in `--recompute-form`):** form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony
-
-**Subject Saliency:** subject_sharpness, subject_prominence, subject_placement, bg_separation
-
-**Burst/Duplicates:** burst_group_id, is_burst_lead, is_blink, duplicate_group_id, is_duplicate_lead, phash
-
-**Sequences (`--detect-sequences`, `--detect-panoramas`):** sequence_group_id, sequence_kind (`bracket` | `panorama` | `hdr_panorama`), sequence_ev_offset (exposure compensation vs the set's base frame, signed like a camera's AEB display: `-2` dark, `+2` bright; NULL for panoramas), is_sequence_lead (the frame that stands for a panorama set, since a pan has no base exposure). Both passes share these columns but own disjoint rows, each clearing and rewriting only its own kind and numbering its sets from 1 — the identity of a set is the pair `(sequence_kind, sequence_group_id)`, so every reader must filter by kind before grouping by id. `facet.detect_all_sequences` runs them in order (brackets first, panoramas superseding for HDR sweeps)
-
-**User Actions:** star_rating, is_favorite, is_rejected
-
-**AI/Content:** caption (VLM-generated text description), caption_translated, caption_embedding (BLOB; text-tower embedding of the caption — the caption-semantic moment signal), narrative_moment (zero-shot scene/activity moment, e.g. `beach`/`celebration`/`other`), narrative_moment_confidence, junk_kind (zero-shot non-photo junk: `screenshot`/`document`/`receipt`/`meme`/`slide`, `not_junk` = evaluated clean, NULL = not evaluated), vlm_critique, vlm_critique_translated (VLM critique cache)
-
-**Location:** gps_latitude, gps_longitude
-
-**Tags/Recognition:** tags (JSON), person_id, face_embedding (BLOB)
-
-**Raw data (for recalculation):** clip_embedding (BLOB), histogram_data (BLOB), raw_sharpness_variance, config_version, scanned_at
-
-**Lookup tables:**
-- `photo_tags(photo_path, tag)` - Normalized tag lookup for fast exact-match queries (replaces `LIKE '%tag%'`)
-- `faces(id, photo_path, face_index, embedding, bbox_*, person_id, confidence, face_thumbnail, eyes_open_score, smile_score)` - Face embeddings and thumbnails for recognition (`eyes_open_score`/`smile_score` per-face, from 106-pt landmarks)
-- `persons(id, name, representative_face_id, face_count, centroid, auto_clustered, face_thumbnail)` - Person clusters (name=NULL for auto-clustered)
-- `albums(id, user_id, name, description, cover_photo_path, is_smart, smart_filter_json, share_token, created_at, updated_at, scoring_context)` - Photo albums (manual, smart, and shared); `scoring_context` is materialized onto member photos via `PUT /api/albums/{id}/scoring_context`
-- `photo_scoring_overrides(photo_path PK, scoring_context, category_override, source, created_at, created_by)` - Sticky per-photo scoring context and/or category override, immune to the `INSERT OR REPLACE` that rewrites `photos` on rescan; resolved at `processing/scorer.py`'s `Facet._determine_photo_category`
-- `album_photos(id, album_id, photo_path, position, added_at)` - Album membership with ordering
-- `album_client_picks(id, album_id→albums CASCADE, photo_path, picked, comment, client_name, created_at, updated_at, UNIQUE(album_id, photo_path))` - Client proofing picks (isolated from owner ratings)
-- `location_names(lat_grid, lon_grid, city, region, country, display_name)` - Reverse geocoding cache (0.1° grid cells)
-- `comparisons(id, photo_a_path, photo_b_path, winner, category, timestamp, session_id, user_id, source)` - Pairwise photo comparisons (`source`: `vote` = explicit A/B, `culling` = derived from burst/similar culling decisions, `rating` = synthetic from star ratings/favorites)
-- `learned_scores(photo_path, learned_score, comparison_count, category, updated_at, user_id)` - Scores derived from comparisons
-- `weight_optimization_runs(id, timestamp, category, comparisons_used, old_weights, new_weights, mse_before, mse_after)` - Weight optimization history
-- `weight_config_snapshots(id, timestamp, category, weights, description, accuracy_before, accuracy_after, comparisons_used, created_by)` - Saved weight configurations
-- `recommendation_history(id, run_timestamp, config_version_hash, issue_type, target_category, target_key, old_value, proposed_value, was_applied)` - Scoring recommendation audit trail
-- `user_preferences(user_id, photo_path, star_rating, is_favorite, is_rejected)` - Per-user photo ratings (multi-user mode)
-- `scan_runs(id, started_at, finished_at, status, mode, args_json, total_files, processed_files, failed_files)` - One row per scan invocation (status: running/completed/interrupted/failed; powers `--resume`)
-- `scan_failures(scan_run_id, path, stage, error, timestamp)` - Per-file scan errors (powers `--retry-failed`)
-- `stats_cache(key, value, updated_at)` - Precomputed statistics with TTL (also holds the persisted percentile snapshot for drift tracking and the `metric_ranges` filter-sidebar bounds/histograms)
-- `photos_fts(path, caption, tags)` - FTS5 virtual table for BM25-ranked text search on captions/tags (content-sync with `photos`)
-- `photos_vec(path, embedding)` - sqlite-vec virtual table for KNN vector search on CLIP/SigLIP embeddings (requires `sqlite-vec`)
+Lookup and side tables: `photo_tags`, `faces`, `persons`, `albums`, `album_photos`,
+`album_client_picks`, `photo_scoring_overrides`, `photo_sequence_overrides`,
+`location_names`, `comparisons`, `learned_scores`, `weight_optimization_runs`,
+`weight_config_snapshots`, `recommendation_history`, `user_preferences`, `scan_runs`,
+`scan_failures`, `stats_cache`, plus the virtual tables `photos_fts` (FTS5) and
+`photos_vec` (sqlite-vec).
 
 ### Performance Optimizations
 
@@ -441,83 +277,55 @@ Two approaches: `--recompute-composition-cpu` (rule-based, fast) and `--recomput
 
 See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workflow, thumbnail storage, blink detection, and viewer integration.
 
-### Viewer API Routes (New Features)
+### Viewer API Routes
 
-**Semantic Search:** `GET /api/search?q=<text>&limit=50&threshold=0.15` — hybrid text-to-image search combining CLIP/SigLIP embedding similarity (70%) with FTS5 BM25 text matching on captions/tags (30%). Uses sqlite-vec KNN when available, falls back to NumPy.
+The route catalogue lives in [docs/VIEWER.md](docs/VIEWER.md) and the handlers in
+`api/routers/` — both stay current on their own, so it is not repeated here. What follows is
+only what reading those two will NOT tell you.
 
-**Albums:** Full CRUD via `GET|POST /api/albums`, `GET|PUT|DELETE /api/albums/{id}`, `GET|POST|DELETE /api/albums/{id}/photos`. Smart albums store filter combinations in `smart_filter_json`. Angular routes: `/albums` (list), `/album/:albumId` (gallery filtered by album). `PUT /api/albums/{id}/scoring_context` / `GET /api/albums/{id}/suggested_context` — see **Scoring Contexts & Category Priority** below.
+#### Invariants that will bite you
 
-**Scoring Contexts & Category Priority:** categories are evaluated in ascending `priority` order and the first filter match wins (`config/scoring_config.py` `determine_category`); a **scoring context** is a named delta over that order — `{label_key, promote: [...], excluded: [...], suggest_from_moments: [...]}` — that promotes some categories, excludes others, and resolves once per context, memoized in `ScoringConfig._context_order_cache`. The `scoring_contexts` config block ships `default` (empty delta) plus `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport`. `GET /api/config/scoring_contexts` lists each with its effective order (open, no auth gate); `PUT /api/config/scoring_contexts/{name}` (edition-gated, `api/config_writes.update_scoring_context`) rewrites ONE context's `{promote, excluded}` delta from the viewer's Scoring Context tab — deliberately the delta only, never a full standalone per-context ordering, so non-promoted categories always keep the global order and a category added later can't be silently missing from six lists; both lists are REQUIRED (a partial body 422s rather than silently clearing the omitted list), an unknown context 404s, and a body that cannot be applied 400s naming the offender — a non-existent category, `default` in either list, or a duplicate in `promote` — while a name in BOTH lists stays accepted (excluded wins) and duplicate exclusions collapse; `label_key`/`suggest_from_moments` and every other context are untouched, and no cache invalidation is needed since `_context_order_cache` is per-instance and every reader builds a fresh `ScoringConfig` per request. `GET|POST /api/config/category_priorities` (edition-gated) reads/reorders the global priority list — `POST` permutes the existing priority multiset onto the new order (`api/config_writes.update_category_priorities`) rather than renumbering, so uniqueness holds and priority values stay meaningful; every writer of `scoring_config.json` — priorities, weights, contexts, the share-secret bootstrap and `api.auth`'s plaintext-password upgrade — shares the single `api.config.CONFIG_WRITE_LOCK`, since they rewrite different parts of one file and two locks lost whole updates. A photo can carry a sticky per-photo `scoring_context` and/or `category_override` in the `photo_scoring_overrides` side table (not columns on `photos`, since `save_photo`/`save_photos_batch` write via `INSERT OR REPLACE` and would silently wipe a new column on rescan); `processing/scorer.py`'s `Facet._determine_photo_category` is the single choke point that resolves override → context → filters, shared by the scan path and `--recompute-average`. `PUT /api/albums/{id}/scoring_context` (edition-gated) sets an album's context and materializes it onto every photo that is a member at that moment (reporting a `conflicts` count for photos that already carried a different one, and `updated` for how many were actually written); a manual album resolves membership from `album_photos`, a smart album has none and resolves live from `smart_filter_json` instead (`_resolve_album_member_paths`), so the stamp is a one-time snapshot, not a subscription — a smart album's newly-matching photos don't inherit it until `PUT` is called again, though `append_album_photos` does re-apply it to photos later added to a manual album. `DELETE /api/albums/{id}/scoring_context` clears the album's context and undoes the stamp on exactly the members it set (`source = 'album:<id>'`), leaving other overrides untouched. `GET /api/albums/{id}/suggested_context` proposes one from the album's dominant `narrative_moment` via `suggest_from_moments` — suggestion only, writes nothing. `POST /api/comparison/override_category` now validates the category name and records a sticky override (previously it wrote `photos.category` directly with nothing marking it manual, so the next `--recompute-average` silently discarded it); `POST /api/comparison/clear_category_override` reverts to filter evaluation. Neither lever rescores photos by itself — trigger `POST /api/scan/recompute` (see **Scan** below). Column: `albums.scoring_context`. Table: `photo_scoring_overrides(photo_path PK, scoring_context, category_override, source, created_at, created_by)`. Known limitation: `api/types.py` builds the gallery's type/filter dropdown from `get_categories()` once at import time, so a priority reorder only restyles the dropdown ordering after a server restart (filtering itself is unaffected).
-
-**AI Critique:** `GET /api/critique?path=<photo_path>&mode=rule|vlm` — rule-based score breakdown (all profiles) or VLM-powered critique (16gb/24gb only). `mode=vlm` uses a configurable structured prompt (`critique.vlm`), caches to `photos.vlm_critique`, and translates on demand (`refresh=true` regenerates). The per-face batch endpoint `POST /api/culling-group/faces` now returns persisted `eyes_open_score`/`smile_score` plus a `thresholds` object.
-
-**Saliency Overlay:** `GET /api/saliency_overlay?path=` returns a translucent BiRefNet heatmap PNG (alpha = saliency) recomputed on demand from the stored 640px thumbnail (the mask is never persisted; the model loads once via `api/model_cache.get_or_load_saliency_scorer`). `GET /api/photo/face_markers?path=` returns per-face boxes + eye centres (normalised 0..1) and `eyes_open_score`/`is_blink` reconstructed from stored 106-point landmarks (no model). Both read-only; the critique dialog's "Show overlay" toggle composites them. Gated by `viewer.features.show_saliency_overlay` (default `true`).
-
-**Saliency-Aware Social Crop:** `GET /api/photo/social_crop?path=&preset=` (edition-gated) returns the CROPPED full-resolution JPEG for a configured social aspect preset (`social_export.presets`, e.g. `square` 1:1, `portrait_4x5`, `story_9x16`), framing the detected subject — something Lightroom export presets cannot do. The crop is the largest rectangle of the target aspect that fits the image, centered on the subject, clamped at edges (deterministic pure math in `processing/social_crop.py`). Subject box fallback chain: persisted BiRefNet box `photos.subject_bbox` (JSON `[x0,y0,x1,y1]` normalized 0..1, written by the saliency pass + `--recompute-saliency`, extracted in `models/saliency_scorer.bbox_from_mask`) → union of `faces` bboxes → center crop. `GET /api/photo/social_crop/preview?path=&preset=` returns just `{preset, aspect, source: saliency|faces|center, rect}` (normalized) from stored dimensions — no original decode — for the UI overlay/tooltip. Original decode reuses `utils.image_loading.load_image_from_path` (RAW via rawpy, HEIC via pillow-heif, EXIF orientation applied). Config: `social_export` block (`presets`, `jpeg_quality`). Gated by `viewer.features.show_social_export` (default `true`). Column: `subject_bbox`.
-
-**Memories:** `GET /api/memories?date=YYYY-MM-DD` — photos taken on the same calendar date in previous years ("On This Day"). The viewer plays the matches as a randomized full-screen diaporama (slideshow) rather than the old grid modal; the nav button tooltip spells this out.
-
-**AI Captioning:** `GET /api/caption?path=<path>` — generate or retrieve AI caption for a photo. Bulk generation via `--generate-captions` CLI.
-
-**Timeline:** `GET /api/timeline?cursor=&limit=&direction=` and `GET /api/timeline/dates?year=&month=` — chronological photo browsing with date navigation. Angular route: `/timeline`.
-
-**Photo Sharing:** `POST|DELETE /api/albums/{id}/share` to generate/revoke share tokens, `GET /api/shared/album/{id}?token=` for public access. Angular route: `/shared/album/:id`.
-
-**AI Culling (Similar Groups):** `GET /api/similar-groups?threshold=&page=&per_page=` — groups of visually similar photos for culling, accessible via similarity tab in burst culling.
-
-**Map View:** `GET /api/photos/map?bounds=&zoom=&limit=` and `GET /api/photos/map/count` — geotagged photo locations for Leaflet map. Angular route: `/map`.
-
-**Capsules:** `GET /api/capsules?page=&per_page=&refresh=&date_from=&date_to=` — curated photo diaporamas grouped by theme. The page header carries an intro line explaining its purpose (curated diaporamas grouped by theme/place/people/time; click a capsule to play it). `GET /api/capsules/{id}/photos` — photos for a capsule. `POST /api/capsules/{id}/save-album` — save capsule as album. Angular route: `/capsules`. Capsule types: journey (GPS trips with reverse geocoding), faces_of, seasonal, golden, color_story, this_week, location, person_pair, seeded, progress, color_palette, rare_pair, favorites, plus dimension-based: year, month, week, camera, lens, tag, day_of_week, composition, focal_range, category, time_of_day, star_rating, and cross-dimensional combos. Slideshow supports themed transitions (crossfade, slide, zoom, kenburns) per capsule type. Cache TTL configurable via `capsules.freshness_hours` (default: 24).
-
-**Burst Culling:** `GET /api/burst-groups`, `POST /api/burst-groups/select`, `GET /api/culling-groups?group_by=all|burst|similar|scene|bracket|panorama|hdr_panorama`, `POST /api/culling-groups/confirm` — burst, similar, scene and bracket group culling workflow. `group_by` (default `all` = merged burst+similar, unchanged for existing callers) selects the grouping; `group_by=bracket` serves exposure-bracket sets (`--detect-sequences`) base-frame-first, deliberately never folded into `all` so a bracket is not read as competing takes — each group carries `type:'bracket'` + `sequence_kind`, each photo its `sequence_ev_offset`, the client pre-marks every frame as keep, and confirming one rejects the non-kept frames WITHOUT recording comparison pairs (preferring one rung of an exposure ladder says nothing about taste and would bias the ranker). `sort` accepts `chronological` (oldest first, and the only mode that also re-orders photos WITHIN a group into capture order, applied after `best_path`/`cull_reason` are computed); `direction=asc|desc` flips whichever sort is active, empty keeping each mode's natural direction. `group_by=scene` serves chronological scene groups from `compute_scenes` (the `sort` param is ignored in scene mode), each with `type:'scene'` plus `start`/`end`/`moment`/`moment_confidence`. `POST /api/culling-groups/confirm` is the unified confirm for every group type — scene culling passes `{group_id, type:'scene', paths, keep_paths}` (handled by `apply_scene_cull()` in `api/routers/scenes.py`), rejecting non-kept photos and recording `source='culling'` comparison rows. `POST /api/culling-group/faces` (body `{paths}`) returns per-face crops + metrics (`eyes_open_score`, `expression_score`, `confidence`, `is_blink`) for every photo in a group in one batch call, recomputed from stored 106-point landmarks — powers the per-face badges in the culling lightbox. `GET /api/photo/cull_preview?path=&style=` (edition-gated) renders a photo's original through a configured darktable style (`--style`, bounded to `raw_processor.darktable.preview_max_edge`) so the darkroom's single view can cull on the developed look; it reuses the download path's darktable-cli machinery and disk-caches rendered JPEGs (keyed by source mtime, style, max edge) under `<db_dir>/.facet_cache/cull_previews/`. `style` is validated against `raw_processor.darktable.cull_styles` (400 otherwise); darktable-cli missing → 503, unreadable original → 404, render error/timeout → 502. The configured styles are surfaced in `GET /api/config` (`cull_styles`, only when non-empty AND the executable resolves) so the palette control hides when unavailable.
-
-**Panorama Detection:** `--detect-panoramas` labels panorama source frames so they are kept whole instead of culled as competing takes. The evidence is geometric, not metadata — nothing in EXIF identifies a pan (one confirmed set was shot with locked exposure, another on auto) — so consecutive frames are matched with SIFT + RANSAC homography over the stored 640px thumbnails (no original decode, no model, `opencv-python` already a hard dependency). The discriminator is **cumulative drift, not per-pair shift**: real panoramas are shot at ~90% overlap so one step moves 5-18% of the frame, while over a run a burst wobbles around zero (0.01 frame widths measured) and a sweep marches (0.56-2.83 measured). Requiring every pair to shift would reject every HDR panorama, whose frames hold still while the bracket fires; the rule is instead "no step goes backwards and the total marches", which tolerates the static bracket steps for free. `panorama` vs `hdr_panorama` splits on exposure spread (`hdr_min_span_stops`), NOT on how many steps are static — that cannot tell "static because bracketing" from "static because barely moving" and misclassified six low-drift non-panoramas as HDR. Calibrated against 26 confirmed panoramas and 8 confirmed non-panoramas on a 126k library: **~96% precision, recall deliberately incomplete** (vertical low-drift sweeps and few-position panoramas fall below the drift floor, inside the confirmed-negative distribution, and no threshold recovers them without admitting reportage). Three approaches were falsified and are recorded in `utils/panorama.py` so they are not retried: per-pair shift magnitude, pure-rotation focal recovery (`K R K^-1`, ill-conditioned at these overlaps — one 33-frame sweep recovered focals from 22 to 2461 px), and exposure lock. Because geometry cannot recover intent, sticky per-set overrides (`POST /api/culling-groups/override_sequence` / `clear_sequence_override`, `photo_sequence_overrides` table) correct both directions and survive the pass's clear-and-rewrite — keyed on member paths, never on `sequence_group_id`, which is renumbered every run. Thresholds are editable from the viewer (`GET /api/config/panorama_detection` is open, like `GET /api/config/scoring_contexts`, since it only describes how the library was labelled; `PUT` is edition-gated, under `CONFIG_WRITE_LOCK`) and `POST /api/scan/detect_panoramas` re-runs detection, which is required for an edit to reach the gallery — detection is a batch pass, not a live query. The pass is **whole-library in coverage but incremental in cost** on the scan tail (`detect_all_sequences(..., incremental=True)` from a scan, `--recompute-average` and `--recompute-burst`): candidate runs are still all resolved and every label rewritten, but only runs holding a photo scanned since the last pass are re-measured, the rest being read back from their stored labels (`utils.panorama.split_runs` / `stored_segments`). Measuring every run costs ~7 min on a 126k library, which `--watch` would otherwise pay per settled batch. The watermark lives in `stats_cache` under `panorama_detection:watermark` and carries a fingerprint of the geometry-affecting settings, so editing any threshold invalidates it and the next pass re-measures everything; the explicit `--detect-panoramas` / `POST /api/scan/detect_panoramas` always do, and that entry point alone reports a panorama failure rather than containing it (`contain_failure=False`). Gallery toggle: `hide_panoramas` (default `true`), keyed on `is_sequence_lead`; the representative tile carries a `sequence_kind` badge (shared `SequenceKindIconPipe`), shown only while the matching hide toggle is collapsing the set. Viewer surface: a **Panoramas** tab under Compare exposing the four calibrated thresholds plus the re-run action, and the two correction surfaces the residual error rate needs — each error direction is found somewhere different, so neither surface alone covers both. A **false positive** is corrected in culling (per-group menu: suppress, or relabel plain ↔ HDR); a **miss** is corrected from the gallery selection bar ("Mark as one panorama"), because an undetected sweep appears in NO culling group and so is unreachable from culling by construction. Both are edition-gated, need ≥ 2 frames, and register an `UndoService` command rather than the confirm's 7-second cooldown — the correction takes effect only at the next run, so blocking for 7s buys nothing. Every photo payload carries `sequence_override` (`'suppressed'` when the override's `sequence_kind` is NULL, else the forced kind) **and** `sequence_override_pending`, both correlated PK lookups appended in `api.db_helpers.build_photo_select_columns` + `_culling_photo_columns` rather than a LEFT JOIN per caller; a gallery `sequence_override=any|suppressed|forced` filter lists corrections library-wide, written as an uncorrelated `IN` over the side table and NOT as a correlated `EXISTS`, which made SQLite scan all 126k photos (195 ms against 0 ms measured). The two fields answer different questions and must not be conflated: an override row persists for as long as the correction applies, so only `sequence_override_pending` (`photo_sequence_overrides.applied_at IS NULL`, stamped by `detect_panoramas` at the end of a successful pass) may drive anything that says "pending" — keying the badge on mere existence left it, the culling chip and the re-run banner on screen for ever, silenced only by deleting the correction they described. Corrections are marked **pending**, never applied optimistically: a clock badge on the tile keyed on `sequence_override_pending` (NOT on `sequence_kind` — a forced set has none until the run), a chip on the culling group (`groupOverridePending`, distinct from `groupOverride`), and a banner offering the re-run. Config: `panorama_detection` block.
-
-**Scenes View:** `GET /api/scenes?page=&per_page=&album_id=&date_from=&date_to=` groups burst leads into chronological "scenes" by an adaptive capture-time gap (`scenes.gap_minutes` floor, widened by `adaptive_k × median`), sub-splitting any run over `scenes.max_scene_size` (cache-only, 1h TTL in `stats_cache`); optional `album_id`/`date_from`/`date_to` scope it (this read-only endpoint and `compute_scenes` are unchanged). The Scenes page (`/scenes`) is now a **read-only** browse for all authenticated users (grid + hover loupe + date/moment headers + album scope picker); its former per-photo reject grid and bulk confirm have been removed, and there is no dedicated `POST /api/scenes/confirm` — scene culling runs through the unified `POST /api/culling-groups/confirm` (see Burst Culling). The only entry to the browse is the per-album **Display scenes of this album** action (visible to all authenticated users); the Scenes entry has been removed from the main nav. An edition-only **Cull this scene** button deep-links into the culling surface in scene granularity (`/culling?group_by=scene&album=&from=&to=`), which edition users also reach via the Culling nav's granularity selector. Gated by `viewer.features.show_scenes`. When `narrative_moment` is populated (see below) each scene is named by its dominant moment and (with `scenes.split_on_moment_change`) sub-split where the moment changes.
-
-**Narrative Moments:** zero-shot layered classifier that labels each photo's scene/activity moment with a library-agnostic **general** vocabulary (e.g. `beach`, `celebration`, `cityscape`, `children`, `nature_wildlife`, `concert`, …, or `other`; `wedding` ships as an opt-in `event_type`) — something Narrative Select / AfterShoot don't do. **Caption-semantic**: each caption is encoded once with the text tower and stored in `caption_embedding`; the moment is the best **max-pooled** cosine of that caption embedding vs per-moment text prompts (`models/moment_classifier.py` L0), with the stored image embedding as the fallback when no caption (each signal has its own `other`-gate thresholds — caption cosines run ~2.4× higher). config-driven L1 face/tag priors (`priors.rules`, vocabulary-agnostic `{kind, when, boost}`; tag rules down-weighted on the caption signal via `caption_tag_scale`; per-`event_types` rule overrides) break near-ties; `models/moment_smoothing.py` L2 Viterbi (stay-heavy, no forward bias — the agnostic vocab has no canonical order) and a forward-backward posterior as the stored per-frame confidence (`narrative_moment_confidence`; neutral `0.5` for `other`); an optional, now-implemented L3 Qwen VLM tie-breaker (`vlm_tiebreak.enabled`, default off) re-classifies only low-posterior / low-margin frames on 16gb/24gb profiles during `--detect-moments` / `--recompute-moments`. Config: `narrative_moments` block (`enabled`, `default_event_type`, `pooling`, per-`event_types` prompt vocabulary, per-signal/per-backend `thresholds`, `priors`, `transitions`, `vlm_tiebreak` (`{enabled, min_confidence, min_margin}`), `caption_min_confidence`). Caption embeddings are stored once so re-labelling is a free cosine (no image decode, no per-image model pass); `--detect-moments` auto-runs at the end of every scan (encoding only new captions), the first full backfill over an existing library is a manual `--detect-moments` (GPU recommended; `--limit N` to sample), and `--recompute-moments` re-labels the whole library. Filter the gallery via `GET /api/photos?narrative_moment=` and the `GET /api/filter_options/narrative_moments` dropdown. Columns: `caption_embedding`, `narrative_moment`, `narrative_moment_confidence`. **Confidence consumers:** the stored `narrative_moment_confidence` posterior drives confidence dimming (labels render dimmed with an "(uncertain)" suffix below `viewer.moment_confidence_min`, default `0` = never dim — in the Scenes header, the Culling scene-group header, and the gallery tooltip, which also shows the confidence %), a "Moment Confidence" sort option (NULLs sink) and a `min_moment_confidence` / `max_moment_confidence` gallery range filter (a new sidebar "Moments" section), a caption gate (`narrative_moments.caption_min_confidence`, default `0` = no gate; when > 0, `--generate-captions` and the on-demand caption endpoint skip unlabelled / `other` / below-threshold photos), and is fed as an auto-normalized input feature to the personal ranker and optionally blended into capsule MMR selection via `capsules.mmr_moment_weight` (default `0.0` = unchanged). **Data-driven vocab (opt-in):** `--discover-moments` (`models/moment_discovery.py`) clusters the stored `caption_embedding` vectors (HDBSCAN), names each cluster from its captions (TF-IDF keyword + centroid-nearest captions as prompts), and writes a proposed `event_types.discovered` block to `scoring_config.discovered.json` for review — it never rewrites the active config (`--discover-min-cluster-size N` tunes granularity).
-
-**Junk Sweep:** zero-shot detector that flags non-photo "junk" (screenshots, scanned documents, receipts, memes, presentation slides) by cosine of the **stored image embedding** vs per-kind text prompts, **max-pooled** per kind (`models/junk_classifier.py`), gated by a `not_junk` contrast prompt set — a photo is only flagged when the best junk kind clears `min_confidence` AND beats the best contrast prompt by `min_margin`. No image decode, no per-image model pass (mirrors moments without the temporal smoothing). Clean photos are persisted as the `not_junk` sentinel (like moments' `other`) so `--detect-junk` scopes to genuinely unevaluated rows (`junk_kind IS NULL`) and never re-loads the whole clean library; `--detect-junk` auto-runs at the end of every scan, and `--recompute-junk` re-evaluates the whole library. Config: `junk_sweep` block (`enabled`, `prompt_template`, `pooling`, per-`kinds` prompt lists, `not_junk_prompts`, per-backend `thresholds` `{open_clip|transformers: {min_confidence, min_margin}}`). Column: `junk_kind`. The viewer's **Junk sweep** review queue (`/junk`, nav gated by `viewer.features.show_junk_sweep` + edition) reuses the gallery grid: filter chips per kind (from `GET /api/filter_options/junk_kinds`), per-photo **Keep** (`POST /api/photo/clear_junk` sets `junk_kind='not_junk'` so the photo leaves the queue permanently and is never re-flagged) / **Reject** (existing `POST /api/photos/batch_reject`), and a bulk **Reject all shown**. Filter the gallery via `GET /api/photos?junk_kind=<kind>` (exact) or `junk_kind=any` (any junk, excludes `not_junk`); the default gallery is unchanged (junk stays visible until the user filters). Gated by `viewer.features.show_junk_sweep` (default `true`).
-
-**Personal Ranker ("My Taste"):** `GET /api/ranker/status` returns the global pooled ranker's training status — `trained`, `comparison_count`, `coverage` (share of embedded photos with a `learned_score`), `cv_accuracy`, `baseline_accuracy`, `improvement_pp` — from the `stats_cache` snapshot written by `train_ranker`. Powers the "My Taste" sort confidence badge. Gated by `viewer.features.show_my_taste`. **Auto-retrain** (`optimization/auto_retrain.py`) accumulates a per-scope counter of new comparisons on every rating change and culling confirm; crossing `auto_retrain.threshold` *arms an idle timer* rather than dispatching, and each later action pushes it back, so `train_ranker` runs only after `auto_retrain.idle_seconds` of quiet — never mid-rating-burst, where its write would contend with the user's own saves. The counter is consumed and the single-flight slot claimed only when the worker actually starts. The inference scan excludes the `thumbnail`/`histogram_data`/`caption_embedding` BLOBs and streams rows, and `_persist_scores` commits in `_WRITE_CHUNK` slices with a set-based `photos.learned_score` mirror, so the background write never holds SQLite's single write lock long enough to time out an interactive rating (`api.db_helpers.retry_on_locked` retries those anyway, 503 on exhaustion).
-
-**Keeper-ranking head (auto-cull "a better shot exists"):** a specialization of the personal ranker (`optimization/keeper_head.py`) trained on culling decisions (`source='culling'` pairs) that, *within a burst/scene group*, ranks which frame you'd keep. It reuses the ranker's pairwise-logistic head + k-fold gate, but the gate must beat the **auto-cull heuristic pick** (`processing/burst_score.compute_burst_score`, extracted so the API and the trainer share one formula) — not the `aggregate` baseline. `keeper_prob` is a within-group softmax over the head's raw scores, computed on demand (nothing per-photo persisted); only the trained head is stored as a `stats_cache` snapshot (`keeper_head:<user|global>:<category|all>`). Train via `--train-keeper` (auto-runs with `--train-ranker` after culling confirms via `optimization/auto_retrain.py`). Consumers, all head-gated (zero cost with no head, and byte-identical to the heuristic in auto-cull): `POST /api/culling/auto` picks by `keeper_prob`; `GET /api/culling-groups` carries per-photo `keeper_prob` + per-group `keeper_best_path`; `POST /api/photos/keeper_hints` (body `{paths}`) returns `{path: {has_better, best_path, keeper_prob}}` grouped by `burst_group_id`, feeding a "better shot in this group" badge in the gallery tile + lightbox. v2 (deferred): Phototriage cold-start pretraining, scene-level badge grouping, per-category heads.
-
-**Scan:** `POST /api/scan/start`, `GET /api/scan/status`, `GET /api/scan/stream?token=<jwt>` (SSE), `GET /api/scan/directories` — trigger and monitor scoring scans (superadmin only). The `/stream` endpoint uses Server-Sent Events for real-time progress with automatic fallback to polling. Status payloads include a structured `progress` field (`{phase, current, total, eta_seconds}`) parsed from the CLI's `@FACET_PROGRESS` lines. `POST /api/scan/recompute` (edition-gated, unlike the superadmin-only `/start` — its argv is fixed server-side and takes no request input) triggers `facet.py --recompute-average` as a background subprocess, sharing `_scan_lock`/`_scan_state` with the scan job so two viewer-triggered jobs cannot run concurrently. Both endpoints also peek `facet.LibraryLock` — a kernel file lock (`fcntl.flock`, `msvcrt.locking` on Windows) on `<db_dir>/.facet_cache/library.lock` — and return 409 naming the holder before spawning, so a terminal job and a viewer-triggered one can no longer collide and crash with `SQLITE_BUSY`. The mutex is the OS lock, not the file's existence, so the kernel drops it when the holder dies and a leftover file can never wedge a later job. Every library-rewriting entry point holds it: each flag in `facet.LIBRARY_JOB_ARGS` (a scan for its whole run, post-processing tail included, but NOT `--dry-run`, which writes nothing), the rewriting `database.py` commands (`--vacuum`, `--optimize`, `--analyze`, `--migrate-tags`, `--rebuild-fts`, `--populate-vec`, `--cleanup-*`, `--migrate-storage-*`), `validate_db.py --auto-fix`, `tag_existing.py`, and the viewer's in-process auto-retrain (`optimization/auto_retrain.py`, which defers and hands its counter back rather than joining a running job). `--upgrade-db` is exempt as a whole (it spawns its own locked subprocess chain) but takes the lock around its step-0 schema DDL. The peek is a shared-mode probe, so concurrent peeks cannot manufacture a phantom holder from a finished job's payload. The exclusion is **per host**: `flock` is host-local on SMB/CIFS, so two machines sharing an SMB-mounted DB directory would each believe they hold it — the acquire warns once when it detects such a mount (NFS between Linux clients is unaffected and does not warn). `GET /api/scan/recompute_status` polls `{running, kind, progress, exit_code}`, deliberately omitting the superadmin-only `output_lines` log stream. `update_all_aggregates` now emits `@FACET_PROGRESS` lines too (previously `tqdm`-only), which drives this progress.
-
-**Face Management:** `GET /api/person/{id}/faces`, `POST /api/person/{id}/avatar`, `GET /api/photo/faces`, `POST /api/face/{id}/assign`, `POST /api/photo/assign_all_faces`, `POST /api/photo/unassign_person` — face-to-person assignment and avatar management.
-
-**Photo Actions:** `POST /api/photo/set_rating`, `POST /api/photo/toggle_favorite`, `POST /api/photo/toggle_rejected` — single-photo ratings (DB only, never touch files). Batch variants: `POST /api/photos/batch_favorite`, `POST /api/photos/batch_reject`, `POST /api/photos/batch_rating`.
-
-**Metadata Export:** `POST /api/photo/export_xmp` (single, sidecar only), `POST /api/export/sidecars` (bulk by paths/filters, sidecar only), `POST /api/photo/embed_metadata` (single, embeds into the original file for JPEG/HEIC/TIFF/PNG/DNG via exiftool — the gallery "Write metadata to file" action; RAW originals never modified). All edition-gated.
-
-**Cull to folder:** `POST /api/cull/apply` (edition-gated) physically acts on a culling decision — `copy_keeps` (additive), `move_rejects`, or `trash_rejects` (OS-trash via optional `send2trash`, gated behind `viewer.cull.allow_trash`). `dry_run` defaults true (returns the resolved `would_copy/would_move/would_trash` lists for a preview with no I/O); destructive actions require an explicit `dry_run=false`. The op is bounded server-side to the action's reject state (per-user `is_rejected`): `copy_keeps` acts only on non-rejected photos, `move_rejects`/`trash_rejects` only on rejected ones, so a buggy client can never act outside the user's reject set — the mismatch count is returned as `excluded_by_state`. Destinations go through the same validated `viewer.export.allowed_target_dirs` + scan-dir allow-list as album export; `include_companions` (opt-in, default off — a rejected JPEG must not silently destroy its untouched companion RAW/sidecar) extends the action to the sibling RAW/XMP so a moved shot stays whole. After a real move/trash, run `database.py --cleanup-missing-photos`. `processing.xmp_export.write_metadata(..., embed_original=False)` is sidecar-only by default; embedding is opt-in (this endpoint and the `--export-sidecars --embed-originals` CLI). Keyword lists are read-merged (union), so external Lightroom/darktable keywords are preserved. The CLI `--export-sidecars` / `--import-sidecars` default to the global rating columns; pass `--user <name>` in multi-user mode to read/write that user's `user_preferences` ratings instead (keywords stay global).
-
-**Static Portfolio Export:** `POST /api/albums/{album_id}/export-portfolio` (edition-gated) renders an album into a self-contained static HTML gallery (the thumbsup/sigal use case, native — no external tool) inside a caller-provided `target_dir`. Body `{target_dir, title?, max_edge?, include_captions?}`. The generator (`processing/portfolio_export.py`, pure Python) writes `index.html` (responsive CSS-only grid + inline vanilla-JS lightbox with ZERO external/CDN references — fully offline), an `assets/` folder of sequentially-named JPEGs (no library paths leaked), and a `manifest.json` (counts + per-photo source). Each photo prefers the on-disk ORIGINAL (downscaled to `portfolio.max_edge`, EXIF orientation applied, via `utils.image_loading.load_image_from_path`) and falls back to the stored 640px thumbnail BLOB when the original is unreachable — the source is recorded per photo. `target_dir` is validated by the same `_validate_target_dir_required` allow-list (`viewer.export.allowed_target_dirs` + scan dirs) as cull/album export; album access uses the shared `_check_album_access`; albums over `portfolio.max_photos` (default 500) are refused with a 400. Generation is deterministic and idempotent (rewrites only its own files). Response `{exported, from_original, from_thumbnail, output_dir}`. Config: `portfolio` block. Gated by `viewer.features.show_portfolio_export` (default `true`). See [docs/VIEWER.md](docs/VIEWER.md).
-
-**AI Auto-cull:** `POST /api/culling/auto` (edition-gated) — one-shot cull of a scope (`group_by=all|burst|similar|scene`, optional `album_id`/date range) keeping the best photo per group within a strictness margin. `dry_run` defaults true (returns a per-group preview with no writes); optional Highlights album collects the kept picks. Config: `auto_cull` block.
-
-**Photo Frame / Kiosk:** anonymous, static-token endpoints for login-less kiosk devices (smart photo frames, Home Assistant, ImmichFrame/Immich-Kiosk). `GET /api/frame/photos?token=&count=` → `{photos: [{id, caption?, date_taken?, width, height}]}` where `id` is an opaque signed identifier (the row `rowid` signed with the server secret — **never** a filesystem path). `GET /api/frame/image/{id}?token=&max_edge=` → the photo JPEG (on-disk original downscaled to `frame.max_edge`, falling back to the stored thumbnail when unreachable; long immutable cache). `GET /api/frame/next?token=` → one random curated JPEG per call (`no-store`; the dumb-frame / HA generic-camera case). Auth: `frame.tokens` (opaque strings, compared constant-time as UTF-8 bytes) — empty list → 404 (feature disabled), missing token → 401, wrong/non-ASCII → 403. Curation excludes rejected/junk/blink, honors `min_aggregate`, optional `favorites_only` and `categories` allow-list; `count` capped at `max_count`. Score-weighted random sampling (shuffle of a top-by-score candidate pool). No client UI. Config: `frame` block. See [docs/VIEWER.md](docs/VIEWER.md#photo-frame--kiosk-endpoint).
-
-**Phone Auto-Upload (WebDAV):** a deliberately minimal WebDAV subset under `/dav` (`api/routers/webdav.py`) so phone auto-upload apps (PhotoSync et al.) push photos into an inbox directory that `facet.py --watch` then scores — the PhotoPrism mobile-sync pattern. Methods: `OPTIONS` (advertises `DAV: 1` + `Allow`), `PROPFIND` depth 0/1 (207 multistatus, minimal `xml.etree` propstat), `MKCOL` (201/405/409), `PUT` (streamed to a temp file + `os.replace`, 201 new / 204 overwrite, 413 over `upload.max_file_mb`), `MOVE` (within the share; 201/204, 403 outside), `DELETE` (204), `GET`/`HEAD` (within the share). `LOCK`/`UNLOCK` unimplemented; PROPFIND `infinity` served as depth 1. Auth: HTTP Basic against `upload.username`/`upload.password` (constant-time UTF-8 compare, `WWW-Authenticate: Basic realm="Facet upload"` on 401), never a user session/JWT. The whole tree 404s unless `upload.username`, `upload.password`, and `upload.inbox_dir` are all set. Every path is realpath-contained to `upload.inbox_dir` (traversal / absolute / symlink escape → 403). Config: `upload` block. See [docs/VIEWER.md](docs/VIEWER.md#phone-auto-upload).
-
-**Client Proofing:** `POST /api/shared/album/{id}/session` exchanges a share token (+ optional PIN) for a session; `PUT|GET /api/shared/album/{id}/picks` read/write the client's picks (share-session auth, bounded to album membership); `GET /api/albums/{id}/picks` is the owner view (edition-gated). Picks live in `album_client_picks`, isolated from owner ratings. Gated by `viewer.features.show_proofing` (default `false`).
-
-**Comparison Mode:** Full pairwise comparison workflow — `GET /api/comparison/next_pair`, `POST /api/comparison/submit`, `GET /api/comparison/stats`, `GET /api/comparison/history`, `GET /api/comparison/coverage`, `GET /api/comparison/confidence`, plus weight management via `POST /api/config/update_weights`, `GET /api/config/weight_snapshots`, `POST /api/config/save_snapshot`, `POST /api/config/restore_weights`. Category assignment via `POST /api/comparison/override_category` / `POST /api/comparison/clear_category_override`, and priority/context management via `GET|POST /api/config/category_priorities` / `GET /api/config/scoring_contexts` — see **Scoring Contexts & Category Priority** above.
-
-**Merge Suggestions:** `GET /api/merge_suggestions` — suggested person merges based on face embedding similarity.
-
-**Plugins:** `GET /api/plugins`, `POST /api/plugins/test-webhook` — plugin listing and webhook testing.
-
-**Updates:** `GET /api/updates/check?force=` (edition-gated) — whether a newer Facet release exists than the one running. Server-side and cached in `stats_cache` under `update_check`, so an install asks GitHub at most once per `updates.interval_days` however many clients poll; the request carries no token, identifiers or library data, and an unreachable upstream returns `update_available: false` rather than an error. `utils/version.current_version()` reads `pyproject.toml` FIRST and only falls back to installed distribution metadata — a stale `pip install -e .` egg-info otherwise reported 1.0.1 for a 1.8.2 checkout. The client shows it at most once a week per browser (`facet_release_notice_shown`), and only in edition mode; it is unrelated to the service worker's own `pwa.update_available` reload prompt. Config: `updates` block (`enabled`, `check_url`, `interval_days`).
-
-**Health:** `GET /health`, `GET /ready` — server health and readiness checks.
-
-**i18n:** `GET /api/i18n/languages`, `GET /api/i18n/{lang}` — language list and translation bundles.
-
-**Folders:** `GET /api/folders` — one level of the photo folder structure (`{name, path, photo_count, cover_photo_path}` + `has_direct_photos`), where `path` is directly usable as the gallery's `path_prefix` filter. The Folders view (`/folders`) browses it, and each folder card carries a "filter gallery by this folder" action. The gallery sidebar's **Folder** section (`gallery-filter-sidebar.component.ts`) opens `folder-picker-dialog.component.ts`, a drill-down picker over the same endpoint — a tree is impossible because the endpoint reports no `has_subfolders` and each level costs an uncached subtree scan. Applying sets `path_prefix` (subtree match, `api/routers/gallery.py` `_apply_date_album_geo_filters`), which round-trips through the URL and into `smart_filter_json`. Known limitation: `path_prefix` scopes the photo list only — `/api/filter_options/*`, `/api/type_counts`, `/api/stats/*`, `/api/timeline`, `/api/search` and the map stay library-wide.
-
-**Download:** `GET /api/download/options?path=<path>&is_shared=<bool>` — available download types (original, darktable profiles, raw). `GET /api/download?path=<path>&type=original|darktable|raw&profile=<name>` — download with companion RAW detection and darktable profile conversion.
+- **A sequence set's identity is the pair `(sequence_kind, sequence_group_id)`.** The bracket
+  and panorama passes share those columns, own disjoint rows, and each renumbers its sets from
+  1 every run — so **every reader must filter by kind before grouping by id**. See
+  [.claude/patterns/panorama-detection.md](.claude/patterns/panorama-detection.md).
+- **`sequence_override` means a correction exists; `sequence_override_pending` means it has not
+  been applied.** Never drive a "pending" badge off the first — an override row persists for as
+  long as the correction applies.
+- **Sticky per-photo state goes in a side table, never a new column on `photos`.**
+  `save_photo` / `save_photos_batch` write with `INSERT OR REPLACE`, so a new column is silently
+  wiped on the next rescan. This is why `photo_scoring_overrides` and `photo_sequence_overrides`
+  exist. For the same reason `POST /api/comparison/override_category` records an override rather
+  than writing `photos.category`, which `--recompute-average` would discard.
+- **A scoring context is a *delta* over the global priority order**, never a standalone
+  ordering — so a category added later cannot go missing from six separate lists. `PUT` requires
+  both `promote` and `excluded`; a partial body 422s rather than silently clearing one.
+- **Every writer of `scoring_config.json` shares `api.config.CONFIG_WRITE_LOCK`** — priorities,
+  weights, contexts, panorama thresholds, the share-secret bootstrap and the plaintext-password
+  upgrade. They rewrite different parts of one file, and two locks lost whole updates.
+- **`facet.LibraryLock` is per host.** `flock` is host-local on SMB/CIFS, so two machines sharing
+  an SMB-mounted DB directory would each believe they hold it (the acquire warns once on such a
+  mount; NFS between Linux clients is fine). The mutex is the OS lock, not the file's existence,
+  so a leftover file can never wedge a later job.
+- **Auto-retrain arms on a counter but fires on idle.** Crossing `auto_retrain.threshold` starts
+  an idle timer that each later action pushes back, so the write never lands mid-rating-burst
+  where it would contend with the user's own saves.
+- **Destructive endpoints are bounded server-side, not by the client.** `POST /api/cull/apply`
+  re-derives the target set from the user's own `is_rejected` state and reports the mismatch as
+  `excluded_by_state`; `include_companions` is opt-in because a rejected JPEG must not silently
+  destroy its untouched companion RAW.
+- **`/api/frame/*` ids are signed rowids, never filesystem paths**, and `/dav` authenticates with
+  HTTP Basic against `upload.*` — never a user session or JWT — with every path realpath-contained
+  to `upload.inbox_dir`.
+- **`not_junk` and `other` are stored sentinels, not absences.** They mark a photo as *evaluated
+  and clean*, which is what lets `--detect-junk` / `--detect-moments` scope to genuinely
+  unevaluated rows instead of re-reading the whole library each run.
+- **Known limitation — `path_prefix` scopes the photo list only.** `/api/filter_options/*`,
+  `/api/type_counts`, `/api/stats/*`, `/api/timeline`, `/api/search` and the map stay
+  library-wide.
+- **Known limitation — `api/types.py` builds the gallery type dropdown at import time**, so a
+  category-priority reorder only restyles its ordering after a server restart. Filtering itself
+  is unaffected.
 
 ### Key Implementation Details
 
@@ -532,135 +340,19 @@ See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) for the complete workfl
 - Percentile normalization: scales metrics so 90th percentile maps to 10.0
 - Burst detection groups similar photos within configurable time windows
 
-### Key Configuration Defaults (from scoring_config.json)
+### Key Configuration Defaults
 
-For quick reference, here are the actual defaults from the config file:
+Every key and its default is in [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — do not
+duplicate the table here; it drifted from the shipped defaults twice before it was removed.
+Only the defaults that routinely surprise are worth carrying:
 
-| Section | Key | Default |
-|---------|-----|---------|
-| `burst_detection` | `similarity_threshold_percent` | `70` |
-| `burst_detection` | `time_window_minutes` | `0.8` |
-| `burst_detection` | `rapid_burst_seconds` | `0.4` |
-| `updates` | `enabled` | `true` (weekly upstream release check; `false` = no outbound request) |
-| `updates` | `interval_days` | `7` |
-| `panorama_detection` | `enabled` | `true` |
-| `panorama_detection` | `min_frames` | `8` (strongest discriminator: every confirmed non-panorama was <= 6 frames) |
-| `panorama_detection` | `min_drift` | `0.43` (frame widths; confirmed negatives cluster 0.36-0.40, lowest confirmed positive 0.46) |
-| `panorama_detection` | `hdr_min_span_stops` | `1.5` (plain sweeps span 0.0-0.7 stops, HDR 2.0-4.4) |
-| `sequence_detection` | `enabled` | `true` |
-| `sequence_detection` | `max_gap_seconds` | `3.0` |
-| `sequence_detection` | `min_frames` | `3` |
-| `sequence_detection` | `step_tolerance_stops` | `0.34` |
-| `duplicate_detection` | `similarity_threshold_percent` | `90` |
-| `face_detection` | `min_confidence_percent` | `65` |
-| `face_detection` | `blink_ear_threshold` | `0.28` |
-| `face_detection` | `min_faces_for_group` | `4` |
-| `face_detection` | `eyes_closed_max` | `4.0` |
-| `face_detection` | `poor_expression_min` | `4.0` |
-| `face_detection.blendshapes` | `enabled` | `true` (appearance-based eyes/smile via MediaPipe when installed; else geometry fallback) |
-| `face_detection.blendshapes` | `min_crop_size` | `192` |
-| `processing` | `load_workers` | `num_workers` (multi-pass chunk loader threads, cap 8) |
-| `processing` | `raw_decode_concurrency` | `0` (auto: 1-4 from CPU/RAM; `1` = serialized) |
-| `processing` | `raw_decode_timeout_seconds` | `120` (`0` = disabled) |
-| `processing` | `exif_prefetch` | `true` |
-| `face_clustering` | `min_faces_per_person` | `2` |
-| `face_clustering` | `min_samples` | `2` |
-| `face_clustering` | `merge_threshold` | `0.6` |
-| `face_clustering` | `use_gpu` | `"auto"` |
-| `models` | `keep_in_ram` | `"auto"` |
-| `scoring_contexts` | `default` | `{promote: [], excluded: []}` (empty delta = unchanged priority order; ships alongside `action_stage`, `party_event`, `portrait_session`, `wildlife`, `landscape`, `motorsport` presets) |
-| `viewer` | `edition_password` | `""` (empty = disabled) |
-| `viewer` | `moment_confidence_min` | `0` (0 = never dim moment labels) |
-| `viewer.pagination` | `default_per_page` | `64` |
-| `viewer.dropdowns` | `min_photos_for_person` | `10` |
-| `viewer.defaults` | `type` | `""` (empty = All Photos) |
-| `viewer.defaults` | `sort` | `"aggregate"` |
-| `viewer.defaults` | `sort_direction` | `"DESC"` |
-| `viewer.defaults` | `hide_blinks` | `true` |
-| `viewer.defaults` | `hide_bursts` | `true` |
-| `viewer.defaults` | `hide_duplicates` | `true` |
-| `viewer.defaults` | `hide_brackets` | `true` (gallery shows only a bracket's base exposure; `HIDE_BRACKETS_SQL`, independent of `hide_bursts`) |
-| `viewer.defaults` | `hide_details` | `true` |
-| `viewer.defaults` | `tooltip_mode` | `"hover"` (`hover` \| `click` \| `off` \| `panel`; `panel` docks the details in the end drawer, shares that strip with the filter sidebar and needs a viewport ≥ 1280px) |
-| `viewer.defaults` | `gallery_mode` | `"mosaic"` |
-| `viewer.features` | `show_semantic_search` | `true` |
-| `viewer.features` | `show_albums` | `true` |
-| `viewer.features` | `show_critique` | `true` |
-| `viewer.features` | `show_vlm_critique` | `true` |
-| `viewer.features` | `show_embed_metadata` | `true` |
-| `viewer.features` | `show_memories` | `true` |
-| `viewer.features` | `show_captions` | `true` |
-| `viewer.features` | `show_timeline` | `true` |
-| `viewer.features` | `show_map` | `true` |
-| `viewer.features` | `show_capsules` | `true` |
-| `viewer.features` | `show_my_taste` | `true` |
-| `viewer.features` | `show_scenes` | `true` |
-| `viewer.features` | `show_junk_sweep` | `true` |
-| `viewer.features` | `show_similar_button` | `true` |
-| `viewer.features` | `show_merge_suggestions` | `true` |
-| `viewer.features` | `show_rating_controls` | `true` |
-| `viewer.features` | `show_rating_badge` | `true` |
-| `viewer.features` | `show_folders` | `true` |
-| `viewer.features` | `show_social_export` | `true` |
-| `viewer.features` | `show_portfolio_export` | `true` |
-| `viewer.features` | `show_proofing` | `false` |
-| `social_export` | `jpeg_quality` | `92` |
-| `portfolio` | `max_photos` | `500` |
-| `portfolio` | `max_edge` | `2048` |
-| `portfolio` | `jpeg_quality` | `88` |
-| `capsules` | `freshness_hours` | `24` |
-| `capsules` | `reverse_geocoding` | `true` |
-| `capsules` | `min_aggregate` | `6.0` |
-| `capsules` | `max_photos_per_capsule` | `40` |
-| `capsules` | `mmr_lambda` | `0.5` |
-| `capsules` | `mmr_moment_weight` | `0.0` (0 = unchanged MMR) |
-| `similarity_groups` | `default_threshold` | `0.85` |
-| `similarity_groups` | `min_group_size` | `2` |
-| `similarity_groups` | `max_photos` | `10000` |
-| `similarity_groups` | `max_group_size` | `50` |
-| `scenes` | `gap_minutes` | `20.0` |
-| `scenes` | `max_scene_size` | `60` |
-| `scenes` | `adaptive` | `true` |
-| `scenes` | `adaptive_k` | `6.0` |
-| `scenes` | `min_size` | `2` |
-| `scenes` | `max_photos` | `5000` |
-| `scenes` | `split_on_moment_change` | `false` |
-| `narrative_moments` | `enabled` | `true` |
-| `narrative_moments` | `default_event_type` | `"general"` |
-| `narrative_moments` | `pooling` | `"max"` |
-| `narrative_moments` | `vlm_tiebreak.enabled` | `false` |
-| `narrative_moments` | `vlm_tiebreak.min_confidence` | `0.0` |
-| `narrative_moments` | `caption_min_confidence` | `0` (0 = no caption gate) |
-| `junk_sweep` | `enabled` | `true` |
-| `junk_sweep` | `pooling` | `"max"` |
-| `junk_sweep` | `thresholds.open_clip` | `{min_confidence: 0.2, min_margin: 0.06}` |
-| `junk_sweep` | `thresholds.transformers` | `{min_confidence: 0.1, min_margin: 0.02}` |
-| `piaa_prior` | `enabled` | `false` (personal-ranker cold-start prior blend; validation-gated — the 2026-07-07 offline experiment failed the ship criterion, keep off; see `.claude/specs/piaa-cold-start-design.md`) |
-| `auto_retrain` | `threshold` | `25` (new comparisons before a ranker retrain is armed; env `FACET_RETRAIN_THRESHOLD`) |
-| `auto_retrain` | `idle_seconds` | `60` (quiet period before the armed retrain dispatches, so it never runs mid-rating-burst; `0` = immediate; env `FACET_RETRAIN_IDLE_S`) |
-| `auto_cull` | `default_strictness` | `50` |
-| `auto_cull` | `highlights_min` | `8.0` |
-| `frame` | `tokens` | `[]` (empty = feature disabled → 404) |
-| `frame` | `count` | `20` |
-| `frame` | `max_count` | `100` |
-| `frame` | `min_aggregate` | `7.0` |
-| `frame` | `max_edge` | `1920` |
-| `frame` | `favorites_only` | `false` |
-| `frame` | `categories` | `[]` (empty = all) |
-| `upload` | `username` | `""` (empty = feature disabled → 404) |
-| `upload` | `password` | `""` (empty = feature disabled → 404) |
-| `upload` | `inbox_dir` | `""` (empty = feature disabled → 404) |
-| `upload` | `max_file_mb` | `500` |
-| `distortion_attributes` | `enabled` | `true` |
-| `skin_tone` | `cast_delta_threshold` | `12.0` |
-| `critique.vlm` | `max_new_tokens` | `320` |
-| `vlm_backend` | `type` | `"local"` (`local` \| `ollama` \| `openai_compatible`; remote un-gates VLM on legacy/8gb) |
-| `immich` | `url` | `""` (empty = disabled) |
-| `viewer.proofing` | `session_minutes` | `1440` |
-| `translation` | `target_language` | `"fr"` (supported: fr/de/es/it/pt) |
-| `viewer.raw_processor` | `darktable.executable` | `"darktable-cli"` |
-| `viewer.raw_processor` | `darktable.profiles` | `[]` (array of `{name, hq, width, height, extra_args}`) |
-| `viewer.raw_processor` | `darktable.cull_styles` | `[]` (array of `{name, label_key?}`; edited-look cull preview; empty = hidden) |
-| `viewer.raw_processor` | `darktable.preview_max_edge` | `1440` |
-| `viewer.raw_processor` | `darktable.preview_timeout_seconds` | `60` |
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete reference.
+| Key | Default | Why it surprises |
+|-----|---------|------------------|
+| `viewer.defaults.hide_bursts` / `hide_duplicates` / `hide_brackets` / `hide_panoramas` | `true` | The gallery hides most of a set **by default**, so a bug in a hide clause makes photos vanish rather than duplicate |
+| `viewer.edition_password` | `""` | Empty disables edition gating entirely — the shipped config is an open install |
+| `narrative_moments.caption_min_confidence` | `0` | `0` means *no* gate, not "reject everything" |
+| `viewer.moment_confidence_min` | `0` | Same inversion: `0` = never dim |
+| `piaa_prior.enabled` | `false` | Validation-gated; the 2026-07-07 experiment failed the ship criterion — keep it off |
+| `frame.tokens` / `upload.username` | `[]` / `""` | Empty means the whole feature 404s, not that it is unauthenticated |
+| `auto_retrain.idle_seconds` | `60` | The retrain is *armed* at `threshold` but only fires after this much quiet, so it never lands mid-rating-burst |
+| `panorama_detection.min_frames` | `8` | The strongest discriminator — every confirmed non-panorama was ≤ 6 frames |
