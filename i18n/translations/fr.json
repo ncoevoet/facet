@@ -1218,7 +1218,7 @@
     "moment_confidence_range": "Confiance du moment",
     "compare": {
       "title": "Comparaison de {count} photos",
-      "hint": "Molette pour zoomer, glisser pour déplacer : tous les volets bougent ensemble. Double-clic pour réinitialiser.",
+      "hint": "Molette pour zoomer, glisser pour déplacer : tous les volets bougent ensemble. Double-clic pour réinitialiser.",
       "reset_zoom": "Réinitialiser le zoom"
     }
   },
@@ -1887,8 +1887,8 @@
       "recent": "Les plus récentes",
       "needs_comparisons": "À comparer en priorité",
       "chronological": "Plus anciennes d'abord",
-      "ascending": "Ordre croissant : cliquez pour inverser",
-      "descending": "Ordre décroissant : cliquez pour inverser",
+      "ascending": "Ordre croissant : cliquez pour inverser",
+      "descending": "Ordre décroissant : cliquez pour inverser",
       "tooltip": "Trier les groupes (les plus faciles d'abord, les plus redondants…)"
     },
     "weight_remaining": "{count} avant réglage des poids",
@@ -1983,7 +1983,7 @@
     },
     "bracket": {
       "label": "Bracketing d'exposition",
-      "hint": "Un même sujet à plusieurs expositions : gardez la série, ne choisissez pas"
+      "hint": "Un même sujet à plusieurs expositions : gardez la série, ne choisissez pas"
     }
   },
   "scenes": {
