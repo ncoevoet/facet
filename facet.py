@@ -14,7 +14,11 @@ import time
 
 # Suppress noisy third-party library output
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
-os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "0")
+# Hub progress bars are per-shard weight-loading bars ("Loading weights: 100%
+# ... Materializing param=..."). A multi-pass scan reloads models between every
+# pass, so they redraw hundreds of times over a run and bury the scan's own
+# progress bar. Downloads are logged separately, so nothing is hidden.
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 # Allow unsupported PyTorch MPS operators to run on CPU.  Set this before any
 # dependency has a chance to import torch.
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
@@ -31,8 +35,37 @@ warnings.filterwarnings(
 import logging
 logging.getLogger("transformers").setLevel(logging.ERROR)
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+# timm announces every pretrained-weight fetch; pyiqa announces every network
+# it builds ("Network [CFANet] is created."). Both fire once per model per
+# pass, which on a multi-pass scan is hundreds of lines saying nothing.
+for _noisy in ("timm", "pyiqa", "matplotlib", "PIL", "urllib3"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 logger = logging.getLogger("facet")
+
+
+class _TqdmLoggingHandler(logging.StreamHandler):
+    """Emit through ``tqdm.write`` so log lines do not shred the progress bar.
+
+    A scan prints a live tqdm bar while every pass keeps logging. Writing to
+    the stream directly leaves the record interleaved *into* the bar's line,
+    which is why scan logs are full of half-eaten bars with a timestamp
+    embedded mid-way. ``tqdm.write`` clears the bar, writes, and redraws it.
+    Falls back to the plain StreamHandler behaviour if tqdm is absent.
+    """
+
+    def emit(self, record):
+        try:
+            from tqdm import tqdm
+        except ImportError:
+            return super().emit(record)
+        try:
+            tqdm.write(self.format(record), file=self.stream)
+            self.flush()
+        except RecursionError:
+            raise
+        except Exception:
+            self.handleError(record)
 
 # Ensure the script's directory is in Python path for local imports
 # This allows running the script from any directory
@@ -1562,11 +1595,25 @@ def main():
         except Exception:
             pass
     level_name = (level_name or "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(
-        level=getattr(logging, level_name, logging.INFO),
+        level=level,
         format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[_TqdmLoggingHandler()],
     )
+    # open_clip logs through the *root* logger with bare logging.info() calls
+    # ("Instantiating model architecture", "Loading full pretrained weights
+    # from", "Model ViT-L-14 creation process complete"), so there is no name
+    # to quiet. Raising root's own level silences those without touching us:
+    # a logger's level gates only what is logged directly to it, and records
+    # propagating up from "facet" still reach root's handlers. That requires
+    # our own trees to carry an explicit level rather than inheriting root's --
+    # "api" as well as "facet", since api.* modules name their loggers after
+    # __name__ and the CLI does reach into them.
+    for _ours in ("facet", "api"):
+        logging.getLogger(_ours).setLevel(level)
+    logging.getLogger().setLevel(max(level, logging.WARNING))
 
     parser = argparse.ArgumentParser(
         description='Facet: AI-powered photo quality assessment',
