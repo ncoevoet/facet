@@ -181,6 +181,35 @@ pip install --extra-index-url https://pypi.nvidia.com/ "cuml-cu12"
 
 **Nota:** cuML utiliza su propia implementación de HDBSCAN. Los parámetros `algorithm` y `leaf_size` solo se aplican al agrupamiento por CPU.
 
+### La GPU y la CPU no producen los mismos grupos
+
+Medido en una biblioteca de 145.677 rostros, con los mismos embeddings y los mismos parámetros:
+
+| Rostros | Grupos cuML | Grupos CPU | Proporción |
+|--------:|------------:|-----------:|-----------:|
+| 5.000 | 202 | 181 | 1,12× |
+| 20.000 | 1.285 | 1.039 | 1,24× |
+
+cuML es algo más granular, con una tasa de ruido comparable y un tamaño mediano de grupo idéntico (4). La diferencia es demasiado pequeña para cambiar quién queda agrupado con quién, pero el *número* de grupos no coincidirá entre una ejecución en GPU y otra en CPU.
+
+**cuML tampoco es determinista.** Dos ejecuciones consecutivas en GPU sobre los mismos 145.677 rostros, con parámetros idénticos, solo coincidieron en el **41 % de las etiquetas**, aunque produjeron recuentos de grupos casi iguales (14.809 frente a 14.807) y resultados finales idénticos. La estructura es estable; el etiquetado no. Consecuencias a tener en cuenta:
+
+- **Los identificadores de persona no son reproducibles entre ejecuciones.** No des por hecho que un nuevo agrupamiento conserva la numeración de las personas agrupadas automáticamente: nombra las que te importan, eso es lo que las hace estables.
+- **No compares dos agrupamientos por etiqueta**, compara la pertenencia de los rostros.
+
+El agrupamiento por CPU con un `algorithm` fijo es determinista para la misma entrada.
+
+### Reagrupar y las personas ya nombradas
+
+Todos los modos salvo `--cluster-faces-force` conservan los registros de personas, pero todos borran las asignaciones rostro→persona y las reconstruyen. Un grupo reconstruido se devuelve a una persona cuando:
+
+1. su embedding medio está dentro de `merge_threshold` (0,6 de coseno por defecto) respecto al centroide almacenado de esa persona, **o**
+2. al menos la mitad de sus rostros pertenecían a esa persona antes de la ejecución.
+
+La segunda regla pesa más de lo que parece. El centroide de una persona es un único vector promedio: alguien fotografiado durante años abarca una región amplia, y HDBSCAN lo divide correctamente en subgrupos compactos que quedan lejos de ese promedio y fallan la regla 1. En la biblioteca anterior, la regla 1 por sí sola devolvía el 38 % de los rostros asociados a personas nombradas; con la regla 2 se alcanza el 96 %.
+
+Como la regla 2 se apoya en la asignación previa, un error antiguo se arrastra en lugar de corregirse. Ese es el contrato de un modo cuyo propósito es preservar las personas existentes: usa `--cluster-faces-force` para recalcularlo todo desde cero.
+
 ## Detección de parpadeos
 
 Utiliza el Eye Aspect Ratio (EAR) a partir de los 106 puntos de referencia de InsightFace.

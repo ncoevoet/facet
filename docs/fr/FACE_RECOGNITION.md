@@ -181,6 +181,35 @@ pip install --extra-index-url https://pypi.nvidia.com/ "cuml-cu12"
 
 **Note :** cuML utilise sa propre implémentation de HDBSCAN. Les paramètres `algorithm` et `leaf_size` ne s'appliquent qu'au regroupement sur CPU.
 
+### Le GPU et le CPU ne produisent pas des groupes identiques
+
+Mesuré sur une bibliothèque de 145 677 visages, avec les mêmes embeddings et les mêmes paramètres :
+
+| Visages | Groupes cuML | Groupes CPU | Rapport |
+|--------:|-------------:|------------:|--------:|
+| 5 000 | 202 | 181 | 1,12× |
+| 20 000 | 1 285 | 1 039 | 1,24× |
+
+cuML est légèrement plus granulaire, avec un taux de bruit comparable et une taille médiane de groupe identique (4). L'écart reste trop faible pour changer qui se retrouve groupé avec qui, mais le *nombre* de groupes ne correspondra pas entre une exécution GPU et une exécution CPU.
+
+**cuML n'est pas non plus déterministe.** Deux exécutions GPU consécutives sur les mêmes 145 677 visages, à paramètres identiques, ne s'accordaient que sur **41 % des étiquettes**, tout en produisant un nombre de groupes quasi identique (14 809 contre 14 807) et des résultats finaux identiques. La structure est stable, l'étiquetage ne l'est pas. Conséquences à connaître :
+
+- **Les identifiants de personnes ne sont pas reproductibles d'une exécution à l'autre.** Ne supposez pas qu'un nouveau regroupement conserve la numérotation des personnes auto-groupées — nommez celles qui comptent, c'est ce qui les rend stables.
+- **Ne comparez pas deux regroupements par étiquette.** Comparez plutôt l'appartenance des visages.
+
+Le regroupement CPU avec un `algorithm` fixe est déterministe pour une même entrée.
+
+### Regroupement et personnes déjà nommées
+
+Tous les modes sauf `--cluster-faces-force` conservent les enregistrements de personnes, mais tous effacent les affectations visage→personne et les reconstruisent. Un groupe reconstruit est rendu à une personne lorsque :
+
+1. son embedding moyen se situe à moins de `merge_threshold` (0,6 cosinus par défaut) du centroïde stocké de cette personne, **ou**
+2. au moins la moitié de ses visages appartenaient à cette personne avant l'exécution.
+
+La seconde règle compte plus qu'il n'y paraît. Le centroïde d'une personne est un unique vecteur moyen : quelqu'un photographié pendant des années couvre une région large, et HDBSCAN le découpe correctement en sous-groupes serrés qui se retrouvent loin de cette moyenne et échouent à la règle 1. Sur la bibliothèque ci-dessus, la règle 1 seule rendait 38 % des visages rattachés aux personnes nommées ; avec la règle 2, on atteint 96 %.
+
+Comme la règle 2 s'en remet à l'affectation précédente, une erreur ancienne est reconduite plutôt que corrigée. C'est le contrat attendu d'un mode dont le but est de préserver les personnes existantes — utilisez `--cluster-faces-force` pour tout recalculer de zéro.
+
 ## Détection des clignements
 
 Utilise l'Eye Aspect Ratio (EAR) calculé à partir des 106 points de repère d'InsightFace.

@@ -181,6 +181,35 @@ pip install --extra-index-url https://pypi.nvidia.com/ "cuml-cu12"
 
 **Hinweis:** cuML verwendet seine eigene HDBSCAN-Implementierung. Die Parameter `algorithm` und `leaf_size` gelten nur für CPU-Clustering.
 
+### GPU und CPU liefern nicht dieselben Cluster
+
+Gemessen an einer Bibliothek mit 145.677 Gesichtern, gleiche Embeddings und gleiche Parameter:
+
+| Gesichter | cuML-Cluster | CPU-Cluster | Verhältnis |
+|----------:|-------------:|------------:|-----------:|
+| 5.000 | 202 | 181 | 1,12× |
+| 20.000 | 1.285 | 1.039 | 1,24× |
+
+cuML ist etwas feingliedriger, bei vergleichbarer Rauschrate und identischer medianer Clustergröße (4). Der Unterschied ist zu klein, um zu ändern, wer mit wem gruppiert wird — die *Anzahl* der Cluster stimmt zwischen einem GPU- und einem CPU-Lauf jedoch nicht überein.
+
+**cuML ist zudem nicht deterministisch.** Zwei aufeinanderfolgende GPU-Läufe über dieselben 145.677 Gesichter mit identischen Parametern stimmten nur bei **41 % der Labels** überein, erzeugten dabei aber nahezu gleiche Clusterzahlen (14.809 gegenüber 14.807) und identische Endergebnisse. Die Struktur ist stabil, die Beschriftung nicht. Was daraus folgt:
+
+- **Personen-IDs sind zwischen Läufen nicht reproduzierbar.** Gehen Sie nicht davon aus, dass ein erneutes Clustering die Nummerierung automatisch geclusterter Personen beibehält — benennen Sie die Personen, die Ihnen wichtig sind; das macht sie stabil.
+- **Vergleichen Sie zwei Clustering-Läufe nicht über die Labels**, sondern über die Zugehörigkeit der Gesichter.
+
+CPU-Clustering mit festem `algorithm` ist für dieselbe Eingabe deterministisch.
+
+### Erneutes Clustern und bereits benannte Personen
+
+Alle Modi außer `--cluster-faces-force` behalten die Personendatensätze, löschen aber sämtliche Gesicht→Person-Zuordnungen und bauen sie neu auf. Ein neu gebildeter Cluster wird einer Person zurückgegeben, wenn entweder:
+
+1. sein mittleres Embedding innerhalb von `merge_threshold` (Standard 0,6 Kosinus) zum gespeicherten Zentroid dieser Person liegt, **oder**
+2. mindestens die Hälfte seiner Gesichter vor dem Lauf zu dieser Person gehörte.
+
+Die zweite Regel wiegt schwerer, als sie klingt. Das Zentroid einer Person ist ein einzelner Mittelwertvektor; wer über Jahre fotografiert wurde, deckt einen weiten Bereich ab, und HDBSCAN teilt ihn korrekt in enge Untercluster, die weit von diesem Mittelwert entfernt liegen und an Regel 1 scheitern. In der oben genannten Bibliothek lieferte Regel 1 allein 38 % der Gesichter an benannte Personen zurück; mit Regel 2 sind es 96 %.
+
+Da Regel 2 der früheren Zuordnung folgt, wird ein alter Fehler fortgeschrieben statt korrigiert. Das ist der Zweck eines Modus, der bestehende Personen bewahren soll — mit `--cluster-faces-force` wird alles von Grund auf neu berechnet.
+
 ## Blinzelerkennung
 
 Verwendet die Eye Aspect Ratio (EAR) aus den 106-Punkt-Landmarken von InsightFace.

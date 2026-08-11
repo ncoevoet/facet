@@ -181,6 +181,35 @@ pip install --extra-index-url https://pypi.nvidia.com/ "cuml-cu12"
 
 **Nota:** cuML utilizza la propria implementazione di HDBSCAN. I parametri `algorithm` e `leaf_size` si applicano solo al raggruppamento su CPU.
 
+### GPU e CPU non producono gli stessi gruppi
+
+Misurato su una libreria di 145.677 volti, con gli stessi embedding e gli stessi parametri:
+
+| Volti | Gruppi cuML | Gruppi CPU | Rapporto |
+|------:|------------:|-----------:|---------:|
+| 5.000 | 202 | 181 | 1,12× |
+| 20.000 | 1.285 | 1.039 | 1,24× |
+
+cuML è leggermente più granulare, con un tasso di rumore comparabile e una dimensione mediana dei gruppi identica (4). La differenza è troppo piccola per cambiare chi viene raggruppato con chi, ma il *numero* di gruppi non coinciderà tra un'esecuzione su GPU e una su CPU.
+
+**cuML inoltre non è deterministico.** Due esecuzioni consecutive su GPU sugli stessi 145.677 volti, a parametri identici, hanno concordato solo sul **41% delle etichette**, pur producendo conteggi di gruppi quasi uguali (14.809 contro 14.807) e risultati finali identici. La struttura è stabile, l'etichettatura no. Conseguenze da conoscere:
+
+- **Gli identificatori delle persone non sono riproducibili tra un'esecuzione e l'altra.** Non dare per scontato che un nuovo raggruppamento mantenga la numerazione delle persone raggruppate automaticamente: assegna un nome a quelle che ti interessano, è ciò che le rende stabili.
+- **Non confrontare due raggruppamenti per etichetta**, confronta l'appartenenza dei volti.
+
+Il raggruppamento su CPU con un `algorithm` fisso è deterministico a parità di input.
+
+### Riraggruppamento e persone già nominate
+
+Tutte le modalità tranne `--cluster-faces-force` conservano i record delle persone, ma tutte cancellano le assegnazioni volto→persona e le ricostruiscono. Un gruppo ricostruito viene restituito a una persona quando:
+
+1. il suo embedding medio rientra in `merge_threshold` (0,6 coseno per impostazione predefinita) rispetto al centroide memorizzato di quella persona, **oppure**
+2. almeno metà dei suoi volti apparteneva a quella persona prima dell'esecuzione.
+
+La seconda regola pesa più di quanto sembri. Il centroide di una persona è un singolo vettore medio: chi è stato fotografato per anni copre una regione ampia, e HDBSCAN lo divide correttamente in sottogruppi compatti che finiscono lontano da quella media e falliscono la regola 1. Nella libreria sopra, la sola regola 1 restituiva il 38% dei volti collegati a persone nominate; con la regola 2 si arriva al 96%.
+
+Poiché la regola 2 si affida all'assegnazione precedente, un errore passato viene riportato anziché corretto. È il contratto di una modalità il cui scopo è preservare le persone esistenti: usa `--cluster-faces-force` per ricalcolare tutto da zero.
+
 ## Rilevamento degli occhi chiusi
 
 Utilizza l'Eye Aspect Ratio (EAR) dai 106 punti di riferimento di InsightFace.
