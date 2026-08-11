@@ -6,8 +6,11 @@ similarity to predefined tag vocabulary.
 """
 
 
+import logging
+
 from utils import bytes_to_embedding
 
+logger = logging.getLogger("facet.tagger")
 
 _tokenizer_cache = {}
 
@@ -84,6 +87,9 @@ class CLIPTagger:
         self.backend = backend
         self.text_embeddings = None
         self.tag_names = None
+        # Rows whose stored embedding came from a different image tower. Counted
+        # rather than logged per photo: a library can hold thousands of them.
+        self.skipped_dim_mismatch = 0
 
         # Load vocabulary from config
         self._load_vocabulary()
@@ -146,10 +152,31 @@ class CLIPTagger:
         if self.text_embeddings is None or clip_embedding_bytes is None:
             return []
 
+        embedding = bytes_to_embedding(clip_embedding_bytes)
+
+        # A library outlives the profile that filled it: switching vram_profile
+        # swaps the image tower (CLIP 768 <-> SigLIP 1152) while rows written by
+        # the previous one stay exactly as they were. This tagger's text tower
+        # matches only the active profile, so a row from the other one cannot be
+        # scored against it. Unguarded, that matmul raised a bare shape
+        # RuntimeError that killed the caller's entire pass -- a scan's whole
+        # post-processing tail, tagging through vec population -- rather than
+        # skipping the one photo it could not tag. Checked before the tensor is
+        # built, so a row being discarded never costs a device copy.
+        expected_dim = self.text_embeddings.shape[-1]
+        if len(embedding) != expected_dim:
+            self.skipped_dim_mismatch += 1
+            if self.skipped_dim_mismatch == 1:
+                logger.warning(
+                    "Skipping photos whose stored embedding is %d-dim: this tagger's text "
+                    "tower is %d-dim. Re-embed them under the active profile "
+                    "(--recompute-embeddings) to have them tagged.",
+                    len(embedding), expected_dim)
+            return []
+
         import torch
 
         # Convert bytes back to tensor, matching text_embeddings dtype
-        embedding = bytes_to_embedding(clip_embedding_bytes)
         image_features = torch.tensor(embedding).unsqueeze(0).to(self.device)
         image_features = image_features.to(self.text_embeddings.dtype)
 
