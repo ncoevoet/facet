@@ -461,10 +461,18 @@ class FaceClusterer:
             logger.info("  Processing %s clusters...", total_clusters)
             thumbnails_to_generate = []  # Defer thumbnail generation
 
+            # Row position of every face id, built once. This loop visits every
+            # clustered face, and `face_ids` is a list: a membership test and an
+            # .index() call against it are each O(n), so resolving positions
+            # inline made assignment O(n^2) -- on a 145,677-face library that is
+            # ~4e10 comparisons, minutes to hours spent after the clustering
+            # itself had finished, on CPU and GPU alike.
+            index_of = {fid: i for i, fid in enumerate(face_ids)}
+
             # Create person records for each cluster
             for i, (label, cluster_face_ids) in enumerate(tqdm(cluster_items, desc="  Assigning clusters")):
                 # Get embeddings for this cluster
-                cluster_indices = [face_ids.index(fid) for fid in cluster_face_ids if fid in face_ids]
+                cluster_indices = [index_of[fid] for fid in cluster_face_ids if fid in index_of]
                 if not cluster_indices:
                     continue
 
