@@ -6,6 +6,7 @@ CLI entry point. The scoring engine is in processing/scorer.py.
 """
 import atexit
 import os
+import random
 import signal
 import sys
 import threading
@@ -695,6 +696,7 @@ class _FlockBackend:
     """
 
     peek_open_flags = os.O_RDONLY
+    has_shared_mode = True
 
     @staticmethod
     def take_exclusive(fd):
@@ -712,14 +714,15 @@ class _FlockBackend:
 class _MsvcrtBackend:
     """Windows byte-range locks (``msvcrt.locking``), which have no shared mode.
 
-    A peek therefore probes with the same exclusive lock and drops it again;
-    two peeks can still collide, but neither can report a finished job because
-    ``release`` empties the payload first. The locked byte sits past the
-    payload so a Windows range lock -- mandatory, unlike POSIX advisory locks
-    -- never blocks reading the holder's JSON.
+    A peek therefore probes with the same exclusive lock and drops it again,
+    so two peeks collide with each other; ``_read_holder`` retries the probe to
+    tell a peer's microsecond-long peek from a real job. The locked byte sits
+    past the payload so a Windows range lock -- mandatory, unlike POSIX
+    advisory locks -- never blocks reading the holder's JSON.
     """
 
     peek_open_flags = os.O_RDWR
+    has_shared_mode = False
 
     @staticmethod
     def _lock_reserved_byte(fd, mode):
@@ -848,8 +851,23 @@ def _take_os_lock(fd, attempts=1):
     return False
 
 
-def _lock_is_free(fd):
-    """True when no job holds the lock, probed without taking it away."""
+def _lock_is_free(fd, attempts=1):
+    """True when no job holds the lock, probed without taking it away.
+
+    ``attempts`` above 1 is for backends whose "shared" probe is really an
+    exclusive one: there a peer peek holds the byte for microseconds while a
+    real job holds it for minutes, so retrying tells the two apart. The backoff
+    is jittered because peeks arrive in phase -- a viewer polls every client at
+    once -- and a fixed sleep would just re-collide the same herd each round.
+    """
+    for _ in range(attempts - 1):
+        try:
+            _OS_LOCK.take_shared(fd)
+        except OSError:
+            time.sleep(LIBRARY_LOCK_RETRY_SECONDS * random.uniform(0.5, 1.5))
+            continue
+        _OS_LOCK.unlock(fd)
+        return True
     try:
         _OS_LOCK.take_shared(fd)
     except OSError:
@@ -871,6 +889,13 @@ def _read_holder(lock_path):
     The probe is read-only and, where the platform has a shared mode, taken
     in it: two overlapping peeks that excluded each other would make one of
     them read a finished job's leftover payload as a live holder.
+
+    Where it has none -- Windows byte-range locks -- the probe is itself
+    exclusive, so overlapping peeks exclude *each other* and the loser is
+    retried rather than believed, exactly as ``_take_os_lock`` already does on
+    the acquire side. An empty payload stays "held" on purpose: a holder whose
+    ``_write_payload`` hit ENOSPC owns the lock with an empty file, and calling
+    that free would be the worse error of the two.
     """
     if _OS_LOCK is None:
         return None
@@ -879,7 +904,8 @@ def _read_holder(lock_path):
     except OSError:
         return None
     try:
-        if _lock_is_free(fd):
+        attempts = 1 if _OS_LOCK.has_shared_mode else LIBRARY_LOCK_RETRY_ATTEMPTS
+        if _lock_is_free(fd, attempts=attempts):
             return None
         return _decode_holder(os.read(fd, LIBRARY_LOCK_READ_BYTES))
     finally:

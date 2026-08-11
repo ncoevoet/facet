@@ -972,19 +972,26 @@ class TestLibraryLock:
 
     def test_acquire_retries_before_declaring_a_conflict(self, tmp_path, monkeypatch):
         """Reading the holder also takes the lock for a few microseconds, so a
-        viewer poll landing on an acquire must not refuse the job outright."""
+        viewer poll landing on an acquire must not refuse the job outright.
+
+        Patched at the backend seam rather than at ``fcntl.flock``: ``fcntl`` is
+        None on Windows, so patching it there made this assert the retry only on
+        POSIX and raise AttributeError everywhere else.
+        """
         import facet
 
         calls = []
-        real_flock = facet.fcntl.flock
+        real_take_exclusive = facet._OS_LOCK.take_exclusive
 
-        def flaky_flock(fd, operation):
-            calls.append(operation)
+        def flaky_take_exclusive(fd):
+            calls.append(fd)
             if len(calls) == 1:
                 raise BlockingIOError(11, "Resource temporarily unavailable")
-            return real_flock(fd, operation)
+            return real_take_exclusive(fd)
 
-        monkeypatch.setattr(facet.fcntl, "flock", flaky_flock)
+        monkeypatch.setattr(
+            facet._OS_LOCK, "take_exclusive", staticmethod(flaky_take_exclusive)
+        )
         lock = facet.LibraryLock(str(tmp_path / "photos.db"), kind="recompute")
         lock.acquire()
         lock.release()
@@ -1001,6 +1008,14 @@ class TestLibraryLock:
 
         assert library_job_holder(db_path) is None
 
+    @pytest.mark.skipif(
+        os.name == "nt",
+        reason="os.kill on Windows maps every signal except CTRL_C_EVENT/"
+               "CTRL_BREAK_EVENT to TerminateProcess, so this would kill the "
+               "test runner outright instead of unwinding into the context "
+               "manager. test_sigterm_handler_is_restored_after_release still "
+               "covers the handler there.",
+    )
     def test_release_on_sigterm_frees_the_lock(self, tmp_path):
         from facet import LibraryLock, library_job_holder
 
@@ -1071,7 +1086,13 @@ class TestLibraryLock:
         finally:
             first.release()
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+    @pytest.mark.skipif(
+        os.name == "nt" or getattr(os, "geteuid", lambda: -1)() == 0,
+        reason="root ignores directory permissions, and Windows has neither "
+               "geteuid nor a chmod that can make a directory unwritable for "
+               "its owner. Evaluated at import, so an unguarded os.geteuid "
+               "made this whole module uncollectable on Windows.",
+    )
     def test_unwritable_cache_dir_raises_a_clear_error(self, tmp_path):
         """New failure mode introduced by the lock: the cache dir may be owned
         by the other user in a viewer/CLI split. It must name the path and the
@@ -1135,6 +1156,14 @@ def _fake_mount_table(tmp_path, entries):
     return str(table)
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Reads /proc/mounts and feeds POSIX mount points through "
+           "os.path.abspath, which on Windows rewrites '/mnt/nas' to "
+           "'<drive>:\\mnt\\nas' and can never match. The warning is Linux-only "
+           "by design: it exists because flock over SMB is arbitrated host-side, "
+           "whereas Windows byte-range locks over SMB2 are server-arbitrated.",
+)
 class TestHostLocalLockWarning:
     """``flock`` is arbitrated by the kernel that took it, so on an SMB/CIFS
     mount two machines each believe they hold the library lock. The lock cannot
