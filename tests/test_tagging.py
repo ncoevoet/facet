@@ -167,3 +167,92 @@ class TestResolveScanTagger:
 
         assert result is built
         build.assert_called_once_with(cfg, device="cuda")
+
+
+# ---------------------------------------------------------------------------
+# 4. Mixed embedding dimensions must not abort the pass
+# ---------------------------------------------------------------------------
+
+class TestEmbeddingDimensionMismatch:
+    """A library outlives the profile that filled it.
+
+    Switching ``vram_profile`` swaps the image tower (CLIP 768 <-> SigLIP 1152)
+    while rows written by the previous one stay as they were. Scoring such a row
+    against the active profile's text tower used to raise a bare
+    ``RuntimeError: mat1 and mat2 shapes cannot be multiplied (1x1152 and
+    768x449)``, which killed the caller: on a real 129k library that took out a
+    scan's entire post-processing tail -- tagging, moment detection, junk
+    detection and vec population -- because 836 rows from an old test batch
+    carried the other tower's embeddings.
+    """
+
+    @staticmethod
+    def _tagger(text_dim=768, tags=8):
+        """A tagger whose text tower is `text_dim` wide.
+
+        Deliberately torch-free: the guard reads ``text_embeddings.shape`` and
+        the length of the decoded embedding, both of which numpy provides, so
+        the mismatch path can be exercised on CI, which installs no torch. Only
+        the matching case reaches the matmul, and that test skips accordingly.
+        """
+        import numpy as np
+
+        from models.tagger import CLIPTagger
+
+        tagger = CLIPTagger.__new__(CLIPTagger)
+        tagger.device = "cpu"
+        tagger.text_embeddings = np.ones((tags, text_dim), dtype=np.float32)
+        tagger.tag_names = [f"tag{i}" for i in range(tags)]
+        tagger.skipped_dim_mismatch = 0
+        return tagger
+
+    @staticmethod
+    def _embedding(dim):
+        import struct
+
+        return struct.pack(f"{dim}f", *([0.1] * dim))
+
+    def test_matching_dimension_still_tags(self):
+        """The only case that reaches the matmul, so the only one needing torch."""
+        torch = pytest.importorskip("torch")
+
+        tagger = self._tagger()
+        tagger.text_embeddings = torch.ones((8, 768), dtype=torch.float32)
+        tags = tagger.get_tags_from_embedding(self._embedding(768), threshold=-1e9, max_tags=3)
+        assert tags
+        assert tagger.skipped_dim_mismatch == 0
+
+    def test_mismatched_dimension_is_skipped_not_raised(self):
+        tagger = self._tagger()
+        assert tagger.get_tags_from_embedding(self._embedding(1152), threshold=-1e9) == []
+        assert tagger.skipped_dim_mismatch == 1
+
+    def test_a_mismatch_does_not_abort_the_rest_of_the_run(self):
+        """The regression itself: one bad row must not cost every later row.
+
+        Needs torch because the matched rows go all the way through the matmul,
+        which is the point -- they must still be tagged after the bad one.
+        """
+        torch = pytest.importorskip("torch")
+
+        tagger = self._tagger()
+        tagger.text_embeddings = torch.ones((8, 768), dtype=torch.float32)
+        embeddings = [self._embedding(768), self._embedding(1152), self._embedding(768)]
+        tagged = sum(
+            1 for e in embeddings
+            if tagger.get_tags_from_embedding(e, threshold=-1e9, max_tags=1)
+        )
+        assert tagged == 2
+        assert tagger.skipped_dim_mismatch == 1
+
+    def test_mismatches_are_counted_not_logged_per_photo(self, caplog):
+        """836 of them in the library that found this; one warning, not 836."""
+        import logging
+
+        tagger = self._tagger()
+        with caplog.at_level(logging.WARNING, logger="facet.tagger"):
+            for _ in range(50):
+                tagger.get_tags_from_embedding(self._embedding(1152))
+
+        assert tagger.skipped_dim_mismatch == 50
+        assert len([r for r in caplog.records if "1152-dim" in r.getMessage()]) == 1

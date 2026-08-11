@@ -62,6 +62,11 @@ def tag_untagged_photos(db_path, tagger, threshold=0.22, max_tags=5, verbose=Fal
                     logger.info("  %s: %s", row['filename'], tags_str)
 
         conn.commit()
+        skipped = getattr(tagger, 'skipped_dim_mismatch', 0)
+        if skipped:
+            logger.warning(
+                "%d photo(s) skipped: their stored embedding does not match this "
+                "tagger's text tower. They stay untagged until re-embedded.", skipped)
         return tagged_count
 
 
