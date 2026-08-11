@@ -165,6 +165,11 @@ class PyIQAScorer:
         self.device = device
         self.model = None
         self._loaded = False
+        # Skips are counted for the whole pass and reported once on unload.
+        # Per-batch they are noise: topiq_nr_face legitimately declines every
+        # photo without a face, so a landscape-heavy scan logged a warning per
+        # chunk that said nothing a single total does not.
+        self._skipped_totals: dict[str, int] = {}
 
     def load(self):
         """Load model to GPU/CPU."""
@@ -196,6 +201,10 @@ class PyIQAScorer:
         self._loaded = False
         from utils.device import clear_device_cache
         clear_device_cache(self.device)
+        for msg, count in self._skipped_totals.items():
+            logger.warning("  %s skipped %d image(s) in total: %s",
+                           self.model_name, count, msg)
+        self._skipped_totals = {}
         logger.info("  %s unloaded", self.model_name)
 
     # Max long edge for inference (prevents OOM on CPU with high-res images).
@@ -333,8 +342,7 @@ class PyIQAScorer:
                 msg = str(e)
                 skipped[msg] = skipped.get(msg, 0) + 1
                 scores.append(5.0)
-        for msg, count in skipped.items():
-            logger.warning("  %s skipped %d image(s): %s", self.model_name, count, msg)
+        self._record_skips(skipped)
         return scores
 
     def score_batch(self, images: list[Image.Image]) -> list[float]:
@@ -383,9 +391,14 @@ class PyIQAScorer:
                         scores[i] = 5.0
                 logger.debug("  %s batch group fell back to serial: %s", self.model_name, msg)
 
-        for msg, count in skipped.items():
-            logger.warning("  %s skipped %d image(s): %s", self.model_name, count, msg)
+        self._record_skips(skipped)
         return [float(s) for s in scores]
+
+    def _record_skips(self, skipped: dict):
+        """Fold this batch's skips into the pass total, logging only at DEBUG."""
+        for msg, count in skipped.items():
+            self._skipped_totals[msg] = self._skipped_totals.get(msg, 0) + count
+            logger.debug("  %s skipped %d image(s): %s", self.model_name, count, msg)
 
     @property
     def vram_gb(self) -> float:
