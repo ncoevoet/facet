@@ -429,6 +429,10 @@ def check_fast_paths(db_path):
 def main():
     """Entry point for facet-doctor CLI."""
     import argparse
+
+    from utils.cli_logging import configure_cli_logging
+    configure_cli_logging()
+
     parser = argparse.ArgumentParser(description='Facet diagnostic tool')
     parser.add_argument('--config', type=str, default=None,
                         help='Path to scoring config JSON file')

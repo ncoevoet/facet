@@ -103,6 +103,7 @@ Diese Befehle aktualisieren bestimmte Metriken, leiten neue Daten ab (KI-Bildunt
 |---------|-------------|
 | `python facet.py --recompute-average` | Aggregierte Scores aus gespeicherten Embeddings neu berechnen (neu ableitbar; kein DB-Snapshot — zum Zurückrollen einen Gewichtungs-Snapshot wiederherstellen und neu berechnen) |
 | `python facet.py --recompute-category portrait` | Scores nur für eine einzelne Kategorie neu berechnen |
+| `python facet.py --tag-untagged` | Verschlagwortet nur Fotos, die noch keine Tags haben, aus den gespeicherten Embeddings (kein Bildzugriff). Dieselbe Arbeit, die ein Scan am Ende erledigt; damit lassen sich Lücken füllen, ohne bereits Verschlagwortetes neu zu bearbeiten |
 | `python facet.py --recompute-tags` | Alle Fotos mit dem konfigurierten Modell neu verschlagworten |
 | `python facet.py --recompute-tags-vlm` | Alle Fotos mit dem VLM-Tagger neu verschlagworten |
 | `python facet.py --detect-moments` | Neue Fotos mit ihrem narrativen Moment kennzeichnen (caption-semantisch, Zero-Shot + zeitliche Glättung; läuft am Ende jedes Scans automatisch). Kodiert jede neue Bildunterschrift einmal in `caption_embedding`, dann Kosinus über gespeicherte Vektoren — der erste vollständige Backfill über eine bestehende Bibliothek ist GPU-empfohlen; fügen Sie `--limit N` hinzu, um es an einer Stichprobe zu prüfen. Wenn `narrative_moments.vlm_tiebreak.enabled` gesetzt ist (16gb/24gb-Profile), werden Frames mit niedrigem Posterior / niedriger Marge vom Profil-VLM neu klassifiziert |
