@@ -24,6 +24,29 @@ jobs:
       - name: Run tests
         run: python -m pytest --tb=short -q --cov=api --cov=processing --cov=analyzers --cov=config --cov=utils --cov-report=term-missing
 
+  windows-tests:
+    name: Python Tests (Windows)
+    # Runs after the Linux suite: no point spending a Windows runner on a tree
+    # that is already red, and this is the last gate rather than a parallel one.
+    needs: python-tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install test dependencies
+        run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt pillow numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil
+      - name: Run the platform-sensitive suites
+        # Deliberately NOT the whole suite. Much of it hard-codes POSIX paths
+        # ("/lib/a.jpg") that no Windows path ever matches, so a full run is
+        # permanently red and therefore ignored. These two files are the actual
+        # platform surface: the library lock picks a different backend here
+        # (msvcrt byte-range locks, which have no shared mode), and the device
+        # policy resolves CUDA/MPS/CPU. Both were unexercised until this job.
+        run: python -m pytest tests/test_scan.py tests/test_device.py -q --tb=short
+
   angular-tests:
     name: Angular Tests
     runs-on: ubuntu-latest
