@@ -103,6 +103,7 @@ Questi comandi aggiornano metriche specifiche, derivano nuovi dati (didascalie A
 |---------|-------------|
 | `python facet.py --recompute-average` | Ricalcola i punteggi aggregati dagli embedding memorizzati (ri-derivabile; nessuno snapshot del DB — per annullare, ripristina uno snapshot dei pesi e ricalcola) |
 | `python facet.py --recompute-category portrait` | Ricalcola i punteggi solo per una singola categoria |
+| `python facet.py --tag-untagged` | Assegna i tag solo alle foto che non ne hanno ancora, dagli embedding memorizzati (nessuna lettura delle immagini). Lo stesso lavoro che una scansione svolge alla fine; utile per colmare le lacune senza riassegnare i tag a ciò che è già etichettato |
 | `python facet.py --recompute-tags` | Riassegna i tag a tutte le foto usando il modello configurato |
 | `python facet.py --recompute-tags-vlm` | Riassegna i tag a tutte le foto usando il tagger VLM |
 | `python facet.py --detect-moments` | Etichetta le nuove foto con il loro momento narrativo (semantico sulla didascalia, zero-shot + smussatura temporale; viene eseguito automaticamente alla fine di ogni scansione). Codifica ogni nuova didascalia una sola volta in `caption_embedding`, poi coseno sui vettori memorizzati — il primo backfill completo su una libreria esistente è consigliato con GPU; aggiungi `--limit N` per verificare su un campione. Quando `narrative_moments.vlm_tiebreak.enabled` è impostato (profili 16gb/24gb), i fotogrammi a basso posteriore / basso margine vengono riclassificati dal VLM del profilo |

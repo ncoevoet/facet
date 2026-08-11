@@ -103,6 +103,7 @@ Esses comandos atualizam métricas específicas, derivam novos dados (legendas p
 |---------|-------------|
 | `python facet.py --recompute-average` | Recalcula as pontuações agregadas a partir dos embeddings armazenados (re-derivável; sem snapshot do banco — reverta restaurando um snapshot de pesos e recalculando) |
 | `python facet.py --recompute-category portrait` | Recalcula as pontuações apenas para uma única categoria |
+| `python facet.py --tag-untagged` | Marca apenas as fotos que ainda não têm tags, a partir dos embeddings armazenados (sem ler imagens). O mesmo trabalho que um scan faz no final; serve para preencher lacunas sem re-marcar o que já está etiquetado |
 | `python facet.py --recompute-tags` | Re-marca todas as fotos usando o modelo configurado |
 | `python facet.py --recompute-tags-vlm` | Re-marca todas as fotos usando o marcador VLM |
 | `python facet.py --detect-moments` | Rotula novas fotos com seu momento narrativo (semântico de legenda, zero-shot + suavização temporal; executa automaticamente ao final de cada escaneamento). Codifica cada nova legenda uma vez em `caption_embedding`, depois cosseno sobre vetores armazenados — o primeiro backfill completo sobre uma biblioteca existente tem GPU recomendada; adicione `--limit N` para verificar em uma amostra. Quando `narrative_moments.vlm_tiebreak.enabled` está definido (perfis 16gb/24gb), quadros de baixo posterior / baixa margem são reclassificados pelo VLM do perfil |

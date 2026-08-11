@@ -663,6 +663,7 @@ LIBRARY_JOB_ARGS = (
     'recompute_skin_tone',
     'recompute_tags',
     'recompute_tags_vlm',
+    'tag_untagged',
     'refill_face_thumbnails_force',
     'refill_face_thumbnails_incremental',
     'rescan_gps',
@@ -1724,6 +1725,10 @@ Configuration:
                              'precision/recall table; without, prints the candidate-cosine distribution.')
     db_group.add_argument('--recompute-embeddings', action='store_true',
                         help='Recompute CLIP/SigLIP embeddings for all photos (required after model switch)')
+    db_group.add_argument('--tag-untagged', action='store_true',
+                        help='Tag only photos that have no tags yet, from stored embeddings '
+                             '(no image reads). Same work the scan does at the end; use it to '
+                             'fill gaps without re-tagging what is already labelled')
     db_group.add_argument('--recompute-tags', action='store_true',
                         help='Re-tag all photos using configured tagging model')
     db_group.add_argument('--recompute-tags-vlm', action='store_true',
@@ -3049,6 +3054,36 @@ Configuration:
         if model_manager is not None:
             model_manager.unload_all()
         logger.info("Updated tags for %d photos", updated)
+        exit()
+
+    # Tag only what has no tags yet -- the same work the scan's tail does, made
+    # reachable from the CLI everyone already reaches for. It lived only in
+    # tag_existing.py, where even this repo's author went looking for it in
+    # facet.py and concluded it did not exist.
+    if args.tag_untagged:
+        from tag_existing import build_clip_tagger, tag_untagged_photos
+        from utils import get_tag_params
+
+        config = ScoringConfig(args.config)
+        config.check_vram_profile_compatibility(verbose=True)  # Resolve 'auto' profile
+        threshold, max_tags = get_tag_params(config)
+
+        with get_connection(args.db) as conn:
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE clip_embedding IS NOT NULL "
+                "AND (tags IS NULL OR tags = '')"
+            ).fetchone()[0]
+
+        if not pending:
+            logger.info("Every photo with an embedding already has tags.")
+            exit()
+
+        logger.info("Tagging %d photo(s) with no tags (threshold %.2f, max %d)...",
+                    pending, threshold, max_tags)
+        tagger = build_clip_tagger(config)
+        tagged = tag_untagged_photos(args.db, tagger, threshold, max_tags,
+                                     verbose=args.verbose)
+        logger.info("Tagged %d photo(s).", tagged)
         exit()
 
     # Recompute tags mode (needs GPU for tagging model)

@@ -1292,6 +1292,9 @@ def parse_args():
 
 
 def main():
+    from utils.cli_logging import configure_cli_logging
+    configure_cli_logging()
+
     args = parse_args()
 
     if not os.path.exists(args.db):

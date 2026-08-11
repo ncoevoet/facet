@@ -103,6 +103,7 @@ These commands update specific metrics, derive new data (AI captions, GPS, embed
 |---------|-------------|
 | `python facet.py --recompute-average` | Recompute aggregate scores from stored embeddings (re-derivable; no DB snapshot — roll back by restoring a weight snapshot and recomputing) |
 | `python facet.py --recompute-category portrait` | Recompute scores for a single category only |
+| `python facet.py --tag-untagged` | Tag only photos that have no tags yet, from stored embeddings (no image reads). The same work a scan does at the end; use it to fill gaps without re-tagging what is already labelled |
 | `python facet.py --recompute-tags` | Re-tag all photos using configured model |
 | `python facet.py --recompute-tags-vlm` | Re-tag all photos using VLM tagger |
 | `python facet.py --detect-moments` | Label new photos with their narrative moment (caption-semantic, zero-shot + temporal smoothing; auto-runs at the end of every scan). Encodes each new caption once into `caption_embedding`, then cosine over stored vectors — the first full backfill over an existing library is GPU-recommended; add `--limit N` to verify on a sample. When `narrative_moments.vlm_tiebreak.enabled` is set (16gb/24gb profiles), low-posterior / low-margin frames are re-classified by the profile VLM |

@@ -4,6 +4,19 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **`--tag-untagged` tags only the photos that have none**, from stored embeddings and without reading a single image — the same work a scan already does at the end. The capability existed as `tag_existing.py`, but nobody looked there: every other maintenance operation is a `facet.py` flag, so this one was effectively invisible even to people who knew the project.
+- **A `windows-latest` CI job** covering `tests/test_scan.py` and `tests/test_device.py`. CI ran on Linux only, so the library lock's Windows backend and the Apple Metal device policy had never been exercised by it — which is how the two lock bugs below survived. Deliberately not the whole suite: much of it hard-codes POSIX paths, and a permanently red job is an ignored one.
+
+### Fixed
+- **A tagging pass no longer dies on a library holding two embedding widths.** Switching `vram_profile` swaps the image tower (CLIP 768 ↔ SigLIP 1152) while rows written by the previous one stay as they were, and the tagger scored every row against the active tower with no dimension check — so one stale row raised a bare shape mismatch that took down the caller. On a 129k library with 836 such rows that killed the whole post-processing tail of every scan: tagging, moment detection, junk detection and vec population, all skipped after the scoring run had succeeded. 26,451 photos were sitting untagged for want of a dimension check. Mismatched rows are now skipped and counted, with one message naming the way out.
+- **Two concurrent "is the library busy?" checks no longer invent a holder on Windows.** `msvcrt` has no shared lock mode, so the peek probe was exclusive and overlapping peeks excluded *each other*; the loser reported a job that had already finished — the spurious 409 in the viewer that probing shared was introduced to remove, fixed on POSIX and still live here. The peek now retries the way the acquire side already did, with jittered backoff, since peeks arrive in phase.
+- **Four standalone CLIs ran silently.** `tag_existing.py`, `calibrate.py`, `diagnostics.py` and `validate_db.py` each build a module logger and log freely, then never install a handler, so everything below WARNING was dropped. `tag_existing.py` tagged 26,451 photos in one run and printed nothing at all. They now share one `configure_cli_logging()` helper, which honours `FACET_LOG_LEVEL` and stays out of the way when a scan has already configured logging.
+
+### Changed
+- **A scan resolves each path once instead of three times.** Deduplication, the unscanned set and the todo-list filter each called `resolve()` over the same paths — invisible on a local disk, but every call is a filesystem round-trip on a NAS. Measured on an SMB library of 153,574 files: 3.94 ms cold and ~2 ms warm per call, so two of those passes were minutes of latency before a single photo had been read.
+- **Scan output is readable again.** Hugging Face weight-loading bars were explicitly *enabled* and redrew on every model load; `open_clip` logs through the root logger where no logger name can reach it; `timm` and `pyiqa` announce every model they touch; and `topiq_nr_face` warned once per batch about photos with no face, which is expected rather than exceptional. Log records now also emit through `tqdm.write`, so a line arriving mid-scan no longer lands inside the progress bar's own line.
+
 ## [1.10.1] "Argentique" — 2026-08-10
 
 ### Added

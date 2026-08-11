@@ -137,6 +137,9 @@ def resolve_scan_tagger(scorer):
 
 
 def main():
+    from utils.cli_logging import configure_cli_logging
+    configure_cli_logging()
+
     parser = argparse.ArgumentParser(description='Tag existing photos using stored CLIP embeddings')
     parser.add_argument('--db', default='photo_scores_pro.db', help='Database path')
     parser.add_argument('--config', default='scoring_config.json', help='Config file path')

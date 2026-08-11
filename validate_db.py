@@ -18,6 +18,9 @@ logger = logging.getLogger("facet.validate_db")
 
 
 def main():
+    from utils.cli_logging import configure_cli_logging
+    configure_cli_logging()
+
     parser = argparse.ArgumentParser(
         description='Validate Facet database for consistency issues'
     )
