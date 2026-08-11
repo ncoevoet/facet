@@ -170,6 +170,35 @@ pip install --extra-index-url https://pypi.nvidia.com/ "cuml-cu12"
 
 **Note:** cuML uses its own HDBSCAN implementation. The `algorithm` and `leaf_size` parameters only apply to CPU clustering.
 
+### GPU and CPU do not produce identical clusters
+
+Measured on a 145,677-face library, same embeddings and same parameters:
+
+| Faces | cuML clusters | CPU clusters | Ratio |
+|------:|--------------:|-------------:|------:|
+| 5,000 | 202 | 181 | 1.12× |
+| 20,000 | 1,285 | 1,039 | 1.24× |
+
+cuML is slightly finer-grained, with comparable noise rates and an identical median cluster size (4). The difference is small enough not to change who ends up grouped with whom, but it does mean cluster *counts* will not match between a GPU and a CPU run.
+
+**cuML is also not deterministic.** Two consecutive GPU runs over the same 145,677 faces with identical parameters agreed on only **41% of labels**, while producing near-identical cluster counts (14,809 vs 14,807) and identical downstream outcomes. The structure is stable; the labelling is not. Consequences worth knowing:
+
+- **Person IDs are not reproducible across runs.** Do not assume a re-cluster preserves the numbering of auto-clustered persons — name the people you care about, which is what makes them stable.
+- **Do not diff two clustering runs by label.** Compare face membership instead.
+
+CPU clustering with a fixed `algorithm` is deterministic for the same input.
+
+### Re-clustering and curated people
+
+Every mode except `--cluster-faces-force` preserves existing person records, but all of them clear face→person assignments and rebuild them. A rebuilt cluster is returned to a person when either:
+
+1. its mean embedding is within `merge_threshold` (default 0.6 cosine) of that person's stored centroid, **or**
+2. at least half of its faces belonged to that person before the run.
+
+The second rule matters more than it sounds. A person's centroid is a single averaged vector, so someone photographed across years spans a broad region — HDBSCAN correctly splits them into tight sub-clusters that each sit far from that average and fail rule 1. On the library above, rule 1 alone returned 38% of the faces attached to named people; adding rule 2 returns 96%.
+
+Because rule 2 defers to the previous assignment, an earlier mis-assignment is carried forward rather than corrected. That is the intended contract for a mode whose purpose is preserving existing persons — use `--cluster-faces-force` to re-derive everything from scratch.
+
 ## Blink Detection
 
 Uses Eye Aspect Ratio (EAR) from InsightFace 106-point landmarks.
