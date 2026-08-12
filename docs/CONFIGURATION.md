@@ -37,6 +37,7 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Capsules](#capsules)
 - [Similarity Groups](#similarity-groups)
 - [Scenes](#scenes)
+- [OCR](#ocr)
 - [Timeline](#timeline)
 - [Map](#map)
 - [Translation](#translation)
@@ -2015,6 +2016,49 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 > **Caption backfill cost.** Caption embeddings are computed once and stored, so the per-photo cosine is free afterwards. A scan encodes only its handful of new captions (cheap, incremental), but the first full pass over an existing library encodes every caption — one text-tower forward pass per caption, fast on GPU and ~hours on CPU. Run `python facet.py --detect-moments` once (GPU recommended) for that backfill; add `--limit N` to verify on a sample first.
 
 **Discovering a library-specific vocabulary.** The `general` set is a sensible default, but you can propose a vocabulary fitted to *your* library with `python facet.py --discover-moments`: it clusters the stored `caption_embedding` vectors (HDBSCAN), names each cluster from its captions (a keyword plus the captions nearest the centroid as ready-made prompts), and writes the result as an `event_types.discovered` block to `scoring_config.discovered.json`. Review it, copy `discovered` into `event_types` above, set `default_event_type` to `discovered`, and run `--recompute-moments` to adopt — discovery proposes, it never rewrites the active config. `--discover-min-cluster-size N` controls granularity (smaller = more, finer moments).
+
+## OCR
+
+In-photo text search: reads the words *inside* your photos — street signs, shop fronts, race bibs, book spines, slides, whiteboards, scanned documents — into `photos.ocr_text`, which is a covering column of the `photos_fts` full-text index. Once populated, that text is searchable from the gallery search box like any caption or tag, and `GET /api/search?scope=text` restricts a query to text-bearing columns only.
+
+**Off by default**, and it needs an engine installed:
+
+```bash
+pip install easyocr           # or: pip install -e .[ocr]
+```
+
+Then enable it and run the pass:
+
+```json
+{
+  "ocr": {
+    "enabled": false,
+    "languages": ["en", "fr"],
+    "min_confidence": 0.4,
+    "full_resolution": false
+  }
+}
+```
+
+```bash
+python facet.py --detect-text      # only photos never evaluated
+python facet.py --recompute-text   # re-read the whole library
+```
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enabled` | `false` | Master switch. `--detect-text` refuses to run while this is `false`, so the pass is never triggered by accident |
+| `languages` | `["en", "fr"]` | Language codes passed to the engine. Latin-script languages combine freely; mixing scripts (e.g. `en` + `ja`) is rejected by easyocr, so use one script family per run |
+| `min_confidence` | `0.4` | Drop detections the engine scores below this (0–1). Raise it if OCR noise pollutes search results, lower it to catch faint or distant text |
+| `full_resolution` | `false` | OCR the original file instead of the stored 640px thumbnail. Far slower and only worth it for small or distant text — 640px already resolves signs, posters and document headings. Falls back to the thumbnail when the original is offline |
+
+**Sentinel semantics.** `ocr_text` is `NULL` while a photo has never been evaluated and `''` once it has been read and found to contain no text. That distinction is what lets `--detect-text` scope to genuinely new photos instead of re-reading every textless frame on each run; `--recompute-text` ignores it and re-reads everything. FTS5 indexes `''` as zero tokens, so a textless photo can never match a query.
+
+**No `--rebuild-fts` needed.** `ocr_text` is in the FTS sync triggers' `UPDATE OF` list, so the pass's own writes re-index each row as it goes. `python database.py --rebuild-fts` is only required for a database created before `ocr_text` joined the covering index — `init_database` detects that older index and recreates it for you.
+
+**Engines.** `easyocr` (Apache-2.0, PyTorch) is the default and reuses the stack Facet already installs — it adds no second OpenCV and pins no numpy/torch version. Its weights (~113MB) download from the project's own GitHub releases on first run. The `tesseract` binary plus `pytesseract` works as an alternative optional external tool (like `exiftool`) and is used when easyocr is absent, but it is tuned for scanned pages and reads scene text markedly less well. With neither installed the pass exits with an error rather than silently writing nothing.
+
+**Cost.** A 640px thumbnail takes roughly 0.4s on CPU, so a 50k-photo library is an overnight CPU job — it is a one-time backfill, and later scans only ever add new photos. A GPU is used automatically when torch reports one.
 
 ## Social Export
 

@@ -2656,6 +2656,15 @@
       }
     }
   },
+  "ocr": {
+    "enabled": false,
+    "languages": [
+      "en",
+      "fr"
+    ],
+    "min_confidence": 0.4,
+    "full_resolution": false
+  },
   "junk_sweep": {
     "enabled": true,
     "prompt_template": "{desc}",

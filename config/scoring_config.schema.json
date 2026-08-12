@@ -55,6 +55,19 @@
     "auto_cull": { "type": "object" },
     "distortion_attributes": { "type": "object" },
     "skin_tone": { "type": "object" },
+    "ocr": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "languages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "min_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "full_resolution": { "type": "boolean" }
+      }
+    },
     "immich": {
       "type": "object",
       "properties": {

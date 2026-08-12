@@ -37,6 +37,7 @@ Alle Einstellungen befinden sich in `scoring_config.json`. Führen Sie nach eine
 - [Capsules](#capsules)
 - [Ähnlichkeitsgruppen](#similarity-groups)
 - [Szenen](#scenes)
+- [OCR](#ocr)
 - [Timeline](#timeline)
 - [Karte](#map)
 - [Übersetzung](#translation)
@@ -1991,6 +1992,49 @@ Das Signal ist **caption-semantisch**: Die KI-Bildunterschrift jedes Fotos wird 
 > **Kosten des Caption-Backfills.** Bildunterschrift-Embeddings werden einmal berechnet und gespeichert, sodass der Kosinus pro Foto danach kostenlos ist. Ein Scan kodiert nur seine wenigen neuen Bildunterschriften (günstig, inkrementell), aber der erste vollständige Durchlauf über eine bestehende Bibliothek kodiert jede Bildunterschrift — ein Text-Tower-Vorwärtsdurchlauf pro Bildunterschrift, schnell auf GPU und ~Stunden auf CPU. Führen Sie `python facet.py --detect-moments` einmal aus (GPU empfohlen) für diesen Backfill; fügen Sie `--limit N` hinzu, um es zuerst an einer Stichprobe zu prüfen.
 
 **Ein bibliotheksspezifisches Vokabular entdecken.** Das `general`-Set ist ein sinnvoller Standard, aber Sie können mit `python facet.py --discover-moments` ein auf *Ihre* Bibliothek zugeschnittenes Vokabular vorschlagen: Es clustert die gespeicherten `caption_embedding`-Vektoren (HDBSCAN), benennt jedes Cluster anhand seiner Bildunterschriften (ein Schlüsselwort plus die dem Zentroid am nächsten liegenden Bildunterschriften als gebrauchsfertige Prompts) und schreibt das Ergebnis als `event_types.discovered`-Block in `scoring_config.discovered.json`. Überprüfen Sie es, kopieren Sie `discovered` in `event_types` oben, setzen Sie `default_event_type` auf `discovered` und führen Sie `--recompute-moments` aus, um es zu übernehmen — die Entdeckung schlägt vor, sie überschreibt niemals die aktive Konfiguration. `--discover-min-cluster-size N` steuert die Granularität (kleiner = mehr, feinere Momente).
+
+## OCR
+
+Textsuche in Fotos: liest die Wörter *innerhalb* Ihrer Fotos — Straßenschilder, Ladenfronten, Startnummern, Buchrücken, Dias, Whiteboards, gescannte Dokumente — in `photos.ocr_text`, eine abdeckende Spalte des `photos_fts`-Volltextindex. Einmal befüllt, ist dieser Text über die Suchleiste der Galerie durchsuchbar wie jede Bildunterschrift oder jeder Tag, und `GET /api/search?scope=text` beschränkt eine Abfrage auf ausschließlich textführende Spalten.
+
+**Standardmäßig deaktiviert**, und benötigt eine installierte Engine:
+
+```bash
+pip install easyocr           # oder: pip install -e .[ocr]
+```
+
+Dann aktivieren und den Durchlauf starten:
+
+```json
+{
+  "ocr": {
+    "enabled": false,
+    "languages": ["en", "fr"],
+    "min_confidence": 0.4,
+    "full_resolution": false
+  }
+}
+```
+
+```bash
+python facet.py --detect-text      # nur nie ausgewertete Fotos
+python facet.py --recompute-text   # liest die gesamte Bibliothek neu
+```
+
+| Schlüssel | Standard | Beschreibung |
+|-----|---------|-------------|
+| `enabled` | `false` | Hauptschalter. `--detect-text` verweigert die Ausführung, solange dies `false` ist, sodass der Durchlauf nie versehentlich ausgelöst wird |
+| `languages` | `["en", "fr"]` | An die Engine übergebene Sprachcodes. Sprachen mit lateinischer Schrift lassen sich frei kombinieren; das Mischen von Schriftsystemen (z. B. `en` + `ja`) wird von easyocr abgelehnt, verwenden Sie also pro Lauf nur eine Schriftfamilie |
+| `min_confidence` | `0.4` | Verwirft Erkennungen, die die Engine unter diesem Wert bewertet (0–1). Erhöhen Sie ihn, wenn OCR-Rauschen die Suchergebnisse verunreinigt, senken Sie ihn, um schwachen oder entfernten Text zu erfassen |
+| `full_resolution` | `false` | Führt OCR am Originalbild statt am gespeicherten 640px-Thumbnail durch. Deutlich langsamer und nur bei kleinem oder entferntem Text lohnenswert — 640px löst Schilder, Poster und Dokumentüberschriften bereits auf. Fällt auf das Thumbnail zurück, wenn das Original offline ist |
+
+**Sentinel-Semantik.** `ocr_text` ist `NULL`, solange ein Foto nie ausgewertet wurde, und `''`, sobald es gelesen und als textfrei befunden wurde. Diese Unterscheidung ist es, die `--detect-text` erlaubt, sich auf wirklich neue Fotos zu beschränken, statt bei jedem Lauf jeden textlosen Frame erneut zu lesen; `--recompute-text` ignoriert sie und liest alles neu. FTS5 indiziert `''` als null Tokens, sodass ein textloses Foto niemals zu einer Abfrage passen kann.
+
+**Kein `--rebuild-fts` nötig.** `ocr_text` steht in der `UPDATE OF`-Liste der FTS-Sync-Trigger, sodass die Schreibvorgänge des Durchlaufs selbst jede Zeile im Vorbeigehen neu indizieren. `python database.py --rebuild-fts` ist nur für eine Datenbank erforderlich, die erstellt wurde, bevor `ocr_text` dem abdeckenden Index beitrat — `init_database` erkennt diesen älteren Index und erstellt ihn für Sie neu.
+
+**Engines.** `easyocr` (Apache-2.0, PyTorch) ist die Standard-Engine und nutzt den Stack, den Facet ohnehin installiert — es fügt kein zweites OpenCV hinzu und fixiert keine numpy-/torch-Version. Seine Gewichte (~113MB) werden beim ersten Lauf von den projekteigenen GitHub-Releases heruntergeladen. Die `tesseract`-Binary plus `pytesseract` funktioniert als alternatives optionales externes Werkzeug (wie `exiftool`) und wird verwendet, wenn easyocr fehlt, ist aber auf gescannte Seiten abgestimmt und liest Szenentext merklich schlechter. Ist keines von beiden installiert, bricht der Durchlauf mit einem Fehler ab, statt stillschweigend nichts zu schreiben.
+
+**Kosten.** Ein 640px-Thumbnail dauert auf der CPU rund 0,4s, sodass eine Bibliothek mit 50.000 Fotos ein CPU-Job über Nacht ist — es ist ein einmaliger Backfill, und spätere Scans fügen danach nur noch neue Fotos hinzu. Eine GPU wird automatisch verwendet, wenn torch eine meldet.
 
 ## Social-Export
 

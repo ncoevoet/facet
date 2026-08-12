@@ -136,7 +136,10 @@ PHOTOS_COLUMNS = [
     ('vlm_critique', 'TEXT'),
     ('vlm_critique_translated', 'TEXT'),
 
-    # OCR text-in-image (opt-in --recompute-ocr; NULL until that pass runs)
+    # OCR text-in-image (opt-in --detect-text; NULL = not evaluated, '' = evaluated
+    # and no text found, else the detected text). The '' sentinel is what lets
+    # --detect-text scope to genuinely unevaluated rows instead of re-OCRing every
+    # textless photo on each run; FTS5 indexes it as zero tokens so it never matches.
     ('ocr_text', 'TEXT'),
 
     # Color facet (opt-in --recompute-colors; NULL until that pass runs)

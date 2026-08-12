@@ -201,12 +201,12 @@ async def lifespan(app: FastAPI):
     # set until the next API restart.
     from api.db_helpers import (
         get_existing_columns, is_photo_tags_available,
-        backfill_image_dimensions, invalidate_existing_columns_cache,
+        repair_thumbnail_dimensions, invalidate_existing_columns_cache,
     )
     invalidate_existing_columns_cache()
     get_existing_columns()
     is_photo_tags_available()
-    backfill_image_dimensions()
+    repair_thumbnail_dimensions()
 
     # Pre-compute capsules in a background thread so first visitor gets instant results
     from api.config import _FULL_CONFIG

@@ -637,6 +637,7 @@ LIBRARY_JOB_ARGS = (
     'detect_moments',
     'detect_panoramas',
     'detect_sequences',
+    'detect_text',
     'extract_faces_gpu_force',
     'extract_faces_gpu_incremental',
     'extract_gps',
@@ -658,11 +659,11 @@ LIBRARY_JOB_ARGS = (
     'recompute_iqa',
     'recompute_junk',
     'recompute_moments',
-    'recompute_ocr',
     'recompute_saliency',
     'recompute_skin_tone',
     'recompute_tags',
     'recompute_tags_vlm',
+    'recompute_text',
     'tag_untagged',
     'refill_face_thumbnails_force',
     'refill_face_thumbnails_incremental',
@@ -1778,9 +1779,12 @@ Configuration:
                         help='Backfill TOPIQ quality scores from stored thumbnails (requires GPU)')
     db_group.add_argument('--recompute-iqa', action='store_true',
                         help='Recompute supplementary IQA metrics (TOPIQ IAA, NR-Face, LIQE) from stored thumbnails')
-    db_group.add_argument('--recompute-ocr', action='store_true',
-                        help='Extract OCR text-in-image from stored thumbnails into ocr_text (opt-in; '
-                             'no-op if no OCR engine is installed). Run --rebuild-fts afterwards to index it.')
+    db_group.add_argument('--detect-text', action='store_true',
+                        help='Extract in-image text (signs, documents, posters) into ocr_text via OCR '
+                             'over stored thumbnails, then search it from the gallery; skips '
+                             'already-evaluated photos. Requires "ocr".enabled in scoring_config.json.')
+    db_group.add_argument('--recompute-text', action='store_true',
+                        help='Re-run OCR over the whole library (re-reads photos already evaluated by --detect-text)')
     db_group.add_argument('--recompute-colors', action='store_true',
                         help='Extract dominant hue + warm/cool colour temperature from stored thumbnails '
                              '(CPU only, fast) into dominant_hue / color_temp')
@@ -2602,17 +2606,22 @@ Configuration:
 
     # Shared scaffolding for the per-facet thumbnail recompute passes below
     # (OCR, colour facet): decode each stored thumbnail once and UPDATE the
-    # columns the callback returns. ``compute(img)`` returns
+    # columns the callback returns. ``compute(img, path)`` returns
     # ``(updates: dict[column -> value], counted: bool)``; columns come from a
-    # literal dict at each call site (never user input). Returns (total, counted).
-    def _recompute_from_thumbnails(desc, compute):
+    # literal dict at each call site (never user input). ``extra_where`` is a
+    # literal SQL predicate (never user input) that lets an incremental pass
+    # scope itself to never-evaluated rows. Returns (total, counted).
+    def _recompute_from_thumbnails(desc, compute, extra_where=None):
         import io
         from PIL import Image
+        where = "thumbnail IS NOT NULL"
+        if extra_where:
+            where += f" AND {extra_where}"
         # Fetch paths up front but each thumbnail BLOB one at a time (a full
         # fetchall of the BLOBs is ~6-12GB at 100k photos -> OOM on a NAS).
         with get_connection(args.db) as conn:
             paths = [row['path'] for row in conn.execute(
-                "SELECT path FROM photos WHERE thumbnail IS NOT NULL"
+                f"SELECT path FROM photos WHERE {where}"
             ).fetchall()]
         counted = 0
         pending = 0
@@ -2628,7 +2637,11 @@ Configuration:
                     img = Image.open(io.BytesIO(blob)).convert('RGB')
                 except Exception:
                     continue
-                updates, is_counted = compute(img)
+                updates, is_counted = compute(img, path)
+                # An empty dict means "could not evaluate" — leave the row
+                # untouched so the next incremental run retries it.
+                if not updates:
+                    continue
                 set_sql = ", ".join(f"{col} = ?" for col in updates)
                 conn.execute(
                     f"UPDATE photos SET {set_sql} WHERE path = ?",
@@ -2643,25 +2656,50 @@ Configuration:
             conn.commit()
         return len(paths), counted
 
-    # Extract OCR text-in-image from stored thumbnails (opt-in, CPU; no-op if no engine)
-    if args.recompute_ocr:
+    # Extract in-image text into ocr_text so the gallery can search it (opt-in).
+    # --detect-text scopes to never-evaluated rows; --recompute-text re-reads all.
+    if args.detect_text or args.recompute_text:
+        from analyzers.ocr import configure as configure_ocr
         from analyzers.ocr import extract_text, is_ocr_available
 
         init_database(args.db)  # Ensure ocr_text column exists
+        ocr_config = ScoringConfig(args.config).get_ocr_config()
+        if not ocr_config.get('enabled', False):
+            logger.error("ocr is disabled in scoring_config.json; nothing to do.")
+            exit(0)
+        configure_ocr(ocr_config)
         if not is_ocr_available():
-            logger.warning(
-                "No OCR engine installed — --recompute-ocr is a no-op. "
-                "Install pytesseract (+tesseract binary), easyocr, or paddleocr."
+            logger.error(
+                "No OCR engine installed — install easyocr (pip install easyocr), "
+                "or the tesseract binary plus pytesseract."
             )
-            exit()
+            exit(1)
 
-        def _ocr_update(img):
+        full_resolution = bool(ocr_config.get('full_resolution', False))
+        if full_resolution:
+            from utils.image_loading import load_image_from_path
+
+        def _ocr_update(img, path):
+            # full_resolution trades speed for small/distant text: OCR the
+            # original instead of the 640px thumbnail, falling back to the
+            # thumbnail when the original is gone (moved/offline volume).
+            if full_resolution:
+                original, _ = load_image_from_path(path)
+                if original is not None:
+                    img = original
             text = extract_text(img)
+            # None means OCR could not run: write nothing so ocr_text stays
+            # NULL ("never evaluated") and a later run retries this photo.
+            if text is None:
+                return {}, False
             return {'ocr_text': text}, bool(text)
 
-        total, updated = _recompute_from_thumbnails("OCR", _ocr_update)
-        logger.info("OCR complete: %d/%d photos with detected text.", updated, total)
-        logger.info("Run 'python database.py --rebuild-fts' to index ocr_text for search.")
+        only_missing = args.detect_text and not args.recompute_text
+        total, updated = _recompute_from_thumbnails(
+            "OCR", _ocr_update,
+            extra_where="ocr_text IS NULL" if only_missing else None)
+        logger.info("OCR complete: %d/%d photos evaluated carry text.", updated, total)
+        logger.info("Search it from the gallery, or with /api/search?scope=text.")
         exit()
 
     # Extract dominant hue + colour temperature from stored thumbnails (CPU, fast)
@@ -2670,7 +2708,7 @@ Configuration:
 
         init_database(args.db)  # Ensure dominant_hue / color_temp columns exist
 
-        def _color_update(img):
+        def _color_update(img, _path):
             hue, temp = extract_color_facet(img)
             return {'dominant_hue': hue, 'color_temp': temp}, temp is not None
 
@@ -2684,7 +2722,7 @@ Configuration:
 
         init_database(args.db)  # Ensure form facet columns exist
 
-        def _form_update(img):
+        def _form_update(img, _path):
             metrics = compute_form_metrics(img)
             return metrics, metrics.get('form_symmetry') is not None
 

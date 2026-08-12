@@ -84,6 +84,14 @@ iqa-extended = [
     "aesthetic-predictor-v2-5",
     "bitsandbytes>=0.43.0",
 ]
+ocr = [
+    # In-photo text search (scoring_config.json "ocr", OFF by default).
+    # easyocr is Apache-2.0 and torch-based, so it reuses the stack Facet already
+    # ships — it pulls no second cv2 (opencv-python-headless only) and pins no
+    # numpy/torch version. Weights (~113MB) download from the project's own
+    # GitHub releases on first run. See docs/CONFIGURATION.md "OCR".
+    "easyocr>=1.7.2",
+]
 watch = [
     "watchdog>=4.0",
 ]

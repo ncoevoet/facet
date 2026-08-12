@@ -80,6 +80,15 @@ jsonschema>=4.18.0
 # Recoverable OS-trash, never a permanent delete. Install via .[cull].
 # send2trash>=1.8.0
 
+# In-photo OCR text search (OPTIONAL, OFF by default — scoring_config.json "ocr").
+# Powers `--detect-text`, which fills photos.ocr_text and is indexed by photos_fts.
+# Apache-2.0 and torch-based, so it reuses the stack already installed above: it
+# adds only easyocr + ninja + pyclipper + python-bidi and pins no numpy/torch/cv2
+# version. Weights (~113MB) download on first run. Install via .[ocr]:
+#   easyocr>=1.7.2
+# The tesseract binary + pytesseract works as an alternative engine (like
+# exiftool, an optional external tool), but reads scene text markedly less well.
+
 # Vector search (sqlite-vec for CLIP/SigLIP embedding KNN queries)
 sqlite-vec>=0.1.6
 

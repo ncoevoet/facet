@@ -1091,6 +1091,13 @@ class ScoringConfig:
         """
         return float(self.get_narrative_moments_config().get('caption_min_confidence', 0.0))
 
+    def get_ocr_config(self):
+        """Return the ocr config block (empty/disabled if absent)."""
+        block = self.config.get('ocr', {})
+        if not isinstance(block, dict):
+            return {'enabled': False}
+        return block
+
     def get_junk_sweep_config(self):
         """Return the junk_sweep config block (empty/disabled if absent)."""
         js = self.config.get('junk_sweep', {})
