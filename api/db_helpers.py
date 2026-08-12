@@ -22,6 +22,7 @@ from api.config import (
     _photo_tags_available, _photo_tags_lock, PHOTO_TAGS_CACHE_TTL,
     _count_cache, _count_cache_lock, COUNT_CACHE_TTL,
     is_multi_user_enabled, get_user_directories, _FULL_CONFIG, VIEWER_CONFIG,
+    config_load_failed,
 )
 from api.database import get_db_connection
 from db import DEFAULT_DB_PATH
@@ -192,7 +193,9 @@ def hide_duplicates_sql(table_alias: str = '') -> str:
 HIDE_BLINKS_SQL = "(is_blink = 0 OR is_blink IS NULL)"
 HIDE_BURSTS_SQL = hide_bursts_sql()
 HIDE_DUPLICATES_SQL = hide_duplicates_sql()
-HIDDEN_BURST_SQL = "(is_burst_lead = 0 AND burst_group_id IS NOT NULL)"
+HIDDEN_BURST_SQL = (
+    "(is_burst_lead = 0 AND burst_group_id IS NOT NULL "
+    "AND (is_sequence_lead IS NULL OR is_sequence_lead = 0))")
 HIDDEN_DUPLICATE_SQL = "(is_duplicate_lead = 0 AND duplicate_group_id IS NOT NULL)"
 
 # Keep every ordinary photo plus the base exposure of each bracket. Deliberately
@@ -724,6 +727,41 @@ def repair_stale_representative(conn, person_id):
         )
 
 
+def recompute_person_centroid(conn, person_id):
+    """Recompute ``person_id``'s centroid from the mean of its faces' embeddings.
+
+    API-created persons (create / assign / split) and merge targets are stored
+    with a NULL centroid. Incremental re-clustering used to drop every person
+    with a NULL centroid from its preservation set, so on the next run
+    ``UPDATE faces SET person_id = NULL`` orphaned all their faces and the
+    cleanup then deleted the named person. Giving each touched person a real
+    centroid keeps them matchable.
+
+    Mirrors the clusterer's own centroid math: 512-dim float32 embeddings, each
+    L2-normalized, averaged, then renormalized. A person with no usable
+    embeddings has its centroid set to NULL (it is still preserved by the
+    history rule, never by centroid similarity).
+    """
+    import numpy as np
+    rows = conn.execute(
+        "SELECT embedding FROM faces WHERE person_id = ? AND embedding IS NOT NULL",
+        (person_id,),
+    ).fetchall()
+    embeddings = []
+    for row in rows:
+        emb = np.frombuffer(row[0], dtype=np.float32)
+        if len(emb) == 512:
+            embeddings.append(emb / (np.linalg.norm(emb) + 1e-10))
+    if not embeddings:
+        conn.execute("UPDATE persons SET centroid = NULL WHERE id = ?", (person_id,))
+        return
+    centroid = np.mean(embeddings, axis=0).astype(np.float32)
+    centroid = centroid / (np.linalg.norm(centroid) + 1e-10)
+    conn.execute(
+        "UPDATE persons SET centroid = ? WHERE id = ?", (centroid.tobytes(), person_id)
+    )
+
+
 def reassign_faces_to_person(conn, person_id, face_ids):
     """Reassign a set of faces to ``person_id``; auto-delete emptied old persons.
 
@@ -773,6 +811,11 @@ def reassign_faces_to_person(conn, person_id, face_ids):
             deleted_persons.append(old_id)
         else:
             repair_stale_representative(conn, old_id)
+            recompute_person_centroid(conn, old_id)
+
+    # Give the (possibly freshly-created) target a real centroid so incremental
+    # re-clustering preserves it instead of orphaning its faces.
+    recompute_person_centroid(conn, person_id)
 
     row = conn.execute(
         "SELECT face_count FROM persons WHERE id = ?", (person_id,)
@@ -870,8 +913,16 @@ def is_access_controlled_install():
     world-readable, so ownership must never deny access there. Shared by
     ``get_visibility_clause`` and the album-access check so both honour the same
     install-mode carve-out.
+
+    Mirrors ``api.auth._is_open_install``: an unparseable ``scoring_config.json``
+    yields an empty config carrying no password, which reads exactly like a
+    deliberately open install and would hand the whole library to anonymous
+    callers. Such an install is treated as access-controlled (fail closed) until
+    the config parses again.
     """
-    return is_multi_user_enabled() or bool(VIEWER_CONFIG.get('password', ''))
+    return (config_load_failed()
+            or is_multi_user_enabled()
+            or bool(VIEWER_CONFIG.get('password', '')))
 
 
 def get_visibility_clause(user_id, table_alias='photos'):
@@ -900,8 +951,14 @@ def get_visibility_clause(user_id, table_alias='photos'):
     params = []
     for d in all_dirs:
         prefix = d.rstrip('/\\') + '/'
-        conditions.append(f"{table_alias}.path LIKE ?")
-        params.append(prefix + '%')
+        # Escape LIKE wildcards so a directory containing % or _ can only match
+        # itself: an unescaped `_` matches any single character, so a user scoped
+        # to `.../a_b/` would also see `.../axb/` belonging to another user.
+        # Backslashes are escaped too (they stay literal path separators, not
+        # LIKE escapes) now that we declare ESCAPE. Mirrors folders.py.
+        escaped = prefix.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        conditions.append(f"{table_alias}.path LIKE ? ESCAPE '\\'")
+        params.append(escaped + '%')
 
     return f"({' OR '.join(conditions)})", params
 

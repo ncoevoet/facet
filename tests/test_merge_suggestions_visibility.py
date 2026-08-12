@@ -28,13 +28,14 @@ _SCHEMA = """
     CREATE TABLE rejected_merge_suggestions (person_a_id INTEGER, person_b_id INTEGER);
 """
 
-_GROUPS = [
-    {"avg_similarity": 0.9,
-     "persons": [{"id": 1, "name": "A", "face_count": 3},
-                 {"id": 2, "name": "B", "face_count": 3}]},
-    {"avg_similarity": 0.8,
-     "persons": [{"id": 1, "name": "A", "face_count": 3},
-                 {"id": 3, "name": "C", "face_count": 3}]},
+# Candidate pairwise suggestions (person 1 pairs with both 2 and 3). The
+# endpoint's directory-visibility filtering is what these tests exercise, so the
+# similarity computation is stubbed at ``_pairwise_suggestions``.
+_SUGGESTIONS = [
+    {"person1": {"id": 1, "name": "A", "face_count": 3},
+     "person2": {"id": 2, "name": "B", "face_count": 3}, "similarity": 0.9},
+    {"person1": {"id": 1, "name": "A", "face_count": 3},
+     "person2": {"id": 3, "name": "C", "face_count": 3}, "similarity": 0.8},
 ]
 
 
@@ -77,7 +78,7 @@ def _client(db_path, user, multi_user):
     patches = [
         mock.patch(f"{_ROUTER}.get_db", _db_cm(db_path)),
         mock.patch(f"{_ROUTER}.is_multi_user_enabled", return_value=multi_user),
-        mock.patch("faces.get_merge_groups", return_value=_GROUPS),
+        mock.patch(f"{_ROUTER}._pairwise_suggestions", return_value=_SUGGESTIONS),
         mock.patch(f"{_HELPERS}.is_multi_user_enabled", return_value=multi_user),
         mock.patch(f"{_HELPERS}.get_user_directories",
                    side_effect=lambda uid: dirs.get(uid, [])),

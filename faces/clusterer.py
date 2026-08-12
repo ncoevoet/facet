@@ -316,20 +316,23 @@ class FaceClusterer:
             preserve_named_only: If True, only loads named persons
 
         Returns:
-            Dict mapping person_id to {'name': str, 'centroid': np.array}
+            Dict mapping person_id to {'name': str, 'centroid': np.array | None}.
+            A person with no stored centroid (API-created via create/split/assign,
+            or otherwise never re-clustered) is kept with ``centroid=None`` — it is
+            still preserved, but only through the previous-owner history rule, not
+            centroid similarity. Excluding these (the old ``centroid IS NOT NULL``
+            filter) dropped them from preservation, so every incremental run cleared
+            their faces' person_id and the cleanup then deleted the named person.
         """
         if force:
             return {}
 
         if preserve_named_only:
             cursor = conn.execute("""
-                SELECT id, name, centroid FROM persons
-                WHERE centroid IS NOT NULL AND name IS NOT NULL
+                SELECT id, name, centroid FROM persons WHERE name IS NOT NULL
             """)
         else:
-            cursor = conn.execute("""
-                SELECT id, name, centroid FROM persons WHERE centroid IS NOT NULL
-            """)
+            cursor = conn.execute("SELECT id, name, centroid FROM persons")
 
         existing_persons = {}
         for row in cursor.fetchall():
@@ -337,10 +340,12 @@ class FaceClusterer:
             if centroid_bytes:
                 centroid = np.frombuffer(centroid_bytes, dtype=np.float32)
                 centroid = centroid / (np.linalg.norm(centroid) + 1e-10)
-                existing_persons[person_id] = {'name': name, 'centroid': centroid}
+            else:
+                centroid = None
+            existing_persons[person_id] = {'name': name, 'centroid': centroid}
 
         if existing_persons:
-            logger.info("  Preserving %s named person(s)", len(existing_persons))
+            logger.info("  Preserving %s existing person(s)", len(existing_persons))
         return existing_persons
 
     def _preserved_face_assignments(self, conn, existing_persons):
@@ -426,6 +431,46 @@ class FaceClusterer:
                 conn.execute("""
                     UPDATE persons SET centroid = ? WHERE id = ?
                 """, (new_centroid.tobytes(), pid))
+
+    def _repair_preserved_representatives(self, conn, person_ids):
+        """Fix a preserved person's representative face when clustering moved it.
+
+        Incremental / named-only clustering clears and reassigns ``person_id`` on
+        every face, so a preserved person's ``representative_face_id`` can end up
+        pointing at a face now owned by someone else (or no one). Replace it with
+        the person's highest-confidence remaining face, or clear both columns when
+        the person kept no faces. Tuple-row equivalent of
+        ``api.db_helpers.repair_stale_representative`` (this connection opens with
+        ``row_factory=False``).
+        """
+        for pid in person_ids:
+            row = conn.execute(
+                "SELECT representative_face_id FROM persons WHERE id = ?", (pid,)
+            ).fetchone()
+            if not row:
+                continue
+            rep_id = row[0]
+            if rep_id is not None and conn.execute(
+                "SELECT 1 FROM faces WHERE id = ? AND person_id = ?", (rep_id, pid)
+            ).fetchone():
+                continue
+            replacement = conn.execute(
+                "SELECT id, face_thumbnail FROM faces WHERE person_id = ? "
+                "ORDER BY confidence DESC LIMIT 1",
+                (pid,),
+            ).fetchone()
+            if replacement:
+                conn.execute(
+                    "UPDATE persons SET representative_face_id = ?, face_thumbnail = ? "
+                    "WHERE id = ?",
+                    (replacement[0], replacement[1], pid),
+                )
+            else:
+                conn.execute(
+                    "UPDATE persons SET representative_face_id = NULL, "
+                    "face_thumbnail = NULL WHERE id = ?",
+                    (pid,),
+                )
 
     def _update_database(self, face_to_cluster, embeddings, face_ids, force=False, preserve_named_only=False):
         """
@@ -513,6 +558,10 @@ class FaceClusterer:
                 if existing_persons:
                     best_similarity = merge_threshold
                     for pid, pdata in existing_persons.items():
+                        # Centroid-less preserved persons (API-created) can only be
+                        # matched by the history rule below, not by similarity.
+                        if pdata['centroid'] is None:
+                            continue
                         similarity = float(np.dot(centroid, pdata['centroid']))
                         if similarity > best_similarity:
                             best_similarity = similarity
@@ -617,6 +666,19 @@ class FaceClusterer:
             # Update face counts and centroids for existing persons
             if existing_persons:
                 self._update_person_centroids(conn, existing_persons.keys())
+                # Clustering reassigned person_id on every face, so a preserved
+                # person's stored representative may now belong to someone else.
+                self._repair_preserved_representatives(conn, existing_persons.keys())
+                # An incremental run can leave a preserved *unnamed* auto-clustered
+                # person with no faces (all folded into other clusters). These husks
+                # accumulate run over run, so drop them -- but keep named persons and
+                # API-created (auto_clustered = 0) ones even when momentarily empty.
+                deleted_empty = conn.execute(
+                    "DELETE FROM persons WHERE name IS NULL AND auto_clustered = 1 "
+                    "AND (face_count = 0 OR face_count IS NULL)"
+                ).rowcount
+                if deleted_empty:
+                    logger.info("  Removed %s empty auto-clustered person(s)", deleted_empty)
 
             conn.commit()
 

@@ -194,6 +194,13 @@ def api_assign_all_faces(
         try:
             assert_photo_visible(conn, user.user_id if user else None, body.photo_path)
 
+            # faces.person_id has no FK, so a stale target id would strand the
+            # faces on a dangling person. Validate the target exists first.
+            if not conn.execute(
+                "SELECT 1 FROM persons WHERE id = ?", (body.person_id,)
+            ).fetchone():
+                raise HTTPException(status_code=404, detail="Target person not found")
+
             faces = conn.execute("""
                 SELECT id FROM faces WHERE photo_path = ? AND person_id IS NULL
             """, (body.photo_path,)).fetchall()
@@ -231,6 +238,11 @@ def api_unassign_person(
     """Unassign all faces of a specific person from a photo."""
     with get_db() as conn:
         try:
+            # A directory-scoped edition user must not detach faces on a photo
+            # outside their directories (and thereby empty/delete a person the
+            # global gallery still shows). Gate on photo visibility first.
+            assert_photo_visible(conn, user.user_id if user else None, body.photo_path)
+
             faces = conn.execute("""
                 SELECT id FROM faces
                 WHERE photo_path = ? AND person_id = ?
@@ -255,6 +267,10 @@ def api_unassign_person(
             if new_count and new_count[0] == 0:
                 conn.execute("DELETE FROM persons WHERE id = ?", (body.person_id,))
                 person_deleted = True
+            else:
+                # The detached faces may have included this person's stored
+                # representative; repoint it at a remaining face.
+                repair_stale_representative(conn, body.person_id)
 
             conn.commit()
 
@@ -263,6 +279,9 @@ def api_unassign_person(
                 'unassigned_count': len(faces),
                 'person_deleted': person_deleted
             }
+        except LookupError:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="No faces found")
         except HTTPException:
             raise
         except sqlite3.Error:

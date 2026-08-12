@@ -11,7 +11,6 @@ from api.auth import CurrentUser, require_authenticated
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_db
 from api.db_helpers import get_visibility_clause
-from db import DEFAULT_DB_PATH
 
 router = APIRouter(tags=["merge_suggestions"])
 
@@ -54,6 +53,65 @@ def _load_rejected_pairs():
         return set()
 
 
+def _pairwise_suggestions(threshold):
+    """Merge suggestions as true pairwise person comparisons.
+
+    Loads every non-hidden person's centroid and emits each person pair whose
+    OWN centroid cosine similarity clears ``threshold``, labelled with that
+    pair's real similarity.
+
+    Replaces a union-find grouping that emitted the *adjacent* pairs of a
+    transitively-connected group and stamped every one with the group's average
+    similarity -- so a pair merely linked through a chain (A~B~C, with A and C
+    themselves dissimilar) was shown as a confident match and an 'Accept all'
+    then merged different people irreversibly.
+    """
+    import numpy as np
+    from db import person_not_hidden_clause
+
+    with get_db() as conn:
+        rows = conn.execute(
+            f"SELECT id, name, face_count, centroid FROM persons "
+            f"WHERE centroid IS NOT NULL AND {person_not_hidden_clause()} "
+            f"ORDER BY face_count DESC"
+        ).fetchall()
+
+    persons, centroids = [], []
+    for row in rows:
+        if not row['centroid']:
+            continue
+        c = np.frombuffer(row['centroid'], dtype=np.float32)
+        c = c / (np.linalg.norm(c) + 1e-10)
+        persons.append({
+            'id': row['id'],
+            'name': row['name'],
+            'face_count': row['face_count'] or 0,
+        })
+        centroids.append(c)
+
+    suggestions = []
+    n = len(persons)
+    for i in range(n):
+        ci = centroids[i]
+        for j in range(i + 1, n):
+            similarity = float(np.dot(ci, centroids[j]))
+            if similarity >= threshold:
+                suggestions.append({
+                    "person1": {
+                        "id": persons[i]["id"],
+                        "name": persons[i]["name"],
+                        "face_count": persons[i]["face_count"],
+                    },
+                    "person2": {
+                        "id": persons[j]["id"],
+                        "name": persons[j]["name"],
+                        "face_count": persons[j]["face_count"],
+                    },
+                    "similarity": similarity,
+                })
+    return suggestions
+
+
 @router.get("/api/merge_suggestions")
 def get_merge_suggestions(
     threshold: float = Query(0.6, ge=0.0, le=1.0),
@@ -64,31 +122,7 @@ def get_merge_suggestions(
     if not VIEWER_CONFIG.get("features", {}).get("show_merge_suggestions", True):
         raise HTTPException(status_code=403, detail="Merge suggestions feature is disabled")
 
-    # Lazy import only when feature is used
-    from faces import get_merge_groups
-
-    groups = get_merge_groups(DEFAULT_DB_PATH, threshold)
-
-    # Convert groups to pairwise suggestions for the Angular component
-    suggestions = []
-    for group in groups:
-        persons = group.get("persons", [])
-        similarity = group.get("avg_similarity", 0.0)
-        # Create a pairwise suggestion for each adjacent pair in the group
-        for i in range(len(persons) - 1):
-            suggestions.append({
-                "person1": {
-                    "id": persons[i]["id"],
-                    "name": persons[i].get("name"),
-                    "face_count": persons[i].get("face_count", 0),
-                },
-                "person2": {
-                    "id": persons[i + 1]["id"],
-                    "name": persons[i + 1].get("name"),
-                    "face_count": persons[i + 1].get("face_count", 0),
-                },
-                "similarity": similarity,
-            })
+    suggestions = _pairwise_suggestions(threshold)
 
     # Drop pairs the user has already dismissed so they stop reappearing.
     rejected = _load_rejected_pairs()

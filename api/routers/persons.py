@@ -13,7 +13,10 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, require_edition, require_authenticated
 from api.config import VIEWER_CONFIG, invalidate_stats_cache
 from api.database import get_async_db, get_db
-from api.db_helpers import assert_faces_visible, reassign_faces_to_person, person_visibility_exists
+from api.db_helpers import (
+    assert_faces_visible, reassign_faces_to_person, person_visibility_exists,
+    recompute_person_centroid,
+)
 from db import person_not_hidden_clause
 
 logger = logging.getLogger(__name__)
@@ -221,6 +224,14 @@ def _do_merge(source_id: int, target_id: int, user_id):
 
     with get_db() as conn:
         try:
+            # faces.person_id has no foreign key, so a stale suggestion targeting
+            # a deleted person would silently move faces to a dangling id and make
+            # them vanish from the gallery. Validate both persons exist first.
+            for pid in (source_id, target_id):
+                if not conn.execute(
+                    "SELECT 1 FROM persons WHERE id = ?", (pid,)
+                ).fetchone():
+                    raise HTTPException(status_code=404, detail="Person not found")
             _assert_person_visible(conn, user_id, source_id)
             _assert_person_visible(conn, user_id, target_id)
             # 1. Move all faces from source to target
@@ -234,7 +245,11 @@ def _do_merge(source_id: int, target_id: int, user_id):
             conn.execute("UPDATE persons SET face_count = ? WHERE id = ?",
                          (count, target_id))
 
-            # 3. Delete source person
+            # 3. Recompute the target's centroid from its now-larger face set so
+            #    clustering and future merge suggestions match the merged person.
+            recompute_person_centroid(conn, target_id)
+
+            # 4. Delete source person
             conn.execute("DELETE FROM persons WHERE id = ?", (source_id,))
 
             conn.commit()
@@ -296,8 +311,18 @@ def merge_persons_batch(
     with get_db() as conn:
         try:
             for target_id, source_ids in groups.items():
+                # No FK on faces.person_id: a stale suggestion could target a
+                # deleted person and strand every folded face. Validate first.
+                if not conn.execute(
+                    "SELECT 1 FROM persons WHERE id = ?", (target_id,)
+                ).fetchone():
+                    raise HTTPException(status_code=404, detail=f"Person {target_id} not found")
                 _assert_person_visible(conn, user_id, target_id)
                 for source_id in source_ids:
+                    if not conn.execute(
+                        "SELECT 1 FROM persons WHERE id = ?", (source_id,)
+                    ).fetchone():
+                        raise HTTPException(status_code=404, detail=f"Person {source_id} not found")
                     _assert_person_visible(conn, user_id, source_id)
             merged_total = 0
             for target_id, source_ids in groups.items():
@@ -316,6 +341,8 @@ def merge_persons_batch(
                     "UPDATE persons SET face_count = ? WHERE id = ?",
                     (row[0] if row else 0, target_id),
                 )
+                # Recompute the surviving target's centroid over its merged faces.
+                recompute_person_centroid(conn, target_id)
                 # Delete the folded persons
                 conn.execute(
                     f"DELETE FROM persons WHERE id IN ({placeholders})", ids
