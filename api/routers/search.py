@@ -186,7 +186,7 @@ def _load_text_encoder():
         from transformers import AutoModel, AutoTokenizer
         logger.info(f"Loading SigLIP text encoder: {model_name}")
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float32).to(device)
+        model = AutoModel.from_pretrained(model_name, dtype=torch.float32).to(device)
         model.eval()
         _text_encoder = {
             'backend': 'transformers',
