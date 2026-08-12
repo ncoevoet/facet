@@ -11,7 +11,6 @@ import { FixedPipe } from '../../pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { ScoreClassPipe, SortScorePipe } from '../../pipes/score.pipes';
 import { SortPersonsPipe } from '../../pipes/sort-persons.pipe';
-import { I18N } from '../../../core/i18n/keys';
 
 interface AppConfig {
   quality_thresholds?: { excellent: number; great: number; good: number };
@@ -54,7 +53,7 @@ interface AppConfig {
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
       [class.md:hover:ring-2]="!isSelected()"
       [class.md:hover:ring-[var(--mat-sys-outline-variant)]]="!isSelected()"
-      [attr.aria-label]="photo().keeper_hint?.has_better ? photo().filename + ', ' + (I18N.culling.reason.better_shot | translate) : photo().filename"
+      [attr.aria-label]="photo().keeper_hint?.has_better ? photo().filename + ', ' + ('culling.reason.better_shot' | translate) : photo().filename"
       [attr.aria-pressed]="isSelected()"
       (click)="onSelect($event)"
       (keydown.enter)="onKeyOpen($event)"
@@ -97,7 +96,7 @@ interface AppConfig {
              control does. -->
         @if (isEditionMode() && photo().star_rating) {
           <div class="absolute bottom-1 left-1.5 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0"
-               [attr.aria-label]="I18N.rating.rating_badge | translate:{ stars: photo().star_rating ?? 0 }">
+               [attr.aria-label]="'rating.rating_badge' | translate:{ stars: photo().star_rating ?? 0 }">
             <mat-icon class="!text-lg !w-[18px] !h-[18px] !leading-[18px] !text-yellow-400 drop-shadow-md"
                       aria-hidden="true">star</mat-icon>
             <span class="absolute -top-0.5 -right-0.5 min-w-3.5 h-3.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold flex items-center justify-center leading-none">{{ photo().star_rating }}</span>
@@ -131,8 +130,8 @@ interface AppConfig {
              collapsed behind anything, so a hide toggle says nothing about it. -->
         @if (photo().sequence_override_pending && photo().sequence_override; as pending) {
           <div class="absolute bottom-1 left-[4.5rem] w-7 h-7 z-30 inline-flex items-center justify-center"
-               [matTooltip]="(pending === 'suppressed' ? I18N.gallery.sequence_override.badge_suppressed : I18N.gallery.sequence_override.badge) | translate"
-               [attr.aria-label]="(pending === 'suppressed' ? I18N.gallery.sequence_override.badge_suppressed : I18N.gallery.sequence_override.badge) | translate">
+               [matTooltip]="(pending === 'suppressed' ? 'gallery.sequence_override.badge_suppressed' : 'gallery.sequence_override.badge') | translate"
+               [attr.aria-label]="(pending === 'suppressed' ? 'gallery.sequence_override.badge_suppressed' : 'gallery.sequence_override.badge') | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-amber-300 drop-shadow-md"
                       aria-hidden="true">schedule</mat-icon>
           </div>
@@ -146,7 +145,7 @@ interface AppConfig {
              nothing at all on an already-monochrome photo. -->
         @if (isEditionMode() && photo().is_rejected) {
           <div class="absolute bottom-1 right-9 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0"
-               [attr.aria-label]="I18N.rating.rejected_badge | translate">
+               [attr.aria-label]="'rating.rejected_badge' | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md" aria-hidden="true">thumb_down</mat-icon>
           </div>
         }
@@ -166,29 +165,29 @@ interface AppConfig {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
                 [matMenuTriggerFor]="similarMenu"
-                [matTooltip]="I18N.similar.find_similar | translate"
+                [matTooltip]="'similar.find_similar' | translate"
                 (click)="$event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">image_search</mat-icon>
               </button>
               <mat-menu #similarMenu="matMenu">
                 <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'visual'})">
                   <mat-icon>image_search</mat-icon>
-                  {{ I18N.similar.mode_visual | translate }}
+                  {{ 'similar.mode_visual' | translate }}
                 </button>
                 <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'color'})">
                   <mat-icon>palette</mat-icon>
-                  {{ I18N.similar.mode_color | translate }}
+                  {{ 'similar.mode_color' | translate }}
                 </button>
                 <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'person'})">
                   <mat-icon>person_search</mat-icon>
-                  {{ I18N.similar.mode_person | translate }}
+                  {{ 'similar.mode_person' | translate }}
                 </button>
               </mat-menu>
             }
             @if (config()?.features?.show_critique) {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
-                [matTooltip]="I18N.critique.title | translate"
+                [matTooltip]="'critique.title' | translate"
                 (click)="openCritiqueClicked.emit(photo()); $event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
               </button>
@@ -196,8 +195,8 @@ interface AppConfig {
             @if (isEditionMode() && config()?.features?.show_embed_metadata) {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
-                [matTooltip]="I18N.photoCard.embed_to_file | translate"
-                [attr.aria-label]="I18N.photoCard.embed_to_file | translate"
+                [matTooltip]="'photoCard.embed_to_file' | translate"
+                [attr.aria-label]="'photoCard.embed_to_file' | translate"
                 (click)="embedMetadataClicked.emit(photo()); $event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">save</mat-icon>
               </button>
@@ -205,7 +204,7 @@ interface AppConfig {
             @if (isEditionMode() && photo().unassigned_faces > 0) {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
-                [matTooltip]="I18N.manage_persons.assign_face | translate"
+                [matTooltip]="'manage_persons.assign_face' | translate"
                 (click)="openAddPersonClicked.emit(photo()); $event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">person_add</mat-icon>
               </button>
@@ -219,7 +218,7 @@ interface AppConfig {
               @if (config()?.features?.show_rating_controls) {
                 <button
                   class="relative w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-yellow-400"
-                  [matTooltip]="I18N.rating.set_rating | translate"
+                  [matTooltip]="'rating.set_rating' | translate"
                   (click)="cycleStarRating(); $event.stopPropagation()"
                   (dblclick)="$event.stopPropagation()">
                   <mat-icon class="!text-lg !w-[18px] !h-[18px] !leading-[18px]">{{ photo().star_rating ? 'star' : 'star_border' }}</mat-icon>
@@ -274,15 +273,15 @@ interface AppConfig {
             <span class="font-medium text-neutral-200 truncate">{{ photo().filename }}</span>
             <span class="ml-auto flex items-center gap-1 shrink-0">
               @if (photo().is_best_of_burst) {
-                <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ I18N.ui.badges.best | translate }}</span>
+                <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ 'ui.badges.best' | translate }}</span>
               }
               @if (currentSort() !== 'aggregate') {
-                <span class="text-neutral-400 font-medium" [matTooltip]="I18N.gallery.aggregate_score | translate">{{ photo().aggregate | fixed:1 }}</span>
+                <span class="text-neutral-400 font-medium" [matTooltip]="'gallery.aggregate_score' | translate">{{ photo().aggregate | fixed:1 }}</span>
               }
               <span
                 class="px-1 py-0.5 rounded text-xs font-bold"
                 [class]="(photo() | sortScore:currentSort()) | scoreClass:config()"
-                [matTooltip]="(currentSort() === 'aggregate' ? (I18N.gallery.aggregate_score | translate) : (I18N.gallery.sort_score | translate) + ' (' + currentSort() + ')')"
+                [matTooltip]="(currentSort() === 'aggregate' ? ('gallery.aggregate_score' | translate) : ('gallery.sort_score' | translate) + ' (' + currentSort() + ')')"
               >{{ (photo() | sortScore:currentSort()) | fixed:1 }}</span>
             </span>
           </div>
@@ -316,7 +315,7 @@ interface AppConfig {
                 @if (isEditionMode() && personFilterId() === '' + person.id) {
                   <button
                     class="w-8 h-8 rounded-full bg-red-900/60 inline-flex items-center justify-center hover:bg-red-800 transition-colors"
-                    [matTooltip]="(I18N.ui.buttons.remove | translate) + ': ' + person.name"
+                    [matTooltip]="('ui.buttons.remove' | translate) + ': ' + person.name"
                     (click)="personRemoveClicked.emit({photo: photo(), personId: person.id}); $event.stopPropagation()">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-red-300">close</mat-icon>
                   </button>
@@ -340,7 +339,6 @@ interface AppConfig {
   `,
 })
 export class PhotoCardComponent {
-  protected readonly I18N = I18N;
   // Data
   readonly photo = input.required<Photo>();
   readonly config = input<AppConfig | null>(null);

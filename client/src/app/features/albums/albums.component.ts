@@ -23,7 +23,6 @@ import { AlbumScoringContextDialogComponent, AlbumScoringContextDialogData } fro
 import { AlbumsFiltersService } from './albums-filters.service';
 import { ShareDialogComponent, ShareDialogData } from '../../shared/components/share-dialog/share-dialog.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
-import { I18N } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 
@@ -40,28 +39,28 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
   template: `
     <ng-template #albumsToolbar>
       <mat-form-field class="!hidden lg:!inline-flex w-52" subscriptSizing="dynamic">
-        <mat-label>{{ I18N.albums.search | translate }}</mat-label>
+        <mat-label>{{ 'albums.search' | translate }}</mat-label>
         <input matInput [value]="albumsFilters.search()" (input)="albumsFilters.search.set($any($event.target).value)" />
         <mat-icon matPrefix class="opacity-60">search</mat-icon>
       </mat-form-field>
       <mat-form-field class="!hidden lg:!inline-flex w-36" subscriptSizing="dynamic">
-        <mat-label>{{ I18N.albums.filter_type | translate }}</mat-label>
+        <mat-label>{{ 'albums.filter_type' | translate }}</mat-label>
         <mat-select [value]="albumsFilters.typeFilter()" (selectionChange)="albumsFilters.typeFilter.set($event.value)">
-          <mat-option value="">{{ I18N.albums.type_all | translate }}</mat-option>
-          <mat-option value="manual">{{ I18N.albums.type_manual | translate }}</mat-option>
-          <mat-option value="smart">{{ I18N.albums.type_smart | translate }}</mat-option>
+          <mat-option value="">{{ 'albums.type_all' | translate }}</mat-option>
+          <mat-option value="manual">{{ 'albums.type_manual' | translate }}</mat-option>
+          <mat-option value="smart">{{ 'albums.type_smart' | translate }}</mat-option>
         </mat-select>
       </mat-form-field>
       <mat-form-field class="!hidden lg:!inline-flex w-40" subscriptSizing="dynamic">
-        <mat-label>{{ I18N.albums.sort_by | translate }}</mat-label>
+        <mat-label>{{ 'albums.sort_by' | translate }}</mat-label>
         <mat-select [value]="albumsFilters.sort()" (selectionChange)="albumsFilters.sort.set($event.value)">
-          <mat-option value="updated_at">{{ I18N.albums.sort_recent | translate }}</mat-option>
-          <mat-option value="name">{{ I18N.albums.sort_name | translate }}</mat-option>
-          <mat-option value="photo_count">{{ I18N.albums.sort_photos | translate }}</mat-option>
+          <mat-option value="updated_at">{{ 'albums.sort_recent' | translate }}</mat-option>
+          <mat-option value="name">{{ 'albums.sort_name' | translate }}</mat-option>
+          <mat-option value="photo_count">{{ 'albums.sort_photos' | translate }}</mat-option>
         </mat-select>
       </mat-form-field>
       @if (auth.isEdition()) {
-        <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="I18N.albums.create | translate" [attr.aria-label]="I18N.albums.create | translate" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
+        <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="'albums.create' | translate" [attr.aria-label]="'albums.create' | translate" (click)="albumsFilters.createRequested.set(albumsFilters.createRequested() + 1)">
           <mat-icon>add</mat-icon>
         </button>
       }
@@ -76,7 +75,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
     @if (albums().length === 0 && !loading()) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">photo_library</mat-icon>
-        <p>{{ I18N.albums.empty | translate }}</p>
+        <p>{{ 'albums.empty' | translate }}</p>
       </div>
     }
 
@@ -93,8 +92,8 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
                 <span class="text-white text-xs font-medium truncate">{{ album.name }}</span>
                 @if (album.is_smart) {
                   <mat-icon class="!text-xs !w-3 !h-3 !leading-3 text-white/80 shrink-0 pointer-events-auto"
-                            [matTooltip]="I18N.albums.smart_tooltip | translate"
-                            [attr.aria-label]="I18N.albums.smart_tooltip | translate">auto_awesome</mat-icon>
+                            [matTooltip]="'albums.smart_tooltip' | translate"
+                            [attr.aria-label]="'albums.smart_tooltip' | translate">auto_awesome</mat-icon>
                 }
               </div>
             </div>
@@ -105,8 +104,8 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
                 <span class="text-white text-xs font-medium truncate">{{ album.name }}</span>
                 @if (album.is_smart) {
                   <mat-icon class="!text-xs !w-3 !h-3 !leading-3 text-white/80 shrink-0 pointer-events-auto"
-                            [matTooltip]="I18N.albums.smart_tooltip | translate"
-                            [attr.aria-label]="I18N.albums.smart_tooltip | translate">auto_awesome</mat-icon>
+                            [matTooltip]="'albums.smart_tooltip' | translate"
+                            [attr.aria-label]="'albums.smart_tooltip' | translate">auto_awesome</mat-icon>
                 }
               </div>
             </div>
@@ -120,7 +119,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
             <div class="flex items-center shrink-0">
               @if (!album.is_smart) {
                 <button mat-icon-button
-                        [matTooltip]="I18N.albums.scenes | translate"
+                        [matTooltip]="'albums.scenes' | translate"
                         (click)="openScoped($event, '/scenes', album)">
                   <mat-icon class="opacity-60">movie_filter</mat-icon>
                 </button>
@@ -128,40 +127,40 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
               @if (auth.isEdition()) {
                 @if (!album.is_smart && proofingEnabled()) {
                   <button mat-icon-button
-                          [matTooltip]="I18N.proofing.client_picks | translate"
+                          [matTooltip]="'proofing.client_picks' | translate"
                           (click)="openClientPicks($event, album)">
                     <mat-icon class="opacity-60">how_to_vote</mat-icon>
                   </button>
                 }
                 <button mat-icon-button
-                        [matTooltip]="I18N.albums.cull | translate"
+                        [matTooltip]="'albums.cull' | translate"
                         (click)="openScoped($event, '/culling', album)">
                   <mat-icon class="opacity-60">auto_delete</mat-icon>
                 </button>
                 @if (!album.is_smart && portfolioEnabled()) {
                   <button mat-icon-button
-                          [matTooltip]="I18N.albums.portfolio | translate"
+                          [matTooltip]="'albums.portfolio' | translate"
                           (click)="exportPortfolio($event, album)">
                     <mat-icon class="opacity-60">web</mat-icon>
                   </button>
                 }
                 <button mat-icon-button
-                        [matTooltip]="I18N.albums.scoring_context.action | translate"
+                        [matTooltip]="'albums.scoring_context.action' | translate"
                         (click)="openScoringContext($event, album)">
                   <mat-icon class="opacity-60">tune</mat-icon>
                 </button>
                 <button mat-icon-button
-                        [matTooltip]="I18N.albums.edit | translate"
+                        [matTooltip]="'albums.edit' | translate"
                         (click)="editAlbum($event, album)">
                   <mat-icon class="opacity-60">edit</mat-icon>
                 </button>
                 <button mat-icon-button
-                        [matTooltip]="I18N.albums.share | translate"
+                        [matTooltip]="'albums.share' | translate"
                         (click)="shareAlbum($event, album)">
                   <mat-icon class="opacity-60">{{ album.is_shared ? 'link' : 'share' }}</mat-icon>
                 </button>
                 <button mat-icon-button
-                        [matTooltip]="I18N.albums.delete | translate"
+                        [matTooltip]="'albums.delete' | translate"
                         (click)="deleteAlbum($event, album)">
                   <mat-icon class="opacity-60">delete</mat-icon>
                 </button>
@@ -181,7 +180,6 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
   `,
 })
 export class AlbumsComponent {
-  protected readonly I18N = I18N;
   private readonly albumService = inject(AlbumService);
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
@@ -203,7 +201,7 @@ export class AlbumsComponent {
   protected readonly portfolioEnabled = computed(() => this.auth.hasFeature('show_portfolio_export'));
 
   constructor() {
-    this.pageHelp.setDescription(I18N.albums.help);
+    this.pageHelp.setDescription('albums.help');
     effect(() => {
       const t = this.albumsToolbar();
       if (t) this.headerSlot.set(t);
@@ -297,8 +295,8 @@ export class AlbumsComponent {
     event.stopPropagation();
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
-        title: this.i18n.t(I18N.albums.confirm_delete_title),
-        message: this.i18n.t(I18N.albums.confirm_delete_message, { name: album.name }),
+        title: this.i18n.t('albums.confirm_delete_title'),
+        message: this.i18n.t('albums.confirm_delete_message', { name: album.name }),
       },
     });
     const confirmed = await firstValueFrom(ref.afterClosed());

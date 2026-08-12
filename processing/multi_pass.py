@@ -24,6 +24,7 @@ from tqdm import tqdm
 
 from db.scoring_overrides import get_photo_scoring_overrides
 from models.model_manager import UNIFIED_MEMORY_ACCELERATOR, ModelManager
+from processing.scorer import build_scoring_metrics
 
 logger = logging.getLogger("facet.multi_pass")
 
@@ -117,9 +118,10 @@ class ChunkedMultiPassProcessor:
             int(proc_config.get('load_workers', proc_config.get('num_workers', 4))), 8
         ))
 
-        # Processing mode: 'auto', 'multi-pass', 'single-pass'
+        # Processing mode: 'auto', 'multi-pass', 'single-pass'. Effective single-
+        # pass routing is decided in facet._run_scan (which builds a BatchProcessor
+        # instead of this processor), so no derived flag is kept here.
         self.mode = proc_config.get('mode', 'auto')
-        self.enabled = self.mode != 'single-pass'
 
         # Auto-tuning settings for RAM chunk size
         auto_tuning = proc_config.get('auto_tuning', {})
@@ -938,69 +940,52 @@ class ChunkedMultiPassProcessor:
             )
             data['is_silhouette'] = is_silhouette
 
-            # Build full metrics dict for aggregate calculation
-            metrics = {
-                'aesthetic': data.get('aesthetic', 5.0),
-                'quality_score': data.get('quality_score'),
-                'scoring_model': data.get('scoring_model', 'clip-mlp'),
-                'comp_score': data.get('comp_score', 5.0),
-                'face_count': data.get('face_count', 0),
-                'face_quality': data.get('face_quality', 0),
-                'eye_sharpness': data.get('eye_sharpness', 0),
-                'face_sharpness': data.get('face_sharpness', 0),
-                'tech_sharpness': tech_sharpness,
-                'color_score': color_score,
-                'exposure_score': exposure_score,
-                'face_ratio': data.get('face_ratio', 0),
-                'tags': data.get('tags', ''),
-                'isolation_bonus': data.get('isolation_bonus', 1.0),
-                'is_blink': data.get('is_blink', 0),
-                'is_group_portrait': data.get('is_group_portrait', 0),
-                # Histogram data for penalties
-                'shadow_clipped': histogram.get('shadow_clipped', 0),
-                'highlight_clipped': histogram.get('highlight_clipped', 0),
-                'is_silhouette': is_silhouette,
-                'histogram_spread': histogram.get('spread', 0),
-                'histogram_bimodality': histogram.get('bimodality', 0),
-                'mean_luminance': histogram.get('mean_luminance', 0.5),
-                # B&W and contrast
-                'is_monochrome': mono.get('is_monochrome', 0),
-                'mean_saturation': mono.get('mean_saturation', 0),
-                'contrast_score': contrast.get('contrast_score', 5.0),
-                # Noise
-                'noise_sigma': noise.get('noise_sigma', 0),
-                # Leading lines
-                'leading_lines_score': data.get('leading_lines_score', 0),
-                'power_point_score': data.get('power_point_score', 5.0),
-                'topiq_score': data.get('topiq_score'),
-                # Supplementary PyIQA scores
-                'aesthetic_iaa': data.get('aesthetic_iaa'),
-                'face_quality_iqa': data.get('face_quality_iqa'),
-                'liqe_score': data.get('liqe_score'),
-                # Extended IQA tier (config-gated; None unless enabled). Carried so
-                # build_metric_vector can weight them when a weight is configured.
-                'qalign_score': data.get('qalign_score'),
-                'aesthetic_v25': data.get('aesthetic_v25'),
-                'deqa_score': data.get('deqa_score'),
-                # Subject saliency metrics
-                'subject_sharpness': data.get('subject_sharpness'),
-                'subject_prominence': data.get('subject_prominence'),
-                'subject_placement': data.get('subject_placement'),
-                'bg_separation': data.get('bg_separation'),
-                # Form facet + Matsuda color harmony (computed in _load_images)
-                'form_symmetry': img_data.get('form', {}).get('form_symmetry'),
-                'form_balance': img_data.get('form', {}).get('form_balance'),
-                'form_edge_entropy': img_data.get('form', {}).get('form_edge_entropy'),
-                'form_fractal': img_data.get('form', {}).get('form_fractal'),
-                'color_harmony': img_data.get('form', {}).get('color_harmony'),
-                # EXIF for adjustments
-                'iso': img_data.get('exif', {}).get('iso'),
-                'f_stop': img_data.get('exif', {}).get('f_stop'),
-                'shutter_speed': img_data.get('exif', {}).get('shutter_speed'),
-            }
+            # Build full metrics dict for aggregate calculation via the shared
+            # builder — the single source of truth for the scan-time feature space,
+            # also used by the single-pass batch and PIL scoring paths.
+            exif = img_data.get('exif', {})
             photo_override = chunk_overrides.get(str(Path(path).resolve()), {})
-            metrics['scoring_context'] = photo_override.get('scoring_context')
-            metrics['category_override'] = photo_override.get('category_override')
+            metrics = build_scoring_metrics(
+                aesthetic=data.get('aesthetic', 5.0),
+                face_count=data.get('face_count', 0),
+                face_quality=data.get('face_quality', 0),
+                eye_sharpness=data.get('eye_sharpness', 0),
+                face_sharpness=data.get('face_sharpness', 0),
+                face_ratio=data.get('face_ratio', 0),
+                is_group_portrait=data.get('is_group_portrait', 0),
+                is_blink=data.get('is_blink', 0),
+                isolation_bonus=data.get('isolation_bonus', 1.0),
+                sharpness_data=sharpness,
+                color_data=color,
+                histogram_data=histogram,
+                mono_data=mono,
+                noise_data=noise,
+                contrast_data=contrast,
+                comp_score=data.get('comp_score', 5.0),
+                power_point_score=data.get('power_point_score', 5.0),
+                leading_lines_score=data.get('leading_lines_score', 0),
+                is_silhouette=is_silhouette,
+                tags=data.get('tags', ''),
+                iso=exif.get('iso'),
+                f_stop=exif.get('f_stop'),
+                shutter_speed=exif.get('shutter_speed'),
+                quality_score=data.get('quality_score'),
+                scoring_model=data.get('scoring_model', 'clip-mlp'),
+                topiq_score=data.get('topiq_score'),
+                aesthetic_iaa=data.get('aesthetic_iaa'),
+                face_quality_iqa=data.get('face_quality_iqa'),
+                liqe_score=data.get('liqe_score'),
+                qalign_score=data.get('qalign_score'),
+                aesthetic_v25=data.get('aesthetic_v25'),
+                deqa_score=data.get('deqa_score'),
+                subject_sharpness=data.get('subject_sharpness'),
+                subject_prominence=data.get('subject_prominence'),
+                subject_placement=data.get('subject_placement'),
+                bg_separation=data.get('bg_separation'),
+                form_data=img_data.get('form', {}),
+                scoring_context=photo_override.get('scoring_context'),
+                category_override=photo_override.get('category_override'),
+            )
 
             # Use scorer's aggregate calculation
             aggregate, category = self.scorer.calculate_aggregate_logic(metrics)
@@ -1272,10 +1257,19 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
         else:
             model_name = 'topiq'  # Default to best pyiqa model
 
-    # For tags, determine model from profile
+    # For tags, determine model from profile. A CLIP-similarity profile has no
+    # VLM tagger to run as a pass — routing it to the 'clip' embedding pass would
+    # rewrite clip_embedding + aesthetic and produce zero tags. Fail clearly and
+    # point at --recompute-tags, which re-tags from the stored embeddings.
     if pass_name == 'tags':
         tag_model = scorer.config.get_model_for_task('tagging')
-        model_name = tagging_model_to_key(tag_model, 'clip')
+        model_name = tagging_model_to_key(tag_model)
+        if model_name is None:
+            logger.error(
+                "--pass tags needs a VLM tagger, but the active profile's tagging "
+                "model is %r (CLIP embedding-similarity). Run --recompute-tags to "
+                "re-tag from stored embeddings instead.", tag_model)
+            return 0
 
     if not model_name:
         logger.error("Unknown pass: %s", pass_name)

@@ -250,6 +250,61 @@ class TestApplyWritesConfigKeys:
         assert "qalign_percent" not in weights
 
 
+class TestCVFoldsMatchDeployedObjective:
+    """The held-out CV gate must score the SAME model optimize_weights_direct
+    ships: L2-regularized toward the current config weights. Before the fix,
+    each fold's fit was unregularized and started from a uniform prior, so the
+    reported CV accuracy was gating a different model than the one applied.
+    """
+
+    def test_l2_regularization_defaults_match_direct_optimization(self):
+        import inspect
+        direct_default = inspect.signature(
+            WeightOptimizer.optimize_weights_direct
+        ).parameters['l2_regularization'].default
+        cv_default = inspect.signature(
+            WeightOptimizer.optimize_weights_with_cv
+        ).parameters['l2_regularization'].default
+        assert direct_default == cv_default
+
+    def test_high_l2_pulls_every_fold_toward_current_weights(self, optimizer_db):
+        db_path, aesthetics = optimizer_db
+        _add_comparisons(db_path, aesthetics, 'vote', agree=True, count=80)
+        optimizer = WeightOptimizer(db_path)
+
+        old_weights = optimizer._load_current_weights(None)
+        n = len(WeightOptimizer.SCORE_COMPONENTS)
+        old_w = np.array([old_weights.get(c, 1.0 / n) for c in WeightOptimizer.SCORE_COMPONENTS])
+        old_w = old_w / old_w.sum()
+
+        # A huge L2 penalty should overwhelm the comparison-fit term in every
+        # fold, so the averaged CV weights land right back on the current
+        # config weights -- only possible if each fold is actually anchored to
+        # old_w the way optimize_weights_direct is.
+        result = optimizer.optimize_weights_with_cv(min_comparisons=30, l2_regularization=1e6)
+        assert 'error' not in result
+        new_w = np.array([result['new_weights'][c] for c in WeightOptimizer.SCORE_COMPONENTS])
+        assert np.allclose(new_w, old_w, atol=0.02)
+
+    def test_zero_l2_lets_folds_drift_from_current_weights(self, optimizer_db):
+        """Sanity check that the l2_regularization param actually takes effect
+        (rules out a no-op wiring that would make the test above pass by
+        accident)."""
+        db_path, aesthetics = optimizer_db
+        _add_comparisons(db_path, aesthetics, 'vote', agree=True, count=80)
+        optimizer = WeightOptimizer(db_path)
+
+        old_weights = optimizer._load_current_weights(None)
+        n = len(WeightOptimizer.SCORE_COMPONENTS)
+        old_w = np.array([old_weights.get(c, 1.0 / n) for c in WeightOptimizer.SCORE_COMPONENTS])
+        old_w = old_w / old_w.sum()
+
+        result = optimizer.optimize_weights_with_cv(min_comparisons=30, l2_regularization=0.0)
+        assert 'error' not in result
+        new_w = np.array([result['new_weights'][c] for c in WeightOptimizer.SCORE_COMPONENTS])
+        assert not np.allclose(new_w, old_w, atol=0.02)
+
+
 class TestHeldOutGate:
     def _setup(self, tmp_path):
         db_path = str(tmp_path / "gate.db")

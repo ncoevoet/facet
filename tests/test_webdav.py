@@ -14,6 +14,7 @@ path; the ``upload`` block is patched in place on ``api.config._FULL_CONFIG``
 """
 
 import os
+import sys
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -141,6 +142,7 @@ class TestPropfind:
         resp = client.request("PROPFIND", "/dav/nope.jpg", auth=AUTH, headers={"Depth": "0"})
         assert resp.status_code == 404
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason="< and > are invalid in Windows filenames")
     def test_xml_escaping_round_trips(self, client, inbox):
         name = "a & b <c>.jpg"
         (inbox / name).write_bytes(b"x")
@@ -318,6 +320,7 @@ class TestContainment:
         resp = client.request("PROPFIND", "/dav//etc/hosts.jpg", auth=AUTH, headers={"Depth": "0"})
         assert resp.status_code in (403, 404)
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason="symlink creation requires admin privileges on Windows")
     def test_symlink_escape_put_403(self, client, inbox, tmp_path):
         outside = tmp_path / "outside"
         outside.mkdir()
@@ -327,6 +330,7 @@ class TestContainment:
         assert not (outside / "evil.jpg").exists()
         assert list(outside.iterdir()) == []
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason="symlink creation requires admin privileges on Windows")
     def test_symlink_escape_propfind_403(self, client, inbox, tmp_path):
         outside = tmp_path / "outside2"
         outside.mkdir()

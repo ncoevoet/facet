@@ -14,6 +14,7 @@ The restricted save must update ONLY the columns the executed pass produced.
 """
 
 import struct
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -75,7 +76,11 @@ def seeded(tmp_path):
     facet = Facet.__new__(Facet)  # bypass heavy __init__; only db_path/config used
     facet.db_path = db
     facet.config = SimpleNamespace(version_hash='v1')
-    path = '/p/seed.jpg'
+    # Resolved the same way production's _base_record (multi_pass.py) resolves
+    # it, so the fixture's seeded row and the code-under-test's UPSERT target
+    # the same path on every OS (Windows turns a bare '/p/seed.jpg' into
+    # 'D:\\p\\seed.jpg', which would otherwise never match ON CONFLICT(path)).
+    path = str(Path(tmp_path / 'seed.jpg').resolve())
     facet.save_photos_batch([(_scored_result(path), _IMG)])
     with get_connection(db, row_factory=False) as conn:
         conn.execute(
@@ -208,10 +213,10 @@ def test_faces_refreshed_when_pass_is_insightface(seeded):
         assert faces[0]['embedding'] == b'\x09' * 8
 
 
-def test_new_photo_gets_row_with_computed_columns_and_thumbnail(seeded):
+def test_new_photo_gets_row_with_computed_columns_and_thumbnail(seeded, tmp_path):
     _, facet, db = seeded
     proc = _processor(facet, [['saliency']])
-    newpath = '/p/brand_new.jpg'
+    newpath = str(Path(tmp_path / 'brand_new.jpg').resolve())
 
     _persist(proc, {newpath: dict(_SALIENCY)}, _images(newpath))
 

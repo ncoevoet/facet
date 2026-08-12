@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from analyzers import CompositionAnalyzer, ImageCache
 from db.scoring_overrides import get_photo_scoring_overrides
+from processing.scorer import build_scoring_metrics
 from utils import (
     load_image_from_path, get_tag_params, detect_silhouette,
     tags_to_string
@@ -376,33 +377,41 @@ class BatchProcessor:
                 # Determine silhouette using shared function
                 is_silhouette = detect_silhouette(histogram_data, tags, face_res.get('face_count', 0))
 
-                # Calculate aggregate (including EXIF for adjustments)
-                metrics = {
-                    'aesthetic': aesthetic,
-                    'face_count': face_res['face_count'],
-                    'face_quality': face_res['face_quality'],
-                    'eye_sharpness': face_res['eye_sharpness'],
-                    'tech_sharpness': sharpness_data['normalized'],
-                    'color_score': color_data['normalized'],
-                    'exposure_score': histogram_data['exposure_score'],
-                    'face_ratio': face_ratio,
-                    'comp_score': comp_data['score'],
-                    'isolation_bonus': isolation_bonus,
-                    'is_blink': is_blink,
-                    # New clipping/silhouette data
-                    'shadow_clipped': histogram_data.get('shadow_clipped', 0),
-                    'highlight_clipped': histogram_data.get('highlight_clipped', 0),
-                    'is_silhouette': is_silhouette,
-                    # Histogram spread for dynamic range
-                    'histogram_spread': histogram_data['spread'],
-                    # EXIF data for ISO/aperture adjustments
-                    'iso': exif_data.get('iso'),
-                    'f_stop': exif_data.get('f_stop'),
-                    'quality_score': quality_score,
-                    'scoring_model': scoring_model,
-                    'scoring_context': photo_override.get('scoring_context'),
-                    'category_override': photo_override.get('category_override'),
-                }
+                # Calculate aggregate via the shared builder so the single-pass
+                # batch path feeds calculate_aggregate_logic the same feature space
+                # as the multi-pass path (tags, is_monochrome, mean_luminance,
+                # is_group_portrait, face_sharpness, power_point_score,
+                # contrast_score, noise_sigma, mean_saturation — all previously
+                # dropped here, leaving 25/34 categories unreachable).
+                metrics = build_scoring_metrics(
+                    aesthetic=aesthetic,
+                    face_count=face_res['face_count'],
+                    face_quality=face_res['face_quality'],
+                    eye_sharpness=face_res['eye_sharpness'],
+                    face_sharpness=face_res['face_sharpness'],
+                    face_ratio=face_ratio,
+                    is_group_portrait=face_res.get('is_group_portrait', 0),
+                    is_blink=is_blink,
+                    isolation_bonus=isolation_bonus,
+                    sharpness_data=sharpness_data,
+                    color_data=color_data,
+                    histogram_data=histogram_data,
+                    mono_data=mono_data,
+                    noise_data=noise_data,
+                    contrast_data=contrast_data,
+                    comp_score=comp_data['score'],
+                    power_point_score=comp_data.get('power_point_score', 5.0),
+                    leading_lines_score=leading_lines_data.get('leading_lines_score', 0),
+                    is_silhouette=is_silhouette,
+                    tags=tags,
+                    iso=exif_data.get('iso'),
+                    f_stop=exif_data.get('f_stop'),
+                    shutter_speed=exif_data.get('shutter_speed'),
+                    quality_score=quality_score,
+                    scoring_model=scoring_model,
+                    scoring_context=photo_override.get('scoring_context'),
+                    category_override=photo_override.get('category_override'),
+                )
                 aggregate, category = self.scorer.calculate_aggregate_logic(metrics)
 
                 # Build result

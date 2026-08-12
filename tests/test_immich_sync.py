@@ -316,6 +316,71 @@ class TestPushConfig:
         assert "isFavorite" not in updates[0]
 
 
+class TestClearingPreviouslySyncedState:
+    """A rating/favorite that gets reset to 0/false must still reach Immich.
+
+    Regression: _fetch_rating_rows only ever selected currently-active rows,
+    so a photo pushed with rating=5 and then un-rated in Facet fell out of the
+    WHERE clause entirely — Immich kept the stale rating=5 forever.
+    """
+
+    def test_reset_rating_and_favorite_are_pushed_as_a_clear(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 1, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+
+        # First sync: establishes id-a as having an active rating + favorite.
+        summary1 = sync_to_immich(db_path, make_config())
+        assert summary1["matched"] == 1
+        updates1 = transport.asset_updates()
+        assert updates1[-1]["rating"] == 5
+        assert updates1[-1]["isFavorite"] is True
+
+        # User clears the star rating and un-favorites.
+        conn = sqlite3.connect(db_path)
+        conn.execute("UPDATE photos SET star_rating = 0, is_favorite = 0 WHERE path = ?",
+                    ('/p/a.jpg',))
+        conn.commit()
+        conn.close()
+
+        summary2 = sync_to_immich(db_path, make_config())
+        updates2 = transport.asset_updates()
+        # The clear must actually reach Immich, not be silently dropped.
+        assert summary2["matched"] == 1
+        assert updates2[-1]["rating"] == 0
+        assert updates2[-1]["isFavorite"] is False
+
+        # Once the clear is confirmed pushed, the row drops out of tracking
+        # entirely (no longer active, no longer in synced state) so it falls
+        # outside the fetch WHERE clause: a third sync must not re-touch it.
+        requests_before = len(transport.requests)
+        summary3 = sync_to_immich(db_path, make_config())
+        assert summary3["matched"] == 0
+        assert summary3["skipped_unrated"] == 0
+        assert len(transport.requests) == requests_before
+
+    def test_never_synced_zero_rating_still_never_pushed(self, tmp_path, transport):
+        # A photo with no history in synced state and no active rating/favorite
+        # must keep costing zero requests, exactly as before this fix (excluded
+        # at the fetch WHERE, same as a pure-rejected row).
+        db_path = make_db(tmp_path, [('/p/untouched.jpg', 0, 0, 0)])
+        summary = sync_to_immich(db_path, make_config())
+        assert transport.requests == []
+        assert summary["skipped_unrated"] == 0
+
+    def test_dry_run_does_not_persist_synced_state(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+        # A dry run must not confirm state that was never actually written.
+        sync_to_immich(db_path, make_config(), dry_run=True)
+
+        conn = sqlite3.connect(db_path)
+        row = conn.execute(
+            "SELECT value FROM stats_cache WHERE key = 'immich_synced_paths:global'"
+        ).fetchone()
+        conn.close()
+        assert row is None
+
+
 class TestPartialProgress:
     def test_network_error_carries_partial_summary(self, tmp_path, monkeypatch):
         import urllib.error

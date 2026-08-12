@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import stat
+import sys
 import threading
 import time
 from datetime import datetime
@@ -16,7 +17,9 @@ from fastapi import HTTPException
 from api.auth import _is_hashed, upgrade_legacy_password
 from api.config import CONFIG_WRITE_LOCK, atomic_write_json
 from api.config_writes import (
+    MAX_CONFIG_BACKUPS,
     update_category_priorities,
+    update_category_weights,
     update_scoring_context,
 )
 from config.scoring_config import ScoringConfig
@@ -187,6 +190,40 @@ class TestUpdateCategoryPriorities:
         ok, issues = cfg.validate_categories(verbose=False)
         assert ok is True
         assert issues == []
+
+
+def _raising_get_db():
+    """A get_db stand-in for tests that don't need the best-effort weight
+    snapshot: record_category_snapshot swallows any exception from get_db()
+    and just logs a warning, so this keeps these tests from needing a real DB."""
+    raise RuntimeError("no db needed for this test")
+
+
+class TestUpdateCategoryWeightsBackupPruning:
+    """DEBT A5#3: update_category_weights(backup=True) was the only writer
+    passing prune=False to _backup_config, so modifier/filter edits
+    accumulated ~88KB backups unbounded. It must prune like every other
+    config-backup writer (update_category_priorities, update_scoring_context)."""
+
+    def test_backup_prunes_old_files_to_the_shared_limit(self, config_copy):
+        config_path = str(config_copy)
+        directory = os.path.dirname(config_path)
+        prefix = os.path.basename(config_path) + ".backup."
+        for i in range(MAX_CONFIG_BACKUPS + 5):
+            shutil.copy2(config_path, os.path.join(directory, f"{prefix}stale{i:03d}"))
+        backups_before = [f for f in os.listdir(directory) if f.startswith(prefix)]
+        assert len(backups_before) > MAX_CONFIG_BACKUPS
+
+        category = _non_default_names(config_copy)[0]
+        update_category_weights(
+            config_path, category, "test:prune", _raising_get_db,
+            not_found_detail="missing",
+            modifiers={"bonus": 0.1},
+            backup=True,
+        )
+
+        backups_after = [f for f in os.listdir(directory) if f.startswith(prefix)]
+        assert len(backups_after) <= MAX_CONFIG_BACKUPS
 
 
 def _context(config_path, name):
@@ -378,6 +415,7 @@ class TestAtomicConfigWrite:
     def _mode(self, path):
         return stat.S_IMODE(os.stat(path).st_mode)
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason="POSIX chmod permission bits do not apply on Windows")
     @pytest.mark.parametrize("mode", [GROUP_READABLE_MODE, OWNER_ONLY_MODE])
     def test_existing_permissions_are_preserved(self, config_copy, mode):
         """``tempfile.mkstemp`` creates its file 0600, so an unfixed writer
@@ -388,6 +426,7 @@ class TestAtomicConfigWrite:
 
         assert self._mode(config_copy) == mode
 
+    @pytest.mark.skipif(sys.platform == 'win32', reason="POSIX directory fsync is not supported on Windows")
     def test_payload_is_fsynced_before_the_rename(self, config_copy):
         """Rename-atomic is not crash-durable: without the flush the rename can
         land while the replacement's bytes are still only in the page cache."""

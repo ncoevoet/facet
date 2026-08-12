@@ -279,6 +279,11 @@ class ScoringConfig:
             if not percent_items:
                 continue
 
+            # Snapshot which keys the user actually set, before 0b below zero-pads
+            # percent_items out to every valid column — the decimal heuristic in
+            # step 1 must judge ambiguity only on what the user provided.
+            user_set_keys = set(percent_items)
+
             corrections = []
 
             # === 0. Remove invalid weight keys ===
@@ -295,11 +300,16 @@ class ScoringConfig:
                     corrections.append(f"  {key}: added (default 0)")
 
             # === 1. Convert decimals to percentages ===
-            # If all values are <= 1 and sum <= 1, assume they're decimals
-            all_small = all(v <= 1 for v in percent_items.values())
-            total_small = sum(percent_items.values()) <= 1.01
-            if all_small and total_small and len(percent_items) > 1:
-                for key, value in percent_items.items():
+            # If all *user-set* values are <= 1 and sum <= 1, assume they're decimals.
+            # Must judge only user_set_keys, not the post-0b percent_items: 0b zero-pads
+            # every valid column, which would make len(...) > 1 always true and
+            # misinterpret a single small user-set value (e.g. {"tech_sharpness_percent": 1})
+            # as a decimal fraction and inflate it to 100.
+            user_set_items = {k: percent_items[k] for k in user_set_keys}
+            all_small = all(v <= 1 for v in user_set_items.values())
+            total_small = sum(user_set_items.values()) <= 1.01
+            if all_small and total_small and len(user_set_items) > 1:
+                for key, value in user_set_items.items():
                     new_value = round(value * 100)
                     if new_value != value:
                         corrections.append(f"  {key}: {value} -> {new_value} (decimal to percent)")
@@ -509,8 +519,8 @@ class ScoringConfig:
     def get_face_detection_settings(self):
         """Get face detection settings (confidence threshold, min face size)."""
         return self.config.get('face_detection', {
-            'min_confidence_percent': 70,
-            'min_face_size': 30
+            'min_confidence_percent': 65,
+            'min_face_size': 20
         })
 
     def get_monochrome_settings(self):
@@ -543,9 +553,9 @@ class ScoringConfig:
     def get_burst_detection_settings(self):
         """Get burst detection settings (similarity threshold percent, time window, rapid burst)."""
         return self.config.get('burst_detection', {
-            'similarity_threshold_percent': 88,
-            'time_window_minutes': 60,
-            'rapid_burst_seconds': 5
+            'similarity_threshold_percent': 70,
+            'time_window_minutes': 0.8,
+            'rapid_burst_seconds': 0.4
         })
 
     def get_sequence_detection_settings(self):
@@ -931,12 +941,52 @@ class ScoringConfig:
 
         return True, current_profile, "OK"
 
+    def _tag_vocabulary_collisions(self):
+        """Find tag names redefined with a *different* synonym list.
+
+        Used by get_tag_vocabulary() to warn instead of silently overwriting
+        — plain dict.update() has no collision check on its own, so two
+        categories (or a category and standalone_tags) claiming the same tag
+        name would otherwise drop a synonym list library-wide without a trace.
+
+        Returns:
+            List of human-readable collision descriptions.
+        """
+        vocabulary = {}
+        collisions = []
+        for cat in self.config.get('categories', []):
+            tags = cat.get('tags', {})
+            if not isinstance(tags, dict):
+                continue
+            for tag_name, synonyms in tags.items():
+                if tag_name in vocabulary and vocabulary[tag_name] != synonyms:
+                    collisions.append(
+                        f"tag '{tag_name}': category '{cat.get('name', 'unnamed')}' "
+                        f"redefines synonyms {vocabulary[tag_name]!r} -> {synonyms!r}"
+                    )
+                vocabulary[tag_name] = synonyms
+        standalone = self.config.get('standalone_tags', {})
+        if isinstance(standalone, dict):
+            for tag_name, synonyms in standalone.items():
+                if tag_name in vocabulary and vocabulary[tag_name] != synonyms:
+                    collisions.append(
+                        f"tag '{tag_name}': standalone_tags redefines synonyms "
+                        f"{vocabulary[tag_name]!r} -> {synonyms!r}"
+                    )
+                vocabulary[tag_name] = synonyms
+        return collisions
+
     def get_tag_vocabulary(self):
         """Build tag vocabulary from all category tags and standalone tags.
 
         Returns dict: {tag_name: [synonyms]} aggregated from all categories
-        plus any standalone_tags defined at the top level.
+        plus any standalone_tags defined at the top level. When two entries
+        claim the same tag name with different synonyms, the last one
+        encountered wins (dict.update() semantics) and a warning is logged —
+        see _tag_vocabulary_collisions().
         """
+        for collision in self._tag_vocabulary_collisions():
+            logger.warning("get_tag_vocabulary: %s (last definition wins)", collision)
         vocabulary = {}
         # Add tags from categories
         for cat in self.config.get('categories', []):

@@ -449,23 +449,6 @@ describe('ComparisonWeightsTabComponent', () => {
     });
   });
 
-  describe('getFilterTags', () => {
-    it('should join array as comma-separated', () => {
-      component.filters.set({ required_tags: ['landscape', 'mountain'] });
-      expect(component.getFilterTags('required_tags')).toBe('landscape, mountain');
-    });
-
-    it('should return empty string for missing key', () => {
-      component.filters.set({});
-      expect(component.getFilterTags('required_tags')).toBe('');
-    });
-
-    it('should return empty string for non-array value', () => {
-      component.filters.set({ required_tags: 'not-an-array' });
-      expect(component.getFilterTags('required_tags')).toBe('');
-    });
-  });
-
   describe('setFilterBool', () => {
     it('should set true for "true" string', () => {
       component.filters.set({});
@@ -489,23 +472,6 @@ describe('ComparisonWeightsTabComponent', () => {
       component.filters.set({ has_face: true, iso_min: 100 });
       component.setFilterBool('has_face', '');
       expect(component.filters()['iso_min']).toBe(100);
-    });
-  });
-
-  describe('getFilterBoolValue', () => {
-    it('should return "true" for true', () => {
-      component.filters.set({ has_face: true });
-      expect(component.getFilterBoolValue('has_face')).toBe('true');
-    });
-
-    it('should return "false" for false', () => {
-      component.filters.set({ has_face: false });
-      expect(component.getFilterBoolValue('has_face')).toBe('false');
-    });
-
-    it('should return empty string for missing key', () => {
-      component.filters.set({});
-      expect(component.getFilterBoolValue('has_face')).toBe('');
     });
   });
 
@@ -784,30 +750,6 @@ describe('ComparisonWeightsTabComponent', () => {
     it('should return empty array for empty weights', () => {
       component.weights.set({});
       expect(component.weightKeys()).toEqual([]);
-    });
-  });
-
-  describe('getModifierNum', () => {
-    it('should return numeric value when set', () => {
-      component.modifiers.set({ bonus: 2.5 });
-      expect(component.getModifierNum('bonus')).toBe(2.5);
-    });
-
-    it('should return null for missing key', () => {
-      component.modifiers.set({});
-      expect(component.getModifierNum('bonus')).toBeNull();
-    });
-  });
-
-  describe('getFilterNum', () => {
-    it('should return numeric value when set', () => {
-      component.filters.set({ face_ratio_min: 0.3 });
-      expect(component.getFilterNum('face_ratio_min')).toBe(0.3);
-    });
-
-    it('should return null for missing key', () => {
-      component.filters.set({});
-      expect(component.getFilterNum('face_ratio_min')).toBeNull();
     });
   });
 

@@ -417,10 +417,42 @@ def objective(w: np.ndarray, X: np.ndarray, y: np.ndarray) -> float:
     return -srcc if np.isfinite(srcc) else 0.0
 
 
+def load_current_category_weights(config_path: str, category: str, col_names: list[str]) -> np.ndarray:
+    """Read a category's live ``<key>_percent`` weights from scoring_config.json.
+
+    Maps each of ``col_names`` (DB column names) through METRIC_COLUMNS to its
+    config key, the inverse of the mapping ``apply_weights_to_config`` writes
+    back with. Normalized to sum to 1.0. Falls back to a uniform vector when
+    the config/category/weights can't be read, so a missing category degrades
+    gracefully rather than raising.
+    """
+    n = len(col_names)
+    try:
+        with open(config_path) as f:
+            config = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return np.ones(n) / n
+
+    weights_block = {}
+    for cat in config.get('categories', []):
+        if cat.get('name') == category:
+            weights_block = cat.get('weights', {})
+            break
+
+    w = np.array([
+        weights_block.get(f'{METRIC_COLUMNS.get(col, col)}_percent', 0.0)
+        for col in col_names
+    ], dtype=np.float64)
+    if w.sum() > 0:
+        return w / w.sum()
+    return np.ones(n) / n
+
+
 def optimize_weights(
     rows: list[dict],
     category: str,
     method: str = 'de',
+    config_path: str = SCORING_CONFIG_PATH,
 ) -> tuple[dict, dict]:
     """Optimize weights for a set of photos.
 
@@ -433,8 +465,10 @@ def optimize_weights(
     if len(rows) < MIN_PHOTOS_FOR_BASELINE:
         raise ValueError(f"Not enough photos for optimization (need {MIN_PHOTOS_FOR_BASELINE}, got {len(rows)})")
 
-    # Uniform initial weights
-    w0 = np.ones(n) / n
+    # Baseline = the weights actually live in scoring_config.json today, not a
+    # uniform strawman -- otherwise "before" SRCC and the persisted old_weights
+    # both compare against a vector nobody is running.
+    w0 = load_current_category_weights(config_path, category, col_names)
     bounds = [(0.0, 1.0)] * n
 
     # Sum-to-1 constraint: we enforce it by normalizing inside a wrapper
@@ -730,7 +764,6 @@ def _analyze_numeric_filters(
         if not correct_vals or not misclass_vals:
             continue
 
-        np.array(correct_vals)
         misclass_arr = np.array(misclass_vals)
 
         # Sweep thresholds to find better boundary
@@ -1160,7 +1193,10 @@ def print_optimization_result(info: dict, col_to_weight: dict) -> None:
 
 def log_run_to_db(db_path: str, info: dict, col_to_weight: dict, current_config_weights: dict) -> None:
     """Insert a row into weight_optimization_runs."""
-    old_w = {col: wb for col, wb in zip(info['col_names'], info['w_before'])}
+    # current_config_weights is the authoritative live-config baseline (see
+    # load_current_category_weights); falls back to info['w_before'] only for
+    # a caller that has none to offer.
+    old_w = current_config_weights or {col: wb for col, wb in zip(info['col_names'], info['w_before'])}
     new_w = col_to_weight
 
     conn = sqlite3.connect(db_path)
@@ -1378,7 +1414,7 @@ def main():
 
             logger.info("  Optimizing '%s' (%s photos)...", cat_label, f"{len(rows):,}")
             try:
-                info, col_to_weight = optimize_weights(rows, cat_key, method=method)
+                info, col_to_weight = optimize_weights(rows, cat_key, method=method, config_path=args.config)
             except Exception as e:
                 logger.error("  ERROR optimizing '%s': %s", cat_label, e)
                 continue
@@ -1388,7 +1424,8 @@ def main():
 
             # Log to DB
             try:
-                log_run_to_db(args.db, info, col_to_weight, current_config_weights={})
+                current_config_weights = dict(zip(info['col_names'], info['w_before']))
+                log_run_to_db(args.db, info, col_to_weight, current_config_weights=current_config_weights)
             except Exception as e:
                 logger.warning("  Could not log run to DB: %s", e)
 

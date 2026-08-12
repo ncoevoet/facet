@@ -25,7 +25,10 @@ import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CompareFiltersService } from './compare-filters.service';
 import { CategoryRecomputeService } from './category-recompute.service';
-import { WeightIconPipe, WeightLabelKeyPipe, FilterValueFormatPipe, ModifierValueFormatPipe } from './comparison.pipes';
+import {
+  WeightIconPipe, WeightLabelKeyPipe, FilterValueFormatPipe, ModifierValueFormatPipe,
+  RecordValuePipe, FilterTagsPipe, FilterBoolValuePipe,
+} from './comparison.pipes';
 import { I18N } from '../../core/i18n/keys';
 
 interface CategoryWeights {
@@ -100,6 +103,9 @@ class SignalErrorMatcher {
     WeightLabelKeyPipe,
     FilterValueFormatPipe,
     ModifierValueFormatPipe,
+    RecordValuePipe,
+    FilterTagsPipe,
+    FilterBoolValuePipe,
   ],
   template: `
     <ng-template #weightsActions>
@@ -240,9 +246,9 @@ class SignalErrorMatcher {
                 <mat-icon class="text-gray-400 shrink-0">add_circle</mat-icon>
                 <span class="w-40 shrink-0 text-sm">{{ I18N.comparison.modifier.bonus | translate }}</span>
                 <mat-slider class="grow" [min]="-5" [max]="5" [step]="0.1" [discrete]="true" [displayWith]="displayBonus">
-                  <input matSliderThumb [value]="getModifierNum('bonus') ?? 0" (valueChange)="setModifierNum('bonus', $event)" [attr.aria-label]="I18N.comparison.modifier.bonus | translate" />
+                  <input matSliderThumb [value]="(modifiers() | recordValue:'bonus') ?? 0" (valueChange)="setModifierNum('bonus', $event)" [attr.aria-label]="I18N.comparison.modifier.bonus | translate" />
                 </mat-slider>
-                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('bonus') | modifierValueFormat:'bonus' }}</span>
+                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ (modifiers() | recordValue:'bonus') | modifierValueFormat:'bonus' }}</span>
               </div>
               <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ I18N.comparison.modifier.bonus_hint | translate }}</p>
             </div>
@@ -251,9 +257,9 @@ class SignalErrorMatcher {
                 <mat-icon class="text-gray-400 shrink-0">grain</mat-icon>
                 <span class="w-40 shrink-0 text-sm">{{ I18N.comparison.modifier.noise_tolerance | translate }}</span>
                 <mat-slider class="grow" [min]="0" [max]="200" [step]="5" [discrete]="true" [displayWith]="displayPercent">
-                  <input matSliderThumb [value]="(getModifierNum('noise_tolerance_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('noise_tolerance_multiplier', $event / 100)" [attr.aria-label]="I18N.comparison.modifier.noise_tolerance | translate" />
+                  <input matSliderThumb [value]="((modifiers() | recordValue:'noise_tolerance_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('noise_tolerance_multiplier', $event / 100)" [attr.aria-label]="I18N.comparison.modifier.noise_tolerance | translate" />
                 </mat-slider>
-                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('noise_tolerance_multiplier') | modifierValueFormat:'noise_tolerance_multiplier' }}</span>
+                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ (modifiers() | recordValue:'noise_tolerance_multiplier') | modifierValueFormat:'noise_tolerance_multiplier' }}</span>
               </div>
               <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ I18N.comparison.modifier.noise_tolerance_hint | translate }}</p>
             </div>
@@ -262,9 +268,9 @@ class SignalErrorMatcher {
                 <mat-icon class="text-gray-400 shrink-0">highlight</mat-icon>
                 <span class="w-40 shrink-0 text-sm">{{ I18N.comparison.modifier.clipping_multiplier | translate }}</span>
                 <mat-slider class="grow" [min]="0" [max]="500" [step]="10" [discrete]="true" [displayWith]="displayPercent">
-                  <input matSliderThumb [value]="(getModifierNum('_clipping_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('_clipping_multiplier', $event / 100)" [attr.aria-label]="I18N.comparison.modifier.clipping_multiplier | translate" />
+                  <input matSliderThumb [value]="((modifiers() | recordValue:'_clipping_multiplier') ?? 1) * 100" (valueChange)="setModifierNum('_clipping_multiplier', $event / 100)" [attr.aria-label]="I18N.comparison.modifier.clipping_multiplier | translate" />
                 </mat-slider>
-                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ getModifierNum('_clipping_multiplier') | modifierValueFormat:'_clipping_multiplier' }}</span>
+                <span class="w-16 text-right text-sm font-mono tabular-nums">{{ (modifiers() | recordValue:'_clipping_multiplier') | modifierValueFormat:'_clipping_multiplier' }}</span>
               </div>
               <p class="text-xs text-gray-500 ml-11 mt-0.5">{{ I18N.comparison.modifier.clipping_multiplier_hint | translate }}</p>
             </div>
@@ -302,13 +308,13 @@ class SignalErrorMatcher {
             <mat-form-field>
               <mat-label>{{ I18N.comparison.filter.required_tags | translate }}</mat-label>
               <input matInput type="text" [placeholder]="I18N.comparison.filter.tags_placeholder | translate"
-                [ngModel]="getFilterTags('required_tags')" (ngModelChange)="setFilterTags('required_tags', $event)" />
+                [ngModel]="filters() | filterTags:'required_tags'" (ngModelChange)="setFilterTags('required_tags', $event)" />
               <mat-hint>{{ I18N.comparison.filter.required_tags_hint | translate }}</mat-hint>
             </mat-form-field>
             <mat-form-field>
               <mat-label>{{ I18N.comparison.filter.excluded_tags | translate }}</mat-label>
               <input matInput type="text" [placeholder]="I18N.comparison.filter.tags_placeholder | translate"
-                [ngModel]="getFilterTags('excluded_tags')" (ngModelChange)="setFilterTags('excluded_tags', $event)" />
+                [ngModel]="filters() | filterTags:'excluded_tags'" (ngModelChange)="setFilterTags('excluded_tags', $event)" />
               <mat-hint>{{ I18N.comparison.filter.excluded_tags_hint | translate }}</mat-hint>
             </mat-form-field>
             <mat-form-field>
@@ -323,7 +329,7 @@ class SignalErrorMatcher {
             @for (boolKey of booleanFilterKeys; track boolKey) {
               <mat-form-field>
                 <mat-label>{{ ('comparison.filter.' + boolKey) | translate }}</mat-label>
-                <mat-select [value]="getFilterBoolValue(boolKey)" (selectionChange)="setFilterBool(boolKey, $event.value)">
+                <mat-select [value]="filters() | filterBoolValue:boolKey" (selectionChange)="setFilterBool(boolKey, $event.value)">
                   <mat-option value="">{{ I18N.comparison.filter.any | translate }}</mat-option>
                   <mat-option value="true">{{ I18N.comparison.filter.boolean_true | translate }}</mat-option>
                   <mat-option value="false">{{ I18N.comparison.filter.boolean_false | translate }}</mat-option>
@@ -340,8 +346,8 @@ class SignalErrorMatcher {
                     <mat-label>{{ I18N.comparison.filter.min | translate }}</mat-label>
                     <input matInput type="number" [step]="range.step" [placeholder]="range.placeholder[0]"
                       [errorStateMatcher]="filterMatchers[range.minKey]"
-                      [ngModel]="getFilterNum(range.minKey)" (ngModelChange)="setFilterNum(range.minKey, $event)" />
-                    <span matTextSuffix class="text-xs text-gray-400 ml-1">{{ getFilterNum(range.minKey) | filterValueFormat:range.minKey }}</span>
+                      [ngModel]="filters() | recordValue:range.minKey" (ngModelChange)="setFilterNum(range.minKey, $event)" />
+                    <span matTextSuffix class="text-xs text-gray-400 ml-1">{{ (filters() | recordValue:range.minKey) | filterValueFormat:range.minKey }}</span>
                     @if (filterErrors()[range.minKey]) {
                       <mat-error>{{ filterErrors()[range.minKey] | translate }}</mat-error>
                     }
@@ -350,8 +356,8 @@ class SignalErrorMatcher {
                     <mat-label>{{ I18N.comparison.filter.max | translate }}</mat-label>
                     <input matInput type="number" [step]="range.step" [placeholder]="range.placeholder[1]"
                       [errorStateMatcher]="filterMatchers[range.maxKey]"
-                      [ngModel]="getFilterNum(range.maxKey)" (ngModelChange)="setFilterNum(range.maxKey, $event)" />
-                    <span matTextSuffix class="text-xs text-gray-400 ml-1">{{ getFilterNum(range.maxKey) | filterValueFormat:range.maxKey }}</span>
+                      [ngModel]="filters() | recordValue:range.maxKey" (ngModelChange)="setFilterNum(range.maxKey, $event)" />
+                    <span matTextSuffix class="text-xs text-gray-400 ml-1">{{ (filters() | recordValue:range.maxKey) | filterValueFormat:range.maxKey }}</span>
                     @if (filterErrors()[range.maxKey]) {
                       <mat-error>{{ filterErrors()[range.maxKey] | translate }}</mat-error>
                     }
@@ -604,11 +610,6 @@ export class ComparisonWeightsTabComponent {
     this.weights.set(normalized);
   }
 
-  getModifierNum(key: string): number | null {
-    const v = this.modifiers()[key];
-    return v !== undefined && v !== null ? (v as number) : null;
-  }
-
   setModifierNum(key: string, value: number | null): void {
     this.modifiers.update(m => {
       const next = { ...m };
@@ -627,12 +628,6 @@ export class ComparisonWeightsTabComponent {
     });
   }
 
-  getFilterTags(key: string): string {
-    const v = this.filters()[key];
-    if (Array.isArray(v)) return v.join(', ');
-    return '';
-  }
-
   setFilterTags(key: string, value: string): void {
     this.filters.update(f => {
       const next = { ...f };
@@ -643,13 +638,6 @@ export class ComparisonWeightsTabComponent {
     });
   }
 
-  getFilterBoolValue(key: string): string {
-    const v = this.filters()[key];
-    if (v === true) return 'true';
-    if (v === false) return 'false';
-    return '';
-  }
-
   setFilterBool(key: string, value: string): void {
     this.filters.update(f => {
       const next = { ...f };
@@ -658,11 +646,6 @@ export class ComparisonWeightsTabComponent {
       else delete next[key];
       return next;
     });
-  }
-
-  getFilterNum(key: string): number | null {
-    const v = this.filters()[key];
-    return v !== undefined && v !== null ? (v as number) : null;
   }
 
   setFilterNum(key: string, value: number | null): void {

@@ -44,8 +44,8 @@ class ComparisonManager:
             raise ValueError(f"Invalid winner value: {winner}")
 
         # Canonicalize pair order so swapped (A,B)/(B,A) submissions hit the same
-        # UNIQUE(photo_a_path, photo_b_path) row instead of storing contradictory
-        # duplicates (mirrors record_culling_pairs).
+        # UNIQUE(photo_a_path, photo_b_path, user_id) row instead of storing
+        # contradictory duplicates (mirrors record_culling_pairs).
         if photo_a_path > photo_b_path:
             photo_a_path, photo_b_path = photo_b_path, photo_a_path
             if winner == 'a':
@@ -55,11 +55,32 @@ class ComparisonManager:
 
         with get_connection(self.db_path, row_factory=False) as conn:
             try:
-                conn.execute("""
-                    INSERT OR REPLACE INTO comparisons
-                    (photo_a_path, photo_b_path, winner, category, session_id, user_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (photo_a_path, photo_b_path, winner, category, self._session_id, user_id))
+                # Upsert scoped to (pair, user_id): one user's revote updates only
+                # their own row, never another user's. INSERT OR REPLACE cannot be
+                # used because the UNIQUE is now user-scoped and SQLite treats NULL
+                # user_id (single-user / legacy) as distinct, so a REPLACE would
+                # never match and would accumulate duplicate rows. Match with IS so
+                # the NULL user_id case dedups too.
+                existing = conn.execute(
+                    "SELECT id FROM comparisons "
+                    "WHERE photo_a_path = ? AND photo_b_path = ? AND user_id IS ?",
+                    (photo_a_path, photo_b_path, user_id),
+                ).fetchone()
+                if existing:
+                    conn.execute(
+                        "UPDATE comparisons SET winner = ?, category = ?, "
+                        "session_id = ?, source = 'vote', timestamp = datetime('now') "
+                        "WHERE id = ?",
+                        (winner, category, self._session_id, existing[0]),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO comparisons "
+                        "(photo_a_path, photo_b_path, winner, category, session_id, user_id) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (photo_a_path, photo_b_path, winner, category,
+                         self._session_id, user_id),
+                    )
                 conn.commit()
                 return True
             except sqlite3.Error as e:
@@ -423,8 +444,12 @@ def record_culling_pairs(
     max_pairs_per_group rows per call so large groups don't flood the
     comparisons table. Pairs are stored canonically ordered
     (photo_a_path < photo_b_path) with source='culling' and never overwrite
-    an existing comparison: INSERT OR IGNORE lets the
-    UNIQUE(photo_a_path, photo_b_path) constraint keep explicit votes intact.
+    an existing comparison. Pairs already recorded for this (pair, user_id) are
+    filtered out up front: the UNIQUE is now user-scoped
+    (photo_a_path, photo_b_path, user_id) and SQLite treats a NULL user_id
+    (single-user / legacy) as distinct, so INSERT OR IGNORE alone would not
+    dedup the NULL case — the pre-filter keeps explicit votes intact for every
+    user, and INSERT OR IGNORE remains a backstop against concurrent inserts.
 
     Runs inside the caller's transaction - does not commit.
 
@@ -461,6 +486,24 @@ def record_culling_pairs(
             ))
         if len(rows) >= max_pairs_per_group:
             break
+    if not rows:
+        return 0
+    # Drop pairs already recorded for this (pair, user_id). The user-scoped
+    # UNIQUE treats NULL user_id as distinct, so INSERT OR IGNORE would not skip
+    # them in single-user mode and could duplicate an existing explicit vote.
+    pair_paths = list({p for r in rows for p in (r[0], r[1])})
+    ph = ','.join('?' * len(pair_paths))
+    existing = {
+        (a, b) for a, b in conn.execute(
+            f"SELECT photo_a_path, photo_b_path FROM comparisons "
+            f"WHERE user_id IS ? "
+            f"AND photo_a_path IN ({ph}) AND photo_b_path IN ({ph})",
+            [user_id, *pair_paths, *pair_paths],
+        ).fetchall()
+    }
+    rows = [r for r in rows if (r[0], r[1]) not in existing]
+    if not rows:
+        return 0
     before = conn.total_changes
     conn.executemany("""
         INSERT OR IGNORE INTO comparisons

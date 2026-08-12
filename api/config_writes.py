@@ -257,7 +257,7 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
 
         backup_path = None
         if backup:
-            backup_path = _backup_config(config_path, prune=False)
+            backup_path = _backup_config(config_path)
 
         if weights is not None:
             if replace_weights:

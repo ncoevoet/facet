@@ -1,4 +1,7 @@
-import { EtaDurationPipe, FilterValueFormatPipe, ModifierValueFormatPipe, WeightIconPipe, WeightLabelKeyPipe } from './comparison.pipes';
+import {
+  EtaDurationPipe, FilterValueFormatPipe, ModifierValueFormatPipe, WeightIconPipe, WeightLabelKeyPipe,
+  RecordValuePipe, FilterTagsPipe, FilterBoolValuePipe,
+} from './comparison.pipes';
 
 describe('WeightIconPipe', () => {
   const pipe = new WeightIconPipe();
@@ -190,5 +193,65 @@ describe('ModifierValueFormatPipe', () => {
 
   it('returns empty string for unknown key', () => {
     expect(pipe.transform(42, 'unknown_modifier')).toBe('');
+  });
+});
+
+describe('RecordValuePipe', () => {
+  const pipe = new RecordValuePipe();
+
+  it('returns numeric value when set', () => {
+    expect(pipe.transform({ bonus: 2.5 }, 'bonus')).toBe(2.5);
+    expect(pipe.transform({ face_ratio_min: 0.3 }, 'face_ratio_min')).toBe(0.3);
+  });
+
+  it('returns null for a missing key', () => {
+    expect(pipe.transform({}, 'bonus')).toBeNull();
+  });
+
+  it('returns null for a null/undefined record', () => {
+    expect(pipe.transform(null, 'bonus')).toBeNull();
+    expect(pipe.transform(undefined, 'bonus')).toBeNull();
+  });
+});
+
+describe('FilterTagsPipe', () => {
+  const pipe = new FilterTagsPipe();
+
+  it('joins array as comma-separated', () => {
+    expect(pipe.transform({ required_tags: ['landscape', 'mountain'] }, 'required_tags')).toBe('landscape, mountain');
+  });
+
+  it('returns empty string for missing key', () => {
+    expect(pipe.transform({}, 'required_tags')).toBe('');
+  });
+
+  it('returns empty string for non-array value', () => {
+    expect(pipe.transform({ required_tags: 'not-an-array' }, 'required_tags')).toBe('');
+  });
+
+  it('returns empty string for a null/undefined record', () => {
+    expect(pipe.transform(null, 'required_tags')).toBe('');
+    expect(pipe.transform(undefined, 'required_tags')).toBe('');
+  });
+});
+
+describe('FilterBoolValuePipe', () => {
+  const pipe = new FilterBoolValuePipe();
+
+  it('returns "true" for true', () => {
+    expect(pipe.transform({ has_face: true }, 'has_face')).toBe('true');
+  });
+
+  it('returns "false" for false', () => {
+    expect(pipe.transform({ has_face: false }, 'has_face')).toBe('false');
+  });
+
+  it('returns empty string for missing key', () => {
+    expect(pipe.transform({}, 'has_face')).toBe('');
+  });
+
+  it('returns empty string for a null/undefined record', () => {
+    expect(pipe.transform(null, 'has_face')).toBe('');
+    expect(pipe.transform(undefined, 'has_face')).toBe('');
   });
 });

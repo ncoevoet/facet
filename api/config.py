@@ -151,19 +151,34 @@ def _load_and_ensure_share_secret():
     context or password-upgrade write can neither lose this secret nor be lost
     under it. Writes atomically via temp file + rename to avoid partial writes.
 
-    A config that exists but does not parse gets an ephemeral in-memory secret
-    and is never rewritten: persisting a share_secret-only stub over a partial
-    or corrupt file would destroy the whole config (and its .backup with it).
+    The secret is always persisted, never kept in memory only: with
+    ``--workers>1`` each process runs this independently, and an in-memory-only
+    secret would mint a different key per worker, so a JWT signed by one is
+    rejected by the others at random. A genuinely absent config is a fresh,
+    never-configured install — it still needs a secret to boot, so one is
+    generated and written to a minimal new file. A config that EXISTS but does
+    not parse is different: minting a secret there would silently paper over a
+    broken file with the very same per-worker divergence, so that case fails
+    loudly instead of starting up half-working.
     """
-    config, _ = _read_config()
+    config, parsed_ok = _read_config()
     if 'share_secret' not in config or not config['share_secret']:
         with CONFIG_WRITE_LOCK:
             config, parsed_ok = _read_config()
             if 'share_secret' not in config or not config['share_secret']:
+                config_exists = os.path.exists(_CONFIG_PATH)
+                if config_exists and not parsed_ok:
+                    raise RuntimeError(
+                        f"{_CONFIG_PATH} exists but could not be parsed. Refusing to "
+                        "mint an in-memory-only share secret in that state: with "
+                        "--workers>1 each worker would mint its own, and JWTs signed "
+                        "by one would be rejected by the others. Fix or remove the "
+                        "file, then restart."
+                    )
                 config['share_secret'] = secrets.token_hex(32)
-                if parsed_ok:
+                if config_exists:
                     shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
-                    atomic_write_json(_CONFIG_PATH, config)
+                atomic_write_json(_CONFIG_PATH, config)
     return config, config['share_secret']
 
 
@@ -332,16 +347,31 @@ def reload_config():
         JWT_SECRET = _share_secret
 
 
+def _prefix_boundary_match(path, prefix):
+    """True if ``path`` equals ``prefix`` or continues past it at a separator.
+
+    A bare ``startswith`` would let a configured prefix like ``/mnt/photos``
+    wrongly match ``/mnt/photos-backup``. Require the next character to be a
+    path separator, mirroring the ``+ os.sep`` boundary check in
+    ``api/path_validation.py``.
+    """
+    return (
+        path == prefix
+        or path.startswith(prefix + '/')
+        or path.startswith(prefix + '\\')
+    )
+
+
 def map_disk_path(db_path):
     """Map a database path to a local disk path using viewer.path_mapping config."""
     path_mapping = VIEWER_CONFIG.get('path_mapping', {})
     for prefix_from, prefix_to in path_mapping.items():
-        if db_path.startswith(prefix_from):
+        if _prefix_boundary_match(db_path, prefix_from):
             db_path = prefix_to + db_path[len(prefix_from):]
             break
         normalized = db_path.replace('\\', '/')
         prefix_normalized = prefix_from.replace('\\', '/')
-        if normalized.startswith(prefix_normalized):
+        if _prefix_boundary_match(normalized, prefix_normalized):
             db_path = prefix_to + normalized[len(prefix_normalized):]
             break
     return db_path.replace('\\', os.sep).replace('/', os.sep)

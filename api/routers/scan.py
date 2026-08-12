@@ -149,12 +149,10 @@ def start_scan(
 
     try:
         if _scan_state['running']:
-            _scan_lock.release()
             raise HTTPException(status_code=409, detail="A scan is already running")
 
         conflict = _library_job_conflict_detail()
         if conflict:
-            _scan_lock.release()
             raise HTTPException(status_code=409, detail=conflict)
 
         directories = body.directories
@@ -162,11 +160,9 @@ def start_scan(
         all_configured = set(get_all_scan_directories())
         for d in directories:
             if d not in all_configured:
-                _scan_lock.release()
                 raise HTTPException(status_code=400, detail=f"Directory not configured: {d}")
 
         if not directories:
-            _scan_lock.release()
             raise HTTPException(status_code=400, detail="No directories specified")
 
         # Rebuild from canonical server-side list so subprocess args are provably server-origin
@@ -194,7 +190,6 @@ def start_scan(
         reader = threading.Thread(target=_read_scan_output, args=(proc,), daemon=True)
         reader.start()
 
-        _scan_lock.release()
         return {
             'success': True,
             'message': 'Scan spawned; poll /api/scan/status to see it run',
@@ -207,8 +202,9 @@ def start_scan(
     except (subprocess.SubprocessError, OSError):
         logger.exception("Scan failed to start")
         _scan_state['running'] = False
-        _scan_lock.release()
         raise HTTPException(status_code=500, detail='Scan failed to start')
+    finally:
+        _scan_lock.release()
 
 
 @router.get("/status")

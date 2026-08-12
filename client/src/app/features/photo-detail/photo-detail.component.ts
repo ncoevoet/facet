@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, afterNextRender } from '@angular/core';
+import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild } from '@angular/core';
 import { Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -625,6 +625,24 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private locationMap: L.Map | null = null;
   private locationMapTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  // Register wheel and touchmove as non-passive so preventDefault() works. Keyed
+  // on imagePanel() (not afterNextRender()) so the async query-param load path
+  // -- where photo() is still null on first paint and #imagePanel doesn't exist
+  // yet -- re-attaches once the @if-gated element actually appears, instead of
+  // permanently missing the listeners.
+  private zoomListenersEffect = effect((onCleanup) => {
+    const el = this.imagePanel()?.nativeElement;
+    if (!el) return;
+    const wheelHandler = (e: WheelEvent) => this.onWheel(e);
+    const touchMoveHandler = (e: TouchEvent) => this.onTouchMove(e);
+    el.addEventListener('wheel', wheelHandler, { passive: false });
+    el.addEventListener('touchmove', touchMoveHandler, { passive: false });
+    onCleanup(() => {
+      el.removeEventListener('wheel', wheelHandler);
+      el.removeEventListener('touchmove', touchMoveHandler);
+    });
+  });
+
   private locationMapEffect = effect(() => {
     const container = this.locationMapContainer();
     const p = this.photo();
@@ -660,13 +678,6 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     this.destroyRef.onDestroy(() => {
       if (this.locationMapTimeout !== null) clearTimeout(this.locationMapTimeout);
       if (this.locationMap) { this.locationMap.remove(); this.locationMap = null; }
-    });
-    // Register wheel and touchmove as non-passive so preventDefault() works
-    afterNextRender(() => {
-      const el = this.imagePanel()?.nativeElement;
-      if (!el) return;
-      el.addEventListener('wheel', (e: WheelEvent) => this.onWheel(e), { passive: false });
-      el.addEventListener('touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false });
     });
   }
 

@@ -417,11 +417,19 @@ async def _fts_search(conn, query, limit, scope=None):
     only hits words found *in* the image or its caption — not filenames,
     camera models, or tags.
     """
+    # Sanitize the raw user text into a safe FTS5 expression (shared with the
+    # gallery search): unbalanced parens/quotes or a bare NOT would otherwise
+    # raise OperationalError and silently degrade the endpoint. ``None`` means
+    # no safe token survived, so match nothing.
+    from api.routers.gallery import _fts5_query_from
+    safe_query = _fts5_query_from(query)
+    if not safe_query:
+        return {}
     if scope == 'text':
         # FTS5 column-filter syntax: {col1 col2} : query
-        match_expr = f"{{caption caption_translated ocr_text}} : ({query})"
+        match_expr = f"{{caption caption_translated ocr_text}} : ({safe_query})"
     else:
-        match_expr = query
+        match_expr = safe_query
     try:
         cur = await conn.execute(
             "SELECT path, rank FROM photos_fts WHERE photos_fts MATCH ? "

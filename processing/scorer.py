@@ -588,6 +588,89 @@ def build_metric_vector(m, cfg, category, weights=None, penalties=None):
     return result
 
 
+def build_scoring_metrics(
+    *,
+    aesthetic,
+    face_count, face_quality, eye_sharpness, face_sharpness, face_ratio,
+    is_group_portrait, is_blink, isolation_bonus,
+    sharpness_data, color_data, histogram_data, mono_data, noise_data, contrast_data,
+    comp_score, power_point_score, leading_lines_score,
+    is_silhouette, tags,
+    iso, f_stop, shutter_speed=None,
+    quality_score=None, scoring_model='clip-mlp',
+    topiq_score=None, aesthetic_iaa=None, face_quality_iqa=None, liqe_score=None,
+    qalign_score=None, aesthetic_v25=None, deqa_score=None,
+    subject_sharpness=None, subject_prominence=None,
+    subject_placement=None, bg_separation=None,
+    form_data=None,
+    scoring_context=None, category_override=None,
+):
+    """Build the metrics dict consumed by :meth:`Facet.calculate_aggregate_logic`.
+
+    Single source of truth for the scoring feature space at scan time, shared by
+    the single-pass batch processor, the single-image PIL scorer, and the
+    multi-pass aggregate step, so all three feed calculate_aggregate_logic the
+    exact same keys. A key silently dropped from one path (tags, is_monochrome,
+    mean_luminance, is_group_portrait, face_sharpness, power_point_score,
+    contrast_score, noise_sigma, mean_saturation, ...) makes whole categories
+    unreachable and zeroes penalties for that path only. Technical sub-dicts are
+    read with the same defaults the multi-pass path uses so a partially computed
+    chunk degrades identically everywhere.
+    """
+    form = form_data or {}
+    return {
+        'aesthetic': aesthetic,
+        'quality_score': quality_score,
+        'scoring_model': scoring_model,
+        'comp_score': comp_score,
+        'face_count': face_count,
+        'face_quality': face_quality,
+        'eye_sharpness': eye_sharpness,
+        'face_sharpness': face_sharpness,
+        'tech_sharpness': sharpness_data.get('normalized', 5.0),
+        'color_score': color_data.get('normalized', 5.0),
+        'exposure_score': histogram_data.get('exposure_score', 5.0),
+        'face_ratio': face_ratio,
+        'tags': tags,
+        'isolation_bonus': isolation_bonus,
+        'is_blink': is_blink,
+        'is_group_portrait': is_group_portrait,
+        'shadow_clipped': histogram_data.get('shadow_clipped', 0),
+        'highlight_clipped': histogram_data.get('highlight_clipped', 0),
+        'is_silhouette': is_silhouette,
+        'histogram_spread': histogram_data.get('spread', 0),
+        'histogram_bimodality': histogram_data.get('bimodality', 0),
+        'mean_luminance': histogram_data.get('mean_luminance', 0.5),
+        'is_monochrome': mono_data.get('is_monochrome', 0),
+        'mean_saturation': mono_data.get('mean_saturation', 0),
+        'contrast_score': contrast_data.get('contrast_score', 5.0),
+        'noise_sigma': noise_data.get('noise_sigma', 0),
+        'leading_lines_score': leading_lines_score,
+        'power_point_score': power_point_score,
+        'topiq_score': topiq_score,
+        'aesthetic_iaa': aesthetic_iaa,
+        'face_quality_iqa': face_quality_iqa,
+        'liqe_score': liqe_score,
+        'qalign_score': qalign_score,
+        'aesthetic_v25': aesthetic_v25,
+        'deqa_score': deqa_score,
+        'subject_sharpness': subject_sharpness,
+        'subject_prominence': subject_prominence,
+        'subject_placement': subject_placement,
+        'bg_separation': bg_separation,
+        'form_symmetry': form.get('form_symmetry'),
+        'form_balance': form.get('form_balance'),
+        'form_edge_entropy': form.get('form_edge_entropy'),
+        'form_fractal': form.get('form_fractal'),
+        'color_harmony': form.get('color_harmony'),
+        'iso': iso,
+        'f_stop': f_stop,
+        'shutter_speed': shutter_speed,
+        'scoring_context': scoring_context,
+        'category_override': category_override,
+    }
+
+
 IQA_PASS_VRAM_MARGIN_GB = 2
 CPU_DEVICE_LABEL = "CPU"
 
@@ -1264,41 +1347,41 @@ class Facet:
             # then calculate_aggregate_logic was adding it again via leading_lines_blend)
             final_comp = comp_data['score']
 
-            # Pack ingredients for the score calculation (including EXIF for adjustments)
-            metrics = {
-                'aesthetic': aesthetic,
-                'face_count': face_res['face_count'],
-                'face_quality': face_res['face_quality'],
-                'eye_sharpness': face_res['eye_sharpness'],
-                'tech_sharpness': sharpness_data['normalized'],
-                'color_score': color_data['normalized'],
-                'exposure_score': histogram_data['exposure_score'],
-                'face_ratio': face_ratio,
-                'comp_score': final_comp,
-                'isolation_bonus': isolation_bonus,
-                'is_blink': is_blink,
-                # New clipping/silhouette data
-                'shadow_clipped': histogram_data.get('shadow_clipped', 0),
-                'highlight_clipped': histogram_data.get('highlight_clipped', 0),
-                'is_silhouette': is_silhouette,
-                # Histogram spread for dynamic range
-                'histogram_spread': histogram_data['spread'],
-                # B&W detection
-                'is_monochrome': mono_data['is_monochrome'],
-                # Contrast score for B&W images
-                'contrast_score': contrast_data['contrast_score'],
-                # Form facet + Matsuda color harmony
-                'form_symmetry': form_data.get('form_symmetry'),
-                'form_balance': form_data.get('form_balance'),
-                'form_edge_entropy': form_data.get('form_edge_entropy'),
-                'form_fractal': form_data.get('form_fractal'),
-                'color_harmony': form_data.get('color_harmony'),
-                # EXIF data for ISO/aperture adjustments
-                'iso': exif_data.get('iso'),
-                'f_stop': exif_data.get('f_stop'),
-                'scoring_context': photo_override.get('scoring_context'),
-                'category_override': photo_override.get('category_override'),
-            }
+            # Pack ingredients for the score calculation via the shared builder so
+            # this path feeds calculate_aggregate_logic the same feature space as
+            # the batch and multi-pass paths (tags, is_monochrome, mean_luminance,
+            # is_group_portrait, face_sharpness, power_point_score, noise_sigma,
+            # mean_saturation — all previously dropped here).
+            metrics = build_scoring_metrics(
+                aesthetic=aesthetic,
+                face_count=face_res['face_count'],
+                face_quality=face_res['face_quality'],
+                eye_sharpness=face_res['eye_sharpness'],
+                face_sharpness=face_res['face_sharpness'],
+                face_ratio=face_ratio,
+                is_group_portrait=face_res.get('is_group_portrait', 0),
+                is_blink=is_blink,
+                isolation_bonus=isolation_bonus,
+                sharpness_data=sharpness_data,
+                color_data=color_data,
+                histogram_data=histogram_data,
+                mono_data=mono_data,
+                noise_data=noise_data,
+                contrast_data=contrast_data,
+                comp_score=final_comp,
+                power_point_score=comp_data.get('power_point_score', 5.0),
+                leading_lines_score=leading_lines_data.get('leading_lines_score', 0),
+                is_silhouette=is_silhouette,
+                tags=tags,
+                iso=exif_data.get('iso'),
+                f_stop=exif_data.get('f_stop'),
+                shutter_speed=exif_data.get('shutter_speed'),
+                quality_score=quality_score,
+                scoring_model=scoring_model,
+                form_data=form_data,
+                scoring_context=photo_override.get('scoring_context'),
+                category_override=photo_override.get('category_override'),
+            )
 
             # Calculate final aggregate score and category using the centralized logic
             aggregate, category = self.calculate_aggregate_logic(metrics)
@@ -1409,37 +1492,61 @@ class Facet:
         categories_updated = 0
 
         with get_connection(self.db_path) as conn:
-            # Select columns needed for recalculation and category determination
-            recalc_cols = """
-                path, aesthetic, face_count, face_quality, eye_sharpness, face_sharpness,
-                face_ratio, tech_sharpness, color_score, exposure_score, comp_score,
-                isolation_bonus, is_blink, iso, f_stop, focal_length, shadow_clipped, highlight_clipped,
-                is_silhouette, histogram_spread, is_monochrome, contrast_score, tags,
-                leading_lines_score, histogram_bimodality, clip_embedding,
-                raw_sharpness_variance, raw_color_entropy, raw_eye_sharpness,
-                shutter_speed, is_group_portrait, mean_luminance, scoring_model, quality_score,
-                noise_sigma, mean_saturation, power_point_score, dynamic_range_stops,
-                histogram_data, topiq_score,
-                aesthetic_iaa, face_quality_iqa, liqe_score,
-                qalign_score, aesthetic_v25, deqa_score,
-                subject_sharpness, subject_prominence, subject_placement, bg_separation,
-                form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony
-            """
+            # Columns needed for recalculation and category determination, built
+            # conditionally: clip_embedding is the largest per-row BLOB, so it is
+            # fetched only when aesthetic will actually be recomputed from it —
+            # otherwise a 127k library streams ~0.5GB of embeddings into RAM only
+            # to discard them (honours the BLOB-exclusion invariant). histogram_data
+            # stays: it is decoded below to recompute exposure_score.
+            recalc_cols = [
+                'path', 'aesthetic', 'face_count', 'face_quality', 'eye_sharpness', 'face_sharpness',
+                'face_ratio', 'tech_sharpness', 'color_score', 'exposure_score', 'comp_score',
+                'isolation_bonus', 'is_blink', 'iso', 'f_stop', 'focal_length', 'shadow_clipped', 'highlight_clipped',
+                'is_silhouette', 'histogram_spread', 'is_monochrome', 'contrast_score', 'tags',
+                'leading_lines_score', 'histogram_bimodality',
+                'raw_sharpness_variance', 'raw_color_entropy', 'raw_eye_sharpness',
+                'shutter_speed', 'is_group_portrait', 'mean_luminance', 'scoring_model', 'quality_score',
+                'noise_sigma', 'mean_saturation', 'power_point_score', 'dynamic_range_stops',
+                'histogram_data', 'topiq_score',
+                'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
+                'qalign_score', 'aesthetic_v25', 'deqa_score',
+                'subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation',
+                'form_symmetry', 'form_balance', 'form_edge_entropy', 'form_fractal', 'color_harmony',
+            ]
+            if use_embeddings:
+                recalc_cols.append('clip_embedding')
+            cols_sql = ', '.join(recalc_cols)
+
             if category_filter:
-                cursor = conn.execute(f"SELECT {recalc_cols} FROM photos WHERE category = ?", (category_filter,))
+                row_count = conn.execute(
+                    "SELECT COUNT(*) FROM photos WHERE category = ?", (category_filter,)
+                ).fetchone()[0]
+                cursor = conn.execute(f"SELECT {cols_sql} FROM photos WHERE category = ?", (category_filter,))
             else:
-                cursor = conn.execute(f"SELECT {recalc_cols} FROM photos")
-            rows = cursor.fetchall()
-            row_count = len(rows)
+                row_count = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
+                cursor = conn.execute(f"SELECT {cols_sql} FROM photos")
 
             # Loaded once up front (not columns in recalc_cols — they live in
             # photo_scoring_overrides) so a rescore preserves any sticky
             # per-photo context/override instead of silently dropping it.
             overrides = get_photo_scoring_overrides(conn)
 
+            # Stream the read cursor and buffer only the small UPDATE tuples: the
+            # photos.category index makes updating rows still being scanned a
+            # Halloween-problem hazard, so every write lands after the cursor is
+            # fully drained. Streaming also keeps the histogram BLOBs transient
+            # instead of materialising the whole table in RAM.
+            def _stream_rows():
+                while True:
+                    fetched = cursor.fetchmany(1000)
+                    if not fetched:
+                        return
+                    yield from fetched
+
+            updates = []
             emit_progress('recompute', 0, row_count, force=True)
             recompute_t0 = time.time()
-            for i, row in enumerate(tqdm(rows, desc="Updating DB")):
+            for i, row in enumerate(tqdm(_stream_rows(), total=row_count, desc="Updating DB")):
                 row_dict = dict(row)
                 photo_override = overrides.get(row_dict['path'], {})
                 row_dict['scoring_context'] = photo_override.get('scoring_context')
@@ -1521,30 +1628,38 @@ class Facet:
                 categories_updated += 1
 
                 new_exposure = round(row_dict.get('exposure_score', 5.0), 4)
-                try:
-                    conn.execute(
-                        "UPDATE photos SET aggregate = ?, config_version = ?, category = ?, is_group_portrait = ?, exposure_score = ? WHERE path = ?",
-                        (round(new_score, 2), self.config.version_hash, category, new_is_group, new_exposure, row_dict['path'])
-                    )
-                except sqlite3.DatabaseError as e:
-                    # Updating `category` fires the photos_fts_au trigger; a
-                    # corrupt FTS5 index surfaces here as "database disk image
-                    # is malformed" even though PRAGMA integrity_check passes
-                    # (it doesn't validate FTS shadow tables). Point at the fix
-                    # instead of crashing with a misleading disk-image error.
-                    if 'malformed' in str(e).lower():
-                        raise RuntimeError(
-                            "Aggregate update failed with 'database disk image is malformed'. "
-                            "This is almost always a corrupt FTS5 search index (the photos_fts "
-                            "trigger fires on category changes), not actual data corruption. "
-                            "Run 'python database.py --rebuild-fts' and retry --recompute-average."
-                        ) from e
-                    raise
+                updates.append(
+                    (round(new_score, 2), self.config.version_hash, category,
+                     new_is_group, new_exposure, row_dict['path'])
+                )
 
                 processed = i + 1
                 elapsed = time.time() - recompute_t0
                 emit_progress('recompute', processed, row_count,
                               eta_seconds=(row_count - processed) * elapsed / processed)
+
+            # Apply every buffered update now that the read cursor is drained, so
+            # an in-flight category UPDATE never perturbs the scan (Halloween
+            # problem) and the whole rescore commits in one transaction.
+            try:
+                conn.executemany(
+                    "UPDATE photos SET aggregate = ?, config_version = ?, category = ?, is_group_portrait = ?, exposure_score = ? WHERE path = ?",
+                    updates,
+                )
+            except sqlite3.DatabaseError as e:
+                # Updating `category` fires the photos_fts_au trigger; a corrupt
+                # FTS5 index surfaces here as "database disk image is malformed"
+                # even though PRAGMA integrity_check passes (it doesn't validate
+                # FTS shadow tables). Point at the fix instead of crashing with a
+                # misleading disk-image error.
+                if 'malformed' in str(e).lower():
+                    raise RuntimeError(
+                        "Aggregate update failed with 'database disk image is malformed'. "
+                        "This is almost always a corrupt FTS5 search index (the photos_fts "
+                        "trigger fires on category changes), not actual data corruption. "
+                        "Run 'python database.py --rebuild-fts' and retry --recompute-average."
+                    ) from e
+                raise
 
             conn.commit()
 
@@ -1626,20 +1741,23 @@ class Facet:
         logger.info("Run --recompute-average to update aggregate scores with new comp_score values")
 
     @staticmethod
-    def _foreach_face_landmark(db_path, select_cols, desc, compute):
+    def _foreach_face_landmark(db_path, select_cols, desc, compute, where_extra=""):
         """Shared scaffold for the landmark-only face recompute passes.
 
         Selects ``select_cols`` from every face with a stored 106-pt landmark
-        blob, decodes each to a (106, 2) float32 array (undecodable blobs are
-        skipped and counted), and calls ``compute(row, landmarks)`` per face.
-        Returns ``(results, total_faces, no_landmark_count, decode_errors)``.
+        blob (optionally narrowed by ``where_extra``, an extra SQL fragment
+        appended to the WHERE clause), decodes each to a (106, 2) float32 array
+        (undecodable blobs are skipped and counted), and calls
+        ``compute(row, landmarks)`` per face. Returns
+        ``(results, total_faces, no_landmark_count, decode_errors)``.
         """
         import numpy as np
         from tqdm import tqdm
 
         with get_connection(db_path) as conn:
             rows = conn.execute(
-                f"SELECT {select_cols} FROM faces WHERE landmark_2d_106 IS NOT NULL"
+                f"SELECT {select_cols} FROM faces "
+                f"WHERE landmark_2d_106 IS NOT NULL{where_extra}"
             ).fetchall()
             no_landmark_count = conn.execute(
                 "SELECT COUNT(*) FROM faces WHERE landmark_2d_106 IS NULL"
@@ -1760,7 +1878,7 @@ class Facet:
         logger.info("Finished. Updated %s photos with eyes/expression scores.", len(update_data))
         return len(update_data)
 
-    def recompute_face_signals(self):
+    def recompute_face_signals(self, force=False):
         """Backfill per-face eyes-open and smile scores from stored 106-pt landmarks.
 
         Mirrors :meth:`recompute_eyes_expression` but writes the per-face
@@ -1768,6 +1886,13 @@ class Facet:
         source for the culling face panel) instead of the photo-level
         aggregates. No InsightFace re-run — pure geometry on stored landmarks,
         so no pixels are needed.
+
+        By default this is a *backfill*: only faces still missing a signal
+        (``eyes_open_score IS NULL OR smile_score IS NULL``) are recomputed, so a
+        richer MediaPipe blendshape value already stored for a face is never
+        overwritten by the cruder landmark-geometry estimate — and a turned head,
+        where the geometry gate returns NULL, is not blanked. Pass ``force=True``
+        to rewrite every face with a landmark from geometry.
         """
         from analyzers import FaceAnalyzer as _FaceAnalyzer
 
@@ -1776,9 +1901,10 @@ class Facet:
                     _FaceAnalyzer.compute_smile_score(landmarks),
                     row['id'])
 
+        where_extra = "" if force else " AND (eyes_open_score IS NULL OR smile_score IS NULL)"
         update_data, total, no_landmark_count, decode_errors = Facet._foreach_face_landmark(
             self.db_path, "id, landmark_2d_106",
-            "Per-face signals from landmarks", _compute)
+            "Per-face signals from landmarks", _compute, where_extra=where_extra)
 
         if not total:
             logger.info("No faces with stored landmarks — nothing to compute.")
@@ -2201,78 +2327,6 @@ class Facet:
         except Exception as e:
             logger.warning("EXIF extraction failed for %s: %s", image_path, e)
         return _sanitize_exif_numeric(exif_data)
-
-    def save_photo(self, res, pil_img):
-        """Generates a thumbnail and saves the full result to SQLite."""
-        res['thumbnail'] = generate_photo_thumbnail(pil_img)
-
-        # Form facet columns default to NULL for callers that did not compute
-        # them (named-param INSERT needs every key).
-        from analyzers.form_facet import FORM_METRIC_COLUMNS
-        for form_col in FORM_METRIC_COLUMNS:
-            res.setdefault(form_col, None)
-
-        with get_connection(self.db_path, row_factory=False) as conn:
-            conn.execute(_photos_upsert('''
-                INSERT OR REPLACE INTO photos (
-                    path, filename, category, image_width, image_height,
-                    date_taken, camera_model, lens_model, iso, f_stop,
-                    shutter_speed, focal_length, focal_length_35mm, aesthetic, face_count, face_quality,
-                    eye_sharpness, face_sharpness, face_ratio, tech_sharpness, color_score,
-                    exposure_score, comp_score, isolation_bonus, is_blink, phash, aggregate, thumbnail,
-                    clip_embedding, raw_sharpness_variance, histogram_data, histogram_spread,
-                    mean_luminance, histogram_bimodality, power_point_score, raw_color_entropy,
-                    raw_eye_sharpness, config_version,
-                    shadow_clipped, highlight_clipped, is_silhouette, is_group_portrait, leading_lines_score,
-                    face_confidence, is_monochrome, mean_saturation,
-                    dynamic_range_stops, noise_sigma, contrast_score, tags,
-                    quality_score, composition_explanation, scoring_model, composition_pattern,
-                    form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
-                    gps_latitude, gps_longitude, scanned_at
-                )
-                VALUES (
-                    :path, :filename, :category, :image_width, :image_height,
-                    :date_taken, :camera_model, :lens_model, :iso, :f_stop,
-                    :shutter_speed, :focal_length, :focal_length_35mm, :aesthetic, :face_count, :face_quality,
-                    :eye_sharpness, :face_sharpness, :face_ratio, :tech_sharpness, :color_score,
-                    :exposure_score, :comp_score, :isolation_bonus, :is_blink, :phash, :aggregate, :thumbnail,
-                    :clip_embedding, :raw_sharpness_variance, :histogram_data, :histogram_spread,
-                    :mean_luminance, :histogram_bimodality, :power_point_score, :raw_color_entropy,
-                    :raw_eye_sharpness, :config_version,
-                    :shadow_clipped, :highlight_clipped, :is_silhouette, :is_group_portrait, :leading_lines_score,
-                    :face_confidence, :is_monochrome, :mean_saturation,
-                    :dynamic_range_stops, :noise_sigma, :contrast_score, :tags,
-                    :quality_score, :composition_explanation, :scoring_model, :composition_pattern,
-                    :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
-                    :gps_latitude, :gps_longitude, datetime('now')
-                )
-            '''), res)
-
-            # Refresh this photo's faces (the UPSERT above no longer cascade-deletes
-            # them), then re-store embeddings, landmarks, thumbnails and per-face
-            # quality signals for recognition + culling.
-            conn.execute("DELETE FROM faces WHERE photo_path = ?", (res['path'],))
-            face_details = res.get('face_details', [])
-            for face in face_details:
-                if face.get('embedding'):
-                    conn.execute(FACES_UPSERT_SQL, face_upsert_row(res['path'], face))
-
-        # Emit plugin events
-        from plugins import get_plugin_manager
-        pm = get_plugin_manager()
-        if pm:
-            event_data = {
-                'path': res.get('path'),
-                'filename': res.get('filename'),
-                'aggregate': res.get('aggregate', 0),
-                'aesthetic': res.get('aesthetic', 0),
-                'comp_score': res.get('comp_score', 0),
-                'category': res.get('category', ''),
-                'tags': res.get('tags', ''),
-            }
-            pm.emit('on_score_complete', event_data)
-            if (res.get('aggregate') or 0) >= pm.high_score_threshold:
-                pm.emit('on_high_score', event_data)
 
     def save_photos_batch(self, results_with_images):
         """

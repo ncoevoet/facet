@@ -25,9 +25,13 @@ describe('MapComponent', () => {
   let component: any;
   let mockApi: { get: Mock; thumbnailUrl: Mock };
 
+  // Explicit hook timeout above the default 10s: under full-suite load, many
+  // workers resolving dynamic import() chunks concurrently can contend for
+  // longer than that, and this hook flaking looks like a broken suite rather
+  // than the load-dependent timing issue it actually is.
   beforeAll(async () => {
     ({ MapComponent } = await import('./map.component'));
-  });
+  }, 20000);
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -60,8 +64,16 @@ describe('MapComponent', () => {
     it('should escape HTML special characters', () => {
       expect(component.escapeHtml('<script>alert("xss")</script>')).not.toContain('<script>');
       expect(component.escapeHtml('a & b')).toBe('a &amp; b');
-      // textContent/innerHTML does not escape quotes, but does escape <, >, &
+      // textContent/innerHTML escapes <, >, & natively.
       expect(component.escapeHtml('<b>bold</b>')).not.toContain('<b>');
+    });
+
+    it('should escape quote characters so they cannot break out of a double-quoted HTML attribute', () => {
+      // Every caller interpolates this into src="...", alt="..." or
+      // data-photo-path="...". An unescaped `"` would close the attribute
+      // early, letting the rest of the string inject a new attribute/handler.
+      expect(component.escapeHtml('photo".onerror="alert(1)')).toBe('photo&quot;.onerror=&quot;alert(1)');
+      expect(component.escapeHtml("it's a test")).toBe('it&#39;s a test');
     });
 
     it('should return plain text unchanged', () => {

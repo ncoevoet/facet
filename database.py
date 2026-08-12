@@ -161,16 +161,38 @@ LIBRARY_REWRITING_ARGS = (
     'vacuum',
 )
 
+# Flags that route to a branch OTHER than the default init/upgrade. When none of
+# these is set the command falls through to init_database, which runs
+# ALTER/CREATE INDEX/ANALYZE DDL and so rewrites the library like any other job.
+_NON_INIT_ARGS = (
+    'stats_info', 'refresh_stats', 'info', 'migrate_tags', 'rebuild_fts',
+    'populate_vec', 'optimize', 'vacuum', 'analyze', 'backup',
+    'cleanup_orphaned_persons', 'cleanup_missing_photos', 'export_viewer_db',
+    'add_user', 'migrate_user_preferences', 'migrate_storage_fs',
+    'migrate_storage_db',
+)
+
+
+def _is_default_init(args):
+    """True when the parsed args select the default init/upgrade (schema) path."""
+    return not any(getattr(args, name, None) for name in _NON_INIT_ARGS)
+
 
 def _hold_library_lock(args):
     """Take the library mutex when the selected command rewrites the database.
 
-    VACUUM takes SQLite's exclusive lock and the migrations rewrite whole
-    columns of ``photos``, so any of these landing inside a scan or a
-    ``--recompute-average`` transaction dies with ``database is locked``.
+    VACUUM takes SQLite's exclusive lock and the migrations (including the
+    default init/upgrade's ALTER/CREATE INDEX/ANALYZE DDL) rewrite the
+    ``photos`` schema, so any of these landing inside a scan or a
+    ``--recompute-average`` transaction dies with ``database is locked`` — or,
+    worse for a DDL step that auto-commits, leaves a half-applied schema.
     A ``--dry-run`` inspection writes nothing and stays unguarded.
     """
-    if args.dry_run or not any(getattr(args, name, False) for name in LIBRARY_REWRITING_ARGS):
+    if args.dry_run:
+        return None
+    rewrites = (_is_default_init(args)
+                or any(getattr(args, name, False) for name in LIBRARY_REWRITING_ARGS))
+    if not rewrites:
         return None
     from facet import LIBRARY_JOB_MAINTENANCE, hold_library_lock_or_exit
     return hold_library_lock_or_exit(args.db, LIBRARY_JOB_MAINTENANCE)

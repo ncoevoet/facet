@@ -1,11 +1,12 @@
 """Tests for the core config module (ScoringConfig, CategoryFilter, determine_category)."""
 
 import json
+import logging
 import os
 
 import pytest
 
-from config.category_filter import CategoryFilter
+from config.category_filter import CategoryFilter, VALID_WEIGHT_COLUMNS
 from config.scoring_config import ScoringConfig
 
 # Resolve the real scoring_config.json path (repo root)
@@ -784,3 +785,217 @@ class TestTagVocabulary:
         """get_category_tags for unknown category returns empty list."""
         tags = scoring_config.get_category_tags("nonexistent_xyz")
         assert tags == []
+
+
+# ---------------------------------------------------------------------------
+# VALID_WEIGHT_COLUMNS / validate_weights (A3#1: documented metrics were
+# missing from the valid set, so validate_weights() silently deleted them)
+# ---------------------------------------------------------------------------
+
+
+class TestValidWeightColumnsCoversDocumentedMetrics:
+    """face_sharpness, power_point, saturation and noise are documented
+    weight keys (docs/SCORING.md, processing.scorer.SCORING_METRIC_KEYS,
+    written by optimization/weight_optimizer.py) but were missing from
+    VALID_WEIGHT_COLUMNS, so validate_weights() treated their *_percent
+    keys as invalid, deleted them, and persisted the deletion to disk."""
+
+    @pytest.mark.parametrize(
+        "metric", ["face_sharpness", "power_point", "saturation", "noise"]
+    )
+    def test_metric_is_a_valid_weight_column(self, metric):
+        assert metric in VALID_WEIGHT_COLUMNS
+
+    def test_percent_keys_survive_validate_round_trip(self, tmp_path):
+        """A category using these 4 keys must come out of
+        ScoringConfig(path, validate=True) unchanged -- not stripped and
+        not renormalized away."""
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": [{
+                "name": "test_cat",
+                "priority": 1,
+                "filters": {},
+                "weights": {
+                    "face_sharpness_percent": 25,
+                    "power_point_percent": 25,
+                    "saturation_percent": 25,
+                    "noise_percent": 25,
+                },
+            }],
+        }))
+
+        cfg = ScoringConfig(config_path=str(config_path), validate=True)
+
+        weights = cfg.config["categories"][0]["weights"]
+        for key in (
+            "face_sharpness_percent", "power_point_percent",
+            "saturation_percent", "noise_percent",
+        ):
+            assert key in weights, f"{key} was stripped by validate_weights()"
+            assert weights[key] == 25, f"{key} was renormalized: {weights[key]}"
+
+
+# ---------------------------------------------------------------------------
+# validate_weights decimal heuristic (A3#2: the 0b zero-padding step ran
+# before the decimal-vs-percent heuristic, so its len(...) > 1 guard was
+# always satisfied post-padding and a single small user-set value got
+# misread as a decimal fraction)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateWeightsDecimalHeuristic:
+    """A lone user-set _percent value must not be misinterpreted as a
+    decimal fraction just because 0b zero-pads the category out to every
+    valid weight column first."""
+
+    def _single_key_config(self, tmp_path, value=1):
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": [{
+                "name": "test_cat",
+                "priority": 1,
+                "filters": {},
+                "weights": {"tech_sharpness_percent": value},
+            }],
+        }))
+        return str(config_path)
+
+    def test_lone_small_value_is_not_decimal_converted(self, tmp_path, monkeypatch):
+        """Isolates the decimal heuristic (step 1) from step 4's separate,
+        legitimate normalize-to-100% pass (which -- correctly -- would also
+        scale a category's lone nonzero weight up to 100, masking the step 1
+        bug if left enabled). With normalization neutralized, a single
+        {"tech_sharpness_percent": 1} must stay 1, not become 100."""
+        monkeypatch.setattr(
+            ScoringConfig, "normalize_weights_to_100",
+            staticmethod(lambda *a, **k: None),
+        )
+        path = self._single_key_config(tmp_path, value=1)
+        cfg = ScoringConfig(config_path=path, validate=False)
+        cfg.validate_weights(verbose=False)
+        assert cfg.config["categories"][0]["weights"]["tech_sharpness_percent"] == 1
+
+    def test_decimal_to_percent_correction_is_not_logged_for_a_lone_value(self, tmp_path, caplog):
+        """End-to-end (normalization included): the value still ends up
+        renormalized to 100% -- a category with only one populated weight
+        is legitimately entitled to all of it -- but the correction log
+        must not attribute that to a bogus 'decimal to percent' misread."""
+        path = self._single_key_config(tmp_path, value=1)
+        cfg = ScoringConfig(config_path=path, validate=False)
+        with caplog.at_level(logging.INFO, logger="facet.config"):
+            cfg.validate_weights(verbose=True)
+        assert "decimal to percent" not in caplog.text
+
+    def test_genuine_multi_key_decimal_config_still_converts(self, tmp_path):
+        """Sanity check: a real decimal-style config (multiple small values
+        summing to ~1.0) must still be converted -- the fix narrows the
+        guard to single-key configs, it must not disable it entirely."""
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": [{
+                "name": "test_cat",
+                "priority": 1,
+                "filters": {},
+                "weights": {"aesthetic_percent": 0.3, "composition_percent": 0.7},
+            }],
+        }))
+        cfg = ScoringConfig(config_path=str(config_path), validate=False)
+        cfg.validate_weights(verbose=False)
+        weights = cfg.config["categories"][0]["weights"]
+        assert weights["aesthetic_percent"] == 30
+        assert weights["composition_percent"] == 70
+
+
+# ---------------------------------------------------------------------------
+# get_tag_vocabulary collision detection (A3#3: two categories claiming the
+# same tag name with different synonyms silently overwrote each other)
+# ---------------------------------------------------------------------------
+
+
+class TestTagVocabularyCollisionWarning:
+    """get_tag_vocabulary() must warn (not silently overwrite) when two
+    categories -- or a category and standalone_tags -- define the same tag
+    name with different synonym lists."""
+
+    def _config_with_colliding_tags(self, tmp_path):
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": [
+                {
+                    "name": "cat_a", "priority": 1, "filters": {},
+                    "tags": {"street": ["street", "urban", "city life"]},
+                },
+                {
+                    "name": "cat_b", "priority": 2, "filters": {},
+                    "tags": {"street": ["street scene", "city street"]},
+                },
+                {"name": "default", "priority": 999, "filters": {}},
+            ],
+        }))
+        return ScoringConfig(config_path=str(config_path), validate=False)
+
+    def test_collision_with_different_synonyms_logs_a_warning(self, tmp_path, caplog):
+        cfg = self._config_with_colliding_tags(tmp_path)
+        with caplog.at_level(logging.WARNING, logger="facet.config"):
+            cfg.get_tag_vocabulary()
+        assert any(
+            "street" in record.message and "redefines synonyms" in record.message
+            for record in caplog.records
+        )
+
+    def test_collision_last_definition_still_wins(self, tmp_path):
+        """Behaviour is otherwise unchanged: last category processed wins."""
+        cfg = self._config_with_colliding_tags(tmp_path)
+        vocab = cfg.get_tag_vocabulary()
+        assert vocab["street"] == ["street scene", "city street"]
+
+    def test_identical_synonyms_across_categories_do_not_warn(self, tmp_path, caplog):
+        """Two categories legitimately sharing the exact same synonym list
+        for a tag is not a collision."""
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": [
+                {"name": "cat_a", "priority": 1, "filters": {},
+                 "tags": {"bokeh": ["bokeh", "blurred background"]}},
+                {"name": "cat_b", "priority": 2, "filters": {},
+                 "tags": {"bokeh": ["bokeh", "blurred background"]}},
+            ],
+        }))
+        cfg = ScoringConfig(config_path=str(config_path), validate=False)
+        with caplog.at_level(logging.WARNING, logger="facet.config"):
+            cfg.get_tag_vocabulary()
+        assert not any("redefines synonyms" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Fallback defaults (A3#4: get_face_detection_settings / get_burst_detection_
+# settings fell back to values that had drifted from docs/CONFIGURATION.md
+# and the shipped config)
+# ---------------------------------------------------------------------------
+
+
+class TestFallbackDefaultsMatchDocumentedDefaults:
+    """When a config omits face_detection/burst_detection entirely, the
+    in-code fallback must match docs/CONFIGURATION.md (and the shipped
+    scoring_config.json), not a stale value that scores differently."""
+
+    def _minimal_config(self, tmp_path):
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": [{"name": "default", "priority": 999, "filters": {}}],
+        }))
+        return ScoringConfig(config_path=str(config_path), validate=False)
+
+    def test_face_detection_fallback_matches_docs(self, tmp_path):
+        cfg = self._minimal_config(tmp_path)
+        settings = cfg.get_face_detection_settings()
+        assert settings["min_confidence_percent"] == 65
+        assert settings["min_face_size"] == 20
+
+    def test_burst_detection_fallback_matches_docs(self, tmp_path):
+        cfg = self._minimal_config(tmp_path)
+        settings = cfg.get_burst_detection_settings()
+        assert settings["similarity_threshold_percent"] == 70
+        assert settings["time_window_minutes"] == 0.8
+        assert settings["rapid_burst_seconds"] == 0.4

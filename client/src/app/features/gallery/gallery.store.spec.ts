@@ -1104,6 +1104,46 @@ describe('GalleryStore optimistic mutations', () => {
     expect(store.photos()[1].is_favorite).toBe(false);
   });
 
+  it('ignores a second toggleFavorite call for the same path while the first is still in flight', async () => {
+    const response = new Subject<{ is_favorite: boolean }>();
+    apiPost.mockReturnValue(response.asObservable());
+
+    const first = store.toggleFavorite('/a.jpg');
+    const second = store.toggleFavorite('/a.jpg'); // dropped -- a call for this path is already in flight
+
+    response.next({ is_favorite: true });
+    response.complete();
+    await Promise.all([first, second]);
+
+    expect(apiPost).toHaveBeenCalledTimes(1);
+    expect(store.photos()[0].is_favorite).toBe(true);
+  });
+
+  it('does not let an in-flight toggleFavorite block a later call once it has settled', async () => {
+    apiPost.mockReturnValue(of({ is_favorite: true }));
+    await store.toggleFavorite('/a.jpg');
+    apiPost.mockReturnValue(of({ is_favorite: false }));
+    await store.toggleFavorite('/a.jpg');
+
+    expect(apiPost).toHaveBeenCalledTimes(2);
+    expect(store.photos()[0].is_favorite).toBe(false);
+  });
+
+  it('a pending toggleFavorite also blocks a toggleRejected for the same path (shared guard)', async () => {
+    const response = new Subject<{ is_favorite: boolean }>();
+    apiPost.mockReturnValue(response.asObservable());
+
+    const first = store.toggleFavorite('/a.jpg');
+    const second = store.toggleRejected('/a.jpg'); // dropped -- overlapping fields, same path in flight
+
+    response.next({ is_favorite: true });
+    response.complete();
+    await Promise.all([first, second]);
+
+    expect(apiPost).toHaveBeenCalledTimes(1);
+    expect(store.photos()[0].is_rejected).toBe(false);
+  });
+
   it('batchReject returns the pre-mutation snapshot on success', async () => {
     const snap = await store.batchReject(['/a.jpg', '/b.jpg']);
     expect(snap).not.toBeNull();
@@ -1140,9 +1180,11 @@ describe('GalleryStore optimistic mutations', () => {
 describe('GalleryStore restoreSnapshot', () => {
   let store: GalleryStore;
   let apiPost: Mock;
+  let snackOpen: Mock;
 
   beforeEach(() => {
     apiPost = vi.fn(() => of({}));
+    snackOpen = vi.fn();
     TestBed.configureTestingModule({
       providers: [
         GalleryStore,
@@ -1151,7 +1193,7 @@ describe('GalleryStore restoreSnapshot', () => {
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
         { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
-        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: MatSnackBar, useValue: { open: snackOpen } },
         { provide: I18nService, useValue: { t: (k: string) => k } },
       ],
     });
@@ -1205,6 +1247,33 @@ describe('GalleryStore restoreSnapshot', () => {
       ['/a.jpg', { is_favorite: false, is_rejected: false, star_rating: null }],
     ]));
     expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it('reverts only the photos whose restore call succeeded, and notifies on partial failure', async () => {
+    store.photos.set([
+      makePhoto({ path: '/a.jpg', is_rejected: true, is_favorite: false, star_rating: null }),
+      makePhoto({ path: '/b.jpg', is_rejected: true, is_favorite: false, star_rating: null }),
+    ]);
+    const snap = new Map([
+      ['/a.jpg', { is_favorite: false, is_rejected: false, star_rating: null }],
+      ['/b.jpg', { is_favorite: false, is_rejected: false, star_rating: null }],
+    ]);
+    // /b.jpg's inverse call fails server-side; /a.jpg's succeeds.
+    apiPost.mockImplementation((url: string, body: { photo_path?: string }) => {
+      if (url === '/photo/toggle_rejected' && body.photo_path === '/b.jpg') {
+        return throwError(() => new Error('boom'));
+      }
+      return of({});
+    });
+
+    await store.restoreSnapshot(snap);
+
+    // /a.jpg's call succeeded server-side, so local state is reverted to match.
+    expect(store.photos().find(p => p.path === '/a.jpg')!.is_rejected).toBe(false);
+    // /b.jpg's call failed server-side (still rejected there), so local state must
+    // NOT be blindly reverted to "unrejected" -- that would disagree with the server.
+    expect(store.photos().find(p => p.path === '/b.jpg')!.is_rejected).toBe(true);
+    expect(snackOpen).toHaveBeenCalled();
   });
 });
 

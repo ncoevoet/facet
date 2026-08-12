@@ -3,9 +3,15 @@
 Facet photo paths are mapped to Immich ``originalPath`` values through the
 configured ``immich.path_map`` prefix pairs, resolved to asset ids with
 ``POST /api/search/metadata``, and updated with batched ``PUT /api/assets``
-calls grouped by identical payload. Only ratings 1-5 are ever pushed (never 0,
-never -1); an optional single top-picks album is filled from a minimum-rating
-threshold. Immich's database is never touched — REST only.
+calls grouped by identical payload. A never-rated, never-favorited photo never
+pushes ``rating: 0`` (that would be noise on the vast majority of the library);
+but a photo that WAS pushed as rated/favorite and is later reset to 0/false
+must still reach Immich as an explicit clear, or the stale value is stuck
+there forever. ``stats_cache`` (a generic key/value side table, keyed per
+sync scope) remembers which paths were last pushed active so that transition
+is detected — see ``_fetch_rating_rows`` and ``_load_synced_state``. An
+optional single top-picks album is filled from a minimum-rating threshold.
+Immich's database is never touched — REST only.
 
 Expected ``scoring_config.json`` section::
 
@@ -29,6 +35,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 from urllib.parse import urlparse
@@ -156,13 +163,49 @@ def map_facet_path(path: str, path_map: list[dict]) -> str | None:
     return None
 
 
-def _fetch_rating_rows(conn, user_id: str | None) -> list:
-    """Read only paths that can push a rating 1-5 or ``isFavorite=true``.
+def _scope_key(scope: str | None) -> str:
+    """stats_cache key for the per-scope "paths last pushed active" state."""
+    return f"immich_synced_paths:{scope or 'global'}"
+
+
+def _load_synced_state(conn, scope: str | None) -> dict:
+    """Paths whose rating and/or favorite were ACTIVE as of the last successful push.
+
+    ``{path: {"rating": bool, "favorite": bool}}``, persisted in ``stats_cache``
+    (a generic key/value side table — no schema change needed). This is what
+    lets a photo that gets reset to 0/false be recognised as needing an
+    explicit clear even though it no longer matches the "currently active"
+    half of the ``_fetch_rating_rows`` WHERE clause.
+    """
+    row = conn.execute(
+        "SELECT value FROM stats_cache WHERE key = ?", (_scope_key(scope),)
+    ).fetchone()
+    if not row or not row[0]:
+        return {}
+    try:
+        return json.loads(row[0])
+    except (TypeError, ValueError):
+        return {}
+
+
+def _save_synced_state(conn, scope: str | None, state: dict) -> None:
+    conn.execute(
+        "INSERT INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+        (_scope_key(scope), json.dumps(state), time.time()),
+    )
+    conn.commit()
+
+
+def _fetch_rating_rows(conn, user_id: str | None, extra_paths=()) -> list:
+    """Read paths that can push a rating 1-5 / ``isFavorite=true``, plus any
+    path in *extra_paths* whose rating/favorite may have just been reset.
 
     Mirrors the xmp_export overlay: when *user_id* is given the per-user
     ``user_preferences`` overlay replaces the global rating columns (COALESCE-d
-    to 0), same as ``export_sidecars``. Pure-rejected rows (no rating, not a
-    favorite) are excluded — they can never push anything.
+    to 0), same as ``export_sidecars``. A row that is neither currently active
+    nor in *extra_paths* is excluded — it can never push anything (a
+    never-touched photo has no clear to push either).
     """
     if user_id:
         join = ("LEFT JOIN user_preferences up ON up.photo_path = photos.path "
@@ -174,10 +217,15 @@ def _fetch_rating_rows(conn, user_id: str | None) -> list:
         join = ""
         star_expr, fav_expr = "star_rating", "is_favorite"
         params = []
+    where = f"({star_expr} BETWEEN 1 AND 5) OR {fav_expr} = 1"
+    extra_paths = list(extra_paths)
+    if extra_paths:
+        where += f" OR photos.path IN ({','.join('?' * len(extra_paths))})"
+        params = params + extra_paths
     return conn.execute(
         f"SELECT photos.path AS path, {star_expr} AS star_rating, "
         f"{fav_expr} AS is_favorite FROM photos {join} "
-        f"WHERE ({star_expr} BETWEEN 1 AND 5) OR {fav_expr} = 1",
+        f"WHERE {where}",
         params,
     ).fetchall()
 
@@ -205,34 +253,43 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
     album_min_rating = push_cfg.get("top_picks_min_rating", 4)
     path_map = immich_cfg.get("path_map", [])
     multi_user = any(k != "shared_directories" for k in config.get("users", {}))
+    scope = user_id if multi_user else None
     with get_connection(db_path) as conn:
-        rows = _fetch_rating_rows(conn, user_id if multi_user else None)
+        synced_state = _load_synced_state(conn, scope)
+        rows = _fetch_rating_rows(conn, scope, extra_paths=synced_state.keys())
     summary = {"matched": 0, "unmatched": 0, "updated": 0,
                "skipped_unrated": 0, "albums_created": 0}
     groups: dict[tuple, list[str]] = {}
     album_asset_ids: list[str] = []
     unmatched_paths: list[str] = []
+    matched_paths: set[str] = set()
 
     # First pass (no network): compute each row's push payload and target path.
+    # A row previously pushed active (tracked in synced_state) that has since
+    # gone inactive still gets an explicit clear — 0 / false — even though a
+    # never-touched row never pushes a bare 0/false. That is the ONLY reason a
+    # 0 rating or false favorite is ever added to fields below.
     resolvable: list[tuple] = []
     for row in rows:
+        facet_path = row["path"]
+        prev = synced_state.get(facet_path, {})
         rating = _effective_rating(row["star_rating"])
         favorite = bool(row["is_favorite"])
         fields: dict = {}
-        if push_ratings and rating is not None:
-            fields["rating"] = rating
-        if push_favorites and (favorite or fields):
+        if push_ratings and (rating is not None or prev.get("rating")):
+            fields["rating"] = rating if rating is not None else 0
+        if push_favorites and (favorite or fields or prev.get("favorite")):
             fields["isFavorite"] = favorite
         if not fields:
             summary["skipped_unrated"] += 1
             continue
         resolvable.append(
-            (row["path"], map_facet_path(row["path"], path_map), fields, rating))
+            (facet_path, map_facet_path(facet_path, path_map), fields, rating, favorite))
 
     try:
         # One bulk pass builds a local path index; misses fall back to per-path.
         path_index = dict(client.iter_asset_paths()) if resolvable else {}
-        for facet_path, immich_path, fields, rating in resolvable:
+        for facet_path, immich_path, fields, rating, favorite in resolvable:
             asset_id = None
             if immich_path:
                 asset_id = path_index.get(immich_path) or client.search_asset_id(immich_path)
@@ -241,6 +298,7 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
                 unmatched_paths.append(facet_path)
                 continue
             summary["matched"] += 1
+            matched_paths.add(facet_path)
             groups.setdefault(tuple(sorted(fields.items())), []).append(asset_id)
             if rating is not None and rating >= album_min_rating:
                 album_asset_ids.append(asset_id)
@@ -255,6 +313,26 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
             else:
                 client.create_album(album_name, album_asset_ids)
                 summary["albums_created"] = 1
+        if not dry_run:
+            # Only rows actually confirmed pushed (matched_paths) advance the
+            # tracked state; an unmatched row keeps its prior entry so the next
+            # sync retries it instead of losing the clear. Derived from the
+            # ACTUAL fields sent (not the raw DB rating/favorite) so a field
+            # disabled via push_ratings/push_favorites is never tracked as if
+            # it had been pushed.
+            new_state = dict(synced_state)
+            for facet_path, _, fields, _, _ in resolvable:
+                if facet_path not in matched_paths:
+                    continue
+                active = {"rating": bool(fields.get("rating")),
+                         "favorite": fields.get("isFavorite") is True}
+                if active["rating"] or active["favorite"]:
+                    new_state[facet_path] = active
+                else:
+                    new_state.pop(facet_path, None)
+            if new_state != synced_state:
+                with get_connection(db_path) as write_conn:
+                    _save_synced_state(write_conn, scope, new_state)
     except (urllib_error.URLError, TimeoutError) as e:
         e.partial_summary = dict(summary)
         raise

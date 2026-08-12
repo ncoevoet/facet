@@ -220,13 +220,18 @@ def _run_retrain(db_path, scope, pending=0):
 
     Deferred rather than run when another process holds the library lock;
     ``pending`` is handed back so the batch survives to trigger the next one.
+    A training exception is handed the same way (once, not twice — the
+    lock-deferral return already gave it back) so a broken run never discards
+    the accumulated comparisons.
     """
     global _retrain_running
     library_lock = None
+    counter_returned = False
     try:
         library_lock = _hold_library_lock(db_path, scope)
         if library_lock is None:
             _give_back_counter(db_path, scope, pending)
+            counter_returned = True
             return
         from optimization.personal_ranker import train_ranker
         result = train_ranker(db_path=db_path, user_id=scope)
@@ -260,6 +265,8 @@ def _run_retrain(db_path, scope, pending=0):
             logger.warning("Auto-retrain keeper (scope=%s) failed", scope, exc_info=True)
     except Exception:  # noqa: BLE001 — background worker must never propagate
         logger.warning("Auto-retrain (scope=%s) failed", scope, exc_info=True)
+        if not counter_returned:
+            _give_back_counter(db_path, scope, pending)
     finally:
         if library_lock is not None:
             library_lock.release()

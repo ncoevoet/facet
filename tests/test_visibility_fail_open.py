@@ -58,7 +58,7 @@ def test_authenticated_multi_user_scoped_to_directories():
         mock.patch("api.db_helpers.get_user_directories", return_value=["/photos/alice"]),
     ):
         sql, params = get_visibility_clause("alice")
-    assert sql == "(photos.path LIKE ?)"
+    assert sql == "(photos.path LIKE ? ESCAPE '\\')"
     assert params == ["/photos/alice/%"]
 
 

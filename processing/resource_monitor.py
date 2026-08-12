@@ -104,23 +104,20 @@ class ResourceMonitor:
 
     Auto-tuning capabilities:
     - GPU batch size: Reduced when VRAM exceeds limit
-    - RAM chunk size (multi-pass): Reduced when system RAM exceeds limit
     """
 
     MAX_MEMORY_WAIT_SECONDS = 10
     MEMORY_RECOVERY_TARGET_PERCENT = 75
 
-    def __init__(self, batch_processor, config=None, multi_pass_processor=None):
+    def __init__(self, batch_processor, config=None):
         """
         Initialize the resource monitor.
 
         Args:
             batch_processor: BatchProcessor instance to monitor
             config: Optional config dict with auto_tuning settings
-            multi_pass_processor: Optional ChunkedMultiPassProcessor for RAM tuning
         """
         self.processor = batch_processor
-        self.multi_pass_processor = multi_pass_processor
         self.stop_event = threading.Event()
         self.thread = None
 
@@ -135,8 +132,7 @@ class ResourceMonitor:
         self.monitor_interval = auto_tuning.get('monitor_interval_seconds', 5)
         self.min_workers = auto_tuning.get('min_processing_workers', 1)
         self.max_workers = auto_tuning.get('max_processing_workers', 24)
-        self.min_batch_size = auto_tuning.get('min_batch_size', 2)
-        self.max_batch_size = auto_tuning.get('max_batch_size', 32)
+        self.min_batch_size = auto_tuning.get('min_gpu_batch_size', 2)
         self.memory_limit_percent = auto_tuning.get('memory_limit_percent', 85)
         self.cpu_target_percent = auto_tuning.get('cpu_target_percent', 80)
 
@@ -259,72 +255,19 @@ class ResourceMonitor:
     def _apply_tuning(self):
         """Apply auto-tuning based on current metrics.
 
-        Handles both GPU batch size (for single-pass/batch processing) and
-        RAM chunk size (for multi-pass mode).
+        Reduces the GPU batch size when memory exceeds the configured limit.
+        (Multi-pass RAM chunk tuning lives in MultiPassResourceMonitor.)
         """
         metrics = self.get_metrics()
-        processor_metrics = self.processor.get_metrics()
-
-        # Get current state
-        queue_timeouts = processor_metrics.get('queue_timeouts', 0)
-        cpu_usage = metrics.get('cpu_percent', 0)
         memory_usage = metrics.get('memory_percent', 0)
 
-        # Tuning logic
-        # 1. Memory limit check (graceful reduction)
+        # Memory limit check (graceful reduction)
         if memory_usage > self.memory_limit_percent:
             self._graceful_memory_reduction(memory_usage)
-            return
-
-        # 2. Multi-pass RAM chunk tuning (if multi_pass_processor is set)
-        if self.multi_pass_processor is not None:
-            self._apply_ram_chunk_tuning(memory_usage)
-
-        # 3. Queue starvation (GPU waiting for images)
-        # If we're getting timeouts and CPU has headroom, suggest more workers
-        timeout_rate = queue_timeouts / max(1, processor_metrics.get('images_processed', 1))
-        if timeout_rate > 0.05 and cpu_usage < self.cpu_target_percent:
-            # Signal that more workers might help
-            with self._metrics_lock:
-                self.resource_metrics['recommendation'] = 'increase_workers'
-        elif timeout_rate < 0.01 and cpu_usage > self.cpu_target_percent:
-            # CPU is overloaded, might need fewer workers
-            with self._metrics_lock:
-                self.resource_metrics['recommendation'] = 'decrease_workers'
-        else:
-            with self._metrics_lock:
-                self.resource_metrics['recommendation'] = None
-
-    def _apply_ram_chunk_tuning(self, memory_usage):
-        """Apply RAM-based auto-tuning for multi-pass chunk size.
-
-        Args:
-            memory_usage: Current memory usage percentage (0-100)
-        """
-        if self.multi_pass_processor is None:
-            return
-
-        # High memory usage: reduce chunk size
-        if memory_usage > self.memory_limit_percent:
-            self.multi_pass_processor.reduce_chunk_size()
-        # Low memory usage with headroom: consider increasing
-        elif memory_usage < (self.memory_limit_percent - 20):
-            # Only increase if consistently low (check rolling average)
-            samples = self.resource_metrics.get('samples', [])
-            if len(samples) >= 3:
-                recent_avg = sum(s.get('memory_percent', 0) for s in samples[-3:]) / 3
-                if recent_avg < (self.memory_limit_percent - 20):
-                    self.multi_pass_processor.increase_chunk_size()
 
     def _graceful_memory_reduction(self, current_usage):
         """Handle memory limit exceeded by reducing batch size."""
         logger.warning("Memory usage at %.1f%%, reducing batch size...", current_usage)
-
-        # Evict CPU-cached models first (may free enough RAM)
-        if self.multi_pass_processor is not None:
-            mm = getattr(self.multi_pass_processor, 'model_manager', None)
-            if mm is not None:
-                mm.evict_cpu_cache()
 
         # Reduce batch size by 25%
         current_batch = self.processor.batch_size

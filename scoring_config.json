@@ -40,7 +40,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -112,7 +116,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.5,
@@ -177,7 +185,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.1,
@@ -235,14 +247,20 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {},
       "tags": {
         "street": [
           "street",
           "urban",
-          "city life"
+          "city life",
+          "street scene",
+          "city street"
         ],
         "candid": [
           "candid",
@@ -302,7 +320,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -342,7 +364,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -384,7 +410,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.419,
@@ -428,7 +458,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.901,
@@ -468,7 +502,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -515,7 +553,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.171,
@@ -611,7 +653,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -661,7 +707,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.328,
@@ -790,7 +840,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.417,
@@ -844,7 +898,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.93,
@@ -955,7 +1013,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -1007,7 +1069,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -1057,7 +1123,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.512,
@@ -1114,7 +1184,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "tags": {
         "architecture": [
@@ -1208,7 +1282,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.922,
@@ -1216,10 +1294,6 @@
         "_clipping_multiplier": 0.501
       },
       "tags": {
-        "street": [
-          "street scene",
-          "city street"
-        ],
         "city": [
           "city",
           "cityscape",
@@ -1258,7 +1332,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -1296,7 +1374,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1346,7 +1428,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.3,
@@ -1400,7 +1486,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.72,
@@ -1454,7 +1544,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 1.5,
@@ -1524,7 +1618,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1571,7 +1669,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1618,7 +1720,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.216,
@@ -1670,7 +1776,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -1753,7 +1863,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.463,
@@ -1866,7 +1980,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -1906,7 +2024,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -1947,7 +2069,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1988,7 +2114,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {}
     },
@@ -2027,7 +2157,11 @@
         "balance_percent": 0,
         "edge_entropy_percent": 0,
         "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "color_harmony_percent": 0,
+        "face_sharpness_percent": 0,
+        "power_point_percent": 0,
+        "saturation_percent": 0,
+        "noise_percent": 0
       },
       "modifiers": {}
     }

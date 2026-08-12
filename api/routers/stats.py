@@ -101,10 +101,10 @@ def _stats_filter_where(user: Optional[CurrentUser],
     params = list(vp)
     if date_from:
         clause += ' AND date_taken >= ?'
-        params.append(date_from)
+        params.append(to_exif_date(date_from))
     if date_to:
         clause += ' AND date_taken <= ?'
-        params.append(date_to + ' 23:59:59')
+        params.append(to_exif_date(date_to) + ' 23:59:59')
     if category:
         clause += ' AND category = ?'
         params.append(category)

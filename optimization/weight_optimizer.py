@@ -430,6 +430,7 @@ class WeightOptimizer:
         min_comparisons: int = 30,
         include_ties: bool = True,
         sources: Optional[List[str]] = None,
+        l2_regularization: float = 0.01,
     ) -> Dict:
         """
         K-fold cross-validation for robust weight optimization.
@@ -437,11 +438,20 @@ class WeightOptimizer:
         Splits comparisons into k folds, trains on k-1 folds, and evaluates
         on the held-out fold. Returns average weights and CV accuracy.
 
+        Each fold is trained with the SAME L2-regularized objective (anchored
+        to the current live weights) that ``optimize_weights_direct`` actually
+        ships — otherwise the CV accuracy this method reports as a deploy gate
+        would be scoring a different, unregularized/uniform-start model than
+        the one that goes live, understating (or overstating) the real
+        held-out accuracy.
+
         Args:
             category: Category to optimize
             n_folds: Number of cross-validation folds
             min_comparisons: Minimum comparisons required
             include_ties: Whether to include ties
+            l2_regularization: L2 penalty on weight changes from current weights
+                (must match ``optimize_weights_direct`` for the gate to be valid)
 
         Returns:
             Dict with:
@@ -465,6 +475,15 @@ class WeightOptimizer:
                 n_folds = len(all_data)
 
             n_features = len(self.SCORE_COMPONENTS)
+
+            # Current live weights: same anchor optimize_weights_direct regularizes
+            # toward, loaded/normalized the same way (see lines ~234-239 above).
+            old_weights = self._load_current_weights(category)
+            old_w = np.array([old_weights.get(c, 1.0 / n_features) for c in self.SCORE_COMPONENTS])
+            if old_w.sum() > 0:
+                old_w = old_w / old_w.sum()
+            else:
+                old_w = np.ones(n_features) / n_features
 
             # Create fold indices
             indices = np.arange(len(all_data))
@@ -508,12 +527,16 @@ class WeightOptimizer:
                             total_nll += rw * np.log1p(np.exp(np.clip(d, -20, 20)))
                         else:
                             total_nll += rw * (d / 0.2) ** 2
+                    # Same L2 anchor to old_w as optimize_weights_direct's
+                    # neg_log_likelihood, or this fold trains a different model
+                    # than the one the CV accuracy is meant to gate.
+                    total_nll += l2_regularization * np.sum((weights - old_w) ** 2)
                     return total_nll
 
-                # Optimize
+                # Optimize — anchored at old_w, same as optimize_weights_direct.
                 bounds = [(0.0, 0.60) for _ in range(n_features)]
                 constraints = {'type': 'eq', 'fun': lambda w: w.sum() - 1.0}
-                start = np.ones(n_features) / n_features
+                start = old_w.copy()
 
                 try:
                     result = minimize(
@@ -565,9 +588,6 @@ class WeightOptimizer:
             # Average weights across folds
             avg_weights = np.mean(fold_weights, axis=0)
             avg_weights = avg_weights / avg_weights.sum()
-
-            # Load current weights for comparison
-            old_weights = self._load_current_weights(category)
 
             new_weights = {c: float(w) for c, w in zip(self.SCORE_COMPONENTS, avg_weights)}
 

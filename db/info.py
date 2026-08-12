@@ -8,18 +8,16 @@ from db.schema import (
     PHOTOS_COLUMNS, FACES_COLUMNS, PERSONS_COLUMNS,
     PHOTO_TAGS_COLUMNS, COMPARISONS_COLUMNS, LEARNED_SCORES_COLUMNS,
     WEIGHT_OPTIMIZATION_RUNS_COLUMNS, WEIGHT_CONFIG_SNAPSHOTS_COLUMNS,
-    INDEXES, PHOTO_TAGS_INDEXES, COMPARISONS_INDEXES,
-    LEARNED_SCORES_INDEXES, WEIGHT_OPTIMIZATION_RUNS_INDEXES,
-    WEIGHT_CONFIG_SNAPSHOTS_INDEXES, SCHEMA_VERSION,
+    ALL_INDEX_GROUPS, SCHEMA_VERSION,
 )
 
 
 def get_schema_info():
     """Return schema information for debugging/display."""
-    total_indexes = (len(INDEXES) + len(PHOTO_TAGS_INDEXES) +
-                     len(COMPARISONS_INDEXES) + len(LEARNED_SCORES_INDEXES) +
-                     len(WEIGHT_OPTIMIZATION_RUNS_INDEXES) +
-                     len(WEIGHT_CONFIG_SNAPSHOTS_INDEXES))
+    # Count from the same registry init_database creates from, so the reported
+    # total can never drift from what the schema actually declares (it used to
+    # omit the scan-runs / recommendation / album / user-preference groups).
+    total_indexes = sum(len(group) for group in ALL_INDEX_GROUPS)
     return {
         'photos_columns': len(PHOTOS_COLUMNS),
         'faces_columns': len(FACES_COLUMNS),

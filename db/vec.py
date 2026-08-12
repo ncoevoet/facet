@@ -5,6 +5,7 @@ Populates and syncs the photos_vec virtual table for sqlite-vec KNN queries.
 """
 
 import logging
+import re
 
 from db.connection import get_connection, HAS_SQLITE_VEC
 from db.schema import detect_embedding_dim
@@ -19,6 +20,32 @@ def _vec_table_exists(conn):
         "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='photos_vec'"
     ).fetchone()
     return row[0] > 0
+
+
+def _vec_declared_dim(conn):
+    """Embedding dimension photos_vec was declared with, or None if unknown.
+
+    Parses the stored CREATE SQL (``embedding float[NNN]``). The vec0 table
+    hard-codes its dimension at creation, so an index built for one profile's
+    embeddings (e.g. CLIP 768) silently rejects or mis-stores another's
+    (SigLIP 1152); comparing this against the live embedding dim catches a
+    profile switch.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='photos_vec'"
+    ).fetchone()
+    if not row or not row[0]:
+        return None
+    match = re.search(r'float\s*\[\s*(\d+)\s*\]', row[0], re.IGNORECASE)
+    return int(match.group(1)) if match else None
+
+
+def _distinct_embedding_lengths(conn):
+    """Number of distinct clip_embedding byte-lengths present in photos."""
+    return conn.execute(
+        "SELECT COUNT(DISTINCT LENGTH(clip_embedding)) FROM photos "
+        "WHERE clip_embedding IS NOT NULL"
+    ).fetchone()[0]
 
 
 def populate_vec_table(db_path='photo_scores_pro.db'):
@@ -41,6 +68,29 @@ def populate_vec_table(db_path='photo_scores_pro.db'):
             return 0
 
         expected_bytes = dim * 4
+
+        # A library holding more than one embedding dimension (a half-finished
+        # profile switch) can only be indexed for one of them — warn loudly
+        # rather than silently indexing the majority and skipping the rest.
+        if _distinct_embedding_lengths(conn) > 1:
+            logger.warning(
+                "photos holds multiple embedding dimensions; indexing only dim=%d. "
+                "Re-run the scan under one profile so all embeddings share a space.",
+                dim,
+            )
+
+        # If an existing index was built for a different dimension (profile
+        # switch), drop it so it is recreated at the current dim instead of
+        # freezing the old space or silently rejecting new rows.
+        if _vec_table_exists(conn):
+            declared = _vec_declared_dim(conn)
+            if declared is not None and declared != dim:
+                logger.warning(
+                    "photos_vec was built for dim=%d but embeddings are now dim=%d; "
+                    "dropping and rebuilding the index.", declared, dim,
+                )
+                conn.execute("DROP TABLE photos_vec")
+                conn.commit()
 
         if not _vec_table_exists(conn):
             conn.execute(f'''

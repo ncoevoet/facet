@@ -75,9 +75,37 @@ class TestJWTTokens:
         hole the claims close."""
         payload = decode_access_token(create_access_token({"sub": "alice"}))
         del payload[claim]
-        from api.auth import JWT_ALGORITHM, JWT_SECRET
+        from api.auth import JWT_ALGORITHM
+        from api.config import JWT_SECRET
 
         assert decode_access_token(jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)) is None
+
+    def test_encode_and_decode_pick_up_a_rotated_secret_without_reimport(self):
+        """DEBT A6#8: api.auth used to bind JWT_SECRET at import time, so a
+        rotated api.config.JWT_SECRET (what reload_config() actually mutates)
+        never took effect for this process -- both signing and verification
+        kept using the stale value forever. They must read it through the
+        module fresh on every call, like frame._secret() does."""
+        import api.config as api_config
+
+        original_secret = api_config.JWT_SECRET
+        try:
+            token_under_old_secret = create_access_token({"sub": "u1"})
+            assert decode_access_token(token_under_old_secret) is not None
+
+            api_config.JWT_SECRET = "rotated-secret-does-not-match-original"
+
+            # A token signed before rotation must fail verification now...
+            assert decode_access_token(token_under_old_secret) is None
+
+            # ...and a token minted after rotation must both sign AND verify
+            # under the new secret.
+            token_under_new_secret = create_access_token({"sub": "u1"})
+            payload = decode_access_token(token_under_new_secret)
+            assert payload is not None
+            assert payload["sub"] == "u1"
+        finally:
+            api_config.JWT_SECRET = original_secret
 
 
 # ---------------------------------------------------------------------------
